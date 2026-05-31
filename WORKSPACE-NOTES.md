@@ -11,6 +11,9 @@ Creat la 2026-05-31 din:
 Workspace-ul ruleaza in `DB_MODE=json` cu baza activa copiata in
 `data/app-db.json`.
 
+Installerul foloseste separat `data/app-db.seed.json`, astfel incat datele
+runtime locale sa nu fie incluse intr-o instalare noua.
+
 Copiile de siguranta locale sunt in `_local-runtime-backup/`:
 
 - `source-seed/app-db.json`

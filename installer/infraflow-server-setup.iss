@@ -47,8 +47,9 @@ Source: "..\client\public\icon-512.png"; DestDir: "{app}\client\public"; Flags: 
 Source: "..\db\*"; \
   DestDir: "{app}\db"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\data\app-db.json"; \
+Source: "..\data\app-db.seed.json"; \
   DestDir: "{app}\data"; \
+  DestName: "app-db.json"; \
   Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
 
 ; === Tools === (nssm.exe opÈ›ional â€” nu mai e necesar cu Task Scheduler)
