@@ -63,7 +63,7 @@ function nextNumber(db, year) {
 }
 
 function normalizeItems(db, lines) {
-  if (!Array.isArray(lines) || !lines.length) throwHttp(400, 'Referatul trebuie sa contina cel putin o pozitie.')
+  if (!Array.isArray(lines) || !lines.length) throwHttp(400, 'Adaugati cel putin un produs.')
   return lines.map((input, index) => {
     const material = (db.materials || []).find(item => String(item.id) === String(input.material_id || input.materialId))
     const denumire = String(input.denumire || input.name || materialLabel(material)).trim()

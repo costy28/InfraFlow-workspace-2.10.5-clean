@@ -451,6 +451,15 @@ export default function SetariPage() {
     }
   }
 
+  async function reimportCpvCodes() {
+    try {
+      const response = await api.post('/admin/import-cpv')
+      notify(`Coduri CPV sincronizate: ${response.data.imported} importate, ${response.data.skipped} duplicate sărite.`)
+    } catch (err) {
+      fail(err, 'Codurile CPV nu au putut fi reimportate.')
+    }
+  }
+
   function openCreateUser() {
     setEditingUser(null)
     setUserForm(emptyUserForm)
@@ -1166,7 +1175,8 @@ export default function SetariPage() {
               }}
             >
               <Upload className="mb-3 text-primary-600" size={36} />
-              <div className="font-semibold text-slate-900">Trage fișierul aici sau selectează InfraFlow-update-*.zip</div>
+              <div className="font-semibold text-slate-900">📦 Încarcă update manual</div>
+              <div className="mt-1 text-sm text-slate-600">Trage fișierul aici sau selectează InfraFlow-update-*.zip</div>
               <div className="mt-1 text-sm text-slate-500">Acceptă doar: InfraFlow-update-*.zip</div>
               <input
                 className="hidden"
@@ -1218,6 +1228,9 @@ export default function SetariPage() {
                 </tbody>
               </table>
             </div>
+          </Card>
+          <Card title="Catalog CPV" subtitle="Fallback administrativ pentru sincronizarea catalogului SEAP.">
+            <Button variant="secondary" onClick={reimportCpvCodes}>🔄 Reimportă coduri CPV</Button>
           </Card>
         </div>
       )}

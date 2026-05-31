@@ -58,5 +58,10 @@ function importSeed(db) {
   return { imported, duplicates }
 }
 
-module.exports = { CPV_PATTERN, ensureCpvCodes, cpvCatalog, findCpv, searchCpv, importSeed }
+function bootstrapCpvCatalog(db, syncMssqlCpvCodes) {
+  const result = importSeed(db)
+  const synced = typeof syncMssqlCpvCodes === 'function' ? syncMssqlCpvCodes(ensureCpvCodes(db)) : 0
+  return { ...result, synced }
+}
 
+module.exports = { CPV_PATTERN, ensureCpvCodes, cpvCatalog, findCpv, searchCpv, importSeed, bootstrapCpvCatalog }

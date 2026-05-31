@@ -90,6 +90,11 @@ BEGIN
   )
 END
 
+IF NOT EXISTS (SELECT 1 FROM procurement.referate_counter WHERE an = YEAR(GETDATE()))
+BEGIN
+  INSERT INTO procurement.referate_counter (an, last_nr) VALUES (YEAR(GETDATE()), 0)
+END
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_procurement_referate_status' AND object_id = OBJECT_ID(N'procurement.referate'))
 BEGIN
   CREATE INDEX IX_procurement_referate_status ON procurement.referate(status, data_intocmire)

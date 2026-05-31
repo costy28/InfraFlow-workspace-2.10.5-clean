@@ -5,7 +5,7 @@
 ;
 ; PREREQUISITE: Electron app trebuie construit înainte cu:
 ;   cd electron && npm install && npm run build
-;   → generează electron\dist\win-unpacked\InfraFlow.exe
+;   → generează electron\dist\win-unpacked\InfraFlow ERP.exe
 ;
 ; SAU folosiți electron-builder care generează propriul NSIS installer.
 ; Acest .iss este alternativa Inno Setup pentru Electron packaged app.
@@ -14,13 +14,13 @@
 [Setup]
 AppId={{B2C3D4E5-F6A7-8901-BCDE-F12345678901}
 AppName=InfraFlow ERP Client
-AppVersion=2.10.5
+AppVersion=2.11.1
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow Client
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Client-Setup-v2.10.5
+OutputBaseFilename=InfraFlow-Client-Setup-v2.11.1
 WizardStyle=modern
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -35,8 +35,7 @@ Name: "romanian"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; \
   Description: "Creează scurtătură pe Desktop"; \
-  GroupDescription: "Scurtături:"; \
-  Flags: checked
+  GroupDescription: "Scurtături:"
 Name: "autostart"; \
   Description: "Pornește InfraFlow Client la Windows login"; \
   GroupDescription: "Opțiuni:"; \
@@ -52,12 +51,12 @@ Source: "..\electron\dist\win-unpacked\*"; \
 
 [Icons]
 Name: "{group}\InfraFlow ERP"; \
-  Filename: "{app}\InfraFlow.exe"; \
+  Filename: "{app}\InfraFlow ERP.exe"; \
   Comment: "InfraFlow ERP Client"
 Name: "{group}\Dezinstalare InfraFlow Client"; \
   Filename: "{uninstallexe}"
 Name: "{commondesktop}\InfraFlow ERP"; \
-  Filename: "{app}\InfraFlow.exe"; \
+  Filename: "{app}\InfraFlow ERP.exe"; \
   Tasks: desktopicon
 
 [Registry]
@@ -65,7 +64,7 @@ Name: "{commondesktop}\InfraFlow ERP"; \
 Root: HKCU; \
   Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; \
   ValueType: string; ValueName: "InfraFlow Client"; \
-  ValueData: """{app}\InfraFlow.exe"""; \
+  ValueData: """{app}\InfraFlow ERP.exe"""; \
   Flags: uninsdeletevalue; \
   Tasks: autostart
 ; Salvare director instalare
@@ -76,7 +75,7 @@ Root: HKCU; \
   Flags: uninsdeletekey
 
 [Run]
-Filename: "{app}\InfraFlow.exe"; \
+Filename: "{app}\InfraFlow ERP.exe"; \
   Description: "Pornește InfraFlow ERP Client"; \
   Flags: nowait postinstall skipifsilent
 
@@ -84,7 +83,7 @@ Filename: "{app}\InfraFlow.exe"; \
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Client v2.10.5' + #13#10#13#10 +
+    'InfraFlow ERP Client v2.11.1' + #13#10#13#10 +
     'Aplicație desktop pentru accesarea serverului InfraFlow' + #13#10 +
     'din rețeaua locală sau de pe internet.' + #13#10#13#10 +
     'La prima pornire vei fi ghidat să introduci' + #13#10 +

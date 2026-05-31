@@ -210,6 +210,7 @@ try {
     @{ Source = "$ROOT\server";         Dest = "$tmpDir\server";     Recurse = $true  },
     @{ Source = "$ROOT\client\dist";    Dest = "$tmpDir\client\dist"; Recurse = $true  },
     @{ Source = "$ROOT\db";             Dest = "$tmpDir\db";          Recurse = $true  },
+    @{ Source = "$ROOT\scripts";        Dest = "$tmpDir\scripts";     Recurse = $true  },
     @{ Source = "$ROOT\version.json";   Dest = "$tmpDir\version.json"; Recurse = $false },
     @{ Source = "$ROOT\CHANGELOG.md";   Dest = "$tmpDir\CHANGELOG.md"; Recurse = $false }
   )

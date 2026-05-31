@@ -107,6 +107,10 @@ Write-Host "Instalare serviciu InfraFlow..." -ForegroundColor Green
 & $nssm set InfraFlow AppRotateOnline 1
 & $nssm set InfraFlow AppRotateSeconds 86400
 & $nssm set InfraFlow AppRotateBytes 10485760
+& $nssm set InfraFlow AppExit Default Restart
+
+# Windows Service Control Manager: restart după 5s, 10s și 30s la crash.
+& sc.exe failure InfraFlow reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
 
 # Pornire serviciu
 Write-Host "Pornire serviciu..." -ForegroundColor Green

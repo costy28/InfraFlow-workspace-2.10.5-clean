@@ -3,8 +3,20 @@ const express = require('express')
 const path = require('path')
 const fs = require('fs')
 const { requireAuth } = require('./core/auth')
-const { readDb, writeDb } = require('./core/db')
+const { ensureDatabase, readDb, writeDb, syncMssqlCpvCodes, closeMssqlPool } = require('./core/db')
 const { incarcaLicenta } = require('./core/license')
+const { bootstrapCpvCatalog } = require('./modules/nomenclator/service')
+
+process.on('uncaughtException', (err) => {
+  console.error('[CRASH] Uncaught exception:', err)
+})
+process.on('unhandledRejection', (err) => {
+  console.error('[CRASH] Unhandled rejection:', err)
+})
+process.once('SIGTERM', () => closeMssqlPool())
+process.once('SIGINT', () => closeMssqlPool())
+
+ensureDatabase()
 
 const licentaStatus = incarcaLicenta()
 if (!licentaStatus.valida) {
@@ -21,6 +33,8 @@ global.LICENTA = licentaStatus.licenta
 
 const app = express()
 app.use(express.json({ limit: '10mb' }))
+app.get('/api/v1/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
+app.get('/api/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
 
 Promise.resolve()
   .then(() => require('./modules/messaging/routes').createDefaultChannels())
@@ -59,6 +73,7 @@ app.use('/api', require('./modules/integration/autominder/routes'))
 app.use('/api', require('./modules/integration/autominder/full-import'))
 app.use('/api', require('./modules/integration/gps/routes'))
 app.use('/api', require('./modules/controlling/routes'))
+app.use('/api', require('./modules/hr/echipamente-routes'))
 app.use('/api', require('./modules/hr/routes'))
 app.use('/api', require('./modules/mechanization/routes'))
 app.use('/api', require('./modules/gestiune/routes'))
@@ -72,7 +87,6 @@ app.use('/api', require('./modules/archive/routes'))
 app.use('/api', require('./modules/secretariat/routes'))
 app.use('/api', require('./modules/snow-removal/routes'))
 app.use('/api', require('./modules/ai/routes'))
-require('./scheduler')
 
 // SPA fallback — caută client/dist în mai multe locații posibile (dev, prod, installer)
 const clientPaths = [
@@ -100,6 +114,11 @@ app.use((err, req, res, next) => {
 // Bootstrap: creare user admin la prima pornire (dacă db.users e gol)
 try {
   const _db = readDb()
+  const cpvResult = bootstrapCpvCatalog(_db, syncMssqlCpvCodes)
+  if (cpvResult.imported || cpvResult.synced) {
+    writeDb(_db)
+    console.log(`[STARTUP] CPV import: ${cpvResult.imported} importate, ${cpvResult.duplicates} duplicate, ${cpvResult.synced} sincronizate MSSQL.`)
+  }
   if (!Array.isArray(_db.users) || _db.users.length === 0) {
     _db.users = [{
       id: 'admin-' + Date.now(),
@@ -119,15 +138,19 @@ try {
 } catch (err) {
   console.warn('Bootstrap admin skip:', err.message)
 }
+require('./scheduler')
 
 const PORT = Number(process.env.PORT || 4180) // port implicit 4180
-app.listen(PORT, () => {
-  console.log(`InfraFlow app.js pornit pe portul ${PORT}`)
-}).on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Portul ${PORT} e ocupat. Incearca: $env:PORT=${PORT+1} ; node server/app.js`)
-    process.exit(1)
-  }
-})
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`InfraFlow app.js pornit pe portul ${PORT}`)
+  }).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Portul ${PORT} e ocupat. Incearca: $env:PORT=${PORT+1} ; node server/app.js`)
+      return
+    }
+    console.error('[SERVER] Listener error:', err)
+  })
+}
 
 module.exports = app

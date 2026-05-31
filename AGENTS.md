@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.10.9** (build EXE v2.10.5 existent și funcțional)
-**Versiune în lucru: v2.10.9 → v2.10.10 → BUILD v2.11.0**
+**Versiune curentă sursă: v2.11.1** (build EXE v2.10.10 existent și funcțional)
+**Versiune în lucru: stabilizare v2.11.1**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -220,6 +220,7 @@ Resurse Umane
   ✅ Cereri concediu (CO/CM/CFP/CED)
   ✅ Autorizații + scadențe
   ✅ Documente HR
+  ✅ Echipamente protecție angajați (v2.10.10)
 
 Servicii Publice
   ✅ Salubrizare (rute, colectări)
@@ -249,7 +250,7 @@ Sistem
   ✅ Audit log
 ```
 
-### 🔄 ÎN LUCRU (v2.10.9 → v2.10.10)
+### ✅ IMPLEMENTAT ÎN SURSĂ (v2.10.6 → v2.11.1)
 
 ```
 UPDATE 006 — Modul Referate (v2.10.6) ✅ IMPLEMENTAT ÎN SURSĂ
@@ -293,18 +294,26 @@ UPDATE 009 — Export PAAP + Pontaj Nexus (v2.10.9) ✅ IMPLEMENTAT ÎN SURSĂ
      2 rânduri per angajat, formatare Excel completă,
      Sheet Legenda, zilele weekend/libere colorate
 
-UPDATE 010 — Echipamente Protecție HR (v2.10.10)
-  🔄 Mărimi per angajat (salopetă/bocanci/cizme)
-  🔄 Istoric dotări + data expirare
-  🔄 Raport necesar per departament
+UPDATE 010 — Echipamente Protecție HR (v2.10.10) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Mărimi per angajat (salopetă/bocanci/cizme)
+  ✅ Istoric dotări + data expirare
+  ✅ Raport necesar per departament
      (format identic tABELE_MARIMI_ECHIPAMENT.xlsx)
-  🔄 Export Excel pentru furnizor cu coduri articol
-  🔄 Creare automată Referat Aprovizionare din raport
-  🔄 Alerte expirare echipamente (30/60/90 zile)
+  ✅ Export Excel pentru furnizor cu coduri articol
+  ✅ Creare automată Referat Aprovizionare din raport
+  ✅ Alerte expirare echipamente (30/60/90 zile)
   Tabele: hr.echipamente_tipuri, marimi,
           departament, angajat_echipamente, dotari
   Date seed: Ares 82/83 (Bleomarin/Kaki),
              4100217 (Portocaliu), bocanci, cizme
+
+UPDATE 011 — Stabilizare instalare + CPV + Referate + DB (v2.11.1) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Wizard URL client Electron la instalare fresh
+  ✅ Upload manual ZIP pentru update
+  ✅ Import CPV startup + endpoint superadmin + fallback JSON
+  ✅ Migrări MSSQL startup și pooling cu reconnect
+  ✅ Watchdog serviciu Windows
+  ✅ Referate superadmin fără departament obligatoriu
 ```
 
 ### 📋 BACKLOG (după BUILD v2.11.0)
@@ -468,19 +477,20 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.10.9
-BUILD EXE EXISTENT: 2.10.5 ✅
+VERSIUNE CURENTĂ SURSĂ: 2.11.1
+BUILD EXE EXISTENT: 2.10.10 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
   2.10.7  → UPDATE 007 e-Factura fix ✅
   2.10.8  → UPDATE 008 PAAP + CPV ✅
   2.10.9  → UPDATE 009 Export PAAP + Pontaj Nexus ✅
-  2.10.10 → UPDATE 010 Echipamente HR
+  2.10.10 → UPDATE 010 Echipamente HR ✅
+  2.11.1  → UPDATE 011 Stabilizare instalare + CPV + Referate + DB ✅
 
-NEXT BUILD: v2.11.0
-  → InfraFlow-Server-Setup-v2.11.0.exe
-  → InfraFlow-Client-Setup-v2.11.0.exe
+NEXT BUILD: v2.11.1
+  → InfraFlow-Server-Setup-v2.11.1.exe
+  → InfraFlow-Client-Setup-v2.11.1.exe
   → Versiunea citită automat din package.json
   → Script: scripts/build-installer.ps1
 
@@ -966,5 +976,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 31 Mai 2026 | InfraFlow sursă v2.10.9*
+*AGENTS.md actualizat: 31 Mai 2026 | InfraFlow sursă v2.11.1*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

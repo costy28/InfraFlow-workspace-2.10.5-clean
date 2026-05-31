@@ -45,6 +45,7 @@ const ALL_HR_TABS = [
   { id: 'Overview pontaje',   perm: 'hr:timesheets_manage' },
   { id: 'Concedii',           perm: 'hr:leave_manage' },
   { id: 'Autorizații',        perm: 'hr:authorizations_manage' },
+  { id: '🦺 Echipamente',      perm: 'hr:view' },
   { id: 'Training & Evaluări',perm: 'hr:training' },
   { id: 'Organigramă',        perm: 'hr:view' },
   { id: 'Documente HR',       perm: 'hr:contracts_manage' },
@@ -262,6 +263,13 @@ export default function HRPage() {
   const [evalForm, setEvalForm] = useState({ employee_id: '', data_evaluare: '', tip: 'periodica', calificativ: 'B', punctaj: '', observatii: '', obiective: '', recomandari: '' })
   const [evalModal, setEvalModal] = useState(false)
   const [evalEditing, setEvalEditing] = useState(null)
+  const [equipmentTab, setEquipmentTab] = useState('Necesar per Departament')
+  const [equipmentRows, setEquipmentRows] = useState([])
+  const [equipmentOrder, setEquipmentOrder] = useState([])
+  const [equipmentExpiry, setEquipmentExpiry] = useState([])
+  const [employeeEquipment, setEmployeeEquipment] = useState(null)
+  const [dotareModal, setDotareModal] = useState(false)
+  const [dotareForm, setDotareForm] = useState({ angajat_id: '', tip_id: '', marime: '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'predat', observatii: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState({ dept_id: '', activ: '', luna: currentMonth(), tip: '', alert: '' })
@@ -320,6 +328,10 @@ export default function HRPage() {
     if (activeTab === 'Tichete masă') loadMealTickets()
   }, [activeTab, mealMonth, mealDept])
 
+  useEffect(() => {
+    if (activeTab === '🦺 Echipamente') loadEquipmentData()
+  }, [activeTab])
+
   async function openEmployee(employee) {
     setSelectedEmployee(employee)
     setEmployeeDetails(null)
@@ -327,14 +339,17 @@ export default function HRPage() {
     setEditMode(false)
     setPhotoPreview(null)
     setPhotoFile(null)
+    setEmployeeEquipment(null)
     try {
-      const [detailsRes, coRes] = await Promise.all([
+      const [detailsRes, coRes, equipmentRes] = await Promise.all([
         api.get(`/hr/employees/${employee.id}`),
         api.get(`/hr/employees/${employee.id}/co-balance`).catch(() => ({ data: null })),
+        api.get(`/hr/echipamente/angajat/${employee.id}`).catch(() => ({ data: null })),
       ])
       setEmployeeDetails(detailsRes.data)
       setEditForm({ ...detailsRes.data })
       setCoBalance(coRes.data)
+      setEmployeeEquipment(equipmentRes.data)
     } catch {
       setEmployeeDetails(employee)
       setEditForm({ ...employee })
@@ -450,6 +465,54 @@ export default function HRPage() {
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut exporta pontajul Nexus.')
     }
+  }
+
+  async function loadEquipmentData() {
+    try {
+      const [reportRes, expiryRes] = await Promise.all([
+        api.get('/hr/echipamente/raport-necesar'),
+        api.get('/hr/echipamente/expirari', { params: { zile: 90 } }),
+      ])
+      setEquipmentRows(reportRes.data.rows || [])
+      setEquipmentOrder(reportRes.data.comanda || [])
+      setEquipmentExpiry(expiryRes.data.rows || [])
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nu am putut încărca echipamentele.')
+    }
+  }
+
+  async function loadEmployeeEquipment(employeeId) {
+    const response = await api.get(`/hr/echipamente/angajat/${employeeId}`)
+    setEmployeeEquipment(response.data)
+  }
+
+  async function saveEmployeeSizes(tipId, marime) {
+    if (!employeeDetails) return
+    const response = await api.put(`/hr/echipamente/angajat/${employeeDetails.id}/marimi`, { marimi: { [tipId]: marime } })
+    setEmployeeEquipment(response.data)
+  }
+
+  async function saveDotare(event) {
+    event.preventDefault()
+    await api.post('/hr/echipamente/dotare', dotareForm)
+    setDotareModal(false)
+    if (employeeDetails) await loadEmployeeEquipment(employeeDetails.id)
+    await loadEquipmentData()
+  }
+
+  async function exportEquipmentOrder() {
+    const response = await api.get('/hr/echipamente/comanda-excel', { responseType: 'blob' })
+    const url = URL.createObjectURL(response.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `Comanda_echipamente_${new Date().toISOString().slice(0, 10)}.xlsx`
+    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
+  }
+
+  async function createEquipmentReferat() {
+    const response = await api.post('/hr/echipamente/creeaza-referat', {})
+    setError('')
+    window.alert(`Referat ${response.data.referat.serie}/${response.data.referat.numar} creat în status draft.`)
   }
 
   async function compensateOvertime(event) {
@@ -1811,6 +1874,19 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         </div>
       ) : null}
 
+      {/* ─── ECHIPAMENTE PROTECȚIE ───────────────────────── */}
+      {activeTab === '🦺 Echipamente' ? (
+        <Card>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">{['Necesar per Departament', 'Expirări', 'Comandă Furnizor'].map(tab => <Button key={tab} size="sm" variant={equipmentTab === tab ? 'primary' : 'secondary'} onClick={() => setEquipmentTab(tab)}>{tab}</Button>)}</div>
+            <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={exportEquipmentOrder}>📥 Export Excel</Button><Button size="sm" onClick={createEquipmentReferat}>🛒 Creează Referat Aprovizionare</Button></div>
+          </div>
+          {equipmentTab === 'Necesar per Departament' ? <div className="overflow-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Departament</th><th className="px-3 py-2">Echipament</th><th className="px-3 py-2">Mărime</th><th className="px-3 py-2">Culoare</th><th className="px-3 py-2">Cod articol</th><th className="px-3 py-2 text-right">Cant.</th></tr></thead><tbody>{equipmentRows.map((row, index) => <tr key={`${row.departament}-${row.tip}-${row.marime}-${index}`} className="border-t"><td className="px-3 py-2">{row.departament}</td><td className="px-3 py-2">{row.tip}</td><td className="px-3 py-2">{row.marime}</td><td className="px-3 py-2">{row.culoare || '-'}</td><td className="px-3 py-2">{row.cod_articol || '-'}</td><td className="px-3 py-2 text-right">{row.cantitate}</td></tr>)}</tbody></table>{equipmentRows.length === 0 ? <p className="p-4 text-sm text-slate-500">Completează mărimile în fișele angajaților pentru a genera necesarul.</p> : null}</div> : null}
+          {equipmentTab === 'Expirări' ? <div className="grid gap-2">{equipmentExpiry.map(row => <div key={row.id} className={`rounded-md border px-3 py-2 text-sm ${row.zile_ramase < 0 ? 'border-rose-300 bg-rose-50' : row.zile_ramase <= 30 ? 'border-amber-300 bg-amber-50' : 'border-slate-200'}`}><strong>{row.angajat}</strong> · {row.tip_denumire} · expiră {row.data_expirare} ({row.zile_ramase} zile)</div>)}{equipmentExpiry.length === 0 ? <p className="text-sm text-slate-500">Nu există expirări în următoarele 90 zile.</p> : null}</div> : null}
+          {equipmentTab === 'Comandă Furnizor' ? <div className="overflow-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Cod articol</th><th className="px-3 py-2">Echipament</th><th className="px-3 py-2">Mărime</th><th className="px-3 py-2">Culoare</th><th className="px-3 py-2">CPV</th><th className="px-3 py-2 text-right">Cant.</th></tr></thead><tbody>{equipmentOrder.map((row, index) => <tr key={`${row.cod_articol}-${row.tip}-${row.marime}-${index}`} className="border-t"><td className="px-3 py-2">{row.cod_articol}</td><td className="px-3 py-2">{row.tip}</td><td className="px-3 py-2">{row.marime}</td><td className="px-3 py-2">{row.culoare}</td><td className="px-3 py-2">{row.cpv_cod}</td><td className="px-3 py-2 text-right">{row.cantitate}</td></tr>)}</tbody></table></div> : null}
+        </Card>
+      ) : null}
+
       {/* ─── ORGANIGRAMĂ ──────────────────────────────────── */}
       {activeTab === 'Organigramă' ? (
         <OrgChart employees={employees} departments={departments} onClickEmployee={openEmployee} />
@@ -2143,6 +2219,13 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 </div>
               </div>
             )}
+            <div className="rounded-lg border border-primary-100 bg-primary-50/40 p-3">
+              <div className="mb-3 flex items-center justify-between"><div className="text-xs font-semibold uppercase text-primary-700">🦺 Echipamente protecție</div><Button size="sm" onClick={() => { const first = employeeEquipment?.marimi?.[0]; setDotareForm({ angajat_id: employeeDetails.id, tip_id: first?.id || '', marime: first?.marime || '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'predat', observatii: '' }); setDotareModal(true) }}>+ Înregistrează dotare nouă</Button></div>
+              {employeeEquipment ? <>
+                <div className="grid gap-2 sm:grid-cols-3">{employeeEquipment.marimi.map(tip => <Select key={tip.id} label={tip.denumire} value={tip.marime || ''} onChange={event => saveEmployeeSizes(tip.id, event.target.value)} options={[{ value: '', label: 'Alege mărimea' }, ...tip.marimi_disponibile.map(marime => ({ value: marime, label: marime }))]} />)}</div>
+                <div className="mt-3 overflow-auto"><table className="min-w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1">Echipament</th><th>Mărime</th><th>Data dotare</th><th>Expiră</th><th>Cant.</th><th>Stare</th></tr></thead><tbody>{employeeEquipment.dotari.map(row => <tr key={row.id} className="border-t"><td className="py-1">{row.tip_denumire}</td><td>{row.marime}</td><td>{row.data_dotare}</td><td>{row.data_expirare}</td><td>{row.cantitate}</td><td>{row.stare}</td></tr>)}</tbody></table></div>
+              </> : <p className="text-sm text-slate-500">Se încarcă echipamentele...</p>}
+            </div>
           </div>
         ) : <p className="text-sm text-slate-500">Se incarca fișa...</p>}
       </Modal>
@@ -2398,6 +2481,17 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
             <Button type="button" variant="secondary" onClick={() => setNexusExportModal(false)}>Renunță</Button>
             <Button type="submit">📥 Exportă Nexus</Button>
           </div>
+        </form>
+      </Modal>
+
+      <Modal open={dotareModal} title="Înregistrează dotare echipament" onClose={() => setDotareModal(false)}>
+        <form className="grid gap-3" onSubmit={saveDotare}>
+          <Select label="Echipament" value={dotareForm.tip_id} onChange={event => { const tip_id = event.target.value; const tip = employeeEquipment?.marimi?.find(item => String(item.id) === String(tip_id)); setDotareForm({ ...dotareForm, tip_id, marime: tip?.marime || '' }) }} options={(employeeEquipment?.marimi || []).map(item => ({ value: item.id, label: item.denumire }))} />
+          <Input label="Mărime" value={dotareForm.marime} onChange={event => setDotareForm({ ...dotareForm, marime: event.target.value })} />
+          <Input label="Data dotării" type="date" value={dotareForm.data_dotare} onChange={event => setDotareForm({ ...dotareForm, data_dotare: event.target.value })} required />
+          <Input label="Cantitate" type="number" min="1" step="1" value={dotareForm.cantitate} onChange={event => setDotareForm({ ...dotareForm, cantitate: Number(event.target.value) })} />
+          <Input label="Observații" value={dotareForm.observatii} onChange={event => setDotareForm({ ...dotareForm, observatii: event.target.value })} />
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setDotareModal(false)}>Renunță</Button><Button type="submit">Salvează dotarea</Button></div>
         </form>
       </Modal>
     </div>

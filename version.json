@@ -1,5 +1,5 @@
 {
-  "version": "2.10.9",
+  "version": "2.11.1",
   "date": "2026-05-31",
-  "changelog": "## v2.10.9 — 2026-05-31\n### Export PAAP + Pontaj Nexus\n- Export PAAP SEAP cu 14 coloane oficiale, TVA 21%, curs BNR și date estimate.\n- Export Pontaj Nexus pe baza șablonului Publiserv, cu două rânduri per angajat, legendă și culori calendaristice.\n- Modal Export Nexus în HR → Pontaj."
+  "changelog": "## v2.11.1 — 2026-05-31\n### Stabilizare instalare și update\n- Wizard URL pentru client Electron la instalare fresh.\n- Upload manual ZIP pentru update, ca fallback la actualizarea online.\n- Import CPV automat la startup, endpoint superadmin și fallback JSON.\n- Migrări MSSQL idempotente la startup, pooling cu reconnect și watchdog serviciu.\n- Referate create de superadmin fără departament obligatoriu."
 }

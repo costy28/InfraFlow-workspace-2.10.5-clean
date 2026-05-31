@@ -5,6 +5,7 @@ const crypto = require('crypto')
 const childProcess = require('child_process')
 const os = require('os')
 const multer = require('multer')
+const express = require('express')
 const AdmZip = require('adm-zip')
 const { requireAuth, hashPassword } = require('../../core/auth')
 const {
@@ -278,7 +279,7 @@ router.post('/system/restart', async (req, res, next) => {
   }
 })
 
-router.post('/system/update-package', async (req, res, next) => {
+router.post('/system/update-package', express.raw({ type: ['application/zip', 'application/octet-stream'], limit: UPDATE_UPLOAD_MAX_BYTES }), async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
@@ -295,7 +296,7 @@ router.post('/system/update-package', async (req, res, next) => {
   }
 })
 
-router.get('/system/update/check', async (req, res, next) => {
+router.get(['/system/update/check', '/system/update-check'], async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
@@ -350,7 +351,7 @@ router.post('/system/update/install', async (req, res, next) => {
   }
 })
 
-router.post('/system/update/upload', updateUpload.single('update_package'), async (req, res, next) => {
+router.post(['/system/update/upload', '/system/update-upload'], updateUpload.single('update_package'), async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
@@ -374,6 +375,8 @@ router.post('/system/update/upload', updateUpload.single('update_package'), asyn
         error: `Versiunea ${versionInfo.version} nu e mai nouă decât ${current}`
       });
     }
+    addAudit(auth.db, auth.user, "update_manual_incarcat", `Pachet ${versionInfo.version} / ${req.file.originalname}`);
+    writeDb(auth.db);
     sendJson(res, 200, {
       ok: true,
       filename: req.file.filename,

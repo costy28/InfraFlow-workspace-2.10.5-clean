@@ -1,18 +1,18 @@
 ; ================================================
-; InfraFlow ERP â€” Server Installer
+; InfraFlow ERP — Server Installer
 ; Inno Setup 6 Script
 ; ================================================
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
 AppName=InfraFlow ERP Server
-AppVersion=2.10.5
+AppVersion=2.11.1
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Server-Setup-v2.10.5
+OutputBaseFilename=InfraFlow-Server-Setup-v2.11.1
 PrivilegesRequired=admin
 WizardStyle=modern
 Compression=lzma2/ultra64
@@ -24,12 +24,12 @@ UninstallDisplayIcon={app}\infraflow-server.ico
 Name: "romanian"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "sqlexpress"; Description: "InstaleazÄƒ SQL Server Express 2022 (dacÄƒ nu existÄƒ)"; GroupDescription: "BazÄƒ de date:"
-Name: "autostart"; Description: "PorneÈ™te InfraFlow automat la boot Windows"; GroupDescription: "OpÈ›iuni:"; Flags: checkedonce
-Name: "desktopicon"; Description: "CreeazÄƒ scurtÄƒturÄƒ pe Desktop"; GroupDescription: "ScurtÄƒturi:"; Flags: checkedonce
+Name: "sqlexpress"; Description: "Instalează SQL Server Express 2022 (dacă nu există)"; GroupDescription: "Bază de date:"
+Name: "autostart"; Description: "Pornește InfraFlow automat la boot Windows"; GroupDescription: "Opțiuni:"; Flags: checkedonce
+Name: "desktopicon"; Description: "Creează scurtătură pe Desktop"; GroupDescription: "Scurtături:"; Flags: checkedonce
 
 [Files]
-; === AplicaÈ›ie server ===
+; === Aplicație server ===
 Source: "..\server\*"; \
   DestDir: "{app}\server"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; \
@@ -52,7 +52,7 @@ Source: "..\data\app-db.seed.json"; \
   DestName: "app-db.json"; \
   Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
 
-; === Tools === (nssm.exe opÈ›ional â€” nu mai e necesar cu Task Scheduler)
+; === Tools === (nssm.exe opțional — nu mai e necesar cu Task Scheduler)
 Source: "nssm.exe"; DestDir: "{app}\tools"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; === Config & Scripts ===
@@ -74,7 +74,7 @@ Source: "node-v20-x64.msi"; \
   DestDir: "{tmp}"; \
   Flags: deleteafterinstall skipifsourcedoesntexist
 
-; === SQL Server Express (opÈ›ional) ===
+; === SQL Server Express (opțional) ===
 Source: "SQLEXPR_x64_ENU.exe"; \
   DestDir: "{tmp}"; \
   Flags: deleteafterinstall skipifsourcedoesntexist; \
@@ -106,7 +106,7 @@ Root: HKLM; \
 Root: HKLM; \
   Subkey: "SOFTWARE\InfraSuite\InfraFlow"; \
   ValueType: string; ValueName: "Version"; \
-  ValueData: "2.10.5"; \
+  ValueData: "2.11.1"; \
   Flags: uninsdeletevalue
 
 [Run]
@@ -122,7 +122,7 @@ Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass
 ; 4. Deschide browser
 Filename: "http://localhost:4180"; Description: "Deschide InfraFlow in browser"; Flags: nowait postinstall shellexec skipifsilent
 [UninstallRun]
-; Oprire task + kill proces node.exe care ruleazÄƒ app.js din folderul de instalare
+; Oprire task + kill proces node.exe care rulează app.js din folderul de instalare
 Filename: "powershell.exe"; \
   Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\uninstall-task.ps1"" -AppDir ""{app}"""; \
   RunOnceId: "StopTask"; \
@@ -132,15 +132,15 @@ Filename: "powershell.exe"; \
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Server v2.10.5' + #13#10#13#10 +
+    'InfraFlow ERP Server v2.11.1' + #13#10#13#10 +
     'Acest installer va configura:' + #13#10 +
-    '  â€¢ AplicaÈ›ia server Node.js (Express)' + #13#10 +
-    '  â€¢ Frontend React (servit de server)' + #13#10 +
-    '  â€¢ Task Scheduler Windows (pornire automatÄƒ la boot)' + #13#10 +
-    '  â€¢ Baza de date (JSON local sau SQL Server)' + #13#10#13#10 +
+    '  • Aplicația server Node.js (Express)' + #13#10 +
+    '  • Frontend React (servit de server)' + #13#10 +
+    '  • Task Scheduler Windows (pornire automată la boot)' + #13#10 +
+    '  • Baza de date (JSON local sau SQL Server)' + #13#10#13#10 +
     'Port implicit: 4180 (http://localhost:4180)' + #13#10 +
-    'Durata estimatÄƒ: 3-8 minute.' + #13#10#13#10 +
-    'Recomandat: Ã®nchideÈ›i toate aplicaÈ›iile Ã®nainte de instalare.';
+    'Durata estimată: 3-8 minute.' + #13#10#13#10 +
+    'Recomandat: închideți toate aplicațiile înainte de instalare.';
 end;
 
 function InitializeSetup(): Boolean;
@@ -150,17 +150,17 @@ var
 begin
   Result := True;
 
-  // VerificÄƒ dacÄƒ Node.js e instalat
+  // Verifică dacă Node.js e instalat
   NodeExists := FileExists(ExpandConstant('{sys}\node.exe')) or FileExists('C:\Program Files\nodejs\node.exe');
 
   if not NodeExists then
   begin
     Msg := 'Node.js 20 LTS nu a fost detectat pe acest sistem.' + #13#10#13#10 +
-           'DacÄƒ aÈ›i inclus node-v20-x64.msi Ã®n folderul installer/' + #13#10 +
+           'Dacă ați inclus node-v20-x64.msi în folderul installer/' + #13#10 +
            'el va fi instalat automat.' + #13#10#13#10 +
-           'Altfel, instalaÈ›i manual Node.js 20 LTS de la nodejs.org' + #13#10 +
-           'Ã®nainte de a continua.' + #13#10#13#10 +
-           'ContinuaÈ›i oricum?';
+           'Altfel, instalați manual Node.js 20 LTS de la nodejs.org' + #13#10 +
+           'înainte de a continua.' + #13#10#13#10 +
+           'Continuați oricum?';
     if MsgBox(Msg, mbConfirmation, MB_YESNO) = IDNO then
       Result := False;
   end;

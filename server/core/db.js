@@ -3,6 +3,7 @@ const path = require("path");
 const crypto = require("crypto");
 const childProcess = require("child_process");
 const os = require("os");
+const sql = require("mssql");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 loadPreferredDatabaseEnv(ROOT);
@@ -264,6 +265,7 @@ const rolePermissions = {
   ]
 };
 let mssqlDbCache = null;
+let mssqlPool = null;
 
 // Incarca automat configuratia bazei preferate din runtime, daca exista.
 function loadPreferredDatabaseEnv(root) {
@@ -451,13 +453,29 @@ function writeMssqlDb(db) {
 
 function ensureMssqlRelationalSchema() {
   if (!MSSQL_RELATIONAL_MODE) return;
-  runMssqlScriptFile(path.join(ROOT, "db", "mssql-schema.sql"));
+  applyMssqlMigrations();
   syncMssqlRelationalFromAppState();
 }
 
 function syncMssqlRelationalFromAppState() {
   if (!MSSQL_RELATIONAL_MODE) return;
-  runMssqlScriptFile(path.join(ROOT, "db", "mssql-import-app-state.sql"));
+  const importFile = path.join(ROOT, "db", "mssql-import-app-state.sql");
+  if (fs.existsSync(importFile)) runMssqlScriptFile(importFile);
+}
+
+function applyMssqlMigrations() {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) return [];
+  const migrationsDir = path.join(ROOT, "db", "migrations");
+  if (!fs.existsSync(migrationsDir)) return [];
+  const applied = [];
+  fs.readdirSync(migrationsDir)
+    .filter((name) => name.toLowerCase().endsWith(".sql"))
+    .sort((left, right) => left.localeCompare(right))
+    .forEach((name) => {
+      runMssqlScriptFile(path.join(migrationsDir, name));
+      applied.push(name);
+    });
+  return applied;
 }
 
 function syncMssqlCpvCodes(codes) {
@@ -486,6 +504,39 @@ function runMssqlScriptFile(filePath) {
   if (!fs.existsSync(filePath)) throw new Error(`Script SQL lipsa: ${filePath}`);
   const sql = fs.readFileSync(filePath, "utf8");
   runMssqlScalar(`${sql}\nselect 1;`, { timeoutMs: 300000 });
+}
+
+async function getMssqlPool() {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) return null;
+  if (mssqlPool?.connected) return mssqlPool;
+  if (mssqlPool) {
+    try { await mssqlPool.close(); } catch {}
+  }
+  mssqlPool = new sql.ConnectionPool(mssqlConnectionString());
+  mssqlPool.on("error", (error) => {
+    console.error("[DB] Pool error:", error);
+    mssqlPool = null;
+  });
+  await mssqlPool.connect();
+  return mssqlPool;
+}
+
+async function closeMssqlPool() {
+  const activePool = mssqlPool;
+  mssqlPool = null;
+  if (activePool) {
+    try { await activePool.close(); } catch {}
+  }
+}
+
+async function runMssqlScalarPooled(query, inputs = {}) {
+  const pool = await getMssqlPool();
+  if (!pool) return "";
+  const request = pool.request();
+  Object.entries(inputs).forEach(([name, value]) => request.input(name, value));
+  const result = await request.query(query);
+  const firstRow = result.recordset?.[0];
+  return firstRow ? firstRow[Object.keys(firstRow)[0]] : "";
 }
 
 // Cloneaza profund obiectul bazei pentru a evita mutatii partajate.
@@ -616,6 +667,12 @@ function normalizeDb(db) {
   if (!Array.isArray(db.cpvCodes)) db.cpvCodes = [];
   if (!Array.isArray(db.paap)) db.paap = [];
   if (!Array.isArray(db.paapExecutie)) db.paapExecutie = [];
+  if (!db.hr || typeof db.hr !== "object") db.hr = {};
+  if (!Array.isArray(db.hr.echipamenteTipuri)) db.hr.echipamenteTipuri = [];
+  if (!Array.isArray(db.hr.echipamenteMarimi)) db.hr.echipamenteMarimi = [];
+  if (!Array.isArray(db.hr.echipamenteDepartament)) db.hr.echipamenteDepartament = [];
+  if (!Array.isArray(db.hr.angajatEchipamente)) db.hr.angajatEchipamente = [];
+  if (!Array.isArray(db.hr.echipamenteDotari)) db.hr.echipamenteDotari = [];
   if (!Array.isArray(db.fleetAssets)) db.fleetAssets = [];
   if (!Array.isArray(db.fleetRequests)) db.fleetRequests = [];
   if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
@@ -1078,6 +1135,10 @@ module.exports = {
   readMssqlDb,
   writeMssqlDb,
   runMssqlScalar,
+  runMssqlScalarPooled,
+  getMssqlPool,
+  closeMssqlPool,
+  applyMssqlMigrations,
   syncMssqlCpvCodes,
   ensureMssqlDatabase,
   normalizeDb

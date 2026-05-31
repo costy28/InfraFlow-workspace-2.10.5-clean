@@ -1,10 +1,10 @@
 const { Router } = require('express')
 const crypto = require('crypto')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
-const { writeDb } = require('../../core/db')
+const { requirePermission, requireSuperadmin } = require('../../core/permissions')
+const { writeDb, syncMssqlCpvCodes } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
-const { CPV_PATTERN, ensureCpvCodes, findCpv, searchCpv } = require('./service')
+const { CPV_PATTERN, ensureCpvCodes, findCpv, searchCpv, importSeed } = require('./service')
 
 const router = Router()
 
@@ -65,5 +65,14 @@ router.put('/cpv/:cod', (req, res) => {
   res.json({ cpv })
 })
 
-module.exports = router
+router.post('/admin/import-cpv', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth || !requireSuperadmin(auth, res)) return
+  const result = importSeed(auth.db)
+  const synced = syncMssqlCpvCodes(ensureCpvCodes(auth.db))
+  addAudit(auth.db, auth.user, 'cpv_importat_manual', `Importate: ${result.imported}, duplicate: ${result.duplicates}, MSSQL: ${synced}`)
+  writeDb(auth.db)
+  res.json({ imported: result.imported, skipped: result.duplicates, synced })
+})
 
+module.exports = router

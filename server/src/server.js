@@ -7,8 +7,11 @@ process.on("uncaughtException", (err) => {
     console.error("EROARE PERMISIUNI: Rulează ca Administrator sau");
     console.error(`verifică că portul ${process.env.INFRAFLOW_PORT || process.env.PORT || config.port || 4180} e disponibil`);
   }
-  console.error(err);
-  process.exit(1);
+  console.error("[CRASH] Uncaught exception:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("[CRASH] Unhandled rejection:", err);
 });
 
 const server = http.createServer(app);
@@ -18,7 +21,7 @@ server.listen(config.port, () => {
 }).on("error", (err) => {
   if (err.code === "EADDRINUSE") {
     console.error(`Portul ${config.port} este ocupat. Oprește procesul existent sau schimbă INFRAFLOW_PORT.`);
-    process.exit(1);
+    return;
   }
-  throw err;
+  console.error("[SERVER] Listener error:", err);
 });

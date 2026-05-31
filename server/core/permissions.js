@@ -937,9 +937,9 @@ function requireAnyPermission(auth, res, permissions) {
 }
 
 function authHasPermission(auth, permission) {
+  if (userHasRole(auth.user, "superadmin")) return true;
   const rolePermissions = effectivePermissionsForUser(auth.user, auth.db);
   if (!rolePermissions.includes(permission)) return false;
-  if (userHasRole(auth.user, "superadmin")) return true;
   if (["hr:view_own", "hr:leave_own", "hr:timesheet", "hr:timesheet_dept"].includes(permission)) return true;
   if (auth.user.departmentId) {
     const dept = (auth.db.departments || []).find(d => d.id === auth.user.departmentId);
