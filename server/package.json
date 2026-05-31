@@ -1,0 +1,24 @@
+{
+  "name": "infraflow-1-server",
+  "version": "2.10.5",
+  "private": true,
+  "description": "InfraFlow 1.0 API server foundation",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node --check src/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "adm-zip": "^0.5.17",
+    "express": "^4.19.0",
+    "mssql": "^12.5.4",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.7",
+    "xlsx": "^0.18.5",
+    "xml2js": "^0.6.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

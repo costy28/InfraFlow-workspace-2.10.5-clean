@@ -1,0 +1,9369 @@
+const { Router } = require('express')
+const fs = require('fs')
+const path = require('path')
+const crypto = require('crypto')
+const childProcess = require('child_process')
+const os = require('os')
+const multer = require('multer')
+const AdmZip = require('adm-zip')
+const { requireAuth, hashPassword } = require('../../core/auth')
+const {
+  requirePermission,
+  requireSuperadmin,
+  rolePermissionCatalog,
+  rolesList,
+  adminDepartment,
+  adminUser,
+  updateRolePermissions: coreUpdateRolePermissions,
+  sanitizeRolePermissions: coreSanitizeRolePermissions,
+  ensureDefaultCustomRoles,
+  normalizedUserRoles,
+  userHasRole,
+} = require('../../core/permissions')
+const { readDb, writeDb } = require('../../core/db')
+const { addAudit } = require('../../core/audit')
+const { verificaLicenta, incarcaLicenta } = require('../../core/license')
+const { sendEmail } = require('../messaging/email')
+const {
+  createDepartmentChannel,
+  ensureUserInGeneralChannel,
+  ensureUserInDepartmentChannel,
+  removeUserFromDepartmentChannel,
+  ensureMessagingDb,
+} = require('../messaging/routes')
+const {
+  buildSystemDiagnostics,
+  buildSupportDiagnostic,
+  createServerBackup,
+  installUpdatePackage,
+  listBackupFiles,
+  scheduleApplicationRestart,
+  verificaUpdateDisponibil,
+  instaleazaUpdateOnline
+} = require('./service')
+const router = Router()
+const licenseUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }
+})
+
+const ROOT = path.resolve(__dirname, '../../..')
+const PORT = Number(process.env.INFRAFLOW_PORT || process.env.PORT || 4180)
+const PUBLIC_DIR = path.join(ROOT, 'public')
+const DATA_DIR = path.join(ROOT, 'data')
+const DB_MODE = String(process.env.INFRAFLOW_DB_PROVIDER || process.env.DB_MODE || 'json').trim().toLowerCase()
+const APP_VERSION = (() => {
+  try { return require('../../../version.json').version } catch { return require('../../package.json').version || 'dev' }
+})()
+const CLIENT_CACHE_VERSION = 'v77'
+const RELEASE_MANIFEST_FILE = path.join(ROOT, 'release-manifest.json')
+const UPDATE_UPLOAD_MAX_BYTES = 250 * 1024 * 1024
+const LICENSE_TOKEN_PREFIX = 'ASFLIC1'
+const RELEASE_MANIFEST_FORMAT = 'asfalt-pro-release-manifest-v1'
+const AUTOMINDER_DEFAULT_PASSWORD = process.env.AUTOMINDER_DEFAULT_PASSWORD || ''
+const DEFAULT_AUTOMINDER_CONNECTION =
+  'Server=SERVER\\CIEL;Database=autoMinder5;' +
+  `User Id=infraflow;Password=${AUTOMINDER_DEFAULT_PASSWORD};` +
+  'Encrypt=False;TrustServerCertificate=True'
+let updateCheckCache = { at: 0, data: null }
+const updateUploadDir = path.join(ROOT, 'storage', 'updates')
+fs.mkdirSync(updateUploadDir, { recursive: true })
+const updateUpload = multer({
+  dest: updateUploadDir,
+  limits: { fileSize: 500 * 1024 * 1024 }
+})
+
+const baseModuleKeys = new Set(["core", "inventory", "production", "reports", "system"])
+const configurableModuleKeys = new Set([
+  "fleet",
+  "technical",
+  "procurement",
+  "hr",
+  "controlling",
+  "sanitation",
+  "traffic_safety",
+  "environment",
+  "snow_removal",
+  "documents",
+  "messaging",
+  "tickets",
+  "field",
+  "legal",
+  "archive",
+  "secretariat",
+  "ai"
+])
+
+function publicLicenseStatus(status) {
+  const license = status.licenta || {}
+  return {
+    valida: !!status.valida,
+    demo: !!status.demo,
+    in_gratie: !!status.in_gratie,
+    expirata: !!status.expirata,
+    eroare: status.eroare || null,
+    licenseId: license.licenseId || null,
+    client: {
+      nume: license.client?.nume || '',
+      localitate: license.client?.localitate || ''
+    },
+    pachet: license.pachet || null,
+    tip: license.valabilitate?.tip || null,
+    module_active: [...(license.module || []), ...(license.addons || [])],
+    module: license.module || [],
+    addons: license.addons || [],
+    limite: license.limite || {},
+    valabilitate: {
+      emis_la: license.valabilitate?.emis_la || null,
+      expira_la: license.valabilitate?.expira_la || null,
+      tip: license.valabilitate?.tip || null
+    },
+    zile_pana_expirare: status.zile_pana_expirare ?? null,
+    zile_gratie: status.zile_gratie ?? null
+  }
+}
+
+function makeUrl(req) {
+  return new URL(req.originalUrl || req.url, `http://${req.headers.host || 'localhost'}`)
+}
+
+async function readJsonBody(req) {
+  return req.body || {}
+}
+
+async function readBinaryBody(req) {
+  return req.body || Buffer.alloc(0)
+}
+
+function latestBackupInfoLocal() {
+  const dir = path.join(ROOT, "backups");
+  if (!fs.existsSync(dir)) {
+    return { directory: dir, exists: false, count: 0, latest: null, items: [] };
+  }
+  const backups = listBackupFiles()
+    .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+  return {
+    directory: dir,
+    exists: true,
+    count: backups.length,
+    latest: backups[0] || null,
+    items: backups.slice(0, 20)
+  };
+}
+
+// ─── CENTRU DE COMANDĂ — date agregate pentru dashboard admin ────────────────
+router.get('/dashboard/command-center', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  const db = auth.db
+  const now = Date.now()
+  const MS_48H = 48 * 60 * 60 * 1000
+  const MS_4H  =  4 * 60 * 60 * 1000
+
+  // Documente blocate: in_circuit și nicio acțiune în ultimele 48h
+  const docs = (db.documents?.documents || [])
+  const circuitSteps = (db.documents?.circuitSteps || [])
+  const documentsBlocked = docs
+    .filter(doc => doc.status === 'in_circuit')
+    .map(doc => {
+      const steps = circuitSteps.filter(s => s.document_id === doc.id || s.documentId === doc.id)
+      const currentStep = steps.find(s => s.status === 'asteptare') || steps.slice(-1)[0]
+      const lastAction = currentStep?.created_at || doc.updated_at || doc.created_at || doc.createdAt
+      const hoursBlocked = lastAction ? Math.floor((now - new Date(lastAction).getTime()) / 3600000) : null
+      return { ...doc, hoursBlocked, currentStep }
+    })
+    .filter(doc => doc.hoursBlocked !== null && doc.hoursBlocked >= 48)
+    .sort((a, b) => b.hoursBlocked - a.hoursBlocked)
+    .slice(0, 10)
+
+  // Tickets fără responsabil deschise >4h
+  const tickets = (db.tickets?.tickets || [])
+  const ticketsUnassigned = tickets
+    .filter(t => ['deschis', 'in_lucru'].includes(t.status) && !t.asignat_la && !t.assignedTo)
+    .map(t => {
+      const createdAt = t.created_at || t.createdAt
+      const hoursOpen = createdAt ? Math.floor((now - new Date(createdAt).getTime()) / 3600000) : 0
+      return { ...t, hoursOpen }
+    })
+    .filter(t => t.hoursOpen >= 4)
+    .sort((a, b) => {
+      const prio = { critica: 5, urgenta: 4, ridicata: 3, normala: 2, scazuta: 1 }
+      return (prio[b.prioritate] || 2) - (prio[a.prioritate] || 2)
+    })
+    .slice(0, 10)
+
+  // Tickets critice/urgente deschise
+  const ticketsCritical = tickets
+    .filter(t => ['deschis', 'in_lucru'].includes(t.status) && ['critica', 'urgenta'].includes(t.prioritate))
+    .slice(0, 5)
+
+  // Mesaje necitite per departament (proprii + globale)
+  const userId = auth.user.id || auth.user.userId
+  const messages = (db.messaging?.messages || [])
+  const channelMembers = (db.messaging?.channelMembers || [])
+  const myChannelIds = new Set(channelMembers.filter(m => m.user_id === userId || m.userId === userId).map(m => m.channel_id || m.channelId))
+  const unreadMessages = messages.filter(m => {
+    if (m.sters_la) return false
+    const channelId = m.channel_id || m.channelId
+    if (!myChannelIds.has(channelId)) return false
+    const citit = Array.isArray(m.citit_de) ? m.citit_de : JSON.parse(m.citit_de || '[]').catch?.(() => []) || []
+    return !citit.includes(userId)
+  }).length
+
+  sendJson(res, 200, {
+    documentsBlocked,
+    ticketsUnassigned,
+    ticketsCritical,
+    unreadMessages,
+    counts: {
+      documentsBlocked: documentsBlocked.length,
+      ticketsUnassigned: ticketsUnassigned.length,
+      ticketsCritical: ticketsCritical.length,
+      unreadMessages,
+    },
+  })
+})
+
+router.get('/system/diagnostics', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "system:view")) return;
+  sendJson(res, 200, buildSystemDiagnostics(auth.db));
+})
+
+router.get('/system/diagnostics/export', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "system:view")) return;
+  const payload = Buffer.from(JSON.stringify(buildSupportDiagnostic(auth.db), null, 2), "utf8");
+  sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-asfalt-pro-${localDate(new Date())}.json`);
+})
+
+router.post('/system/diagnostics/export', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "system:view")) return;
+  const payload = Buffer.from(JSON.stringify(buildSupportDiagnostic(auth.db), null, 2), "utf8");
+  sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-asfalt-pro-${localDate(new Date())}.json`);
+})
+
+router.get('/system/backups', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "system:view")) return;
+  sendJson(res, 200, { backup: latestBackupInfoLocal() });
+})
+
+router.post('/system/backups', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "system:view")) return;
+  const backup = createServerBackup(auth.db, auth.user, "Backup creat manual din Sistem");
+  sendJson(res, 201, { backup, diagnostics: buildSystemDiagnostics(auth.db) });
+})
+
+router.post('/system/restart', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    if (String(body.confirm || "").trim() !== "RESTART") throwHttp(400, "Confirmarea restartului este invalida.");
+    addAudit(auth.db, auth.user, "restart_aplicatie_programat", "Restart cerut din Sistem / Actualizare");
+    writeDb(auth.db);
+    sendJson(res, 202, { ok: true, message: "Restart programat. Aplicatia va fi indisponibila cateva secunde." });
+    scheduleApplicationRestart();
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/system/update-package', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    const url = makeUrl(req);
+    if (!requireSuperadmin(auth, res)) return;
+    const archive = await readBinaryBody(req, UPDATE_UPLOAD_MAX_BYTES);
+    const result = installUpdatePackage(auth.db, auth.user, archive, {
+      fileName: decodeURIComponent(url.searchParams.get("fileName") || "update.zip")
+    });
+    writeDb(auth.db);
+    sendJson(res, 200, result);
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/system/update/check', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "system:view")) return;
+    const now = Date.now();
+    if (!updateCheckCache.data || now - updateCheckCache.at > 60 * 60 * 1000) {
+      updateCheckCache = {
+        at: now,
+        data: await verificaUpdateDisponibil(global.LICENTA)
+      };
+    }
+    sendJson(res, 200, updateCheckCache.data);
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/system/update/changelog', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "system:view")) return;
+    if (String(req.query?.local || "") === "1") {
+      const localPath = path.join(ROOT, "CHANGELOG.md");
+      const text = fs.existsSync(localPath) ? fs.readFileSync(localPath, "utf8") : "";
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      return res.send(text);
+    }
+    const response = await fetch('https://updates.infraflow.ro/changelog/latest', {
+      signal: AbortSignal.timeout(5000)
+    });
+    const text = await response.text();
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(text);
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/system/update/install', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    const result = await instaleazaUpdateOnline(auth.db, auth.user, global.LICENTA, body.versiune || body.versiune_noua);
+    addAudit(auth.db, auth.user, "update_online_instalat", `Versiune ${result.versiune}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { ok: true, versiune: result.versiune });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/system/update/upload', updateUpload.single('update_package'), async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "system:update")) return;
+    if (!req.file) throwHttp(400, "Fișierul de update este obligatoriu.");
+    if (!String(req.file.originalname || "").toLowerCase().endsWith(".zip")) {
+      fs.unlink(req.file.path, () => {});
+      return sendJson(res, 400, { error: "Doar fișiere .zip sunt acceptate" });
+    }
+    const zip = new AdmZip(req.file.path);
+    const versionEntry = zip.getEntry("version.json");
+    if (!versionEntry) {
+      fs.unlink(req.file.path, () => {});
+      return sendJson(res, 400, { error: "Fișier .zip invalid — lipsește version.json" });
+    }
+    const versionInfo = JSON.parse(versionEntry.getData().toString("utf8"));
+    const current = require("../../package.json").version;
+    if (compareVersions(versionInfo.version, current) <= 0) {
+      fs.unlink(req.file.path, () => {});
+      return sendJson(res, 400, {
+        error: `Versiunea ${versionInfo.version} nu e mai nouă decât ${current}`
+      });
+    }
+    sendJson(res, 200, {
+      ok: true,
+      filename: req.file.filename,
+      versiune_noua: versionInfo.version,
+      versiune_curenta: current,
+      changelog: versionInfo.changelog || "",
+      marime_mb: Math.round(req.file.size / 1024 / 1024 * 10) / 10
+    });
+  } catch (error) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    next(error);
+  }
+})
+
+router.post('/system/update/apply', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "system:update")) return;
+    const body = await readJsonBody(req);
+    const filename = path.basename(String(body.filename || ""));
+    if (!filename) throwHttp(400, "Numele fișierului de update este obligatoriu.");
+    const archivePath = path.join(updateUploadDir, filename);
+    if (!fs.existsSync(archivePath)) throwHttp(404, "Pachetul de update nu a fost găsit.");
+    const zip = new AdmZip(archivePath);
+    const versionEntry = zip.getEntry("version.json");
+    if (!versionEntry) throwHttp(400, "Fișier .zip invalid — lipsește version.json");
+    const versionInfo = JSON.parse(versionEntry.getData().toString("utf8"));
+    const current = require("../../package.json").version;
+    if (compareVersions(versionInfo.version, current) <= 0) {
+      throwHttp(400, `Versiunea ${versionInfo.version} nu e mai nouă decât ${current}`);
+    }
+
+    const backup = createServerBackup(auth.db, auth.user, `Backup automat pre-update ${current} -> ${versionInfo.version}`);
+    const tmpDir = path.join(ROOT, 'storage', 'updates', 'tmp', Date.now().toString());
+    fs.mkdirSync(tmpDir, { recursive: true });
+    validateZipEntries(zip);
+    zip.extractAllTo(tmpDir, true);
+
+    copyDirExcept(path.join(tmpDir, 'server'), path.join(ROOT, 'server'), ['node_modules', '.env', 'data']);
+    copyDir(path.join(tmpDir, 'client', 'dist'), path.join(ROOT, 'client', 'dist'));
+    copyNewMigrations(path.join(tmpDir, 'db', 'migrations'), path.join(ROOT, 'db', 'migrations'));
+    copyDir(path.join(tmpDir, 'scripts', 'windows'), path.join(ROOT, 'scripts', 'windows'));
+
+    const pkgPath = path.join(ROOT, 'server', 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    pkg.version = versionInfo.version;
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+
+    auth.db.settings = auth.db.settings || {};
+    auth.db.settings.update_history = Array.isArray(auth.db.settings.update_history) ? auth.db.settings.update_history : [];
+    auth.db.settings.update_history.unshift({
+      version: versionInfo.version,
+      previous_version: current,
+      applied_at: new Date().toISOString(),
+      applied_by: auth.user.name || auth.user.username || auth.user.id,
+      backup: backup?.name || backup?.path || null
+    });
+    auth.db.settings.update_history = auth.db.settings.update_history.slice(0, 50);
+    addAudit(auth.db, auth.user, "update_manual_instalat", `Update ${current} -> ${versionInfo.version}`);
+    writeDb(auth.db);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.unlinkSync(archivePath);
+    sendJson(res, 200, { ok: true, versiune: versionInfo.version, restart_in: 3 });
+    scheduleApplicationRestart();
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/system/update/history', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "system:view")) return;
+    const history = Array.isArray(auth.db.settings?.update_history) ? auth.db.settings.update_history : [];
+    sendJson(res, 200, { history: history.slice(0, 10) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/audit', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "audit:view")) return;
+  sendJson(res, 200, { audit: auth.db.audit.slice().reverse().slice(0, 500) });
+})
+
+router.post('/audit/clear', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "audit:manage")) return;
+  auth.db.audit = [];
+  addAudit(auth.db, auth.user, "audit_curatat", "Jurnal audit curatat de Superadmin");
+  writeDb(auth.db);
+  sendJson(res, 200, { audit: auth.db.audit.slice().reverse().slice(0, 500) });
+})
+
+router.get('/backup', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+  const backup = Buffer.from(JSON.stringify({ ...auth.db, backupCreatedAt: new Date().toISOString() }, null, 2), "utf8");
+  sendBuffer(res, 200, backup, "application/json; charset=utf-8", `backup-asfalt-pro-${localDate(new Date())}.json`);
+})
+
+router.post('/backup', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+  const backup = Buffer.from(JSON.stringify({ ...auth.db, backupCreatedAt: new Date().toISOString() }, null, 2), "utf8");
+  sendBuffer(res, 200, backup, "application/json; charset=utf-8", `backup-asfalt-pro-${localDate(new Date())}.json`);
+})
+
+router.post('/restore', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req, 20_000_000);
+    const restored = validateRestoreData(body);
+    const safetyBackup = createServerBackup(auth.db, auth.user, "Backup automat inainte de restaurare din fisier JSON");
+    addAudit(restored, auth.user, "restore_date", `Date restaurate din backup JSON. Backup siguranta: ${safetyBackup?.name || "-"}`);
+    writeDb(restored);
+    sendJson(res, 200, { ok: true, settings: restored.settings, safetyBackup, backup: latestBackupInfoLocal() });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/roles', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "users:manage")) return;
+  if (!auth.db.settings || typeof auth.db.settings !== "object") auth.db.settings = {};
+  const changed = ensureDefaultCustomRoles(auth.db.settings);
+  if (changed) writeDb(auth.db);
+  const allRoles = rolesList(auth.db.settings).map(r => ({
+    ...r,
+    users_count: (auth.db.users || []).filter(u => normalizedUserRoles(u).includes(r.id)).length,
+  }));
+  const catalog = rolePermissionCatalog();
+  const availablePermissions = catalog.flatMap(group =>
+    group.permissions.map(permission => ({ ...permission, group: group.label, group_id: group.id }))
+  );
+  sendJson(res, 200, { roles: allRoles, catalog, available_permissions: availablePermissions });
+})
+
+router.get('/roles/permissions-catalog', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "users:manage")) return;
+  sendJson(res, 200, rolePermissionCatalog());
+})
+
+// POST /roles — creare rol custom
+router.post('/roles', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const name = String(body.name || '').trim();
+    if (!name) { sendJson(res, 400, { error: 'Numele rolului este obligatoriu.' }); return; }
+    // Generează ID slug din nume
+    const baseId = name.toLowerCase()
+      .replace(/[ăâ]/g, 'a').replace(/[îí]/g, 'i').replace(/[șş]/g, 's').replace(/[țţ]/g, 't').replace(/[éè]/g, 'e')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!auth.db.settings) auth.db.settings = {};
+    if (!Array.isArray(auth.db.settings.customRoles)) auth.db.settings.customRoles = [];
+    // Verifică unicitate
+    const allIds = new Set(rolesList(auth.db.settings).map(r => r.id));
+    let finalId = baseId;
+    let idx = 2;
+    while (allIds.has(finalId)) { finalId = `${baseId}-${idx++}`; }
+    const newRole = {
+      id: finalId,
+      name,
+      description: String(body.description || '').trim(),
+      tip: 'custom',
+      permissions: coreSanitizeRolePermissions(body.permissions),
+    };
+    auth.db.settings.customRoles.push(newRole);
+    addAudit(auth.db, auth.user, 'rol_creat', `${name} (${finalId})`);
+    writeDb(auth.db);
+    sendJson(res, 201, {
+      role: newRole,
+      roles: rolesList(auth.db.settings).map(r => ({ ...r, users_count: (auth.db.users || []).filter(u => normalizedUserRoles(u).includes(r.id)).length })),
+    });
+  } catch (e) { next(e); }
+})
+
+// PUT /roles/:id — editare rol (custom sau default/hardcoded via override)
+router.put('/roles/:id', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const roleId = req.params.id;
+    if (['superadmin', 'admin'].includes(roleId)) {
+      sendJson(res, 403, { error: 'Rolurile de sistem nu se pot modifica.' }); return;
+    }
+    const body = await readJsonBody(req);
+    if (!auth.db.settings) auth.db.settings = {};
+    if (!Array.isArray(auth.db.settings.customRoles)) auth.db.settings.customRoles = [];
+    const customRole = auth.db.settings.customRoles.find(r => r.id === roleId);
+    if (customRole) {
+      // Rol custom/default — editare directă
+      if (body.name) customRole.name = String(body.name).trim();
+      if (body.description !== undefined) customRole.description = String(body.description).trim();
+      if (body.permissions) customRole.permissions = coreSanitizeRolePermissions(body.permissions);
+    } else {
+      // Rol hardcodat — salvează override permisiuni
+      coreUpdateRolePermissions(auth.db, auth.user, roleId, body);
+    }
+    addAudit(auth.db, auth.user, 'rol_modificat', roleId);
+    writeDb(auth.db);
+    sendJson(res, 200, {
+      roles: rolesList(auth.db.settings).map(r => ({ ...r, users_count: (auth.db.users || []).filter(u => normalizedUserRoles(u).includes(r.id)).length })),
+    });
+  } catch (e) { next(e); }
+})
+
+// DELETE /roles/:id — ștergere rol custom
+router.delete('/roles/:id', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const roleId = req.params.id;
+    if (['superadmin', 'admin'].includes(roleId)) {
+      sendJson(res, 403, { error: 'Rolurile de sistem nu se pot șterge.' }); return;
+    }
+    const usersWithRole = (auth.db.users || []).filter(u => normalizedUserRoles(u).includes(roleId));
+    if (usersWithRole.length > 0) {
+      sendJson(res, 409, {
+        error: `Rolul este atribuit la ${usersWithRole.length} utilizator(i). Schimbă-le rolul înainte de ștergere.`,
+        users: usersWithRole.map(u => ({ id: u.id, name: u.name, username: u.username })),
+      }); return;
+    }
+    if (!auth.db.settings) auth.db.settings = {};
+    if (!Array.isArray(auth.db.settings.customRoles)) auth.db.settings.customRoles = [];
+    const idx = auth.db.settings.customRoles.findIndex(r => r.id === roleId);
+    if (idx === -1) { sendJson(res, 404, { error: 'Rol inexistent.' }); return; }
+    auth.db.settings.customRoles.splice(idx, 1);
+    // Șterge și override-ul dacă există
+    if (auth.db.settings.rolePermissionOverrides) {
+      delete auth.db.settings.rolePermissionOverrides[roleId];
+    }
+    addAudit(auth.db, auth.user, 'rol_sters', roleId);
+    writeDb(auth.db);
+    sendJson(res, 200, {
+      roles: rolesList(auth.db.settings).map(r => ({ ...r, users_count: (auth.db.users || []).filter(u => normalizedUserRoles(u).includes(r.id)).length })),
+    });
+  } catch (e) { next(e); }
+})
+
+// PATCH /roles/:id/permissions — alias de compatibilitate pentru UI vechi
+router.patch('/roles/:id/permissions', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const roleId = req.params.id;
+    if (['superadmin', 'admin'].includes(roleId)) {
+      sendJson(res, 403, { error: 'Rolurile de sistem nu se pot modifica.' }); return;
+    }
+    const body = await readJsonBody(req);
+    if (!auth.db.settings) auth.db.settings = {};
+    if (!Array.isArray(auth.db.settings.customRoles)) auth.db.settings.customRoles = [];
+    const customRole = auth.db.settings.customRoles.find(r => r.id === roleId);
+    if (body.reset) {
+      // Resetare la implicit — șterge override sau permisiunile custom
+      if (customRole) {
+        const { DEFAULT_CUSTOM_ROLES } = require('../../core/permissions');
+        const defaultDef = DEFAULT_CUSTOM_ROLES.find(r => r.id === roleId);
+        if (defaultDef) customRole.permissions = [...defaultDef.permissions];
+      } else if (auth.db.settings.rolePermissionOverrides) {
+        delete auth.db.settings.rolePermissionOverrides[roleId];
+      }
+    } else if (body.permissions) {
+      if (customRole) {
+        customRole.permissions = coreSanitizeRolePermissions(body.permissions);
+      } else {
+        coreUpdateRolePermissions(auth.db, auth.user, roleId, body);
+      }
+    }
+    addAudit(auth.db, auth.user, 'rol_permisiuni_salvate', roleId);
+    writeDb(auth.db);
+    sendJson(res, 200, {
+      roles: rolesList(auth.db.settings).map(r => ({ ...r, users_count: (auth.db.users || []).filter(u => normalizedUserRoles(u).includes(r.id)).length })),
+      catalog: rolePermissionCatalog(),
+    });
+  } catch (e) { next(e); }
+})
+
+// PUT /users/:id/role — schimbare rapidă rol user
+router.put('/users/:id/role', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const newRole = String(body.role || '').trim();
+    if (!newRole) { sendJson(res, 400, { error: 'Rolul este obligatoriu.' }); return; }
+    const user = (auth.db.users || []).find(u => String(u.id) === String(req.params.id));
+    if (!user) { sendJson(res, 404, { error: 'Utilizatorul nu a fost găsit.' }); return; }
+    if (!roleExists(auth.db, newRole)) { sendJson(res, 400, { error: 'Rol invalid.' }); return; }
+    ensureCanManageUser(auth.user, user, newRole);
+    user.role = newRole;
+    user.roles = [newRole];
+    user.updatedAt = new Date().toISOString();
+    addAudit(auth.db, auth.user, 'utilizator_rol_schimbat', `${user.username} → ${newRole}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { user: adminUser(user) });
+  } catch (e) { next(e); }
+})
+
+router.put('/users/:id/roles', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const roles = normalizeRequestedRoles(auth.db, body.roles || body.role || []);
+    if (!roles.length) { sendJson(res, 400, { error: 'Selectează cel puțin un rol.' }); return; }
+    const user = (auth.db.users || []).find(u => String(u.id) === String(req.params.id));
+    if (!user) { sendJson(res, 404, { error: 'Utilizatorul nu a fost găsit.' }); return; }
+    roles.forEach(role => ensureCanManageUser(auth.user, user, role));
+    user.roles = roles;
+    user.role = roles[0];
+    user.updatedAt = new Date().toISOString();
+    addAudit(auth.db, auth.user, 'utilizator_roluri_schimbate', `${user.username} → ${roles.join(', ')}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { user: adminUser(user) });
+  } catch (e) { next(e); }
+})
+
+router.get('/users', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "users:manage")) return;
+  sendJson(res, 200, { users: auth.db.users.map(adminUser) });
+})
+
+router.post('/users', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const user = createUser(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "utilizator_adaugat", `${user.username} / ${user.role}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { user: adminUser(user) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.patch('/users/:id', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const user = updateUser(auth.db, auth.user, req.params.id, body);
+    addAudit(auth.db, auth.user, "utilizator_modificat", `${user.username} / ${user.role}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { user: adminUser(user) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.patch('/users/:id/reset-password', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const user = resetUserPassword(auth.db, auth.user, req.params.id, body);
+    addAudit(auth.db, auth.user, "parola_utilizator_resetata", user.username);
+    writeDb(auth.db);
+    sendJson(res, 200, { user: adminUser(user) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/departments', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  sendJson(res, 200, { departments: (auth.db.departments || []).map(adminDepartment) });
+})
+
+router.post('/departments', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    const name = String(body.name || "").trim();
+    if (!name) throwHttp(400, "Numele departamentului este obligatoriu.");
+    const dept = {
+      id: id("dept"),
+      name,
+      tip: String(body.tip || "departament").trim() || "departament",
+      icon: String(body.icon || "👥").trim() || "👥",
+      culoare: String(body.culoare || body.color || "#3B82F6").trim() || "#3B82F6",
+      color: String(body.culoare || body.color || "#3B82F6").trim() || "#3B82F6",
+      permissions: Array.isArray(body.permissions) ? body.permissions : [],
+      createdBy: auth.user.id,
+      createdAt: new Date().toISOString()
+    };
+    auth.db.departments.push(dept);
+    addAudit(auth.db, auth.user, "departament_creat", name);
+    // Creare automată canal de mesaje pentru departament
+    try { createDepartmentChannel(auth.db, dept) } catch (e) { console.warn('[messaging] Canal dept:', e.message) }
+    writeDb(auth.db);
+    sendJson(res, 201, { department: adminDepartment(dept) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.patch('/departments/:id', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    const dept = auth.db.departments.find(d => d.id === req.params.id);
+    if (!dept) throwHttp(404, "Departament inexistent.");
+    if (body.name !== undefined) dept.name = String(body.name || "").trim();
+    if (body.tip !== undefined) dept.tip = String(body.tip || "departament").trim() || "departament";
+    if (body.icon !== undefined) dept.icon = String(body.icon || "👥").trim() || "👥";
+    if (body.culoare !== undefined || body.color !== undefined) {
+      dept.culoare = String(body.culoare || body.color || "#3B82F6").trim() || "#3B82F6";
+      dept.color = dept.culoare;
+    }
+    if (Array.isArray(body.permissions)) dept.permissions = body.permissions;
+    dept.updatedBy = auth.user.id;
+    dept.updatedAt = new Date().toISOString();
+    addAudit(auth.db, auth.user, "departament_modificat", dept.name);
+    writeDb(auth.db);
+    sendJson(res, 200, { department: adminDepartment(dept) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.put('/departments/:id', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    const dept = auth.db.departments.find(d => d.id === req.params.id);
+    if (!dept) throwHttp(404, "Departament inexistent.");
+    if (body.name !== undefined) dept.name = String(body.name || "").trim();
+    if (body.tip !== undefined) dept.tip = String(body.tip || "departament").trim() || "departament";
+    if (body.icon !== undefined) dept.icon = String(body.icon || "👥").trim() || "👥";
+    if (body.culoare !== undefined || body.color !== undefined) {
+      dept.culoare = String(body.culoare || body.color || "#3B82F6").trim() || "#3B82F6";
+      dept.color = dept.culoare;
+    }
+    if (Array.isArray(body.permissions)) dept.permissions = body.permissions;
+    dept.updatedBy = auth.user.id;
+    dept.updatedAt = new Date().toISOString();
+    addAudit(auth.db, auth.user, "departament_modificat", dept.name);
+    writeDb(auth.db);
+    sendJson(res, 200, { department: adminDepartment(dept) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.delete('/departments/:id', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const index = auth.db.departments.findIndex(d => d.id === req.params.id);
+    if (index === -1) throwHttp(404, "Departament inexistent.");
+    const dept = auth.db.departments.splice(index, 1)[0];
+    addAudit(auth.db, auth.user, "departament_sters", dept.name);
+    writeDb(auth.db);
+    sendJson(res, 200, { success: true });
+  } catch (error) {
+    next(error);
+  }
+})
+
+// Endpoint public (fără autentificare) — versiunea aplicației
+// Folosit de frontend pentru a afișa versiunea corectă în orice context
+router.get('/system/version', (req, res) => {
+  sendJson(res, 200, {
+    version: APP_VERSION,
+    date: (() => { try { return require('../../../version.json').date } catch { return null } })(),
+  });
+})
+
+router.get('/settings', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+  sendJson(res, 200, { settings: publicSettings(auth.db.settings) });
+})
+
+router.patch('/settings', async (req, res, next) => {
+  try {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+  const body = await readJsonBody(req);
+  auth.db.settings = updateSettings(auth.db.settings, body);
+  addAudit(auth.db, auth.user, "setari_modificate", `${auth.db.settings.companyName} / ${auth.db.settings.stationName || ""}`);
+  writeDb(auth.db);
+  sendJson(res, 200, { settings: publicSettings(auth.db.settings) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/settings', async (req, res, next) => {
+  try {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+  const body = await readJsonBody(req);
+  auth.db.settings = updateSettings(auth.db.settings, body);
+  addAudit(auth.db, auth.user, "setari_modificate", `${auth.db.settings.companyName} / ${auth.db.settings.stationName || ""}`);
+  writeDb(auth.db);
+  sendJson(res, 200, { settings: publicSettings(auth.db.settings) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/settings/modules', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req);
+    const modules = sanitizeEnabledModules(body.modules_enabled, global.LICENTA || auth.db.settings?.license || {});
+    auth.db.settings = auth.db.settings || {};
+    auth.db.settings.modules_enabled = modules;
+    auth.db.settings.modules_enabled_updated_at = new Date().toISOString();
+    auth.db.settings.modules_enabled_updated_by = auth.user.id;
+    addAudit(auth.db, auth.user, "module_actualizate", modules.join(", "));
+    writeDb(auth.db);
+    sendJson(res, 200, {
+      settings: publicSettings(auth.db.settings),
+      modules_enabled: modules,
+      modules_allowed: allowedModulesForLicense(global.LICENTA || auth.db.settings?.license || {})
+    });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/settings/email/test', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req);
+    const to = body.to || auth.user.email || auth.db.settings?.email || auth.db.settings?.smtp_user;
+    if (!to) throwHttp(400, "Nu exista destinatar pentru emailul de test.");
+    await sendEmail({
+      to,
+      subject: "Test configurare email InfraFlow",
+      body: "<p>Configurarea SMTP InfraFlow functioneaza.</p>"
+    }, auth.db);
+    sendJson(res, 200, { ok: true, message: "Email de test trimis." });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/admin/branding', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    sendJson(res, 200, { branding: auth.db.settings?.branding || {} });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/admin/branding', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req);
+    auth.db.settings = auth.db.settings || {};
+    auth.db.settings.branding = {
+      ...(auth.db.settings.branding || {}),
+      logo: body.logo || body.logoData || auth.db.settings.branding?.logo || '',
+      primaryColor: body.primaryColor || body.primary_color || body.culoare_primara || '#0F6E56',
+      culoare_primara: body.culoare_primara || body.primaryColor || body.primary_color || '#0F6E56',
+      culoare_secundara: body.culoare_secundara || body.secondaryColor || body.primaryColor || '#1a56db',
+      docHeader: Array.isArray(body.docHeader) ? body.docHeader : [
+        body.doc_header_linie1 || '',
+        body.doc_header_linie2 || '',
+        body.doc_header_linie3 || '',
+        body.doc_header_linie4 || ''
+      ],
+      docFooter: {
+        left: body.footerLeft || body.footer_left || body.doc_footer_stanga || '',
+        center: body.footerCenter || body.footer_center || body.doc_footer_centru || '',
+        right: body.footerRight || body.footer_right || body.doc_footer_dreapta || ''
+      },
+      doc_header_linie1: body.doc_header_linie1 || body.docHeader?.[0] || '',
+      doc_header_linie2: body.doc_header_linie2 || body.docHeader?.[1] || '',
+      doc_header_linie3: body.doc_header_linie3 || body.docHeader?.[2] || '',
+      doc_header_linie4: body.doc_header_linie4 || body.docHeader?.[3] || '',
+      doc_footer_stanga: body.doc_footer_stanga || body.footerLeft || body.footer_left || '',
+      doc_footer_centru: body.doc_footer_centru || body.footerCenter || body.footer_center || '',
+      doc_footer_dreapta: body.doc_footer_dreapta || body.footerRight || body.footer_right || ''
+    };
+    addAudit(auth.db, auth.user, "branding_modificat", "Setări aspect documente actualizate");
+    writeDb(auth.db);
+    sendJson(res, 200, { branding: auth.db.settings.branding });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/integration/gps/test', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const settings = auth.db.settings || {};
+    const url = settings.gps_api_url || settings.gpsApiUrl || "";
+    if (!url) throwHttp(400, "URL API GPS lipsa.");
+    const response = await fetch(url, {
+      headers: settings.gps_api_key ? { Authorization: `Bearer ${decryptSettingSecret(settings.gps_api_key)}` } : {},
+      signal: AbortSignal.timeout(8000)
+    });
+    sendJson(res, response.ok ? 200 : 502, {
+      ok: response.ok,
+      status: response.status,
+      message: response.ok ? "Conexiune reusita" : "Verifica URL si cheia API"
+    });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/admin/branding/logo', licenseUpload.single('file'), async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    if (!req.file) throwHttp(400, "Fișierul logo este obligatoriu.");
+    const type = String(req.file.mimetype || '').toLowerCase();
+    const name = String(req.file.originalname || '').toLowerCase();
+    if (!['image/png', 'image/svg+xml'].includes(type) && !name.endsWith('.png') && !name.endsWith('.svg')) {
+      throwHttp(400, "Logo-ul trebuie să fie PNG sau SVG.");
+    }
+    auth.db.settings = auth.db.settings || {};
+    auth.db.settings.branding = auth.db.settings.branding || {};
+    auth.db.settings.branding.logo = `data:${type || (name.endsWith('.svg') ? 'image/svg+xml' : 'image/png')};base64,${req.file.buffer.toString('base64')}`;
+    addAudit(auth.db, auth.user, "branding_logo_modificat", req.file.originalname || "logo");
+    writeDb(auth.db);
+    sendJson(res, 200, { branding: auth.db.settings.branding });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/license/status', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    const status = incarcaLicenta();
+    sendJson(res, 200, { license: publicLicenseStatus(status) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/license/import', licenseUpload.single('file'), async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req, 5_000_000);
+    let licenseText = null;
+    if (req.file) {
+      if (!String(req.file.originalname || '').toLowerCase().endsWith('.iflic')) {
+        throwHttp(400, "Fișierul trebuie să aibă extensia .iflic.");
+      }
+      licenseText = req.file.buffer.toString('utf8');
+    } else {
+      licenseText = typeof body.licenseText === 'string'
+        ? body.licenseText
+        : typeof body.license === 'string'
+          ? body.license
+          : JSON.stringify(body.license || body);
+    }
+    const status = verificaLicenta(licenseText);
+    if (!status.valida) throwHttp(400, status.eroare || "Licența nu este validă.");
+    const target = path.join(ROOT, 'licenta.iflic');
+    fs.writeFileSync(target, licenseText, 'utf8');
+    global.LICENTA = status.licenta;
+    addAudit(auth.db, auth.user, "licenta_importata", `${status.licenta.client?.nume || "-"} / ${status.licenta.pachet || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { license: publicLicenseStatus(status) });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/devices', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+  sendJson(res, 200, buildDeviceRegistry(auth.db));
+})
+
+function startMssqlKeepAlive() {
+  if (DB_MODE !== "mssql" && DB_MODE !== "sqlserver") return;
+  const ping = () => {
+    try {
+      runMssqlScalar("select 1;");
+    } catch (error) {
+      console.error("Conexiune SQL Server indisponibila:", error.message);
+    }
+  };
+  ping();
+  setInterval(ping, 5 * 60 * 1000).unref?.();
+}
+
+function checkMonthlyDepartmentRequests(db) {
+  const today = localDate(new Date());
+  const currentMonth = today.slice(0, 7);
+  let count = 0;
+  (db.departmentRequests || []).forEach(req => {
+    if (["new", "accepted", "planned"].includes(req.status)) {
+      const reqMonth = (req.createdAt || req.neededDate || today).slice(0, 7);
+      if (reqMonth < currentMonth) {
+        req.status = "partial";
+        count++;
+      }
+    }
+  });
+  if (count > 0) {
+    addAudit(db, { id: "system", name: "Sistem" }, "inchidere_luna_solicitari", `Marcat ${count} solicitari vechi ca Partial.`);
+    writeDb(db);
+  }
+}
+
+async function handleApi(req, res, url) {
+  if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+    url.pathname = url.pathname.replace(/\/+$/, "");
+  }
+  if (req.method === "GET" && url.pathname === "/api/client/version") {
+    sendJson(res, 200, {
+      appVersion: APP_VERSION,
+      cacheVersion: CLIENT_CACHE_VERSION,
+      minLauncherVersion: "1.1.0",
+      mode: DB_MODE
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/setup/status") {
+    const db = readDb();
+    sendJson(res, 200, {
+      required: requiresInitialSetup(db),
+      appVersion: APP_VERSION,
+      companyName: db.settings?.companyName || "",
+      stationName: db.settings?.stationName || ""
+    });
+    return;
+  }
+
+  // Lookup ANAF public (fără auth) — folosit în Setup Wizard la verificarea CUI
+  if (req.method === "GET" && url.pathname.startsWith("/api/setup/anaf/")) {
+    const cif = url.pathname.replace("/api/setup/anaf/", "").replace(/\D/g, "");
+    if (!cif || cif.length < 2) {
+      sendJson(res, 400, { error: "CUI/CIF invalid." });
+      return;
+    }
+    try {
+      // Importăm lookupAnaf dinamic pentru a evita importul circular
+      const { lookupAnafPublic } = require("../anaf/routes");
+      const data = await lookupAnafPublic(cif);
+      sendJson(res, 200, data);
+    } catch (err) {
+      sendJson(res, err.status || 404, { error: err.message || "CUI negăsit în ANAF." });
+    }
+    return;
+  }
+
+  if (!networkAccessAllowed(req)) {
+    sendJson(res, 403, { error: "Acces permis doar din reteaua interna. Verifica setarea de acces retea sau foloseste VPN/reteaua locala." });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/setup/complete") {
+    const db = readDb();
+    if (!requiresInitialSetup(db)) throwHttp(409, "Aplicatia este deja configurata.");
+    const body = await readJsonBody(req, 5_000_000);
+    const result = completeInitialSetup(db, body);
+    writeDb(result.db);
+    const token = crypto.randomBytes(24).toString("hex");
+    const device = registerClientDevice(result.db, result.user, body, req);
+    sessions.set(token, { userId: result.user.id, deviceId: device.id, createdAt: new Date().toISOString() });
+    writeDb(result.db);
+    sendJson(res, 201, {
+      token,
+      user: publicUser(result.user),
+      permissions: effectivePermissionsForUser(result.user, result.db),
+      settings: result.db.settings
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/login") {
+    const body = await readJsonBody(req);
+    const db = readDb();
+    if (requiresInitialSetup(db)) {
+      sendJson(res, 409, { error: "Aplicatia trebuie configurata inainte de autentificare." });
+      return;
+    }
+    const password = String(body.password || "");
+    const user = db.users.find((item) => item.active && item.username === String(body.username || "").trim());
+    const validPassword = user ? verifyPassword(user, password) : false;
+    if (!user || !validPassword) {
+      sendJson(res, 401, { error: "Utilizator sau parola incorecta." });
+      return;
+    }
+    if (user.password) {
+      user.passwordHash = hashPassword(user.password);
+      delete user.password;
+    }
+    const device = registerClientDevice(db, user, body, req);
+    const token = crypto.randomBytes(24).toString("hex");
+    sessions.set(token, { userId: user.id, deviceId: device.id, createdAt: new Date().toISOString() });
+    addAudit(db, user, "login", `Autentificare reusita / ${device.name || device.id}`);
+    writeDb(db);
+    sendJson(res, 200, { token, user: publicUser(user), permissions: effectivePermissionsForUser(user, db), settings: db.settings });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/workstation/register") {
+    const db = readDb();
+    if (requiresInitialSetup(db)) {
+      sendJson(res, 409, { error: "Aplicatia trebuie configurata pe server inainte de inregistrarea statiilor de lucru." });
+      return;
+    }
+    const body = await readJsonBody(req);
+    const request = registerWorkstationRequest(db, body, req);
+    writeDb(db);
+    sendJson(res, 201, { request });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/logout") {
+    const token = tokenFrom(req);
+    if (token) sessions.delete(token);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/forgot-password") {
+    try {
+      const body = await readJsonBody(req);
+      const db = readDb();
+      const username = String(body.username || body.email || '').trim().toLowerCase();
+      if (!username) { sendJson(res, 400, { error: 'Introduceți numele de utilizator sau emailul.' }); return; }
+      const user = db.users?.find(u => u.active !== false && (
+        String(u.username || '').toLowerCase() === username ||
+        String(u.email || '').toLowerCase() === username
+      ));
+      // Răspuns generic indiferent dacă userul există (securitate)
+      if (user) {
+        // Generare token resetare (6 cifre)
+        const resetCode = String(Math.floor(100000 + Math.random() * 900000));
+        db.passwordResets = db.passwordResets || [];
+        // Elimină coduri vechi pentru același user
+        db.passwordResets = db.passwordResets.filter(r => r.userId !== user.id);
+        db.passwordResets.push({ userId: user.id, code: resetCode, createdAt: new Date().toISOString(), used: false });
+        writeDb(db);
+        // Trimite email dacă SMTP e configurat
+        const smtpHost = db.settings?.smtp?.host || db.settings?.emailSmtpHost;
+        if (smtpHost) {
+          try {
+            const { sendEmail } = require('../messaging/email');
+            await sendEmail({ to: user.email, subject: 'InfraFlow — Resetare parolă', body: `Codul tău de resetare parolă este: ${resetCode}\n\nValabil 30 de minute.` }, db);
+          } catch { /* email optional */ }
+        }
+        // Log intern (administratorul poate vedea în audit sau direct în DB)
+        addAudit(db, user, 'forgot_password', `Reset code generat pentru ${user.username}`);
+        writeDb(db);
+      }
+      sendJson(res, 200, { ok: true, message: 'Dacă contul există, vei primi instrucțiunile de resetare. Dacă nu ai email configurat, contactează administratorul de sistem.' });
+    } catch (err) {
+      sendJson(res, 500, { error: 'Eroare internă.' });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/reset-password") {
+    try {
+      const body = await readJsonBody(req);
+      const db = readDb();
+      const username = String(body.username || '').trim().toLowerCase();
+      const code = String(body.code || '').trim();
+      const newPassword = String(body.newPassword || '');
+      if (!username || !code || !newPassword) { sendJson(res, 400, { error: 'Date incomplete.' }); return; }
+      if (newPassword.length < 6) { sendJson(res, 400, { error: 'Parola trebuie să aibă cel puțin 6 caractere.' }); return; }
+      const user = db.users?.find(u => String(u.username || '').toLowerCase() === username);
+      if (!user) { sendJson(res, 400, { error: 'Cod invalid sau expirat.' }); return; }
+      db.passwordResets = db.passwordResets || [];
+      const resetEntry = db.passwordResets.find(r => r.userId === user.id && r.code === code && !r.used);
+      if (!resetEntry) { sendJson(res, 400, { error: 'Cod invalid sau expirat.' }); return; }
+      // Verificare expirare (30 minute)
+      const age = Date.now() - new Date(resetEntry.createdAt).getTime();
+      if (age > 30 * 60 * 1000) { sendJson(res, 400, { error: 'Codul a expirat. Solicită un cod nou.' }); return; }
+      resetEntry.used = true;
+      user.passwordHash = hashPassword(newPassword);
+      delete user.password;
+      addAudit(db, user, 'password_reset', 'Parolă resetată cu succes');
+      writeDb(db);
+      sendJson(res, 200, { ok: true, message: 'Parola a fost resetată cu succes. Te poți autentifica.' });
+    } catch (err) {
+      sendJson(res, 500, { error: 'Eroare internă.' });
+    }
+    return;
+  }
+
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+
+  if (req.method === "GET" && url.pathname === "/api/session") {
+    sendJson(res, 200, {
+      user: publicUser(auth.user),
+      permissions: effectivePermissionsForUser(auth.user, auth.db),
+      settings: publicSettings(auth.db.settings)
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/dashboard") {
+    requirePermission(auth, res, "dashboard:view") && sendJson(res, 200, buildDashboard(auth.db));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/company-map") {
+    requirePermission(auth, res, "dashboard:view") && sendJson(res, 200, buildCompanyMap(auth.db, auth.user));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/notifications") {
+    requirePermission(auth, res, "dashboard:view") && sendJson(res, 200, buildNotifications(auth.db, auth.user));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/daily-report") {
+    if (!requirePermission(auth, res, "daily_report:view")) return;
+    const date = url.searchParams.get("date") || localDate(new Date());
+    sendJson(res, 200, { report: buildDailyReport(auth.db, date) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/daily-report") {
+    if (!requirePermission(auth, res, "daily_report:print")) return;
+    const date = url.searchParams.get("date") || localDate(new Date());
+    sendHtml(res, 200, buildDailyReportPage(auth.db, buildDailyReport(auth.db, date)));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/period-report") {
+    if (!requirePermission(auth, res, "period_report:view")) return;
+    const { from, to } = periodFromUrl(url);
+    sendJson(res, 200, { report: buildPeriodReport(auth.db, from, to) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/period-report") {
+    if (!requirePermission(auth, res, "period_report:print")) return;
+    const { from, to } = periodFromUrl(url);
+    sendHtml(res, 200, buildPeriodReportPage(auth.db, buildPeriodReport(auth.db, from, to)));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/accounting-report") {
+    if (!requirePermission(auth, res, "accounting_report:view")) return;
+    const month = accountingMonthFromUrl(url);
+    sendJson(res, 200, { report: buildAccountingReport(auth.db, month) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/accounting-report") {
+    if (!requirePermission(auth, res, "accounting_report:print")) return;
+    const month = accountingMonthFromUrl(url);
+    sendHtml(res, 200, buildAccountingReportPage(auth.db, buildAccountingReport(auth.db, month)));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/settings") {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    sendJson(res, 200, { settings: publicSettings(auth.db.settings) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/devices") {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    sendJson(res, 200, buildDeviceRegistry(auth.db));
+    return;
+  }
+
+  const workstationApproveMatch = url.pathname.match(/^\/api\/workstation-requests\/([^/]+)\/approve$/);
+  if (req.method === "POST" && workstationApproveMatch) {
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const result = approveWorkstationRequest(auth.db, auth.user, workstationApproveMatch[1], body);
+    addAudit(auth.db, auth.user, "statie_aprobata", `${result.request.stationName} / ${result.department.name} / ${result.user.username}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { ...result, registry: buildDeviceRegistry(auth.db) });
+    return;
+  }
+
+  const workstationRejectMatch = url.pathname.match(/^\/api\/workstation-requests\/([^/]+)\/reject$/);
+  if (req.method === "POST" && workstationRejectMatch) {
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const request = updateWorkstationRequestStatus(auth.db, auth.user, workstationRejectMatch[1], "rejected");
+    addAudit(auth.db, auth.user, "statie_respinsa", `${request.stationName} / ${request.departmentName}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { request, registry: buildDeviceRegistry(auth.db) });
+    return;
+  }
+
+  const deviceDeleteMatch = url.pathname.match(/^\/api\/devices\/([^/]+)$/);
+  if (req.method === "DELETE" && deviceDeleteMatch) {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const device = removeRegisteredDevice(auth.db, deviceDeleteMatch[1]);
+    sessions.forEach((session, sessionToken) => {
+      if (session.deviceId === device.id) sessions.delete(sessionToken);
+    });
+    addAudit(auth.db, auth.user, "dispozitiv_eliminat", `${device.name || device.id} / ${device.lastIp || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, buildDeviceRegistry(auth.db));
+    return;
+  }
+
+  if (req.method === "PATCH" && url.pathname === "/api/settings") {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req);
+    auth.db.settings = updateSettings(auth.db.settings, body);
+    addAudit(auth.db, auth.user, "setari_modificate", `${auth.db.settings.companyName} / ${auth.db.settings.stationName || ""}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { settings: publicSettings(auth.db.settings) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/initial-stock/complete") {
+    if (!requirePermission(auth, res, "materials:edit")) return;
+    const body = await readJsonBody(req);
+    const settings = completeInitialStock(auth.db, auth.user, body);
+    writeDb(auth.db);
+    sendJson(res, 200, { settings, message: "Stocurile initiale au fost finalizate. Consumurile sunt deblocate." });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/license/import") {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req, 5_000_000);
+    const license = importSignedLicense(body.licenseText || body.license || body);
+    auth.db.settings.license = license;
+    addAudit(auth.db, auth.user, "licenta_importata", `${license.clientName || "-"} / ${license.plan}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { license, settings: publicSettings(auth.db.settings) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/config/recipes-materials") {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const payload = Buffer.from(JSON.stringify(buildRecipesMaterialsConfig(auth.db), null, 2), "utf8");
+    sendBuffer(res, 200, payload, "application/json; charset=utf-8", `config-retete-materiale-${localDate(new Date())}.json`);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/config/recipes-materials") {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req, 5_000_000);
+    if (String(body.confirm || "").trim() !== "IMPORT") throwHttp(400, "Confirmarea importului este invalida.");
+    const safetyBackup = createServerBackup(auth.db, auth.user, "Backup automat inainte de import configuratie retete/materiale");
+    const summary = importRecipesMaterialsConfig(auth.db, auth.user, body.config || body);
+    addAudit(auth.db, auth.user, "config_retete_materiale_importata", `${summary.materials} materiale / ${summary.recipes} retete. Backup siguranta: ${safetyBackup?.name || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { ok: true, summary, safetyBackup, materials: auth.db.materials, recipes: auth.db.recipes });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/backup") {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const backup = Buffer.from(JSON.stringify({ ...auth.db, backupCreatedAt: new Date().toISOString() }, null, 2), "utf8");
+    sendBuffer(res, 200, backup, "application/json; charset=utf-8", `backup-asfalt-pro-${localDate(new Date())}.json`);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/restore") {
+    if (!requirePermission(auth, res, "settings:manage")) return;
+    const body = await readJsonBody(req, 20_000_000);
+    const restored = validateRestoreData(body);
+    const safetyBackup = createServerBackup(auth.db, auth.user, "Backup automat inainte de restaurare din fisier JSON");
+    addAudit(restored, auth.user, "restore_date", `Date restaurate din backup JSON. Backup siguranta: ${safetyBackup?.name || "-"}`);
+    writeDb(restored);
+    sendJson(res, 200, { ok: true, settings: restored.settings, safetyBackup, backup: latestBackupInfo() });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/system/backups") {
+    if (!requirePermission(auth, res, "system:view")) return;
+    sendJson(res, 200, { backup: latestBackupInfo() });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/system/backups") {
+    if (!requirePermission(auth, res, "system:view")) return;
+    const backup = createServerBackup(auth.db, auth.user, "Backup creat manual din Sistem");
+    sendJson(res, 201, { backup, diagnostics: buildSystemDiagnostics(auth.db) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/system/update-package") {
+    if (!requireSuperadmin(auth, res)) return;
+    const archive = await readBinaryBody(req, UPDATE_UPLOAD_MAX_BYTES);
+    const result = installUpdatePackage(auth.db, auth.user, archive, {
+      fileName: decodeURIComponent(url.searchParams.get("fileName") || "update.zip")
+    });
+    writeDb(auth.db);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/system/restart") {
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    if (String(body.confirm || "").trim() !== "RESTART") throwHttp(400, "Confirmarea restartului este invalida.");
+    addAudit(auth.db, auth.user, "restart_aplicatie_programat", "Restart cerut din Sistem / Actualizare");
+    writeDb(auth.db);
+    sendJson(res, 202, { ok: true, message: "Restart programat. Aplicatia va fi indisponibila cateva secunde." });
+    scheduleApplicationRestart();
+    return;
+  }
+
+  const systemBackupRestoreMatch = url.pathname.match(/^\/api\/system\/backups\/([^/]+)\/restore$/);
+  if (req.method === "POST" && systemBackupRestoreMatch) {
+    if (!requirePermission(auth, res, "system:view")) return;
+    const body = await readJsonBody(req);
+    if (String(body.confirm || "").trim() !== "RESTAUREZ") {
+      throwHttp(400, "Confirmarea restaurarii este invalida.");
+    }
+    const backup = backupFileInfo(decodeURIComponent(systemBackupRestoreMatch[1]));
+    if (!backup) throwHttp(404, "Backup inexistent.");
+    let parsed;
+    try {
+      parsed = JSON.parse(fs.readFileSync(backup.path, "utf8"));
+    } catch {
+      throwHttp(400, "Backup invalid: fisierul nu este JSON valid.");
+    }
+    const restored = validateRestoreData(parsed);
+    const safetyBackup = createServerBackup(auth.db, auth.user, `Backup automat inainte de restaurare server: ${backup.name}`);
+    addAudit(restored, auth.user, "restore_backup_server", `Restaurat din ${backup.name}. Backup siguranta: ${safetyBackup?.name || "-"}`);
+    writeDb(restored);
+    sendJson(res, 200, { ok: true, restoredFrom: backup.name, safetyBackup, settings: restored.settings, backup: latestBackupInfo() });
+    return;
+  }
+
+  const systemBackupDownloadMatch = url.pathname.match(/^\/api\/system\/backups\/([^/]+)$/);
+  if (req.method === "GET" && systemBackupDownloadMatch) {
+    if (!requirePermission(auth, res, "system:view")) return;
+    const backup = backupFileInfo(decodeURIComponent(systemBackupDownloadMatch[1]));
+    if (!backup) throwHttp(404, "Backup inexistent.");
+    sendBuffer(res, 200, fs.readFileSync(backup.path), "application/json; charset=utf-8", backup.name);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/materials") {
+    requirePermission(auth, res, "materials:view") && sendJson(res, 200, { materials: auth.db.materials });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/material-options") {
+    if (!requireAnyPermission(auth, res, ["materials:view", "department_requests:create", "department_requests:manage", "technical:worklog"])) return;
+    sendJson(res, 200, {
+      materials: auth.db.materials.map((material) => ({
+        id: material.id,
+        name: material.name,
+        unit: material.unit,
+        recipeMaterial: material.recipeMaterial === true,
+        category: material.category || (material.recipeMaterial === true ? "asfalt" : "general")
+      }))
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/department-requests") {
+    if (!requireAnyPermission(auth, res, ["department_requests:view", "technical:worklog"])) return;
+    let requests = filteredDepartmentRequests(auth.db, url);
+    if (auth.user.role !== "superadmin" && auth.user.departmentId) {
+      const departmentName = (auth.db.departments || []).find((item) => item.id === auth.user.departmentId)?.name || "";
+      if (departmentName) requests = requests.filter((item) => item.department === departmentName);
+    }
+    sendJson(res, 200, { requests });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/department-requests") {
+    if (!requireAnyPermission(auth, res, ["department_requests:create", "technical:worklog"])) return;
+    const body = await readJsonBody(req);
+    const request = createDepartmentRequest(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "solicitare_departament", `${request.department} / ${request.itemName} / ${fmt(request.amount)} ${request.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { request });
+    return;
+  }
+
+  const departmentRequestMatch = url.pathname.match(/^\/api\/department-requests\/([^/]+)$/);
+  if (req.method === "PATCH" && departmentRequestMatch) {
+    if (!requirePermission(auth, res, "department_requests:manage")) return;
+    const body = await readJsonBody(req);
+    const request = updateDepartmentRequest(auth.db, auth.user, departmentRequestMatch[1], body);
+    const mapped = body.materialId !== undefined || body.mappedMaterialId !== undefined;
+    addAudit(auth.db, auth.user, mapped ? "solicitare_departament_mapare" : "solicitare_departament_status", mapped
+      ? `${request.department} / ${request.requestedMaterialName || "-"} -> ${request.materialName || "-"}`
+      : `${request.department} / ${request.status}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { request });
+    return;
+  }
+
+  const planDepartmentRequestMatch = url.pathname.match(/^\/api\/department-requests\/([^/]+)\/plan$/);
+  if (req.method === "POST" && planDepartmentRequestMatch) {
+    if (!requirePermission(auth, res, "department_requests:plan")) return;
+    const plan = createPlanFromDepartmentRequest(auth.db, auth.user, planDepartmentRequestMatch[1]);
+    addAudit(auth.db, auth.user, "solicitare_planificata", `${plan.jobName || "-"} / ${plan.recipeName} / ${fmt(plan.asphalt)} t`);
+    writeDb(auth.db);
+    sendJson(res, 201, { plan, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/roles") {
+    if (!requirePermission(auth, res, "users:manage")) return;
+    sendJson(res, 200, { roles: rolesList(auth.db.settings), catalog: rolePermissionCatalog() });
+    return;
+  }
+
+  const rolePermissionMatch = url.pathname.match(/^\/api\/roles\/([^/]+)\/permissions$/);
+  if (req.method === "PATCH" && rolePermissionMatch) {
+    if (!requirePermission(auth, res, "users:manage")) return;
+    if (!["superadmin", "admin"].includes(auth.user.role)) {
+      sendJson(res, 403, { error: "Doar Adminul sau Superadminul poate modifica accesul pe roluri." });
+      return;
+    }
+    const body = await readJsonBody(req);
+    const role = coreUpdateRolePermissions(auth.db, auth.user, rolePermissionMatch[1], body);
+    addAudit(auth.db, auth.user, "rol_permisiuni_modificate", `${role.name} / ${role.customized ? "custom" : "reset"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { role, roles: rolesList(auth.db.settings), catalog: rolePermissionCatalog() });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/departments") {
+    // Auto-migrare: normalizează ID-urile departamentelor vechi
+    let needsSave = false;
+    (auth.db.departments || []).forEach(d => {
+      if (!d.id || d.id === 'null' || d.id === 'undefined') {
+        // Fără ID deloc → generează unul nou
+        d.id = id('dept');
+        needsSave = true;
+      } else if (typeof d.id !== 'string') {
+        // ID numeric (ex: 1, 2, 3) → convertim la string păstrând valoarea
+        d.id = String(d.id);
+        needsSave = true;
+      }
+    });
+    if (needsSave) writeDb(auth.db);
+    sendJson(res, 200, { departments: (auth.db.departments || []).map(adminDepartment) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/departments") {
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    const name = String(body.name || "").trim();
+    if (!name) throwHttp(400, "Numele departamentului este obligatoriu.");
+    const dept = {
+      id: id("dept"),
+      name,
+      tip: String(body.tip || "departament").trim() || "departament",
+      icon: String(body.icon || "👥").trim() || "👥",
+      culoare: String(body.culoare || body.color || "#3B82F6").trim() || "#3B82F6",
+      color: String(body.culoare || body.color || "#3B82F6").trim() || "#3B82F6",
+      permissions: Array.isArray(body.permissions) ? body.permissions : [],
+      createdBy: auth.user.id,
+      createdAt: new Date().toISOString()
+    };
+    auth.db.departments.push(dept);
+    addAudit(auth.db, auth.user, "departament_creat", name);
+    writeDb(auth.db);
+    sendJson(res, 201, { department: adminDepartment(dept) });
+    return;
+  }
+
+  const departmentMatch = url.pathname.match(/^\/api\/departments\/([^/]+)$/);
+  if ((req.method === "PATCH" || req.method === "PUT") && departmentMatch) {
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    const dept = auth.db.departments.find(d => String(d.id) === departmentMatch[1]);
+    if (!dept) throwHttp(404, "Departament inexistent.");
+    if (body.name !== undefined) dept.name = String(body.name || "").trim();
+    if (body.tip !== undefined) dept.tip = String(body.tip || "departament").trim() || "departament";
+    if (body.icon !== undefined) dept.icon = String(body.icon || "👥").trim() || "👥";
+    if (body.culoare !== undefined || body.color !== undefined) {
+      dept.culoare = String(body.culoare || body.color || "#3B82F6").trim() || "#3B82F6";
+      dept.color = dept.culoare;
+    }
+    if (Array.isArray(body.permissions)) dept.permissions = body.permissions;
+    // Normalizează ID-ul la string dacă era numeric
+    if (typeof dept.id !== 'string') dept.id = String(dept.id);
+    dept.updatedBy = auth.user.id;
+    dept.updatedAt = new Date().toISOString();
+    addAudit(auth.db, auth.user, "departament_modificat", dept.name);
+    writeDb(auth.db);
+    sendJson(res, 200, { department: adminDepartment(dept) });
+    return;
+  }
+
+  if (req.method === "DELETE" && departmentMatch) {
+    if (!requireSuperadmin(auth, res)) return;
+    const index = auth.db.departments.findIndex(d => String(d.id) === departmentMatch[1]);
+    if (index === -1) throwHttp(404, "Departament inexistent.");
+    const dept = auth.db.departments.splice(index, 1)[0];
+    addAudit(auth.db, auth.user, "departament_sters", dept.name);
+    writeDb(auth.db);
+    sendJson(res, 200, { success: true });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/users") {
+    if (!requirePermission(auth, res, "users:manage")) return;
+    sendJson(res, 200, { users: auth.db.users.map(adminUser) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/users") {
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const user = createUser(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "utilizator_adaugat", `${user.username} / ${user.role}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { user: adminUser(user) });
+    return;
+  }
+
+  const userMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
+  if (req.method === "PATCH" && userMatch) {
+    if (!requirePermission(auth, res, "users:manage")) return;
+    const body = await readJsonBody(req);
+    const user = updateUser(auth.db, auth.user, userMatch[1], body);
+    addAudit(auth.db, auth.user, "utilizator_modificat", `${user.username} / ${user.role} / ${user.active ? "activ" : "inactiv"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { user: adminUser(user) });
+    return;
+  }
+
+  if (req.method === "PATCH" && url.pathname === "/api/materials") {
+    if (!requirePermission(auth, res, "materials:edit")) return;
+    const body = await readJsonBody(req);
+    const result = updateMaterial(auth.db, body);
+    const updated = result.material || result;
+    addAudit(auth.db, auth.user, "material_actualizat", updated.name);
+    writeDb(auth.db);
+    sendJson(res, 200, { material: updated, message: result.message || "Material actualizat." });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/materials") {
+    if (!requirePermission(auth, res, "materials:edit")) return;
+    const body = await readJsonBody(req);
+    const material = createMaterial(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "material_adaugat", `${material.name} / ${material.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { material });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/stock-operations") {
+    if (!requirePermission(auth, res, "stock_operations:create")) return;
+    const body = await readJsonBody(req);
+    const movement = createStockOperation(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "miscare_stoc", `${movement.materialName} / ${movement.amount > 0 ? "+" : ""}${fmt(movement.amount)} ${movement.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { movement, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/stock-operations") {
+    if (!requirePermission(auth, res, "stock_operations:view")) return;
+    const rows = filteredStockOperations(auth.db, url).slice(0, 500);
+    sendJson(res, 200, { movements: rows });
+    return;
+  }
+
+  const cancelStockOperationMatch = url.pathname.match(/^\/api\/stock-operations\/([^/]+)\/cancel$/);
+  if (req.method === "POST" && cancelStockOperationMatch) {
+    if (!requirePermission(auth, res, "stock_operations:cancel")) return;
+    const movement = cancelStockOperation(auth.db, auth.user, cancelStockOperationMatch[1]);
+    addAudit(auth.db, auth.user, "miscare_stoc_anulata", `${movement.materialName} / ${fmt(movement.amount)} ${movement.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { movement, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/stock-transfer") {
+    if (!requirePermission(auth, res, "stock_operations:create")) return;
+    const body = await readJsonBody(req);
+    const result = transferMaterialToDepartment(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "transfer_departament", `${result.material.name} -> ${body.department} / ${fmt(body.amount)} ${result.material.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { ...result, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/department-stocks") {
+    if (!requireAnyPermission(auth, res, ["materials:view", "technical:worklog", "department_requests:view"])) return;
+    let stocks = auth.db.departmentStocks;
+    if (auth.user.role !== "superadmin" && auth.user.departmentId && !authHasPermission(auth, "materials:view")) {
+      const departmentName = (auth.db.departments || []).find((item) => item.id === auth.user.departmentId)?.name || "";
+      if (departmentName) stocks = stocks.filter((item) => item.department === departmentName);
+    }
+    sendJson(res, 200, { stocks });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/department-transfers") {
+    if (!requireAnyPermission(auth, res, ["materials:view", "technical:worklog", "department_requests:view"])) return;
+    const department = String(url.searchParams.get("department") || "").trim();
+    let rows = departmentTransfersForUser(auth.db, auth.user);
+    if (department) rows = rows.filter((item) => item.department === department);
+    sendJson(res, 200, { transfers: rows });
+    return;
+  }
+
+  const confirmDepartmentTransferMatch = url.pathname.match(/^\/api\/department-transfers\/([^/]+)\/confirm$/);
+  if (req.method === "POST" && confirmDepartmentTransferMatch) {
+    if (!requirePermission(auth, res, "technical:worklog")) return;
+    const transfer = confirmDepartmentTransfer(auth.db, auth.user, confirmDepartmentTransferMatch[1]);
+    addAudit(auth.db, auth.user, "transfer_departament_confirmat", `${transfer.department} / ${transfer.materialName} / ${fmt(Math.abs(Number(transfer.amount || 0)))} ${transfer.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { transfer, stocks: auth.db.departmentStocks });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/department-consumption") {
+    if (!requirePermission(auth, res, "technical:worklog")) return;
+    const body = await readJsonBody(req);
+    const consumption = recordDepartmentConsumption(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "consum_departament", `${consumption.department} / ${consumption.materialName} / ${fmt(consumption.amount)} ${consumption.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { consumption, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/department-consumptions") {
+    if (!requireAnyPermission(auth, res, ["technical:view", "technical:worklog", "cost_accounting:view"])) return;
+    const requestId = url.searchParams.get("requestId");
+    let rows = auth.db.departmentConsumptions;
+    if (requestId) rows = rows.filter(c => c.jobRequestId === requestId);
+    if (auth.user.role !== "superadmin" && auth.user.departmentId && !authHasPermission(auth, "technical:view") && !authHasPermission(auth, "cost_accounting:view")) {
+      const departmentName = (auth.db.departments || []).find((item) => item.id === auth.user.departmentId)?.name || "";
+      if (departmentName) rows = rows.filter((item) => item.department === departmentName);
+    }
+    sendJson(res, 200, { consumptions: rows });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/recipes") {
+    requirePermission(auth, res, "recipes:view") && sendJson(res, 200, { recipes: auth.db.recipes });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/recipes") {
+    if (!requirePermission(auth, res, "recipes:manage")) return;
+    const body = await readJsonBody(req);
+    const recipe = createRecipe(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "reteta_adaugata", recipe.name);
+    writeDb(auth.db);
+    sendJson(res, 201, { recipe });
+    return;
+  }
+
+  const recipeMatch = url.pathname.match(/^\/api\/recipes\/([^/]+)$/);
+  if (req.method === "PATCH" && recipeMatch) {
+    if (!requirePermission(auth, res, "recipes:manage")) return;
+    const body = await readJsonBody(req);
+    const recipe = updateRecipe(auth.db, auth.user, recipeMatch[1], body);
+    addAudit(auth.db, auth.user, "reteta_modificata", `${recipe.name} v${recipe.version}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { recipe });
+    return;
+  }
+
+  if (req.method === "DELETE" && recipeMatch) {
+    if (!requirePermission(auth, res, "recipes:manage")) return;
+    const recipe = deleteRecipe(auth.db, auth.user, recipeMatch[1]);
+    addAudit(auth.db, auth.user, recipe.active === false ? "reteta_arhivata" : "reteta_stearsa", recipe.name);
+    writeDb(auth.db);
+    sendJson(res, 200, { recipe });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/consumptions") {
+    requirePermission(auth, res, "consumptions:view") && sendJson(res, 200, { consumptions: filteredConsumptions(auth.db, url) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/consumptions") {
+    if (!requirePermission(auth, res, "consumptions:create")) return;
+    const body = await readJsonBody(req);
+    const consumption = createConsumption(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "consum_salvat", `${consumption.recipeName} / ${fmt(consumption.asphalt)} t`);
+    writeDb(auth.db);
+    sendJson(res, 201, { consumption, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  const cancelConsumptionMatch = url.pathname.match(/^\/api\/consumptions\/([^/]+)\/cancel$/);
+  if (req.method === "POST" && cancelConsumptionMatch) {
+    if (!requirePermission(auth, res, "consumptions:cancel")) return;
+    const consumption = cancelConsumption(auth.db, auth.user, cancelConsumptionMatch[1]);
+    addAudit(auth.db, auth.user, "consum_anulat", consumption.reportNo || consumption.id);
+    writeDb(auth.db);
+    sendJson(res, 200, { consumption, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/consumptions.xlsx") {
+    if (!requirePermission(auth, res, "consumptions:export")) return;
+    const rows = filteredConsumptions(auth.db, url);
+    const workbook = buildConsumptionsWorkbook(auth.db, rows, url);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `consumuri-${localDate(new Date())}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/daily-report.xlsx") {
+    if (!requirePermission(auth, res, "daily_report:export")) return;
+    const date = url.searchParams.get("date") || localDate(new Date());
+    const report = buildDailyReport(auth.db, date);
+    const workbook = buildDailyReportWorkbook(report);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `raport-zi-${report.date}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/period-report.xlsx") {
+    if (!requirePermission(auth, res, "period_report:export")) return;
+    const { from, to } = periodFromUrl(url);
+    const report = buildPeriodReport(auth.db, from, to);
+    const workbook = buildPeriodReportWorkbook(report);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `raport-perioada-${report.from}-${report.to}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/consumptions") {
+    if (!requirePermission(auth, res, "consumptions:export")) return;
+    const rows = filteredConsumptions(auth.db, url);
+    sendHtml(res, 200, buildConsumptionsReport(auth.db, rows, url));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/stock-operations.xlsx") {
+    if (!requirePermission(auth, res, "stock_operations:export")) return;
+    const rows = filteredStockOperations(auth.db, url);
+    const workbook = buildStockOperationsWorkbook(rows, url);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `miscari-stoc-${localDate(new Date())}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/procurement.xlsx") {
+    if (!requirePermission(auth, res, "planning:view")) return;
+    const workbook = buildProcurementWorkbook(buildProcurementRequirements(auth.db));
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `necesar-aprovizionare-${localDate(new Date())}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/procurement-orders.xlsx") {
+    if (!requirePermission(auth, res, "procurement_orders:view")) return;
+    const workbook = buildProcurementOrdersWorkbook(auth.db);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `comenzi-aprovizionare-${localDate(new Date())}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/procurement-orders") {
+    if (!requirePermission(auth, res, "procurement_orders:view")) return;
+    sendHtml(res, 200, buildProcurementOrdersReport(auth.db));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/fleet.xlsx") {
+    if (!requirePermission(auth, res, "mechanization:view")) return;
+    const workbook = buildFleetWorkbook(auth.db);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `mecanizare-${localDate(new Date())}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/fleet") {
+    if (!requirePermission(auth, res, "mechanization:view")) return;
+    sendHtml(res, 200, buildFleetReport(auth.db));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/technical-report.xlsx") {
+    if (!requirePermission(auth, res, "technical:export")) return;
+    const report = buildTechnicalReportFromUrl(auth.db, url);
+    const workbook = buildTechnicalReportWorkbook(report);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `raport-tehnic-${report.from}-${report.to}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/technical-report") {
+    if (!requirePermission(auth, res, "technical:export")) return;
+    sendHtml(res, 200, buildTechnicalReportPage(auth.db, buildTechnicalReportFromUrl(auth.db, url)));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/cost-accounting.xlsx") {
+    if (!requirePermission(auth, res, "cost_accounting:export")) return;
+    const { from, to } = periodFromUrl(url);
+    const report = buildCostAccountingReport(auth.db, from, to);
+    const workbook = buildCostAccountingWorkbook(report);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `raport-costuri-${report.from}-${report.to}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/cost-accounting") {
+    if (!requirePermission(auth, res, "cost_accounting:export")) return;
+    const { from, to } = periodFromUrl(url);
+    sendHtml(res, 200, buildCostAccountingReportPage(auth.db, buildCostAccountingReport(auth.db, from, to)));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/stock-operations") {
+    if (!requirePermission(auth, res, "stock_operations:export")) return;
+    const rows = filteredStockOperations(auth.db, url);
+    sendHtml(res, 200, buildStockOperationsReport(auth.db, rows, url));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/ledger.xlsx") {
+    if (!requirePermission(auth, res, "ledger:export")) return;
+    const materialId = url.searchParams.get("materialId") || "";
+    const from = url.searchParams.get("from") || "";
+    const to = url.searchParams.get("to") || "";
+    const rows = ledgerRows(auth.db, { materialId, from, to });
+    const material = auth.db.materials.find((item) => item.id === materialId);
+    const workbook = buildLedgerWorkbook(rows, material, { from, to });
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `fisa-stoc-${localDate(new Date())}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/exports/accounting-report.xlsx") {
+    if (!requirePermission(auth, res, "accounting_report:export")) return;
+    const month = accountingMonthFromUrl(url);
+    const report = buildAccountingReport(auth.db, month);
+    const workbook = buildAccountingReportWorkbook(report);
+    sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `raport-contabil-${month}.xlsx`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reports/ledger") {
+    if (!requirePermission(auth, res, "ledger:export")) return;
+    const materialId = url.searchParams.get("materialId") || "";
+    const from = url.searchParams.get("from") || "";
+    const to = url.searchParams.get("to") || "";
+    const rows = ledgerRows(auth.db, { materialId, from, to });
+    const material = auth.db.materials.find((item) => item.id === materialId);
+    sendHtml(res, 200, buildLedgerReport(auth.db, rows, material, { from, to }));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/deliveries") {
+    requirePermission(auth, res, "deliveries:view") && sendJson(res, 200, { deliveries: auth.db.deliveries.filter((item) => !item.canceled && !item.deleted) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/deliveries") {
+    if (!requirePermission(auth, res, "deliveries:create")) return;
+    const body = await readJsonBody(req);
+    if (String(body.materialId || "") === "__new__" && !authHasPermission(auth, "materials:edit")) {
+      sendJson(res, 403, { error: "Nu ai permisiune sa creezi materiale noi." });
+      return;
+    }
+    const delivery = createDelivery(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "intrare_marfa", `${delivery.materialName} / ${fmt(delivery.amount)} ${delivery.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { delivery, material: delivery.createdMaterial || null, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  const cancelDeliveryMatch = url.pathname.match(/^\/api\/deliveries\/([^/]+)\/cancel$/);
+  if (req.method === "POST" && cancelDeliveryMatch) {
+    if (!requirePermission(auth, res, "deliveries:cancel")) return;
+    const delivery = cancelDelivery(auth.db, auth.user, cancelDeliveryMatch[1]);
+    addAudit(auth.db, auth.user, "intrare_anulata", `${delivery.materialName} / ${fmt(delivery.amount)} ${delivery.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { delivery, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  const deleteDeliveryMatch = url.pathname.match(/^\/api\/deliveries\/([^/]+)$/);
+  if (req.method === "DELETE" && deleteDeliveryMatch) {
+    if (!requireSuperadmin(auth, res)) return;
+    const result = deleteDelivery(auth.db, auth.user, deleteDeliveryMatch[1]);
+    addAudit(auth.db, auth.user, "intrare_stearsa_superadmin", `${result.delivery.materialName} / ${fmt(result.delivery.amount)} ${result.delivery.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { ...result, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/procurement-orders") {
+    if (!requirePermission(auth, res, "procurement_orders:view")) return;
+    sendJson(res, 200, {
+      orders: procurementOrdersView(auth.db),
+      receipts: (auth.db.procurementReceipts || []).filter((item) => !item.canceled && !item.deleted).slice().sort(sortNewest)
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/procurement-orders") {
+    if (!requirePermission(auth, res, "procurement_orders:create")) return;
+    const body = await readJsonBody(req);
+    const order = createProcurementOrder(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "comanda_aprovizionare", `${order.orderNo || "-"} / ${order.materialName} / ${fmt(order.amount)} ${order.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { order });
+    return;
+  }
+
+  const deleteProcurementOrderMatch = url.pathname.match(/^\/api\/procurement-orders\/([^/]+)$/);
+  if (req.method === "DELETE" && deleteProcurementOrderMatch) {
+    if (!requireSuperadmin(auth, res)) return;
+    const result = deleteProcurementOrder(auth.db, auth.user, deleteProcurementOrderMatch[1]);
+    addAudit(auth.db, auth.user, "comanda_aprovizionare_stearsa_superadmin", `${result.order.orderNo || "-"} / ${result.order.materialName} / receptii ${result.deletedReceipts} / intrari reversate ${result.reversedDeliveries}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { ...result, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  const receiveProcurementOrderMatch = url.pathname.match(/^\/api\/procurement-orders\/([^/]+)\/receipts$/);
+  if (req.method === "POST" && receiveProcurementOrderMatch) {
+    if (!requirePermission(auth, res, "procurement_orders:receive")) return;
+    const body = await readJsonBody(req);
+    const result = receiveProcurementOrder(auth.db, auth.user, receiveProcurementOrderMatch[1], body);
+    addAudit(auth.db, auth.user, "receptie_aprovizionare", `${result.order.orderNo || "-"} / ${result.receipt.materialName} / ${fmt(result.receipt.amount)} ${result.receipt.unit}`);
+    writeDb(auth.db);
+    sendJson(res, 201, result);
+    return;
+  }
+
+  const closeProcurementOrderMatch = url.pathname.match(/^\/api\/procurement-orders\/([^/]+)\/close$/);
+  if (req.method === "POST" && closeProcurementOrderMatch) {
+    if (!requirePermission(auth, res, "procurement_orders:close")) return;
+    const order = closeProcurementOrder(auth.db, auth.user, closeProcurementOrderMatch[1]);
+    addAudit(auth.db, auth.user, "comanda_aprovizionare_inchisa", `${order.orderNo || "-"} / ${order.materialName}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { order });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/scale/status") {
+    if (!requirePermission(auth, res, "procurement_orders:view")) return;
+    sendJson(res, 200, scaleStatus(auth.db.settings));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/scale/tickets") {
+    if (!requirePermission(auth, res, "procurement_orders:receive")) return;
+    sendJson(res, 200, readScaleTickets(auth.db, url));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/scale/product-map") {
+    if (!requirePermission(auth, res, "procurement_orders:receive")) return;
+    const body = await readJsonBody(req);
+    const result = setScaleProductMap(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "mapare_produs_cantar", `${result.product} -> ${result.materialName || "nemapat"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/fleet-assets") {
+    if (!requirePermission(auth, res, "mechanization:view")) return;
+    sendJson(res, 200, { assets: fleetAssetsView(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/fleet-alerts") {
+    if (!requirePermission(auth, res, "mechanization:view")) return;
+    sendJson(res, 200, { alerts: buildFleetAlerts(auth.db) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/fleet-assets/import-preview") {
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req, 20_000_000);
+    sendJson(res, 200, previewFleetAssetXmlImport(auth.db, body));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/fleet-assets/import-xml") {
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req, 20_000_000);
+    const result = importFleetAssetsFromXml(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "import_xml_mecanizare", `${result.imported} adaugate, ${result.updated} actualizate, ${result.skipped} sarite`);
+    writeDb(auth.db);
+    sendJson(res, 201, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/fleet-assets") {
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req);
+    const asset = createFleetAsset(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "utilaj_adaugat", `${asset.registration || "-"} / ${asset.name}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { asset });
+    return;
+  }
+
+  const fleetAssetMeterMatch = url.pathname.match(/^\/api\/fleet-assets\/([^/]+)\/meter$/);
+  if (req.method === "POST" && fleetAssetMeterMatch) {
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req);
+    const asset = updateFleetAssetMeter(auth.db, auth.user, fleetAssetMeterMatch[1], body);
+    addAudit(auth.db, auth.user, "rulaj_utilaj_actualizat", `${asset.registration || "-"} / ${asset.name || "-"} / ${fmt(asset.currentMeter)} ${fleetMeterUnitLabel(asset.meterUnit)}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { asset, alerts: buildFleetAlerts(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/fleet-requests") {
+    if (!requirePermission(auth, res, "mechanization:view")) return;
+    sendJson(res, 200, { requests: (auth.db.fleetRequests || []).slice().sort(sortNewest) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/fleet-requests") {
+    if (!requirePermission(auth, res, "mechanization:request")) return;
+    const body = await readJsonBody(req);
+    const request = createFleetRequest(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "solicitare_mecanizare", `${request.assetName || request.category} / ${request.date} ${request.startTime}-${request.endTime}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { request });
+    return;
+  }
+
+  const fleetRequestStatusMatch = url.pathname.match(/^\/api\/fleet-requests\/([^/]+)\/status$/);
+  if (req.method === "POST" && fleetRequestStatusMatch) {
+    if (!requirePermission(auth, res, "mechanization:approve")) return;
+    const body = await readJsonBody(req);
+    const request = updateFleetRequestStatus(auth.db, auth.user, fleetRequestStatusMatch[1], body);
+    addAudit(auth.db, auth.user, "solicitare_mecanizare_status", `${request.assetName || request.category} / ${request.status}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { request });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/cost-centers") {
+    if (!requireAnyPermission(auth, res, ["technical:view", "technical:worklog", "cost_accounting:view"])) return;
+    sendJson(res, 200, { costCenters: costCentersView(auth.db) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/cost-centers") {
+    if (!requirePermission(auth, res, "cost_accounting:manage")) return;
+    const body = await readJsonBody(req);
+    const center = createCostCenter(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "centru_cost_adaugat", `${center.code || "-"} / ${center.name}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { costCenter: center });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/technical/clients") {
+    if (!requirePermission(auth, res, "technical:view")) return;
+    sendJson(res, 200, { clients: technicalClientsView(auth.db) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/technical/clients/lookup-cif") {
+    if (!requirePermission(auth, res, "technical:sales")) return;
+    const body = await readJsonBody(req);
+    const client = await lookupAnafClient(body.cif);
+    sendJson(res, 200, { client });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/technical/clients") {
+    if (!requirePermission(auth, res, "technical:sales")) return;
+    const body = await readJsonBody(req);
+    const client = createTechnicalClient(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "client_tehnic_adaugat", `${client.name || "-"} / ${client.cif || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 201, { client, clients: technicalClientsView(auth.db) });
+    return;
+  }
+
+  const technicalClientMatch = url.pathname.match(/^\/api\/technical\/clients\/([^/]+)$/);
+  if (req.method === "PATCH" && technicalClientMatch) {
+    if (!requirePermission(auth, res, "technical:sales")) return;
+    const body = await readJsonBody(req);
+    const client = updateTechnicalClient(auth.db, auth.user, technicalClientMatch[1], body);
+    addAudit(auth.db, auth.user, "client_tehnic_modificat", `${client.name || "-"} / ${client.cif || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { client, clients: technicalClientsView(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/technical/work-logs") {
+    if (!requireAnyPermission(auth, res, ["technical:view", "technical:worklog"])) return;
+    sendJson(res, 200, { workLogs: filteredTechnicalWorkLogs(auth.db, url) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/technical/work-logs") {
+    if (!requirePermission(auth, res, "technical:worklog")) return;
+    const body = await readJsonBody(req);
+    const workLog = createTechnicalWorkLog(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "pontaj_utilaj_lucrare", `${workLog.assetName || "-"} / ${workLog.jobName || "-"} / ${fmt(workLog.hours)} ore`);
+    writeDb(auth.db);
+    sendJson(res, 201, { workLog });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/technical/asphalt-sales") {
+    if (!requirePermission(auth, res, "technical:view")) return;
+    sendJson(res, 200, { sales: filteredAsphaltSales(auth.db, url) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/technical/asphalt-sales") {
+    if (!requirePermission(auth, res, "technical:sales")) return;
+    const body = await readJsonBody(req);
+    const sale = createAsphaltSale(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "vanzare_asfalt", `${sale.client || sale.jobName || "-"} / ${fmt(sale.amount)} t`);
+    writeDb(auth.db);
+    sendJson(res, 201, { sale });
+    return;
+  }
+
+  const asphaltSaleMatch = url.pathname.match(/^\/api\/technical\/asphalt-sales\/([^/]+)$/);
+  if (req.method === "PATCH" && asphaltSaleMatch) {
+    if (!requirePermission(auth, res, "technical:sales")) return;
+    const body = await readJsonBody(req);
+    const sale = updateAsphaltSale(auth.db, auth.user, asphaltSaleMatch[1], body);
+    addAudit(auth.db, auth.user, "vanzare_asfalt_modificata", `${sale.client || sale.jobName || "-"} / ${fmt(sale.amount)} t`);
+    writeDb(auth.db);
+    sendJson(res, 200, { sale, report: buildTechnicalReportFromUrl(auth.db, url) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/technical/report") {
+    if (!requirePermission(auth, res, "technical:view")) return;
+    sendJson(res, 200, { report: buildTechnicalReportFromUrl(auth.db, url) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/nexus-expenses") {
+    if (!requirePermission(auth, res, "cost_accounting:view")) return;
+    sendJson(res, 200, { expenses: filteredNexusExpenses(auth.db, url) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/accounting/asphalt-sales") {
+    if (!requireAnyPermission(auth, res, ["cost_accounting:view", "accounting_report:view", "technical:view"])) return;
+    sendJson(res, 200, buildAccountingAsphaltSales(auth.db, url));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/nexus-expenses/import") {
+    if (!requirePermission(auth, res, "cost_accounting:import")) return;
+    const body = await readJsonBody(req, 10_000_000);
+    const result = importNexusExpenses(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "import_cheltuieli_nexus", `${result.imported} randuri / ${fmt(result.totalAmount)} RON`);
+    writeDb(auth.db);
+    sendJson(res, 201, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/nexus-expenses/import-xlsx") {
+    if (!requirePermission(auth, res, "cost_accounting:import")) return;
+    const body = await readJsonBody(req, 20_000_000);
+    const rows = parseNexusExpensesXlsx(body);
+    const result = importNexusExpenses(auth.db, auth.user, { rows });
+    addAudit(auth.db, auth.user, "import_cheltuieli_nexus_xlsx", `${result.imported} randuri / ${fmt(result.totalAmount)} RON`);
+    writeDb(auth.db);
+    sendJson(res, 201, { ...result, parsedRows: rows.length });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/cost-accounting/report") {
+    if (!requirePermission(auth, res, "cost_accounting:view")) return;
+    const { from, to } = periodFromUrl(url);
+    sendJson(res, 200, { report: buildCostAccountingReport(auth.db, from, to) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/ledger") {
+    if (!requirePermission(auth, res, "ledger:view")) return;
+    const materialId = url.searchParams.get("materialId") || "";
+    const from = url.searchParams.get("from") || "";
+    const to = url.searchParams.get("to") || "";
+    const rows = ledgerRows(auth.db, { materialId, from, to });
+    sendJson(res, 200, { rows });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/plans") {
+    requirePermission(auth, res, "planning:view") && sendJson(res, 200, { plans: auth.db.productionPlans.slice().sort(sortNewest) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/procurement-requirements") {
+    requirePermission(auth, res, "planning:view") && sendJson(res, 200, { requirements: buildProcurementRequirements(auth.db) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/plans") {
+    if (!requirePermission(auth, res, "planning:manage")) return;
+    const body = await readJsonBody(req);
+    const plan = createProductionPlan(auth.db, auth.user, body);
+    addAudit(auth.db, auth.user, "plan_adaugat", `${plan.recipeName} / ${fmt(plan.asphalt)} t`);
+    writeDb(auth.db);
+    sendJson(res, 201, { plan, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  const deletePlanMatch = url.pathname.match(/^\/api\/plans\/([^/]+)$/);
+  if (req.method === "DELETE" && deletePlanMatch) {
+    if (!requirePermission(auth, res, "planning:manage")) return;
+    const plan = deleteProductionPlan(auth.db, auth.user, deletePlanMatch[1]);
+    addAudit(auth.db, auth.user, "plan_sters", `${plan.recipeName} / ${fmt(plan.asphalt)} t`);
+    writeDb(auth.db);
+    sendJson(res, 200, { plan, dashboard: buildDashboard(auth.db) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/audit") {
+    if (!requirePermission(auth, res, "audit:view")) return;
+    sendJson(res, 200, { audit: auth.db.audit.slice().reverse().slice(0, 500) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/audit/clear") {
+    if (!requirePermission(auth, res, "audit:manage")) return;
+    auth.db.audit = [];
+    addAudit(auth.db, auth.user, "audit_curatat", "Jurnal audit curatat de Superadmin");
+    writeDb(auth.db);
+    sendJson(res, 200, { audit: auth.db.audit.slice().reverse().slice(0, 500) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/system/diagnostics") {
+    if (!requirePermission(auth, res, "system:view")) return;
+    sendJson(res, 200, buildSystemDiagnostics(auth.db));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/system/diagnostics/export") {
+    if (!requirePermission(auth, res, "system:view")) return;
+    const payload = Buffer.from(JSON.stringify(buildSupportDiagnostic(auth.db), null, 2), "utf8");
+    sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-asfalt-pro-${localDate(new Date())}.json`);
+    return;
+  }
+
+  sendJson(res, 404, { error: `Ruta API inexistenta: ${req.method} ${url.pathname}` });
+}
+
+function ensureAppIntegrity() {
+  if (String(process.env.VERIFY_APP_INTEGRITY || "") !== "1") return;
+  verifyReleaseManifest(ROOT);
+}
+
+function verifyReleaseManifestDocument(document) {
+  if (document.format !== RELEASE_MANIFEST_FORMAT || !document.payload || !document.signature) {
+    throw new Error("Manifest integritate invalid.");
+  }
+  const valid = crypto.verify(
+    null,
+    Buffer.from(String(document.payload), "utf8"),
+    crypto.createPublicKey(LICENSE_PUBLIC_KEY),
+    Buffer.from(String(document.signature), "base64url")
+  );
+  if (!valid) throw new Error("Semnatura manifestului de integritate este invalida.");
+  const payload = JSON.parse(Buffer.from(String(document.payload), "base64url").toString("utf8"));
+  if (payload.format !== RELEASE_MANIFEST_FORMAT || !Array.isArray(payload.files)) {
+    throw new Error("Payload manifest integritate invalid.");
+  }
+  return payload;
+}
+
+function verifyManifestFile(packageRoot, item) {
+  const relativePath = String(item.path || "");
+  const expected = String(item.sha256 || "");
+  if (!relativePath || relativePath.includes("..") || path.isAbsolute(relativePath)) {
+    throw new Error(`Cale invalida in manifest: ${relativePath}`);
+  }
+  const filePath = path.join(packageRoot, relativePath);
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    throw new Error(`Fisier lipsa din pachet: ${relativePath}`);
+  }
+  const actual = crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+  if (actual !== expected) {
+    throw new Error(`Fisier modificat fata de manifest: ${relativePath}`);
+  }
+}
+
+function ensureAppIntegrityLegacy() {
+  if (String(process.env.VERIFY_APP_INTEGRITY || "") !== "1") return;
+  if (!fs.existsSync(RELEASE_MANIFEST_FILE)) {
+    throw new Error("Verificarea integritatii este activa, dar lipseste release-manifest.json.");
+  }
+  const document = JSON.parse(fs.readFileSync(RELEASE_MANIFEST_FILE, "utf8"));
+  if (document.format !== RELEASE_MANIFEST_FORMAT || !document.payload || !document.signature) {
+    throw new Error("Manifest integritate invalid.");
+  }
+  const valid = crypto.verify(
+    null,
+    Buffer.from(String(document.payload), "utf8"),
+    crypto.createPublicKey(LICENSE_PUBLIC_KEY),
+    Buffer.from(String(document.signature), "base64url")
+  );
+  if (!valid) throw new Error("Semnatura manifestului de integritate este invalida.");
+  const payload = JSON.parse(Buffer.from(String(document.payload), "base64url").toString("utf8"));
+  if (payload.format !== RELEASE_MANIFEST_FORMAT || !Array.isArray(payload.files)) {
+    throw new Error("Payload manifest integritate invalid.");
+  }
+  payload.files.forEach((item) => {
+    const relativePath = String(item.path || "");
+    const expected = String(item.sha256 || "");
+    if (!relativePath || relativePath.includes("..") || path.isAbsolute(relativePath)) {
+      throw new Error(`Cale invalida in manifest: ${relativePath}`);
+    }
+    const filePath = path.join(ROOT, relativePath);
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      throw new Error(`Fisier lipsa din pachet: ${relativePath}`);
+    }
+    const actual = crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+    if (actual !== expected) {
+      throw new Error(`Fisier modificat fata de manifest: ${relativePath}`);
+    }
+  });
+}
+
+function ensurePostgresDatabase() {
+  const seed = JSON.parse(fs.readFileSync(SEED_FILE, "utf8"));
+  runPsql(`
+    create table if not exists ${POSTGRES_APP_STATE_TABLE} (
+      id integer primary key,
+      data jsonb not null,
+      updated_at timestamptz not null default now(),
+      constraint one_app_state_row check (id = 1)
+    );
+    insert into ${POSTGRES_APP_STATE_TABLE} (id, data)
+    values (1, ${sqlJson(seed)}::jsonb)
+    on conflict (id) do nothing;
+  `);
+}
+
+function readPostgresDb() {
+  const result = runPsql(`select data::text from ${POSTGRES_APP_STATE_TABLE} where id = 1;`, { tuplesOnly: true });
+  const text = result.trim();
+  if (!text) throw new Error("PostgreSQL nu contine starea aplicatiei in app_state.");
+  return normalizeDb(JSON.parse(text));
+}
+
+function writePostgresDb(db) {
+  runPsql(`
+    update ${POSTGRES_APP_STATE_TABLE}
+    set data = ${sqlJson(normalizeDb(db))}::jsonb,
+        updated_at = now()
+    where id = 1;
+  `);
+}
+
+function runPsql(sql, options = {}) {
+  const args = [];
+  if (process.env.DATABASE_URL) args.push(process.env.DATABASE_URL);
+  args.push("--no-psqlrc", "-v", "ON_ERROR_STOP=1");
+  if (options.tuplesOnly) args.push("--tuples-only", "--no-align");
+  args.push("-c", sql);
+  try {
+    return childProcess.execFileSync("psql", args, {
+      cwd: ROOT,
+      env: process.env,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+  } catch (error) {
+    const details = error.stderr ? String(error.stderr).trim() : error.message;
+    throw new Error(`Eroare PostgreSQL/psql: ${details}`);
+  }
+}
+
+function sqlJson(value) {
+  return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+}
+
+function ensureMssqlRelationalSchema() {
+  if (!MSSQL_RELATIONAL_MODE) return;
+  runMssqlScriptFile(path.join(ROOT, "db", "mssql-schema.sql"));
+  syncMssqlRelationalFromAppState();
+}
+
+function syncMssqlRelationalFromAppState() {
+  if (!MSSQL_RELATIONAL_MODE) return;
+  runMssqlScriptFile(path.join(ROOT, "db", "mssql-import-app-state.sql"));
+}
+
+function runMssqlScriptFile(filePath) {
+  if (!fs.existsSync(filePath)) throw new Error(`Script SQL lipsa: ${filePath}`);
+  const sql = fs.readFileSync(filePath, "utf8");
+  runMssqlScalar(`${sql}\nselect 1;`, { timeoutMs: 300000 });
+}
+
+function mssqlConnectionString(databaseName = mssqlDatabaseName()) {
+  const raw = process.env.MSSQL_CONNECTION_STRING || process.env.SQLSERVER_CONNECTION_STRING || DEFAULT_MSSQL_CONNECTION_STRING;
+  return setConnectionStringValue(raw, getConnectionStringValue(raw, "Initial Catalog") ? "Initial Catalog" : "Database", databaseName);
+}
+
+function mssqlDatabaseName() {
+  const raw = process.env.MSSQL_CONNECTION_STRING || process.env.SQLSERVER_CONNECTION_STRING || DEFAULT_MSSQL_CONNECTION_STRING;
+  return process.env.MSSQL_DATABASE || getConnectionStringValue(raw, "Database") || getConnectionStringValue(raw, "Initial Catalog") || "InfraFlow";
+}
+
+function getConnectionStringValue(connectionString, key) {
+  const expected = String(key).toLowerCase();
+  const part = String(connectionString || "").split(";").find((item) => {
+    const index = item.indexOf("=");
+    return index > -1 && item.slice(0, index).trim().toLowerCase() === expected;
+  });
+  if (!part) return "";
+  return part.slice(part.indexOf("=") + 1).trim();
+}
+
+function setConnectionStringValue(connectionString, key, value) {
+  const expected = String(key).toLowerCase();
+  const parts = String(connectionString || "").split(";").filter((item) => item.trim());
+  let replaced = false;
+  const updated = parts.map((part) => {
+    const index = part.indexOf("=");
+    if (index === -1 || part.slice(0, index).trim().toLowerCase() !== expected) return part;
+    replaced = true;
+    return `${part.slice(0, index).trim()}=${value}`;
+  });
+  if (!replaced) updated.push(`${key}=${value}`);
+  return updated.join(";");
+}
+
+function quoteMssqlIdentifier(value) {
+  return `[${String(value).replaceAll("]", "]]")}]`;
+}
+
+function escapeSqlString(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function buildRecipesMaterialsConfig(db) {
+  return {
+    format: "asfalt-pro-recipes-materials-v1",
+    exportedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    stockIncluded: false,
+    materials: (db.materials || []).map((material) => ({
+      id: material.id,
+      name: material.name,
+      unit: material.unit,
+      alert: Number(material.alert || 0),
+      recipeMaterial: material.recipeMaterial !== false
+    })),
+    recipes: (db.recipes || []).map((recipe) => ({
+      id: recipe.id,
+      name: recipe.name,
+      version: Number(recipe.version || 1),
+      active: recipe.active !== false,
+      percentages: recipe.percentages || {}
+    }))
+  };
+}
+
+function importRecipesMaterialsConfig(db, user, input) {
+  if (!input || typeof input !== "object") throwHttp(400, "Configuratie invalida.");
+  if (!Array.isArray(input.materials) || !Array.isArray(input.recipes)) {
+    throwHttp(400, "Configuratia trebuie sa contina listele materials si recipes.");
+  }
+  const materials = input.materials.map(normalizeConfigMaterial);
+  const materialIds = new Set();
+  materials.forEach((material) => {
+    if (materialIds.has(material.id)) throwHttp(400, `Material duplicat in configuratie: ${material.id}.`);
+    materialIds.add(material.id);
+  });
+  const existingById = new Map((db.materials || []).map((material) => [material.id, material]));
+  const importedMaterialIds = new Set(materials.map((material) => material.id));
+  db.materials = materials.map((material) => ({
+    ...material,
+    stock: Number(existingById.get(material.id)?.stock || 0)
+  })).concat((db.materials || []).filter((material) => !importedMaterialIds.has(material.id)));
+
+  const recipes = input.recipes.map((recipe) => normalizeConfigRecipe(db, recipe));
+  const recipeIds = new Set();
+  recipes.forEach((recipe) => {
+    if (recipeIds.has(recipe.id)) throwHttp(400, `Reteta duplicata in configuratie: ${recipe.id}.`);
+    recipeIds.add(recipe.id);
+  });
+  if (!recipes.some((recipe) => recipe.active !== false)) throwHttp(400, "Configuratia trebuie sa contina cel putin o reteta activa.");
+  const importedRecipeIds = new Set(recipes.map((recipe) => recipe.id));
+  db.recipes = recipes.map((recipe) => {
+    const existing = (db.recipes || []).find((item) => item.id === recipe.id);
+    return {
+      ...existing,
+      ...recipe,
+      updatedBy: user.id,
+      updatedAt: new Date().toISOString()
+    };
+  }).concat((db.recipes || [])
+    .filter((recipe) => !importedRecipeIds.has(recipe.id))
+    .map((recipe) => ({ ...recipe, active: false, archivedBy: user.id, archivedAt: new Date().toISOString() })));
+  return { materials: db.materials.length, recipes: db.recipes.length };
+}
+
+function normalizeConfigMaterial(input) {
+  const idValue = String(input.id || "").trim();
+  const idValueSafe = idValue || slugId(input.name || "material");
+  if (!/^[a-z0-9._-]{2,64}$/.test(idValueSafe)) throwHttp(400, `ID material invalid: ${idValueSafe}.`);
+  const name = String(input.name || "").trim();
+  const unit = String(input.unit || "t").trim();
+  if (!name) throwHttp(400, "Un material nu are nume.");
+  if (!unit) throwHttp(400, `Materialul ${name} nu are unitate.`);
+  return {
+    id: idValueSafe,
+    name,
+    unit,
+    alert: round(Number(input.alert || 0)),
+    recipeMaterial: input.recipeMaterial !== false
+  };
+}
+
+function normalizeConfigRecipe(db, input) {
+  const idValue = String(input.id || "").trim();
+  const idValueSafe = idValue || slugId(input.name || "reteta");
+  if (!/^[a-z0-9._-]{2,64}$/.test(idValueSafe)) throwHttp(400, `ID reteta invalid: ${idValueSafe}.`);
+  const name = String(input.name || "").trim();
+  if (!name) throwHttp(400, "O reteta nu are nume.");
+  return {
+    id: idValueSafe,
+    name,
+    version: Math.max(1, Number(input.version || 1)),
+    active: input.active !== false,
+    percentages: normalizeRecipePercentages(db, input.percentages || {})
+  };
+}
+
+function slugId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64) || id("item");
+}
+
+function formatBytesServer(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function formatAgeHours(hoursValue) {
+  const hours = Math.max(0, Number(hoursValue || 0));
+  if (hours < 1) return "sub 1 ora";
+  if (hours < 48) return `${Math.round(hours)} ore`;
+  return `${Math.round(hours / 24)} zile`;
+}
+
+function latestBackupInfo() {
+  const dir = path.join(ROOT, "backups");
+  if (!fs.existsSync(dir)) {
+    return { directory: dir, exists: false, count: 0, latest: null, items: [] };
+  }
+  const backups = listBackupFiles()
+    .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+  return {
+    directory: dir,
+    exists: true,
+    count: backups.length,
+    latest: backups[0] || null,
+    items: backups.slice(0, 20)
+  };
+}
+
+function expandZipArchive(zipPath, destinationDir) {
+  fs.mkdirSync(destinationDir, { recursive: true });
+  const script = `Expand-Archive -LiteralPath ${powershellSingleQuote(zipPath)} -DestinationPath ${powershellSingleQuote(destinationDir)} -Force`;
+  childProcess.execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 180000
+  });
+}
+
+function findExtractedPackageRoot(extractDir) {
+  const candidates = [extractDir]
+    .concat(fs.readdirSync(extractDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(extractDir, entry.name)));
+  const found = candidates.find((candidate) =>
+    fs.existsSync(path.join(candidate, "server", "server.js"))
+    && fs.existsSync(path.join(candidate, "public", "index.html"))
+    && fs.existsSync(path.join(candidate, "release-manifest.json"))
+  );
+  if (!found) throwHttp(400, "Pachetul ZIP nu contine o aplicatie InfraFlow valida.");
+  return found;
+}
+
+function validateUpdatePackageRoot(packageRoot, payload) {
+  const blocked = [
+    "data/app-db.json",
+    "license-tools",
+    "release-tools",
+    "backups",
+    "logs"
+  ];
+  const manifestPaths = new Set((payload.files || []).map((item) => String(item.path || "").replace(/\\/g, "/")));
+  blocked.forEach((entry) => {
+    if (manifestPaths.has(entry) || fs.existsSync(path.join(packageRoot, entry))) {
+      throwHttp(400, `Pachetul contine element interzis pentru update: ${entry}`);
+    }
+  });
+  ["server/server.js", "public/index.html", "package.json", "release-manifest.json"].forEach((entry) => {
+    if (!fs.existsSync(path.join(packageRoot, entry))) throwHttp(400, `Pachet incomplet. Lipseste: ${entry}`);
+  });
+}
+
+function readPackageVersionFrom(packageRoot) {
+  try {
+    return String(JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8")).version || "0.0.0");
+  } catch {
+    throwHttp(400, "Nu pot citi versiunea din package.json.");
+  }
+}
+
+function readCacheVersionFromPackage(packageRoot) {
+  const serverFile = path.join(packageRoot, "server", "server.js");
+  if (!fs.existsSync(serverFile)) return "";
+  const match = fs.readFileSync(serverFile, "utf8").match(/CLIENT_CACHE_VERSION\s*=\s*"([^"]+)"/);
+  return match ? match[1] : "";
+}
+
+function backupApplicationFiles(files, timestamp) {
+  const backupDir = path.join(ROOT, "backups", `app-files-before-update-${timestamp}`);
+  fs.mkdirSync(backupDir, { recursive: true });
+  files.forEach((item) => {
+    const relativePath = String(item.path || "").replace(/\\/g, "/");
+    if (!isSafeRelativePath(relativePath)) return;
+    const source = path.join(ROOT, relativePath);
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) return;
+    const destination = path.join(backupDir, relativePath);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(source, destination);
+  });
+  return backupDir;
+}
+
+function installManifestFiles(packageRoot, files) {
+  files.forEach((item) => {
+    const relativePath = String(item.path || "").replace(/\\/g, "/");
+    if (!isSafeRelativePath(relativePath)) throwHttp(400, `Cale invalida in pachet: ${relativePath}`);
+    if (relativePath === "data/app-db.json") throwHttp(400, "Pachetul nu are voie sa contina baza clientului.");
+    const source = path.join(packageRoot, relativePath);
+    const destination = path.join(ROOT, relativePath);
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throwHttp(400, `Fisier lipsa la instalare: ${relativePath}`);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(source, destination);
+  });
+}
+
+function validateZipEntries(zip) {
+  zip.getEntries().forEach((entry) => {
+    const name = String(entry.entryName || "").replace(/\\/g, "/");
+    if (!name || name.includes("..") || path.isAbsolute(name)) {
+      throwHttp(400, `Cale invalida in pachetul de update: ${name}`);
+    }
+  });
+}
+
+function copyDir(source, destination) {
+  if (!fs.existsSync(source)) return;
+  fs.mkdirSync(destination, { recursive: true });
+  fs.readdirSync(source, { withFileTypes: true }).forEach((entry) => {
+    const src = path.join(source, entry.name);
+    const dest = path.join(destination, entry.name);
+    if (entry.isDirectory()) {
+      copyDir(src, dest);
+    } else if (entry.isFile()) {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(src, dest);
+    }
+  });
+}
+
+function copyDirExcept(source, destination, excludedNames = []) {
+  if (!fs.existsSync(source)) return;
+  const excluded = new Set(excludedNames.map((item) => String(item).toLowerCase()));
+  fs.mkdirSync(destination, { recursive: true });
+  fs.readdirSync(source, { withFileTypes: true }).forEach((entry) => {
+    if (excluded.has(entry.name.toLowerCase())) return;
+    const src = path.join(source, entry.name);
+    const dest = path.join(destination, entry.name);
+    if (entry.isDirectory()) {
+      copyDirExcept(src, dest, excludedNames);
+    } else if (entry.isFile()) {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(src, dest);
+    }
+  });
+}
+
+function copyNewMigrations(source, destination) {
+  if (!fs.existsSync(source)) return;
+  fs.mkdirSync(destination, { recursive: true });
+  fs.readdirSync(source, { withFileTypes: true }).forEach((entry) => {
+    if (!entry.isFile()) return;
+    const dest = path.join(destination, entry.name);
+    if (!fs.existsSync(dest)) fs.copyFileSync(path.join(source, entry.name), dest);
+  });
+}
+
+function compareVersions(a, b) {
+  const left = String(a || "0").split(".").map((part) => Number(part) || 0);
+  const right = String(b || "0").split(".").map((part) => Number(part) || 0);
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const delta = (left[index] || 0) - (right[index] || 0);
+    if (delta !== 0) return delta > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+function isSafeRelativePath(relativePath) {
+  return Boolean(relativePath)
+    && !relativePath.includes("..")
+    && !path.isAbsolute(relativePath)
+    && !relativePath.split("/").some((part) => !part || part === "." || part === "..");
+}
+
+function powershellSingleQuote(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function safeDisplayFileName(value) {
+  return path.basename(String(value || "update.zip")).replace(/[^a-zA-Z0-9._ -]/g, "_") || "update.zip";
+}
+
+function logFileInfo(filePath) {
+  if (!fs.existsSync(filePath)) return { path: filePath, exists: false, size: 0, tail: "" };
+  const stat = fs.statSync(filePath);
+  return {
+    path: filePath,
+    exists: true,
+    size: stat.size,
+    modifiedAt: stat.mtime.toISOString(),
+    tail: tailText(filePath, 6000)
+  };
+}
+
+function tailText(filePath, maxBytes) {
+  const stat = fs.statSync(filePath);
+  const start = Math.max(0, stat.size - maxBytes);
+  const fd = fs.openSync(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buffer, 0, buffer.length, start);
+    return buffer.toString("utf8");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function verifyReleaseManifestDocument(document) {
+  if (document.format !== RELEASE_MANIFEST_FORMAT || !document.payload || !document.signature) {
+    throw new Error("Manifest integritate invalid.");
+  }
+  const valid = crypto.verify(
+    null,
+    Buffer.from(String(document.payload), "utf8"),
+    crypto.createPublicKey(LICENSE_PUBLIC_KEY),
+    Buffer.from(String(document.signature), "base64url")
+  );
+  if (!valid) throw new Error("Semnatura manifestului de integritate este invalida.");
+  const payload = JSON.parse(Buffer.from(String(document.payload), "base64url").toString("utf8"));
+  if (payload.format !== RELEASE_MANIFEST_FORMAT || !Array.isArray(payload.files)) {
+    throw new Error("Payload manifest integritate invalid.");
+  }
+  return payload;
+}
+
+function verifyManifestFile(packageRootOrItem, maybeItem) {
+  const packageRoot = maybeItem ? packageRootOrItem : ROOT;
+  const item = maybeItem || packageRootOrItem;
+  const relativePath = String(item.path || "");
+  const expected = String(item.sha256 || "");
+  if (!relativePath || relativePath.includes("..") || path.isAbsolute(relativePath)) {
+    throw new Error(`Cale invalida in manifest: ${relativePath}`);
+  }
+  const filePath = path.join(ROOT, relativePath);
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    throw new Error(`Fisier lipsa din pachet: ${relativePath}`);
+  }
+  const actual = crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+  if (actual !== expected) {
+    throw new Error(`Fisier modificat fata de manifest: ${relativePath}`);
+  }
+}
+
+function fileInfo(filePath) {
+  if (!fs.existsSync(filePath)) return { path: filePath, exists: false, size: 0 };
+  const stat = fs.statSync(filePath);
+  return { path: filePath, exists: true, size: stat.size, modifiedAt: stat.mtime.toISOString() };
+}
+
+function findCommand(command) {
+  try {
+    childProcess.execFileSync(process.platform === "win32" ? "where" : "which", [command], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readPackageVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+    return pkg.version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function ensureDefaultWorkflowTemplates(db) {
+  const existing = new Set(db.workflowTemplates.map((item) => item.type));
+  defaultWorkflowTemplates.forEach((template) => {
+    if (existing.has(template.type)) return;
+    db.workflowTemplates.push({
+      ...template,
+      active: true,
+      createdAt: new Date().toISOString()
+    });
+  });
+}
+
+function ensureDefaultDepartmentConnections(db) {
+  const existing = new Set(db.departmentConnections.map((item) => `${item.sourceModuleKey || item.source}|${item.targetModuleKey || item.target}`));
+  defaultDepartmentConnections.forEach(([sourceModuleKey, targetModuleKey, label]) => {
+    const key = `${sourceModuleKey}|${targetModuleKey}`;
+    if (existing.has(key)) return;
+    db.departmentConnections.push({
+      id: `dc-${sourceModuleKey}-${targetModuleKey}`,
+      sourceModuleKey,
+      targetModuleKey,
+      sourceDepartmentId: findDepartmentByModule(db, sourceModuleKey)?.id || "",
+      targetDepartmentId: findDepartmentByModule(db, targetModuleKey)?.id || "",
+      type: "workflow",
+      label,
+      active: true,
+      createdAt: new Date().toISOString()
+    });
+  });
+}
+
+function syncWorkflowIndexes(db) {
+  (db.departmentRequests || []).forEach((request) => syncWorkflowForDepartmentRequest(db, null, request, "sync"));
+  (db.fleetRequests || []).forEach((request) => syncWorkflowForFleetRequest(db, null, request, "sync"));
+}
+
+function findDepartmentByModule(db, moduleKey) {
+  const normalized = String(moduleKey || "").toLowerCase();
+  return (db.departments || []).find((department) => String(department.moduleKey || "").toLowerCase() === normalized)
+    || (db.departments || []).find((department) => moduleKeyForDepartmentName(department.name) === normalized)
+    || null;
+}
+
+function findDepartmentByName(db, name) {
+  const normalized = String(name || "").trim().toLowerCase();
+  if (!normalized) return null;
+  return (db.departments || []).find((department) => String(department.name || "").trim().toLowerCase() === normalized) || null;
+}
+
+function moduleKeyForDepartmentName(name) {
+  const value = String(name || "").toLowerCase();
+  if (value.includes("tehnic")) return "tehnic";
+  if (value.includes("mecanizare") || value.includes("parc")) return "mecanizare";
+  if (value.includes("gestiune")) return "gestiune";
+  if (value.includes("conta")) return "contabilitate";
+  if (value.includes("betoane")) return "betoane";
+  if (value.includes("asternere")) return "asternere";
+  if (value.includes("canalizare")) return "canalizare";
+  if (value.includes("achiz")) return "achizitii";
+  if (value.includes("siguranta")) return "siguranta";
+  if (value.includes("product") || value.includes("asfalt") || value.includes("statie")) return "production";
+  return "custom";
+}
+
+function ensureProjectForJob(db, jobName, sourceType = "", sourceId = "", user = null, extra = {}) {
+  const name = String(jobName || "").trim();
+  if (!name) return null;
+  const existing = (db.projects || []).find((project) => String(project.name || "").trim().toLowerCase() === name.toLowerCase());
+  if (existing) return existing;
+  const project = {
+    id: stableEntityId("project", name),
+    code: "",
+    name,
+    clientName: String(extra.clientName || ""),
+    contractNo: String(extra.contractNo || ""),
+    type: String(extra.type || "general"),
+    status: "active",
+    location: String(extra.location || ""),
+    sourceType,
+    sourceId,
+    createdBy: user?.id || "",
+    createdByName: user?.name || "",
+    createdAt: new Date().toISOString()
+  };
+  db.projects.push(project);
+  return project;
+}
+
+function workflowStatusFromDepartment(status) {
+  return ({
+    new: "SUBMIS",
+    accepted: "IN_EXECUTIE",
+    planned: "IN_EXECUTIE",
+    partial: "IN_EXECUTIE",
+    done: "FINALIZAT",
+    rejected: "RESPINS"
+  })[status] || "SUBMIS";
+}
+
+function workflowStatusFromFleet(status) {
+  return ({
+    new: "SUBMIS",
+    approved: "IN_EXECUTIE",
+    planned: "IN_EXECUTIE",
+    done: "FINALIZAT",
+    rejected: "RESPINS",
+    canceled: "ANULAT"
+  })[status] || "SUBMIS";
+}
+
+function syncWorkflowForDepartmentRequest(db, user, request, action = "updated", oldStatus = "") {
+  if (!request) return null;
+  const project = ensureProjectForJob(db, request.jobName, "department_request", request.id, user, { location: request.location });
+  const requesterDepartment = findDepartmentByName(db, request.department);
+  const targetDepartment = request.type === "asphalt" ? findDepartmentByModule(db, "production") : findDepartmentByModule(db, "gestiune");
+  return upsertWorkflowRequest(db, user, {
+    id: stableEntityId("wfr", `department_request:${request.id}`),
+    templateType: request.type === "asphalt" ? "asphalt" : "material",
+    requestType: request.type === "asphalt" ? "asphalt" : "material",
+    sourceType: "department_request",
+    sourceId: request.id,
+    title: request.itemName || request.materialName || request.requestedMaterialName || "Solicitare materiale",
+    status: workflowStatusFromDepartment(request.status),
+    oldStatus,
+    action,
+    priority: request.priority || "medie",
+    requesterUserId: request.createdBy || "",
+    requesterDepartmentId: requesterDepartment?.id || "",
+    targetDepartmentId: targetDepartment?.id || "",
+    projectId: project?.id || "",
+    amount: Number(request.amount || 0),
+    unit: request.unit || "",
+    neededDate: request.neededDate || "",
+    createdAt: request.createdAt || new Date().toISOString(),
+    payload: request
+  });
+}
+
+function syncWorkflowForFleetRequest(db, user, request, action = "updated", oldStatus = "") {
+  if (!request) return null;
+  const project = ensureProjectForJob(db, request.jobName, "fleet_request", request.id, user, { location: request.location });
+  const requesterDepartment = findDepartmentByName(db, request.department);
+  const targetDepartment = findDepartmentByModule(db, "mecanizare");
+  return upsertWorkflowRequest(db, user, {
+    id: stableEntityId("wfr", `fleet_request:${request.id}`),
+    templateType: "fleet",
+    requestType: "fleet",
+    sourceType: "fleet_request",
+    sourceId: request.id,
+    title: `${request.assetName || "Utilaj"} / ${request.jobName || request.department || ""}`.trim(),
+    status: workflowStatusFromFleet(request.status),
+    oldStatus,
+    action,
+    priority: "medie",
+    requesterUserId: request.createdBy || "",
+    requesterDepartmentId: requesterDepartment?.id || "",
+    targetDepartmentId: targetDepartment?.id || "",
+    projectId: project?.id || "",
+    amount: fleetRequestHours(request),
+    unit: "ore",
+    neededDate: request.date || "",
+    createdAt: request.createdAt || new Date().toISOString(),
+    payload: request
+  });
+}
+
+function upsertWorkflowRequest(db, user, input) {
+  const existing = db.workflowRequests.find((item) => item.sourceType === input.sourceType && item.sourceId === input.sourceId);
+  const template = db.workflowTemplates.find((item) => item.type === input.templateType);
+  const now = new Date().toISOString();
+  const payload = safeJsonObject(input.payload);
+  if (existing) {
+    const previousStatus = existing.status || "";
+    Object.assign(existing, {
+      templateId: template?.id || existing.templateId || "",
+      requestType: input.requestType,
+      title: input.title,
+      status: input.status,
+      priority: input.priority,
+      requesterUserId: input.requesterUserId,
+      requesterDepartmentId: input.requesterDepartmentId,
+      targetDepartmentId: input.targetDepartmentId,
+      projectId: input.projectId,
+      amount: input.amount,
+      unit: input.unit,
+      neededDate: input.neededDate,
+      payload,
+      updatedAt: now,
+      completedAt: input.status === "FINALIZAT" ? (existing.completedAt || now) : existing.completedAt || ""
+    });
+    if (user && (previousStatus !== input.status || input.action !== "sync")) {
+      addWorkflowAudit(db, user, existing, input.action, previousStatus, input.status);
+    }
+    return existing;
+  }
+  const created = {
+    id: input.id,
+    templateId: template?.id || "",
+    requestType: input.requestType,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    title: input.title,
+    status: input.status,
+    priority: input.priority,
+    requesterUserId: input.requesterUserId,
+    requesterDepartmentId: input.requesterDepartmentId,
+    targetDepartmentId: input.targetDepartmentId,
+    projectId: input.projectId,
+    amount: input.amount,
+    unit: input.unit,
+    neededDate: input.neededDate,
+    payload,
+    createdAt: input.createdAt,
+    updatedAt: input.action === "sync" ? "" : now,
+    completedAt: input.status === "FINALIZAT" ? now : ""
+  };
+  db.workflowRequests.push(created);
+  if (user) addWorkflowAudit(db, user, created, input.action, input.oldStatus || "", input.status);
+  return created;
+}
+
+function addWorkflowAudit(db, user, request, action, oldStatus = "", newStatus = "") {
+  db.workflowAudit.push({
+    id: id("wfa"),
+    requestId: request.id,
+    sourceType: request.sourceType,
+    sourceId: request.sourceId,
+    action,
+    oldStatus,
+    newStatus,
+    userId: user.id,
+    userName: user.name,
+    details: request.title || "",
+    createdAt: new Date().toISOString()
+  });
+}
+
+function safeJsonObject(value) {
+  if (!value || typeof value !== "object") return {};
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return {};
+  }
+}
+
+function fleetRequestHours(request) {
+  if (!validTimeValue(request.startTime) || !validTimeValue(request.endTime)) return 0;
+  const [startHour, startMinute] = request.startTime.split(":").map(Number);
+  const [endHour, endMinute] = request.endTime.split(":").map(Number);
+  return round(Math.max(0, (endHour * 60 + endMinute - startHour * 60 - startMinute) / 60));
+}
+
+function stableEntityId(prefix, value) {
+  return `${prefix}-${crypto.createHash("sha1").update(String(value || "").toLowerCase()).digest("hex").slice(0, 20)}`;
+}
+
+function serveStatic(res, requestedPath) {
+  const cleanPath = requestedPath === "/" ? "/index.html" : requestedPath;
+  const filePath = path.normalize(path.join(PUBLIC_DIR, cleanPath));
+  if (!filePath.startsWith(PUBLIC_DIR)) {
+    sendText(res, 403, "Acces interzis.");
+    return;
+  }
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    sendText(res, 404, "Fisier inexistent.");
+    return;
+  }
+  const ext = path.extname(filePath).toLowerCase();
+  res.writeHead(200, { "Content-Type": mimeTypes[ext] || "application/octet-stream" });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+function permissionsFor(role, settings = {}) {
+  const overrides = normalizeRolePermissionOverrides(settings.rolePermissionOverrides || {});
+  const permissions = overrides[role] || rolePermissions[role] || rolePermissions.viewer;
+  const expanded = new Set(permissions);
+  Object.entries(legacyPermissionAliases).forEach(([legacy, granular]) => {
+    if (granular.some((permission) => expanded.has(permission))) {
+      expanded.add(legacy);
+    }
+  });
+  return Array.from(expanded);
+}
+
+function effectivePermissionsFor(role, settings) {
+  return permissionsFor(role, settings).filter((permission) => permissionAllowedByLicense(permission, settings?.license));
+}
+
+function effectivePermissionsForUser(user, db) {
+  const permissions = effectivePermissionsFor(user.role, db.settings);
+  if (user.role === "superadmin" || !user.departmentId) return permissions;
+  const department = (db.departments || []).find((item) => item.id === user.departmentId);
+  if (!department || !Array.isArray(department.permissions)) return permissions;
+  return permissions.filter((permission) => department.permissions.includes(permission));
+}
+
+function permissionAllowedByLicense(permission, licenseInput) {
+  const license = normalizeLicense(licenseInput || {});
+  if (license.status === "internal") return true;
+  if (license.status === "expired") return licenseAdminPermissions.has(permission);
+  if (licenseAdminPermissions.has(permission) || permission === "users:manage") return true;
+  const modules = normalizedLicenseModules(license);
+  if (!modules.length || modules.includes("all") || modules.includes("full")) return true;
+  const granular = legacyPermissionAliases[permission] || [permission];
+  const allowed = new Set();
+  modules.forEach((module) => {
+    (licenseModulePermissions[module] || []).forEach((item) => allowed.add(item));
+  });
+  return granular.some((item) => allowed.has(item));
+}
+
+function normalizedLicenseModules(license) {
+  return Array.isArray(license.modules)
+    ? license.modules.map((item) => String(item).trim().toLowerCase()).filter(Boolean)
+    : [];
+}
+
+function normalizeRolePermissionOverrides(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const allowed = new Set(allPermissions);
+  return Object.fromEntries(Object.entries(input)
+    .filter(([role]) => rolePermissions[role] && role !== "superadmin")
+    .map(([role, permissions]) => [
+      role,
+      Array.from(new Set(Array.isArray(permissions) ? permissions.filter((permission) => allowed.has(permission)) : []))
+    ]));
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    role: user.role,
+    departmentId: user.departmentId || ""
+  };
+}
+
+function roleModules(role, settings) {
+  const permissions = effectivePermissionsFor(role, settings);
+  const modules = [];
+  if (permissions.includes("settings:manage")) modules.push("licenta/setari");
+  if (permissions.includes("system:view")) modules.push("sistem/diagnostic");
+  if (permissions.includes("users:manage")) modules.push("utilizatori");
+  if (permissions.includes("planning:manage")) modules.push("planificare");
+  if (permissions.includes("department_requests:manage")) modules.push("solicitari");
+  if (permissions.includes("materials:edit") || permissions.includes("stock_operations:create")) modules.push("gestiune stoc");
+  if (permissions.includes("deliveries:create")) modules.push("aprovizionari");
+  if (permissions.includes("procurement_orders:create") || permissions.includes("procurement_orders:receive")) modules.push("comenzi aprovizionare");
+  if (permissions.includes("mechanization:manage") || permissions.includes("mechanization:request")) modules.push("mecanizare");
+  if (permissions.includes("technical:worklog") && !permissions.includes("technical:sales")) modules.push("pontaj utilaj/lucrare");
+  if (permissions.includes("technical:sales") || permissions.includes("technical:view")) modules.push("departament tehnic");
+  if (permissions.includes("cost_accounting:manage") || permissions.includes("cost_accounting:import")) modules.push("contabilitate costuri");
+  if (permissions.includes("consumptions:create")) modules.push("consum asfalt");
+  if (permissions.includes("recipes:manage")) modules.push("retete");
+  if (permissions.includes("audit:view")) modules.push("audit");
+  if (!modules.length) modules.push("citire");
+  return modules;
+}
+
+function updateRolePermissions(db, user, roleId, body) {
+  const role = String(roleId || "").trim();
+  if (!rolePermissions[role]) throwHttp(404, "Rol inexistent.");
+  if (role === "superadmin") throwHttp(400, "Permisiunile Superadminului nu se modifica.");
+  if (!db.settings || typeof db.settings !== "object") db.settings = {};
+  db.settings.rolePermissionOverrides = normalizeRolePermissionOverrides(db.settings.rolePermissionOverrides || {});
+  if (body.reset === true) {
+    delete db.settings.rolePermissionOverrides[role];
+  } else {
+    db.settings.rolePermissionOverrides[role] = sanitizeRolePermissions(body.permissions);
+  }
+  db.settings.rolePermissionOverridesUpdatedAt = new Date().toISOString();
+  db.settings.rolePermissionOverridesUpdatedBy = user.id;
+  db.settings.rolePermissionOverridesUpdatedByName = user.name;
+  return rolesList(db.settings).find((item) => item.id === role);
+}
+
+function licenseModuleNames(license = {}) {
+  const modules = [
+    ...(Array.isArray(license.module) ? license.module : []),
+    ...(Array.isArray(license.modules) ? license.modules : []),
+    ...(Array.isArray(license.addons) ? license.addons : [])
+  ];
+  return new Set(modules.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean));
+}
+
+function allowedModulesForLicense(license = {}) {
+  const licensed = licenseModuleNames(license);
+  if (!licensed.size || licensed.has("all") || licensed.has("full")) {
+    return Array.from(new Set([...baseModuleKeys, ...configurableModuleKeys]));
+  }
+  const normalizedAliases = new Map([
+    ["technical_plus", "technical"],
+    ["trafficsafety", "traffic_safety"],
+    ["snowremoval", "snow_removal"],
+    ["ai_assistant", "ai"]
+  ]);
+  const allowed = new Set([...baseModuleKeys]);
+  for (const key of configurableModuleKeys) {
+    const aliases = [key, key.replaceAll("_", ""), [...normalizedAliases.entries()].find(([, value]) => value === key)?.[0]].filter(Boolean);
+    if (aliases.some((alias) => licensed.has(alias))) allowed.add(key);
+  }
+  return Array.from(allowed);
+}
+
+function sanitizeEnabledModules(input, license) {
+  const requested = Array.isArray(input) ? input : [];
+  const allowed = new Set(allowedModulesForLicense(license));
+  return Array.from(new Set(requested
+    .map((item) => String(item || "").trim().toLowerCase())
+    .filter((item) => configurableModuleKeys.has(item) && allowed.has(item))));
+}
+
+function sanitizeRolePermissions(permissions) {
+  const allowed = new Set(allPermissions);
+  return Array.from(new Set((Array.isArray(permissions) ? permissions : [])
+    .map((permission) => String(permission || "").trim())
+    .filter((permission) => allowed.has(permission))));
+}
+
+function ensureRolesSeeded(db) {
+  if (!db.settings || typeof db.settings !== "object") db.settings = {};
+  return ensureDefaultCustomRoles(db.settings);
+}
+
+function roleExists(db, role) {
+  ensureRolesSeeded(db);
+  return rolesList(db.settings).some((item) => item.id === role);
+}
+
+function normalizeRequestedRoles(db, input, fallback = "angajat") {
+  const raw = Array.isArray(input) ? input : [input || fallback];
+  const roles = Array.from(new Set(raw
+    .map((role) => String(role || "").trim())
+    .filter(Boolean)));
+  const finalRoles = roles.length ? roles : [fallback];
+  finalRoles.forEach((role) => {
+    if (!roleExists(db, role)) throwHttp(400, `Rol invalid: ${role}`);
+  });
+  return finalRoles;
+}
+
+function createUser(db, actor, body) {
+  const username = String(body.username || "").trim().toLowerCase();
+  const name = String(body.name || "").trim();
+  const email = String(body.email || "").trim();
+  const password = String(body.password || "");
+  const roles = normalizeRequestedRoles(db, body.roles || body.role, "angajat");
+  const role = roles[0];
+  if (!name) throwHttp(400, "Numele utilizatorului este obligatoriu.");
+  if (!/^[a-z0-9._-]{3,32}$/.test(username)) throwHttp(400, "Utilizatorul trebuie sa aiba 3-32 caractere: litere, cifre, punct, minus sau underscore.");
+  if ((db.users || []).some((user) => String(user.username || "").toLowerCase() === username)) throwHttp(400, "Acest nume de utilizator exista deja.");
+  roles.forEach(nextRole => ensureCanAssignRole(actor, nextRole));
+  enforceUserLimit(db, body.active !== false);
+  if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
+  const employee_id = String(body.employee_id || "").trim() || null;
+  if (employee_id) {
+    const alreadyLinked = (db.users || []).find(u => u.employee_id === employee_id && u.active !== false);
+    if (alreadyLinked) throwHttp(409, `Angajatul este deja asociat contului \"${alreadyLinked.username}\".`);
+  }
+  const user = {
+    id: id("user"),
+    name,
+    username,
+    email,
+    passwordHash: hashPassword(password),
+    role,
+    roles,
+    departmentId: String(body.departmentId || body.department_id || "").trim(),
+    department: String(body.department || "").trim(),
+    active: body.active !== false,
+    createdBy: actor.id,
+    createdAt: new Date().toISOString()
+  };
+  if (employee_id) {
+    user.employee_id = employee_id;
+    user.verified_from_hr = Boolean(body.verified_from_hr);
+  }
+  db.users.push(user);
+  // Auto-înscriere în canalele de mesagerie
+  try {
+    ensureUserInGeneralChannel(db, user.id);
+    if (user.departmentId || user.department) {
+      ensureUserInDepartmentChannel(db, user.id, user.departmentId, user.department);
+    }
+  } catch (e) { console.warn('[messaging] Înscriere canal user:', e.message) }
+  return user;
+}
+
+function updateUser(db, actor, userId, body) {
+  const user = db.users.find((item) => item.id === userId);
+  if (!user) throwHttp(404, "Utilizator inexistent.");
+  const previous = { role: user.role, roles: normalizedUserRoles(user), active: user.active !== false, departmentId: user.departmentId || '', department: user.department || '' };
+  const name = String(body.name ?? user.name).trim();
+  const username = String(body.username ?? user.username).trim().toLowerCase();
+  const email = String(body.email ?? user.email ?? "").trim();
+  const roles = normalizeRequestedRoles(db, body.roles || body.role || user.roles || user.role, user.role || "angajat");
+  const role = roles[0];
+  if (!name) throwHttp(400, "Numele utilizatorului este obligatoriu.");
+  if (!/^[a-z0-9._-]{3,32}$/.test(username)) throwHttp(400, "Utilizatorul trebuie sa aiba 3-32 caractere: litere, cifre, punct, minus sau underscore.");
+  if ((db.users || []).some((item) => item.id !== user.id && String(item.username || "").toLowerCase() === username)) throwHttp(400, "Acest nume de utilizator exista deja.");
+  roles.forEach(nextRole => ensureCanManageUser(actor, user, nextRole));
+  const nextActive = body.active !== undefined ? Boolean(body.active) : user.active !== false;
+  if (user.active === false && nextActive) enforceUserLimit(db, true);
+  user.name = name;
+  user.username = username;
+  user.email = email;
+  user.role = role;
+  user.roles = roles;
+  user.active = nextActive;
+  if (body.departmentId !== undefined || body.department_id !== undefined) {
+    user.departmentId = String(body.departmentId || body.department_id || "").trim();
+  }
+  if (body.department !== undefined) {
+    user.department = String(body.department || "").trim();
+  }
+  if (body.password) {
+    const password = String(body.password);
+    if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
+    user.passwordHash = hashPassword(password);
+    delete user.password;
+  }
+  if (user.id === actor.id) user.active = true;
+  if (!db.users.some((item) => item.active !== false && userHasRole(item, "superadmin"))) {
+    user.role = previous.role;
+    user.roles = previous.roles;
+    user.active = previous.active;
+    throwHttp(400, "Trebuie sa existe cel putin un Superadmin activ.");
+  }
+  user.updatedBy = actor.id;
+  user.updatedAt = new Date().toISOString();
+  // Auto-gestionare canal mesagerie la schimbare departament
+  try {
+    const newDeptId = user.departmentId || '';
+    const newDeptName = user.department || '';
+    const oldDeptId = previous.departmentId;
+    const oldDeptName = previous.department;
+    const deptChanged = newDeptId !== oldDeptId || newDeptName !== oldDeptName;
+    if (deptChanged) {
+      if (oldDeptId || oldDeptName) removeUserFromDepartmentChannel(db, user.id, oldDeptId, oldDeptName);
+      if (newDeptId || newDeptName) ensureUserInDepartmentChannel(db, user.id, newDeptId, newDeptName);
+    }
+    ensureUserInGeneralChannel(db, user.id);
+  } catch (e) { console.warn('[messaging] Update canal user:', e.message) }
+  return user;
+}
+
+function resetUserPassword(db, actor, userId, body) {
+  const user = db.users.find((item) => item.id === userId);
+  if (!user) throwHttp(404, "Utilizator inexistent.");
+  ensureCanManageUser(actor, user, user.role);
+  const password = String(body.password || "");
+  if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
+  user.passwordHash = hashPassword(password);
+  delete user.password;
+  user.updatedBy = actor.id;
+  user.updatedAt = new Date().toISOString();
+  return user;
+}
+
+function ensureCanAssignRole(actor, role) {
+  if (role === "superadmin" && !userHasRole(actor, "superadmin")) {
+    throwHttp(403, "Doar un Superadmin poate crea alt Superadmin.");
+  }
+}
+
+function ensureCanManageUser(actor, user, nextRole) {
+  if (userHasRole(actor, "superadmin")) return;
+  if (userHasRole(user, "superadmin") || nextRole === "superadmin") {
+    throwHttp(403, "Doar un Superadmin poate modifica rolul Superadmin.");
+  }
+}
+
+function enforceUserLimit(db, willBeActive) {
+  if (!willBeActive) return;
+  const license = normalizeLicense(db.settings?.license || {});
+  if (license.status === "internal") return;
+  const activeUsers = db.users.filter((user) => user.active !== false).length;
+  if (activeUsers >= Number(license.maxUsers || 1)) {
+    throwHttp(400, `Licenta permite maxim ${license.maxUsers} utilizatori activi.`);
+  }
+}
+
+function readJsonBody(req, maxBytes = 1_000_000) {
+  if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
+    return Promise.resolve(req.body);
+  }
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > maxBytes) {
+        reject(new Error("Payload prea mare."));
+        req.destroy();
+      }
+    });
+    req.on("end", () => {
+      if (!raw.trim()) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        reject(new Error("JSON invalid."));
+      }
+    });
+  });
+}
+
+function readBinaryBody(req, maxBytes = 10_000_000) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(httpError(413, "Payload prea mare."));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+function sendJson(res, status, data) {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store"
+  });
+  res.end(JSON.stringify(data));
+}
+
+function maskConnectionPassword(value) {
+  return String(value || '').replace(/\b(Password|PWD)\s*=\s*[^;]*/gi, '$1=***')
+}
+
+function publicSettings(settings = {}) {
+  const result = { ...settings }
+  result.autominderConnectionString = maskConnectionPassword(
+    result.autominderConnectionString || DEFAULT_AUTOMINDER_CONNECTION
+  )
+  try {
+    result.gps_username = decryptSettingSecret(result.gps_username || "")
+  } catch {
+    result.gps_username = ""
+  }
+  // Parola nu se trimite niciodată la client (securitate)
+  // Trimitem doar un flag că există salvată
+  result.gps_password_set = !!(result.gps_password && result.gps_password.includes(":"))
+  result.gps_password = ""
+  delete result.gps_session
+  delete result.gps_group
+  return result
+}
+
+function sendText(res, status, text) {
+  res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end(text);
+}
+
+function sendHtml(res, status, html) {
+  res.writeHead(status, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store"
+  });
+  res.end(html);
+}
+
+function sendBuffer(res, status, buffer, type, filename) {
+  res.writeHead(status, {
+    "Content-Type": type,
+    "Content-Disposition": `attachment; filename="${filename}"`,
+    "Cache-Control": "no-store"
+  });
+  res.end(buffer);
+}
+
+function buildDashboard(db) {
+  const todayKey = localDate(new Date());
+  const monthKey = todayKey.slice(0, 7);
+  const active = activeConsumptions(db);
+  const todayTotal = sum(active.filter((item) => item.date === todayKey), "asphalt");
+  const monthTotal = sum(active.filter((item) => item.date.startsWith(monthKey)), "asphalt");
+  const criticalStocks = db.materials.filter((material) => Number(material.stock || 0) <= Number(material.alert || 0));
+  const stockAlerts = buildStockAlerts(db);
+  return {
+    metrics: {
+      todayAsphalt: round(todayTotal),
+      monthAsphalt: round(monthTotal),
+      criticalStocks: criticalStocks.length,
+      stockAlerts: stockAlerts.length
+    },
+    criticalStocks,
+    stockAlerts,
+    productionCapacity: db.recipes.filter((recipe) => recipe.active !== false).map((recipe) => ({
+      recipeId: recipe.id,
+      recipeName: recipe.name,
+      ...calculateRecipeCapacity(db, recipe)
+    })).sort((a, b) => b.tons - a.tons),
+    recentConsumptions: active.slice().sort(sortNewest).slice(0, 10),
+    license: db.settings.license,
+    initialStock: {
+      completed: db.settings.initialStockCompleted === true,
+      completedAt: db.settings.initialStockCompletedAt || "",
+      completedByName: db.settings.initialStockCompletedByName || ""
+    }
+  };
+}
+
+function buildCompanyMap(db, user) {
+  const workflows = db.workflowRequests || [];
+  const departments = (db.departments || []).filter((item) => item.active !== false);
+  const connectionRows = (db.departmentConnections || []).filter((item) => item.active !== false);
+  const visibleModules = new Set(moduleDefinitionsForUser(user, db));
+  const workflowByDepartment = new Map();
+  workflows.forEach((request) => {
+    [request.requesterDepartmentId, request.targetDepartmentId].filter(Boolean).forEach((departmentId) => {
+      const current = workflowByDepartment.get(departmentId) || { open: 0, done: 0, rejected: 0 };
+      if (["FINALIZAT"].includes(request.status)) current.done += 1;
+      else if (["RESPINS", "ANULAT"].includes(request.status)) current.rejected += 1;
+      else current.open += 1;
+      workflowByDepartment.set(departmentId, current);
+    });
+  });
+  return {
+    summary: {
+      departments: departments.length,
+      connections: connectionRows.length,
+      openWorkflows: workflows.filter((item) => !["FINALIZAT", "RESPINS", "ANULAT"].includes(item.status)).length,
+      projects: (db.projects || []).filter((item) => item.status !== "closed").length
+    },
+    departments: departments.map((department) => ({
+      id: department.id,
+      name: department.name,
+      moduleKey: department.moduleKey || moduleKeyForDepartmentName(department.name),
+      color: department.color || "",
+      metrics: workflowByDepartment.get(department.id) || { open: 0, done: 0, rejected: 0 },
+      activeForUser: user.role === "superadmin" || visibleModules.has(department.moduleKey || moduleKeyForDepartmentName(department.name))
+    })),
+    connections: connectionRows.map((connection) => ({
+      id: connection.id,
+      sourceModuleKey: connection.sourceModuleKey || connection.source || "",
+      targetModuleKey: connection.targetModuleKey || connection.target || "",
+      sourceDepartmentId: connection.sourceDepartmentId || "",
+      targetDepartmentId: connection.targetDepartmentId || "",
+      label: connection.label || "",
+      type: connection.type || "workflow"
+    })),
+    workflows: workflows
+      .slice()
+      .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")))
+      .slice(0, 12)
+      .map((request) => ({
+        id: request.id,
+        title: request.title,
+        requestType: request.requestType,
+        status: request.status,
+        priority: request.priority,
+        neededDate: request.neededDate,
+        sourceType: request.sourceType,
+        sourceId: request.sourceId
+      }))
+  };
+}
+
+function moduleDefinitionsForUser(user, db) {
+  if (user.role === "superadmin") return ["production", "tehnic", "contabilitate", "mecanizare", "betoane", "asternere", "siguranta", "canalizare", "gestiune", "achizitii", "ru"];
+  const permissions = effectivePermissionsForUser(user, db);
+  const modules = new Set();
+  if (permissions.some((item) => item.startsWith("materials:") || item.startsWith("stock:") || item.startsWith("department_stock:"))) modules.add("gestiune");
+  if (permissions.some((item) => item.startsWith("planning:") || item.startsWith("consumptions:") || item.startsWith("recipes:"))) modules.add("production");
+  if (permissions.some((item) => item.startsWith("fleet:"))) modules.add("mecanizare");
+  if (permissions.some((item) => item.startsWith("technical:"))) modules.add("tehnic");
+  if (permissions.some((item) => item.startsWith("accounting:"))) modules.add("contabilitate");
+  if (permissions.some((item) => item.startsWith("procurement:"))) modules.add("achizitii");
+  if (user.departmentId) {
+    const department = (db.departments || []).find((item) => item.id === user.departmentId);
+    if (department) modules.add(department.moduleKey || moduleKeyForDepartmentName(department.name));
+  }
+  return Array.from(modules);
+}
+
+function buildNotifications(db, user) {
+  const stockAlerts = buildStockAlerts(db);
+  const criticalStocks = db.materials
+    .filter((material) => Number(material.stock || 0) <= Number(material.alert || 0))
+    .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0) || a.name.localeCompare(b.name));
+  const openRequests = (db.departmentRequests || [])
+    .filter((request) => !["done", "rejected"].includes(request.status))
+    .sort((a, b) => String(a.neededDate || "").localeCompare(String(b.neededDate || "")));
+
+  const notifications = [];
+
+  stockAlerts.forEach((item) => {
+    const shortage = Number(item.shortage || 0);
+    const title = shortage > 0
+      ? `Lipsa estimata: ${item.materialName}`
+      : `Stoc estimat sub prag: ${item.materialName}`;
+    const detail = shortage > 0
+      ? `Lipsesc ${fmt(shortage)} ${item.unit}. Stoc curent: ${fmt(item.stock)} ${item.unit}. Necesar total: ${fmt(item.required)} ${item.unit}.`
+      : `Stoc estimat ${fmt(item.projectedStock)} ${item.unit}, prag ${fmt(item.alert)} ${item.unit}.`;
+    notifications.push({
+      id: `stock-alert-${item.materialId}`,
+      type: "stock",
+      severity: shortage > 0 ? "bad" : "warn",
+      title,
+      detail,
+      targetView: "planning",
+      targetLabel: "Vezi necesar",
+      roles: ["inventory", "procurement", "manager", "superadmin", "admin"],
+      materialId: item.materialId,
+      materialName: item.materialName,
+      shortage,
+      required: item.required,
+      unit: item.unit
+    });
+  });
+
+  criticalStocks.forEach((material) => {
+    notifications.push({
+      id: `critical-stock-${material.id}`,
+      type: "critical_stock",
+      severity: Number(material.stock || 0) <= 0 ? "bad" : "warn",
+      title: `Stoc critic: ${material.name}`,
+      detail: `Stoc curent ${fmt(material.stock)} ${material.unit}, prag ${fmt(material.alert)} ${material.unit}.`,
+      targetView: "stocks",
+      targetLabel: "Vezi stocuri",
+      roles: ["inventory", "manager", "superadmin", "admin", "procurement"],
+      materialId: material.id,
+      materialName: material.name,
+      unit: material.unit
+    });
+  });
+
+  openRequests
+    .filter((request) => request.priority === "urgent" || String(request.neededDate || "") <= localDate(new Date()))
+    .slice(0, 20)
+    .forEach((request) => {
+      notifications.push({
+        id: `request-${request.id}`,
+        type: "department_request",
+        severity: request.priority === "urgent" ? "bad" : "warn",
+        title: request.priority === "urgent" ? `Solicitare urgenta: ${request.department}` : `Solicitare scadenta: ${request.department}`,
+        detail: `${request.type === "asphalt" ? request.recipeName : request.materialName || request.requestedMaterialName || request.itemName} / ${fmt(request.amount)} ${request.unit} / necesar ${request.neededDate || "-"}.`,
+        targetView: "departmentRequests",
+        targetLabel: "Vezi solicitari",
+        roles: ["manager", "superadmin", "admin", "inventory", "procurement"],
+        requestId: request.id
+      });
+    });
+
+  buildFleetAlerts(db).slice(0, 20).forEach((alert) => {
+    notifications.push({
+      id: alert.id,
+      type: "fleet_alert",
+      severity: alert.severity,
+      title: alert.title,
+      detail: alert.detail,
+      targetView: "mechanization",
+      targetLabel: "Vezi mecanizare",
+      roles: ["mechanization", "technical", "manager", "superadmin", "admin"],
+      assetId: alert.assetId
+    });
+  });
+
+  const visible = notifications.filter((item) => notificationVisibleForRole(item, user.role));
+  const bad = visible.filter((item) => item.severity === "bad").length;
+  const warn = visible.filter((item) => item.severity === "warn").length;
+  return {
+    summary: {
+      total: visible.length,
+      bad,
+      warn,
+      stock: visible.filter((item) => item.type === "stock" || item.type === "critical_stock").length,
+      requests: visible.filter((item) => item.type === "department_request").length,
+      fleet: visible.filter((item) => item.type === "fleet_alert").length
+    },
+    notifications: visible.slice(0, 50)
+  };
+}
+
+function notificationVisibleForRole(notification, role) {
+  if (role === "superadmin" || role === "admin") return true;
+  return !Array.isArray(notification.roles) || notification.roles.includes(role);
+}
+
+function buildStockAlerts(db) {
+  const demand = Object.fromEntries(db.materials.map((material) => [material.id, {
+    materialId: material.id,
+    materialName: material.name,
+    unit: material.unit,
+    stock: Number(material.stock || 0),
+    alert: Number(material.alert || 0),
+    fromPlans: 0,
+    fromRequests: 0
+  }]));
+
+  (db.productionPlans || []).forEach((plan) => {
+    (plan.materials || []).forEach((usage) => addDemand(demand, usage.materialId, usage.amount, "plan"));
+  });
+
+  (db.departmentRequests || [])
+    .filter((request) => !["done", "rejected"].includes(request.status))
+    .forEach((request) => {
+      if (request.type === "asphalt" && request.planId) return;
+      if (request.type === "material") {
+        addDemand(demand, request.materialId, request.amount, "request");
+        return;
+      }
+      const needs = Array.isArray(request.materials) && request.materials.length
+        ? request.materials
+        : requestMaterialsFromRecipe(db, request);
+      needs.forEach((usage) => addDemand(demand, usage.materialId, usage.amount, "request"));
+    });
+
+  return Object.values(demand)
+    .map((item) => {
+      const fromPlans = round(item.fromPlans);
+      const fromRequests = round(item.fromRequests);
+      const required = round(fromPlans + fromRequests);
+      const projectedStock = round(item.stock - required);
+      const shortage = round(Math.max(0, required - item.stock));
+      return {
+        ...item,
+        fromPlans,
+        fromRequests,
+        required,
+        projectedStock,
+        shortage,
+        severity: shortage > 0 ? "bad" : "warn"
+      };
+    })
+    .filter((item) => item.required > 0 && (item.shortage > 0 || item.projectedStock <= item.alert))
+    .sort((a, b) => b.shortage - a.shortage || a.projectedStock - b.projectedStock || a.materialName.localeCompare(b.materialName));
+}
+
+function buildProcurementRequirements(db) {
+  return buildStockAlerts(db);
+}
+
+function addDemand(demand, materialId, amountValue, source) {
+  const amount = round(Number(amountValue || 0));
+  if (!demand[materialId] || amount <= 0) return;
+  if (source === "plan") demand[materialId].fromPlans += amount;
+  if (source === "request") demand[materialId].fromRequests += amount;
+}
+
+function requestMaterialsFromRecipe(db, request) {
+  const recipe = db.recipes.find((item) => item.id === request.recipeId);
+  if (!recipe) return [];
+  return recipeMaterialNeeds(db, recipe, Number(request.amount || 0), 0, false);
+}
+
+function buildDailyReport(db, dateValue) {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(dateValue || "")) ? String(dateValue) : localDate(new Date());
+  const consumptions = activeConsumptions(db).filter((item) => item.date === date).sort(sortNewest);
+  const deliveries = db.deliveries.filter((item) => !item.canceled && item.date === date).sort(sortNewest);
+  const manualMovements = db.stockMovements
+    .filter((item) => !item.canceled && item.date === date && (item.type === "manual_in" || item.type === "manual_out"))
+    .sort(sortNewest);
+  const dailyMovements = db.stockMovements.filter((item) => item.date === date);
+  const asphaltTotal = round(consumptions.reduce((total, item) => total + Number(item.asphalt || 0), 0));
+  const criticalStocks = db.materials
+    .filter((material) => Number(material.stock || 0) <= Number(material.alert || 0))
+    .map((material) => ({
+      materialId: material.id,
+      materialName: material.name,
+      stock: Number(material.stock || 0),
+      alert: Number(material.alert || 0),
+      unit: material.unit
+    }));
+  return {
+    date,
+    metrics: {
+      asphaltTotal,
+      consumptionsCount: consumptions.length,
+      deliveriesCount: deliveries.length,
+      manualInCount: manualMovements.filter((item) => item.amount > 0).length,
+      manualOutCount: manualMovements.filter((item) => item.amount < 0).length,
+      criticalStocksCount: criticalStocks.length
+    },
+    consumptions: consumptions.map((item) => ({
+      id: item.id,
+      reportNo: item.reportNo,
+      jobName: item.jobName || "",
+      recipeName: item.recipeName,
+      ticket: item.ticket || "",
+      asphalt: Number(item.asphalt || 0),
+      operatorName: item.operatorName || ""
+    })),
+    deliveries: deliveries.map((item) => ({
+      id: item.id,
+      materialName: item.materialName,
+      amount: Number(item.amount || 0),
+      unit: item.unit,
+      supplier: item.supplier || "",
+      document: item.document || "",
+      operatorName: item.operatorName || ""
+    })),
+    manualMovements: manualMovements.map((item) => ({
+      id: item.id,
+      type: item.type,
+      materialName: item.materialName,
+      amount: Number(item.amount || 0),
+      unit: item.unit,
+      department: item.department || "",
+      jobName: item.jobName || "",
+      transportDoc: item.transportDoc || "",
+      createdByName: item.createdByName || ""
+    })),
+    materialTotals: buildMaterialReportTotals(db, consumptions, deliveries, manualMovements, dailyMovements, date, date),
+    criticalStocks
+  };
+}
+
+function buildPeriodReport(db, fromValue, toValue) {
+  const fallback = localDate(new Date());
+  const from = validDateValue(fromValue) ? String(fromValue) : `${fallback.slice(0, 7)}-01`;
+  const to = validDateValue(toValue) ? String(toValue) : fallback;
+  const start = from <= to ? from : to;
+  const end = from <= to ? to : from;
+  const consumptions = activeConsumptions(db)
+    .filter((item) => item.date >= start && item.date <= end)
+    .sort(sortNewest);
+  const deliveries = db.deliveries
+    .filter((item) => !item.canceled && item.date >= start && item.date <= end)
+    .sort(sortNewest);
+  const manualMovements = db.stockMovements
+    .filter((item) => !item.canceled && item.date >= start && item.date <= end && (item.type === "manual_in" || item.type === "manual_out"))
+    .sort(sortNewest);
+  const periodMovements = db.stockMovements.filter((item) => item.date >= start && item.date <= end);
+  const asphaltTotal = round(consumptions.reduce((total, item) => total + Number(item.asphalt || 0), 0));
+  const criticalStocks = db.materials
+    .filter((material) => Number(material.stock || 0) <= Number(material.alert || 0))
+    .map((material) => ({
+      materialId: material.id,
+      materialName: material.name,
+      stock: Number(material.stock || 0),
+      alert: Number(material.alert || 0),
+      unit: material.unit
+    }));
+  return {
+    from: start,
+    to: end,
+    metrics: {
+      asphaltTotal,
+      consumptionsCount: consumptions.length,
+      deliveriesCount: deliveries.length,
+      manualInCount: manualMovements.filter((item) => item.amount > 0).length,
+      manualOutCount: manualMovements.filter((item) => item.amount < 0).length,
+      criticalStocksCount: criticalStocks.length
+    },
+    consumptions: consumptions.map((item) => ({
+      id: item.id,
+      date: item.date,
+      reportNo: item.reportNo,
+      jobName: item.jobName || "",
+      recipeName: item.recipeName,
+      ticket: item.ticket || "",
+      asphalt: Number(item.asphalt || 0),
+      operatorName: item.operatorName || ""
+    })),
+    deliveries: deliveries.map((item) => ({
+      id: item.id,
+      date: item.date,
+      materialName: item.materialName,
+      amount: Number(item.amount || 0),
+      unit: item.unit,
+      supplier: item.supplier || "",
+      document: item.document || "",
+      operatorName: item.operatorName || ""
+    })),
+    manualMovements: manualMovements.map((item) => ({
+      id: item.id,
+      date: item.date,
+      type: item.type,
+      materialName: item.materialName,
+      amount: Number(item.amount || 0),
+      unit: item.unit,
+      department: item.department || "",
+      jobName: item.jobName || "",
+      transportDoc: item.transportDoc || "",
+      createdByName: item.createdByName || ""
+    })),
+    materialTotals: buildMaterialReportTotals(db, consumptions, deliveries, manualMovements, periodMovements, start, end),
+    criticalStocks
+  };
+}
+
+function buildAccountingReport(db, monthValue) {
+  const month = validMonthValue(monthValue) ? String(monthValue) : localDate(new Date()).slice(0, 7);
+  const from = `${month}-01`;
+  const to = lastDayOfMonth(month);
+  const rows = db.materials.map((material) => {
+    const movements = (db.stockMovements || [])
+      .filter((movement) => movement.materialId === material.id && movement.date >= from && movement.date <= to);
+    const deliveries = sumMovements(movements, (item) => item.type === "delivery" && Number(item.amount || 0) > 0);
+    const asphaltConsumption = Math.abs(sumMovements(movements, (item) => item.type === "consumption" && Number(item.amount || 0) < 0));
+    const manualIn = sumMovements(movements, (item) => item.type === "manual_in" && Number(item.amount || 0) > 0);
+    const manualOut = Math.abs(sumMovements(movements, (item) => item.type === "manual_out" && Number(item.amount || 0) < 0));
+    const adjustments = sumMovements(movements, (item) => !isOpeningStockMovement(item) && !["delivery", "consumption", "manual_in", "manual_out"].includes(item.type));
+    const openingStock = stockAtStartOfDate(db, material.id, from);
+    const closingStock = stockAtEndOfDate(db, material.id, to);
+    const calculatedClosing = round(openingStock + deliveries + manualIn - asphaltConsumption - manualOut + adjustments);
+    return {
+      materialId: material.id,
+      materialName: material.name,
+      unit: material.unit,
+      openingStock: round(openingStock),
+      deliveries: round(deliveries),
+      asphaltConsumption: round(asphaltConsumption),
+      manualIn: round(manualIn),
+      manualOut: round(manualOut),
+      adjustments: round(adjustments),
+      closingStock: round(closingStock),
+      calculatedClosing,
+      difference: round(closingStock - calculatedClosing)
+    };
+  });
+  return {
+    month,
+    from,
+    to,
+    metrics: {
+      materials: rows.length,
+      deliveries: round(rows.reduce((total, item) => total + Number(item.deliveries || 0), 0)),
+      asphaltConsumption: round(rows.reduce((total, item) => total + Number(item.asphaltConsumption || 0), 0)),
+      manualOut: round(rows.reduce((total, item) => total + Number(item.manualOut || 0), 0)),
+      differences: rows.filter((item) => Math.abs(Number(item.difference || 0)) > 0.0005).length
+    },
+    rows
+  };
+}
+
+function sumMovements(movements, predicate) {
+  return round(movements.filter(predicate).reduce((total, item) => total + Number(item.amount || 0), 0));
+}
+
+function isOpeningStockMovement(movement) {
+  return movement?.type === "opening_stock";
+}
+
+function isStockBalanceMovement(movement) {
+  return isOpeningStockMovement(movement) || movement?.type === "adjustment";
+}
+
+function buildMaterialReportTotals(db, consumptions, deliveries, manualMovements, reportMovements, startDate, endDate) {
+  const monthStart = `${startDate.slice(0, 7)}-01`;
+  const previousDate = previousLocalDate(startDate);
+  const totals = Object.fromEntries(db.materials.map((material) => [material.id, {
+    materialId: material.id,
+    materialName: material.name,
+    unit: material.unit,
+    stock: Number(material.stock || 0),
+    monthOpeningStock: stockAtStartOfDate(db, material.id, monthStart),
+    previousDayStock: previousDate ? stockAtEndOfDate(db, material.id, previousDate) : stockAtStartOfDate(db, material.id, startDate),
+    openingStock: stockAtStartOfDate(db, material.id, startDate),
+    closingStock: stockAtEndOfDate(db, material.id, endDate),
+    consumed: 0,
+    delivered: 0,
+    manualIn: 0,
+    manualOut: 0,
+    netMovement: 0
+  }]));
+  consumptions.forEach((consumption) => {
+    (consumption.materials || []).forEach((usage) => {
+      if (totals[usage.materialId]) totals[usage.materialId].consumed += Number(usage.amount || 0);
+    });
+  });
+  deliveries.forEach((delivery) => {
+    if (totals[delivery.materialId]) totals[delivery.materialId].delivered += Number(delivery.amount || 0);
+  });
+  manualMovements.forEach((movement) => {
+    if (!totals[movement.materialId]) return;
+    if (Number(movement.amount || 0) > 0) totals[movement.materialId].manualIn += Number(movement.amount || 0);
+    if (Number(movement.amount || 0) < 0) totals[movement.materialId].manualOut += Math.abs(Number(movement.amount || 0));
+  });
+  reportMovements.forEach((movement) => {
+    if (totals[movement.materialId] && !isOpeningStockMovement(movement)) totals[movement.materialId].netMovement += Number(movement.amount || 0);
+  });
+  return Object.values(totals).map((item) => ({
+    ...item,
+    monthOpeningStock: round(item.monthOpeningStock),
+    previousDayStock: round(item.previousDayStock),
+    openingStock: round(item.openingStock),
+    closingStock: round(item.closingStock),
+    consumed: round(item.consumed),
+    delivered: round(item.delivered),
+    manualIn: round(item.manualIn),
+    manualOut: round(item.manualOut),
+    netMovement: round(item.netMovement),
+    stock: round(item.stock)
+  }));
+}
+
+function stockAtStartOfDate(db, materialId, dateValue) {
+  return historicalStock(db, materialId, (movement) =>
+    movement.date > dateValue || (movement.date === dateValue && !isOpeningStockMovement(movement))
+  );
+}
+
+function stockAtEndOfDate(db, materialId, dateValue) {
+  return historicalStock(db, materialId, (movement) => movement.date > dateValue);
+}
+
+function previousLocalDate(dateValue) {
+  if (!validDateValue(dateValue)) return "";
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setDate(date.getDate() - 1);
+  return localDate(date);
+}
+
+function historicalStock(db, materialId, futureMovement) {
+  const material = db.materials.find((item) => item.id === materialId);
+  const currentStock = Number(material?.stock || 0);
+  const futureDelta = (db.stockMovements || [])
+    .filter((movement) => movement.materialId === materialId && futureMovement(movement))
+    .reduce((total, movement) => total + Number(movement.amount || 0), 0);
+  return currentStock - futureDelta;
+}
+
+function periodFromUrl(url) {
+  const fallback = localDate(new Date());
+  return {
+    from: url.searchParams.get("from") || `${fallback.slice(0, 7)}-01`,
+    to: url.searchParams.get("to") || fallback
+  };
+}
+
+function accountingMonthFromUrl(url) {
+  const fallback = localDate(new Date()).slice(0, 7);
+  const month = url.searchParams.get("month") || fallback;
+  return validMonthValue(month) ? month : fallback;
+}
+
+function validMonthValue(value) {
+  return /^\d{4}-\d{2}$/.test(String(value || ""));
+}
+
+function lastDayOfMonth(monthValue) {
+  const [year, month] = String(monthValue).split("-").map(Number);
+  return localDate(new Date(year, month, 0));
+}
+
+function validDateValue(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+}
+
+function calculateRecipeCapacity(db, recipe) {
+  const recipeMaterials = db.materials.filter((material) => material.recipeMaterial);
+  const constraints = recipeMaterials
+    .map((material) => {
+      const percent = Number(recipe.percentages?.[material.id] || 0);
+      if (percent <= 0) return null;
+      const stock = Math.max(0, Number(material.stock || 0));
+      return {
+        materialId: material.id,
+        materialName: material.name,
+        unit: material.unit,
+        stock,
+        tons: stock * 100 / percent
+      };
+    })
+    .filter(Boolean);
+  if (!constraints.length) {
+    return { tons: 0, limitingMaterial: "Reteta fara procente" };
+  }
+  const limit = constraints.reduce((min, item) => item.tons < min.tons ? item : min, constraints[0]);
+  return {
+    tons: round(limit.tons),
+    limitingMaterial: `${limit.materialName} (${fmt(limit.stock)} ${limit.unit})`
+  };
+}
+
+function createMaterial(db, user, body) {
+  const name = String(body.name || "").trim();
+  const unit = String(body.unit || "t").trim();
+  const recipeMaterial = body.recipeMaterial === true || body.recipeMaterial === "true";
+  const stock = round(Number(body.stock || 0));
+  const alert = round(Number(body.alert || 0));
+  if (!name) throwHttp(400, "Denumirea materialului este obligatorie.");
+  if (!unit) throwHttp(400, "Unitatea de masura este obligatorie.");
+  if (stock < 0 || alert < 0) throwHttp(400, "Stocul si pragul nu pot fi negative.");
+  const duplicate = (db.materials || []).find((item) => String(item.name || "").trim().toLowerCase() === name.toLowerCase());
+  if (duplicate) throwHttp(409, "Exista deja un material cu aceasta denumire.");
+  const material = {
+    id: uniqueMaterialId(db, name),
+    name,
+    unit,
+    stock,
+    alert,
+    recipeMaterial,
+    category: recipeMaterial ? "asfalt" : "general",
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.materials.push(material);
+  if (stock > 0) {
+    db.stockMovements.push({
+      id: id("stock"),
+      type: "opening_stock",
+      materialId: material.id,
+      materialName: material.name,
+      date: validDateValue(body.stockDate) ? String(body.stockDate) : localDate(new Date()),
+      amount: stock,
+      unit: material.unit,
+      note: "Sold initial material nou",
+      createdBy: user.id,
+      createdByName: user.name,
+      createdAt: new Date().toISOString()
+    });
+  }
+  return material;
+}
+
+function uniqueMaterialId(db, name) {
+  const base = slugify(name) || "material";
+  const used = new Set((db.materials || []).map((item) => item.id));
+  let candidate = base;
+  let index = 2;
+  while (used.has(candidate)) {
+    candidate = `${base}-${index}`;
+    index += 1;
+  }
+  return candidate;
+}
+
+function slugify(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function updateMaterial(db, body) {
+  const material = db.materials.find((item) => item.id === body.id);
+  if (!material) throwHttp(404, "Material inexistent.");
+  const previousStock = Number(material.stock || 0);
+  const movementDate = validDateValue(body.stockDate) ? String(body.stockDate) : localDate(new Date());
+  const movementType = body.stockMode === "adjustment" ? "adjustment" : "opening_stock";
+  material.stock = round(Number(body.stock ?? material.stock));
+  material.alert = round(Number(body.alert ?? material.alert));
+  material.unit = String(body.unit || material.unit);
+  if (previousStock !== material.stock) {
+    db.stockMovements.push({
+      id: id("stock"),
+      type: movementType,
+      materialId: material.id,
+      materialName: material.name,
+      date: movementDate,
+      amount: round(material.stock - previousStock),
+      unit: material.unit,
+      note: movementType === "opening_stock" ? "Sold initial stoc" : "Editare manuala stoc",
+      createdAt: new Date().toISOString()
+    });
+    return { material, message: `Stoc actualizat pe data ${movementDate}.` };
+  }
+  if (body.redateLastAdjustment) {
+    const movement = latestManualStockEdit(db, material.id);
+    if (!movement) return { material, message: "Nu exista o ajustare manuala de reparat pentru acest material." };
+    const oldDate = movement.date;
+    movement.date = movementDate;
+    movement.type = movementType;
+    movement.note = movementType === "opening_stock" ? "Sold initial stoc" : "Editare manuala stoc";
+    movement.redatedAt = new Date().toISOString();
+    movement.redatedFrom = oldDate;
+    return { material, message: `Data ultimei ajustari a fost mutata din ${oldDate} in ${movementDate}.` };
+  }
+  return { material, message: "Stocul si pragul au fost salvate." };
+}
+
+function latestManualStockEdit(db, materialId) {
+  return (db.stockMovements || [])
+    .filter((movement) =>
+      movement.materialId === materialId &&
+      (movement.type === "adjustment" || movement.type === "opening_stock") &&
+      (movement.note === "Editare manuala stoc" || movement.note === "Sold initial stoc")
+    )
+    .sort((a, b) => `${b.createdAt || ""}${b.id || ""}`.localeCompare(`${a.createdAt || ""}${a.id || ""}`))[0];
+}
+
+function createDepartmentRequest(db, user, body) {
+  const type = String(body.type || "asphalt");
+  if (!["asphalt", "material"].includes(type)) throwHttp(400, "Tip solicitare invalid.");
+  const department = String(body.department || "").trim();
+  if (!department) throwHttp(400, "Departamentul este obligatoriu.");
+  if (user.role !== "superadmin" && user.departmentId) {
+    const userDepartment = (db.departments || []).find((item) => item.id === user.departmentId)?.name || "";
+    if (userDepartment && department !== userDepartment) throwHttp(403, "Poti trimite solicitari doar pentru departamentul tau.");
+  }
+  const neededDate = validDateValue(body.neededDate) ? String(body.neededDate) : localDate(new Date());
+  let recipe = null;
+  let material = null;
+  let technical = null;
+  let amount = round(Number(body.amount || 0));
+  let materials = [];
+  let requestedMaterialName = "";
+  let requestedUnit = "";
+  if (type === "asphalt") {
+    recipe = db.recipes.find((item) => item.id === body.recipeId && item.active !== false);
+    if (!recipe) throwHttp(400, "Alege reteta pentru solicitarea de asfalt.");
+    technical = normalizeRequestTechnical(db, recipe, body.technical);
+    if (technical) amount = technical.asphalt;
+    materials = recipeMaterialNeeds(db, recipe, amount, 0, false);
+  } else {
+    const materialId = String(body.materialId || "").trim();
+    if (materialId && materialId !== "__custom__") {
+      material = db.materials.find((item) => item.id === materialId);
+      if (!material) throwHttp(400, "Materialul ales nu exista in gestiune.");
+    } else {
+      requestedMaterialName = String(body.requestedMaterialName || body.customMaterialName || "").trim();
+      requestedUnit = String(body.requestedUnit || body.unit || "t").trim();
+      if (!requestedMaterialName) throwHttp(400, "Scrie denumirea materialului solicitat.");
+      if (!requestedUnit) throwHttp(400, "Alege unitatea pentru materialul solicitat.");
+    }
+  }
+  if (amount <= 0) throwHttp(400, "Cantitatea solicitata trebuie sa fie mai mare decat zero.");
+
+  const request = {
+    id: id("solicitare"),
+    type,
+    status: "new", // statusuri: new, accepted, planned, partial, done, rejected
+    neededDate,
+    department,
+    jobName: String(body.jobName || "").trim(),
+    location: String(body.location || "").trim(),
+    orderNo: String(body.orderNo || "").trim(),
+    priority: ["scazuta", "medie", "ridicata", "urgenta"].includes(String(body.priority || "")) ? String(body.priority) : "medie",
+    description: String(body.description || body.note || "").trim(),
+    recipeId: recipe?.id || "",
+    recipeName: recipe?.name || "",
+    materialId: material?.id || "",
+    materialName: material?.name || "",
+    requestedMaterialName,
+    requestedUnit,
+    mappedMaterialId: "",
+    mappedMaterialName: "",
+    itemName: recipe ? `Asfalt ${recipe.name}` : (material?.name || requestedMaterialName),
+    amount,
+    unit: recipe ? "t" : (material?.unit || requestedUnit),
+    orderDate: validDateValue(body.orderDate) ? String(body.orderDate) : "",
+    technical,
+    materials,
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.departmentRequests.push(request);
+  syncWorkflowForDepartmentRequest(db, user, request, "created");
+  return request;
+}
+
+function updateDepartmentRequest(db, user, idValue, body) {
+  const request = db.departmentRequests.find((item) => item.id === idValue);
+  if (!request) throwHttp(404, "Solicitare inexistenta.");
+  const oldWorkflowStatus = workflowStatusFromDepartment(request.status);
+  const mapMaterialId = body.materialId !== undefined
+    ? String(body.materialId || "").trim()
+    : body.mappedMaterialId !== undefined
+      ? String(body.mappedMaterialId || "").trim()
+      : "";
+  if (request.type === "material" && mapMaterialId) {
+    const material = db.materials.find((item) => item.id === mapMaterialId);
+    if (!material) throwHttp(404, "Materialul real ales pentru mapare nu exista.");
+    if (!request.requestedMaterialName) request.requestedMaterialName = request.itemName || request.materialName || "";
+    if (!request.requestedUnit) request.requestedUnit = request.unit || material.unit;
+    request.materialId = material.id;
+    request.materialName = material.name;
+    request.mappedMaterialId = material.id;
+    request.mappedMaterialName = material.name;
+    request.mappedAt = new Date().toISOString();
+    request.mappedBy = user.id;
+    request.mappedByName = user.name;
+    request.itemName = material.name;
+    request.unit = material.unit;
+  }
+  const status = String(body.status || request.status);
+  if (!["new", "accepted", "planned", "partial", "done", "rejected"].includes(status)) throwHttp(400, "Status invalid.");
+  if (status === "done" && request.type === "material" && !request.materialId) {
+    throwHttp(400, "Mapeaza solicitarea la un material real inainte sa o marchezi realizata.");
+  }
+  request.status = status;
+  if (body.jobName !== undefined) request.jobName = String(body.jobName || "").trim();
+  if (body.location !== undefined) request.location = String(body.location || "").trim();
+  if (body.orderNo !== undefined) request.orderNo = String(body.orderNo || "").trim();
+  if (body.priority !== undefined) request.priority = String(body.priority || "medie");
+  if (body.description !== undefined) request.description = String(body.description || "").trim();
+  request.managerNote = String(body.managerNote ?? request.managerNote ?? "").trim();
+  request.updatedBy = user.id;
+  request.updatedByName = user.name;
+  request.updatedAt = new Date().toISOString();
+  syncWorkflowForDepartmentRequest(db, user, request, "updated", oldWorkflowStatus);
+  return request;
+}
+
+function createPlanFromDepartmentRequest(db, user, idValue) {
+  const request = db.departmentRequests.find((item) => item.id === idValue);
+  if (!request) throwHttp(404, "Solicitare inexistenta.");
+  if (request.type !== "asphalt") throwHttp(400, "Doar solicitarile de asfalt se pot transforma direct in plan de productie.");
+  if (request.planId) throwHttp(400, "Solicitarea este deja planificata.");
+  const plan = createProductionPlan(db, user, {
+    date: request.neededDate,
+    jobName: [request.department, request.jobName].filter(Boolean).join(" / "),
+    recipeId: request.recipeId,
+    asphalt: request.amount,
+    emulsion: 0,
+    sourceRequestId: request.id,
+    orderNo: request.orderNo || "",
+    orderDate: request.orderDate || "",
+    technical: request.technical || null
+  });
+  request.status = "planned";
+  request.planId = plan.id;
+  request.updatedBy = user.id;
+  request.updatedByName = user.name;
+  request.updatedAt = new Date().toISOString();
+  syncWorkflowForDepartmentRequest(db, user, request, "planned", "SUBMIS");
+  return plan;
+}
+
+function normalizeRequestTechnical(db, recipe, technical) {
+  if (!technical || typeof technical !== "object") return null;
+  const length = round(Number(technical.length || 0));
+  const width = round(Number(technical.width || 0));
+  const thickness = round(Number(technical.thickness || 0));
+  const loss = Math.max(0, round(Number(technical.loss || 0)));
+  const density = round(Number(technical.density || 0));
+  const hasAny = [length, width, thickness, density, loss].some((value) => value > 0);
+  if (!hasAny) return null;
+  if (length <= 0 || width <= 0 || thickness <= 0 || density <= 0) {
+    throwHttp(400, "Completeaza lungime, latime, grosime si densitate pentru calculul tehnic.");
+  }
+  const area = round(length * width);
+  const volume = round(area * thickness / 100);
+  const baseAsphalt = round(volume * density);
+  const asphalt = round(baseAsphalt * (1 + loss / 100));
+  return {
+    length,
+    width,
+    thickness,
+    loss,
+    density,
+    area,
+    volume,
+    baseAsphalt,
+    asphalt,
+    materials: recipeMaterialNeeds(db, recipe, asphalt, 0, false)
+  };
+}
+
+function normalizeStoredTechnical(technical) {
+  if (!technical || typeof technical !== "object") return null;
+  return {
+    length: round(Number(technical.length || 0)),
+    width: round(Number(technical.width || 0)),
+    thickness: round(Number(technical.thickness || 0)),
+    loss: round(Number(technical.loss || 0)),
+    density: round(Number(technical.density || 0)),
+    area: round(Number(technical.area || 0)),
+    volume: round(Number(technical.volume || 0)),
+    baseAsphalt: round(Number(technical.baseAsphalt || 0)),
+    asphalt: round(Number(technical.asphalt || 0))
+  };
+}
+
+function recipeMaterialNeeds(db, recipe, asphalt, emulsion, includeZero) {
+  return db.materials
+    .map((material) => {
+      const amount = material.recipeMaterial
+        ? asphalt * Number(recipe.percentages?.[material.id] || 0) / 100
+        : Number(emulsion || 0);
+      return {
+        materialId: material.id,
+        materialName: material.name,
+        amount: round(amount),
+        unit: material.unit
+      };
+    })
+    .filter((item) => includeZero || item.amount > 0);
+}
+
+function createStockOperation(db, user, body) {
+  const material = db.materials.find((item) => item.id === body.materialId);
+  if (!material) throwHttp(404, "Material inexistent.");
+  const direction = String(body.direction || "out");
+  if (!["in", "out"].includes(direction)) throwHttp(400, "Tip miscare invalid.");
+  const amount = round(Number(body.amount || 0));
+  if (amount <= 0) throwHttp(400, "Cantitatea trebuie sa fie mai mare decat zero.");
+  const signedAmount = direction === "in" ? amount : -amount;
+  material.stock = round(Number(material.stock || 0) + signedAmount);
+  const details = [
+    body.department ? `Departament: ${body.department}` : "",
+    body.jobName ? `Lucrare: ${body.jobName}` : "",
+    body.transportDoc ? `Bon: ${body.transportDoc}` : "",
+    body.note ? `Obs: ${body.note}` : ""
+  ].filter(Boolean).join(" / ");
+  const movement = {
+    id: id("stock"),
+    type: direction === "in" ? "manual_in" : "manual_out",
+    materialId: material.id,
+    materialName: material.name,
+    date: String(body.date || localDate(new Date())),
+    amount: signedAmount,
+    unit: material.unit,
+    department: String(body.department || "").trim(),
+    jobName: String(body.jobName || "").trim(),
+    transportDoc: String(body.transportDoc || "").trim(),
+    note: details || "Miscare manuala stoc",
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.stockMovements.push(movement);
+  return movement;
+}
+
+function cancelStockOperation(db, user, idValue) {
+  const movement = db.stockMovements.find((item) =>
+    item.id === idValue &&
+    (item.type === "manual_in" || item.type === "manual_out")
+  );
+  if (!movement || movement.canceled) throwHttp(404, "Miscarea de stoc nu poate fi anulata.");
+  const material = db.materials.find((item) => item.id === movement.materialId);
+  if (!material) throwHttp(404, "Material inexistent.");
+  const reverseAmount = round(-Number(movement.amount || 0));
+  material.stock = round(Number(material.stock || 0) + reverseAmount);
+  db.stockMovements.push({
+    id: id("stock"),
+    type: movement.type === "manual_in" ? "cancel_manual_in" : "cancel_manual_out",
+    materialId: material.id,
+    materialName: material.name,
+    date: localDate(new Date()),
+    amount: reverseAmount,
+    unit: material.unit,
+    department: movement.department || "",
+    jobName: movement.jobName || "",
+    transportDoc: movement.transportDoc || "",
+    note: `Anulare: ${movement.note || movement.id}`,
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  });
+  movement.canceled = true;
+  movement.canceledAt = new Date().toISOString();
+  movement.canceledBy = user.id;
+  movement.canceledByName = user.name;
+  return movement;
+}
+
+function transferMaterialToDepartment(db, user, body) {
+  const materialId = String(body.materialId || "");
+  const department = String(body.department || "").trim();
+  const amount = round(Number(body.amount || 0));
+  if (!materialId || !department || amount <= 0) {
+    throwHttp(400, "Date transfer incomplete (material, departament, cantitate).");
+  }
+  const material = db.materials.find(m => m.id === materialId);
+  if (!material) throwHttp(404, "Material inexistent.");
+  if (Number(material.stock || 0) < amount) {
+    throwHttp(400, `Stoc insuficient in depozit central (${material.stock} ${material.unit}).`);
+  }
+  material.stock = round(Number(material.stock || 0) - amount);
+  const movement = {
+    id: id("stock"),
+    type: "transfer_to_dept",
+    materialId: material.id,
+    materialName: material.name,
+    date: String(body.date || localDate(new Date())),
+    amount: -amount,
+    unit: material.unit,
+    department: department,
+    transferStatus: "pending",
+    confirmedAt: "",
+    confirmedBy: "",
+    confirmedByName: "",
+    note: [String(body.note || "").trim(), `Transfer catre departament: ${department}`].filter(Boolean).join(" | "),
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.stockMovements.push(movement);
+  return { material, movement };
+}
+
+function departmentTransfersForUser(db, user) {
+  const userDepartment = user.departmentId
+    ? (db.departments || []).find((item) => item.id === user.departmentId)?.name || ""
+    : "";
+  return (db.stockMovements || [])
+    .filter((item) => item.type === "transfer_to_dept" && !item.canceled)
+    .filter((item) => !userDepartment || item.department === userDepartment)
+    .map((item) => ({
+      ...item,
+      transferStatus: item.transferStatus || "confirmed"
+    }))
+    .sort(sortNewest);
+}
+
+function confirmDepartmentTransfer(db, user, idValue) {
+  const movement = (db.stockMovements || []).find((item) => item.id === idValue && item.type === "transfer_to_dept");
+  if (!movement || movement.canceled) throwHttp(404, "Transfer inexistent.");
+  if ((movement.transferStatus || "confirmed") !== "pending") throwHttp(400, "Transferul este deja confirmat.");
+  if (user.role !== "superadmin" && user.departmentId) {
+    const userDepartment = (db.departments || []).find((item) => item.id === user.departmentId)?.name || "";
+    if (userDepartment && movement.department !== userDepartment) {
+      throwHttp(403, "Nu poti confirma transferul altui departament.");
+    }
+  }
+  let deptStock = db.departmentStocks.find((item) => item.materialId === movement.materialId && item.department === movement.department);
+  if (!deptStock) {
+    deptStock = {
+      materialId: movement.materialId,
+      materialName: movement.materialName,
+      department: movement.department,
+      stock: 0,
+      unit: movement.unit
+    };
+    db.departmentStocks.push(deptStock);
+  }
+  deptStock.stock = round(Number(deptStock.stock || 0) + Math.abs(Number(movement.amount || 0)));
+  movement.transferStatus = "confirmed";
+  movement.confirmedAt = new Date().toISOString();
+  movement.confirmedBy = user.id;
+  movement.confirmedByName = user.name;
+  return movement;
+}
+
+function recordDepartmentConsumption(db, user, body) {
+  const materialId = String(body.materialId || "");
+  const department = String(body.department || "").trim();
+  const jobRequestId = String(body.jobRequestId || "");
+  const amount = round(Number(body.amount || 0));
+  if (!materialId || !department || amount <= 0 || !jobRequestId) {
+    throwHttp(400, "Date consum incomplete.");
+  }
+  const deptStock = db.departmentStocks.find(s => s.materialId === materialId && s.department === department);
+  if (!deptStock || Number(deptStock.stock || 0) < amount) {
+    throwHttp(400, `Stoc insuficient in departamentul ${department} (${deptStock?.stock || 0}).`);
+  }
+  deptStock.stock = round(Number(deptStock.stock || 0) - amount);
+  const consumption = {
+    id: id("dept_consum"),
+    date: String(body.date || localDate(new Date())),
+    materialId,
+    materialName: deptStock.materialName,
+    department,
+    jobRequestId,
+    amount,
+    unit: deptStock.unit,
+    note: String(body.note || "").trim(),
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.departmentConsumptions.push(consumption);
+  const request = db.departmentRequests.find(r => r.id === jobRequestId);
+  if (request && ["accepted", "planned", "new"].includes(request.status)) {
+    request.status = "partial";
+  }
+  return consumption;
+}
+
+function normalizeAutominderConnectionSetting(current, body) {
+  if (!Object.prototype.hasOwnProperty.call(body || {}, 'autominderConnectionString')) {
+    return current.autominderConnectionString || ''
+  }
+  const next = String(body.autominderConnectionString || '').trim()
+  if (!next) return ''
+  if (/\b(Password|PWD)\s*=\s*\*\*\*/i.test(next)) {
+    return current.autominderConnectionString || DEFAULT_AUTOMINDER_CONNECTION
+  }
+  return next
+}
+
+function updateSettings(current, body) {
+  const license = current.license || {};
+  const plan = String(body.licensePlan || license.plan || "internal-preview").trim();
+  const trialDays = Math.max(1, Number(body.trialDays || license.trialDays || 30));
+  const trialStartedAt = plan === "trial"
+    ? (license.trialStartedAt || localDate(new Date()))
+    : (license.trialStartedAt || null);
+  return {
+    ...current,
+    companyName: String(body.companyName || current.companyName || "Statie asfalt").trim(),
+    companyCui: String(body.companyCui ?? body.cui ?? current.companyCui ?? current.cui ?? "").trim(),
+    cui: String(body.companyCui ?? body.cui ?? current.companyCui ?? current.cui ?? "").trim(),
+    address: String(body.address ?? current.address ?? "").trim(),
+    phone: String(body.phone ?? current.phone ?? "").trim(),
+    email: String(body.email ?? current.email ?? "").trim(),
+    stationName: String(body.stationName || "").trim(),
+    weatherLat: String(body.weatherLat ?? body.WEATHER_LAT ?? current.weatherLat ?? "").trim(),
+    weatherLng: String(body.weatherLng ?? body.WEATHER_LNG ?? current.weatherLng ?? "").trim(),
+    serverPort: Number(body.serverPort || body.port || current.serverPort || process.env.PORT || PORT),
+    location: String(body.location || "").trim(),
+    logoDataUrl: validLogoDataUrl(body.logoDataUrl !== undefined ? body.logoDataUrl : current.logoDataUrl || ""),
+    appCredit: current.appCredit || "Aplicatie realizata de Constantin Constantin",
+    initialStockCompleted: current.initialStockCompleted === true,
+    initialStockCompletedAt: current.initialStockCompletedAt || "",
+    initialStockCompletedBy: current.initialStockCompletedBy || "",
+    initialStockCompletedByName: current.initialStockCompletedByName || "",
+    networkAccessMode: normalizeNetworkAccessMode(body.networkAccessMode || current.networkAccessMode),
+    scaleDbPath: String(body.scaleDbPath ?? current.scaleDbPath ?? "").trim(),
+    scaleProductMap: normalizeScaleProductMap(body.scaleProductMap !== undefined ? body.scaleProductMap : current.scaleProductMap || {}),
+    nexusDbPath: String(body.nexusDbPath ?? current.nexusDbPath ?? "").trim(),
+    autominderDbPath: String(body.autominderDbPath ?? current.autominderDbPath ?? "").trim(),
+    autominderConnectionString: normalizeAutominderConnectionSetting(current, body),
+    gps_provider: String(body.gps_provider ?? current.gps_provider ?? "urmariregps.ro").trim(),
+    gps_api_url: String(body.gps_api_url ?? current.gps_api_url ?? "").trim(),
+    gps_api_key: body.gps_api_key && body.gps_api_key !== current.gps_api_key ? encryptSettingSecret(body.gps_api_key) : current.gps_api_key || "",
+    gps_user_id: String(body.gps_user_id ?? current.gps_user_id ?? "120").trim(),
+    gps_username: body.gps_username !== undefined && String(body.gps_username || "").trim()
+      ? encryptSettingSecret(String(body.gps_username || "").trim())
+      : current.gps_username || "",
+    gps_password: body.gps_password
+      ? encryptSettingSecret(body.gps_password)
+      : current.gps_password || "",
+    gps_group: undefined,
+    gps_session: undefined,
+    smtp_host: String(body.smtp_host ?? current.smtp_host ?? "").trim(),
+    smtp_port: Number(body.smtp_port || current.smtp_port || 587),
+    smtp_user: String(body.smtp_user ?? current.smtp_user ?? "").trim(),
+    smtp_password_encrypted: body.smtp_password
+      ? encryptSettingSecret(body.smtp_password)
+      : (body.smtp_password_encrypted || current.smtp_password_encrypted || ""),
+    smtp_name: String(body.smtp_name ?? current.smtp_name ?? current.companyName ?? "InfraFlow").trim(),
+    cota_tva_standard: Number(body.cota_tva_standard ?? current.cota_tva_standard ?? 19),
+    cota_tva_redusa: Number(body.cota_tva_redusa ?? current.cota_tva_redusa ?? 9),
+    cota_tva_super_redusa: Number(body.cota_tva_super_redusa ?? current.cota_tva_super_redusa ?? 5),
+    rolePermissionOverrides: current.rolePermissionOverrides || {},
+    license: normalizeLicense({
+      ...license,
+      plan,
+      maxUsers: Math.max(1, Number(body.maxUsers || license.maxUsers || 1)),
+      maxDevices: Math.max(1, Number(body.maxDevices || license.maxDevices || 1)),
+      expiresAt: body.expiresAt || license.expiresAt || null,
+      trialDays,
+      trialStartedAt
+    })
+  };
+}
+
+function settingSecretKey() {
+  const raw = Buffer.from(process.env.APP_KEY || "infraflow-default-key-32chars!!", "utf8");
+  return Buffer.concat([raw, Buffer.alloc(32)]).subarray(0, 32);
+}
+
+function encryptSettingSecret(value) {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv("aes-256-cbc", settingSecretKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(String(value), "utf8"), cipher.final()]);
+  return `${iv.toString("hex")}:${encrypted.toString("hex")}`;
+}
+
+function decryptSettingSecret(value) {
+  if (!value || !String(value).includes(":")) return String(value || "");
+  const [ivHex, encryptedHex] = String(value).split(":");
+  const decipher = crypto.createDecipheriv("aes-256-cbc", settingSecretKey(), Buffer.from(ivHex, "hex"));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedHex, "hex")), decipher.final()]).toString("utf8");
+}
+
+function completeInitialStock(db, user, body) {
+  if (body.confirmed !== true) throwHttp(400, "Confirmarea stocurilor initiale este obligatorie.");
+  if (!db.settings || typeof db.settings !== "object") db.settings = {};
+  if (db.settings.initialStockCompleted === true) return db.settings;
+  const now = new Date().toISOString();
+  db.settings.initialStockCompleted = true;
+  db.settings.initialStockCompletedAt = now;
+  db.settings.initialStockCompletedBy = user.id;
+  db.settings.initialStockCompletedByName = user.name;
+  addAudit(db, user, "stoc_initial_finalizat", `Stocuri initiale confirmate la ${now}`);
+  return db.settings;
+}
+
+function importSignedLicense(input) {
+  const document = parseLicenseDocument(input);
+  if (document.format !== LICENSE_FORMAT) throwHttp(400, "Fisier de licenta invalid.");
+  if (!document.payload || !document.signature) throwHttp(400, "Licenta nu contine payload si semnatura.");
+  const valid = crypto.verify(
+    null,
+    Buffer.from(String(document.payload), "utf8"),
+    crypto.createPublicKey(LICENSE_PUBLIC_KEY),
+    Buffer.from(String(document.signature), "base64url")
+  );
+  if (!valid) throwHttp(400, "Semnatura licentei este invalida.");
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(String(document.payload), "base64url").toString("utf8"));
+  } catch {
+    throwHttp(400, "Payload licenta invalid.");
+  }
+  return normalizeLicense({
+    ...payload,
+    source: "signed-file",
+    signature: document.signature,
+    payload: document.payload,
+    importedAt: new Date().toISOString()
+  }, true);
+}
+
+function parseLicenseDocument(input) {
+  if (input && typeof input === "object" && input.format) return input;
+  const text = typeof input === "string" ? input.trim() : JSON.stringify(input || {});
+  if (text.startsWith(`${LICENSE_TOKEN_PREFIX}.`)) {
+    const [, payload, signature] = text.split(".");
+    return { format: LICENSE_FORMAT, payload, signature };
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throwHttp(400, "Licenta trebuie sa fie fisier JSON sau cod de activare valid.");
+  }
+}
+
+function normalizeLicense(license, strict = false) {
+  const plan = String(license.plan || "internal-preview").trim();
+  const expiresAt = license.expiresAt ? String(license.expiresAt) : null;
+  if (strict && !["trial", "internal", "full"].includes(plan)) throwHttp(400, "Tip licenta invalid.");
+  if (expiresAt && !validDateValue(expiresAt)) throwHttp(400, "Data expirare licenta invalida.");
+  const trialStartedAt = license.trialStartedAt && validDateValue(license.trialStartedAt) ? String(license.trialStartedAt) : null;
+  const trialDays = Math.max(1, Number(license.trialDays || 30));
+  const trialExpiresAt = plan === "trial"
+    ? (expiresAt || addDays(trialStartedAt || localDate(new Date()), trialDays - 1))
+    : null;
+  const normalized = {
+    plan,
+    licenseId: String(license.licenseId || license.id || "").trim(),
+    clientName: String(license.clientName || license.companyName || "").trim(),
+    clientCode: String(license.clientCode || "").trim(),
+    companyTaxId: String(license.companyTaxId || "").trim(),
+    maxUsers: Math.max(1, Number(license.maxUsers || 1)),
+    maxDevices: Math.max(1, Number(license.maxDevices || 1)),
+    expiresAt,
+    trialDays,
+    trialStartedAt,
+    trialExpiresAt,
+    modules: Array.isArray(license.modules) ? license.modules.map((item) => String(item).trim()).filter(Boolean) : [],
+    issuedAt: license.issuedAt || null,
+    importedAt: license.importedAt || null,
+    source: license.source || "manual",
+    signature: license.signature || "",
+    payload: license.payload || ""
+  };
+  normalized.status = licenseStatus(normalized);
+  return normalized;
+}
+
+function licenseStatus(license) {
+  if (license.expiresAt && license.expiresAt < localDate(new Date())) return "expired";
+  if (license.source === "signed-file") return "active";
+  if (license.plan === "trial") {
+    if (license.trialExpiresAt && license.trialExpiresAt < localDate(new Date())) return "expired";
+    return "active";
+  }
+  return "internal";
+}
+
+function normalizeNetworkAccessMode(value) {
+  return String(value || "internal-only").trim() === "open" ? "open" : "internal-only";
+}
+
+function clientIp(req) {
+  const raw = req.socket?.remoteAddress || "";
+  return normalizeIp(raw);
+}
+
+function normalizeIp(value) {
+  let ip = String(value || "").trim();
+  if (ip.startsWith("::ffff:")) ip = ip.slice(7);
+  if (ip === "::1") return "127.0.0.1";
+  return ip;
+}
+
+function isPrivateNetworkAddress(ipValue) {
+  const ip = normalizeIp(ipValue);
+  if (!ip || ip === "127.0.0.1" || ip === "localhost") return true;
+  if (ip.startsWith("10.")) return true;
+  if (ip.startsWith("192.168.")) return true;
+  if (ip.startsWith("169.254.")) return true;
+  const parts = ip.split(".").map((part) => Number(part));
+  if (parts.length === 4 && parts.every((part) => Number.isInteger(part))) {
+    return parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31;
+  }
+  if (ip.startsWith("fe80:") || ip.startsWith("fc") || ip.startsWith("fd")) return true;
+  return false;
+}
+
+function buildDeviceRegistry(db) {
+  const license = normalizeLicense(db.settings?.license || {});
+  const devices = (db.devices || []).map((device) => ({
+    id: device.id,
+    name: device.name || "Statie de lucru",
+    active: device.active !== false,
+    createdAt: device.createdAt || "",
+    lastSeenAt: device.lastSeenAt || "",
+    lastIp: device.lastIp || "",
+    lastUsername: device.lastUsername || "",
+    lastUserName: device.lastUserName || "",
+    userAgent: device.lastUserAgent || device.firstUserAgent || ""
+  }));
+  return {
+    devices,
+    pendingRequests: (db.workstationRequests || [])
+      .filter((request) => request.status === "pending")
+      .map(publicWorkstationRequest),
+    recentRequests: (db.workstationRequests || [])
+      .filter((request) => request.status !== "pending")
+      .slice(-10)
+      .reverse()
+      .map(publicWorkstationRequest),
+    activeCount: devices.filter((device) => device.active).length,
+    maxDevices: license.maxDevices,
+    networkAccessMode: normalizeNetworkAccessMode(db.settings?.networkAccessMode)
+  };
+}
+
+function publicWorkstationRequest(request) {
+  return {
+    id: request.id,
+    stationName: request.stationName || "Statie de lucru",
+    departmentName: request.departmentName || "",
+    requestedUserName: request.requestedUserName || "",
+    requestedUsername: request.requestedUsername || "",
+    requestedRole: request.requestedRole || "department",
+    status: request.status || "pending",
+    deviceId: request.deviceId || "",
+    ip: request.ip || "",
+    createdAt: request.createdAt || "",
+    resolvedAt: request.resolvedAt || "",
+    resolvedByName: request.resolvedByName || ""
+  };
+}
+
+function approveWorkstationRequest(db, actor, requestId, body) {
+  const request = (db.workstationRequests || []).find((item) => item.id === requestId);
+  if (!request) throwHttp(404, "Cerere statie inexistenta.");
+  if (request.status !== "pending") throwHttp(409, "Cererea nu mai este in asteptare.");
+  const departmentName = String(body.departmentName || request.departmentName || "").trim();
+  const role = rolePermissions[String(body.role || request.requestedRole || "department")] ? String(body.role || request.requestedRole || "department") : "department";
+  const username = normalizeUsername(body.username || request.requestedUsername || suggestedUsername(request.requestedUserName));
+  const name = String(body.name || request.requestedUserName || username).trim();
+  const password = String(body.password || "");
+  if (!departmentName) throwHttp(400, "Departamentul este obligatoriu.");
+  if (!name) throwHttp(400, "Numele utilizatorului este obligatoriu.");
+  if (password.length < 6) throwHttp(400, "Parola temporara trebuie sa aiba cel putin 6 caractere.");
+  let department = (db.departments || []).find((item) => item.name.toLowerCase() === departmentName.toLowerCase());
+  if (!department) {
+    department = {
+      id: id("dept"),
+      name: departmentName,
+      moduleKey: moduleKeyForDepartmentName(departmentName),
+      permissions: defaultPermissionsForDepartmentName(departmentName),
+      createdBy: actor.id,
+      createdAt: new Date().toISOString()
+    };
+    db.departments.push(department);
+  }
+  const user = createUser(db, actor, {
+    name,
+    username,
+    password,
+    role,
+    departmentId: department.id,
+    active: true
+  });
+  const device = {
+    id: request.deviceId,
+    name: request.stationName || "Statie de lucru",
+    active: true,
+    createdAt: request.createdAt || new Date().toISOString(),
+    firstIp: request.ip || "",
+    firstUserAgent: request.userAgent || "",
+    lastSeenAt: new Date().toISOString(),
+    lastIp: request.ip || "",
+    lastUserAgent: request.userAgent || "",
+    lastUserId: user.id,
+    lastUsername: user.username,
+    lastUserName: user.name,
+    departmentId: department.id,
+    departmentName: department.name
+  };
+  const existingDeviceIndex = (db.devices || []).findIndex((item) => item.id === device.id);
+  if (existingDeviceIndex >= 0) db.devices[existingDeviceIndex] = { ...db.devices[existingDeviceIndex], ...device };
+  else db.devices.push(device);
+  request.status = "approved";
+  request.resolvedAt = new Date().toISOString();
+  request.resolvedBy = actor.id;
+  request.resolvedByName = actor.name;
+  request.createdUserId = user.id;
+  request.departmentId = department.id;
+  return { request: publicWorkstationRequest(request), user: adminUser(user), department: adminDepartment(department), device };
+}
+
+function updateWorkstationRequestStatus(db, actor, requestId, status) {
+  const request = (db.workstationRequests || []).find((item) => item.id === requestId);
+  if (!request) throwHttp(404, "Cerere statie inexistenta.");
+  request.status = status;
+  request.resolvedAt = new Date().toISOString();
+  request.resolvedBy = actor.id;
+  request.resolvedByName = actor.name;
+  return publicWorkstationRequest(request);
+}
+
+function suggestedUsername(value) {
+  const clean = String(value || "utilizator").trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9._-]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 28);
+  return clean || `user.${Date.now().toString(36)}`;
+}
+
+function normalizeUsername(value) {
+  const username = suggestedUsername(value);
+  return /^[a-z0-9._-]{3,32}$/.test(username) ? username : `user.${Date.now().toString(36)}`;
+}
+
+function defaultPermissionsForDepartmentName(name) {
+  const key = moduleKeyForDepartmentName(name);
+  const module = licenseModulePermissions[key] || [];
+  const base = new Set(["dashboard:view", "department_requests:view", "department_requests:create"]);
+  module.forEach((permission) => base.add(permission));
+  return Array.from(base).filter((permission) => allPermissions.includes(permission));
+}
+
+function activeDevices(db) {
+  return (db.devices || []).filter((device) => device.active !== false);
+}
+
+function removeRegisteredDevice(db, idValue) {
+  const deviceId = normalizeDeviceId(idValue);
+  const index = (db.devices || []).findIndex((device) => device.id === deviceId);
+  if (index === -1) throwHttp(404, "Statia de lucru nu exista.");
+  const [device] = db.devices.splice(index, 1);
+  return device;
+}
+
+function normalizeDeviceId(value) {
+  const idValue = String(value || "").trim().toLowerCase();
+  if (/^[a-z0-9._:-]{12,96}$/.test(idValue)) return idValue;
+  return fallbackDeviceId(idValue, "");
+}
+
+function fallbackDeviceId(ip, userAgent) {
+  return `device-${crypto.createHash("sha256").update(`${ip}|${userAgent}`).digest("hex").slice(0, 24)}`;
+}
+
+function addDays(dateValue, days) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setDate(date.getDate() + Number(days || 0));
+  return localDate(date);
+}
+
+function validLogoDataUrl(value) {
+  const logo = String(value || "");
+  if (!logo) return "";
+  if (logo.length > 500_000) throwHttp(400, "Logo-ul este prea mare. Foloseste o imagine sub 500 KB.");
+  if (!/^data:image\/(png|jpeg|jpg|webp|svg\+xml);base64,/i.test(logo)) {
+    throwHttp(400, "Logo invalid. Sunt acceptate imagini PNG, JPG, WEBP sau SVG.");
+  }
+  return logo;
+}
+
+function validateRestoreData(data) {
+  if (!data || typeof data !== "object") throwHttp(400, "Backup invalid.");
+  const requiredArrays = [
+    "users", "materials", "recipes", "consumptions", "deliveries",
+    "stockMovements", "productionPlans", "audit", "departmentRequests",
+    "departmentStocks", "departmentConsumptions"
+  ];
+  requiredArrays.forEach((key) => {
+    if (!Array.isArray(data[key])) throwHttp(400, `Backup invalid: lipseste ${key}.`);
+  });
+  if (!data.settings || typeof data.settings !== "object") throwHttp(400, "Backup invalid: lipsesc setarile.");
+  return {
+    version: Number(data.version || 1),
+    settings: updateSettings(data.settings, data.settings),
+    users: data.users,
+    materials: data.materials,
+    recipes: data.recipes,
+    jobs: Array.isArray(data.jobs) ? data.jobs : [],
+    consumptions: data.consumptions,
+    deliveries: data.deliveries,
+    stockMovements: data.stockMovements,
+    productionPlans: data.productionPlans,
+    projects: Array.isArray(data.projects) ? data.projects : [],
+    departmentConnections: Array.isArray(data.departmentConnections) ? data.departmentConnections : [],
+    workflowTemplates: Array.isArray(data.workflowTemplates) ? data.workflowTemplates : [],
+    workflowRequests: Array.isArray(data.workflowRequests) ? data.workflowRequests : [],
+    workflowAudit: Array.isArray(data.workflowAudit) ? data.workflowAudit : [],
+    departmentRequests: Array.isArray(data.departmentRequests) ? data.departmentRequests : [],
+    departmentStocks: Array.isArray(data.departmentStocks) ? data.departmentStocks : [],
+    departmentConsumptions: Array.isArray(data.departmentConsumptions) ? data.departmentConsumptions : [],
+    procurementOrders: Array.isArray(data.procurementOrders) ? data.procurementOrders : [],
+    procurementReceipts: Array.isArray(data.procurementReceipts) ? data.procurementReceipts : [],
+    fleetAssets: Array.isArray(data.fleetAssets) ? data.fleetAssets : [],
+    fleetRequests: Array.isArray(data.fleetRequests) ? data.fleetRequests : [],
+    fleetMeterReadings: Array.isArray(data.fleetMeterReadings) ? data.fleetMeterReadings : [],
+    costCenters: Array.isArray(data.costCenters) ? data.costCenters : [],
+    technicalWorkLogs: Array.isArray(data.technicalWorkLogs) ? data.technicalWorkLogs : [],
+    technicalClients: Array.isArray(data.technicalClients) ? data.technicalClients : [],
+    asphaltSales: Array.isArray(data.asphaltSales) ? data.asphaltSales : [],
+    nexusExpenses: Array.isArray(data.nexusExpenses) ? data.nexusExpenses : [],
+    devices: Array.isArray(data.devices) ? data.devices : [],
+    workstationRequests: Array.isArray(data.workstationRequests) ? data.workstationRequests : [],
+    audit: data.audit
+  };
+}
+
+function createRecipe(db, user, body) {
+  const name = String(body.name || "").trim();
+  if (!name) throwHttp(400, "Numele retetei este obligatoriu.");
+  const percentages = normalizeRecipePercentages(db, body.percentages || {});
+  const recipe = {
+    id: id("reteta"),
+    name,
+    version: 1,
+    active: true,
+    percentages,
+    createdBy: user.id,
+    createdAt: new Date().toISOString()
+  };
+  db.recipes.push(recipe);
+  return recipe;
+}
+
+function updateRecipe(db, user, recipeId, body) {
+  const recipe = db.recipes.find((item) => item.id === recipeId);
+  if (!recipe) throwHttp(404, "Reteta inexistenta.");
+  const name = String(body.name || recipe.name).trim();
+  if (!name) throwHttp(400, "Numele retetei este obligatoriu.");
+  recipe.name = name;
+  recipe.percentages = normalizeRecipePercentages(db, body.percentages || recipe.percentages || {});
+  recipe.version = Number(recipe.version || 1) + 1;
+  recipe.updatedBy = user.id;
+  recipe.updatedAt = new Date().toISOString();
+  return recipe;
+}
+
+function deleteRecipe(db, user, recipeId) {
+  const recipe = db.recipes.find((item) => item.id === recipeId);
+  if (!recipe) throwHttp(404, "Reteta inexistenta.");
+  const activeRecipes = db.recipes.filter((item) => item.active !== false);
+  if (activeRecipes.length <= 1 && recipe.active !== false) throwHttp(400, "Nu poti sterge sau arhiva ultima reteta disponibila.");
+  const usage = [];
+  if (db.consumptions.some((item) => item.recipeId === recipeId)) usage.push("consumuri");
+  if (db.productionPlans.some((item) => item.recipeId === recipeId)) usage.push("planuri");
+  if ((db.departmentRequests || []).some((item) => item.recipeId === recipeId)) usage.push("solicitari");
+  if (usage.length) {
+    recipe.active = false;
+    recipe.archivedBy = user.id;
+    recipe.archivedAt = new Date().toISOString();
+    recipe.archiveReason = `Folosita in ${usage.join(", ")}; pastrata pentru istoric.`;
+    return recipe;
+  }
+  db.recipes = db.recipes.filter((item) => item.id !== recipeId);
+  recipe.deletedBy = user.id;
+  recipe.deletedAt = new Date().toISOString();
+  return recipe;
+}
+
+function normalizeRecipePercentages(db, percentages) {
+  return Object.fromEntries(db.materials
+    .filter((material) => material.recipeMaterial)
+    .map((material) => [material.id, round(Number(percentages[material.id] || 0))]));
+}
+
+function createConsumption(db, user, body) {
+  if (db.settings?.initialStockCompleted !== true) {
+    throwHttp(409, "Consumurile sunt blocate pana la finalizarea stocurilor initiale in sectiunea Stocuri.");
+  }
+  const recipe = db.recipes.find((item) => item.id === body.recipeId && item.active !== false);
+  if (!recipe) throwHttp(404, "Reteta inexistenta.");
+  const asphalt = round(Number(body.asphalt || 0));
+  if (asphalt <= 0) throwHttp(400, "Cantitatea de asfalt trebuie sa fie mai mare decat zero.");
+  const date = String(body.date || localDate(new Date()));
+  const materialUsage = db.materials.map((material) => {
+    const amount = material.recipeMaterial ? asphalt * Number(recipe.percentages?.[material.id] || 0) / 100 : Number(body.emulsion || 0);
+    return {
+      materialId: material.id,
+      materialName: material.name,
+      amount: round(amount),
+      unit: material.unit
+    };
+  });
+  materialUsage.forEach((usage) => {
+    const material = db.materials.find((item) => item.id === usage.materialId);
+    material.stock = round(Number(material.stock || 0) - usage.amount);
+    db.stockMovements.push({
+      id: id("stock"),
+      type: "consumption",
+      materialId: material.id,
+      materialName: material.name,
+      date,
+      amount: -usage.amount,
+      unit: material.unit,
+      note: `${body.jobName || "-"} / ${recipe.name}`,
+      createdAt: new Date().toISOString()
+    });
+  });
+  const consumption = {
+    id: id("consum"),
+    reportNo: nextReportNo(db, date),
+    date,
+    jobName: String(body.jobName || "").trim(),
+    ticket: String(body.ticket || "").trim(),
+    operatorId: user.id,
+    operatorName: user.name,
+    recipeId: recipe.id,
+    recipeName: recipe.name,
+    recipeVersion: recipe.version || 1,
+    recipeSnapshot: recipe.percentages,
+    asphalt,
+    emulsion: round(Number(body.emulsion || 0)),
+    materials: materialUsage,
+    canceled: false,
+    createdAt: new Date().toISOString()
+  };
+  db.consumptions.push(consumption);
+  return consumption;
+}
+
+function cancelConsumption(db, user, idValue) {
+  const consumption = db.consumptions.find((item) => item.id === idValue);
+  if (!consumption || consumption.canceled) throwHttp(404, "Consumul nu poate fi anulat.");
+  consumption.materials.forEach((usage) => {
+    const material = db.materials.find((item) => item.id === usage.materialId);
+    if (!material) return;
+    material.stock = round(Number(material.stock || 0) + Number(usage.amount || 0));
+    db.stockMovements.push({
+      id: id("stock"),
+      type: "cancel_consumption",
+      materialId: material.id,
+      materialName: material.name,
+      date: localDate(new Date()),
+      amount: round(Number(usage.amount || 0)),
+      unit: material.unit,
+      note: consumption.reportNo,
+      createdAt: new Date().toISOString()
+    });
+  });
+  consumption.canceled = true;
+  consumption.canceledAt = new Date().toISOString();
+  consumption.canceledBy = user.id;
+  return consumption;
+}
+
+function createDelivery(db, user, body) {
+  let createdMaterial = null;
+  if (String(body.materialId || "") === "__new__") {
+    createdMaterial = createMaterial(db, user, {
+      ...(body.newMaterial || {}),
+      stock: 0,
+      stockDate: body.date
+    });
+    body.materialId = createdMaterial.id;
+  }
+  const material = db.materials.find((item) => item.id === body.materialId);
+  if (!material) throwHttp(404, "Material inexistent.");
+  const amount = round(Number(body.amount || 0));
+  if (amount <= 0) throwHttp(400, "Cantitatea trebuie sa fie mai mare decat zero.");
+  material.stock = round(Number(material.stock || 0) + amount);
+  const delivery = {
+    id: id("intrare"),
+    date: String(body.date || localDate(new Date())),
+    materialId: material.id,
+    materialName: material.name,
+    amount,
+    unit: material.unit,
+    supplier: String(body.supplier || "").trim(),
+    document: String(body.document || "").trim(),
+    operatorId: user.id,
+    operatorName: user.name,
+    canceled: false,
+    createdAt: new Date().toISOString()
+  };
+  if (createdMaterial) delivery.createdMaterial = createdMaterial;
+  db.deliveries.push(delivery);
+  db.stockMovements.push({
+    id: id("stock"),
+    type: "delivery",
+    materialId: material.id,
+    materialName: material.name,
+    date: delivery.date,
+    amount,
+    unit: material.unit,
+    note: [delivery.document, delivery.supplier].filter(Boolean).join(" / "),
+    createdAt: new Date().toISOString()
+  });
+  return delivery;
+}
+
+function cancelDelivery(db, user, idValue) {
+  const delivery = db.deliveries.find((item) => item.id === idValue);
+  if (!delivery || delivery.canceled) throwHttp(404, "Aprovizionarea nu poate fi anulata.");
+  const material = db.materials.find((item) => item.id === delivery.materialId);
+  if (!material) throwHttp(404, "Material inexistent.");
+  material.stock = round(Number(material.stock || 0) - Number(delivery.amount || 0));
+  db.stockMovements.push({
+    id: id("stock"),
+    type: "cancel_delivery",
+    materialId: material.id,
+    materialName: material.name,
+    date: localDate(new Date()),
+    amount: -round(Number(delivery.amount || 0)),
+    unit: material.unit,
+    note: [delivery.document, delivery.supplier].filter(Boolean).join(" / "),
+    createdAt: new Date().toISOString()
+  });
+  delivery.canceled = true;
+  delivery.canceledAt = new Date().toISOString();
+  delivery.canceledBy = user.id;
+  delivery.canceledByName = user.name;
+  const receipt = delivery.sourceReceiptId
+    ? (db.procurementReceipts || []).find((item) => item.id === delivery.sourceReceiptId)
+    : null;
+  if (receipt && !receipt.canceled) {
+    receipt.canceled = true;
+    receipt.canceledAt = delivery.canceledAt;
+    receipt.canceledBy = user.id;
+    receipt.canceledByName = user.name;
+  }
+  if (delivery.sourceOrderId) syncProcurementOrderTotals(db, user, delivery.sourceOrderId);
+  return delivery;
+}
+
+function deleteDelivery(db, user, idValue) {
+  const delivery = db.deliveries.find((item) => item.id === idValue);
+  if (!delivery || delivery.deleted) throwHttp(404, "Aprovizionarea nu poate fi stearsa.");
+  if (!delivery.canceled) cancelDelivery(db, user, idValue);
+  delivery.deleted = true;
+  delivery.deletedAt = new Date().toISOString();
+  delivery.deletedBy = user.id;
+  delivery.deletedByName = user.name;
+  const receipt = delivery.sourceReceiptId
+    ? (db.procurementReceipts || []).find((item) => item.id === delivery.sourceReceiptId)
+    : null;
+  if (receipt) {
+    receipt.canceled = true;
+    receipt.deleted = true;
+    receipt.deletedAt = delivery.deletedAt;
+    receipt.deletedBy = user.id;
+    receipt.deletedByName = user.name;
+  }
+  if (delivery.sourceOrderId) syncProcurementOrderTotals(db, user, delivery.sourceOrderId);
+  return { delivery };
+}
+
+function procurementOrdersView(db) {
+  return (db.procurementOrders || [])
+    .filter((order) => !order.deleted)
+    .map((order) => {
+      const receivedAmount = round((db.procurementReceipts || [])
+        .filter((receipt) => receipt.orderId === order.id && !receipt.canceled && !receipt.deleted)
+        .reduce((total, receipt) => total + Number(receipt.amount || 0), 0));
+      const remainingAmount = Math.max(0, round(Number(order.amount || 0) - receivedAmount));
+      const status = order.closedAt || remainingAmount <= 0 ? "closed" : receivedAmount > 0 ? "partial" : order.status || "open";
+      return {
+        ...order,
+        receivedAmount,
+        remainingAmount,
+        status
+      };
+    })
+    .sort((a, b) => `${b.date}${b.createdAt}`.localeCompare(`${a.date}${a.createdAt}`));
+}
+
+function procurementStatusLabel(status) {
+  return {
+    open: "Deschisa",
+    partial: "Partiala",
+    closed: "Inchisa",
+    canceled: "Anulata"
+  }[status] || status || "-";
+}
+
+function createProcurementOrder(db, user, body) {
+  const material = db.materials.find((item) => item.id === body.materialId);
+  if (!material) throwHttp(404, "Material inexistent.");
+  const amount = round(Number(body.amount || 0));
+  if (amount <= 0) throwHttp(400, "Cantitatea comandata trebuie sa fie mai mare decat zero.");
+  const orderNo = String(body.orderNo || "").trim();
+  if (!orderNo) throwHttp(400, "Numarul comenzii este obligatoriu.");
+  const order = {
+    id: id("po"),
+    date: validDateValue(body.date) ? String(body.date) : localDate(new Date()),
+    expectedDate: validDateValue(body.expectedDate) ? String(body.expectedDate) : "",
+    orderNo,
+    supplier: String(body.supplier || "").trim(),
+    materialId: material.id,
+    materialName: material.name,
+    amount,
+    receivedAmount: 0,
+    remainingAmount: amount,
+    unit: material.unit,
+    status: "open",
+    note: String(body.note || "").trim(),
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.procurementOrders.push(order);
+  return order;
+}
+
+function receiveProcurementOrder(db, user, orderId, body) {
+  const order = (db.procurementOrders || []).find((item) => item.id === orderId);
+  if (!order) throwHttp(404, "Comanda inexistenta.");
+  if (order.status === "closed" || order.status === "canceled") throwHttp(400, "Comanda este inchisa.");
+  const material = db.materials.find((item) => item.id === order.materialId);
+  if (!material) throwHttp(404, "Material inexistent.");
+  const amount = round(Number(body.amount || 0));
+  if (amount <= 0) throwHttp(400, "Cantitatea receptionata trebuie sa fie mai mare decat zero.");
+  const document = String(body.document || "").trim();
+  const cmr = String(body.cmr || "").trim();
+  const scaleTicket = String(body.scaleTicket || "").trim();
+  const scaleTicketId = String(body.scaleTicketId || "").trim();
+  const scaleProduct = String(body.scaleProduct || "").trim();
+  const usedReceipt = findUsedScaleReceipt(db, scaleTicketId, scaleTicket);
+  if (usedReceipt) {
+    throwHttp(400, `Tichetul cantar ${scaleTicket || scaleTicketId} este deja folosit la comanda ${usedReceipt.orderNo || "-"} din ${usedReceipt.date || "-"}.`);
+  }
+  const scaleMapping = scaleProduct ? scaleMaterialForProduct(db, scaleProduct) : null;
+  if (scaleMapping?.material && scaleMapping.material.id !== material.id) {
+    throwHttp(400, `Produsul din cantar "${scaleProduct}" este mapat la ${scaleMapping.material.name}, dar comanda aleasa este pentru ${material.name}. Alege comanda corecta sau schimba maparea.`);
+  }
+  const vehicleNo = String(body.vehicleNo || "").trim();
+  const trailerNo = String(body.trailerNo || "").trim();
+  const receipt = {
+    id: id("receptie"),
+    orderId: order.id,
+    orderNo: order.orderNo,
+    date: validDateValue(body.date) ? String(body.date) : localDate(new Date()),
+    materialId: material.id,
+    materialName: material.name,
+    amount,
+    unit: material.unit,
+    supplier: order.supplier,
+    document,
+    cmr,
+    scaleTicket,
+    scaleTicketId,
+    scaleProduct,
+    vehicleNo,
+    trailerNo,
+    note: String(body.note || "").trim(),
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.procurementReceipts.push(receipt);
+  material.stock = round(Number(material.stock || 0) + amount);
+  const delivery = {
+    id: id("intrare"),
+    date: receipt.date,
+    materialId: material.id,
+    materialName: material.name,
+    amount,
+    unit: material.unit,
+    supplier: receipt.supplier,
+    document: [document, cmr, scaleTicket].filter(Boolean).join(" / "),
+    operatorId: user.id,
+    operatorName: user.name,
+    sourceOrderId: order.id,
+    sourceReceiptId: receipt.id,
+    scaleTicketId,
+    scaleProduct,
+    canceled: false,
+    createdAt: new Date().toISOString()
+  };
+  db.deliveries.push(delivery);
+  db.stockMovements.push({
+    id: id("stock"),
+    type: "delivery",
+    materialId: material.id,
+    materialName: material.name,
+    date: receipt.date,
+    amount,
+    unit: material.unit,
+    note: [order.orderNo, document, cmr, scaleTicket, scaleProduct, vehicleNo, trailerNo].filter(Boolean).join(" / "),
+    createdAt: new Date().toISOString()
+  });
+  const view = procurementOrdersView(db).find((item) => item.id === order.id);
+  order.receivedAmount = view.receivedAmount;
+  order.remainingAmount = view.remainingAmount;
+  order.status = view.remainingAmount <= 0 ? "closed" : "partial";
+  order.updatedAt = new Date().toISOString();
+  order.updatedBy = user.id;
+  order.updatedByName = user.name;
+  return { order: { ...order }, receipt, delivery };
+}
+
+function closeProcurementOrder(db, user, orderId) {
+  const order = (db.procurementOrders || []).find((item) => item.id === orderId);
+  if (!order) throwHttp(404, "Comanda inexistenta.");
+  order.status = "closed";
+  order.closedAt = new Date().toISOString();
+  order.closedBy = user.id;
+  order.closedByName = user.name;
+  const view = procurementOrdersView(db).find((item) => item.id === order.id);
+  order.receivedAmount = view.receivedAmount;
+  order.remainingAmount = view.remainingAmount;
+  return order;
+}
+
+function syncProcurementOrderTotals(db, user, orderId) {
+  const order = (db.procurementOrders || []).find((item) => item.id === orderId);
+  if (!order || order.deleted) return null;
+  const receivedAmount = round((db.procurementReceipts || [])
+    .filter((receipt) => receipt.orderId === order.id && !receipt.canceled && !receipt.deleted)
+    .reduce((total, receipt) => total + Number(receipt.amount || 0), 0));
+  order.receivedAmount = receivedAmount;
+  order.remainingAmount = Math.max(0, round(Number(order.amount || 0) - receivedAmount));
+  if (order.status !== "canceled" && !order.closedAt) {
+    order.status = order.remainingAmount <= 0 ? "closed" : receivedAmount > 0 ? "partial" : "open";
+  }
+  order.updatedAt = new Date().toISOString();
+  order.updatedBy = user.id;
+  order.updatedByName = user.name;
+  return order;
+}
+
+function deleteProcurementOrder(db, user, orderId) {
+  const order = (db.procurementOrders || []).find((item) => item.id === orderId);
+  if (!order || order.deleted) throwHttp(404, "Comanda nu poate fi stearsa.");
+  let reversedDeliveries = 0;
+  const reversedReceiptIds = new Set();
+  (db.deliveries || [])
+    .filter((delivery) => delivery.sourceOrderId === order.id && !delivery.deleted)
+    .forEach((delivery) => {
+      if (!delivery.canceled) {
+        cancelDelivery(db, user, delivery.id);
+        reversedDeliveries += 1;
+      }
+      if (delivery.sourceReceiptId) reversedReceiptIds.add(delivery.sourceReceiptId);
+      delivery.deleted = true;
+      delivery.deletedAt = new Date().toISOString();
+      delivery.deletedBy = user.id;
+      delivery.deletedByName = user.name;
+    });
+  let deletedReceipts = 0;
+  (db.procurementReceipts || [])
+    .filter((receipt) => receipt.orderId === order.id && !receipt.deleted)
+    .forEach((receipt) => {
+      if (!receipt.canceled && !reversedReceiptIds.has(receipt.id)) {
+        const material = (db.materials || []).find((item) => item.id === receipt.materialId);
+        if (material) {
+          const amount = round(Number(receipt.amount || 0));
+          material.stock = round(Number(material.stock || 0) - amount);
+          db.stockMovements.push({
+            id: id("stock"),
+            type: "cancel_delivery",
+            materialId: material.id,
+            materialName: material.name,
+            date: localDate(new Date()),
+            amount: -amount,
+            unit: material.unit,
+            note: [order.orderNo, receipt.document, receipt.cmr, receipt.scaleTicket, "stergere comanda"].filter(Boolean).join(" / "),
+            createdAt: new Date().toISOString()
+          });
+          reversedDeliveries += 1;
+        }
+      }
+      receipt.canceled = true;
+      receipt.canceledAt = receipt.canceledAt || new Date().toISOString();
+      receipt.canceledBy = receipt.canceledBy || user.id;
+      receipt.canceledByName = receipt.canceledByName || user.name;
+      receipt.deleted = true;
+      receipt.deletedAt = new Date().toISOString();
+      receipt.deletedBy = user.id;
+      receipt.deletedByName = user.name;
+      deletedReceipts += 1;
+    });
+  order.deleted = true;
+  order.deletedAt = new Date().toISOString();
+  order.deletedBy = user.id;
+  order.deletedByName = user.name;
+  order.status = "deleted";
+  order.receivedAmount = 0;
+  order.remainingAmount = Number(order.amount || 0);
+  return { order, reversedDeliveries, deletedReceipts };
+}
+
+function setScaleProductMap(db, user, body) {
+  const product = String(body.product || "").trim();
+  if (!product) throwHttp(400, "Produsul din cantar este obligatoriu.");
+  const productKey = normalizeScaleProductName(product);
+  if (!productKey) throwHttp(400, "Produsul din cantar nu poate fi mapat.");
+  const materialId = String(body.materialId || "").trim();
+  const material = (db.materials || []).find((item) => item.id === materialId);
+  if (!material) throwHttp(404, "Materialul ales pentru mapare nu exista.");
+  db.settings.scaleProductMap = normalizeScaleProductMap(db.settings.scaleProductMap || {});
+  db.settings.scaleProductMap[productKey] = material.id;
+  db.settings.scaleProductMapUpdatedAt = new Date().toISOString();
+  db.settings.scaleProductMapUpdatedBy = user.id;
+  db.settings.scaleProductMapUpdatedByName = user.name;
+  return {
+    product,
+    productKey,
+    materialId: material.id,
+    materialName: material.name,
+    unit: material.unit
+  };
+}
+
+function normalizeScaleProductMap(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  return Object.entries(input).reduce((map, [product, materialId]) => {
+    const productKey = normalizeScaleProductName(product);
+    const value = String(materialId || "").trim();
+    if (productKey && value) map[productKey] = value;
+    return map;
+  }, {});
+}
+
+function normalizeScaleProductName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scaleMaterialForProduct(db, product) {
+  const productKey = normalizeScaleProductName(product);
+  if (!productKey) return { material: null, source: "" };
+  const manualId = normalizeScaleProductMap(db.settings?.scaleProductMap || {})[productKey];
+  const manualMaterial = (db.materials || []).find((item) => item.id === manualId);
+  if (manualMaterial) return { material: manualMaterial, source: "manual" };
+  const inferredMaterial = inferScaleMaterial(db, productKey);
+  return inferredMaterial
+    ? { material: inferredMaterial, source: "automat" }
+    : { material: null, source: "" };
+}
+
+function inferScaleMaterial(db, productKey) {
+  const materials = db.materials || [];
+  const byId = (idValue) => materials.find((item) => item.id === idValue);
+  const byName = (needle) => materials.find((item) => normalizeScaleProductName(item.name).includes(needle));
+  const exact = materials.find((item) => {
+    const materialKey = normalizeScaleProductName(item.name);
+    return materialKey && (productKey === materialKey || productKey.includes(materialKey) || materialKey.includes(productKey));
+  });
+  if (exact) return exact;
+  if (productKey.includes("BITUM")) return byId("bitum") || byName("BITUM");
+  if (productKey.includes("FILER")) return byId("filer") || byName("FILER");
+  if (productKey.includes("EMULSIE")) return byId("emulsie") || byName("EMULSIE");
+  if (/\b0\s*4\b/.test(productKey)) return byId("agregate-0-4") || byName("0 4");
+  if (/\b4\s*8\b/.test(productKey)) return byId("agregate-4-8") || byName("4 8");
+  if (/\b8\s*16\b/.test(productKey)) return byId("agregate-8-16") || byName("8 16");
+  if (/\b16\s*22\b/.test(productKey) || /\b16\s*22\s*4\b/.test(productKey)) return byId("agregate-16-22-4") || byName("16 22");
+  return null;
+}
+
+function findUsedScaleReceipt(db, scaleTicketId, scaleTicket) {
+  const keys = [scaleTicketId, scaleTicket].map((item) => String(item || "").trim()).filter(Boolean);
+  if (!keys.length) return null;
+  return (db.procurementReceipts || []).find((receipt) => {
+    if (receipt.canceled) return false;
+    const receiptKeys = [receipt.scaleTicketId, receipt.scaleTicket].map((item) => String(item || "").trim()).filter(Boolean);
+    return keys.some((key) => receiptKeys.includes(key));
+  }) || null;
+}
+
+function usedScaleTicketMap(db) {
+  const used = new Map();
+  (db.procurementReceipts || []).forEach((receipt) => {
+    if (receipt.canceled) return;
+    [receipt.scaleTicketId, receipt.scaleTicket].forEach((key) => {
+      const normalized = String(key || "").trim();
+      if (!normalized) return;
+      used.set(normalized, {
+        receiptId: receipt.id,
+        orderId: receipt.orderId,
+        orderNo: receipt.orderNo,
+        date: receipt.date,
+        materialName: receipt.materialName
+      });
+    });
+  });
+  return used;
+}
+
+function scaleStatus(settings = {}) {
+  const dbPath = resolveScaleDbPath(settings);
+  const status = {
+    configuredPath: String(settings.scaleDbPath || "").trim(),
+    path: dbPath || "",
+    exists: Boolean(dbPath && fs.existsSync(dbPath)),
+    readable: false,
+    tickets: 0,
+    error: ""
+  };
+  if (!status.exists) return status;
+  try {
+    const sqlite = loadSqlite();
+    const db = new sqlite.DatabaseSync(dbPath, { readOnly: true });
+    status.tickets = Number(db.prepare("select count(*) as c from tichete_cantarire").get().c || 0);
+    status.readable = true;
+    db.close();
+  } catch (error) {
+    status.error = error.message;
+  }
+  return status;
+}
+
+function readScaleTickets(appDb = {}, url) {
+  const status = scaleStatus(appDb.settings || {});
+  if (!status.exists) throwHttp(404, "Baza Cantar Auto nu a fost gasita. Configureaza calea in Setari.");
+  if (!status.readable) throwHttp(400, `Baza Cantar Auto nu poate fi citita: ${status.error || "eroare necunoscuta"}`);
+  const from = url.searchParams.get("from") || "";
+  const to = url.searchParams.get("to") || "";
+  const query = String(url.searchParams.get("q") || "").trim().toLowerCase();
+  const type = String(url.searchParams.get("type") || "").trim().toLowerCase();
+  const limit = Math.min(200, Math.max(10, Number(url.searchParams.get("limit") || 50)));
+  const rawLimit = Math.min(10000, Math.max(500, limit * 50));
+  const usedTickets = usedScaleTicketMap(appDb);
+  const sqlite = loadSqlite();
+  const db = new sqlite.DatabaseSync(status.path, { readOnly: true });
+  try {
+    const rows = db.prepare(`
+      select
+        cantarire_id,
+        nr_tichet,
+        tip_inregistrare,
+        nr_inmatriculare,
+        nr_trailer,
+        nr_comanda,
+        nr_aviz,
+        client,
+        furnizor,
+        produs,
+        um,
+        greutate_prima_cantarire,
+        data_prima_cantarire,
+        greutate_a_doua_cantarire,
+        data_a_doua_cantarire,
+        greutate_neta,
+        operator,
+        comentarii
+      from tichete_cantarire
+      where greutate_neta is not null and greutate_neta > 0
+      order by cantarire_id desc
+      limit ?
+    `).all(rawLimit);
+    const tickets = rows.map(normalizeScaleTicket)
+      .map((ticket) => enrichScaleTicket(appDb, usedTickets, ticket))
+      .filter((ticket) => !from || ticket.date >= from)
+      .filter((ticket) => !to || ticket.date <= to)
+      .filter((ticket) => !type || String(ticket.type || "").toLowerCase() === type)
+      .filter((ticket) => !query || scaleTicketSearchText(ticket).includes(query))
+      .slice(0, limit);
+    return { status, tickets };
+  } finally {
+    db.close();
+  }
+}
+
+function enrichScaleTicket(appDb, usedTickets, ticket) {
+  const mapping = scaleMaterialForProduct(appDb, ticket.product);
+  const used = usedTickets.get(ticket.id) || usedTickets.get(ticket.ticketNo) || null;
+  return {
+    ...ticket,
+    productKey: normalizeScaleProductName(ticket.product),
+    mappedMaterialId: mapping.material?.id || "",
+    mappedMaterialName: mapping.material?.name || "",
+    mappedMaterialUnit: mapping.material?.unit || "",
+    mappingSource: mapping.source || "",
+    used: Boolean(used),
+    usedReceiptId: used?.receiptId || "",
+    usedByOrderId: used?.orderId || "",
+    usedByOrderNo: used?.orderNo || "",
+    usedDate: used?.date || "",
+    usedMaterialName: used?.materialName || ""
+  };
+}
+
+function normalizeScaleTicket(row) {
+  const second = julianToLocalDateTime(row.data_a_doua_cantarire);
+  const first = julianToLocalDateTime(row.data_prima_cantarire);
+  const dateTime = second.date ? second : first;
+  const unit = String(row.um || "kg").trim() || "kg";
+  const net = round(Number(row.greutate_neta || 0));
+  const unitLower = unit.toLowerCase();
+  return {
+    id: String(row.cantarire_id),
+    ticketNo: String(row.nr_tichet || row.cantarire_id || "").trim(),
+    type: String(row.tip_inregistrare || "").trim(),
+    date: dateTime.date || localDate(new Date()),
+    time: dateTime.time || "",
+    vehicleNo: String(row.nr_inmatriculare || "").trim(),
+    trailerNo: String(row.nr_trailer || "").trim(),
+    orderNo: String(row.nr_comanda || "").trim(),
+    document: String(row.nr_aviz || "").trim(),
+    client: String(row.client || "").trim(),
+    supplier: String(row.furnizor || "").trim(),
+    product: String(row.produs || "").trim(),
+    unit,
+    netWeight: net,
+    amountKg: unitLower === "kg" ? net : unitLower === "t" || unitLower === "tona" || unitLower === "tone" ? round(net * 1000) : net,
+    amountTons: unitLower === "kg" ? round(net / 1000) : unitLower === "t" || unitLower === "tona" || unitLower === "tone" ? net : round(net / 1000),
+    firstWeight: round(Number(row.greutate_prima_cantarire || 0)),
+    secondWeight: round(Number(row.greutate_a_doua_cantarire || 0)),
+    operator: String(row.operator || "").trim(),
+    note: String(row.comentarii || "").trim()
+  };
+}
+
+function scaleTicketSearchText(ticket) {
+  return [
+    ticket.ticketNo,
+    ticket.type,
+    ticket.vehicleNo,
+    ticket.trailerNo,
+    ticket.orderNo,
+    ticket.document,
+    ticket.client,
+    ticket.supplier,
+    ticket.product,
+    ticket.mappedMaterialName,
+    ticket.usedByOrderNo,
+    ticket.note
+  ].join(" ").toLowerCase();
+}
+
+function julianToLocalDateTime(value) {
+  const julian = Number(value || 0);
+  if (!Number.isFinite(julian) || julian <= 0) return { date: "", time: "" };
+  const date = new Date((julian - 2440587.5) * 86400000);
+  if (Number.isNaN(date.getTime())) return { date: "", time: "" };
+  return {
+    date: date.toISOString().slice(0, 10),
+    time: date.toISOString().slice(11, 16)
+  };
+}
+
+function loadSqlite() {
+  try {
+    return require("node:sqlite");
+  } catch {
+    throwHttp(500, "Runtime-ul Node.js nu include suport SQLite. Foloseste runtime-ul inclus in pachetul InfraFlow actualizat.");
+  }
+}
+
+function resolveScaleDbPath(settings = {}) {
+  const configured = String(settings.scaleDbPath || "").trim();
+  if (configured) return path.isAbsolute(configured) ? configured : path.resolve(ROOT, configured);
+  const candidates = [
+    path.resolve(ROOT, "..", "Cantar Auto", "dbs", "cantare.db"),
+    path.resolve(ROOT, "Cantar Auto", "dbs", "cantare.db")
+  ];
+  return candidates.find((item) => fs.existsSync(item)) || candidates[0] || "";
+}
+
+function fleetAssetsView(db) {
+  return (db.fleetAssets || [])
+    .slice()
+    .sort((a, b) => String(a.name || a.registration || "").localeCompare(String(b.name || b.registration || "")));
+}
+
+function fleetRequestsView(db) {
+  return (db.fleetRequests || []).slice().sort(sortNewest);
+}
+
+function fleetCategoryLabel(category) {
+  return category === "vehicle" ? "Autovehicul" : "Utilaj";
+}
+
+function fleetAssetLabel(asset) {
+  return [asset.registration, asset.name || asset.assetName, asset.type].filter(Boolean).join(" / ") || asset.assetName || asset.category || "-";
+}
+
+function fleetAssetShortLabel(asset) {
+  const category = asset.category || "";
+  const identifier = category === "vehicle"
+    ? asset.registration
+    : (asset.assetCode || asset.registration || asset.assetCostCenterName || asset.costCenterName || asset.inventoryNo || asset.serialNo);
+  const descriptor = category === "vehicle"
+    ? [asset.brand || asset.assetBrand, asset.type || asset.assetType].filter(Boolean).join(" ")
+    : (asset.type || asset.assetType || asset.name || asset.assetName);
+  return [identifier, compactFleetLabelText(descriptor)].filter(Boolean).join(" - ") || fleetAssetLabel(asset);
+}
+
+function fleetRequestAssetLabel(db, request) {
+  const asset = (db.fleetAssets || []).find((item) => item.id === request.assetId) || request;
+  return fleetAssetShortLabel(asset);
+}
+
+function compactFleetLabelText(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^[A-Z0-9 ._/-]+$/.test(text) && /[A-Z]/.test(text)) {
+    return text.toLowerCase().replace(/(^|[\s/_-])([a-z])/g, (_, separator, letter) => `${separator}${letter.toUpperCase()}`);
+  }
+  return text;
+}
+
+function fleetStatusLabel(status) {
+  return {
+    new: "Noua",
+    approved: "Aprobata",
+    planned: "Planificata",
+    done: "Realizata",
+    rejected: "Respinsa",
+    canceled: "Anulata"
+  }[status] || status || "-";
+}
+
+function normalizeFleetMeterUnit(value) {
+  const unit = String(value || "").trim().toLowerCase();
+  return unit === "hours" || unit === "ore" || unit === "ora" ? "hours" : "km";
+}
+
+function fleetMeterUnitLabel(value) {
+  return normalizeFleetMeterUnit(value) === "hours" ? "ore" : "km";
+}
+
+function fleetNumber(value) {
+  const raw = String(value ?? "").trim().replace(",", ".");
+  if (!raw) return 0;
+  const number = Number(raw);
+  return Number.isFinite(number) && number >= 0 ? round(number) : 0;
+}
+
+function fleetInteger(value, fallback) {
+  const number = Number(String(value ?? "").trim().replace(",", "."));
+  return Number.isFinite(number) && number >= 0 ? Math.round(number) : fallback;
+}
+
+function fleetDate(value) {
+  return validDateValue(value) ? String(value) : "";
+}
+
+function fleetImportDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (validDateValue(text)) return text;
+  const numeric = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if (numeric) {
+    const [, day, month, year] = numeric;
+    const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return validDateValue(iso) ? iso : "";
+  }
+  const monthNames = {
+    ian: 1,
+    ianuarie: 1,
+    feb: 2,
+    februarie: 2,
+    mar: 3,
+    martie: 3,
+    apr: 4,
+    aprilie: 4,
+    mai: 5,
+    iun: 6,
+    iunie: 6,
+    iul: 7,
+    iulie: 7,
+    aug: 8,
+    august: 8,
+    sep: 9,
+    sept: 9,
+    septembrie: 9,
+    oct: 10,
+    octombrie: 10,
+    nov: 11,
+    noiembrie: 11,
+    dec: 12,
+    decembrie: 12
+  };
+  const literal = normalizeImportDateText(text).match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})/);
+  if (!literal) return "";
+  const [, day, monthName, year] = literal;
+  const month = monthNames[monthName];
+  if (!month) return "";
+  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return validDateValue(iso) ? iso : "";
+}
+
+function normalizeImportDateText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function createFleetAsset(db, user, body) {
+  const category = String(body.category || "vehicle").trim();
+  if (!["vehicle", "equipment"].includes(category)) throwHttp(400, "Categoria trebuie sa fie autovehicul sau utilaj.");
+  const name = String(body.name || "").trim();
+  const registration = String(body.registration || "").trim().toUpperCase();
+  if (!name && !registration) throwHttp(400, "Completeaza numarul de inmatriculare sau denumirea utilajului.");
+  const meterUnit = normalizeFleetMeterUnit(body.meterUnit || (category === "equipment" ? "hours" : "km"));
+  const currentMeter = fleetNumber(body.currentMeter);
+  const hasInitialMeter = body.initialMeter !== undefined && body.initialMeter !== null && String(body.initialMeter).trim() !== "";
+  const initialMeter = hasInitialMeter ? fleetNumber(body.initialMeter) : currentMeter;
+  const alertDays = Math.max(1, fleetInteger(body.alertDays, 30));
+  const alertMeter = fleetNumber(body.alertMeter) || (meterUnit === "hours" ? 50 : 500);
+  const lastMeterDate = fleetImportDate(body.lastMeterDate) || (currentMeter > 0 ? localDate(new Date()) : "");
+  const asset = {
+    id: id("fleet"),
+    category,
+    registration,
+    name: name || registration,
+    type: String(body.type || "").trim(),
+    brand: String(body.brand || "").trim(),
+    model: String(body.model || "").trim(),
+    department: String(body.department || "").trim(),
+    costCenterName: String(body.costCenterName || "").trim(),
+    location: String(body.location || "").trim(),
+    inventoryNo: String(body.inventoryNo || "").trim(),
+    assetCode: String(body.assetCode || "").trim(),
+    serialNo: String(body.serialNo || "").trim(),
+    vin: String(body.vin || "").trim().toUpperCase(),
+    engineSerial: String(body.engineSerial || "").trim(),
+    year: fleetInteger(body.year, 0) || "",
+    fuelType: String(body.fuelType || "").trim(),
+    tankCapacity: fleetNumber(body.tankCapacity),
+    standardConsumption: fleetNumber(body.standardConsumption),
+    meterUnit,
+    initialMeter,
+    currentMeter,
+    lastMeterDate,
+    serviceIntervalMeter: fleetNumber(body.serviceIntervalMeter),
+    serviceIntervalMonths: fleetInteger(body.serviceIntervalMonths, 0) || 0,
+    nextServiceDate: fleetDate(body.nextServiceDate),
+    nextServiceMeter: fleetNumber(body.nextServiceMeter),
+    inspectionType: String(body.inspectionType || (category === "vehicle" ? "ITP" : "ISCIR / metrologie")).trim(),
+    inspectionIntervalMonths: fleetInteger(body.inspectionIntervalMonths, 0) || 0,
+    nextInspectionDate: fleetDate(body.nextInspectionDate),
+    alertDays,
+    alertMeter,
+    notes: String(body.notes || "").trim(),
+    active: true,
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.fleetAssets.push(asset);
+  if (currentMeter > 0) {
+    if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
+    db.fleetMeterReadings.push(createFleetMeterReading(asset, user, currentMeter, 0, asset.lastMeterDate, "Rulaj initial"));
+  }
+  return asset;
+}
+
+function updateFleetAssetMeter(db, user, assetId, body) {
+  const asset = (db.fleetAssets || []).find((item) => item.id === assetId && item.active !== false);
+  if (!asset) throwHttp(404, "Utilajul sau autovehiculul nu exista.");
+  const currentMeter = fleetNumber(body.currentMeter);
+  const previousMeter = fleetNumber(asset.currentMeter);
+  const date = validDateValue(body.date) ? String(body.date) : localDate(new Date());
+  const meterUnit = normalizeFleetMeterUnit(body.meterUnit || asset.meterUnit || (asset.category === "equipment" ? "hours" : "km"));
+  asset.meterUnit = meterUnit;
+  asset.currentMeter = currentMeter;
+  asset.lastMeterDate = date;
+  asset.lastMeterNote = String(body.note || "").trim();
+  asset.updatedBy = user.id;
+  asset.updatedByName = user.name;
+  asset.updatedAt = new Date().toISOString();
+  if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
+  db.fleetMeterReadings.push(createFleetMeterReading(asset, user, currentMeter, previousMeter, date, asset.lastMeterNote));
+  return asset;
+}
+
+function createFleetMeterReading(asset, user, currentMeter, previousMeter, date, note) {
+  return {
+    id: id("fleetmeter"),
+    assetId: asset.id,
+    assetName: asset.name,
+    registration: asset.registration,
+    category: asset.category,
+    date,
+    previousMeter: round(previousMeter),
+    meter: round(currentMeter),
+    meterUnit: normalizeFleetMeterUnit(asset.meterUnit),
+    note: String(note || "").trim(),
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+}
+
+function previewFleetAssetXmlImport(db, body) {
+  const category = normalizeFleetImportCategory(body.category);
+  const rows = parseFleetAssetXmlRows(body.xmlText, category);
+  const previewRows = rows.slice(0, 100).map((row) => {
+    const duplicate = findDuplicateFleetAsset(db, row.asset);
+    const valid = Boolean(row.asset.name || row.asset.registration);
+    return {
+      ...row,
+      status: !valid ? "invalid" : duplicate ? "duplicate" : "new",
+      statusLabel: !valid ? "Lipsesc denumirea si numarul" : duplicate ? `Duplicat: ${fleetAssetLabel(duplicate)}` : "Nou"
+    };
+  });
+  return {
+    category,
+    totalRows: rows.length,
+    previewRows,
+    previewLimit: 100
+  };
+}
+
+function importFleetAssetsFromXml(db, user, body) {
+  const category = normalizeFleetImportCategory(body.category);
+  const duplicateMode = String(body.duplicateMode || "skip").trim() === "update" ? "update" : "skip";
+  const rows = parseFleetAssetXmlRows(body.xmlText, category);
+  let imported = 0;
+  let updated = 0;
+  let skipped = 0;
+  const details = [];
+
+  rows.forEach((row) => {
+    if (!row.asset.name && !row.asset.registration) {
+      skipped += 1;
+      details.push({ row: row.row, status: "invalid", message: "Lipsesc denumirea si numarul de inmatriculare." });
+      return;
+    }
+    const duplicate = findDuplicateFleetAsset(db, row.asset);
+    if (duplicate && duplicateMode === "skip") {
+      skipped += 1;
+      details.push({ row: row.row, status: "duplicate", message: `Exista deja: ${fleetAssetLabel(duplicate)}` });
+      return;
+    }
+    if (duplicate && duplicateMode === "update") {
+      updateFleetAssetFromImport(db, duplicate, row.asset, user);
+      updated += 1;
+      details.push({ row: row.row, status: "updated", message: `Actualizat: ${fleetAssetLabel(duplicate)}` });
+      return;
+    }
+    const created = createFleetAsset(db, user, row.asset);
+    created.importedFrom = "xml";
+    created.importedAt = new Date().toISOString();
+    imported += 1;
+    details.push({ row: row.row, status: "imported", message: `Adaugat: ${fleetAssetLabel(created)}` });
+  });
+
+  return {
+    category,
+    totalRows: rows.length,
+    imported,
+    updated,
+    skipped,
+    details: details.slice(0, 100),
+    assets: fleetAssetsView(db)
+  };
+}
+
+function parseFleetAssetXmlRows(xmlText, fallbackCategory) {
+  const xml = String(xmlText || "").trim();
+  if (!xml) throwHttp(400, "Alege un fisier XML pentru import.");
+  if (xml.length > 18_000_000) throwHttp(400, "Fisierul XML este prea mare pentru importul direct.");
+  const records = extractXmlRecords(xml);
+  if (!records.length) throwHttp(400, "Nu am gasit randuri importabile in XML. Exporta lista tabelara din softul sursa.");
+  return records.map((record, index) => ({
+    row: index + 1,
+    source: record,
+    asset: mapXmlRecordToFleetAsset(record, fallbackCategory)
+  }));
+}
+
+function extractXmlRecords(xmlText) {
+  const spreadsheetRecords = extractExcelSpreadsheetRecords(xmlText);
+  if (spreadsheetRecords.length) return spreadsheetRecords;
+
+  const xml = String(xmlText || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/<\?xml[\s\S]*?\?>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+  const candidates = new Map();
+  walkXmlElements(xml, (tag, content) => {
+    const record = extractXmlRecordFields(content);
+    if (Object.keys(record).length < 2) return;
+    if (!candidates.has(tag)) candidates.set(tag, []);
+    candidates.get(tag).push(record);
+  });
+
+  const selfClosingPattern = /<([A-Za-z_][\w:.-]*)(\s[^>]*?)\/>/g;
+  let match;
+  while ((match = selfClosingPattern.exec(xml))) {
+    const tag = stripXmlPrefix(match[1]);
+    const record = extractXmlAttributes(match[2] || "");
+    if (Object.keys(record).length < 2) continue;
+    if (!candidates.has(tag)) candidates.set(tag, []);
+    candidates.get(tag).push(record);
+  }
+
+  const groups = Array.from(candidates.entries())
+    .filter(([, rows]) => rows.length > 1 || Object.keys(rows[0] || {}).some((key) => fleetImportFieldName(key)))
+    .sort((a, b) => b[1].length - a[1].length || xmlRecordScore(b[1]) - xmlRecordScore(a[1]));
+  return groups[0]?.[1] || [];
+}
+
+function extractExcelSpreadsheetRecords(xmlText) {
+  const xml = String(xmlText || "");
+  if (!/<(?:\w+:)?Workbook\b/i.test(xml) || !/<(?:\w+:)?Worksheet\b/i.test(xml) || !/<(?:\w+:)?Row\b/i.test(xml)) return [];
+  const rows = extractExcelRows(xml);
+  if (rows.length < 2) return [];
+  const headerIndex = findExcelHeaderRow(rows);
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex].map((header, index) => String(header || `Coloana ${index + 1}`).trim());
+  return rows
+    .slice(headerIndex + 1)
+    .map((cells) => rowCellsToRecord(headers, cells))
+    .filter((record) => Object.values(record).filter(isUsefulImportCell).length >= 2);
+}
+
+function extractExcelRows(xmlText) {
+  const rows = [];
+  const rowPattern = /<(?:\w+:)?Row\b[^>]*>([\s\S]*?)<\/(?:\w+:)?Row>/gi;
+  let row;
+  while ((row = rowPattern.exec(xmlText))) {
+    rows.push(extractExcelCells(row[1] || ""));
+  }
+  return rows;
+}
+
+function extractExcelCells(rowXml) {
+  const cells = [];
+  const cellPattern = /<(?:\w+:)?Cell\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?Cell>/gi;
+  let cell;
+  let column = 0;
+  while ((cell = cellPattern.exec(rowXml))) {
+    const attrs = extractXmlAttributes(cell[1] || "");
+    if (attrs.Index) {
+      const indexedColumn = Number(attrs.Index) - 1;
+      if (Number.isInteger(indexedColumn) && indexedColumn >= 0) column = indexedColumn;
+    }
+    cells[column] = xmlTextContent(cell[2] || "");
+    column += 1;
+  }
+  return cells;
+}
+
+function findExcelHeaderRow(rows) {
+  let best = { index: -1, score: 0 };
+  rows.forEach((cells, index) => {
+    const score = cells.reduce((total, cell) => total + (fleetImportFieldName(cell) ? 1 : 0), 0);
+    if (score > best.score) best = { index, score };
+  });
+  return best.score >= 3 ? best.index : -1;
+}
+
+function rowCellsToRecord(headers, cells) {
+  const record = {};
+  headers.forEach((header, index) => {
+    if (!header) return;
+    const value = cells[index] ?? "";
+    if (value || !record[header]) record[header] = value;
+  });
+  return record;
+}
+
+function isUsefulImportCell(value) {
+  const text = String(value || "").trim();
+  return Boolean(text && text !== "-" && text.toLowerCase() !== "total");
+}
+
+function walkXmlElements(fragment, onElement, depth = 0) {
+  if (depth > 8) return;
+  const elementPattern = /<([A-Za-z_][\w:.-]*)(\s[^>]*)?>([\s\S]*?)<\/\1>/g;
+  let match;
+  while ((match = elementPattern.exec(fragment))) {
+    const tag = stripXmlPrefix(match[1]);
+    const content = match[3] || "";
+    onElement(tag, content);
+    if (/<[A-Za-z_][\w:.-]*(\s[^>]*)?>/.test(content)) walkXmlElements(content, onElement, depth + 1);
+  }
+}
+
+function extractXmlRecordFields(content) {
+  const record = {};
+  const childPattern = /<([A-Za-z_][\w:.-]*)(\s[^>]*)?>([\s\S]*?)<\/\1>/g;
+  let child;
+  while ((child = childPattern.exec(content))) {
+    const key = stripXmlPrefix(child[1]);
+    const value = xmlTextContent(child[3]);
+    if (value || !record[key]) record[key] = value;
+    const attrs = extractXmlAttributes(child[2] || "");
+    Object.entries(attrs).forEach(([attrKey, attrValue]) => {
+      if (!record[`${key}_${attrKey}`]) record[`${key}_${attrKey}`] = attrValue;
+    });
+  }
+  return record;
+}
+
+function extractXmlAttributes(attributeText) {
+  const attrs = {};
+  const attrPattern = /([A-Za-z_][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+  let attr;
+  while ((attr = attrPattern.exec(attributeText))) {
+    attrs[stripXmlPrefix(attr[1])] = decodeXmlEntities(attr[2] ?? attr[3] ?? "");
+  }
+  return attrs;
+}
+
+function xmlTextContent(value) {
+  return decodeXmlEntities(String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+}
+
+function decodeXmlEntities(value) {
+  return String(value || "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+function stripXmlPrefix(value) {
+  return String(value || "").split(":").pop();
+}
+
+function xmlRecordScore(rows) {
+  return rows.reduce((score, row) => score + Object.keys(row).filter((key) => fleetImportFieldName(key)).length, 0);
+}
+
+function mapXmlRecordToFleetAsset(record, fallbackCategory) {
+  const asset = {
+    category: fallbackCategory,
+    registration: "",
+    name: "",
+    type: "",
+    brand: "",
+    model: "",
+    department: "",
+    costCenterName: "",
+    location: "",
+    inventoryNo: "",
+    assetCode: "",
+    serialNo: "",
+    vin: "",
+    engineSerial: "",
+    year: "",
+    fuelType: "",
+    meterUnit: fallbackCategory === "equipment" ? "hours" : "km",
+    initialMeter: 0,
+    currentMeter: 0,
+    lastMeterDate: "",
+    serviceIntervalMeter: 0,
+    serviceIntervalMonths: 0,
+    inspectionIntervalMonths: 0,
+    tankCapacity: 0,
+    standardConsumption: 0,
+    notes: ""
+  };
+  const numericFields = new Set(["initialMeter", "currentMeter", "serviceIntervalMeter", "tankCapacity", "standardConsumption"]);
+  const integerFields = new Set(["serviceIntervalMonths", "inspectionIntervalMonths"]);
+  Object.entries(record || {}).forEach(([key, value]) => {
+    const cleanValue = cleanImportText(value);
+    const field = fleetImportFieldName(key);
+    if (!field) return;
+    if (field === "category") {
+      asset.category = normalizeFleetImportCategory(cleanValue, fallbackCategory);
+      return;
+    }
+    if (field === "meterUnit") {
+      asset.meterUnit = normalizeFleetMeterUnit(cleanValue);
+      return;
+    }
+    if (numericFields.has(field)) {
+      asset[field] = fleetNumber(cleanValue);
+      if (/ore|hours|hour|h$/i.test(String(key)) || /ore|hours|hour/i.test(cleanValue)) asset.meterUnit = "hours";
+      return;
+    }
+    if (integerFields.has(field)) {
+      asset[field] = fleetInteger(cleanValue, 0) || 0;
+      return;
+    }
+    if (field === "lastMeterDate") {
+      asset.lastMeterDate = fleetImportDate(cleanValue);
+      return;
+    }
+    asset[field] = cleanValue;
+  });
+  if (asset.category === "vehicle" && looksLikeEquipmentImport(record, asset)) {
+    asset.category = "equipment";
+    asset.meterUnit = "hours";
+  }
+  if (!asset.name) asset.name = [asset.brand, asset.model, asset.type].filter(Boolean).join(" ").trim() || asset.registration;
+  if (!asset.type && asset.category === "vehicle") asset.type = "Autovehicul";
+  if (!asset.type && asset.category === "equipment") asset.type = "Utilaj";
+  asset.registration = String(asset.registration || "").trim().toUpperCase();
+  asset.vin = String(asset.vin || asset.serialNo || "").trim().toUpperCase();
+  asset.year = fleetInteger(asset.year, 0) || "";
+  asset.currentMeter = fleetNumber(asset.currentMeter);
+  asset.initialMeter = fleetNumber(asset.initialMeter);
+  asset.serviceIntervalMeter = fleetNumber(asset.serviceIntervalMeter);
+  asset.serviceIntervalMonths = fleetInteger(asset.serviceIntervalMonths, 0) || 0;
+  asset.inspectionIntervalMonths = fleetInteger(asset.inspectionIntervalMonths, 0) || 0;
+  asset.tankCapacity = fleetNumber(asset.tankCapacity);
+  asset.standardConsumption = fleetNumber(asset.standardConsumption);
+  asset.alertDays = 30;
+  asset.alertMeter = asset.meterUnit === "hours" ? 50 : 500;
+  return asset;
+}
+
+function cleanImportText(value) {
+  const text = String(value || "").trim();
+  return text === "-" ? "" : text;
+}
+
+function looksLikeEquipmentImport(record, asset) {
+  if (asset.registration) return false;
+  const keys = Object.keys(record || {}).map((key) => normalizeImportKey(key));
+  return ["codutilaj", "periodicitateiscirluni", "intervalrevizieorefunctionare", "indexcurent"].some((key) => keys.includes(key));
+}
+
+function fleetImportFieldName(key) {
+  const normalized = normalizeImportKey(key);
+  const aliases = {
+    category: ["categorie", "tipcategorie", "tipactiv", "assetcategory"],
+    registration: ["nrinmatriculare", "numarinmatriculare", "numardeinmatriculare", "numarulinmatriculare", "numaruldeinmatriculare", "inmatriculare", "nrauto", "numarauto", "nrmasina", "numarmasina", "placa", "placuta", "registration", "regno", "licenseplate"],
+    name: ["denumire", "nume", "numeactiv", "denumireactiv", "masina", "utilaj", "vehicul", "autovehicul", "assetname", "name"],
+    type: ["tip", "tipauto", "tiputilaj", "tipvehicul", "clasa", "caroserie", "vehicletype", "assettype"],
+    brand: ["marca", "brand", "make", "producator", "fabricant"],
+    model: ["model", "modelvehicul", "modelutilaj"],
+    department: ["departament", "compartiment", "sectie", "sector"],
+    costCenterName: ["centrucost", "centrudecost", "costcenter", "centru"],
+    location: ["locatie", "punctlucru", "garaj", "depozit", "sediu"],
+    inventoryNo: ["nrinventar", "numarinventar", "inventar", "inventoryno", "inventorynumber"],
+    assetCode: ["cod", "codactiv", "codutilaj", "codmasina", "assetcode"],
+    vin: ["vin", "seriesasiu", "sasiu", "seriedesasiu", "numaridentificare", "serieidentificare"],
+    serialNo: ["serie", "seria", "serienumar", "serial", "serialno", "serialnumber"],
+    engineSerial: ["seriemotor", "motornr", "nrmotor", "numarmotor", "engineserial"],
+    year: ["an", "anfabricatie", "anfabricatiei", "year", "manufactureyear"],
+    fuelType: ["combustibil", "carburant", "motorizare", "fuel", "fueltype"],
+    initialMeter: ["rulajinitial", "kilometrajinitial", "kminitiali", "kilometriinitiali", "indexinitial", "initialmeter"],
+    currentMeter: ["rulaj", "kilometraj", "km", "odometru", "ultimavaloareodometru", "index", "indexcurent", "ore", "orefunctionare", "orelucru", "hours"],
+    lastMeterDate: ["datacitireindex", "dataultimeicitiriodometru", "datarulaj", "dataodometru", "lastmeterdate"],
+    serviceIntervalMeter: ["intervalreviziekm", "intervalrevizieore", "intervalrevizieorefunctionare", "intervalrevizie", "serviceintervalmeter"],
+    serviceIntervalMonths: ["periodicitaterevizieluni", "revizieluni", "serviceintervalmonths"],
+    inspectionIntervalMonths: ["periodicitateitpluni", "periodicitateiscirluni", "inspectieluni", "inspectionintervalmonths"],
+    tankCapacity: ["capacitatereservor", "capacitaterezervorlitri", "rezervorlitri", "tankcapacity"],
+    standardConsumption: ["consumstandard", "consumstandardl100km", "consumstandardlitriora", "standardconsumption"],
+    meterUnit: ["umrulaj", "unitaterulaj", "meterunit"],
+    notes: ["observatii", "observatiialtespecificatiitehnice", "altespecificatiitehnice", "note", "notes"]
+  };
+  return Object.entries(aliases).find(([, values]) => values.includes(normalized))?.[0] || "";
+}
+
+function normalizeImportKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeFleetImportCategory(value, fallback = "vehicle") {
+  const raw = normalizeImportKey(value);
+  if (!raw) return fallback;
+  if (["equipment", "utilaj", "utilaje", "echipament", "echipamente"].includes(raw)) return "equipment";
+  if (["vehicle", "auto", "autovehicul", "autovehicule", "masina", "masini", "camion", "camioane"].includes(raw)) return "vehicle";
+  return fallback;
+}
+
+function findDuplicateFleetAsset(db, asset) {
+  const registration = normalizeImportDuplicateValue(asset.registration);
+  const vin = normalizeImportDuplicateValue(asset.vin);
+  const inventoryNo = normalizeImportDuplicateValue(asset.inventoryNo);
+  const assetCode = normalizeImportDuplicateValue(asset.assetCode);
+  const name = normalizeImportDuplicateValue(asset.name);
+  const type = normalizeImportDuplicateValue(asset.type);
+  return (db.fleetAssets || []).find((existing) => {
+    if (existing.active === false) return false;
+    if (registration && normalizeImportDuplicateValue(existing.registration) === registration) return true;
+    if (vin && normalizeImportDuplicateValue(existing.vin || existing.serialNo) === vin) return true;
+    if (inventoryNo && normalizeImportDuplicateValue(existing.inventoryNo) === inventoryNo) return true;
+    if (assetCode && normalizeImportDuplicateValue(existing.assetCode) === assetCode) return true;
+    return !registration && name && normalizeImportDuplicateValue(existing.name) === name && normalizeImportDuplicateValue(existing.type) === type;
+  });
+}
+
+function normalizeImportDuplicateValue(value) {
+  return normalizeImportKey(value);
+}
+
+function updateFleetAssetFromImport(db, existing, incoming, user) {
+  const previousMeter = fleetNumber(existing.currentMeter);
+  [
+    "category",
+    "registration",
+    "name",
+    "type",
+    "brand",
+    "model",
+    "department",
+    "costCenterName",
+    "location",
+    "inventoryNo",
+    "assetCode",
+    "serialNo",
+    "vin",
+    "engineSerial",
+    "year",
+    "fuelType",
+    "meterUnit",
+    "initialMeter",
+    "currentMeter",
+    "lastMeterDate",
+    "serviceIntervalMeter",
+    "serviceIntervalMonths",
+    "inspectionIntervalMonths",
+    "tankCapacity",
+    "standardConsumption",
+    "notes"
+  ].forEach((key) => {
+    if (incoming[key] !== "" && incoming[key] !== 0) existing[key] = incoming[key];
+  });
+  existing.updatedBy = user.id;
+  existing.updatedByName = user.name;
+  existing.updatedAt = new Date().toISOString();
+  existing.importedFrom = "xml";
+  existing.importedAt = new Date().toISOString();
+  if (fleetNumber(existing.currentMeter) > 0 && fleetNumber(existing.currentMeter) !== previousMeter) {
+    if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
+    db.fleetMeterReadings.push(createFleetMeterReading(existing, user, fleetNumber(existing.currentMeter), previousMeter, existing.lastMeterDate || localDate(new Date()), "Import XML"));
+  }
+  return existing;
+}
+
+function createFleetRequest(db, user, body) {
+  const asset = (db.fleetAssets || []).find((item) => item.id === body.assetId && item.active !== false);
+  if (!asset) throwHttp(404, "Alege utilajul sau autovehiculul solicitat.");
+  const date = validDateValue(body.date) ? String(body.date) : localDate(new Date());
+  const startTime = validTimeValue(body.startTime) ? String(body.startTime) : "";
+  const endTime = validTimeValue(body.endTime) ? String(body.endTime) : "";
+  if (!startTime || !endTime || startTime >= endTime) throwHttp(400, "Intervalul orar este invalid.");
+  const department = String(body.department || "").trim();
+  const jobName = String(body.jobName || "").trim();
+  if (!department) throwHttp(400, "Departamentul este obligatoriu.");
+  if (!jobName) throwHttp(400, "Lucrarea este obligatorie pentru solicitarea de mecanizare.");
+  const conflict = fleetRequestConflict(db, asset.id, date, startTime, endTime);
+  if (conflict) {
+    throwHttp(409, `Utilajul este deja solicitat in intervalul ${conflict.startTime}-${conflict.endTime} pentru ${conflict.jobName || conflict.department || "alta lucrare"}.`);
+  }
+  const request = {
+    id: id("fleetreq"),
+    assetId: asset.id,
+    assetName: asset.name,
+    registration: asset.registration,
+    category: asset.category,
+    assetType: asset.type,
+    assetBrand: asset.brand,
+    assetCode: asset.assetCode,
+    assetCostCenterName: asset.costCenterName,
+    date,
+    startTime,
+    endTime,
+    department,
+    jobName,
+    location: String(body.location || "").trim(),
+    note: String(body.note || "").trim(),
+    status: "new",
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.fleetRequests.push(request);
+  syncWorkflowForFleetRequest(db, user, request, "created");
+  return request;
+}
+
+function updateFleetRequestStatus(db, user, requestId, body) {
+  const request = (db.fleetRequests || []).find((item) => item.id === requestId);
+  if (!request) throwHttp(404, "Solicitarea nu exista.");
+  const oldWorkflowStatus = workflowStatusFromFleet(request.status);
+  const status = String(body.status || "").trim();
+  if (!["approved", "planned", "done", "rejected", "canceled"].includes(status)) throwHttp(400, "Status invalid.");
+  if (["approved", "planned"].includes(status)) {
+    const conflict = fleetRequestConflict(db, request.assetId, request.date, request.startTime, request.endTime, request.id);
+    if (conflict) throwHttp(409, `Exista suprapunere cu solicitarea ${conflict.jobName || conflict.department || conflict.id}.`);
+  }
+  request.status = status;
+  request.updatedBy = user.id;
+  request.updatedByName = user.name;
+  request.updatedAt = new Date().toISOString();
+  syncWorkflowForFleetRequest(db, user, request, "status_changed", oldWorkflowStatus);
+  return request;
+}
+
+function fleetRequestConflict(db, assetId, date, startTime, endTime, excludeId = "") {
+  return (db.fleetRequests || []).find((item) =>
+    item.id !== excludeId &&
+    item.assetId === assetId &&
+    item.date === date &&
+    !["done", "rejected", "canceled"].includes(item.status) &&
+    startTime < item.endTime &&
+    endTime > item.startTime
+  );
+}
+
+function buildFleetAlerts(db) {
+  const todayKey = localDate(new Date());
+  return fleetAssetsView(db)
+    .filter((asset) => asset.active !== false)
+    .flatMap((asset) => fleetAlertsForAsset(asset, todayKey))
+    .sort((a, b) =>
+      fleetAlertSeverityRank(a.severity) - fleetAlertSeverityRank(b.severity) ||
+      Number(a.remainingDays ?? 999999) - Number(b.remainingDays ?? 999999) ||
+      Number(a.remainingMeter ?? 999999999) - Number(b.remainingMeter ?? 999999999) ||
+      String(a.assetName || "").localeCompare(String(b.assetName || ""))
+    );
+}
+
+function fleetAlertsForAsset(asset, todayKey) {
+  const alerts = [];
+  const assetName = fleetAssetLabel(asset);
+  const meterUnit = normalizeFleetMeterUnit(asset.meterUnit || (asset.category === "equipment" ? "hours" : "km"));
+  const currentMeter = fleetNumber(asset.currentMeter);
+  const alertDays = Math.max(1, fleetInteger(asset.alertDays, 30));
+  const alertMeter = fleetNumber(asset.alertMeter) || (meterUnit === "hours" ? 50 : 500);
+  addFleetDateAlert(alerts, asset, assetName, "service-date", "Revizie", asset.nextServiceDate, alertDays, todayKey);
+  addFleetMeterAlert(alerts, asset, assetName, "service-meter", "Revizie", asset.nextServiceMeter, currentMeter, alertMeter, meterUnit);
+  addFleetDateAlert(alerts, asset, assetName, "inspection-date", asset.inspectionType || (asset.category === "vehicle" ? "ITP" : "ISCIR / metrologie"), asset.nextInspectionDate, alertDays, todayKey);
+  return alerts;
+}
+
+function addFleetDateAlert(alerts, asset, assetName, type, label, dueDate, alertDays, todayKey) {
+  if (!validDateValue(dueDate)) return;
+  const remainingDays = dateDiffDays(todayKey, dueDate);
+  if (remainingDays > alertDays) return;
+  const overdue = remainingDays < 0;
+  alerts.push({
+    id: `fleet-${type}-${asset.id}`,
+    type,
+    severity: overdue ? "bad" : "warn",
+    title: `${label} ${overdue ? "depasita" : "apropiata"}`,
+    detail: `${assetName}: scadenta ${dueDate} (${fleetDaysText(remainingDays)}).`,
+    assetId: asset.id,
+    assetName,
+    registration: asset.registration || "",
+    category: asset.category,
+    dueDate,
+    remainingDays
+  });
+}
+
+function addFleetMeterAlert(alerts, asset, assetName, type, label, dueMeter, currentMeter, alertMeter, meterUnit) {
+  const due = fleetNumber(dueMeter);
+  if (due <= 0) return;
+  const remainingMeter = round(due - currentMeter);
+  if (remainingMeter > alertMeter) return;
+  const overdue = remainingMeter < 0;
+  const unitLabel = fleetMeterUnitLabel(meterUnit);
+  alerts.push({
+    id: `fleet-${type}-${asset.id}`,
+    type,
+    severity: overdue ? "bad" : "warn",
+    title: `${label} dupa ${unitLabel} ${overdue ? "depasita" : "apropiata"}`,
+    detail: `${assetName}: curent ${fmt(currentMeter)} ${unitLabel}, scadenta ${fmt(due)} ${unitLabel} (${fleetMeterText(remainingMeter, unitLabel)}).`,
+    assetId: asset.id,
+    assetName,
+    registration: asset.registration || "",
+    category: asset.category,
+    currentMeter,
+    dueMeter: due,
+    remainingMeter,
+    meterUnit
+  });
+}
+
+function dateDiffDays(from, to) {
+  const fromDate = new Date(`${from}T00:00:00`);
+  const toDate = new Date(`${to}T00:00:00`);
+  return Math.round((toDate.getTime() - fromDate.getTime()) / 86400000);
+}
+
+function fleetDaysText(days) {
+  if (days < 0) return `${Math.abs(days)} zile depasire`;
+  if (days === 0) return "scadenta azi";
+  if (days === 1) return "1 zi ramasa";
+  return `${days} zile ramase`;
+}
+
+function fleetMeterText(remaining, unitLabel) {
+  if (remaining < 0) return `${fmt(Math.abs(remaining))} ${unitLabel} depasire`;
+  if (remaining === 0) return "scadenta acum";
+  return `${fmt(remaining)} ${unitLabel} ramase`;
+}
+
+function fleetAlertSeverityRank(severity) {
+  return severity === "bad" ? 0 : 1;
+}
+
+function validTimeValue(value) {
+  return /^\d{2}:\d{2}$/.test(String(value || ""));
+}
+
+function costCentersView(db) {
+  return (db.costCenters || [])
+    .filter((item) => item.active !== false)
+    .slice()
+    .sort((a, b) => String(a.code || a.name || "").localeCompare(String(b.code || b.name || "")));
+}
+
+function createCostCenter(db, user, body) {
+  const name = String(body.name || "").trim();
+  const code = String(body.code || "").trim().toUpperCase();
+  if (!name) throwHttp(400, "Numele centrului de cost este obligatoriu.");
+  const duplicate = (db.costCenters || []).find((item) =>
+    item.active !== false &&
+    (normalizeCostKey(item.name) === normalizeCostKey(name) || (code && normalizeCostKey(item.code) === normalizeCostKey(code)))
+  );
+  if (duplicate) throwHttp(409, "Exista deja un centru de cost cu acest nume sau cod.");
+  const center = {
+    id: id("costcenter"),
+    code,
+    name,
+    type: String(body.type || "department").trim() || "department",
+    parentId: String(body.parentId || "").trim(),
+    note: String(body.note || "").trim(),
+    active: true,
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.costCenters.push(center);
+  return center;
+}
+
+function findCostCenter(db, value) {
+  const needle = normalizeCostKey(value);
+  if (!needle) return null;
+  return (db.costCenters || []).find((item) =>
+    item.active !== false &&
+    [item.id, item.code, item.name].some((candidate) => normalizeCostKey(candidate) === needle)
+  ) || null;
+}
+
+function normalizeCostKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function findFleetAsset(db, body) {
+  const idValue = String(body.assetId || "").trim();
+  const registration = normalizeCostKey(body.registration || body.vehicleNo || body.assetRegistration || "");
+  const name = normalizeCostKey(body.assetName || body.name || "");
+  return (db.fleetAssets || []).find((asset) => {
+    if (asset.active === false) return false;
+    if (idValue && asset.id === idValue) return true;
+    if (registration && normalizeCostKey(asset.registration) === registration) return true;
+    if (name && [asset.name, asset.assetName, fleetAssetLabel(asset)].some((candidate) => normalizeCostKey(candidate) === name)) return true;
+    return false;
+  }) || null;
+}
+
+function workLogDocumentMeta(assetOrLog = {}) {
+  const category = assetOrLog.category || "";
+  if (category === "vehicle") return { kind: "foaie_zi", label: "Nr. foaie zi" };
+  if (category === "equipment") return { kind: "raport_zi", label: "Raport zi utilaj" };
+  return { kind: "document", label: "Document" };
+}
+
+function createTechnicalWorkLog(db, user, body) {
+  const asset = findFleetAsset(db, body);
+  if (!asset) throwHttp(404, "Alege autovehiculul sau utilajul pentru pontaj.");
+  const costCenter = findCostCenter(db, body.costCenterId || body.costCenterName || body.department);
+  if (!costCenter) throwHttp(400, "Alege centrul de cost/departamentul pentru pontaj.");
+  const date = validDateValue(body.date) ? String(body.date) : localDate(new Date());
+  const startTime = validTimeValue(body.startTime) ? String(body.startTime) : "";
+  const endTime = validTimeValue(body.endTime) ? String(body.endTime) : "";
+  let hours = round(Number(body.hours || 0));
+  if (hours <= 0 && startTime && endTime) hours = hoursBetween(startTime, endTime);
+  if (hours <= 0) throwHttp(400, "Completeaza orele lucrate sau un interval orar valid.");
+  const jobName = String(body.jobName || "").trim();
+  if (!jobName) throwHttp(400, "Lucrarea este obligatorie pentru pontaj.");
+  const documentMeta = workLogDocumentMeta(asset);
+  const workLog = {
+    id: id("worklog"),
+    date,
+    assetId: asset.id,
+    assetName: asset.name || asset.registration || "",
+    registration: asset.registration || "",
+    category: asset.category || "",
+    costCenterId: costCenter.id,
+    costCenterCode: costCenter.code || "",
+    costCenterName: costCenter.name,
+    department: costCenter.name,
+    jobName,
+    location: String(body.location || "").trim(),
+    startTime,
+    endTime,
+    hours,
+    documentNo: String(body.documentNo || body.document || "").trim(),
+    documentKind: documentMeta.kind,
+    documentLabel: documentMeta.label,
+    operatorName: String(body.operatorName || "").trim(),
+    note: String(body.note || "").trim(),
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.technicalWorkLogs.push(workLog);
+  return workLog;
+}
+
+function hoursBetween(startTime, endTime) {
+  if (!validTimeValue(startTime) || !validTimeValue(endTime) || startTime >= endTime) return 0;
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
+  return round(((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) / 60);
+}
+
+function filteredTechnicalWorkLogs(db, url) {
+  const { from, to } = periodFromUrl(url);
+  const assetId = String(url.searchParams.get("assetId") || "").trim();
+  const costCenterId = String(url.searchParams.get("costCenterId") || "").trim();
+  const job = String(url.searchParams.get("job") || "").trim().toLowerCase();
+  return (db.technicalWorkLogs || [])
+    .filter((item) => item.date >= from && item.date <= to)
+    .filter((item) => !assetId || item.assetId === assetId)
+    .filter((item) => !costCenterId || item.costCenterId === costCenterId)
+    .filter((item) => !job || String(item.jobName || "").toLowerCase().includes(job))
+    .sort(sortNewest);
+}
+
+function technicalClientsView(db) {
+  return (db.technicalClients || [])
+    .filter((client) => client.active !== false)
+    .slice()
+    .sort((a, b) => String(a.name || a.cif || "").localeCompare(String(b.name || b.cif || "")));
+}
+
+function createTechnicalClient(db, user, body) {
+  const client = buildTechnicalClientPayload(body);
+  if (!client.name) throwHttp(400, "Denumirea clientului este obligatorie.");
+  if (client.cif && (db.technicalClients || []).some((item) => item.active !== false && item.cif === client.cif)) {
+    throwHttp(409, "Exista deja un client cu acest CIF.");
+  }
+  const saved = {
+    id: id("client"),
+    ...client,
+    active: true,
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.technicalClients.push(saved);
+  return saved;
+}
+
+function updateTechnicalClient(db, user, clientId, body) {
+  const client = (db.technicalClients || []).find((item) => item.id === clientId && item.active !== false);
+  if (!client) throwHttp(404, "Clientul nu exista.");
+  const next = buildTechnicalClientPayload(body);
+  if (!next.name) throwHttp(400, "Denumirea clientului este obligatorie.");
+  if (next.cif && (db.technicalClients || []).some((item) => item.id !== client.id && item.active !== false && item.cif === next.cif)) {
+    throwHttp(409, "Exista deja un client cu acest CIF.");
+  }
+  Object.assign(client, next, {
+    updatedBy: user.id,
+    updatedByName: user.name,
+    updatedAt: new Date().toISOString()
+  });
+  return client;
+}
+
+function buildTechnicalClientPayload(body = {}) {
+  return {
+    cif: normalizeRomanianCif(body.cif),
+    name: String(body.name || body.denumire || "").trim(),
+    registrationNo: String(body.registrationNo || body.nrRegCom || body.tradeRegisterNo || "").trim(),
+    address: String(body.address || body.adresa || "").trim(),
+    phone: String(body.phone || body.telefon || "").trim(),
+    email: String(body.email || "").trim(),
+    note: String(body.note || "").trim(),
+    source: String(body.source || "").trim(),
+    lastLookupAt: String(body.lastLookupAt || "").trim()
+  };
+}
+
+function findTechnicalClient(db, value) {
+  const needle = String(value || "").trim();
+  if (!needle) return null;
+  const cif = normalizeRomanianCif(needle);
+  return (db.technicalClients || []).find((client) =>
+    client.active !== false && (client.id === needle || (cif && client.cif === cif))
+  ) || null;
+}
+
+function normalizeRomanianCif(value) {
+  const digits = String(value || "").toUpperCase().replace(/^RO/, "").replace(/\D+/g, "");
+  return digits.slice(0, 13);
+}
+
+async function lookupAnafClient(cifValue) {
+  const cif = normalizeRomanianCif(cifValue);
+  if (!cif) throwHttp(400, "Completeaza CIF/CUI numeric pentru cautarea ANAF.");
+  const payload = await postJson("https://webservicesp.anaf.ro/api/PlatitorTvaRest/v9/tva", [
+    { cui: Number(cif), data: localDate(new Date()) }
+  ]);
+  const found = Array.isArray(payload?.found) ? payload.found[0] : null;
+  if (!found) {
+    const message = Array.isArray(payload?.notFound) && payload.notFound[0]?.message
+      ? payload.notFound[0].message
+      : "ANAF nu a gasit date pentru CIF-ul introdus.";
+    throwHttp(404, message);
+  }
+  const general = found.date_generale || found.dateGenerale || found;
+  const vatInfo = found.inregistrare_scop_Tva || found.inregistrare_scop_tva || {};
+  return {
+    cif: normalizeRomanianCif(general.cui || cif),
+    name: String(general.denumire || "").trim(),
+    registrationNo: String(general.nrRegCom || general.nr_reg_com || general.numar_reg_com || "").trim(),
+    address: String(general.adresa || "").trim(),
+    phone: String(general.telefon || "").trim(),
+    email: "",
+    note: [
+      general.stare_inregistrare ? `Stare: ${general.stare_inregistrare}` : "",
+      vatInfo.scpTVA ? "Platitor TVA" : ""
+    ].filter(Boolean).join(" / "),
+    source: "ANAF",
+    lastLookupAt: new Date().toISOString()
+  };
+}
+
+function postJson(targetUrl, payload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const request = https.request(new URL(targetUrl), {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Accept-Charset": "utf-8",
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body)
+      },
+      timeout: 15000
+    }, (response) => {
+      let raw = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { raw += chunk; });
+      response.on("end", () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(httpError(502, `ANAF a raspuns cu status ${response.statusCode}.`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(raw));
+        } catch {
+          reject(httpError(502, "Raspunsul ANAF nu este JSON valid."));
+        }
+      });
+    });
+    request.on("timeout", () => {
+      request.destroy(httpError(504, "ANAF nu a raspuns in timp util."));
+    });
+    request.on("error", (error) => {
+      reject(error.status ? error : httpError(502, `Nu pot contacta ANAF: ${error.message}`));
+    });
+    request.write(body);
+    request.end();
+  });
+}
+
+function createAsphaltSale(db, user, body) {
+  const sourceConsumptionId = String(body.sourceConsumptionId || "").trim();
+  const sourceConsumption = sourceConsumptionId
+    ? activeConsumptions(db).find((item) => item.id === sourceConsumptionId)
+    : null;
+  if (sourceConsumptionId && !sourceConsumption) throwHttp(404, "Consumul ales pentru vanzare nu exista sau este anulat.");
+  if (sourceConsumption && (db.asphaltSales || []).some((item) => item.sourceConsumptionId === sourceConsumption.id)) {
+    throwHttp(400, "Acest consum este deja inregistrat ca vanzare.");
+  }
+  const recipe = (db.recipes || []).find((item) => item.id === (body.recipeId || sourceConsumption?.recipeId));
+  const amount = round(Number(body.amount || sourceConsumption?.asphalt || 0));
+  if (amount <= 0) throwHttp(400, "Cantitatea vanduta trebuie sa fie mai mare decat zero.");
+  const selectedClient = findTechnicalClient(db, body.clientId);
+  const client = String(body.client || selectedClient?.name || "").trim();
+  const jobName = String(body.jobName || sourceConsumption?.jobName || sourceConsumption?.reportNo || "Consum asfalt").trim();
+  if (!client && !jobName) throwHttp(400, "Completeaza clientul sau lucrarea pentru vanzarea de asfalt.");
+  const sale = {
+    id: id("asphaltsale"),
+    date: validDateValue(body.date) ? String(body.date) : sourceConsumption?.date || localDate(new Date()),
+    clientId: selectedClient?.id || "",
+    client,
+    clientCif: selectedClient?.cif || normalizeRomanianCif(body.clientCif),
+    clientAddress: selectedClient?.address || String(body.clientAddress || "").trim(),
+    clientRegistrationNo: selectedClient?.registrationNo || String(body.clientRegistrationNo || "").trim(),
+    jobName,
+    recipeId: recipe?.id || String(body.recipeId || sourceConsumption?.recipeId || "").trim(),
+    recipeName: recipe?.name || String(body.recipeName || sourceConsumption?.recipeName || "").trim(),
+    amount,
+    unit: "t",
+    documentNo: String(body.documentNo || body.document || sourceConsumption?.ticket || sourceConsumption?.reportNo || "").trim(),
+    vehicleNo: String(body.vehicleNo || "").trim().toUpperCase(),
+    note: String(body.note || (sourceConsumption ? `Generata din consum ${sourceConsumption.reportNo || sourceConsumption.id}` : "")).trim(),
+    sourceConsumptionId: sourceConsumption?.id || "",
+    sourceConsumptionReportNo: sourceConsumption?.reportNo || "",
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.asphaltSales.push(sale);
+  return sale;
+}
+
+function updateAsphaltSale(db, user, saleId, body) {
+  const sale = (db.asphaltSales || []).find((item) => item.id === saleId);
+  if (!sale) throwHttp(404, "Vanzarea de asfalt nu exista.");
+  const selectedClient = body.clientId !== undefined ? findTechnicalClient(db, body.clientId) : null;
+  if (body.clientId && !selectedClient) throwHttp(404, "Clientul selectat nu exista.");
+  if (body.clientId !== undefined) {
+    sale.clientId = selectedClient?.id || "";
+    sale.clientCif = selectedClient?.cif || normalizeRomanianCif(body.clientCif);
+    sale.clientAddress = selectedClient?.address || String(body.clientAddress || "").trim();
+    sale.clientRegistrationNo = selectedClient?.registrationNo || String(body.clientRegistrationNo || "").trim();
+    if (selectedClient) sale.client = selectedClient.name;
+  }
+  if (body.client !== undefined) sale.client = String(body.client || sale.client || "").trim();
+  if (body.jobName !== undefined) sale.jobName = String(body.jobName || "").trim();
+  if (body.documentNo !== undefined || body.document !== undefined) sale.documentNo = String(body.documentNo || body.document || "").trim();
+  if (body.vehicleNo !== undefined) sale.vehicleNo = String(body.vehicleNo || "").trim().toUpperCase();
+  if (body.note !== undefined) sale.note = String(body.note || "").trim();
+  if (!sale.sourceConsumptionId) {
+    if (validDateValue(body.date)) sale.date = String(body.date);
+    if (body.recipeId !== undefined) {
+      const recipe = (db.recipes || []).find((item) => item.id === body.recipeId);
+      sale.recipeId = recipe?.id || String(body.recipeId || "").trim();
+      sale.recipeName = recipe?.name || String(body.recipeName || "").trim();
+    }
+    if (body.amount !== undefined) {
+      const amount = round(Number(body.amount || 0));
+      if (amount <= 0) throwHttp(400, "Cantitatea vanduta trebuie sa fie mai mare decat zero.");
+      sale.amount = amount;
+    }
+  }
+  if (!sale.client && !sale.jobName) throwHttp(400, "Completeaza clientul sau lucrarea pentru vanzarea de asfalt.");
+  sale.updatedBy = user.id;
+  sale.updatedByName = user.name;
+  sale.updatedAt = new Date().toISOString();
+  return sale;
+}
+
+function filteredAsphaltSales(db, url) {
+  const { from, to } = periodFromUrl(url);
+  const recipeId = String(url.searchParams.get("recipeId") || "").trim();
+  const client = String(url.searchParams.get("client") || "").trim().toLowerCase();
+  const query = String(url.searchParams.get("q") || "").trim().toLowerCase();
+  return (db.asphaltSales || [])
+    .filter((item) => item.date >= from && item.date <= to)
+    .filter((item) => !recipeId || item.recipeId === recipeId)
+    .filter((item) => !client || String(item.client || "").toLowerCase().includes(client))
+    .filter((item) => !query || [item.client, item.jobName, item.documentNo, item.vehicleNo].join(" ").toLowerCase().includes(query))
+    .sort(sortNewest);
+}
+
+function buildAccountingAsphaltSales(db, url) {
+  const sales = filteredAsphaltSales(db, url);
+  const recipeIds = new Set(sales.map((item) => item.recipeId).filter(Boolean));
+  const recipes = (db.recipes || [])
+    .filter((recipe) => recipeIds.has(recipe.id) || (db.asphaltSales || []).some((sale) => sale.recipeId === recipe.id))
+    .map((recipe) => ({ id: recipe.id, name: recipe.name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ro"));
+  const clients = Array.from(new Set((db.asphaltSales || []).map((item) => String(item.client || "").trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, "ro"));
+  const byClient = Array.from(sales.reduce((map, item) => {
+    const key = item.client || "Fara client";
+    const current = map.get(key) || { client: key, rows: 0, amount: 0 };
+    current.rows += 1;
+    current.amount = round(current.amount + Number(item.amount || 0));
+    map.set(key, current);
+    return map;
+  }, new Map()).values()).sort((a, b) => b.amount - a.amount);
+  const byRecipe = Array.from(sales.reduce((map, item) => {
+    const key = item.recipeName || "Fara reteta";
+    const current = map.get(key) || { recipeName: key, rows: 0, amount: 0 };
+    current.rows += 1;
+    current.amount = round(current.amount + Number(item.amount || 0));
+    map.set(key, current);
+    return map;
+  }, new Map()).values()).sort((a, b) => b.amount - a.amount);
+  return {
+    sales,
+    clients,
+    recipes,
+    metrics: {
+      rows: sales.length,
+      amount: round(sales.reduce((total, item) => total + Number(item.amount || 0), 0)),
+      clients: new Set(sales.map((item) => item.client).filter(Boolean)).size,
+      recipes: new Set(sales.map((item) => item.recipeId || item.recipeName).filter(Boolean)).size
+    },
+    byClient,
+    byRecipe
+  };
+}
+
+function buildTechnicalReportFromUrl(db, url) {
+  const { from, to } = periodFromUrl(url);
+  return buildTechnicalReport(db, from, to, {
+    job: String(url.searchParams.get("job") || "").trim(),
+    recipeId: String(url.searchParams.get("recipeId") || "").trim()
+  });
+}
+
+function buildTechnicalReport(db, fromValue, toValue, filters = {}) {
+  const fallback = localDate(new Date());
+  const from = validDateValue(fromValue) ? String(fromValue) : `${fallback.slice(0, 7)}-01`;
+  const to = validDateValue(toValue) ? String(toValue) : fallback;
+  const start = from <= to ? from : to;
+  const end = from <= to ? to : from;
+  const jobFilter = String(filters.job || "").trim().toLowerCase();
+  const recipeId = String(filters.recipeId || "").trim();
+  const filterRecipe = recipeId ? (db.recipes || []).find((recipe) => recipe.id === recipeId) : null;
+  const workLogs = (db.technicalWorkLogs || [])
+    .filter((item) => item.date >= start && item.date <= end)
+    .filter((item) => !jobFilter || String(item.jobName || "").toLowerCase().includes(jobFilter))
+    .sort(sortNewest);
+  const sales = (db.asphaltSales || [])
+    .filter((item) => item.date >= start && item.date <= end)
+    .filter((item) => !recipeId || item.recipeId === recipeId)
+    .filter((item) => !jobFilter || String(item.jobName || item.client || "").toLowerCase().includes(jobFilter))
+    .sort(sortNewest);
+  const salesByConsumption = new Map(sales.filter((item) => item.sourceConsumptionId).map((item) => [item.sourceConsumptionId, item]));
+  const deptConsumptions = (db.departmentConsumptions || [])
+    .filter((item) => item.date >= start && item.date <= end)
+    .filter((item) => {
+      if (!jobFilter) return true;
+      const request = (db.departmentRequests || []).find(r => r.id === item.jobRequestId);
+      const requestMatch = request && String(request.jobName || "").toLowerCase().includes(jobFilter);
+      return requestMatch || String(item.materialName || "").toLowerCase().includes(jobFilter);
+    })
+    .sort(sortNewest);
+  const production = activeConsumptions(db)
+    .filter((item) => item.date >= start && item.date <= end)
+    .filter((item) => !recipeId || item.recipeId === recipeId)
+    .filter((item) => !jobFilter || String(item.jobName || "").toLowerCase().includes(jobFilter))
+    .sort(sortNewest)
+    .map((item) => {
+      const sale = salesByConsumption.get(item.id);
+      return {
+        ...item,
+        soldFromConsumption: Boolean(sale),
+        saleId: sale?.id || "",
+        soldAmount: sale ? Number(sale.amount || 0) : 0
+      };
+    });
+  const producedTotal = round(production.reduce((total, item) => total + Number(item.asphalt || 0), 0));
+  const soldTotal = round(sales.reduce((total, item) => total + Number(item.amount || 0), 0));
+  return {
+    from: start,
+    to: end,
+    filters: {
+      job: filters.job || "",
+      recipeId,
+      recipeName: filterRecipe?.name || ""
+    },
+    metrics: {
+      workLogs: workLogs.length,
+      workHours: round(workLogs.reduce((total, item) => total + Number(item.hours || 0), 0)),
+      producedTotal,
+      soldTotal,
+      remainingTotal: round(producedTotal - soldTotal)
+    },
+    workLogs,
+    sales,
+    production,
+    deptConsumptions,
+    hoursByAsset: aggregateRows(workLogs, (item) => item.assetId || item.assetName || "-", () => ({
+      assetName: "",
+      category: "",
+      registration: "",
+      hours: 0,
+      jobs: new Set(),
+      costCenters: new Set()
+    }), (row, item) => {
+      row.assetName = fleetAssetLabel(item);
+      row.category = fleetCategoryLabel(item.category);
+      row.registration = item.registration || "";
+      row.hours += Number(item.hours || 0);
+      if (item.jobName) row.jobs.add(item.jobName);
+      if (item.costCenterName) row.costCenters.add(item.costCenterName);
+    }).map(finalizeHoursAggregate),
+    hoursByJob: aggregateRows(workLogs, (item) => normalizeCostKey(item.jobName) || "-", () => ({
+      jobName: "",
+      hours: 0,
+      assets: new Set(),
+      costCenters: new Set()
+    }), (row, item) => {
+      row.jobName = item.jobName || "-";
+      row.hours += Number(item.hours || 0);
+      row.assets.add(fleetAssetLabel(item));
+      if (item.costCenterName) row.costCenters.add(item.costCenterName);
+    }).map(finalizeHoursAggregate),
+    productionByRecipe: buildProductionSalesRows(production, sales, "recipe"),
+    productionByJob: buildProductionSalesRows(production, sales, "job")
+  };
+}
+
+function finalizeHoursAggregate(row) {
+  return {
+    ...row,
+    hours: round(row.hours),
+    jobs: Array.from(row.jobs || []).sort().join(", "),
+    assets: Array.from(row.assets || []).sort().join(", "),
+    costCenters: Array.from(row.costCenters || []).sort().join(", ")
+  };
+}
+
+function buildProductionSalesRows(production, sales, mode) {
+  const rows = new Map();
+  const keyFor = (item) => mode === "recipe"
+    ? (item.recipeId || item.recipeName || "nespecificat")
+    : normalizeCostKey(item.jobName || item.client || "nespecificat");
+  const labelFor = (item) => mode === "recipe"
+    ? (item.recipeName || "Nespecificat")
+    : (item.jobName || item.client || "Nespecificat");
+  const ensure = (key, label) => {
+    if (!rows.has(key)) rows.set(key, { label, produced: 0, sold: 0, remaining: 0 });
+    return rows.get(key);
+  };
+  production.forEach((item) => {
+    const row = ensure(keyFor(item), labelFor(item));
+    row.produced += Number(item.asphalt || 0);
+  });
+  sales.forEach((item) => {
+    const row = ensure(keyFor(item), labelFor(item));
+    row.sold += Number(item.amount || 0);
+  });
+  return Array.from(rows.values()).map((row) => ({
+    ...row,
+    produced: round(row.produced),
+    sold: round(row.sold),
+    remaining: round(row.produced - row.sold)
+  })).sort((a, b) => b.produced - a.produced || a.label.localeCompare(b.label));
+}
+
+function aggregateRows(items, keyFn, createFn, addFn) {
+  const rows = new Map();
+  items.forEach((item) => {
+    const key = keyFn(item);
+    if (!rows.has(key)) rows.set(key, createFn(item));
+    addFn(rows.get(key), item);
+  });
+  return Array.from(rows.values());
+}
+
+function filteredNexusExpenses(db, url) {
+  const { from, to } = periodFromUrl(url);
+  const costCenterId = String(url.searchParams.get("costCenterId") || "").trim();
+  const assetId = String(url.searchParams.get("assetId") || "").trim();
+  return (db.nexusExpenses || [])
+    .filter((item) => item.date >= from && item.date <= to)
+    .filter((item) => !costCenterId || item.costCenterId === costCenterId)
+    .filter((item) => !assetId || item.assetId === assetId)
+    .sort(sortNewest);
+}
+
+function importNexusExpenses(db, user, body) {
+  const rows = Array.isArray(body.rows) ? body.rows : [];
+  if (!rows.length) throwHttp(400, "Nu exista randuri de importat.");
+  const imported = [];
+  const existingCounts = new Map();
+  (db.nexusExpenses || []).forEach((item) => {
+    const key = nexusExpenseKey(item);
+    existingCounts.set(key, (existingCounts.get(key) || 0) + 1);
+  });
+  let skipped = 0;
+  let duplicates = 0;
+  rows.forEach((row) => {
+    const expense = normalizeNexusExpense(db, user, row);
+    if (!expense) {
+      skipped += 1;
+      return;
+    }
+    const key = nexusExpenseKey(expense);
+    const existingCount = existingCounts.get(key) || 0;
+    if (existingCount > 0) {
+      existingCounts.set(key, existingCount - 1);
+      skipped += 1;
+      duplicates += 1;
+      return;
+    }
+    db.nexusExpenses.push(expense);
+    imported.push(expense);
+  });
+  return {
+    imported: imported.length,
+    skipped,
+    duplicates,
+    totalAmount: round(imported.reduce((total, item) => total + Number(item.amount || 0), 0)),
+    expenses: imported
+  };
+}
+
+function normalizeNexusExpense(db, user, row) {
+  const date = normalizeImportedDate(readRowField(row, ["date", "data", "data document", "data_doc"]));
+  const amount = normalizeImportedAmount(readRowField(row, ["amount", "suma", "valoare", "debit", "total"]));
+  if (!date || amount === 0) return null;
+  const centerInput = readRowField(row, ["costCenterId", "centru cost", "centru de cost", "departament", "centru", "cost_center"]);
+  const asset = findFleetAsset(db, {
+    assetId: readRowField(row, ["assetId", "subcentru id", "utilaj id"]),
+    registration: readRowField(row, ["nr inmatriculare", "numar", "auto", "masina", "registration"]),
+    assetName: readRowField(row, ["subcentru", "utilaj", "masina utilaj", "activ", "asset"])
+  });
+  const assetCenterInput = asset ? (asset.costCenterId || asset.costCenterName || asset.department) : "";
+  const costCenter = findCostCenter(db, centerInput) || findCostCenter(db, assetCenterInput);
+  return {
+    id: id("nexusexp"),
+    date,
+    costCenterId: costCenter?.id || "",
+    costCenterCode: costCenter?.code || "",
+    costCenterName: costCenter?.name || String(centerInput || assetCenterInput || "").trim() || "Nemapat",
+    assetId: asset?.id || "",
+    assetName: asset ? fleetAssetLabel(asset) : String(readRowField(row, ["subcentru", "utilaj", "masina utilaj", "activ", "asset"]) || "").trim(),
+    registration: asset?.registration || String(readRowField(row, ["nr inmatriculare", "numar", "auto", "masina", "registration"]) || "").trim().toUpperCase(),
+    expenseType: String(readRowField(row, ["tip", "categorie", "cont", "cheltuiala", "expenseType"]) || "").trim() || "Cheltuiala",
+    amount,
+    currency: String(readRowField(row, ["moneda", "currency"]) || "RON").trim().toUpperCase() || "RON",
+    documentNo: String(readRowField(row, ["document", "nr document", "factura", "nr factura"]) || "").trim(),
+    supplier: String(readRowField(row, ["furnizor", "partener", "supplier"]) || "").trim(),
+    note: String(readRowField(row, ["observatii", "descriere", "explicatie", "note"]) || "").trim(),
+    source: "nexus-import",
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+}
+
+function nexusExpenseKey(item) {
+  return [
+    item.date,
+    normalizeCostKey(item.costCenterId || item.costCenterName),
+    normalizeCostKey(item.assetId || item.assetName || item.registration),
+    normalizeCostKey(item.expenseType),
+    Number(item.amount || 0).toFixed(3),
+    normalizeCostKey(item.documentNo),
+    normalizeCostKey(item.supplier),
+    normalizeCostKey(item.note)
+  ].join("|");
+}
+
+function parseNexusExpensesXlsx(body) {
+  const raw = String(body?.fileBase64 || body?.content || "").trim();
+  if (!raw) throwHttp(400, "Fisierul XLSX nu a ajuns la server.");
+  const base64 = raw.includes(",") ? raw.split(",").pop() : raw;
+  let buffer;
+  try {
+    buffer = Buffer.from(base64, "base64");
+  } catch {
+    throwHttp(400, "Fisierul XLSX nu poate fi citit.");
+  }
+  if (!buffer.length) throwHttp(400, "Fisierul XLSX este gol.");
+  if (buffer.length > 15 * 1024 * 1024) throwHttp(400, "Fisierul XLSX este prea mare pentru import.");
+  const rows = readXlsxFirstSheetRows(buffer);
+  const mapped = mapNexusExpenseReportRows(rows);
+  if (!mapped.length) throwHttp(400, "Nu am gasit randuri de cheltuieli in exportul Nexus.");
+  return mapped;
+}
+
+function readXlsxFirstSheetRows(buffer) {
+  const entries = unzipXlsxEntries(buffer);
+  const sharedStrings = parseXlsxSharedStrings(entries.get("xl/sharedstrings.xml"));
+  const sheetPath = firstXlsxSheetPath(entries);
+  const sheetXml = entries.get(sheetPath);
+  if (!sheetXml) throwHttp(400, "Fisierul XLSX nu contine foaia de calcul.");
+  return parseXlsxSheetXml(sheetXml.toString("utf8"), sharedStrings);
+}
+
+function unzipXlsxEntries(buffer) {
+  const entries = new Map();
+  const eocdSignature = 0x06054b50;
+  let eocdOffset = -1;
+  for (let index = buffer.length - 22; index >= Math.max(0, buffer.length - 66000); index -= 1) {
+    if (buffer.readUInt32LE(index) === eocdSignature) {
+      eocdOffset = index;
+      break;
+    }
+  }
+  if (eocdOffset < 0) throwHttp(400, "Fisierul XLSX nu este valid.");
+  const totalEntries = buffer.readUInt16LE(eocdOffset + 10);
+  let offset = buffer.readUInt32LE(eocdOffset + 16);
+  for (let index = 0; index < totalEntries; index += 1) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) throwHttp(400, "Structura XLSX este invalida.");
+    const method = buffer.readUInt16LE(offset + 10);
+    const compressedSize = buffer.readUInt32LE(offset + 20);
+    const nameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
+    const name = buffer.slice(offset + 46, offset + 46 + nameLength).toString("utf8").replace(/\\/g, "/").toLowerCase();
+    const localNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
+    const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
+    const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+    const data = buffer.slice(dataStart, dataStart + compressedSize);
+    let content;
+    if (method === 0) {
+      content = data;
+    } else if (method === 8) {
+      content = zlib.inflateRawSync(data);
+    } else {
+      throwHttp(400, `Fisier XLSX cu metoda ZIP neacceptata: ${method}.`);
+    }
+    entries.set(name, content);
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+function firstXlsxSheetPath(entries) {
+  const workbookXml = entries.get("xl/workbook.xml")?.toString("utf8") || "";
+  const relationshipsXml = entries.get("xl/_rels/workbook.xml.rels")?.toString("utf8") || "";
+  const firstSheet = [...workbookXml.matchAll(/<sheet\b([^>]*)>/gi)]
+    .map((match) => xmlAttributes(match[1]))
+    .find((attrs) => attrs["r:id"] || attrs.id);
+  const relationshipId = firstSheet?.["r:id"] || firstSheet?.id || "";
+  if (relationshipId && relationshipsXml) {
+    const relationship = [...relationshipsXml.matchAll(/<Relationship\b([^>]*)\/?>/gi)]
+      .map((match) => xmlAttributes(match[1]))
+      .find((attrs) => attrs.Id === relationshipId || attrs.id === relationshipId);
+    if (relationship?.Target || relationship?.target) {
+      const target = String(relationship.Target || relationship.target).replace(/\\/g, "/");
+      return (target.startsWith("/") ? target.slice(1) : `xl/${target}`).toLowerCase();
+    }
+  }
+  return [...entries.keys()].find((key) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(key)) || "xl/worksheets/sheet1.xml";
+}
+
+function parseXlsxSharedStrings(buffer) {
+  if (!buffer) return [];
+  const xml = buffer.toString("utf8");
+  return [...xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/gi)].map((match) => parseXlsxText(match[1]));
+}
+
+function parseXlsxSheetXml(xml, sharedStrings) {
+  const rows = [];
+  for (const rowMatch of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/gi)) {
+    const row = [];
+    const rowXml = rowMatch[1].replace(/<c\b[^>]*\/>/gi, "");
+    for (const cellMatch of rowXml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/gi)) {
+      const attrs = xmlAttributes(cellMatch[1]);
+      const ref = attrs.r || "";
+      const columnIndex = xlsxColumnIndex(ref.replace(/\d+/g, "")) ?? row.length;
+      row[columnIndex] = parseXlsxCellValue(cellMatch[2], attrs, sharedStrings);
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseXlsxCellValue(xml, attrs, sharedStrings) {
+  const type = attrs.t || "";
+  if (type === "s") {
+    const index = Number(xmlValue(xml));
+    return sharedStrings[index] || "";
+  }
+  if (type === "inlineStr") return parseXlsxText(xml);
+  if (type === "str") return xmlDecode(xmlValue(xml));
+  if (type === "b") return xmlValue(xml) === "1";
+  const value = xmlValue(xml);
+  if (value === "") return "";
+  const number = Number(value);
+  return Number.isFinite(number) ? number : xmlDecode(value);
+}
+
+function mapNexusExpenseReportRows(rows) {
+  const headerIndex = rows.findIndex((row) =>
+    row.some((value) => normalizeCostKey(value) === "DATA") &&
+    row.some((value) => normalizeCostKey(value) === "NR DOCUMENT") &&
+    row.some((value) => normalizeCostKey(value) === "SUMA DEBIT")
+  );
+  if (headerIndex < 0) throwHttp(400, "Nu am gasit antetul exportului Nexus.");
+  const headers = rows[headerIndex] || [];
+  const col = (names) => findXlsxHeaderColumn(headers, names);
+  const accountHeaderCol = col(["Cont"]);
+  const accountCol = accountHeaderCol === 0 && !cellText(headers[1]) ? 1 : accountHeaderCol;
+  const dateCol = col(["Data"]);
+  const journalCol = col(["Jurnal"]);
+  const docTypeCol = col(["Tip document"]);
+  const docNoCol = col(["Nr document"]);
+  const descriptionCol = col(["Descriere"]);
+  const correspondentCol = col(["Cont corespondent"]);
+  const supplierCol = col(["Partener cont corespondent"]);
+  const debitCol = col(["Suma debit"]);
+  const creditCol = col(["Suma credit"]);
+  const dcCol = col(["D/C"]);
+  const registrationNoCol = col(["Nr inregistrare"]);
+  let currentGroup = "";
+  const mapped = [];
+  for (const row of rows.slice(headerIndex + 1)) {
+    const title = cellText(row[0]);
+    if (/^BONURI DE CONSUM\s*:/i.test(title)) {
+      currentGroup = normalizeSpace(title.replace(/^BONURI DE CONSUM\s*:\s*/i, ""));
+      continue;
+    }
+    const date = xlsxImportedDate(row[dateCol]);
+    const amount = xlsxNumber(row[debitCol]) - xlsxNumber(row[creditCol]);
+    if (!date || amount === 0) continue;
+    const description = cellText(row[descriptionCol]);
+    const account = cellText(row[accountCol]);
+    const correspondent = cellText(row[correspondentCol]);
+    const documentNo = cellText(row[docNoCol]);
+    const documentType = cellText(row[docTypeCol]);
+    const journal = cellText(row[journalCol]);
+    const registration = inferVehicleRegistration(`${description} ${currentGroup}`);
+    mapped.push({
+      Data: date,
+      Subcentru: currentGroup,
+      Utilaj: currentGroup,
+      "Nr inmatriculare": registration,
+      Suma: amount,
+      Tip: [account, correspondent && correspondent !== "401" ? correspondent : ""].filter(Boolean).join(" / ") || "Cheltuiala",
+      Cont: account,
+      "Cont corespondent": correspondent,
+      Document: [documentType, documentNo].filter(Boolean).join(" "),
+      "Nr document": documentNo,
+      Furnizor: cellText(row[supplierCol]),
+      Observatii: [
+        description,
+        journal ? `Jurnal ${journal}` : "",
+        cellText(row[dcCol]) ? `D/C ${cellText(row[dcCol])}` : "",
+        cellText(row[registrationNoCol]) ? `Nr inregistrare ${cellText(row[registrationNoCol])}` : "",
+        currentGroup ? `Grup Nexus ${currentGroup}` : ""
+      ].filter(Boolean).join(" | ")
+    });
+  }
+  return mapped;
+}
+
+function findXlsxHeaderColumn(headers, names) {
+  const normalizedNames = names.map(normalizeCostKey);
+  return headers.findIndex((header) => normalizedNames.includes(normalizeCostKey(header)));
+}
+
+function xlsxImportedDate(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return excelSerialDate(value);
+  const text = cellText(value);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) return text.slice(0, 10);
+  if (validDateValue(text)) return text;
+  return normalizeImportedDate(text);
+}
+
+function excelSerialDate(serial) {
+  const millis = Math.round((serial - 25569) * 86400 * 1000);
+  const date = new Date(millis);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function xlsxNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return round(value);
+  return normalizeImportedAmount(value);
+}
+
+function cellText(value) {
+  return normalizeSpace(String(value ?? ""));
+}
+
+function normalizeSpace(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function inferVehicleRegistration(value) {
+  const text = normalizeSpace(value).toUpperCase();
+  const match = text.match(/\b[A-Z]{1,2}\s*\d{2,3}\s*[A-Z]{2,3}\b/);
+  return match ? match[0].replace(/\s+/g, "") : "";
+}
+
+function xlsxColumnIndex(column) {
+  const letters = String(column || "").toUpperCase();
+  if (!letters) return null;
+  let value = 0;
+  for (const letter of letters) value = value * 26 + letter.charCodeAt(0) - 64;
+  return value - 1;
+}
+
+function xmlAttributes(text) {
+  const attrs = {};
+  for (const match of String(text || "").matchAll(/([\w:.-]+)="([^"]*)"/g)) {
+    attrs[match[1]] = xmlDecode(match[2]);
+  }
+  return attrs;
+}
+
+function xmlValue(xml) {
+  const match = String(xml || "").match(/<v[^>]*>([\s\S]*?)<\/v>/i);
+  return match ? xmlDecode(match[1]) : "";
+}
+
+function parseXlsxText(xml) {
+  return [...String(xml || "").matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/gi)]
+    .map((match) => xmlDecode(match[1]))
+    .join("");
+}
+
+function xmlDecode(value) {
+  return String(value || "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+function readRowField(row, names) {
+  if (!row || typeof row !== "object") return "";
+  const normalized = Object.fromEntries(Object.entries(row).map(([key, value]) => [normalizeCostKey(key), value]));
+  for (const name of names) {
+    const key = normalizeCostKey(name);
+    if (Object.prototype.hasOwnProperty.call(normalized, key)) return normalized[key];
+  }
+  return "";
+}
+
+function normalizeImportedDate(value) {
+  const text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) return text.slice(0, 10);
+  if (validDateValue(text)) return text;
+  const match = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (!match) return "";
+  const [, day, month, year] = match;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function normalizeImportedAmount(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return round(value);
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  let cleaned = raw
+    .replace(/\s/g, "")
+    .replace(/RON|LEI|EUR|EURO/gi, "");
+  if (cleaned.includes(",")) {
+    cleaned = cleaned.replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+  }
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) ? round(amount) : 0;
+}
+
+function buildCostAccountingReport(db, fromValue, toValue) {
+  const fallback = localDate(new Date());
+  const from = validDateValue(fromValue) ? String(fromValue) : `${fallback.slice(0, 7)}-01`;
+  const to = validDateValue(toValue) ? String(toValue) : fallback;
+  const start = from <= to ? from : to;
+  const end = from <= to ? to : from;
+  const workLogs = (db.technicalWorkLogs || []).filter((item) => item.date >= start && item.date <= end);
+  const expenses = (db.nexusExpenses || []).filter((item) => item.date >= start && item.date <= end);
+  const rows = new Map();
+  const ensure = (costCenterId, costCenterName, assetId, assetName, registration) => {
+    const key = `${costCenterId || costCenterName || "none"}|${assetId || assetName || registration || "none"}`;
+    if (!rows.has(key)) {
+      rows.set(key, {
+        costCenterId: costCenterId || "",
+        costCenterName: costCenterName || "Nemapat",
+        assetId: assetId || "",
+        assetName: assetName || "Fara subcentru",
+        registration: registration || "",
+        hours: 0,
+        expenses: 0,
+        costPerHour: 0
+      });
+    }
+    return rows.get(key);
+  };
+  workLogs.forEach((item) => {
+    const row = ensure(item.costCenterId, item.costCenterName, item.assetId, fleetAssetLabel(item), item.registration);
+    row.hours += Number(item.hours || 0);
+  });
+  expenses.forEach((item) => {
+    const row = ensure(item.costCenterId, item.costCenterName, item.assetId, item.assetName, item.registration);
+    row.expenses += Number(item.amount || 0);
+  });
+  const finalRows = Array.from(rows.values()).map((row) => ({
+    ...row,
+    hours: round(row.hours),
+    expenses: round(row.expenses),
+    costPerHour: row.hours > 0 ? round(row.expenses / row.hours) : 0
+  })).sort((a, b) => a.costCenterName.localeCompare(b.costCenterName) || a.assetName.localeCompare(b.assetName));
+  const expensesByType = aggregateRows(expenses, (item) => normalizeCostKey(item.expenseType) || "-", () => ({
+    expenseType: "",
+    amount: 0,
+    rows: 0
+  }), (row, item) => {
+    row.expenseType = item.expenseType || "-";
+    row.amount += Number(item.amount || 0);
+    row.rows += 1;
+  }).map((row) => ({ ...row, amount: round(row.amount) })).sort((a, b) => b.amount - a.amount);
+  return {
+    from: start,
+    to: end,
+    metrics: {
+      costCenters: new Set(finalRows.map((item) => item.costCenterId || item.costCenterName)).size,
+      rows: finalRows.length,
+      hours: round(finalRows.reduce((total, item) => total + Number(item.hours || 0), 0)),
+      expenses: round(finalRows.reduce((total, item) => total + Number(item.expenses || 0), 0)),
+      averageCostPerHour: finalRows.reduce((total, item) => total + Number(item.hours || 0), 0) > 0
+        ? round(finalRows.reduce((total, item) => total + Number(item.expenses || 0), 0) / finalRows.reduce((total, item) => total + Number(item.hours || 0), 0))
+        : 0
+    },
+    rows: finalRows,
+    expensesByType,
+    expenses: expenses.slice().sort(sortNewest),
+    workLogs: workLogs.slice().sort(sortNewest)
+  };
+}
+
+function createProductionPlan(db, user, body) {
+  const recipe = db.recipes.find((item) => item.id === body.recipeId && item.active !== false);
+  if (!recipe) throwHttp(404, "Reteta inexistenta.");
+  const asphalt = round(Number(body.asphalt || 0));
+  if (asphalt <= 0) throwHttp(400, "Cantitatea planificata trebuie sa fie mai mare decat zero.");
+  const materialNeeds = recipeMaterialNeeds(db, recipe, asphalt, Number(body.emulsion || 0), true);
+  const plan = {
+    id: id("plan"),
+    date: String(body.date || localDate(new Date())),
+    jobName: String(body.jobName || "").trim(),
+    recipeId: recipe.id,
+    recipeName: recipe.name,
+    recipeVersion: recipe.version || 1,
+    asphalt,
+    emulsion: round(Number(body.emulsion || 0)),
+    materials: materialNeeds,
+    sourceRequestId: String(body.sourceRequestId || "").trim(),
+    orderNo: String(body.orderNo || "").trim(),
+    orderDate: validDateValue(body.orderDate) ? String(body.orderDate) : "",
+    technical: normalizeStoredTechnical(body.technical),
+    createdBy: user.id,
+    createdByName: user.name,
+    createdAt: new Date().toISOString()
+  };
+  db.productionPlans.push(plan);
+  return plan;
+}
+
+function deleteProductionPlan(db, user, idValue) {
+  const plan = db.productionPlans.find((item) => item.id === idValue);
+  if (!plan) throwHttp(404, "Plan inexistent.");
+  db.productionPlans = db.productionPlans.filter((item) => item.id !== idValue);
+  plan.deletedBy = user.id;
+  plan.deletedAt = new Date().toISOString();
+  return plan;
+}
+
+function activeConsumptions(db) {
+  return db.consumptions.filter((item) => !item.canceled);
+}
+
+function filteredConsumptions(db, url) {
+  const from = url.searchParams.get("from") || "";
+  const to = url.searchParams.get("to") || "";
+  const recipeId = url.searchParams.get("recipeId") || "";
+  const job = String(url.searchParams.get("job") || "").trim().toLowerCase();
+  return activeConsumptions(db)
+    .filter((item) => !from || item.date >= from)
+    .filter((item) => !to || item.date <= to)
+    .filter((item) => !recipeId || item.recipeId === recipeId)
+    .filter((item) => !job || String(item.jobName || "").toLowerCase().includes(job))
+    .sort(sortNewest);
+}
+
+function filteredDepartmentRequests(db, url) {
+  const from = url.searchParams.get("from") || "";
+  const to = url.searchParams.get("to") || "";
+  const status = url.searchParams.get("status") || "";
+  const type = url.searchParams.get("type") || "";
+  const department = String(url.searchParams.get("department") || "").trim().toLowerCase();
+  return (db.departmentRequests || [])
+    .filter((item) => !from || item.neededDate >= from)
+    .filter((item) => !to || item.neededDate <= to)
+    .filter((item) => !status || item.status === status)
+    .filter((item) => !type || item.type === type)
+    .filter((item) => !department || String(item.department || "").toLowerCase().includes(department))
+    .sort((a, b) => `${b.neededDate}${b.createdAt}`.localeCompare(`${a.neededDate}${a.createdAt}`));
+}
+
+function filteredStockOperations(db, url) {
+  const from = url.searchParams.get("from") || "";
+  const to = url.searchParams.get("to") || "";
+  const materialId = url.searchParams.get("materialId") || "";
+  const direction = url.searchParams.get("direction") || "";
+  const department = String(url.searchParams.get("department") || "").trim().toLowerCase();
+  const job = String(url.searchParams.get("job") || "").trim().toLowerCase();
+  const document = String(url.searchParams.get("document") || "").trim().toLowerCase();
+  return db.stockMovements
+    .filter((item) => ["manual_in", "manual_out", "transfer_to_dept"].includes(item.type) && !item.canceled)
+    .filter((item) => !from || item.date >= from)
+    .filter((item) => !to || item.date <= to)
+    .filter((item) => !materialId || item.materialId === materialId)
+    .filter((item) => !direction || (direction === "out" ? ["manual_out", "transfer_to_dept"].includes(item.type) : item.type === "manual_in"))
+    .filter((item) => !department || String(item.department || "").toLowerCase().includes(department))
+    .filter((item) => !job || String(item.jobName || "").toLowerCase().includes(job))
+    .filter((item) => !document || String(item.transportDoc || "").toLowerCase().includes(document))
+    .sort(sortNewest);
+}
+
+function ledgerRows(db, filters) {
+  return db.stockMovements
+    .filter((item) => !filters.materialId || item.materialId === filters.materialId)
+    .filter((item) => !filters.from || item.date >= filters.from)
+    .filter((item) => !filters.to || item.date <= filters.to)
+    .sort((a, b) => `${a.date}${a.createdAt}`.localeCompare(`${b.date}${b.createdAt}`));
+}
+
+function nextReportNo(db, date) {
+  const key = date.replaceAll("-", "");
+  const sameDay = db.consumptions.filter((item) => item.date === date).length + 1;
+  return `RP-${key}-${String(sameDay).padStart(3, "0")}`;
+}
+
+function sortNewest(a, b) {
+  return `${b.date}${b.createdAt}`.localeCompare(`${a.date}${a.createdAt}`);
+}
+
+function localDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function backupTimestamp(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  const s = String(date.getSeconds()).padStart(2, "0");
+  return `${y}${m}${d}-${h}${min}${s}`;
+}
+
+function sum(rows, key) {
+  return rows.reduce((total, item) => total + Number(item[key] || 0), 0);
+}
+
+function round(value) {
+  return Number((Number(value || 0)).toFixed(3));
+}
+
+function fmt(value) {
+  return round(value).toLocaleString("ro-RO", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
+function buildConsumptionsWorkbook(db, rows, url) {
+  const materialHeaders = db.materials.map((material) => `${material.name} (${material.unit})`);
+  const totals = Object.fromEntries(db.materials.map((material) => [
+    material.id,
+    rows.reduce((sumValue, item) => sumValue + Number(item.materials.find((usage) => usage.materialId === material.id)?.amount || 0), 0)
+  ]));
+  const asphaltTotal = rows.reduce((sumValue, item) => sumValue + Number(item.asphalt || 0), 0);
+  return exportXlsxWorkbook([
+    {
+      name: "Consumuri",
+      rows: [
+        ["Perioada", `${url.searchParams.get("from") || "inceput"} - ${url.searchParams.get("to") || "sfarsit"}`],
+        [],
+        ["Data", "Raport", "Lucrare", "Reteta", "Versiune", "Bon / auto", "Operator", "Asfalt (t)", ...materialHeaders],
+        ...rows.map((item) => [
+          item.date,
+          item.reportNo,
+          item.jobName || "",
+          item.recipeName,
+          item.recipeVersion || "",
+          item.ticket || "",
+          item.operatorName || "",
+          Number(item.asphalt || 0),
+          ...db.materials.map((material) => Number(item.materials.find((usage) => usage.materialId === material.id)?.amount || 0))
+        ]),
+        ["TOTAL", "", "", "", "", "", "", asphaltTotal, ...db.materials.map((material) => totals[material.id] || 0)]
+      ]
+    },
+    {
+      name: "Stocuri",
+      rows: [
+        ["Material", "Stoc", "Prag alerta", "Unitate"],
+        ...db.materials.map((material) => [material.name, Number(material.stock || 0), Number(material.alert || 0), material.unit])
+      ]
+    }
+  ]);
+}
+
+function buildDailyReportWorkbook(report) {
+  return exportXlsxWorkbook([
+    {
+      name: "Totaluri materiale",
+      rows: [
+        ["Data", report.date],
+        ["Asfalt zi", report.metrics.asphaltTotal],
+        ["Consumuri", report.metrics.consumptionsCount],
+        ["Intrari", report.metrics.deliveriesCount],
+        ["Iesiri departamente", report.metrics.manualOutCount],
+        [],
+        ["Material", "UM", "Stoc inceput luna", "Stoc zi precedenta", "Stoc inceput zi", "Intrari", "Consum asfalt", "Intrari manuale", "Iesiri manuale", "Net zi", "Stoc final zi"],
+        ...report.materialTotals.map((item) => [
+          item.materialName,
+          item.unit,
+          item.monthOpeningStock,
+          item.previousDayStock,
+          item.openingStock,
+          item.delivered,
+          item.consumed,
+          item.manualIn,
+          item.manualOut,
+          item.netMovement,
+          item.closingStock
+        ])
+      ]
+    },
+    {
+      name: "Consum asfalt",
+      rows: [
+        ["Raport", "Lucrare", "Reteta", "Bon / auto", "Asfalt", "Operator"],
+        ...report.consumptions.map((item) => [item.reportNo || "", item.jobName || "", item.recipeName || "", item.ticket || "", item.asphalt, item.operatorName || ""])
+      ]
+    },
+    {
+      name: "Intrari",
+      rows: [
+        ["Material", "Cantitate", "UM", "Furnizor", "Document", "Operator"],
+        ...report.deliveries.map((item) => [item.materialName || "", item.amount, item.unit || "", item.supplier || "", item.document || "", item.operatorName || ""])
+      ]
+    },
+    {
+      name: "Miscari departamente",
+      rows: [
+        ["Tip", "Material", "Cantitate", "UM", "Departament", "Lucrare", "Bon", "Operator"],
+        ...report.manualMovements.map((item) => [typeLabel(item.type), item.materialName || "", Math.abs(Number(item.amount || 0)), item.unit || "", item.department || "", item.jobName || "", item.transportDoc || "", item.createdByName || ""])
+      ]
+    }
+  ]);
+}
+
+function buildPeriodReportWorkbook(report) {
+  return exportXlsxWorkbook([
+    {
+      name: "Totaluri materiale",
+      rows: [
+        ["Perioada", `${report.from} - ${report.to}`],
+        ["Asfalt perioada", report.metrics.asphaltTotal],
+        ["Consumuri", report.metrics.consumptionsCount],
+        ["Intrari", report.metrics.deliveriesCount],
+        ["Iesiri departamente", report.metrics.manualOutCount],
+        [],
+        ["Material", "UM", "Stoc inceput", "Intrari", "Consum asfalt", "Intrari manuale", "Iesiri manuale", "Net perioada", "Stoc final perioada"],
+        ...report.materialTotals.map((item) => [
+          item.materialName,
+          item.unit,
+          item.openingStock,
+          item.delivered,
+          item.consumed,
+          item.manualIn,
+          item.manualOut,
+          item.netMovement,
+          item.closingStock
+        ])
+      ]
+    },
+    {
+      name: "Consum asfalt",
+      rows: [
+        ["Data", "Raport", "Lucrare", "Reteta", "Bon / auto", "Asfalt", "Operator"],
+        ...report.consumptions.map((item) => [item.date, item.reportNo || "", item.jobName || "", item.recipeName || "", item.ticket || "", item.asphalt, item.operatorName || ""])
+      ]
+    },
+    {
+      name: "Intrari",
+      rows: [
+        ["Data", "Material", "Cantitate", "UM", "Furnizor", "Document", "Operator"],
+        ...report.deliveries.map((item) => [item.date, item.materialName || "", item.amount, item.unit || "", item.supplier || "", item.document || "", item.operatorName || ""])
+      ]
+    },
+    {
+      name: "Miscari departamente",
+      rows: [
+        ["Data", "Tip", "Material", "Cantitate", "UM", "Departament", "Lucrare", "Bon", "Operator"],
+        ...report.manualMovements.map((item) => [item.date, typeLabel(item.type), item.materialName || "", Math.abs(Number(item.amount || 0)), item.unit || "", item.department || "", item.jobName || "", item.transportDoc || "", item.createdByName || ""])
+      ]
+    }
+  ]);
+}
+
+function buildLedgerWorkbook(rows, material, filters) {
+  return exportXlsxWorkbook([
+    {
+      name: "Fisa stoc",
+      rows: [
+        ["Material", material?.name || "Toate materialele"],
+        ["Unitate", material?.unit || ""],
+        ["Perioada", `${filters.from || "inceput"} - ${filters.to || "sfarsit"}`],
+        [],
+        ["Data", "Material", "Tip", "Document / lucrare", "Intrare", "Iesire", "Ajustare", "Unitate"],
+        ...rows.map((item) => [
+          item.date,
+          item.materialName,
+          typeLabel(item.type),
+          item.note || "",
+          item.amount > 0 && !isStockBalanceMovement(item) ? Number(item.amount || 0) : 0,
+          item.amount < 0 && !isStockBalanceMovement(item) ? Math.abs(Number(item.amount || 0)) : 0,
+          isStockBalanceMovement(item) ? Number(item.amount || 0) : 0,
+          item.unit
+        ])
+      ]
+    }
+  ]);
+}
+
+function buildAccountingReportWorkbook(report) {
+  return exportXlsxWorkbook([
+    {
+      name: "Raport contabil",
+      rows: [
+        ["Luna", report.month],
+        ["Perioada", `${report.from} - ${report.to}`],
+        ["Materiale", report.metrics.materials],
+        [],
+        ["Material", "UM", "Stoc inceput luna", "Intrari luna", "Consum asfalt", "Intrari manuale", "Iesiri departamente", "Ajustari/anulari", "Stoc final luna", "Diferenta"],
+        ...report.rows.map((item) => [
+          item.materialName,
+          item.unit,
+          item.openingStock,
+          item.deliveries,
+          item.asphaltConsumption,
+          item.manualIn,
+          item.manualOut,
+          item.adjustments,
+          item.closingStock,
+          item.difference
+        ])
+      ]
+    }
+  ]);
+}
+
+function buildStockOperationsWorkbook(rows, url) {
+  const inTotal = rows.filter((item) => item.amount > 0).reduce((sumValue, item) => sumValue + Number(item.amount || 0), 0);
+  const outTotal = rows.filter((item) => item.amount < 0).reduce((sumValue, item) => sumValue + Math.abs(Number(item.amount || 0)), 0);
+  return exportXlsxWorkbook([
+    {
+      name: "Miscari stoc",
+      rows: [
+        ["Perioada", `${url.searchParams.get("from") || "inceput"} - ${url.searchParams.get("to") || "sfarsit"}`],
+        ["Intrari total", inTotal],
+        ["Iesiri total", outTotal],
+        [],
+        ["Data", "Tip", "Material", "Cantitate", "Unitate", "Departament", "Lucrare", "Bon transport", "Observatii", "Operator"],
+        ...rows.map((item) => [
+          item.date,
+          typeLabel(item.type),
+          item.materialName,
+          Math.abs(Number(item.amount || 0)),
+          item.unit,
+          item.department || "",
+          item.jobName || "",
+          item.transportDoc || "",
+          item.note || "",
+          item.createdByName || ""
+        ])
+      ]
+    }
+  ]);
+}
+
+function buildProcurementWorkbook(rows) {
+  const totalShortage = rows.reduce((sumValue, item) => sumValue + Number(item.shortage || 0), 0);
+  return exportXlsxWorkbook([
+    {
+      name: "Necesar aprovizionare",
+      rows: [
+        ["Generat la", new Date().toLocaleString("ro-RO")],
+        ["Materiale cu alerta", rows.length],
+        ["Lipsa totala", totalShortage],
+        [],
+        ["Material", "Necesar total", "Din planuri", "Din solicitari", "Stoc curent", "Stoc estimat", "Lipsa", "Prag alerta", "Unitate"],
+        ...rows.map((item) => [
+          item.materialName,
+          Number(item.required || 0),
+          Number(item.fromPlans || 0),
+          Number(item.fromRequests || 0),
+          Number(item.stock || 0),
+          Number(item.projectedStock || 0),
+          Number(item.shortage || 0),
+          Number(item.alert || 0),
+          item.unit
+        ])
+      ]
+    }
+  ]);
+}
+
+function buildProcurementOrdersWorkbook(db) {
+  const orders = procurementOrdersView(db);
+  const receipts = (db.procurementReceipts || []).filter((item) => !item.canceled && !item.deleted).slice().sort(sortNewest);
+  const materialsById = new Map((db.materials || []).map((material) => [material.id, material]));
+  const mapRows = Object.entries(normalizeScaleProductMap(db.settings?.scaleProductMap || {}))
+    .map(([product, materialId]) => {
+      const material = materialsById.get(materialId);
+      return [product, material?.name || materialId, material?.unit || ""];
+    })
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  return exportXlsxWorkbook([
+    {
+      name: "Comenzi",
+      rows: [
+        ["Generat la", new Date().toLocaleString("ro-RO")],
+        ["Comenzi", orders.length],
+        [],
+        ["Data", "Data estimata", "Nr. comanda", "Material", "Furnizor", "Comandat", "Receptionat", "Ramas", "UM", "Status", "Observatii"],
+        ...orders.map((order) => [
+          order.date,
+          order.expectedDate || "",
+          order.orderNo || "",
+          order.materialName || "",
+          order.supplier || "",
+          Number(order.amount || 0),
+          Number(order.receivedAmount || 0),
+          Number(order.remainingAmount || 0),
+          order.unit || "",
+          procurementStatusLabel(order.status),
+          order.note || ""
+        ])
+      ]
+    },
+    {
+      name: "Receptii",
+      rows: [
+        ["Data", "Comanda", "Material", "Cantitate", "UM", "Furnizor", "Aviz/factura", "CMR", "Tichet cantar", "Produs cantar", "Auto", "Semiremorca", "Operator", "Observatii"],
+        ...receipts.map((receipt) => [
+          receipt.date,
+          receipt.orderNo || "",
+          receipt.materialName || "",
+          Number(receipt.amount || 0),
+          receipt.unit || "",
+          receipt.supplier || "",
+          receipt.document || "",
+          receipt.cmr || "",
+          receipt.scaleTicket || "",
+          receipt.scaleProduct || "",
+          receipt.vehicleNo || "",
+          receipt.trailerNo || "",
+          receipt.createdByName || "",
+          receipt.note || ""
+        ])
+      ]
+    },
+    {
+      name: "Mapari cantar",
+      rows: [
+        ["Produs Cantar Auto", "Material InfraFlow", "UM"],
+        ...mapRows
+      ]
+    }
+  ]);
+}
+
+function buildFleetWorkbook(db) {
+  const assets = fleetAssetsView(db);
+  const requests = fleetRequestsView(db);
+  const alerts = buildFleetAlerts(db);
+  const meterReadings = (db.fleetMeterReadings || []).slice().sort(sortNewest);
+  return exportXlsxWorkbook([
+    {
+      name: "Programari",
+      rows: [
+        ["Generat la", new Date().toLocaleString("ro-RO")],
+        ["Solicitari", requests.length],
+        [],
+        ["Data", "Start", "Final", "Activ", "Categorie", "Departament", "Lucrare", "Locatie", "Status", "Solicitant", "Observatii"],
+        ...requests.map((request) => [
+          request.date,
+          request.startTime,
+          request.endTime,
+          fleetRequestAssetLabel(db, request),
+          fleetCategoryLabel(request.category),
+          request.department || "",
+          request.jobName || "",
+          request.location || "",
+          fleetStatusLabel(request.status),
+          request.createdByName || "",
+          request.note || ""
+        ])
+      ]
+    },
+    {
+      name: "Parc auto utilaje",
+      rows: [
+        ["Categorie", "Nr. inmatriculare", "Denumire", "Tip", "Marca", "Model", "Departament", "Centru cost", "Locatie", "Cod activ", "Nr. inventar", "An", "Serie sasiu/VIN", "Serie motor", "Combustibil", "Rulaj curent", "UM rulaj", "Revizie la data", "Revizie la rulaj", "Inspectie", "Inspectie la data", "Activ", "Creat de"],
+        ...assets.map((asset) => [
+          fleetCategoryLabel(asset.category),
+          asset.registration || "",
+          asset.name || "",
+          asset.type || "",
+          asset.brand || "",
+          asset.model || "",
+          asset.department || "",
+          asset.costCenterName || "",
+          asset.location || "",
+          asset.assetCode || "",
+          asset.inventoryNo || "",
+          asset.year || "",
+          asset.vin || asset.serialNo || "",
+          asset.engineSerial || "",
+          asset.fuelType || "",
+          Number(asset.currentMeter || 0),
+          fleetMeterUnitLabel(asset.meterUnit),
+          asset.nextServiceDate || "",
+          Number(asset.nextServiceMeter || 0) || "",
+          asset.inspectionType || "",
+          asset.nextInspectionDate || "",
+          asset.active === false ? "Nu" : "Da",
+          asset.createdByName || ""
+        ])
+      ]
+    },
+    {
+      name: "Alerte",
+      rows: [
+        ["Status", "Tip", "Activ", "Nr.", "Detalii", "Scadenta data", "Scadenta rulaj", "Rulaj curent", "UM"],
+        ...alerts.map((alert) => [
+          alert.severity === "bad" ? "Critic" : "Atentie",
+          alert.title,
+          alert.assetName || "",
+          alert.registration || "",
+          alert.detail || "",
+          alert.dueDate || "",
+          alert.dueMeter || "",
+          alert.currentMeter || "",
+          alert.meterUnit ? fleetMeterUnitLabel(alert.meterUnit) : ""
+        ])
+      ]
+    },
+    {
+      name: "Istoric rulaj",
+      rows: [
+        ["Data", "Activ", "Nr.", "Categorie", "Rulaj precedent", "Rulaj nou", "UM", "Operator", "Observatii"],
+        ...meterReadings.map((reading) => [
+          reading.date || "",
+          reading.assetName || "",
+          reading.registration || "",
+          fleetCategoryLabel(reading.category),
+          Number(reading.previousMeter || 0),
+          Number(reading.meter || 0),
+          fleetMeterUnitLabel(reading.meterUnit),
+          reading.createdByName || "",
+          reading.note || ""
+        ])
+      ]
+    }
+  ]);
+}
+
+function buildTechnicalReportWorkbook(report) {
+  return exportXlsxWorkbook([
+    {
+      name: "Sumar tehnic",
+      rows: [
+        ["Perioada", `${report.from} - ${report.to}`],
+        ["Filtru lucrare", report.filters?.job || "Toate"],
+        ["Filtru reteta", report.filters?.recipeName || report.filters?.recipeId || "Toate"],
+        ["Ore lucrate", report.metrics.workHours],
+        ["Asfalt fabricat", report.metrics.producedTotal],
+        ["Asfalt vandut", report.metrics.soldTotal],
+        ["Ramas", report.metrics.remainingTotal],
+        [],
+        ["Reteta", "Fabricat", "Vandut", "Ramas"],
+        ...report.productionByRecipe.map((row) => [row.label, row.produced, row.sold, row.remaining])
+      ]
+    },
+    {
+      name: "Ore pe utilaj",
+      rows: [
+        ["Utilaj/auto", "Categorie", "Nr.", "Ore", "Lucrari", "Centre cost"],
+        ...report.hoursByAsset.map((row) => [row.assetName, row.category, row.registration, row.hours, row.jobs || "", row.costCenters || ""])
+      ]
+    },
+    {
+      name: "Ore pe lucrare",
+      rows: [
+        ["Lucrare", "Ore", "Utilaje", "Centre cost"],
+        ...report.hoursByJob.map((row) => [row.jobName, row.hours, row.assets || "", row.costCenters || ""])
+      ]
+    },
+    {
+      name: "Vanzari asfalt",
+      rows: [
+        ["Data", "Client", "CIF", "Lucrare", "Reteta", "Cantitate", "Document", "Auto", "Operator", "Observatii"],
+        ...report.sales.map((sale) => [
+          sale.date,
+          sale.client || "",
+          sale.clientCif || "",
+          sale.jobName || "",
+          sale.recipeName || "",
+          Number(sale.amount || 0),
+          sale.documentNo || "",
+          sale.vehicleNo || "",
+          sale.createdByName || "",
+          sale.note || ""
+        ])
+      ]
+    },
+    {
+      name: "Consumuri asfalt",
+      rows: [
+        ["Data", "Raport", "Lucrare", "Reteta", "Cantitate", "Bon/auto", "Operator", "Status vanzare"],
+        ...report.production.map((item) => [
+          item.date,
+          item.reportNo || "",
+          item.jobName || "",
+          item.recipeName || "",
+          Number(item.asphalt || 0),
+          [item.ticket, item.vehicleNo].filter(Boolean).join(" / "),
+          item.operatorName || item.createdByName || "",
+          item.soldFromConsumption ? `Vandut ${item.soldAmount ? `${fmt(item.soldAmount)} t` : ""}`.trim() : "Nevandut"
+        ])
+      ]
+    },
+    {
+      name: "Pontaje",
+      rows: [
+        ["Data", "Utilaj/auto", "Centru cost", "Lucrare", "Start", "Final", "Ore", "Tip document", "Nr. document", "Operator", "Observatii"],
+        ...report.workLogs.map((item) => [
+          item.date,
+          fleetAssetLabel(item),
+          item.costCenterName || "",
+          item.jobName || "",
+          item.startTime || "",
+          item.endTime || "",
+          Number(item.hours || 0),
+          item.documentLabel || workLogDocumentMeta(item).label,
+          item.documentNo || "",
+          item.operatorName || item.createdByName || "",
+          item.note || ""
+        ])
+      ]
+    }
+  ]);
+}
+
+function buildCostAccountingWorkbook(report) {
+  return exportXlsxWorkbook([
+    {
+      name: "Costuri pe ora",
+      rows: [
+        ["Perioada", `${report.from} - ${report.to}`],
+        ["Ore", report.metrics.hours],
+        ["Cheltuieli", report.metrics.expenses],
+        ["Cost mediu pe ora", report.metrics.averageCostPerHour],
+        [],
+        ["Centru cost", "Subcentru", "Nr.", "Ore", "Cheltuieli", "Cost/ora"],
+        ...report.rows.map((row) => [
+          row.costCenterName,
+          row.assetName,
+          row.registration || "",
+          row.hours,
+          row.expenses,
+          row.costPerHour
+        ])
+      ]
+    },
+    {
+      name: "Cheltuieli pe tip",
+      rows: [
+        ["Tip cheltuiala", "Randuri", "Suma"],
+        ...report.expensesByType.map((row) => [row.expenseType, row.rows, row.amount])
+      ]
+    },
+    {
+      name: "Cheltuieli Nexus",
+      rows: [
+        ["Data", "Centru cost", "Subcentru", "Nr.", "Tip", "Suma", "Moneda", "Document", "Furnizor", "Observatii"],
+        ...report.expenses.map((expense) => [
+          expense.date,
+          expense.costCenterName || "",
+          expense.assetName || "",
+          expense.registration || "",
+          expense.expenseType || "",
+          Number(expense.amount || 0),
+          expense.currency || "RON",
+          expense.documentNo || "",
+          expense.supplier || "",
+          expense.note || ""
+        ])
+      ]
+    },
+    {
+      name: "Ore folosite",
+      rows: [
+        ["Data", "Centru cost", "Utilaj/auto", "Lucrare", "Ore", "Tip document", "Nr. document"],
+        ...report.workLogs.map((item) => [
+          item.date,
+          item.costCenterName || "",
+          fleetAssetLabel(item),
+          item.jobName || "",
+          Number(item.hours || 0),
+          item.documentLabel || workLogDocumentMeta(item).label,
+          item.documentNo || ""
+        ])
+      ]
+    }
+  ]);
+}
+
+function buildConsumptionsReport(db, rows, url) {
+  const materialHeaders = db.materials.map((material) => `<th>${htmlEscape(material.name)}<br><span>${htmlEscape(material.unit)}</span></th>`).join("");
+  const totals = Object.fromEntries(db.materials.map((material) => [
+    material.id,
+    rows.reduce((sumValue, item) => sumValue + Number(item.materials.find((usage) => usage.materialId === material.id)?.amount || 0), 0)
+  ]));
+  const asphaltTotal = rows.reduce((sumValue, item) => sumValue + Number(item.asphalt || 0), 0);
+  const body = rows.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.date)}</td>
+      <td>${htmlEscape(item.reportNo)}</td>
+      <td>${htmlEscape(item.jobName || "-")}</td>
+      <td>${htmlEscape(item.recipeName)}</td>
+      <td>${htmlEscape(item.ticket || "-")}</td>
+      <td class="num">${fmt(item.asphalt)}</td>
+      <td>${htmlEscape(item.operatorName || "-")}</td>
+      ${db.materials.map((material) => `<td class="num">${fmt(item.materials.find((usage) => usage.materialId === material.id)?.amount || 0)}</td>`).join("")}
+    </tr>
+  `).join("") || `<tr><td colspan="${7 + db.materials.length}">Nu exista consumuri pentru filtrele selectate.</td></tr>`;
+  const totalsRow = `
+    <tr class="total">
+      <td colspan="5">TOTAL</td>
+      <td class="num">${fmt(asphaltTotal)}</td>
+      <td></td>
+      ${db.materials.map((material) => `<td class="num">${fmt(totals[material.id] || 0)}</td>`).join("")}
+    </tr>
+  `;
+  return reportPage(db, {
+    title: "Raport consumuri asfalt",
+    subtitle: `Perioada: ${htmlEscape(url.searchParams.get("from") || "inceput")} - ${htmlEscape(url.searchParams.get("to") || "sfarsit")}`,
+    content: `
+      <table>
+        <thead>
+          <tr><th>Data</th><th>Raport</th><th>Lucrare</th><th>Reteta</th><th>Bon / auto</th><th>Asfalt<br><span>t</span></th><th>Operator</th>${materialHeaders}</tr>
+        </thead>
+        <tbody>${body}${rows.length ? totalsRow : ""}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildStockOperationsReport(db, rows, url) {
+  const inTotal = rows.filter((item) => item.amount > 0).reduce((sumValue, item) => sumValue + Number(item.amount || 0), 0);
+  const outTotal = rows.filter((item) => item.amount < 0).reduce((sumValue, item) => sumValue + Math.abs(Number(item.amount || 0)), 0);
+  const body = rows.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.date)}</td>
+      <td>${htmlEscape(typeLabel(item.type))}</td>
+      <td>${htmlEscape(item.materialName || "-")}</td>
+      <td class="num">${fmt(Math.abs(Number(item.amount || 0)))}</td>
+      <td>${htmlEscape(item.unit || "")}</td>
+      <td>${htmlEscape(item.department || "-")}</td>
+      <td>${htmlEscape(item.jobName || "-")}</td>
+      <td>${htmlEscape(item.transportDoc || "-")}</td>
+      <td>${htmlEscape(item.createdByName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="9">Nu exista miscari pentru filtrele selectate.</td></tr>`;
+  return reportPage(db, {
+    title: "Raport miscari stoc",
+    subtitle: `Perioada: ${htmlEscape(url.searchParams.get("from") || "inceput")} - ${htmlEscape(url.searchParams.get("to") || "sfarsit")}`,
+    content: `
+      <div class="summary">
+        <span>Intrari manuale: <strong>${fmt(inTotal)}</strong></span>
+        <span>Iesiri manuale: <strong>${fmt(outTotal)}</strong></span>
+        <span>Randuri: <strong>${rows.length}</strong></span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Data</th><th>Tip</th><th>Material</th><th>Cantitate</th><th>UM</th><th>Departament</th><th>Lucrare</th><th>Bon</th><th>Operator</th></tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildDailyReportPage(db, report) {
+  const materialRows = report.materialTotals.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.materialName)}</td>
+      <td class="num">${fmt(item.monthOpeningStock)} ${htmlEscape(item.unit)}</td>
+      <td class="num">${fmt(item.previousDayStock)} ${htmlEscape(item.unit)}</td>
+      <td class="num">${fmt(item.openingStock)} ${htmlEscape(item.unit)}</td>
+      <td class="num">${fmt(item.delivered)}</td>
+      <td class="num">${fmt(item.consumed)}</td>
+      <td class="num">${fmt(item.manualIn)}</td>
+      <td class="num">${fmt(item.manualOut)}</td>
+      <td class="num">${fmt(item.netMovement)}</td>
+      <td class="num">${fmt(item.closingStock)} ${htmlEscape(item.unit)}</td>
+    </tr>
+  `).join("");
+  const consumptionRows = report.consumptions.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.reportNo || "-")}</td>
+      <td>${htmlEscape(item.jobName || "-")}</td>
+      <td>${htmlEscape(item.recipeName || "-")}</td>
+      <td>${htmlEscape(item.ticket || "-")}</td>
+      <td class="num">${fmt(item.asphalt)} t</td>
+      <td>${htmlEscape(item.operatorName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Nu exista consumuri in ziua selectata.</td></tr>`;
+  const deliveryRows = report.deliveries.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.materialName || "-")}</td>
+      <td class="num">${fmt(item.amount)} ${htmlEscape(item.unit || "")}</td>
+      <td>${htmlEscape(item.supplier || "-")}</td>
+      <td>${htmlEscape(item.document || "-")}</td>
+      <td>${htmlEscape(item.operatorName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">Nu exista intrari in ziua selectata.</td></tr>`;
+  const manualRows = report.manualMovements.map((item) => `
+    <tr>
+      <td>${htmlEscape(typeLabel(item.type))}</td>
+      <td>${htmlEscape(item.materialName || "-")}</td>
+      <td class="num">${fmt(Math.abs(item.amount))} ${htmlEscape(item.unit || "")}</td>
+      <td>${htmlEscape(item.department || "-")}</td>
+      <td>${htmlEscape(item.jobName || "-")}</td>
+      <td>${htmlEscape(item.transportDoc || "-")}</td>
+      <td>${htmlEscape(item.createdByName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="7">Nu exista miscari catre alte departamente in ziua selectata.</td></tr>`;
+  const criticalRows = report.criticalStocks.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.materialName)}</td>
+      <td class="num">${fmt(item.stock)} ${htmlEscape(item.unit)}</td>
+      <td class="num">${fmt(item.alert)} ${htmlEscape(item.unit)}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="3">Nu exista stocuri critice.</td></tr>`;
+  return reportPage(db, {
+    title: "Raport zi gestionar",
+    subtitle: `Data: ${htmlEscape(report.date)}`,
+    content: `
+      <div class="summary">
+        <span>Asfalt: <strong>${fmt(report.metrics.asphaltTotal)} t</strong></span>
+        <span>Consumuri: <strong>${report.metrics.consumptionsCount}</strong></span>
+        <span>Intrari: <strong>${report.metrics.deliveriesCount}</strong></span>
+        <span>Iesiri departamente: <strong>${report.metrics.manualOutCount}</strong></span>
+        <span>Stocuri critice: <strong>${report.metrics.criticalStocksCount}</strong></span>
+      </div>
+      <h2>Totaluri pe materiale</h2>
+      <table>
+        <thead><tr><th>Material</th><th>Stoc inceput luna</th><th>Stoc zi precedenta</th><th>Stoc inceput zi</th><th>Intrari</th><th>Consum asfalt</th><th>Intrari manuale</th><th>Iesiri manuale</th><th>Net zi</th><th>Stoc final zi</th></tr></thead>
+        <tbody>${materialRows}</tbody>
+      </table>
+      <h2>Consum asfalt</h2>
+      <table>
+        <thead><tr><th>Raport</th><th>Lucrare</th><th>Reteta</th><th>Bon / auto</th><th>Asfalt</th><th>Operator</th></tr></thead>
+        <tbody>${consumptionRows}</tbody>
+      </table>
+      <h2>Intrari materiale</h2>
+      <table>
+        <thead><tr><th>Material</th><th>Cantitate</th><th>Furnizor</th><th>Document</th><th>Operator</th></tr></thead>
+        <tbody>${deliveryRows}</tbody>
+      </table>
+      <h2>Miscari catre alte departamente</h2>
+      <table>
+        <thead><tr><th>Tip</th><th>Material</th><th>Cantitate</th><th>Departament</th><th>Lucrare</th><th>Bon</th><th>Operator</th></tr></thead>
+        <tbody>${manualRows}</tbody>
+      </table>
+      <h2>Stocuri critice</h2>
+      <table>
+        <thead><tr><th>Material</th><th>Stoc</th><th>Prag</th></tr></thead>
+        <tbody>${criticalRows}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildPeriodReportPage(db, report) {
+  const materialRows = report.materialTotals.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.materialName)}</td>
+      <td class="num">${fmt(item.openingStock)} ${htmlEscape(item.unit)}</td>
+      <td class="num">${fmt(item.delivered)}</td>
+      <td class="num">${fmt(item.consumed)}</td>
+      <td class="num">${fmt(item.manualIn)}</td>
+      <td class="num">${fmt(item.manualOut)}</td>
+      <td class="num">${fmt(item.netMovement)}</td>
+      <td class="num">${fmt(item.closingStock)} ${htmlEscape(item.unit)}</td>
+    </tr>
+  `).join("");
+  const consumptionRows = report.consumptions.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.date)}</td>
+      <td>${htmlEscape(item.reportNo || "-")}</td>
+      <td>${htmlEscape(item.jobName || "-")}</td>
+      <td>${htmlEscape(item.recipeName || "-")}</td>
+      <td>${htmlEscape(item.ticket || "-")}</td>
+      <td class="num">${fmt(item.asphalt)} t</td>
+      <td>${htmlEscape(item.operatorName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="7">Nu exista consumuri in perioada selectata.</td></tr>`;
+  const deliveryRows = report.deliveries.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.date)}</td>
+      <td>${htmlEscape(item.materialName || "-")}</td>
+      <td class="num">${fmt(item.amount)} ${htmlEscape(item.unit || "")}</td>
+      <td>${htmlEscape(item.supplier || "-")}</td>
+      <td>${htmlEscape(item.document || "-")}</td>
+      <td>${htmlEscape(item.operatorName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Nu exista intrari in perioada selectata.</td></tr>`;
+  const manualRows = report.manualMovements.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.date)}</td>
+      <td>${htmlEscape(typeLabel(item.type))}</td>
+      <td>${htmlEscape(item.materialName || "-")}</td>
+      <td class="num">${fmt(Math.abs(item.amount))} ${htmlEscape(item.unit || "")}</td>
+      <td>${htmlEscape(item.department || "-")}</td>
+      <td>${htmlEscape(item.jobName || "-")}</td>
+      <td>${htmlEscape(item.transportDoc || "-")}</td>
+      <td>${htmlEscape(item.createdByName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="8">Nu exista miscari catre alte departamente in perioada selectata.</td></tr>`;
+  const criticalRows = report.criticalStocks.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.materialName)}</td>
+      <td class="num">${fmt(item.stock)} ${htmlEscape(item.unit)}</td>
+      <td class="num">${fmt(item.alert)} ${htmlEscape(item.unit)}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="3">Nu exista stocuri critice.</td></tr>`;
+  return reportPage(db, {
+    title: "Raport perioada gestionar",
+    subtitle: `Perioada: ${htmlEscape(report.from)} - ${htmlEscape(report.to)}`,
+    content: `
+      <div class="summary">
+        <span>Asfalt: <strong>${fmt(report.metrics.asphaltTotal)} t</strong></span>
+        <span>Consumuri: <strong>${report.metrics.consumptionsCount}</strong></span>
+        <span>Intrari: <strong>${report.metrics.deliveriesCount}</strong></span>
+        <span>Iesiri departamente: <strong>${report.metrics.manualOutCount}</strong></span>
+        <span>Stocuri critice: <strong>${report.metrics.criticalStocksCount}</strong></span>
+      </div>
+      <h2>Totaluri pe materiale</h2>
+      <table>
+        <thead><tr><th>Material</th><th>Stoc inceput</th><th>Intrari</th><th>Consum asfalt</th><th>Intrari manuale</th><th>Iesiri manuale</th><th>Net perioada</th><th>Stoc final perioada</th></tr></thead>
+        <tbody>${materialRows}</tbody>
+      </table>
+      <h2>Consum asfalt</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Raport</th><th>Lucrare</th><th>Reteta</th><th>Bon / auto</th><th>Asfalt</th><th>Operator</th></tr></thead>
+        <tbody>${consumptionRows}</tbody>
+      </table>
+      <h2>Intrari materiale</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Material</th><th>Cantitate</th><th>Furnizor</th><th>Document</th><th>Operator</th></tr></thead>
+        <tbody>${deliveryRows}</tbody>
+      </table>
+      <h2>Miscari catre alte departamente</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Tip</th><th>Material</th><th>Cantitate</th><th>Departament</th><th>Lucrare</th><th>Bon</th><th>Operator</th></tr></thead>
+        <tbody>${manualRows}</tbody>
+      </table>
+      <h2>Stocuri critice curente</h2>
+      <table>
+        <thead><tr><th>Material</th><th>Stoc</th><th>Prag</th></tr></thead>
+        <tbody>${criticalRows}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildAccountingReportPage(db, report) {
+  const materialRows = report.rows.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.materialName)}</td>
+      <td>${htmlEscape(item.unit)}</td>
+      <td class="num">${fmt(item.openingStock)}</td>
+      <td class="num">${fmt(item.deliveries)}</td>
+      <td class="num">${fmt(item.asphaltConsumption)}</td>
+      <td class="num">${fmt(item.manualIn)}</td>
+      <td class="num">${fmt(item.manualOut)}</td>
+      <td class="num">${fmt(item.adjustments)}</td>
+      <td class="num">${fmt(item.closingStock)}</td>
+      <td class="num">${fmt(item.difference)}</td>
+    </tr>
+  `).join("");
+  return reportPage(db, {
+    title: "Raport lunar contabil",
+    subtitle: `Luna: ${htmlEscape(report.month)} / ${htmlEscape(report.from)} - ${htmlEscape(report.to)}`,
+    content: `
+      <div class="summary">
+        <span>Materiale: <strong>${report.metrics.materials}</strong></span>
+        <span>Intrari: <strong>${fmt(report.metrics.deliveries)}</strong></span>
+        <span>Consum asfalt: <strong>${fmt(report.metrics.asphaltConsumption)}</strong></span>
+        <span>Iesiri departamente: <strong>${fmt(report.metrics.manualOut)}</strong></span>
+        <span>Diferente: <strong>${report.metrics.differences}</strong></span>
+      </div>
+      <h2>Solduri si miscari pe materiale</h2>
+      <table>
+        <thead><tr><th>Material</th><th>UM</th><th>Stoc inceput luna</th><th>Intrari luna</th><th>Consum asfalt</th><th>Intrari manuale</th><th>Iesiri departamente</th><th>Ajustari/anulari</th><th>Stoc final luna</th><th>Diferenta</th></tr></thead>
+        <tbody>${materialRows}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildLedgerReport(db, rows, material, filters) {
+  const inTotal = rows.filter((item) => item.amount > 0 && !isStockBalanceMovement(item)).reduce((sumValue, item) => sumValue + Number(item.amount || 0), 0);
+  const outTotal = rows.filter((item) => item.amount < 0 && !isStockBalanceMovement(item)).reduce((sumValue, item) => sumValue + Math.abs(Number(item.amount || 0)), 0);
+  const adjTotal = rows.filter((item) => isStockBalanceMovement(item)).reduce((sumValue, item) => sumValue + Number(item.amount || 0), 0);
+  const body = rows.map((item) => `
+    <tr>
+      <td>${htmlEscape(item.date)}</td>
+      <td>${htmlEscape(item.materialName || "-")}</td>
+      <td>${htmlEscape(typeLabel(item.type))}</td>
+      <td>${htmlEscape(item.note || "-")}</td>
+      <td class="num">${item.amount > 0 && !isStockBalanceMovement(item) ? fmt(item.amount) : "-"}</td>
+      <td class="num">${item.amount < 0 && !isStockBalanceMovement(item) ? fmt(Math.abs(item.amount)) : "-"}</td>
+      <td class="num">${isStockBalanceMovement(item) ? fmt(item.amount) : "-"}</td>
+      <td>${htmlEscape(item.unit || material?.unit || "")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="8">Nu exista miscari pentru filtrele selectate.</td></tr>`;
+  return reportPage(db, {
+    title: `Fisa stoc - ${htmlEscape(material?.name || "Toate materialele")}`,
+    subtitle: `Perioada: ${htmlEscape(filters.from || "inceput")} - ${htmlEscape(filters.to || "sfarsit")}`,
+    content: `
+      <div class="summary">
+        <span>Intrari: <strong>${fmt(inTotal)}</strong></span>
+        <span>Iesiri: <strong>${fmt(outTotal)}</strong></span>
+        <span>Ajustari: <strong>${fmt(adjTotal)}</strong></span>
+        ${material ? `<span>Stoc curent: <strong>${fmt(material.stock)} ${htmlEscape(material.unit)}</strong></span>` : ""}
+      </div>
+      <table>
+        <thead>
+          <tr><th>Data</th><th>Material</th><th>Tip</th><th>Document / lucrare</th><th>Intrare</th><th>Iesire</th><th>Ajustare</th><th>UM</th></tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildProcurementOrdersReport(db) {
+  const orders = procurementOrdersView(db);
+  const receipts = (db.procurementReceipts || []).filter((item) => !item.canceled && !item.deleted).slice().sort(sortNewest);
+  const openCount = orders.filter((order) => ["open", "partial"].includes(order.status)).length;
+  const closedCount = orders.filter((order) => order.status === "closed").length;
+  const ticketReceipts = receipts.filter((receipt) => receipt.scaleTicket || receipt.scaleTicketId).length;
+  const orderRows = orders.map((order) => `
+    <tr>
+      <td>${htmlEscape(order.date)}</td>
+      <td>${htmlEscape(order.expectedDate || "-")}</td>
+      <td>${htmlEscape(order.orderNo || "-")}</td>
+      <td>${htmlEscape(order.materialName || "-")}</td>
+      <td>${htmlEscape(order.supplier || "-")}</td>
+      <td class="num">${fmt(order.amount)} ${htmlEscape(order.unit || "")}</td>
+      <td class="num">${fmt(order.receivedAmount)} ${htmlEscape(order.unit || "")}</td>
+      <td class="num">${fmt(order.remainingAmount)} ${htmlEscape(order.unit || "")}</td>
+      <td>${htmlEscape(procurementStatusLabel(order.status))}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="9">Nu exista comenzi de aprovizionare.</td></tr>`;
+  const receiptRows = receipts.map((receipt) => `
+    <tr>
+      <td>${htmlEscape(receipt.date)}</td>
+      <td>${htmlEscape(receipt.orderNo || "-")}</td>
+      <td>${htmlEscape(receipt.materialName || "-")}</td>
+      <td class="num">${fmt(receipt.amount)} ${htmlEscape(receipt.unit || "")}</td>
+      <td>${htmlEscape(receipt.document || "-")}</td>
+      <td>${htmlEscape(receipt.cmr || "-")}</td>
+      <td>${htmlEscape(receipt.scaleTicket || "-")}</td>
+      <td>${htmlEscape(receipt.scaleProduct || "-")}</td>
+      <td>${htmlEscape([receipt.vehicleNo, receipt.trailerNo].filter(Boolean).join(" / ") || "-")}</td>
+      <td>${htmlEscape(receipt.createdByName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="10">Nu exista receptii pe comenzi.</td></tr>`;
+  return reportPage(db, {
+    title: "Raport comenzi aprovizionare",
+    subtitle: "Comenzi, receptii si tichete cantar importate",
+    content: `
+      <div class="summary">
+        <span>Comenzi deschise: <strong>${openCount}</strong></span>
+        <span>Comenzi inchise: <strong>${closedCount}</strong></span>
+        <span>Receptii: <strong>${receipts.length}</strong></span>
+        <span>Receptii cu tichet: <strong>${ticketReceipts}</strong></span>
+      </div>
+      <h2>Comenzi</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Estimat</th><th>Comanda</th><th>Material</th><th>Furnizor</th><th>Comandat</th><th>Receptionat</th><th>Ramas</th><th>Status</th></tr></thead>
+        <tbody>${orderRows}</tbody>
+      </table>
+      <h2>Receptii</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Comanda</th><th>Material</th><th>Cantitate</th><th>Aviz/factura</th><th>CMR</th><th>Tichet</th><th>Produs cantar</th><th>Auto</th><th>Operator</th></tr></thead>
+        <tbody>${receiptRows}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildFleetReport(db) {
+  const assets = fleetAssetsView(db);
+  const requests = fleetRequestsView(db);
+  const alerts = buildFleetAlerts(db);
+  const statusCounts = requests.reduce((counts, request) => {
+    counts[request.status || "new"] = (counts[request.status || "new"] || 0) + 1;
+    return counts;
+  }, {});
+  const alertRows = alerts.map((alert) => `
+    <tr>
+      <td>${htmlEscape(alert.severity === "bad" ? "Critic" : "Atentie")}</td>
+      <td>${htmlEscape(alert.title || "-")}</td>
+      <td>${htmlEscape(alert.assetName || "-")}</td>
+      <td>${htmlEscape(alert.detail || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="4">Nu exista alerte de mecanizare.</td></tr>`;
+  const requestRows = requests.map((request) => `
+    <tr>
+      <td>${htmlEscape(request.date)}</td>
+      <td>${htmlEscape(`${request.startTime || ""}-${request.endTime || ""}`)}</td>
+      <td>${htmlEscape(fleetRequestAssetLabel(db, request))}</td>
+      <td>${htmlEscape(request.department || "-")}</td>
+      <td>${htmlEscape(request.jobName || "-")}</td>
+      <td>${htmlEscape(request.location || "-")}</td>
+      <td>${htmlEscape(fleetStatusLabel(request.status))}</td>
+      <td>${htmlEscape(request.createdByName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="8">Nu exista solicitari de mecanizare.</td></tr>`;
+  const assetRows = assets.map((asset) => `
+    <tr>
+      <td>${htmlEscape(fleetCategoryLabel(asset.category))}</td>
+      <td>${htmlEscape(asset.registration || "-")}</td>
+      <td>${htmlEscape(asset.name || "-")}</td>
+      <td>${htmlEscape(asset.type || "-")}</td>
+      <td>${htmlEscape([asset.brand, asset.model].filter(Boolean).join(" / ") || "-")}</td>
+      <td>${htmlEscape(asset.department || "-")}</td>
+      <td>${htmlEscape(asset.costCenterName || "-")}</td>
+      <td>${htmlEscape(asset.location || "-")}</td>
+      <td class="num">${htmlEscape(`${fmt(asset.currentMeter || 0)} ${fleetMeterUnitLabel(asset.meterUnit)}`)}</td>
+      <td>${htmlEscape(asset.nextServiceDate || "-")}</td>
+      <td>${htmlEscape(asset.nextInspectionDate || "-")}</td>
+      <td>${htmlEscape(asset.createdByName || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="12">Nu exista autovehicule sau utilaje.</td></tr>`;
+  return reportPage(db, {
+    title: "Raport mecanizare",
+    subtitle: "Programari, solicitari si parc auto/utilaje",
+    content: `
+      <div class="summary">
+        <span>Active: <strong>${assets.length}</strong></span>
+        <span>Solicitari: <strong>${requests.length}</strong></span>
+        <span>Alerte: <strong>${alerts.length}</strong></span>
+        <span>Noi: <strong>${statusCounts.new || 0}</strong></span>
+        <span>Aprobate/planificate: <strong>${(statusCounts.approved || 0) + (statusCounts.planned || 0)}</strong></span>
+        <span>Realizate: <strong>${statusCounts.done || 0}</strong></span>
+      </div>
+      <h2>Alerte mecanizare</h2>
+      <table>
+        <thead><tr><th>Status</th><th>Tip</th><th>Activ</th><th>Detalii</th></tr></thead>
+        <tbody>${alertRows}</tbody>
+      </table>
+      <h2>Solicitari mecanizare</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Interval</th><th>Activ</th><th>Departament</th><th>Lucrare</th><th>Locatie</th><th>Status</th><th>Creat de</th></tr></thead>
+        <tbody>${requestRows}</tbody>
+      </table>
+      <h2>Parc auto si utilaje</h2>
+      <table>
+        <thead><tr><th>Categorie</th><th>Nr.</th><th>Denumire</th><th>Tip</th><th>Marca/model</th><th>Departament</th><th>Centru cost</th><th>Locatie</th><th>Rulaj</th><th>Revizie data</th><th>Inspectie data</th><th>Creat de</th></tr></thead>
+        <tbody>${assetRows}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildTechnicalReportPage(db, report) {
+  const recipeRows = report.productionByRecipe.map((row) => `
+    <tr>
+      <td>${htmlEscape(row.label)}</td>
+      <td class="num">${fmt(row.produced)} t</td>
+      <td class="num">${fmt(row.sold)} t</td>
+      <td class="num">${fmt(row.remaining)} t</td>
+    </tr>
+  `).join("") || `<tr><td colspan="4">Nu exista productie sau vanzari in perioada selectata.</td></tr>`;
+  const assetRows = report.hoursByAsset.map((row) => `
+    <tr>
+      <td>${htmlEscape(row.assetName || "-")}</td>
+      <td>${htmlEscape(row.category || "-")}</td>
+      <td class="num">${fmt(row.hours)} ore</td>
+      <td>${htmlEscape(row.jobs || "-")}</td>
+      <td>${htmlEscape(row.costCenters || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">Nu exista ore lucrate in perioada selectata.</td></tr>`;
+  const jobRows = report.hoursByJob.map((row) => `
+    <tr>
+      <td>${htmlEscape(row.jobName || "-")}</td>
+      <td class="num">${fmt(row.hours)} ore</td>
+      <td>${htmlEscape(row.assets || "-")}</td>
+      <td>${htmlEscape(row.costCenters || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="4">Nu exista ore pe lucrari.</td></tr>`;
+  const consumptionRows = (report.production || []).map((item) => `
+    <tr>
+      <td>${htmlEscape(item.date || "-")}</td>
+      <td>${htmlEscape(item.reportNo || "-")}</td>
+      <td>${htmlEscape(item.jobName || "-")}</td>
+      <td>${htmlEscape(item.recipeName || "-")}</td>
+      <td class="num">${fmt(item.asphalt || 0)} t</td>
+      <td>${htmlEscape([item.ticket, item.vehicleNo].filter(Boolean).join(" / ") || "-")}</td>
+      <td>${htmlEscape(item.operatorName || item.createdByName || "-")}</td>
+      <td>${htmlEscape(item.soldFromConsumption ? `Vandut ${item.soldAmount ? `${fmt(item.soldAmount)} t` : ""}`.trim() : "Nevandut")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="8">Nu exista consumuri de asfalt in perioada selectata.</td></tr>`;
+  const filterParts = [
+    report.filters?.job ? `Lucrare: ${report.filters.job}` : "",
+    report.filters?.recipeId ? `Reteta: ${report.filters.recipeName || report.filters.recipeId}` : ""
+  ].filter(Boolean);
+  return reportPage(db, {
+    title: "Raport departament tehnic",
+    subtitle: `Perioada: ${htmlEscape(report.from)} - ${htmlEscape(report.to)}${filterParts.length ? ` / ${htmlEscape(filterParts.join(" / "))}` : ""}`,
+    content: `
+      <div class="summary">
+        <span>Ore utilaje: <strong>${fmt(report.metrics.workHours)}</strong></span>
+        <span>Fabricat: <strong>${fmt(report.metrics.producedTotal)} t</strong></span>
+        <span>Vandut: <strong>${fmt(report.metrics.soldTotal)} t</strong></span>
+        <span>Ramas: <strong>${fmt(report.metrics.remainingTotal)} t</strong></span>
+      </div>
+      <h2>Productie asfalt</h2>
+      <table>
+        <thead><tr><th>Reteta</th><th>Fabricat</th><th>Vandut</th><th>Ramas</th></tr></thead>
+        <tbody>${recipeRows}</tbody>
+      </table>
+      <h2>Consumuri asfalt</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Raport</th><th>Lucrare</th><th>Reteta</th><th>Cantitate</th><th>Bon/auto</th><th>Operator</th><th>Status vanzare</th></tr></thead>
+        <tbody>${consumptionRows}</tbody>
+      </table>
+      <h2>Ore lucrate pe utilaj</h2>
+      <table>
+        <thead><tr><th>Utilaj/auto</th><th>Categorie</th><th>Ore</th><th>Lucrari</th><th>Centre cost</th></tr></thead>
+        <tbody>${assetRows}</tbody>
+      </table>
+      <h2>Ore lucrate pe lucrare</h2>
+      <table>
+        <thead><tr><th>Lucrare</th><th>Ore</th><th>Utilaje</th><th>Centre cost</th></tr></thead>
+        <tbody>${jobRows}</tbody>
+      </table>
+    `
+  });
+}
+
+function buildCostAccountingReportPage(db, report) {
+  const costRows = report.rows.map((row) => `
+    <tr>
+      <td>${htmlEscape(row.costCenterName || "-")}</td>
+      <td>${htmlEscape(row.assetName || "-")}</td>
+      <td>${htmlEscape(row.registration || "-")}</td>
+      <td class="num">${fmt(row.hours)}</td>
+      <td class="num">${fmt(row.expenses)} RON</td>
+      <td class="num">${row.hours > 0 ? `${fmt(row.costPerHour)} RON/ora` : "-"}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Nu exista ore sau cheltuieli pentru perioada selectata.</td></tr>`;
+  const typeRows = report.expensesByType.map((row) => `
+    <tr>
+      <td>${htmlEscape(row.expenseType || "-")}</td>
+      <td class="num">${row.rows}</td>
+      <td class="num">${fmt(row.amount)} RON</td>
+    </tr>
+  `).join("") || `<tr><td colspan="3">Nu exista cheltuieli importate.</td></tr>`;
+  return reportPage(db, {
+    title: "Raport contabilitate costuri",
+    subtitle: `Perioada: ${htmlEscape(report.from)} - ${htmlEscape(report.to)}`,
+    content: `
+      <div class="summary">
+        <span>Centre: <strong>${report.metrics.costCenters}</strong></span>
+        <span>Ore: <strong>${fmt(report.metrics.hours)}</strong></span>
+        <span>Cheltuieli: <strong>${fmt(report.metrics.expenses)} RON</strong></span>
+        <span>Cost mediu: <strong>${fmt(report.metrics.averageCostPerHour)} RON/ora</strong></span>
+      </div>
+      <h2>Costuri pe centre si subcentre</h2>
+      <table>
+        <thead><tr><th>Centru cost</th><th>Subcentru</th><th>Nr.</th><th>Ore</th><th>Cheltuieli</th><th>Cost/ora</th></tr></thead>
+        <tbody>${costRows}</tbody>
+      </table>
+      <h2>Cheltuieli pe tip</h2>
+      <table>
+        <thead><tr><th>Tip cheltuiala</th><th>Randuri</th><th>Suma</th></tr></thead>
+        <tbody>${typeRows}</tbody>
+      </table>
+    `
+  });
+}
+
+function reportPage(db, { title, subtitle, content }) {
+  const settings = db.settings || {};
+  const company = settings.companyName || "Statie asfalt";
+  const station = settings.stationName || "";
+  const location = settings.location || "";
+  const logo = settings.logoDataUrl ? `<img class="logo" src="${htmlEscape(settings.logoDataUrl)}" alt="Logo">` : "";
+  return `<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <title>${htmlEscape(title)}</title>
+  <style>
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #17211d; background: #fff; }
+    .page { padding: 26px; }
+    header { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid #17211d; padding-bottom: 14px; margin-bottom: 18px; }
+    .identity { display: flex; align-items: flex-start; gap: 12px; }
+    .logo { width: 64px; max-height: 64px; object-fit: contain; }
+    h1 { margin: 0; font-size: 24px; }
+    h2 { margin: 6px 0 0; font-size: 16px; color: #4f5f57; font-weight: 400; }
+    .meta { text-align: right; color: #4f5f57; font-size: 12px; line-height: 1.5; }
+    .summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 16px; }
+    .summary span { border: 1px solid #d6dfda; border-radius: 6px; padding: 7px 9px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { border: 1px solid #cbd5d0; padding: 6px; vertical-align: top; }
+    th { background: #edf3f0; text-align: left; }
+    th span { color: #65736d; font-weight: 400; }
+    .num { text-align: right; white-space: nowrap; }
+    .total td { font-weight: 700; background: #f5f8f6; }
+    footer { margin-top: 18px; display: flex; justify-content: space-between; color: #65736d; font-size: 11px; }
+    .actions { margin: 0 0 14px; }
+    button { min-height: 36px; border: 1px solid #176f5d; border-radius: 6px; background: #176f5d; color: white; padding: 7px 11px; cursor: pointer; }
+    @media print {
+      .actions { display: none; }
+      .page { padding: 0; }
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="actions"><button onclick="window.print()">Tipareste / Salveaza PDF</button></div>
+    <header>
+      <div class="identity">
+        ${logo}
+        <div>
+          <h1>${htmlEscape(company)}</h1>
+          <h2>${htmlEscape(station || title)}</h2>
+          ${location ? `<h2>${htmlEscape(location)}</h2>` : ""}
+        </div>
+      </div>
+      <div class="meta">
+        <strong>${htmlEscape(title)}</strong><br>
+        ${subtitle}<br>
+        Generat: ${htmlEscape(new Date().toLocaleString("ro-RO"))}
+      </div>
+    </header>
+    ${content}
+    <footer>
+      <span>${htmlEscape(settings.appCredit || "Aplicatie realizata de Constantin Constantin")}</span>
+      <span>InfraFlow</span>
+    </footer>
+  </div>
+</body>
+</html>`;
+}
+
+function typeLabel(type) {
+  return {
+    opening_stock: "Sold initial",
+    adjustment: "Ajustare",
+    manual_in: "Intrare manuala",
+    manual_out: "Iesire manuala",
+    transfer_to_dept: "Transfer departament",
+    cancel_manual_in: "Anulare intrare manuala",
+    cancel_manual_out: "Anulare iesire manuala",
+    consumption: "Consum",
+    cancel_consumption: "Anulare consum",
+    delivery: "Intrare",
+    cancel_delivery: "Anulare intrare"
+  }[type] || type;
+}
+
+function htmlEscape(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function exportXlsxWorkbook(sheets) {
+  const safeSheets = sheets.map((sheet, index) => ({
+    name: sanitizeSheetName(sheet.name || `Foaie ${index + 1}`),
+    rows: sheet.rows || []
+  }));
+  const sheetXml = safeSheets.map((sheet) => worksheetXml(sheet.rows));
+  const workbookSheets = safeSheets.map((sheet, index) =>
+    `<sheet name="${xmlAttr(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`
+  ).join("");
+  const workbookRels = safeSheets.map((_, index) =>
+    `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`
+  ).join("") + `<Relationship Id="rId${safeSheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
+  const overrides = safeSheets.map((_, index) =>
+    `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+  ).join("");
+  const files = [
+    ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${overrides}</Types>`],
+    ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${workbookSheets}</sheets></workbook>`],
+    ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${workbookRels}</Relationships>`],
+    ["xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Arial"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>`]
+  ];
+  sheetXml.forEach((xml, index) => files.push([`xl/worksheets/sheet${index + 1}.xml`, xml]));
+  return buildZip(files);
+}
+
+function worksheetXml(rows) {
+  const body = rows.map((row, rowIndex) => {
+    const cells = row.map((value, colIndex) => cellXml(value, colIndex, rowIndex)).join("");
+    return `<row r="${rowIndex + 1}">${cells}</row>`;
+  }).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+}
+
+function cellXml(value, colIndex, rowIndex) {
+  const ref = `${columnName(colIndex)}${rowIndex + 1}`;
+  if (typeof value === "number" && Number.isFinite(value)) return `<c r="${ref}"><v>${value}</v></c>`;
+  return `<c r="${ref}" t="inlineStr"><is><t>${xmlText(value ?? "")}</t></is></c>`;
+}
+
+function columnName(index) {
+  let name = "";
+  let current = index + 1;
+  while (current > 0) {
+    const mod = (current - 1) % 26;
+    name = String.fromCharCode(65 + mod) + name;
+    current = Math.floor((current - mod) / 26);
+  }
+  return name;
+}
+
+function buildZip(files) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  files.forEach(([name, content]) => {
+    const nameBytes = Buffer.from(name, "utf8");
+    const data = Buffer.from(content, "utf8");
+    const crc = crc32(data);
+    const local = Buffer.concat([
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length), u16(nameBytes.length), u16(0),
+      nameBytes, data
+    ]);
+    const central = Buffer.concat([
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length), u16(nameBytes.length), u16(0),
+      u16(0), u16(0), u16(0), u32(0), u32(offset), nameBytes
+    ]);
+    localParts.push(local);
+    centralParts.push(central);
+    offset += local.length;
+  });
+  const centralSize = centralParts.reduce((total, part) => total + part.length, 0);
+  const end = Buffer.concat([
+    u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+    u32(centralSize), u32(offset), u16(0)
+  ]);
+  return Buffer.concat([...localParts, ...centralParts, end]);
+}
+
+function u16(value) {
+  const buffer = Buffer.alloc(2);
+  buffer.writeUInt16LE(value);
+  return buffer;
+}
+
+function u32(value) {
+  const buffer = Buffer.alloc(4);
+  buffer.writeUInt32LE(value >>> 0);
+  return buffer;
+}
+
+function crc32(bytes) {
+  let crc = -1;
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc = (crc >>> 8) ^ crcTable()[(crc ^ bytes[i]) & 255];
+  }
+  return (crc ^ -1) >>> 0;
+}
+
+function crcTable() {
+  if (crcTable.cache) return crcTable.cache;
+  crcTable.cache = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  return crcTable.cache;
+}
+
+function sanitizeSheetName(value) {
+  return String(value).replace(/[\[\]:*?/\\]/g, " ").slice(0, 31) || "Foaie";
+}
+
+function xmlText(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+function xmlAttr(value) {
+  return xmlText(value).replaceAll('"', "&quot;");
+}
+
+function id(prefix) {
+  return `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+}
+
+function throwHttp(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  throw error;
+}
+
+function httpError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+process.on("uncaughtException", (error) => {
+  console.error(error);
+});
+module.exports = router

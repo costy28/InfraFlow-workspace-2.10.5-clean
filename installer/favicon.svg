@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#1e3a5f"/>
+  <rect x="8" y="42" width="48" height="10" rx="2" fill="#374151"/>
+  <rect x="14" y="46" width="8" height="2" rx="1" fill="#f59e0b"/>
+  <rect x="28" y="46" width="8" height="2" rx="1" fill="#f59e0b"/>
+  <rect x="42" y="46" width="8" height="2" rx="1" fill="#f59e0b"/>
+  <rect x="30" y="12" width="5" height="30" fill="#f59e0b" rx="1"/>
+  <rect x="12" y="12" width="36" height="4" fill="#f59e0b" rx="1"/>
+  <rect x="12" y="12" width="8" height="8" fill="#e07b00" rx="1"/>
+  <line x1="44" y1="16" x2="44" y2="34" stroke="white" stroke-width="1.5"/>
+  <path d="M41 34 Q44 38 47 34" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <text x="11" y="58" font-family="Arial Black" font-weight="900" font-size="9" fill="white" letter-spacing="1">IF</text>
+</svg>

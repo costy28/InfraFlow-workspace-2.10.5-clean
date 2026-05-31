@@ -1,0 +1,18 @@
+export default function Input({ label, error, helperText, className = '', id, ...props }) {
+  const inputId = id || props.name || label?.toLowerCase().replace(/\s+/g, '-')
+
+  return (
+    <label className="grid gap-1 text-sm font-medium text-slate-700" htmlFor={inputId}>
+      {label}
+      <input
+        id={inputId}
+        className={`h-10 rounded-md border px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 ${
+          error ? 'border-rose-400' : 'border-slate-300'
+        } ${className}`}
+        {...props}
+      />
+      {error && <span className="text-xs font-normal text-rose-600">{error}</span>}
+      {helperText && !error && <span className="text-xs font-normal text-slate-400">{helperText}</span>}
+    </label>
+  )
+}

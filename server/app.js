@@ -1,0 +1,130 @@
+
+const express = require('express')
+const path = require('path')
+const fs = require('fs')
+const { requireAuth } = require('./core/auth')
+const { readDb, writeDb } = require('./core/db')
+const { incarcaLicenta } = require('./core/license')
+
+const licentaStatus = incarcaLicenta()
+if (!licentaStatus.valida) {
+  console.error('LICENȚĂ INVALIDĂ:', licentaStatus.eroare)
+  process.exit(1)
+}
+if (licentaStatus.demo) {
+  console.log('InfraFlow pornit în modul DEMO (3 utilizatori, module limitate)')
+}
+if (licentaStatus.in_gratie) {
+  console.warn(`ATENȚIE: Licență expirată! ${licentaStatus.zile_gratie} zile grație rămase`)
+}
+global.LICENTA = licentaStatus.licenta
+
+const app = express()
+app.use(express.json({ limit: '10mb' }))
+
+Promise.resolve()
+  .then(() => require('./modules/messaging/routes').createDefaultChannels())
+  .catch(err => console.warn('Canalele implicite nu au putut fi create:', err.message))
+
+// Logging simplu
+app.use((req, res, next) => {
+  const start = Date.now()
+  res.on('finish', () => {
+    console.log(`${req.method} ${req.path} ${res.statusCode} ${Date.now()-start}ms`)
+  })
+  next()
+})
+
+// Routere module (placeholder — vor fi completate rând pe rând)
+app.use('/api', require('./core/auth-routes'))
+app.use('/api', require('./modules/inventory/routes'))
+app.use('/api', require('./modules/production/routes'))
+app.use('/api', require('./modules/procurement/routes'))
+app.use('/api', require('./modules/fleet/routes'))
+app.use('/api', require('./modules/fleet/trip-routes'))
+app.use('/api', require('./modules/fleet/fc-routes'))
+app.use('/api', require('./modules/technical/routes'))
+app.use('/api', require('./modules/workflow/routes'))
+app.use('/api', require('./modules/system/routes'))
+app.use('/api', require('./modules/messaging/routes').router)
+app.use('/api', require('./modules/tickets/routes'))
+app.use('/api', require('./modules/documents/routes'))
+app.use('/api', require('./modules/field/routes'))
+app.use('/api', require('./modules/integration/intersoft/routes'))
+app.use('/api', require('./modules/integration/legacy/routes'))
+app.use('/api', require('./modules/integration/autominder/routes'))
+app.use('/api', require('./modules/integration/autominder/full-import'))
+app.use('/api', require('./modules/integration/gps/routes'))
+app.use('/api', require('./modules/controlling/routes'))
+app.use('/api', require('./modules/hr/routes'))
+app.use('/api', require('./modules/mechanization/routes'))
+app.use('/api', require('./modules/gestiune/routes'))
+app.use('/api', require('./modules/asternere/routes'))
+app.use('/api', require('./modules/anaf/routes'))
+app.use('/api', require('./modules/sanitation/routes'))
+app.use('/api', require('./modules/traffic-safety/routes'))
+app.use('/api', require('./modules/environment/routes'))
+app.use('/api', require('./modules/legal/routes'))
+app.use('/api', require('./modules/archive/routes'))
+app.use('/api', require('./modules/secretariat/routes'))
+app.use('/api', require('./modules/snow-removal/routes'))
+app.use('/api', require('./modules/ai/routes'))
+require('./scheduler')
+
+// SPA fallback — caută client/dist în mai multe locații posibile (dev, prod, installer)
+const clientPaths = [
+  path.join(__dirname, '../client/dist'),
+  path.join(__dirname, '../public'),
+  path.join(__dirname, 'public'),
+]
+const clientDistPath = clientPaths.find(p =>
+  fs.existsSync(path.join(p, 'index.html'))
+)
+if (clientDistPath) {
+  app.use(express.static(clientDistPath))
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next()
+    res.sendFile(path.join(clientDistPath, 'index.html'))
+  })
+}
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err)
+  res.status(err.status || 500).json({ error: err.message || 'Eroare internă' })
+})
+
+// Bootstrap: creare user admin la prima pornire (dacă db.users e gol)
+try {
+  const _db = readDb()
+  if (!Array.isArray(_db.users) || _db.users.length === 0) {
+    _db.users = [{
+      id: 'admin-' + Date.now(),
+      username: 'admin',
+      password: 'admin123',
+      name: 'Administrator',
+      email: 'admin@infraflow.ro',
+      role: 'superadmin',
+      active: true,
+      mustChangePassword: true,
+      created_at: new Date().toISOString()
+    }]
+    writeDb(_db)
+    console.log('✅ User admin creat automat. Parola: admin123')
+    console.log('⚠️  Schimbă parola după primul login!')
+  }
+} catch (err) {
+  console.warn('Bootstrap admin skip:', err.message)
+}
+
+const PORT = Number(process.env.PORT || 4180) // port implicit 4180
+app.listen(PORT, () => {
+  console.log(`InfraFlow app.js pornit pe portul ${PORT}`)
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Portul ${PORT} e ocupat. Incearca: $env:PORT=${PORT+1} ; node server/app.js`)
+    process.exit(1)
+  }
+})
+
+module.exports = app

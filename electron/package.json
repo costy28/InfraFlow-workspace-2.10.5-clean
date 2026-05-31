@@ -1,0 +1,68 @@
+{
+  "name": "infraflow-client",
+  "version": "2.10.5",
+  "description": "InfraFlow ERP — Client desktop (Electron)",
+  "main": "main.js",
+  "author": "InfraSuite",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder --win --x64",
+    "build:dir": "electron-builder --win --x64 --dir"
+  },
+  "build": {
+    "appId": "ro.appnode.infraflow.client",
+    "productName": "InfraFlow ERP",
+    "copyright": "Copyright © 2026 InfraSuite",
+    "icon": "infraflow-client.ico",
+    "files": [
+      "main.js",
+      "preload.js",
+      "setup.html",
+      "loading.html",
+      "offline.html",
+      "infraflow-client.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "infraflow-client.ico",
+        "to": "."
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "infraflow-client.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "InfraFlow ERP",
+      "installerIcon": "infraflow-client.ico",
+      "uninstallerIcon": "infraflow-client.ico",
+      "installerHeaderIcon": "infraflow-client.ico",
+      "installerSidebar": null,
+      "uninstallerSidebar": null,
+      "license": null,
+      "multiLanguageInstaller": false,
+      "deleteAppDataOnUninstall": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "electron": "^29.4.0",
+    "electron-builder": "^24.13.0"
+  }
+}

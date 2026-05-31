@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <title>InfraFlow — Server indisponibil</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      background: #f8fafc;
+      display: flex; align-items: center;
+      justify-content: center; min-height: 100vh;
+      flex-direction: column; text-align: center;
+      padding: 20px;
+      color: #1e293b;
+    }
+
+    .icon { font-size: 72px; margin-bottom: 20px; animation: sway 3s ease-in-out infinite; }
+    @keyframes sway {
+      0%,100% { transform: rotate(-5deg); }
+      50%      { transform: rotate(5deg); }
+    }
+
+    h2 { font-size: 24px; font-weight: 700; margin-bottom: 10px; }
+    .subtitle {
+      color: #64748b; font-size: 15px;
+      max-width: 380px; line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    .info-box {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px 20px;
+      max-width: 380px;
+      margin-bottom: 28px;
+      text-align: left;
+    }
+    .info-box p { font-size: 13px; color: #475569; margin-bottom: 6px; }
+    .info-box p:last-child { margin-bottom: 0; }
+    .info-box strong { color: #1e293b; }
+    #serverUrlDisplay {
+      font-family: 'Consolas', monospace;
+      font-size: 13px;
+      color: #1e3a5f;
+      word-break: break-all;
+    }
+
+    .buttons { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+
+    .btn {
+      padding: 12px 32px;
+      border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 220px;
+    }
+    .btn-primary {
+      background: #1e3a5f; color: white;
+    }
+    .btn-primary:hover { background: #2d4f7c; }
+    .btn-secondary {
+      background: white; color: #475569;
+      border: 2px solid #e2e8f0;
+    }
+    .btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+
+    .retry-info {
+      font-size: 12px; color: #94a3b8;
+      margin-top: 20px;
+    }
+    #countdown { font-weight: 600; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="icon">📡</div>
+  <h2>Server indisponibil</h2>
+  <p class="subtitle">
+    Nu mă pot conecta la serverul InfraFlow.<br>
+    Verifică că serverul este pornit și că ești în rețeaua locală.
+  </p>
+
+  <div class="info-box">
+    <p>Se încearcă conectarea la:</p>
+    <p><strong id="serverUrlDisplay">—</strong></p>
+    <p style="margin-top:10px">Posibile cauze:</p>
+    <p>• Serviciul InfraFlow nu e pornit pe server</p>
+    <p>• Nu ești conectat la rețeaua locală</p>
+    <p>• Adresa serverului s-a schimbat</p>
+  </div>
+
+  <div class="buttons">
+    <button class="btn btn-primary" id="retryBtn" onclick="retry()">
+      🔄 Încearcă din nou
+    </button>
+    <button class="btn btn-secondary" onclick="changeServer()">
+      ⚙️ Schimbă serverul
+    </button>
+  </div>
+
+  <p class="retry-info">
+    Reîncercare automată în <span id="countdown">15</span>s
+  </p>
+
+  <script>
+    // Afișează URL-ul configurat
+    window.electronAPI.getConfig().then(config => {
+      document.getElementById('serverUrlDisplay').textContent =
+        config?.server_url || 'necunoscut'
+    })
+
+    // Countdown automat
+    let seconds = 15
+    const countdownEl = document.getElementById('countdown')
+    const timer = setInterval(() => {
+      seconds--
+      countdownEl.textContent = seconds
+      if (seconds <= 0) {
+        clearInterval(timer)
+        retry()
+      }
+    }, 1000)
+
+    async function retry() {
+      clearInterval(timer)
+      const btn = document.getElementById('retryBtn')
+      btn.disabled = true
+      btn.textContent = '⏳ Se verifică...'
+      await window.electronAPI.retryConnection()
+      // Main process va reîncărca pagina dacă serverul e disponibil
+      // Dacă nu → această pagină rămâne (main.js setează din nou offline.html)
+      setTimeout(() => {
+        btn.disabled = false
+        btn.textContent = '🔄 Încearcă din nou'
+        // Reset countdown
+        seconds = 15
+        countdownEl.textContent = seconds
+      }, 3000)
+    }
+
+    function changeServer() {
+      window.electronAPI.resetConfig()
+    }
+  </script>
+</body>
+</html>

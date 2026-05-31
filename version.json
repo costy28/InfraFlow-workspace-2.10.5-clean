@@ -1,0 +1,5 @@
+{
+  "version": "2.10.5",
+  "date": "2026-05-29",
+  "changelog": "## v2.10.5 — 2026-05-29\n### Fix GPS Live — hartă cu vehicule urmariregps.ro\n- Auto-login-ul folosește formularul real `login.php`, iar live map folosește payload-ul real `data_in`, `gps=%`, `client=120`.\n- Parserul acceptă răspunsuri JSON cu câmpuri CSV (`numar`, `la_al`, `lo_al`, `viteze`) și structuri XML/marker variate.\n- Restartul după update citează corect calea `.bat` din `Program Files` și păstrează `APP_KEY` pentru decriptarea setărilor.\n- Adăugat endpoint de diagnostic `/api/integration/gps/raw` pentru verificarea răspunsului brut."
+}
