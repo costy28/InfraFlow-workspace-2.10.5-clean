@@ -1,5 +1,33 @@
 # Changelog
 
+## v2.11.5 — 2026-05-31
+### Hotfix sesiune după wizard
+- Finalizarea wizard-ului salvează sesiunea emisă de server.
+- După configurarea inițială aplicația intră direct în dashboard.
+- Username-ul administratorului nou înlocuiește autofill-ul vechi.
+
+## v2.11.4 — 2026-05-31
+### Hotfix wizard inițial
+- Verificarea ANAF din wizard este publică înainte de autentificare.
+- Erorile din configurarea inițială rămân vizibile în pagină.
+- Finalizarea wizard-ului folosește ruta modernă publică.
+
+## v2.11.3 — 2026-05-31
+### Hotfix installer și autentificare
+- Installerul server folosește un seed curat pentru instalări noi și pornește wizard-ul inițial.
+- Endpoint-ul modern finalizează wizard-ul înainte de autentificare.
+- Upgrade-urile păstrează baza existentă prin `onlyifdoesntexist`.
+- Formularul de login afișează eroarea de autentificare fără reîncărcarea paginii.
+
+## v2.11.2 — 2026-05-31
+### Stabilizare update, HR și GPS
+- Upload ZIP tolerant la director exterior și mesaje clare pentru arhive invalide.
+- Aplicarea ZIP copiază versiunea, changelog-ul, seed-ul CPV și scripturile livrate.
+- Seed-ul CPV are fallback în modulul server pentru bootstrap din updaterul vechi.
+- Departamentele HR vin din nomenclatorul central, inclusiv înaintea importului de angajați.
+- Catalogul CPV inclus este explicat clar în Setări.
+- GPS salvează configurarea înainte de test și acceptă furnizori alternativi prin API JSON/XML cu Bearer token.
+
 ## v2.10.5 — 2026-05-29
 ### Fix GPS Live — hartă cu vehicule urmariregps.ro
 - Backend GPS folosește endpoint-ul real `new/libz/mysqli/ajax.php` și încearcă payload-ul real `data_in`, `gps=%`, `client=120` înainte de fallback-uri.

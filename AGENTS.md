@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.11.1** (build EXE v2.10.10 existent și funcțional)
-**Versiune în lucru: stabilizare v2.11.1**
+**Versiune curentă sursă: v2.11.5** (build EXE v2.11.4 existent și funcțional)
+**Versiune în lucru: hotfix v2.11.5**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -250,7 +250,7 @@ Sistem
   ✅ Audit log
 ```
 
-### ✅ IMPLEMENTAT ÎN SURSĂ (v2.10.6 → v2.11.1)
+### ✅ IMPLEMENTAT ÎN SURSĂ (v2.10.6 → v2.11.5)
 
 ```
 UPDATE 006 — Modul Referate (v2.10.6) ✅ IMPLEMENTAT ÎN SURSĂ
@@ -314,6 +314,29 @@ UPDATE 011 — Stabilizare instalare + CPV + Referate + DB (v2.11.1) ✅ IMPLEME
   ✅ Migrări MSSQL startup și pooling cu reconnect
   ✅ Watchdog serviciu Windows
   ✅ Referate superadmin fără departament obligatoriu
+
+UPDATE 012 — Stabilizare update + HR + GPS (v2.11.2) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Upload ZIP tolerant și erori explicite
+  ✅ Departamente HR din nomenclatorul central
+  ✅ Explicație sursă catalog CPV inclus
+  ✅ Configurare GPS salvată înainte de test
+  ✅ Furnizori GPS alternativi prin API JSON/XML
+
+UPDATE 013 — Hotfix installer + autentificare (v2.11.3) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Seed curat dedicat instalărilor noi
+  ✅ Wizard inițial activ pe server nou
+  ✅ Finalizare wizard disponibilă înainte de autentificare
+  ✅ Mesaj login invalid afișat fără reload
+
+UPDATE 014 — Hotfix wizard inițial (v2.11.4) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Lookup ANAF public înainte de autentificare
+  ✅ Erori wizard păstrate în pagină
+  ✅ Finalizare wizard pe ruta modernă
+
+UPDATE 015 — Hotfix sesiune după wizard (v2.11.5) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Sesiune salvată după configurarea inițială
+  ✅ Redirect direct în dashboard
+  ✅ Autofill actualizat cu administratorul creat
 ```
 
 ### 📋 BACKLOG (după BUILD v2.11.0)
@@ -477,8 +500,8 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.11.1
-BUILD EXE EXISTENT: 2.10.10 ✅
+VERSIUNE CURENTĂ SURSĂ: 2.11.5
+BUILD EXE EXISTENT: 2.11.4 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -487,10 +510,14 @@ UPDATES ÎN LUCRU:
   2.10.9  → UPDATE 009 Export PAAP + Pontaj Nexus ✅
   2.10.10 → UPDATE 010 Echipamente HR ✅
   2.11.1  → UPDATE 011 Stabilizare instalare + CPV + Referate + DB ✅
+  2.11.2  → UPDATE 012 Stabilizare update + HR + GPS ✅
+  2.11.3  → UPDATE 013 Hotfix installer + autentificare ✅
+  2.11.4  → UPDATE 014 Hotfix wizard inițial ✅
+  2.11.5  → UPDATE 015 Hotfix sesiune după wizard ✅
 
-NEXT BUILD: v2.11.1
-  → InfraFlow-Server-Setup-v2.11.1.exe
-  → InfraFlow-Client-Setup-v2.11.1.exe
+NEXT BUILD: v2.11.5
+  → InfraFlow-Server-Setup-v2.11.5.exe
+  → InfraFlow-Client-Setup-v2.11.5.exe
   → Versiunea citită automat din package.json
   → Script: scripts/build-installer.ps1
 
@@ -976,5 +1003,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 31 Mai 2026 | InfraFlow sursă v2.11.1*
+*AGENTS.md actualizat: 31 Mai 2026 | InfraFlow sursă v2.11.5*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

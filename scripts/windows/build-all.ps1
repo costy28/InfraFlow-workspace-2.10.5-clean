@@ -51,11 +51,13 @@ function Set-FileVersion {
   $content = Get-Content $FilePath -Raw
   $updated = $content
   $updated = $updated -replace 'AppVersion=[\d.]+',          "AppVersion=$Ver"
-  $updated = $updated -replace 'OutputBaseFilename=InfraFlow-Server-Setup-v[\d.]+',
-                                "OutputBaseFilename=InfraFlow-Server-Setup-v$Ver"
+  $updated = $updated -replace '(OutputBaseFilename=InfraFlow-(?:Server-|Client-)?Setup-v)[\d.]+',
+                                "`${1}$Ver"
   $updated = $updated -replace "(ValueName: ""Version""[^`n]*`n[^`n]*ValueData: "")[\d.]+""",
                                 "`${1}$Ver"""
   $updated = $updated -replace 'InfraFlow ERP Server v[\d.]+', "InfraFlow ERP Server v$Ver"
+  $updated = $updated -replace 'InfraFlow ERP Client v[\d.]+', "InfraFlow ERP Client v$Ver"
+  $updated = $updated -replace 'InfraFlow ERP v[\d.]+', "InfraFlow ERP v$Ver"
   if ($updated -ne $content) {
     Set-Content $FilePath -Value $updated -NoNewline -Encoding UTF8
     Write-Host "        Versiune injectată în: $(Split-Path $FilePath -Leaf)" -ForegroundColor DarkGray

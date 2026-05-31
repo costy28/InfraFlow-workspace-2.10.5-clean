@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
@@ -399,7 +398,6 @@ function Step4({ licenseKey, onChange, licenseStatus, onSkip }) {
 // ─── Pagina principală ────────────────────────────────────────────────────────
 
 export default function SetupWizardPage() {
-  const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -476,8 +474,10 @@ export default function SetupWizardPage() {
         trialDays:        30,
       }
 
-      await api.post('/setup/complete', body)
-      navigate('/login', { state: { setupDone: true } })
+      const response = await api.post('/setup/complete', body)
+      localStorage.setItem('infraflow_token', response.data.token)
+      localStorage.setItem('infraflow_remember', admin.username.toLowerCase().trim())
+      window.location.href = '/dashboard'
     } catch (err) {
       setError(err.response?.data?.error || 'Configurarea a eșuat. Verificați datele și reîncercați.')
     } finally {

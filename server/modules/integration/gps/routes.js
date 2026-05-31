@@ -162,14 +162,14 @@ function firstValue(...values) {
 function normalizeVehicle(raw = {}) {
   const attrs = raw.$ || {}
   const nr = firstValue(
-    raw.nr, raw.numar, raw.plate, raw.number, raw.name, raw.denumire, raw.title,
+    raw.nr, raw.numar, raw.nr_inmatriculare, raw.registration, raw.plate, raw.number, raw.name, raw.denumire, raw.title,
     raw.label, raw.nrAuto, raw.nrInm, raw.cod, raw.id, raw.NumarInmatriculare,
     attrs.nr, attrs.numar, attrs.plate, attrs.number, attrs.name, attrs.denumire,
     attrs.title, attrs.label, attrs.id, attrs.cod
   )
-  const lat = parseNumber(firstValue(raw.lat, raw.la, raw.latitude, attrs.lat, attrs.la, attrs.latitude))
-  const lng = parseNumber(firstValue(raw.lng, raw.lo, raw.longitude, attrs.lng, attrs.lo, attrs.longitude))
-  const speed = parseNumber(firstValue(raw.speed, raw.viteza, raw.vit, raw.viteza_km, attrs.speed, attrs.viteza, attrs.vit))
+  const lat = parseNumber(firstValue(raw.lat, raw.la, raw.latitude, raw.latitudine, attrs.lat, attrs.la, attrs.latitude, attrs.latitudine))
+  const lng = parseNumber(firstValue(raw.lng, raw.lon, raw.lo, raw.longitude, raw.longitudine, attrs.lng, attrs.lon, attrs.lo, attrs.longitude, attrs.longitudine))
+  const speed = parseNumber(firstValue(raw.speed, raw.viteza, raw.vit, raw.viteza_km, raw.viteza_kmh, attrs.speed, attrs.viteza, attrs.vit))
   const motorValue = String(firstValue(raw.motor, raw.contact, raw.engine, attrs.motor, attrs.contact)).toLowerCase()
   const motor = ['1', 'true', 'on', 'pornit', 'yes', 'activ'].includes(motorValue)
 
@@ -280,6 +280,33 @@ function parseJsonVehicles(text) {
   }
 
   return []
+}
+
+function gpsProvider(settings) {
+  return String(settings.gps_provider || 'urmariregps.ro').trim().toLowerCase()
+}
+
+function isCustomProvider(settings) {
+  return gpsProvider(settings) !== 'urmariregps.ro'
+}
+
+async function fetchCustomVehicles(settings) {
+  const url = String(settings.gps_api_url || '').trim()
+  if (!url) throw new Error('Completează URL API vehicule pentru furnizorul GPS alternativ.')
+  const apiKey = decryptSettingSecret(settings.gps_api_key || '')
+  const response = await fetch(url, {
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}`, Accept: 'application/json, application/xml, text/xml' } : {},
+    signal: AbortSignal.timeout(15000),
+  })
+  if (!response.ok) throw new Error(`Furnizorul GPS a răspuns HTTP ${response.status}.`)
+  const text = await response.text()
+  const trimmed = text.trim()
+  const vehicles = trimmed.startsWith('<')
+    ? await parseXmlVehicles(trimmed)
+    : trimmed.startsWith('{') || trimmed.startsWith('[')
+      ? parseJsonVehicles(trimmed)
+      : []
+  return { vehicles, text: trimmed, status: response.status }
 }
 
 async function readVehiclesFromResponse(response, label) {
@@ -461,6 +488,17 @@ router.get('/integration/gps/live', async (req, res) => {
     if (!auth) return
 
     const settings = auth.db.settings || {}
+    if (isCustomProvider(settings)) {
+      const { vehicles } = await fetchCustomVehicles(settings)
+      return res.json({
+        configurate: true,
+        furnizor: gpsProvider(settings),
+        vehicule: vehicles,
+        total: vehicles.length,
+        actualizat_la: new Date().toISOString(),
+        debug_hint: vehicles.length === 0 ? 'API-ul furnizorului a răspuns, dar nu s-au putut extrage vehicule din JSON/XML.' : null,
+      })
+    }
     const username = decryptSettingSecret(settings.gps_username || '')
     const password = decryptSettingSecret(settings.gps_password || '')
     if (!username || !password) {
@@ -512,6 +550,10 @@ router.post('/integration/gps/test', async (req, res) => {
     if (!auth) return
 
     const settings = auth.db.settings || {}
+    if (isCustomProvider(settings)) {
+      const { vehicles } = await fetchCustomVehicles(settings)
+      return res.json({ ok: true, furnizor: gpsProvider(settings), vehicule: vehicles.length })
+    }
     gpsSession = { phpsessid: null, timestamp: 0 }
     const session = await getGpsSession(settings)
     if (!session) return res.json({ ok: false, error: 'Autentificare GPS eșuată.' })
@@ -530,6 +572,18 @@ router.get('/integration/gps/raw', async (req, res) => {
     if (!['superadmin', 'admin'].includes(auth.user.role)) return res.status(403).json({ error: 'Acces interzis' })
 
     const settings = auth.db.settings || {}
+    if (isCustomProvider(settings)) {
+      const { vehicles, text, status } = await fetchCustomVehicles(settings)
+      return res.json({
+        actiune: 'custom-api',
+        furnizor: gpsProvider(settings),
+        http_status: status,
+        raw_length: text.length,
+        tip_raspuns: text.startsWith('<') ? 'XML' : text.startsWith('{') || text.startsWith('[') ? 'JSON' : 'text',
+        vehicule_parsate: vehicles.length,
+        raw_body: text,
+      })
+    }
     const session = await getGpsSession(settings)
     if (!session) return res.json({ error: 'Nu există sesiune GPS. Verifică datele de conectare.' })
 

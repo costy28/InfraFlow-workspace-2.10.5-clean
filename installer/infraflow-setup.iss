@@ -5,14 +5,14 @@
 [Setup]
 AppId={{8F4A2B1C-3D5E-4F6A-8B9C-0D1E2F3A4B5C}
 AppName=InfraFlow ERP
-AppVersion=2.11.1
+AppVersion=2.11.5
 AppPublisher=InfraFlow Software
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow
 DefaultGroupName=InfraFlow
 AllowNoIcons=yes
 OutputDir=output
-OutputBaseFilename=InfraFlow-Setup-v2.11.1
+OutputBaseFilename=InfraFlow-Setup-v2.11.5
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -33,7 +33,7 @@ Source: "..\client\public\favicon.svg"; DestDir: "{app}\client\public"; Flags: i
 Source: "..\client\public\icon-192.png"; DestDir: "{app}\client\public"; Flags: ignoreversion
 Source: "..\client\public\icon-512.png"; DestDir: "{app}\client\public"; Flags: ignoreversion
 Source: "..\db\*"; DestDir: "{app}\db"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\data\app-db.json"; DestDir: "{app}\data"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
+Source: "..\data\app-db.install.json"; DestDir: "{app}\data"; DestName: "app-db.json"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
 Source: "..\scripts\windows\install-service.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\uninstall-service.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\version.json"; DestDir: "{app}"; Flags: ignoreversion
@@ -81,7 +81,7 @@ Filename: "{app}\installer\nssm.exe"; Parameters: "remove InfraFlow confirm"; Fl
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'Acest program va instala InfraFlow ERP v2.11.1.' + #13#10#13#10 +
+    'Acest program va instala InfraFlow ERP v2.11.5' + #13#10#13#10 +
     'Contine toate actualizarile din v2.8.0, v2.9.0 si v2.10.0:' + #13#10 +
     '  - Kiosk Angajat & Foi Parcurs (VERSO + semnatura)' + #13#10 +
     '  - Verificare angajat HR la creare cont' + #13#10 +

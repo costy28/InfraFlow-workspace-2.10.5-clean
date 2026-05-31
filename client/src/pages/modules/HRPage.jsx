@@ -216,6 +216,7 @@ export default function HRPage() {
 
   const [activeTab, setActiveTab] = useState(() => tabs[0] || 'Dashboard HR')
   const [employees, setEmployees] = useState([])
+  const [configuredDepartments, setConfiguredDepartments] = useState([])
   const [monthlySheet, setMonthlySheet] = useState([])
   const [leaves, setLeaves] = useState([])
   const [authorizations, setAuthorizations] = useState([])
@@ -287,14 +288,16 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, sheetRes, leavesRes, authRes, statsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes] = await Promise.all([
         api.get('/hr/employees'),
+        api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }),
         api.get('/hr/leave-requests').catch(() => ({ data: [] })),
         api.get('/hr/authorizations'),
         api.get('/hr/stats').catch(() => ({ data: {} })),
       ])
       setEmployees(arrayFrom(employeesRes.data, ['employees', 'items']))
+      setConfiguredDepartments(arrayFrom(departmentsRes.data, ['departments', 'items']))
       setMonthlySheet(arrayFrom(sheetRes.data, ['rows', 'sheet', 'items']))
       setLeaves(arrayFrom(leavesRes.data, ['leave_requests', 'requests', 'items']))
       setAuthorizations(arrayFrom(authRes.data, ['authorizations', 'items']))
@@ -1156,12 +1159,17 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
   const departments = useMemo(() => {
     const map = new Map()
+    configuredDepartments.forEach(department => {
+      const id = department.id || department.department_id || department.cod || department.code
+      const name = department.name || department.nume || department.denumire || department.cod || department.code
+      if (id && name && department.active !== false) map.set(String(id), String(name))
+    })
     employees.forEach(employee => {
       const id = employee.department_id || employee.dept_id || employee.department_name
       if (id) map.set(String(id), employee.department_name || employee.department || String(id))
     })
     return [...map.entries()].map(([value, label]) => ({ value, label }))
-  }, [employees])
+  }, [configuredDepartments, employees])
 
   const employeeDepartmentKey = employee => String(employee.department_id || employee.dept_id || employee.department_name || employee.department || '')
 

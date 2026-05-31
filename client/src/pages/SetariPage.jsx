@@ -436,9 +436,7 @@ export default function SetariPage() {
     const data = new FormData()
     data.append('update_package', file)
     try {
-      const response = await api.post('/system/update/upload', data, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const response = await api.post('/system/update/upload', data)
       setManualUpdate(response.data)
       setProgress(100)
       setTimeout(() => setProgress(0), 800)
@@ -859,14 +857,18 @@ export default function SetariPage() {
 
   async function testGps() {
     try {
-      // Salvează mai întâi dacă există modificări nesalvate
       notify('⏳ Testez conexiunea GPS...')
+      const saved = await api.post('/settings', settings)
+      setSettings({ ...(saved.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '' })
       const response = await api.post('/integration/gps/test')
       if (response.data?.ok) {
         const n = response.data.vehicule ?? 0
+        const customProvider = (settings.gps_provider || 'urmariregps.ro') === 'altul'
         notify(n > 0
           ? `✅ Conexiune GPS funcțională — ${n} vehicule găsite.`
-          : `✅ Login GPS reușit — niciun vehicul returnat (verifică User ID).`
+          : customProvider
+            ? `✅ API GPS accesibil — niciun vehicul extras din răspunsul JSON/XML.`
+            : `✅ Login GPS reușit — niciun vehicul returnat (verifică User ID și răspunsul brut).`
         )
       } else {
         fail({ response: { data: { error: response.data?.error } } },
@@ -923,8 +925,8 @@ export default function SetariPage() {
             <Input label="Port server" type="number" value={settings.serverPort || ''} onChange={event => setSettings(s => ({ ...s, serverPort: event.target.value }))} />
             <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
               <div className="flex items-center gap-3">
-                <h3 className="text-sm font-semibold text-slate-900">Integrare GPS urmariregps.ro</h3>
-                {settings.gps_username
+                <h3 className="text-sm font-semibold text-slate-900">Integrare GPS</h3>
+                {(settings.gps_provider || 'urmariregps.ro') === 'altul' ? settings.gps_api_url : settings.gps_username
                   ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                       ✓ Configurat ({settings.gps_username.slice(0, 3)}***)
                     </span>
@@ -936,16 +938,17 @@ export default function SetariPage() {
             </div>
             <Select label="Furnizor GPS" value={settings.gps_provider || 'urmariregps.ro'} onChange={event => setSettings(s => ({ ...s, gps_provider: event.target.value }))}>
               <option value="urmariregps.ro">urmariregps.ro</option>
-              <option value="altul">Altul</option>
+              <option value="altul">Alt furnizor cu API JSON/XML</option>
             </Select>
-            <Input label="User ID" value={settings.gps_user_id || '120'} onChange={event => setSettings(s => ({ ...s, gps_user_id: event.target.value }))} />
-            <Input
-              label="Utilizator urmariregps.ro"
-              value={settings.gps_username || ''}
-              onChange={event => setSettings(s => ({ ...s, gps_username: event.target.value }))}
-              placeholder="email sau username"
-            />
-            <div>
+            {(settings.gps_provider || 'urmariregps.ro') === 'urmariregps.ro' ? <>
+              <Input label="User ID" value={settings.gps_user_id || '120'} onChange={event => setSettings(s => ({ ...s, gps_user_id: event.target.value }))} />
+              <Input
+                label="Utilizator urmariregps.ro"
+                value={settings.gps_username || ''}
+                onChange={event => setSettings(s => ({ ...s, gps_username: event.target.value }))}
+                placeholder="email sau username"
+              />
+              <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
                 Parolă urmariregps.ro
                 {settings.gps_password_set && !settings.gps_password && (
@@ -969,14 +972,19 @@ export default function SetariPage() {
                   Parola este salvată criptat. Lasă câmpul gol dacă nu vrei să o schimbi.
                 </p>
               )}
-            </div>
+              </div>
+            </> : <>
+              <Input label="URL API vehicule" value={settings.gps_api_url || ''} onChange={event => setSettings(s => ({ ...s, gps_api_url: event.target.value }))} placeholder="https://furnizor.ro/api/vehicles" />
+              <Input label="Cheie API Bearer (opțional)" type="password" value={settings.gps_api_key || ''} onChange={event => setSettings(s => ({ ...s, gps_api_key: event.target.value }))} placeholder={settings.gps_api_key_set ? 'Salvată — completează doar pentru schimbare' : 'Token API'} />
+              <p className="md:col-span-2 text-xs text-slate-500">Pentru alt furnizor, introdu URL-ul endpointului care returnează vehicule în JSON sau XML. Cheia este trimisă ca Bearer token.</p>
+            </>}
             <div className="flex items-end gap-2 flex-wrap">
               <Button type="button" variant="secondary" onClick={testGps}>🔄 Testează GPS</Button>
               <Button type="button" variant="ghost" size="sm" onClick={async () => {
                 try {
-                  notify('⏳ Se citește răspunsul brut de la urmariregps.ro...')
+                  notify('⏳ Se citește răspunsul brut de la furnizorul GPS...')
                   // Încearcă toate acțiunile importante și arată primul răspuns cu date
-                  const actiuni = ['pozitii_vehicule','incarca_pozitii','get_vehicles','live_map','incarca_grupuri']
+                  const actiuni = ['data_in','pozitii_vehicule','incarca_pozitii','get_vehicles','live_map','incarca_grupuri']
                   let gasit = null
                   for (const actiune of actiuni) {
                     const r = await api.get(`/integration/gps/raw?actiune=${actiune}`)
@@ -985,7 +993,7 @@ export default function SetariPage() {
                       gasit = d
                       break
                     }
-                    if (d.chars > 20 && !gasit) gasit = d // ia primul răspuns cu conținut
+                    if (d.raw_length > 20 && !gasit) gasit = d // ia primul răspuns cu conținut
                   }
                   if (!gasit) {
                     notify('⚠️ Toate acțiunile returnează răspuns gol. Verificați consolă server.')
@@ -994,7 +1002,7 @@ export default function SetariPage() {
                   if (gasit.vehicule_parsate > 0) {
                     notify(`✅ GPS funcțional! Acțiune: ${gasit.actiune}, ${gasit.vehicule_parsate} vehicule`)
                   } else {
-                    notify(`⚠️ Acțiune "${gasit.actiune}": ${gasit.chars} chars, tip: ${gasit.tip_raspuns}, 0 vehicule parsate. Deschide F12 → Consolă pentru raw body.`)
+                    notify(`⚠️ Acțiune "${gasit.actiune}": ${gasit.raw_length} caractere, tip: ${gasit.tip_raspuns}, 0 vehicule parsate. Deschide F12 → Consolă pentru raw body.`)
                     console.log('=== GPS RAW BODY ===')
                     console.log('Tip:', gasit.tip_raspuns)
                     console.log('Body:', gasit.raw_body)
@@ -1229,8 +1237,8 @@ export default function SetariPage() {
               </table>
             </div>
           </Card>
-          <Card title="Catalog CPV" subtitle="Fallback administrativ pentru sincronizarea catalogului SEAP.">
-            <Button variant="secondary" onClick={reimportCpvCodes}>🔄 Reimportă coduri CPV</Button>
+          <Card title="Catalog CPV" subtitle="Catalog inclus în aplicație: 9.454 coduri CPV RO/EN din fișierul seed SEAP. Importul rulează automat la pornirea serverului; butonul este doar pentru resincronizare administrativă.">
+            <Button variant="secondary" onClick={reimportCpvCodes}>🔄 Resincronizează catalogul CPV inclus</Button>
           </Card>
         </div>
       )}

@@ -13,8 +13,13 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (err) => {
   console.error('[CRASH] Unhandled rejection:', err)
 })
-process.once('SIGTERM', () => closeMssqlPool())
-process.once('SIGINT', () => closeMssqlPool())
+async function shutdown(signal) {
+  console.log(`[SERVER] ${signal}: închidere controlată.`)
+  await closeMssqlPool()
+  process.exit(0)
+}
+process.once('SIGTERM', () => shutdown('SIGTERM'))
+process.once('SIGINT', () => shutdown('SIGINT'))
 
 ensureDatabase()
 

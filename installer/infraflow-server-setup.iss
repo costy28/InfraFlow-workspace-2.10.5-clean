@@ -6,13 +6,13 @@
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
 AppName=InfraFlow ERP Server
-AppVersion=2.11.1
+AppVersion=2.11.5
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Server-Setup-v2.11.1
+OutputBaseFilename=InfraFlow-Server-Setup-v2.11.5
 PrivilegesRequired=admin
 WizardStyle=modern
 Compression=lzma2/ultra64
@@ -47,7 +47,7 @@ Source: "..\client\public\icon-512.png"; DestDir: "{app}\client\public"; Flags: 
 Source: "..\db\*"; \
   DestDir: "{app}\db"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\data\app-db.seed.json"; \
+Source: "..\data\app-db.install.json"; \
   DestDir: "{app}\data"; \
   DestName: "app-db.json"; \
   Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
@@ -106,7 +106,7 @@ Root: HKLM; \
 Root: HKLM; \
   Subkey: "SOFTWARE\InfraSuite\InfraFlow"; \
   ValueType: string; ValueName: "Version"; \
-  ValueData: "2.11.1"; \
+  ValueData: "2.11.5"; \
   Flags: uninsdeletevalue
 
 [Run]
@@ -132,7 +132,7 @@ Filename: "powershell.exe"; \
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Server v2.11.1' + #13#10#13#10 +
+    'InfraFlow ERP Server v2.11.5' + #13#10#13#10 +
     'Acest installer va configura:' + #13#10 +
     '  • Aplicația server Node.js (Express)' + #13#10 +
     '  • Frontend React (servit de server)' + #13#10 +

@@ -16,7 +16,9 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401) {
+    const requestUrl = String(err.config?.url || '').replace(/\/+$/, '')
+    const isPublicAuthRequest = requestUrl === '/login' || requestUrl.startsWith('/setup/')
+    if (err.response?.status === 401 && !isPublicAuthRequest) {
       localStorage.removeItem('infraflow_token')
       window.location.href = '/login'
     }

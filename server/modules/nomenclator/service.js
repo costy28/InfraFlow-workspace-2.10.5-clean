@@ -1,12 +1,19 @@
 const fs = require('fs')
 const path = require('path')
 
-const SEED_FILE = path.resolve(__dirname, '../../../db/seeds/cpv_codes.json')
+const SEED_FILES = [
+  path.resolve(__dirname, '../../../db/seeds/cpv_codes.json'),
+  path.resolve(__dirname, './cpv_codes.json'),
+]
 const CPV_PATTERN = /^\d{8}-\d$/
 let seedCache = null
 
 function seedCodes() {
-  if (!seedCache) seedCache = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'))
+  if (!seedCache) {
+    const seedFile = SEED_FILES.find(file => fs.existsSync(file))
+    if (!seedFile) throw new Error('Catalogul CPV inclus nu a fost găsit.')
+    seedCache = JSON.parse(fs.readFileSync(seedFile, 'utf8'))
+  }
   return seedCache
 }
 

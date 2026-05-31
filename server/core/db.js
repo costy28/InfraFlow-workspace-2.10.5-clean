@@ -453,6 +453,7 @@ function writeMssqlDb(db) {
 
 function ensureMssqlRelationalSchema() {
   if (!MSSQL_RELATIONAL_MODE) return;
+  applyMssqlBaseSchema();
   applyMssqlMigrations();
   syncMssqlRelationalFromAppState();
 }
@@ -473,6 +474,21 @@ function applyMssqlMigrations() {
     .sort((left, right) => left.localeCompare(right))
     .forEach((name) => {
       runMssqlScriptFile(path.join(migrationsDir, name));
+      applied.push(name);
+    });
+  return applied;
+}
+
+function applyMssqlBaseSchema() {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) return [];
+  const schemaDir = path.join(ROOT, "db", "sqlserver");
+  if (!fs.existsSync(schemaDir)) return [];
+  const applied = [];
+  fs.readdirSync(schemaDir)
+    .filter((name) => name.toLowerCase().endsWith(".sql"))
+    .sort((left, right) => left.localeCompare(right))
+    .forEach((name) => {
+      runMssqlScriptFile(path.join(schemaDir, name));
       applied.push(name);
     });
   return applied;
@@ -1138,6 +1154,7 @@ module.exports = {
   runMssqlScalarPooled,
   getMssqlPool,
   closeMssqlPool,
+  applyMssqlBaseSchema,
   applyMssqlMigrations,
   syncMssqlCpvCodes,
   ensureMssqlDatabase,

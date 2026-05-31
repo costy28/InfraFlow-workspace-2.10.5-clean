@@ -1,0 +1,55 @@
+{
+  "licenseId": "INFRAFLOW-2026-PUBLISERV-001",
+  "client": {
+    "nume": "SC PUBLISERV SA",
+    "cui": "RO12345678",
+    "localitate": "Piatra-Neamt"
+  },
+  "pachet": "PROFESIONAL",
+  "module": [
+    "core",
+    "inventory",
+    "production",
+    "reports",
+    "system",
+    "fleet",
+    "hr",
+    "controlling",
+    "procurement",
+    "documents",
+    "field",
+    "messaging",
+    "tickets",
+    "workflow",
+    "technical",
+    "sanitation",
+    "traffic_safety",
+    "snow_removal",
+    "environment",
+    "legal",
+    "archive",
+    "secretariat",
+    "integration"
+  ],
+  "addons": [
+    "ai_assistant"
+  ],
+  "limite": {
+    "max_utilizatori": 50,
+    "max_dispozitive": 50,
+    "max_companii": 1
+  },
+  "valabilitate": {
+    "emis_la": "2026-05-22",
+    "expira_la": "2027-05-22",
+    "tip": "abonament_anual"
+  },
+  "update": {
+    "permise": true,
+    "canal": "stable",
+    "expira_la": "2027-05-22"
+  },
+  "emis_de": "InfraFlow Software",
+  "payload_hash": "86b852dc9418cd853fd28c696ad44186b21e608060513a58b5bea16e524fcf9c",
+  "semnatura": "J9O8HO5xzij06iUjxkNcYKNeSgOlJbXUoSc0As1ideUzyq5Hr0RavWAAs/KG2mp1rzHAl8Brf3LAiUDwwly6GWrb23jDaJDGvsHNLDA9RWQNk0gozkUGrmwRxyecRic6Nv9jDuskO+f+FGzAWoJZfEZsOsCR3TftE3uhrh7RGuqXRUzlug1zv4yN5nsJFdvtbJbVqTFhYpyjjboNg7lYHZOAtfN9wHOY6pmET7e9bbu+wyp06Ddc9tPnTeb4tKK6c/fl2tG0BUZA0Pez4hXpU5y+vKlkaNU3qdr6XeHvnBqbw8Iku1aOwgCPN1Az5edy9g1yd5TrmLc8seK6eKaDSw=="
+}

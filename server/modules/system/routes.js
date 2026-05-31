@@ -361,13 +361,13 @@ router.post(['/system/update/upload', '/system/update-upload'], updateUpload.sin
       fs.unlink(req.file.path, () => {});
       return sendJson(res, 400, { error: "Doar fișiere .zip sunt acceptate" });
     }
-    const zip = new AdmZip(req.file.path);
-    const versionEntry = zip.getEntry("version.json");
+    const zip = openUpdateZip(req.file.path);
+    const versionEntry = findUpdateVersionEntry(zip);
     if (!versionEntry) {
       fs.unlink(req.file.path, () => {});
       return sendJson(res, 400, { error: "Fișier .zip invalid — lipsește version.json" });
     }
-    const versionInfo = JSON.parse(versionEntry.getData().toString("utf8"));
+    const versionInfo = parseUpdateVersion(versionEntry);
     const current = require("../../package.json").version;
     if (compareVersions(versionInfo.version, current) <= 0) {
       fs.unlink(req.file.path, () => {});
@@ -401,10 +401,10 @@ router.post('/system/update/apply', async (req, res, next) => {
     if (!filename) throwHttp(400, "Numele fișierului de update este obligatoriu.");
     const archivePath = path.join(updateUploadDir, filename);
     if (!fs.existsSync(archivePath)) throwHttp(404, "Pachetul de update nu a fost găsit.");
-    const zip = new AdmZip(archivePath);
-    const versionEntry = zip.getEntry("version.json");
+    const zip = openUpdateZip(archivePath);
+    const versionEntry = findUpdateVersionEntry(zip);
     if (!versionEntry) throwHttp(400, "Fișier .zip invalid — lipsește version.json");
-    const versionInfo = JSON.parse(versionEntry.getData().toString("utf8"));
+    const versionInfo = parseUpdateVersion(versionEntry);
     const current = require("../../package.json").version;
     if (compareVersions(versionInfo.version, current) <= 0) {
       throwHttp(400, `Versiunea ${versionInfo.version} nu e mai nouă decât ${current}`);
@@ -415,11 +415,17 @@ router.post('/system/update/apply', async (req, res, next) => {
     fs.mkdirSync(tmpDir, { recursive: true });
     validateZipEntries(zip);
     zip.extractAllTo(tmpDir, true);
+    const packageRoot = resolveExtractedUpdateRoot(tmpDir);
 
-    copyDirExcept(path.join(tmpDir, 'server'), path.join(ROOT, 'server'), ['node_modules', '.env', 'data']);
-    copyDir(path.join(tmpDir, 'client', 'dist'), path.join(ROOT, 'client', 'dist'));
-    copyNewMigrations(path.join(tmpDir, 'db', 'migrations'), path.join(ROOT, 'db', 'migrations'));
-    copyDir(path.join(tmpDir, 'scripts', 'windows'), path.join(ROOT, 'scripts', 'windows'));
+    copyDirExcept(path.join(packageRoot, 'server'), path.join(ROOT, 'server'), ['node_modules', '.env', 'data']);
+    copyDir(path.join(packageRoot, 'client', 'dist'), path.join(ROOT, 'client', 'dist'));
+    copyNewMigrations(path.join(packageRoot, 'db', 'migrations'), path.join(ROOT, 'db', 'migrations'));
+    copyDir(path.join(packageRoot, 'db', 'seeds'), path.join(ROOT, 'db', 'seeds'));
+    copyDir(path.join(packageRoot, 'db', 'templates'), path.join(ROOT, 'db', 'templates'));
+    copyDir(path.join(packageRoot, 'db', 'sqlserver'), path.join(ROOT, 'db', 'sqlserver'));
+    copyDir(path.join(packageRoot, 'scripts'), path.join(ROOT, 'scripts'));
+    copyFileIfExists(path.join(packageRoot, 'version.json'), path.join(ROOT, 'version.json'));
+    copyFileIfExists(path.join(packageRoot, 'CHANGELOG.md'), path.join(ROOT, 'CHANGELOG.md'));
 
     const pkgPath = path.join(ROOT, 'server', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
@@ -2889,6 +2895,39 @@ function validateZipEntries(zip) {
   });
 }
 
+function openUpdateZip(filePath) {
+  try {
+    return new AdmZip(filePath);
+  } catch {
+    throwHttp(400, "Fișierul încărcat nu este o arhivă ZIP validă.");
+  }
+}
+
+function findUpdateVersionEntry(zip) {
+  return zip.getEntries().find((entry) => (
+    !entry.isDirectory &&
+    String(entry.entryName || "").replace(/\\/g, "/").toLowerCase().split("/").pop() === "version.json"
+  )) || null;
+}
+
+function parseUpdateVersion(entry) {
+  try {
+    const info = JSON.parse(entry.getData().toString("utf8").replace(/^\uFEFF/, ""));
+    if (!String(info.version || "").trim()) throw new Error("missing version");
+    return info;
+  } catch {
+    throwHttp(400, "Fișierul version.json din arhivă este invalid.");
+  }
+}
+
+function resolveExtractedUpdateRoot(tmpDir) {
+  if (fs.existsSync(path.join(tmpDir, "version.json"))) return tmpDir;
+  const children = fs.readdirSync(tmpDir, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+  const matching = children.filter((entry) => fs.existsSync(path.join(tmpDir, entry.name, "version.json")));
+  if (matching.length === 1) return path.join(tmpDir, matching[0].name);
+  throwHttp(400, "Structura arhivei este invalidă: version.json trebuie să fie la rădăcină sau într-un singur director exterior.");
+}
+
 function copyDir(source, destination) {
   if (!fs.existsSync(source)) return;
   fs.mkdirSync(destination, { recursive: true });
@@ -2902,6 +2941,12 @@ function copyDir(source, destination) {
       fs.copyFileSync(src, dest);
     }
   });
+}
+
+function copyFileIfExists(source, destination) {
+  if (!fs.existsSync(source) || !fs.statSync(source).isFile()) return;
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.copyFileSync(source, destination);
 }
 
 function copyDirExcept(source, destination, excludedNames = []) {
@@ -3697,6 +3742,8 @@ function publicSettings(settings = {}) {
   // Trimitem doar un flag că există salvată
   result.gps_password_set = !!(result.gps_password && result.gps_password.includes(":"))
   result.gps_password = ""
+  result.gps_api_key_set = !!(result.gps_api_key && result.gps_api_key.includes(":"))
+  result.gps_api_key = ""
   delete result.gps_session
   delete result.gps_group
   return result
