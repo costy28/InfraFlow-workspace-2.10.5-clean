@@ -16,6 +16,7 @@ const FlotaPage = lazy(() => import('./pages/modules/FlotaPage'))
 const FoaieParcursPage = lazy(() => import('./pages/FoaieParcursPage'))
 const FcUtilajePage = lazy(() => import('./pages/FcUtilajePage'))
 const AchizitiiPage = lazy(() => import('./pages/modules/AchizitiiPage'))
+const ReferatePage = lazy(() => import('./pages/modules/ReferatePage'))
 const TerenPage = lazy(() => import('./pages/modules/TerenPage'))
 const SalubrizarePage = lazy(() => import('./pages/modules/SalubrizarePage'))
 const SigurantaCircPage = lazy(() => import('./pages/modules/SigurantaCircPage'))
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="/foi-parcurs/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FoaieParcursPage /></PermissionGuard></WithLayout>} />
         <Route path="/fc-utilaje/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FcUtilajePage /></PermissionGuard></WithLayout>} />
         <Route path="/achizitii/*" element={<WithLayout><PermissionGuard permission="procurement:view"><AchizitiiPage /></PermissionGuard></WithLayout>} />
+        <Route path="/referate/*" element={<WithLayout><PermissionGuard permission="referate:view"><ReferatePage /></PermissionGuard></WithLayout>} />
         <Route path="/teren/*" element={<WithLayout><TerenPage /></WithLayout>} />
         <Route path="/salubrizare/*" element={<WithLayout><SalubrizarePage /></WithLayout>} />
         <Route path="/siguranta-circ/*" element={<WithLayout><SigurantaCircPage /></WithLayout>} />

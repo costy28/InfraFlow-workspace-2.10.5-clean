@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const xlsx = require('xlsx')
+const AdmZip = require('adm-zip')
 const { requireAuth, hashPassword, verifyPassword } = require('../../core/auth')
 const { requirePermission, authHasPermission } = require('../../core/permissions')
 const kioskSessions = require('../../core/kiosk-sessions')
@@ -15,6 +16,7 @@ const { notifyUser, createDepartmentChannel } = require('../messaging/routes')
 const { sendEmail } = require('../messaging/email')
 
 const router = Router()
+const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
 const upload = multer({
   dest: path.join(__dirname, '../../../storage/temp/'),
   limits: { fileSize: 10 * 1024 * 1024 }
@@ -199,8 +201,8 @@ function companySettings(db) {
 
 function publicCompanySettings(company = {}) {
   return {
-    denumire: company.company_name || company.denumire_firma || company.denumire || '',
-    cui: company.company_cui || company.cui || '',
+    denumire: company.company_name || company.companyName || company.denumire_firma || company.denumire || '',
+    cui: company.company_cui || company.companyCui || company.cui || '',
     adresa: company.company_address || company.adresa || company.address || '',
     reprezentant: company.company_representative || company.reprezentant || company.director || 'Director General',
     functie_reprezentant: company.company_role || company.functie_reprezentant || 'Director General',
@@ -252,7 +254,7 @@ function romanianEaster(year) {
 
 function legalHolidays(year) {
   const fixed = [
-    `${year}-01-01`, `${year}-01-02`, `${year}-01-24`, `${year}-05-01`,
+    `${year}-01-01`, `${year}-01-02`, `${year}-01-06`, `${year}-01-07`, `${year}-01-24`, `${year}-05-01`,
     `${year}-06-01`, `${year}-08-15`, `${year}-11-30`, `${year}-12-01`,
     `${year}-12-25`, `${year}-12-26`
   ]
@@ -277,6 +279,266 @@ function businessDays(start, end) {
     if (day !== 0 && day !== 6 && !legalHolidays(date.getFullYear()).has(iso)) count += 1
   }
   return count
+}
+
+function cloneStyle(style) {
+  return style ? JSON.parse(JSON.stringify(style)) : undefined
+}
+
+function cellStyleWithFill(style, rgb) {
+  return {
+    ...(cloneStyle(style) || {}),
+    fill: { patternType: 'solid', fgColor: { rgb } },
+  }
+}
+
+function setSheetCell(sheet, row, col, value, style) {
+  const ref = xlsx.utils.encode_cell({ r: row, c: col })
+  sheet[ref] = { t: typeof value === 'number' ? 'n' : 's', v: value ?? '' }
+  if (style) sheet[ref].s = cloneStyle(style)
+}
+
+function applyNexusStyles(buffer, fillsByCell, dataEndRow, footerRow) {
+  const colors = [...new Set(Object.values(fillsByCell))]
+  const zip = new AdmZip(buffer)
+  const templateZip = new AdmZip(NEXUS_TIMESHEET_TEMPLATE)
+  const stylesEntry = zip.getEntry('xl/styles.xml')
+  const sheetEntry = zip.getEntry('xl/worksheets/sheet1.xml')
+  const templateStylesEntry = templateZip.getEntry('xl/styles.xml')
+  const templateSheetEntry = templateZip.getEntry('xl/worksheets/sheet1.xml')
+  if (!stylesEntry || !sheetEntry || !templateStylesEntry || !templateSheetEntry) return buffer
+  let stylesXml = templateStylesEntry.getData().toString('utf8')
+  let sheetXml = sheetEntry.getData().toString('utf8')
+  const templateSheetXml = templateSheetEntry.getData().toString('utf8')
+  const sourceStyles = new Map()
+  for (const match of templateSheetXml.matchAll(/<c r="([A-Z]+\d+)"([^>]*)>/g)) {
+    const style = /\ss="(\d+)"/.exec(match[2])?.[1]
+    if (style !== undefined) sourceStyles.set(match[1], style)
+  }
+  sheetXml = sheetXml.replace(/<c r="([A-Z]+)(\d+)"([^>]*)>/g, (cell, col, rawRow, attributes) => {
+    const row = Number(rawRow)
+    let sourceRow = row
+    if (row >= 7 && row <= dataEndRow) sourceRow = row % 2 === 1 ? 7 : 8
+    if (row === footerRow) sourceRow = 11
+    if (row === footerRow + 1) sourceRow = 12
+    const style = sourceStyles.get(`${col}${sourceRow}`)
+    if (style === undefined) return cell
+    const cleanAttributes = attributes.replace(/\ss="\d+"/, '')
+    return `<c r="${col}${row}" s="${style}"${cleanAttributes}>`
+  })
+  if (!colors.length) {
+    zip.updateFile(stylesEntry.entryName, Buffer.from(stylesXml, 'utf8'))
+    zip.updateFile(sheetEntry.entryName, Buffer.from(sheetXml, 'utf8'))
+    return zip.toBuffer()
+  }
+  const fillMatch = /<fills count="(\d+)">([\s\S]*?)<\/fills>/.exec(stylesXml)
+  const xfMatch = /<cellXfs count="(\d+)">([\s\S]*?)<\/cellXfs>/.exec(stylesXml)
+  if (!fillMatch || !xfMatch) return buffer
+  const fillStart = Number(fillMatch[1])
+  const xfStart = Number(xfMatch[1])
+  const styleByColor = new Map()
+  const fillNodes = colors.map((rgb, index) => {
+    styleByColor.set(rgb, xfStart + index)
+    return `<fill><patternFill patternType="solid"><fgColor rgb="FF${rgb}"/><bgColor indexed="64"/></patternFill></fill>`
+  }).join('')
+  const xfNodes = colors.map((rgb, index) => (
+    `<xf numFmtId="0" fontId="0" fillId="${fillStart + index}" borderId="0" xfId="0" applyFill="1"/>`
+  )).join('')
+  stylesXml = stylesXml
+    .replace(fillMatch[0], `<fills count="${fillStart + colors.length}">${fillMatch[2]}${fillNodes}</fills>`)
+    .replace(xfMatch[0], `<cellXfs count="${xfStart + colors.length}">${xfMatch[2]}${xfNodes}</cellXfs>`)
+  Object.entries(fillsByCell).forEach(([cell, rgb]) => {
+    const styleId = styleByColor.get(rgb)
+    sheetXml = sheetXml.replace(new RegExp(`<c r="${cell}"(?: s="\\d+")?`), `<c r="${cell}" s="${styleId}"`)
+  })
+  zip.updateFile(stylesEntry.entryName, Buffer.from(stylesXml, 'utf8'))
+  zip.updateFile(sheetEntry.entryName, Buffer.from(sheetXml, 'utf8'))
+  return zip.toBuffer()
+}
+
+function nexusCode(value) {
+  const raw = String(value || '').trim().toLowerCase()
+  const codes = {
+    co: 'CO', concediu: 'CO', concediu_odihna: 'CO',
+    cm: 'CM', concediu_medical: 'CM',
+    ced: 'CED', concediu_evenimente: 'CED',
+    cfp: 'CFP', concediu_fara_plata: 'CFP',
+    abs: 'ABS', absent: 'ABS', absenta: 'ABS', nemotivat: 'ABS',
+    cic: 'CIC', ca: 'CIC', crestere_copil: 'CIC',
+    ctl: 'CTL', lp: 'LP', prb: 'PRB', c: 'C', d: 'D', i: 'I', n: 'N', s: 'S', ls: 'LS', zn: 'ZN',
+  }
+  return codes[raw] || ''
+}
+
+function nexusLeaveForDate(leaves, employeeId, date) {
+  return leaves.find((leave) => (
+    String(leave.employee_id) === String(employeeId) &&
+    ['aprobata', 'aprobat', 'approved'].includes(String(leave.status || '').toLowerCase()) &&
+    String(leave.data_start || '') <= date &&
+    String(leave.data_sfarsit || '') >= date
+  ))
+}
+
+function nexusTimesheetRows(db, luna, deptId) {
+  const hr = ensureHrDb(db)
+  if (isMssqlMode()) {
+    return {
+      employees: mssqlArray(`
+SELECT e.*, d.denumire AS department_name
+FROM hr.employees e
+LEFT JOIN core.departments d ON d.id = e.department_id
+WHERE e.activ = 1
+AND (NULLIF(JSON_VALUE(@p, '$.deptId'), '') IS NULL OR CONVERT(nvarchar(100), e.department_id) = JSON_VALUE(@p, '$.deptId'))
+ORDER BY e.nume, e.prenume
+FOR JSON PATH;
+`, { deptId }),
+      timesheets: mssqlArray(`
+SELECT ts.*
+FROM hr.time_sheets ts
+JOIN hr.employees e ON e.id = ts.employee_id
+WHERE FORMAT(ts.data, 'yyyy-MM') = JSON_VALUE(@p, '$.luna')
+AND (NULLIF(JSON_VALUE(@p, '$.deptId'), '') IS NULL OR CONVERT(nvarchar(100), e.department_id) = JSON_VALUE(@p, '$.deptId'))
+FOR JSON PATH;
+`, { luna, deptId }),
+      leaves: mssqlArray(`
+SELECT lr.*
+FROM hr.leave_requests lr
+JOIN hr.employees e ON e.id = lr.employee_id
+WHERE lr.status IN (N'aprobata', N'aprobat', N'approved')
+AND CONVERT(char(7), lr.data_start, 126) <= JSON_VALUE(@p, '$.luna')
+AND CONVERT(char(7), lr.data_sfarsit, 126) >= JSON_VALUE(@p, '$.luna')
+AND (NULLIF(JSON_VALUE(@p, '$.deptId'), '') IS NULL OR CONVERT(nvarchar(100), e.department_id) = JSON_VALUE(@p, '$.deptId'))
+FOR JSON PATH;
+`, { luna, deptId }),
+    }
+  }
+  const employees = hr.employees
+    .filter((employee) => employee.activ !== false && employee.activ !== 0)
+    .filter((employee) => !deptId || String(employee.department_id) === String(deptId))
+    .map((employee) => ({ ...employee, department_name: departmentName(db, employee.department_id) }))
+    .sort((left, right) => employeeName(left).localeCompare(employeeName(right), 'ro'))
+  const employeeIds = new Set(employees.map((employee) => String(employee.id)))
+  return {
+    employees,
+    timesheets: hr.timeSheets.filter((item) => employeeIds.has(String(item.employee_id)) && String(item.data || '').startsWith(luna)),
+    leaves: hr.leaveRequests.filter((item) => employeeIds.has(String(item.employee_id))),
+  }
+}
+
+function buildNexusTimesheetWorkbook(db, user, luna, deptId) {
+  const workbook = xlsx.readFile(NEXUS_TIMESHEET_TEMPLATE, { cellStyles: true })
+  const sourceSheetName = workbook.SheetNames[0]
+  const sheet = workbook.Sheets[sourceSheetName]
+  const { employees, timesheets, leaves } = nexusTimesheetRows(db, luna, deptId)
+  const [year, month] = luna.split('-').map(Number)
+  const dates = monthDates(luna)
+  const holidays = legalHolidays(year)
+  const monthName = new Intl.DateTimeFormat('ro-RO', { month: 'long' }).format(new Date(year, month - 1, 1)).toUpperCase()
+  const company = publicCompanySettings(companySettings(db))
+  const deptName = employees[0]?.department_name || (deptId ? departmentName(db, deptId) : 'Toate departamentele')
+  const dataRowStyles = [6, 7].map((row) => Array.from({ length: 55 }, (_, col) => sheet[xlsx.utils.encode_cell({ r: row, c: col })]?.s))
+  const dataMerges = (sheet['!merges'] || []).filter((merge) => merge.s.r >= 6 && merge.e.r <= 7)
+  const nexusFills = {}
+  sheet['!merges'] = (sheet['!merges'] || []).filter((merge) => merge.e.r < 6)
+  Object.keys(sheet).filter((key) => !key.startsWith('!')).forEach((key) => {
+    const cell = xlsx.utils.decode_cell(key)
+    if (cell.r >= 6) delete sheet[key]
+  })
+  setSheetCell(sheet, 1, 2, `Nume Societate: ${company.denumire}\r\nCIF: ${company.cui}`, sheet.C2?.s)
+  setSheetCell(sheet, 2, 2, `${deptName} - Foaie colectiva de prezenta pe luna ${monthName} ${year}`, sheet.C3?.s)
+  const weekdays = ['D', 'L', 'Ma', 'Mi', 'J', 'V', 'S']
+  for (let day = 1; day <= 31; day += 1) {
+    const date = dates[day - 1]
+    setSheetCell(sheet, 3, day + 2, day, sheet[xlsx.utils.encode_cell({ r: 3, c: day + 2 })]?.s)
+    setSheetCell(sheet, 4, day + 2, date ? weekdays[new Date(`${date}T00:00:00`).getDay()] : '', sheet[xlsx.utils.encode_cell({ r: 4, c: day + 2 })]?.s)
+    const isWorkDay = date && ![0, 6].includes(new Date(`${date}T00:00:00`).getDay()) && !holidays.has(date)
+    setSheetCell(sheet, 5, day + 2, date ? (isWorkDay ? 'Z' : 'N') : '', sheet[xlsx.utils.encode_cell({ r: 5, c: day + 2 })]?.s)
+  }
+  employees.forEach((employee, index) => {
+    const topRow = 6 + index * 2
+    const bottomRow = topRow + 1
+    dataMerges.forEach((merge) => sheet['!merges'].push({
+      s: { c: merge.s.c, r: topRow + merge.s.r - 6 },
+      e: { c: merge.e.c, r: bottomRow + merge.e.r - 7 },
+    }))
+    const totals = { ore: 0, CO: 0, CM: 0, CED: 0, CFP: 0, ABS: 0, CIC: 0, supl: 0, sl: 0, noapte: 0, weekend: 0, cercetare: 0, supl1: 0, supl2: 0, compensate: 0, a152: 0, consemn: 0 }
+    for (let col = 0; col < 55; col += 1) {
+      setSheetCell(sheet, topRow, col, '', dataRowStyles[0][col])
+      setSheetCell(sheet, bottomRow, col, '', dataRowStyles[1][col])
+    }
+    setSheetCell(sheet, topRow, 0, index + 1, dataRowStyles[0][0])
+    setSheetCell(sheet, topRow, 1, employee.marca || '', dataRowStyles[0][1])
+    setSheetCell(sheet, topRow, 2, employeeName(employee).toUpperCase(), dataRowStyles[0][2])
+    setSheetCell(sheet, bottomRow, 0, index + 1, dataRowStyles[1][0])
+    setSheetCell(sheet, bottomRow, 1, employee.marca || '', dataRowStyles[1][1])
+    dates.forEach((date, dateIndex) => {
+      const timesheet = timesheets.find((item) => String(item.employee_id) === String(employee.id) && String(item.data || '').slice(0, 10) === date)
+      const leave = nexusLeaveForDate(leaves, employee.id, date)
+      const code = nexusCode(timesheet?.tip) || nexusCode(leave?.tip)
+      const hours = numberValue(timesheet?.ore_lucrate)
+      const day = new Date(`${date}T00:00:00`).getDay()
+      const weekend = day === 0 || day === 6
+      const holiday = holidays.has(date)
+      let topStyle = dataRowStyles[0][dateIndex + 3]
+      let bottomStyle = dataRowStyles[1][dateIndex + 3]
+      if (weekend) {
+        topStyle = cellStyleWithFill(topStyle, 'D9D9D9')
+        bottomStyle = cellStyleWithFill(bottomStyle, 'D9D9D9')
+        nexusFills[xlsx.utils.encode_cell({ r: topRow, c: dateIndex + 3 })] = 'D9D9D9'
+        nexusFills[xlsx.utils.encode_cell({ r: bottomRow, c: dateIndex + 3 })] = 'D9D9D9'
+      }
+      if (holiday) {
+        topStyle = cellStyleWithFill(topStyle, 'FFB3B3')
+        bottomStyle = cellStyleWithFill(bottomStyle, 'FFB3B3')
+        nexusFills[xlsx.utils.encode_cell({ r: topRow, c: dateIndex + 3 })] = 'FFB3B3'
+        nexusFills[xlsx.utils.encode_cell({ r: bottomRow, c: dateIndex + 3 })] = 'FFB3B3'
+      }
+      if (code === 'CO') {
+        bottomStyle = cellStyleWithFill(bottomStyle, 'FFF2CC')
+        nexusFills[xlsx.utils.encode_cell({ r: bottomRow, c: dateIndex + 3 })] = 'FFF2CC'
+      }
+      if (code === 'CM') {
+        bottomStyle = cellStyleWithFill(bottomStyle, 'DDEBF7')
+        nexusFills[xlsx.utils.encode_cell({ r: bottomRow, c: dateIndex + 3 })] = 'DDEBF7'
+      }
+      if (code === 'ABS') {
+        bottomStyle = cellStyleWithFill(bottomStyle, 'FFB3B3')
+        nexusFills[xlsx.utils.encode_cell({ r: bottomRow, c: dateIndex + 3 })] = 'FFB3B3'
+      }
+      setSheetCell(sheet, topRow, dateIndex + 3, code ? '' : (hours || ''), topStyle)
+      setSheetCell(sheet, bottomRow, dateIndex + 3, code, bottomStyle)
+      totals.ore += code ? 0 : hours
+      if (totals[code] !== undefined) totals[code] += numberValue(employee.norma_ore_zi, 8)
+      totals.supl1 += numberValue(timesheet?.ore_suplimentare_s1)
+      totals.supl2 += numberValue(timesheet?.ore_suplimentare_s2)
+      totals.noapte += numberValue(timesheet?.ore_noapte)
+      if (weekend) totals.weekend += hours
+      if (holiday) totals.sl += hours
+    })
+    const values = [
+      totals.ore, totals.CO, totals.CM, totals.CED, totals.CFP, totals.ABS, totals.CIC,
+      totals.supl1 + totals.supl2, totals.sl, totals.noapte, totals.weekend, totals.cercetare,
+      totals.supl1, totals.supl2, totals.compensate, totals.ore ? Math.round((totals.supl1 + totals.supl2) / totals.ore * 10000) / 100 : 0,
+      numberValue(employee.norma_ore_zi, 8), businessDays(`${luna}-01`, dates.at(-1)), totals.a152, totals.consemn,
+      employee.cost_center_name || employee.cost_center || employee.centru_cost || '',
+    ]
+    values.forEach((value, offset) => setSheetCell(sheet, topRow, 34 + offset, value, dataRowStyles[0][34 + offset]))
+  })
+  const footerRow = 6 + employees.length * 2 + 2
+  setSheetCell(sheet, footerRow, 36, 'Intocmit:', sheet[xlsx.utils.encode_cell({ r: 10, c: 36 })]?.s)
+  setSheetCell(sheet, footerRow + 1, 36, user.name || user.fullName || user.username || '', sheet[xlsx.utils.encode_cell({ r: 11, c: 36 })]?.s)
+  sheet['!merges'].push({ s: { r: footerRow + 1, c: 36 }, e: { r: footerRow + 1, c: 44 } })
+  sheet['!ref'] = `A1:BC${footerRow + 2}`
+  const sheetName = monthName.slice(0, 31)
+  workbook.SheetNames[0] = sheetName
+  workbook.Sheets[sheetName] = sheet
+  if (sheetName !== sourceSheetName) delete workbook.Sheets[sourceSheetName]
+  return applyNexusStyles(
+    xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx', cellStyles: true }),
+    nexusFills,
+    6 + employees.length * 2,
+    footerRow + 1
+  )
 }
 
 function canUseKioskSync(auth) {
@@ -1910,6 +2172,27 @@ FOR JSON PATH;
       return { employee_id: employee.id, nume: employee.nume, prenume: employee.prenume, department_name: departmentName(db, employee.department_id), zile }
     })
     sendJson(res, 200, sheet)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/hr/timesheets/export-nexus', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:timesheet')) return
+    const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
+    if (!/^\d{4}-\d{2}$/.test(luna)) return sendJson(res, 422, { error: 'Luna pentru export trebuie sa aiba formatul YYYY-MM.' })
+    const deptId = String(req.query.dept_id || '').trim()
+    const db = readDb()
+    const department = deptId ? departmentName(db, deptId) : 'Toate_departamentele'
+    const safeDepartment = String(department || deptId || 'Departament').replace(/[^a-zA-Z0-9_-]+/g, '_')
+    const [year, month] = luna.split('-').map(Number)
+    const monthName = new Intl.DateTimeFormat('ro-RO', { month: 'long' }).format(new Date(year, month - 1, 1)).toUpperCase()
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename=Pontaj_${safeDepartment}_${monthName}_${year}.xlsx`)
+    res.end(buildNexusTimesheetWorkbook(db, auth.user, luna, deptId))
   } catch (error) {
     next(error)
   }

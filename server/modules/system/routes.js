@@ -4872,7 +4872,8 @@ function updateSettings(current, body) {
       ? encryptSettingSecret(body.smtp_password)
       : (body.smtp_password_encrypted || current.smtp_password_encrypted || ""),
     smtp_name: String(body.smtp_name ?? current.smtp_name ?? current.companyName ?? "InfraFlow").trim(),
-    cota_tva_standard: Number(body.cota_tva_standard ?? current.cota_tva_standard ?? 19),
+    tva_implicit: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? 21),
+    cota_tva_standard: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? 21),
     cota_tva_redusa: Number(body.cota_tva_redusa ?? current.cota_tva_redusa ?? 9),
     cota_tva_super_redusa: Number(body.cota_tva_super_redusa ?? current.cota_tva_super_redusa ?? 5),
     rolePermissionOverrides: current.rolePermissionOverrides || {},

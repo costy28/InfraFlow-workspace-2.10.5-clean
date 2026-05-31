@@ -22,6 +22,7 @@ const groups = [
       { to: '/mecanizare', icon: '⚙️', label: 'Mecanizare', moduleKey: 'mechanization' },
       { to: '/asternere', icon: '🛣️', label: 'Asternere', moduleKey: 'asternere' },
       { to: '/achizitii', icon: '🛒', label: 'Achiziții', moduleKey: 'procurement' },
+      { to: '/referate', icon: '📄', label: 'Referate', moduleKey: 'referate' },
       { to: '/teren', icon: '📍', label: 'Teren', moduleKey: 'field' },
       { to: '/salubrizare', icon: '🧹', label: 'Salubrizare', moduleKey: 'sanitation' },
       { to: '/siguranta-circ', icon: '🚦', label: 'Siguranța Circ.', moduleKey: 'traffic_safety' },
@@ -52,6 +53,7 @@ const modulePermissionPrefixes = {
   inventory: ['inventory', 'gestiune', 'materials', 'stock_operations', 'ledger', 'deliveries'],
   production: ['production', 'consumptions', 'recipes', 'planning', 'daily_report'],
   procurement: ['procurement', 'procurement_orders'],
+  referate: ['referate'],
   mechanization: ['mechanization', 'fleet', 'technical'],
   asternere: ['technical', 'field'],
   anaf: ['anaf', 'integration'],
@@ -61,6 +63,7 @@ const moduleActiveAliases = {
   mechanization: ['mechanization', 'fleet'],
   inventory: ['inventory', 'reports'],
   ai: ['ai', 'ai_assistant'],
+  referate: ['referate', 'procurement'],
 }
 
 function normalizedRoles(user) {

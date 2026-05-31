@@ -45,6 +45,12 @@ const DEFAULT_DB = {
   departmentConsumptions: [],
   procurementOrders: [],
   procurementReceipts: [],
+  referate: [],
+  referateFlux: [],
+  referateCounters: [],
+  cpvCodes: [],
+  paap: [],
+  paapExecutie: [],
   fleetAssets: [],
   fleetRequests: [],
   fleetMeterReadings: [],
@@ -113,6 +119,7 @@ const permissionGroups = {
   stockOperations: ["stock_operations:view", "stock_operations:create", "stock_operations:cancel", "stock_operations:export"],
   deliveries: ["deliveries:view", "deliveries:create", "deliveries:cancel"],
   procurementOrders: ["procurement_orders:view", "procurement_orders:create", "procurement_orders:receive", "procurement_orders:close"],
+  referate: ["referate:view", "referate:create", "referate:achizitii", "referate:gestionar", "referate:secretariat", "referate:cfp", "referate:contabil_sef", "referate:dir_adjunct", "referate:dir_general", "referate:receptie"],
   mechanization: ["mechanization:view", "mechanization:manage", "mechanization:request", "mechanization:approve"],
   technical: ["technical:view", "technical:worklog", "technical:sales", "technical:export"],
   costAccounting: ["cost_accounting:view", "cost_accounting:manage", "cost_accounting:import", "cost_accounting:export"],
@@ -453,6 +460,28 @@ function syncMssqlRelationalFromAppState() {
   runMssqlScriptFile(path.join(ROOT, "db", "mssql-import-app-state.sql"));
 }
 
+function syncMssqlCpvCodes(codes) {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) return 0;
+  const result = runMssqlScalar(`
+    if object_id(N'nomenclator.cpv_codes', N'U') is null
+    begin
+      select 0;
+      return;
+    end;
+    insert into nomenclator.cpv_codes (cod, denumire_ro, denumire_en, activ, created_by)
+    select source.cod, source.denumire_ro, source.denumire_en, 1, null
+    from openjson(@json)
+    with (
+      cod nvarchar(20) '$.cod',
+      denumire_ro nvarchar(500) '$.denumire_ro',
+      denumire_en nvarchar(500) '$.denumire_en'
+    ) source
+    where not exists (select 1 from nomenclator.cpv_codes existing where existing.cod = source.cod);
+    select @@rowcount;
+  `, { jsonInput: JSON.stringify(codes || []), timeoutMs: 300000 });
+  return Number(result || 0);
+}
+
 function runMssqlScriptFile(filePath) {
   if (!fs.existsSync(filePath)) throw new Error(`Script SQL lipsa: ${filePath}`);
   const sql = fs.readFileSync(filePath, "utf8");
@@ -581,6 +610,12 @@ function normalizeDb(db) {
   if (!Array.isArray(db.workstationRequests)) db.workstationRequests = [];
   if (!Array.isArray(db.procurementOrders)) db.procurementOrders = [];
   if (!Array.isArray(db.procurementReceipts)) db.procurementReceipts = [];
+  if (!Array.isArray(db.referate)) db.referate = [];
+  if (!Array.isArray(db.referateFlux)) db.referateFlux = [];
+  if (!Array.isArray(db.referateCounters)) db.referateCounters = [];
+  if (!Array.isArray(db.cpvCodes)) db.cpvCodes = [];
+  if (!Array.isArray(db.paap)) db.paap = [];
+  if (!Array.isArray(db.paapExecutie)) db.paapExecutie = [];
   if (!Array.isArray(db.fleetAssets)) db.fleetAssets = [];
   if (!Array.isArray(db.fleetRequests)) db.fleetRequests = [];
   if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
@@ -609,6 +644,7 @@ function normalizeDb(db) {
   if (db.settings.ai_monthly_budget === undefined) db.settings.ai_monthly_budget = 200;
   if (db.settings.ai_limit_per_user === undefined) db.settings.ai_limit_per_user = 30;
   if (db.settings.ai_limit_per_company === undefined) db.settings.ai_limit_per_company = 500;
+  if (db.settings.tva_implicit === undefined) db.settings.tva_implicit = Number(db.settings.cota_tva_standard ?? 21);
   db.settings.license = normalizeLicense(db.settings.license || {});
   db.settings.networkAccessMode = normalizeNetworkAccessMode(db.settings.networkAccessMode);
   db.settings.scaleDbPath = String(db.settings.scaleDbPath || "").trim();
@@ -1042,6 +1078,7 @@ module.exports = {
   readMssqlDb,
   writeMssqlDb,
   runMssqlScalar,
+  syncMssqlCpvCodes,
   ensureMssqlDatabase,
   normalizeDb
 };

@@ -10,6 +10,7 @@ const permissionGroups = {
   gestiune: ["gestiune:view", "gestiune:nir", "gestiune:bon_consum", "gestiune:inventar", "gestiune:manage", "gestiune:reports"],
   inventoryModern: ["inventory:view", "inventory:entries", "inventory:exits", "inventory:transfers", "inventory:reports"],
   procurementModern: ["procurement:view", "procurement:receive"],
+  referate: ["referate:view", "referate:create", "referate:achizitii", "referate:gestionar", "referate:secretariat", "referate:cfp", "referate:contabil_sef", "referate:dir_adjunct", "referate:dir_general", "referate:receptie"],
   deliveries: ["deliveries:view", "deliveries:create", "deliveries:cancel"],
   procurementOrders: ["procurement_orders:view", "procurement_orders:create", "procurement_orders:receive", "procurement_orders:close"],
   mechanization: ["mechanization:view", "mechanization:manage", "mechanization:request", "mechanization:approve"],
@@ -63,6 +64,7 @@ const permissionGroupLabels = {
   gestiune: "Gestiune",
   inventoryModern: "Gestiune materiale",
   procurementModern: "Achizitii materiale",
+  referate: "Referate aprovizionare si servicii",
   deliveries: "Aprovizionari simple",
   procurementOrders: "Comenzi aprovizionare",
   mechanization: "Mecanizare",
@@ -134,6 +136,16 @@ const permissionLabels = {
   "inventory:reports": "Genereaza rapoarte de gestiune",
   "procurement:view": "Vede achizitii",
   "procurement:receive": "Receptioneaza achizitii",
+  "referate:view": "Vede referate",
+  "referate:create": "Creeaza referate",
+  "referate:achizitii": "Avizeaza referate la Achizitii",
+  "referate:gestionar": "Avizeaza referate ca Gestionar",
+  "referate:secretariat": "Inregistreaza si transmite referate la Secretariat",
+  "referate:cfp": "Acorda control financiar preventiv",
+  "referate:contabil_sef": "Avizeaza referate ca Contabil Sef",
+  "referate:dir_adjunct": "Avizeaza referate ca Director Adjunct",
+  "referate:dir_general": "Aproba referate ca Director General",
+  "referate:receptie": "Inregistreaza receptia facturii pe referat",
   "deliveries:view": "Vede aprovizionari",
   "deliveries:create": "Creeaza aprovizionari",
   "deliveries:cancel": "Anuleaza aprovizionari",
@@ -347,6 +359,9 @@ const rolePermissions = {
     "stock_operations:export",
     "deliveries:view",
     "procurement_orders:view",
+    "referate:view",
+    "referate:dir_adjunct",
+    "referate:dir_general",
     "mechanization:view",
     "mechanization:approve",
     ...permissionGroups.technical,
@@ -368,6 +383,9 @@ const rolePermissions = {
     ...permissionGroups.deliveries,
     ...permissionGroups.procurementOrders,
     ...permissionGroups.procurementModern,
+    "referate:view",
+    "referate:gestionar",
+    "referate:receptie",
     "mechanization:view",
     ...permissionGroups.ledger,
     "consumptions:view",
@@ -403,7 +421,9 @@ const rolePermissions = {
     "tickets:create",
     "tickets:view_own",
     "secretariat:view",
-    "secretariat:registry"
+    "secretariat:registry",
+    "referate:view",
+    "referate:secretariat"
   ],
   procurement: [
     ...permissionGroups.dashboard,
@@ -418,6 +438,7 @@ const rolePermissions = {
     "stock_operations:export",
     ...permissionGroups.deliveries,
     ...permissionGroups.procurementOrders,
+    ...permissionGroups.referate,
     ...permissionGroups.ledger,
     "planning:view"
   ],
@@ -458,7 +479,10 @@ const rolePermissions = {
     "deliveries:view",
     ...permissionGroups.ledger,
     "planning:view",
-    "department_requests:view"
+    "department_requests:view",
+    "referate:view",
+    "referate:cfp",
+    "referate:contabil_sef"
   ],
   operator: [
     ...permissionGroups.dashboard,
@@ -479,7 +503,9 @@ const rolePermissions = {
     "technical:worklog",
     "recipes:view",
     "materials:view",
-    "planning:view"
+    "planning:view",
+    "referate:view",
+    "referate:create"
   ],
   viewer: [
     ...permissionGroups.dashboard,
@@ -491,6 +517,7 @@ const rolePermissions = {
     "stock_operations:view",
     "deliveries:view",
     "procurement_orders:view",
+    "referate:view",
     "mechanization:view",
     "technical:view",
     "cost_accounting:view",
@@ -717,6 +744,7 @@ const legacyPermissionAliases = {
     "stock_operations:view",
     "deliveries:view",
     "procurement_orders:view",
+    "referate:view",
     "mechanization:view",
     "technical:view",
     "cost_accounting:view",
@@ -734,6 +762,15 @@ const legacyPermissionAliases = {
     "deliveries:create",
     "procurement_orders:create",
     "procurement_orders:receive",
+    "referate:create",
+    "referate:achizitii",
+    "referate:gestionar",
+    "referate:secretariat",
+    "referate:cfp",
+    "referate:contabil_sef",
+    "referate:dir_adjunct",
+    "referate:dir_general",
+    "referate:receptie",
     "mechanization:request",
     "technical:worklog",
     "technical:sales",
@@ -829,7 +866,8 @@ const licenseModulePermissions = {
     "ledger:view",
     "ledger:export",
     "planning:view",
-    "department_requests:view"
+    "department_requests:view",
+    ...permissionGroups.referate
   ],
   mechanization: [
     "dashboard:view",
@@ -1094,6 +1132,7 @@ function roleModules(role, settings) {
   if (permissions.includes("gestiune:view")) modules.push("gestiune/depozit");
   if (permissions.includes("asternere:view")) modules.push("asternere asfalt");
   if (permissions.includes("anaf:view")) modules.push("ANAF / e-Factura");
+  if (permissions.includes("referate:view")) modules.push("referate");
   if (!modules.length) modules.push("citire");
   return modules;
 }

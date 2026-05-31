@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { hashPassword } = require('./auth');
 const { addAudit } = require('./audit');
 const { normalizeDb } = require('./db');
+const { importSeed: importCpvSeed } = require('../modules/nomenclator/service');
 
 const LICENSE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAYNXaZvihiimTZ3M0C7DLvUoYMfgD3qty3Ohm0+/0SFQ=
@@ -22,6 +23,7 @@ const permissionGroups = {
   stockOperations: ["stock_operations:view", "stock_operations:create", "stock_operations:cancel", "stock_operations:export"],
   deliveries: ["deliveries:view", "deliveries:create", "deliveries:cancel"],
   procurementOrders: ["procurement_orders:view", "procurement_orders:create", "procurement_orders:receive", "procurement_orders:close"],
+  referate: ["referate:view", "referate:create", "referate:achizitii", "referate:gestionar", "referate:secretariat", "referate:cfp", "referate:contabil_sef", "referate:dir_adjunct", "referate:dir_general", "referate:receptie"],
   mechanization: ["mechanization:view", "mechanization:manage", "mechanization:request", "mechanization:approve"],
   technical: ["technical:view", "technical:worklog", "technical:sales", "technical:export"],
   costAccounting: ["cost_accounting:view", "cost_accounting:manage", "cost_accounting:import", "cost_accounting:export"],
@@ -252,6 +254,7 @@ function completeInitialSetup(db, body) {
     license
   };
   db.users = [user];
+  importCpvSeed(db);
   if (!Array.isArray(db.audit)) db.audit = [];
   addAudit(db, user, "setup_initial_finalizat", `${companyName} / ${stationName}`);
   return { db: normalizeDb(db), user };

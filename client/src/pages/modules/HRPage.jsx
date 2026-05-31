@@ -227,6 +227,8 @@ export default function HRPage() {
   const [employeeForm, setEmployeeForm] = useState(emptyEmployeeForm)
   const [employeeModal, setEmployeeModal] = useState(false)
   const [importModal, setImportModal] = useState(false)
+  const [nexusExportModal, setNexusExportModal] = useState(false)
+  const [nexusExportForm, setNexusExportForm] = useState({ luna: currentMonth(), dept_id: '' })
   const [importFile, setImportFile] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [deadlineDate, setDeadlineDate] = useState('')
@@ -423,6 +425,31 @@ export default function HRPage() {
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
+  }
+
+  async function exportNexusTimesheet(event) {
+    event.preventDefault()
+    try {
+      const deptId = (!isHRPontaj && isSefPontaj ? ownDepartmentKey : nexusExportForm.dept_id) || undefined
+      const response = await api.get('/hr/timesheets/export-nexus', {
+        params: { luna: nexusExportForm.luna, dept_id: deptId },
+        responseType: 'blob',
+      })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      const department = departments.find(item => String(item.value) === String(deptId))?.label || 'Toate_departamentele'
+      const [year, month] = nexusExportForm.luna.split('-').map(Number)
+      const monthName = new Intl.DateTimeFormat('ro-RO', { month: 'long' }).format(new Date(year, month - 1, 1)).toUpperCase()
+      link.href = url
+      link.download = `Pontaj_${department.replace(/[^a-zA-Z0-9_-]+/g, '_')}_${monthName}_${year}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setNexusExportModal(false)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nu am putut exporta pontajul Nexus.')
+    }
   }
 
   async function compensateOvertime(event) {
@@ -1342,6 +1369,10 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                   })
                   exportExcel(rows, `Pontaj_${filters.luna}${filters.dept_id ? '_' + filters.dept_id : ''}`, `Pontaj ${filters.luna}`)
                 }}>📊 Excel</Button>
+                <Button size="sm" variant="secondary" onClick={() => {
+                  setNexusExportForm({ luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || '' })
+                  setNexusExportModal(true)
+                }}>📥 Export Nexus</Button>
               </div>
             </div>
           </div>
@@ -2355,6 +2386,17 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setImportModal(false)}>Închide</Button>
             <Button type="submit" disabled={!importFile}>Importă angajați</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={nexusExportModal} title="Export Pontaj Nexus" onClose={() => setNexusExportModal(false)}>
+        <form className="grid gap-4" onSubmit={exportNexusTimesheet}>
+          <Input label="Luna" type="month" value={nexusExportForm.luna} onChange={event => setNexusExportForm({ ...nexusExportForm, luna: event.target.value })} required />
+          <Select label="Departament" value={nexusExportForm.dept_id} onChange={event => setNexusExportForm({ ...nexusExportForm, dept_id: event.target.value })} disabled={!isHRPontaj && isSefPontaj} options={[{ value: '', label: 'Toate departamentele' }, ...departments]} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setNexusExportModal(false)}>Renunță</Button>
+            <Button type="submit">📥 Exportă Nexus</Button>
           </div>
         </form>
       </Modal>

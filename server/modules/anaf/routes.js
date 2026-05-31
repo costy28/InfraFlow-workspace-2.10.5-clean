@@ -92,12 +92,46 @@ function ensureAnafDb(db) {
   return db.anaf
 }
 
+function implicitVat(db) {
+  return Number(db.settings?.tva_implicit ?? db.settings?.cota_tva_standard ?? 21)
+}
+
+function normalizeInvoiceLines(db, lines) {
+  const defaultVat = implicitVat(db)
+  return (Array.isArray(lines) ? lines : []).map((line, index) => {
+    const cotaTVA = Number(line.cotaTVA ?? defaultVat)
+    const cantitate = Number(line.cantitate || 1)
+    const pretUnitar = Number(line.pretUnitar || 0)
+    return {
+      nr: index + 1,
+      descriere: String(line.descriere || '').trim(),
+      cantitate,
+      unitateMasura: String(line.unitateMasura || 'BUC').trim(),
+      pretUnitar,
+      cotaTVA,
+      valoareFaraTVA: Number((cantitate * pretUnitar).toFixed(2)),
+      valoareTVA: Number((cantitate * pretUnitar * cotaTVA / 100).toFixed(2)),
+    }
+  })
+}
+
+function recalculateInvoice(invoice) {
+  invoice.totalFaraTVA = Number(invoice.linii.reduce((sum, line) => sum + line.valoareFaraTVA, 0).toFixed(2))
+  invoice.totalTVA = Number(invoice.linii.reduce((sum, line) => sum + line.valoareTVA, 0).toFixed(2))
+  invoice.totalCuTVA = Number((invoice.totalFaraTVA + invoice.totalTVA).toFixed(2))
+}
+
+function isAdmin(user) {
+  return ['admin', 'superadmin'].includes(user?.role)
+}
+
 // ─── CIF Lookup ───────────────────────────────────────────────────────────────
 
 router.get('/anaf/lookup/:cif', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:view')) return
     const data = await lookupAnaf(req.params.cif)
     sendJson(res, 200, data)
   } catch (err) {
@@ -112,6 +146,7 @@ router.get('/anaf/partners', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:view')) return
     const { partners } = ensureAnafDb(auth.db)
     sendJson(res, 200, { partners })
   } catch (err) { next(err) }
@@ -121,6 +156,7 @@ router.post('/anaf/partners/lookup', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:manage')) return
     const cif = normalizeRomanianCif(req.body?.cif)
     if (!cif) return sendJson(res, 400, { error: 'CIF obligatoriu.' })
     const data = await lookupAnaf(cif)
@@ -132,6 +168,7 @@ router.post('/anaf/partners/lookup', async (req, res, next) => {
     } else {
       anaf.partners.push({ id: nextId(anaf.partners), ...data, created_at: nowIso() })
     }
+    addAudit(auth.db, auth.user, 'anaf_partener_actualizat', `${data.cif} / ${data.denumire}`)
     writeDb(auth.db)
     sendJson(res, 200, data)
   } catch (err) {
@@ -142,10 +179,18 @@ router.post('/anaf/partners/lookup', async (req, res, next) => {
 
 // ─── Facturi e-Factura ────────────────────────────────────────────────────────
 
+router.get('/anaf/settings', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'anaf:view')) return
+  sendJson(res, 200, { tva_implicit: implicitVat(auth.db) })
+})
+
 router.get('/anaf/invoices', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:view')) return
     const anaf = ensureAnafDb(auth.db)
     const { status, year } = req.query
     let list = [...anaf.invoices]
@@ -160,6 +205,7 @@ router.post('/anaf/invoices', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:manage')) return
     const body = req.body || {}
     if (!body.partenerCif && !body.partenerDenumire) return sendJson(res, 400, { error: 'CIF sau denumire partener obligatoriu.' })
     if (!body.data_factura) return sendJson(res, 400, { error: 'Data facturii obligatorie.' })
@@ -188,31 +234,14 @@ router.post('/anaf/invoices', (req, res, next) => {
         adresa: body.partenerAdresa || '',
       },
       // Linii factură
-      linii: Array.isArray(body.linii) ? body.linii.map((l, i) => {
-        const cotaTvaDefault = Number(auth.db.settings?.cota_tva_standard ?? 19)
-        const cotaTVA = Number(l.cotaTVA ?? cotaTvaDefault)
-        const cantitate = Number(l.cantitate || 1)
-        const pretUnitar = Number(l.pretUnitar || 0)
-        return {
-          nr: i + 1,
-          descriere: l.descriere || '',
-          cantitate,
-          unitateMasura: l.unitateMasura || 'BUC',
-          pretUnitar,
-          cotaTVA,
-          valoareFaraTVA: Number((cantitate * pretUnitar).toFixed(2)),
-          valoareTVA: Number((cantitate * pretUnitar * cotaTVA / 100).toFixed(2)),
-        }
-      }) : [],
+      linii: normalizeInvoiceLines(auth.db, body.linii),
       moneda: body.moneda || 'RON',
       mentiuni: body.mentiuni || '',
       created_by: auth.user.id,
       created_at: nowIso(),
     }
     // Totaluri
-    invoice.totalFaraTVA = Number(invoice.linii.reduce((s, l) => s + l.valoareFaraTVA, 0).toFixed(2))
-    invoice.totalTVA = Number(invoice.linii.reduce((s, l) => s + l.valoareTVA, 0).toFixed(2))
-    invoice.totalCuTVA = Number((invoice.totalFaraTVA + invoice.totalTVA).toFixed(2))
+    recalculateInvoice(invoice)
 
     anaf.invoices.push(invoice)
     addAudit(auth.db, auth.user, 'anaf_factura_creata', `${invoiceNo} / ${body.partenerDenumire || body.partenerCif}`)
@@ -225,19 +254,43 @@ router.patch('/anaf/invoices/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:manage')) return
     const anaf = ensureAnafDb(auth.db)
     const invoice = anaf.invoices.find(i => String(i.id) === String(req.params.id))
     if (!invoice) return sendJson(res, 404, { error: 'Factură inexistentă.' })
-    const allowed = ['status', 'mentiuni', 'data_scadenta', 'linii']
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) invoice[key] = req.body[key]
+    const body = req.body || {}
+    const contentFields = ['numar_factura', 'data_factura', 'data_scadenta', 'tip', 'partenerCif', 'partenerDenumire', 'partenerAdresa', 'emitentIban', 'emitentBanca', 'moneda', 'mentiuni', 'linii']
+    const editsContent = contentFields.some(key => body[key] !== undefined)
+    if (editsContent && invoice.status !== 'draft' && !(invoice.status === 'validata' && isAdmin(auth.user))) {
+      return sendJson(res, 409, { error: 'Doar facturile draft pot fi editate. Factura validată poate fi editată doar de Admin.' })
     }
-    if (req.body.linii) {
-      invoice.totalFaraTVA = Number(invoice.linii.reduce((s, l) => s + Number(l.valoareFaraTVA || 0), 0).toFixed(2))
-      invoice.totalTVA = Number(invoice.linii.reduce((s, l) => s + Number(l.valoareTVA || 0), 0).toFixed(2))
-      invoice.totalCuTVA = Number((invoice.totalFaraTVA + invoice.totalTVA).toFixed(2))
+    if (body.status !== undefined) invoice.status = body.status
+    if (body.numar_factura !== undefined) invoice.numar_factura = String(body.numar_factura || '').trim()
+    if (body.data_factura !== undefined) invoice.data_factura = body.data_factura
+    if (body.data_scadenta !== undefined) invoice.data_scadenta = body.data_scadenta
+    if (body.tip !== undefined) invoice.tip = body.tip
+    if (body.moneda !== undefined) invoice.moneda = body.moneda
+    if (body.mentiuni !== undefined) invoice.mentiuni = body.mentiuni
+    if (body.partenerCif !== undefined || body.partenerDenumire !== undefined || body.partenerAdresa !== undefined) {
+      invoice.partener = {
+        cif: normalizeRomanianCif(body.partenerCif ?? invoice.partener?.cif),
+        denumire: body.partenerDenumire ?? invoice.partener?.denumire ?? '',
+        adresa: body.partenerAdresa ?? invoice.partener?.adresa ?? '',
+      }
+    }
+    if (body.emitentIban !== undefined || body.emitentBanca !== undefined) {
+      invoice.emitent = {
+        ...(invoice.emitent || {}),
+        iban: body.emitentIban ?? invoice.emitent?.iban ?? '',
+        banca: body.emitentBanca ?? invoice.emitent?.banca ?? '',
+      }
+    }
+    if (body.linii !== undefined) {
+      invoice.linii = normalizeInvoiceLines(auth.db, body.linii)
+      recalculateInvoice(invoice)
     }
     invoice.updated_at = nowIso()
+    addAudit(auth.db, auth.user, editsContent ? 'anaf_factura_editata' : 'anaf_factura_status', `${invoice.numar_factura} / ${invoice.status}`)
     writeDb(auth.db)
     sendJson(res, 200, { invoice })
   } catch (err) { next(err) }
@@ -249,6 +302,7 @@ router.get('/anaf/invoices/:id/xml', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:view')) return
     const anaf = ensureAnafDb(auth.db)
     const invoice = anaf.invoices.find(i => String(i.id) === String(req.params.id))
     if (!invoice) return sendJson(res, 404, { error: 'Factură inexistentă.' })

@@ -37,6 +37,9 @@ app.use((req, res, next) => {
 
 // Routere module (placeholder — vor fi completate rând pe rând)
 app.use('/api', require('./core/auth-routes'))
+app.use('/api', require('./modules/referate/routes'))
+app.use('/api', require('./modules/nomenclator/routes'))
+app.use('/api', require('./modules/procurement/paap-routes'))
 app.use('/api', require('./modules/inventory/routes'))
 app.use('/api', require('./modules/production/routes'))
 app.use('/api', require('./modules/procurement/routes'))

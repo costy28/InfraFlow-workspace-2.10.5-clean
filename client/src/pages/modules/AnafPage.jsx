@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import { useAuth } from '../../hooks/useAuth'
 
 const tabs = ['🔍 Căutare CIF', '📄 Facturi e-Factura', '📦 Parteneri']
 
@@ -30,7 +31,7 @@ const EMPTY_INVOICE = {
   emitentBanca: '',
   moneda: 'RON',
   mentiuni: '',
-  linii: [{ descriere: '', cantitate: 1, unitateMasura: 'BUC', pretUnitar: 0, cotaTVA: 19 }],
+  linii: [{ descriere: '', cantitate: 1, unitateMasura: 'BUC', pretUnitar: 0, cotaTVA: 21 }],
 }
 
 function today() {
@@ -48,6 +49,7 @@ function roiNumber(n) {
 }
 
 export default function AnafPage() {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState(tabs[0])
   const [error, setError] = useState('')
 
@@ -64,12 +66,59 @@ export default function AnafPage() {
   const [invForm, setInvForm] = useState({ ...EMPTY_INVOICE, data_factura: today(), data_scadenta: addDays(today(), 30) })
   const [invSaving, setInvSaving] = useState(false)
   const [invError, setInvError] = useState('')
+  const [editingInvoice, setEditingInvoice] = useState(null)
+  const [validatedEditUnlocked, setValidatedEditUnlocked] = useState(false)
+  const [implicitVat, setImplicitVat] = useState(21)
   const [filterStatus, setFilterStatus] = useState('')
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()))
 
   // ── Parteneri ──
   const [partners, setPartners] = useState([])
   const [partLoading, setPartLoading] = useState(false)
+  const isAdmin = ['admin', 'superadmin'].includes(user?.role)
+  const invoiceReadOnly = Boolean(editingInvoice && editingInvoice.status !== 'draft' && !(editingInvoice.status === 'validata' && validatedEditUnlocked && isAdmin))
+
+  function newInvoiceForm(vat = implicitVat) {
+    return {
+      ...EMPTY_INVOICE,
+      data_factura: today(),
+      data_scadenta: addDays(today(), 30),
+      linii: [{ descriere: '', cantitate: 1, unitateMasura: 'BUC', pretUnitar: 0, cotaTVA: Number(vat) }],
+    }
+  }
+
+  function invoiceToForm(invoice) {
+    return {
+      numar_factura: invoice.numar_factura || '',
+      data_factura: invoice.data_factura || today(),
+      data_scadenta: invoice.data_scadenta || invoice.data_factura || today(),
+      tip: invoice.tip || 'emisa',
+      partenerCif: invoice.partener?.cif || '',
+      partenerDenumire: invoice.partener?.denumire || '',
+      partenerAdresa: invoice.partener?.adresa || '',
+      emitentIban: invoice.emitent?.iban || '',
+      emitentBanca: invoice.emitent?.banca || '',
+      moneda: invoice.moneda || 'RON',
+      mentiuni: invoice.mentiuni || '',
+      linii: (invoice.linii || []).map(line => ({ ...line })),
+    }
+  }
+
+  function openNewInvoice(prefill = {}) {
+    setEditingInvoice(null)
+    setValidatedEditUnlocked(false)
+    setInvForm({ ...newInvoiceForm(), ...prefill })
+    setInvError('')
+    setInvModal(true)
+  }
+
+  function openExistingInvoice(invoice) {
+    setEditingInvoice(invoice)
+    setValidatedEditUnlocked(false)
+    setInvForm(invoiceToForm(invoice))
+    setInvError('')
+    setInvModal(true)
+  }
 
   async function loadInvoices() {
     setInvLoading(true)
@@ -88,10 +137,18 @@ export default function AnafPage() {
   }
 
   useEffect(() => {
-    if (activeTab === tabs[1]) loadInvoices()
-    if (activeTab === tabs[2]) loadPartners()
+    Promise.resolve().then(() => {
+      if (activeTab === tabs[1]) loadInvoices()
+      if (activeTab === tabs[2]) loadPartners()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, filterStatus, filterYear])
+
+  useEffect(() => {
+    api.get('/anaf/settings')
+      .then(response => setImplicitVat(Number(response.data.tva_implicit ?? 21)))
+      .catch(() => setImplicitVat(21))
+  }, [])
 
   // ── Lookup CIF ──
   async function lookupCif(e) {
@@ -112,14 +169,12 @@ export default function AnafPage() {
 
   function prefillFromCif() {
     if (!cifResult) return
-    setInvForm(f => ({
-      ...f,
+    openNewInvoice({
       partenerCif: cifResult.cif,
       partenerDenumire: cifResult.denumire,
       partenerAdresa: cifResult.adresa,
-    }))
+    })
     setActiveTab(tabs[1])
-    setInvModal(true)
   }
 
   // ── Creare factură ──
@@ -128,9 +183,12 @@ export default function AnafPage() {
     setInvSaving(true)
     setInvError('')
     try {
-      await api.post('/anaf/invoices', invForm)
+      if (editingInvoice) await api.patch(`/anaf/invoices/${editingInvoice.id}`, invForm)
+      else await api.post('/anaf/invoices', invForm)
       setInvModal(false)
-      setInvForm({ ...EMPTY_INVOICE, data_factura: today(), data_scadenta: addDays(today(), 30) })
+      setEditingInvoice(null)
+      setValidatedEditUnlocked(false)
+      setInvForm(newInvoiceForm())
       await loadInvoices()
     } catch (err) {
       setInvError(err.response?.data?.error || 'Factura nu a putut fi creată.')
@@ -174,7 +232,7 @@ export default function AnafPage() {
   }
 
   function addLine() {
-    setInvForm(f => ({ ...f, linii: [...f.linii, { descriere: '', cantitate: 1, unitateMasura: 'BUC', pretUnitar: 0, cotaTVA: 19, valoareFaraTVA: 0, valoareTVA: 0 }] }))
+    setInvForm(f => ({ ...f, linii: [...f.linii, { descriere: '', cantitate: 1, unitateMasura: 'BUC', pretUnitar: 0, cotaTVA: implicitVat, valoareFaraTVA: 0, valoareTVA: 0 }] }))
   }
 
   function removeLine(index) {
@@ -192,7 +250,7 @@ export default function AnafPage() {
           <p className="text-sm text-slate-500">Lookup CIF, facturi electronice UBL 2.1 (CIUS-RO), parteneri.</p>
         </div>
         {activeTab === tabs[1] && (
-          <Button onClick={() => { setInvModal(true); setInvError('') }}>+ Factură nouă</Button>
+          <Button onClick={() => openNewInvoice()}>+ Factură nouă</Button>
         )}
       </div>
 
@@ -359,6 +417,12 @@ export default function AnafPage() {
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1.5">
                           <button
+                            onClick={() => openExistingInvoice(inv)}
+                            className="rounded-md border border-slate-200 px-2 py-1 text-xs hover:border-primary-300 hover:text-primary-700"
+                          >
+                            Deschide
+                          </button>
+                          <button
                             onClick={() => downloadXml(inv)}
                             className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs hover:border-primary-300 hover:text-primary-700"
                             title="Descarcă XML"
@@ -428,9 +492,12 @@ export default function AnafPage() {
         </Card>
       )}
 
-      {/* ── MODAL FACTURĂ NOUĂ ── */}
-      <Modal open={invModal} title="Factură e-Factura nouă" onClose={() => setInvModal(false)} size="xl">
+      {/* ── MODAL FACTURĂ ── */}
+      <Modal open={invModal} title={editingInvoice ? `Factură ${editingInvoice.numar_factura}` : 'Factură e-Factura nouă'} onClose={() => setInvModal(false)} size="xl">
         <form onSubmit={createInvoice}>
+          {invoiceReadOnly && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Factura este validată și se afișează în mod readonly.</div>}
+          {editingInvoice?.status === 'validata' && isAdmin && !validatedEditUnlocked && <div className="mb-4"><Button type="button" variant="secondary" onClick={() => setValidatedEditUnlocked(true)}>Editează</Button></div>}
+          <fieldset disabled={invoiceReadOnly} className={invoiceReadOnly ? 'opacity-75' : ''}>
           <div className="grid gap-4 md:grid-cols-3">
             <Input label="Număr factură" value={invForm.numar_factura} onChange={e => setInvForm(f => ({ ...f, numar_factura: e.target.value }))} placeholder="IF-2026-0001 (auto dacă gol)" />
             <Input label="Dată emitere" type="date" value={invForm.data_factura} onChange={e => setInvForm(f => ({ ...f, data_factura: e.target.value }))} required />
@@ -457,7 +524,7 @@ export default function AnafPage() {
           <div className="mt-4">
             <div className="mb-2 flex items-center justify-between">
               <div className="text-xs font-semibold uppercase text-slate-500">Linii factură</div>
-              <Button type="button" variant="secondary" onClick={addLine}>+ Linie</Button>
+              <Button type="button" variant="secondary" onClick={addLine} disabled={invoiceReadOnly}>+ Linie</Button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -489,6 +556,7 @@ export default function AnafPage() {
                       </td>
                       <td className="px-1 py-1">
                         <select className="w-full rounded border border-slate-200 px-1 py-1 text-xs" value={line.cotaTVA} onChange={e => updateLine(i, 'cotaTVA', e.target.value)}>
+                          <option value={21}>21%</option>
                           <option value={19}>19%</option>
                           <option value={9}>9%</option>
                           <option value={5}>5%</option>
@@ -518,14 +586,15 @@ export default function AnafPage() {
           <div className="mt-4">
             <Input label="Mențiuni / Note" value={invForm.mentiuni} onChange={e => setInvForm(f => ({ ...f, mentiuni: e.target.value }))} placeholder="Termen plată, mențiuni speciale..." />
           </div>
+          </fieldset>
 
           {invError && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{invError}</p>}
 
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setInvModal(false)}>Anulează</Button>
-            <Button type="submit" disabled={invSaving}>
-              {invSaving ? 'Se salvează...' : '💾 Salvează factura'}
-            </Button>
+            {!invoiceReadOnly && <Button type="submit" disabled={invSaving}>
+              {invSaving ? 'Se salvează...' : editingInvoice ? '💾 Salvează modificările' : '💾 Salvează factura'}
+            </Button>}
           </div>
         </form>
       </Modal>

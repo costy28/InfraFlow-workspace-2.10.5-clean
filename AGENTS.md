@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă: v2.10.5** (build EXE existent și funcțional)
-**Versiune în lucru: v2.10.6 → v2.10.10 → BUILD v2.11.0**
+**Versiune curentă sursă: v2.10.9** (build EXE v2.10.5 existent și funcțional)
+**Versiune în lucru: v2.10.9 → v2.10.10 → BUILD v2.11.0**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -204,11 +204,19 @@ Achiziții
   ✅ Comenzi + linii
   ✅ Recepții
   ✅ Cântar (scale tickets)
-  ✅ Plan Anual (UI existent, date goale)
+  ✅ Plan Anual PAAP complet + CPV (v2.10.8)
+
+Referate
+  ✅ Referate Aprovizionare + Servicii (v2.10.6)
+  ✅ Flux 11 pași aprobare
+  ✅ PDF tipărit pentru dosar fizic
+  ✅ Alertă diferență factură > 5%
+  ✅ Integrare stocuri + comenzi automate
 
 Resurse Umane
   ✅ Angajați + contracte
   ✅ Pontaj zilnic
+  ✅ Export Pontaj Nexus pentru import salarii (v2.10.9)
   ✅ Cereri concediu (CO/CM/CFP/CED)
   ✅ Autorizații + scadențe
   ✅ Documente HR
@@ -225,8 +233,8 @@ ANAF / e-Factura
   ✅ Export XML UBL 2.1 CIUS-RO
   ✅ Căutare CIF ANAF
   ✅ Parteneri
-  ⚠️  TVA 21% lipsă din dropdown (FIX în v2.10.7)
-  ⚠️  Câmpuri nu se pot edita (FIX în v2.10.7)
+  ✅ TVA 21% disponibil și implicit din settings (v2.10.7)
+  ✅ Draft editabil + validată readonly/editare admin (v2.10.7)
   ❌  Integrare automată SPV (după înregistrare ANAF)
 
 Workflow
@@ -241,46 +249,46 @@ Sistem
   ✅ Audit log
 ```
 
-### 🔄 ÎN LUCRU (v2.10.6 → v2.10.10)
+### 🔄 ÎN LUCRU (v2.10.9 → v2.10.10)
 
 ```
-UPDATE 006 — Modul Referate (v2.10.6)
-  🔄 Referate Aprovizionare + Servicii
-  🔄 Flux 11 pași aprobare
-  🔄 PDF tipărit pentru dosar fizic
-  🔄 Alertă diferență factură > 5%
-  🔄 Integrare stocuri + comenzi automate
+UPDATE 006 — Modul Referate (v2.10.6) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Referate Aprovizionare + Servicii
+  ✅ Flux 11 pași aprobare
+  ✅ PDF tipărit pentru dosar fizic
+  ✅ Alertă diferență factură > 5%
+  ✅ Integrare stocuri + comenzi automate
   Tabele: procurement.referate, referate_items,
           referate_flux, referate_counter
 
-UPDATE 007 — e-Factura fix (v2.10.7)
-  🔄 TVA 21% adăugat în dropdown
-  🔄 Câmpuri editabile în formular
-  🔄 Cota TVA din settings aplicată automat
-  🔄 Buton editare factură validată (admin)
+UPDATE 007 — e-Factura fix (v2.10.7) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ TVA 21% adăugat în dropdown
+  ✅ Câmpuri editabile în formular
+  ✅ Cota TVA din settings aplicată automat
+  ✅ Buton editare factură validată (admin)
 
-UPDATE 008 — PAAP complet + CPV (v2.10.8)
-  🔄 Plan Anual Achiziții complet
-  🔄 Execuție bugetară în timp real per CPV
-  🔄 Generare plan din istoric comenzi
-  🔄 Proceduri automate după praguri legale:
+UPDATE 008 — PAAP complet + CPV (v2.10.8) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Plan Anual Achiziții complet
+  ✅ Execuție bugetară în timp real per CPV
+  ✅ Generare plan din istoric comenzi
+  ✅ Proceduri automate după praguri legale:
      < 135.060 lei → Achiziție directă
      135.060-668.280 lei → Procedură simplificată
      > 668.280 lei → Licitație deschisă
-  🔄 Alerte depășire plafon CPV
-  🔄 9454 coduri CPV (RO + EN) importate
-  🔄 CPVSelector live search în toate modulele
-  🔄 Adăugare manuală cod CPV cu verificare unicitate
+  ✅ Alerte depășire plafon CPV
+  ✅ 9454 coduri CPV (RO + EN) importate
+  ✅ CPVSelector live search în Referate, Comenzi și Materiale
+  ✅ Adăugare manuală cod CPV cu verificare unicitate
   Tabele: procurement.paap, paap_executie,
           nomenclator.cpv_codes
 
-UPDATE 009 — Export PAAP + Pontaj Nexus (v2.10.9)
-  🔄 Export PAAP format oficial SEAP
+UPDATE 009 — Export PAAP + Pontaj Nexus (v2.10.9) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Export PAAP format oficial SEAP
      (identic cu sablon.xlsx Publiserv)
      Coloane: Obiect, CPV, Tip procedură, Tip contract,
      Responsabil, Val RON fără/cu TVA, Val EUR,
      Date început/sfârșit, Finanțare, Desfășurare
-  🔄 Export Pontaj format Nexus (import salarii)
+  ✅ Export Pontaj format Nexus (import salarii)
      (identic cu MODEL_PONTAJ_2026_rev_1.xlsx)
      2 rânduri per angajat, formatare Excel completă,
      Sheet Legenda, zilele weekend/libere colorate
@@ -460,13 +468,14 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ: 2.10.5 (build EXE existent ✅)
+VERSIUNE CURENTĂ SURSĂ: 2.10.9
+BUILD EXE EXISTENT: 2.10.5 ✅
 
 UPDATES ÎN LUCRU:
-  2.10.6  → UPDATE 006 Referate
-  2.10.7  → UPDATE 007 e-Factura fix
-  2.10.8  → UPDATE 008 PAAP + CPV
-  2.10.9  → UPDATE 009 Export PAAP + Pontaj Nexus
+  2.10.6  → UPDATE 006 Referate ✅
+  2.10.7  → UPDATE 007 e-Factura fix ✅
+  2.10.8  → UPDATE 008 PAAP + CPV ✅
+  2.10.9  → UPDATE 009 Export PAAP + Pontaj Nexus ✅
   2.10.10 → UPDATE 010 Echipamente HR
 
 NEXT BUILD: v2.11.0
@@ -957,5 +966,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md generat: 31 Mai 2026 | InfraFlow v2.10.5*
+*AGENTS.md actualizat: 31 Mai 2026 | InfraFlow sursă v2.10.9*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

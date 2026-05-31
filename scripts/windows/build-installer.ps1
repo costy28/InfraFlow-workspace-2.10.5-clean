@@ -85,6 +85,8 @@ if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 New-Item -ItemType Directory -Path "$tmp\server" -Force | Out-Null
 New-Item -ItemType Directory -Path "$tmp\client\dist" -Force | Out-Null
 New-Item -ItemType Directory -Path "$tmp\db\migrations" -Force | Out-Null
+New-Item -ItemType Directory -Path "$tmp\db\seeds" -Force | Out-Null
+New-Item -ItemType Directory -Path "$tmp\db\templates" -Force | Out-Null
 New-Item -ItemType Directory -Path "$tmp\scripts\windows" -Force | Out-Null
 
 # Copiaza server (fara node_modules, .env, data)
@@ -100,9 +102,14 @@ robocopy "$ProjectDir\client\dist" "$tmp\client\dist" /E `
 # Copiaza migratii
 robocopy "$ProjectDir\db\migrations" "$tmp\db\migrations" /E `
     /NFL /NDL /NJH /NJS | Out-Null
+robocopy "$ProjectDir\db\seeds" "$tmp\db\seeds" /E `
+    /NFL /NDL /NJH /NJS | Out-Null
+robocopy "$ProjectDir\db\templates" "$tmp\db\templates" /E `
+    /NFL /NDL /NJH /NJS | Out-Null
 
 # Copiaza scripturi runtime necesare la restart
 Copy-Item "$ProjectDir\scripts\windows\start-infraflow.ps1" "$tmp\scripts\windows\" -Force
+Copy-Item "$ProjectDir\scripts\import-cpv.js" "$tmp\scripts\" -Force
 
 # Copiaza fisiere radacina
 Copy-Item "version.json" "$tmp\" -Force

@@ -1010,8 +1010,8 @@ export default function SetariPage() {
             <Input
               label="TVA standard (%)"
               type="number"
-              value={settings.cota_tva_standard ?? 19}
-              onChange={e => setSettings(s => ({ ...s, cota_tva_standard: Number(e.target.value) }))}
+              value={settings.tva_implicit ?? settings.cota_tva_standard ?? 21}
+              onChange={e => setSettings(s => ({ ...s, tva_implicit: Number(e.target.value), cota_tva_standard: Number(e.target.value) }))}
               min={0} max={100}
             />
             <Input

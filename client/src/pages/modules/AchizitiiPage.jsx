@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import CPVSelector from '../../components/forms/CPVSelector'
 
 const tabs = ['Comenzi', 'Cerințe', 'Cântar', 'Plan anual']
 const pageSize = 10
@@ -60,6 +61,29 @@ function materialName(material) {
   return material?.name || material?.denumire || material?.materialName || 'Material'
 }
 
+function procedureFor(value) {
+  const amount = Number(value || 0)
+  if (amount < 135060) return 'Achizitie directa'
+  if (amount <= 668280) return 'Procedura simplificata'
+  return 'Licitatie deschisa'
+}
+
+function progressClass(percent) {
+  if (percent > 100) return 'bg-rose-700'
+  if (percent > 90) return 'bg-rose-500'
+  if (percent >= 50) return 'bg-amber-400'
+  return 'bg-emerald-500'
+}
+
+function emptyPaap(year) {
+  return {
+    an: year, cpv_cod: '', material: '', um: '', cantitate: '', valoare_estimata: '', valoare_executata: 0,
+    procedura: 'Achizitie directa', trimestru: 1, sursa: 'manual', responsabil_achizitie: '', curs_bnr_eur: 5,
+    data_estimata_incepere: '', data_estimata_finalizare: '', modalitate_finantare: 'Alte fonduri',
+    obiectiv_strategie_locala: '', modalitate_desfasurare: 'Online', unitate_responsabila: '',
+  }
+}
+
 function Pager({ page, total, onPage }) {
   const pages = Math.max(1, Math.ceil(total / pageSize))
   return (
@@ -100,6 +124,9 @@ export default function AchizitiiPage() {
   const [materialModal, setMaterialModal] = useState(false)
   const [planYear, setPlanYear] = useState(new Date().getFullYear() + 1)
   const [planRows, setPlanRows] = useState([])
+  const [paapModal, setPaapModal] = useState(false)
+  const [paapEditing, setPaapEditing] = useState(null)
+  const [paapForm, setPaapForm] = useState(emptyPaap(new Date().getFullYear() + 1))
   const [receiveForm, setReceiveForm] = useState({ nr_aviz: '', data_receptie: today(), observatii: '', linii: [] })
   const [materialForm, setMaterialForm] = useState({ cod: '', denumire: '', um: 'kg', categorie: 'materie_prima', stoc_minim: '', pret_unitar: '', cod_cpv: '', furnizor_implicit: '' })
   const [form, setForm] = useState({
@@ -107,6 +134,7 @@ export default function AchizitiiPage() {
     supplier: '',
     materialId: '',
     amount: '',
+    cpv_cod: '',
     orderNo: '',
     expectedDate: '',
     note: '',
@@ -170,7 +198,8 @@ export default function AchizitiiPage() {
           materialId: form.materialId,
           cantitate: Number(form.amount || 0),
           amount: Number(form.amount || 0),
-          pret: 0
+          pret: 0,
+          cpv_cod: form.cpv_cod,
         }],
         materialId: form.materialId,
         amount: Number(form.amount || 0),
@@ -183,7 +212,7 @@ export default function AchizitiiPage() {
       })
       setMessage('Comanda a fost salvată.')
       setModalOpen(false)
-      setForm({ date: today(), supplier: '', materialId: '', amount: '', orderNo: '', expectedDate: '', note: '' })
+      setForm({ date: today(), supplier: '', materialId: '', amount: '', cpv_cod: '', orderNo: '', expectedDate: '', note: '' })
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Comanda nu a putut fi salvată.')
@@ -248,14 +277,43 @@ export default function AchizitiiPage() {
     }
   }
 
-  async function generatePlan() {
-    const response = await api.get('/procurement/plan/generate', { params: { an: planYear } })
-    setPlanRows(arrayFrom(response.data, ['plan']))
+  async function loadPlan() {
+    const response = await api.get('/paap', { params: { an: planYear } })
+    setPlanRows(response.data.paap || [])
   }
 
-  async function savePlan() {
-    await api.post('/procurement/plan', { an: planYear, linii: planRows })
-    setMessage('Planul anual a fost salvat.')
+  useEffect(() => {
+    if (activeTab === 'Plan anual') Promise.resolve().then(loadPlan)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, planYear])
+
+  async function generatePlan() {
+    if (!window.confirm(`Generezi pozițiile PAAP ${planYear} din comenzile ${planYear - 1}, cu inflație 5%?`)) return
+    const response = await api.post('/paap/genereaza-din-istoric', { an: planYear })
+    setMessage(`Au fost generate ${response.data.paap?.length || 0} poziții PAAP.`)
+    await loadPlan()
+  }
+
+  function openPaap(item = null) {
+    setPaapEditing(item)
+    setPaapForm(item ? { ...item } : emptyPaap(planYear))
+    setPaapModal(true)
+  }
+
+  async function savePaap(event) {
+    event.preventDefault()
+    if (paapEditing) await api.put(`/paap/${paapEditing.id}`, paapForm)
+    else await api.post('/paap', paapForm)
+    setPaapModal(false)
+    setMessage(paapEditing ? 'Poziția PAAP a fost actualizată.' : 'Poziția PAAP a fost adăugată.')
+    await loadPlan()
+  }
+
+  async function removePaap(item) {
+    if (!window.confirm(`Anulezi poziția ${item.cpv_cod} / ${item.material}?`)) return
+    await api.delete(`/paap/${item.id}`, { data: { reason: 'Anulare din interfața Plan anual' } })
+    setMessage('Poziția PAAP a fost anulată.')
+    await loadPlan()
   }
 
   const scaleConnected = !!(scaleStatus?.connected || scaleStatus?.ok || scaleStatus?.available || scaleStatus?.status === 'connected' || scaleStatus?.readable)
@@ -439,29 +497,29 @@ export default function AchizitiiPage() {
       )}
 
       {activeTab === 'Plan anual' && (
-        <Card title="Plan anual achiziții" subtitle="Plan pe coduri CPV, generat din istoricul comenzilor.">
+        <Card title="Plan anual achiziții" subtitle="Plan PAAP pe coduri CPV, cu execuție și praguri de alertare.">
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <Input label="An" type="number" value={planYear} onChange={event => setPlanYear(Number(event.target.value))} />
+            <Button type="button" onClick={() => openPaap()}>+ Adaugă poziție</Button>
             <Button type="button" onClick={generatePlan}>Generează plan din istoric</Button>
-            <Button type="button" variant="secondary" onClick={savePlan}>Salvează plan</Button>
-            <Button type="button" variant="secondary" onClick={() => window.open(`/api/procurement/plan/export?an=${planYear}`, '_blank')}>Exportă Excel</Button>
+            <Button type="button" variant="secondary" onClick={() => window.open(`/api/paap/raport?an=${planYear}&token=${localStorage.getItem('infraflow_token')}`, '_blank')}>Exportă Excel</Button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th className="px-3 py-2">Cod CPV</th><th className="px-3 py-2">Material</th><th className="px-3 py-2">UM</th><th className="px-3 py-2">Cantitate</th><th className="px-3 py-2">Valoare</th><th className="px-3 py-2">Procedură</th><th className="px-3 py-2">Trimestru</th></tr></thead>
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th className="px-3 py-2">CPV</th><th className="px-3 py-2">Material</th><th className="px-3 py-2">UM</th><th className="px-3 py-2 text-right">Cant.</th><th className="px-3 py-2 text-right">Val.Plan</th><th className="px-3 py-2 text-right">Executat</th><th className="px-3 py-2 text-right">Rămas</th><th className="px-3 py-2">%</th><th className="px-3 py-2">Procedură</th><th className="px-3 py-2">Trim.</th><th className="px-3 py-2">Acțiuni</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
-                {planRows.length === 0 ? <EmptyRow colSpan={7} loading={false} /> : planRows.map((row, index) => (
-                  <tr key={`${row.cod_cpv}-${row.material_id}`}>
-                    <td className="px-3 py-2">{row.cod_cpv}</td>
-                    <td className="px-3 py-2">{row.denumire_material}</td>
+                {planRows.length === 0 ? <EmptyRow colSpan={11} loading={false} /> : planRows.map(row => (
+                  <tr key={row.id}>
+                    <td className="px-3 py-2"><div className="font-medium">{row.cpv_cod}</div><div className="max-w-56 text-xs text-slate-500">{row.cpv_denumire}</div></td>
+                    <td className="px-3 py-2">{row.material}</td>
                     <td className="px-3 py-2">{row.um}</td>
-                    <td className="px-3 py-2"><Input value={row.cantitate_planificata ?? row.cantitate_estimata} onChange={event => setPlanRows(rows => rows.map((item, i) => i === index ? { ...item, cantitate_planificata: Number(event.target.value) } : item))} /></td>
-                    <td className="px-3 py-2"><Input value={row.valoare_planificata ?? row.valoare_estimata} onChange={event => setPlanRows(rows => rows.map((item, i) => i === index ? { ...item, valoare_planificata: Number(event.target.value) } : item))} /></td>
-                    <td className="px-3 py-2"><Select value={row.procedura || 'cumparare_directa'} onChange={event => setPlanRows(rows => rows.map((item, i) => i === index ? { ...item, procedura: event.target.value } : item))} options={[{ value: 'cumparare_directa', label: 'Cumpărare directă' }, { value: 'cerere_oferta', label: 'Cerere ofertă' }, { value: 'licitatie', label: 'Licitație' }]} /></td>
-                    <td className="px-3 py-2"><Select value={row.trimestru || 'T1'} onChange={event => setPlanRows(rows => rows.map((item, i) => i === index ? { ...item, trimestru: event.target.value } : item))} options={['T1', 'T2', 'T3', 'T4'].map(q => ({ value: q, label: q }))} /></td>
+                    <td className="px-3 py-2 text-right">{numberValue(row.cantitate)}</td><td className="px-3 py-2 text-right">{money(row.valoare_estimata)}</td><td className="px-3 py-2 text-right">{money(row.valoare_executata)}</td><td className="px-3 py-2 text-right">{money(row.valoare_ramasa)}</td>
+                    <td className="min-w-28 px-3 py-2"><div className="mb-1 text-xs font-medium">{row.procent}% {row.procent > 100 ? '⚠️' : ''}</div><div className="h-2 overflow-hidden rounded bg-slate-100"><div className={`h-full ${progressClass(row.procent)}`} style={{ width: `${Math.min(100, Number(row.procent || 0))}%` }} /></div></td>
+                    <td className="px-3 py-2">{row.procedura}</td><td className="px-3 py-2">T{row.trimestru}</td><td className="px-3 py-2"><div className="flex gap-1"><Button size="sm" variant="secondary" onClick={() => openPaap(row)}>Editează</Button><Button size="sm" variant="danger" onClick={() => removePaap(row)}>Anulează</Button></div></td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot><tr className="border-t bg-slate-50 font-semibold"><td className="px-3 py-2" colSpan="4">Total</td><td className="px-3 py-2 text-right">{money(planRows.reduce((sum, item) => sum + Number(item.valoare_estimata || 0), 0))}</td><td className="px-3 py-2 text-right">{money(planRows.reduce((sum, item) => sum + Number(item.valoare_executata || 0), 0))}</td><td className="px-3 py-2 text-right">{money(planRows.reduce((sum, item) => sum + Number(item.valoare_ramasa || 0), 0))}</td><td colSpan="4" /></tr></tfoot>
             </table>
           </div>
         </Card>
@@ -474,7 +532,7 @@ export default function AchizitiiPage() {
             <Input label="Număr comandă" value={form.orderNo} onChange={event => setForm({ ...form, orderNo: event.target.value })} />
             <Input label="Furnizor" value={form.supplier} onChange={event => setForm({ ...form, supplier: event.target.value })} />
             <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-              <Select label="Material" value={form.materialId} onChange={event => setForm({ ...form, materialId: event.target.value })}>
+              <Select label="Material" value={form.materialId} onChange={event => { const materialId = event.target.value; const material = materials.find(item => String(item.id) === String(materialId)); setForm({ ...form, materialId, cpv_cod: material?.cpv_cod || material?.cod_cpv || '' }) }}>
                 <option value="">Alege material</option>
                 {materials.map(material => (
                   <option key={material.id} value={material.id}>
@@ -485,6 +543,7 @@ export default function AchizitiiPage() {
               <div className="flex items-end"><Button type="button" variant="secondary" onClick={() => setMaterialModal(true)}>+ Material nou</Button></div>
             </div>
             <Input label="Cantitate" type="number" min="0" step="0.001" value={form.amount} onChange={event => setForm({ ...form, amount: event.target.value })} />
+            <CPVSelector value={form.cpv_cod} onChange={cpv_cod => setForm({ ...form, cpv_cod })} />
             <Input label="Dată estimată livrare" type="date" value={form.expectedDate} onChange={event => setForm({ ...form, expectedDate: event.target.value })} />
           </div>
           <Input label="Observații" value={form.note} onChange={event => setForm({ ...form, note: event.target.value })} />
@@ -522,9 +581,25 @@ export default function AchizitiiPage() {
           <Select label="Categorie" value={materialForm.categorie} onChange={event => setMaterialForm({ ...materialForm, categorie: event.target.value })} options={['materie_prima', 'material', 'combustibil', 'marfa', 'obiect_inventar'].map(value => ({ value, label: value }))} />
           <Input label="Stoc minim" type="number" value={materialForm.stoc_minim} onChange={event => setMaterialForm({ ...materialForm, stoc_minim: event.target.value })} />
           <Input label="Preț unitar estimat" type="number" value={materialForm.pret_unitar} onChange={event => setMaterialForm({ ...materialForm, pret_unitar: event.target.value })} />
-          <Input label="Cod CPV" value={materialForm.cod_cpv} onChange={event => setMaterialForm({ ...materialForm, cod_cpv: event.target.value })} />
+          <CPVSelector value={materialForm.cod_cpv} onChange={cod_cpv => setMaterialForm({ ...materialForm, cod_cpv })} />
           <Input label="Furnizor implicit" value={materialForm.furnizor_implicit} onChange={event => setMaterialForm({ ...materialForm, furnizor_implicit: event.target.value })} />
           <Button type="submit">Creează material</Button>
+        </form>
+      </Modal>
+
+      <Modal open={paapModal} title={paapEditing ? 'Editează poziție PAAP' : 'Poziție PAAP nouă'} onClose={() => setPaapModal(false)} size="lg">
+        <form className="grid gap-3" onSubmit={savePaap}>
+          <CPVSelector value={paapForm.cpv_cod} onChange={(cpv_cod, cpv) => setPaapForm(current => ({ ...current, cpv_cod, cpv_denumire: cpv?.denumire_ro || current.cpv_denumire }))} required />
+          <Input label="Material / obiect achiziție" value={paapForm.material} onChange={event => setPaapForm({ ...paapForm, material: event.target.value })} required />
+          <div className="grid gap-3 md:grid-cols-2"><Input label="UM" value={paapForm.um} onChange={event => setPaapForm({ ...paapForm, um: event.target.value })} /><Input label="Cantitate" type="number" min="0" step="0.001" value={paapForm.cantitate} onChange={event => setPaapForm({ ...paapForm, cantitate: event.target.value })} /></div>
+          <div className="grid gap-3 md:grid-cols-2"><Input label="Valoare estimată RON" type="number" min="0" step="0.01" value={paapForm.valoare_estimata} onChange={event => { const valoare_estimata = event.target.value; setPaapForm({ ...paapForm, valoare_estimata, procedura: procedureFor(valoare_estimata) }) }} required /><Input label="Valoare executată RON" type="number" min="0" step="0.01" value={paapForm.valoare_executata} onChange={event => setPaapForm({ ...paapForm, valoare_executata: event.target.value })} /></div>
+          <Select label="Procedură" value={paapForm.procedura} onChange={event => setPaapForm({ ...paapForm, procedura: event.target.value })} options={['Achizitie directa', 'Procedura simplificata', 'Licitatie deschisa'].map(value => ({ value, label: value }))} />
+          <div className="grid gap-3 md:grid-cols-2"><Select label="Trimestru" value={paapForm.trimestru} onChange={event => setPaapForm({ ...paapForm, trimestru: Number(event.target.value) })} options={[1, 2, 3, 4].map(value => ({ value, label: `T${value}` }))} /><Input label="Curs BNR EUR" type="number" min="0.0001" step="0.0001" value={paapForm.curs_bnr_eur} onChange={event => setPaapForm({ ...paapForm, curs_bnr_eur: event.target.value })} /></div>
+          <div className="grid gap-3 md:grid-cols-2"><Input label="Responsabil achiziție" value={paapForm.responsabil_achizitie} onChange={event => setPaapForm({ ...paapForm, responsabil_achizitie: event.target.value })} /><Input label="Unitatea responsabilă" value={paapForm.unitate_responsabila} onChange={event => setPaapForm({ ...paapForm, unitate_responsabila: event.target.value })} /></div>
+          <div className="grid gap-3 md:grid-cols-2"><Input label="Data estimată începere" type="date" value={paapForm.data_estimata_incepere} onChange={event => setPaapForm({ ...paapForm, data_estimata_incepere: event.target.value })} /><Input label="Data estimată finalizare" type="date" value={paapForm.data_estimata_finalizare} onChange={event => setPaapForm({ ...paapForm, data_estimata_finalizare: event.target.value })} /></div>
+          <div className="grid gap-3 md:grid-cols-2"><Input label="Modalitatea de finanțare" value={paapForm.modalitate_finantare} onChange={event => setPaapForm({ ...paapForm, modalitate_finantare: event.target.value })} /><Select label="Modalitatea de desfășurare" value={paapForm.modalitate_desfasurare} onChange={event => setPaapForm({ ...paapForm, modalitate_desfasurare: event.target.value })} options={['Online', 'Offline'].map(value => ({ value, label: value }))} /></div>
+          <Input label="Obiectivul din strategia locală" value={paapForm.obiectiv_strategie_locala} onChange={event => setPaapForm({ ...paapForm, obiectiv_strategie_locala: event.target.value })} />
+          <Button type="submit">Salvează poziția</Button>
         </form>
       </Modal>
     </div>

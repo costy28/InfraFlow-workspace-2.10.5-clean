@@ -3756,6 +3756,7 @@ function createMaterial(db, user, body) {
     alert,
     recipeMaterial,
     category: recipeMaterial ? "asfalt" : "general",
+    cpv_cod: String(body.cpv_cod || body.cod_cpv || "").trim(),
     createdBy: user.id,
     createdByName: user.name,
     createdAt: new Date().toISOString()
@@ -4267,6 +4268,8 @@ function updateSettings(current, body) {
     nexusDbPath: String(body.nexusDbPath ?? current.nexusDbPath ?? "").trim(),
     autominderDbPath: String(body.autominderDbPath ?? current.autominderDbPath ?? "").trim(),
     autominderConnectionString: normalizeAutominderConnectionSetting(current, body),
+    tva_implicit: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? 21),
+    cota_tva_standard: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? 21),
     rolePermissionOverrides: normalizeRolePermissionOverrides(current.rolePermissionOverrides || {}),
     license: normalizeLicense({
       ...license,

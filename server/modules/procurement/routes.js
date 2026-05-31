@@ -69,6 +69,7 @@ function normalizeOrderLines(db, body) {
       amount: cantitate,
       pret,
       unitPrice: pret,
+      cpv_cod: String(line.cpv_cod || material.cpv_cod || material.cod_cpv || '').trim(),
       cantitate_receptionata: 0,
       cantitate_ramasa: cantitate
     }
@@ -3673,6 +3674,7 @@ function createMaterial(db, user, body) {
     alert,
     recipeMaterial,
     category: recipeMaterial ? "asfalt" : "general",
+    cpv_cod: String(body.cpv_cod || body.cod_cpv || "").trim(),
     createdBy: user.id,
     createdByName: user.name,
     createdAt: new Date().toISOString()

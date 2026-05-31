@@ -42,6 +42,11 @@ if ($sqlcmd) {
   }
 }
 
+Write-Host "Import coduri CPV..." -ForegroundColor Cyan
+Push-Location $appPath
+node scripts\import-cpv.js
+Pop-Location
+
 Write-Host "Repornesc serviciul InfraFlow..." -ForegroundColor Cyan
 if (Get-Service InfraFlow -ErrorAction SilentlyContinue) {
   Start-Service InfraFlow
