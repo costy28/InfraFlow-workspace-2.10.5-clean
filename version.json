@@ -1,5 +1,5 @@
 {
-  "version": "2.11.8",
+  "version": "2.11.9",
   "date": "2026-06-01",
-  "changelog": "## v2.11.8 — 2026-06-01\n### Kiosk universal pentru utilizatorii activi\n- Orice utilizator activ primește automat permisiunile de bază pentru Kiosk.\n- Pagina Kiosk afișează rezumatul personal pentru pontaj, concedii, autorizații, program și notificări.\n- Administrarea utilizatorilor arată accesul Kiosk automat și nedezactivabil."
+  "changelog": "## v2.11.9 — 2026-06-01\n### Hotfix restart după update ZIP\n- Restartul după aplicarea arhivei detectează serviciul Windows InfraFlow sau task-ul programat InfraFlow ERP.\n- Procesul vechi este oprit înainte de relansare, evitând blocarea serverului după refresh-ul automat."
 }

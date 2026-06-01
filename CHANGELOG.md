@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.11.9 — 2026-06-01
+### Hotfix restart după update ZIP
+- Restartul automat detectează serviciul Windows `InfraFlow` sau task-ul programat `InfraFlow ERP`.
+- Procesul vechi este oprit înainte de relansare, evitând blocarea serverului după aplicarea arhivei ZIP.
+
 ## v2.11.8 — 2026-06-01
 ### Kiosk universal pentru utilizatorii activi
 - Orice utilizator activ primește automat permisiunile de bază pentru Kiosk.

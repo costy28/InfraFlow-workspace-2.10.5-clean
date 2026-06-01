@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.11.8** (build EXE v2.11.5 existent și funcțional)
-**Versiune în lucru: update v2.11.8**
+**Versiune curentă sursă: v2.11.9** (build EXE v2.11.5 existent și funcțional)
+**Versiune în lucru: hotfix v2.11.9**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -355,6 +355,11 @@ UPDATE 018 — Kiosk universal pentru toți angajații (v2.11.8) ✅ IMPLEMENTAT
   ✅ Rol implicit Angajat nedezactivabil, independent de rolul principal
   ✅ Endpoint agregat cu datele personale ale utilizatorului
   ✅ Acces Kiosk permanent în sidebar și în administrarea utilizatorilor
+
+UPDATE 019 — Restart după update ZIP (v2.11.9) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Restart automat pentru serviciul Windows InfraFlow
+  ✅ Restart automat pentru task-ul programat InfraFlow ERP
+  ✅ Oprire controlată a procesului vechi înainte de relansare
 ```
 
 ### 📋 BACKLOG (după BUILD v2.11.0)
@@ -518,7 +523,7 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.11.8
+VERSIUNE CURENTĂ SURSĂ: 2.11.9
 BUILD EXE EXISTENT: 2.11.5 ✅
 
 UPDATES ÎN LUCRU:
@@ -535,10 +540,11 @@ UPDATES ÎN LUCRU:
   2.11.6  → UPDATE 016 Notă Comandă PDF ✅
   2.11.7  → UPDATE 017 Editor vizual documente ✅
   2.11.8  → UPDATE 018 Kiosk universal pentru toți angajații ✅
+  2.11.9  → UPDATE 019 Restart după update ZIP ✅
 
-NEXT BUILD: v2.11.8
-  → InfraFlow-Server-Setup-v2.11.8.exe
-  → InfraFlow-Client-Setup-v2.11.8.exe
+NEXT BUILD: v2.11.9
+  → InfraFlow-Server-Setup-v2.11.9.exe
+  → InfraFlow-Client-Setup-v2.11.9.exe
   → Versiunea citită automat din package.json
   → Script: scripts/build-installer.ps1
 
@@ -1024,5 +1030,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 Iunie 2026 | InfraFlow sursă v2.11.8*
+*AGENTS.md actualizat: 1 Iunie 2026 | InfraFlow sursă v2.11.9*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

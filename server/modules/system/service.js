@@ -714,53 +714,46 @@ function installManifestFiles(packageRoot, files) {
 
 function scheduleApplicationRestart() {
   const port = Number(process.env.INFRAFLOW_PORT || process.env.PORT || PORT || 4180);
+  const scriptPath = path.join(ROOT, "runtime", `restart-${Date.now()}.ps1`);
+  const startScriptPath = path.join(ROOT, "scripts", "windows", "start-infraflow.ps1");
+  fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
 
-  // Încearcă restart via NSSM (serviciu Windows) — dacă rulează ca serviciu
-  try {
-    const nssmPath = path.join(ROOT, "installer", "nssm.exe");
-    if (fs.existsSync(nssmPath)) {
-      console.log("[UPDATE] Restart via NSSM...");
-      const child = childProcess.spawn(nssmPath, ["restart", "InfraFlow"], {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: true
-      });
-      child.unref();
-      setTimeout(() => process.exit(0), 1500);
-      return;
-    }
-  } catch (e) {
-    console.log("[UPDATE] NSSM nu e disponibil, folosesc bat fallback:", e.message);
+  const script = `
+$ErrorActionPreference = "SilentlyContinue"
+Start-Sleep -Seconds 3
+
+$service = Get-Service -Name "InfraFlow" -ErrorAction SilentlyContinue
+if ($service) {
+  Restart-Service -Name "InfraFlow" -Force -ErrorAction Stop
+  exit 0
+}
+
+$task = Get-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
+if ($task) {
+  Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
+  for ($attempt = 0; $attempt -lt 20; $attempt++) {
+    Start-Sleep -Milliseconds 500
+    $task = Get-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
+    if (-not $task -or $task.State -ne "Running") { break }
   }
+  Start-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction Stop
+  exit 0
+}
 
-  // Fallback: bat file detached (pentru pornire manuală fără serviciu)
-  const batPath = path.join(ROOT, "runtime", `restart-${Date.now()}.bat`);
-  fs.mkdirSync(path.dirname(batPath), { recursive: true });
+Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${powershellSingleQuote(startScriptPath)} -Port ${port}
+`;
+  fs.writeFileSync(scriptPath, script, "utf8");
 
-  const batContent = [
-    "@echo off",
-    `cd /d "${ROOT}"`,
-    "ping -n 3 127.0.0.1 > nul",
-    `set PORT=${port}`,
-    `set INFRAFLOW_PORT=${port}`,
-    `set DB_MODE=${process.env.DB_MODE || "json"}`,
-    `set APP_KEY=${process.env.APP_KEY || "infraflow-cheie-secreta-32char01"}`,
-    "set NODE_ENV=production",
-    "node server\\app.js",
-    ""
-  ].join("\r\n");
-
-  fs.writeFileSync(batPath, batContent, "utf8");
-
-  const child = childProcess.spawn("cmd.exe", ["/c", `"${batPath}"`], {
+  console.log(`[UPDATE] Restart programat prin helper Windows: ${scriptPath}`);
+  const child = childProcess.spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], {
     cwd: ROOT,
     detached: true,
     stdio: "ignore",
     windowsHide: true
   });
   child.unref();
-
-  setTimeout(() => process.exit(0), 500);
 }
 
 function compareVersions(a, b) {
