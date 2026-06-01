@@ -134,6 +134,7 @@ export default function AchizitiiPage() {
     supplier: '',
     materialId: '',
     amount: '',
+    unitPrice: '',
     cpv_cod: '',
     orderNo: '',
     expectedDate: '',
@@ -198,7 +199,7 @@ export default function AchizitiiPage() {
           materialId: form.materialId,
           cantitate: Number(form.amount || 0),
           amount: Number(form.amount || 0),
-          pret: 0,
+          pret: Number(form.unitPrice || 0),
           cpv_cod: form.cpv_cod,
         }],
         materialId: form.materialId,
@@ -212,7 +213,7 @@ export default function AchizitiiPage() {
       })
       setMessage('Comanda a fost salvată.')
       setModalOpen(false)
-      setForm({ date: today(), supplier: '', materialId: '', amount: '', cpv_cod: '', orderNo: '', expectedDate: '', note: '' })
+      setForm({ date: today(), supplier: '', materialId: '', amount: '', unitPrice: '', cpv_cod: '', orderNo: '', expectedDate: '', note: '' })
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Comanda nu a putut fi salvată.')
@@ -260,6 +261,11 @@ export default function AchizitiiPage() {
         unit: line.unit,
       })),
     })
+  }
+
+  function printOrder(order) {
+    const token = encodeURIComponent(localStorage.getItem('infraflow_token') || '')
+    window.open(`/api/procurement-orders/${order.uuid || order.id}/pdf?token=${token}`, '_blank', 'noopener,noreferrer')
   }
 
   async function submitReceive(event) {
@@ -373,7 +379,7 @@ export default function AchizitiiPage() {
                       <td className="px-3 py-3">{order.materialName || order.material || order.materiale || order.itemsSummary || '-'}</td>
                       <td className="px-3 py-3"><Badge variant={status.variant}>{status.label}</Badge></td>
                       <td className="px-3 py-3 text-right">{money(value)} RON</td>
-                      <td className="px-3 py-3 text-right">{['emisa', 'partial', 'open'].includes(String(order.status)) ? <Button size="sm" variant="secondary" onClick={() => openReceive(order)}>📦 Recepționează</Button> : null}</td>
+                      <td className="px-3 py-3 text-right"><div className="flex justify-end gap-1"><Button size="sm" variant="secondary" onClick={() => printOrder(order)}>🖨️ Tipărește</Button>{['emisa', 'partial', 'open'].includes(String(order.status)) ? <Button size="sm" variant="secondary" onClick={() => openReceive(order)}>📦 Recepționează</Button> : null}</div></td>
                     </tr>
                   )
                 })}
@@ -543,6 +549,7 @@ export default function AchizitiiPage() {
               <div className="flex items-end"><Button type="button" variant="secondary" onClick={() => setMaterialModal(true)}>+ Material nou</Button></div>
             </div>
             <Input label="Cantitate" type="number" min="0" step="0.001" value={form.amount} onChange={event => setForm({ ...form, amount: event.target.value })} />
+            <Input label="Preț unitar estimat (lei)" type="number" min="0" step="0.01" value={form.unitPrice} onChange={event => setForm({ ...form, unitPrice: event.target.value })} />
             <CPVSelector value={form.cpv_cod} onChange={cpv_cod => setForm({ ...form, cpv_cod })} />
             <Input label="Dată estimată livrare" type="date" value={form.expectedDate} onChange={event => setForm({ ...form, expectedDate: event.target.value })} />
           </div>

@@ -1,5 +1,5 @@
 {
-  "version": "2.11.5",
-  "date": "2026-05-31",
-  "changelog": "## v2.11.5 — 2026-05-31\n### Hotfix sesiune după wizard\n- Finalizarea wizard-ului salvează sesiunea emisă de server.\n- După configurarea inițială aplicația intră direct în dashboard.\n- Username-ul administratorului nou înlocuiește autofill-ul vechi."
+  "version": "2.11.6",
+  "date": "2026-06-01",
+  "changelog": "## v2.11.6 — 2026-06-01\n### Notă Comandă PDF\n- Comenzile de aprovizionare au document HTML tipăribil în format Publiserv.\n- Datele firmei, furnizorului, produselor și semnăturilor sunt completate automat.\n- Lista comenzilor include buton de tipărire și modalul include prețul unitar."
 }

@@ -189,6 +189,126 @@ function orderStatusV2(order) {
   }))
 }
 
+function pickValue(...values) {
+  return values.find(value => value !== undefined && value !== null && String(value).trim() !== '') || ''
+}
+
+function findProcurementSupplier(db, order) {
+  const suppliers = [
+    ...(Array.isArray(db.procurement?.suppliers) ? db.procurement.suppliers : []),
+    ...(Array.isArray(db.gestiune?.suppliers) ? db.gestiune.suppliers : []),
+    ...(Array.isArray(db.suppliers) ? db.suppliers : []),
+  ]
+  const supplierId = pickValue(order.supplier_id, order.supplierId, order.furnizor_id)
+  const supplierName = String(pickValue(order.supplier, order.furnizor, order.supplierName)).trim().toLowerCase()
+  return suppliers.find(item => supplierId && String(item.id) === String(supplierId))
+    || suppliers.find(item => String(pickValue(item.name, item.denumire, item.supplierName)).trim().toLowerCase() === supplierName)
+    || {}
+}
+
+function addressData(settings = {}) {
+  const rawAddress = String(pickValue(settings.company_street, settings.companyStreet, settings.street, settings.address, settings.location)).trim()
+  return {
+    city: pickValue(settings.company_city, settings.companyCity, settings.city),
+    zip: pickValue(settings.company_zip, settings.companyZip, settings.zip, settings.postalCode),
+    street: rawAddress,
+    nr: pickValue(settings.company_nr, settings.companyNr, settings.streetNumber, settings.nr),
+    county: pickValue(settings.company_county, settings.companyCounty, settings.county),
+  }
+}
+
+function supplierAddressData(supplier = {}) {
+  return {
+    name: pickValue(supplier.name, supplier.denumire, supplier.supplierName),
+    cif: pickValue(supplier.cif, supplier.cui, supplier.cod_fiscal, supplier.taxId),
+    city: pickValue(supplier.city, supplier.localitate),
+    zip: pickValue(supplier.zip, supplier.cod_postal, supplier.postalCode),
+    street: pickValue(supplier.street, supplier.strada, supplier.address, supplier.adresa),
+    nr: pickValue(supplier.nr, supplier.numar, supplier.streetNumber),
+    county: pickValue(supplier.county, supplier.judet),
+  }
+}
+
+function userNameForOrderSignature(db, type) {
+  const template = db.procurement?.referate_template || db.referate_template || db.settings?.referate_template || {}
+  const configured = type === 'director'
+    ? pickValue(template.director_general, template.directorGeneral, template.director_general_name)
+    : pickValue(template.achizitii, template.procurement, template.achizitii_name)
+  if (configured) return configured
+  const users = (db.users || []).filter(user => user.active !== false)
+  const user = type === 'director'
+    ? users.find(item => [item.role, ...(item.roles || [])].includes('director_general'))
+    : users.find(item => [item.role, ...(item.roles || [])].includes('procurement'))
+      || users.find(item => authHasPermission({ db, user: item }, 'procurement_orders:create'))
+  return pickValue(user?.full_name, user?.fullName, user?.name)
+}
+
+function noteOrderDate(value) {
+  const [year = '', month = '', day = ''] = String(value || '').slice(0, 10).split('-')
+  return { day, month, year, formatted: [day, month, year].filter(Boolean).join('/') }
+}
+
+function noteOrderMoney(value) {
+  return Number(value || 0).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function buildProcurementOrderPdfHtml(db, order) {
+  const settings = db.settings || {}
+  const company = addressData(settings)
+  const supplierRecord = findProcurementSupplier(db, order)
+  const supplier = supplierAddressData({
+    ...supplierRecord,
+    name: pickValue(supplierRecord.name, supplierRecord.denumire, order.supplier, order.furnizor, order.supplierName),
+  })
+  const delivery = {
+    city: pickValue(order.delivery_city, order.deliveryCity, company.city),
+    street: pickValue(order.delivery_street, order.deliveryStreet, company.street),
+    nr: pickValue(order.delivery_nr, order.deliveryNr, company.nr),
+    zip: pickValue(order.delivery_zip, order.deliveryZip, company.zip),
+    county: pickValue(order.delivery_county, order.deliveryCounty, company.county),
+  }
+  const orderDate = noteOrderDate(order.date || order.data || order.createdAt)
+  const rows = orderLines(order).slice()
+  while (rows.length < 10) rows.push({})
+  const productRows = rows.map(line => {
+    const quantity = Number(line.cantitate ?? line.amount ?? 0)
+    const unitPrice = Number(line.pret ?? line.unitPrice ?? line.pret_unitar ?? 0)
+    return `<tr>
+      <td>${htmlEscape(line.cpv_cod || line.cod_cpv || '')}</td>
+      <td>${htmlEscape(line.materialName || line.denumire || '')}</td>
+      <td class="center">${htmlEscape(line.unit || line.um || '')}</td>
+      <td></td>
+      <td class="num">${line.materialName || line.denumire ? htmlEscape(quantity) : ''}</td>
+      <td class="num">${line.materialName || line.denumire ? htmlEscape(noteOrderMoney(unitPrice)) : ''}</td>
+      <td class="num">${line.materialName || line.denumire ? htmlEscape(noteOrderMoney(quantity * unitPrice)) : '0'}</td>
+      <td></td><td></td><td></td>
+    </tr>`
+  }).join('')
+  const template = settings.referate_template || db.referate_template || {}
+  const director = userNameForOrderSignature(db, 'director')
+  const procurement = userNameForOrderSignature(db, 'procurement')
+  const isDraft = ['draft', 'noua', 'new'].includes(String(order.status || '').toLowerCase())
+  const iban = pickValue(settings.iban, settings.company_iban, settings.companyIban, template.iban)
+  const bank = pickValue(settings.banca, settings.bank, settings.company_bank, settings.companyBank, template.banca)
+  return `<!doctype html>
+<html lang="ro"><head><meta charset="utf-8"><title>Nota comanda ${htmlEscape(order.orderNo || '')}</title>
+<style>
+@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:9pt;color:#111;margin:0}.page{position:relative;min-height:270mm}.actions{margin-bottom:8px}.actions button{padding:6px 12px}.top{display:grid;grid-template-columns:1fr 1fr;gap:24px;font-size:10pt;line-height:1.35}.title{text-align:right;margin:18px 0 8px}.title h1{font-size:22pt;margin:0}.title div{font-size:10pt;margin-top:8px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #111;padding:3px 4px;vertical-align:middle}th{text-align:center;font-weight:700}.operation{margin-top:10px}.operation th,.operation td{text-align:center}.section{margin:10px 0;line-height:1.7}.products th{font-size:8pt}.products td{height:24px}.products th:nth-child(1){width:11%}.products th:nth-child(2){width:29%}.products th:nth-child(3){width:6%}.products th:nth-child(4){width:6%}.products th:nth-child(5){width:9%}.products th:nth-child(6){width:10%}.products th:nth-child(7){width:11%}.products th:nth-child(n+8){width:6%}.center{text-align:center}.num{text-align:right}.signatures{display:grid;grid-template-columns:1fr 1fr;margin-top:24px;text-align:center;font-size:10pt}.signature-name{font-weight:700;margin-top:30px;text-transform:uppercase}.watermark{position:fixed;top:43%;left:24%;transform:rotate(-32deg);font-size:86pt;font-weight:700;color:rgba(120,120,120,.14);z-index:-1}.muted-line{display:inline-block;min-width:80px;border-bottom:1px solid #111}@media print{.actions{display:none}}
+</style></head>
+<body onload="setTimeout(() => window.print(), 250)"><div class="page">${isDraft ? '<div class="watermark">DRAFT</div>' : ''}
+<div class="actions"><button onclick="window.print()">Tipărește / Salvează PDF</button></div>
+<div class="top"><div><strong>ÎNTREPRINDEREA: ${htmlEscape(pickValue(settings.company_name, settings.companyName))}</strong><br>COD FISCAL: ${htmlEscape(pickValue(settings.company_cif, settings.companyCif, settings.companyCui, settings.cui))}<br>LOCALITATEA: ${htmlEscape(company.city)} COD POȘTAL: ${htmlEscape(company.zip)}<br>Str. ${htmlEscape(company.street)} Nr. ${htmlEscape(company.nr)}<br>JUDEȚUL: ${htmlEscape(company.county)}</div>
+<div><strong>Către furnizor: ${htmlEscape(supplier.name)}</strong><br>Cod fiscal: ${htmlEscape(supplier.cif)}<br>Localitatea: ${htmlEscape(supplier.city)} Cod poștal: ${htmlEscape(supplier.zip)}<br>Str. ${htmlEscape(supplier.street)} Nr. ${htmlEscape(supplier.nr)}<br>Județul: ${htmlEscape(supplier.county)}</div></div>
+<div class="title"><h1>NOTĂ COMANDĂ</h1><div>Fila: <span class="muted-line">&nbsp;</span></div></div>
+<table class="operation"><tr><th>Cod operații</th><th>Cod beneficiar</th><th>Nr. comandă</th><th colspan="3">Data</th></tr><tr><td></td><td></td><td>${htmlEscape(order.orderNo || '')}</td><td>Zi<br><strong>${htmlEscape(orderDate.day)}</strong></td><td>Luna<br><strong>${htmlEscape(orderDate.month)}</strong></td><td>An<br><strong>${htmlEscape(orderDate.year)}</strong></td></tr></table>
+<div class="section">Rugăm a expedia la adresa: Localitatea <strong>${htmlEscape(delivery.city)}</strong> Strada <strong>${htmlEscape(delivery.street)}</strong> nr. <strong>${htmlEscape(delivery.nr)}</strong> Cod poștal <strong>${htmlEscape(delivery.zip)}</strong> Județul <strong>${htmlEscape(delivery.county)}</strong><br>Prin <span class="muted-line">&nbsp;</span> la stația <span class="muted-line">&nbsp;</span></div>
+<div class="section">Plata se va face: nr. cont <strong>${htmlEscape(iban)}</strong> Banca <strong>${htmlEscape(bank)}</strong><br>Poz. plan <span class="muted-line">&nbsp;</span> Capitol <span class="muted-line">&nbsp;</span> Nr. rep. <span class="muted-line">&nbsp;</span></div>
+<div class="section">Recepția se va face conform <span class="muted-line">&nbsp;</span> Ambalaj <span class="muted-line">&nbsp;</span><br>Vă rugăm transmiteți contractul sau confirmarea comenzii</div>
+<table class="products"><thead><tr><th>Cod produs</th><th>Denumirea produsului și caracteristici</th><th>U/M</th><th>Cod U/M</th><th>Cantitate</th><th>Preț unitar<br>-lei-</th><th>Valoare<br>-lei-</th><th>Termen livrare<br>Zi</th><th>Luna</th><th>An</th></tr></thead><tbody>${productRows}</tbody></table>
+<div class="signatures"><div>Director General<div class="signature-name">${htmlEscape(director)}</div></div><div>Achiziții<div class="signature-name">${htmlEscape(procurement)}</div></div></div>
+</div></body></html>`
+}
+
 function generateProcurementPlan(db, an) {
   const sourceYear = Number(an || new Date().getFullYear() + 1) - 1
   const rows = new Map()
@@ -268,6 +388,14 @@ router.get('/procurement-orders/:uuid/status', (req, res) => {
   const order = (auth.db.procurementOrders || []).find(item => String(item.uuid || item.id) === String(req.params.uuid))
   if (!order) return sendJson(res, 404, { error: 'Comanda inexistenta.' })
   sendJson(res, 200, { order, linii: orderStatusV2(order) })
+})
+
+router.get('/procurement-orders/:uuid/pdf', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:view', 'procurement:view'])) return
+  const order = (auth.db.procurementOrders || []).find(item => String(item.uuid || item.id) === String(req.params.uuid))
+  if (!order) return sendJson(res, 404, { error: 'Comanda inexistenta.' })
+  res.status(200).type('html').send(buildProcurementOrderPdfHtml(auth.db, order))
 })
 
 router.get('/procurement-requirements', (req, res) => {

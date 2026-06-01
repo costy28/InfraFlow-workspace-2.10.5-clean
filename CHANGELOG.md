@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.11.6 — 2026-06-01
+### Notă Comandă PDF
+- Comenzile de aprovizionare au document HTML tipăribil în format Publiserv.
+- Datele firmei, furnizorului, produselor și semnăturilor sunt completate automat.
+- Lista comenzilor include buton de tipărire și modalul include prețul unitar.
+
 ## v2.11.5 — 2026-05-31
 ### Hotfix sesiune după wizard
 - Finalizarea wizard-ului salvează sesiunea emisă de server.
