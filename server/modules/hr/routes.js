@@ -544,6 +544,7 @@ function buildNexusTimesheetWorkbook(db, user, luna, deptId) {
 function canUseKioskSync(auth) {
   return authHasPermission(auth, 'hr:view')
     || authHasPermission(auth, 'hr:manage')
+    || authHasPermission(auth, 'kiosk:leave_request')
     || authHasPermission(auth, 'hr:view_own')
     || authHasPermission(auth, 'hr:leave_own')
     || authHasPermission(auth, 'hr:timesheet')
@@ -551,7 +552,11 @@ function canUseKioskSync(auth) {
 
 function canSyncLeaveForEmployee(auth, hr, employeeId) {
   if (authHasPermission(auth, 'hr:view') || authHasPermission(auth, 'hr:manage')) return true
-  const ownEmployee = hr.employees.find((employee) => String(employee.user_id) === String(auth.user.id))
+  const linkedEmployeeId = auth.user.employee_id || auth.user.employeeId || ''
+  const ownEmployee = hr.employees.find((employee) => (
+    String(employee.user_id || '') === String(auth.user.id) ||
+    (linkedEmployeeId && String(employee.id) === String(linkedEmployeeId))
+  ))
   return ownEmployee && String(ownEmployee.id) === String(employeeId)
 }
 
@@ -588,6 +593,113 @@ function authorizationView(item) {
     expirat: zile !== null && zile < 0
   }
 }
+
+function personalNotifications(db, userId) {
+  return (db.notifications || [])
+    .filter((item) => String(item.user_id || item.userId || '') === String(userId))
+    .sort((a, b) => String(b.created_at || b.createdAt || '').localeCompare(String(a.created_at || a.createdAt || '')))
+    .slice(0, 20)
+}
+
+function kioskDataFor(db, auth) {
+  const hr = ensureHrDb(db)
+  const month = todayIso().slice(0, 7)
+  const year = todayIso().slice(0, 4)
+  const linkedEmployeeId = auth.user.employee_id || auth.user.employeeId || ''
+  let employee
+  let timesheets
+  let leaves
+  let authorizations
+  let schedules
+
+  if (isMssqlMode()) {
+    employee = mssqlObject(`
+SELECT TOP 1 e.*, d.denumire AS department_name
+FROM hr.employees e
+LEFT JOIN core.departments d ON d.id=e.department_id
+WHERE e.activ=1 AND (
+  e.user_id=JSON_VALUE(@p,'$.userId')
+  OR (NULLIF(JSON_VALUE(@p,'$.employeeId'),'') IS NOT NULL AND e.id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')))
+)
+ORDER BY CASE WHEN e.user_id=JSON_VALUE(@p,'$.userId') THEN 0 ELSE 1 END
+FOR JSON PATH;`, { userId: String(auth.user.id), employeeId: String(linkedEmployeeId) })
+    if (!employee) return { angajat: null, pontaj_luna: { luna: month, zile_lucrate: 0, ore_total: 0 }, concedii: { co_ramase: 0, cm_zile: 0 }, autorizatii: [], cereri_asteptare: [], program: [], fluturasi: [], notificari: personalNotifications(db, auth.user.id) }
+    timesheets = mssqlArray(`SELECT * FROM hr.time_sheets WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) AND FORMAT(data,'yyyy-MM')=JSON_VALUE(@p,'$.month') FOR JSON PATH;`, { employeeId: employee.id, month })
+    leaves = mssqlArray(`SELECT * FROM hr.leave_requests WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) ORDER BY created_at DESC FOR JSON PATH;`, { employeeId: employee.id })
+    authorizations = mssqlArray(`SELECT * FROM hr.authorizations WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) ORDER BY data_expirare FOR JSON PATH;`, { employeeId: employee.id })
+    schedules = mssqlArray(`
+SELECT s.*, t.nume AS tura_nume, t.ora_start, t.ora_sfarsit
+FROM hr.schedules s
+LEFT JOIN hr.tures t ON t.id=s.tura_id
+WHERE s.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) AND FORMAT(s.data,'yyyy-MM')=JSON_VALUE(@p,'$.month')
+ORDER BY s.data
+FOR JSON PATH;`, { employeeId: employee.id, month })
+  } else {
+    employee = hr.employees.find((item) => (
+      item.activ !== false &&
+      item.activ !== 0 &&
+      (String(item.user_id || '') === String(auth.user.id) || (linkedEmployeeId && String(item.id) === String(linkedEmployeeId)))
+    ))
+    if (!employee) return { angajat: null, pontaj_luna: { luna: month, zile_lucrate: 0, ore_total: 0 }, concedii: { co_ramase: 0, cm_zile: 0 }, autorizatii: [], cereri_asteptare: [], program: [], fluturasi: [], notificari: personalNotifications(db, auth.user.id) }
+    timesheets = hr.timeSheets.filter((item) => String(item.employee_id) === String(employee.id) && String(item.data || '').startsWith(month))
+    leaves = hr.leaveRequests.filter((item) => String(item.employee_id) === String(employee.id))
+    authorizations = hr.authorizations.filter((item) => String(item.employee_id) === String(employee.id))
+    schedules = hr.schedules
+      .filter((item) => String(item.employee_id) === String(employee.id) && String(item.data || '').startsWith(month))
+      .map((item) => ({ ...item, tura_nume: hr.tures.find((tura) => String(tura.id) === String(item.tura_id))?.nume || '' }))
+  }
+
+  const approvedLeaves = leaves.filter((item) => ['aprobata', 'aprobat', 'approved'].includes(String(item.status || '').toLowerCase()))
+  const coUsed = approvedLeaves
+    .filter((item) => String(item.data_start || '').startsWith(year) && ['co', 'concediu_odihna', 'concediu'].includes(String(item.tip || '').toLowerCase()))
+    .reduce((sum, item) => sum + numberValue(item.zile), 0)
+  const cmDays = approvedLeaves
+    .filter((item) => String(item.data_start || '').startsWith(year) && ['cm', 'concediu_medical', 'medical'].includes(String(item.tip || '').toLowerCase()))
+    .reduce((sum, item) => sum + numberValue(item.zile), 0)
+  const coTotal = numberValue(employee.zile_co_drept, 21)
+
+  return {
+    angajat: {
+      id: employee.id,
+      nume: employee.nume || '',
+      prenume: employee.prenume || '',
+      nume_complet: employeeName(employee),
+      functia: employee.functia || employee.functie || '',
+      functie: employee.functia || employee.functie || '',
+      department_name: employee.department_name || departmentName(db, employee.department_id),
+      departament: employee.department_name || departmentName(db, employee.department_id),
+      marca: employee.marca || '',
+      data_angajare: employee.data_angajare || '',
+      photo_url: employee.photo_url || '',
+      data_expirare_permis: employee.data_expirare_permis || '',
+      data_expirare_iscir: employee.data_expirare_iscir || '',
+      adeverinta_medicala: employee.adeverinta_medicala || '',
+      data_expirare_contract: employee.data_expirare_contract || '',
+    },
+    pontaj_luna: {
+      luna: month,
+      zile_lucrate: new Set(timesheets.filter((item) => numberValue(item.ore_lucrate) > 0).map((item) => String(item.data || '').slice(0, 10))).size,
+      ore_total: timesheets.reduce((sum, item) => sum + numberValue(item.ore_lucrate), 0),
+    },
+    concedii: { co_ramase: Math.max(0, coTotal - coUsed), co_efectuate: coUsed, co_total: coTotal, cm_zile: cmDays },
+    cereri: leaves,
+    cereri_asteptare: leaves.filter((item) => ['cerut', 'asteptare', 'in_asteptare', 'pending'].includes(String(item.status || '').toLowerCase())),
+    autorizatii: authorizations.map(authorizationView),
+    program: schedules,
+    fluturasi: [],
+    notificari: personalNotifications(db, auth.user.id),
+  }
+}
+
+router.get('/kiosk/data', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    sendJson(res, 200, kioskDataFor(auth.db, auth))
+  } catch (error) {
+    next(error)
+  }
+})
 
 function regesXml(db, employee, contract) {
   const company = companySettings(db)
@@ -2634,7 +2746,9 @@ router.get('/hr/employees/:id/adeverinta', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:view')) return
+    const canViewAll = authHasPermission(auth, 'hr:view')
+    const canRequestOwn = authHasPermission(auth, 'kiosk:documents_own')
+    if (!canViewAll && !canRequestOwn) return requirePermission(auth, res, 'hr:view')
     const db = readDb()
     const hr = ensureHrDb(db)
     const tip = String(req.query.tip || 'salariat')
@@ -2645,6 +2759,10 @@ router.get('/hr/employees/:id/adeverinta', (req, res, next) => {
       employee = hr.employees.find((item) => String(item.id) === String(req.params.id))
     }
     if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost gasit.' })
+    const ownEmployeeId = auth.user.employee_id || auth.user.employeeId || ''
+    if (!canViewAll && String(employee.user_id || '') !== String(auth.user.id) && String(employee.id) !== String(ownEmployeeId)) {
+      return sendJson(res, 403, { error: 'Poți solicita adeverințe doar pentru profilul propriu.' })
+    }
     const company = companySettings(db)
     const contract = activeContractFor(hr, req.params.id)
     const today = new Date()

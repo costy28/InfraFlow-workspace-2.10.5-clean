@@ -1287,6 +1287,14 @@ export default function SetariPage() {
                 )
               } },
               { key: 'department', label: 'Departament', render: row => row.department || row.departmentId || row.department_id || '-' },
+              { key: 'kiosk_access', label: 'Acces Kiosk', render: row => (
+                <span
+                  className={row.active === false ? 'text-slate-400' : 'font-semibold text-green-700'}
+                  title="Toți utilizatorii activi au acces automat la Kiosk"
+                >
+                  {row.active === false ? '—' : '✅'}
+                </span>
+              ) },
               { key: 'active', label: 'Activ', render: row => (
                 <button
                   type="button"
@@ -1859,6 +1867,13 @@ export default function SetariPage() {
           <label className="flex items-center justify-between rounded-md border border-slate-200 p-3 text-sm font-medium text-slate-700">
             Activ
             <input type="checkbox" checked={userForm.active} onChange={event => setUserForm(u => ({ ...u, active: event.target.checked }))} />
+          </label>
+          <label className="flex items-center justify-between rounded-md border border-green-200 bg-green-50 p-3 text-sm font-medium text-green-800" title="Toți utilizatorii activi au acces automat la Kiosk">
+            <span>
+              Acces Kiosk
+              <span className="mt-0.5 block text-xs font-normal text-green-700">Automat pentru utilizatori activi</span>
+            </span>
+            <input type="checkbox" checked={userForm.active} disabled readOnly />
           </label>
           <Button type="submit">Salvează</Button>
         </form>

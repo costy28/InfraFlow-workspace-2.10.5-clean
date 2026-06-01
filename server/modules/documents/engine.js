@@ -161,13 +161,33 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 function generateDocumentHtml(document, steps, company = {}) {
   const data = parseJson(document.date_json, {})
   const an = new Date(document.created_at || Date.now()).getFullYear()
+  const currentDate = String(document.created_at || new Date().toISOString()).slice(0, 10)
+  const companyName = company.name || company.nume || company.companyName || company.company_name || ''
+  const companyAddress = company.address || company.adresa || company.location || ''
   const values = {
     ...data,
     nr_document: document.nr_document || '',
-    data: String(document.created_at || new Date().toISOString()).slice(0, 10),
+    data: currentDate,
+    data_document: currentDate,
+    data_emitere: data.data_emitere || currentDate,
     initiator: document.initiator || document.creat_de || '',
     departament: document.departament || document.dept_initiatoare || '',
-    companie: company.name || company.nume || company.companyName || '',
+    companie: companyName,
+    firma: companyName,
+    cui: company.cui || company.companyCui || company.company_cif || company.companyCif || '',
+    adresa: companyAddress,
+    telefon: company.phone || company.telefon || '',
+    angajat_nume: data.angajat_nume || data.angajat || '',
+    angajat_marca: data.angajat_marca || data.marca || '',
+    angajat_functie: data.angajat_functie || data.functie || '',
+    angajat_departament: data.angajat_departament || data.departament || '',
+    data_angajare: data.data_angajare || '',
+    salariu_net: data.salariu_net || '',
+    nr_zile_co: data.nr_zile_co || '',
+    valabil_pana: data.valabil_pana || '',
+    semnatura_director: data.semnatura_director || company.semnatura_director || '',
+    semnatura_hr: data.semnatura_hr || company.semnatura_hr || '',
+    stampila: data.stampila || company.stampila || '',
     an
   }
   const template = document.template_html || '<h1>{{nr_document}}</h1><h2>{{titlu}}</h2><div>{{continut}}</div>'

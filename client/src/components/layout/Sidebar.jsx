@@ -10,7 +10,7 @@ const groups = [
     label: 'PRINCIPAL',
     items: [
       { to: '/dashboard', icon: '📊', label: 'Dashboard' },
-      { to: '/kiosk', icon: '🏠', label: 'Kiosk Angajat', permissions: ['hr:view_own'] },
+      { to: '/kiosk', icon: '🏠', label: 'Kiosk Angajat' },
     ],
   },
   {

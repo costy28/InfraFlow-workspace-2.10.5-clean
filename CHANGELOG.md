@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.11.8 — 2026-06-01
+### Kiosk universal pentru utilizatorii activi
+- Orice utilizator activ primește automat permisiunile de bază pentru Kiosk.
+- Pagina Kiosk afișează rezumatul personal pentru pontaj, concedii, autorizații, program și notificări.
+- Administrarea utilizatorilor arată accesul Kiosk automat și nedezactivabil.
+
+## v2.11.7 — 2026-06-01
+### Editor vizual documente
+- Formularul Template nou folosește Quill.js din CDN.
+- Variabilele pot fi inserate ca badge-uri și previzualizate cu date fictive.
+- Toolbar-ul include formatare, liste, aliniere și tabele.
+
 ## v2.11.6 — 2026-06-01
 ### Notă Comandă PDF
 - Comenzile de aprovizionare au document HTML tipăribil în format Publiserv.

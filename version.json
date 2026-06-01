@@ -1,5 +1,5 @@
 {
-  "version": "2.11.6",
+  "version": "2.11.8",
   "date": "2026-06-01",
-  "changelog": "## v2.11.6 — 2026-06-01\n### Notă Comandă PDF\n- Comenzile de aprovizionare au document HTML tipăribil în format Publiserv.\n- Datele firmei, furnizorului, produselor și semnăturilor sunt completate automat.\n- Lista comenzilor include buton de tipărire și modalul include prețul unitar."
+  "changelog": "## v2.11.8 — 2026-06-01\n### Kiosk universal pentru utilizatorii activi\n- Orice utilizator activ primește automat permisiunile de bază pentru Kiosk.\n- Pagina Kiosk afișează rezumatul personal pentru pontaj, concedii, autorizații, program și notificări.\n- Administrarea utilizatorilor arată accesul Kiosk automat și nedezactivabil."
 }

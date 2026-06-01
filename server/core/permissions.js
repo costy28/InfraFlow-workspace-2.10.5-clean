@@ -1,4 +1,5 @@
 const permissionGroups = {
+  kiosk: ["kiosk:view", "kiosk:pontaj_own", "kiosk:leave_request", "kiosk:documents_own", "kiosk:profile_view"],
   dashboard: ["dashboard:view"],
   dailyReport: ["daily_report:view", "daily_report:print", "daily_report:export", "period_report:view", "period_report:print", "period_report:export"],
   accountingReport: ["accounting_report:view", "accounting_report:print", "accounting_report:export"],
@@ -50,9 +51,18 @@ const permissionGroups = {
   system: ["system:view", "system:update", "system:admin"]
 };
 
+const ANGAJAT_PERMISSIONS = [
+  "kiosk:view",
+  "kiosk:pontaj_own",
+  "kiosk:leave_request",
+  "kiosk:documents_own",
+  "kiosk:profile_view"
+];
+
 const allPermissions = Object.values(permissionGroups).flat();
 
 const permissionGroupLabels = {
+  kiosk: "Kiosk angajat",
   dashboard: "Dashboard",
   dailyReport: "Rapoarte productie",
   accountingReport: "Raport contabil",
@@ -97,6 +107,11 @@ const permissionGroupLabels = {
 };
 
 const permissionLabels = {
+  "kiosk:view": "Acces Kiosk personal",
+  "kiosk:pontaj_own": "Vede pontajul propriu",
+  "kiosk:leave_request": "Trimite cereri proprii de concediu",
+  "kiosk:documents_own": "Solicita documente proprii",
+  "kiosk:profile_view": "Vede profilul propriu",
   "dashboard:view": "Vede dashboard",
   "daily_report:view": "Vede raport zi",
   "daily_report:print": "Printeaza raport zi",
@@ -940,7 +955,7 @@ function authHasPermission(auth, permission) {
   if (userHasRole(auth.user, "superadmin")) return true;
   const rolePermissions = effectivePermissionsForUser(auth.user, auth.db);
   if (!rolePermissions.includes(permission)) return false;
-  if (["hr:view_own", "hr:leave_own", "hr:timesheet", "hr:timesheet_dept"].includes(permission)) return true;
+  if ([...ANGAJAT_PERMISSIONS, "hr:view_own", "hr:leave_own", "hr:timesheet", "hr:timesheet_dept"].includes(permission)) return true;
   if (auth.user.departmentId) {
     const dept = (auth.db.departments || []).find(d => d.id === auth.user.departmentId);
     if (dept && Array.isArray(dept.permissions)) {
@@ -974,11 +989,12 @@ function effectivePermissionsFor(role, settings) {
 
 function effectivePermissionsForUser(user, db) {
   const roles = normalizedUserRoles(user);
-  const permissions = Array.from(new Set(roles.flatMap((role) => effectivePermissionsFor(role, db.settings))));
+  const employeePermissions = user?.active !== false && user?.active !== 0 ? ANGAJAT_PERMISSIONS : [];
+  const permissions = Array.from(new Set([...roles.flatMap((role) => effectivePermissionsFor(role, db.settings)), ...employeePermissions]));
   if (roles.includes("superadmin") || !user.departmentId) return permissions;
   const department = (db.departments || []).find((item) => item.id === user.departmentId);
   if (!department || !Array.isArray(department.permissions)) return permissions;
-  const selfService = new Set(["hr:view_own", "hr:leave_own", "hr:timesheet", "hr:timesheet_dept"]);
+  const selfService = new Set([...ANGAJAT_PERMISSIONS, "hr:view_own", "hr:leave_own", "hr:timesheet", "hr:timesheet_dept"]);
   return permissions.filter((permission) => department.permissions.includes(permission) || selfService.has(permission));
 }
 
@@ -1041,7 +1057,10 @@ function publicUser(user) {
     username: user.username,
     role: user.role,
     roles: normalizedUserRoles(user),
-    departmentId: user.departmentId || ""
+    departmentId: user.departmentId || "",
+    employee_id: user.employee_id || "",
+    kiosk_access: user.active !== false && user.active !== 0,
+    implicitRoles: user.active !== false && user.active !== 0 ? ["angajat"] : []
   };
 }
 
@@ -1056,6 +1075,10 @@ function adminUser(user) {
     departmentId: user.departmentId || "",
     department: user.department || "",
     active: user.active !== false,
+    kiosk_access: user.active !== false && user.active !== 0,
+    implicitRoles: user.active !== false && user.active !== 0 ? ["angajat"] : [],
+    employee_id: user.employee_id || "",
+    verified_from_hr: Boolean(user.verified_from_hr),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };
@@ -1263,6 +1286,7 @@ function throwHttp(status, message) {
 
 module.exports = {
   permissionGroups,
+  ANGAJAT_PERMISSIONS,
   permissionGroupLabels,
   permissionLabels,
   allPermissions,

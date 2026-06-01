@@ -1,5 +1,6 @@
 const { readDb, writeDb } = require('./db')
 const { addAudit } = require('./audit')
+const { effectivePermissionsForUser } = require('./permissions')
 const crypto = require("crypto");
 
 const sessions = new Map();
@@ -166,13 +167,18 @@ function requireAuth(req, res) {
     return null;
   }
   const db = readDb();
-  const user = db.users.find((item) => item.id === session.userId && item.active);
+  const user = db.users.find((item) => item.id === session.userId);
   if (!user) {
     sessions.delete(token);
     sendJson(res, 401, { error: "Sesiune invalida." });
     return null;
   }
-  return { db, user, token };
+  if (user.active === false || user.active === 0) {
+    sessions.delete(token);
+    sendJson(res, 401, { error: "Cont dezactivat" });
+    return null;
+  }
+  return { db, user, token, permissions: effectivePermissionsForUser(user, db) };
 }
 
 function tokenFrom(req) {

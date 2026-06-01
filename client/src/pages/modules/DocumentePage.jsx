@@ -4,6 +4,7 @@ import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import DocumentTemplateEditor from '../../components/forms/DocumentTemplateEditor'
 import Modal from '../../components/ui/Modal'
 import Table from '../../components/ui/Table'
 import { formatDate } from '../../utils/format'
@@ -211,7 +212,7 @@ export default function DocumentePage() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Template-uri documente</h2>
-              <p className="text-xs text-slate-500">Variabile disponibile: {'{{firma}}'}, {'{{angajat}}'}, {'{{data}}'}, {'{{nr_document}}'}.</p>
+              <p className="text-xs text-slate-500">Editor vizual cu variabile pentru firmă, angajat, document și semnături.</p>
             </div>
             {isAdmin ? <Button onClick={() => openTemplateModal()}>+ Template nou</Button> : null}
           </div>
@@ -335,21 +336,24 @@ export default function DocumentePage() {
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             Categorie
             <select className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={templateForm.categorie} onChange={event => setTemplateForm(form => ({ ...form, categorie: event.target.value }))}>
-              <option>Contract</option>
-              <option>Cerere</option>
-              <option>Decizie</option>
               <option>Adeverință</option>
-              <option>Alt</option>
+              <option>Contract</option>
+              <option>Referat</option>
+              <option>Notă internă</option>
+              <option>Proces verbal</option>
+              <option>Decizie</option>
+              <option>Dispoziție</option>
+              <option>Altele</option>
             </select>
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             Descriere
             <input className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={templateForm.descriere} onChange={event => setTemplateForm(form => ({ ...form, descriere: event.target.value }))} />
           </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
+          <div className="grid gap-1 text-sm font-medium text-slate-700">
             Conținut
-            <textarea className="min-h-56 rounded-md border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={templateForm.template_html} onChange={event => setTemplateForm(form => ({ ...form, template_html: event.target.value }))} placeholder="<h1>{{firma}}</h1>&#10;<p>{{angajat}} - {{data}}</p>" />
-          </label>
+            <DocumentTemplateEditor value={templateForm.template_html} onChange={template_html => setTemplateForm(form => ({ ...form, template_html }))} />
+          </div>
           <label className="flex items-center justify-between rounded-md border border-slate-200 p-3 text-sm font-medium text-slate-700">
             Activ
             <input type="checkbox" checked={templateForm.activ} onChange={event => setTemplateForm(form => ({ ...form, activ: event.target.checked }))} />

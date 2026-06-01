@@ -230,6 +230,7 @@ export default function KioskPage() {
   const [myLeaves, setMyLeaves] = useState([])
   const [myAuth, setMyAuth] = useState([])
   const [myTrips, setMyTrips] = useState([])
+  const [kioskSummary, setKioskSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine)
@@ -304,32 +305,28 @@ export default function KioskPage() {
         }
       } else if (user) {
         // Regular app user
-        const empRes = await api.get('/hr/employees')
-        const employees = Array.isArray(empRes.data) ? empRes.data : (empRes.data?.employees || [])
-        let emp = employees.find(e => String(e.user_id) === String(user?.id))
-        if (!emp && user?.email) emp = employees.find(e => String(e.email || '').toLowerCase() === String(user.email || '').toLowerCase())
+        const summaryRes = await api.get('/kiosk/data')
+        const summary = summaryRes.data || {}
+        setKioskSummary(summary)
+        const emp = summary.angajat
         if (!emp) { setEmployee(null); setOnline(true); return }
         setEmployee(emp)
-        const [coRes, leavesRes, authRes, tripsRes] = await Promise.allSettled([
-          api.get(`/hr/employees/${emp.id}/co-balance`).catch(() => null),
-          api.get('/hr/leave-requests').catch(() => null),
-          api.get('/hr/authorizations').catch(() => null),
+        setCoBalance({
+          year: new Date().getFullYear(),
+          zile_ramase: summary.concedii?.co_ramase || 0,
+          zile_efectuate: summary.concedii?.co_efectuate || 0,
+          zile_drept: summary.concedii?.co_total || 0,
+        })
+        setMyLeaves(summary.cereri || summary.cereri_asteptare || [])
+        setMyAuth(summary.autorizatii || [])
+        const [tripsRes] = await Promise.allSettled([
           api.get(`/fleet/trip-logs?sofer_id=${emp.id}`).catch(() => null),
         ])
-        if (coRes.status === 'fulfilled' && coRes.value) setCoBalance(coRes.value.data)
-        if (leavesRes.status === 'fulfilled' && leavesRes.value) {
-          const all = Array.isArray(leavesRes.value.data) ? leavesRes.value.data : (leavesRes.value.data?.leave_requests || [])
-          setMyLeaves(all.filter(l => String(l.employee_id) === String(emp.id)))
-        }
-        if (authRes.status === 'fulfilled' && authRes.value) {
-          const all = Array.isArray(authRes.value.data) ? authRes.value.data : (authRes.value.data?.authorizations || [])
-          setMyAuth(all.filter(a => String(a.employee_id) === String(emp.id) || String(a.angajat_id) === String(emp.id)))
-        }
         if (tripsRes.status === 'fulfilled' && tripsRes.value) {
           const all = tripsRes.value.data?.trip_logs || []
           setMyTrips(all.slice(0, 60))
         }
-        saveCache({ userId: user?.id, employee: emp, coBalance: coRes.value?.data, myLeaves: myLeaves, myAuth: myAuth })
+        saveCache({ userId: user?.id, employee: emp, coBalance: summary.concedii, myLeaves: summary.cereri_asteptare, myAuth: summary.autorizatii })
       }
       setOnline(true)
       setError('')
@@ -956,7 +953,7 @@ export default function KioskPage() {
         <div className="mb-6 flex flex-wrap items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 text-2xl text-white shadow-lg">🏢</div>
           <div className="flex-1">
-            <div className="text-xl font-bold text-slate-900">Kiosk Angajat</div>
+            <div className="text-xl font-bold text-slate-900">Bună ziua, {kioskEmpName || user?.name || user?.username || 'Utilizator'}! 👋</div>
             <div className="text-sm text-slate-500">
               {kioskEmpName || user?.name || user?.username || 'Utilizator'}
               {kioskToken && <span className="ml-2 text-xs text-slate-400">(cont Kiosk)</span>}
@@ -1004,6 +1001,54 @@ export default function KioskPage() {
           <Card><p className="py-8 text-center text-sm text-slate-400">Se încarcă datele...</p></Card>
         ) : (
           <div className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card>
+                <div className="text-sm font-semibold text-slate-700">⏱️ Pontaj luna curentă</div>
+                <div className="mt-2 text-2xl font-bold text-primary-700">{kioskSummary?.pontaj_luna?.ore_total || 0} ore</div>
+                <div className="text-xs text-slate-500">{kioskSummary?.pontaj_luna?.zile_lucrate || 0} zile lucrate</div>
+              </Card>
+              <Card>
+                <div className="text-sm font-semibold text-slate-700">📋 Cereri în așteptare</div>
+                <div className="mt-2 text-2xl font-bold text-primary-700">{kioskSummary?.cereri_asteptare?.length || 0}</div>
+                <div className="text-xs text-slate-500">cereri personale nesoluționate</div>
+              </Card>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => document.getElementById('kiosk-leave-request')?.scrollIntoView({ behavior: 'smooth' })}>📝 Cerere concediu</Button>
+              <Button variant="secondary" onClick={() => {
+                const token = localStorage.getItem('infraflow_token')
+                if (employee && token) window.open(`/api/hr/employees/${employee.id}/adeverinta?tip=salariat&token=${encodeURIComponent(token)}`, '_blank')
+              }}>📄 Solicită adeverință</Button>
+            </div>
+
+            {kioskSummary?.program?.length > 0 && (
+              <Card>
+                <div className="mb-2 text-sm font-semibold text-slate-700">🗓️ Program lucru / ture</div>
+                <div className="grid gap-2">
+                  {kioskSummary.program.slice(0, 7).map(item => (
+                    <div key={`${item.data}-${item.tura_id || ''}`} className="flex justify-between rounded-md border border-slate-200 px-3 py-2 text-sm">
+                      <span>{String(item.data || '').slice(0, 10)}</span>
+                      <span className="font-medium text-slate-700">{item.tura_nume || 'Program stabilit'}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {kioskSummary?.notificari?.length > 0 && (
+              <Card>
+                <div className="mb-2 text-sm font-semibold text-slate-700">🔔 Notificările mele</div>
+                <div className="grid gap-2">
+                  {kioskSummary.notificari.slice(0, 5).map((item, index) => (
+                    <div key={item.id || `${item.type || item.event || 'notificare'}-${index}`} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                      {item.message || item.mesaj || item.event || item.type || 'Notificare personală'}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
             {/* ── Card angajat ── */}
             {employee ? (
               <Card>
@@ -1143,7 +1188,7 @@ export default function KioskPage() {
 
             {/* ── Cerere concediu ── */}
             {employee && (
-              <Card>
+              <Card id="kiosk-leave-request">
                 <div className="mb-3 text-sm font-semibold text-slate-700">📝 Cerere de concediu</div>
                 {leaveSuccess ? (
                   <div className="rounded-md bg-green-50 px-3 py-3 text-sm font-medium text-green-800">
@@ -1154,6 +1199,7 @@ export default function KioskPage() {
                     <Select label="Tip concediu" value={leaveForm.tip} onChange={e => setLeaveForm({ ...leaveForm, tip: e.target.value })} options={[
                       { value: 'CO', label: 'Concediu de odihnă (CO)' },
                       { value: 'CM', label: 'Concediu medical (CM)' },
+                      { value: 'CFP', label: 'Concediu fără plată (CFP)' },
                       { value: 'fara_plata', label: 'Fără plată' },
                       { value: 'studii', label: 'Studii' },
                       { value: 'altele', label: 'Altele' },
