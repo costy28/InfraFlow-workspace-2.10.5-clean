@@ -1,5 +1,10 @@
 import { useRef, useState } from 'react'
 
+function svgDataUrl(canvas) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}"><image href="${canvas.toDataURL('image/png')}" width="100%" height="100%"/></svg>`
+  return `data:image/svg+xml;base64,${btoa(svg)}`
+}
+
 export default function SignaturePad({ onChange, label = 'Semnează cu degetul' }) {
   const canvasRef = useRef(null)
   const drawing = useRef(false)
@@ -28,7 +33,7 @@ export default function SignaturePad({ onChange, label = 'Semnează cu degetul' 
     context.lineTo(pos.x, pos.y)
     context.stroke()
     setHasSignature(true)
-    onChange?.(canvasRef.current.toDataURL('image/png'))
+    onChange?.(svgDataUrl(canvasRef.current))
   }
   function stop(event) {
     event.preventDefault()

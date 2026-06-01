@@ -168,7 +168,7 @@ function nextTripNumber(db) {
 
 function lastClosedTrip(db, assetIdValue) {
   return ensureFleetTripDb(db)
-    .filter(trip => String(trip.asset_id) === String(assetIdValue) && trip.status === 'inchisa' && trip.km_sosire != null)
+    .filter(trip => String(trip.asset_id) === String(assetIdValue) && ['inchisa', 'aprobata', 'arhivata', 'in_faz'].includes(trip.status) && trip.km_sosire != null)
     .sort((a, b) => String(b.data_sosire || b.data || '').localeCompare(String(a.data_sosire || a.data || '')))[0]
 }
 
@@ -216,7 +216,7 @@ router.post('/fleet/trip-logs', (req, res, next) => {
     const foaieDeschisa = trips.find(f =>
       (String(f.asset_id) === String(body.asset_id) ||
        (f.nr_inmatriculare && body.nr_inmatriculare && f.nr_inmatriculare === body.nr_inmatriculare)) &&
-      ['deschisa', 'completata'].includes(f.status)
+      ['draft', 'deschisa', 'trimisa', 'in_lucru', 'completata', 'semnata_sofer', 'semnata_responsabil'].includes(f.status)
     )
     if (foaieDeschisa) {
       const foaieAsset = findAsset(db, foaieDeschisa.asset_id)
@@ -280,7 +280,7 @@ router.post('/fleet/trip-logs', (req, res, next) => {
       loc_prezentare: '',
       expeditor: '',
       observatii: '',
-      status: 'deschisa',
+      status: 'draft',
       sosit: false,
       autominder_id: null,
       creat_de: auth.user.id,

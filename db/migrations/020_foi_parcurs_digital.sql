@@ -16,6 +16,11 @@ END;
 
 IF OBJECT_ID(N'fleet.trip_logs', N'U') IS NOT NULL
 BEGIN
+  IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name=N'df_fleet_trip_logs_status')
+    ALTER TABLE fleet.trip_logs DROP CONSTRAINT df_fleet_trip_logs_status;
+  IF NOT EXISTS (SELECT 1 FROM sys.default_constraints WHERE parent_object_id=OBJECT_ID(N'fleet.trip_logs') AND parent_column_id=COLUMNPROPERTY(OBJECT_ID(N'fleet.trip_logs'), N'status', 'ColumnId'))
+    ALTER TABLE fleet.trip_logs ADD CONSTRAINT df_fleet_trip_logs_status DEFAULT N'draft' FOR status;
+
   IF COL_LENGTH(N'fleet.trip_logs', N'trimisa_la') IS NULL ALTER TABLE fleet.trip_logs ADD trimisa_la datetime2(0) NULL;
   IF COL_LENGTH(N'fleet.trip_logs', N'trimisa_catre') IS NULL ALTER TABLE fleet.trip_logs ADD trimisa_catre nvarchar(64) NULL;
   IF COL_LENGTH(N'fleet.trip_logs', N'completata_la') IS NULL ALTER TABLE fleet.trip_logs ADD completata_la datetime2(0) NULL;

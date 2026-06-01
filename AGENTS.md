@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.11.11** (build EXE v2.11.5 existent și funcțional)
-**Versiune în lucru: hotfix v2.11.11**
+**Versiune curentă sursă: v2.12.0** (build EXE v2.11.5 existent și funcțional)
+**Versiune în lucru: v2.12.0**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -370,6 +370,12 @@ UPDATE 020 — Restart robust după update ZIP (v2.11.11) ✅ IMPLEMENTAT ÎN SU
   ✅ Restart prin task Windows temporar independent de server
   ✅ Compatibil serviciu InfraFlow, task InfraFlow ERP și fallback direct
   ✅ Jurnal diagnostic runtime/restart-last.log
+
+UPDATE 020 — Foi Parcurs Digital Complet (v2.12.0) ✅ IMPLEMENTAT ÎN SURSĂ
+  ✅ Trimitere responsabil → șofer și completare verso mobilă
+  ✅ Semnătură șofer + link public 24h pentru responsabil
+  ✅ PDF final cu semnături și QR de verificare
+  ✅ Aprobare șef mecanizare și notificări Web Push
 ```
 
 ### 📋 BACKLOG (după BUILD v2.11.0)
@@ -533,7 +539,7 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.11.11
+VERSIUNE CURENTĂ SURSĂ: 2.12.0
 BUILD EXE EXISTENT: 2.11.5 ✅
 
 UPDATES ÎN LUCRU:
@@ -553,10 +559,11 @@ UPDATES ÎN LUCRU:
   2.11.9  → UPDATE 019 Restart după update ZIP ✅
   2.11.10 → UPDATE 019b Scule/Unelte + Catalog gestionar ✅
   2.11.11 → UPDATE 020 Restart robust după update ZIP ✅
+  2.12.0  → UPDATE 020 Foi Parcurs Digital Complet ✅
 
-NEXT BUILD: v2.11.11
-  → InfraFlow-Server-Setup-v2.11.11.exe
-  → InfraFlow-Client-Setup-v2.11.11.exe
+NEXT BUILD: v2.12.0
+  → InfraFlow-Server-Setup-v2.12.0.exe
+  → InfraFlow-Client-Setup-v2.12.0.exe
   → Versiunea citită automat din package.json
   → Script: scripts/build-installer.ps1
 
@@ -1042,5 +1049,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 Iunie 2026 | InfraFlow sursă v2.11.11*
+*AGENTS.md actualizat: 1 Iunie 2026 | InfraFlow sursă v2.12.0*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

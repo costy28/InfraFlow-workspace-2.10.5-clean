@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.12.0 — 2026-06-01
+### Foi Parcurs Digital Complet
+- Responsabilul trimite foaia șoferului, iar șoferul completează verso și semnează de pe telefon.
+- Responsabilul lucrării semnează din link public unic, fără autentificare; șeful mecanizare aprobă apoi documentul.
+- PDF-ul final include activități, calcule, semnături și cod QR pentru verificarea autenticității.
+- Notificările Web Push sunt disponibile pe dispozitivele șoferilor subscriși.
+
 ## v2.11.11 — 2026-06-01
 ### Hotfix restart robust după update ZIP
 - Restartul rulează într-un task Windows temporar independent de procesul serverului.

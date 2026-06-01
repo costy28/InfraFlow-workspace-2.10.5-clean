@@ -61,6 +61,7 @@ export default function FoaieParcursPage() {
   const [closeTrip, setCloseTrip] = useState(null)
   const [foaieActivaModal, setFoaieActivaModal] = useState(null) // { id, uuid, nr_foaie, data, sofer, status, km_plecare, asset_label }
   const [closingUuid, setClosingUuid] = useState(null) // uuid being closed via mecanizare
+  const [signShare, setSignShare] = useState(null)
   const [filters, setFilters] = useState({ data: '', asset_id: '', luna: currentMonth() })
   const [newForm, setNewForm] = useState({
     nr_foaie: '',
@@ -234,8 +235,7 @@ export default function FoaieParcursPage() {
   async function copySignLink(trip) {
     try {
       const response = await api.post(`/fleet/trip-logs/${trip.uuid}/sign-link`)
-      await navigator.clipboard.writeText(response.data.link)
-      setMessage('Linkul de semnare a fost copiat. Îl poți trimite prin WhatsApp, SMS sau email.')
+      setSignShare({ link: response.data.link, phone: '', email: '', nr_foaie: trip.nr_foaie })
     } catch (err) { setError(err.response?.data?.error || 'Linkul nu a putut fi generat.') }
   }
 
@@ -514,6 +514,19 @@ export default function FoaieParcursPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal open={!!signShare} title="Trimite link semnare către responsabil" onClose={() => setSignShare(null)} size="md">
+        {signShare ? <div className="grid gap-3">
+          <Input label="Număr telefon (WhatsApp)" value={signShare.phone} onChange={event => setSignShare({ ...signShare, phone: event.target.value })} />
+          <Input label="Email" type="email" value={signShare.email} onChange={event => setSignShare({ ...signShare, email: event.target.value })} />
+          <div className="break-all rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{signShare.link}</div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={async () => { await navigator.clipboard.writeText(signShare.link); setMessage('Linkul a fost copiat.') }}>Copiază link</Button>
+            <Button variant="secondary" onClick={() => window.open(`https://wa.me/${signShare.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Semnează foaia de parcurs ${signShare.nr_foaie}: ${signShare.link}`)}`, '_blank')}>Deschide WhatsApp</Button>
+            <Button variant="secondary" onClick={() => { window.location.href = `mailto:${encodeURIComponent(signShare.email)}?subject=${encodeURIComponent(`Semnare foaie parcurs ${signShare.nr_foaie}`)}&body=${encodeURIComponent(signShare.link)}` }}>Trimite email</Button>
+          </div>
+        </div> : null}
       </Modal>
     </div>
   )

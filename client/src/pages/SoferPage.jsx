@@ -25,6 +25,10 @@ function getSession() {
   try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null') } catch { return null }
 }
 function saveSession(s) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)) }
+function signatureSvg(canvas) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}"><image href="${canvas.toDataURL('image/png')}" width="100%" height="100%"/></svg>`
+  return `data:image/svg+xml;base64,${btoa(svg)}`
+}
 function vapidBytes(value) {
   const padding = '='.repeat((4 - value.length % 4) % 4)
   const raw = atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'))
@@ -95,7 +99,7 @@ function SignatureCanvas({ onChange }) {
     const pos = getPos(e, canvasRef.current)
     ctx.lineTo(pos.x, pos.y); ctx.stroke()
     setHasSignature(true)
-    onChange(canvasRef.current.toDataURL())
+    onChange(signatureSvg(canvasRef.current))
   }
 
   function stop(e) { e.preventDefault(); drawing.current = false }
@@ -197,7 +201,7 @@ export default function SoferPage() {
       setMyTrips(trips)
       const vehicleList = (assetsRes.data?.assets || assetsRes.data?.fleetAssets || []).filter(a => a.tip !== 'utilaj')
       setVehicles(vehicleList)
-      const open = trips.find(t => ['trimisa', 'in_lucru', 'deschisa', 'completata'].includes(t.status))
+      const open = trips.find(t => ['draft', 'trimisa', 'in_lucru', 'deschisa', 'completata'].includes(t.status))
       if (open) setOpenTrip(open)
       else setOpenTrip(null)
     } catch (err) {
