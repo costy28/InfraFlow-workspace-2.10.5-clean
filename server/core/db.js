@@ -4,13 +4,14 @@ const crypto = require("crypto");
 const childProcess = require("child_process");
 const os = require("os");
 const sql = require("mssql");
+const { splitSqlBatches, ensureMigrationTable, runTrackedMigrations } = require("./migrations");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 loadPreferredDatabaseEnv(ROOT);
 const DATA_DIR = path.join(ROOT, "data");
 const DB_FILE = path.join(DATA_DIR, "app-db.json");
 const SEED_FILE = path.join(DATA_DIR, "seed.json");
-const DB_MODE = String(process.env.INFRAFLOW_DB_PROVIDER || process.env.DB_MODE || "json").trim().toLowerCase();
+const DB_MODE = String(process.env.INFRAFLOW_DB_PROVIDER || process.env.DB_MODE || "mssql").trim().toLowerCase();
 
 // Structura minimală folosită la prima instalare când seed.json nu există
 const DEFAULT_DB = {
@@ -81,8 +82,8 @@ const DEFAULT_DB = {
 };
 const POSTGRES_APP_STATE_TABLE = "app_state";
 const MSSQL_APP_STATE_TABLE = "app_state";
-const DEFAULT_MSSQL_CONNECTION_STRING = "Server=.\\SQLEXPRESS;Database=InfraFlow;Integrated Security=True;TrustServerCertificate=True;Connection Timeout=15";
-const MSSQL_RELATIONAL_MODE = ["1", "true", "yes", "da"].includes(String(process.env.INFRAFLOW_SQL_RELATIONAL || process.env.MSSQL_RELATIONAL || "1").trim().toLowerCase());
+const DEFAULT_MSSQL_CONNECTION_STRING = "Server=.\\SQLEXPRESS;Database=INFRAFLOW;User Id=infraflow;Password=CONFIGUREAZA_PAROLA;TrustServerCertificate=True;Encrypt=false;Connection Timeout=30";
+const MSSQL_RELATIONAL_MODE = ["1", "true", "yes", "da"].includes(String(process.env.INFRAFLOW_SQL_RELATIONAL || process.env.MSSQL_RELATIONAL || "0").trim().toLowerCase());
 const defaultWorkflowTemplates = [
   { id: "wft-material", type: "material", name: "Solicitare materiale", moduleKey: "gestiune" },
   { id: "wft-asphalt", type: "asphalt", name: "Solicitare asfalt", moduleKey: "production" },
@@ -270,7 +271,6 @@ let mssqlPool = null;
 
 // Incarca automat configuratia bazei preferate din runtime, daca exista.
 function loadPreferredDatabaseEnv(root) {
-  if (process.env.DB_MODE) return;
   const envCandidates = [
     { mode: "mssql", file: path.join(root, "runtime", "mssql.env") },
     { mode: "postgres", file: path.join(root, "runtime", "postgres.env") }
@@ -390,17 +390,11 @@ function sqlJson(value) {
 // Creeaza baza SQL Server si tabela app_state daca lipsesc.
 function ensureMssqlDatabase() {
   const sourceFile = fs.existsSync(DB_FILE) ? DB_FILE : SEED_FILE;
-  const seed = normalizeDb(JSON.parse(fs.readFileSync(sourceFile, "utf8")));
+  const seed = normalizeDb(sourceFile && fs.existsSync(sourceFile)
+    ? JSON.parse(fs.readFileSync(sourceFile, "utf8"))
+    : cloneDb(DEFAULT_DB));
   const databaseName = mssqlDatabaseName();
-  const quotedDatabase = quoteMssqlIdentifier(databaseName);
-  runMssqlScalar(`
-    if db_id(N'${escapeSqlString(databaseName)}') is null
-    begin
-      declare @createDatabaseSql nvarchar(max) = N'create database ${quotedDatabase}';
-      exec (@createDatabaseSql);
-    end;
-    select 1;
-  `, { connectionString: mssqlConnectionString("master") });
+  if (!databaseName) throw new Error("DB_DATABASE lipseste din runtime/mssql.env.");
   runMssqlScalar(`
     if object_id(N'dbo.${MSSQL_APP_STATE_TABLE}', N'U') is null
     begin
@@ -419,6 +413,7 @@ function ensureMssqlDatabase() {
     end;
     select 1;
   `, { jsonInput: JSON.stringify(seed) });
+  ensureMigrationTable(runMssqlScalar);
   ensureMssqlRelationalSchema();
 }
 
@@ -468,16 +463,7 @@ function syncMssqlRelationalFromAppState() {
 function applyMssqlMigrations() {
   if (!["mssql", "sqlserver"].includes(DB_MODE)) return [];
   const migrationsDir = path.join(ROOT, "db", "migrations");
-  if (!fs.existsSync(migrationsDir)) return [];
-  const applied = [];
-  fs.readdirSync(migrationsDir)
-    .filter((name) => name.toLowerCase().endsWith(".sql"))
-    .sort((left, right) => left.localeCompare(right))
-    .forEach((name) => {
-      runMssqlScriptFile(path.join(migrationsDir, name));
-      applied.push(name);
-    });
-  return applied;
+  return runTrackedMigrations({ migrationsDir, runScalar: runMssqlScalar });
 }
 
 function applyMssqlBaseSchema() {
@@ -520,7 +506,7 @@ function syncMssqlCpvCodes(codes) {
 function runMssqlScriptFile(filePath) {
   if (!fs.existsSync(filePath)) throw new Error(`Script SQL lipsa: ${filePath}`);
   const sql = fs.readFileSync(filePath, "utf8");
-  runMssqlScalar(`${sql}\nselect 1;`, { timeoutMs: 300000 });
+  splitSqlBatches(sql).forEach((batch) => runMssqlScalar(`${batch}\nselect 1;`, { timeoutMs: 300000 }));
 }
 
 async function getMssqlPool() {
@@ -609,6 +595,7 @@ try {
       env,
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
+      maxBuffer: 50 * 1024 * 1024,
       timeout: options.timeoutMs || 120000
     });
   } catch (error) {
@@ -620,13 +607,38 @@ try {
 }
 
 function mssqlConnectionString(databaseName = mssqlDatabaseName()) {
-  const raw = process.env.MSSQL_CONNECTION_STRING || process.env.SQLSERVER_CONNECTION_STRING || DEFAULT_MSSQL_CONNECTION_STRING;
+  const raw = configuredMssqlConnectionString();
   return setConnectionStringValue(raw, getConnectionStringValue(raw, "Initial Catalog") ? "Initial Catalog" : "Database", databaseName);
 }
 
 function mssqlDatabaseName() {
-  const raw = process.env.MSSQL_CONNECTION_STRING || process.env.SQLSERVER_CONNECTION_STRING || DEFAULT_MSSQL_CONNECTION_STRING;
-  return process.env.MSSQL_DATABASE || getConnectionStringValue(raw, "Database") || getConnectionStringValue(raw, "Initial Catalog") || "InfraFlow";
+  const raw = configuredMssqlConnectionString();
+  return process.env.DB_DATABASE || process.env.MSSQL_DATABASE || getConnectionStringValue(raw, "Database") || getConnectionStringValue(raw, "Initial Catalog") || "INFRAFLOW";
+}
+
+function configuredMssqlConnectionString() {
+  const configured = process.env.INFRAFLOW_DB_CONNECTION || process.env.MSSQL_CONNECTION_STRING || process.env.SQLSERVER_CONNECTION_STRING;
+  if (configured) return configured;
+  const server = process.env.DB_SERVER || ".\\SQLEXPRESS";
+  const database = process.env.DB_DATABASE || "INFRAFLOW";
+  return `Server=${server};Database=${database};User Id=infraflow;Password=CONFIGUREAZA_PAROLA;TrustServerCertificate=True;Encrypt=${process.env.DB_ENCRYPT || "false"};Connection Timeout=30`;
+}
+
+function databaseHealth() {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) {
+    return { ok: true, mode: DB_MODE, server: null, database: path.basename(DB_FILE), pool: null };
+  }
+  runMssqlScalar("select 1;");
+  return {
+    ok: true,
+    mode: DB_MODE,
+    server: process.env.DB_SERVER || getConnectionStringValue(configuredMssqlConnectionString(), "Server") || ".\\SQLEXPRESS",
+    database: mssqlDatabaseName(),
+    pool: {
+      connected: Boolean(mssqlPool?.connected),
+      connecting: Boolean(mssqlPool?.connecting)
+    }
+  };
 }
 
 function getConnectionStringValue(connectionString, key) {
@@ -1159,5 +1171,8 @@ module.exports = {
   applyMssqlMigrations,
   syncMssqlCpvCodes,
   ensureMssqlDatabase,
+  databaseHealth,
+  mssqlConnectionString,
+  mssqlDatabaseName,
   normalizeDb
 };

@@ -1,4 +1,4 @@
-const { readDb, writeDb, runMssqlScalar, DB_MODE } = require('./core/db')
+const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('./core/db')
 const { notifyUser } = require('./modules/messaging/routes')
 const { checkTicketAlerts } = require('./modules/tickets/scheduler')
 
@@ -7,7 +7,7 @@ const DAY_MS = 24 * HOUR_MS
 const runtimeNotificationKeys = new Set()
 
 function isMssqlMode() {
-  return DB_MODE === 'mssql' || DB_MODE === 'sqlserver'
+  return MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
 }
 
 function timestamp() {

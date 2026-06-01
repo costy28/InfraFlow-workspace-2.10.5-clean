@@ -8,7 +8,7 @@ const AdmZip = require('adm-zip')
 const { requireAuth, hashPassword, verifyPassword } = require('../../core/auth')
 const { requirePermission, authHasPermission } = require('../../core/permissions')
 const kioskSessions = require('../../core/kiosk-sessions')
-const { readDb, writeDb, runMssqlScalar, DB_MODE } = require('../../core/db')
+const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { valideazaCNP, infoCNP } = require('../../shared/cnp-validator')
 const { registerPontaj } = require('../controlling/auto-register')
@@ -33,7 +33,7 @@ function sendJson(res, status, data) {
 }
 
 function isMssqlMode() {
-  return DB_MODE === 'mssql' || DB_MODE === 'sqlserver'
+  return MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
 }
 
 function nowIso() {

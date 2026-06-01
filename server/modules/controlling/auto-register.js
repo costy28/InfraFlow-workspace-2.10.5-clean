@@ -1,8 +1,8 @@
 const crypto = require('crypto')
-const { DB_MODE, runMssqlScalar } = require('../../core/db')
+const { DB_MODE, runMssqlScalar, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 
 function isMssqlMode() {
-  return DB_MODE === 'mssql' || DB_MODE === 'sqlserver'
+  return MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
 }
 
 function mssqlJson(sql, params = {}) {

@@ -24,7 +24,7 @@
 
 param(
   [string]$AppDir = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
-  [string]$DbConnection = "Server=SERVER\CIEL;Database=InfraFlow;Trusted_Connection=yes;TrustServerCertificate=yes",
+  [string]$DbConnection = "Server=.\SQLEXPRESS;Database=INFRAFLOW;User Id=infraflow;Password=CONFIGUREAZA_PAROLA;TrustServerCertificate=yes;Encrypt=false",
   [int]$Port = 4180
 )
 
@@ -96,6 +96,9 @@ Write-Host "Instalare serviciu InfraFlow..." -ForegroundColor Green
   "PORT=$Port" `
   "INFRAFLOW_PORT=$Port" `
   "DB_MODE=mssql" `
+  "INFRAFLOW_DB_PROVIDER=mssql" `
+  "DB_SERVER=.\SQLEXPRESS" `
+  "DB_DATABASE=INFRAFLOW" `
   "INFRAFLOW_DB_CONNECTION=$DbConnection" `
   "NODE_ENV=production"
 & $nssm set InfraFlow DisplayName "InfraFlow ERP"
@@ -111,6 +114,7 @@ Write-Host "Instalare serviciu InfraFlow..." -ForegroundColor Green
 
 # Windows Service Control Manager: restart după 5s, 10s și 30s la crash.
 & sc.exe failure InfraFlow reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+& sc.exe config InfraFlow depend= "MSSQL`$SQLEXPRESS" | Out-Null
 
 # Pornire serviciu
 Write-Host "Pornire serviciu..." -ForegroundColor Green

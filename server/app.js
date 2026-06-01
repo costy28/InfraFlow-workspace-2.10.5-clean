@@ -3,7 +3,7 @@ const express = require('express')
 const path = require('path')
 const fs = require('fs')
 const { requireAuth } = require('./core/auth')
-const { ensureDatabase, readDb, writeDb, syncMssqlCpvCodes, closeMssqlPool } = require('./core/db')
+const { ensureDatabase, readDb, writeDb, syncMssqlCpvCodes, closeMssqlPool, databaseHealth } = require('./core/db')
 const { incarcaLicenta } = require('./core/license')
 const { bootstrapCpvCatalog } = require('./modules/nomenclator/service')
 
@@ -40,6 +40,13 @@ const app = express()
 app.use(express.json({ limit: '10mb' }))
 app.get('/api/v1/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
 app.get('/api/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
+app.get('/api/system/health', (_req, res) => {
+  try {
+    res.json(databaseHealth())
+  } catch (error) {
+    res.status(503).json({ ok: false, mode: 'mssql', error: 'SQL Server indisponibil' })
+  }
+})
 
 Promise.resolve()
   .then(() => require('./modules/messaging/routes').createDefaultChannels())

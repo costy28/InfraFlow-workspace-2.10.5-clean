@@ -3,7 +3,8 @@ const path = require('path')
 const crypto = require('crypto')
 const childProcess = require('child_process')
 const os = require('os')
-const { writeDb, DB_MODE, DB_FILE, MSSQL_APP_STATE_TABLE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
+const coreDb = require('../../core/db')
+const { writeDb, DB_MODE, DB_FILE, MSSQL_APP_STATE_TABLE, MSSQL_RELATIONAL_MODE } = coreDb
 const { addAudit } = require('../../core/audit')
 
 const ROOT = path.resolve(__dirname, '../../..')
@@ -816,24 +817,24 @@ function safeDisplayFileName(value) {
 }
 
 function listBackupFiles() {
-  const dir = path.join(ROOT, "backups");
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir)
-    .filter((name) => /^(infraflow|asfalt-pro)-backup-\d{8}-\d{6}\.json$/.test(name))
-    .map((name) => backupFileInfo(name))
+  return backupDirectories()
+    .flatMap((dir) => fs.existsSync(dir) ? fs.readdirSync(dir).map((name) => backupFileInfo(name, dir)) : [])
     .filter(Boolean);
 }
 
-function backupFileInfo(name) {
+function backupFileInfo(name, preferredDir = "") {
   const safeName = String(name || "");
-  if (!/^(infraflow|asfalt-pro)-backup-\d{8}-\d{6}\.json$/.test(safeName)) return null;
-  const filePath = path.join(ROOT, "backups", safeName);
+  if (!/^(infraflow|asfalt-pro)-backup-\d{8}-\d{6}\.(json|bak)$/.test(safeName)) return null;
+  const dir = preferredDir || backupDirectories().find((candidate) => fs.existsSync(path.join(candidate, safeName)));
+  if (!dir) return null;
+  const filePath = path.join(dir, safeName);
   if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
   const stat = fs.statSync(filePath);
   return { name: safeName, path: filePath, size: stat.size, modifiedAt: stat.mtime.toISOString() };
 }
 
 function createServerBackup(db, user, details) {
+  if (["mssql", "sqlserver"].includes(DB_MODE)) return createMssqlServerBackup(db, user, details);
   fs.mkdirSync(path.join(ROOT, "backups"), { recursive: true });
   addAudit(db, user, "backup_creat", details || "Backup creat manual");
   writeDb(db);
@@ -855,6 +856,30 @@ function createServerBackup(db, user, details) {
   };
   fs.writeFileSync(`${filePath}.meta.json`, JSON.stringify(meta, null, 2));
   return backupFileInfo(name);
+}
+
+function createMssqlServerBackup(db, user, details) {
+  const dir = process.env.MSSQL_BACKUP_DIR || "C:\\InfraFlow\\backups";
+  fs.mkdirSync(dir, { recursive: true });
+  addAudit(db, user, "backup_creat", details || "Backup MSSQL creat manual");
+  writeDb(db);
+  const name = `infraflow-backup-${backupTimestamp(new Date())}.bak`;
+  const filePath = path.join(dir, name);
+  const database = coreDb.mssqlDatabaseName();
+  coreDb.runMssqlScalar(`
+    backup database [${String(database).replace(/]/g, "]]")}] to disk = N'${String(filePath).replace(/'/g, "''")}' with init, checksum;
+    select 1;
+  `, { timeoutMs: 300000 });
+  listBackupFiles()
+    .filter((item) => item.name.endsWith(".bak"))
+    .sort((left, right) => right.modifiedAt.localeCompare(left.modifiedAt))
+    .slice(7)
+    .forEach((item) => fs.rmSync(item.path, { force: true }));
+  return backupFileInfo(name, dir);
+}
+
+function backupDirectories() {
+  return [...new Set([path.join(ROOT, "backups"), process.env.MSSQL_BACKUP_DIR || "C:\\InfraFlow\\backups"])];
 }
 
 function readRecentLogs() {

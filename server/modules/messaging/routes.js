@@ -1,7 +1,7 @@
 const { Router } = require('express')
 const { requireAuth } = require('../../core/auth')
 const { requirePermission } = require('../../core/permissions')
-const { readDb, writeDb, runMssqlScalar, DB_MODE } = require('../../core/db')
+const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { sendEmail } = require('./email')
 const router = Router()
@@ -29,7 +29,7 @@ function nowIso() {
 }
 
 function isMssqlMode() {
-  return DB_MODE === 'mssql' || DB_MODE === 'sqlserver'
+  return MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
 }
 
 function requireMessaging(auth, res, permission) {

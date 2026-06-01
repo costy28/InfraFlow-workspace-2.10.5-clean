@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.12.3 — 2026-06-01
+### MSSQL izolat pentru InfraFlow
+- Aplicația folosește baza dedicată `INFRAFLOW` și loginul SQL dedicat `infraflow`.
+- Credentialele sunt salvate protejat în `runtime/mssql.env`, fără acces la celelalte baze.
+- Modulele legacy folosesc `app_state` până la activarea explicită a proiecției relaționale.
+
+## v2.12.2 — 2026-06-01
+### Hotfix acces MSSQL Task Scheduler
+- Installerul creează `InfraFlowDB` înainte de prima pornire.
+- Contul `NT AUTHORITY\SYSTEM` primește acces `db_owner` pentru taskul `InfraFlow ERP`.
+- Directorul backup primește ACL pentru serviciul SQL Express.
+
+## v2.12.1 — 2026-06-01
+### Migrare completă pe MSSQL
+- SQL Server Express este baza implicită pentru instalările de producție.
+- Trackerul `dbo.schema_migrations` este inițializat; proiecția relațională legacy rămâne opt-in până la uniformizarea cheilor.
+- Installerul verifică SQL Express, programează backup zilnic `.bak` și expune `GET /api/system/health`.
+
 ## v2.12.0 — 2026-06-01
 ### Foi Parcurs Digital Complet
 - Responsabilul trimite foaia șoferului, iar șoferul completează verso și semnează de pe telefon.

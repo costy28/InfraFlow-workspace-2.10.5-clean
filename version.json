@@ -1,5 +1,5 @@
 {
-  "version": "2.12.0",
+  "version": "2.12.3",
   "date": "2026-06-01",
-  "changelog": "## v2.12.0 — 2026-06-01\n### Foi Parcurs Digital Complet\n- Responsabilul trimite foaia către șofer, iar șoferul completează verso pe telefon și semnează.\n- Responsabilul lucrării semnează din link public unic, fără autentificare, apoi șeful mecanizare aprobă.\n- PDF-ul final include activități, calcule, semnături și QR de verificare. Web Push este disponibil pe dispozitivele subscrise."
+  "changelog": "## v2.12.3 — 2026-06-01\n### MSSQL izolat pentru InfraFlow\n- Aplicația folosește baza dedicată INFRAFLOW și loginul SQL dedicat infraflow.\n- Credentialele sunt salvate protejat în runtime/mssql.env, fără acces la celelalte baze.\n- Modulele legacy folosesc app_state până la activarea explicită a proiecției relaționale."
 }

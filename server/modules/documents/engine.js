@@ -1,10 +1,10 @@
 const fs = require('fs')
 const path = require('path')
-const { runMssqlScalar, DB_MODE } = require('../../core/db')
+const { runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { notifyUser } = require('../messaging/routes')
 
 function isMssqlMode() {
-  return DB_MODE === 'mssql' || DB_MODE === 'sqlserver'
+  return MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
 }
 
 function mssqlJson(sql, params = {}) {

@@ -6,13 +6,13 @@
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
 AppName=InfraFlow ERP Server
-AppVersion=2.11.5
+AppVersion=2.12.3
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Server-Setup-v2.11.5
+OutputBaseFilename=InfraFlow-Server-Setup-v2.12.3
 PrivilegesRequired=admin
 WizardStyle=modern
 Compression=lzma2/ultra64
@@ -61,6 +61,12 @@ Source: "uninstall-task.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "setup-db.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\scripts\windows\install-service.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\uninstall-service.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\check-sqlserver.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\configure-mssql-login.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\CREARE_BAZA_INFRAFLOW.sql"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\backup-mssql.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\schedule-backup.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\migrate-json-to-mssql.js"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\.env.example"; DestDir: "{app}"; DestName: ".env.example"; \
   Flags: ignoreversion onlyifdoesntexist
 Source: "Porneste-InfraFlow.bat"; DestDir: "{app}"; Flags: ignoreversion
@@ -106,20 +112,29 @@ Root: HKLM; \
 Root: HKLM; \
   Subkey: "SOFTWARE\InfraSuite\InfraFlow"; \
   ValueType: string; ValueName: "Version"; \
-  ValueData: "2.11.5"; \
+  ValueData: "2.12.3"; \
   Flags: uninsdeletevalue
 
 [Run]
 ; 1. Instaleaza Node.js daca lipseste
 Filename: "powershell.exe"; Parameters: "-NonInteractive -Command ""if (!(Get-Command node -EA SilentlyContinue)) {{ Start-Process msiexec -Wait -ArgumentList ""/i"", ""{tmp}\node-v20-x64.msi"", ""/quiet"", ""/norestart"" }}"""; StatusMsg: "Verific Node.js..."; Flags: runhidden waituntilterminated
 
-; 2. npm install
+; 2. Configurare MSSQL obligatorie
+Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\setup-db.ps1"" -AppDir ""{app}"""; StatusMsg: "Verific SQL Server Express si configurez MSSQL..."; Flags: runhidden waituntilterminated
+
+; 3. Configureaza loginul SQL dedicat InfraFlow
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\windows\configure-mssql-login.ps1"" -AppDir ""{app}"""; StatusMsg: "Configurez loginul SQL dedicat InfraFlow..."; Flags: waituntilterminated
+
+; 4. npm install
 Filename: "cmd.exe"; Parameters: "/c cd /d ""{app}\server"" && npm install --omit=dev --prefer-offline"; StatusMsg: "Instalez dependentele server..."; Flags: runhidden waituntilterminated
 
-; 3. Task Scheduler pornire automata
+; 5. Task Scheduler pornire automata
 Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\setup-task.ps1"""; StatusMsg: "Configurez pornire automata..."; Flags: runhidden waituntilterminated
 
-; 4. Deschide browser
+; 6. Backup MSSQL zilnic
+Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\windows\schedule-backup.ps1"" -AppDir ""{app}"""; StatusMsg: "Configurez backup MSSQL zilnic..."; Flags: runhidden waituntilterminated
+
+; 7. Deschide browser
 Filename: "http://localhost:4180"; Description: "Deschide InfraFlow in browser"; Flags: nowait postinstall shellexec skipifsilent
 [UninstallRun]
 ; Oprire task + kill proces node.exe care rulează app.js din folderul de instalare
@@ -132,12 +147,13 @@ Filename: "powershell.exe"; \
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Server v2.11.5' + #13#10#13#10 +
+    'InfraFlow ERP Server v2.12.3' + #13#10#13#10 +
     'Acest installer va configura:' + #13#10 +
     '  • Aplicația server Node.js (Express)' + #13#10 +
     '  • Frontend React (servit de server)' + #13#10 +
     '  • Task Scheduler Windows (pornire automată la boot)' + #13#10 +
-    '  • Baza de date (JSON local sau SQL Server)' + #13#10#13#10 +
+    '  • Baza de date SQL Server Express (obligatoriu)' + #13#10 +
+    '  • Backup MSSQL automat zilnic la ora 02:00' + #13#10#13#10 +
     'Port implicit: 4180 (http://localhost:4180)' + #13#10 +
     'Durata estimată: 3-8 minute.' + #13#10#13#10 +
     'Recomandat: închideți toate aplicațiile înainte de instalare.';

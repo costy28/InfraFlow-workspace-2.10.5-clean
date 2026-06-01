@@ -2,13 +2,13 @@ const { Router } = require('express')
 const crypto = require('crypto')
 const { requireAuth } = require('../../core/auth')
 const { requirePermission } = require('../../core/permissions')
-const { readDb, writeDb, runMssqlScalar, DB_MODE } = require('../../core/db')
+const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { notifyUser } = require('../messaging/routes')
 const { sendEmail } = require('../messaging/email')
 
 const router = Router()
-function isMssqlMode(){return DB_MODE==='mssql'||DB_MODE==='sqlserver'}
+function isMssqlMode(){return MSSQL_RELATIONAL_MODE && (DB_MODE==='mssql'||DB_MODE==='sqlserver')}
 function sendJson(res,status,data){res.status(status).json(data)}
 function nowIso(){return new Date().toISOString()}
 function nextId(items){return items.reduce((m,i)=>Math.max(m,Number(i.id||0)),0)+1}
