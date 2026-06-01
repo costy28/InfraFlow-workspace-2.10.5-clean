@@ -24,6 +24,7 @@ const permissionGroups = {
   deliveries: ["deliveries:view", "deliveries:create", "deliveries:cancel"],
   procurementOrders: ["procurement_orders:view", "procurement_orders:create", "procurement_orders:receive", "procurement_orders:close"],
   referate: ["referate:view", "referate:create", "referate:achizitii", "referate:gestionar", "referate:secretariat", "referate:cfp", "referate:contabil_sef", "referate:dir_adjunct", "referate:dir_general", "referate:receptie"],
+  echipamente: ["echipamente:gestionar"],
   mechanization: ["mechanization:view", "mechanization:manage", "mechanization:request", "mechanization:approve"],
   technical: ["technical:view", "technical:worklog", "technical:sales", "technical:export"],
   costAccounting: ["cost_accounting:view", "cost_accounting:manage", "cost_accounting:import", "cost_accounting:export"],

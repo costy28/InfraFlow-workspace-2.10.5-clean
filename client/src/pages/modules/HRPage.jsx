@@ -45,7 +45,7 @@ const ALL_HR_TABS = [
   { id: 'Overview pontaje',   perm: 'hr:timesheets_manage' },
   { id: 'Concedii',           perm: 'hr:leave_manage' },
   { id: 'Autorizații',        perm: 'hr:authorizations_manage' },
-  { id: '🦺 Echipamente',      perm: 'hr:view' },
+  { id: '🦺 Echipamente',      perm: 'echipamente:gestionar', fallbackPerm: 'hr:view' },
   { id: 'Training & Evaluări',perm: 'hr:training' },
   { id: 'Organigramă',        perm: 'hr:view' },
   { id: 'Documente HR',       perm: 'hr:contracts_manage' },
@@ -212,7 +212,7 @@ export default function HRPage() {
     ['superadmin', 'admin'].includes(user?.role) ||
     (Array.isArray(user?.permissions) && user.permissions.includes(perm))
 
-  const tabs = ALL_HR_TABS.filter(t => hasPerm(t.perm)).map(t => t.id)
+  const tabs = ALL_HR_TABS.filter(t => hasPerm(t.perm) || (t.fallbackPerm && hasPerm(t.fallbackPerm))).map(t => t.id)
 
   const [activeTab, setActiveTab] = useState(() => tabs[0] || 'Dashboard HR')
   const [employees, setEmployees] = useState([])
@@ -268,9 +268,14 @@ export default function HRPage() {
   const [equipmentRows, setEquipmentRows] = useState([])
   const [equipmentOrder, setEquipmentOrder] = useState([])
   const [equipmentExpiry, setEquipmentExpiry] = useState([])
+  const [equipmentCatalog, setEquipmentCatalog] = useState([])
+  const [equipmentSuppliers, setEquipmentSuppliers] = useState([])
+  const [catalogModal, setCatalogModal] = useState(false)
+  const [catalogEditing, setCatalogEditing] = useState(null)
+  const [catalogForm, setCatalogForm] = useState({ denumire: '', categorie: 'protectie', are_marime: true, are_serie: false, are_expirare: true, durata_luni: 12, valoare_inventar: 0, cod_articol: '', furnizor_id: '', marimi: '', activ: true })
   const [employeeEquipment, setEmployeeEquipment] = useState(null)
   const [dotareModal, setDotareModal] = useState(false)
-  const [dotareForm, setDotareForm] = useState({ angajat_id: '', tip_id: '', marime: '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'predat', observatii: '' })
+  const [dotareForm, setDotareForm] = useState({ angajat_id: '', tip_id: '', marime: '', numar_serie: '', valoare_inventar: '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'nou', observatii: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState({ dept_id: '', activ: '', luna: currentMonth(), tip: '', alert: '' })
@@ -282,6 +287,7 @@ export default function HRPage() {
   const isHRPontaj = hasPermission('hr:manage') || hasPermission('hr:timesheets_manage')
   const isSefPontaj = hasPermission('hr:timesheet_dept')
   const canUsePontaj = isHRPontaj || isSefPontaj
+  const canManageEquipment = isAdmin || hasPermission('echipamente:gestionar') || hasPermission('hr:manage')
   const ownDepartmentKey = user?.departmentId || user?.department_id || user?.dept_id || user?.department || user?.departament || ''
 
   async function load() {
@@ -291,9 +297,9 @@ export default function HRPage() {
       const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
-        api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }),
+        api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
         api.get('/hr/leave-requests').catch(() => ({ data: [] })),
-        api.get('/hr/authorizations'),
+        api.get('/hr/authorizations').catch(() => ({ data: [] })),
         api.get('/hr/stats').catch(() => ({ data: {} })),
       ])
       setEmployees(arrayFrom(employeesRes.data, ['employees', 'items']))
@@ -472,13 +478,16 @@ export default function HRPage() {
 
   async function loadEquipmentData() {
     try {
-      const [reportRes, expiryRes] = await Promise.all([
+      const [reportRes, expiryRes, catalogRes] = await Promise.all([
         api.get('/hr/echipamente/raport-necesar'),
         api.get('/hr/echipamente/expirari', { params: { zile: 90 } }),
+        api.get('/echipamente/catalog'),
       ])
       setEquipmentRows(reportRes.data.rows || [])
       setEquipmentOrder(reportRes.data.comanda || [])
       setEquipmentExpiry(expiryRes.data.rows || [])
+      setEquipmentCatalog(catalogRes.data.catalog || [])
+      setEquipmentSuppliers(catalogRes.data.furnizori || [])
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca echipamentele.')
     }
@@ -501,6 +510,27 @@ export default function HRPage() {
     setDotareModal(false)
     if (employeeDetails) await loadEmployeeEquipment(employeeDetails.id)
     await loadEquipmentData()
+  }
+
+  function openCatalogModal(item = null) {
+    setCatalogEditing(item)
+    setCatalogForm(item ? { ...item, marimi: (item.marimi || []).join(', ') } : { denumire: '', categorie: 'protectie', are_marime: true, are_serie: false, are_expirare: true, durata_luni: 12, valoare_inventar: 0, cod_articol: '', furnizor_id: '', marimi: '', activ: true })
+    setCatalogModal(true)
+  }
+
+  async function saveCatalogItem(event) {
+    event.preventDefault()
+    const payload = { ...catalogForm, durata_luni: Number(catalogForm.durata_luni || 0), valoare_inventar: Number(catalogForm.valoare_inventar || 0), marimi: String(catalogForm.marimi || '').split(',').map(item => item.trim()).filter(Boolean) }
+    if (catalogEditing) await api.put(`/echipamente/catalog/${catalogEditing.id}`, payload)
+    else await api.post('/echipamente/catalog', payload)
+    setCatalogModal(false)
+    await loadEquipmentData()
+    if (employeeDetails) await loadEmployeeEquipment(employeeDetails.id)
+  }
+
+  async function setReturnedEquipment(item, predat) {
+    await api.post(`/hr/echipamente/dotari/${item.id}/predare`, { predat })
+    if (employeeDetails) await loadEmployeeEquipment(employeeDetails.id)
   }
 
   async function exportEquipmentOrder() {
@@ -790,6 +820,8 @@ ${extraText}
     const emp = data.angajat || {}
     const co = data.company || {}
     const azi = new Date().toISOString().slice(0, 10)
+    const inventar = data.inventar || {}
+    const inventoryRows = rows => (rows || []).map((item, index) => `<tr><td>${index + 1}</td><td>${item.tip_denumire || ''}</td><td>${item.marime || '-'}</td><td>${item.numar_serie || '-'}</td><td>${item.cantitate || 1}</td><td>${Number(item.valoare_inventar || 0).toFixed(2)} lei</td><td>□</td></tr>`).join('') || '<tr><td colspan="7">Nu există obiecte active de predat.</td></tr>'
     const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>Notă de lichidare</title>
 <style>body{font-family:Times New Roman,serif;font-size:11pt;margin:2cm}h2{text-align:center;font-size:13pt;margin:8px 0}p{margin:5px 0;line-height:1.7}table{width:100%;border-collapse:collapse;margin:12px 0}td,th{border:1px solid #888;padding:5px 8px;font-size:10pt}th{background:#f0f0f0;text-align:center}.sig{margin-top:40px;display:flex;justify-content:space-between}.sig div{text-align:center;min-width:150px}@media print{body{margin:1.5cm 2cm}}</style></head><body>
 <h2>${co.denumire || 'SOCIETATEA'}</h2>
@@ -813,6 +845,17 @@ ${extraText}
   <tr><td>4</td><td>HR</td><td>Echipament protecție / Acces</td><td></td><td></td></tr>
   <tr><td>5</td><td>Șef departament</td><td>Documentații / Dosare</td><td></td><td></td></tr>
 </table>
+<p><strong>Gestionar — Echipamente de predat:</strong></p>
+<table>
+  <tr><th>Nr.</th><th>Obiect</th><th>Mărime</th><th>Nr. serie</th><th>Cant.</th><th>Valoare</th><th>Predat</th></tr>
+  ${inventoryRows(inventar.echipamente_protectie)}
+</table>
+<p><strong>Gestionar — Scule și obiecte inventar de predat:</strong></p>
+<table>
+  <tr><th>Nr.</th><th>Obiect</th><th>Mărime</th><th>Nr. serie</th><th>Cant.</th><th>Valoare</th><th>Predat</th></tr>
+  ${inventoryRows([...(inventar.scule_unelte || []), ...(inventar.alte_obiecte || [])])}
+</table>
+<p><strong>Total valoare în răspundere: ${Number(inventar.total_valoare || 0).toFixed(2)} lei</strong></p>
 <p>Zile concediu de odihnă neefectuate: ______ zile &nbsp;&nbsp; Zile CO efectuate în plus: ______ zile</p>
 <p>Sume de plătit salariatului: ____________ RON &nbsp;&nbsp; Sume reținute: ____________ RON</p>
 <div class="sig">
@@ -1886,12 +1929,16 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       {activeTab === '🦺 Echipamente' ? (
         <Card>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">{['Necesar per Departament', 'Expirări', 'Comandă Furnizor'].map(tab => <Button key={tab} size="sm" variant={equipmentTab === tab ? 'primary' : 'secondary'} onClick={() => setEquipmentTab(tab)}>{tab}</Button>)}</div>
+            <div className="flex flex-wrap gap-2">{['Necesar per Departament', 'Expirări', 'Comandă Furnizor', '📚 Catalog'].map(tab => <Button key={tab} size="sm" variant={equipmentTab === tab ? 'primary' : 'secondary'} onClick={() => setEquipmentTab(tab)}>{tab}</Button>)}</div>
             <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={exportEquipmentOrder}>📥 Export Excel</Button><Button size="sm" onClick={createEquipmentReferat}>🛒 Creează Referat Aprovizionare</Button></div>
           </div>
           {equipmentTab === 'Necesar per Departament' ? <div className="overflow-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Departament</th><th className="px-3 py-2">Echipament</th><th className="px-3 py-2">Mărime</th><th className="px-3 py-2">Culoare</th><th className="px-3 py-2">Cod articol</th><th className="px-3 py-2 text-right">Cant.</th></tr></thead><tbody>{equipmentRows.map((row, index) => <tr key={`${row.departament}-${row.tip}-${row.marime}-${index}`} className="border-t"><td className="px-3 py-2">{row.departament}</td><td className="px-3 py-2">{row.tip}</td><td className="px-3 py-2">{row.marime}</td><td className="px-3 py-2">{row.culoare || '-'}</td><td className="px-3 py-2">{row.cod_articol || '-'}</td><td className="px-3 py-2 text-right">{row.cantitate}</td></tr>)}</tbody></table>{equipmentRows.length === 0 ? <p className="p-4 text-sm text-slate-500">Completează mărimile în fișele angajaților pentru a genera necesarul.</p> : null}</div> : null}
           {equipmentTab === 'Expirări' ? <div className="grid gap-2">{equipmentExpiry.map(row => <div key={row.id} className={`rounded-md border px-3 py-2 text-sm ${row.zile_ramase < 0 ? 'border-rose-300 bg-rose-50' : row.zile_ramase <= 30 ? 'border-amber-300 bg-amber-50' : 'border-slate-200'}`}><strong>{row.angajat}</strong> · {row.tip_denumire} · expiră {row.data_expirare} ({row.zile_ramase} zile)</div>)}{equipmentExpiry.length === 0 ? <p className="text-sm text-slate-500">Nu există expirări în următoarele 90 zile.</p> : null}</div> : null}
           {equipmentTab === 'Comandă Furnizor' ? <div className="overflow-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Cod articol</th><th className="px-3 py-2">Echipament</th><th className="px-3 py-2">Mărime</th><th className="px-3 py-2">Culoare</th><th className="px-3 py-2">CPV</th><th className="px-3 py-2 text-right">Cant.</th></tr></thead><tbody>{equipmentOrder.map((row, index) => <tr key={`${row.cod_articol}-${row.tip}-${row.marime}-${index}`} className="border-t"><td className="px-3 py-2">{row.cod_articol}</td><td className="px-3 py-2">{row.tip}</td><td className="px-3 py-2">{row.marime}</td><td className="px-3 py-2">{row.culoare}</td><td className="px-3 py-2">{row.cpv_cod}</td><td className="px-3 py-2 text-right">{row.cantitate}</td></tr>)}</tbody></table></div> : null}
+          {equipmentTab === '📚 Catalog' ? <div>
+            <div className="mb-3 flex justify-end">{canManageEquipment ? <Button size="sm" onClick={() => openCatalogModal()}>+ Obiect nou</Button> : null}</div>
+            <div className="overflow-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Denumire</th><th className="px-3 py-2">Categorie</th><th className="px-3 py-2">Mărime</th><th className="px-3 py-2">Serie</th><th className="px-3 py-2">Expirare</th><th className="px-3 py-2 text-right">Val. inventar</th><th className="px-3 py-2">Cod articol</th><th className="px-3 py-2">Activ</th><th className="px-3 py-2"></th></tr></thead><tbody>{equipmentCatalog.map(item => <tr key={item.id} className="border-t"><td className="px-3 py-2 font-medium">{item.denumire}</td><td className="px-3 py-2">{item.categorie}</td><td className="px-3 py-2">{item.are_marime ? (item.marimi || []).join(', ') || 'Da' : 'Nu'}</td><td className="px-3 py-2">{item.are_serie ? 'Da' : 'Nu'}</td><td className="px-3 py-2">{item.are_expirare ? `${item.durata_luni || 0} luni` : 'Nu'}</td><td className="px-3 py-2 text-right">{Number(item.valoare_inventar || 0).toFixed(2)} lei</td><td className="px-3 py-2">{item.cod_articol || '-'}</td><td className="px-3 py-2">{item.activ ? 'Da' : 'Nu'}</td><td className="px-3 py-2">{canManageEquipment ? <Button size="sm" variant="secondary" onClick={() => openCatalogModal(item)}>Editează</Button> : null}</td></tr>)}</tbody></table></div>
+          </div> : null}
         </Card>
       ) : null}
 
@@ -1987,7 +2034,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                         { label: '📬 Notificare preaviz concediere', fn: async () => { const r = await api.get(`/hr/employees/${emp.id}/adeverinta`, { params: { tip: 'salariat' } }); printNotificarePrv(r.data) }, cls: 'bg-orange-50 text-orange-700 hover:bg-orange-100' },
                         { label: '⚖️ Decizie de concediere', fn: async () => { const r = await api.get(`/hr/employees/${emp.id}/adeverinta`, { params: { tip: 'salariat' } }); printDecizieConc(r.data) }, cls: 'bg-rose-50 text-rose-700 hover:bg-rose-100' },
                         { label: '📅 Adeverință vechime la ieșire', fn: async () => { const r = await api.get(`/hr/employees/${emp.id}/adeverinta`, { params: { tip: 'vechime' } }); printAdeverinta(r.data) }, cls: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
-                        { label: '🧾 Notă de lichidare', fn: async () => { const r = await api.get(`/hr/employees/${emp.id}/adeverinta`, { params: { tip: 'salariat' } }); printNotaLichidare(r.data) }, cls: 'bg-red-50 text-red-700 hover:bg-red-100' },
+                        { label: '🧾 Notă de lichidare', fn: async () => { const [r, equipment] = await Promise.all([api.get(`/hr/employees/${emp.id}/adeverinta`, { params: { tip: 'salariat' } }), api.get(`/hr/echipamente/angajat/${emp.id}`)]); printNotaLichidare({ ...r.data, inventar: equipment.data.inventar }) }, cls: 'bg-red-50 text-red-700 hover:bg-red-100' },
                       ].map(item => (
                         <button key={item.label} className={`rounded px-2 py-1 text-left text-xs font-medium ${item.cls}`}
                           onClick={async () => { try { await item.fn() } catch { setError('Eroare la generare document.') } }}
@@ -2228,10 +2275,11 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               </div>
             )}
             <div className="rounded-lg border border-primary-100 bg-primary-50/40 p-3">
-              <div className="mb-3 flex items-center justify-between"><div className="text-xs font-semibold uppercase text-primary-700">🦺 Echipamente protecție</div><Button size="sm" onClick={() => { const first = employeeEquipment?.marimi?.[0]; setDotareForm({ angajat_id: employeeDetails.id, tip_id: first?.id || '', marime: first?.marime || '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'predat', observatii: '' }); setDotareModal(true) }}>+ Înregistrează dotare nouă</Button></div>
+              <div className="mb-3 flex items-center justify-between"><div className="text-xs font-semibold uppercase text-primary-700">🦺 Echipamente și inventar în răspundere</div>{canManageEquipment ? <Button size="sm" onClick={() => { const first = employeeEquipment?.marimi?.[0]; setDotareForm({ angajat_id: employeeDetails.id, tip_id: first?.id || '', marime: first?.marime || '', numar_serie: '', valoare_inventar: first?.valoare_inventar || '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'nou', observatii: '' }); setDotareModal(true) }}>+ Înregistrează dotare nouă</Button> : null}</div>
               {employeeEquipment ? <>
-                <div className="grid gap-2 sm:grid-cols-3">{employeeEquipment.marimi.map(tip => <Select key={tip.id} label={tip.denumire} value={tip.marime || ''} onChange={event => saveEmployeeSizes(tip.id, event.target.value)} options={[{ value: '', label: 'Alege mărimea' }, ...tip.marimi_disponibile.map(marime => ({ value: marime, label: marime }))]} />)}</div>
-                <div className="mt-3 overflow-auto"><table className="min-w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1">Echipament</th><th>Mărime</th><th>Data dotare</th><th>Expiră</th><th>Cant.</th><th>Stare</th></tr></thead><tbody>{employeeEquipment.dotari.map(row => <tr key={row.id} className="border-t"><td className="py-1">{row.tip_denumire}</td><td>{row.marime}</td><td>{row.data_dotare}</td><td>{row.data_expirare}</td><td>{row.cantitate}</td><td>{row.stare}</td></tr>)}</tbody></table></div>
+                <div className="grid gap-2 sm:grid-cols-3">{employeeEquipment.marimi.filter(tip => tip.are_marime).map(tip => <Select key={tip.id} label={tip.denumire} value={tip.marime || ''} onChange={event => saveEmployeeSizes(tip.id, event.target.value)} options={[{ value: '', label: 'Alege mărimea' }, ...tip.marimi_disponibile.map(marime => ({ value: marime, label: marime }))]} />)}</div>
+                {[['Echipamente protecție', employeeEquipment.inventar?.echipamente_protectie], ['Scule și unelte', employeeEquipment.inventar?.scule_unelte], ['Alte obiecte inventar', employeeEquipment.inventar?.alte_obiecte]].map(([title, rows]) => <div key={title} className="mt-4"><div className="mb-1 text-xs font-semibold uppercase text-slate-600">{title}</div><div className="overflow-auto"><table className="min-w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1">Obiect</th><th>Mărime</th><th>Nr. serie</th><th>Data dotare</th><th>Expiră</th><th>Cant.</th><th>Stare</th><th className="text-right">Valoare</th><th>Predat</th></tr></thead><tbody>{(rows || []).map(row => <tr key={row.id} className="border-t"><td className="py-1">{row.tip_denumire}</td><td>{row.marime || '-'}</td><td>{row.numar_serie || '-'}</td><td>{row.data_dotare}</td><td>{row.data_expirare || '-'}</td><td>{row.cantitate}</td><td>{row.stare}</td><td className="text-right">{Number(row.valoare_inventar || 0).toFixed(2)} lei</td><td>{canManageEquipment ? <input type="checkbox" checked={!!row.predat_la_lichidare} onChange={event => setReturnedEquipment(row, event.target.checked)} /> : row.predat_la_lichidare ? 'Da' : 'Nu'}</td></tr>)}</tbody></table>{!(rows || []).length ? <div className="py-2 text-xs text-slate-400">Nu există obiecte active.</div> : null}</div></div>)}
+                <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">Total valoare în răspundere: {Number(employeeEquipment.inventar?.total_valoare || 0).toFixed(2)} lei</div>
               </> : <p className="text-sm text-slate-500">Se încarcă echipamentele...</p>}
             </div>
           </div>
@@ -2492,10 +2540,31 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         </form>
       </Modal>
 
-      <Modal open={dotareModal} title="Înregistrează dotare echipament" onClose={() => setDotareModal(false)}>
+      <Modal open={catalogModal} title={catalogEditing ? 'Editează obiect catalog' : 'Adaugă obiect în catalog'} onClose={() => setCatalogModal(false)}>
+        <form className="grid gap-3" onSubmit={saveCatalogItem}>
+          <Input label="Denumire*" value={catalogForm.denumire} onChange={event => setCatalogForm({ ...catalogForm, denumire: event.target.value })} required />
+          <Select label="Categorie*" value={catalogForm.categorie} onChange={event => setCatalogForm({ ...catalogForm, categorie: event.target.value })} options={[{ value: 'protectie', label: 'Echipamente protecție' }, { value: 'scule', label: 'Scule' }, { value: 'unelte', label: 'Unelte' }, { value: 'inventar', label: 'Inventar' }, { value: 'SSM', label: 'SSM' }, { value: 'altele', label: 'Altele' }]} />
+          <div className="grid gap-2 sm:grid-cols-3">
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={catalogForm.are_marime} onChange={event => setCatalogForm({ ...catalogForm, are_marime: event.target.checked })} /> Are mărime?</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={catalogForm.are_serie} onChange={event => setCatalogForm({ ...catalogForm, are_serie: event.target.checked })} /> Are nr. serie?</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={catalogForm.are_expirare} onChange={event => setCatalogForm({ ...catalogForm, are_expirare: event.target.checked })} /> Are expirare?</label>
+          </div>
+          {catalogForm.are_marime ? <Input label="Mărimi disponibile (separate prin virgulă)" value={catalogForm.marimi} onChange={event => setCatalogForm({ ...catalogForm, marimi: event.target.value })} placeholder="S, M, L, XL" /> : null}
+          {catalogForm.are_expirare ? <Input label="Durată (luni)" type="number" min="0" value={catalogForm.durata_luni} onChange={event => setCatalogForm({ ...catalogForm, durata_luni: event.target.value })} /> : null}
+          <Input label="Valoare inventar" type="number" min="0" step="0.01" value={catalogForm.valoare_inventar} onChange={event => setCatalogForm({ ...catalogForm, valoare_inventar: event.target.value })} />
+          <Input label="Cod articol (opțional)" value={catalogForm.cod_articol} onChange={event => setCatalogForm({ ...catalogForm, cod_articol: event.target.value })} />
+          <Select label="Furnizor" value={catalogForm.furnizor_id || ''} onChange={event => setCatalogForm({ ...catalogForm, furnizor_id: event.target.value })} options={[{ value: '', label: '- selectează -' }, ...equipmentSuppliers.map(item => ({ value: item.id, label: item.denumire }))]} />
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={catalogForm.activ} onChange={event => setCatalogForm({ ...catalogForm, activ: event.target.checked })} /> Activ</label>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCatalogModal(false)}>Anulează</Button><Button type="submit">💾 Salvează</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={dotareModal} title="Înregistrează dotare echipament / inventar" onClose={() => setDotareModal(false)}>
         <form className="grid gap-3" onSubmit={saveDotare}>
-          <Select label="Echipament" value={dotareForm.tip_id} onChange={event => { const tip_id = event.target.value; const tip = employeeEquipment?.marimi?.find(item => String(item.id) === String(tip_id)); setDotareForm({ ...dotareForm, tip_id, marime: tip?.marime || '' }) }} options={(employeeEquipment?.marimi || []).map(item => ({ value: item.id, label: item.denumire }))} />
-          <Input label="Mărime" value={dotareForm.marime} onChange={event => setDotareForm({ ...dotareForm, marime: event.target.value })} />
+          <Select label="Obiect" value={dotareForm.tip_id} onChange={event => { const tip_id = event.target.value; const tip = employeeEquipment?.marimi?.find(item => String(item.id) === String(tip_id)); setDotareForm({ ...dotareForm, tip_id, marime: tip?.marime || '', numar_serie: '', valoare_inventar: tip?.valoare_inventar || '' }) }} options={(employeeEquipment?.marimi || []).map(item => ({ value: item.id, label: `${item.denumire} (${item.categorie})` }))} />
+          {employeeEquipment?.marimi?.find(item => String(item.id) === String(dotareForm.tip_id))?.are_marime ? <Input label="Mărime" value={dotareForm.marime} onChange={event => setDotareForm({ ...dotareForm, marime: event.target.value })} /> : null}
+          {employeeEquipment?.marimi?.find(item => String(item.id) === String(dotareForm.tip_id))?.are_serie ? <Input label="Număr serie*" value={dotareForm.numar_serie} onChange={event => setDotareForm({ ...dotareForm, numar_serie: event.target.value })} required /> : null}
+          <Input label="Valoare inventar (lei)" type="number" min="0" step="0.01" value={dotareForm.valoare_inventar} onChange={event => setDotareForm({ ...dotareForm, valoare_inventar: event.target.value })} />
           <Input label="Data dotării" type="date" value={dotareForm.data_dotare} onChange={event => setDotareForm({ ...dotareForm, data_dotare: event.target.value })} required />
           <Input label="Cantitate" type="number" min="1" step="1" value={dotareForm.cantitate} onChange={event => setDotareForm({ ...dotareForm, cantitate: Number(event.target.value) })} />
           <Input label="Observații" value={dotareForm.observatii} onChange={event => setDotareForm({ ...dotareForm, observatii: event.target.value })} />

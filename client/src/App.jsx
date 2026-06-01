@@ -39,6 +39,8 @@ const GestiunePage = lazy(() => import('./pages/modules/GestiunePage'))
 const SoferPage = lazy(() => import('./pages/SoferPage'))
 const AsternерePage = lazy(() => import('./pages/modules/AsternерePage'))
 const SetupWizardPage = lazy(() => import('./pages/SetupWizardPage'))
+const FleetSignPage = lazy(() => import('./pages/FleetSignPage'))
+const FleetVerifyPage = lazy(() => import('./pages/FleetVerifyPage'))
 
 function PageLoader() {
   return <div className="grid min-h-screen place-items-center text-sm text-slate-500">Se incarca...</div>
@@ -55,11 +57,13 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/setup" element={<SetupWizardPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/fleet/sign/:token" element={<FleetSignPage />} />
+        <Route path="/fleet/verify/:uuid" element={<FleetVerifyPage />} />
         <Route path="/dashboard" element={<WithLayout><DashboardPage /></WithLayout>} />
         <Route path="/departament/:id" element={<WithLayout><DepartamentPage /></WithLayout>} />
         <Route path="/productie/*" element={<WithLayout><PermissionGuard permission="consumptions:view"><ProductiePage /></PermissionGuard></WithLayout>} />
         <Route path="/stocuri/*" element={<WithLayout><PermissionGuard permission="materials:view"><StocuriPage /></PermissionGuard></WithLayout>} />
-        <Route path="/hr/*" element={<WithLayout><PermissionGuard permission="hr:view"><HRPage /></PermissionGuard></WithLayout>} />
+        <Route path="/hr/*" element={<WithLayout><PermissionGuard permission={['hr:view', 'echipamente:gestionar']}><HRPage /></PermissionGuard></WithLayout>} />
         <Route path="/tehnic/*" element={<WithLayout><TehnicPage /></WithLayout>} />
         <Route path="/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ControllingPage /></PermissionGuard></WithLayout>} />
         <Route path="/flota/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FlotaPage /></PermissionGuard></WithLayout>} />
@@ -90,7 +94,7 @@ export default function App() {
         <Route path="/mecanizare/*" element={<WithLayout><PermissionGuard permission="mechanization:view"><MecanizarePage /></PermissionGuard></WithLayout>} />
         <Route path="/gestiune/*" element={<WithLayout><PermissionGuard permission="gestiune:view"><GestiunePage /></PermissionGuard></WithLayout>} />
         <Route path="/kiosk" element={<KioskPage />} />
-        <Route path="/sofer" element={<SoferPage />} />
+        <Route path="/sofer/*" element={<SoferPage />} />
         <Route path="/asternere/*" element={<WithLayout><PermissionGuard permission="asternere:view"><AsternерePage /></PermissionGuard></WithLayout>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

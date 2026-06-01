@@ -25,6 +25,21 @@ function getSession() {
   try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null') } catch { return null }
 }
 function saveSession(s) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)) }
+function vapidBytes(value) {
+  const padding = '='.repeat((4 - value.length % 4) % 4)
+  const raw = atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'))
+  return Uint8Array.from([...raw].map(char => char.charCodeAt(0)))
+}
+
+async function enablePushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission === 'denied') return
+  if (Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') return
+  const registration = await navigator.serviceWorker.ready
+  const keys = await api.get('/fleet/push/vapid-public')
+  if (!keys.data.enabled) return
+  const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidBytes(keys.data.publicKey) })
+  await api.post('/fleet/push/subscribe', { subscription, device_name: navigator.userAgent.slice(0, 100) })
+}
 
 // ── PWA Install & SW ──────────────────────────────────────────────────────────
 function usePWA() {
@@ -161,6 +176,7 @@ export default function SoferPage() {
       setUser(u)
       setScreen('home')
       await loadData()
+      enablePushNotifications().catch(() => {})
     } catch (err) {
       setLoginError(err.response?.data?.error || 'Autentificare eșuată.')
     } finally { setLogging(false) }
@@ -181,7 +197,7 @@ export default function SoferPage() {
       setMyTrips(trips)
       const vehicleList = (assetsRes.data?.assets || assetsRes.data?.fleetAssets || []).filter(a => a.tip !== 'utilaj')
       setVehicles(vehicleList)
-      const open = trips.find(t => t.status === 'deschisa')
+      const open = trips.find(t => ['trimisa', 'in_lucru', 'deschisa', 'completata'].includes(t.status))
       if (open) setOpenTrip(open)
       else setOpenTrip(null)
     } catch (err) {
@@ -256,7 +272,15 @@ export default function SoferPage() {
     }
     if (navigator.onLine) {
       try {
-        await api.patch(`/fleet/trip-logs/${openTrip.uuid}/close`, data)
+        await api.patch(`/fleet/trip-logs/${openTrip.uuid}/verso`, {
+          km_sfarsit: data.km_sosire,
+          combustibil_primit: data.combustibil_primit,
+          combustibil_sfarsit: data.combustibil_sold_final,
+          observatii: data.observatii,
+          activitati: [{ ora_plecare: openTrip.data_plecare?.slice(11, 16) || '', ora_sosire: closeTripForm.ora_sosire, destinatie: data.itinerariu, km_parcursi: Number(data.km_sosire) - Number(openTrip.km_plecare || 0), activitate: data.sarcini_transport }]
+        })
+        if (!data.signature_sofer) throw new Error('Semnătura șoferului este obligatorie.')
+        await api.post(`/fleet/trip-logs/${openTrip.uuid}/semneaza-sofer`, { signature_svg: data.signature_sofer })
         setScreen('home'); setOpenTrip(null); await loadData()
       } catch (err) { setError(err.response?.data?.error || 'Eroare la închidere foaie.') }
     } else {
@@ -461,13 +485,14 @@ export default function SoferPage() {
             Plecare: {openTrip.data_plecare?.slice(0, 16) || openTrip.data} · Km plecare: {openTrip.km_plecare}
           </div>
           {openTrip.itinerariu ? <div className="text-xs text-slate-400 mt-1 truncate">{openTrip.itinerariu}</div> : null}
+          {openTrip.status === 'trimisa' ? <button onClick={async () => { await api.post(`/fleet/trip-logs/${openTrip.uuid}/incepe`, { km_start: openTrip.km_plecare }); await loadData() }} className="mt-3 w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white">Confirmă primirea și pleacă</button> : null}
           <button
             onClick={() => {
               setCloseTripForm({ km_sosire: '', ora_sosire: new Date().toTimeString().slice(0, 5), combustibil_sold_final: '', combustibil_primit: '0', itinerariu: openTrip.itinerariu || '', sarcini_transport: '', observatii: '', signature: null })
               setScreen('closeTrip')
             }}
             className="mt-3 w-full rounded-xl bg-amber-600 py-3 text-sm font-semibold text-white hover:bg-amber-500"
-          >🔒 Completează & Închide foaia</button>
+          >Completează verso și semnează</button>
         </div>
       ) : (
         <button

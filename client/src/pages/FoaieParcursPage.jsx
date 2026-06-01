@@ -122,17 +122,17 @@ export default function FoaieParcursPage() {
 
   const visibleTrips = useMemo(() => {
     let rows = trips
-    if (activeTab === 'Deschise') rows = rows.filter(trip => trip.status === 'deschisa')
-    if (activeTab === 'Completate') rows = rows.filter(trip => trip.status === 'completata')
-    if (activeTab === 'Închise') rows = rows.filter(trip => trip.status === 'inchisa')
+    if (activeTab === 'Deschise') rows = rows.filter(trip => ['draft', 'deschisa', 'trimisa', 'in_lucru'].includes(trip.status))
+    if (activeTab === 'Completate') rows = rows.filter(trip => ['completata', 'semnata_sofer', 'semnata_responsabil'].includes(trip.status))
+    if (activeTab === 'Închise') rows = rows.filter(trip => ['inchisa', 'aprobata'].includes(trip.status))
     if (filters.data) rows = rows.filter(trip => trip.data === filters.data)
     if (filters.asset_id) rows = rows.filter(trip => String(trip.asset_id) === String(filters.asset_id))
     if (activeTab === 'FAZ Lunar') rows = rows.filter(trip => trip.status === 'inchisa' && String(trip.data || '').startsWith(filters.luna))
     return rows
   }, [trips, activeTab, filters])
 
-  const openTrips = trips.filter(trip => trip.status === 'deschisa')
-  const completedTrips = trips.filter(trip => trip.status === 'completata')
+  const openTrips = trips.filter(trip => ['draft', 'deschisa', 'trimisa', 'in_lucru'].includes(trip.status))
+  const completedTrips = trips.filter(trip => ['completata', 'semnata_sofer', 'semnata_responsabil'].includes(trip.status))
   const fazTotals = visibleTrips.reduce((totals, trip) => ({
     km: totals.km + Number(trip.km_parcursi || 0),
     normat: totals.normat + Number(trip.consum_normat || 0),
@@ -223,6 +223,30 @@ export default function FoaieParcursPage() {
     }
   }
 
+  async function sendTrip(trip) {
+    try {
+      await api.post(`/fleet/trip-logs/${trip.uuid}/trimite`, { sofer_id: trip.sofer_id })
+      setMessage(`Foaia ${trip.nr_foaie} a fost trimisă șoferului.`)
+      await load()
+    } catch (err) { setError(err.response?.data?.error || 'Foaia nu a putut fi trimisă.') }
+  }
+
+  async function copySignLink(trip) {
+    try {
+      const response = await api.post(`/fleet/trip-logs/${trip.uuid}/sign-link`)
+      await navigator.clipboard.writeText(response.data.link)
+      setMessage('Linkul de semnare a fost copiat. Îl poți trimite prin WhatsApp, SMS sau email.')
+    } catch (err) { setError(err.response?.data?.error || 'Linkul nu a putut fi generat.') }
+  }
+
+  async function approveTrip(trip) {
+    try {
+      await api.post(`/fleet/trip-logs/${trip.uuid}/aproba`)
+      setMessage(`Foaia ${trip.nr_foaie} a fost aprobată.`)
+      await load()
+    } catch (err) { setError(err.response?.data?.error || 'Foaia nu a putut fi aprobată.') }
+  }
+
   async function generateFaz() {
     if (!window.confirm(`Generezi FAZ pentru ${filters.luna}? Foile vor fi marcate in_faz.`)) return
     try {
@@ -295,7 +319,7 @@ export default function FoaieParcursPage() {
                   <div>Ora plecare: <strong>{String(trip.data_plecare || '').slice(11, 16)}</strong></div>
                   <div>Km plecare: <strong>{trip.km_plecare}</strong></div>
                 </div>
-                <Button className="mt-4 w-full" onClick={() => openCloseModal(trip)}>📍 Introduceți km sosire</Button>
+                {['draft', 'deschisa'].includes(trip.status) ? <Button className="mt-4 w-full" onClick={() => sendTrip(trip)}>Trimite șoferului</Button> : <Button className="mt-4 w-full" onClick={() => openCloseModal(trip)}>Introduceți km sosire</Button>}
               </Card>
             ))}
             {!visibleTrips.length && !loading && <Card className="text-sm text-slate-500">Nu există foi deschise.</Card>}
@@ -341,6 +365,9 @@ export default function FoaieParcursPage() {
                   )}
                 </div>
                 <div className="mt-4 flex gap-2">
+                  {trip.status === 'semnata_sofer' ? <Button className="flex-1" onClick={() => copySignLink(trip)}>Copiază link semnare</Button> : null}
+                  {trip.status === 'semnata_responsabil' ? <Button className="flex-1" onClick={() => approveTrip(trip)}>Aprobă</Button> : null}
+                  {trip.status === 'completata' ? (
                   <Button
                     className="flex-1"
                     variant="primary"
@@ -349,6 +376,7 @@ export default function FoaieParcursPage() {
                   >
                     {closingUuid === trip.uuid ? '...' : '✅ Închide foaia'}
                   </Button>
+                  ) : null}
                   <Button size="sm" variant="secondary" onClick={() => printTrip(trip)}>🖨️</Button>
                 </div>
               </Card>

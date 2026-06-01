@@ -74,3 +74,14 @@ self.addEventListener('sync', event => {
     )
   }
 })
+
+self.addEventListener('push', event => {
+  let data = {}
+  try { data = event.data ? event.data.json() : {} } catch { data = { body: 'Notificare nouă' } }
+  event.waitUntil(self.registration.showNotification(data.title || 'InfraFlow', { body: data.body || '', icon: data.icon || '/favicon.svg', data: { url: data.url || '/sofer' } }))
+})
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+  event.waitUntil(self.clients.openWindow(event.notification.data?.url || '/sofer'))
+})

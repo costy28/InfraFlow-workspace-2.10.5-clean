@@ -7,6 +7,7 @@ const { requirePermission, authHasPermission } = require('../../core/permissions
 const { readDb, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const kioskAuth = require('../../core/kiosk-sessions')
+const { ensurePushDb, ensureVapidKeys, sendPushNotification } = require('./push-service')
 
 const router = Router()
 
@@ -42,6 +43,45 @@ function assetList(db) {
 
 function employeesList(db) {
   return db.hr?.employees || db.employees || []
+}
+
+function usersList(db) {
+  return Array.isArray(db.users) ? db.users : []
+}
+
+function employeeUserId(db, employeeId) {
+  const employee = employeesList(db).find(item => String(item.id) === String(employeeId))
+  return employee?.user_id || usersList(db).find(item => String(item.employee_id || item.employeeId) === String(employeeId))?.id || null
+}
+
+function isTripOwner(auth, trip) {
+  return String(trip.trimisa_catre || '') === String(auth.user.id)
+    || String(trip.sofer_id || '') === String(auth.user.employee_id || auth.user.employeeId || '')
+}
+
+function notifyUser(db, userId, type, message, url) {
+  if (!userId) return
+  db.notifications = Array.isArray(db.notifications) ? db.notifications : []
+  db.notifications.push({ id: crypto.randomUUID(), type, user_id: userId, message, url, created_at: nowIso(), read: false })
+  sendPushNotification(db, userId, { title: 'InfraFlow', body: message, icon: '/icons/icon-192.png', url }).catch(() => {})
+}
+
+function signatureValue(value) {
+  const signature = String(value || '')
+  if (!/^data:image\/(svg\+xml|png);base64,/.test(signature)) throw Object.assign(new Error('Semnătura este invalidă.'), { status: 422 })
+  if (signature.length > 800000) throw Object.assign(new Error('Semnătura este prea mare.'), { status: 422 })
+  return signature
+}
+
+function createSignToken(trip) {
+  trip.sign_token = crypto.randomBytes(32).toString('hex')
+  trip.sign_token_exp = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  trip.sign_token_used_at = null
+  return trip.sign_token
+}
+
+function publicSignLink(req, token) {
+  return `${req.protocol}://${req.get('host')}/fleet/sign/${token}`
 }
 
 function assetId(asset) {
@@ -377,23 +417,25 @@ function buildTripHtml(db, trip) {
   const row = tripPublic(db, trip)
   const asset = row.asset || {}
   const activitati = Array.isArray(row.activitati_verso) ? row.activitati_verso : []
-  const activRows = activitati.map(a => `<tr>
-    <td>${htmlEscape(a.ziua || '')}</td>
-    <td>${htmlEscape(a.ora || '')}:${htmlEscape(a.minut || '00')}</td>
-    <td>${htmlEscape(a.loc_plecare || '')}</td>
-    <td>${htmlEscape(a.loc_sosire || '')}</td>
-    <td>${htmlEscape(a.km_incarcat || 0)}</td>
-    <td>${htmlEscape(a.km_gol || 0)}</td>
-    <td>${htmlEscape(a.tone || '')}</td>
-    <td>${htmlEscape(a.marfa || '')}</td>
+  const activRows = activitati.map((a, index) => `<tr>
+    <td>${index + 1}</td>
+    <td>${htmlEscape(a.ora_plecare || a.ora || '')}</td>
+    <td>${htmlEscape(a.ora_sosire || '')}</td>
+    <td>${htmlEscape(a.destinatie || [a.loc_plecare, a.loc_sosire].filter(Boolean).join(' - '))}</td>
+    <td>${htmlEscape(a.km_parcursi ?? Number(a.km_incarcat || 0) + Number(a.km_gol || 0))}</td>
+    <td>${htmlEscape(a.activitate || a.marfa || '')}</td>
   </tr>`).join('')
-  const sigHtml = row.semnatura_responsabil_path && fs.existsSync(path.resolve(__dirname, '../../../', row.semnatura_responsabil_path))
+  const sigLegacy = row.semnatura_responsabil_path && fs.existsSync(path.resolve(__dirname, '../../../', row.semnatura_responsabil_path))
     ? `<img src="data:image/png;base64,${fs.readFileSync(path.resolve(__dirname, '../../../', row.semnatura_responsabil_path)).toString('base64')}" style="max-height:60px">`
     : ''
+  const driverSig = row.semnat_sofer_svg ? `<img src="${htmlEscape(row.semnat_sofer_svg)}" style="max-height:58px">` : ''
+  const respSig = row.semnat_resp_svg ? `<img src="${htmlEscape(row.semnat_resp_svg)}" style="max-height:58px">` : sigLegacy
+  const verifyUrl = `${db.settings?.publicUrl || 'https://erp-publiserv.appnode.ro'}/fleet/verify/${row.uuid}`
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(verifyUrl)}`
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${htmlEscape(row.nr_foaie)}</title>
 <style>
-body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{font-size:22px;margin:0 0 16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px}.box{border:1px solid #333;padding:12px;margin:14px 0}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border:1px solid #333;padding:7px;text-align:left}.sign{height:70px}.muted{color:#555}
+@page{size:A4 portrait;margin:14mm}body{font-family:Arial,sans-serif;margin:0;color:#111;font-size:9pt}h1{font-size:20px;margin:0 0 16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px}.box{border:1px solid #333;padding:12px;margin:14px 0}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border:1px solid #333;padding:7px;text-align:left}.sign{height:78px}.muted{color:#555}.qr{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:12px;text-align:right;font-size:8pt}@media print{button{display:none}}
 </style></head><body>
 <h1>Foaie de parcurs ${htmlEscape(row.nr_foaie)}</h1>
 <div class="grid">
@@ -406,17 +448,18 @@ body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{font-size:22px;margi
 <div>Combustibil plecare: <b>${htmlEscape(row.combustibil_sold_initial ?? '')}</b></div>
 <div>Combustibil primit / final: <b>${htmlEscape(row.combustibil_primit ?? '')} / ${htmlEscape(row.combustibil_sold_final ?? '')}</b></div>
 </div>
-${activitati.length ? `<div class="box"><b>XI. Activități</b>
-<table><tr><th>Ziua</th><th>Ora</th><th>Loc plecare</th><th>Loc sosire</th><th>Km înc.</th><th>Km gol</th><th>Tone</th><th>Marfă</th></tr>${activRows}</table></div>` : ''}
+${activitati.length ? `<div class="box"><b>VERSO - Activități</b>
+<table><tr><th>Nr.</th><th>Ora pl.</th><th>Ora sos.</th><th>Destinație</th><th>Km</th><th>Activitate</th></tr>${activRows}</table></div>` : ''}
 <div class="box"><b>XII. Index contor</b> Km sosire: ${htmlEscape(row.km_sosire || '')} | Km necontorizați: ${htmlEscape(row.km_necont ?? 0)} | Cat.I: ${htmlEscape(row.km_cat1 ?? 0)} | Cat.II: ${htmlEscape(row.km_cat2 ?? 0)} | Cat.III: ${htmlEscape(row.km_cat3 ?? 0)}</div>
 <div class="box"><b>Verso foaie</b><br>Itinerariu: ${htmlEscape(row.itinerariu)}<br>Scop deplasare: ${htmlEscape(row.scop_deplasare)}<br>Observații: ${htmlEscape(row.observatii)}</div>
 <table><tr><th>Km parcurși</th><th>Consum normat</th><th>Consum efectiv</th><th>Diferență</th></tr>
 <tr><td>${htmlEscape(row.km_parcursi ?? '')}</td><td>${htmlEscape(row.consum_normat ?? '')}</td><td>${htmlEscape(row.consum_efectiv ?? '')}</td><td>${htmlEscape(row.diferenta_consum ?? '')}</td></tr></table>
 <table><tr>
-  <th class="sign">Șofer</th>
-  <th class="sign">Responsabil lucrare${row.semnatura_responsabil_nume ? `<br><small>${htmlEscape(row.semnatura_responsabil_nume)}</small>` : ''}${sigHtml ? `<br>${sigHtml}` : ''}</th>
+  <th class="sign">Șofer<br>${driverSig}<br><small>${htmlEscape(row.sofer_nume)} ${htmlEscape(row.semnat_sofer_la || '')}</small></th>
+  <th class="sign">Responsabil lucrare<br>${respSig}<br><small>${htmlEscape(row.semnatura_responsabil_nume || '')} ${htmlEscape(row.responsabil_functie || '')} ${htmlEscape(row.semnat_resp_la || '')}</small></th>
   <th class="sign">Șef garaj / mecanizare</th>
 </tr></table>
+<div class="qr"><span>Scanează pentru a verifica autenticitatea<br>${htmlEscape(verifyUrl)}</span><img src="${qrUrl}" width="92" height="92"></div>
 <p class="muted">Generat din InfraFlow la ${htmlEscape(new Date().toLocaleString('ro-RO'))}</p>
 </body></html>`
 }
@@ -563,6 +606,200 @@ router.get('/fleet/trip-logs/:uuid/semnatura', (req, res, next) => {
   } catch (err) {
     next(err)
   }
+})
+
+// Flux digital foi de parcurs
+router.get('/fleet/push/vapid-public', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    const db = readDb()
+    const keys = ensureVapidKeys(db)
+    if (keys) writeDb(db)
+    sendJson(res, 200, { publicKey: keys?.publicKey || '', enabled: Boolean(keys) })
+  } catch (error) { next(error) }
+})
+
+router.post('/fleet/push/subscribe', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    const subscription = req.body?.subscription || req.body || {}
+    if (!subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) {
+      return sendJson(res, 422, { error: 'Subscription push invalid.' })
+    }
+    const db = readDb()
+    const items = ensurePushDb(db)
+    const existing = items.find(item => item.endpoint === subscription.endpoint)
+    const row = existing || { id: nextId(items), created_at: nowIso() }
+    Object.assign(row, { user_id: auth.user.id, endpoint: subscription.endpoint, p256dh: subscription.keys.p256dh, auth: subscription.keys.auth, device_name: String(req.body?.device_name || '').slice(0, 100) })
+    if (!existing) items.push(row)
+    addAudit(db, auth.user, 'push_subscription_salvata', row.device_name || 'browser')
+    writeDb(db)
+    sendJson(res, 201, { ok: true })
+  } catch (error) { next(error) }
+})
+
+router.post('/fleet/trip-logs/:uuid/trimite', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const db = readDb()
+    const trip = ensureFleetTripDb(db).find(item => item.uuid === req.params.uuid)
+    if (!trip) return sendJson(res, 404, { error: 'Foaia de parcurs nu există.' })
+    if (!['draft', 'deschisa'].includes(trip.status)) return sendJson(res, 409, { error: 'Foaia a fost deja trimisă.' })
+    const driverUserId = req.body?.sofer_user_id || trip.trimisa_catre || employeeUserId(db, req.body?.sofer_id || trip.sofer_id)
+    if (!driverUserId) return sendJson(res, 422, { error: 'Șoferul nu are utilizator asociat în HR.' })
+    trip.trimisa_catre = driverUserId
+    trip.trimisa_la = nowIso()
+    trip.status = 'trimisa'
+    trip.updated_at = nowIso()
+    notifyUser(db, driverUserId, 'foaie_parcurs', 'Ai o foaie de parcurs nouă!', `/sofer?foaie=${trip.uuid}`)
+    addAudit(db, auth.user, 'foaie_parcurs_trimisa', `${trip.nr_foaie} / ${tripDriverName(db, trip)}`)
+    writeDb(db)
+    sendJson(res, 200, { ok: true, trip_log: tripPublic(db, trip) })
+  } catch (error) { next(error) }
+})
+
+router.post('/fleet/trip-logs/:uuid/incepe', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    const db = readDb()
+    const trip = ensureFleetTripDb(db).find(item => item.uuid === req.params.uuid)
+    if (!trip) return sendJson(res, 404, { error: 'Foaia de parcurs nu există.' })
+    if (!isTripOwner(auth, trip) && !authHasPermission(auth, 'mechanization:manage')) return sendJson(res, 403, { error: 'Foaia este alocată altui șofer.' })
+    if (trip.status !== 'trimisa') return sendJson(res, 409, { error: 'Foaia nu este în starea trimisă.' })
+    if (req.body?.km_start !== undefined) trip.km_plecare = numberValue(req.body.km_start)
+    trip.status = 'in_lucru'
+    trip.updated_at = nowIso()
+    addAudit(db, auth.user, 'foaie_parcurs_inceputa', trip.nr_foaie)
+    writeDb(db)
+    sendJson(res, 200, { ok: true, trip_log: tripPublic(db, trip) })
+  } catch (error) { next(error) }
+})
+
+router.patch('/fleet/trip-logs/:uuid/verso', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    const db = readDb()
+    const trip = ensureFleetTripDb(db).find(item => item.uuid === req.params.uuid)
+    if (!trip) return sendJson(res, 404, { error: 'Foaia de parcurs nu există.' })
+    if (!isTripOwner(auth, trip) && !authHasPermission(auth, 'mechanization:manage')) return sendJson(res, 403, { error: 'Foaia este alocată altui șofer.' })
+    if (!['in_lucru', 'trimisa', 'deschisa', 'completata'].includes(trip.status)) return sendJson(res, 409, { error: 'Foaia nu mai poate fi completată.' })
+    const body = req.body || {}
+    if (body.km_sfarsit !== undefined || body.km_sosire !== undefined) trip.km_sosire = numberValue(body.km_sfarsit ?? body.km_sosire)
+    trip.combustibil_primit = numberValue(body.combustibil_primit, trip.combustibil_primit || 0)
+    trip.combustibil_sold_final = numberValue(body.combustibil_sfarsit ?? body.combustibil_sold_final, trip.combustibil_sold_final || 0)
+    trip.activitati_verso = Array.isArray(body.activitati) ? body.activitati : (trip.activitati_verso || [])
+    trip.observatii = String(body.observatii || trip.observatii || '').trim()
+    const asset = findAsset(db, trip.asset_id)
+    const kmTotal = Number(trip.km_sosire || 0) - Number(trip.km_plecare || 0)
+    if (kmTotal < 0) return sendJson(res, 422, { error: 'Km la sosire trebuie să fie mai mare decât km la plecare.' })
+    trip.consum_normat = Math.round(kmTotal * numberValue(asset?.consum_normat_100km ?? asset?.standardConsumption, 0)) / 100
+    trip.completata_la = nowIso()
+    trip.status = 'completata'
+    trip.updated_at = nowIso()
+    addAudit(db, auth.user, 'foaie_parcurs_verso_completat', `${trip.nr_foaie} / ${kmTotal} km`)
+    writeDb(db)
+    sendJson(res, 200, { ok: true, trip_log: tripPublic(db, trip) })
+  } catch (error) { next(error) }
+})
+
+router.post('/fleet/trip-logs/:uuid/semneaza-sofer', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    const db = readDb()
+    const trip = ensureFleetTripDb(db).find(item => item.uuid === req.params.uuid)
+    if (!trip) return sendJson(res, 404, { error: 'Foaia de parcurs nu există.' })
+    if (!isTripOwner(auth, trip) && !authHasPermission(auth, 'mechanization:manage')) return sendJson(res, 403, { error: 'Foaia este alocată altui șofer.' })
+    if (trip.status !== 'completata') return sendJson(res, 409, { error: 'Completează verso înainte de semnare.' })
+    trip.semnat_sofer_svg = signatureValue(req.body?.signature_svg)
+    trip.semnat_sofer_la = nowIso()
+    trip.status = 'semnata_sofer'
+    const token = createSignToken(trip)
+    if (trip.responsabil_id) notifyUser(db, trip.responsabil_id, 'foaie_parcurs_semnare', `Șoferul ${tripDriverName(db, trip)} a completat foaia ${trip.nr_foaie}. Apasă să semnezi.`, `/fleet/sign/${token}`)
+    addAudit(db, auth.user, 'foaie_parcurs_semnata_sofer', trip.nr_foaie)
+    writeDb(db)
+    sendJson(res, 200, { ok: true, sign_token: token })
+  } catch (error) { next(error) }
+})
+
+router.post('/fleet/trip-logs/:uuid/sign-link', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const db = readDb()
+    const trip = ensureFleetTripDb(db).find(item => item.uuid === req.params.uuid)
+    if (!trip) return sendJson(res, 404, { error: 'Foaia de parcurs nu există.' })
+    if (!['semnata_sofer', 'semnata_responsabil'].includes(trip.status)) return sendJson(res, 409, { error: 'Șoferul trebuie să semneze mai întâi.' })
+    if (req.body?.responsabil_id) trip.responsabil_id = req.body.responsabil_id
+    const token = !trip.sign_token || trip.sign_token_used_at || new Date(trip.sign_token_exp) < new Date() ? createSignToken(trip) : trip.sign_token
+    const link = publicSignLink(req, token)
+    if (trip.responsabil_id) notifyUser(db, trip.responsabil_id, 'foaie_parcurs_semnare', `Foaia ${trip.nr_foaie} așteaptă semnătura responsabilului.`, `/fleet/sign/${token}`)
+    addAudit(db, auth.user, 'link_semnare_foaie_generat', trip.nr_foaie)
+    writeDb(db)
+    sendJson(res, 200, { ok: true, link, sign_token: token })
+  } catch (error) { next(error) }
+})
+
+router.get('/fleet/sign/:token', (req, res) => {
+  const db = readDb()
+  const trip = ensureFleetTripDb(db).find(item => item.sign_token === req.params.token)
+  if (!trip || trip.sign_token_used_at || new Date(trip.sign_token_exp) < new Date()) return sendJson(res, 404, { error: 'Link expirat sau invalid' })
+  sendJson(res, 200, { foaie: tripPublic(db, trip), activitati: trip.activitati_verso || [], sofer: { nume: tripDriverName(db, trip), utilaj: assetLabel(findAsset(db, trip.asset_id)) } })
+})
+
+router.post('/fleet/sign/:token', (req, res, next) => {
+  try {
+    const db = readDb()
+    const trip = ensureFleetTripDb(db).find(item => item.sign_token === req.params.token)
+    if (!trip || trip.sign_token_used_at || new Date(trip.sign_token_exp) < new Date()) return sendJson(res, 404, { error: 'Link expirat sau invalid' })
+    trip.semnat_resp_svg = signatureValue(req.body?.signature_svg)
+    trip.semnat_resp_la = nowIso()
+    trip.semnatura_responsabil_nume = String(req.body?.responsabil_nume || '').trim()
+    trip.responsabil_functie = String(req.body?.responsabil_functie || '').trim()
+    trip.sign_token_used_at = nowIso()
+    trip.status = 'semnata_responsabil'
+    const outputDir = path.resolve(__dirname, '../../../storage/foi-parcurs')
+    fs.mkdirSync(outputDir, { recursive: true })
+    trip.pdf_final_path = `storage/foi-parcurs/${trip.uuid}.html`
+    fs.writeFileSync(path.resolve(__dirname, '../../../', trip.pdf_final_path), buildTripHtml(db, trip), 'utf8')
+    usersList(db).filter(user => authHasPermission({ user, db }, 'mechanization:approve')).forEach(user => notifyUser(db, user.id, 'foaie_parcurs_aprobare', `Foaia ${trip.nr_foaie} - ${tripDriverName(db, trip)} a fost semnată. Aprobă în InfraFlow.`, '/foi-parcurs'))
+    addAudit(db, { id: 'extern', name: trip.semnatura_responsabil_nume || 'Responsabil extern' }, 'foaie_parcurs_semnata_responsabil', trip.nr_foaie)
+    writeDb(db)
+    sendJson(res, 200, { ok: true, mesaj: 'Semnătură înregistrată! Mulțumim.' })
+  } catch (error) { next(error) }
+})
+
+router.post('/fleet/trip-logs/:uuid/aproba', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:approve')) return
+    const db = readDb()
+    const trip = ensureFleetTripDb(db).find(item => item.uuid === req.params.uuid)
+    if (!trip) return sendJson(res, 404, { error: 'Foaia de parcurs nu există.' })
+    if (trip.status !== 'semnata_responsabil') return sendJson(res, 409, { error: 'Lipsește semnătura responsabilului.' })
+    trip.status = 'aprobata'
+    trip.aprobat_de = auth.user.id
+    trip.aprobat_la = nowIso()
+    notifyUser(db, trip.trimisa_catre || employeeUserId(db, trip.sofer_id), 'foaie_parcurs_aprobata', `Foaia ${trip.nr_foaie} a fost aprobată.`, '/sofer')
+    addAudit(db, auth.user, 'foaie_parcurs_aprobata', trip.nr_foaie)
+    writeDb(db)
+    sendJson(res, 200, { ok: true, trip_log: tripPublic(db, trip) })
+  } catch (error) { next(error) }
+})
+
+router.get('/fleet/verify/:uuid', (req, res) => {
+  const db = readDb()
+  const trip = ensureFleetTripDb(db).find(item => item.uuid === req.params.uuid)
+  if (!trip) return sendJson(res, 404, { error: 'Foaia de parcurs nu există.' })
+  sendJson(res, 200, { valida: Boolean(trip.semnat_sofer_la && trip.semnat_resp_la), foaie: tripPublic(db, trip) })
 })
 
 module.exports = router

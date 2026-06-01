@@ -50,6 +50,7 @@ const groups = [
 ]
 
 const modulePermissionPrefixes = {
+  hr: ['hr', 'echipamente'],
   inventory: ['inventory', 'gestiune', 'materials', 'stock_operations', 'ledger', 'deliveries'],
   production: ['production', 'consumptions', 'recipes', 'planning', 'daily_report'],
   procurement: ['procurement', 'procurement_orders'],

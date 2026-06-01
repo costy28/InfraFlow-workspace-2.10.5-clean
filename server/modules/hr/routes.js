@@ -601,6 +601,35 @@ function personalNotifications(db, userId) {
     .slice(0, 20)
 }
 
+function kioskEquipmentResponsibility(db, employeeId) {
+  const hr = ensureHrDb(db)
+  const types = Array.isArray(hr.echipamenteTipuri) ? hr.echipamenteTipuri : []
+  const dotari = (Array.isArray(hr.echipamenteDotari) ? hr.echipamenteDotari : [])
+    .filter((item) => String(item.angajat_id) === String(employeeId) && !item.predat_la_lichidare && !['casat', 'returnat'].includes(String(item.stare || '').toLowerCase()))
+    .map((item) => {
+      const tip = types.find((row) => String(row.id) === String(item.tip_id)) || {}
+      return {
+        ...item,
+        tip_denumire: tip.denumire || '',
+        categorie: tip.categorie || 'protectie',
+        valoare_inventar: numberValue(item.valoare_inventar ?? tip.valoare_inventar),
+      }
+    })
+  const total = (rows) => rows.reduce((sum, item) => sum + numberValue(item.valoare_inventar) * numberValue(item.cantitate, 1), 0)
+  const protectie = dotari.filter((item) => ['protectie', 'SSM'].includes(item.categorie))
+  const scule = dotari.filter((item) => ['scule', 'unelte'].includes(item.categorie))
+  const inventar = dotari.filter((item) => !['protectie', 'SSM', 'scule', 'unelte'].includes(item.categorie))
+  return {
+    echipamente_protectie: protectie,
+    scule_unelte: scule,
+    alte_obiecte: inventar,
+    total_echipamente: total(protectie),
+    total_scule: total(scule),
+    total_inventar: total(inventar),
+    total_valoare: total(dotari),
+  }
+}
+
 function kioskDataFor(db, auth) {
   const hr = ensureHrDb(db)
   const month = todayIso().slice(0, 7)
@@ -688,6 +717,7 @@ FOR JSON PATH;`, { employeeId: employee.id, month })
     program: schedules,
     fluturasi: [],
     notificari: personalNotifications(db, auth.user.id),
+    echipamente: kioskEquipmentResponsibility(db, employee.id),
   }
 }
 
@@ -1279,9 +1309,10 @@ router.get('/hr/employees', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     const hasFullView = authHasPermission(auth, 'hr:view')
+    const hasEquipmentView = authHasPermission(auth, 'echipamente:gestionar')
     const hasDeptTimesheet = authHasPermission(auth, 'hr:timesheet_dept')
     const hasOwnView = authHasPermission(auth, 'hr:view_own')
-    if (!hasFullView && !hasOwnView && !hasDeptTimesheet) return requirePermission(auth, res, 'hr:view')
+    if (!hasFullView && !hasOwnView && !hasDeptTimesheet && !hasEquipmentView) return requirePermission(auth, res, 'hr:view')
     const ownDept = auth.user.departmentId || auth.user.department_id || auth.user.dept_id || auth.user.department || auth.user.departament || ''
 
     if (isMssqlMode()) {
@@ -1303,7 +1334,7 @@ WHERE (NULLIF(JSON_VALUE(@p, '$.activ'), '') IS NULL OR e.activ = TRY_CONVERT(bi
 AND (NULLIF(JSON_VALUE(@p, '$.dept_id'), '') IS NULL OR e.department_id = JSON_VALUE(@p, '$.dept_id'))
 AND (NULLIF(JSON_VALUE(@p, '$.functia'), '') IS NULL OR e.functia LIKE N'%' + JSON_VALUE(@p, '$.functia') + N'%')
 ${!hasFullView && hasDeptTimesheet && ownDept ? `AND (e.department_id = JSON_VALUE(@p, '$.ownDept') OR d.denumire = JSON_VALUE(@p, '$.ownDept'))` : ''}
-${!hasFullView && !hasDeptTimesheet ? `AND e.user_id = JSON_VALUE(@p, '$.userId')` : ''}
+${!hasFullView && !hasDeptTimesheet && !hasEquipmentView ? `AND e.user_id = JSON_VALUE(@p, '$.userId')` : ''}
 ORDER BY e.nume, e.prenume
 FOR JSON PATH;
 `, { ...req.query, ownDept, userId: String(auth.user.id) })
@@ -1315,7 +1346,7 @@ FOR JSON PATH;
     let employees = hr.employees.map((employee) => employeeWithSalary(hr, employee))
     if (!hasFullView && hasDeptTimesheet && ownDept) {
       employees = employees.filter((emp) => [emp.department_id, emp.dept_id, emp.department_name, emp.department].some(value => String(value || '') === String(ownDept)))
-    } else if (!hasFullView) {
+    } else if (!hasFullView && !hasEquipmentView) {
       employees = employees.filter((emp) => String(emp.user_id) === String(auth.user.id))
     }
     if (req.query.activ !== undefined) employees = employees.filter((item) => String(item.activ ? 1 : 0) === String(req.query.activ))
@@ -1605,7 +1636,9 @@ router.get('/hr/employees/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:view')) return
+    if (!authHasPermission(auth, 'hr:view') && !authHasPermission(auth, 'echipamente:gestionar')) {
+      if (!requirePermission(auth, res, 'hr:view')) return
+    }
 
     if (isMssqlMode()) {
       const employee = mssqlObject(`SELECT TOP 1 * FROM hr.employees WHERE id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id')) FOR JSON PATH;`, req.params)

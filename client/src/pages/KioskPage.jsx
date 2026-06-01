@@ -1022,6 +1022,18 @@ export default function KioskPage() {
               }}>📄 Solicită adeverință</Button>
             </div>
 
+            {kioskSummary?.echipamente && (
+              <Card>
+                <div className="mb-2 text-sm font-semibold text-slate-700">🦺 Echipamente și inventar în răspundere</div>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between"><span>Echipamente protecție</span><strong>{Number(kioskSummary.echipamente.total_echipamente || 0).toFixed(2)} lei</strong></div>
+                  <div className="flex justify-between"><span>Scule și unelte</span><strong>{Number(kioskSummary.echipamente.total_scule || 0).toFixed(2)} lei</strong></div>
+                  <div className="flex justify-between"><span>Alte obiecte inventar</span><strong>{Number(kioskSummary.echipamente.total_inventar || 0).toFixed(2)} lei</strong></div>
+                  <div className="mt-1 flex justify-between border-t border-amber-200 pt-2 text-amber-900"><span className="font-semibold">Total răspundere</span><strong>{Number(kioskSummary.echipamente.total_valoare || 0).toFixed(2)} lei ⚠️</strong></div>
+                </div>
+              </Card>
+            )}
+
             {kioskSummary?.program?.length > 0 && (
               <Card>
                 <div className="mb-2 text-sm font-semibold text-slate-700">🗓️ Program lucru / ture</div>

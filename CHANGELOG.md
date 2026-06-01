@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.11.11 — 2026-06-01
+### Hotfix restart robust după update ZIP
+- Restartul rulează într-un task Windows temporar independent de procesul serverului.
+- Sunt suportate serviciul `InfraFlow`, task-ul programat `InfraFlow ERP` și pornirea directă fallback.
+- Ultimul rezultat al restartului este jurnalizat în `runtime/restart-last.log`.
+
+## v2.11.10 — 2026-06-01
+### Scule, unelte și catalog gestionar
+- Extins modulul Echipamente cu scule, unelte, inventar și SSM.
+- Adăugat catalog editabil pentru gestionar, cu mărime, serie, expirare, valoare, cod articol și furnizor.
+- Fișa angajatului și Kiosk afișează inventarul grupat și totalul valoric în răspundere.
+- Nota de lichidare listează separat echipamentele și sculele de predat.
+
 ## v2.11.9 — 2026-06-01
 ### Hotfix restart după update ZIP
 - Restartul automat detectează serviciul Windows `InfraFlow` sau task-ul programat `InfraFlow ERP`.

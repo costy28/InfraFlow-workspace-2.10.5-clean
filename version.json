@@ -1,5 +1,5 @@
 {
-  "version": "2.11.9",
+  "version": "2.12.0",
   "date": "2026-06-01",
-  "changelog": "## v2.11.9 — 2026-06-01\n### Hotfix restart după update ZIP\n- Restartul după aplicarea arhivei detectează serviciul Windows InfraFlow sau task-ul programat InfraFlow ERP.\n- Procesul vechi este oprit înainte de relansare, evitând blocarea serverului după refresh-ul automat."
+  "changelog": "## v2.12.0 — 2026-06-01\n### Foi Parcurs Digital Complet\n- Responsabilul trimite foaia către șofer, iar șoferul completează verso pe telefon și semnează.\n- Responsabilul lucrării semnează din link public unic, fără autentificare, apoi șeful mecanizare aprobă.\n- PDF-ul final include activități, calcule, semnături și QR de verificare. Web Push este disponibil pe dispozitivele subscrise."
 }

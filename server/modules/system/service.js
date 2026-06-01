@@ -714,46 +714,79 @@ function installManifestFiles(packageRoot, files) {
 
 function scheduleApplicationRestart() {
   const port = Number(process.env.INFRAFLOW_PORT || process.env.PORT || PORT || 4180);
-  const scriptPath = path.join(ROOT, "runtime", `restart-${Date.now()}.ps1`);
+  const timestamp = Date.now();
+  const taskName = `InfraFlow ERP Restart ${timestamp}`;
+  const scriptPath = path.join(ROOT, "runtime", `restart-${timestamp}.ps1`);
+  const launcherPath = path.join(ROOT, "runtime", `restart-launcher-${timestamp}.ps1`);
+  const logPath = path.join(ROOT, "runtime", "restart-last.log");
   const startScriptPath = path.join(ROOT, "scripts", "windows", "start-infraflow.ps1");
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
 
   const script = `
-$ErrorActionPreference = "SilentlyContinue"
-Start-Sleep -Seconds 3
+$ErrorActionPreference = "Stop"
+$logPath = ${powershellSingleQuote(logPath)}
+try {
+  "[$(Get-Date -Format o)] Restart helper pornit." | Set-Content -LiteralPath $logPath -Encoding UTF8
+  Start-Sleep -Seconds 3
 
-$service = Get-Service -Name "InfraFlow" -ErrorAction SilentlyContinue
-if ($service) {
-  Restart-Service -Name "InfraFlow" -Force -ErrorAction Stop
-  exit 0
-}
-
-$task = Get-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
-if ($task) {
-  Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
-  for ($attempt = 0; $attempt -lt 20; $attempt++) {
-    Start-Sleep -Milliseconds 500
+  $service = Get-Service -Name "InfraFlow" -ErrorAction SilentlyContinue
+  if ($service) {
+    "[$(Get-Date -Format o)] Restart serviciu InfraFlow." | Add-Content -LiteralPath $logPath -Encoding UTF8
+    Restart-Service -Name "InfraFlow" -Force -ErrorAction Stop
+  } else {
     $task = Get-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
-    if (-not $task -or $task.State -ne "Running") { break }
+    if ($task) {
+      "[$(Get-Date -Format o)] Restart task InfraFlow ERP." | Add-Content -LiteralPath $logPath -Encoding UTF8
+      Stop-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
+      Start-Sleep -Seconds 2
+      Start-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction Stop
+    } else {
+      "[$(Get-Date -Format o)] Restart fallback proces direct." | Add-Content -LiteralPath $logPath -Encoding UTF8
+      Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
+      Start-Sleep -Seconds 2
+      Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ${powershellSingleQuote(startScriptPath)}, "-Port", "${port}") -WindowStyle Hidden
+    }
   }
-  Start-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction Stop
-  exit 0
+  "[$(Get-Date -Format o)] Comanda de restart executata." | Add-Content -LiteralPath $logPath -Encoding UTF8
+} catch {
+  "[$(Get-Date -Format o)] EROARE: $($_.Exception.Message)" | Add-Content -LiteralPath $logPath -Encoding UTF8
+} finally {
+  Start-Sleep -Seconds 2
+  Unregister-ScheduledTask -TaskName ${powershellSingleQuote(taskName)} -Confirm:$false -ErrorAction SilentlyContinue
 }
-
-Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${powershellSingleQuote(startScriptPath)} -Port ${port}
 `;
   fs.writeFileSync(scriptPath, script, "utf8");
 
-  console.log(`[UPDATE] Restart programat prin helper Windows: ${scriptPath}`);
-  const child = childProcess.spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], {
-    cwd: ROOT,
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true
-  });
-  child.unref();
+  const launcher = `
+$ErrorActionPreference = "Stop"
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument ${powershellSingleQuote(`-NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`)}
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+Register-ScheduledTask -TaskName ${powershellSingleQuote(taskName)} -Action $action -Principal $principal -Force | Out-Null
+Start-ScheduledTask -TaskName ${powershellSingleQuote(taskName)}
+`;
+  fs.writeFileSync(launcherPath, launcher, "utf8");
+
+  console.log(`[UPDATE] Restart programat prin task Windows independent: ${taskName}`);
+  if (String(process.env.INFRAFLOW_RESTART_DRY_RUN || "") === "1") {
+    return { taskName, scriptPath, launcherPath, logPath, dryRun: true };
+  }
+  try {
+    childProcess.execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", launcherPath], {
+      cwd: ROOT,
+      stdio: "ignore",
+      windowsHide: true
+    });
+  } catch (error) {
+    console.error(`[UPDATE] Task restart indisponibil, folosesc fallback direct: ${error.message}`);
+    const child = childProcess.spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], {
+      cwd: ROOT,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true
+    });
+    child.unref();
+  }
+  return { taskName, scriptPath, launcherPath, logPath, dryRun: false };
 }
 
 function compareVersions(a, b) {
