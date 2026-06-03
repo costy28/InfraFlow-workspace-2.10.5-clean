@@ -36,8 +36,10 @@ const {
   buildSystemDiagnostics,
   buildSupportDiagnostic,
   createServerBackup,
+  restoreMssqlServerBackup,
   installUpdatePackage,
   listBackupFiles,
+  backupFileInfo,
   scheduleApplicationRestart,
   verificaUpdateDisponibil,
   instaleazaUpdateOnline
@@ -63,7 +65,7 @@ const LICENSE_TOKEN_PREFIX = 'ASFLIC1'
 const RELEASE_MANIFEST_FORMAT = 'asfalt-pro-release-manifest-v1'
 const AUTOMINDER_DEFAULT_PASSWORD = process.env.AUTOMINDER_DEFAULT_PASSWORD || ''
 const DEFAULT_AUTOMINDER_CONNECTION =
-  'Server=SERVER\\CIEL;Database=autoMinder5;' +
+  'Server=.\\SQLEXPRESS;Database=autoMinder5;' +
   `User Id=infraflow;Password=${AUTOMINDER_DEFAULT_PASSWORD};` +
   'Encrypt=False;TrustServerCertificate=True'
 let updateCheckCache = { at: 0, data: null }
@@ -261,6 +263,43 @@ router.post('/system/backups', (req, res) => {
   if (!requirePermission(auth, res, "system:view")) return;
   const backup = createServerBackup(auth.db, auth.user, "Backup creat manual din Sistem");
   sendJson(res, 201, { backup, diagnostics: buildSystemDiagnostics(auth.db) });
+})
+
+router.post('/system/backups/:name/restore', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    if (String(body.confirm || "").trim() !== "RESTAUREZ") {
+      throwHttp(400, "Confirmarea restaurarii este invalida.");
+    }
+    const backup = backupFileInfo(decodeURIComponent(req.params.name));
+    if (!backup) throwHttp(404, "Backup inexistent.");
+    if (backup.name.endsWith(".bak")) {
+      const result = restoreMssqlServerBackup(backup, auth.db, auth.user);
+      sendJson(res, 202, {
+        ok: true,
+        ...result,
+        message: "Backup MSSQL restaurat. Aplicatia reporneste in cateva secunde."
+      });
+      scheduleApplicationRestart();
+      return;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(fs.readFileSync(backup.path, "utf8"));
+    } catch {
+      throwHttp(400, "Backup invalid: fisierul nu este JSON valid.");
+    }
+    const restored = validateRestoreData(parsed);
+    const safetyBackup = createServerBackup(auth.db, auth.user, `Backup automat inainte de restaurare server: ${backup.name}`);
+    addAudit(restored, auth.user, "restore_backup_server", `Restaurat din ${backup.name}. Backup siguranta: ${safetyBackup?.name || "-"}`);
+    writeDb(restored);
+    sendJson(res, 200, { ok: true, restoredFrom: backup.name, safetyBackup, settings: restored.settings, backup: latestBackupInfoLocal() });
+  } catch (error) {
+    next(error);
+  }
 })
 
 router.post('/system/restart', async (req, res, next) => {
@@ -5027,8 +5066,8 @@ function normalizeLicense(license, strict = false) {
     clientName: String(license.clientName || license.companyName || "").trim(),
     clientCode: String(license.clientCode || "").trim(),
     companyTaxId: String(license.companyTaxId || "").trim(),
-    maxUsers: Math.max(1, Number(license.maxUsers || 1)),
-    maxDevices: Math.max(1, Number(license.maxDevices || 1)),
+    maxUsers: plan === "trial" && license.source === "initial-setup" && Number(license.maxUsers || 1) <= 5 ? 50 : Math.max(1, Number(license.maxUsers || 1)),
+    maxDevices: plan === "trial" && license.source === "initial-setup" && Number(license.maxDevices || 1) <= 10 ? 50 : Math.max(1, Number(license.maxDevices || 1)),
     expiresAt,
     trialDays,
     trialStartedAt,

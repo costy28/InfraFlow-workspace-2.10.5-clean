@@ -402,8 +402,7 @@ function ensureMssqlDatabase() {
         id int not null constraint pk_${MSSQL_APP_STATE_TABLE} primary key,
         data nvarchar(max) not null,
         updated_at datetime2 not null constraint df_${MSSQL_APP_STATE_TABLE}_updated_at default sysdatetime(),
-        constraint ck_${MSSQL_APP_STATE_TABLE}_one_row check (id = 1),
-        constraint ck_${MSSQL_APP_STATE_TABLE}_json check (isjson(data) = 1)
+        constraint ck_${MSSQL_APP_STATE_TABLE}_one_row check (id = 1)
       );
     end;
 
@@ -1069,8 +1068,8 @@ function normalizeLicense(license, strict = false) {
     clientName: String(license.clientName || license.companyName || "").trim(),
     clientCode: String(license.clientCode || "").trim(),
     companyTaxId: String(license.companyTaxId || "").trim(),
-    maxUsers: Math.max(1, Number(license.maxUsers || 1)),
-    maxDevices: Math.max(1, Number(license.maxDevices || 1)),
+    maxUsers: plan === "trial" && license.source === "initial-setup" && Number(license.maxUsers || 1) <= 5 ? 50 : Math.max(1, Number(license.maxUsers || 1)),
+    maxDevices: plan === "trial" && license.source === "initial-setup" && Number(license.maxDevices || 1) <= 10 ? 50 : Math.max(1, Number(license.maxDevices || 1)),
     expiresAt,
     trialDays,
     trialStartedAt,

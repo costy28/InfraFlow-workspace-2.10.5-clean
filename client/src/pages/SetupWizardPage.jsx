@@ -469,8 +469,8 @@ export default function SetupWizardPage() {
         confirmPassword:  admin.confirmPassword,
         adminTitle:       admin.title,
         licenseText:      (!skipLicense && licenseKey.trim()) ? licenseKey.trim() : null,
-        maxUsers:         5,
-        maxDevices:       10,
+        maxUsers:         50,
+        maxDevices:       50,
         trialDays:        30,
       }
 

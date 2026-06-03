@@ -6,13 +6,13 @@
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
 AppName=InfraFlow ERP Server
-AppVersion=2.12.3
+AppVersion=2.12.8
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Server-Setup-v2.12.3
+OutputBaseFilename=InfraFlow-Server-Setup-v2.12.8
 PrivilegesRequired=admin
 WizardStyle=modern
 Compression=lzma2/ultra64
@@ -24,7 +24,7 @@ UninstallDisplayIcon={app}\infraflow-server.ico
 Name: "romanian"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "sqlexpress"; Description: "Instalează SQL Server Express 2022 (dacă nu există)"; GroupDescription: "Bază de date:"
+Name: "sqlexpress"; Description: "Instalează SQL Server Express 2022 numai dacă executabilul Microsoft este inclus separat"; GroupDescription: "Bază de date:"; Flags: unchecked
 Name: "autostart"; Description: "Pornește InfraFlow automat la boot Windows"; GroupDescription: "Opțiuni:"; Flags: checkedonce
 Name: "desktopicon"; Description: "Creează scurtătură pe Desktop"; GroupDescription: "Scurtături:"; Flags: checkedonce
 
@@ -62,10 +62,17 @@ Source: "setup-db.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\scripts\windows\install-service.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\uninstall-service.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\check-sqlserver.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\resolve-sqlserver.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\detect-sqlserver-capabilities.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\repair-sql-instance.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\configure-mssql-login.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\CREARE_BAZA_INFRAFLOW.sql"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\backup-mssql.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\restore-mssql.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\reset-infraflow-database.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\schedule-backup.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\verify-infraflow-startup.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
+Source: "..\scripts\windows\repair-autostart.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\migrate-json-to-mssql.js"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\.env.example"; DestDir: "{app}"; DestName: ".env.example"; \
   Flags: ignoreversion onlyifdoesntexist
@@ -112,29 +119,35 @@ Root: HKLM; \
 Root: HKLM; \
   Subkey: "SOFTWARE\InfraSuite\InfraFlow"; \
   ValueType: string; ValueName: "Version"; \
-  ValueData: "2.12.3"; \
+  ValueData: "2.12.8"; \
   Flags: uninsdeletevalue
 
 [Run]
 ; 1. Instaleaza Node.js daca lipseste
 Filename: "powershell.exe"; Parameters: "-NonInteractive -Command ""if (!(Get-Command node -EA SilentlyContinue)) {{ Start-Process msiexec -Wait -ArgumentList ""/i"", ""{tmp}\node-v20-x64.msi"", ""/quiet"", ""/norestart"" }}"""; StatusMsg: "Verific Node.js..."; Flags: runhidden waituntilterminated
 
-; 2. Configurare MSSQL obligatorie
+; 2. Instaleaza SQL Express numai daca nu exista deja nicio instanta SQL
+Filename: "powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ""if (-not (Get-Service -EA SilentlyContinue | Where-Object {{ $_.Name -eq 'MSSQLSERVER' -or $_.Name -like 'MSSQL$*' }})) {{ if (-not (Test-Path '{tmp}\SQLEXPR_x64_ENU.exe')) {{ throw 'Executabilul Microsoft SQLEXPR_x64_ENU.exe nu este inclus. Instalati SQL Server Express separat.' }}; Start-Process -FilePath '{tmp}\SQLEXPR_x64_ENU.exe' -ArgumentList '/QS','/ACTION=Install','/FEATURES=SQLEngine','/INSTANCENAME=SQLEXPRESS','/SQLSVCACCOUNT=""NT AUTHORITY\NETWORK SERVICE""','/ADDCURRENTUSERASSQLADMIN','/TCPENABLED=1','/IACCEPTSQLSERVERLICENSETERMS' -Wait }}"""; StatusMsg: "Instalez SQL Server Express dacă lipsește..."; Flags: runhidden waituntilterminated; Tasks: sqlexpress
+
+; 3. Configurare MSSQL obligatorie
 Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\setup-db.ps1"" -AppDir ""{app}"""; StatusMsg: "Verific SQL Server Express si configurez MSSQL..."; Flags: runhidden waituntilterminated
 
-; 3. Configureaza loginul SQL dedicat InfraFlow
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\windows\configure-mssql-login.ps1"" -AppDir ""{app}"""; StatusMsg: "Configurez loginul SQL dedicat InfraFlow..."; Flags: waituntilterminated
+; 4. Creeaza baza si loginul SQL dedicat InfraFlow
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\windows\configure-mssql-login.ps1"" -AppDir ""{app}"""; StatusMsg: "Creez baza si loginul SQL dedicat InfraFlow..."; Flags: waituntilterminated
 
-; 4. npm install
+; 5. npm install
 Filename: "cmd.exe"; Parameters: "/c cd /d ""{app}\server"" && npm install --omit=dev --prefer-offline"; StatusMsg: "Instalez dependentele server..."; Flags: runhidden waituntilterminated
 
-; 5. Task Scheduler pornire automata
+; 6. Task Scheduler pornire automata
 Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\setup-task.ps1"""; StatusMsg: "Configurez pornire automata..."; Flags: runhidden waituntilterminated
 
-; 6. Backup MSSQL zilnic
+; 7. Backup MSSQL zilnic
 Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\windows\schedule-backup.ps1"" -AppDir ""{app}"""; StatusMsg: "Configurez backup MSSQL zilnic..."; Flags: runhidden waituntilterminated
 
-; 7. Deschide browser
+; 8. Verifica pornirea reala
+Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\windows\verify-infraflow-startup.ps1"" -AppDir ""{app}"""; StatusMsg: "Verific pornirea serverului InfraFlow..."; Flags: waituntilterminated
+
+; 9. Deschide browser
 Filename: "http://localhost:4180"; Description: "Deschide InfraFlow in browser"; Flags: nowait postinstall shellexec skipifsilent
 [UninstallRun]
 ; Oprire task + kill proces node.exe care rulează app.js din folderul de instalare
@@ -147,7 +160,7 @@ Filename: "powershell.exe"; \
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Server v2.12.3' + #13#10#13#10 +
+    'InfraFlow ERP Server v2.12.8' + #13#10#13#10 +
     'Acest installer va configura:' + #13#10 +
     '  • Aplicația server Node.js (Express)' + #13#10 +
     '  • Frontend React (servit de server)' + #13#10 +

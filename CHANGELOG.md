@@ -1,5 +1,39 @@
 # Changelog
 
+# v2.12.8 — 2026-06-02
+
+- Installerul detectează automat instanța, versiunea și ediția SQL Server existente.
+- SQL Server 2008–2014 primește profilul `legacy`, cu `dbo.app_state` compatibil și fără constrângerea `ISJSON`.
+- SQL Server 2016+ primește profilul `modern`; modul relațional rămâne dezactivat implicit până la validarea separată.
+- Configurația MSSQL este salvată coerent în `.env`, `runtime\mssql.env` și launcherul Task Scheduler.
+- Bootstrap-ul solicită automat credentialele `sa` dacă utilizatorul Windows nu are drepturi SQL administrative suficiente.
+
+# v2.12.7 — 2026-06-02
+
+- Shortcut-ul manual și Task Scheduler folosesc același launcher MSSQL.
+- Task-ul `InfraFlow ERP` pornește atât la boot, cât și la logon.
+- Scriptul `repair-autostart.ps1` reconstruiește pornirea automată și afișează diagnosticul complet dacă serverul nu pornește.
+
+# v2.12.6 — 2026-06-02
+
+- Instalare curată completă: baza `INFRAFLOW` și loginul SQL dedicat sunt create automat.
+- Compatibilitate cu SQL Server 2008 `.\CIEL`, inclusiv acordarea rolurilor prin procedurile legacy suportate.
+- Validare obligatorie a pornirii serverului la finalul installerului.
+- Restore MSSQL `.bak` cu backup de siguranță și script administrativ separat.
+- Kit de resetare care șterge exclusiv baza `INFRAFLOW`, fără a atinge bazele CIEL.
+
+# v2.12.5 — 2026-06-02
+
+- Installerul detectează automat instanța SQL Server existentă și preferă instanța care conține deja baza `INFRAFLOW`.
+- Pornirea automată preia `DB_SERVER` din `runtime\mssql.env`, fără valoare `.\SQLEXPRESS` hardcodată.
+- Scriptul `repair-sql-instance.ps1` repară instalările existente fără reinstalare și fără ștergerea bazei.
+
+# v2.12.4 — 2026-06-02
+
+- Pornire automată robustă după reboot, cu retry la 15 secunde dacă SQL Express nu este încă pregătit.
+- Loginul SQL `infraflow` primește acces `sysadmin` pentru integrări și baza `autoMinder5`.
+- Buton vizibil `Foi Parcurs` în Mecanizare și limită trial corectată la 50 utilizatori.
+
 ## v2.12.3 — 2026-06-01
 ### MSSQL izolat pentru InfraFlow
 - Aplicația folosește baza dedicată `INFRAFLOW` și loginul SQL dedicat `infraflow`.

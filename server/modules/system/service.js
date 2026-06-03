@@ -878,6 +878,37 @@ function createMssqlServerBackup(db, user, details) {
   return backupFileInfo(name, dir);
 }
 
+function restoreMssqlServerBackup(backup, db, user) {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) {
+    throw httpError(400, "Restaurarea .bak este disponibila numai in modul MSSQL.");
+  }
+  if (!backup || !String(backup.name || "").endsWith(".bak")) {
+    throw httpError(400, "Selectati un backup MSSQL valid, cu extensia .bak.");
+  }
+  const safetyBackup = createMssqlServerBackup(db, user, `Backup automat inainte de restaurare MSSQL: ${backup.name}`);
+  const database = coreDb.mssqlDatabaseName();
+  const quotedDatabase = `[${String(database).replace(/]/g, "]]")}]`;
+  const escapedPath = String(backup.path).replace(/'/g, "''");
+  coreDb.runMssqlScalar(`
+    use [master];
+    alter database ${quotedDatabase} set single_user with rollback immediate;
+    begin try
+      restore database ${quotedDatabase} from disk = N'${escapedPath}' with replace, recovery;
+      alter database ${quotedDatabase} set multi_user;
+      select 1;
+    end try
+    begin catch
+      if db_id(N'${String(database).replace(/'/g, "''")}') is not null
+        alter database ${quotedDatabase} set multi_user;
+      raiserror(N'Restaurarea bazei INFRAFLOW a esuat.', 16, 1);
+    end catch;
+  `, {
+    connectionString: coreDb.mssqlConnectionString("master"),
+    timeoutMs: 600000
+  });
+  return { restoredFrom: backup.name, safetyBackup };
+}
+
 function backupDirectories() {
   return [...new Set([path.join(ROOT, "backups"), process.env.MSSQL_BACKUP_DIR || "C:\\InfraFlow\\backups"])];
 }
@@ -1276,8 +1307,8 @@ function completeInitialSetup(db, body) {
     : normalizeLicense({
       plan: "trial",
       clientName: companyName,
-      maxUsers: Math.max(1, Number(body.maxUsers || 5)),
-      maxDevices: Math.max(1, Number(body.maxDevices || 5)),
+      maxUsers: Math.max(1, Number(body.maxUsers || 50)),
+      maxDevices: Math.max(1, Number(body.maxDevices || 50)),
       trialDays,
       trialStartedAt: localDate(new Date()),
       source: "initial-setup"
@@ -2842,8 +2873,8 @@ function normalizeLicense(license, strict = false) {
     clientName: String(license.clientName || license.companyName || "").trim(),
     clientCode: String(license.clientCode || "").trim(),
     companyTaxId: String(license.companyTaxId || "").trim(),
-    maxUsers: Math.max(1, Number(license.maxUsers || 1)),
-    maxDevices: Math.max(1, Number(license.maxDevices || 1)),
+    maxUsers: plan === "trial" && license.source === "initial-setup" && Number(license.maxUsers || 1) <= 5 ? 50 : Math.max(1, Number(license.maxUsers || 1)),
+    maxDevices: plan === "trial" && license.source === "initial-setup" && Number(license.maxDevices || 1) <= 10 ? 50 : Math.max(1, Number(license.maxDevices || 1)),
     expiresAt,
     trialDays,
     trialStartedAt,
@@ -7203,6 +7234,7 @@ module.exports = {
   buildReadinessChecklist,
   buildSupportDiagnostic,
   createServerBackup,
+  restoreMssqlServerBackup,
   installUpdatePackage,
   listBackupFiles,
   backupFileInfo,

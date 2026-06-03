@@ -1,7 +1,8 @@
 /*
   Ruleaza in SSMS cu un cont administrator SQL Server.
   Inlocuieste SCHIMBA_PAROLA inainte de executie.
-  Loginul infraflow nu primeste roluri de server si are acces numai la INFRAFLOW.
+  Loginul infraflow primeste sysadmin pentru acces la bazele necesare integrarii,
+  inclusiv autoMinder5, si pentru migrari controlate din InfraFlow.
 */
 USE [master];
 GO
@@ -32,8 +33,15 @@ IF DATABASE_PRINCIPAL_ID(N'infraflow') IS NULL
 GO
 
 IF IS_ROLEMEMBER(N'db_owner', N'infraflow') <> 1
-  ALTER ROLE [db_owner] ADD MEMBER [infraflow];
+  EXEC sp_addrolemember N'db_owner', N'infraflow';
 GO
 
-PRINT N'Baza INFRAFLOW si loginul dedicat au fost create. Reporniti serviciul SQL Server (SQLEXPRESS) inainte de instalarea InfraFlow.';
+USE [master];
+GO
+
+IF IS_SRVROLEMEMBER(N'sysadmin', N'infraflow') <> 1
+  EXEC master.dbo.sp_addsrvrolemember @loginame = N'infraflow', @rolename = N'sysadmin';
+GO
+
+PRINT N'Baza INFRAFLOW si loginul infraflow cu acces sysadmin au fost configurate. Reporniti serviciul instantei SQL Server curente inainte de instalarea InfraFlow.';
 GO

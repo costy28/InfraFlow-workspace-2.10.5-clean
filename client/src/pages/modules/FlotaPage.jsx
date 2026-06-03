@@ -23,7 +23,7 @@ const TAB_AUTOMINDER = '📥 Import Autominder'
 const tabs = [TAB_VEHICLES, TAB_EQUIPMENT, TAB_REQUESTS, TAB_REPORT, TAB_GPS, TAB_ALERTS, TAB_AUTOMINDER]
 const pageSize = 10
 const mapDefaultCenter = [46.9259, 26.3709]
-const DEFAULT_AUTOMINDER_CONNECTION = 'Server=SERVER\\CIEL;Database=autoMinder5;User Id=infraflow;Password=***;Encrypt=False;TrustServerCertificate=True'
+const DEFAULT_AUTOMINDER_CONNECTION = 'Server=.\\SQLEXPRESS;Database=autoMinder5;User Id=infraflow;Password=;Encrypt=False;TrustServerCertificate=True'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -927,10 +927,10 @@ export default function FlotaPage() {
               label="Connection string"
               value={autominderConnection}
               onChange={event => setAutominderConnection(event.target.value)}
-              placeholder="Server=SERVER\\CIEL;Database=autoMinder5;User Id=utilizator;Password=parola;Encrypt=False;TrustServerCertificate=True"
+              placeholder="Server=.\\SQLEXPRESS;Database=autoMinder5;User Id=infraflow;Password=parola;Encrypt=False;TrustServerCertificate=True"
               required
             />
-            <p className="text-sm text-slate-500">Serverul Autominder trebuie să fie accesibil din rețea.</p>
+            <p className="text-sm text-slate-500">Serverul Autominder trebuie să fie accesibil din rețea. Completează parola loginului SQL înainte de prima salvare.</p>
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="secondary" loading={autominderSaving} onClick={saveAutominderConnection}>
                 💾 Salvează connection string

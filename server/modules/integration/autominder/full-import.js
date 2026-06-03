@@ -9,8 +9,8 @@ const { addAudit } = require('../../../core/audit')
 const router = Router()
 
 const DEFAULT_AUTOMINDER_CONNECTION =
-  'Server=SERVER\\CIEL;Database=autoMinder5;' +
-  'User Id=infraflow;Password=InfraFlow2026!;' +
+  `Server=${process.env.DB_SERVER || '.\\SQLEXPRESS'};Database=autoMinder5;` +
+  `User Id=infraflow;Password=${process.env.AUTOMINDER_DEFAULT_PASSWORD || ''};` +
   'Encrypt=False;TrustServerCertificate=True'
 
 function nowIso() {

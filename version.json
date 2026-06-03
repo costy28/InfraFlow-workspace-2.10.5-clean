@@ -1,5 +1,5 @@
 {
-  "version": "2.12.3",
-  "date": "2026-06-01",
-  "changelog": "## v2.12.3 — 2026-06-01\n### MSSQL izolat pentru InfraFlow\n- Aplicația folosește baza dedicată INFRAFLOW și loginul SQL dedicat infraflow.\n- Credentialele sunt salvate protejat în runtime/mssql.env, fără acces la celelalte baze.\n- Modulele legacy folosesc app_state până la activarea explicită a proiecției relaționale."
+  "version": "2.12.8",
+  "date": "2026-06-02",
+  "changelog": "## v2.12.8 — 2026-06-02\n### Detectare profil SQL Server\n- Installerul detectează instanța și versiunea SQL Server.\n- Profil legacy automat pentru SQL Server 2008–2014, fără ISJSON.\n- Profil modern salvat pentru SQL Server 2016+ și configurare MSSQL regenerată sigur."
 }

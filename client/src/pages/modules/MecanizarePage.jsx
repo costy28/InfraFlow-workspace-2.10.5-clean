@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../api/client'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
@@ -78,6 +79,7 @@ const emptyFuelForm = {
 }
 
 export default function MecanizarePage() {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('Dashboard')
   const [assets, setAssets] = useState([])
   const [costCenters, setCostCenters] = useState([])
@@ -409,6 +411,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <h1 className="text-xl font-bold text-slate-900">⚙️ Mecanizare</h1>
           <p className="text-sm text-slate-500">Parc utilaje, planificare, bonuri de lucru, intervenții</p>
         </div>
+        <Button onClick={() => navigate('/foi-parcurs')}>📋 Foi Parcurs</Button>
       </div>
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}

@@ -220,8 +220,8 @@ function completeInitialSetup(db, body) {
     : normalizeLicense({
       plan: "trial",
       clientName: companyName,
-      maxUsers: Math.max(1, Number(body.maxUsers || 5)),
-      maxDevices: Math.max(1, Number(body.maxDevices || 5)),
+      maxUsers: Math.max(1, Number(body.maxUsers || 50)),
+      maxDevices: Math.max(1, Number(body.maxDevices || 50)),
       trialDays,
       trialStartedAt: localDate(new Date()),
       source: "initial-setup"
@@ -326,8 +326,8 @@ function normalizeLicense(license, strict = false) {
     clientName: String(license.clientName || license.companyName || "").trim(),
     clientCode: String(license.clientCode || "").trim(),
     companyTaxId: String(license.companyTaxId || "").trim(),
-    maxUsers: Math.max(1, Number(license.maxUsers || 1)),
-    maxDevices: Math.max(1, Number(license.maxDevices || 1)),
+    maxUsers: plan === "trial" && license.source === "initial-setup" && Number(license.maxUsers || 1) <= 5 ? 50 : Math.max(1, Number(license.maxUsers || 1)),
+    maxDevices: plan === "trial" && license.source === "initial-setup" && Number(license.maxDevices || 1) <= 10 ? 50 : Math.max(1, Number(license.maxDevices || 1)),
     expiresAt,
     trialDays,
     trialStartedAt,
