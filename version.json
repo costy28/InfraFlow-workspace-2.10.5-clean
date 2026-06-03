@@ -1,5 +1,5 @@
 {
-  "version": "2.12.8",
-  "date": "2026-06-02",
-  "changelog": "## v2.12.8 — 2026-06-02\n### Detectare profil SQL Server\n- Installerul detectează instanța și versiunea SQL Server.\n- Profil legacy automat pentru SQL Server 2008–2014, fără ISJSON.\n- Profil modern salvat pentru SQL Server 2016+ și configurare MSSQL regenerată sigur."
+  "version": "2.12.9",
+  "date": "2026-06-03",
+  "changelog": "## v2.12.9 — 2026-06-03\n### Modul Mediu Complet\n- Autorizații de mediu, deșeuri PRODDES/MUN, inventar emisii, monitorizare și incidente.\n- Exporturi Excel SIM PRODDES și SIM MUN.\n- Alerte pentru expirări, depășiri indicatori și raportări lipsă."
 }

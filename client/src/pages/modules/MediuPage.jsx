@@ -1,437 +1,385 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../../api/client'
-import Input from '../../components/forms/Input'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import Input from '../../components/ui/Input'
 
-const tabs = ['Autorizații', 'Deșeuri', 'Monitoring', 'Incidente', 'Alerte']
-const pageSize = 10
+const tabs = ['Autorizatii', 'Deseuri', 'Inventar Emisii', 'Monitorizare', 'Incidente', 'Alerte']
+const currentYear = new Date().getFullYear()
 
-function today() {
-  return new Date().toISOString().slice(0, 10)
+const emptyAuth = { tip: 'Autorizatie de mediu', numar: '', data_emitere: '', data_expirare: '', emitent: '', conditii: '', notificare_zile: 60 }
+const emptyEmission = { an: currentYear, sursa: '', poluant: '', cantitate: '', um: 'kg', metoda_calcul: '', observatii: '' }
+const emptyMonitoring = { data: new Date().toISOString().slice(0, 10), punct: '', indicator: '', valoare: '', limita: '', um: '', masuri: '' }
+const emptyIncident = { locatie: '', tip: '', gravitate: 'medie', descriere: '', masuri: '', status: 'deschis' }
+
+function number(value) {
+  const parsed = Number(String(value ?? 0).replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
-function arrayFrom(data, keys) {
-  for (const key of keys) {
-    if (Array.isArray(data?.[key])) return data[key]
-  }
-  return Array.isArray(data) ? data : []
-}
-
-function dateValue(value) {
-  return String(value || '').slice(0, 10)
-}
-
-function daysUntil(date) {
-  const value = dateValue(date)
-  if (!value) return null
-  const end = new Date(value)
-  if (Number.isNaN(end.getTime())) return null
-  return Math.ceil((end - new Date(today())) / 86400000)
-}
-
-function numberRo(value, decimals = 0) {
-  return Number(value || 0).toLocaleString('ro-RO', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })
-}
-
-function permitBadge(permit) {
-  const raw = String(permit.status || '').toLowerCase()
-  const days = Number(permit.zile_pana_expirare ?? daysUntil(permit.data_expirare))
-  if (raw.includes('expir') || days < 0) return { label: 'Expirată', variant: 'red' }
-  if (days <= 30) return { label: 'Expiră în 30 zile', variant: 'yellow' }
-  return { label: permit.status || 'Validă', variant: 'green' }
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function statusBadge(status) {
-  const raw = String(status || '').toLowerCase()
-  if (['inchis', 'închis', 'rezolvat', 'finalizat', 'inregistrat'].includes(raw)) return { label: status || 'Înregistrat', variant: 'green' }
-  if (['critic', 'urgenta', 'urgentă', 'deschis'].includes(raw)) return { label: status || 'Deschis', variant: 'yellow' }
-  return { label: status || '-', variant: 'gray' }
+  const tone = status === 'expirata' ? 'danger' : status === 'notificare' ? 'warning' : 'success'
+  return <Badge tone={tone}>{status || 'valida'}</Badge>
 }
 
-function alertVariant(days) {
-  if (Number(days) < 7) return 'red'
-  if (Number(days) < 30) return 'yellow'
-  return 'blue'
-}
-
-function Pager({ page, total, onPage }) {
-  const pages = Math.max(1, Math.ceil(total / pageSize))
-  return (
-    <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-sm">
-      <span className="text-slate-500">Pagina {page} din {pages}</span>
-      <div className="flex gap-2">
-        <Button variant="secondary" disabled={page <= 1} onClick={() => onPage(page - 1)}>Anterior</Button>
-        <Button variant="secondary" disabled={page >= pages} onClick={() => onPage(page + 1)}>Următor</Button>
-      </div>
-    </div>
-  )
-}
-
-function EmptyRow({ colSpan, loading }) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="px-3 py-8 text-center text-sm text-slate-500">
-        {loading ? 'Se incarca...' : 'Nu exista date pentru tabul selectat.'}
-      </td>
-    </tr>
-  )
+function Field({ label, value, onChange, type = 'text', ...props }) {
+  return <Input label={label} value={value ?? ''} type={type} onChange={e => onChange(e.target.value)} {...props} />
 }
 
 export default function MediuPage() {
-  const [activeTab, setActiveTab] = useState('Autorizații')
-  const [permits, setPermits] = useState([])
-  const [waste, setWaste] = useState([])
-  const [monitoring, setMonitoring] = useState([])
-  const [incidents, setIncidents] = useState([])
-  const [alerts, setAlerts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
-  const [page, setPage] = useState(1)
-  const [modal, setModal] = useState('')
-  const [renewPermit, setRenewPermit] = useState(null)
-  const [permitForm, setPermitForm] = useState({ tip: '', numar_document: '', emitent: '', data_emitere: today(), data_expirare: '', status: 'valida' })
-  const [renewForm, setRenewForm] = useState({ nr_document_nou: '', data_expirare_noua: '' })
-  const [wasteForm, setWasteForm] = useState({ data: today(), tip_deseu: '', cod_deseu: '', cantitate_kg: '', transportator: '', destinatar: '' })
-  const [monitorForm, setMonitorForm] = useState({ tip: '', locatie: '', data: today(), laborator: '', valoare: '', limita_legala: '', limite_depasit: false, observatii: '' })
-  const [incidentForm, setIncidentForm] = useState({ tip: '', data: today(), locatie: '', severitate: '', status: 'deschis', descriere: '' })
+  const [activeTab, setActiveTab] = useState('Autorizatii')
+  const [year, setYear] = useState(currentYear)
+  const [wasteType, setWasteType] = useState('proddes')
+  const [loading, setLoading] = useState(false)
+  const [autorizatii, setAutorizatii] = useState([])
+  const [deseuri, setDeseuri] = useState({ rows: [], coduri: [] })
+  const [emisii, setEmisii] = useState([])
+  const [monitorizare, setMonitorizare] = useState([])
+  const [incidente, setIncidente] = useState([])
+  const [alerts, setAlerts] = useState({ urgent: [], atentie: [], raportari: [] })
+  const [modal, setModal] = useState(null)
+  const [form, setForm] = useState({})
 
-  async function load() {
+  const wasteRows = deseuri.rows || []
+  const wasteCodes = deseuri.coduri || []
+
+  async function loadAll() {
     setLoading(true)
-    setError('')
     try {
-      const [permitsRes, wasteRes, monitoringRes, incidentsRes, alertsRes] = await Promise.all([
-        api.get('/environment/permits'),
-        api.get('/environment/waste-manifests'),
-        api.get('/environment/monitoring'),
-        api.get('/environment/incidents'),
-        api.get('/environment/alerts'),
+      const [authRes, wasteRes, emisiiRes, monitoringRes, incidentsRes, alertsRes] = await Promise.all([
+        api.get('/environment/autorizatii'),
+        api.get('/environment/deseuri', { params: { an: year, tip: wasteType } }),
+        api.get('/environment/emisii', { params: { an: year } }),
+        api.get('/environment/monitorizare'),
+        api.get('/environment/incidente'),
+        api.get('/environment/alerts')
       ])
-      setPermits(arrayFrom(permitsRes.data, ['permits', 'items', 'data']))
-      setWaste(arrayFrom(wasteRes.data, ['wasteManifests', 'manifests', 'items', 'data']))
-      setMonitoring(arrayFrom(monitoringRes.data, ['monitoring', 'items', 'data']))
-      setIncidents(arrayFrom(incidentsRes.data, ['incidents', 'items', 'data']))
-      setAlerts(arrayFrom(alertsRes.data, ['alerts', 'items', 'data']))
-    } catch (err) {
-      setError(err.response?.data?.error || 'Nu am putut incarca datele de mediu.')
+      setAutorizatii(authRes.data || [])
+      setDeseuri(wasteRes.data || { rows: [], coduri: [] })
+      setEmisii(emisiiRes.data || [])
+      setMonitorizare(monitoringRes.data || [])
+      setIncidente(incidentsRes.data || [])
+      setAlerts(alertsRes.data || { urgent: [], atentie: [], raportari: [] })
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load()
-  }, [])
+    loadAll()
+  }, [year, wasteType])
 
-  const pagedPermits = useMemo(() => permits.slice((page - 1) * pageSize, page * pageSize), [permits, page])
-  const pagedWaste = useMemo(() => waste.slice((page - 1) * pageSize, page * pageSize), [waste, page])
-  const pagedMonitoring = useMemo(() => monitoring.slice((page - 1) * pageSize, page * pageSize), [monitoring, page])
-  const pagedIncidents = useMemo(() => incidents.slice((page - 1) * pageSize, page * pageSize), [incidents, page])
+  const totals = useMemo(() => {
+    return {
+      gen: wasteRows.reduce((sum, row) => sum + number(row.cantitate_gen || row.cantitate_colectata), 0),
+      val: wasteRows.reduce((sum, row) => sum + number(row.cantitate_valorificata || row.cantitate_reciclata), 0),
+      elim: wasteRows.reduce((sum, row) => sum + number(row.cantitate_eliminata || row.cantitate_depozitata), 0)
+    }
+  }, [wasteRows])
 
-  function selectTab(tab) {
-    setActiveTab(tab)
-    setPage(1)
+  function openModal(type, initial) {
+    const defaults = { auth: emptyAuth, emisii: emptyEmission, monitorizare: emptyMonitoring, incident: emptyIncident }[type] || {}
+    setForm({ ...defaults, ...initial })
+    setModal(type)
   }
 
-  async function save(endpoint, payload, reset, successMessage) {
-    setError('')
-    setMessage('')
-    try {
-      await api.post(endpoint, payload)
-      setMessage(successMessage)
-      setModal('')
-      reset()
-      await load()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Înregistrarea nu a putut fi salvată.')
-    }
+  async function saveModal() {
+    if (modal === 'auth') await api.post('/environment/autorizatii', form)
+    if (modal === 'emisii') await api.post('/environment/emisii', { ...form, an: year })
+    if (modal === 'monitorizare') await api.post('/environment/monitorizare', form)
+    if (modal === 'incident') await api.post('/environment/incidente', form)
+    setModal(null)
+    setForm({})
+    await loadAll()
   }
 
-  async function renew(event) {
-    event.preventDefault()
-    if (!renewPermit) return
-    setError('')
-    try {
-      await api.post(`/environment/permits/${renewPermit.id}/renew`, renewForm)
-      setMessage('Autorizația a fost reînnoită.')
-      setRenewPermit(null)
-      setRenewForm({ nr_document_nou: '', data_expirare_noua: '' })
-      await load()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Autorizația nu a putut fi reînnoită.')
+  async function updateWasteRow(row, patch) {
+    const next = wasteRows.map(item => item.id === row.id ? { ...item, ...patch } : item)
+    setDeseuri(prev => ({ ...prev, rows: next }))
+  }
+
+  async function saveWasteRow(row) {
+    if (String(row.id).startsWith('pre-') || !row.created_at) {
+      const payload = { ...row, tip: wasteType, an: year }
+      delete payload.id
+      await api.post('/environment/deseuri', payload)
+    } else {
+      await api.post(`/environment/deseuri/${row.id}?tip=${wasteType}`, { ...row, tip: wasteType })
     }
+    await loadAll()
+  }
+
+  async function addWasteRow(code) {
+    const base = wasteType === 'mun'
+      ? { an: year, cod_deseu: code.cod, denumire: code.denumire, luna: '', cantitate_colectata: 0, cantitate_reciclata: 0, cantitate_depozitata: 0, localitate: '', operator: '' }
+      : { an: year, cod_deseu: code.cod, denumire: code.denumire, cantitate_gen: 0, cantitate_valorificata: 0, cantitate_eliminata: 0, stoc_final: 0, operator_valorificare: '', operator_eliminare: '', sursa_auto: 'manual' }
+    await api.post('/environment/deseuri', { ...base, tip: wasteType })
+    await loadAll()
+  }
+
+  async function precompleteWaste() {
+    const res = await api.get('/environment/deseuri/precompl', { params: { an: year } })
+    setDeseuri(prev => ({ ...prev, rows: res.data?.rows || [] }))
+  }
+
+  async function exportWaste() {
+    const endpoint = wasteType === 'mun' ? '/environment/export-sim-mun' : '/environment/export-sim-proddes'
+    const filename = wasteType === 'mun' ? `GD-MUN-${year}.xls` : `GD-PRODDES-${year}.xls`
+    const res = await api.get(endpoint, { params: { an: year }, responseType: 'blob' })
+    downloadBlob(res.data, filename)
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Mediu</h1>
-          <p className="text-sm text-slate-500">Autorizații, deșeuri, monitorizări, incidente și alerte.</p>
+          <h1 className="text-2xl font-bold text-slate-900">Mediu</h1>
+          <p className="text-sm text-slate-500">Autorizatii, deseuri, emisii, monitorizare, incidente si alerte.</p>
         </div>
-        <Button onClick={() => setModal('permit')}>Adaugă autorizație</Button>
+        <div className="flex items-center gap-2">
+          <Input label="An" type="number" value={year} onChange={e => setYear(Number(e.target.value || currentYear))} className="w-28" />
+          <Button variant="secondary" onClick={loadAll} loading={loading}>Reincarca</Button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map(tab => (
-          <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => selectTab(tab)}>
-            {tab}
-          </Button>
-        ))}
-      </div>
+      <Card>
+        <div className="flex flex-wrap gap-2">
+          {tabs.map(tab => (
+            <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>
+              {tab}
+            </Button>
+          ))}
+        </div>
+      </Card>
 
-      {error ? <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
-      {message ? <div className="rounded-md border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-700">{message}</div> : null}
-
-      {activeTab === 'Autorizații' && (
-        <Card title="Autorizații" subtitle="Autorizații de mediu și termene." loading={loading} actions={<Button size="sm" onClick={() => setModal('permit')}>Adaugă</Button>}>
+      {activeTab === 'Autorizatii' && (
+        <Card
+          title="Autorizatii de mediu"
+          actions={<Button onClick={() => openModal('auth')}>+ Autorizatie</Button>}
+          loading={loading}
+        >
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Tip</th>
-                  <th className="px-3 py-2">Nr document</th>
-                  <th className="px-3 py-2">Emitent</th>
-                  <th className="px-3 py-2">Emis la</th>
-                  <th className="px-3 py-2">Expiră la</th>
-                  <th className="px-3 py-2">Zile</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pagedPermits.length === 0 ? <EmptyRow colSpan={8} loading={loading} /> : pagedPermits.map(permit => {
-                  const badge = permitBadge(permit)
-                  const days = permit.zile_pana_expirare ?? daysUntil(permit.data_expirare)
-                  return (
-                    <tr key={permit.id || permit.uuid} className="hover:bg-slate-50">
-                      <td className="px-3 py-3 font-medium text-slate-800">{permit.tip || '-'}</td>
-                      <td className="px-3 py-3">{permit.numar_document || permit.nr_document || '-'}</td>
-                      <td className="px-3 py-3">{permit.emitent || '-'}</td>
-                      <td className="px-3 py-3">{dateValue(permit.data_emitere) || '-'}</td>
-                      <td className="px-3 py-3">{dateValue(permit.data_expirare) || '-'}</td>
-                      <td className="px-3 py-3">{days ?? '-'}</td>
-                      <td className="px-3 py-3"><Badge variant={badge.variant}>{badge.label}</Badge></td>
-                      <td className="px-3 py-3 text-right">
-                        <Button size="sm" variant="secondary" onClick={() => setRenewPermit(permit)}>Reînnoire</Button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          <Pager page={page} total={permits.length} onPage={setPage} />
-        </Card>
-      )}
-
-      {activeTab === 'Deșeuri' && (
-        <Card title="Deșeuri" subtitle="Formulare și trasabilitate deșeuri." loading={loading} actions={<Button size="sm" onClick={() => setModal('waste')}>Formular nou</Button>}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Tip deșeu</th>
-                  <th className="px-3 py-2">Cod</th>
-                  <th className="px-3 py-2 text-right">Cantitate kg</th>
-                  <th className="px-3 py-2">Transportator</th>
-                  <th className="px-3 py-2">Data predare</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pagedWaste.length === 0 ? <EmptyRow colSpan={5} loading={loading} /> : pagedWaste.map(item => (
-                  <tr key={item.id || item.uuid} className="hover:bg-slate-50">
-                    <td className="px-3 py-3 font-medium text-slate-800">{item.tip_deseu || item.tip || '-'}</td>
-                    <td className="px-3 py-3">{item.cod_deseu || item.cod || item.nr_formular || '-'}</td>
-                    <td className="px-3 py-3 text-right">{numberRo(item.cantitate_kg, 2)}</td>
-                    <td className="px-3 py-3">{item.transportator || '-'}</td>
-                    <td className="px-3 py-3">{dateValue(item.data || item.data_predare) || '-'}</td>
+            <table className="min-w-full text-sm">
+              <thead><tr className="border-b text-left text-slate-500"><th className="py-2">Tip</th><th>Numar</th><th>Emitent</th><th>Expira</th><th>Status</th><th>Conditii</th></tr></thead>
+              <tbody>
+                {autorizatii.map(item => (
+                  <tr key={item.id} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{item.tip}</td>
+                    <td>{item.numar}</td>
+                    <td>{item.emitent}</td>
+                    <td>{item.data_expirare || 'Fara termen'}</td>
+                    <td>{statusBadge(item.status)}</td>
+                    <td className="max-w-md truncate">{item.conditii}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <Pager page={page} total={waste.length} onPage={setPage} />
         </Card>
       )}
 
-      {activeTab === 'Monitoring' && (
-        <Card title="Monitoring" subtitle="Măsurători și depășiri limite." loading={loading} actions={<Button size="sm" onClick={() => setModal('monitoring')}>Înregistrare nouă</Button>}>
+      {activeTab === 'Deseuri' && (
+        <Card
+          title="Raportari deseuri"
+          subtitle="PRODDES si deseuri municipale, pregatite pentru export SIM."
+          actions={
+            <>
+              <Button variant={wasteType === 'proddes' ? 'primary' : 'secondary'} onClick={() => setWasteType('proddes')}>PRODDES</Button>
+              <Button variant={wasteType === 'mun' ? 'primary' : 'secondary'} onClick={() => setWasteType('mun')}>MUN</Button>
+              {wasteType === 'proddes' && <Button variant="secondary" onClick={precompleteWaste}>Precompleteaza</Button>}
+              <Button onClick={exportWaste}>Export SIM</Button>
+            </>
+          }
+        >
+          <div className="mb-3 grid gap-2 rounded-md bg-slate-50 p-3 text-sm md:grid-cols-3">
+            <div>Total generat/colectat: <b>{totals.gen.toFixed(3)} t</b></div>
+            <div>Total valorificat/reciclat: <b>{totals.val.toFixed(3)} t</b></div>
+            <div>Total eliminat/depozitat: <b>{totals.elim.toFixed(3)} t</b></div>
+          </div>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {wasteCodes.map(code => (
+              <Button key={code.cod} size="sm" variant="secondary" onClick={() => addWasteRow(code)}>
+                + {code.cod} {code.periculos ? '*' : ''}
+              </Button>
+            ))}
+          </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Tip</th>
-                  <th className="px-3 py-2">Punct monitorizare</th>
-                  <th className="px-3 py-2">Dată</th>
-                  <th className="px-3 py-2">Laborator</th>
-                  <th className="px-3 py-2">Status</th>
+            <table className="min-w-[1100px] w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-slate-500">
+                  <th className="py-2">Cod</th><th>Denumire</th>
+                  {wasteType === 'mun' ? <><th>Luna</th><th>Colectat</th><th>Reciclat</th><th>Depozitat</th><th>Localitate</th><th>Operator</th></> : <><th>Generat</th><th>Valorificat</th><th>Eliminat</th><th>Stoc</th><th>Op. valorificare</th><th>Op. eliminare</th><th>Sursa</th></>}
+                  <th>Actiuni</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pagedMonitoring.length === 0 ? <EmptyRow colSpan={5} loading={loading} /> : pagedMonitoring.map(item => {
-                  const exceeded = item.limite_depasit === true || item.limite_depasit === 1
-                  return (
-                    <tr key={item.id || item.uuid} className="hover:bg-slate-50">
-                      <td className="px-3 py-3 font-medium text-slate-800">{item.tip || '-'}</td>
-                      <td className="px-3 py-3">{item.punct_monitorizare || item.locatie || '-'}</td>
-                      <td className="px-3 py-3">{dateValue(item.data) || '-'}</td>
-                      <td className="px-3 py-3">{item.laborator || '-'}</td>
-                      <td className="px-3 py-3"><Badge variant={exceeded ? 'red' : 'green'}>{exceeded ? 'Limite depășite' : 'În limite'}</Badge></td>
-                    </tr>
-                  )
-                })}
+              <tbody>
+                {wasteRows.map(row => (
+                  <tr key={row.id} className="border-b align-top last:border-0">
+                    <td className="py-2 font-mono">{row.cod_deseu}</td>
+                    <td className="min-w-64">{row.denumire}</td>
+                    {wasteType === 'mun' ? (
+                      <>
+                        <td><input className="w-16 rounded border px-2 py-1" value={row.luna || ''} onChange={e => updateWasteRow(row, { luna: e.target.value })} /></td>
+                        <td><input className="w-24 rounded border px-2 py-1" value={row.cantitate_colectata || 0} onChange={e => updateWasteRow(row, { cantitate_colectata: e.target.value })} /></td>
+                        <td><input className="w-24 rounded border px-2 py-1" value={row.cantitate_reciclata || 0} onChange={e => updateWasteRow(row, { cantitate_reciclata: e.target.value })} /></td>
+                        <td><input className="w-24 rounded border px-2 py-1" value={row.cantitate_depozitata || 0} onChange={e => updateWasteRow(row, { cantitate_depozitata: e.target.value })} /></td>
+                        <td><input className="w-36 rounded border px-2 py-1" value={row.localitate || ''} onChange={e => updateWasteRow(row, { localitate: e.target.value })} /></td>
+                        <td><input className="w-44 rounded border px-2 py-1" value={row.operator || ''} onChange={e => updateWasteRow(row, { operator: e.target.value })} /></td>
+                      </>
+                    ) : (
+                      <>
+                        <td><input className="w-24 rounded border px-2 py-1" value={row.cantitate_gen || 0} onChange={e => updateWasteRow(row, { cantitate_gen: e.target.value })} /></td>
+                        <td><input className="w-24 rounded border px-2 py-1" value={row.cantitate_valorificata || 0} onChange={e => updateWasteRow(row, { cantitate_valorificata: e.target.value })} /></td>
+                        <td><input className="w-24 rounded border px-2 py-1" value={row.cantitate_eliminata || 0} onChange={e => updateWasteRow(row, { cantitate_eliminata: e.target.value })} /></td>
+                        <td><input className="w-24 rounded border px-2 py-1" value={row.stoc_final || 0} onChange={e => updateWasteRow(row, { stoc_final: e.target.value })} /></td>
+                        <td><input className="w-44 rounded border px-2 py-1" value={row.operator_valorificare || ''} onChange={e => updateWasteRow(row, { operator_valorificare: e.target.value })} /></td>
+                        <td><input className="w-44 rounded border px-2 py-1" value={row.operator_eliminare || ''} onChange={e => updateWasteRow(row, { operator_eliminare: e.target.value })} /></td>
+                        <td>{row.sursa_auto || 'manual'}</td>
+                      </>
+                    )}
+                    <td><Button size="sm" onClick={() => saveWasteRow(row)}>Salveaza</Button></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-          <Pager page={page} total={monitoring.length} onPage={setPage} />
+        </Card>
+      )}
+
+      {activeTab === 'Inventar Emisii' && (
+        <Card title="Inventar emisii" actions={<Button onClick={() => openModal('emisii')}>+ Emisie</Button>}>
+          <div className="grid gap-3 md:grid-cols-3">
+            {emisii.map(item => (
+              <div key={item.id} className="rounded-md border p-3 text-sm">
+                <div className="font-semibold">{item.sursa}</div>
+                <div>{item.poluant}: <b>{item.cantitate} {item.um}</b></div>
+                <div className="text-slate-500">{item.metoda_calcul}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {activeTab === 'Monitorizare' && (
+        <Card title="Monitorizare indicatori" actions={<Button onClick={() => openModal('monitorizare')}>+ Masuratoare</Button>}>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead><tr className="border-b text-left text-slate-500"><th className="py-2">Data</th><th>Punct</th><th>Indicator</th><th>Valoare</th><th>Limita</th><th>Status</th><th>Masuri</th></tr></thead>
+              <tbody>{monitorizare.map(item => <tr key={item.id} className="border-b last:border-0"><td className="py-2">{item.data}</td><td>{item.punct}</td><td>{item.indicator}</td><td>{item.valoare} {item.um}</td><td>{item.limita ?? '-'}</td><td><Badge tone={item.depasit ? 'danger' : 'success'}>{item.depasit ? 'Depasit' : 'OK'}</Badge></td><td>{item.masuri}</td></tr>)}</tbody>
+            </table>
+          </div>
         </Card>
       )}
 
       {activeTab === 'Incidente' && (
-        <Card title="Incidente" subtitle="Incidente de mediu raportate." loading={loading} actions={<Button size="sm" onClick={() => setModal('incident')}>Incident nou</Button>}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Tip</th>
-                  <th className="px-3 py-2">Dată</th>
-                  <th className="px-3 py-2">Locație</th>
-                  <th className="px-3 py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pagedIncidents.length === 0 ? <EmptyRow colSpan={4} loading={loading} /> : pagedIncidents.map(item => {
-                  const badge = statusBadge(item.status)
-                  return (
-                    <tr key={item.id || item.uuid} className="hover:bg-slate-50">
-                      <td className="px-3 py-3 font-medium text-slate-800">{item.tip || '-'}</td>
-                      <td className="px-3 py-3">{dateValue(item.data) || '-'}</td>
-                      <td className="px-3 py-3">{item.locatie || '-'}</td>
-                      <td className="px-3 py-3"><Badge variant={badge.variant}>{badge.label}</Badge></td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+        <Card title="Incidente de mediu" actions={<Button onClick={() => openModal('incident')}>+ Incident</Button>}>
+          <div className="grid gap-3 md:grid-cols-2">
+            {incidente.map(item => (
+              <div key={item.uuid} className="rounded-md border p-3">
+                <div className="flex justify-between gap-3"><b>{item.tip}</b><Badge tone={item.status === 'deschis' ? 'warning' : 'success'}>{item.status}</Badge></div>
+                <div className="text-sm text-slate-500">{item.locatie} - {String(item.data || '').slice(0, 10)}</div>
+                <p className="mt-2 text-sm">{item.descriere}</p>
+                <div className="mt-2 text-sm"><b>Masuri:</b> {item.masuri || '-'}</div>
+              </div>
+            ))}
           </div>
-          <Pager page={page} total={incidents.length} onPage={setPage} />
         </Card>
       )}
 
       {activeTab === 'Alerte' && (
-        <Card title="Alerte" subtitle="Autorizații care expiră în următoarele 60 de zile." loading={loading}>
-          <div className="grid gap-3">
-            {alerts.length === 0 ? (
-              <div className="rounded-md border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nu există autorizații cu scadență apropiată.</div>
-            ) : alerts.map(item => {
-              const days = item.zile_pana_expirare ?? daysUntil(item.data_expirare)
-              return (
-                <div key={item.id || item.uuid} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="font-semibold text-slate-900">{item.tip || 'Autorizație'} - {item.numar_document || item.nr_document || '-'}</div>
-                    <div className="text-sm text-slate-500">Expiră la {dateValue(item.data_expirare)} • Emitent: {item.emitent || '-'}</div>
-                  </div>
-                  <Badge variant={alertVariant(days)}>{days} zile</Badge>
-                </div>
-              )
-            })}
-          </div>
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <AlertCard title="Urgente" tone="danger" items={alerts.urgent} />
+          <AlertCard title="Atentie" tone="warning" items={alerts.atentie} />
+          <AlertCard title="Raportari" tone="blue" items={alerts.raportari} />
+        </div>
       )}
 
-      <Modal open={modal === 'permit'} title="Autorizație nouă" onClose={() => setModal('')}>
-        <form className="grid gap-4" onSubmit={event => {
-          event.preventDefault()
-          save('/environment/permits', permitForm, () => setPermitForm({ tip: '', numar_document: '', emitent: '', data_emitere: today(), data_expirare: '', status: 'valida' }), 'Autorizația a fost salvată.')
-        }}>
-          <Input label="Tip" value={permitForm.tip} onChange={event => setPermitForm({ ...permitForm, tip: event.target.value })} />
-          <Input label="Nr document" value={permitForm.numar_document} onChange={event => setPermitForm({ ...permitForm, numar_document: event.target.value })} />
-          <Input label="Emitent" value={permitForm.emitent} onChange={event => setPermitForm({ ...permitForm, emitent: event.target.value })} />
-          <Input label="Emis la" type="date" value={permitForm.data_emitere} onChange={event => setPermitForm({ ...permitForm, data_emitere: event.target.value })} />
-          <Input label="Expiră la" type="date" value={permitForm.data_expirare} onChange={event => setPermitForm({ ...permitForm, data_expirare: event.target.value })} />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setModal('')}>Renunță</Button>
-            <Button type="submit">Salvează</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={!!renewPermit} title="Reînnoire autorizație" onClose={() => setRenewPermit(null)}>
-        <form className="grid gap-4" onSubmit={renew}>
-          <Input label="Nr document nou" value={renewForm.nr_document_nou} onChange={event => setRenewForm({ ...renewForm, nr_document_nou: event.target.value })} />
-          <Input label="Noua dată expirare" type="date" value={renewForm.data_expirare_noua} onChange={event => setRenewForm({ ...renewForm, data_expirare_noua: event.target.value })} />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setRenewPermit(null)}>Renunță</Button>
-            <Button type="submit">Reînnoiește</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={modal === 'waste'} title="Formular deșeuri nou" onClose={() => setModal('')}>
-        <form className="grid gap-4" onSubmit={event => {
-          event.preventDefault()
-          save('/environment/waste-manifests', wasteForm, () => setWasteForm({ data: today(), tip_deseu: '', cod_deseu: '', cantitate_kg: '', transportator: '', destinatar: '' }), 'Formularul de deșeuri a fost salvat.')
-        }}>
-          <Input label="Data predare" type="date" value={wasteForm.data} onChange={event => setWasteForm({ ...wasteForm, data: event.target.value })} />
-          <Input label="Tip deșeu" value={wasteForm.tip_deseu} onChange={event => setWasteForm({ ...wasteForm, tip_deseu: event.target.value })} />
-          <Input label="Cod deșeu" value={wasteForm.cod_deseu} onChange={event => setWasteForm({ ...wasteForm, cod_deseu: event.target.value })} />
-          <Input label="Cantitate kg" type="number" step="0.001" value={wasteForm.cantitate_kg} onChange={event => setWasteForm({ ...wasteForm, cantitate_kg: event.target.value })} />
-          <Input label="Transportator" value={wasteForm.transportator} onChange={event => setWasteForm({ ...wasteForm, transportator: event.target.value })} />
-          <Input label="Destinatar" value={wasteForm.destinatar} onChange={event => setWasteForm({ ...wasteForm, destinatar: event.target.value })} />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setModal('')}>Renunță</Button>
-            <Button type="submit">Salvează</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={modal === 'monitoring'} title="Monitoring nou" onClose={() => setModal('')}>
-        <form className="grid gap-4" onSubmit={event => {
-          event.preventDefault()
-          save('/environment/monitoring', monitorForm, () => setMonitorForm({ tip: '', locatie: '', data: today(), laborator: '', valoare: '', limita_legala: '', limite_depasit: false, observatii: '' }), 'Monitorizarea a fost salvată.')
-        }}>
-          <Input label="Tip" value={monitorForm.tip} onChange={event => setMonitorForm({ ...monitorForm, tip: event.target.value })} />
-          <Input label="Punct monitorizare" value={monitorForm.locatie} onChange={event => setMonitorForm({ ...monitorForm, locatie: event.target.value })} />
-          <Input label="Dată" type="date" value={monitorForm.data} onChange={event => setMonitorForm({ ...monitorForm, data: event.target.value })} />
-          <Input label="Laborator" value={monitorForm.laborator} onChange={event => setMonitorForm({ ...monitorForm, laborator: event.target.value })} />
-          <Input label="Valoare" type="number" step="0.0001" value={monitorForm.valoare} onChange={event => setMonitorForm({ ...monitorForm, valoare: event.target.value })} />
-          <Input label="Limită legală" type="number" step="0.0001" value={monitorForm.limita_legala} onChange={event => setMonitorForm({ ...monitorForm, limita_legala: event.target.value })} />
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-            <input type="checkbox" checked={monitorForm.limite_depasit} onChange={event => setMonitorForm({ ...monitorForm, limite_depasit: event.target.checked })} />
-            Limite depășite
-          </label>
-          <Input label="Observații" value={monitorForm.observatii} onChange={event => setMonitorForm({ ...monitorForm, observatii: event.target.value })} />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setModal('')}>Renunță</Button>
-            <Button type="submit">Salvează</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={modal === 'incident'} title="Incident nou" onClose={() => setModal('')}>
-        <form className="grid gap-4" onSubmit={event => {
-          event.preventDefault()
-          save('/environment/incidents', incidentForm, () => setIncidentForm({ tip: '', data: today(), locatie: '', severitate: '', status: 'deschis', descriere: '' }), 'Incidentul a fost salvat.')
-        }}>
-          <Input label="Tip" value={incidentForm.tip} onChange={event => setIncidentForm({ ...incidentForm, tip: event.target.value })} />
-          <Input label="Dată" type="date" value={incidentForm.data} onChange={event => setIncidentForm({ ...incidentForm, data: event.target.value })} />
-          <Input label="Locație" value={incidentForm.locatie} onChange={event => setIncidentForm({ ...incidentForm, locatie: event.target.value })} />
-          <Input label="Severitate" value={incidentForm.severitate} onChange={event => setIncidentForm({ ...incidentForm, severitate: event.target.value })} />
-          <Input label="Descriere" value={incidentForm.descriere} onChange={event => setIncidentForm({ ...incidentForm, descriere: event.target.value })} />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setModal('')}>Renunță</Button>
-            <Button type="submit">Salvează</Button>
-          </div>
-        </form>
+      <Modal open={!!modal} title={modalTitle(modal)} onClose={() => setModal(null)} size="lg">
+        <div className="grid gap-3 md:grid-cols-2">
+          {modal === 'auth' && (
+            <>
+              <Field label="Tip" value={form.tip} onChange={v => setForm({ ...form, tip: v })} />
+              <Field label="Numar" value={form.numar} onChange={v => setForm({ ...form, numar: v })} />
+              <Field label="Data emitere" type="date" value={form.data_emitere} onChange={v => setForm({ ...form, data_emitere: v })} />
+              <Field label="Data expirare" type="date" value={form.data_expirare} onChange={v => setForm({ ...form, data_expirare: v })} />
+              <Field label="Emitent" value={form.emitent} onChange={v => setForm({ ...form, emitent: v })} />
+              <Field label="Notificare zile" type="number" value={form.notificare_zile} onChange={v => setForm({ ...form, notificare_zile: v })} />
+              <label className="md:col-span-2 grid gap-1 text-sm font-medium text-slate-700">Conditii<textarea className="min-h-24 rounded border px-3 py-2" value={form.conditii || ''} onChange={e => setForm({ ...form, conditii: e.target.value })} /></label>
+            </>
+          )}
+          {modal === 'emisii' && (
+            <>
+              <Field label="Sursa" value={form.sursa} onChange={v => setForm({ ...form, sursa: v })} />
+              <Field label="Poluant" value={form.poluant} onChange={v => setForm({ ...form, poluant: v })} />
+              <Field label="Cantitate" value={form.cantitate} onChange={v => setForm({ ...form, cantitate: v })} />
+              <Field label="UM" value={form.um} onChange={v => setForm({ ...form, um: v })} />
+              <Field label="Metoda calcul" value={form.metoda_calcul} onChange={v => setForm({ ...form, metoda_calcul: v })} />
+              <Field label="Observatii" value={form.observatii} onChange={v => setForm({ ...form, observatii: v })} />
+            </>
+          )}
+          {modal === 'monitorizare' && (
+            <>
+              <Field label="Data" type="date" value={form.data} onChange={v => setForm({ ...form, data: v })} />
+              <Field label="Punct" value={form.punct} onChange={v => setForm({ ...form, punct: v })} />
+              <Field label="Indicator" value={form.indicator} onChange={v => setForm({ ...form, indicator: v })} />
+              <Field label="Valoare" value={form.valoare} onChange={v => setForm({ ...form, valoare: v })} />
+              <Field label="Limita" value={form.limita} onChange={v => setForm({ ...form, limita: v })} />
+              <Field label="UM" value={form.um} onChange={v => setForm({ ...form, um: v })} />
+              <label className="md:col-span-2 grid gap-1 text-sm font-medium text-slate-700">Masuri<textarea className="min-h-20 rounded border px-3 py-2" value={form.masuri || ''} onChange={e => setForm({ ...form, masuri: e.target.value })} /></label>
+            </>
+          )}
+          {modal === 'incident' && (
+            <>
+              <Field label="Locatie" value={form.locatie} onChange={v => setForm({ ...form, locatie: v })} />
+              <Field label="Tip" value={form.tip} onChange={v => setForm({ ...form, tip: v })} />
+              <label className="grid gap-1 text-sm font-medium text-slate-700">Gravitate<select className="h-10 rounded border px-3" value={form.gravitate} onChange={e => setForm({ ...form, gravitate: e.target.value })}><option>mica</option><option>medie</option><option>mare</option><option>critica</option></select></label>
+              <label className="grid gap-1 text-sm font-medium text-slate-700">Status<select className="h-10 rounded border px-3" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}><option>deschis</option><option>in_lucru</option><option>inchis</option></select></label>
+              <label className="md:col-span-2 grid gap-1 text-sm font-medium text-slate-700">Descriere<textarea className="min-h-20 rounded border px-3 py-2" value={form.descriere || ''} onChange={e => setForm({ ...form, descriere: e.target.value })} /></label>
+              <label className="md:col-span-2 grid gap-1 text-sm font-medium text-slate-700">Masuri<textarea className="min-h-20 rounded border px-3 py-2" value={form.masuri || ''} onChange={e => setForm({ ...form, masuri: e.target.value })} /></label>
+            </>
+          )}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setModal(null)}>Anuleaza</Button>
+          <Button onClick={saveModal}>Salveaza</Button>
+        </div>
       </Modal>
     </div>
+  )
+}
+
+function modalTitle(modal) {
+  return {
+    auth: 'Autorizatie noua',
+    emisii: 'Inregistrare emisie',
+    monitorizare: 'Masuratoare monitorizare',
+    incident: 'Incident de mediu'
+  }[modal] || 'Mediu'
+}
+
+function AlertCard({ title, items = [], tone }) {
+  return (
+    <Card title={title} actions={<Badge tone={tone}>{items.length}</Badge>}>
+      <div className="space-y-2">
+        {items.length === 0 && <p className="text-sm text-slate-500">Nu exista alerte.</p>}
+        {items.map((item, index) => (
+          <div key={index} className="rounded-md border p-3 text-sm">
+            <div className="font-medium">{item.mesaj}</div>
+            <div className="text-xs text-slate-500">{item.tip}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
   )
 }

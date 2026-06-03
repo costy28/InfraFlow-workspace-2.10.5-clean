@@ -256,7 +256,7 @@ function checkPermitExpiry(db) {
   if (isMssqlMode()) {
     const rows = mssqlArray(`
 SELECT *
-FROM environment.permits
+FROM environment.autorizatii
 WHERE DATEDIFF(day, GETDATE(), data_expirare) BETWEEN 0 AND 60
 AND status = N'valida'
 AND (alertat_la IS NULL OR DATEDIFF(day, alertat_la, GETDATE()) >= 7)
@@ -265,12 +265,12 @@ FOR JSON PATH;
     const recipients = [...mssqlUsersByDepartmentCodes(['MEDIU', 'PROTECTIA_MEDIULUI']).map(item => item.id), ...mssqlDirectorUsers().map(item => item.id)]
     rows.forEach(row => {
       recipients.forEach(userId => queueNotification(db, userId, 'environment_permit_expiry', `environment_permit:${row.id}`, { permit: row }))
-      runMssqlScalar(`UPDATE environment.permits SET alertat_la = GETDATE() WHERE id = ${Number(row.id)}; SELECT 1;`)
+      runMssqlScalar(`UPDATE environment.autorizatii SET alertat_la = GETDATE() WHERE id = ${Number(row.id)}; SELECT 1;`)
     })
     return { rows: rows.length }
   }
 
-  const permits = db.environment?.permits || []
+  const permits = db.environment?.autorizatii || db.environment?.permits || []
   const recipients = uniqueUsers(usersInDepartments(db, ['MEDIU', 'PROTECTIA_MEDIULUI']), usersByRole(db, ['director', 'director_general', 'manager', 'admin', 'superadmin']))
   let count = 0
   permits.forEach(permit => {
@@ -280,6 +280,45 @@ FOR JSON PATH;
     permit.alertat_la = timestamp()
     count += 1
   })
+  return { rows: count }
+}
+
+function checkEnvironmentDailyAlerts(db) {
+  const env = db.environment || {}
+  const currentYear = new Date().getFullYear()
+  const recipients = uniqueUsers(
+    usersInDepartments(db, ['MEDIU', 'PROTECTIA_MEDIULUI']),
+    usersByRole(db, ['director', 'director_general', 'manager', 'admin', 'superadmin']),
+    usersWithPermission(db, 'environment:manage')
+  )
+  let count = 0
+
+  ;(env.monitorizare || env.monitoring || []).forEach(row => {
+    if (!row.depasit) return
+    notifyMany(db, recipients, 'environment_monitoring_exceeded', `environment_monitoring:${row.id}`, {
+      title: 'Depășire indicator mediu',
+      message: `${row.indicator || 'Indicator'} depășit la ${row.punct || 'punct monitorizare'}.`,
+      row
+    })
+    count += 1
+  })
+
+  if (!(env.deseuri || []).some(row => Number(row.an) === currentYear)) {
+    notifyMany(db, recipients, 'environment_report_missing', `environment_proddes_missing:${currentYear}`, {
+      title: 'Raportare PRODDES lipsă',
+      message: `Nu există înregistrări PRODDES pentru anul ${currentYear}.`
+    })
+    count += 1
+  }
+
+  if (!(env.deseuriMunicipale || []).some(row => Number(row.an) === currentYear)) {
+    notifyMany(db, recipients, 'environment_report_missing', `environment_mun_missing:${currentYear}`, {
+      title: 'Raportare MUN lipsă',
+      message: `Nu există înregistrări deșeuri municipale pentru anul ${currentYear}.`
+    })
+    count += 1
+  }
+
   return { rows: count }
 }
 
@@ -549,6 +588,7 @@ async function runHourlyChecks() {
   await safeRun('checkLitigationTerms', checkLitigationTerms, db)
   const hour = new Date().getHours()
   if (hour === 6) await safeRun('checkSnowMorningDutyLog', checkSnowMorningDutyLog, db)
+  if (hour === 8) await safeRun('checkEnvironmentDailyAlerts', checkEnvironmentDailyAlerts, db)
   if (hour === 23) await safeRun('checkSnowDraftDutyLogReminder', checkSnowDraftDutyLogReminder, db)
   if (!isMssqlMode()) writeDb(db)
 }
@@ -583,6 +623,7 @@ module.exports = {
   checkAuthorizationExpiry,
   checkPermitExpiry,
   checkContractExpiry,
+  checkEnvironmentDailyAlerts,
   checkRegistryDeadlines,
   checkArchiveOverdue,
   checkLitigationTerms,
