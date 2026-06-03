@@ -1,5 +1,5 @@
 {
-  "version": "2.12.9",
+  "version": "2.12.10",
   "date": "2026-06-03",
-  "changelog": "## v2.12.9 — 2026-06-03\n### Modul Mediu Complet\n- Autorizații de mediu, deșeuri PRODDES/MUN, inventar emisii, monitorizare și incidente.\n- Exporturi Excel SIM PRODDES și SIM MUN.\n- Alerte pentru expirări, depășiri indicatori și raportări lipsă."
+  "changelog": "## v2.12.10 — 2026-06-03\n### Hotfix pornire după UPDATE 029\n- Migrarea Mediu este compatibilizată cu SQL Server vechi prin DDL executat dinamic.\n- Dacă schema relațională MSSQL nu se potrivește serverului, InfraFlow continuă automat pe dbo.app_state.\n- Updaterul suprascrie fișierele de migrare din pachet pentru hotfix-uri.\n- Păstrează modulul Mediu complet introdus în v2.12.9."
 }

@@ -3011,7 +3011,7 @@ function copyNewMigrations(source, destination) {
   fs.readdirSync(source, { withFileTypes: true }).forEach((entry) => {
     if (!entry.isFile()) return;
     const dest = path.join(destination, entry.name);
-    if (!fs.existsSync(dest)) fs.copyFileSync(path.join(source, entry.name), dest);
+    fs.copyFileSync(path.join(source, entry.name), dest);
   });
 }
 

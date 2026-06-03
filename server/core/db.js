@@ -84,6 +84,7 @@ const POSTGRES_APP_STATE_TABLE = "app_state";
 const MSSQL_APP_STATE_TABLE = "app_state";
 const DEFAULT_MSSQL_CONNECTION_STRING = "Server=.\\SQLEXPRESS;Database=INFRAFLOW;User Id=infraflow;Password=CONFIGUREAZA_PAROLA;TrustServerCertificate=True;Encrypt=false;Connection Timeout=30";
 const MSSQL_RELATIONAL_MODE = ["1", "true", "yes", "da"].includes(String(process.env.INFRAFLOW_SQL_RELATIONAL || process.env.MSSQL_RELATIONAL || "0").trim().toLowerCase());
+let mssqlRelationalRuntimeEnabled = MSSQL_RELATIONAL_MODE;
 const defaultWorkflowTemplates = [
   { id: "wft-material", type: "material", name: "Solicitare materiale", moduleKey: "gestiune" },
   { id: "wft-asphalt", type: "asphalt", name: "Solicitare asfalt", moduleKey: "production" },
@@ -447,16 +448,27 @@ function writeMssqlDb(db) {
 }
 
 function ensureMssqlRelationalSchema() {
-  if (!MSSQL_RELATIONAL_MODE) return;
-  applyMssqlBaseSchema();
-  applyMssqlMigrations();
-  syncMssqlRelationalFromAppState();
+  if (!mssqlRelationalRuntimeEnabled) return;
+  try {
+    applyMssqlBaseSchema();
+    applyMssqlMigrations();
+    syncMssqlRelationalFromAppState();
+  } catch (error) {
+    mssqlRelationalRuntimeEnabled = false;
+    console.warn("[DB] Schema relațională MSSQL dezactivată pentru această pornire. InfraFlow continuă pe dbo.app_state.", error.message);
+  }
 }
 
 function syncMssqlRelationalFromAppState() {
-  if (!MSSQL_RELATIONAL_MODE) return;
+  if (!mssqlRelationalRuntimeEnabled) return;
   const importFile = path.join(ROOT, "db", "mssql-import-app-state.sql");
-  if (fs.existsSync(importFile)) runMssqlScriptFile(importFile);
+  if (!fs.existsSync(importFile)) return;
+  try {
+    runMssqlScriptFile(importFile);
+  } catch (error) {
+    mssqlRelationalRuntimeEnabled = false;
+    console.warn("[DB] Sincronizarea relațională MSSQL a fost dezactivată. Datele rămân în dbo.app_state.", error.message);
+  }
 }
 
 function applyMssqlMigrations() {
@@ -481,7 +493,7 @@ function applyMssqlBaseSchema() {
 }
 
 function syncMssqlCpvCodes(codes) {
-  if (!["mssql", "sqlserver"].includes(DB_MODE)) return 0;
+  if (!["mssql", "sqlserver"].includes(DB_MODE) || !mssqlRelationalRuntimeEnabled) return 0;
   const result = runMssqlScalar(`
     if object_id(N'nomenclator.cpv_codes', N'U') is null
     begin
