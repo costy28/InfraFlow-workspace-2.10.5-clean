@@ -1,5 +1,5 @@
 {
-  "version": "2.12.13",
+  "version": "2.12.16",
   "date": "2026-06-04",
-  "changelog": "## v2.12.13 — 2026-06-04\n### Hotfix dashboard după revenire din Kiosk\n- Dashboardul nu mai încearcă să afișeze obiecte JavaScript brute în Activitate recentă.\n- Câmpurile audit/details sunt convertite defensiv în text lizibil.\n- Previne eroarea React #31 după revenirea din Kiosk către Dashboard."
+  "changelog": "## v2.12.16 — 2026-06-04\n### Integrare PIUSI Self-Service\n- Import alimentări carburant din Self.mdb / Erogaz prin node-adodb pe Windows.\n- Configurare PIUSI în Setări → Integrări și mapare operatori la utilaje/autovehicule.\n- Tab Alimentări PIUSI în Mecanizare, import în FAZ și raport comparativ PIUSI vs FAZ."
 }

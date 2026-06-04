@@ -92,6 +92,7 @@ export default function ControllingPage() {
   const [centers, setCenters] = useState([])
   const [report, setReport] = useState([])
   const [autoCosts, setAutoCosts] = useState(null)
+  const [executionReport, setExecutionReport] = useState(null)
   const [entries, setEntries] = useState([])
   const [assets, setAssets] = useState([])
   const [expanded, setExpanded] = useState(new Set())
@@ -238,6 +239,26 @@ export default function ControllingPage() {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Obiectul nu a putut fi asociat.')
+    }
+  }
+
+  function openCostCenterDocument(format = '') {
+    const params = new URLSearchParams({ luna: filters.luna })
+    if (format) params.set('format', format)
+    window.open(`/api/controlling/document-centre-cost?${params.toString()}`, '_blank', 'noopener,noreferrer')
+  }
+
+  async function loadExecutionReport() {
+    setError('')
+    try {
+      const center = flatCenters.find(item => String(item.id) === String(filters.centru_id))
+      const params = { luna: filters.luna }
+      if (center?.cod || filters.centru_id) params.centru = center?.cod || filters.centru_id
+      const res = await api.get('/controlling/raport-centre-cost', { params })
+      setExecutionReport(res.data)
+    } catch (err) {
+      setExecutionReport(null)
+      setError(err.response?.data?.error || 'Raportul pe centre de cost nu a putut fi generat.')
     }
   }
 
@@ -415,10 +436,57 @@ export default function ControllingPage() {
       ) : null}
 
       {activeTab === 'Rapoarte' ? (
-        <Card>
-          <h3 className="text-base font-semibold text-slate-900">Rapoarte</h3>
-          <p className="mt-2 text-sm text-slate-500">Rapoartele detaliate vor reutiliza datele din Buget vs Real, per utilaj și per șantier.</p>
-        </Card>
+        <div className="grid gap-4">
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Document centre cost/profit</h3>
+                <p className="mt-1 text-sm text-slate-500">Actualizare lunară cu centrele Publiserv și utilajele/vehiculele alocate.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => openCostCenterDocument()}>📄 Document Centre Cost</Button>
+                <Button variant="secondary" onClick={() => openCostCenterDocument('xlsx')}>Export Excel</Button>
+                <Button onClick={loadExecutionReport}>Raport execuție</Button>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <h3 className="mb-3 text-base font-semibold text-slate-900">Raport execuție cheltuieli</h3>
+            {executionReport ? (
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="text-xs text-slate-500">Centru</div>
+                  <div className="mt-1 font-semibold text-slate-900">{executionReport.center?.denumire || 'Toate centrele'}</div>
+                  <div className="text-xs text-slate-500">{executionReport.luna}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="text-xs text-slate-500">Venituri alocate</div>
+                  <div className="mt-1 text-xl font-semibold text-emerald-700">{formatMoney(executionReport.venituri)}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="text-xs text-slate-500">Rezultat</div>
+                  <div className={`mt-1 text-xl font-semibold ${Number(executionReport.rezultat || 0) < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(executionReport.rezultat)}</div>
+                </div>
+                {[
+                  ['Salarii', executionReport.salarii],
+                  ['Combustibil', executionReport.combustibil],
+                  ['Materiale', executionReport.materiale],
+                  ['Reparații', executionReport.reparatii],
+                  ['Alte cheltuieli', executionReport.alte_cheltuieli],
+                  ['Total cheltuieli', executionReport.total_cheltuieli],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-slate-200 p-3">
+                    <div className="text-xs text-slate-500">{label}</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(value)}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Alege luna/centrul de cost de sus și apasă „Raport execuție”.</p>
+            )}
+          </Card>
+        </div>
       ) : null}
 
       <Modal open={modalOpen} title="Adaugă cheltuială manuală" onClose={() => setModalOpen(false)}>

@@ -84,6 +84,8 @@ app.use('/api', require('./modules/integration/legacy/routes'))
 app.use('/api', require('./modules/integration/autominder/routes'))
 app.use('/api', require('./modules/integration/autominder/full-import'))
 app.use('/api', require('./modules/integration/gps/routes'))
+const piusiIntegration = require('./modules/integration/piusi')
+app.use('/api', piusiIntegration)
 app.use('/api', require('./modules/controlling/routes'))
 app.use('/api', require('./modules/hr/echipamente-routes'))
 app.use('/api', require('./modules/hr/routes'))
@@ -151,6 +153,7 @@ try {
   console.warn('Bootstrap admin skip:', err.message)
 }
 require('./scheduler')
+piusiIntegration.startPiusiScheduler()
 
 const PORT = Number(process.env.PORT || 4180) // port implicit 4180
 if (require.main === module) {

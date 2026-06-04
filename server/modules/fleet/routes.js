@@ -5,6 +5,7 @@ const crypto = require('crypto')
 const childProcess = require('child_process')
 const os = require('os')
 const zlib = require('zlib')
+const xlsx = require('xlsx')
 const { requireAuth } = require('../../core/auth')
 const { requirePermission, requireAnyPermission, authHasPermission } = require('../../core/permissions')
 const { readDb, writeDb } = require('../../core/db')
@@ -80,6 +81,231 @@ router.get('/fleet-alerts', (req, res) => {
   if (!auth) return;
   if (!requirePermission(auth, res, "mechanization:view")) return;
   sendJson(res, 200, { alerts: buildFleetAlerts(auth.db) });
+})
+
+router.get('/fleet/assets/:id/asigurari', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, { asigurari: fleetRecords(auth.db, 'asigurari').filter(item => String(item.asset_id) === String(req.params.id)) })
+})
+
+router.get('/fleet/asigurari/expirari', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, groupFleetDueItems(buildFleetScadente(auth.db, Number(req.query.zile || 30)).filter(item => item.category === 'asigurare'), Number(req.query.zile || 30)))
+})
+
+router.post('/fleet/asigurari', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = upsertFleetRecord(auth.db, auth.user, 'asigurari', null, normalizeAsigurare(req.body || {}))
+    addAudit(auth.db, auth.user, 'fleet_asigurare_created', `${item.tip} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
+    writeDb(auth.db)
+    sendJson(res, 201, { asigurare: item })
+  } catch (error) { next(error) }
+})
+
+router.put('/fleet/asigurari/:id', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = upsertFleetRecord(auth.db, auth.user, 'asigurari', req.params.id, normalizeAsigurare(req.body || {}))
+    addAudit(auth.db, auth.user, 'fleet_asigurare_updated', `${item.tip} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
+    writeDb(auth.db)
+    sendJson(res, 200, { asigurare: item })
+  } catch (error) { next(error) }
+})
+
+router.post('/fleet/asigurari/:id/plata', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const asigurare = fleetRecords(auth.db, 'asigurari').find(item => String(item.id) === String(req.params.id))
+    if (!asigurare) return sendJson(res, 404, { error: 'Asigurarea nu a fost găsită.' })
+    const body = req.body || {}
+    const plata = {
+      id: id('asigplata'),
+      asigurare_id: asigurare.id,
+      data_plata: normalizeFleetDateInput(body.data_plata || body.data || localDate(new Date())),
+      suma: fleetNumber(body.suma),
+      moneda: String(body.moneda || asigurare.moneda || 'LEI').trim(),
+      document: String(body.document || '').trim(),
+      observatii: String(body.observatii || '').trim(),
+      created_at: new Date().toISOString()
+    }
+    fleetRecords(auth.db, 'asigurariPlati').push(plata)
+    addAudit(auth.db, auth.user, 'fleet_asigurare_plata', `${asigurare.tip} / ${plata.suma}`)
+    writeDb(auth.db)
+    sendJson(res, 201, { plata })
+  } catch (error) { next(error) }
+})
+
+router.get('/fleet/assets/:id/itp', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, { itp: fleetRecords(auth.db, 'itp').filter(item => String(item.asset_id) === String(req.params.id)) })
+})
+
+router.get('/fleet/itp/expirari', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, groupFleetDueItems(buildFleetScadente(auth.db, Number(req.query.zile || 30)).filter(item => item.category === 'itp'), Number(req.query.zile || 30)))
+})
+
+router.post('/fleet/itp', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = upsertFleetRecord(auth.db, auth.user, 'itp', null, normalizeItp(req.body || {}))
+    addAudit(auth.db, auth.user, 'fleet_itp_created', fleetAssetNameById(auth.db, item.asset_id))
+    writeDb(auth.db)
+    sendJson(res, 201, { itp: item })
+  } catch (error) { next(error) }
+})
+
+router.put('/fleet/itp/:id', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = upsertFleetRecord(auth.db, auth.user, 'itp', req.params.id, normalizeItp(req.body || {}))
+    addAudit(auth.db, auth.user, 'fleet_itp_updated', fleetAssetNameById(auth.db, item.asset_id))
+    writeDb(auth.db)
+    sendJson(res, 200, { itp: item })
+  } catch (error) { next(error) }
+})
+
+router.post('/fleet/itp/:id/marcheaza-executat', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = fleetRecords(auth.db, 'itp').find(row => String(row.id) === String(req.params.id))
+    if (!item) return sendJson(res, 404, { error: 'ITP-ul nu a fost găsit.' })
+    Object.assign(item, normalizeItp({ ...item, ...(req.body || {}), executat: true, executat_pe: req.body?.executat_pe || localDate(new Date()) }), { updated_at: new Date().toISOString() })
+    addAudit(auth.db, auth.user, 'fleet_itp_executat', fleetAssetNameById(auth.db, item.asset_id))
+    writeDb(auth.db)
+    sendJson(res, 200, { itp: item })
+  } catch (error) { next(error) }
+})
+
+router.get('/fleet/assets/:id/taxe', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, { taxe: fleetRecords(auth.db, 'taxe').filter(item => String(item.asset_id) === String(req.params.id)) })
+})
+
+router.get('/fleet/taxe/expirari', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, groupFleetDueItems(buildFleetScadente(auth.db, Number(req.query.zile || 7)).filter(item => item.category === 'taxa'), Number(req.query.zile || 7)))
+})
+
+router.post('/fleet/taxe', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = upsertFleetRecord(auth.db, auth.user, 'taxe', null, normalizeTaxa(req.body || {}))
+    addAudit(auth.db, auth.user, 'fleet_taxa_created', `${item.tip} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
+    writeDb(auth.db)
+    sendJson(res, 201, { taxa: item })
+  } catch (error) { next(error) }
+})
+
+router.put('/fleet/taxe/:id', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = upsertFleetRecord(auth.db, auth.user, 'taxe', req.params.id, normalizeTaxa(req.body || {}))
+    addAudit(auth.db, auth.user, 'fleet_taxa_updated', `${item.tip} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
+    writeDb(auth.db)
+    sendJson(res, 200, { taxa: item })
+  } catch (error) { next(error) }
+})
+
+router.get('/fleet/assets/:id/iscir', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, { iscir: fleetRecords(auth.db, 'iscir').filter(item => String(item.asset_id) === String(req.params.id)) })
+})
+
+router.get('/fleet/iscir/expirari', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, groupFleetDueItems(buildFleetScadente(auth.db, Number(req.query.zile || 30)).filter(item => item.category === 'iscir'), Number(req.query.zile || 30)))
+})
+
+router.post('/fleet/iscir', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = upsertFleetRecord(auth.db, auth.user, 'iscir', null, normalizeIscir(req.body || {}))
+    addAudit(auth.db, auth.user, 'fleet_iscir_created', `${item.tip_autorizare} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
+    writeDb(auth.db)
+    sendJson(res, 201, { iscir: item })
+  } catch (error) { next(error) }
+})
+
+router.put('/fleet/iscir/:id', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const item = upsertFleetRecord(auth.db, auth.user, 'iscir', req.params.id, normalizeIscir(req.body || {}))
+    addAudit(auth.db, auth.user, 'fleet_iscir_updated', `${item.tip_autorizare} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
+    writeDb(auth.db)
+    sendJson(res, 200, { iscir: item })
+  } catch (error) { next(error) }
+})
+
+router.get('/fleet/scadente', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  sendJson(res, 200, buildFleetScadenteDashboard(auth.db))
+})
+
+router.get('/fleet/raport-asigurari', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  const report = buildFleetAsigurariReport(auth.db, Number(req.query.an || new Date().getFullYear()))
+  if (String(req.query.format || '').toLowerCase() === 'xlsx') return sendFleetWorkbook(res, report.rows, `Raport_Asigurari_${report.an}.xlsx`)
+  sendJson(res, 200, report)
+})
+
+router.get('/fleet/raport-itp', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  const report = buildFleetItpReport(auth.db, Number(req.query.an || new Date().getFullYear()))
+  if (String(req.query.format || '').toLowerCase() === 'xlsx') return sendFleetWorkbook(res, report.rows, `Raport_ITP_${report.an}.xlsx`)
+  sendJson(res, 200, report)
+})
+
+router.get('/fleet/raport-scadente-anuale', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'mechanization:view')) return
+  const report = buildFleetAnnualDueReport(auth.db, Number(req.query.an || new Date().getFullYear()))
+  if (String(req.query.format || '').toLowerCase() === 'xlsx') return sendFleetWorkbook(res, report.rows, `Plan_Reinnoire_${report.an}.xlsx`)
+  sendJson(res, 200, report)
 })
 
 router.post('/fleet-assets/import-xml', async (req, res, next) => {
@@ -5251,6 +5477,7 @@ function createFleetAsset(db, user, body) {
     model: String(body.model || "").trim(),
     department: String(body.department || "").trim(),
     departament: String(body.departament || body.department || "").trim(),
+    cost_center_id: body.cost_center_id || body.costCenterId || "",
     costCenterName: String(body.costCenterName || "").trim(),
     location: String(body.location || "").trim(),
     inventoryNo: String(body.inventoryNo || "").trim(),
@@ -5837,6 +6064,272 @@ function fleetRequestConflict(db, assetId, date, startTime, endTime, excludeId =
     startTime < item.endTime &&
     endTime > item.startTime
   );
+}
+
+function fleetDocumentsDb(db) {
+  db.fleet = db.fleet || {};
+  db.fleet.asigurari = Array.isArray(db.fleet.asigurari) ? db.fleet.asigurari : [];
+  db.fleet.asigurariPlati = Array.isArray(db.fleet.asigurariPlati) ? db.fleet.asigurariPlati : [];
+  db.fleet.itp = Array.isArray(db.fleet.itp) ? db.fleet.itp : [];
+  db.fleet.taxe = Array.isArray(db.fleet.taxe) ? db.fleet.taxe : [];
+  db.fleet.iscir = Array.isArray(db.fleet.iscir) ? db.fleet.iscir : [];
+  return db.fleet;
+}
+
+function fleetRecords(db, key) {
+  return fleetDocumentsDb(db)[key];
+}
+
+function normalizeFleetDateInput(value, fallback = "") {
+  const text = String(value || "").slice(0, 10);
+  return validDateValue(text) ? text : fallback;
+}
+
+function addMonthsIso(dateValue, months) {
+  const start = new Date(`${normalizeFleetDateInput(dateValue, localDate(new Date()))}T00:00:00`);
+  start.setMonth(start.getMonth() + Number(months || 0));
+  start.setDate(start.getDate() - 1);
+  return localDate(start);
+}
+
+function requireAssetId(db, value) {
+  const assetId = String(value || "").trim();
+  if (!assetId) throwHttp(400, "Alege utilajul/autovehiculul.");
+  const exists = (db.fleetAssets || db.fleet?.assets || []).some(asset => String(asset.id) === assetId);
+  if (!exists) throwHttp(404, "Utilajul/autovehiculul nu a fost găsit.");
+  return assetId;
+}
+
+function upsertFleetRecord(db, user, key, recordId, payload) {
+  const rows = fleetRecords(db, key);
+  payload.asset_id = requireAssetId(db, payload.asset_id);
+  if (recordId) {
+    const existing = rows.find(item => String(item.id) === String(recordId));
+    if (!existing) throwHttp(404, "Înregistrarea nu a fost găsită.");
+    Object.assign(existing, payload, { updated_at: new Date().toISOString(), updated_by: user.id });
+    return existing;
+  }
+  const item = {
+    id: id(`fleet_${key}`),
+    ...payload,
+    created_at: new Date().toISOString(),
+    created_by: user.id
+  };
+  rows.push(item);
+  return item;
+}
+
+function normalizeAsigurare(body) {
+  const start = normalizeFleetDateInput(body.valabila_de_la || body.start || localDate(new Date()));
+  const months = Math.max(1, fleetInteger(body.perioada_luni, 12));
+  return {
+    asset_id: body.asset_id || body.assetId,
+    tip: String(body.tip || "RCA").trim(),
+    asigurator: String(body.asigurator || "").trim(),
+    nr_polita: String(body.nr_polita || body.nrPolita || "").trim(),
+    valoare_prima: fleetNumber(body.valoare_prima),
+    moneda: String(body.moneda || "LEI").trim(),
+    valoare_asig: fleetNumber(body.valoare_asig),
+    valabila_de_la: start,
+    perioada_luni: months,
+    data_expirarii: normalizeFleetDateInput(body.data_expirarii) || addMonthsIso(start, months),
+    notif_zile: Math.max(1, fleetInteger(body.notif_zile, 15)),
+    activa: body.activa === false || body.inactiva === true ? false : true,
+    clasa_bm: String(body.clasa_bm || "").trim(),
+    carte_verde_pos: String(body.carte_verde_pos || "").trim(),
+    carte_verde_data: normalizeFleetDateInput(body.carte_verde_data),
+    fisier_path: String(body.fisier_path || "").trim(),
+    observatii: String(body.observatii || "").trim()
+  };
+}
+
+function normalizeItp(body) {
+  return {
+    asset_id: body.asset_id || body.assetId,
+    planificat_pe: normalizeFleetDateInput(body.planificat_pe || body.data_expirarii || localDate(new Date())),
+    notif_zile: Math.max(1, fleetInteger(body.notif_zile, 30)),
+    executat: body.executat === true || body.executat === 1,
+    executat_pe: normalizeFleetDateInput(body.executat_pe),
+    odometru_la_itp: fleetInteger(body.odometru_la_itp, 0) || "",
+    furnizor: String(body.furnizor || "").trim(),
+    cod_furnizor: String(body.cod_furnizor || "").trim(),
+    valoare_fara_tva: fleetNumber(body.valoare_fara_tva),
+    cota_tva: fleetNumber(body.cota_tva || 19),
+    nr_factura: String(body.nr_factura || "").trim(),
+    data_factura: normalizeFleetDateInput(body.data_factura),
+    data_scadenta: normalizeFleetDateInput(body.data_scadenta),
+    factura_platita: body.factura_platita === true || body.factura_platita === 1,
+    doc_plata: String(body.doc_plata || "").trim(),
+    nr_doc: String(body.nr_doc || "").trim(),
+    data_doc: normalizeFleetDateInput(body.data_doc),
+    rezultat: String(body.rezultat || "").trim(),
+    fisier_path: String(body.fisier_path || "").trim(),
+    observatii: String(body.observatii || "").trim()
+  };
+}
+
+function normalizeTaxa(body) {
+  return {
+    asset_id: body.asset_id || body.assetId,
+    tip: String(body.tip || "rovigneta").trim(),
+    valabila_de_la: normalizeFleetDateInput(body.valabila_de_la),
+    data_expirarii: normalizeFleetDateInput(body.data_expirarii || localDate(new Date())),
+    notif_zile: Math.max(1, fleetInteger(body.notif_zile, 7)),
+    valoare: fleetNumber(body.valoare),
+    moneda: String(body.moneda || "LEI").trim(),
+    nr_document: String(body.nr_document || "").trim(),
+    fisier_path: String(body.fisier_path || "").trim(),
+    observatii: String(body.observatii || "").trim()
+  };
+}
+
+function normalizeIscir(body) {
+  return {
+    asset_id: body.asset_id || body.assetId,
+    tip_autorizare: String(body.tip_autorizare || "verificare_periodica").trim(),
+    nr_autorizare: String(body.nr_autorizare || "").trim(),
+    data_emitere: normalizeFleetDateInput(body.data_emitere),
+    data_expirarii: normalizeFleetDateInput(body.data_expirarii || localDate(new Date())),
+    notif_zile: Math.max(1, fleetInteger(body.notif_zile, 30)),
+    inspector: String(body.inspector || "").trim(),
+    organism: String(body.organism || "ISCIR").trim(),
+    fisier_path: String(body.fisier_path || "").trim(),
+    observatii: String(body.observatii || "").trim()
+  };
+}
+
+function fleetAssetNameById(db, assetId) {
+  const asset = (db.fleetAssets || db.fleet?.assets || []).find(item => String(item.id) === String(assetId));
+  return fleetAssetLabel(asset || { id: assetId });
+}
+
+function dueCard(category, item, asset, data, title, extra = {}) {
+  const zile = dateDiffDays(localDate(new Date()), data);
+  return {
+    id: `${category}-${item.id}`,
+    source_id: item.id,
+    category,
+    tip: title,
+    asset_id: item.asset_id,
+    asset: fleetAssetNameById({ fleetAssets: [asset] }, item.asset_id),
+    data,
+    zile,
+    urgent: zile <= 0,
+    notif_zile: item.notif_zile,
+    ...extra
+  };
+}
+
+function buildFleetScadente(db, limitDays = 60) {
+  const assets = db.fleetAssets || db.fleet?.assets || [];
+  const assetById = new Map(assets.map(asset => [String(asset.id), asset]));
+  const rows = [];
+  fleetRecords(db, "asigurari")
+    .filter(item => item.activa !== false)
+    .forEach(item => {
+      const asset = assetById.get(String(item.asset_id)) || {};
+      rows.push(dueCard("asigurare", item, asset, item.data_expirarii, item.tip || "Asigurare", { asigurator: item.asigurator, nr_polita: item.nr_polita }));
+    });
+  fleetRecords(db, "itp").forEach(item => {
+    const asset = assetById.get(String(item.asset_id)) || {};
+    rows.push(dueCard("itp", item, asset, item.planificat_pe, "ITP", { executat: item.executat, furnizor: item.furnizor }));
+  });
+  fleetRecords(db, "taxe").forEach(item => {
+    const asset = assetById.get(String(item.asset_id)) || {};
+    rows.push(dueCard("taxa", item, asset, item.data_expirarii, item.tip || "Taxă", { nr_document: item.nr_document }));
+  });
+  fleetRecords(db, "iscir").forEach(item => {
+    const asset = assetById.get(String(item.asset_id)) || {};
+    rows.push(dueCard("iscir", item, asset, item.data_expirarii, item.tip_autorizare || "ISCIR", { organism: item.organism, nr_autorizare: item.nr_autorizare }));
+  });
+  return rows
+    .filter(item => item.data && item.zile <= limitDays)
+    .sort((a, b) => a.zile - b.zile || String(a.asset).localeCompare(String(b.asset)));
+}
+
+function buildFleetScadenteDashboard(db) {
+  const rows = buildFleetScadente(db, 60);
+  return {
+    expirate: rows.filter(item => item.zile <= 0),
+    curand_7_zile: rows.filter(item => item.zile > 0 && item.zile <= 7),
+    curand_30_zile: rows.filter(item => item.zile > 7 && item.zile <= 30),
+    curand_60_zile: rows.filter(item => item.zile > 30 && item.zile <= 60)
+  };
+}
+
+function groupFleetDueItems(rows, zile) {
+  return {
+    expirate: rows.filter(item => item.zile <= 0),
+    in_notificare: rows.filter(item => item.zile > 0 && item.zile <= zile),
+    valabile: rows.filter(item => item.zile > zile)
+  };
+}
+
+function rowsForYear(rows, dateField, an) {
+  return rows.filter(item => String(item[dateField] || "").startsWith(String(an)));
+}
+
+function buildFleetAsigurariReport(db, an) {
+  const rows = rowsForYear(fleetRecords(db, "asigurari"), "data_expirarii", an).map(item => ({
+    An: an,
+    Tip: item.tip,
+    Asset: fleetAssetNameById(db, item.asset_id),
+    Asigurator: item.asigurator,
+    "Nr polita": item.nr_polita,
+    "Valabila de la": item.valabila_de_la,
+    "Data expirarii": item.data_expirarii,
+    "Prima": fleetNumber(item.valoare_prima),
+    Moneda: item.moneda,
+    "Clasa BM": item.clasa_bm
+  }));
+  const totals = rows.reduce((acc, row) => {
+    acc[row.Tip] = fleetNumber(acc[row.Tip]) + fleetNumber(row.Prima);
+    return acc;
+  }, {});
+  return { an, rows, totals };
+}
+
+function buildFleetItpReport(db, an) {
+  const rows = rowsForYear(fleetRecords(db, "itp"), "planificat_pe", an).map(item => ({
+    An: an,
+    Asset: fleetAssetNameById(db, item.asset_id),
+    "Planificat pe": item.planificat_pe,
+    Executat: item.executat ? "Da" : "Nu",
+    "Executat pe": item.executat_pe || "",
+    Furnizor: item.furnizor,
+    "Fara TVA": fleetNumber(item.valoare_fara_tva),
+    TVA: fleetNumber(item.valoare_fara_tva) * fleetNumber(item.cota_tva || 19) / 100,
+    Total: fleetNumber(item.valoare_fara_tva) * (1 + fleetNumber(item.cota_tva || 19) / 100),
+    Rezultat: item.rezultat || ""
+  }));
+  return { an, rows, total: rows.reduce((sum, row) => sum + fleetNumber(row.Total), 0) };
+}
+
+function buildFleetAnnualDueReport(db, an) {
+  const rows = buildFleetScadente(db, 370)
+    .filter(item => String(item.data || "").startsWith(String(an)))
+    .map(item => ({
+      Luna: String(item.data).slice(0, 7),
+      Tip: item.tip,
+      Categorie: item.category,
+      Asset: item.asset,
+      Data: item.data,
+      Zile: item.zile,
+      Urgent: item.urgent ? "Da" : "Nu"
+    }));
+  const byMonth = rows.reduce((acc, row) => {
+    acc[row.Luna] = (acc[row.Luna] || 0) + 1;
+    return acc;
+  }, {});
+  return { an, rows, byMonth };
+}
+
+function sendFleetWorkbook(res, rows, filename) {
+  const workbook = xlsx.utils.book_new();
+  const sheet = xlsx.utils.json_to_sheet(rows);
+  xlsx.utils.book_append_sheet(workbook, sheet, "Raport");
+  const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  sendBuffer(res, 200, buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename);
 }
 
 function buildFleetAlerts(db) {

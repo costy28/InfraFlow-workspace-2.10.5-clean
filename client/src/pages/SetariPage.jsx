@@ -11,7 +11,7 @@ import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import { formatDate, formatMoney } from '../utils/format'
 
-const tabs = ['General', 'Licență', 'Aspect', 'AI Assistant', 'Actualizări', 'Utilizatori', 'Roluri', 'Module', 'Cântar', 'Departamente']
+const tabs = ['General', 'Licență', 'Aspect', 'AI Assistant', 'Actualizări', 'Utilizatori', 'Roluri', 'Module', 'Cântar', 'Integrări', 'Departamente']
 const allModules = [
   'core', 'inventory', 'production', 'reports', 'system', 'fleet', 'hr',
   'controlling', 'procurement', 'documents', 'field', 'messaging', 'tickets',
@@ -180,6 +180,11 @@ export default function SetariPage() {
   const [changelogText, setChangelogText] = useState('')
   const [uploadingUpdate, setUploadingUpdate] = useState(false)
   const [scaleRows, setScaleRows] = useState([])
+  const [piusiStatus, setPiusiStatus] = useState(null)
+  const [piusiConfig, setPiusiConfig] = useState({ mdb_path: 'C:\\Piusi\\SelfService\\Data\\Self.mdb', sync_interval_min: 30 })
+  const [piusiMapari, setPiusiMapari] = useState([])
+  const [piusiAssets, setPiusiAssets] = useState([])
+  const [piusiSyncing, setPiusiSyncing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -218,7 +223,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -228,6 +233,8 @@ export default function SetariPage() {
         api.get('/system/update/check'),
         api.get('/system/update/history'),
         api.get('/hr/employees?activ=1'),
+        api.get('/integration/piusi/status'),
+        api.get('/integration/piusi/mapari'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -243,6 +250,18 @@ export default function SetariPage() {
       if (updateRes.status === 'fulfilled') setUpdateInfo(updateRes.value.data)
       if (historyRes.status === 'fulfilled') setUpdateHistory(arrayFrom(historyRes.value.data, ['history', 'items']))
       if (hrEmpRes.status === 'fulfilled') setHrEmployees(arrayFrom(hrEmpRes.value.data, ['employees', 'items', 'data']))
+      if (piusiStatusRes.status === 'fulfilled') {
+        const status = piusiStatusRes.value.data || {}
+        setPiusiStatus(status)
+        setPiusiConfig({
+          mdb_path: status.mdb_path || 'C:\\Piusi\\SelfService\\Data\\Self.mdb',
+          sync_interval_min: status.sync_interval_min || 30,
+        })
+      }
+      if (piusiMapariRes.status === 'fulfilled') {
+        setPiusiMapari(arrayFrom(piusiMapariRes.value.data, ['mapari']))
+        setPiusiAssets(arrayFrom(piusiMapariRes.value.data, ['assets']))
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -890,6 +909,62 @@ export default function SetariPage() {
 
   function updateScaleRow(index, key, value) {
     setScaleRows(rows => rows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row))
+  }
+
+  async function reloadPiusi() {
+    const [statusRes, mapariRes] = await Promise.allSettled([
+      api.get('/integration/piusi/status'),
+      api.get('/integration/piusi/mapari'),
+    ])
+    if (statusRes.status === 'fulfilled') {
+      const status = statusRes.value.data || {}
+      setPiusiStatus(status)
+      setPiusiConfig({
+        mdb_path: status.mdb_path || 'C:\\Piusi\\SelfService\\Data\\Self.mdb',
+        sync_interval_min: status.sync_interval_min || 30,
+      })
+    }
+    if (mapariRes.status === 'fulfilled') {
+      setPiusiMapari(arrayFrom(mapariRes.value.data, ['mapari']))
+      setPiusiAssets(arrayFrom(mapariRes.value.data, ['assets']))
+    }
+  }
+
+  async function savePiusiConfig() {
+    try {
+      await api.post('/integration/piusi/config', piusiConfig)
+      notify('Configurația PIUSI a fost salvată.')
+      await reloadPiusi()
+    } catch (err) {
+      fail(err, 'Configurația PIUSI nu a putut fi salvată.')
+    }
+  }
+
+  async function syncPiusiNow() {
+    setPiusiSyncing(true)
+    try {
+      const res = await api.post('/integration/piusi/sync-now')
+      notify(`PIUSI sincronizat: ${res.data?.importate || 0} alimentări importate.`)
+      await reloadPiusi()
+    } catch (err) {
+      fail(err, 'Sincronizarea PIUSI a eșuat.')
+    } finally {
+      setPiusiSyncing(false)
+    }
+  }
+
+  function updatePiusiMapare(index, assetId) {
+    setPiusiMapari(rows => rows.map((row, rowIndex) => rowIndex === index ? { ...row, asset_id: assetId } : row))
+  }
+
+  async function savePiusiMapari() {
+    try {
+      await api.post('/integration/piusi/mapari', { mapari: piusiMapari })
+      notify('Mapările PIUSI au fost salvate.')
+      await reloadPiusi()
+    } catch (err) {
+      fail(err, 'Mapările PIUSI nu au putut fi salvate.')
+    }
   }
 
   return (
@@ -1745,6 +1820,90 @@ export default function SetariPage() {
             </div>
           </form>
         </Card>
+      )}
+
+      {activeTab === 'Integrări' && (
+        <div className="grid gap-4">
+          <Card title="⛽ PIUSI Self-Service" subtitle="Import automat alimentări carburant din Self.mdb / tabela Erogaz.">
+            <div className="grid gap-4">
+              <div className="grid gap-3 md:grid-cols-[1fr_180px]">
+                <Input
+                  label="Cale fișier MDB"
+                  value={piusiConfig.mdb_path}
+                  onChange={event => setPiusiConfig(c => ({ ...c, mdb_path: event.target.value }))}
+                  placeholder="C:\Piusi\SelfService\Data\Self.mdb"
+                />
+                <Select
+                  label="Sincronizare automată"
+                  value={String(piusiConfig.sync_interval_min || 30)}
+                  onChange={event => setPiusiConfig(c => ({ ...c, sync_interval_min: Number(event.target.value) }))}
+                >
+                  <option value="5">5 minute</option>
+                  <option value="15">15 minute</option>
+                  <option value="30">30 minute</option>
+                  <option value="60">60 minute</option>
+                </Select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={savePiusiConfig}>✅ Salvează configurația</Button>
+                <Button onClick={syncPiusiNow} disabled={piusiSyncing}>{piusiSyncing ? 'Se sincronizează...' : '🔄 Sincronizează acum'}</Button>
+                <Button variant="ghost" onClick={reloadPiusi}>Reîncarcă status</Button>
+              </div>
+              <div className={`rounded-lg border p-3 text-sm ${piusiStatus?.mdb_accesibil ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                <div className="font-semibold">Status: {piusiStatus?.mdb_accesibil ? '✅ Conectat' : '⚠️ Neconectat / fișier inaccesibil'}</div>
+                <div className="mt-1 grid gap-1 md:grid-cols-2">
+                  <span>Ultima sync: {piusiStatus?.ultima_sincronizare || 'niciodată'}</span>
+                  <span>Total importate: {piusiStatus?.inregistrari_totale ?? 0}</span>
+                  <span>Nemăpate: {piusiStatus?.nemapate ?? 0}</span>
+                  <span>Neprocesate FAZ: {piusiStatus?.nesincronizate ?? 0}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Mapare operatori PIUSI" subtitle="Leagă codurile PIUSI de vehiculele/utilajele InfraFlow.">
+            <div className="grid gap-3">
+              {!piusiMapari.length ? (
+                <div className="rounded border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                  Nu există operatori PIUSI importați încă. Rulează o sincronizare sau adaugă alimentări din MDB.
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-slate-200">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Cod PIUSI</th>
+                        <th className="px-3 py-2">Vehicul / Utilaj InfraFlow</th>
+                        <th className="px-3 py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {piusiMapari.map((row, index) => (
+                        <tr key={row.operator_cod || index}>
+                          <td className="px-3 py-2 font-medium text-slate-800">{row.operator_cod}</td>
+                          <td className="px-3 py-2">
+                            <Select value={row.asset_id || ''} onChange={event => updatePiusiMapare(index, event.target.value)}>
+                              <option value="">-- nemapat --</option>
+                              {piusiAssets.map(asset => (
+                                <option key={asset.id} value={asset.id}>{asset.label}</option>
+                              ))}
+                            </Select>
+                          </td>
+                          <td className="px-3 py-2">
+                            {row.asset_id ? <Badge variant="green">mapat</Badge> : <Badge variant="yellow">⚠ nemapat</Badge>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button onClick={savePiusiMapari} disabled={!piusiMapari.length}>💾 Salvează mapările</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
 
       <Modal open={updateModal} title="Confirmare update" onClose={() => setUpdateModal(false)}>

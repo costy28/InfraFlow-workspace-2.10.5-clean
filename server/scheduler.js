@@ -576,6 +576,71 @@ function checkHrEmployeeDocumentExpiry(db) {
   return { rows: count }
 }
 
+function fleetDocumentRows(db) {
+  const fleet = db.fleet || {}
+  const assets = db.fleetAssets || fleet.assets || []
+  const assetById = new Map(assets.map(asset => [String(asset.id), asset]))
+  const assetLabel = (assetId) => {
+    const asset = assetById.get(String(assetId)) || {}
+    return [asset.name, asset.registration, asset.cod].filter(Boolean).join(' / ') || String(assetId || 'utilaj')
+  }
+  const rows = []
+  ;(fleet.asigurari || []).filter(item => item.activa !== false).forEach(item => rows.push({
+    key: `asigurare:${item.id}:${item.data_expirarii}`,
+    label: item.tip || 'Asigurare',
+    asset: assetLabel(item.asset_id),
+    data: item.data_expirarii,
+    notif_zile: Number(item.notif_zile || 15)
+  }))
+  ;(fleet.itp || []).forEach(item => rows.push({
+    key: `itp:${item.id}:${item.planificat_pe}`,
+    label: 'ITP',
+    asset: assetLabel(item.asset_id),
+    data: item.planificat_pe,
+    notif_zile: Number(item.notif_zile || 30)
+  }))
+  ;(fleet.taxe || []).forEach(item => rows.push({
+    key: `taxa:${item.id}:${item.data_expirarii}`,
+    label: item.tip || 'Taxă',
+    asset: assetLabel(item.asset_id),
+    data: item.data_expirarii,
+    notif_zile: Number(item.notif_zile || 7)
+  }))
+  ;(fleet.iscir || []).forEach(item => rows.push({
+    key: `iscir:${item.id}:${item.data_expirarii}`,
+    label: item.tip_autorizare || 'ISCIR',
+    asset: assetLabel(item.asset_id),
+    data: item.data_expirarii,
+    notif_zile: Number(item.notif_zile || 30)
+  }))
+  return rows
+}
+
+function checkFleetDocumentDeadlines(db) {
+  const rows = fleetDocumentRows(db)
+    .map(item => ({ ...item, days: daysUntil(item.data) }))
+    .filter(item => item.days !== null && item.days <= Math.max(60, item.notif_zile) && item.days >= -30)
+    .sort((a, b) => a.days - b.days)
+
+  if (!rows.length) return { rows: 0 }
+  const recipients = uniqueUsers(
+    usersByRole(db, ['superadmin', 'admin']),
+    usersWithPermission(db, 'mecanizare:manage'),
+    usersWithPermission(db, 'fleet:manage')
+  )
+  const lines = rows.slice(0, 8).map(item => {
+    const prefix = item.days <= 0 ? '🔴' : item.days <= 7 ? '🟠' : '🟡'
+    const when = item.days < 0 ? `expirat cu ${Math.abs(item.days)} zile` : item.days === 0 ? 'expiră azi' : `expiră în ${item.days} zile`
+    return `${prefix} ${item.label} ${item.asset} — ${when}`
+  })
+  notifyMany(db, recipients, 'fleet_document_deadlines', `fleet_deadlines:${new Date().toISOString().slice(0, 10)}`, {
+    title: 'Scadențe flotă în atenție',
+    message: `⚠️ ${rows.length} scadențe în atenție:\n${lines.join('\n')}`,
+    rows: rows.slice(0, 20)
+  })
+  return { rows: rows.length, notified: recipients.length }
+}
+
 async function runHourlyChecks() {
   const db = readDb()
   await safeRun('checkTicketAlerts', checkTicketAlerts, db)
@@ -589,6 +654,7 @@ async function runHourlyChecks() {
   const hour = new Date().getHours()
   if (hour === 6) await safeRun('checkSnowMorningDutyLog', checkSnowMorningDutyLog, db)
   if (hour === 8) await safeRun('checkEnvironmentDailyAlerts', checkEnvironmentDailyAlerts, db)
+  if (hour === 8) await safeRun('checkFleetDocumentDeadlines', checkFleetDocumentDeadlines, db)
   if (hour === 23) await safeRun('checkSnowDraftDutyLogReminder', checkSnowDraftDutyLogReminder, db)
   if (!isMssqlMode()) writeDb(db)
 }
@@ -627,6 +693,7 @@ module.exports = {
   checkRegistryDeadlines,
   checkArchiveOverdue,
   checkLitigationTerms,
+  checkFleetDocumentDeadlines,
   isSnowSeason,
   checkSnowMorningDutyLog,
   checkSnowDraftDutyLogReminder,

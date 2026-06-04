@@ -9,7 +9,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { exportExcel } from '../../utils/export'
 
-const tabs = ['Dashboard', 'Parc Utilaje', 'Planificare', 'Bonuri Lucru', 'Alimentări', 'Intervenții', 'Revizii predictive', 'Alerte & ISCIR', 'Cost/oră', 'FAZ Lunar', 'Raport Lunar']
+const tabs = ['Dashboard', 'Parc Utilaje', 'Planificare', 'Bonuri Lucru', 'Alimentări', 'Alimentări PIUSI', 'Intervenții', 'Revizii predictive', 'Alerte & ISCIR', 'Scadențe & Asigurări', 'Cost/oră', 'FAZ Lunar', 'Raport Lunar']
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function currentMonth() { return new Date().toISOString().slice(0, 7) }
@@ -78,6 +78,45 @@ const emptyFuelForm = {
   km_ore: '', sofer_operator: '', cost_center_id: '', observatii: '',
 }
 
+const scadenteTabs = ['Expirări', 'RCA/CASCO', 'ITP', 'Taxe', 'ISCIR', 'Raport']
+
+const emptyFleetDocForm = {
+  asset_id: '',
+  tip: 'RCA',
+  asigurator: '',
+  nr_polita: '',
+  valoare_prima: '',
+  valoare_asig: '',
+  valabila_de_la: today(),
+  perioada_luni: '12',
+  data_expirarii: '',
+  notif_zile: '15',
+  clasa_bm: 'B6',
+  carte_verde_pos: '',
+  carte_verde_data: '',
+  planificat_pe: today(),
+  executat: false,
+  executat_pe: '',
+  odometru_la_itp: '',
+  furnizor: '',
+  valoare_fara_tva: '',
+  cota_tva: '19',
+  nr_factura: '',
+  data_factura: '',
+  data_scadenta: '',
+  factura_platita: false,
+  rezultat: '',
+  valabila_de_la_taxa: today(),
+  nr_document: '',
+  tip_autorizare: 'verificare_periodica',
+  nr_autorizare: '',
+  data_emitere: '',
+  inspector: '',
+  organism: 'ISCIR',
+  fisier_path: '',
+  observatii: '',
+}
+
 export default function MecanizarePage() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('Dashboard')
@@ -89,6 +128,8 @@ export default function MecanizarePage() {
   const [workOrders, setWorkOrders] = useState([])
   const [fuelLogs, setFuelLogs] = useState([])
   const [fuelTotals, setFuelTotals] = useState({ cantitate_litri: 0, valoare_totala: 0 })
+  const [piusiFuelRows, setPiusiFuelRows] = useState([])
+  const [piusiReport, setPiusiReport] = useState(null)
   const [interventions, setInterventions] = useState([])
   const [revisionRows, setRevisionRows] = useState([])
   const [mechanizationAlerts, setMechanizationAlerts] = useState([])
@@ -101,6 +142,7 @@ export default function MecanizarePage() {
   const [planDate, setPlanDate] = useState(today())
   const [woLuna, setWoLuna] = useState(currentMonth())
   const [fuelLuna, setFuelLuna] = useState(currentMonth())
+  const [piusiFilters, setPiusiFilters] = useState({ de_la: `${currentMonth()}-01`, pana_la: today(), asset_id: '', procesat: '' })
   const [costLuna, setCostLuna] = useState(currentMonth())
   const [fazLuna, setFazLuna] = useState(currentMonth())
   const [fazAssetId, setFazAssetId] = useState('')
@@ -108,6 +150,11 @@ export default function MecanizarePage() {
   const [searchAsset, setSearchAsset] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterTip, setFilterTip] = useState('')
+  const [scadenteSubtab, setScadenteSubtab] = useState('Expirări')
+  const [scadente, setScadente] = useState(null)
+  const [fleetDocModal, setFleetDocModal] = useState(false)
+  const [fleetDocKind, setFleetDocKind] = useState('asigurare')
+  const [fleetDocForm, setFleetDocForm] = useState(emptyFleetDocForm)
 
   // modals
   const [planModal, setPlanModal] = useState(false)
@@ -220,13 +267,34 @@ export default function MecanizarePage() {
     } catch { setRaport(null) }
   }
 
+  async function loadPiusiFuelRows() {
+    try {
+      const res = await api.get('/integration/piusi/alimentari', { params: piusiFilters })
+      setPiusiFuelRows(res.data?.alimentari || [])
+      const report = await api.get('/integration/piusi/raport-comparativ', { params: { luna: (piusiFilters.de_la || currentMonth()).slice(0, 7), asset_id: piusiFilters.asset_id || undefined } })
+      setPiusiReport(report.data || null)
+    } catch {
+      setPiusiFuelRows([])
+      setPiusiReport(null)
+    }
+  }
+
+  async function loadScadente() {
+    try {
+      const res = await api.get('/fleet/scadente')
+      setScadente(res.data || {})
+    } catch { setScadente(null) }
+  }
+
   useEffect(() => { loadAll() }, [])
   useEffect(() => { if (activeTab === 'Planificare')  loadPlannings() }, [activeTab, planDate])
   useEffect(() => { if (activeTab === 'Bonuri Lucru') loadWorkOrders() }, [activeTab, woLuna])
   useEffect(() => { if (activeTab === 'Alimentări') loadFuelLogs() }, [activeTab, fuelLuna])
+  useEffect(() => { if (activeTab === 'Alimentări PIUSI') loadPiusiFuelRows() }, [activeTab, piusiFilters])
   useEffect(() => { if (activeTab === 'Intervenții')  loadInterventions() }, [activeTab])
   useEffect(() => { if (activeTab === 'Revizii predictive') loadRevisions() }, [activeTab])
   useEffect(() => { if (activeTab === 'Alerte & ISCIR') loadMechanizationAlerts() }, [activeTab])
+  useEffect(() => { if (activeTab === 'Scadențe & Asigurări') loadScadente() }, [activeTab])
   useEffect(() => { if (activeTab === 'Cost/oră') loadCostHour() }, [activeTab, costLuna])
   useEffect(() => { if (activeTab === 'FAZ Lunar') loadFazReport() }, [activeTab, fazLuna, fazAssetId])
   useEffect(() => { if (activeTab === 'Raport Lunar') loadRaport() }, [activeTab, raportLuna])
@@ -356,6 +424,113 @@ export default function MecanizarePage() {
       setReqModal(false); setReqItem(null)
       await loadAll()
     } catch (err) { setError(err.response?.data?.error || 'Eroare la salvare.') }
+  }
+
+  async function importPiusiInFaz() {
+    const count = piusiFuelRows.filter(row => row.asset_id && row.procesat !== true).length
+    if (!count) { setError('Nu există alimentări PIUSI mapate și neprocesate.'); return }
+    if (!window.confirm(`Import ${count} alimentări PIUSI în FAZ/alimentări mecanizare?`)) return
+    setError('')
+    try {
+      await api.post('/integration/piusi/import-faz', { ids: piusiFuelRows.filter(row => row.asset_id && row.procesat !== true).map(row => row.id) })
+      await loadPiusiFuelRows()
+      await loadFuelLogs()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Importul PIUSI în FAZ a eșuat.')
+    }
+  }
+
+  function calcFleetDocExpiry(startValue, monthsValue) {
+    if (!startValue) return ''
+    const d = new Date(`${startValue}T00:00:00`)
+    d.setMonth(d.getMonth() + Number(monthsValue || 12))
+    d.setDate(d.getDate() - 1)
+    return d.toISOString().slice(0, 10)
+  }
+
+  function openFleetDoc(kind, preset = {}) {
+    const next = {
+      ...emptyFleetDocForm,
+      ...preset,
+      asset_id: preset.asset_id ? String(preset.asset_id) : '',
+    }
+    if (kind === 'asigurare' && !next.data_expirarii) {
+      next.data_expirarii = calcFleetDocExpiry(next.valabila_de_la, next.perioada_luni)
+    }
+    setFleetDocKind(kind)
+    setFleetDocForm(next)
+    setFleetDocModal(true)
+  }
+
+  async function saveFleetDoc(ev) {
+    ev.preventDefault(); setError('')
+    try {
+      if (fleetDocKind === 'asigurare') {
+        await api.post('/fleet/asigurari', {
+          asset_id: fleetDocForm.asset_id,
+          tip: fleetDocForm.tip,
+          asigurator: fleetDocForm.asigurator,
+          nr_polita: fleetDocForm.nr_polita,
+          valoare_prima: fleetDocForm.valoare_prima,
+          valoare_asig: fleetDocForm.valoare_asig,
+          valabila_de_la: fleetDocForm.valabila_de_la,
+          perioada_luni: fleetDocForm.perioada_luni,
+          data_expirarii: fleetDocForm.data_expirarii,
+          notif_zile: fleetDocForm.notif_zile,
+          clasa_bm: fleetDocForm.clasa_bm,
+          carte_verde_pos: fleetDocForm.carte_verde_pos,
+          carte_verde_data: fleetDocForm.carte_verde_data,
+          fisier_path: fleetDocForm.fisier_path,
+          observatii: fleetDocForm.observatii,
+        })
+      } else if (fleetDocKind === 'itp') {
+        await api.post('/fleet/itp', fleetDocForm)
+      } else if (fleetDocKind === 'taxa') {
+        await api.post('/fleet/taxe', {
+          asset_id: fleetDocForm.asset_id,
+          tip: fleetDocForm.tip,
+          valabila_de_la: fleetDocForm.valabila_de_la_taxa,
+          data_expirarii: fleetDocForm.data_expirarii,
+          notif_zile: fleetDocForm.notif_zile,
+          valoare: fleetDocForm.valoare_prima,
+          nr_document: fleetDocForm.nr_document,
+          fisier_path: fleetDocForm.fisier_path,
+          observatii: fleetDocForm.observatii,
+        })
+      } else {
+        await api.post('/fleet/iscir', {
+          asset_id: fleetDocForm.asset_id,
+          tip_autorizare: fleetDocForm.tip_autorizare,
+          nr_autorizare: fleetDocForm.nr_autorizare,
+          data_emitere: fleetDocForm.data_emitere,
+          data_expirarii: fleetDocForm.data_expirarii,
+          notif_zile: fleetDocForm.notif_zile,
+          inspector: fleetDocForm.inspector,
+          organism: fleetDocForm.organism,
+          fisier_path: fleetDocForm.fisier_path,
+          observatii: fleetDocForm.observatii,
+        })
+      }
+      setFleetDocModal(false)
+      setFleetDocForm(emptyFleetDocForm)
+      await loadScadente()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul nu a putut fi salvat.')
+    }
+  }
+
+  async function downloadFleetReport(path, filename) {
+    try {
+      const res = await api.get(path, { params: { an: new Date().getFullYear(), format: 'xlsx' }, responseType: 'blob' })
+      const url = URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setError('Raportul Excel nu a putut fi descărcat.')
+    }
   }
 
   async function generateMechanizationFaz() {
@@ -883,6 +1058,81 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
         </div>
       ) : null}
 
+      {/* ── ALIMENTĂRI PIUSI ────────────────────────────────────────────────── */}
+      {activeTab === 'Alimentări PIUSI' ? (
+        <div className="grid gap-4">
+          <Card>
+            <div className="flex flex-wrap items-end gap-3">
+              <Input label="De la" type="date" value={piusiFilters.de_la} onChange={e => setPiusiFilters(f => ({ ...f, de_la: e.target.value }))} />
+              <Input label="Până la" type="date" value={piusiFilters.pana_la} onChange={e => setPiusiFilters(f => ({ ...f, pana_la: e.target.value }))} />
+              <Select label="Utilaj / Vehicul" value={piusiFilters.asset_id} onChange={e => setPiusiFilters(f => ({ ...f, asset_id: e.target.value }))} options={assetOptions} />
+              <Select label="Procesat" value={piusiFilters.procesat} onChange={e => setPiusiFilters(f => ({ ...f, procesat: e.target.value }))} options={[
+                { value: '', label: 'Toate' },
+                { value: 'false', label: 'Neprocesate' },
+                { value: 'true', label: 'Procesate' },
+              ]} />
+              <Button onClick={loadPiusiFuelRows}>Reîncarcă</Button>
+              <Button onClick={importPiusiInFaz}>📥 Import în FAZ</Button>
+            </div>
+          </Card>
+
+          {piusiReport ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              <Card className="text-center">
+                <div className="text-2xl font-bold text-slate-900">{Number(piusiReport.totals?.piusi_litri || 0).toFixed(2)} L</div>
+                <div className="text-xs text-slate-500">PIUSI pompă</div>
+              </Card>
+              <Card className="text-center">
+                <div className="text-2xl font-bold text-slate-900">{Number(piusiReport.totals?.faz_litri || 0).toFixed(2)} L</div>
+                <div className="text-xs text-slate-500">FAZ / alimentări</div>
+              </Card>
+              <Card className="text-center">
+                <div className={`text-2xl font-bold ${Number(piusiReport.totals?.diferenta_litri || 0) ? 'text-rose-600' : 'text-green-700'}`}>{Number(piusiReport.totals?.diferenta_litri || 0).toFixed(2)} L</div>
+                <div className="text-xs text-slate-500">Diferență</div>
+              </Card>
+            </div>
+          ) : null}
+
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2">Data / Ora</th>
+                  <th className="px-3 py-2">Vehicul</th>
+                  <th className="px-3 py-2">Cod PIUSI</th>
+                  <th className="px-3 py-2 text-right">Cantitate</th>
+                  <th className="px-3 py-2 text-right">Odometru</th>
+                  <th className="px-3 py-2">Cheie</th>
+                  <th className="px-3 py-2">Procesat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {piusiFuelRows.length ? piusiFuelRows.map(row => (
+                  <tr key={row.id || row.piusi_id_prog}>
+                    <td className="px-3 py-2">
+                      <div>{String(row.data_ora || '').slice(0, 10)}</div>
+                      <div className="text-xs text-slate-400">{String(row.data_ora || '').slice(11, 16)}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {row.asset_id ? assetOptions.find(opt => String(opt.value) === String(row.asset_id))?.label || row.asset_id : <span className="text-rose-600">Nemapat</span>}
+                    </td>
+                    <td className="px-3 py-2">{row.operator_cod || '—'}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{Number(row.cantitate_litri || 0).toFixed(2)} L</td>
+                    <td className="px-3 py-2 text-right">{row.odometru || '—'}</td>
+                    <td className="px-3 py-2">{row.serial_cheie || '—'}</td>
+                    <td className="px-3 py-2">
+                      {row.procesat ? <Badge tone="success">FAZ</Badge> : row.asset_id ? <Badge tone="warning">pending</Badge> : <Badge tone="danger">nemapat</Badge>}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan="7" className="px-3 py-8 text-center text-sm text-slate-400">Nu există alimentări PIUSI pentru filtrul ales.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
       {/* ── INTERVENȚII ───────────────────────────────────────────────────────── */}
       {activeTab === 'Intervenții' ? (
         <div className="grid gap-4">
@@ -1051,6 +1301,122 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               </tbody>
             </table>
           </div>
+        </div>
+      ) : null}
+
+      {/* ── SCADENȚE & ASIGURĂRI ────────────────────────────────────────────── */}
+      {activeTab === 'Scadențe & Asigurări' ? (
+        <div className="grid gap-4">
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold text-slate-800">Scadențe documente flotă</div>
+                <div className="text-sm text-slate-500">RCA/CASCO, ITP, taxe, rovignete și autorizații ISCIR pentru autovehicule și utilaje.</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => openFleetDoc('asigurare')}>+ RCA/CASCO</Button>
+                <Button variant="secondary" onClick={() => openFleetDoc('itp')}>+ ITP</Button>
+                <Button variant="secondary" onClick={() => openFleetDoc('taxa')}>+ Taxă</Button>
+                <Button variant="secondary" onClick={() => openFleetDoc('iscir')}>+ ISCIR</Button>
+                <Button onClick={loadScadente}>Reîncarcă</Button>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-1 border-t border-slate-100 pt-3">
+              {scadenteTabs.map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setScadenteSubtab(tab)}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium ${scadenteSubtab === tab ? 'bg-primary-600 text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {scadenteSubtab === 'Expirări' ? (
+            <div className="grid gap-3 xl:grid-cols-4">
+              {[
+                { key: 'expirate', title: '🔴 Expirate', tone: 'border-rose-200 bg-rose-50' },
+                { key: 'curand_7_zile', title: '🟠 Expiră în 7 zile', tone: 'border-orange-200 bg-orange-50' },
+                { key: 'curand_30_zile', title: '🟡 Expiră în 30 zile', tone: 'border-amber-200 bg-amber-50' },
+                { key: 'curand_60_zile', title: '🟢 Expiră în 60 zile', tone: 'border-emerald-200 bg-emerald-50' },
+              ].map(group => (
+                <div key={group.key} className={`rounded-xl border p-3 ${group.tone}`}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="font-semibold text-slate-800">{group.title}</div>
+                    <Badge tone={group.key === 'expirate' ? 'danger' : group.key === 'curand_7_zile' ? 'warning' : 'neutral'}>{(scadente?.[group.key] || []).length}</Badge>
+                  </div>
+                  <div className="grid gap-2">
+                    {(scadente?.[group.key] || []).length ? scadente[group.key].map(item => (
+                      <div key={item.id} className="rounded-lg border border-white/70 bg-white p-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-semibold text-slate-900">{item.tip}</div>
+                            <div className="text-sm text-slate-600">{item.asset}</div>
+                          </div>
+                          <Badge tone={item.urgent ? 'danger' : 'warning'}>{item.zile <= 0 ? 'urgent' : `${item.zile} zile`}</Badge>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          Scadență: <strong>{item.data}</strong>
+                          {item.asigurator ? <span> · {item.asigurator}</span> : null}
+                          {item.furnizor ? <span> · {item.furnizor}</span> : null}
+                        </div>
+                        <button
+                          type="button"
+                          className="mt-3 text-xs font-semibold text-primary-700 hover:underline"
+                          onClick={() => openFleetDoc(item.category === 'asigurare' ? 'asigurare' : item.category, { asset_id: item.asset_id, tip: item.tip })}
+                        >
+                          Reînnoiește
+                        </button>
+                      </div>
+                    )) : (
+                      <div className="rounded-lg border border-dashed border-white/80 bg-white/70 p-4 text-center text-sm text-slate-400">Nicio scadență.</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {scadenteSubtab !== 'Expirări' && scadenteSubtab !== 'Raport' ? (
+            <Card>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-slate-800">{scadenteSubtab}</div>
+                  <div className="text-sm text-slate-500">Adaugă rapid documente noi. Lista completă apare în panoul de expirări în funcție de scadență.</div>
+                </div>
+                <Button onClick={() => openFleetDoc(scadenteSubtab === 'RCA/CASCO' ? 'asigurare' : scadenteSubtab === 'ITP' ? 'itp' : scadenteSubtab === 'Taxe' ? 'taxa' : 'iscir')}>
+                  + Înregistrare nouă
+                </Button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-4">
+                {assets.slice(0, 8).map(asset => (
+                  <button
+                    key={asset.id}
+                    type="button"
+                    onClick={() => openFleetDoc(scadenteSubtab === 'RCA/CASCO' ? 'asigurare' : scadenteSubtab === 'ITP' ? 'itp' : scadenteSubtab === 'Taxe' ? 'taxa' : 'iscir', { asset_id: asset.id })}
+                    className="rounded-lg border border-slate-200 bg-white p-3 text-left text-sm hover:border-primary-300 hover:bg-primary-50"
+                  >
+                    <div className="font-semibold text-slate-800">{asset.name || asset.registration || asset.cod}</div>
+                    <div className="text-xs text-slate-500">{asset.registration || asset.cod || 'Fără număr'}</div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {scadenteSubtab === 'Raport' ? (
+            <Card>
+              <div className="mb-3 font-semibold text-slate-800">Rapoarte autoMinder</div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => downloadFleetReport('/fleet/raport-asigurari', `Raport_asigurari_${new Date().getFullYear()}.xlsx`)}>Export asigurări</Button>
+                <Button variant="secondary" onClick={() => downloadFleetReport('/fleet/raport-itp', `Raport_ITP_${new Date().getFullYear()}.xlsx`)}>Export ITP</Button>
+                <Button variant="secondary" onClick={() => downloadFleetReport('/fleet/raport-scadente-anuale', `Plan_reinnoire_${new Date().getFullYear()}.xlsx`)}>Plan reînnoire anual</Button>
+              </div>
+            </Card>
+          ) : null}
         </div>
       ) : null}
 
@@ -1371,6 +1737,110 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           )}
         </div>
       ) : null}
+
+      {/* ── MODAL DOCUMENT FLOTĂ ─────────────────────────────────────────────── */}
+      <Modal open={fleetDocModal} title={
+        fleetDocKind === 'asigurare' ? 'Poliță asigurare nouă' :
+        fleetDocKind === 'itp' ? 'Inspecție ITP nouă' :
+        fleetDocKind === 'taxa' ? 'Taxă / Rovignetă nouă' :
+        'Autorizație ISCIR nouă'
+      } onClose={() => setFleetDocModal(false)} size="lg">
+        <form className="grid gap-3" onSubmit={saveFleetDoc}>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Select label="Utilaj / Vehicul" value={fleetDocForm.asset_id} onChange={e => setFleetDocForm({ ...fleetDocForm, asset_id: e.target.value })} options={assetOptions} required />
+
+            {fleetDocKind === 'asigurare' ? (
+              <>
+                <Select label="Tip poliță" value={fleetDocForm.tip} onChange={e => setFleetDocForm({ ...fleetDocForm, tip: e.target.value })} options={[
+                  { value: 'RCA', label: 'RCA' },
+                  { value: 'CASCO', label: 'CASCO' },
+                  { value: 'CMR', label: 'CMR' },
+                  { value: 'carte_verde', label: 'Carte verde' },
+                  { value: 'alta', label: 'Altă asigurare' },
+                ]} />
+                <Input label="Asigurator" value={fleetDocForm.asigurator} onChange={e => setFleetDocForm({ ...fleetDocForm, asigurator: e.target.value })} placeholder="ex: ALLIANZ, OMNIASIG" />
+                <Input label="Nr. poliță" value={fleetDocForm.nr_polita} onChange={e => setFleetDocForm({ ...fleetDocForm, nr_polita: e.target.value })} />
+                <Input label="Valoare primă (LEI)" type="number" step="0.01" value={fleetDocForm.valoare_prima} onChange={e => setFleetDocForm({ ...fleetDocForm, valoare_prima: e.target.value })} />
+                <Input label="Valoare asigurată" type="number" step="0.01" value={fleetDocForm.valoare_asig} onChange={e => setFleetDocForm({ ...fleetDocForm, valoare_asig: e.target.value })} />
+                <Input label="Valabil de la" type="date" value={fleetDocForm.valabila_de_la} onChange={e => setFleetDocForm({ ...fleetDocForm, valabila_de_la: e.target.value, data_expirarii: calcFleetDocExpiry(e.target.value, fleetDocForm.perioada_luni) })} required />
+                <Input label="Perioadă (luni)" type="number" min="1" value={fleetDocForm.perioada_luni} onChange={e => setFleetDocForm({ ...fleetDocForm, perioada_luni: e.target.value, data_expirarii: calcFleetDocExpiry(fleetDocForm.valabila_de_la, e.target.value) })} />
+                <Input label="Data expirării" type="date" value={fleetDocForm.data_expirarii} onChange={e => setFleetDocForm({ ...fleetDocForm, data_expirarii: e.target.value })} required />
+                <Input label="Notificare în avans (zile)" type="number" min="1" value={fleetDocForm.notif_zile} onChange={e => setFleetDocForm({ ...fleetDocForm, notif_zile: e.target.value })} />
+                <Select label="Clasa B/M" value={fleetDocForm.clasa_bm} onChange={e => setFleetDocForm({ ...fleetDocForm, clasa_bm: e.target.value })} options={['B1','B2','B3','B4','B5','B6','B7','B8','M1','M2','M3','M4','M5','M6','M7','M8'].map(v => ({ value: v, label: v }))} />
+                <Input label="Carte verde posesor" value={fleetDocForm.carte_verde_pos} onChange={e => setFleetDocForm({ ...fleetDocForm, carte_verde_pos: e.target.value })} />
+                <Input label="Carte verde data" type="date" value={fleetDocForm.carte_verde_data} onChange={e => setFleetDocForm({ ...fleetDocForm, carte_verde_data: e.target.value })} />
+              </>
+            ) : null}
+
+            {fleetDocKind === 'itp' ? (
+              <>
+                <Input label="ITP planificat pe" type="date" value={fleetDocForm.planificat_pe} onChange={e => setFleetDocForm({ ...fleetDocForm, planificat_pe: e.target.value })} required />
+                <Input label="Notificare în avans (zile)" type="number" min="1" value={fleetDocForm.notif_zile} onChange={e => setFleetDocForm({ ...fleetDocForm, notif_zile: e.target.value })} />
+                <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                  <input type="checkbox" checked={fleetDocForm.executat} onChange={e => setFleetDocForm({ ...fleetDocForm, executat: e.target.checked })} />
+                  ITP executat
+                </label>
+                <Input label="ITP executat pe" type="date" value={fleetDocForm.executat_pe} onChange={e => setFleetDocForm({ ...fleetDocForm, executat_pe: e.target.value })} />
+                <Input label="Odometru la ITP" type="number" value={fleetDocForm.odometru_la_itp} onChange={e => setFleetDocForm({ ...fleetDocForm, odometru_la_itp: e.target.value })} />
+                <Input label="Furnizor" value={fleetDocForm.furnizor} onChange={e => setFleetDocForm({ ...fleetDocForm, furnizor: e.target.value })} />
+                <Input label="Valoare fără TVA" type="number" step="0.01" value={fleetDocForm.valoare_fara_tva} onChange={e => setFleetDocForm({ ...fleetDocForm, valoare_fara_tva: e.target.value })} />
+                <Input label="TVA (%)" type="number" step="0.01" value={fleetDocForm.cota_tva} onChange={e => setFleetDocForm({ ...fleetDocForm, cota_tva: e.target.value })} />
+                <Input label="Nr. factură" value={fleetDocForm.nr_factura} onChange={e => setFleetDocForm({ ...fleetDocForm, nr_factura: e.target.value })} />
+                <Input label="Data factură" type="date" value={fleetDocForm.data_factura} onChange={e => setFleetDocForm({ ...fleetDocForm, data_factura: e.target.value })} />
+                <Input label="Data scadență" type="date" value={fleetDocForm.data_scadenta} onChange={e => setFleetDocForm({ ...fleetDocForm, data_scadenta: e.target.value })} />
+                <Select label="Rezultat" value={fleetDocForm.rezultat} onChange={e => setFleetDocForm({ ...fleetDocForm, rezultat: e.target.value })} options={[
+                  { value: '', label: 'Necompletat' },
+                  { value: 'admis', label: 'Admis' },
+                  { value: 'respins', label: 'Respins' },
+                ]} />
+              </>
+            ) : null}
+
+            {fleetDocKind === 'taxa' ? (
+              <>
+                <Select label="Tip taxă" value={fleetDocForm.tip} onChange={e => setFleetDocForm({ ...fleetDocForm, tip: e.target.value })} options={[
+                  { value: 'rovigneta', label: 'Rovignetă' },
+                  { value: 'taxa_pod', label: 'Taxă pod' },
+                  { value: 'taxa_drum', label: 'Taxă drum' },
+                  { value: 'impozit_auto', label: 'Impozit auto' },
+                  { value: 'alta', label: 'Altă taxă' },
+                ]} />
+                <Input label="Valabilă de la" type="date" value={fleetDocForm.valabila_de_la_taxa} onChange={e => setFleetDocForm({ ...fleetDocForm, valabila_de_la_taxa: e.target.value })} />
+                <Input label="Data expirării" type="date" value={fleetDocForm.data_expirarii} onChange={e => setFleetDocForm({ ...fleetDocForm, data_expirarii: e.target.value })} required />
+                <Input label="Notificare în avans (zile)" type="number" min="1" value={fleetDocForm.notif_zile} onChange={e => setFleetDocForm({ ...fleetDocForm, notif_zile: e.target.value })} />
+                <Input label="Valoare (LEI)" type="number" step="0.01" value={fleetDocForm.valoare_prima} onChange={e => setFleetDocForm({ ...fleetDocForm, valoare_prima: e.target.value })} />
+                <Input label="Nr. document" value={fleetDocForm.nr_document} onChange={e => setFleetDocForm({ ...fleetDocForm, nr_document: e.target.value })} />
+              </>
+            ) : null}
+
+            {fleetDocKind === 'iscir' ? (
+              <>
+                <Select label="Tip autorizare" value={fleetDocForm.tip_autorizare} onChange={e => setFleetDocForm({ ...fleetDocForm, tip_autorizare: e.target.value })} options={[
+                  { value: 'RSVTI', label: 'RSVTI' },
+                  { value: 'verificare_periodica', label: 'Verificare periodică' },
+                  { value: 'autorizare_initiala', label: 'Autorizare inițială' },
+                ]} />
+                <Input label="Nr. autorizare" value={fleetDocForm.nr_autorizare} onChange={e => setFleetDocForm({ ...fleetDocForm, nr_autorizare: e.target.value })} />
+                <Input label="Data emitere" type="date" value={fleetDocForm.data_emitere} onChange={e => setFleetDocForm({ ...fleetDocForm, data_emitere: e.target.value })} />
+                <Input label="Data expirării" type="date" value={fleetDocForm.data_expirarii} onChange={e => setFleetDocForm({ ...fleetDocForm, data_expirarii: e.target.value })} required />
+                <Input label="Notificare în avans (zile)" type="number" min="1" value={fleetDocForm.notif_zile} onChange={e => setFleetDocForm({ ...fleetDocForm, notif_zile: e.target.value })} />
+                <Input label="Inspector" value={fleetDocForm.inspector} onChange={e => setFleetDocForm({ ...fleetDocForm, inspector: e.target.value })} />
+                <Input label="Organism" value={fleetDocForm.organism} onChange={e => setFleetDocForm({ ...fleetDocForm, organism: e.target.value })} />
+              </>
+            ) : null}
+
+            <Input label="Fișier atașat (cale)" value={fleetDocForm.fisier_path} onChange={e => setFleetDocForm({ ...fleetDocForm, fisier_path: e.target.value })} placeholder="scan/polita.pdf" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Observații</label>
+            <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none" rows={3} value={fleetDocForm.observatii} onChange={e => setFleetDocForm({ ...fleetDocForm, observatii: e.target.value })} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setFleetDocModal(false)}>Renunță</Button>
+            <Button type="submit">Salvează</Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* ── MODAL PLANIFICARE ────────────────────────────────────────────────── */}
       <Modal open={planModal} title={planEditing ? 'Editează planificare' : 'Planificare nouă'} onClose={() => { setPlanModal(false); setPlanEditing(null) }} size="lg">

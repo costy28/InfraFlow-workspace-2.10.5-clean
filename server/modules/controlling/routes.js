@@ -18,8 +18,49 @@ const nexusAccounts = {
   chirii: '612'
 }
 
+const publiservCostCenters = [
+  { cod: '2018611', denumire: 'SERVICII SALUBRIZARE', tip: 'operational' },
+  { cod: '2018612', denumire: 'SERVICII DESZAPEZIRE', tip: 'operational' },
+  { cod: '0000005', denumire: 'REPARATII BETOANE', tip: 'operational' },
+  { cod: '0000053', denumire: 'PRODUCTIE INTERNA STATIE ASFALT', tip: 'productie' },
+  { cod: '0000109', denumire: 'ASTERNERE ASFALT', tip: 'productie' },
+  { cod: '0000002', denumire: 'SERVICII CANALIZARE - MARCAJE', tip: 'operational' },
+  { cod: '0000004', denumire: 'SERVICII CIRCULATIE - MARCAJE', tip: 'operational' },
+  { cod: '0000007', denumire: 'TERTI LUCRARI', tip: 'operational' },
+  { cod: '2018613', denumire: 'REPARATII MOBILIER STRADAL+SPATII JOACA', tip: 'operational' },
+  { cod: '2018614', denumire: 'SP B-DUL REPUBLICII', tip: 'spatiu' },
+  { cod: '2018615', denumire: 'SP STR. MUNCII', tip: 'spatiu' },
+  { cod: '2018616', denumire: 'SP MIHAIL KOGALNICEANU', tip: 'spatiu' },
+  { cod: '2018620', denumire: 'SP PETRU RARES', tip: 'spatiu' },
+  { cod: '2018621', denumire: 'SP DR. EMIL COSTINESCU', tip: 'spatiu' },
+  { cod: '0000034', denumire: 'SP STEFAN CEL MARE', tip: 'spatiu' },
+  { cod: 'ADMINISTRATIV', denumire: 'SERVICII GENERALE ADMINISTRATIE', tip: 'administrativ' },
+  { cod: '2018623', denumire: 'CHELTUIELI INDIRECTE PRODUCTIE', tip: 'indirect' }
+]
+
+const publiservAssetCostCenterMap = [
+  { centerCod: '2018611', assets: ['NT12ZEW', 'NT10SCS', 'NT11SCS'] },
+  { centerCod: '2018612', assets: ['B100751', 'NT1292'] },
+  { centerCod: '0000053', assets: ['NT1673', 'NT1719', 'NT1348'] },
+  { centerCod: '0000002', assets: ['NT20SPS', 'NT21SPS'] }
+]
+
 function sendJson(res, status, data) {
   res.status(status).json(data)
+}
+
+function sendHtml(res, status, html) {
+  res.status(status).set({
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store'
+  }).send(html)
+}
+
+function sendBuffer(res, status, buffer, type, filename) {
+  res.status(status).set({
+    'Content-Type': type,
+    'Content-Disposition': `attachment; filename="${filename}"`
+  }).send(buffer)
 }
 
 function throwHttp(status, message) {
@@ -58,6 +99,25 @@ function numberValue(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+function htmlEscape(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function roMonthLabel(value) {
+  const date = new Date(`${String(value || todayIso()).slice(0, 7)}-01T00:00:00`)
+  if (Number.isNaN(date.getTime())) return String(value || '').slice(0, 7)
+  return date.toLocaleDateString('ro-RO', { month: 'long', year: 'numeric' }).toUpperCase()
+}
+
+function normalizeAssetCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '')
+}
+
 function nextId(items) {
   return items.reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1
 }
@@ -85,6 +145,55 @@ function ensureControllingDb(db) {
   db.controlling.allocationTargets = Array.isArray(db.controlling.allocationTargets) ? db.controlling.allocationTargets : []
   db.controlling.costCenterObjects = Array.isArray(db.controlling.costCenterObjects) ? db.controlling.costCenterObjects : []
   return db.controlling
+}
+
+function ensurePubliservCostCenters(db) {
+  const controlling = ensureControllingDb(db)
+  let changed = false
+  publiservCostCenters.forEach((seed, index) => {
+    let center = controlling.costCenters.find(item => String(item.cod || '').toUpperCase() === seed.cod.toUpperCase())
+    if (!center) {
+      center = {
+        id: nextId(controlling.costCenters),
+        company_id: 1,
+        cod: seed.cod,
+        denumire: seed.denumire,
+        name: seed.denumire,
+        tip: seed.tip,
+        nivel: 1,
+        activ: true,
+        sort_order: index + 1,
+        created_at: nowIso()
+      }
+      controlling.costCenters.push(center)
+      changed = true
+      return
+    }
+    if (center.denumire !== seed.denumire || center.tip !== seed.tip || center.activ === false || center.activ === 0) {
+      center.denumire = seed.denumire
+      center.name = seed.denumire
+      center.tip = seed.tip
+      center.activ = true
+      center.updated_at = nowIso()
+      changed = true
+    }
+  })
+
+  const assets = db.fleetAssets || db.fleet?.assets || []
+  publiservAssetCostCenterMap.forEach(mapping => {
+    const center = controlling.costCenters.find(item => String(item.cod || '').toUpperCase() === mapping.centerCod.toUpperCase())
+    if (!center) return
+    const assetCodes = new Set(mapping.assets.map(normalizeAssetCode))
+    assets.forEach(asset => {
+      const code = normalizeAssetCode(asset.nr_inmatriculare || asset.registration || asset.cod || asset.assetCode || asset.inventoryNo)
+      if (!assetCodes.has(code)) return
+      if (String(asset.cost_center_id || '') !== String(center.id)) {
+        asset.cost_center_id = center.id
+        changed = true
+      }
+    })
+  })
+  return changed
 }
 
 function buildCostCenterTree(centers, objects = []) {
@@ -192,6 +301,179 @@ function findCostCenterForAsset(db, assetId, explicitCostCenterId = '') {
   return controlling.costCenters.find(item => String(item.id) === String(object.cost_center_id) && item.activ !== false) || null
 }
 
+function assetDisplay(asset = {}) {
+  const code = asset.nr_inmatriculare || asset.registration || asset.cod || asset.assetCode || asset.inventoryNo || asset.id
+  const name = [asset.name || asset.denumire || asset.assetName, asset.type || asset.marca || asset.brand].filter(Boolean).join(' / ')
+  return {
+    id: asset.id,
+    cost_center_id: asset.cost_center_id,
+    cod_utilaj: code || '',
+    denumire_utilaj: name || code || ''
+  }
+}
+
+function buildCostCenterDocumentRows(centers, assets) {
+  return centers
+    .filter(center => center.activ !== false && center.activ !== 0)
+    .sort((a, b) => String(a.cod || '').localeCompare(String(b.cod || '')) || String(a.denumire || '').localeCompare(String(b.denumire || '')))
+    .map(center => ({
+      id: center.id,
+      cod: center.cod || '',
+      denumire: center.denumire || center.name || '',
+      tip: center.tip || '',
+      descriere: center.descriere || `Centru ${center.tip || 'cost/profit'} Publiserv`,
+      utilaje: assets
+        .filter(asset => String(asset.cost_center_id || '') === String(center.id))
+        .map(assetDisplay)
+        .sort((a, b) => String(a.cod_utilaj || '').localeCompare(String(b.cod_utilaj || '')))
+    }))
+}
+
+function getMssqlCostCenterDocumentRows() {
+  const centers = mssqlArray(`
+SELECT id, cod, denumire, tip, activ
+FROM controlling.cost_centers
+WHERE activ = 1
+ORDER BY cod, denumire
+FOR JSON PATH;
+`)
+  let assets = []
+  try {
+    assets = mssqlArray(`
+DECLARE @codExpr nvarchar(max) = N'CONVERT(nvarchar(50), id)';
+DECLARE @nameExpr nvarchar(max) = N'CONVERT(nvarchar(200), id)';
+DECLARE @sql nvarchar(max);
+
+IF COL_LENGTH(N'fleet.assets', N'nr_inmatriculare') IS NOT NULL SET @codExpr = N'COALESCE(nr_inmatriculare, CONVERT(nvarchar(50), id))';
+ELSE IF COL_LENGTH(N'fleet.assets', N'registration') IS NOT NULL SET @codExpr = N'COALESCE(registration, CONVERT(nvarchar(50), id))';
+ELSE IF COL_LENGTH(N'fleet.assets', N'cod') IS NOT NULL SET @codExpr = N'COALESCE(cod, CONVERT(nvarchar(50), id))';
+
+IF COL_LENGTH(N'fleet.assets', N'denumire') IS NOT NULL SET @nameExpr = N'COALESCE(denumire, ' + @codExpr + N')';
+ELSE IF COL_LENGTH(N'fleet.assets', N'name') IS NOT NULL SET @nameExpr = N'COALESCE(name, ' + @codExpr + N')';
+ELSE IF COL_LENGTH(N'fleet.assets', N'marca') IS NOT NULL SET @nameExpr = N'COALESCE(marca, ' + @codExpr + N')';
+
+SET @sql = N'SELECT id, cost_center_id, ' + @codExpr + N' AS cod_utilaj, ' + @nameExpr + N' AS denumire_utilaj FROM fleet.assets WHERE cost_center_id IS NOT NULL ORDER BY cod_utilaj FOR JSON PATH;';
+EXEC sp_executesql @sql;
+`)
+  } catch (_) {
+    assets = []
+  }
+  return buildCostCenterDocumentRows(centers, assets)
+}
+
+function getJsonCostCenterDocumentRows(db) {
+  ensurePubliservCostCenters(db)
+  const controlling = ensureControllingDb(db)
+  const assets = db.fleetAssets || db.fleet?.assets || []
+  return buildCostCenterDocumentRows(controlling.costCenters, assets)
+}
+
+function buildCostCenterDocumentWorkbook(rows, luna) {
+  const data = [
+    [`ACTUALIZARE CENTRE COST/PROFIT - LUNA ${roMonthLabel(luna)}`],
+    ['Va aducem spre cunostinta ultima varianta a centrelor de cost/profit si utilajele/vehiculele alocate.'],
+    [],
+    ['COD', 'DENUMIRE CENTRU COST/PROFIT', 'DESCRIERE', 'COD UTILAJ', 'DENUMIRE UTILAJ']
+  ]
+  rows.forEach(row => {
+    if (!row.utilaje.length) {
+      data.push([row.cod, row.denumire, row.descriere, '', ''])
+      return
+    }
+    row.utilaje.forEach((asset, index) => {
+      data.push([
+        index === 0 ? row.cod : '',
+        index === 0 ? row.denumire : '',
+        index === 0 ? row.descriere : '',
+        asset.cod_utilaj,
+        asset.denumire_utilaj
+      ])
+    })
+  })
+  const workbook = xlsx.utils.book_new()
+  const sheet = xlsx.utils.aoa_to_sheet(data)
+  sheet['!cols'] = [{ wch: 16 }, { wch: 42 }, { wch: 44 }, { wch: 18 }, { wch: 38 }]
+  xlsx.utils.book_append_sheet(workbook, sheet, 'Centre Cost')
+  return xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+}
+
+function buildCostCenterDocumentHtml(rows, luna) {
+  const body = rows.map(row => {
+    const assetRows = row.utilaje.length
+      ? row.utilaje.map(asset => `<tr class="asset"><td></td><td colspan="2">Utilaj / vehicul alocat</td><td>${htmlEscape(asset.cod_utilaj)}</td><td>${htmlEscape(asset.denumire_utilaj)}</td></tr>`).join('')
+      : '<tr class="asset muted"><td></td><td colspan="4">Nu sunt utilaje/vehicule alocate.</td></tr>'
+    return `<tr class="center"><td>${htmlEscape(row.cod)}</td><td>${htmlEscape(row.denumire)}</td><td colspan="3">${htmlEscape(row.descriere)}</td></tr>${assetRows}`
+  }).join('')
+  return `<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <title>Centre cost ${htmlEscape(luna)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 16mm; }
+    body { font-family: Arial, sans-serif; color: #111827; font-size: 10pt; }
+    .actions { position: sticky; top: 0; background: #fff; padding: 8px 0; text-align: right; }
+    .actions button { border: 1px solid #0f6e56; background: #0f6e56; color: white; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+    h1 { text-align: center; font-size: 16pt; margin: 10px 0 18px; }
+    p { line-height: 1.45; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { border: 1px solid #111827; padding: 5px 6px; vertical-align: top; }
+    th { background: #e5e7eb; text-align: left; font-size: 9pt; }
+    tr.center td { font-weight: bold; background: #f8fafc; }
+    tr.asset td { font-size: 9pt; }
+    .muted td { color: #6b7280; }
+    .signature { margin-top: 36px; display: flex; justify-content: space-between; }
+    .line { display: inline-block; min-width: 180px; border-bottom: 1px solid #111827; }
+    @media print { .actions { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button onclick="window.print()">Tipărește / PDF</button>
+  </div>
+  <h1>ACTUALIZARE CENTRE COST/PROFIT - LUNA ${htmlEscape(roMonthLabel(luna))}</h1>
+  <p>Vă aducem spre cunoștința ultima variantă a centrelor de cost/profit utilizate în InfraFlow pentru raportarea lunară a activității Publiserv.</p>
+  <table>
+    <thead><tr><th>COD</th><th>DENUMIRE CENTRU COST/PROFIT</th><th>DESCRIERE</th><th>Cod utilaj</th><th>Denumire utilaj</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+  <div class="signature">
+    <div>Întocmit: <span class="line"></span></div>
+    <div>Data: <span class="line"></span></div>
+  </div>
+  <script>setTimeout(() => window.print(), 300)</script>
+</body>
+</html>`
+}
+
+function summarizeExecution(entries) {
+  const result = {
+    venituri: 0,
+    salarii: 0,
+    combustibil: 0,
+    materiale: 0,
+    reparatii: 0,
+    alte_cheltuieli: 0
+  }
+  entries.forEach(entry => {
+    const category = String(entry.categorie || '').toLowerCase()
+    const source = String(entry.sursa || '').toLowerCase()
+    const value = numberValue(entry.valoare)
+    if (category === 'venituri' || source === 'venituri') result.venituri += value
+    else if (category === 'manopera' || source === 'pontaj') result.salarii += value
+    else if (category === 'combustibil') result.combustibil += value
+    else if (['materiale', 'consumabile', 'bon_consum'].includes(category) || source === 'bon_consum') result.materiale += value
+    else if (['reparatii', 'piese_schimb'].includes(category)) result.reparatii += value
+    else result.alte_cheltuieli += value
+  })
+  const totalCheltuieli = result.salarii + result.combustibil + result.materiale + result.reparatii + result.alte_cheltuieli
+  return {
+    ...Object.fromEntries(Object.entries(result).map(([key, value]) => [key, Number(value.toFixed(2))])),
+    total_cheltuieli: Number(totalCheltuieli.toFixed(2)),
+    rezultat: Number((result.venituri - totalCheltuieli).toFixed(2))
+  }
+}
+
 function objectName(db, objectId, objectType) {
   if (['vehicle', 'equipment', 'utilaj', 'vehicul'].includes(String(objectType || '').toLowerCase())) {
     const asset = (db.fleetAssets || []).find(item => String(item.id) === String(objectId))
@@ -233,11 +515,13 @@ FOR JSON PATH;
     }
 
     const db = readDb()
+    const changed = ensurePubliservCostCenters(db)
     const controlling = ensureControllingDb(db)
     const totals = monthlyTotalsByCenter(controlling.costEntries, luna)
     const centers = controlling.costCenters
       .filter((item) => item.activ !== false && item.activ !== 0)
       .map((item) => ({ ...item, total_cheltuieli_luna: numberValue(totals.get(String(item.id))) }))
+    if (changed) writeDb(db)
     sendJson(res, 200, buildCostCenterTree(centers, controlling.costCenterObjects))
   } catch (error) {
     next(error)
@@ -863,6 +1147,96 @@ router.get('/controlling/reports/automatic-costs', (req, res, next) => {
         cost_reparatii: Number(rows.reduce((sum, row) => sum + row.cost_reparatii, 0).toFixed(2)),
         cost_total: Number(rows.reduce((sum, row) => sum + row.cost_total, 0).toFixed(2))
       }
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/controlling/document-centre-cost', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'controlling:reports')) return
+
+    const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
+    let rows
+    if (isMssqlMode()) {
+      rows = getMssqlCostCenterDocumentRows()
+    } else {
+      const db = readDb()
+      const changed = ensurePubliservCostCenters(db)
+      rows = getJsonCostCenterDocumentRows(db)
+      if (changed) writeDb(db)
+    }
+
+    if (String(req.query.format || '').toLowerCase() === 'xlsx') {
+      return sendBuffer(
+        res,
+        200,
+        buildCostCenterDocumentWorkbook(rows, luna),
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        `Centre_Cost_Publiserv_${luna}.xlsx`
+      )
+    }
+    sendHtml(res, 200, buildCostCenterDocumentHtml(rows, luna))
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/controlling/raport-centre-cost', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'controlling:reports')) return
+
+    const luna = normalizeMonth(req.query.luna)
+    const centru = String(req.query.centru || req.query.centru_id || '').trim()
+    if (isMssqlMode()) {
+      const rows = mssqlArray(`
+DECLARE @centru nvarchar(100) = NULLIF(JSON_VALUE(@p, '$.centru'), '');
+
+SELECT
+  ce.*,
+  cc.cod AS centru_cod,
+  cc.denumire AS centru_denumire
+FROM controlling.cost_entries ce
+JOIN controlling.cost_centers cc ON cc.id = ce.cost_center_id
+WHERE ce.luna = TRY_CONVERT(date, JSON_VALUE(@p, '$.luna'))
+AND (@centru IS NULL OR cc.cod = @centru OR CONVERT(nvarchar(30), cc.id) = @centru)
+ORDER BY cc.cod, ce.categorie, ce.data
+FOR JSON PATH;
+`, { luna, centru })
+      const summary = summarizeExecution(rows)
+      const center = rows[0] ? { cod: rows[0].centru_cod, denumire: rows[0].centru_denumire } : null
+      return sendJson(res, 200, { luna: luna.slice(0, 7), centru, center, ...summary, entries: rows })
+    }
+
+    const db = readDb()
+    const changed = ensurePubliservCostCenters(db)
+    const controlling = ensureControllingDb(db)
+    const centers = controlling.costCenters
+    const selectedCenter = centers.find(center =>
+      !centru ||
+      String(center.cod || '').toUpperCase() === centru.toUpperCase() ||
+      String(center.id || '') === centru
+    )
+    const entries = controlling.costEntries
+      .filter(entry => String(entry.luna || entry.data || '').slice(0, 7) === luna.slice(0, 7))
+      .filter(entry => !selectedCenter || String(entry.cost_center_id || '') === String(selectedCenter.id))
+      .map(entry => ({
+        ...entry,
+        centru_cod: centers.find(center => String(center.id) === String(entry.cost_center_id))?.cod || '',
+        centru_denumire: centers.find(center => String(center.id) === String(entry.cost_center_id))?.denumire || ''
+      }))
+    if (changed) writeDb(db)
+    sendJson(res, 200, {
+      luna: luna.slice(0, 7),
+      centru,
+      center: selectedCenter ? { cod: selectedCenter.cod, denumire: selectedCenter.denumire } : null,
+      ...summarizeExecution(entries),
+      entries
     })
   } catch (error) {
     next(error)
