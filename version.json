@@ -1,5 +1,5 @@
 {
-  "version": "2.12.10",
-  "date": "2026-06-03",
-  "changelog": "## v2.12.10 — 2026-06-03\n### Hotfix pornire după UPDATE 029\n- Migrarea Mediu este compatibilizată cu SQL Server vechi prin DDL executat dinamic.\n- Dacă schema relațională MSSQL nu se potrivește serverului, InfraFlow continuă automat pe dbo.app_state.\n- Updaterul suprascrie fișierele de migrare din pachet pentru hotfix-uri.\n- Păstrează modulul Mediu complet introdus în v2.12.9."
+  "version": "2.12.13",
+  "date": "2026-06-04",
+  "changelog": "## v2.12.13 — 2026-06-04\n### Hotfix dashboard după revenire din Kiosk\n- Dashboardul nu mai încearcă să afișeze obiecte JavaScript brute în Activitate recentă.\n- Câmpurile audit/details sunt convertite defensiv în text lizibil.\n- Previne eroarea React #31 după revenirea din Kiosk către Dashboard."
 }

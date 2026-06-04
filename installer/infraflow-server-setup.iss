@@ -6,13 +6,13 @@
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
 AppName=InfraFlow ERP Server
-AppVersion=2.12.10
+AppVersion=2.12.13
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Server-Setup-v2.12.10
+OutputBaseFilename=InfraFlow-Server-Setup-v2.12.13
 PrivilegesRequired=admin
 WizardStyle=modern
 Compression=lzma2/ultra64
@@ -24,7 +24,7 @@ UninstallDisplayIcon={app}\infraflow-server.ico
 Name: "romanian"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "sqlexpress"; Description: "InstaleazÄƒ SQL Server Express 2022 numai dacÄƒ executabilul Microsoft este inclus separat"; GroupDescription: "BazÄƒ de date:"; Flags: unchecked
+Name: "sqlexpress"; Description: "VerificÄƒ/instaleazÄƒ automat SQL Server Express 2022 dacÄƒ lipseÈ™te"; GroupDescription: "BazÄƒ de date:"; Flags: checkedonce
 Name: "autostart"; Description: "PorneÈ™te InfraFlow automat la boot Windows"; GroupDescription: "OpÈ›iuni:"; Flags: checkedonce
 Name: "desktopicon"; Description: "CreeazÄƒ scurtÄƒturÄƒ pe Desktop"; GroupDescription: "ScurtÄƒturi:"; Flags: checkedonce
 
@@ -59,6 +59,7 @@ Source: "nssm.exe"; DestDir: "{app}\tools"; Flags: ignoreversion skipifsourcedoe
 Source: "setup-task.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "uninstall-task.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "setup-db.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "install-sqlexpress.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\scripts\windows\install-service.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\uninstall-service.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
 Source: "..\scripts\windows\check-sqlserver.ps1"; DestDir: "{app}\scripts\windows"; Flags: ignoreversion
@@ -119,15 +120,15 @@ Root: HKLM; \
 Root: HKLM; \
   Subkey: "SOFTWARE\InfraSuite\InfraFlow"; \
   ValueType: string; ValueName: "Version"; \
-  ValueData: "2.12.10"; \
+  ValueData: "2.12.13"; \
   Flags: uninsdeletevalue
 
 [Run]
 ; 1. Instaleaza Node.js daca lipseste
 Filename: "powershell.exe"; Parameters: "-NonInteractive -Command ""if (!(Get-Command node -EA SilentlyContinue)) {{ Start-Process msiexec -Wait -ArgumentList ""/i"", ""{tmp}\node-v20-x64.msi"", ""/quiet"", ""/norestart"" }}"""; StatusMsg: "Verific Node.js..."; Flags: runhidden waituntilterminated
 
-; 2. Instaleaza SQL Express numai daca nu exista deja nicio instanta SQL
-Filename: "powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ""if (-not (Get-Service -EA SilentlyContinue | Where-Object {{ $_.Name -eq 'MSSQLSERVER' -or $_.Name -like 'MSSQL$*' }})) {{ if (-not (Test-Path '{tmp}\SQLEXPR_x64_ENU.exe')) {{ throw 'Executabilul Microsoft SQLEXPR_x64_ENU.exe nu este inclus. Instalati SQL Server Express separat.' }}; Start-Process -FilePath '{tmp}\SQLEXPR_x64_ENU.exe' -ArgumentList '/QS','/ACTION=Install','/FEATURES=SQLEngine','/INSTANCENAME=SQLEXPRESS','/SQLSVCACCOUNT=""NT AUTHORITY\NETWORK SERVICE""','/ADDCURRENTUSERASSQLADMIN','/TCPENABLED=1','/IACCEPTSQLSERVERLICENSETERMS' -Wait }}"""; StatusMsg: "Instalez SQL Server Express dacÄƒ lipseÈ™te..."; Flags: runhidden waituntilterminated; Tasks: sqlexpress
+; 2. Verifica/instaleaza SQL Express daca nu exista niciun SQL Server Engine
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\install-sqlexpress.ps1"" -InstallerPath ""{tmp}\SQLEXPR_x64_ENU.exe"""; StatusMsg: "Verific/instalez SQL Server Express..."; Flags: waituntilterminated; Tasks: sqlexpress
 
 ; 3. Configurare MSSQL obligatorie
 Filename: "powershell.exe"; Parameters: "-NonInteractive -ExecutionPolicy Bypass -File ""{app}\scripts\setup-db.ps1"" -AppDir ""{app}"""; StatusMsg: "Verific SQL Server Express si configurez MSSQL..."; Flags: runhidden waituntilterminated
@@ -160,12 +161,12 @@ Filename: "powershell.exe"; \
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Server v2.12.10' + #13#10#13#10 +
+    'InfraFlow ERP Server v2.12.13' + #13#10#13#10 +
     'Acest installer va configura:' + #13#10 +
     '  â€¢ AplicaÈ›ia server Node.js (Express)' + #13#10 +
     '  â€¢ Frontend React (servit de server)' + #13#10 +
     '  â€¢ Task Scheduler Windows (pornire automatÄƒ la boot)' + #13#10 +
-    '  â€¢ Baza de date SQL Server Express (obligatoriu)' + #13#10 +
+    '  â€¢ Baza de date SQL Server Express (detectare/instalare automatÄƒ)' + #13#10 +
     '  â€¢ Backup MSSQL automat zilnic la ora 02:00' + #13#10#13#10 +
     'Port implicit: 4180 (http://localhost:4180)' + #13#10 +
     'Durata estimatÄƒ: 3-8 minute.' + #13#10#13#10 +

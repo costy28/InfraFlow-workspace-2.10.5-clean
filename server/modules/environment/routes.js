@@ -297,16 +297,30 @@ function setSheet(workbook, name, rows) {
   xlsx.utils.book_append_sheet(workbook, sheet, name.slice(0, 31))
 }
 
-router.use(requireAuth)
+function requireEnvironmentAuth(req, res, next) {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  req.auth = auth
+  next()
+}
 
-router.get('/environment/autorizatii', requirePermission('environment:view'), (req, res) => {
+function can(permission) {
+  return (req, res, next) => {
+    if (!requirePermission(req.auth, res, permission)) return
+    next()
+  }
+}
+
+router.use(requireEnvironmentAuth)
+
+router.get('/environment/autorizatii', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   writeDb(db)
   res.json(env.autorizatii.map(decorateAutorizatie))
 })
 
-router.post('/environment/autorizatii', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/autorizatii', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const item = decorateAutorizatie({
@@ -330,7 +344,7 @@ router.post('/environment/autorizatii', requirePermission('environment:manage'),
   res.status(201).json(item)
 })
 
-router.put('/environment/autorizatii/:id', requirePermission('environment:manage'), (req, res) => {
+router.put('/environment/autorizatii/:id', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const item = env.autorizatii.find(row => String(row.id) === String(req.params.id) || String(row.uuid) === String(req.params.id))
@@ -343,7 +357,7 @@ router.put('/environment/autorizatii/:id', requirePermission('environment:manage
   res.json(decorated)
 })
 
-router.get('/environment/deseuri', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/deseuri', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const an = Number(req.query.an || new Date().getFullYear())
@@ -352,13 +366,13 @@ router.get('/environment/deseuri', requirePermission('environment:view'), (req, 
   res.json({ an, tip, coduri: env.coduriDeseuri.filter(code => code.tip === tip && code.activ !== false), rows })
 })
 
-router.get('/environment/deseuri/precompl', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/deseuri/precompl', can('environment:view'), (req, res) => {
   const db = readDb()
   const an = Number(req.query.an || new Date().getFullYear())
   res.json({ an, rows: generatePrecompletion(db, an) })
 })
 
-router.post('/environment/deseuri', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/deseuri', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const tip = req.body.tip === 'mun' ? 'mun' : 'proddes'
@@ -376,7 +390,7 @@ router.post('/environment/deseuri', requirePermission('environment:manage'), (re
   res.status(201).json(item)
 })
 
-router.post('/environment/deseuri/:id', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/deseuri/:id', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const tip = req.body.tip === 'mun' || req.query.tip === 'mun' ? 'mun' : 'proddes'
@@ -389,7 +403,7 @@ router.post('/environment/deseuri/:id', requirePermission('environment:manage'),
   res.json(item)
 })
 
-router.put('/environment/deseuri/:id', requirePermission('environment:manage'), (req, res) => {
+router.put('/environment/deseuri/:id', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const tip = req.body.tip === 'mun' || req.query.tip === 'mun' ? 'mun' : 'proddes'
@@ -402,14 +416,14 @@ router.put('/environment/deseuri/:id', requirePermission('environment:manage'), 
   res.json(item)
 })
 
-router.get('/environment/emisii', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/emisii', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const an = Number(req.query.an || new Date().getFullYear())
   res.json(env.emisii.filter(row => Number(row.an) === an))
 })
 
-router.post('/environment/emisii', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/emisii', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const item = {
@@ -430,13 +444,13 @@ router.post('/environment/emisii', requirePermission('environment:manage'), (req
   res.status(201).json(item)
 })
 
-router.get('/environment/monitorizare', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/monitorizare', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   res.json(env.monitorizare)
 })
 
-router.post('/environment/monitorizare', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/monitorizare', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const limita = req.body.limita === '' || req.body.limita === undefined ? null : number(req.body.limita)
@@ -470,13 +484,13 @@ router.post('/environment/monitorizare', requirePermission('environment:manage')
   res.status(201).json(item)
 })
 
-router.get('/environment/incidente', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/incidente', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   res.json(env.incidente)
 })
 
-router.get('/environment/incidente/:uuid', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/incidente/:uuid', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const item = env.incidente.find(row => String(row.uuid) === String(req.params.uuid) || String(row.id) === String(req.params.uuid))
@@ -484,7 +498,7 @@ router.get('/environment/incidente/:uuid', requirePermission('environment:view')
   res.json(item)
 })
 
-router.post('/environment/incidente', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/incidente', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const item = {
@@ -514,7 +528,7 @@ router.post('/environment/incidente', requirePermission('environment:manage'), (
   res.status(201).json(item)
 })
 
-router.put('/environment/incidente/:uuid', requirePermission('environment:manage'), (req, res) => {
+router.put('/environment/incidente/:uuid', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const item = env.incidente.find(row => String(row.uuid) === String(req.params.uuid) || String(row.id) === String(req.params.uuid))
@@ -526,12 +540,12 @@ router.put('/environment/incidente/:uuid', requirePermission('environment:manage
   res.json(item)
 })
 
-router.get('/environment/alerts', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/alerts', can('environment:view'), (req, res) => {
   const db = readDb()
   res.json(alertsFor(db))
 })
 
-router.get('/environment/export-sim-proddes', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/export-sim-proddes', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const an = Number(req.query.an || new Date().getFullYear())
@@ -581,7 +595,7 @@ router.get('/environment/export-sim-proddes', requirePermission('environment:vie
   sendWorkbook(res, wb, `GD-PRODDES-${String(company.cui).replace(/\W+/g, '')}-${an}.xls`)
 })
 
-router.get('/environment/export-sim-mun', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/export-sim-mun', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const an = Number(req.query.an || new Date().getFullYear())
@@ -609,17 +623,17 @@ router.get('/environment/export-sim-mun', requirePermission('environment:view'),
 })
 
 // Endpointuri vechi, pastrate ca alias pentru compatibilitate.
-router.get('/environment/permits', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/permits', can('environment:view'), (req, res) => {
   const db = readDb()
   res.json(ensureDb(db).autorizatii.map(decorateAutorizatie))
 })
 
-router.post('/environment/permits', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/permits', can('environment:manage'), (req, res) => {
   req.url = '/environment/autorizatii'
   router.handle(req, res)
 })
 
-router.post('/environment/permits/:id/renew', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/permits/:id/renew', can('environment:manage'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   const item = env.autorizatii.find(row => String(row.id) === String(req.params.id))
@@ -631,30 +645,31 @@ router.post('/environment/permits/:id/renew', requirePermission('environment:man
   res.json(decorateAutorizatie(item))
 })
 
-router.get('/environment/waste-manifests', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/waste-manifests', can('environment:view'), (req, res) => {
   const db = readDb()
   const env = ensureDb(db)
   res.json(env.deseuri)
 })
 
-router.get('/environment/monitoring', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/monitoring', can('environment:view'), (req, res) => {
   const db = readDb()
   res.json(ensureDb(db).monitorizare)
 })
 
-router.post('/environment/monitoring', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/monitoring', can('environment:manage'), (req, res) => {
   req.url = '/environment/monitorizare'
   router.handle(req, res)
 })
 
-router.get('/environment/incidents', requirePermission('environment:view'), (req, res) => {
+router.get('/environment/incidents', can('environment:view'), (req, res) => {
   const db = readDb()
   res.json(ensureDb(db).incidente)
 })
 
-router.post('/environment/incidents', requirePermission('environment:manage'), (req, res) => {
+router.post('/environment/incidents', can('environment:manage'), (req, res) => {
   req.url = '/environment/incidente'
   router.handle(req, res)
 })
 
 module.exports = router
+

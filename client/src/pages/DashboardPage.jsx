@@ -81,6 +81,23 @@ function statusText(status) {
   return String(status || 'necunoscut').replaceAll('_', ' ')
 }
 
+function displayText(value, fallback = '') {
+  if (value == null || value === '') return fallback
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => displayText(item)).filter(Boolean).join(', ')
+  }
+  if (typeof value === 'object') {
+    return displayText(
+      value.message || value.title || value.titlu || value.name || value.Entity || value.entity || value.details || value.detalii,
+      JSON.stringify(value)
+    )
+  }
+  return fallback
+}
+
 function priorityTone(priority) {
   if (['critica', 'urgent', 'urgenta'].includes(String(priority))) return 'danger'
   if (['ridicata', 'mare'].includes(String(priority))) return 'warning'
@@ -580,8 +597,8 @@ export default function DashboardPage() {
             {loading ? [1, 2, 3, 4].map(item => <Skeleton key={item} className="h-10" />) : (
               view.audit.length ? view.audit.slice(0, 10).map((item, index) => (
                 <div key={item.id || index} className="rounded-md border border-slate-200 px-3 py-2">
-                  <div className="truncate text-sm font-medium text-slate-900">{item.action || item.actiune || 'actiune'}</div>
-                  <div className="truncate text-xs text-slate-500">{item.details || item.detalii || item.userName || item.user || ''}</div>
+                  <div className="truncate text-sm font-medium text-slate-900">{displayText(item.action || item.actiune, 'actiune')}</div>
+                  <div className="truncate text-xs text-slate-500">{displayText(item.details || item.detalii || item.userName || item.user)}</div>
                 </div>
               )) : <p className="text-sm text-slate-500">Nu exista activitate recenta.</p>
             )}
