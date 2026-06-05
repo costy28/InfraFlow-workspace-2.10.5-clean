@@ -185,6 +185,7 @@ export default function SetariPage() {
   const [piusiMapari, setPiusiMapari] = useState([])
   const [piusiAssets, setPiusiAssets] = useState([])
   const [piusiSyncing, setPiusiSyncing] = useState(false)
+  const [integrationTests, setIntegrationTests] = useState({})
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -964,6 +965,81 @@ export default function SetariPage() {
       await reloadPiusi()
     } catch (err) {
       fail(err, 'Mapările PIUSI nu au putut fi salvate.')
+    }
+  }
+
+  function pathStatus(key, pathValue) {
+    const value = String(pathValue || '').trim()
+    if (!value) return { text: '○ Neconfigurat', className: 'text-slate-500' }
+    const result = integrationTests[key]
+    if (!result) return { text: '○ Netestat', className: 'text-slate-500' }
+    return result.ok
+      ? { text: '● Conectat', className: 'text-green-700' }
+      : { text: '○ Neconectat', className: 'text-rose-700' }
+  }
+
+  async function testIntegrationPath(key, pathValue) {
+    const value = String(pathValue || '').trim()
+    if (!value) {
+      setIntegrationTests(current => ({ ...current, [key]: { ok: false, error: 'Calea nu este configurată.' } }))
+      return
+    }
+    try {
+      const response = await api.get('/integration/test', { params: { path: value } })
+      setIntegrationTests(current => ({ ...current, [key]: response.data }))
+      if (response.data?.ok) {
+        notify(`Conexiune OK: ${response.data.type || 'cale'} ${response.data.size ? `(${response.data.size})` : ''}`)
+      } else {
+        fail({ response: { data: { error: response.data?.error } } }, 'Calea nu este accesibilă.')
+      }
+    } catch (err) {
+      setIntegrationTests(current => ({ ...current, [key]: { ok: false, error: err.response?.data?.error || 'Test eșuat.' } }))
+      fail(err, 'Calea nu este accesibilă.')
+    }
+  }
+
+  function updateCustomIntegration(index, key, value) {
+    setSettings(current => {
+      const rows = Array.isArray(current.external_integrations) ? [...current.external_integrations] : []
+      rows[index] = { ...(rows[index] || {}), [key]: value }
+      return { ...current, external_integrations: rows }
+    })
+  }
+
+  function addCustomIntegration() {
+    setSettings(current => ({
+      ...current,
+      external_integrations: [
+        ...(Array.isArray(current.external_integrations) ? current.external_integrations : []),
+        { id: `custom-${Date.now()}`, name: '', type: 'MDB', path: '', sync_min: '30' }
+      ]
+    }))
+  }
+
+  function removeCustomIntegration(index) {
+    setSettings(current => ({
+      ...current,
+      external_integrations: (Array.isArray(current.external_integrations) ? current.external_integrations : []).filter((_, rowIndex) => rowIndex !== index)
+    }))
+  }
+
+  async function saveExternalPaths() {
+    try {
+      const payload = {
+        ...settings,
+        scaleDbPath: settings.cantar_db_path || settings.scaleDbPath || '',
+        autominderDbPath: settings.autominder_db_path || settings.autominderDbPath || '',
+      }
+      const response = await api.post('/settings', payload)
+      setSettings({ ...(response.data.settings || payload), gps_api_key: '', gps_password: '', smtp_password: '' })
+      await api.post('/integration/piusi/config', {
+        mdb_path: payload.piusi_mdb_path || '',
+        sync_interval_min: payload.piusi_sync_min || 30,
+      }).catch(() => null)
+      notify('Căile integrărilor au fost salvate.')
+      await reloadPiusi()
+    } catch (err) {
+      fail(err, 'Căile integrărilor nu au putut fi salvate.')
     }
   }
 
@@ -1824,40 +1900,146 @@ export default function SetariPage() {
 
       {activeTab === 'Integrări' && (
         <div className="grid gap-4">
-          <Card title="⛽ PIUSI Self-Service" subtitle="Import automat alimentări carburant din Self.mdb / tabela Erogaz.">
-            <div className="grid gap-4">
-              <div className="grid gap-3 md:grid-cols-[1fr_180px]">
-                <Input
-                  label="Cale fișier MDB"
-                  value={piusiConfig.mdb_path}
-                  onChange={event => setPiusiConfig(c => ({ ...c, mdb_path: event.target.value }))}
-                  placeholder="C:\Piusi\SelfService\Data\Self.mdb"
-                />
-                <Select
-                  label="Sincronizare automată"
-                  value={String(piusiConfig.sync_interval_min || 30)}
-                  onChange={event => setPiusiConfig(c => ({ ...c, sync_interval_min: Number(event.target.value) }))}
-                >
-                  <option value="5">5 minute</option>
-                  <option value="15">15 minute</option>
-                  <option value="30">30 minute</option>
-                  <option value="60">60 minute</option>
-                </Select>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={savePiusiConfig}>✅ Salvează configurația</Button>
-                <Button onClick={syncPiusiNow} disabled={piusiSyncing}>{piusiSyncing ? 'Se sincronizează...' : '🔄 Sincronizează acum'}</Button>
-                <Button variant="ghost" onClick={reloadPiusi}>Reîncarcă status</Button>
-              </div>
-              <div className={`rounded-lg border p-3 text-sm ${piusiStatus?.mdb_accesibil ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                <div className="font-semibold">Status: {piusiStatus?.mdb_accesibil ? '✅ Conectat' : '⚠️ Neconectat / fișier inaccesibil'}</div>
-                <div className="mt-1 grid gap-1 md:grid-cols-2">
-                  <span>Ultima sync: {piusiStatus?.ultima_sincronizare || 'niciodată'}</span>
-                  <span>Total importate: {piusiStatus?.inregistrari_totale ?? 0}</span>
-                  <span>Nemăpate: {piusiStatus?.nemapate ?? 0}</span>
-                  <span>Neprocesate FAZ: {piusiStatus?.nesincronizate ?? 0}</span>
+          <Card title="🔌 Integrări externe" subtitle="Căi acces pentru surse externe. Setări simple, fără import la salvare.">
+            <div className="grid gap-6">
+              <section className="grid gap-3 border-b border-slate-200 pb-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">⛽ PIUSI Self-Service</h3>
+                  <p className="text-sm text-slate-500">Alimentări carburant din fișier MDB.</p>
                 </div>
+                <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
+                  <Input
+                    label="Cale MDB"
+                    value={settings.piusi_mdb_path || piusiConfig.mdb_path || ''}
+                    onChange={event => {
+                      const value = event.target.value
+                      setSettings(s => ({ ...s, piusi_mdb_path: value }))
+                      setPiusiConfig(c => ({ ...c, mdb_path: value }))
+                    }}
+                    placeholder="\\\\GESTIONAR-PC\\PiusiData\\Self.mdb"
+                  />
+                  <Input
+                    label="Sync la (minute)"
+                    type="number"
+                    min="1"
+                    value={settings.piusi_sync_min || piusiConfig.sync_interval_min || 30}
+                    onChange={event => {
+                      const value = event.target.value
+                      setSettings(s => ({ ...s, piusi_sync_min: value }))
+                      setPiusiConfig(c => ({ ...c, sync_interval_min: Number(value || 30) }))
+                    }}
+                  />
+                  <Button type="button" className="self-end" variant="secondary" onClick={() => testIntegrationPath('piusi', settings.piusi_mdb_path || piusiConfig.mdb_path)}>✅ Testează</Button>
+                </div>
+                <div className={`text-sm font-medium ${pathStatus('piusi', settings.piusi_mdb_path || piusiConfig.mdb_path).className}`}>
+                  Status: {pathStatus('piusi', settings.piusi_mdb_path || piusiConfig.mdb_path).text}
+                  {integrationTests.piusi?.modified ? <span className="ml-2 text-slate-500">Modificat: {formatDate(integrationTests.piusi.modified)}</span> : null}
+                  {integrationTests.piusi?.error ? <span className="ml-2 text-rose-600">{integrationTests.piusi.error}</span> : null}
+                </div>
+              </section>
+
+              <section className="grid gap-3 border-b border-slate-200 pb-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">⚖️ Cântar Poartă</h3>
+                  <p className="text-sm text-slate-500">Bază de date sau fișier export cântar.</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
+                  <Input
+                    label="Cale DB / fișier"
+                    value={settings.cantar_db_path || settings.scaleDbPath || ''}
+                    onChange={event => setSettings(s => ({ ...s, cantar_db_path: event.target.value, scaleDbPath: event.target.value }))}
+                    placeholder="\\\\CANTAR-PC\\Share\\cantar.mdb"
+                  />
+                  <Input
+                    label="Sync la (minute)"
+                    type="number"
+                    min="1"
+                    value={settings.cantar_sync_min || 5}
+                    onChange={event => setSettings(s => ({ ...s, cantar_sync_min: event.target.value }))}
+                  />
+                  <Button type="button" className="self-end" variant="secondary" onClick={() => testIntegrationPath('cantar', settings.cantar_db_path || settings.scaleDbPath)}>✅ Testează</Button>
+                </div>
+                <div className={`text-sm font-medium ${pathStatus('cantar', settings.cantar_db_path || settings.scaleDbPath).className}`}>
+                  Status: {pathStatus('cantar', settings.cantar_db_path || settings.scaleDbPath).text}
+                  {integrationTests.cantar?.modified ? <span className="ml-2 text-slate-500">Modificat: {formatDate(integrationTests.cantar.modified)}</span> : null}
+                  {integrationTests.cantar?.error ? <span className="ml-2 text-rose-600">{integrationTests.cantar.error}</span> : null}
+                </div>
+              </section>
+
+              <section className="grid gap-3 border-b border-slate-200 pb-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">🚗 autoMinder</h3>
+                  <p className="text-sm text-slate-500">Import date mecanizare din folder sau bază externă.</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
+                  <Input
+                    label="Cale DB"
+                    value={settings.autominder_db_path || settings.autominderDbPath || ''}
+                    onChange={event => setSettings(s => ({ ...s, autominder_db_path: event.target.value, autominderDbPath: event.target.value }))}
+                    placeholder="\\\\SERVER\\autoMinder5\\Data\\"
+                  />
+                  <Input
+                    label="Sync la (minute)"
+                    type="number"
+                    min="1"
+                    value={settings.autominder_sync_min || 60}
+                    onChange={event => setSettings(s => ({ ...s, autominder_sync_min: event.target.value }))}
+                  />
+                  <Button type="button" className="self-end" variant="secondary" onClick={() => testIntegrationPath('autominder', settings.autominder_db_path || settings.autominderDbPath)}>✅ Testează</Button>
+                </div>
+                <div className={`text-sm font-medium ${pathStatus('autominder', settings.autominder_db_path || settings.autominderDbPath).className}`}>
+                  Status: {pathStatus('autominder', settings.autominder_db_path || settings.autominderDbPath).text}
+                  {integrationTests.autominder?.modified ? <span className="ml-2 text-slate-500">Modificat: {formatDate(integrationTests.autominder.modified)}</span> : null}
+                  {integrationTests.autominder?.error ? <span className="ml-2 text-rose-600">{integrationTests.autominder.error}</span> : null}
+                </div>
+              </section>
+
+              <section className="grid gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">➕ Integrări custom</h3>
+                    <p className="text-sm text-slate-500">Căi suplimentare: MDB, SQLite, CSV sau Excel.</p>
+                  </div>
+                  <Button type="button" variant="secondary" onClick={addCustomIntegration}>➕ Adaugă integrare nouă</Button>
+                </div>
+                {(settings.external_integrations || []).map((row, index) => {
+                  const key = row.id || `custom-${index}`
+                  const status = pathStatus(key, row.path)
+                  return (
+                    <div key={key} className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_150px_1fr_130px_auto_auto]">
+                      <Input label="Nume" value={row.name || ''} onChange={event => updateCustomIntegration(index, 'name', event.target.value)} />
+                      <Select label="Tip" value={row.type || 'MDB'} onChange={event => updateCustomIntegration(index, 'type', event.target.value)}>
+                        <option value="MDB">MDB</option>
+                        <option value="SQLite">SQLite</option>
+                        <option value="CSV">CSV</option>
+                        <option value="Excel">Excel</option>
+                      </Select>
+                      <Input label="Cale" value={row.path || ''} onChange={event => updateCustomIntegration(index, 'path', event.target.value)} />
+                      <Input label="Interval" type="number" min="1" value={row.sync_min || 30} onChange={event => updateCustomIntegration(index, 'sync_min', event.target.value)} />
+                      <Button type="button" className="self-end" variant="secondary" onClick={() => testIntegrationPath(key, row.path)}>Testează</Button>
+                      <Button type="button" className="self-end" variant="ghost" onClick={() => removeCustomIntegration(index)}>Șterge</Button>
+                      <div className={`md:col-span-6 text-sm font-medium ${status.className}`}>
+                        Status: {status.text}
+                        {integrationTests[key]?.error ? <span className="ml-2 text-rose-600">{integrationTests[key].error}</span> : null}
+                      </div>
+                    </div>
+                  )
+                })}
+              </section>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={reloadPiusi}>Reîncarcă status PIUSI</Button>
+                <Button type="button" onClick={saveExternalPaths}>💾 Salvează toate căile</Button>
               </div>
+            </div>
+          </Card>
+
+          <Card title="Status PIUSI" subtitle="Informații rapide pentru importul alimentărilor.">
+            <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-4">
+              <span>Ultima sync: {piusiStatus?.ultima_sincronizare || 'niciodată'}</span>
+              <span>Total importate: {piusiStatus?.inregistrari_totale ?? 0}</span>
+              <span>Nemăpate: {piusiStatus?.nemapate ?? 0}</span>
+              <span>Neprocesate FAZ: {piusiStatus?.nesincronizate ?? 0}</span>
             </div>
           </Card>
 

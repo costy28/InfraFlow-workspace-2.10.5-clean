@@ -748,6 +748,13 @@ function normalizeDb(db) {
   db.settings.scaleProductMap = normalizeScaleProductMap(db.settings.scaleProductMap || {});
   db.settings.nexusDbPath = String(db.settings.nexusDbPath || "").trim();
   db.settings.autominderDbPath = String(db.settings.autominderDbPath || "").trim();
+  db.settings.piusi_mdb_path = String(db.settings.piusi_mdb_path || "").trim();
+  db.settings.piusi_sync_min = String(db.settings.piusi_sync_min || "30").trim();
+  db.settings.cantar_db_path = String(db.settings.cantar_db_path || db.settings.scaleDbPath || "").trim();
+  db.settings.cantar_sync_min = String(db.settings.cantar_sync_min || "5").trim();
+  db.settings.autominder_db_path = String(db.settings.autominder_db_path || db.settings.autominderDbPath || "").trim();
+  db.settings.autominder_sync_min = String(db.settings.autominder_sync_min || "60").trim();
+  db.settings.external_integrations = Array.isArray(db.settings.external_integrations) ? db.settings.external_integrations : [];
   db.settings.rolePermissionOverrides = normalizeRolePermissionOverrides(db.settings.rolePermissionOverrides || {});
   if (db.settings.setupCompleted !== false) db.settings.setupCompleted = true;
   if (typeof db.settings.initialStockCompleted !== "boolean") {

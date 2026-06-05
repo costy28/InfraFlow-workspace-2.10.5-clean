@@ -1,5 +1,5 @@
 {
-  "version": "2.12.16",
+  "version": "2.12.17",
   "date": "2026-06-04",
-  "changelog": "## v2.12.16 — 2026-06-04\n### Integrare PIUSI Self-Service\n- Import alimentări carburant din Self.mdb / Erogaz prin node-adodb pe Windows.\n- Configurare PIUSI în Setări → Integrări și mapare operatori la utilaje/autovehicule.\n- Tab Alimentări PIUSI în Mecanizare, import în FAZ și raport comparativ PIUSI vs FAZ."
+  "changelog": "## v2.12.17 — 2026-06-04\n### Căi surse externe\n- Tab Integrări simplificat pentru PIUSI, Cântar și autoMinder.\n- Test generic de acces fișier/folder prin /api/integration/test.\n- Integrări custom cu nume, tip, cale și interval de sincronizare."
 }

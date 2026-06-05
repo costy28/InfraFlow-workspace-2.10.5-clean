@@ -1,6 +1,6 @@
 {
   "name": "infraflow-client",
-  "version": "2.12.16",
+  "version": "2.12.17",
   "description": "InfraFlow ERP — Client desktop (Electron)",
   "main": "main.js",
   "author": "InfraSuite",

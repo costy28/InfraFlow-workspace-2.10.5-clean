@@ -4910,6 +4910,19 @@ function normalizeAutominderConnectionSetting(current, body) {
   return next
 }
 
+function normalizeExternalIntegrations(input) {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((item, index) => ({
+      id: String(item.id || `custom-${index + 1}`).trim(),
+      name: String(item.name || '').trim(),
+      type: String(item.type || 'MDB').trim(),
+      path: String(item.path || '').trim(),
+      sync_min: String(item.sync_min || item.interval || '30').trim()
+    }))
+    .filter(item => item.name || item.path)
+}
+
 function updateSettings(current, body) {
   const license = current.license || {};
   const plan = String(body.licensePlan || license.plan || "internal-preview").trim();
@@ -4941,6 +4954,13 @@ function updateSettings(current, body) {
     scaleProductMap: normalizeScaleProductMap(body.scaleProductMap !== undefined ? body.scaleProductMap : current.scaleProductMap || {}),
     nexusDbPath: String(body.nexusDbPath ?? current.nexusDbPath ?? "").trim(),
     autominderDbPath: String(body.autominderDbPath ?? current.autominderDbPath ?? "").trim(),
+    piusi_mdb_path: String(body.piusi_mdb_path ?? current.piusi_mdb_path ?? "").trim(),
+    piusi_sync_min: String(body.piusi_sync_min ?? current.piusi_sync_min ?? "30").trim(),
+    cantar_db_path: String(body.cantar_db_path ?? current.cantar_db_path ?? body.scaleDbPath ?? current.scaleDbPath ?? "").trim(),
+    cantar_sync_min: String(body.cantar_sync_min ?? current.cantar_sync_min ?? "5").trim(),
+    autominder_db_path: String(body.autominder_db_path ?? current.autominder_db_path ?? body.autominderDbPath ?? current.autominderDbPath ?? "").trim(),
+    autominder_sync_min: String(body.autominder_sync_min ?? current.autominder_sync_min ?? "60").trim(),
+    external_integrations: normalizeExternalIntegrations(body.external_integrations ?? current.external_integrations ?? []),
     autominderConnectionString: normalizeAutominderConnectionSetting(current, body),
     gps_provider: String(body.gps_provider ?? current.gps_provider ?? "urmariregps.ro").trim(),
     gps_api_url: String(body.gps_api_url ?? current.gps_api_url ?? "").trim(),

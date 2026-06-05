@@ -39,7 +39,7 @@ function ensurePiusiDb(db) {
 
 function configValue(db, key, fallback = '') {
   const integration = ensurePiusiDb(db)
-  return integration.piusiConfig[key] ?? fallback
+  return integration.piusiConfig[key] ?? db.settings?.[key] ?? fallback
 }
 
 function setConfigValue(db, key, value) {
@@ -156,7 +156,7 @@ $rows | ConvertTo-Json -Depth 5
 async function syncPiusi(options = {}) {
   const db = options.db || readDb()
   const integration = ensurePiusiDb(db)
-  const mdbPath = String(configValue(db, 'piusi_mdb_path') || configValue(db, 'mdb_path') || 'C:\\Piusi\\SelfService\\Data\\Self.mdb').trim()
+  const mdbPath = String(db.settings?.piusi_mdb_path || configValue(db, 'piusi_mdb_path') || configValue(db, 'mdb_path') || 'C:\\Piusi\\SelfService\\Data\\Self.mdb').trim()
   if (!mdbPath) return { skip: true, reason: 'neconfigurat' }
 
   const lastId = Number(configValue(db, 'piusi_last_id_prog', 0) || 0)
@@ -219,7 +219,7 @@ function upsertMapare(db, operatorCod, assetId, denumire = '', activ = true) {
 
 function piusiStatus(db) {
   const integration = ensurePiusiDb(db)
-  const pathValue = String(configValue(db, 'piusi_mdb_path') || configValue(db, 'mdb_path') || 'C:\\Piusi\\SelfService\\Data\\Self.mdb')
+  const pathValue = String(db.settings?.piusi_mdb_path || configValue(db, 'piusi_mdb_path') || configValue(db, 'mdb_path') || 'C:\\Piusi\\SelfService\\Data\\Self.mdb')
   const nemapate = integration.piusiSync.filter(item => !item.asset_id).length
   const nesincronizate = integration.piusiSync.filter(item => item.asset_id && item.procesat !== true).length
   return {
@@ -228,7 +228,7 @@ function piusiStatus(db) {
     mdb_accesibil: pathValue ? fs.existsSync(pathValue) : false,
     ultima_sincronizare: configValue(db, 'piusi_last_sync', ''),
     last_id_prog: Number(configValue(db, 'piusi_last_id_prog', 0) || 0),
-    sync_interval_min: Number(configValue(db, 'piusi_sync_interval_min', 30) || 30),
+    sync_interval_min: Number(db.settings?.piusi_sync_min || configValue(db, 'piusi_sync_interval_min', configValue(db, 'piusi_sync_min', 30)) || 30),
     inregistrari_totale: integration.piusiSync.length,
     nemapate,
     nesincronizate
@@ -325,6 +325,43 @@ function comparativeReport(db, luna, assetId = '') {
   }), { piusi_litri: 0, faz_litri: 0, diferenta_litri: 0 }) }
 }
 
+function formatBytes(bytes) {
+  const value = Number(bytes || 0)
+  if (value >= 1024 * 1024 * 1024) return `${(value / 1024 / 1024 / 1024).toFixed(2)}GB`
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(2)}MB`
+  if (value >= 1024) return `${(value / 1024).toFixed(2)}KB`
+  return `${value}B`
+}
+
+function testExternalPath(rawPath) {
+  const targetPath = String(rawPath || '').trim()
+  if (!targetPath) throwHttp(400, 'Calea este obligatorie.')
+  try {
+    fs.accessSync(targetPath, fs.constants.R_OK)
+    const stat = fs.statSync(targetPath)
+    return {
+      ok: true,
+      path: targetPath,
+      type: stat.isDirectory() ? 'folder' : 'fisier',
+      size: stat.isDirectory() ? '' : formatBytes(stat.size),
+      modified: stat.mtime ? stat.mtime.toISOString() : ''
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      path: targetPath,
+      error: error.code === 'ENOENT' ? 'Fișierul sau folderul nu există.' : (error.message || 'Calea nu este accesibilă.')
+    }
+  }
+}
+
+router.get('/integration/test', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'settings:manage')) return
+  res.json(testExternalPath(req.query.path))
+})
+
 router.get('/integration/piusi/status', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
@@ -340,6 +377,9 @@ router.post('/integration/piusi/config', (req, res, next) => {
     const body = req.body || {}
     setConfigValue(auth.db, 'piusi_mdb_path', body.mdb_path || body.piusi_mdb_path || 'C:\\Piusi\\SelfService\\Data\\Self.mdb')
     setConfigValue(auth.db, 'piusi_sync_interval_min', Math.max(5, Number(body.sync_interval_min || 30)))
+    auth.db.settings = auth.db.settings || {}
+    auth.db.settings.piusi_mdb_path = String(body.mdb_path || body.piusi_mdb_path || auth.db.settings.piusi_mdb_path || '').trim()
+    auth.db.settings.piusi_sync_min = String(Math.max(5, Number(body.sync_interval_min || auth.db.settings.piusi_sync_min || 30)))
     writeDb(auth.db)
     addAudit(auth.db, auth.user, 'piusi_config', 'Configurare PIUSI Self-Service')
     res.json({ ok: true, status: piusiStatus(auth.db) })
