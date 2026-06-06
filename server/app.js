@@ -122,7 +122,14 @@ if (clientDistPath) {
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err)
-  res.status(err.status || 500).json({ error: err.message || 'Eroare internă' })
+  const raw = String(err.message || err || 'Eroare internă')
+  const loginMatch = raw.match(/Login failed for user ['"]?([^'".<]+)['"]?/i)
+  const message = loginMatch
+    ? `Autentificare SQL esuata pentru utilizatorul "${loginMatch[1]}". Verifica user/parola si drepturile pe baza de date.`
+    : (/#<\s*CLIXML/i.test(raw)
+      ? 'Eroare SQL Server returnata prin PowerShell. Verifica credentialele si reporneste serverul dupa update.'
+      : raw)
+  res.status(err.status || 500).json({ error: message })
 })
 
 // Bootstrap: creare user admin la prima pornire (dacă db.users e gol)

@@ -94,45 +94,49 @@ function ensureArrays(db) {
 }
 
 function parseConnectionString(connStr) {
-  const get = (key) => {
-    const keys = Array.isArray(key) ? key : [key]
-    for (const k of keys) {
-      const match = connStr.match(
-        new RegExp(k + '\\s*=\\s*([^;]+)', 'i')
-      )
-      if (match) return match[1].trim()
-    }
-    return ''
-  }
-  const server = get(['Server', 'Data Source'])
-  const database = get(['Database', 'Initial Catalog'])
-  const userId = get(['User Id', 'UID', 'User'])
-  const password = get(['Password', 'PWD'])
-  const trustedConn = /Trusted_Connection\s*=\s*True/i.test(connStr)
-  const encrypt = !/Encrypt\s*=\s*False/i.test(connStr)
-  const trustCert = /TrustServerCertificate\s*=\s*True/i.test(connStr)
+  const parts = {}
+  String(connStr || '').split(';').forEach(part => {
+    const [key, ...valueParts] = part.split('=')
+    const normalizedKey = String(key || '').trim().toLowerCase()
+    if (!normalizedKey) return
+    parts[normalizedKey] = valueParts.join('=').trim()
+  })
 
-  return {
+  const bool = (key, fallback = false) => {
+    const raw = parts[key]
+    if (raw === undefined || raw === '') return fallback
+    return ['true', 'yes', '1'].includes(String(raw).trim().toLowerCase())
+  }
+
+  const server = parts.server || parts['data source'] || parts.addr || parts.address || ''
+  const database = parts.database || parts['initial catalog'] || ''
+  const user = parts['user id'] || parts.uid || parts.user || ''
+  const password = parts.password || parts.pwd || ''
+  const trustedConnection = bool('trusted_connection') || bool('integrated security')
+  const config = {
     server,
     database,
-    user: userId || undefined,
+    user: user || undefined,
     password: password || undefined,
     options: {
-      encrypt: encrypt,
-      trustServerCertificate: trustCert || true,
-      enableArithAbort: true
-    },
-    authentication: trustedConn && !userId ? {
-      type: 'ntlm',
-      options: { trustedConnection: true }
-    } : {
-      type: 'default',
-      options: {
-        userName: userId,
-        password: password
-      }
+      encrypt: bool('encrypt', false),
+      trustServerCertificate: bool('trustservercertificate', true),
+      enableArithAbort: true,
+      connectTimeout: Number(parts['connection timeout'] || parts.connecttimeout || 10000),
+      requestTimeout: Number(parts['request timeout'] || parts.requesttimeout || 30000)
     }
   }
+
+  if (trustedConnection && !user) {
+    config.authentication = {
+      type: 'ntlm',
+      options: { trustedConnection: true }
+    }
+    delete config.user
+    delete config.password
+  }
+
+  return config
 }
 
 function hasMaskedPassword(connectionString) {
@@ -151,7 +155,40 @@ function resolveAutominderConnection(db, providedConnectionString) {
 
 async function connectAutominder(db, connectionString) {
   const resolved = resolveAutominderConnection(db, connectionString)
-  return sql.connect(parseConnectionString(resolved))
+  const pool = new sql.ConnectionPool(parseConnectionString(resolved))
+  return pool.connect()
+}
+
+async function testAutoMinderConnection(db, connectionString) {
+  let pool
+  try {
+    pool = await connectAutominder(db, connectionString)
+    await pool.request().query('SELECT 1 AS test')
+    const preview = await previewAutominder(pool)
+    return { ok: true, mesaj: 'Conexiune reusita!', preview }
+  } catch (error) {
+    return { ok: false, eroare: cleanAutominderError(error) }
+  } finally {
+    if (pool) await pool.close().catch(() => {})
+  }
+}
+
+function cleanAutominderError(error) {
+  const raw = String(error?.message || error || 'Conexiunea Autominder nu a putut fi testata.')
+  const loginMatch = raw.match(/Login failed for user ['"]?([^'".<]+)['"]?/i)
+  const openMatch = raw.match(/Exception calling "Open"[\s\S]*?:(.*?)(?:_x000D_|<\/S>|$)/i)
+  if (loginMatch) {
+    return `Autentificare SQL esuata pentru utilizatorul "${loginMatch[1]}". Verifica user/parola si drepturile pe baza autoMinder5.`
+  }
+  if (/#<\s*CLIXML/i.test(raw) && openMatch?.[1]) {
+    return openMatch[1].replace(/\\?x0+0D|\\?x0+0A|<[^>]+>/gi, ' ').replace(/\s+/g, ' ').trim()
+  }
+  if (/#<\s*CLIXML/i.test(raw)) {
+    return 'Raspuns PowerShell invalid primit de la o versiune veche a testului. Reincearca dupa update si verifica logarea SQL.'
+  }
+  return raw
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 async function safeQuery(pool, query) {
@@ -602,6 +639,10 @@ async function previewAutominder(pool) {
     faz_utilaje: fazUtilaje,
     foi_parcurs: foiParcursClassic + foiParcursTm + foiParcursTp,
     foi_parcurs_total: foiParcursClassic + foiParcursTm + foiParcursTp,
+    istoric_neimportat_automat: {
+      faz_utilaje: fazUtilaje,
+      foi_parcurs: foiParcursClassic + foiParcursTm + foiParcursTp
+    },
     foi_parcurs_detalii: {
       FoaieDeParcurs: foiParcursClassic,
       TM_FoiDeParcurs: foiParcursTm,
@@ -611,7 +652,8 @@ async function previewAutominder(pool) {
   }
 }
 
-async function importFull(pool, auth) {
+async function importFull(pool, auth, options = {}) {
+  const includeHistory = options.include_history === true || options.includeHistory === true
   const db = readDb()
   ensureArrays(db)
 
@@ -699,71 +741,102 @@ async function importFull(pool, auth) {
     imported.documente_expirabile += insertFleetDocuments(db, await safeQuery(pool, query), tip)
   }
 
-  const fcRows = await safeQuery(pool, `
-    SELECT f.*, u.CodUtilaj
-    FROM Utilaje_FAZ f
-    JOIN Utilaje u ON f.UtilajID = u.UtilajID
-    WHERE f.Data >= '2022-01-01'
-    ORDER BY f.Data ASC
-  `)
-  imported.faz_utilaje = insertFcLogs(db, fcRows)
+  if (includeHistory) {
+    const fcRows = await safeQuery(pool, `
+      SELECT f.*, u.CodUtilaj
+      FROM Utilaje_FAZ f
+      JOIN Utilaje u ON f.UtilajID = u.UtilajID
+      WHERE f.Data >= '2022-01-01'
+      ORDER BY f.Data ASC
+    `)
+    imported.faz_utilaje = insertFcLogs(db, fcRows)
 
-  const tripRows = await safeQuery(pool, `
-    SELECT FoaieID, Status, NumarInmatriculare,
-      Serie, Numar, DataOraEmitere, Sofer,
-      DataPlecare, KilometrajPlecare,
-      Sosit, DataSosire, KilometrajSosire,
-      SarciniTransport, Observatii,
-      'FoaieDeParcurs' as sursa
-    FROM FoaieDeParcurs
-    WHERE Sosit = 1 AND KilometrajSosire > KilometrajPlecare
+    const tripRows = await safeQuery(pool, `
+      SELECT FoaieID, Status, NumarInmatriculare,
+        Serie, Numar, DataOraEmitere, Sofer,
+        DataPlecare, KilometrajPlecare,
+        Sosit, DataSosire, KilometrajSosire,
+        SarciniTransport, Observatii,
+        'FoaieDeParcurs' as sursa
+      FROM FoaieDeParcurs
+      WHERE Sosit = 1 AND KilometrajSosire > KilometrajPlecare
 
-    UNION ALL
+      UNION ALL
 
-    SELECT FoaieID, Status, NumarInmatriculare,
-      Serie, Numar, DataOraEmitere, Sofer,
-      DataPlecare, KilometrajPlecare,
-      Sosit, DataSosire, KilometrajSosire,
-      SarciniTransport, Observatii,
-      'TM_FoiDeParcurs' as sursa
-    FROM TM_FoiDeParcurs
-    WHERE Sosit = 1 AND KilometrajSosire > KilometrajPlecare
+      SELECT FoaieID, Status, NumarInmatriculare,
+        Serie, Numar, DataOraEmitere, Sofer,
+        DataPlecare, KilometrajPlecare,
+        Sosit, DataSosire, KilometrajSosire,
+        SarciniTransport, Observatii,
+        'TM_FoiDeParcurs' as sursa
+      FROM TM_FoiDeParcurs
+      WHERE Sosit = 1 AND KilometrajSosire > KilometrajPlecare
 
-    UNION ALL
+      UNION ALL
 
-    SELECT FoaieID, Status, NumarInmatriculare,
-      Serie, Numar, DataOraEmitere, Sofer,
-      DataPlecare, KilometrajPlecare,
-      Sosit, DataSosire, KilometrajSosire,
-      NULL as SarciniTransport, NULL as Observatii,
-      'TP_FoiDeParcurs' as sursa
-    FROM TP_FoiDeParcurs
-    WHERE Sosit = 1
+      SELECT FoaieID, Status, NumarInmatriculare,
+        Serie, Numar, DataOraEmitere, Sofer,
+        DataPlecare, KilometrajPlecare,
+        Sosit, DataSosire, KilometrajSosire,
+        NULL as SarciniTransport, NULL as Observatii,
+        'TP_FoiDeParcurs' as sursa
+      FROM TP_FoiDeParcurs
+      WHERE Sosit = 1
 
-    ORDER BY DataOraEmitere ASC
-  `)
-  imported.foi_parcurs = insertTripLogs(db, tripRows)
+      ORDER BY DataOraEmitere ASC
+    `)
+    imported.foi_parcurs = insertTripLogs(db, tripRows)
+  } else {
+    imported.istoric_omis = 'FAZ-urile si foile de parcurs istorice au fost detectate in preview, dar nu sunt importate automat.'
+  }
 
-  addAudit(db, auth.user, 'autominder_import_full', `Import complet Autominder: ${JSON.stringify(imported)}`)
+  addAudit(db, auth.user, 'autominder_import_full', `Import Autominder SQL: ${JSON.stringify(imported)}`)
   writeDb(db)
   return imported
 }
 
 router.post('/integration/autominder/test-connection', async (req, res, next) => {
-  let pool
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'system:admin')) return
 
     const start = Date.now()
-    pool = await connectAutominder(auth.db, req.body?.connection_string)
-    const preview = await previewAutominder(pool)
-    res.json({ ok: true, preview, durata_ms: Date.now() - start })
+    const result = await testAutoMinderConnection(auth.db, req.body?.connection_string)
+    res.status(result.ok ? 200 : 400).json({ ...result, durata_ms: Date.now() - start })
   } catch (error) {
     next(error)
-  } finally {
-    if (pool) await pool.close().catch(() => {})
+  }
+})
+
+router.post('/integration/autominder/connection', async (req, res) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'system:admin')) return
+
+    const value = String(req.body?.connection_string || req.body?.autominderConnectionString || '').trim()
+    if (!value) {
+      return res.status(400).json({ error: 'Connection string-ul Autominder este gol.' })
+    }
+    if (hasMaskedPassword(value)) {
+      return res.status(400).json({ error: 'Parola este mascata cu ***. Completeaza parola reala inainte de salvare.' })
+    }
+
+    const db = readDb()
+    db.settings = db.settings && typeof db.settings === 'object' ? db.settings : {}
+    db.settings.autominderConnectionString = value
+    addAudit(db, auth.user, 'autominder_connection_saved', 'Connection string Autominder actualizat')
+    writeDb(db)
+
+    res.json({
+      ok: true,
+      settings: {
+        autominderConnectionString: value.replace(/\b(Password|PWD)\s*=\s*[^;]*/gi, '$1=***')
+      }
+    })
+  } catch (error) {
+    res.status(500).json({ error: cleanAutominderError(error) })
   }
 })
 
@@ -794,14 +867,14 @@ router.post('/integration/autominder/import-full', async (req, res, next) => {
 
     const start = Date.now()
     pool = await connectAutominder(auth.db, req.body?.connection_string)
-    const importate = await importFull(pool, auth)
+    const importate = await importFull(pool, auth, req.body || {})
     res.json({
       ok: true,
       importate,
       durata_secunde: Math.round(((Date.now() - start) / 1000) * 10) / 10
     })
   } catch (error) {
-    next(error)
+    res.status(500).json({ error: cleanAutominderError(error) })
   } finally {
     if (pool) await pool.close().catch(() => {})
   }

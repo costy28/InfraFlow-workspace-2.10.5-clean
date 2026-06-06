@@ -49,6 +49,14 @@ function arrayFrom(data, keys) {
   return []
 }
 
+function cleanApiError(error, fallback) {
+  const raw = String(error?.response?.data?.error || error?.message || fallback || 'Operațiunea nu a putut fi finalizată.')
+  const loginMatch = raw.match(/Login failed for user ['"]?([^'".<]+)['"]?/i)
+  if (loginMatch) return `Autentificare SQL eșuată pentru utilizatorul "${loginMatch[1]}". Verifică parola și drepturile pe baza de date.`
+  if (/#<\s*CLIXML/i.test(raw)) return 'Eroare SQL Server returnată prin PowerShell. Verifică parola SQL, drepturile pe baza de date și repornește serverul după update.'
+  return raw.replace(/\s+/g, ' ').trim()
+}
+
 function dateValue(value) {
   return String(value || '').slice(0, 10)
 }
@@ -454,14 +462,14 @@ export default function FlotaPage() {
     setMessage('')
     setAutominderSaving(true)
     try {
-      const response = await api.post('/settings', {
-        autominderConnectionString: autominderConnection
+      const response = await api.post('/integration/autominder/connection', {
+        connection_string: autominderConnection
       })
       const saved = response.data?.settings?.autominderConnectionString
-      if (saved) setAutominderConnection(saved)
+      if (saved && !/\*\*\*/.test(saved)) setAutominderConnection(saved)
       setMessage('Salvat!')
     } catch (err) {
-      setError(err.response?.data?.error || 'Connection string-ul Autominder nu a putut fi salvat.')
+      setError(cleanApiError(err, 'Connection string-ul Autominder nu a putut fi salvat.'))
     } finally {
       setAutominderSaving(false)
     }
@@ -487,7 +495,7 @@ export default function FlotaPage() {
     } catch (err) {
       setAutominderProgress(0)
       setAutominderStage('')
-      setError(err.response?.data?.error || 'Conexiunea Autominder nu a putut fi testată.')
+      setError(cleanApiError(err, 'Conexiunea Autominder nu a putut fi testată.'))
     } finally {
       setAutominderFullLoading(false)
     }
@@ -503,21 +511,22 @@ export default function FlotaPage() {
     setAutominderStage('Se conectează la baza Autominder...')
     try {
       setAutominderProgress(35)
-      setAutominderStage('Se importă nomenclatoare, parc auto și angajați...')
+      setAutominderStage('Se importă nomenclatoare, parc auto, utilaje, angajați și documente...')
       const response = await api.post('/integration/autominder/import-full', {
-        connection_string: autominderConnection
+        connection_string: autominderConnection,
+        include_history: false
       })
       setAutominderProgress(90)
       setAutominderStage('Se actualizează flota în InfraFlow...')
       setAutominderFullResult(response.data)
       setAutominderProgress(100)
       setAutominderStage('Import complet finalizat.')
-      setMessage('Importul complet Autominder a fost finalizat.')
+      setMessage('Importul sigur Autominder a fost finalizat.')
       await load()
     } catch (err) {
       setAutominderProgress(0)
       setAutominderStage('')
-      setError(err.response?.data?.error || 'Importul complet Autominder nu a putut fi finalizat.')
+      setError(cleanApiError(err, 'Importul Autominder nu a putut fi finalizat.'))
     } finally {
       setAutominderFullLoading(false)
     }
@@ -921,7 +930,7 @@ export default function FlotaPage() {
 
       {activeTab === TAB_AUTOMINDER && (
         <div className="grid gap-4">
-        <Card title="Import complet Autominder SQL" subtitle="Importă direct din baza autoMinder5: parc auto, utilaje, angajați, documente, FAZ-uri și foi de parcurs.">
+        <Card title="Import Autominder SQL" subtitle="Importă direct din baza autoMinder5: parc auto, utilaje, angajați și documente expirabile. FAZ-urile și foile istorice sunt doar detectate în preview.">
           <form className="grid gap-4" onSubmit={testAutominderConnection}>
             <Input
               label="Connection string"
@@ -942,7 +951,7 @@ export default function FlotaPage() {
                 disabled={!autominderPreview || autominderFullLoading}
                 onClick={() => setAutominderConfirm(true)}
               >
-                📥 Importă tot
+                📥 Importă date sigure
               </Button>
             </div>
           </form>
@@ -966,8 +975,8 @@ export default function FlotaPage() {
                 <div>~{autominderPreview.autovehicule || 0} autovehicule</div>
                 <div>~{autominderPreview.utilaje || 0} utilaje</div>
                 <div>~{autominderPreview.angajati || 0} angajați</div>
-                <div>~{autominderPreview.faz_utilaje || 0} FAZ-uri</div>
-                <div>~{autominderPreview.foi_parcurs_total || autominderPreview.foi_parcurs || 0} foi de parcurs</div>
+                <div>~{autominderPreview.faz_utilaje || 0} FAZ-uri detectate, neimportate implicit</div>
+                <div>~{autominderPreview.foi_parcurs_total || autominderPreview.foi_parcurs || 0} foi de parcurs detectate, neimportate implicit</div>
                 <div>~{autominderPreview.documente_expirabile || 0} documente expirabile</div>
               </div>
               {autominderPreview.foi_parcurs_detalii && (
@@ -982,7 +991,7 @@ export default function FlotaPage() {
 
           {autominderFullResult && (
             <div className="mt-5 rounded-lg border border-primary-200 bg-primary-50 p-5">
-              <h3 className="text-lg font-semibold text-primary-800">✅ Import complet finalizat!</h3>
+              <h3 className="text-lg font-semibold text-primary-800">✅ Import Autominder finalizat!</h3>
               <div className="mt-4 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
                 {Object.entries(autominderFullResult.importate || {}).map(([key, value]) => (
                   <div key={key}><strong>{key.replaceAll('_', ' ')}:</strong> {value}</div>
@@ -1053,14 +1062,14 @@ export default function FlotaPage() {
       <Modal open={autominderConfirm} title="Confirmă importul complet Autominder" onClose={() => setAutominderConfirm(false)}>
         <div className="grid gap-4">
           <p className="text-sm text-slate-600">
-            Importul complet va actualiza nomenclatoare, autovehicule, utilaje, angajați, documente expirabile, FAZ-uri și foi de parcurs istorice.
+            Importul va actualiza nomenclatoare, autovehicule, utilaje, angajați și documente expirabile. FAZ-urile și foile de parcurs istorice rămân neimportate automat până le mapăm separat.
           </p>
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             Verifică înainte că baza autoMinder5 este cea corectă. Datele existente sunt actualizate unde există potriviri.
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setAutominderConfirm(false)}>Anulează</Button>
-            <Button onClick={applyAutominderFullImport}>Da, importă tot</Button>
+            <Button onClick={applyAutominderFullImport}>Da, importă datele sigure</Button>
           </div>
         </div>
       </Modal>

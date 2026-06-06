@@ -562,6 +562,7 @@ function cloneDb(db) {
 function runMssqlScalar(sql, options = {}) {
   const script = `
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 Add-Type -AssemblyName System.Data
 $connectionString = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:ASFALT_MSSQL_CONNECTION_B64))

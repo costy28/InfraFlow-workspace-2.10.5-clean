@@ -1,5 +1,5 @@
 {
-  "version": "2.12.17",
-  "date": "2026-06-04",
-  "changelog": "## v2.12.17 — 2026-06-04\n### Căi surse externe\n- Tab Integrări simplificat pentru PIUSI, Cântar și autoMinder.\n- Test generic de acces fișier/folder prin /api/integration/test.\n- Integrări custom cu nume, tip, cale și interval de sincronizare."
+  "version": "2.12.19",
+  "date": "2026-06-06",
+  "changelog": "## v2.12.19 — 2026-06-06\n### Hotfix Autominder import sigur\n- Importul SQL Autominder nu mai importa implicit FAZ-uri si foi de parcurs istorice.\n- Salvarea connection string-ului Autominder foloseste endpoint dedicat.\n- Erorile CLIXML sunt curatate global in API si in pagina de import."
 }
