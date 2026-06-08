@@ -276,6 +276,33 @@ function buildCostEntries() {
   ]
 }
 
+function buildMechanizationDemo() {
+  const month = new Date().toISOString().slice(0, 7)
+  const today = addDays(0)
+  const plannings = [
+    { id: 'plan-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Ion Popescu', ora_start: '07:00', ora_sfarsit: '15:00', status: 'planificat', observatii: 'Transport agregate' },
+    { id: 'plan-002', date: today, asset_id: 'UTIL-005', asset_name: 'Finisor asfalt Vogele S1800', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Florin Lazar', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Asternere mixtura' },
+    { id: 'plan-003', date: today, asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Sorin Munteanu', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Compactare' }
+  ]
+  const workOrders = [
+    { id: 'wo-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', operator: 'Ion Popescu', activitate: 'Transport criblura 4-8mm', locatie: 'DJ207B km 3+500', ore_lucrate: 7.5, km_parcursi: 84, consum_carburant: 38, consum_normat: 34, cost_center_id: 'SUB-BASC', status: 'activ', observatii: '2 curse depozit - santier' },
+    { id: 'wo-002', date: today, asset_id: 'UTIL-005', asset_name: 'Finisor asfalt Vogele S1800', operator: 'Florin Lazar', activitate: 'Asternere BA16', locatie: 'DJ207B km 4+100', ore_lucrate: 6.5, km_parcursi: 0, consum_carburant: 52, consum_normat: 50, cost_center_id: 'SUB-FINISOR', status: 'activ', observatii: 'Front lucru deschis' },
+    { id: 'wo-003', date: addDays(-1), asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', operator: 'Sorin Munteanu', activitate: 'Compactare strat uzura', locatie: 'DJ207B', ore_lucrate: 8, km_parcursi: 0, consum_carburant: 46, consum_normat: 48, cost_center_id: 'DEP-MECAN', status: 'inchis', observatii: 'Finalizat fara abateri' },
+    { id: 'wo-004', date: `${month}-03`, asset_id: 'VEH-003', asset_name: 'Autobasculanta Volvo FMX / NT-03-CDE', operator: 'Gheorghe Constantin', activitate: 'Transport mixtura asfaltica', locatie: 'DN15 Piatra-Neamt', ore_lucrate: 7, km_parcursi: 96, consum_carburant: 44, consum_normat: 40, cost_center_id: 'SUB-BASC', status: 'inchis', observatii: 'Consum usor peste norma din cauza stationarii' }
+  ]
+  const fuelLogs = [
+    { id: 'fuel-001', data: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', nr_document: 'BF-2401', furnizor: 'PETROM SA', cantitate_litri: 160, pret_litru: 7.42, valoare_totala: 1187.2, km_ore: 48320, sofer_operator: 'Ion Popescu', cost_center_id: 'SUB-BASC' },
+    { id: 'fuel-002', data: today, asset_id: 'UTIL-005', asset_name: 'Finisor asfalt Vogele S1800', nr_document: 'BF-2402', furnizor: 'PETROM SA', cantitate_litri: 120, pret_litru: 7.42, valoare_totala: 890.4, km_ore: 2010, sofer_operator: 'Florin Lazar', cost_center_id: 'SUB-FINISOR' },
+    { id: 'fuel-003', data: addDays(-1), asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', nr_document: 'BF-2398', furnizor: 'PETROM SA', cantitate_litri: 95, pret_litru: 7.39, valoare_totala: 702.05, km_ore: 2470, sofer_operator: 'Sorin Munteanu', cost_center_id: 'DEP-MECAN' },
+    { id: 'fuel-004', data: `${month}-03`, asset_id: 'VEH-003', asset_name: 'Autobasculanta Volvo FMX / NT-03-CDE', nr_document: 'BF-2360', furnizor: 'PETROM SA', cantitate_litri: 140, pret_litru: 7.35, valoare_totala: 1029, km_ore: 76520, sofer_operator: 'Gheorghe Constantin', cost_center_id: 'SUB-BASC' }
+  ]
+  const interventions = [
+    { id: 'int-001', asset_id: 'UTIL-002', asset_name: 'Excavator Komatsu PC210', data_intrare: addDays(-2), tip: 'reparatie', descriere: 'Pierdere ulei hidraulic - verificare furtun presiune', status: 'in_lucru', cost_piese: 1250, cost_manopera: 600, cost_extern: 0, cost_total: 1850, mecanic: 'Cristian Pavel', cost_center_id: 'SUB-EXC3' },
+    { id: 'int-002', asset_id: 'VEH-002', asset_name: 'Autobasculanta DAF CF 85.360 / NT-02-BCD', data_intrare: `${month}-04`, data_iesire: `${month}-05`, tip: 'revizie', descriere: 'Schimb filtre si ulei', status: 'finalizat', cost_piese: 980, cost_manopera: 320, cost_extern: 0, cost_total: 1300, mecanic: 'Cristian Pavel', cost_center_id: 'SUB-BASC' }
+  ]
+  return { plannings, workOrders, fuelLogs, interventions, fazReports: [] }
+}
+
 function buildDb(seed) {
   const passwordHash = hashPassword('demo123')
   const users = seed.users.map((user) => ({ ...user, passwordHash, createdAt: isoDaysAgo(20, 8) }))
@@ -299,6 +326,7 @@ function buildDb(seed) {
   const procurementOrders = buildProcurementOrders(seed)
   const timesheets = buildTimesheets(seed)
   const messaging = buildMessaging()
+  const mechanization = buildMechanizationDemo()
   const db = {
     company: seed.company,
     settings: seed.settings,
@@ -314,7 +342,10 @@ function buildDb(seed) {
     fleetAssets,
     fleet: { assets: fleetAssets, tripLogs },
     fleetTripLogs: tripLogs,
-    materials: seed.materials.map((material) => ({ ...material, stoc_curent: material.stock, stockMin: material.alert })),
+    materials: seed.materials.map((material) => {
+      const demoStock = material.id === 'MAT-001' ? 8.2 : material.stock
+      return { ...material, stock: demoStock, stoc_curent: demoStock, stockMin: material.alert }
+    }),
     inventory: {
       materials: seed.materials,
       movements: stockOperations,
@@ -329,8 +360,18 @@ function buildDb(seed) {
     stockMovements: stockOperations,
     suppliers: seed.suppliers,
     clients: [],
-    projects: seed.projects,
-    work: { projects: seed.projects },
+    projects: seed.projects.map((project) => ({
+      ...project,
+      progressPercent: Number(project.procent_fizic || project.progressPercent || 0),
+      progres_fizic_procent: Number(project.procent_fizic || project.progres_fizic_procent || 0)
+    })),
+    work: {
+      projects: seed.projects.map((project) => ({
+        ...project,
+        progressPercent: Number(project.procent_fizic || project.progressPercent || 0),
+        progres_fizic_procent: Number(project.procent_fizic || project.progres_fizic_procent || 0)
+      }))
+    },
     recipes: [
       { id: 'REC-001', name: 'BA16 rul 50/70', active: true },
       { id: 'REC-002', name: 'BAD22.4 leg 50/70', active: true }
@@ -341,6 +382,7 @@ function buildDb(seed) {
     procurementOrders,
     procurement_requirements: referate,
     consumptions: [
+      { id: 'cons-000', date: addDays(0), recipeId: 'REC-001', recipeName: 'BA16 rul 50/70', reportNo: 'RZ-2026-AZI', ticket: 'TIC-2406', asphalt: 124, jobName: 'DJ207B', operatorName: 'Operator Demo', createdAt: isoDaysAgo(0, 10) },
       { id: 'cons-001', date: addDays(-5), recipeId: 'REC-001', recipeName: 'BA16 rul 50/70', asphalt: 86, jobName: 'DJ207B', createdAt: isoDaysAgo(5, 13) },
       { id: 'cons-002', date: addDays(-3), recipeId: 'REC-002', recipeName: 'BAD22.4 leg 50/70', asphalt: 54, jobName: 'MARC-DN15', createdAt: isoDaysAgo(3, 12) }
     ],
@@ -349,10 +391,11 @@ function buildDb(seed) {
       { id: 'fwl-001', assetId: 'UTIL-005', assetName: 'Finisor asfalt Vogele S1800', date: addDays(-4), hours: 7.5, jobName: 'DJ207B', costCenterId: 'SUB-FINISOR' },
       { id: 'fwl-002', assetId: 'UTIL-001', assetName: 'Excavator Liebherr R926', date: addDays(-2), hours: 6, jobName: 'Canalizare Str. Mihail Kogalniceanu', costCenterId: 'SUB-EXC3' }
     ],
+    mechanization,
     technicalWorkLogs: [],
     fleetRequests: [
-      { id: 'fr-001', assetId: 'VEH-001', date: addDays(1), startTime: '07:00', endTime: '15:00', department: 'Tehnic', jobName: 'Transport agregate DJ207B', status: 'approved', createdAt: isoDaysAgo(1, 10) },
-      { id: 'fr-002', assetId: 'UTIL-005', date: addDays(2), startTime: '08:00', endTime: '16:00', department: 'Tehnic', jobName: 'Asternere BA16', status: 'planned', createdAt: isoDaysAgo(0, 9) }
+      { id: 'fr-001', assetId: 'VEH-001', date: addDays(1), startTime: '07:00', endTime: '15:00', department: 'Tehnic', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', status: 'approved', createdAt: isoDaysAgo(1, 10) },
+      { id: 'fr-002', assetId: 'UTIL-005', date: addDays(2), startTime: '08:00', endTime: '16:00', department: 'Tehnic', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', status: 'planned', createdAt: isoDaysAgo(0, 9) }
     ],
     fleet_requests: [],
     timesheets,
@@ -370,7 +413,7 @@ function buildDb(seed) {
     message_channels: messaging.channels,
     messaging: { channels: messaging.channels, messages: messaging.messages },
     department_requests: [
-      { id: 'dr-001', type: 'material', itemName: 'Criblura 4-8mm', amount: 45, unit: 'tone', department: 'Tehnic', status: 'planned', jobName: 'DJ207B', createdAt: isoDaysAgo(7, 9) }
+      { id: 'dr-001', type: 'material', itemName: 'Criblura 4-8mm', amount: 45, unit: 'tone', department: 'Tehnic', status: 'planned', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', createdAt: isoDaysAgo(7, 9) }
     ],
     documents: [],
     cost_entries: buildCostEntries(),

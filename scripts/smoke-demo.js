@@ -92,6 +92,10 @@ async function main() {
   const fleetAlertCount = countFrom(fleetAlerts.data, ['alerts'])
   addCheck('/api/fleet-alerts are alerte demo', fleetAlerts.status === 200 && fleetAlertCount > 0, `status=${fleetAlerts.status}, count=${fleetAlertCount}`)
 
+  const mechanizationDashboard = await request('GET', '/api/mechanization/dashboard', { token })
+  addCheck('/api/mechanization/dashboard are alocari', mechanizationDashboard.status === 200 && Number(mechanizationDashboard.data?.stats?.alocateAzi || 0) > 0, `status=${mechanizationDashboard.status}, alocate=${mechanizationDashboard.data?.stats?.alocateAzi}`)
+  addCheck('/api/mechanization/dashboard are costuri', mechanizationDashboard.status === 200 && Number(mechanizationDashboard.data?.stats?.costLuna || 0) > 0, `cost=${mechanizationDashboard.data?.stats?.costLuna}, litri=${mechanizationDashboard.data?.stats?.litriLuna}`)
+
   const tripLogs = await request('GET', '/api/fleet/trip-logs', { token })
   const tripLogCount = countFrom(tripLogs.data, ['trip_logs'])
   addCheck('/api/fleet/trip-logs >= 30', tripLogs.status === 200 && tripLogCount >= 30, `status=${tripLogs.status}, count=${tripLogCount}`)
