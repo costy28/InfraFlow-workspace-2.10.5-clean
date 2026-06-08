@@ -50,6 +50,11 @@ function withFleetDueDates(assets) {
     iscir_expiry: asset.category === 'equipment' ? addDays(pick([20, 48, 95, 130, -9], index)) : null,
     currentMeter: asset.odometer_km || asset.ore_motor || 0,
     meterUnit: asset.category === 'vehicle' ? 'km' : 'hours',
+    nextServiceDate: addDays(pick([12, 28, 42, -6, 65, 90], index)),
+    nextInspectionDate: asset.category === 'vehicle' ? addDays(pick(itpOffsets, index)) : addDays(pick([20, 48, 95, 130, -9], index)),
+    nextServiceMeter: Number(asset.odometer_km || asset.ore_motor || 0) + pick([250, 430, -35, 700, 120], index),
+    alertDays: 30,
+    alertMeter: asset.category === 'vehicle' ? 500 : 50,
     costCenterName: asset.costCenterId || ''
   }))
 }
@@ -100,13 +105,16 @@ function buildTripLogs(seed) {
     const start = Number(vehicle.odometer_km || 40000) + index * 120
     return {
       id: `fp-${String(index + 1).padStart(3, '0')}`,
+      uuid: `fp-${String(index + 1).padStart(3, '0')}`,
       nr_foaie: `FP-2026-${String(index + 1).padStart(4, '0')}`,
       data: addDays(-29 + index),
       date: addDays(-29 + index),
       vehicul_id: vehicle.id,
       assetId: vehicle.id,
+      asset_id: vehicle.id,
       sofer_id: pick(drivers, index),
       driverId: pick(drivers, index),
+      sofer_text: pick(['Ion Popescu', 'Gheorghe Constantin'], index),
       km_plecare: start,
       km_sosire: start + km,
       km_parcursi: km,
@@ -118,6 +126,10 @@ function buildTripLogs(seed) {
       combustibil_start: 180 - (index % 20),
       combustibil_sfarsit: 145 - (index % 12),
       combustibil_adaugat: index % 9 === 0 ? 120 : 0,
+      combustibil_sold_initial: 180 - (index % 20),
+      combustibil_primit: index % 9 === 0 ? 120 : 0,
+      combustibil_sold_final: 145 - (index % 12),
+      consum_normat: Math.round(km * 0.38),
       status: index > 27 ? 'deschisa' : 'inchisa',
       cost_center_id: 'DEP-MECAN',
       created_at: isoDaysAgo(29 - index, 6)
@@ -255,11 +267,12 @@ function buildMessaging() {
 }
 
 function buildCostEntries() {
+  const month = new Date().toISOString().slice(0, 7) + '-01'
   return [
-    { id: 'cost-001', cost_center_id: 'SUB-BASC', type: 'combustibil', amount: 18400, date: addDays(-8), note: 'Motorina autobasculante' },
-    { id: 'cost-002', cost_center_id: 'SUB-FINISOR', type: 'mentenanta', amount: 6200, date: addDays(-11), note: 'Revizie finisor asfalt' },
-    { id: 'cost-003', cost_center_id: 'DEP-SALUB', type: 'materiale', amount: 9800, date: addDays(-6), note: 'Consumabile salubrizare' },
-    { id: 'cost-004', cost_center_id: 'DEP-TEHNIC', type: 'materiale', amount: 4300, date: addDays(-3), note: 'Marcaje si indicatoare' }
+    { id: 'cost-001', cost_center_id: 'SUB-BASC', categorie: 'combustibil', descriere: 'Motorina autobasculante', valoare: 18400, data: addDays(-8), luna: month, validat: true },
+    { id: 'cost-002', cost_center_id: 'SUB-FINISOR', categorie: 'mentenanta', descriere: 'Revizie finisor asfalt', valoare: 6200, data: addDays(-11), luna: month, validat: true },
+    { id: 'cost-003', cost_center_id: 'DEP-SALUB', categorie: 'materiale', descriere: 'Consumabile salubrizare', valoare: 9800, data: addDays(-6), luna: month, validat: true },
+    { id: 'cost-004', cost_center_id: 'DEP-TEHNIC', categorie: 'materiale', descriere: 'Marcaje si indicatoare', valoare: 4300, data: addDays(-3), luna: month, validat: true }
   ]
 }
 
@@ -267,6 +280,17 @@ function buildDb(seed) {
   const passwordHash = hashPassword('demo123')
   const users = seed.users.map((user) => ({ ...user, passwordHash, createdAt: isoDaysAgo(20, 8) }))
   const fleetAssets = withFleetDueDates(seed.fleet_assets)
+  const costCenters = seed.cost_centers.map((center) => ({
+    ...center,
+    cod: center.cod || center.code || center.id,
+    denumire: center.denumire || center.name,
+    name: center.name || center.denumire,
+    buget_lunar: Number(center.buget_lunar || center.monthly_budget || 0),
+    buget_anual: Number(center.buget_anual || center.monthly_budget * 12 || 0),
+    activ: center.activ !== false,
+    nivel: center.parent_id ? 2 : 1,
+    parinte_id: center.parent_id || null
+  }))
   const stockEntries = buildStockEntries(seed.materials)
   const stockOperations = buildStockOperations(seed.materials)
   const tripLogs = buildTripLogs(seed)
@@ -283,12 +307,13 @@ function buildDb(seed) {
     departments: seed.departments,
     permissions: [],
     role_permissions: [],
-    cost_centers: seed.cost_centers,
-    costCenters: seed.cost_centers,
+    cost_centers: costCenters,
+    costCenters,
     employees: seed.employees,
     hr: { employees: seed.employees, timesheets, leaveRequests: [], authorizations: [], contracts: [] },
     fleetAssets,
     fleet: { assets: fleetAssets, tripLogs },
+    fleetTripLogs: tripLogs,
     materials: seed.materials.map((material) => ({ ...material, stoc_curent: material.stock, stockMin: material.alert })),
     inventory: {
       materials: seed.materials,
@@ -349,7 +374,7 @@ function buildDb(seed) {
     ],
     documents: [],
     cost_entries: buildCostEntries(),
-    controlling: { costCenters: seed.cost_centers, entries: buildCostEntries() },
+    controlling: { costCenters, costEntries: buildCostEntries(), entries: buildCostEntries(), costCenterObjects: [] },
     paap: [],
     paapExecutie: [],
     devices: [],

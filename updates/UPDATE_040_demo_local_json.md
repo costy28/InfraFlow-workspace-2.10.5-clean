@@ -13,6 +13,8 @@ Pregateste o instanta demo InfraFlow care ruleaza local, fara SQL Server, pe `DB
 - Instructiuni Cloudflare Tunnel pentru expunere temporara sau persistenta.
 - Banner frontend vizibil doar in modul demo.
 - Endpoint-uri `/api/demo-status` si `/api/demo-health`.
+- Script de status local pentru mama MSSQL + demo JSON.
+- Smoke test API pentru verificari rapide dupa update.
 
 ## Note
 
