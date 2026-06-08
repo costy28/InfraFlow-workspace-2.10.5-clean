@@ -153,49 +153,229 @@ function buildGps(seed) {
 }
 
 function buildReferate(seed) {
-  const titles = [
-    'Necesitate achizitie filtre motor pentru parcul auto',
-    'Aprovizionare bitum pentru programul de asfaltare',
-    'Echipamente SSM pentru sezonul de vara',
-    'Piese schimb pentru finisor asfalt',
-    'Vopsea marcaj rutier pentru DN15',
-    'Motorina pentru utilaje mecanizare',
-    'Material antiderapant pentru stoc preventiv'
+  const rows = [
+    { dep: 'DEP-002', user: 'USR-004', supplier: 'BITUM TRADING SRL', status: 'aprobat', tip: 'aprovizionare', obs: 'Aprovizionare bitum pentru programul de asfaltare DJ207B.', lines: [['MAT-001', 18, 3350, 12663], ['MAT-024', 120, 18, 453.6]] },
+    { dep: 'DEP-002', user: 'USR-004', supplier: 'AUTO PIESE NORD SRL', status: 'la_gestionar', tip: 'aprovizionare', obs: 'Filtre si consumabile pentru revizia autobasculantelor.', lines: [['MAT-013', 20, 85, 357], ['MAT-014', 18, 110, 415.8], ['MAT-009', 80, 19, 319.2]] },
+    { dep: 'DEP-007', user: 'USR-013', supplier: 'PETROM SA', status: 'dir_general', tip: 'aprovizionare', obs: 'Motorina necesara pentru utilajele alocate in saptamana curenta.', lines: [['MAT-007', 6500, 6.25, 8531.25]] },
+    { dep: 'DEP-006', user: 'USR-010', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'draft', tip: 'servicii', obs: 'Servicii inchiriere utilaj compactare pentru lucrare canalizare.', lines: [['MAT-030', 140, 42, 1234.8]] },
+    { dep: 'DEP-006', user: 'USR-010', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'respins', tip: 'aprovizionare', obs: 'Necesar initial respins pentru completare specificatii tehnice.', lines: [['MAT-010', 420, 14, 1234.8], ['MAT-011', 160, 15.5, 520.8]] },
+    { dep: 'DEP-008', user: 'USR-014', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'secretariat_final', tip: 'aprovizionare', obs: 'Echipamente SSM pentru echipele operative.', lines: [['MAT-018', 24, 96, 483.84], ['MAT-020', 60, 32, 403.2], ['MAT-023', 24, 155, 781.2]] },
+    { dep: 'DEP-003', user: 'USR-008', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'achizitii_final', tip: 'aprovizionare', obs: 'Stoc preventiv materiale antiderapante.', lines: [['MAT-025', 55, 380, 4389]] }
   ]
-  return titles.map((title, index) => ({
-    id: `ref-${String(index + 1).padStart(3, '0')}`,
-    nr_referat: `REFNEC-2026-${String(12 + index).padStart(4, '0')}`,
-    titlu: title,
-    departament: index % 3 === 0 ? 'Mecanizare' : index % 3 === 1 ? 'Achizitii' : 'Gestiune',
-    solicitant: index % 2 ? 'sef.gestiune' : 'sef.mecanizare',
-    status: pick(['aprobat', 'in_circuit', 'draft', 'aprobat', 'respins'], index),
-    prioritate: index === 5 ? 'ridicata' : 'normal',
-    valoare_estimata: [2800, 82000, 6400, 12800, 18500, 54000, 22000][index],
-    created_at: isoDaysAgo(18 - index, 9),
-    approved_at: index % 3 === 0 ? isoDaysAgo(17 - index, 14) : null
-  }))
+  return rows.map((row, index) => {
+    const items = row.lines.map(([materialId, cantitate, pret, tva], lineIndex) => {
+      const material = seed.materials.find((item) => item.id === materialId)
+      return {
+        id: `ref-${String(index + 1).padStart(3, '0')}-item-${lineIndex + 1}`,
+        nr_crt: lineIndex + 1,
+        denumire: material?.name || materialId,
+        caracteristici: material?.category || '',
+        um: material?.unit || '',
+        cantitate,
+        pret_unitar: pret,
+        valoare_tva: tva,
+        stoc_magazie: materialId === 'MAT-001' ? 8.2 : Number(material?.stock || 0),
+        material_id: materialId,
+        cpv_cod: material?.cpv_cod || ''
+      }
+    })
+    const total = Number(items.reduce((sum, item) => sum + item.cantitate * item.pret_unitar + item.valoare_tva, 0).toFixed(2))
+    return {
+      id: `ref-${String(index + 1).padStart(3, '0')}`,
+      uuid: `demo-ref-${String(index + 1).padStart(3, '0')}`,
+      numar: 120 + index,
+      serie: 'RA',
+      nr_referat: `RA/${120 + index}`,
+      data_intocmire: addDays(-14 + index),
+      tip: row.tip,
+      departament_id: row.dep,
+      intocmit_de: row.user,
+      intocmit_de_nume: pick(seed.users, index + 3).name,
+      furnizor_id: null,
+      furnizor_manual: row.supplier,
+      observatii: row.obs,
+      status: row.status,
+      prioritate: index === 2 ? 'ridicata' : 'normal',
+      valoare_referat: total,
+      valoare_estimata: total,
+      valoare_factura: row.status === 'aprobat' ? Number((total * 1.03).toFixed(2)) : 0,
+      nr_inregistrare: row.status === 'draft' ? '' : `REG-${2026}-${120 + index}`,
+      data_inregistrare: row.status === 'draft' ? null : isoDaysAgo(13 - index, 10),
+      items,
+      created_at: isoDaysAgo(14 - index, 9),
+      approved_at: row.status === 'aprobat' ? isoDaysAgo(9 - index, 14) : null
+    }
+  })
+}
+
+function buildReferateFlux(referate) {
+  const labels = ['draft', 'inregistrat', 'la_achizitii', 'la_gestionar', 'cfp', 'contabil_sef', 'dir_adjunct', 'secretariat_2', 'dir_general', 'secretariat_final', 'achizitii_final', 'aprobat']
+  return referate.flatMap((referat, index) => {
+    const last = referat.status === 'respins' ? 3 : Math.max(0, labels.indexOf(referat.status))
+    const steps = labels.slice(0, last + 1)
+    const rows = steps.map((step, stepIndex) => ({
+      id: `flux-${referat.id}-${stepIndex + 1}`,
+      referat_id: referat.id,
+      pas: step,
+      actiune: stepIndex === 0 ? 'creat' : 'inainteaza',
+      user_id: pick(['USR-004', 'USR-008', 'USR-013', 'USR-003', 'USR-002', 'USR-010'], stepIndex),
+      user_name: pick(['Vasile Dima', 'Maria Ionescu', 'Oana Barbu', 'Elena Marin', 'Mihai Preda', 'Demo Director'], stepIndex),
+      data_actiune: isoDaysAgo(14 - index - stepIndex, 9 + (stepIndex % 6)),
+      observatii: stepIndex === 0 ? referat.observatii : ''
+    }))
+    if (referat.status === 'respins') {
+      rows.push({
+        id: `flux-${referat.id}-respins`,
+        referat_id: referat.id,
+        pas: 'respins',
+        actiune: 'respins',
+        user_id: 'USR-002',
+        user_name: 'Mihai Preda',
+        data_actiune: isoDaysAgo(7, 15),
+        observatii: 'Se completeaza caracteristicile tehnice si se reia fluxul.'
+      })
+    }
+    return rows
+  })
 }
 
 function buildProcurementOrders(seed) {
   const suppliers = seed.suppliers
   const materials = seed.materials
-  return Array.from({ length: 10 }, (_, index) => {
-    const material = pick(materials, index)
+  return Array.from({ length: 12 }, (_, index) => {
+    const first = pick(materials, index)
+    const second = pick(materials, index + 7)
+    const status = pick(['emisa', 'partial', 'receptionata', 'closed'], index)
+    const firstQty = 10 + index * 3
+    const secondQty = index % 3 === 0 ? 0 : 4 + index
+    const firstPrice = [6.2, 3200, 185, 210, 4.7, 38][index % 6]
+    const secondPrice = [18, 42, 85, 155, 32][index % 5]
+    const lines = [
+      {
+        id: `PO-${String(index + 1).padStart(3, '0')}-L1`,
+        material_id: first.id,
+        materialId: first.id,
+        materialName: first.name,
+        unit: first.unit,
+        cantitate: firstQty,
+        amount: firstQty,
+        pret: firstPrice,
+        unitPrice: firstPrice,
+        cpv_cod: first.cpv_cod,
+        cantitate_receptionata: ['partial', 'receptionata', 'closed'].includes(status) ? Math.round(firstQty * (status === 'partial' ? 0.45 : 1)) : 0,
+        cantitate_ramasa: ['partial'].includes(status) ? Math.round(firstQty * 0.55) : ['receptionata', 'closed'].includes(status) ? 0 : firstQty
+      }
+    ]
+    if (secondQty) {
+      lines.push({
+        id: `PO-${String(index + 1).padStart(3, '0')}-L2`,
+        material_id: second.id,
+        materialId: second.id,
+        materialName: second.name,
+        unit: second.unit,
+        cantitate: secondQty,
+        amount: secondQty,
+        pret: secondPrice,
+        unitPrice: secondPrice,
+        cpv_cod: second.cpv_cod,
+        cantitate_receptionata: ['receptionata', 'closed'].includes(status) ? secondQty : 0,
+        cantitate_ramasa: ['receptionata', 'closed'].includes(status) ? 0 : secondQty
+      })
+    }
+    const value = Number(lines.reduce((sum, line) => sum + line.cantitate * line.pret, 0).toFixed(2))
+    const receivedAmount = lines.reduce((sum, line) => sum + Number(line.cantitate_receptionata || 0), 0)
     return {
       id: `PO-${String(index + 1).padStart(3, '0')}`,
+      uuid: `demo-po-${String(index + 1).padStart(3, '0')}`,
+      date: addDays(-18 + index),
       orderNo: `CMD-2026-${String(101 + index).padStart(4, '0')}`,
       supplierId: pick(suppliers, index).id,
       supplierName: pick(suppliers, index).name,
-      materialId: material.id,
-      materialName: material.name,
-      quantity: 10 + index * 3,
-      unit: material.unit,
-      unitPrice: [6.2, 3200, 185, 210, 4.7, 38][index % 6],
-      status: pick(['draft', 'sent', 'received', 'closed'], index),
+      supplier: pick(suppliers, index).name,
+      furnizor: pick(suppliers, index).name,
+      lines,
+      materialId: first.id,
+      materialName: lines.map((line) => line.materialName).join(', '),
+      quantity: firstQty,
+      amount: lines.reduce((sum, line) => sum + line.cantitate, 0),
+      remainingAmount: lines.reduce((sum, line) => sum + line.cantitate_ramasa, 0),
+      receivedAmount,
+      unit: first.unit,
+      unitPrice: firstPrice,
+      value,
+      status,
       estimatedDate: addDays(-12 + index),
+      expectedDate: addDays(5 + index),
       createdAt: isoDaysAgo(20 - index, 11)
     }
   })
+}
+
+function buildProcurementReceipts(orders) {
+  return orders
+    .filter((order) => ['partial', 'receptionata', 'closed'].includes(order.status))
+    .map((order, index) => ({
+      id: `REC-PO-${String(index + 1).padStart(3, '0')}`,
+      uuid: `demo-rec-po-${String(index + 1).padStart(3, '0')}`,
+      orderId: order.id,
+      orderUuid: order.uuid,
+      orderNo: order.orderNo,
+      nr_aviz: `AVZ-${2026}-${String(300 + index).padStart(4, '0')}`,
+      date: addDays(-8 + index),
+      observatii: 'Receptie demo generata automat.',
+      createdBy: 'USR-008',
+      createdByName: 'Maria Ionescu',
+      createdAt: isoDaysAgo(8 - index, 12),
+      lines: order.lines
+        .filter((line) => Number(line.cantitate_receptionata || 0) > 0)
+        .map((line) => ({ material_id: line.material_id, materialName: line.materialName, cantitate_receptionata: line.cantitate_receptionata, unit: line.unit }))
+    }))
+}
+
+function buildPaapDemo() {
+  const year = new Date().getFullYear() + 1
+  const rows = [
+    ['paap-001', '09134200-9', 'Motorina', 'Motorina Euro 5 pentru utilaje si transport', 'litri', 120000, 780000, 612000, 'Licitatie deschisa', 1, 'Oana Barbu', 'Buget local / venituri proprii', 'Program lucrari drumuri 2027', 'Achizitii'],
+    ['paap-002', '44113620-7', 'Bitum', 'Bitum rutier 50/70', 'tone', 420, 1320000, 975000, 'Licitatie deschisa', 1, 'Oana Barbu', 'Venituri proprii', 'Program asfaltare 2027', 'Achizitii'],
+    ['paap-003', '14212200-2', 'Agregate', 'Agregate concasate pentru statia de asfalt', 'tone', 2800, 294000, 188000, 'Procedura simplificata', 2, 'Oana Barbu', 'Venituri proprii', 'Program asfaltare 2027', 'Achizitii'],
+    ['paap-004', '44811000-8', 'Vopsele', 'Vopsea pentru marcaje rutiere', 'kg', 1600, 52000, 48500, 'Achizitie directa', 2, 'Oana Barbu', 'Buget local', 'Siguranta circulatiei', 'Tehnic'],
+    ['paap-005', '18830000-6', 'Incaltaminte de protectie', 'Bocanci si cizme protectie S3', 'per', 210, 46200, 11200, 'Achizitie directa', 3, 'Ana Rusu', 'Buget local', 'Protectia muncii', 'Resurse Umane'],
+    ['paap-006', '34992200-9', 'Indicatoare rutiere', 'Indicatoare si semnalizare rutiera temporara', 'buc', 280, 98000, 101500, 'Achizitie directa', 3, 'Oana Barbu', 'Buget local', 'Siguranta circulatiei', 'Tehnic']
+  ]
+  const paap = rows.map(([id, cpv_cod, cpv_denumire, material, um, cantitate, valoare_estimata, valoare_executata, procedura, trimestru, responsabil_achizitie, modalitate_finantare, obiectiv_strategie_locala, unitate_responsabila], index) => ({
+    id,
+    an: year,
+    cpv_cod,
+    cpv_denumire,
+    material,
+    um,
+    cantitate,
+    valoare_estimata,
+    procedura,
+    trimestru,
+    valoare_executata,
+    sursa: 'demo',
+    responsabil_achizitie,
+    curs_bnr_eur: 5,
+    data_estimata_incepere: `${year}-${String(Math.min(12, trimestru * 3 - 2)).padStart(2, '0')}-15`,
+    data_estimata_finalizare: `${year}-${String(Math.min(12, trimestru * 3)).padStart(2, '0')}-28`,
+    modalitate_finantare,
+    obiectiv_strategie_locala,
+    modalitate_desfasurare: 'Online',
+    unitate_responsabila,
+    created_at: isoDaysAgo(25 - index, 10),
+    created_by: 'USR-013'
+  }))
+  const paapExecutie = paap.map((item, index) => ({
+    id: `paap-exec-${String(index + 1).padStart(3, '0')}`,
+    paap_id: item.id,
+    factura_id: `FACT-DEMO-${String(index + 1).padStart(3, '0')}`,
+    comanda_id: `PO-${String(index + 1).padStart(3, '0')}`,
+    valoare: item.valoare_executata,
+    data: addDays(-20 + index * 3),
+    note: 'Executie demo din comenzi si receptii.'
+  }))
+  return { paap, paapExecutie }
 }
 
 function buildTimesheets(seed) {
@@ -323,13 +503,24 @@ function buildDb(seed) {
   const tripLogs = buildTripLogs(seed)
   const gpsPositions = buildGps(seed)
   const referate = buildReferate(seed)
+  const referateFlux = buildReferateFlux(referate)
   const procurementOrders = buildProcurementOrders(seed)
+  const procurementReceipts = buildProcurementReceipts(procurementOrders)
+  const paapDemo = buildPaapDemo()
   const timesheets = buildTimesheets(seed)
   const messaging = buildMessaging()
   const mechanization = buildMechanizationDemo()
   const db = {
     company: seed.company,
-    settings: seed.settings,
+    settings: {
+      ...seed.settings,
+      scaleProductMap: {
+        'BITUM 50/70': 'MAT-001',
+        'CRIBLURA 4-8': 'MAT-003',
+        MOTORINA: 'MAT-007',
+        'VOPSEA MARCAJ ALB': 'MAT-010'
+      }
+    },
     users,
     roles: [],
     departments: seed.departments,
@@ -380,6 +571,7 @@ function buildDb(seed) {
     environment: { reports: seed.environment_reports },
     procurement_orders: procurementOrders,
     procurementOrders,
+    procurementReceipts,
     procurement_requirements: referate,
     consumptions: [
       { id: 'cons-000', date: addDays(0), recipeId: 'REC-001', recipeName: 'BA16 rul 50/70', reportNo: 'RZ-2026-AZI', ticket: 'TIC-2406', asphalt: 124, jobName: 'DJ207B', operatorName: 'Operator Demo', createdAt: isoDaysAgo(0, 10) },
@@ -405,6 +597,8 @@ function buildDb(seed) {
     trip_logs: tripLogs,
     gps_positions: gpsPositions,
     referate,
+    referateFlux,
+    referateCounters: [{ an: new Date().getFullYear(), last_nr: 126 }],
     notifications: buildNotifications(),
     audit: [
       { id: 'audit-001', action: 'demo_seed', details: 'Date demo generate', createdAt: new Date().toISOString(), userName: 'Sistem' }
@@ -412,14 +606,19 @@ function buildDb(seed) {
     messages: messaging.messages,
     message_channels: messaging.channels,
     messaging: { channels: messaging.channels, messages: messaging.messages },
+    departmentRequests: [
+      { id: 'dreq-001', type: 'material', materialId: 'MAT-001', materialName: 'Bitum 50/70', amount: 24, unit: 'tone', department: 'Tehnic', status: 'approved', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', createdAt: isoDaysAgo(2, 9) },
+      { id: 'dreq-002', type: 'material', materialId: 'MAT-010', materialName: 'Vopsea marcaj alb', amount: 720, unit: 'kg', department: 'Tehnic', status: 'planned', jobName: 'Marcaje rutiere DN15 Piatra-Neamt', createdAt: isoDaysAgo(3, 11) },
+      { id: 'dreq-003', type: 'material', materialId: 'MAT-025', materialName: 'Sare industriala', amount: 130, unit: 'tone', department: 'Salubrizare', status: 'planned', jobName: 'Stoc preventiv iarna', createdAt: isoDaysAgo(4, 10) }
+    ],
     department_requests: [
       { id: 'dr-001', type: 'material', itemName: 'Criblura 4-8mm', amount: 45, unit: 'tone', department: 'Tehnic', status: 'planned', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', createdAt: isoDaysAgo(7, 9) }
     ],
     documents: [],
     cost_entries: buildCostEntries(),
     controlling: { costCenters, costEntries: buildCostEntries(), entries: buildCostEntries(), costCenterObjects: [] },
-    paap: [],
-    paapExecutie: [],
+    paap: paapDemo.paap,
+    paapExecutie: paapDemo.paapExecutie,
     devices: [],
     workstationRequests: [],
     _demo_mode: true,

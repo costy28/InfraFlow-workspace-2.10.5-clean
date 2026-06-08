@@ -35,6 +35,11 @@ const flowLabels = {
   diferenta_factura: 'Diferență factură',
 }
 
+const statsKeys = {
+  aprobat: 'aprobate',
+  respins: 'respinse',
+}
+
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -56,6 +61,11 @@ function statusTone(status) {
 
 function materialName(material) {
   return material?.name || material?.denumire || material?.materialName || ''
+}
+
+function statFor(stats, key) {
+  if (!key) return stats.total ?? 0
+  return stats[key] ?? stats[statsKeys[key]] ?? 0
 }
 
 export default function ReferatePage() {
@@ -176,7 +186,7 @@ export default function ReferatePage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {tabs.map(tab => <button key={tab.key} className={`rounded-lg border p-3 text-left ${activeTab === tab.key ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white'}`} onClick={() => setActiveTab(tab.key)}><div className="text-xs uppercase text-slate-500">{tab.label}</div><div className="text-xl font-semibold">{tab.key === '' ? stats.total : stats[tab.key] ?? 0}</div></button>)}
+        {tabs.map(tab => <button key={tab.key} className={`rounded-lg border p-3 text-left ${activeTab === tab.key ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white'}`} onClick={() => setActiveTab(tab.key)}><div className="text-xs uppercase text-slate-500">{tab.label}</div><div className="text-xl font-semibold">{statFor(stats, tab.key)}</div></button>)}
       </div>
 
       {error ? <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}

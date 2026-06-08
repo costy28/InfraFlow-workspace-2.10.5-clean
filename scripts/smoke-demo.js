@@ -106,9 +106,24 @@ async function main() {
   const referateStats = await request('GET', '/api/referate/stats', { token })
   addCheck('/api/referate/stats are referate', referateStats.status === 200 && Number(referateStats.data?.total || 0) >= 5, `status=${referateStats.status}, total=${referateStats.data?.total}`)
 
+  const referateList = await request('GET', '/api/referate', { token })
+  const referateCount = countFrom(referateList.data, ['referate'])
+  const referatWithFlux = Array.isArray(referateList.data?.referate) && referateList.data.referate.some((item) => Array.isArray(item.flux) && item.flux.length > 1)
+  addCheck('/api/referate are flux demo', referateList.status === 200 && referateCount >= 7 && referatWithFlux, `status=${referateList.status}, count=${referateCount}`)
+
   const procurementOrders = await request('GET', '/api/procurement-orders', { token })
   const procurementOrderCount = countFrom(procurementOrders.data, ['orders'])
   addCheck('/api/procurement-orders >= 10', procurementOrders.status === 200 && procurementOrderCount >= 10, `status=${procurementOrders.status}, count=${procurementOrderCount}`)
+
+  const procurementRequirements = await request('GET', '/api/procurement-requirements', { token })
+  const procurementRequirementCount = countFrom(procurementRequirements.data, ['requirements'])
+  addCheck('/api/procurement-requirements are necesar', procurementRequirements.status === 200 && procurementRequirementCount >= 2, `status=${procurementRequirements.status}, count=${procurementRequirementCount}`)
+
+  const nextYear = new Date().getFullYear() + 1
+  const paap = await request('GET', `/api/paap?an=${nextYear}`, { token })
+  const paapCount = countFrom(paap.data, ['paap'])
+  const paapHasExecution = Array.isArray(paap.data?.paap) && paap.data.paap.some((item) => Number(item.valoare_executata || 0) > 0 && Number(item.procent || 0) > 50)
+  addCheck(`/api/paap?an=${nextYear} are executie`, paap.status === 200 && paapCount >= 6 && paapHasExecution, `status=${paap.status}, count=${paapCount}`)
 
   const controllingDashboard = await request('GET', '/api/controlling/dashboard', { token })
   addCheck('/api/controlling/dashboard are buget', controllingDashboard.status === 200 && Number(controllingDashboard.data?.total_buget || 0) > 0, `status=${controllingDashboard.status}, buget=${controllingDashboard.data?.total_buget}, real=${controllingDashboard.data?.total_real}`)
