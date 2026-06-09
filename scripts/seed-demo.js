@@ -4,6 +4,7 @@
  */
 const path = require('path')
 const fs = require('fs')
+const crypto = require('crypto')
 const { hashPassword } = require('../server/core/auth')
 
 const ROOT = path.join(__dirname, '..')
@@ -36,6 +37,56 @@ function isoDaysAgo(days, hour = 8) {
 
 function pick(list, index) {
   return list[index % list.length]
+}
+
+function splitName(name) {
+  const parts = String(name || '').trim().split(/\s+/)
+  if (parts.length <= 1) return { nume: name || '', prenume: '' }
+  return { nume: parts[parts.length - 1], prenume: parts.slice(0, -1).join(' ') }
+}
+
+function employeeDepartmentCod(employee) {
+  const map = {
+    'DEP-001': 'conducere',
+    'DEP-002': 'mecanizare',
+    'DEP-003': 'gestiune',
+    'DEP-004': 'financiar',
+    'DEP-005': 'hr',
+    'DEP-006': 'tehnic',
+    'DEP-007': 'achizitii',
+    'DEP-008': 'salubrizare'
+  }
+  return map[employee.departmentId] || employee.departmentId || ''
+}
+
+function buildHrEmployees(seed) {
+  return seed.employees.map((employee, index) => {
+    const names = splitName(employee.name)
+    const department = seed.departments.find((item) => item.id === employee.departmentId)
+    return {
+      ...employee,
+      ...names,
+      marca: `M${String(index + 1).padStart(4, '0')}`,
+      functia: employee.functie,
+      department_id: employee.departmentId,
+      department_cod: employeeDepartmentCod(employee),
+      department_name: department?.name || '',
+      data_angajare: employee.hire_date,
+      tip_contract: employee.contract_type,
+      salariu_baza: employee.salary_gross,
+      norma_ore_zi: 8,
+      activ: true,
+      email: `${employee.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.')}@constructiinord.ro`,
+      telefon: `07${String(20000000 + index * 13729).slice(0, 8)}`,
+      adresa: `Str. Demo nr. ${index + 10}, Piatra-Neamt`,
+      iban: `RO49AAAA1B3100759384${String(index + 1).padStart(4, '0')}`,
+      permis_conducere_categorii: /sofer|mecanic|operator/i.test(employee.functie) ? 'B,C,CE' : '',
+      permis_conducere_expira: /sofer/i.test(employee.functie) ? addDays(pick([18, 42, 95, 180], index)) : '',
+      apt_medical_expira: addDays(pick([14, 28, 65, 120, 240], index)),
+      zile_co_drept: 21,
+      sursa: 'manual'
+    }
+  })
 }
 
 function withFleetDueDates(assets) {
@@ -99,7 +150,7 @@ function buildTripLogs(seed) {
   ]
   const vehicles = seed.fleet_assets.filter((asset) => asset.category === 'vehicle').slice(0, 8)
   const drivers = seed.employees.filter((employee) => /sofer/i.test(employee.functie)).map((employee) => employee.id)
-  return Array.from({ length: 30 }, (_, index) => {
+  const rows = Array.from({ length: 30 }, (_, index) => {
     const vehicle = pick(vehicles, index)
     const km = 38 + (index * 7) % 86
     const start = Number(vehicle.odometer_km || 40000) + index * 120
@@ -135,6 +186,40 @@ function buildTripLogs(seed) {
       created_at: isoDaysAgo(29 - index, 6)
     }
   })
+  rows.unshift({
+    id: 'fp-kiosk-001',
+    uuid: 'demo-fp-kiosk-001',
+    nr_foaie: 'FP-2026-KIOSK-001',
+    data: addDays(0),
+    date: addDays(0),
+    vehicul_id: 'VEH-001',
+    assetId: 'VEH-001',
+    asset_id: 'VEH-001',
+    sofer_id: 'EMP-001',
+    employee_id: 'EMP-001',
+    driverId: 'EMP-001',
+    sofer_text: 'Ion Popescu',
+    nr_inmatriculare: 'NT-01-ABC',
+    km_plecare: 48250,
+    km_sosire: '',
+    km_parcursi: 0,
+    destination: 'Reabilitare DJ207B km 3+000 - km 8+500',
+    destinatie: 'Reabilitare DJ207B km 3+000 - km 8+500',
+    scopul_deplasarii: 'Transport mixtura asfaltica',
+    marfa: 'Mixtura asfaltica BA16',
+    tone: 0,
+    combustibil_sold_initial: 180,
+    combustibil_primit: 120,
+    combustibil_sold_final: '',
+    consum_normat: 0,
+    status: 'deschisa',
+    trimisa_la_sofer: true,
+    trimisa_la: isoDaysAgo(0, 6),
+    cost_center_id: 'SUB-BASC',
+    observatii: 'Foaie primita in Kiosk pentru completare verso demo.',
+    created_at: isoDaysAgo(0, 6)
+  })
+  return rows
 }
 
 function buildGps(seed) {
@@ -378,29 +463,158 @@ function buildPaapDemo() {
   return { paap, paapExecutie }
 }
 
-function buildTimesheets(seed) {
-  const employees = seed.employees
+function buildHrContracts(employees) {
+  return employees.map((employee, index) => ({
+    id: `CTR-${String(index + 1).padStart(3, '0')}`,
+    employee_id: employee.id,
+    nr_contract: `CIM-${2020 + (index % 5)}-${String(index + 11).padStart(4, '0')}`,
+    data_start: employee.data_angajare || employee.hire_date,
+    tip_contract: employee.tip_contract || 'CIM nedeterminat',
+    norma_ore_zi: 8,
+    salariu_baza: employee.salariu_baza || employee.salary_gross || 0,
+    status: 'activ',
+    created_at: isoDaysAgo(30, 8)
+  }))
+}
+
+function buildTimesheets(employees) {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth()
+  const today = now.getDate()
   const rows = []
   employees.forEach((employee) => {
-    for (let day = 1; day <= 20; day += 1) {
+    for (let day = 1; day <= Math.max(20, today); day += 1) {
       const date = new Date(year, month, day)
       const weekend = [0, 6].includes(date.getDay())
+      const leaveCo = employee.id === 'EMP-006' && day >= 9 && day <= 12
+      const leaveCm = employee.id === 'EMP-012' && day >= 4 && day <= 5
+      const absent = employee.id === 'EMP-014' && day === 3
+      const overtime = !weekend && ['EMP-001', 'EMP-003', 'EMP-011'].includes(employee.id) && [2, 6, 8, 13, 17].includes(day)
       rows.push({
         id: `TS-${employee.id}-${String(day).padStart(2, '0')}`,
         employee_id: employee.id,
         employeeName: employee.name,
         date: localDate(date),
+        data: localDate(date),
         ore_lucrate: weekend ? 0 : 8,
         hours: weekend ? 0 : 8,
-        tip: weekend ? 'liber' : (day === 9 && employee.id === 'EMP-006' ? 'co' : 'prezenta'),
-        cost_center: employee.departmentId === 'DEP-002' ? 'DEP-MECAN' : employee.departmentId === 'DEP-008' ? 'DEP-SALUB' : 'DEP-TEHNIC'
+        tip: weekend ? 'liber' : leaveCo ? 'co' : leaveCm ? 'cm' : absent ? 'absent' : 'lucru',
+        ore_suplimentare_s1: overtime ? 2 : 0,
+        ore_suplimentare_s2: employee.id === 'EMP-001' && day === 8 ? 1 : 0,
+        ore_noapte: employee.id === 'EMP-009' && [5, 12, 19].includes(day) ? 4 : 0,
+        cost_center: employee.department_id === 'DEP-002' ? 'DEP-MECAN' : employee.department_id === 'DEP-008' ? 'DEP-SALUB' : 'DEP-TEHNIC',
+        validat: day < today - 1,
+        observatii: overtime ? 'Ore suplimentare lucrare urgenta' : ''
       })
     }
   })
   return rows
+}
+
+function buildLeaveRequests(employees) {
+  const employee = (id) => employees.find((item) => item.id === id) || {}
+  return [
+    { id: 'leave-001', uuid: 'demo-leave-001', employee_id: 'EMP-006', employee_name: employee('EMP-006').name, tip: 'co', data_start: addDays(-1), data_sfarsit: addDays(3), zile: 5, motiv: 'Concediu odihna programat', status: 'aprobata', aprobat_de: 'USR-009', aprobat_la: isoDaysAgo(2, 10), created_at: isoDaysAgo(7, 9) },
+    { id: 'leave-002', uuid: 'demo-leave-002', employee_id: 'EMP-012', employee_name: employee('EMP-012').name, tip: 'cm', data_start: addDays(-4), data_sfarsit: addDays(-3), zile: 2, motiv: 'Concediu medical', status: 'aprobat', aprobat_de: 'USR-009', aprobat_la: isoDaysAgo(4, 9), created_at: isoDaysAgo(5, 8) },
+    { id: 'leave-003', uuid: 'demo-leave-003', employee_id: 'EMP-001', employee_name: employee('EMP-001').name, tip: 'co', data_start: addDays(14), data_sfarsit: addDays(18), zile: 5, motiv: 'Concediu odihna vara', status: 'cerut', created_at: isoDaysAgo(1, 12) },
+    { id: 'leave-004', uuid: 'demo-leave-004', employee_id: 'EMP-014', employee_name: employee('EMP-014').name, tip: 'cfp', data_start: addDays(20), data_sfarsit: addDays(21), zile: 2, motiv: 'Probleme personale', status: 'respinsa', created_at: isoDaysAgo(3, 11), respins_de: 'USR-009', respins_la: isoDaysAgo(2, 14) }
+  ]
+}
+
+function buildAuthorizations(employees) {
+  const authTypes = ['Permis conducere C/CE', 'ISCIR stivuitor', 'Macaragiu', 'Sef santier', 'SSM lucrari drumuri', 'Apt medical']
+  return employees.slice(0, 12).map((employee, index) => ({
+    id: `AUTH-${String(index + 1).padStart(3, '0')}`,
+    uuid: `demo-auth-${String(index + 1).padStart(3, '0')}`,
+    employee_id: employee.id,
+    employee_name: employee.name,
+    tip: pick(authTypes, index),
+    tip_autorizatie: pick(authTypes, index),
+    numar: `AUT-${2026}-${String(200 + index).padStart(4, '0')}`,
+    data_emitere: addDays(-365 + index * 12),
+    data_expirare: addDays(pick([-8, 9, 18, 27, 45, 80, 130], index)),
+    emitent: pick(['ARR Neamt', 'Medicina Muncii', 'ISCIR', 'SSM Nord Consult'], index),
+    observatii: index < 4 ? 'Urmarire scadenta demo' : '',
+    created_at: isoDaysAgo(30 - index, 10)
+  }))
+}
+
+function buildTimesheetDepartments(departments) {
+  const luna = new Date().toISOString().slice(0, 7)
+  return departments.map((dept, index) => ({
+    id: `TD-${String(index + 1).padStart(3, '0')}`,
+    luna,
+    department_cod: dept.cod || dept.id,
+    status: pick(['finalizat', 'in_lucru', 'finalizat', 'necompletat'], index),
+    completat_la: index % 4 === 3 ? null : isoDaysAgo(Math.max(0, 3 - index), 15),
+    completat_de: pick(['USR-004', 'USR-008', 'USR-009', 'USR-013'], index),
+    created_at: isoDaysAgo(10 - index, 8)
+  }))
+}
+
+function buildHrEquipment(employees) {
+  const types = [
+    { id: 1, denumire: 'Salopeta', categorie: 'protectie', tip_marimi: 'numeric', durata_luni: 12, are_marime: true, are_serie: false, are_expirare: true, valoare_inventar: 185, cod_articol: 'Ares 82/83', activ: true },
+    { id: 2, denumire: 'Bocanci', categorie: 'protectie', tip_marimi: 'numeric', durata_luni: 12, are_marime: true, are_serie: false, are_expirare: true, valoare_inventar: 210, cod_articol: 'Bocanci S3', activ: true },
+    { id: 3, denumire: 'Cizme cauciuc', categorie: 'protectie', tip_marimi: 'numeric', durata_luni: 24, are_marime: true, are_serie: false, are_expirare: true, valoare_inventar: 96, cod_articol: 'CIZ-01', activ: true },
+    { id: 6, denumire: 'Vesta reflectorizanta', categorie: 'SSM', tip_marimi: 'text', durata_luni: 12, are_marime: true, are_serie: false, are_expirare: true, valoare_inventar: 32, cod_articol: '4100217', activ: true },
+    { id: 9, denumire: 'Casca protectie', categorie: 'SSM', tip_marimi: 'text', durata_luni: 36, are_marime: true, are_serie: false, are_expirare: true, valoare_inventar: 58, cod_articol: 'CAS-SSM', activ: true },
+    { id: 16, denumire: 'Trusa scule mecanic', categorie: 'scule', tip_marimi: 'text', durata_luni: 0, are_marime: false, are_serie: true, are_expirare: false, valoare_inventar: 850, cod_articol: 'SCULE-MEC', activ: true }
+  ]
+  const sizes = [
+    ...[40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60].map((marime, index) => ({ id: 100 + index, tip_id: 1, marime: String(marime), ordine: index + 1 })),
+    ...[38, 39, 40, 41, 42, 43, 44, 45, 46].flatMap((marime, index) => ([{ id: 200 + index, tip_id: 2, marime: String(marime), ordine: index + 1 }, { id: 300 + index, tip_id: 3, marime: String(marime), ordine: index + 1 }])),
+    ...['S', 'M', 'L', 'XL'].flatMap((marime, index) => ([{ id: 400 + index, tip_id: 6, marime, ordine: index + 1 }, { id: 500 + index, tip_id: 9, marime, ordine: index + 1 }]))
+  ]
+  const employeeSizes = employees.flatMap((employee, index) => ([
+    { id: `SIZE-${employee.id}-1`, angajat_id: employee.id, tip_id: 1, marime: String(pick([48, 50, 52, 54, 56], index)) },
+    { id: `SIZE-${employee.id}-2`, angajat_id: employee.id, tip_id: 2, marime: String(pick([39, 40, 41, 42, 43, 44], index)) },
+    { id: `SIZE-${employee.id}-6`, angajat_id: employee.id, tip_id: 6, marime: pick(['M', 'L', 'XL'], index) }
+  ]))
+  const dotari = employees.flatMap((employee, index) => {
+    const base = [
+      { tip_id: 1, data_dotare: addDays(pick([-390, -330, -220, -80], index)), marime: String(pick([48, 50, 52, 54, 56], index)), cantitate: 1 },
+      { tip_id: 2, data_dotare: addDays(pick([-360, -300, -180, -35], index)), marime: String(pick([39, 40, 41, 42, 43, 44], index)), cantitate: 1 },
+      { tip_id: 6, data_dotare: addDays(pick([-340, -250, -90, -20], index)), marime: pick(['M', 'L', 'XL'], index), cantitate: 1 }
+    ]
+    if (['EMP-004', 'EMP-009'].includes(employee.id)) base.push({ tip_id: 16, data_dotare: addDays(-120), marime: '', cantitate: 1, numar_serie: `SC-${employee.id}` })
+    return base.map((item, itemIndex) => {
+      const type = types.find((row) => row.id === item.tip_id) || {}
+      return {
+        id: `DOT-${employee.id}-${itemIndex + 1}`,
+        angajat_id: employee.id,
+        tip_id: item.tip_id,
+        data_dotare: item.data_dotare,
+        marime: item.marime,
+        cantitate: item.cantitate,
+        numar_serie: item.numar_serie || '',
+        valoare_inventar: type.valoare_inventar || 0,
+        durata_luni: type.durata_luni || 0,
+        stare: 'in_uz',
+        predat_la_lichidare: false,
+        observatii: 'Dotare demo'
+      }
+    })
+  })
+  return {
+    echipamenteTipuri: types,
+    echipamenteMarimi: sizes,
+    echipamenteDepartament: [
+      { id: 1, departament: 'Mecanizare', tip_id: 1, culoare: 'Bleomarin', cod_articol: 'Ares 82/83', obligatoriu: true },
+      { id: 2, departament: 'Mecanizare', tip_id: 2, culoare: 'Negru', cod_articol: 'Bocanci S3', obligatoriu: true },
+      { id: 3, departament: 'Salubrizare', tip_id: 6, culoare: 'Reflectorizant', cod_articol: '4100217', obligatoriu: true },
+      { id: 4, departament: 'Tehnic', tip_id: 9, culoare: 'Alb', cod_articol: 'CAS-SSM', obligatoriu: true }
+    ],
+    angajatEchipamente: employeeSizes,
+    echipamenteDotari: dotari
+  }
+}
+
+function hashKioskPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
+  return `scrypt:${salt}:${hash}`
 }
 
 function buildNotifications() {
@@ -486,6 +700,13 @@ function buildMechanizationDemo() {
 function buildDb(seed) {
   const passwordHash = hashPassword('demo123')
   const users = seed.users.map((user) => ({ ...user, passwordHash, createdAt: isoDaysAgo(20, 8) }))
+  const hrEmployees = buildHrEmployees(seed)
+  const timesheets = buildTimesheets(hrEmployees)
+  const leaveRequests = buildLeaveRequests(hrEmployees)
+  const authorizations = buildAuthorizations(hrEmployees)
+  const hrContracts = buildHrContracts(hrEmployees)
+  const timesheetDepartments = buildTimesheetDepartments(seed.departments)
+  const hrEquipment = buildHrEquipment(hrEmployees)
   const fleetAssets = withFleetDueDates(seed.fleet_assets)
   const costCenters = seed.cost_centers.map((center) => ({
     ...center,
@@ -507,7 +728,6 @@ function buildDb(seed) {
   const procurementOrders = buildProcurementOrders(seed)
   const procurementReceipts = buildProcurementReceipts(procurementOrders)
   const paapDemo = buildPaapDemo()
-  const timesheets = buildTimesheets(seed)
   const messaging = buildMessaging()
   const mechanization = buildMechanizationDemo()
   const db = {
@@ -528,8 +748,37 @@ function buildDb(seed) {
     role_permissions: [],
     cost_centers: costCenters,
     costCenters,
-    employees: seed.employees,
-    hr: { employees: seed.employees, timesheets, leaveRequests: [], authorizations: [], contracts: [] },
+    employees: hrEmployees,
+    hr: {
+      employees: hrEmployees,
+      timesheets,
+      timeSheets: timesheets,
+      leaveRequests,
+      authorizations,
+      contracts: hrContracts,
+      timesheetDepartments,
+      training: [
+        { id: 'TR-001', titlu: 'Instruire SSM lucrari drumuri', data_start: addDays(-3), data_sfarsit: addDays(-3), furnizor: 'SSM Nord Consult', status: 'finalizat' },
+        { id: 'TR-002', titlu: 'Operator utilaje - reinstruire periodica', data_start: addDays(8), data_sfarsit: addDays(8), furnizor: 'ISCIR Training', status: 'planificat' }
+      ],
+      trainingEmployees: [],
+      evaluations: [],
+      tures: [
+        { id: 1, nume: 'Tura I', ora_start: '06:00', ora_sfarsit: '14:00', ore_normale: 8, culoare: '#F59E0B', activ: true },
+        { id: 2, nume: 'Tura II', ora_start: '14:00', ora_sfarsit: '22:00', ore_normale: 8, culoare: '#0EA5E9', activ: true },
+        { id: 3, nume: 'Normal', ora_start: '08:00', ora_sfarsit: '16:00', ore_normale: 8, culoare: '#10B981', activ: true }
+      ],
+      schedules: [],
+      overtimeCompensations: [
+        { id: 'OTC-001', employee_id: 'EMP-001', ore: 8, tip: 'timp_liber', data: addDays(-12), created_by: 'USR-009', created_at: isoDaysAgo(12, 10) }
+      ],
+      kioskUsers: [
+        { id: 1, uuid: 'demo-kiosk-sofer1', employee_id: 'EMP-001', username: 'sofer1', passwordHash: hashKioskPassword('demo123'), act_tip: 'CI', activ: true, created_at: isoDaysAgo(20, 8) }
+      ],
+      kioskResetCodes: [],
+      mealTicketsConfig: { valoare_tichet: 40 },
+      ...hrEquipment
+    },
     fleetAssets,
     fleet: { assets: fleetAssets, tripLogs },
     fleetTripLogs: tripLogs,
@@ -591,9 +840,7 @@ function buildDb(seed) {
     ],
     fleet_requests: [],
     timesheets,
-    leave_requests: [
-      { id: 'leave-001', employee_id: 'EMP-006', type: 'co', from: addDays(8), to: addDays(12), status: 'aprobat' }
-    ],
+    leave_requests: leaveRequests,
     trip_logs: tripLogs,
     gps_positions: gpsPositions,
     referate,

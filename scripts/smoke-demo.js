@@ -102,6 +102,87 @@ async function main() {
 
   const hrStats = await request('GET', '/api/hr/stats', { token })
   addCheck('/api/hr/stats are 15 angajati', hrStats.status === 200 && Number(hrStats.data?.total_angajati || 0) >= 15, `status=${hrStats.status}, total=${hrStats.data?.total_angajati}`)
+  addCheck('/api/hr/stats are concedii si autorizatii', hrStats.status === 200 && Number(hrStats.data?.in_concediu || 0) > 0 && Number(hrStats.data?.autorizatii_expira_30_zile || 0) > 0, `concediu=${hrStats.data?.in_concediu}, autorizatii=${hrStats.data?.autorizatii_expira_30_zile}`)
+
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  const leaveStart = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
+  const leaveEnd = new Date(Date.now() + 16 * 86400000).toISOString().slice(0, 10)
+  const hrTimesheet = await request('GET', `/api/hr/timesheets/monthly-sheet?luna=${currentMonth}`, { token })
+  const hrTimesheetCount = countFrom(hrTimesheet.data, ['items'])
+  addCheck('/api/hr/timesheets/monthly-sheet are pontaj', hrTimesheet.status === 200 && hrTimesheetCount >= 15, `status=${hrTimesheet.status}, count=${hrTimesheetCount}`)
+
+  const hrOverview = await request('GET', `/api/hr/timesheets/overview?luna=${currentMonth}`, { token })
+  const hrOverviewCount = Array.isArray(hrOverview.data) ? hrOverview.data.length : 0
+  const hrOverviewHasProgress = Array.isArray(hrOverview.data) && hrOverview.data.some((item) => Number(item.procent || 0) > 0)
+  addCheck('/api/hr/timesheets/overview are departamente', hrOverview.status === 200 && hrOverviewCount >= 5 && hrOverviewHasProgress, `status=${hrOverview.status}, count=${hrOverviewCount}`)
+
+  const hrLeaves = await request('GET', '/api/hr/leave-requests', { token })
+  const hrLeaveCount = Array.isArray(hrLeaves.data) ? hrLeaves.data.length : 0
+  addCheck('/api/hr/leave-requests are cereri', hrLeaves.status === 200 && hrLeaveCount >= 4, `status=${hrLeaves.status}, count=${hrLeaveCount}`)
+
+  const hrAuthorizations = await request('GET', '/api/hr/authorizations', { token })
+  const hrAuthorizationCount = Array.isArray(hrAuthorizations.data) ? hrAuthorizations.data.length : 0
+  const hasExpiringAuthorization = Array.isArray(hrAuthorizations.data) && hrAuthorizations.data.some((item) => item.alert || item.expirat)
+  addCheck('/api/hr/authorizations are scadente', hrAuthorizations.status === 200 && hrAuthorizationCount >= 10 && hasExpiringAuthorization, `status=${hrAuthorizations.status}, count=${hrAuthorizationCount}`)
+
+  const hrEquipmentNeed = await request('GET', '/api/hr/echipamente/raport-necesar', { token })
+  const hrEquipmentNeedCount = countFrom(hrEquipmentNeed.data, ['rows'])
+  addCheck('/api/hr/echipamente/raport-necesar are pozitii', hrEquipmentNeed.status === 200 && hrEquipmentNeedCount > 0, `status=${hrEquipmentNeed.status}, count=${hrEquipmentNeedCount}`)
+
+  const hrEquipmentExpiry = await request('GET', '/api/hr/echipamente/expirari?zile=90', { token })
+  const hrEquipmentExpiryCount = countFrom(hrEquipmentExpiry.data, ['rows'])
+  addCheck('/api/hr/echipamente/expirari are alerte', hrEquipmentExpiry.status === 200 && hrEquipmentExpiryCount > 0, `status=${hrEquipmentExpiry.status}, count=${hrEquipmentExpiryCount}`)
+
+  const kioskLogin = await request('POST', '/api/hr/kiosk/login', { body: { username: 'sofer1', password: PASSWORD } })
+  const kioskToken = kioskLogin.data?.token
+  addCheck('login kiosk sofer1', kioskLogin.status === 200 && Boolean(kioskToken), `status=${kioskLogin.status}, employee=${kioskLogin.data?.employee_name || '-'}`)
+
+  if (kioskToken) {
+    const kioskProfile = await request('GET', '/api/hr/kiosk/me', { token: kioskToken })
+    addCheck('/api/hr/kiosk/me are profil sofer', kioskProfile.status === 200 && kioskProfile.data?.angajat?.id === 'EMP-001' && Number(kioskProfile.data?.pontaj_luna?.ore_total || 0) > 0, `status=${kioskProfile.status}, ore=${kioskProfile.data?.pontaj_luna?.ore_total}`)
+
+    const kioskLeave = await request('POST', '/api/hr/kiosk/sync', {
+      token: kioskToken,
+      body: {
+        operations: [{
+          id: 'smoke-kiosk-leave-001',
+          type: 'leave_request',
+          data: {
+            uuid: 'smoke-kiosk-leave-001',
+            employee_id: 'EMP-001',
+            tip: 'CO',
+            data_start: leaveStart,
+            data_sfarsit: leaveEnd,
+            motiv: 'Test smoke Kiosk sofer'
+          }
+        }]
+      }
+    })
+    addCheck('/api/hr/kiosk/sync trimite cerere CO', kioskLeave.status === 200 && kioskLeave.data?.ok === true && Array.isArray(kioskLeave.data?.synced) && kioskLeave.data.synced.length > 0, `status=${kioskLeave.status}, failed=${kioskLeave.data?.failed?.length || 0}`)
+
+    const kioskTrips = await request('GET', '/api/hr/kiosk/my-trips', { token: kioskToken })
+    const trips = Array.isArray(kioskTrips.data?.trips) ? kioskTrips.data.trips : []
+    const activeKioskTrip = trips.find((item) => item.status === 'deschisa')
+    addCheck('/api/hr/kiosk/my-trips are foaie activa', kioskTrips.status === 200 && Boolean(activeKioskTrip), `status=${kioskTrips.status}, count=${trips.length}`)
+
+    if (activeKioskTrip?.uuid) {
+      const saveVerso = await request('PATCH', `/api/fleet/trip-logs/${activeKioskTrip.uuid}/verso-kiosk`, {
+        token: kioskToken,
+        body: {
+          activitati: [
+            { id: 'smoke-act-1', locul_plecarii: 'Depou central', locul_sosirii: 'DJ207B km 4+200', ziua: new Date().toISOString().slice(0, 10), ora: '08', minut: '15', km_incarcat: 18, km_gol: 4, tone: 18, marfa: 'Mixtura asfaltica BA16' }
+          ],
+          km_sosire: 48302,
+          km_cat1: 40,
+          km_cat2: 8,
+          km_cat3: 4,
+          observatii: 'Completare verso din smoke test demo.'
+        }
+      })
+      const savedTrip = saveVerso.data?.trip_log || saveVerso.data?.foaie
+      addCheck('/api/fleet/trip-logs/:uuid/verso-kiosk salveaza', saveVerso.status === 200 && savedTrip?.status === 'completata', `status=${saveVerso.status}, foaie=${savedTrip?.nr_foaie || '-'}`)
+    }
+  }
 
   const referateStats = await request('GET', '/api/referate/stats', { token })
   addCheck('/api/referate/stats are referate', referateStats.status === 200 && Number(referateStats.data?.total || 0) >= 5, `status=${referateStats.status}, total=${referateStats.data?.total}`)

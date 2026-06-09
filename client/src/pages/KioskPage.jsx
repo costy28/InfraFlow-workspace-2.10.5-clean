@@ -269,39 +269,26 @@ export default function KioskPage() {
       if (kioskToken) {
         // Kiosk user: use dedicated endpoints
         const kApi = kioskApi(kioskToken)
-        const [tripsRes, empRes] = await Promise.allSettled([
+        const [tripsRes, profileRes] = await Promise.allSettled([
           kApi.get('/hr/kiosk/my-trips'),
-          kApi.get('/hr/employees').catch(() => null)
+          kApi.get('/hr/kiosk/me').catch(() => null)
         ])
         if (tripsRes.status === 'fulfilled') {
           setMyTrips(tripsRes.value.data?.trips || [])
         }
-        // Try to get employee data from hr/employees (kiosk token may not have access)
-        // Instead, load employee by ID via a general approach
-        if (kioskEmpId) {
-          try {
-            const empData = await kApi.get('/hr/employees').then(r => {
-              const emps = Array.isArray(r.data) ? r.data : (r.data?.employees || [])
-              return emps.find(e => String(e.id) === String(kioskEmpId))
-            })
-            if (empData) {
-              setEmployee(empData)
-              const [coRes, leavesRes, authsRes] = await Promise.allSettled([
-                kApi.get(`/hr/employees/${empData.id}/co-balance`).catch(() => null),
-                kApi.get('/hr/leave-requests').catch(() => null),
-                kApi.get('/hr/authorizations').catch(() => null),
-              ])
-              if (coRes.status === 'fulfilled' && coRes.value) setCoBalance(coRes.value.data)
-              if (leavesRes.status === 'fulfilled' && leavesRes.value) {
-                const all = Array.isArray(leavesRes.value.data) ? leavesRes.value.data : (leavesRes.value.data?.leave_requests || [])
-                setMyLeaves(all.filter(l => String(l.employee_id) === String(empData.id)))
-              }
-              if (authsRes.status === 'fulfilled' && authsRes.value) {
-                const all = Array.isArray(authsRes.value.data) ? authsRes.value.data : (authsRes.value.data?.authorizations || [])
-                setMyAuth(all.filter(a => String(a.employee_id) === String(empData.id)))
-              }
-            }
-          } catch (_) { /* ignoră — datele HR sunt opționale pentru kiosk */ }
+        if (profileRes.status === 'fulfilled' && profileRes.value?.data) {
+          const profile = profileRes.value.data
+          setKioskSummary(profile)
+          setEmployee(profile.angajat || null)
+          setCoBalance(profile.concedii ? {
+            year: new Date().getFullYear(),
+            zile_ramase: profile.concedii.co_ramase || 0,
+            zile_efectuate: profile.concedii.co_efectuate || 0,
+            zile_drept: profile.concedii.co_total || 0,
+          } : null)
+          setMyLeaves(profile.cereri || [])
+          setMyAuth(profile.autorizatii || [])
+          saveCache({ kioskEmpId, employee: profile.angajat, coBalance: profile.concedii, myLeaves: profile.cereri, myAuth: profile.autorizatii, kioskSummary: profile })
         }
       } else if (user) {
         // Regular app user
@@ -355,7 +342,8 @@ export default function KioskPage() {
     if (!syncQueue.length) return
     setSyncStatus(`Se sincronizează ${syncQueue.length} operațiuni...`)
     try {
-      const response = await api.post('/hr/kiosk/sync', { operations: syncQueue })
+      const syncApi = kioskToken ? kioskApi(kioskToken) : api
+      const response = await syncApi.post('/hr/kiosk/sync', { operations: syncQueue })
       const failedIds = new Set((response.data?.failed || []).map(i => i.id))
       const remaining = queue.filter(i => failedIds.has(i.id))
       saveQueue(remaining)
@@ -367,7 +355,7 @@ export default function KioskPage() {
       if (isNetworkError(err)) { setOnline(false); setSyncStatus('Offline — sincronizarea se reia automat.') }
       else setSyncStatus(err.response?.data?.error || 'Sincronizarea nu a reușit.')
     }
-  }, [isAuthenticated, loadKiosk])
+  }, [isAuthenticated, kioskToken, loadKiosk])
 
   // Sync verso items when online
   const syncVerso = useCallback(async () => {
@@ -528,7 +516,8 @@ export default function KioskPage() {
     const payload = { ...leaveForm, employee_id: employee.id, uuid: clientId }
     const operation = { id: clientId, type: 'leave_request', created_at: new Date().toISOString(), data: payload }
     try {
-      const response = await api.post('/hr/kiosk/sync', { operations: [operation] })
+      const syncApi = kioskToken ? kioskApi(kioskToken) : api
+      const response = await syncApi.post('/hr/kiosk/sync', { operations: [operation] })
       if (response.data?.failed?.length) throw new Error(response.data.failed[0]?.error || 'Eroare.')
       setOnline(true); setLeaveSuccess(true)
       setLeaveForm({ tip: 'CO', data_start: '', data_sfarsit: '', motiv: '' })
@@ -645,6 +634,9 @@ export default function KioskPage() {
           {authScreen === 'login' && (
             <>
               {loginError && <div style={S.err}>{loginError}</div>}
+              <div style={{ marginBottom: '14px', borderRadius: '10px', background: '#ecfdf5', padding: '10px 12px', fontSize: '12px', color: '#065f46' }}>
+                Demo șofer: <strong>sofer1</strong> / <strong>demo123</strong>
+              </div>
               <form onSubmit={handleKioskLogin}>
                 <KField label="Utilizator" value={loginForm.username} onChange={e => setLoginForm(f => ({ ...f, username: e.target.value }))} placeholder="username" autoFocus />
                 <KField label="Parolă" type="password" value={loginForm.password} onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" />

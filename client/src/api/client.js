@@ -17,10 +17,11 @@ api.interceptors.response.use(
   res => res,
   err => {
     const requestUrl = String(err.config?.url || '').replace(/\/+$/, '')
-    const isPublicAuthRequest = requestUrl === '/login' || requestUrl.startsWith('/setup/')
+    const isKioskPage = typeof window !== 'undefined' && window.location?.pathname?.startsWith('/kiosk')
+    const isPublicAuthRequest = requestUrl === '/login' || requestUrl === '/session' || requestUrl.startsWith('/setup/')
     if (err.response?.status === 401 && !isPublicAuthRequest) {
       localStorage.removeItem('infraflow_token')
-      window.location.href = '/login'
+      if (!isKioskPage) window.location.href = '/login'
     }
     return Promise.reject(err)
   }

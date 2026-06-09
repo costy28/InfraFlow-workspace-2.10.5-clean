@@ -2377,7 +2377,22 @@ router.get('/hr/leave-requests', (req, res, next) => {
 
 router.post('/hr/kiosk/sync', (req, res, next) => {
   try {
-    const auth = requireAuth(req, res)
+    let auth = null
+    const kioskSession = kioskSessions.getSession(kioskSessions.tokenFromRequest(req))
+    if (kioskSession) {
+      auth = {
+        db: readDb(),
+        user: {
+          id: `kiosk-${kioskSession.employee_id}`,
+          username: kioskSession.username,
+          role: 'kiosk',
+          employee_id: kioskSession.employee_id,
+          permissions: ['hr:view_own', 'hr:leave_own', 'kiosk:leave_request'],
+        }
+      }
+    } else {
+      auth = requireAuth(req, res)
+    }
     if (!auth) return
     if (!canUseKioskSync(auth)) return requirePermission(auth, res, 'hr:view_own')
 
@@ -3311,6 +3326,52 @@ router.get('/hr/kiosk/my-trips', (req, res, next) => {
       return { ...t, asset_label: assetLbl }
     })
     return sendJson(res, 200, { trips: enriched })
+  } catch (err) { next(err) }
+})
+
+router.get('/hr/kiosk/me', (req, res, next) => {
+  try {
+    const session = kioskSessions.requireKioskAuth(req, res)
+    if (!session) return
+    const db = readDb()
+    const hr = ensureHrDb(db)
+    const employee = hr.employees.find(e => String(e.id) === String(session.employee_id) && e.activ !== false)
+    if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost găsit.' })
+
+    const month = todayIso().slice(0, 7)
+    const timeSheets = hr.timeSheets.filter((item) => String(item.employee_id) === String(employee.id) && String(item.data || '').startsWith(month))
+    const leaves = hr.leaveRequests
+      .filter((item) => String(item.employee_id) === String(employee.id))
+      .sort((a, b) => String(b.created_at || b.data_start || '').localeCompare(String(a.created_at || a.data_start || '')))
+    const authorizations = hr.authorizations
+      .filter((item) => String(item.employee_id) === String(employee.id))
+      .map(authorizationView)
+      .sort((a, b) => String(a.data_expirare || '').localeCompare(String(b.data_expirare || '')))
+    const coTotal = Number(employee.zile_co_drept || 21)
+    const currentYear = todayIso().slice(0, 4)
+    const coUsed = leaves
+      .filter((item) => ['aprobata', 'aprobat'].includes(item.status) && ['co', 'concediu_odihna'].includes(String(item.tip || '').toLowerCase()) && String(item.data_start || '').startsWith(currentYear))
+      .reduce((sum, item) => sum + Number(item.zile || businessDays(item.data_start, item.data_sfarsit) || 0), 0)
+    const worked = timeSheets.filter((item) => item.tip === 'lucru' || Number(item.ore_lucrate || 0) > 0)
+    const pendingLeaves = leaves.filter((item) => ['cerut', 'pending'].includes(String(item.status || '').toLowerCase()))
+    sendJson(res, 200, {
+      angajat: publicEmployee(employee, { db, user: { role: 'kiosk', permissions: ['hr:view_own'] } }, db),
+      concedii: {
+        co_total: coTotal,
+        co_efectuate: coUsed,
+        co_ramase: Math.max(0, coTotal - coUsed),
+      },
+      cereri: leaves,
+      cereri_asteptare: pendingLeaves,
+      autorizatii: authorizations,
+      pontaj_luna: {
+        luna: month,
+        ore_total: worked.reduce((sum, item) => sum + Number(item.ore_lucrate || 0), 0),
+        zile_lucrate: new Set(worked.map((item) => item.data)).size,
+      },
+      echipamente: kioskEquipmentResponsibility(db, employee.id),
+      notificari: personalNotifications(db, employee.id),
+    })
   } catch (err) { next(err) }
 })
 
