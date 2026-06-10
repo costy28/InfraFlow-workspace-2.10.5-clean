@@ -67,8 +67,11 @@ async function main() {
   addCheck('/api/system/health mode=json', health.status === 200 && health.data?.mode === 'json', `status=${health.status}, mode=${health.data?.mode}`)
 
   const root = await request('GET', '/')
-  addCheck('pagina login se incarca', root.status === 200 && String(root.raw || '').includes('InfraFlow'), `status=${root.status}`)
+  addCheck('pagina start demo se incarca', root.status === 200 && String(root.raw || '').includes('InfraFlow'), `status=${root.status}`)
   addCheck('banner DEMO in HTML', String(root.raw || '').includes('DEMO - Date fictive'), '')
+
+  const startDemo = await request('GET', '/start-demo')
+  addCheck('/start-demo include conturi demo', startDemo.status === 200 && String(startDemo.raw || '').includes('Director:') && String(startDemo.raw || '').includes('Kiosk sofer'), `status=${startDemo.status}`)
 
   const login = await request('POST', '/api/login', { body: { username: USERNAME, password: PASSWORD } })
   addCheck(`login ${USERNAME}`, login.status === 200 && Boolean(login.data?.token), `status=${login.status}, user=${login.data?.user?.username || '-'}`)
@@ -77,6 +80,9 @@ async function main() {
 
   const session = await request('GET', '/api/session', { token })
   addCheck('/api/session', session.status === 200 && session.data?.user?.username === USERNAME, `status=${session.status}`)
+
+  const settings = await request('GET', '/api/settings', { token })
+  addCheck('/api/settings companie Publiserv Demo', settings.status === 200 && String(settings.data?.settings?.companyName || '').includes('PUBLISERV DEMO'), `company=${settings.data?.settings?.companyName || '-'}`)
 
   const resetForbidden = await request('POST', '/api/demo-reset', { body: {} })
   addCheck('/api/demo-reset cere autentificare', resetForbidden.status === 401, `status=${resetForbidden.status}`)

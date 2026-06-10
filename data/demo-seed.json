@@ -1,27 +1,27 @@
 {
   "company": {
     "id": 1,
-    "name": "CONSTRUCTII NORD SRL",
-    "cui": "RO12345678",
-    "reg_com": "J27/123/2010",
-    "address": "Str. Industriei nr. 15, Piatra-Neamt, jud. Neamt",
+    "name": "PUBLISERV DEMO SA",
+    "cui": "RO90000000",
+    "reg_com": "J27/900/2026",
+    "address": "Str. Demo Servicii Publice nr. 15, Piatra-Neamt, jud. Neamt",
     "phone": "0233-123-456",
-    "email": "office@constructiinord.ro",
+    "email": "demo@publiserv-demo.ro",
     "logo": null,
     "license_type": "demo",
     "demo_mode": true
   },
   "users": [
-    { "id": "USR-001", "username": "admin", "name": "Administrator Demo", "role": "superadmin", "departmentId": "", "email": "admin@constructiinord.ro", "active": true },
-    { "id": "USR-002", "username": "director", "name": "Mihai Preda", "role": "manager", "departmentId": "DEP-001", "email": "director@constructiinord.ro", "active": true },
-    { "id": "USR-003", "username": "contabil", "name": "Elena Marin", "role": "accounting", "departmentId": "DEP-004", "email": "contabil@constructiinord.ro", "active": true },
-    { "id": "USR-004", "username": "sef.mecanizare", "name": "Vasile Dima", "role": "mechanization", "departmentId": "DEP-002", "email": "mecanizare@constructiinord.ro", "active": true },
-    { "id": "USR-005", "username": "sef.gestiune", "name": "Adrian Neagu", "role": "inventory", "departmentId": "DEP-003", "email": "gestiune@constructiinord.ro", "active": true },
-    { "id": "USR-006", "username": "sofer1", "name": "Ion Popescu", "role": "operator", "departmentId": "DEP-002", "email": "sofer1@constructiinord.ro", "active": true },
-    { "id": "USR-007", "username": "sofer2", "name": "Gheorghe Constantin", "role": "operator", "departmentId": "DEP-002", "email": "sofer2@constructiinord.ro", "active": true },
-    { "id": "USR-008", "username": "gestionar", "name": "Maria Ionescu", "role": "inventory", "departmentId": "DEP-003", "email": "gestionar@constructiinord.ro", "active": true },
-    { "id": "USR-009", "username": "hr", "name": "Ana Rusu", "role": "hr", "departmentId": "DEP-005", "email": "hr@constructiinord.ro", "active": true },
-    { "id": "USR-010", "username": "demo", "name": "Demo Director", "role": "superadmin", "departmentId": "", "email": "demo@constructiinord.ro", "active": true }
+    { "id": "USR-001", "username": "admin", "name": "Administrator Demo", "role": "superadmin", "departmentId": "", "email": "admin@publiserv-demo.ro", "active": true },
+    { "id": "USR-002", "username": "director", "name": "Mihai Preda", "role": "manager", "departmentId": "DEP-001", "email": "director@publiserv-demo.ro", "active": true },
+    { "id": "USR-003", "username": "contabil", "name": "Elena Marin", "role": "accounting", "departmentId": "DEP-004", "email": "contabil@publiserv-demo.ro", "active": true },
+    { "id": "USR-004", "username": "sef.mecanizare", "name": "Vasile Dima", "role": "mechanization", "departmentId": "DEP-002", "email": "mecanizare@publiserv-demo.ro", "active": true },
+    { "id": "USR-005", "username": "sef.gestiune", "name": "Adrian Neagu", "role": "inventory", "departmentId": "DEP-003", "email": "gestiune@publiserv-demo.ro", "active": true },
+    { "id": "USR-006", "username": "sofer1", "name": "Ion Popescu", "role": "operator", "departmentId": "DEP-002", "email": "sofer1@publiserv-demo.ro", "active": true },
+    { "id": "USR-007", "username": "sofer2", "name": "Gheorghe Constantin", "role": "operator", "departmentId": "DEP-002", "email": "sofer2@publiserv-demo.ro", "active": true },
+    { "id": "USR-008", "username": "gestionar", "name": "Maria Ionescu", "role": "inventory", "departmentId": "DEP-003", "email": "gestionar@publiserv-demo.ro", "active": true },
+    { "id": "USR-009", "username": "hr", "name": "Ana Rusu", "role": "hr", "departmentId": "DEP-005", "email": "hr@publiserv-demo.ro", "active": true },
+    { "id": "USR-010", "username": "demo", "name": "Admin Demo Publiserv", "role": "superadmin", "departmentId": "", "email": "demo@publiserv-demo.ro", "active": true }
   ],
   "departments": [
     { "id": "DEP-001", "name": "Conducere", "cod": "conducere", "moduleKey": "custom", "active": true },
@@ -128,10 +128,10 @@
     { "id": "env-001", "tip": "SIM_anual", "an": 2025, "status": "depus", "data_depunere": "2026-03-15", "deseuri_generate_tone": 125.4, "deseuri_valorificate_tone": 98.2 }
   ],
   "settings": {
-    "companyName": "CONSTRUCTII NORD SRL",
-    "companyCui": "RO12345678",
-    "companyAddress": "Str. Industriei nr. 15, Piatra-Neamt, jud. Neamt",
-    "stationName": "InfraFlow Demo",
+    "companyName": "PUBLISERV DEMO SA",
+    "companyCui": "RO90000000",
+    "companyAddress": "Str. Demo Servicii Publice nr. 15, Piatra-Neamt, jud. Neamt",
+    "stationName": "InfraFlow Publiserv Demo",
     "location": "Piatra-Neamt, jud. Neamt",
     "db_mode": "json",
     "demo_mode": true,

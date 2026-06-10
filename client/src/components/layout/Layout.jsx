@@ -33,6 +33,7 @@ const titles = {
 export default function Layout({ children }) {
   const { user, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [presentationMode, setPresentationMode] = useState(() => localStorage.getItem('infraflow_presentation_mode') === 'true')
   useGlobalNotifications()
   const location = useLocation()
   const navigate = useNavigate()
@@ -47,6 +48,11 @@ export default function Layout({ children }) {
   async function handleLogout() {
     await logout()
     navigate('/login')
+  }
+
+  function stopPresentationMode() {
+    localStorage.removeItem('infraflow_presentation_mode')
+    setPresentationMode(false)
   }
 
   if (loading) {
@@ -72,6 +78,21 @@ export default function Layout({ children }) {
           onLogout={handleLogout}
           onToggleSidebar={() => setSidebarOpen(open => !open)}
         />
+        {presentationMode ? (
+          <div className="border-b border-primary-100 bg-primary-50 px-4 py-2 text-sm text-primary-900">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-semibold">Mod prezentare</span>
+                <span>1. Dashboard</span>
+                <span>2. Referate</span>
+                <span>3. Mecanizare</span>
+                <span>4. Kiosk</span>
+                <span>5. Reset demo</span>
+              </div>
+              <button className="font-semibold text-primary-700 hover:underline" onClick={stopPresentationMode}>Opreste turul</button>
+            </div>
+          </div>
+        ) : null}
         <main className="flex-1 p-4">
           {children}
         </main>

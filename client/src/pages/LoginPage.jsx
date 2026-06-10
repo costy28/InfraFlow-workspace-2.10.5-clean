@@ -150,6 +150,13 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900">InfraFlow</h1>
           <p className="mt-1 text-sm text-slate-500">Sistem ERP infrastructură publică</p>
+          <button
+            type="button"
+            className="mt-3 text-sm font-semibold text-primary-700 hover:underline"
+            onClick={() => navigate('/start-demo')}
+          >
+            Deschide Start Demo
+          </button>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">

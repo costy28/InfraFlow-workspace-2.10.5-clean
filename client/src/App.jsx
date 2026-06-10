@@ -4,6 +4,7 @@ import Layout from './components/layout/Layout'
 import { PermissionGuard } from './components/PermissionGuard'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const StartDemoPage = lazy(() => import('./pages/StartDemoPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SetariPage = lazy(() => import('./pages/SetariPage'))
 const DepartamentPage = lazy(() => import('./pages/DepartamentPage'))
@@ -54,7 +55,8 @@ export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<StartDemoPage />} />
+        <Route path="/start-demo" element={<StartDemoPage />} />
         <Route path="/setup" element={<SetupWizardPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/fleet/sign/:token" element={<FleetSignPage />} />

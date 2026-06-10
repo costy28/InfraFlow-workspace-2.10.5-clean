@@ -76,7 +76,7 @@ function buildHrEmployees(seed) {
       salariu_baza: employee.salary_gross,
       norma_ore_zi: 8,
       activ: true,
-      email: `${employee.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.')}@constructiinord.ro`,
+      email: `${employee.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.')}@publiserv-demo.ro`,
       telefon: `07${String(20000000 + index * 13729).slice(0, 8)}`,
       adresa: `Str. Demo nr. ${index + 10}, Piatra-Neamt`,
       iban: `RO49AAAA1B3100759384${String(index + 1).padStart(4, '0')}`,
@@ -886,7 +886,7 @@ function buildDb(seed) {
     devices: [],
     workstationRequests: [],
     _demo_mode: true,
-    _seed_version: '2.12.21',
+    _seed_version: '2.12.23',
     _seeded_at: new Date().toISOString()
   }
   return db
