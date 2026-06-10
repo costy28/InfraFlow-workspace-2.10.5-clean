@@ -20,6 +20,7 @@ const groups = [
       { to: '/gestiune', icon: '📦', label: 'Gestiune / Depozit', moduleKey: 'inventory' },
       { to: '/productie', icon: '🏭', label: 'Producție', moduleKey: 'production' },
       { to: '/mecanizare', icon: '⚙️', label: 'Mecanizare', moduleKey: 'mechanization' },
+      { to: '/faz-utilaje', icon: '🧾', label: 'FAZ Utilaje', moduleKey: 'mechanization', permissions: ['fleet:faz_view', 'fleet:fc_view'] },
       { to: '/asternere', icon: '🛣️', label: 'Asternere', moduleKey: 'asternere' },
       { to: '/achizitii', icon: '🛒', label: 'Achiziții', moduleKey: 'procurement' },
       { to: '/referate', icon: '📄', label: 'Referate', moduleKey: 'referate' },

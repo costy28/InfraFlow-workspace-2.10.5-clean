@@ -28,7 +28,7 @@ const DEFAULT_DB = {
     employees: [], timesheets: [], leaveRequests: [],
     authorizations: [], tures: [], schedules: []
   },
-  fleet: { assets: [], tripLogs: [], fcEntries: [] },
+  fleet: { assets: [], tripLogs: [], fcEntries: [], fazLogs: [], fazNomenclator: [] },
   mechanization: { workOrders: [], fuelings: [], repairs: [], revisions: [] },
   gestiune: { materials: [], suppliers: [], nir: [], bonConsum: [], stockMovements: [] },
   inventory: {
@@ -56,6 +56,8 @@ const DEFAULT_DB = {
   fleetAssets: [],
   fleetRequests: [],
   fleetMeterReadings: [],
+  fazLogs: [],
+  fazNomenclator: [],
   costCenters: [],
   technicalWorkLogs: [],
   technicalClients: [],
@@ -125,6 +127,7 @@ const permissionGroups = {
   referate: ["referate:view", "referate:create", "referate:achizitii", "referate:gestionar", "referate:secretariat", "referate:cfp", "referate:contabil_sef", "referate:dir_adjunct", "referate:dir_general", "referate:receptie"],
   echipamente: ["echipamente:gestionar"],
   mechanization: ["mechanization:view", "mechanization:manage", "mechanization:request", "mechanization:approve"],
+  fleet: ["fleet:trip_log_view", "fleet:trip_log_create", "fleet:trip_log_close", "fleet:trip_log_edit", "fleet:fc_view", "fleet:fc_create", "fleet:fc_edit", "fleet:fc_complete", "fleet:faz_view", "fleet:faz_create", "fleet:faz_edit", "fleet:faz_sign", "fleet:faz_approve", "fleet:faz_import", "fleet:faz_generate"],
   technical: ["technical:view", "technical:worklog", "technical:sales", "technical:export"],
   costAccounting: ["cost_accounting:view", "cost_accounting:manage", "cost_accounting:import", "cost_accounting:export"],
   ledger: ["ledger:view", "ledger:export"],
@@ -685,6 +688,60 @@ function escapeSqlString(value) {
   return String(value).replace(/'/g, "''");
 }
 
+function defaultFazNomenclator() {
+  return [
+    "DESZAPEZIRE",
+    "BALASTARE STRADA TARNEI",
+    "FREZAT - ASFALT",
+    "DESCARCARE - PAVELE",
+    "INCARCARE - BALAST, PAMANT",
+    "INCARCARE - REFUZ FREZA",
+    "MATURARE - MATURAT SUPRAFATA LUCRU",
+    "INCARCARE - PAVELE",
+    "REPARATII - DEFECT",
+    "MUTAT AGREGATE",
+    "INCARCAT BETON - FORMATIA BETOANE",
+    "ALIMENTARE STATIE ASFALT",
+    "PICONAT",
+    "PICONAT SI INCARCAT",
+    "ESCAVAT",
+    "COMPACTAT ASFALT",
+    "TERASAT",
+    "ASTERNERE ASFALT",
+    "SCHIMBARE PUNCT DE LUCRU - MUTAT FINISOR",
+    "ALIMENTARE CU CARBURANT",
+    "FREZAT ASFALT",
+    "PICONAT",
+    "TAIAT ASFALT",
+    "IMPRASTIAT EMULSIE BITUMINOASA",
+    "SPALAT UTILAJE",
+    "TRANSPORT APA",
+    "MATURAT",
+    "TRANSPORT APA SI MATURAT",
+    "SUDURA",
+    "MARCAJ RUTIER",
+    "TRACTAT MASINA MARCAJ",
+    "CAMINE - SCHIMBARE PLANSEE",
+    "BORDURI - SCHIMBAT/SPART BORDURA",
+    "SPATII JOACA",
+    "PROFILAT DRUM",
+    "TERASAT",
+    "TAIAT BETON",
+    "COMPACTAT SI TERASAT",
+    "PICONAT",
+    "TAIAT",
+    "ASTERNERE ASFALT",
+    "STAT LA DISPOZITIE",
+    "INTRETINERE",
+    "STATIE ASFALT"
+  ].map((denumire, index) => ({
+    id: index + 1,
+    cod: `A${String(index + 1).padStart(2, "0")}`,
+    denumire,
+    activ: true
+  }));
+}
+
 // Normalizeaza structura bazei inainte de folosire.
 function normalizeDb(db) {
   if (!Array.isArray(db.users)) db.users = [];
@@ -717,6 +774,17 @@ function normalizeDb(db) {
   if (!Array.isArray(db.fleetAssets)) db.fleetAssets = [];
   if (!Array.isArray(db.fleetRequests)) db.fleetRequests = [];
   if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
+  if (!Array.isArray(db.fazLogs)) db.fazLogs = [];
+  if (!Array.isArray(db.fazNomenclator)) db.fazNomenclator = defaultFazNomenclator();
+  if (db.fazNomenclator.length < 44) {
+    const existingFaz = new Set(db.fazNomenclator.map((item) => Number(item.id)));
+    for (const item of defaultFazNomenclator()) {
+      if (!existingFaz.has(Number(item.id))) db.fazNomenclator.push(item);
+    }
+  }
+  if (!db.fleet || typeof db.fleet !== "object") db.fleet = {};
+  if (!Array.isArray(db.fleet.fazLogs)) db.fleet.fazLogs = db.fazLogs;
+  if (!Array.isArray(db.fleet.fazNomenclator)) db.fleet.fazNomenclator = db.fazNomenclator;
   if (!Array.isArray(db.costCenters)) db.costCenters = [];
   if (!Array.isArray(db.technicalWorkLogs)) db.technicalWorkLogs = [];
   if (!Array.isArray(db.technicalClients)) db.technicalClients = [];

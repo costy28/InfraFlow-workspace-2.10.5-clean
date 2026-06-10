@@ -16,6 +16,7 @@ const ControllingPage = lazy(() => import('./pages/modules/ControllingPage'))
 const FlotaPage = lazy(() => import('./pages/modules/FlotaPage'))
 const FoaieParcursPage = lazy(() => import('./pages/FoaieParcursPage'))
 const FcUtilajePage = lazy(() => import('./pages/FcUtilajePage'))
+const FAZUtilaje = lazy(() => import('./pages/FAZUtilaje'))
 const AchizitiiPage = lazy(() => import('./pages/modules/AchizitiiPage'))
 const ReferatePage = lazy(() => import('./pages/modules/ReferatePage'))
 const TerenPage = lazy(() => import('./pages/modules/TerenPage'))
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/flota/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FlotaPage /></PermissionGuard></WithLayout>} />
         <Route path="/foi-parcurs/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FoaieParcursPage /></PermissionGuard></WithLayout>} />
         <Route path="/fc-utilaje/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FcUtilajePage /></PermissionGuard></WithLayout>} />
+        <Route path="/faz-utilaje/*" element={<WithLayout><PermissionGuard permission={['fleet:faz_view', 'fleet:fc_view']}><FAZUtilaje /></PermissionGuard></WithLayout>} />
         <Route path="/achizitii/*" element={<WithLayout><PermissionGuard permission="procurement:view"><AchizitiiPage /></PermissionGuard></WithLayout>} />
         <Route path="/referate/*" element={<WithLayout><PermissionGuard permission="referate:view"><ReferatePage /></PermissionGuard></WithLayout>} />
         <Route path="/teren/*" element={<WithLayout><TerenPage /></WithLayout>} />

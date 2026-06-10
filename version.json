@@ -1,5 +1,5 @@
 {
-  "version": "2.12.19",
-  "date": "2026-06-06",
-  "changelog": "## v2.12.19 — 2026-06-06\n### Hotfix Autominder import sigur\n- Importul SQL Autominder nu mai importa implicit FAZ-uri si foi de parcurs istorice.\n- Salvarea connection string-ului Autominder foloseste endpoint dedicat.\n- Erorile CLIXML sunt curatate global in API si in pagina de import."
+  "version": "2.12.24",
+  "date": "2026-06-10",
+  "changelog": "## v2.12.24 - 2026-06-10\n### Modul FAZ Utilaje\n- FAZ utilaje cu JSON/app_state si migrare MSSQL relationala.\n- CRUD draft, semnare, aprobare, raport lunar, CSV si import Autominder.\n- Pagina React /faz-utilaje in sidebar la Mecanizare."
 }
