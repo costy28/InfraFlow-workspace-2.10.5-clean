@@ -491,7 +491,7 @@ router.patch('/fleet/trip-logs/:uuid/verso-kiosk', (req, res, next) => {
     const db = readDb()
     const trip = ensureFleetTripDb(db).find(t => t.uuid === req.params.uuid)
     if (!trip) return sendJson(res, 404, { error: 'Foaia de parcurs nu există.' })
-    if (!['deschisa', 'completata'].includes(trip.status)) {
+    if (!['deschisa', 'trimisa', 'in_lucru', 'completata'].includes(trip.status)) {
       return sendJson(res, 409, { error: 'Foaia nu mai poate fi completată (status: ' + trip.status + ').' })
     }
 

@@ -241,7 +241,7 @@ function buildReferate(seed) {
   const rows = [
     { dep: 'DEP-002', user: 'USR-004', supplier: 'BITUM TRADING SRL', status: 'aprobat', tip: 'aprovizionare', obs: 'Aprovizionare bitum pentru programul de asfaltare DJ207B.', lines: [['MAT-001', 18, 3350, 12663], ['MAT-024', 120, 18, 453.6]] },
     { dep: 'DEP-002', user: 'USR-004', supplier: 'AUTO PIESE NORD SRL', status: 'la_gestionar', tip: 'aprovizionare', obs: 'Filtre si consumabile pentru revizia autobasculantelor.', lines: [['MAT-013', 20, 85, 357], ['MAT-014', 18, 110, 415.8], ['MAT-009', 80, 19, 319.2]] },
-    { dep: 'DEP-007', user: 'USR-013', supplier: 'PETROM SA', status: 'dir_general', tip: 'aprovizionare', obs: 'Motorina necesara pentru utilajele alocate in saptamana curenta.', lines: [['MAT-007', 6500, 6.25, 8531.25]] },
+    { dep: 'DEP-007', user: 'USR-013', supplier: 'PETROM SA', status: 'dir_general', tip: 'aprovizionare', obs: 'DEMO DIRECTOR: motorina necesara pentru utilajele alocate in saptamana curenta. Acest referat asteapta aprobarea directorului general.', lines: [['MAT-007', 6500, 6.25, 8531.25]] },
     { dep: 'DEP-006', user: 'USR-010', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'draft', tip: 'servicii', obs: 'Servicii inchiriere utilaj compactare pentru lucrare canalizare.', lines: [['MAT-030', 140, 42, 1234.8]] },
     { dep: 'DEP-006', user: 'USR-010', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'respins', tip: 'aprovizionare', obs: 'Necesar initial respins pentru completare specificatii tehnice.', lines: [['MAT-010', 420, 14, 1234.8], ['MAT-011', 160, 15.5, 520.8]] },
     { dep: 'DEP-008', user: 'USR-014', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'secretariat_final', tip: 'aprovizionare', obs: 'Echipamente SSM pentru echipele operative.', lines: [['MAT-018', 24, 96, 483.84], ['MAT-020', 60, 32, 403.2], ['MAT-023', 24, 155, 781.2]] },
@@ -699,7 +699,24 @@ function buildMechanizationDemo() {
 
 function buildDb(seed) {
   const passwordHash = hashPassword('demo123')
-  const users = seed.users.map((user) => ({ ...user, passwordHash, createdAt: isoDaysAgo(20, 8) }))
+  const userEmployeeMap = {
+    director: 'EMP-007',
+    contabil: 'EMP-005',
+    'sef.mecanizare': 'EMP-004',
+    'sef.gestiune': 'EMP-008',
+    sofer1: 'EMP-001',
+    sofer2: 'EMP-003',
+    gestionar: 'EMP-002',
+    hr: 'EMP-006'
+  }
+  const users = seed.users.map((user) => ({
+    ...user,
+    employee_id: user.employee_id || userEmployeeMap[user.username] || '',
+    employeeId: user.employeeId || userEmployeeMap[user.username] || '',
+    passwordHash,
+    createdAt: isoDaysAgo(20, 8),
+    demoHint: user.username === 'director' ? 'Cont director: aproba referate, vede mecanizare, HR sumar si controlling.' : undefined
+  }))
   const hrEmployees = buildHrEmployees(seed)
   const timesheets = buildTimesheets(hrEmployees)
   const leaveRequests = buildLeaveRequests(hrEmployees)
@@ -869,7 +886,7 @@ function buildDb(seed) {
     devices: [],
     workstationRequests: [],
     _demo_mode: true,
-    _seed_version: '2.12.19',
+    _seed_version: '2.12.21',
     _seeded_at: new Date().toISOString()
   }
   return db

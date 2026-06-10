@@ -11,6 +11,8 @@ import {
 import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
+import Button from '../components/ui/Button'
+import { useAuth } from '../hooks/useAuth'
 
 const emptyState = {
   daily: null,
@@ -29,6 +31,10 @@ const routes = {
   stock: '/stocuri',
   production: '/productie',
   fleet: '/flota',
+  referate: '/referate',
+  mecanizare: '/mecanizare',
+  hr: '/hr',
+  controlling: '/controlling',
   documents: '/documente',
   tickets: '/sesizari',
   projects: '/teren',
@@ -154,6 +160,65 @@ function KpiCard({ icon, label, value, loading, error, onClick }) {
         {error ? <p className="mt-3 text-xs text-rose-600">Date indisponibile.</p> : null}
       </Card>
     </button>
+  )
+}
+
+function DirectorDemoPanel({ user, onNavigate, onResetDemo, resettingDemo }) {
+  const canResetDemo = user?.username === 'demo' || user?.role === 'superadmin'
+  const steps = [
+    { label: 'Referat la director', value: 'Motorina utilaje', route: routes.referate, action: 'Aprobă' },
+    { label: 'Mecanizare', value: 'Alocări și alerte', route: routes.mecanizare, action: 'Vezi parc' },
+    { label: 'HR', value: 'Pontaj, CO, scadențe', route: routes.hr, action: 'Vezi HR' },
+    { label: 'Controlling', value: 'Bugete și costuri', route: routes.controlling, action: 'Vezi costuri' },
+  ]
+  const checklist = [
+    'Director: aprobă referatul RA/122',
+    'Șef mecanizare: trimite foaia FP-2026-KIOSK-001',
+    'Șofer: completează verso din Kiosk mobil',
+    'Mecanizare: vede foaia completată și o închide'
+  ]
+
+  return (
+    <Card className="border-primary-200 bg-primary-50/60">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase text-primary-700">Demo director</div>
+          <h3 className="mt-1 text-lg font-semibold text-slate-900">Flux rapid pentru prezentare</h3>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            Contul director vede exact zona de decizie: aprobări, alerte operaționale, oameni și costuri.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => onNavigate(routes.referate)}>Deschide referatele</Button>
+          {canResetDemo ? (
+            <Button variant="secondary" disabled={resettingDemo} onClick={onResetDemo}>
+              {resettingDemo ? 'Se resetează...' : 'Resetează demo'}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        {steps.map(step => (
+          <button
+            key={step.label}
+            className="rounded-md border border-white bg-white p-3 text-left shadow-sm transition hover:border-primary-200 hover:shadow-md"
+            onClick={() => onNavigate(step.route)}
+          >
+            <div className="text-xs font-semibold uppercase text-slate-500">{step.label}</div>
+            <div className="mt-1 min-h-10 text-sm font-semibold text-slate-900">{step.value}</div>
+            <div className="mt-3 text-xs font-semibold text-primary-700">{step.action}</div>
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 grid gap-2 rounded-md border border-primary-100 bg-white/70 p-3 text-sm text-slate-700 md:grid-cols-4">
+        {checklist.map((item, index) => (
+          <div key={item} className="flex items-start gap-2">
+            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary-600 text-[11px] font-bold text-white">{index + 1}</span>
+            <span>{item}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
   )
 }
 
@@ -351,10 +416,27 @@ function MiniTable({ columns, rows, empty }) {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [data, setData] = useState(emptyState)
   const [loading, setLoading] = useState(true)
   const [errors, setErrors] = useState({})
+  const [resettingDemo, setResettingDemo] = useState(false)
+  const [demoMessage, setDemoMessage] = useState('')
   const snowSeason = isSnowSeason()
+
+  async function resetDemo() {
+    if (!window.confirm('Resetezi datele demo la starea initiala pentru prezentare?')) return
+    setResettingDemo(true)
+    setDemoMessage('')
+    try {
+      await api.post('/demo-reset')
+      setDemoMessage('Demo resetat. Reîncarc pagina cu date curate...')
+      window.setTimeout(() => window.location.reload(), 700)
+    } catch (err) {
+      setDemoMessage(err.response?.data?.error || 'Resetul demo nu a reușit.')
+      setResettingDemo(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -482,6 +564,12 @@ export default function DashboardPage() {
           onClick={() => navigate(routes.documents)}
         />
       </div>
+
+      {demoMessage ? <div className="rounded-md border border-primary-100 bg-primary-50 px-3 py-2 text-sm text-primary-700">{demoMessage}</div> : null}
+
+      {user?.username === 'director' || user?.username === 'demo' || ['manager', 'superadmin'].includes(user?.role) ? (
+        <DirectorDemoPanel user={user} onNavigate={navigate} onResetDemo={resetDemo} resettingDemo={resettingDemo} />
+      ) : null}
 
       <CommandCenterPanel
         data={data}

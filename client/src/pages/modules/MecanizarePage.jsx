@@ -33,6 +33,10 @@ function statusTone(status) {
   if (status === 'anulat')      return 'danger'
   if (status === 'deschis')     return 'warning'
   if (status === 'in_lucru')    return 'warning'
+  if (status === 'trimisa')     return 'primary'
+  if (status === 'deschisa')    return 'warning'
+  if (status === 'completata')  return 'warning'
+  if (status === 'inchisa')     return 'success'
   return 'neutral'
 }
 
@@ -41,6 +45,7 @@ function statusLabel(status) {
     service: '🔧 Service', alocat: '🟡 Alocat', liber: '🟢 Liber',
     planificat: '📋 Planificat', activ: '▶️ Activ', finalizat: '✅ Finalizat',
     anulat: '❌ Anulat', deschis: '🟡 Deschis', in_lucru: '🔧 În lucru',
+    deschisa: '🟡 Deschisă', trimisa: '📨 Trimisă', completata: '🟡 Completată', inchisa: '✅ Închisă',
     approved: '✅ Aprobat', rejected: '❌ Respins', new: '🆕 Nou',
     done: '✅ Finalizat',
   }
@@ -137,6 +142,7 @@ export default function MecanizarePage() {
   const [fazReport, setFazReport] = useState(null)
   const [raport, setRaport] = useState(null)
   const [requests, setRequests] = useState([])
+  const [tripLogs, setTripLogs] = useState([])
 
   // filters
   const [planDate, setPlanDate] = useState(today())
@@ -184,17 +190,19 @@ export default function MecanizarePage() {
   async function loadAll() {
     setLoading(true); setError('')
     try {
-      const [assetsRes, statusRes, dashRes, reqRes] = await Promise.all([
+      const [assetsRes, statusRes, dashRes, reqRes, tripsRes] = await Promise.all([
         api.get('/fleet-assets', { params: { tip: '' } }),
         api.get('/mechanization/asset-status'),
         api.get('/mechanization/dashboard'),
         api.get('/fleet-requests'),
+        api.get('/fleet/trip-logs'),
       ])
       setAssets((assetsRes.data?.assets || []))
       api.get('/controlling/cost-centers').then(r => setCostCenters(Array.isArray(r.data) ? r.data : (r.data?.centers || []))).catch(() => setCostCenters([]))
       setAssetStatus(statusRes.data || {})
       setDashboard(dashRes.data || {})
       setRequests((reqRes.data?.requests || []))
+      setTripLogs(tripsRes.data?.trip_logs || [])
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la încărcare.')
     } finally { setLoading(false) }
@@ -578,6 +586,9 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
 
   // ─────────────────────────────────────────────────────────────────────────────
 
+  const demoTrip = tripLogs.find(trip => trip.nr_foaie === 'FP-2026-KIOSK-001')
+  const completedDemoTrips = tripLogs.filter(trip => ['completata', 'semnata_sofer', 'semnata_responsabil'].includes(trip.status))
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -627,6 +638,43 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               </Card>
             ))}
           </div>
+
+          <Card className="border-emerald-200 bg-emerald-50/60">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase text-emerald-700">Demo mecanizare → șofer</div>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900">Foaia șoferului Ion Popescu</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Șeful de mecanizare trimite foaia, șoferul o completează din Kiosk, apoi mecanizarea o închide pentru FAZ.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => navigate('/foi-parcurs')}>Deschide Foi Parcurs</Button>
+                <Button variant="secondary" onClick={() => window.open('/kiosk', '_blank')}>Kiosk șofer</Button>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 text-sm md:grid-cols-4">
+              <div className="rounded-md border border-white bg-white p-3 shadow-sm">
+                <div className="text-xs font-semibold uppercase text-slate-500">Foaie demo</div>
+                <div className="mt-1 font-semibold text-slate-900">{demoTrip?.nr_foaie || 'FP-2026-KIOSK-001'}</div>
+                <div className="mt-1 text-slate-500">{demoTrip?.asset_label || 'NT-01-ABC'}</div>
+              </div>
+              <div className="rounded-md border border-white bg-white p-3 shadow-sm">
+                <div className="text-xs font-semibold uppercase text-slate-500">Status</div>
+                <div className="mt-2"><Badge tone={statusTone(demoTrip?.status)}>{statusLabel(demoTrip?.status || 'deschisa')}</Badge></div>
+              </div>
+              <div className="rounded-md border border-white bg-white p-3 shadow-sm">
+                <div className="text-xs font-semibold uppercase text-slate-500">Șofer</div>
+                <div className="mt-1 font-semibold text-slate-900">{demoTrip?.sofer_nume || 'Ion Popescu'}</div>
+                <div className="mt-1 text-slate-500">Kiosk: sofer1 / demo123</div>
+              </div>
+              <div className="rounded-md border border-white bg-white p-3 shadow-sm">
+                <div className="text-xs font-semibold uppercase text-slate-500">De închis</div>
+                <div className="mt-1 text-2xl font-bold text-slate-900">{completedDemoTrips.length}</div>
+                <div className="mt-1 text-slate-500">foi completate de șoferi</div>
+              </div>
+            </div>
+          </Card>
 
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Planificări azi */}

@@ -8,6 +8,8 @@ const https = require('https')
 const BASE_URL = (process.argv[2] || process.env.DEMO_BASE_URL || 'http://localhost:4190').replace(/\/+$/, '')
 const USERNAME = process.env.DEMO_USERNAME || 'demo'
 const PASSWORD = process.env.DEMO_PASSWORD || 'demo123'
+const DIRECTOR_USERNAME = process.env.DEMO_DIRECTOR_USERNAME || 'director'
+const MECHANIZATION_USERNAME = process.env.DEMO_MECHANIZATION_USERNAME || 'sef.mecanizare'
 
 const checks = []
 
@@ -76,6 +78,35 @@ async function main() {
   const session = await request('GET', '/api/session', { token })
   addCheck('/api/session', session.status === 200 && session.data?.user?.username === USERNAME, `status=${session.status}`)
 
+  const resetForbidden = await request('POST', '/api/demo-reset', { body: {} })
+  addCheck('/api/demo-reset cere autentificare', resetForbidden.status === 401, `status=${resetForbidden.status}`)
+
+  const directorLogin = await request('POST', '/api/login', { body: { username: DIRECTOR_USERNAME, password: PASSWORD } })
+  const directorToken = directorLogin.data?.token
+  const directorPermissions = Array.isArray(directorLogin.data?.user?.permissions) ? directorLogin.data.user.permissions : []
+  addCheck(`login ${DIRECTOR_USERNAME}`, directorLogin.status === 200 && Boolean(directorToken) && directorPermissions.includes('referate:dir_general'), `status=${directorLogin.status}, role=${directorLogin.data?.user?.role || '-'}`)
+
+  if (directorToken) {
+    const directorReferate = await request('GET', '/api/referate?status=dir_general', { token: directorToken })
+    const pendingDirector = Array.isArray(directorReferate.data?.referate) ? directorReferate.data.referate[0] : null
+    addCheck('/api/referate?status=dir_general pentru director', directorReferate.status === 200 && Boolean(pendingDirector), `status=${directorReferate.status}, count=${directorReferate.data?.referate?.length || 0}`)
+
+    if (pendingDirector) {
+      const beforeOrders = await request('GET', '/api/procurement-orders', { token: directorToken })
+      const beforeCount = countFrom(beforeOrders.data, ['orders'])
+      const approval = await request('POST', `/api/referate/${pendingDirector.uuid || pendingDirector.id}/inainteaza`, {
+        token: directorToken,
+        body: { observatii: 'Aprobat din smoke test director demo.' }
+      })
+      const approvedReferat = approval.data?.referat
+      addCheck('director aproba referat dir_general', approval.status === 200 && approvedReferat?.status === 'secretariat_final' && Boolean(approvedReferat?.comanda_id), `status=${approval.status}, next=${approvedReferat?.status || '-'}`)
+
+      const afterOrders = await request('GET', '/api/procurement-orders', { token: directorToken })
+      const afterCount = countFrom(afterOrders.data, ['orders'])
+      addCheck('aprobarea director genereaza comanda', afterOrders.status === 200 && afterCount > beforeCount, `orders=${beforeCount}->${afterCount}`)
+    }
+  }
+
   const materials = await request('GET', '/api/materials', { token })
   const materialCount = countFrom(materials.data, ['materials'])
   addCheck('/api/materials >= 30', materials.status === 200 && materialCount >= 30, `status=${materials.status}, count=${materialCount}`)
@@ -99,6 +130,24 @@ async function main() {
   const tripLogs = await request('GET', '/api/fleet/trip-logs', { token })
   const tripLogCount = countFrom(tripLogs.data, ['trip_logs'])
   addCheck('/api/fleet/trip-logs >= 30', tripLogs.status === 200 && tripLogCount >= 30, `status=${tripLogs.status}, count=${tripLogCount}`)
+
+  const mechanizationLogin = await request('POST', '/api/login', { body: { username: MECHANIZATION_USERNAME, password: PASSWORD } })
+  const mechanizationToken = mechanizationLogin.data?.token
+  addCheck(`login ${MECHANIZATION_USERNAME}`, mechanizationLogin.status === 200 && Boolean(mechanizationToken), `status=${mechanizationLogin.status}, role=${mechanizationLogin.data?.user?.role || '-'}`)
+  if (mechanizationToken) {
+    const mechanizationTrips = await request('GET', '/api/fleet/trip-logs', { token: mechanizationToken })
+    const demoTrip = Array.isArray(mechanizationTrips.data?.trip_logs)
+      ? mechanizationTrips.data.trip_logs.find((item) => item.nr_foaie === 'FP-2026-KIOSK-001')
+      : null
+    addCheck('mecanizare vede foaia kiosk demo', mechanizationTrips.status === 200 && Boolean(demoTrip), `status=${mechanizationTrips.status}, foaie=${demoTrip?.nr_foaie || '-'}`)
+    if (demoTrip?.uuid) {
+      const sendToDriver = await request('POST', `/api/fleet/trip-logs/${demoTrip.uuid}/trimite`, {
+        token: mechanizationToken,
+        body: { sofer_id: demoTrip.sofer_id || 'EMP-001' }
+      })
+      addCheck('mecanizare trimite foaia la sofer', sendToDriver.status === 200 && sendToDriver.data?.trip_log?.status === 'trimisa', `status=${sendToDriver.status}, next=${sendToDriver.data?.trip_log?.status || '-'}`)
+    }
+  }
 
   const hrStats = await request('GET', '/api/hr/stats', { token })
   addCheck('/api/hr/stats are 15 angajati', hrStats.status === 200 && Number(hrStats.data?.total_angajati || 0) >= 15, `status=${hrStats.status}, total=${hrStats.data?.total_angajati}`)
@@ -162,8 +211,8 @@ async function main() {
 
     const kioskTrips = await request('GET', '/api/hr/kiosk/my-trips', { token: kioskToken })
     const trips = Array.isArray(kioskTrips.data?.trips) ? kioskTrips.data.trips : []
-    const activeKioskTrip = trips.find((item) => item.status === 'deschisa')
-    addCheck('/api/hr/kiosk/my-trips are foaie activa', kioskTrips.status === 200 && Boolean(activeKioskTrip), `status=${kioskTrips.status}, count=${trips.length}`)
+    const activeKioskTrip = trips.find((item) => ['deschisa', 'trimisa', 'in_lucru'].includes(item.status))
+    addCheck('/api/hr/kiosk/my-trips are foaie activa', kioskTrips.status === 200 && Boolean(activeKioskTrip), `status=${kioskTrips.status}, count=${trips.length}, tripStatus=${activeKioskTrip?.status || '-'}`)
 
     if (activeKioskTrip?.uuid) {
       const saveVerso = await request('PATCH', `/api/fleet/trip-logs/${activeKioskTrip.uuid}/verso-kiosk`, {
@@ -181,6 +230,11 @@ async function main() {
       })
       const savedTrip = saveVerso.data?.trip_log || saveVerso.data?.foaie
       addCheck('/api/fleet/trip-logs/:uuid/verso-kiosk salveaza', saveVerso.status === 200 && savedTrip?.status === 'completata', `status=${saveVerso.status}, foaie=${savedTrip?.nr_foaie || '-'}`)
+
+      if (mechanizationToken) {
+        const closeByMechanization = await request('PATCH', `/api/fleet/trip-logs/${activeKioskTrip.uuid}/close-mecanizare`, { token: mechanizationToken })
+        addCheck('mecanizare inchide foaia completata', closeByMechanization.status === 200 && closeByMechanization.data?.trip_log?.status === 'inchisa', `status=${closeByMechanization.status}, next=${closeByMechanization.data?.trip_log?.status || '-'}`)
+      }
     }
   }
 
@@ -208,6 +262,23 @@ async function main() {
 
   const controllingDashboard = await request('GET', '/api/controlling/dashboard', { token })
   addCheck('/api/controlling/dashboard are buget', controllingDashboard.status === 200 && Number(controllingDashboard.data?.total_buget || 0) > 0, `status=${controllingDashboard.status}, buget=${controllingDashboard.data?.total_buget}, real=${controllingDashboard.data?.total_real}`)
+
+  const resetDemo = await request('POST', '/api/demo-reset', { token, body: {} })
+  addCheck('/api/demo-reset reseteaza date demo', resetDemo.status === 200 && resetDemo.data?.ok === true, `status=${resetDemo.status}`)
+
+  const afterResetDirectorLogin = await request('POST', '/api/login', { body: { username: DIRECTOR_USERNAME, password: PASSWORD } })
+  const afterResetDirectorRefs = afterResetDirectorLogin.data?.token
+    ? await request('GET', '/api/referate?status=dir_general', { token: afterResetDirectorLogin.data.token })
+    : { status: 0, data: {} }
+  addCheck('dupa reset referatul director revine', afterResetDirectorRefs.status === 200 && Array.isArray(afterResetDirectorRefs.data?.referate) && afterResetDirectorRefs.data.referate.length === 1, `status=${afterResetDirectorRefs.status}, count=${afterResetDirectorRefs.data?.referate?.length || 0}`)
+
+  const afterResetKioskLogin = await request('POST', '/api/hr/kiosk/login', { body: { username: 'sofer1', password: PASSWORD } })
+  const afterResetKioskTrips = afterResetKioskLogin.data?.token
+    ? await request('GET', '/api/hr/kiosk/my-trips', { token: afterResetKioskLogin.data.token })
+    : { status: 0, data: {} }
+  const afterResetTrips = Array.isArray(afterResetKioskTrips.data?.trips) ? afterResetKioskTrips.data.trips : []
+  const resetActiveTrip = afterResetTrips.find((item) => item.nr_foaie === 'FP-2026-KIOSK-001' && item.status === 'deschisa')
+  addCheck('dupa reset foaia sofer revine deschisa', afterResetKioskTrips.status === 200 && Boolean(resetActiveTrip), `status=${afterResetKioskTrips.status}, trip=${resetActiveTrip?.status || '-'}`)
 
   const summary = {
     passed: checks.filter((item) => item.ok).length,
