@@ -38,6 +38,7 @@ global.LICENTA = licentaStatus.licenta
 
 const app = express()
 app.use(express.json({ limit: '10mb' }))
+app.use('/storage', express.static(path.join(__dirname, '../storage')))
 app.get('/api/v1/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
 app.get('/api/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
 app.get('/api/system/health', (_req, res) => {
@@ -73,6 +74,7 @@ app.use('/api', require('./modules/fleet/routes'))
 app.use('/api', require('./modules/fleet/trip-routes'))
 app.use('/api', require('./modules/fleet/fc-routes'))
 app.use('/api', require('./modules/fleet/faz-routes'))
+app.use('/api', require('./modules/fleet/asset-routes'))
 app.use('/api', require('./modules/technical/routes'))
 app.use('/api', require('./modules/workflow/routes'))
 app.use('/api', require('./modules/system/routes'))

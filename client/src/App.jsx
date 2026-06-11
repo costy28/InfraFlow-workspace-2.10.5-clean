@@ -17,6 +17,8 @@ const FlotaPage = lazy(() => import('./pages/modules/FlotaPage'))
 const FoaieParcursPage = lazy(() => import('./pages/FoaieParcursPage'))
 const FcUtilajePage = lazy(() => import('./pages/FcUtilajePage'))
 const FAZUtilaje = lazy(() => import('./pages/FAZUtilaje'))
+const FisaVehicul = lazy(() => import('./pages/FisaVehicul'))
+const MyVehicle = lazy(() => import('./pages/MyVehicle'))
 const AchizitiiPage = lazy(() => import('./pages/modules/AchizitiiPage'))
 const ReferatePage = lazy(() => import('./pages/modules/ReferatePage'))
 const TerenPage = lazy(() => import('./pages/modules/TerenPage'))
@@ -73,6 +75,7 @@ export default function App() {
         <Route path="/foi-parcurs/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FoaieParcursPage /></PermissionGuard></WithLayout>} />
         <Route path="/fc-utilaje/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FcUtilajePage /></PermissionGuard></WithLayout>} />
         <Route path="/faz-utilaje/*" element={<WithLayout><PermissionGuard permission={['fleet:faz_view', 'fleet:fc_view']}><FAZUtilaje /></PermissionGuard></WithLayout>} />
+        <Route path="/fleet/asset/:id" element={<WithLayout><PermissionGuard permission={['mechanization:view', 'fleet:trip_log_view', 'fleet:faz_view']}><FisaVehicul /></PermissionGuard></WithLayout>} />
         <Route path="/achizitii/*" element={<WithLayout><PermissionGuard permission="procurement:view"><AchizitiiPage /></PermissionGuard></WithLayout>} />
         <Route path="/referate/*" element={<WithLayout><PermissionGuard permission="referate:view"><ReferatePage /></PermissionGuard></WithLayout>} />
         <Route path="/teren/*" element={<WithLayout><TerenPage /></WithLayout>} />
@@ -98,6 +101,7 @@ export default function App() {
         <Route path="/mecanizare/*" element={<WithLayout><PermissionGuard permission="mechanization:view"><MecanizarePage /></PermissionGuard></WithLayout>} />
         <Route path="/gestiune/*" element={<WithLayout><PermissionGuard permission="gestiune:view"><GestiunePage /></PermissionGuard></WithLayout>} />
         <Route path="/kiosk" element={<KioskPage />} />
+        <Route path="/my-vehicle" element={<WithLayout><MyVehicle /></WithLayout>} />
         <Route path="/sofer/*" element={<SoferPage />} />
         <Route path="/asternere/*" element={<WithLayout><PermissionGuard permission="asternere:view"><AsternерePage /></PermissionGuard></WithLayout>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

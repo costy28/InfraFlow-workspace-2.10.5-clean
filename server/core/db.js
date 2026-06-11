@@ -28,7 +28,7 @@ const DEFAULT_DB = {
     employees: [], timesheets: [], leaveRequests: [],
     authorizations: [], tures: [], schedules: []
   },
-  fleet: { assets: [], tripLogs: [], fcEntries: [], fazLogs: [], fazNomenclator: [] },
+  fleet: { assets: [], tripLogs: [], fcEntries: [], fazLogs: [], fazNomenclator: [], assetDrivers: [], assetFiles: [] },
   mechanization: { workOrders: [], fuelings: [], repairs: [], revisions: [] },
   gestiune: { materials: [], suppliers: [], nir: [], bonConsum: [], stockMovements: [] },
   inventory: {
@@ -56,6 +56,8 @@ const DEFAULT_DB = {
   fleetAssets: [],
   fleetRequests: [],
   fleetMeterReadings: [],
+  fleetAssetDrivers: [],
+  fleetAssetFiles: [],
   fazLogs: [],
   fazNomenclator: [],
   costCenters: [],
@@ -742,6 +744,25 @@ function defaultFazNomenclator() {
   }));
 }
 
+function normalizeFleetAssetExtendedFields(asset = {}) {
+  if (asset.consum_orar_normat === undefined) {
+    asset.consum_orar_normat = asset.consumOrarNormat ?? asset.consum_orar ?? asset.standardConsumptionHour ?? null;
+  }
+  if (asset.consum_normat_km === undefined) {
+    asset.consum_normat_km = asset.consumNormatKm ?? asset.standardConsumption ?? null;
+  }
+  if (asset.tip_combustibil === undefined) {
+    asset.tip_combustibil = asset.fuelType || asset.combustibil || "";
+  }
+  if (asset.gps_device_id === undefined) {
+    asset.gps_device_id = asset.gpsDeviceId || "";
+  }
+  if (asset.sofer_principal_id === undefined) {
+    asset.sofer_principal_id = asset.driverId || asset.sofer_id || null;
+  }
+  return asset;
+}
+
 // Normalizeaza structura bazei inainte de folosire.
 function normalizeDb(db) {
   if (!Array.isArray(db.users)) db.users = [];
@@ -772,8 +793,11 @@ function normalizeDb(db) {
   if (!Array.isArray(db.hr.angajatEchipamente)) db.hr.angajatEchipamente = [];
   if (!Array.isArray(db.hr.echipamenteDotari)) db.hr.echipamenteDotari = [];
   if (!Array.isArray(db.fleetAssets)) db.fleetAssets = [];
+  db.fleetAssets.forEach(normalizeFleetAssetExtendedFields);
   if (!Array.isArray(db.fleetRequests)) db.fleetRequests = [];
   if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
+  if (!Array.isArray(db.fleetAssetDrivers)) db.fleetAssetDrivers = [];
+  if (!Array.isArray(db.fleetAssetFiles)) db.fleetAssetFiles = [];
   if (!Array.isArray(db.fazLogs)) db.fazLogs = [];
   if (!Array.isArray(db.fazNomenclator)) db.fazNomenclator = defaultFazNomenclator();
   if (db.fazNomenclator.length < 44) {
@@ -785,6 +809,8 @@ function normalizeDb(db) {
   if (!db.fleet || typeof db.fleet !== "object") db.fleet = {};
   if (!Array.isArray(db.fleet.fazLogs)) db.fleet.fazLogs = db.fazLogs;
   if (!Array.isArray(db.fleet.fazNomenclator)) db.fleet.fazNomenclator = db.fazNomenclator;
+  if (!Array.isArray(db.fleet.assetDrivers)) db.fleet.assetDrivers = db.fleetAssetDrivers;
+  if (!Array.isArray(db.fleet.assetFiles)) db.fleet.assetFiles = db.fleetAssetFiles;
   if (!Array.isArray(db.costCenters)) db.costCenters = [];
   if (!Array.isArray(db.technicalWorkLogs)) db.technicalWorkLogs = [];
   if (!Array.isArray(db.technicalClients)) db.technicalClients = [];

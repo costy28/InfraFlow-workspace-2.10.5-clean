@@ -144,6 +144,19 @@ function hasExpiryWarning(asset) {
   return (itp !== null && itp <= 30) || (rca !== null && rca <= 30)
 }
 
+function documentStatusInfo(asset) {
+  const dates = [
+    asset.nextInspectionDate || asset.itpExpiresAt || asset.itp_expira_la,
+    asset.rcaExpiresAt || asset.rca_expira_la,
+    asset.iscirExpiresAt || asset.iscir_expira_la,
+  ].map(daysUntil).filter(value => value !== null)
+
+  if (!dates.length) return { label: 'Doc. neconfig.', variant: 'gray' }
+  if (dates.some(value => value < 0)) return { label: 'Doc. expirate', variant: 'red' }
+  if (dates.some(value => value <= 30)) return { label: 'Doc. curând', variant: 'yellow' }
+  return { label: 'Doc. OK', variant: 'green' }
+}
+
 function EmptyRow({ colSpan, loading }) {
   return (
     <tr>
@@ -549,11 +562,14 @@ export default function FlotaPage() {
               <th className="px-3 py-2">{isVehicle ? 'Utilizator curent' : 'Ore motor'}</th>
               <th className="px-3 py-2">{isVehicle ? 'Km curent' : 'Status'}</th>
               {isVehicle && <th className="px-3 py-2">Status</th>}
+              <th className="px-3 py-2">Documente</th>
+              <th className="px-3 py-2 text-right">Acțiuni</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {pagedAssets.length ? pagedAssets.map(asset => {
               const status = statusInfo(asset, requests)
+              const documentStatus = documentStatusInfo(asset)
               return (
                 <tr key={asset.id} className="cursor-pointer hover:bg-primary-50/50" onClick={() => setSelectedAsset(asset)}>
                   <td className="px-3 py-2 font-medium text-slate-900">{isVehicle ? assetRegistration(asset) : assetCode(asset)}</td>
@@ -562,9 +578,22 @@ export default function FlotaPage() {
                   <td className="px-3 py-2">{isVehicle ? (asset.currentUser || asset.utilizator_curent || '-') : `${asset.ore_motor ?? asset.currentMeter ?? asset.initialMeter ?? 0} ore`}</td>
                   <td className="px-3 py-2">{isVehicle ? `${asset.km_curent ?? asset.currentMeter ?? 0} km` : <Badge variant={status.variant}>{status.label}</Badge>}</td>
                   {isVehicle && <td className="px-3 py-2"><Badge variant={status.variant}>{status.label}</Badge></td>}
+                  <td className="px-3 py-2"><Badge variant={documentStatus.variant}>{documentStatus.label}</Badge></td>
+                  <td className="px-3 py-2 text-right">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        navigate(`/fleet/asset/${asset.id}`)
+                      }}
+                    >
+                      Fișă completă
+                    </Button>
+                  </td>
                 </tr>
               )
-            }) : <EmptyRow colSpan={isVehicle ? 6 : 5} loading={loading} />}
+            }) : <EmptyRow colSpan={isVehicle ? 8 : 7} loading={loading} />}
           </tbody>
         </table>
       </div>
@@ -584,16 +613,21 @@ export default function FlotaPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {pagedAssets.map(asset => {
           const status = statusInfo(asset, requests)
+          const documentStatus = documentStatusInfo(asset)
           return (
-            <button
+            <div
               key={asset.id}
-              type="button"
               className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50/40"
               onClick={() => setSelectedAsset(asset)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') setSelectedAsset(asset)
+              }}
             >
               <div className="flex items-start justify-between gap-2">
                 <Badge variant={status.variant}>{status.label}</Badge>
-                {hasExpiryWarning(asset) && <span className="text-sm text-amber-600">⚠️</span>}
+                <Badge variant={documentStatus.variant}>{documentStatus.label}</Badge>
               </div>
               <div className="mt-3 text-xl font-semibold text-slate-900">{isVehicle ? assetRegistration(asset) : assetCode(asset)}</div>
               <div className="mt-1 text-sm text-slate-600">{[asset.marca || asset.brand, asset.model, assetType(asset)].filter(Boolean).join(' · ') || '-'}</div>
@@ -601,7 +635,19 @@ export default function FlotaPage() {
                 <div>{isVehicle ? `Km curent: ${asset.km_curent ?? asset.currentMeter ?? 0}` : `Ore motor: ${asset.ore_motor ?? asset.currentMeter ?? asset.initialMeter ?? 0}`}</div>
                 <div>Departament: {assetDepartment(asset)}</div>
               </div>
-            </button>
+              <div className="mt-4">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    navigate(`/fleet/asset/${asset.id}`)
+                  }}
+                >
+                  Fișă completă
+                </Button>
+              </div>
+            </div>
           )
         })}
       </div>

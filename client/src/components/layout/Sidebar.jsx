@@ -11,6 +11,7 @@ const groups = [
     items: [
       { to: '/dashboard', icon: '📊', label: 'Dashboard' },
       { to: '/kiosk', icon: '🏠', label: 'Kiosk Angajat' },
+      { to: '/my-vehicle', icon: '🚗', label: 'Vehiculul meu', myVehicleOnly: true },
     ],
   },
   {
@@ -81,6 +82,7 @@ export default function Sidebar({ open, onClose, aiEnabled = false }) {
   const { modules } = useSettings()
   const { user } = useAuth()
   const [departments, setDepartments] = useState([])
+  const [hasMyVehicle, setHasMyVehicle] = useState(false)
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : []
   const userRoles = normalizedRoles(user)
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
@@ -100,6 +102,7 @@ export default function Sidebar({ open, onClose, aiEnabled = false }) {
   }
   const isVisible = item =>
     (!item.adminOnly || isAdmin) &&
+    (!item.myVehicleOnly || hasMyVehicle) &&
     hasItemPermission(item) &&
     moduleIsActive(item) &&
     canSeeModule(item.moduleKey)
@@ -108,6 +111,9 @@ export default function Sidebar({ open, onClose, aiEnabled = false }) {
     api.get('/departments')
       .then(response => setDepartments(response.data.departments || []))
       .catch(() => {})
+    api.get('/fleet/my-vehicle')
+      .then(() => setHasMyVehicle(true))
+      .catch(() => setHasMyVehicle(false))
   }, [])
 
   function renderGroup(label, items) {

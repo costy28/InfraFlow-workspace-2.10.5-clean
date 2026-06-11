@@ -882,6 +882,10 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   </div>
                   <div className="mt-2 flex gap-2">
                     <button
+                      className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      onClick={() => navigate(`/fleet/asset/${asset.id}`)}
+                    >Fișă completă</button>
+                    <button
                       className="rounded bg-primary-50 px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-100"
                       onClick={() => { setPlanForm({ ...emptyPlanForm, asset_id: String(asset.id) }); setPlanEditing(null); setPlanModal(true) }}
                     >📋 Planifică</button>
