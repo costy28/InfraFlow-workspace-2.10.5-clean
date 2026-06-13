@@ -1,5 +1,5 @@
 /**
- * Genereaza data/app-db.json complet cu date demo pentru InfraFlow.
+ * Genereaza data/app-db.demo.json complet cu date demo pentru InfraFlow.
  * Rulare: node scripts/seed-demo.js
  */
 const path = require('path')
@@ -8,7 +8,8 @@ const crypto = require('crypto')
 const { hashPassword } = require('../server/core/auth')
 
 const ROOT = path.join(__dirname, '..')
-const DB_FILE = path.join(ROOT, 'data', 'app-db.json')
+const DEMO_DB_NAME = process.env.INFRAFLOW_DEMO_DB_FILE || process.env.INFRAFLOW_DB_FILE || 'app-db.demo.json'
+const DB_FILE = path.isAbsolute(DEMO_DB_NAME) ? DEMO_DB_NAME : path.join(ROOT, 'data', DEMO_DB_NAME)
 const SEED_FILE = path.join(ROOT, 'data', 'demo-seed.json')
 
 function ensureDir(dir) {

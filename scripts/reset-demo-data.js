@@ -7,7 +7,8 @@ const fs = require('fs')
 const childProcess = require('child_process')
 
 const ROOT = path.join(__dirname, '..')
-const DB_FILE = path.join(ROOT, 'data', 'app-db.json')
+const DEMO_DB_NAME = process.env.INFRAFLOW_DEMO_DB_FILE || process.env.INFRAFLOW_DB_FILE || 'app-db.demo.json'
+const DB_FILE = path.isAbsolute(DEMO_DB_NAME) ? DEMO_DB_NAME : path.join(ROOT, 'data', DEMO_DB_NAME)
 const SEED_SCRIPT = path.join(ROOT, 'scripts', 'seed-demo.js')
 
 function readJson(file) {
@@ -20,12 +21,12 @@ function writeJson(file, data) {
 
 function resetDemo() {
   if (!fs.existsSync(DB_FILE)) {
-    childProcess.execFileSync(process.execPath, [SEED_SCRIPT], { cwd: ROOT, stdio: 'inherit' })
+    childProcess.execFileSync(process.execPath, [SEED_SCRIPT], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, INFRAFLOW_DEMO_DB_FILE: DEMO_DB_NAME } })
     return
   }
 
   const before = readJson(DB_FILE)
-  childProcess.execFileSync(process.execPath, [SEED_SCRIPT], { cwd: ROOT, stdio: 'inherit' })
+  childProcess.execFileSync(process.execPath, [SEED_SCRIPT], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, INFRAFLOW_DEMO_DB_FILE: DEMO_DB_NAME } })
   const regenerated = readJson(DB_FILE)
 
   const persistent = [

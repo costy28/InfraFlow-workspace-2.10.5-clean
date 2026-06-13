@@ -7,6 +7,7 @@ const { sendEmail } = require('./email')
 const router = Router()
 
 const sseClients = new Map()
+let mssqlMessagingDisabled = false
 
 function notifyUser(userId, event, data) {
   const clients = sseClients.get(userId) || []
@@ -29,7 +30,18 @@ function nowIso() {
 }
 
 function isMssqlMode() {
-  return MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
+  return !mssqlMessagingDisabled && MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
+}
+
+function tryMssqlMessaging(operation) {
+  if (!isMssqlMode()) return null
+  try {
+    return operation()
+  } catch (error) {
+    mssqlMessagingDisabled = true
+    console.warn('[MESSAGING] MSSQL relational indisponibil; folosesc app_state JSON pentru Mesaje.', error.message)
+    return null
+  }
 }
 
 function requireMessaging(auth, res, permission) {
@@ -352,7 +364,7 @@ router.get('/messaging/channels', (req, res, next) => {
     if (!auth) return
     if (!requireMessaging(auth, res, 'messaging:view')) return
     if (isMssqlMode()) {
-      const channels = mssqlArray(`
+      const channels = tryMssqlMessaging(() => mssqlArray(`
 DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
 SELECT c.id, c.tip, c.nume, c.entitate_tip, c.entitate_id, c.creat_de, c.activ, c.created_at
 FROM messaging.channels c
@@ -360,9 +372,11 @@ JOIN messaging.channel_members cm ON cm.channel_id = c.id AND cm.user_id = @user
 WHERE c.activ = 1
 ORDER BY c.created_at DESC
 FOR JSON PATH;
-`, { userId: auth.user.id })
-      sendJson(res, 200, { channels })
-      return
+`, { userId: auth.user.id }))
+      if (channels) {
+        sendJson(res, 200, { channels })
+        return
+      }
     }
     const messaging = ensureMessagingDb(auth.db)
     // Auto-înscrie utilizatorul la canalele publice/departament dacă nu e deja membru

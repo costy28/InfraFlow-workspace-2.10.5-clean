@@ -11,10 +11,10 @@ import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import { formatDate, formatMoney } from '../utils/format'
 
-const tabs = ['General', 'Licență', 'Aspect', 'AI Assistant', 'Actualizări', 'Utilizatori', 'Roluri', 'Module', 'Cântar', 'Integrări', 'Departamente']
+const tabs = ['General', 'Bază date', 'Licență', 'Aspect', 'AI Assistant', 'Actualizări', 'Utilizatori', 'Roluri', 'Module', 'Cântar', 'Integrări', 'Departamente']
 const allModules = [
   'core', 'inventory', 'production', 'reports', 'system', 'fleet', 'hr',
-  'controlling', 'procurement', 'documents', 'field', 'messaging', 'tickets',
+  'controlling', 'accounting', 'procurement', 'documents', 'field', 'messaging', 'tickets',
   'technical_plus', 'sanitation', 'traffic_safety', 'snow_removal',
   'environment', 'legal', 'archive', 'secretariat', 'ai_assistant'
 ]
@@ -80,6 +80,7 @@ const moduleGroups = [
       { key: 'procurement', icon: '⚙️', label: 'Achiziții' },
       { key: 'hr', icon: '⚙️', label: 'HR' },
       { key: 'controlling', icon: '⚙️', label: 'Controlling' },
+      { key: 'accounting', icon: '⚙️', label: 'Contabilitate' },
     ],
   },
   {
@@ -110,6 +111,104 @@ const moduleGroups = [
     ],
   },
 ]
+
+const moduleFeatureCatalog = {
+  fleet: [
+    { key: 'assets', label: 'Parc vehicule/utilaje' },
+    { key: 'trip_logs', label: 'Foi de parcurs' },
+    { key: 'faz', label: 'FAZ utilaje' },
+    { key: 'fuel', label: 'Alimentări și consum' },
+    { key: 'maintenance', label: 'Reparații și revizii' },
+    { key: 'gps', label: 'GPS live' },
+  ],
+  technical: [
+    { key: 'work_logs', label: 'Jurnale lucrări' },
+    { key: 'asphalt_sales', label: 'Vânzări asfalt' },
+    { key: 'field_reports', label: 'Rapoarte teren' },
+  ],
+  procurement: [
+    { key: 'orders', label: 'Comenzi' },
+    { key: 'referate', label: 'Referate' },
+    { key: 'paap', label: 'PAAP' },
+    { key: 'cpv', label: 'Catalog CPV' },
+  ],
+  hr: [
+    { key: 'employees', label: 'Angajați' },
+    { key: 'timesheets', label: 'Pontaj' },
+    { key: 'leave', label: 'Concedii' },
+    { key: 'equipment', label: 'Echipamente protecție' },
+    { key: 'kiosk', label: 'Kiosk angajat' },
+  ],
+  controlling: [
+    { key: 'cost_centers', label: 'Centre cost/profit' },
+    { key: 'fleet_costs', label: 'Costuri mecanizare' },
+    { key: 'reports', label: 'Rapoarte controlling' },
+  ],
+  accounting: [
+    { key: 'chart', label: 'Plan de conturi' },
+    { key: 'third_parties', label: 'Terti contabili' },
+    { key: 'invoices', label: 'Facturi intrare/iesire' },
+    { key: 'treasury', label: 'Casa si banca' },
+    { key: 'journals', label: 'Registru jurnal' },
+    { key: 'reports', label: 'Balanta si fisa cont' },
+    { key: 'closing', label: 'Inchidere luna' },
+  ],
+  sanitation: [
+    { key: 'routes', label: 'Rute' },
+    { key: 'collections', label: 'Colectări' },
+    { key: 'reports', label: 'Rapoarte' },
+  ],
+  traffic_safety: [
+    { key: 'signs', label: 'Indicatoare' },
+    { key: 'markings', label: 'Marcaje' },
+    { key: 'interventions', label: 'Intervenții' },
+  ],
+  environment: [
+    { key: 'permits', label: 'Autorizații' },
+    { key: 'waste', label: 'Deșeuri PRODDES/MUN' },
+    { key: 'emissions', label: 'Emisii și monitorizare' },
+    { key: 'incidents', label: 'Incidente' },
+  ],
+  snow_removal: [
+    { key: 'plans', label: 'Plan deszăpezire' },
+    { key: 'interventions', label: 'Intervenții' },
+    { key: 'weather', label: 'Meteo' },
+  ],
+  documents: [
+    { key: 'templates', label: 'Template-uri' },
+    { key: 'workflow', label: 'Circuit aprobare' },
+    { key: 'archive', label: 'Arhivare' },
+  ],
+  messaging: [
+    { key: 'channels', label: 'Canale' },
+    { key: 'notifications', label: 'Notificări' },
+    { key: 'email', label: 'Email' },
+  ],
+  tickets: [
+    { key: 'tickets', label: 'Sesizări' },
+    { key: 'sla', label: 'SLA și escaladări' },
+  ],
+  field: [
+    { key: 'sites', label: 'Șantiere' },
+    { key: 'daily_notes', label: 'Note zilnice' },
+  ],
+  legal: [
+    { key: 'cases', label: 'Dosare' },
+    { key: 'contracts', label: 'Contracte' },
+  ],
+  archive: [
+    { key: 'registry', label: 'Registru arhivă' },
+    { key: 'retention', label: 'Termene păstrare' },
+  ],
+  secretariat: [
+    { key: 'registry', label: 'Registratură' },
+    { key: 'correspondence', label: 'Corespondență' },
+  ],
+  ai: [
+    { key: 'assistant', label: 'Asistent AI' },
+    { key: 'reports', label: 'Analize și rapoarte' },
+  ],
+}
 
 function arrayFrom(data, keys) {
   if (Array.isArray(data)) return data
@@ -150,6 +249,12 @@ function mapEntries(map = {}) {
 export default function SetariPage() {
   const [activeTab, setActiveTab] = useState('General')
   const [settings, setSettings] = useState({})
+  const [moduleConfig, setModuleConfig] = useState(null)
+  const [moduleFeatureDraft, setModuleFeatureDraft] = useState({})
+  const [databaseConfig, setDatabaseConfig] = useState({ server: '.\\SQLEXPRESS', database: 'INFRAFLOW', authMode: 'windows', user: 'infraflow', password: '', encrypt: 'false', relational: false })
+  const [databaseHealth, setDatabaseHealth] = useState(null)
+  const [databaseSaving, setDatabaseSaving] = useState(false)
+  const [databaseTesting, setDatabaseTesting] = useState(false)
   const [license, setLicense] = useState(null)
   const [branding, setBranding] = useState(normalizeBranding())
   const [aiStatus, setAiStatus] = useState(null)
@@ -224,7 +329,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -236,6 +341,7 @@ export default function SetariPage() {
         api.get('/hr/employees?activ=1'),
         api.get('/integration/piusi/status'),
         api.get('/integration/piusi/mapari'),
+        api.get('/system/database-config'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -262,6 +368,11 @@ export default function SetariPage() {
       if (piusiMapariRes.status === 'fulfilled') {
         setPiusiMapari(arrayFrom(piusiMapariRes.value.data, ['mapari']))
         setPiusiAssets(arrayFrom(piusiMapariRes.value.data, ['assets']))
+      }
+      if (dbConfigRes.status === 'fulfilled') {
+        const cfg = dbConfigRes.value.data.config || {}
+        setDatabaseConfig({ ...cfg, password: '' })
+        setDatabaseHealth(dbConfigRes.value.data.health || null)
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
@@ -797,14 +908,79 @@ export default function SetariPage() {
     })
   }
 
+  function defaultFeatureState(moduleKey) {
+    return Object.fromEntries((moduleFeatureCatalog[moduleKey] || []).map(feature => [feature.key, true]))
+  }
+
+  function openModuleConfig(mod) {
+    const saved = settings.module_features?.[mod.key] || {}
+    setModuleConfig(mod)
+    setModuleFeatureDraft({ ...defaultFeatureState(mod.key), ...saved })
+  }
+
+  function toggleModuleFeature(featureKey) {
+    setModuleFeatureDraft(current => ({ ...current, [featureKey]: current[featureKey] === false }))
+  }
+
+  async function saveModuleConfig() {
+    if (!moduleConfig) return
+    const nextFeatures = {
+      ...(settings.module_features || {}),
+      [moduleConfig.key]: moduleFeatureDraft,
+    }
+    try {
+      const response = await api.post('/settings/modules', {
+        modules_enabled: enabledModules,
+        module_features: nextFeatures,
+      })
+      setSettings(response.data.settings || { ...settings, module_features: nextFeatures })
+      setModuleConfig(null)
+      window.dispatchEvent(new Event('infraflow-settings-updated'))
+      notify(`Configurarea modulului ${moduleConfig.label} a fost salvată.`)
+    } catch (err) {
+      fail(err, 'Configurarea modulului nu a putut fi salvată.')
+    }
+  }
+
   async function saveModules() {
     try {
-      const response = await api.post('/settings/modules', { modules_enabled: enabledModules })
+      const response = await api.post('/settings/modules', {
+        modules_enabled: enabledModules,
+        module_features: settings.module_features || {},
+      })
       setSettings(response.data.settings || { ...settings, modules_enabled: response.data.modules_enabled || enabledModules })
       window.dispatchEvent(new Event('infraflow-settings-updated'))
       notify('Modulele active au fost salvate.')
     } catch (err) {
       fail(err, 'Modulele nu au putut fi salvate.')
+    }
+  }
+
+  async function testDatabaseConfig() {
+    setDatabaseTesting(true)
+    try {
+      const response = await api.post('/system/database-config/test', databaseConfig)
+      setDatabaseHealth({ ok: true, identity: response.data.identity })
+      notify(response.data.message || 'Conexiunea SQL Server funcționează.')
+    } catch (err) {
+      fail(err, 'Conexiunea SQL Server nu a putut fi verificată.')
+    } finally {
+      setDatabaseTesting(false)
+    }
+  }
+
+  async function saveDatabaseConfig(event) {
+    event.preventDefault()
+    setDatabaseSaving(true)
+    try {
+      const response = await api.post('/system/database-config', databaseConfig)
+      setDatabaseConfig({ ...(response.data.config || databaseConfig), password: '' })
+      setDatabaseHealth(response.data.health || { ok: true, identity: response.data.identity })
+      notify(response.data.message || 'Configurarea SQL Server a fost salvată.')
+    } catch (err) {
+      fail(err, 'Configurarea SQL Server nu a putut fi salvată.')
+    } finally {
+      setDatabaseSaving(false)
     }
   }
 
@@ -1197,6 +1373,79 @@ export default function SetariPage() {
               min={0} max={100}
             />
             <div className="md:col-span-2"><Button type="submit">Salvează</Button></div>
+          </form>
+        </Card>
+      )}
+
+      {activeTab === 'Bază date' && (
+        <Card
+          title="Bază date SQL Server"
+          subtitle="Configurare conexiune MSSQL folosită de aplicația principală. Parola salvată nu este afișată."
+        >
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={saveDatabaseConfig}>
+            <Input
+              label="Server SQL"
+              value={databaseConfig.server || ''}
+              onChange={event => setDatabaseConfig(current => ({ ...current, server: event.target.value }))}
+              placeholder=".\\SQLEXPRESS"
+            />
+            <Input
+              label="Bază de date"
+              value={databaseConfig.database || ''}
+              onChange={event => setDatabaseConfig(current => ({ ...current, database: event.target.value }))}
+              placeholder="INFRAFLOW"
+            />
+            <Select
+              label="Autentificare"
+              value={databaseConfig.authMode || 'windows'}
+              onChange={event => setDatabaseConfig(current => ({ ...current, authMode: event.target.value }))}
+            >
+              <option value="windows">Windows Integrated</option>
+              <option value="sql">SQL user/parolă</option>
+            </Select>
+            <Select
+              label="Mod MSSQL"
+              value={databaseConfig.relational ? '1' : '0'}
+              onChange={event => setDatabaseConfig(current => ({ ...current, relational: event.target.value === '1' }))}
+            >
+              <option value="0">app_state JSON în MSSQL</option>
+              <option value="1">Tabele relaționale + app_state</option>
+            </Select>
+            {(databaseConfig.authMode || 'windows') === 'sql' ? (
+              <>
+                <Input
+                  label="Utilizator SQL"
+                  value={databaseConfig.user || ''}
+                  onChange={event => setDatabaseConfig(current => ({ ...current, user: event.target.value }))}
+                  placeholder="infraflow"
+                />
+                <Input
+                  label={databaseConfig.passwordSet ? 'Parolă SQL (salvată)' : 'Parolă SQL'}
+                  type="password"
+                  value={databaseConfig.password || ''}
+                  onChange={event => setDatabaseConfig(current => ({ ...current, password: event.target.value }))}
+                  placeholder={databaseConfig.passwordSet ? 'Salvată - completează doar dacă o schimbi' : 'Parola userului SQL'}
+                  autoComplete="new-password"
+                />
+              </>
+            ) : (
+              <div className="md:col-span-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                Serverul va folosi contul Windows sub care rulează serviciul InfraFlow.
+              </div>
+            )}
+            <div className="md:col-span-2 grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-medium text-slate-800">Status conexiune</div>
+              <div className={databaseHealth?.ok ? 'text-emerald-700' : 'text-rose-700'}>
+                {databaseHealth?.ok ? 'Conexiune OK' : (databaseHealth?.error || 'Netrimis / neverificat')}
+              </div>
+              {databaseConfig.runtimeFile ? (
+                <div className="text-xs text-slate-500">Fișier runtime: {databaseConfig.runtimeFile}</div>
+              ) : null}
+            </div>
+            <div className="md:col-span-2 flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" loading={databaseTesting} onClick={testDatabaseConfig}>Testează conexiunea</Button>
+              <Button type="submit" loading={databaseSaving}>Salvează SQL</Button>
+            </div>
           </form>
         </Card>
       )}
@@ -1830,10 +2079,23 @@ export default function SetariPage() {
                       const locked = group.locked
                       const enabled = locked || enabledModules.includes(mod.key)
                       const licensed = isModuleLicensed(mod.key)
+                      const featureCount = moduleFeatureCatalog[mod.key]?.length || 0
+                      const activeFeatureCount = Object.values({ ...defaultFeatureState(mod.key), ...(settings.module_features?.[mod.key] || {}) }).filter(Boolean).length
                       return (
                         <div key={mod.key} className={`rounded-lg border p-4 ${enabled ? 'border-primary-100 bg-primary-50/40' : 'border-slate-200 bg-white'} ${!licensed ? 'opacity-60' : ''}`}>
                           <div className="flex items-start gap-3">
-                            <div className="text-xl">{mod.icon}</div>
+                            {locked ? (
+                              <div className="text-xl">{mod.icon}</div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="rounded-md p-1 text-xl transition hover:bg-white hover:shadow-sm"
+                                title={`Configurează ${mod.label}`}
+                                onClick={() => openModuleConfig(mod)}
+                              >
+                                {mod.icon}
+                              </button>
+                            )}
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <h4 className="font-semibold text-slate-900">{mod.label}</h4>
@@ -1841,6 +2103,9 @@ export default function SetariPage() {
                                 {!licensed ? <Badge variant="red" size="sm">Nelicițiat</Badge> : null}
                               </div>
                               {mod.description ? <p className="mt-1 text-sm text-slate-500">{mod.description}</p> : null}
+                              {featureCount ? (
+                                <p className="mt-1 text-xs text-slate-500">{activeFeatureCount}/{featureCount} funcții active</p>
+                              ) : null}
                             </div>
                             {locked ? (
                               <Badge variant="gray">Activ</Badge>
@@ -2220,7 +2485,45 @@ export default function SetariPage() {
         </form>
       </Modal>
 
-      <Modal open={deptModal} onClose={() => { setDeptModal(false); setDeptEditing(null) }} title={deptEditing ? 'Editează departament' : 'Departament nou'}>
+      <Modal open={Boolean(moduleConfig)} onClose={() => setModuleConfig(null)} title={moduleConfig ? `Configurează ${moduleConfig.label}` : 'Configurează modul'} size="lg">
+        {moduleConfig ? (
+          <div className="grid gap-4">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+              Activezi sau ascunzi funcțiile din modul. Setările sunt pregătite și pentru limitare pe licență.
+            </div>
+            <div className="grid gap-2">
+              {(moduleFeatureCatalog[moduleConfig.key] || []).map(feature => {
+                const active = moduleFeatureDraft[feature.key] !== false
+                return (
+                  <label key={feature.key} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white p-3">
+                    <span>
+                      <span className="font-medium text-slate-800">{feature.label}</span>
+                      <span className="block text-xs text-slate-400">{feature.key}</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => toggleModuleFeature(feature.key)}
+                      className="h-5 w-5 accent-primary-600"
+                    />
+                  </label>
+                )
+              })}
+              {(moduleFeatureCatalog[moduleConfig.key] || []).length === 0 ? (
+                <div className="rounded-md border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                  Modulul nu are încă subfuncții configurabile.
+                </div>
+              ) : null}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setModuleConfig(null)}>Anulează</Button>
+              <Button onClick={saveModuleConfig}>Salvează configurarea</Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal open={deptModal} onClose={() => { setDeptModal(false); setDeptEditing(null) }} title={deptEditing ? 'Editează departament' : 'Departament nou'} size="lg">
         <div className="grid gap-3">
           {deptError ? <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm text-rose-700">{deptError}</div> : null}
 
@@ -2271,6 +2574,52 @@ export default function SetariPage() {
             value={deptForm.culoare}
             onChange={event => setDeptForm(form => ({ ...form, culoare: event.target.value }))}
           />
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium text-slate-700">Permisiuni departament</div>
+              <div className="text-xs text-slate-400">{(deptForm.permissions || []).length} active</div>
+            </div>
+            <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="grid gap-3">
+                {permCatalog.map(group => (
+                  <div key={group.id} className="rounded-md border border-slate-200 bg-white p-2">
+                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500">{group.label}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {group.permissions.map(perm => {
+                        const active = (deptForm.permissions || []).includes(perm.id)
+                        return (
+                          <button
+                            key={perm.id}
+                            type="button"
+                            title={perm.id}
+                            onClick={() => setDeptForm(form => ({
+                              ...form,
+                              permissions: active
+                                ? (form.permissions || []).filter(item => item !== perm.id)
+                                : [...(form.permissions || []), perm.id]
+                            }))}
+                            className={`rounded border px-2 py-0.5 text-xs transition-colors ${
+                              active
+                                ? 'border-green-400 bg-green-100 text-green-800'
+                                : 'border-slate-300 bg-white text-slate-500 hover:border-slate-400'
+                            }`}
+                          >
+                            {perm.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {!permCatalog.length ? (
+                  <div className="rounded border border-dashed border-slate-200 bg-white p-3 text-sm text-slate-500">
+                    Catalogul de permisiuni nu este încărcat.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
 
           <div className="mt-2 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => { setDeptModal(false); setDeptEditing(null) }}>Anulează</Button>

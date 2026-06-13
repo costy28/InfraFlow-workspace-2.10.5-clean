@@ -21,7 +21,6 @@ const groups = [
       { to: '/gestiune', icon: '📦', label: 'Gestiune / Depozit', moduleKey: 'inventory' },
       { to: '/productie', icon: '🏭', label: 'Producție', moduleKey: 'production' },
       { to: '/mecanizare', icon: '⚙️', label: 'Mecanizare', moduleKey: 'mechanization' },
-      { to: '/faz-utilaje', icon: '🧾', label: 'FAZ Utilaje', moduleKey: 'mechanization', permissions: ['fleet:faz_view', 'fleet:fc_view'] },
       { to: '/asternere', icon: '🛣️', label: 'Asternere', moduleKey: 'asternere' },
       { to: '/achizitii', icon: '🛒', label: 'Achiziții', moduleKey: 'procurement' },
       { to: '/referate', icon: '📄', label: 'Referate', moduleKey: 'referate' },
@@ -30,6 +29,7 @@ const groups = [
       { to: '/siguranta-circ', icon: '🚦', label: 'Siguranța Circ.', moduleKey: 'traffic_safety' },
       { to: '/deszapezire', icon: '❄️', label: 'Deszăpezire', moduleKey: 'snow_removal' },
       { to: '/mediu', icon: '🌿', label: 'Mediu', moduleKey: 'environment' },
+      { to: '/contabilitate', icon: '🏦', label: 'Contabilitate', moduleKey: 'accounting' },
       { to: '/controlling', icon: '💰', label: 'Controlling', moduleKey: 'controlling' },
       { to: '/anaf', icon: '🧾', label: 'ANAF / e-Factură', moduleKey: 'anaf' },
       { to: '/documente', icon: '🗂️', label: 'Documente', moduleKey: 'documents' },
@@ -57,6 +57,7 @@ const modulePermissionPrefixes = {
   production: ['production', 'consumptions', 'recipes', 'planning', 'daily_report'],
   procurement: ['procurement', 'procurement_orders'],
   referate: ['referate'],
+  accounting: ['accounting'],
   mechanization: ['mechanization', 'fleet', 'technical'],
   asternere: ['technical', 'field'],
   anaf: ['anaf', 'integration'],
@@ -66,6 +67,7 @@ const moduleActiveAliases = {
   mechanization: ['mechanization', 'fleet'],
   inventory: ['inventory', 'reports'],
   ai: ['ai', 'ai_assistant'],
+  accounting: ['accounting', 'contabilitate'],
   referate: ['referate', 'procurement'],
 }
 

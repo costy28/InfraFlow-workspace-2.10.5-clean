@@ -4,7 +4,6 @@ import Layout from './components/layout/Layout'
 import { PermissionGuard } from './components/PermissionGuard'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
-const StartDemoPage = lazy(() => import('./pages/StartDemoPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SetariPage = lazy(() => import('./pages/SetariPage'))
 const DepartamentPage = lazy(() => import('./pages/DepartamentPage'))
@@ -13,6 +12,18 @@ const StocuriPage = lazy(() => import('./pages/modules/StocuriPage'))
 const HRPage = lazy(() => import('./pages/modules/HRPage'))
 const TehnicPage = lazy(() => import('./pages/modules/TehnicPage'))
 const ControllingPage = lazy(() => import('./pages/modules/ControllingPage'))
+const ContabilitateDashboard = lazy(() => import('./pages/accounting/ContabilitateDashboard'))
+const PlanConturi = lazy(() => import('./pages/accounting/PlanConturi'))
+const FurnizoriContab = lazy(() => import('./pages/accounting/FurnizoriContab'))
+const ClientiContab = lazy(() => import('./pages/accounting/ClientiContab'))
+const FacturiIntrare = lazy(() => import('./pages/accounting/FacturiIntrare'))
+const FacturiIesire = lazy(() => import('./pages/accounting/FacturiIesire'))
+const Trezorerie = lazy(() => import('./pages/accounting/Trezorerie'))
+const RegistruJurnal = lazy(() => import('./pages/accounting/RegistruJurnal'))
+const Balanta = lazy(() => import('./pages/accounting/Balanta'))
+const FisaCont = lazy(() => import('./pages/accounting/FisaCont'))
+const InchidereLuna = lazy(() => import('./pages/accounting/InchidereLuna'))
+const AlerteLegislative = lazy(() => import('./pages/accounting/AlerteLegislative'))
 const FlotaPage = lazy(() => import('./pages/modules/FlotaPage'))
 const FoaieParcursPage = lazy(() => import('./pages/FoaieParcursPage'))
 const FcUtilajePage = lazy(() => import('./pages/FcUtilajePage'))
@@ -45,6 +56,8 @@ const AsternерePage = lazy(() => import('./pages/modules/AsternерePage'))
 const SetupWizardPage = lazy(() => import('./pages/SetupWizardPage'))
 const FleetSignPage = lazy(() => import('./pages/FleetSignPage'))
 const FleetVerifyPage = lazy(() => import('./pages/FleetVerifyPage'))
+const isDemoBuild = import.meta.env.VITE_DEMO_MODE === 'true'
+const StartDemoPage = isDemoBuild ? lazy(() => import('./pages/StartDemoPage')) : null
 
 function PageLoader() {
   return <div className="grid min-h-screen place-items-center text-sm text-slate-500">Se incarca...</div>
@@ -58,8 +71,8 @@ export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        <Route path="/" element={<StartDemoPage />} />
-        <Route path="/start-demo" element={<StartDemoPage />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        {isDemoBuild && <Route path="/start-demo" element={<StartDemoPage />} />}
         <Route path="/setup" element={<SetupWizardPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/fleet/sign/:token" element={<FleetSignPage />} />
@@ -71,6 +84,18 @@ export default function App() {
         <Route path="/hr/*" element={<WithLayout><PermissionGuard permission={['hr:view', 'echipamente:gestionar']}><HRPage /></PermissionGuard></WithLayout>} />
         <Route path="/tehnic/*" element={<WithLayout><TehnicPage /></WithLayout>} />
         <Route path="/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ControllingPage /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate" element={<WithLayout><PermissionGuard permission="accounting:view"><ContabilitateDashboard /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/plan-conturi" element={<WithLayout><PermissionGuard permission="accounting:view"><PlanConturi /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/furnizori" element={<WithLayout><PermissionGuard permission="accounting:view"><FurnizoriContab /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/clienti" element={<WithLayout><PermissionGuard permission="accounting:view"><ClientiContab /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/facturi-intrare" element={<WithLayout><PermissionGuard permission="accounting:view"><FacturiIntrare /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/facturi-iesire" element={<WithLayout><PermissionGuard permission="accounting:view"><FacturiIesire /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/trezorerie" element={<WithLayout><PermissionGuard permission="accounting:view"><Trezorerie /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/registru-jurnal" element={<WithLayout><PermissionGuard permission="accounting:view"><RegistruJurnal /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/balanta" element={<WithLayout><PermissionGuard permission="accounting:reports"><Balanta /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/fisa-cont/:simbol" element={<WithLayout><PermissionGuard permission="accounting:reports"><FisaCont /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/inchidere-luna" element={<WithLayout><PermissionGuard permission="accounting:close"><InchidereLuna /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/alerte" element={<WithLayout><PermissionGuard permission="accounting:view"><AlerteLegislative /></PermissionGuard></WithLayout>} />
         <Route path="/flota/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FlotaPage /></PermissionGuard></WithLayout>} />
         <Route path="/foi-parcurs/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FoaieParcursPage /></PermissionGuard></WithLayout>} />
         <Route path="/fc-utilaje/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FcUtilajePage /></PermissionGuard></WithLayout>} />

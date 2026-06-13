@@ -21,7 +21,14 @@ const {
   normalizedUserRoles,
   userHasRole,
 } = require('../../core/permissions')
-const { readDb, writeDb } = require('../../core/db')
+const {
+  readDb,
+  writeDb,
+  runMssqlScalar: coreRunMssqlScalar,
+  closeMssqlPool: coreCloseMssqlPool,
+  databaseHealth: coreDatabaseHealth,
+  ensureMssqlDatabase: coreEnsureMssqlDatabase
+} = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { verificaLicenta, incarcaLicenta } = require('../../core/license')
 const { sendEmail } = require('../messaging/email')
@@ -83,6 +90,7 @@ const configurableModuleKeys = new Set([
   "procurement",
   "hr",
   "controlling",
+  "accounting",
   "sanitation",
   "traffic_safety",
   "environment",
@@ -934,6 +942,68 @@ router.get('/settings', (req, res) => {
   sendJson(res, 200, { settings: publicSettings(auth.db.settings) });
 })
 
+router.get('/system/database-config', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    sendJson(res, 200, {
+      config: publicDatabaseConfig(),
+      health: safeDatabaseHealth()
+    });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/system/database-config/test', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    const normalized = normalizeDatabaseConfig(body, false);
+    const connectionString = buildDatabaseConnectionString(normalized);
+    const result = coreRunMssqlScalar("select db_name() + ':' + system_user;", { connectionString }).trim();
+    sendJson(res, 200, {
+      ok: true,
+      message: "Conexiunea SQL Server functioneaza.",
+      identity: result,
+      config: publicDatabaseConfig(normalized)
+    });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/system/database-config', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const body = await readJsonBody(req);
+    const normalized = normalizeDatabaseConfig(body, true);
+    const connectionString = buildDatabaseConnectionString(normalized);
+    const result = coreRunMssqlScalar("select db_name() + ':' + system_user;", { connectionString }).trim();
+    writeDatabaseRuntimeEnv(normalized, connectionString);
+    applyDatabaseRuntimeEnv(normalized, connectionString);
+    coreEnsureMssqlDatabase();
+    await coreCloseMssqlPool();
+    addAudit(auth.db, auth.user, "configurare_mssql_actualizata", `${normalized.server} / ${normalized.database} / ${normalized.authMode}`);
+    try { writeDb(auth.db); } catch (auditError) { console.warn("Audit configurare MSSQL nu a putut fi salvat:", auditError.message); }
+    sendJson(res, 200, {
+      ok: true,
+      message: "Configuratia SQL Server a fost salvata. Reporneste serverul pentru a folosi garantat configuratia la startup.",
+      identity: result,
+      config: publicDatabaseConfig(normalized),
+      health: safeDatabaseHealth(),
+      needsRestart: true
+    });
+  } catch (error) {
+    next(error);
+  }
+})
+
 router.patch('/settings', async (req, res, next) => {
   try {
   const auth = requireAuth(req, res);
@@ -973,6 +1043,9 @@ router.post('/settings/modules', async (req, res, next) => {
     const modules = sanitizeEnabledModules(body.modules_enabled, global.LICENTA || auth.db.settings?.license || {});
     auth.db.settings = auth.db.settings || {};
     auth.db.settings.modules_enabled = modules;
+    if (Object.prototype.hasOwnProperty.call(body, "module_features")) {
+      auth.db.settings.module_features = sanitizeModuleFeatures(body.module_features, global.LICENTA || auth.db.settings?.license || {});
+    }
     auth.db.settings.modules_enabled_updated_at = new Date().toISOString();
     auth.db.settings.modules_enabled_updated_by = auth.user.id;
     addAudit(auth.db, auth.user, "module_actualizate", modules.join(", "));
@@ -3520,6 +3593,7 @@ function allowedModulesForLicense(license = {}) {
   }
   const normalizedAliases = new Map([
     ["technical_plus", "technical"],
+    ["contabilitate", "accounting"],
     ["trafficsafety", "traffic_safety"],
     ["snowremoval", "snow_removal"],
     ["ai_assistant", "ai"]
@@ -3538,6 +3612,25 @@ function sanitizeEnabledModules(input, license) {
   return Array.from(new Set(requested
     .map((item) => String(item || "").trim().toLowerCase())
     .filter((item) => configurableModuleKeys.has(item) && allowed.has(item))));
+}
+
+function sanitizeModuleFeatures(input, license) {
+  const allowedModules = new Set(allowedModulesForLicense(license));
+  const result = {};
+  if (!input || typeof input !== "object") return result;
+  Object.entries(input).forEach(([moduleKey, features]) => {
+    const normalizedModule = String(moduleKey || "").trim().toLowerCase();
+    if (!allowedModules.has(normalizedModule) || (!configurableModuleKeys.has(normalizedModule) && !baseModuleKeys.has(normalizedModule))) return;
+    if (!features || typeof features !== "object" || Array.isArray(features)) return;
+    const cleanFeatures = {};
+    Object.entries(features).forEach(([featureKey, enabled]) => {
+      const normalizedFeature = String(featureKey || "").trim().toLowerCase();
+      if (!/^[a-z0-9_:-]{2,80}$/.test(normalizedFeature)) return;
+      cleanFeatures[normalizedFeature] = enabled !== false;
+    });
+    result[normalizedModule] = cleanFeatures;
+  });
+  return result;
 }
 
 function sanitizeRolePermissions(permissions) {
@@ -3765,6 +3858,165 @@ function sendJson(res, status, data) {
 
 function maskConnectionPassword(value) {
   return String(value || '').replace(/\b(Password|PWD)\s*=\s*[^;]*/gi, '$1=***')
+}
+
+function runtimeMssqlEnvPath() {
+  return path.join(ROOT, 'runtime', 'mssql.env')
+}
+
+function readEnvKeyValueFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return {}
+    return fs.readFileSync(filePath, 'utf8')
+      .split(/\r?\n/)
+      .reduce((acc, line) => {
+        const clean = String(line || '').trim()
+        if (!clean || clean.startsWith('#') || !clean.includes('=')) return acc
+        const index = clean.indexOf('=')
+        const key = clean.slice(0, index).trim()
+        const value = clean.slice(index + 1).trim()
+        if (key) acc[key] = value
+        return acc
+      }, {})
+  } catch (error) {
+    console.warn(`Configuratia runtime MSSQL nu a putut fi citita: ${error.message}`)
+    return {}
+  }
+}
+
+function connectionStringValue(connectionString, key) {
+  const expected = String(key || '').trim().toLowerCase()
+  const part = String(connectionString || '').split(';').find(item => {
+    const index = item.indexOf('=')
+    return index > -1 && item.slice(0, index).trim().toLowerCase() === expected
+  })
+  if (!part) return ''
+  return part.slice(part.indexOf('=') + 1).trim()
+}
+
+function parseTrustedConnection(value) {
+  const text = String(value || '').trim().toLowerCase()
+  if (['1', 'true', 'yes', 'sspi'].includes(text)) return true
+  if (['0', 'false', 'no'].includes(text)) return false
+  return null
+}
+
+function currentDatabaseConfig() {
+  const fileEnv = readEnvKeyValueFile(runtimeMssqlEnvPath())
+  const connection = fileEnv.INFRAFLOW_DB_CONNECTION || process.env.INFRAFLOW_DB_CONNECTION || process.env.MSSQL_CONNECTION_STRING || process.env.SQLSERVER_CONNECTION_STRING || ''
+  const trustedRaw = fileEnv.DB_TRUSTED_CONNECTION || fileEnv.MSSQL_TRUSTED_CONNECTION || process.env.DB_TRUSTED_CONNECTION || process.env.MSSQL_TRUSTED_CONNECTION || ''
+  const trustedConfigured = parseTrustedConnection(trustedRaw)
+  const integrated = trustedConfigured ?? /Integrated Security\s*=\s*(true|sspi|yes)/i.test(connection)
+  return {
+    mode: fileEnv.DB_MODE || process.env.DB_MODE || process.env.INFRAFLOW_DB_PROVIDER || 'mssql',
+    server: fileEnv.DB_SERVER || process.env.DB_SERVER || connectionStringValue(connection, 'Server') || '.\\SQLEXPRESS',
+    database: fileEnv.DB_DATABASE || process.env.DB_DATABASE || connectionStringValue(connection, 'Database') || connectionStringValue(connection, 'Initial Catalog') || 'INFRAFLOW',
+    authMode: integrated ? 'windows' : 'sql',
+    user: fileEnv.DB_USER || process.env.DB_USER || connectionStringValue(connection, 'User Id') || connectionStringValue(connection, 'UID') || 'infraflow',
+    password: fileEnv.DB_PASSWORD || process.env.DB_PASSWORD || connectionStringValue(connection, 'Password') || connectionStringValue(connection, 'PWD') || '',
+    encrypt: fileEnv.DB_ENCRYPT || process.env.DB_ENCRYPT || connectionStringValue(connection, 'Encrypt') || 'false',
+    relational: String(fileEnv.MSSQL_RELATIONAL || process.env.MSSQL_RELATIONAL || process.env.INFRAFLOW_SQL_RELATIONAL || '0') === '1',
+    profile: fileEnv.SQLSERVER_PROFILE || process.env.SQLSERVER_PROFILE || '',
+    versionMajor: fileEnv.SQLSERVER_VERSION_MAJOR || process.env.SQLSERVER_VERSION_MAJOR || '',
+    productVersion: fileEnv.SQLSERVER_PRODUCT_VERSION || process.env.SQLSERVER_PRODUCT_VERSION || ''
+  }
+}
+
+function publicDatabaseConfig(config = currentDatabaseConfig()) {
+  return {
+    mode: config.mode || 'mssql',
+    server: config.server || '.\\SQLEXPRESS',
+    database: config.database || 'INFRAFLOW',
+    authMode: config.authMode === 'windows' ? 'windows' : 'sql',
+    user: config.authMode === 'windows' ? '' : (config.user || 'infraflow'),
+    passwordSet: Boolean(config.password),
+    encrypt: String(config.encrypt ?? 'false'),
+    relational: Boolean(config.relational),
+    profile: config.profile || '',
+    versionMajor: config.versionMajor || '',
+    productVersion: config.productVersion || '',
+    runtimeFile: runtimeMssqlEnvPath()
+  }
+}
+
+function assertConnectionValue(name, value) {
+  const text = String(value || '').trim()
+  if (!text) throwHttp(400, `${name} este obligatoriu.`)
+  if (/[;\r\n]/.test(text)) throwHttp(400, `${name} nu poate contine ; sau rand nou.`)
+  return text
+}
+
+function normalizeDatabaseConfig(body = {}, saving = false) {
+  const current = currentDatabaseConfig()
+  const authMode = String(body.authMode || body.auth_mode || current.authMode || 'sql').toLowerCase() === 'windows' ? 'windows' : 'sql'
+  const passwordInput = Object.prototype.hasOwnProperty.call(body, 'password') ? String(body.password || '') : ''
+  const password = authMode === 'windows' ? '' : (passwordInput || current.password || '')
+  if (authMode === 'sql' && saving && !password) throwHttp(400, 'Parola SQL este obligatorie pentru autentificare SQL.')
+  return {
+    ...current,
+    mode: 'mssql',
+    server: assertConnectionValue('Server SQL', body.server ?? current.server),
+    database: assertConnectionValue('Baza de date', body.database ?? current.database),
+    authMode,
+    user: authMode === 'windows' ? '' : assertConnectionValue('Utilizator SQL', body.user ?? current.user),
+    password,
+    encrypt: String(body.encrypt ?? current.encrypt ?? 'false').toLowerCase() === 'true' ? 'true' : 'false',
+    relational: body.relational === true || body.relational === '1' || body.relational === 'true'
+  }
+}
+
+function buildDatabaseConnectionString(config) {
+  const base = `Server=${config.server};Database=${config.database};TrustServerCertificate=True;Encrypt=${config.encrypt || 'false'};Connection Timeout=30`
+  if (config.authMode === 'windows') return `${base};Integrated Security=True`
+  if (/[;\r\n]/.test(String(config.password || ''))) throwHttp(400, 'Parola SQL nu poate contine ; sau rand nou.')
+  return `${base};User Id=${config.user};Password=${config.password}`
+}
+
+function writeDatabaseRuntimeEnv(config, connectionString) {
+  const runtimeDir = path.dirname(runtimeMssqlEnvPath())
+  fs.mkdirSync(runtimeDir, { recursive: true })
+  const lines = [
+    'DB_MODE=mssql',
+    'INFRAFLOW_DB_PROVIDER=mssql',
+    `DB_SERVER=${config.server}`,
+    `DB_DATABASE=${config.database}`,
+    `DB_ENCRYPT=${config.encrypt || 'false'}`,
+    `DB_TRUSTED_CONNECTION=${config.authMode === 'windows' ? 'true' : 'false'}`,
+    `MSSQL_RELATIONAL=${config.relational ? '1' : '0'}`,
+    config.authMode === 'sql' ? `DB_USER=${config.user}` : '',
+    config.authMode === 'sql' ? `DB_PASSWORD=${config.password}` : '',
+    config.profile ? `SQLSERVER_PROFILE=${config.profile}` : '',
+    config.versionMajor ? `SQLSERVER_VERSION_MAJOR=${config.versionMajor}` : '',
+    config.productVersion ? `SQLSERVER_PRODUCT_VERSION=${config.productVersion}` : '',
+    `INFRAFLOW_DB_CONNECTION=${connectionString}`
+  ].filter(Boolean)
+  fs.writeFileSync(runtimeMssqlEnvPath(), `${lines.join('\r\n')}\r\n`, 'utf8')
+}
+
+function applyDatabaseRuntimeEnv(config, connectionString) {
+  process.env.DB_MODE = 'mssql'
+  process.env.INFRAFLOW_DB_PROVIDER = 'mssql'
+  process.env.DB_SERVER = config.server
+  process.env.DB_DATABASE = config.database
+  process.env.DB_ENCRYPT = config.encrypt || 'false'
+  process.env.DB_TRUSTED_CONNECTION = config.authMode === 'windows' ? 'true' : 'false'
+  process.env.MSSQL_RELATIONAL = config.relational ? '1' : '0'
+  process.env.INFRAFLOW_DB_CONNECTION = connectionString
+  if (config.authMode === 'sql') {
+    process.env.DB_USER = config.user
+    process.env.DB_PASSWORD = config.password
+  } else {
+    delete process.env.DB_USER
+    delete process.env.DB_PASSWORD
+  }
+}
+
+function safeDatabaseHealth() {
+  try {
+    return coreDatabaseHealth()
+  } catch (error) {
+    return { ok: false, mode: 'mssql', error: String(error.message || error) }
+  }
 }
 
 function publicSettings(settings = {}) {

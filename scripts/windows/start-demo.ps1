@@ -27,7 +27,11 @@ if (Test-Path $envDemo) {
     Write-Host "Configurat: DB_MODE=json, PORT=$($env:PORT)" -ForegroundColor Green
 }
 
-$dbFile = Join-Path $projectRoot "data\app-db.json"
+$env:INFRAFLOW_DB_PROVIDER = "json"
+$env:INFRAFLOW_DB_FILE = "app-db.demo.json"
+$env:INFRAFLOW_DEMO_DB_FILE = "app-db.demo.json"
+
+$dbFile = Join-Path $projectRoot "data\app-db.demo.json"
 $seedScript = Join-Path $projectRoot "scripts\seed-demo.js"
 $needSeed = $false
 if (-not (Test-Path $dbFile)) {

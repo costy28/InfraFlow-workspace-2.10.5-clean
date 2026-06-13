@@ -597,7 +597,10 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <h1 className="text-xl font-bold text-slate-900">⚙️ Mecanizare</h1>
           <p className="text-sm text-slate-500">Parc utilaje, planificare, bonuri de lucru, intervenții</p>
         </div>
-        <Button onClick={() => navigate('/foi-parcurs')}>📋 Foi Parcurs</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => navigate('/faz-utilaje')}>🧾 FAZ Utilaje</Button>
+          <Button onClick={() => navigate('/foi-parcurs')}>📋 Foi Parcurs</Button>
+        </div>
       </div>
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
@@ -1550,6 +1553,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               <Input label="Luna" type="month" value={fazLuna} onChange={e => setFazLuna(e.target.value)} />
               <Select label="Utilaj / Vehicul" value={fazAssetId} onChange={e => setFazAssetId(e.target.value)} options={assetOptions} />
               <Button onClick={loadFazReport}>Previzualizează</Button>
+              <Button variant="secondary" onClick={() => navigate('/faz-utilaje')}>🧾 Registru FAZ</Button>
               {fazReport ? (
                 <>
                   <Button variant="secondary" onClick={() => exportExcel(

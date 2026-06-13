@@ -9,7 +9,7 @@ const config = {
   port: Number(process.env.INFRAFLOW_PORT || process.env.PORT || 4180),
   rootDir,
   db: {
-    provider: process.env.INFRAFLOW_DB_PROVIDER || "mssql",
+    provider: process.env.INFRAFLOW_DB_PROVIDER || process.env.DB_MODE || "json",
     connectionString: process.env.INFRAFLOW_DB_CONNECTION || ""
   }
 };

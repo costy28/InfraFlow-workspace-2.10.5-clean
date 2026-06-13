@@ -1,269 +1,257 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-  InfraFlow — Build complet: React + Server installer + Client installer + ZIP update
-
-.PARAMETER Version
-  Versiunea de build (default: citită din version.json)
-
-.PARAMETER SkipClientBuild
-  Skip build-ul React (dacă client/dist/ e deja actualizat)
-
-.PARAMETER SkipElectron
-  Skip build-ul Electron (dacă nu ai Node.js/electron-builder instalat)
-
-.EXAMPLE
-  .\build-all.ps1
-  .\build-all.ps1 -Version "2.10.0" -SkipElectron
-#>
-
 param(
-  [string]$Version        = "",
+  [string]$Version = "",
   [switch]$SkipClientBuild = $false,
-  [switch]$SkipElectron    = $false
+  [switch]$SkipElectron = $false
 )
 
 $ErrorActionPreference = "Stop"
 $ROOT = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-
 Set-Location $ROOT
 
-# ─────────────────────────────────────────────────
-# 0. Detectare versiune
-# ─────────────────────────────────────────────────
-if (-not $Version) {
-  try {
-    $versionJson = Get-Content "$ROOT\version.json" -Raw | ConvertFrom-Json
-    $Version = $versionJson.version
-  } catch {
-    $Version = "2.10.1"
+function Read-BuildVersion {
+  if ($Version) { return $Version }
+  $versionFile = Join-Path $ROOT "version.json"
+  if (Test-Path $versionFile) {
+    return (Get-Content $versionFile -Raw | ConvertFrom-Json).version
+  }
+  return "0.0.0"
+}
+
+function Set-JsonVersion {
+  param([string]$Path, [string]$BuildVersion)
+  if (-not (Test-Path $Path)) { return }
+  $json = Get-Content $Path -Raw | ConvertFrom-Json
+  if ($json.version -ne $BuildVersion) {
+    $json.version = $BuildVersion
+    $json | ConvertTo-Json -Depth 20 | Set-Content $Path -Encoding UTF8
   }
 }
 
-# ─────────────────────────────────────────────────
-# 0b. Injectează versiunea în toate fișierele dependente
-# ─────────────────────────────────────────────────
-Write-Host "[ 0 ] Sincronizare versiune $Version în toate fișierele..." -ForegroundColor DarkGray
+function Set-IssVersion {
+  param([string]$Path, [string]$BuildVersion)
+  if (-not (Test-Path $Path)) { return }
+  $content = Get-Content $Path -Raw
+  $content = $content -replace 'AppVersion=[0-9.]+', "AppVersion=$BuildVersion"
+  $content = $content -replace '(OutputBaseFilename=InfraFlow-(?:Server-|Client-)?Setup-v)[0-9.]+', "`${1}$BuildVersion"
+  $content = $content -replace '(ValueData: ")[0-9.]+(")', "`${1}$BuildVersion`${2}"
+  $content = $content -replace 'InfraFlow ERP Server v[0-9.]+', "InfraFlow ERP Server v$BuildVersion"
+  $content = $content -replace 'InfraFlow ERP Client v[0-9.]+', "InfraFlow ERP Client v$BuildVersion"
+  $content = $content -replace 'InfraFlow ERP v[0-9.]+', "InfraFlow ERP v$BuildVersion"
+  Set-Content $Path -Value $content -Encoding UTF8
+}
 
-function Set-FileVersion {
-  param([string]$FilePath, [string]$Ver)
-  if (-not (Test-Path $FilePath)) { return }
-  $content = Get-Content $FilePath -Raw
-  $updated = $content
-  $updated = $updated -replace 'AppVersion=[\d.]+',          "AppVersion=$Ver"
-  $updated = $updated -replace '(OutputBaseFilename=InfraFlow-(?:Server-|Client-)?Setup-v)[\d.]+',
-                                "`${1}$Ver"
-  $updated = $updated -replace "(ValueName: ""Version""[^`n]*`n[^`n]*ValueData: "")[\d.]+""",
-                                "`${1}$Ver"""
-  $updated = $updated -replace 'InfraFlow ERP Server v[\d.]+', "InfraFlow ERP Server v$Ver"
-  $updated = $updated -replace 'InfraFlow ERP Client v[\d.]+', "InfraFlow ERP Client v$Ver"
-  $updated = $updated -replace 'InfraFlow ERP v[\d.]+', "InfraFlow ERP v$Ver"
-  if ($updated -ne $content) {
-    Set-Content $FilePath -Value $updated -NoNewline -Encoding UTF8
-    Write-Host "        Versiune injectată în: $(Split-Path $FilePath -Leaf)" -ForegroundColor DarkGray
+function Invoke-Step {
+  param([string]$Name, [scriptblock]$Body)
+  Write-Host ""
+  Write-Host $Name -ForegroundColor Yellow
+  & $Body
+  Write-Host "OK: $Name" -ForegroundColor Green
+}
+
+function Find-Iscc {
+  $paths = @(
+    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+    "C:\Program Files\Inno Setup 6\ISCC.exe"
+  )
+  return ($paths | Where-Object { Test-Path $_ } | Select-Object -First 1)
+}
+
+function Copy-TreeClean {
+  param([string]$Source, [string]$Destination)
+  if (-not (Test-Path $Source)) { return }
+  if (Test-Path $Destination) { Remove-Item $Destination -Recurse -Force }
+  New-Item -ItemType Directory -Force -Path (Split-Path $Destination) | Out-Null
+  New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+  $sourcePath = (Resolve-Path $Source).Path
+  $robocopyArgs = @(
+    $sourcePath,
+    $Destination,
+    "/E",
+    "/XD", "node_modules", ".git",
+    "/XF", "*.log", ".env",
+    "/NFL", "/NDL", "/NJH", "/NJS", "/NP"
+  )
+  & robocopy @robocopyArgs | Out-Null
+  if ($LASTEXITCODE -ge 8) { throw "Robocopy failed for $Source -> $Destination (exit $LASTEXITCODE)" }
+}
+
+function Assert-CleanInstallerRecipe {
+  $serverIss = Join-Path $ROOT "installer\infraflow-server-setup.iss"
+  $content = Get-Content $serverIss -Raw
+  if ($content -match 'Source:\s*"\.\.\\data\\app-db\.json"') {
+    throw "Release blocat: installerul server nu are voie sa includa data\app-db.json."
+  }
+  if ($content -match 'restore-demo-app-state\.ps1') {
+    throw "Release blocat: installerul server nu are voie sa includa restore-demo-app-state.ps1."
+  }
+  if ($content -notmatch 'modules\\system\\demo-routes\.js') {
+    throw "Release blocat: installerul server trebuie sa excluda server\\modules\\system\\demo-routes.js."
+  }
+  if ($content -notmatch 'app-db\.install\.json') {
+    throw "Release blocat: installerul server trebuie sa foloseasca data\app-db.install.json pentru instalari curate."
   }
 }
 
-# Injectează în .iss files
-Get-ChildItem "$ROOT\installer\*.iss" | ForEach-Object { Set-FileVersion $_.FullName $Version }
-
-# Actualizează server/package.json
-$serverPkg = "$ROOT\server\package.json"
-if (Test-Path $serverPkg) {
-  $pkg = Get-Content $serverPkg -Raw | ConvertFrom-Json
-  if ($pkg.version -ne $Version) {
-    $pkg.version = $Version
-    $pkg | ConvertTo-Json -Depth 10 | Set-Content $serverPkg -Encoding UTF8
-    Write-Host "        server/package.json → $Version" -ForegroundColor DarkGray
-  }
-}
-
-# Actualizează electron/package.json
-$electronPkg = "$ROOT\electron\package.json"
-if (Test-Path $electronPkg) {
-  $pkg = Get-Content $electronPkg -Raw | ConvertFrom-Json
-  if ($pkg.version -ne $Version) {
-    $pkg.version = $Version
-    $pkg | ConvertTo-Json -Depth 10 | Set-Content $electronPkg -Encoding UTF8
-    Write-Host "        electron/package.json → $Version" -ForegroundColor DarkGray
-  }
-}
-
-Write-Host ""
-Write-Host "╔══════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║   InfraFlow ERP — Build v$Version         " -ForegroundColor Cyan
-Write-Host "╚══════════════════════════════════════════╝" -ForegroundColor Cyan
-Write-Host ""
-
-$startTime = Get-Date
-
-# ─────────────────────────────────────────────────
-# 1. Build React client
-# ─────────────────────────────────────────────────
-if (-not $SkipClientBuild) {
-  Write-Host "[ 1/4 ] Build React client..." -ForegroundColor Yellow
-  Push-Location "$ROOT\client"
-  try {
-    npm run build
-    if ($LASTEXITCODE -ne 0) { throw "npm run build a eșuat (exit code $LASTEXITCODE)" }
-    Write-Host "        React build OK ✅" -ForegroundColor Green
-  } finally {
-    Pop-Location
-  }
-} else {
-  Write-Host "[ 1/4 ] React build SKIPPED (--SkipClientBuild)" -ForegroundColor DarkGray
-}
-
-# ─────────────────────────────────────────────────
-# 2. Build Server installer (Inno Setup)
-# ─────────────────────────────────────────────────
-Write-Host ""
-Write-Host "[ 2/4 ] Build Server installer (Inno Setup)..." -ForegroundColor Yellow
-
-$isccPaths = @(
-  "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-  "C:\Program Files\Inno Setup 6\ISCC.exe"
-)
-$iscc = $isccPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-if (-not $iscc) {
-  Write-Host "        EROARE: Inno Setup 6 nu a fost găsit!" -ForegroundColor Red
-  Write-Host "        Instalați de la: https://jrsoftware.org/isdl.php" -ForegroundColor Red
-  Write-Host "        Server installer SKIPPED." -ForegroundColor Yellow
-} else {
-  $serverIss = "$ROOT\installer\infraflow-server-setup.iss"
-  if (-not (Test-Path $serverIss)) {
-    Write-Host "        EROARE: $serverIss nu există!" -ForegroundColor Red
-  } else {
-    & $iscc $serverIss
-    if ($LASTEXITCODE -ne 0) {
-      Write-Host "        EROARE Inno Setup! (exit code $LASTEXITCODE)" -ForegroundColor Red
-    } else {
-      Write-Host "        Server installer OK ✅" -ForegroundColor Green
+function Remove-DemoOnlyFiles {
+  param([string]$PackageRoot)
+  $relativePaths = @(
+    "scripts\seed-demo.js",
+    "scripts\generate-demo-hashes.js",
+    "scripts\smoke-demo.js",
+    "scripts\reset-demo-data.js",
+    "scripts\windows\start-demo.ps1",
+    "scripts\windows\restore-demo-app-state.ps1",
+    "scripts\windows\reset-demo.ps1",
+    "scripts\windows\status-demo.ps1",
+    "scripts\windows\demo-reset-task.xml",
+    "server\modules\system\demo-routes.js"
+  )
+  foreach ($relativePath in $relativePaths) {
+    $fullPath = Join-Path $PackageRoot $relativePath
+    if (Test-Path -LiteralPath $fullPath) {
+      Remove-Item -LiteralPath $fullPath -Force
     }
   }
 }
 
-# ─────────────────────────────────────────────────
-# 3. Build Client installer (Electron Builder)
-# ─────────────────────────────────────────────────
-Write-Host ""
-if (-not $SkipElectron) {
-  Write-Host "[ 3/4 ] Build Client Electron..." -ForegroundColor Yellow
+function Assert-CleanPackageTree {
+  param([string]$PackageRoot)
+  $blocked = @(
+    "data\app-db.json",
+    "data\app-db.demo.json",
+    "data\demo-seed.json",
+    "scripts\seed-demo.js",
+    "scripts\generate-demo-hashes.js",
+    "scripts\smoke-demo.js",
+    "scripts\reset-demo-data.js",
+    "scripts\windows\start-demo.ps1",
+    "scripts\windows\restore-demo-app-state.ps1",
+    "scripts\windows\reset-demo.ps1",
+    "scripts\windows\status-demo.ps1",
+    "scripts\windows\demo-reset-task.xml",
+    "server\modules\system\demo-routes.js"
+  )
+  foreach ($relativePath in $blocked) {
+    $fullPath = Join-Path $PackageRoot $relativePath
+    if (Test-Path -LiteralPath $fullPath) {
+      throw "Release blocat: pachetul contine fisier demo/runtime interzis: $relativePath"
+    }
+  }
+}
 
-  $electronDir = "$ROOT\electron"
-  if (-not (Test-Path $electronDir)) {
-    Write-Host "        EROARE: Directorul electron/ nu există!" -ForegroundColor Red
-  } else {
-    Push-Location $electronDir
+$BuildVersion = Read-BuildVersion
+$OutputDir = Join-Path $ROOT "installer\output"
+$Start = Get-Date
+
+Write-Host "InfraFlow build $BuildVersion" -ForegroundColor Cyan
+
+Assert-CleanInstallerRecipe
+
+Write-Host "Sync versions..." -ForegroundColor DarkGray
+Set-JsonVersion (Join-Path $ROOT "package.json") $BuildVersion
+Set-JsonVersion (Join-Path $ROOT "server\package.json") $BuildVersion
+Set-JsonVersion (Join-Path $ROOT "client\package.json") $BuildVersion
+Set-JsonVersion (Join-Path $ROOT "electron\package.json") $BuildVersion
+Get-ChildItem (Join-Path $ROOT "installer") -Filter "*.iss" | ForEach-Object {
+  Set-IssVersion $_.FullName $BuildVersion
+}
+
+Invoke-Step "[1/6] Server require preflight" {
+  $env:INFRAFLOW_DB_PROVIDER = "json"
+  $env:DB_MODE = "json"
+  $env:INFRAFLOW_DB_FILE = "app-db.build-check.json"
+  $buildCheckDb = Join-Path $ROOT "data\app-db.build-check.json"
+  Copy-Item (Join-Path $ROOT "data\app-db.install.json") $buildCheckDb -Force
+  try {
+    node -e "require('./server/app'); console.log('server require ok'); process.exit(0)"
+    if ($LASTEXITCODE -ne 0) { throw "Server require preflight failed." }
+  } finally {
+    Remove-Item $buildCheckDb -Force -ErrorAction SilentlyContinue
+    Remove-Item Env:\INFRAFLOW_DB_FILE -ErrorAction SilentlyContinue
+  }
+}
+
+if (-not $SkipClientBuild) {
+  Invoke-Step "[2/6] React build" {
+    Push-Location (Join-Path $ROOT "client")
+    try {
+      npm run build
+      if ($LASTEXITCODE -ne 0) { throw "React build failed." }
+    } finally {
+      Pop-Location
+    }
+  }
+} else {
+  Write-Host "[2/6] React build skipped" -ForegroundColor DarkGray
+}
+
+$iscc = Find-Iscc
+if (-not $iscc) { throw "Inno Setup 6 ISCC.exe not found." }
+
+Invoke-Step "[3/6] Server installer" {
+  & $iscc (Join-Path $ROOT "installer\infraflow-server-setup.iss")
+  if ($LASTEXITCODE -ne 0) { throw "Server Inno build failed." }
+}
+
+if (-not $SkipElectron) {
+  Invoke-Step "[4/6] Electron client build" {
+    Push-Location (Join-Path $ROOT "electron")
     try {
       if (-not (Test-Path "node_modules")) {
-        Write-Host "        npm install (prima rulare)..." -ForegroundColor DarkGray
         npm install
-        if ($LASTEXITCODE -ne 0) { throw "npm install a eșuat" }
+        if ($LASTEXITCODE -ne 0) { throw "Electron npm install failed." }
       }
-
       npm run build
-      if ($LASTEXITCODE -ne 0) { throw "electron-builder a eșuat (exit code $LASTEXITCODE)" }
-      Write-Host "        Client installer OK ✅" -ForegroundColor Green
-    } catch {
-      Write-Host "        EROARE Electron build: $_" -ForegroundColor Red
-      Write-Host "        Asigurați-vă că aveți Node.js și electron-builder instalat." -ForegroundColor Yellow
+      if ($LASTEXITCODE -ne 0) { throw "Electron builder failed." }
     } finally {
       Pop-Location
     }
   }
 
-  # Opțional: compilează și client-setup.iss dacă există dist unpacked
-  $electronDist = "$ROOT\electron\dist\win-unpacked"
-  if ((Test-Path $electronDist) -and $iscc) {
-    $clientIss = "$ROOT\installer\infraflow-client-setup.iss"
-    if (Test-Path $clientIss) {
-      Write-Host "        Compilez infraflow-client-setup.iss..." -ForegroundColor DarkGray
-      & $iscc $clientIss
-      if ($LASTEXITCODE -eq 0) {
-        Write-Host "        Client Inno Setup installer OK ✅" -ForegroundColor Green
-      }
-    }
+  Invoke-Step "[5/6] Client Inno installer" {
+    & $iscc (Join-Path $ROOT "installer\infraflow-client-setup.iss")
+    if ($LASTEXITCODE -ne 0) { throw "Client Inno build failed." }
   }
 } else {
-  Write-Host "[ 3/4 ] Electron build SKIPPED (--SkipElectron)" -ForegroundColor DarkGray
+  Write-Host "[4/6] Electron client build skipped" -ForegroundColor DarkGray
+  Write-Host "[5/6] Client Inno installer skipped" -ForegroundColor DarkGray
 }
 
-# ─────────────────────────────────────────────────
-# 4. Creare ZIP update
-# ─────────────────────────────────────────────────
-Write-Host ""
-Write-Host "[ 4/4 ] Creare ZIP update..." -ForegroundColor Yellow
-
-$outputDir = "$ROOT\installer\output"
-if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Force -Path $outputDir | Out-Null }
-
-$zipPath = "$outputDir\InfraFlow-update-v$Version.zip"
-
-try {
-  # Creare arhivă temporară
-  $tmpDir = "$env:TEMP\infraflow-update-$Version"
-  if (Test-Path $tmpDir) { Remove-Item $tmpDir -Recurse -Force }
+Invoke-Step "[6/6] Update ZIP" {
+  if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null }
+  $tmpDir = Join-Path $env:TEMP ("infraflow-update-$BuildVersion-" + [guid]::NewGuid().ToString("N"))
+  $zipPath = Join-Path $OutputDir "InfraFlow-update-v$BuildVersion.zip"
   New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
-
-  # Copiază fișierele de update
-  $itemsToCopy = @(
-    @{ Source = "$ROOT\server";         Dest = "$tmpDir\server";     Recurse = $true  },
-    @{ Source = "$ROOT\client\dist";    Dest = "$tmpDir\client\dist"; Recurse = $true  },
-    @{ Source = "$ROOT\db";             Dest = "$tmpDir\db";          Recurse = $true  },
-    @{ Source = "$ROOT\scripts";        Dest = "$tmpDir\scripts";     Recurse = $true  },
-    @{ Source = "$ROOT\version.json";   Dest = "$tmpDir\version.json"; Recurse = $false },
-    @{ Source = "$ROOT\CHANGELOG.md";   Dest = "$tmpDir\CHANGELOG.md"; Recurse = $false }
-  )
-
-  foreach ($item in $itemsToCopy) {
-    if (Test-Path $item.Source) {
-      if ($item.Recurse) {
-        Copy-Item $item.Source $item.Dest -Recurse -Force -Exclude @("node_modules", "*.log", ".env")
-      } else {
-        $destParent = Split-Path $item.Dest -Parent
-        if (-not (Test-Path $destParent)) { New-Item -ItemType Directory -Force -Path $destParent | Out-Null }
-        Copy-Item $item.Source $item.Dest -Force
-      }
-    }
+  Copy-TreeClean (Join-Path $ROOT "server") (Join-Path $tmpDir "server")
+  Copy-TreeClean (Join-Path $ROOT "client\dist") (Join-Path $tmpDir "client\dist")
+  Copy-TreeClean (Join-Path $ROOT "db") (Join-Path $tmpDir "db")
+  Copy-TreeClean (Join-Path $ROOT "scripts") (Join-Path $tmpDir "scripts")
+  Remove-DemoOnlyFiles $tmpDir
+  Copy-TreeClean (Join-Path $ROOT "updates") (Join-Path $tmpDir "updates")
+  New-Item -ItemType Directory -Force -Path (Join-Path $tmpDir "installer") | Out-Null
+  Copy-Item (Join-Path $ROOT "installer\setup-task.ps1") (Join-Path $tmpDir "installer\setup-task.ps1") -Force
+  Copy-Item (Join-Path $ROOT "version.json") (Join-Path $tmpDir "version.json") -Force
+  if (Test-Path (Join-Path $ROOT "CHANGELOG.md")) {
+    Copy-Item (Join-Path $ROOT "CHANGELOG.md") (Join-Path $tmpDir "CHANGELOG.md") -Force
   }
-
-  # Comprimă
   if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-  Compress-Archive -Path "$tmpDir\*" -DestinationPath $zipPath -CompressionLevel Optimal
-  Remove-Item $tmpDir -Recurse -Force
-
-  $sizeMB = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
-  Write-Host "        ZIP update OK ✅ ($sizeMB MB)" -ForegroundColor Green
-} catch {
-  Write-Host "        EROARE ZIP: $_" -ForegroundColor Red
+  Assert-CleanPackageTree $tmpDir
+  Compress-Archive -Path (Join-Path $tmpDir "*") -DestinationPath $zipPath -CompressionLevel Optimal
+  Remove-Item $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# ─────────────────────────────────────────────────
-# Sumar final
-# ─────────────────────────────────────────────────
-$elapsed = [math]::Round(((Get-Date) - $startTime).TotalSeconds, 0)
-
-Write-Host ""
-Write-Host "╔══════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║   BUILD COMPLET în ${elapsed}s — InfraFlow v$Version" -ForegroundColor Cyan
-Write-Host "╚══════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-Write-Host ""
-
-# Listează output-urile generate
-$outputs = @(
-  @{ Path = "$outputDir\InfraFlow-Server-Setup-v$Version.exe"; Label = "Server installer" },
-  @{ Path = "$ROOT\electron\dist\InfraFlow ERP Setup $Version.exe"; Label = "Client installer (electron-builder)" },
-  @{ Path = "$outputDir\InfraFlow-Client-Setup-v$Version.exe";  Label = "Client installer (Inno Setup)" },
-  @{ Path = "$outputDir\InfraFlow-update-v$Version.zip";        Label = "Update ZIP" }
+$expected = @(
+  (Join-Path $OutputDir "InfraFlow-Server-Setup-v$BuildVersion.exe"),
+  (Join-Path $OutputDir "InfraFlow-Client-Setup-v$BuildVersion.exe")
 )
-
-foreach ($out in $outputs) {
-  if (Test-Path $out.Path) {
-    $sz = [math]::Round((Get-Item $out.Path).Length / 1MB, 1)
-    Write-Host "  ✅ $($out.Label): $($out.Path) ($sz MB)" -ForegroundColor Green
-  }
+foreach ($path in $expected) {
+  if (-not (Test-Path $path)) { throw "Expected output missing: $path" }
 }
 
+$elapsed = [math]::Round(((Get-Date) - $Start).TotalSeconds, 0)
 Write-Host ""
+Write-Host "BUILD COMPLETE in ${elapsed}s - InfraFlow v$BuildVersion" -ForegroundColor Cyan
+Get-ChildItem $OutputDir -Filter "*v$BuildVersion*" | Sort-Object Name | Select-Object Name, Length, LastWriteTime
+
+exit 0

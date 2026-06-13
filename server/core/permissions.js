@@ -29,6 +29,7 @@ const permissionGroups = {
   field: ["field:view", "field:journal_create", "field:journal_submit", "field:journal_approve", "field:photo_upload", "field:issue_report", "field:issue_resolve", "field:progress_view", "field:sign_request"],
   integration: ["integration:intersoft_view", "integration:intersoft_import", "integration:intersoft_export"],
   controlling: ["controlling:view", "controlling:view_all", "controlling:entry_create", "controlling:entry_validate", "controlling:budget_manage", "controlling:cost_centers", "controlling:reports", "controlling:nexus_export"],
+  accountingCore: ["accounting:view", "accounting:manage", "accounting:post", "accounting:close", "accounting:reports", "accounting:alerts"],
   hr: ["hr:view", "hr:view_own", "hr:leave_own", "hr:manage", "hr:employees_manage", "hr:timesheet", "hr:timesheet_dept", "hr:timesheets_view", "hr:timesheets_manage", "hr:timesheet_approve", "hr:timesheets_validate", "hr:leave_manage", "hr:authorizations_manage", "hr:contracts_manage", "hr:reports", "hr:reges_export", "hr:salary_view", "hr:training"],
   echipamente: ["echipamente:gestionar"],
   sanitation: ["sanitation:view", "sanitation:collect", "sanitation:manage", "sanitation:report", "sanitation:contracts"],
@@ -93,6 +94,7 @@ const permissionGroupLabels = {
   field: "Teren si santiere",
   integration: "Integrare Intersoft",
   controlling: "Controlling",
+  accountingCore: "Contabilitate",
   hr: "Resurse umane",
   echipamente: "Echipamente si inventar angajati",
   sanitation: "Salubrizare",
@@ -247,6 +249,12 @@ const permissionLabels = {
   "controlling:cost_centers": "Gestioneaza centre si subcentre",
   "controlling:reports": "Genereaza rapoarte controlling",
   "controlling:nexus_export": "Exporta spre Nexus",
+  "accounting:view": "Contabilitate - vizualizare",
+  "accounting:manage": "Contabilitate - configurare si nomenclatoare",
+  "accounting:post": "Contabilitate - validare note si documente",
+  "accounting:close": "Contabilitate - inchidere/redeschidere luna",
+  "accounting:reports": "Contabilitate - rapoarte si balante",
+  "accounting:alerts": "Contabilitate - alerte legislative",
   "hr:view": "Vede angajati si pontaje",
   "hr:view_own": "HR — date proprii (Kiosk)",
   "hr:leave_own": "Concedii — cerere proprie (Kiosk)",
@@ -493,6 +501,7 @@ const rolePermissions = {
     ...permissionGroups.dashboard,
     ...permissionGroups.dailyReport,
     ...permissionGroups.accountingReport,
+    ...permissionGroups.accountingCore,
     ...permissionGroups.costAccounting,
     "technical:view",
     "technical:export",
@@ -937,6 +946,10 @@ const licenseModulePermissions = {
     "stock_operations:view",
     "ledger:view",
     "ledger:export"
+  ],
+  accounting: [
+    "dashboard:view",
+    ...permissionGroups.accountingCore
   ]
 };
 

@@ -1,0 +1,432 @@
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+
+const ROOT = path.resolve(__dirname, "../../..");
+const SAGA_CHART_FILE = path.join(ROOT, "data", "accounting-chart-saga.json");
+
+function ensureAccounting(db) {
+  if (!db.accounting || typeof db.accounting !== "object") db.accounting = {};
+  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts"];
+  keys.forEach((key) => {
+    if (!Array.isArray(db.accounting[key])) db.accounting[key] = [];
+  });
+  seedSagaChart(db);
+  return db.accounting;
+}
+
+function seedSagaChart(db) {
+  const accounting = db.accounting || {};
+  const existingChart = Array.isArray(accounting.chart) ? accounting.chart : [];
+  let chart = [];
+  if (fs.existsSync(SAGA_CHART_FILE)) {
+    chart = JSON.parse(fs.readFileSync(SAGA_CHART_FILE, "utf8"));
+  }
+  const existingSymbols = new Set(existingChart.map((item) => String(item.simbol || "").trim()).filter(Boolean));
+  const seededChart = chart.map((item, index) => ({
+    id: item.id || index + 1,
+    simbol: String(item.simbol || "").trim(),
+    denumire: String(item.denumire || "").trim(),
+    clasa: Number(item.clasa || String(item.simbol || "0")[0] || 0),
+    tip: ["A", "P", "B"].includes(item.tip) ? item.tip : "B",
+    nivel: Number(item.nivel || inferLevel(item.simbol)),
+    parinte_simbol: item.parinte_simbol || "",
+    tip_cont: item.tip_cont || inferAccountCategory(item.simbol),
+    tva_deductibil: Boolean(item.tva_deductibil || item.simbol === "4426"),
+    tva_colectat: Boolean(item.tva_colectat || item.simbol === "4427"),
+    activ: item.activ !== false,
+    sistem: item.sistem !== false,
+    sursa: item.sursa || "Saga C 3.0"
+  })).filter((item) => item.simbol && item.denumire);
+  const nextId = () => nextNumericId(accounting.chart);
+  accounting.chart = existingChart;
+  seededChart.forEach((account) => {
+    if (existingSymbols.has(account.simbol)) return;
+    accounting.chart.push({ ...account, id: nextId() });
+    existingSymbols.add(account.simbol);
+  });
+}
+
+function validateJournal(db, lines) {
+  const accounting = ensureAccounting(db);
+  const errors = [];
+  const safeLines = Array.isArray(lines) ? lines : [];
+  if (safeLines.length < 2) errors.push("Nota contabila trebuie sa aiba minim 2 linii.");
+  safeLines.forEach((line, index) => {
+    const debit = money(line.debit);
+    const credit = money(line.credit);
+    const cont = String(line.cont_simbol || line.cont || "").trim();
+    if (!cont) errors.push(`Linia ${index + 1}: cont lipsa.`);
+    if (!accounting.chart.some((item) => item.activ !== false && item.simbol === cont)) {
+      errors.push(`Linia ${index + 1}: contul ${cont || "-"} nu exista in planul de conturi.`);
+    }
+    if (!((debit > 0 && credit === 0) || (credit > 0 && debit === 0))) {
+      errors.push(`Linia ${index + 1}: completeaza debit sau credit, nu ambele.`);
+    }
+  });
+  const totalDebit = money(safeLines.reduce((sum, line) => sum + money(line.debit), 0));
+  const totalCredit = money(safeLines.reduce((sum, line) => sum + money(line.credit), 0));
+  if (Math.abs(totalDebit - totalCredit) > 0.01) {
+    errors.push(`Nota contabila este dezechilibrata: debit ${totalDebit.toFixed(2)} / credit ${totalCredit.toFixed(2)}.`);
+  }
+  const pendingByAccount = new Map();
+  safeLines.forEach((line) => {
+    const cont = String(line.cont_simbol || line.cont || "").trim();
+    pendingByAccount.set(cont, money((pendingByAccount.get(cont) || 0) + money(line.debit) - money(line.credit)));
+  });
+  pendingByAccount.forEach((pending, cont) => {
+    const account = accounting.chart.find((item) => item.simbol === cont);
+    if (account?.tip === "A" && money(accountBalance(db, cont) + pending) < -0.01) {
+      errors.push(`Contul de activ ${cont} nu poate ajunge pe sold creditor negativ.`);
+    }
+  });
+  if (errors.length) {
+    const error = new Error(errors.join(" "));
+    error.status = 422;
+    error.errors = errors;
+    throw error;
+  }
+  return { valid: true, totalDebit, totalCredit };
+}
+
+function accountBalance(db, cont) {
+  const accounting = ensureAccounting(db);
+  const activeJournalIds = new Set(accounting.journals
+    .filter((journal) => journal.status !== "stornat")
+    .map((journal) => Number(journal.id)));
+  return money(accounting.journalLines
+    .filter((line) => line.cont_simbol === cont && activeJournalIds.has(Number(line.journal_id)))
+    .reduce((sum, line) => sum + money(line.debit) - money(line.credit), 0));
+}
+
+function checkPeriodOpen(db, an, luna) {
+  const accounting = ensureAccounting(db);
+  const period = accounting.periods.find((item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna));
+  if (period?.status === "inchisa") {
+    const error = new Error(`Perioada ${String(luna).padStart(2, "0")}/${an} este inchisa.`);
+    error.status = 409;
+    throw error;
+  }
+  if (!period) {
+    accounting.periods.push({
+      id: nextNumericId(accounting.periods),
+      an: Number(an),
+      luna: Number(luna),
+      status: "deschisa",
+      created_at: new Date().toISOString()
+    });
+  }
+}
+
+function generateAnalyticAccount(db, tert, tip) {
+  const accounting = ensureAccounting(db);
+  const code = String(tert?.cod || tert?.id || "").replace(/\D/g, "").padStart(5, "0").slice(-5);
+  const base = tip === "client" ? "4111" : "401";
+  const simbol = `${base}.${code}`;
+  if (!accounting.chart.some((item) => item.simbol === simbol)) {
+    accounting.chart.push({
+      id: nextNumericId(accounting.chart),
+      simbol,
+      denumire: `${base === "401" ? "Furnizor" : "Client"} ${tert?.denumire || code}`,
+      clasa: 4,
+      tip: "B",
+      nivel: 3,
+      parinte_simbol: base,
+      tip_cont: "terti",
+      tva_deductibil: false,
+      tva_colectat: false,
+      activ: true,
+      sistem: false,
+      tert_id: tert?.id || null
+    });
+  }
+  return simbol;
+}
+
+function createJournal(db, user, input) {
+  const accounting = ensureAccounting(db);
+  const lines = normalizeLines(db, input.lines || []);
+  const totals = validateJournal(db, lines);
+  checkPeriodOpen(db, input.an, input.luna);
+  const journal = {
+    id: nextNumericId(accounting.journals),
+    uuid: input.uuid || uuid(),
+    an: Number(input.an),
+    luna: Number(input.luna),
+    data: input.data,
+    nr_document: input.nr_document || "",
+    tip_document: input.tip_document || "nota_manuala",
+    document_ref_id: input.document_ref_id || null,
+    document_ref_tip: input.document_ref_tip || "",
+    explicatie: input.explicatie || "",
+    total_debit: totals.totalDebit,
+    total_credit: totals.totalCredit,
+    status: input.status || "activ",
+    stornat_de_id: input.stornat_de_id || null,
+    storneaza_id: input.storneaza_id || null,
+    created_by: user?.id || "",
+    created_by_name: user?.name || "",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  accounting.journals.push(journal);
+  lines.forEach((line, index) => {
+    accounting.journalLines.push({
+      id: nextNumericId(accounting.journalLines),
+      journal_id: journal.id,
+      linie_nr: index + 1,
+      cont_simbol: line.cont_simbol,
+      denumire_cont: line.denumire_cont,
+      debit: money(line.debit),
+      credit: money(line.credit),
+      tert_id: line.tert_id || null,
+      tert_tip: line.tert_tip || "",
+      explicatie: line.explicatie || journal.explicatie
+    });
+  });
+  return journal;
+}
+
+function generateJournalFromInvoiceIn(db, user, invoice) {
+  const tert = findThirdParty(db, invoice.furnizor_id);
+  const contFurnizor = tert.cont_analitic_furnizor || generateAnalyticAccount(db, tert, "furnizor");
+  tert.cont_analitic_furnizor = contFurnizor;
+  return createJournal(db, user, {
+    an: invoice.an,
+    luna: invoice.luna,
+    data: invoice.data,
+    nr_document: invoice.nr_document,
+    tip_document: "factura_intrare",
+    document_ref_id: invoice.id,
+    document_ref_tip: "accounting_invoices_in",
+    explicatie: invoice.explicatie || `Factura intrare ${invoice.nr_document}`,
+    lines: [
+      { cont: invoice.cont_cheltuiala || "628", debit: invoice.valoare, tert_id: tert.id, tert_tip: "furnizor" },
+      { cont: "4426", debit: invoice.tva, tert_id: tert.id, tert_tip: "furnizor" },
+      { cont: contFurnizor, credit: invoice.total, tert_id: tert.id, tert_tip: "furnizor" }
+    ]
+  });
+}
+
+function generateJournalFromInvoiceOut(db, user, invoice) {
+  const tert = findThirdParty(db, invoice.client_id);
+  const contClient = tert.cont_analitic_client || generateAnalyticAccount(db, tert, "client");
+  tert.cont_analitic_client = contClient;
+  return createJournal(db, user, {
+    an: invoice.an,
+    luna: invoice.luna,
+    data: invoice.data,
+    nr_document: [invoice.serie, invoice.numar].filter(Boolean).join(" "),
+    tip_document: "factura_iesire",
+    document_ref_id: invoice.id,
+    document_ref_tip: "accounting_invoices_out",
+    explicatie: invoice.explicatie || `Factura iesire ${invoice.numar || ""}`.trim(),
+    lines: [
+      { cont: contClient, debit: invoice.total, tert_id: tert.id, tert_tip: "client" },
+      { cont: invoice.cont_venit || "704", credit: invoice.valoare, tert_id: tert.id, tert_tip: "client" },
+      { cont: "4427", credit: invoice.tva, tert_id: tert.id, tert_tip: "client" }
+    ]
+  });
+}
+
+function generateJournalFromTreasury(db, user, treasury) {
+  const tert = treasury.tert_id ? findThirdParty(db, treasury.tert_id) : null;
+  const isIncasare = treasury.tip_operatie === "incasare";
+  const corespondent = treasury.cont_corespondent || (tert
+    ? (isIncasare ? tert.cont_analitic_client || generateAnalyticAccount(db, tert, "client") : tert.cont_analitic_furnizor || generateAnalyticAccount(db, tert, "furnizor"))
+    : "461");
+  return createJournal(db, user, {
+    an: treasury.an,
+    luna: treasury.luna,
+    data: treasury.data,
+    nr_document: treasury.nr_document,
+    tip_document: treasury.tip || "banca",
+    document_ref_id: treasury.id,
+    document_ref_tip: "accounting_treasury",
+    explicatie: treasury.explicatie || (isIncasare ? "Incasare" : "Plata"),
+    lines: isIncasare
+      ? [
+        { cont: treasury.cont_trezorerie || "5121", debit: treasury.suma, tert_id: tert?.id, tert_tip: tert ? "client" : "" },
+        { cont: corespondent, credit: treasury.suma, tert_id: tert?.id, tert_tip: tert ? "client" : "" }
+      ]
+      : [
+        { cont: corespondent, debit: treasury.suma, tert_id: tert?.id, tert_tip: tert ? "furnizor" : "" },
+        { cont: treasury.cont_trezorerie || "5121", credit: treasury.suma, tert_id: tert?.id, tert_tip: tert ? "furnizor" : "" }
+      ]
+  });
+}
+
+function stornoJournal(db, user, journalIdOrUuid) {
+  const accounting = ensureAccounting(db);
+  const original = accounting.journals.find((item) => String(item.id) === String(journalIdOrUuid) || item.uuid === journalIdOrUuid);
+  if (!original) throwHttp(404, "Nota contabila nu a fost gasita.");
+  if (original.status === "stornat") throwHttp(409, "Nota contabila este deja stornata.");
+  checkPeriodOpen(db, original.an, original.luna);
+  const originalLines = accounting.journalLines.filter((line) => Number(line.journal_id) === Number(original.id));
+  const storno = createJournal(db, user, {
+    an: original.an,
+    luna: original.luna,
+    data: localDate(new Date()),
+    nr_document: `STORNO ${original.nr_document || original.id}`,
+    tip_document: "storno",
+    document_ref_id: original.document_ref_id,
+    document_ref_tip: original.document_ref_tip,
+    explicatie: `Storno: ${original.explicatie || original.nr_document || original.id}`,
+    storneaza_id: original.id,
+    lines: originalLines.map((line) => ({
+      cont: line.cont_simbol,
+      debit: line.credit,
+      credit: line.debit,
+      tert_id: line.tert_id,
+      tert_tip: line.tert_tip,
+      explicatie: `Storno ${line.explicatie || ""}`.trim()
+    }))
+  });
+  original.status = "stornat";
+  original.stornat_de_id = storno.id;
+  original.updated_at = new Date().toISOString();
+  return storno;
+}
+
+function buildBalance(db, an, luna, tip = "sintetica") {
+  const accounting = ensureAccounting(db);
+  const journals = accounting.journals.filter((item) =>
+    item.status !== "stornat" && Number(item.an) === Number(an) && (!luna || Number(item.luna) <= Number(luna))
+  );
+  const journalIds = new Set(journals.map((item) => Number(item.id)));
+  const rowsByCont = new Map();
+  accounting.journalLines.filter((line) => journalIds.has(Number(line.journal_id))).forEach((line) => {
+    const simbol = tip === "sintetica" ? String(line.cont_simbol).split(".")[0] : line.cont_simbol;
+    const account = accounting.chart.find((item) => item.simbol === simbol) || accounting.chart.find((item) => item.simbol === line.cont_simbol);
+    const row = rowsByCont.get(simbol) || {
+      cont: simbol,
+      denumire: account?.denumire || line.denumire_cont || "",
+      tip: account?.tip || "B",
+      sume_precedente_D: 0,
+      sume_precedente_C: 0,
+      rulaje_D: 0,
+      rulaje_C: 0,
+      sume_totale_D: 0,
+      sume_totale_C: 0,
+      sold_D: 0,
+      sold_C: 0
+    };
+    row.rulaje_D = money(row.rulaje_D + line.debit);
+    row.rulaje_C = money(row.rulaje_C + line.credit);
+    row.sume_totale_D = row.rulaje_D;
+    row.sume_totale_C = row.rulaje_C;
+    const sold = money(row.sume_totale_D - row.sume_totale_C);
+    row.sold_D = sold > 0 ? sold : 0;
+    row.sold_C = sold < 0 ? Math.abs(sold) : 0;
+    rowsByCont.set(simbol, row);
+  });
+  const rows = Array.from(rowsByCont.values()).sort((a, b) => a.cont.localeCompare(b.cont, "ro"));
+  const totals = rows.reduce((acc, row) => {
+    ["rulaje_D", "rulaje_C", "sume_totale_D", "sume_totale_C", "sold_D", "sold_C"].forEach((key) => {
+      acc[key] = money((acc[key] || 0) + row[key]);
+    });
+    return acc;
+  }, {});
+  return { rows, totals, balanced: Math.abs((totals.rulaje_D || 0) - (totals.rulaje_C || 0)) <= 0.01 };
+}
+
+function ledger(db, simbol, from = "", to = "") {
+  const accounting = ensureAccounting(db);
+  const journalsById = new Map(accounting.journals.map((item) => [Number(item.id), item]));
+  let sold = 0;
+  const movements = accounting.journalLines
+    .filter((line) => line.cont_simbol === simbol)
+    .map((line) => ({ line, journal: journalsById.get(Number(line.journal_id)) }))
+    .filter(({ journal }) => journal && journal.status !== "stornat")
+    .filter(({ journal }) => (!from || journal.data >= from) && (!to || journal.data <= to))
+    .sort((a, b) => String(a.journal.data).localeCompare(String(b.journal.data)) || Number(a.line.linie_nr) - Number(b.line.linie_nr))
+    .map(({ line, journal }) => {
+      sold = money(sold + money(line.debit) - money(line.credit));
+      return { ...line, data: journal.data, nr_document: journal.nr_document, tip_document: journal.tip_document, sold };
+    });
+  return { simbol, sold_initial: 0, movements, sold_final: sold };
+}
+
+function normalizeLines(db, lines) {
+  const accounting = ensureAccounting(db);
+  return lines.map((line) => {
+    const cont = String(line.cont_simbol || line.cont || "").trim();
+    const account = accounting.chart.find((item) => item.simbol === cont);
+    return {
+      cont_simbol: cont,
+      denumire_cont: line.denumire_cont || account?.denumire || "",
+      debit: money(line.debit),
+      credit: money(line.credit),
+      tert_id: line.tert_id || null,
+      tert_tip: line.tert_tip || "",
+      explicatie: line.explicatie || ""
+    };
+  });
+}
+
+function findThirdParty(db, idValue) {
+  const accounting = ensureAccounting(db);
+  const tert = accounting.thirdParties.find((item) => String(item.id) === String(idValue));
+  if (!tert) throwHttp(404, "Tertul contabil nu a fost gasit.");
+  return tert;
+}
+
+function money(value) {
+  return Number((Number(value || 0)).toFixed(2));
+}
+
+function nextNumericId(items) {
+  return Math.max(0, ...items.map((item) => Number(item.id) || 0)) + 1;
+}
+
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex");
+}
+
+function localDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function inferLevel(simbol) {
+  const value = String(simbol || "");
+  return value.includes(".") ? 3 : (value.length <= 3 ? 1 : 2);
+}
+
+function inferAccountCategory(simbol) {
+  const c = String(simbol || "");
+  if (/^(20|21|22|23|26|28|29)/.test(c)) return "imobilizari";
+  if (/^3/.test(c)) return "stocuri";
+  if (/^4/.test(c)) return "terti";
+  if (/^5/.test(c)) return "trezorerie";
+  if (/^6/.test(c)) return "cheltuieli";
+  if (/^7/.test(c)) return "venituri";
+  if (/^1/.test(c)) return "capital";
+  return "general";
+}
+
+function throwHttp(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  throw error;
+}
+
+module.exports = {
+  ensureAccounting,
+  validateJournal,
+  checkPeriodOpen,
+  generateAnalyticAccount,
+  generateJournalFromInvoiceIn,
+  generateJournalFromInvoiceOut,
+  generateJournalFromTreasury,
+  stornoJournal,
+  createJournal,
+  buildBalance,
+  ledger,
+  accountBalance,
+  money,
+  nextNumericId,
+  localDate
+};

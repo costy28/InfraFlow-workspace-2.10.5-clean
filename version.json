@@ -1,5 +1,5 @@
 {
-  "version": "2.12.25",
-  "date": "2026-06-11",
-  "changelog": "## v2.12.25 - 2026-06-11\n### Fisa vehicul/utilaj completa\n- Fisa asset cu 6 taburi: date generale, documente, soferi/operatori, foi/FAZ, reparatii si combustibil.\n- Endpointuri pentru date complete, alocari soferi, fisiere, GPS live si vehiculul meu.\n- Structuri JSON si migrare MSSQL pentru alocari, fisiere si campuri tehnice extinse."
+  "version": "2.12.34",
+  "date": "2026-06-13",
+  "changelog": "## v2.12.34 - 2026-06-13\n### Hotfix Contabilitate in module active\n- Contabilitatea este inclusa in catalogul de module configurabile.\n- Backend-ul pastreaza accounting in modules_enabled si in licentele full/all.\n- Sidebar-ul nu mai ascunde Contabilitatea dupa incarcarea setarilor."
 }

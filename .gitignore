@@ -5,6 +5,7 @@ licenta.iflic
 node_modules/
 client/dist/
 data/app-db.json
+data/app-db.demo.json
 server/asfalt-pro-backup*.json
 .env
 .env.demo

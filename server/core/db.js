@@ -9,9 +9,13 @@ const { splitSqlBatches, ensureMigrationTable, runTrackedMigrations } = require(
 const ROOT = path.resolve(__dirname, "..", "..");
 loadPreferredDatabaseEnv(ROOT);
 const DATA_DIR = path.join(ROOT, "data");
-const DB_FILE = path.join(DATA_DIR, "app-db.json");
-const SEED_FILE = path.join(DATA_DIR, "seed.json");
-const DB_MODE = String(process.env.INFRAFLOW_DB_PROVIDER || process.env.DB_MODE || "mssql").trim().toLowerCase();
+function resolveDataFile(envName, fallbackName) {
+  const configured = String(process.env[envName] || fallbackName).trim();
+  return path.isAbsolute(configured) ? configured : path.join(DATA_DIR, configured);
+}
+const DB_FILE = resolveDataFile("INFRAFLOW_DB_FILE", "app-db.json");
+const SEED_FILE = resolveDataFile("INFRAFLOW_SEED_FILE", "seed.json");
+const DB_MODE = String(process.env.INFRAFLOW_DB_PROVIDER || process.env.DB_MODE || "json").trim().toLowerCase();
 
 // Structura minimală folosită la prima instalare când seed.json nu există
 const DEFAULT_DB = {
@@ -60,6 +64,17 @@ const DEFAULT_DB = {
   fleetAssetFiles: [],
   fazLogs: [],
   fazNomenclator: [],
+  accounting: {
+    periods: [],
+    chart: [],
+    journals: [],
+    journalLines: [],
+    thirdParties: [],
+    invoicesIn: [],
+    invoicesOut: [],
+    treasury: [],
+    lawAlerts: []
+  },
   costCenters: [],
   technicalWorkLogs: [],
   technicalClients: [],
@@ -418,6 +433,7 @@ function ensureMssqlDatabase() {
     end;
     select 1;
   `, { jsonInput: JSON.stringify(seed) });
+  recoverEmptyMssqlAppStateFromLocalFile();
   ensureMigrationTable(runMssqlScalar);
   ensureMssqlRelationalSchema();
 }
@@ -427,7 +443,8 @@ function readMssqlDb() {
   if (mssqlDbCache) return cloneDb(mssqlDbCache);
   const text = runMssqlScalar(`select data from dbo.${MSSQL_APP_STATE_TABLE} where id = 1;`).trim();
   if (!text) throw new Error("SQL Server nu contine starea aplicatiei in dbo.app_state.");
-  mssqlDbCache = normalizeDb(JSON.parse(text));
+  const recoveredText = recoverEmptyMssqlAppStateFromLocalFile(text) || text;
+  mssqlDbCache = normalizeDb(JSON.parse(recoveredText));
   return cloneDb(mssqlDbCache);
 }
 
@@ -450,6 +467,90 @@ function writeMssqlDb(db) {
   `, { jsonInput: JSON.stringify(normalized) });
   syncMssqlRelationalFromAppState();
   mssqlDbCache = cloneDb(normalized);
+}
+
+function recoverEmptyMssqlAppStateFromLocalFile(currentText = null) {
+  if (String(process.env.INFRAFLOW_DISABLE_APP_STATE_RECOVERY || "").trim() === "1") return "";
+  if (!fs.existsSync(DB_FILE)) return "";
+  let existingText = currentText;
+  try {
+    if (existingText === null) {
+      existingText = runMssqlScalar(`select data from dbo.${MSSQL_APP_STATE_TABLE} where id = 1;`).trim();
+    }
+    const localText = fs.readFileSync(DB_FILE, "utf8");
+    const existing = parseJsonOrNull(existingText);
+    const local = parseJsonOrNull(localText);
+    if (!shouldRecoverAppState(existing, local)) return "";
+    backupMssqlAppStateText(existingText);
+    runMssqlScalar(`
+      update dbo.${MSSQL_APP_STATE_TABLE}
+      set data = @json,
+          updated_at = sysdatetime()
+      where id = 1;
+      select 1;
+    `, { jsonInput: localText });
+    console.warn(`[DB] dbo.app_state era gol/minimal. Restaurat automat din ${path.relative(ROOT, DB_FILE)} local.`);
+    mssqlDbCache = null;
+    return localText;
+  } catch (error) {
+    console.warn("[DB] Recuperarea automata app_state a fost sarita:", error.message);
+    return "";
+  }
+}
+
+function shouldRecoverAppState(existing, local) {
+  if (!existing || !local) return false;
+  if (isDemoAppState(local) && String(process.env.INFRAFLOW_ALLOW_DEMO_RECOVERY || "").trim() !== "1") return false;
+  const existingUsers = Array.isArray(existing.users) ? existing.users.length : 0;
+  const localUsers = Array.isArray(local.users) ? local.users.length : 0;
+  const existingSetup = existing.settings?.setupCompleted === true;
+  const localSetup = local.settings?.setupCompleted === true;
+  if (!localSetup || localUsers < 1) return false;
+  if (existingSetup || existingUsers > 0) return false;
+  return appStateWeight(local) > appStateWeight(existing);
+}
+
+function isDemoAppState(db) {
+  if (!db || typeof db !== "object") return false;
+  if (db._demo_mode === true) return true;
+  if (String(db.settings?.demoMode || "").toLowerCase() === "true") return true;
+  if (String(db.settings?.company_name || db.company?.name || "").toLowerCase().includes("demo")) return true;
+  return Array.isArray(db.users) && db.users.some((user) =>
+    String(user?.username || "").toLowerCase().includes("demo") ||
+    String(user?.demoHint || "").trim()
+  );
+}
+
+function appStateWeight(db) {
+  const lists = [
+    db.users,
+    db.departments,
+    db.materials,
+    db.fleetAssets,
+    db.fazLogs,
+    db.hr?.employees,
+    db.inventory?.materials,
+    db.procurementOrders,
+    db.referate,
+    db.messaging?.channels
+  ];
+  return lists.reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0)
+    + (db.settings?.setupCompleted === true ? 100 : 0);
+}
+
+function parseJsonOrNull(text) {
+  try {
+    return JSON.parse(String(text || ""));
+  } catch {
+    return null;
+  }
+}
+
+function backupMssqlAppStateText(text) {
+  const dir = path.join(DATA_DIR, "recovery");
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "-");
+  fs.writeFileSync(path.join(dir, `mssql-app-state-before-auto-recovery-${stamp}.json`), String(text || ""), "utf8");
 }
 
 function ensureMssqlRelationalSchema() {
@@ -634,18 +735,27 @@ function mssqlDatabaseName() {
 }
 
 function configuredMssqlConnectionString() {
-  const configured = process.env.INFRAFLOW_DB_CONNECTION || process.env.MSSQL_CONNECTION_STRING || process.env.SQLSERVER_CONNECTION_STRING;
-  if (configured) return configured;
   const server = process.env.DB_SERVER || ".\\SQLEXPRESS";
   const database = process.env.DB_DATABASE || "INFRAFLOW";
-  return `Server=${server};Database=${database};User Id=infraflow;Password=CONFIGUREAZA_PAROLA;TrustServerCertificate=True;Encrypt=${process.env.DB_ENCRYPT || "false"};Connection Timeout=30`;
+  const trusted = String(process.env.DB_TRUSTED_CONNECTION || process.env.MSSQL_TRUSTED_CONNECTION || "").trim().toLowerCase();
+  if (["1", "true", "yes", "sspi"].includes(trusted)) {
+    return `Server=${server};Database=${database};Integrated Security=True;TrustServerCertificate=True;Encrypt=${process.env.DB_ENCRYPT || "false"};Connection Timeout=30`;
+  }
+  const hasExplicitSqlCredentials = Boolean(process.env.DB_USER || process.env.MSSQL_USER || process.env.DB_PASSWORD || process.env.MSSQL_PASSWORD);
+  if (!hasExplicitSqlCredentials) {
+    const configured = process.env.INFRAFLOW_DB_CONNECTION || process.env.MSSQL_CONNECTION_STRING || process.env.SQLSERVER_CONNECTION_STRING;
+    if (configured) return configured;
+  }
+  const user = process.env.DB_USER || process.env.MSSQL_USER || "infraflow";
+  const password = process.env.DB_PASSWORD || process.env.MSSQL_PASSWORD || "CONFIGUREAZA_PAROLA";
+  return `Server=${server};Database=${database};User Id=${user};Password=${password};TrustServerCertificate=True;Encrypt=${process.env.DB_ENCRYPT || "false"};Connection Timeout=30`;
 }
 
 function databaseHealth() {
   if (!["mssql", "sqlserver"].includes(DB_MODE)) {
     return { ok: true, mode: DB_MODE, server: null, database: path.basename(DB_FILE), pool: null };
   }
-  runMssqlScalar("select 1;");
+  runMssqlScalar("select 1;", { timeoutMs: 5000 });
   return {
     ok: true,
     mode: DB_MODE,
@@ -811,6 +921,16 @@ function normalizeDb(db) {
   if (!Array.isArray(db.fleet.fazNomenclator)) db.fleet.fazNomenclator = db.fazNomenclator;
   if (!Array.isArray(db.fleet.assetDrivers)) db.fleet.assetDrivers = db.fleetAssetDrivers;
   if (!Array.isArray(db.fleet.assetFiles)) db.fleet.assetFiles = db.fleetAssetFiles;
+  if (!db.accounting || typeof db.accounting !== "object") db.accounting = {};
+  if (!Array.isArray(db.accounting.periods)) db.accounting.periods = [];
+  if (!Array.isArray(db.accounting.chart)) db.accounting.chart = [];
+  if (!Array.isArray(db.accounting.journals)) db.accounting.journals = [];
+  if (!Array.isArray(db.accounting.journalLines)) db.accounting.journalLines = [];
+  if (!Array.isArray(db.accounting.thirdParties)) db.accounting.thirdParties = [];
+  if (!Array.isArray(db.accounting.invoicesIn)) db.accounting.invoicesIn = [];
+  if (!Array.isArray(db.accounting.invoicesOut)) db.accounting.invoicesOut = [];
+  if (!Array.isArray(db.accounting.treasury)) db.accounting.treasury = [];
+  if (!Array.isArray(db.accounting.lawAlerts)) db.accounting.lawAlerts = [];
   if (!Array.isArray(db.costCenters)) db.costCenters = [];
   if (!Array.isArray(db.technicalWorkLogs)) db.technicalWorkLogs = [];
   if (!Array.isArray(db.technicalClients)) db.technicalClients = [];
