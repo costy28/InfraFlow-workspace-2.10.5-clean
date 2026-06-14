@@ -1,5 +1,5 @@
 {
-  "version": "2.12.40",
+  "version": "2.12.41",
   "date": "2026-06-14",
-  "changelog": "## v2.12.40 - 2026-06-14\n### Registru jurnal verificabil\n- Registrul jurnal are filtre pe luna si status.\n- Selectarea unei note afiseaza detaliile si liniile debit/credit.\n- Liniile permit navigare directa in fisa contului.\n- Notele active pot fi stornate direct din panoul de detalii."
+  "changelog": "## v2.12.41 - 2026-06-14\n### Balanta contabila verificabila\n- Balanta suporta mod sintetic si analitic.\n- Au fost adaugate filtre pe clasa si conturi cu rulaj/sold.\n- Totalurile sunt afisate in carduri si footer de tabel.\n- Conturile din balanta duc direct catre fisa contului.\n- Export Excel pentru balanta este disponibil din backend si UI."
 }

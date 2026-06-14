@@ -4,6 +4,7 @@ const { requireAnyPermission, requirePermission, userHasRole } = require("../../
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 const engine = require("./accounting-engine");
+const xlsx = require("xlsx");
 
 const router = Router();
 
@@ -400,6 +401,40 @@ router.post("/accounting/journals/:uuid/storno", requireAccountingPost, (req, re
 router.get("/accounting/balance-sheet", requireAccountingReports, (req, res) => {
   const [an, luna] = monthParts(req.query.luna || `${req.query.an || new Date().getFullYear()}-${String(req.query.luna || new Date().getMonth() + 1).padStart(2, "0")}`);
   sendJson(res, 200, engine.buildBalance(req.auth.db, Number(req.query.an || an), Number(req.query.luna || luna), req.query.tip || "sintetica"));
+});
+
+router.get("/accounting/balance-sheet/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const [an, luna] = monthParts(req.query.luna || `${req.query.an || new Date().getFullYear()}-${String(req.query.luna || new Date().getMonth() + 1).padStart(2, "0")}`);
+    const tip = req.query.tip || "sintetica";
+    const balance = engine.buildBalance(req.auth.db, Number(req.query.an || an), Number(req.query.luna || luna), tip);
+    const rows = [
+      ["Balanta de verificare", `${String(luna).padStart(2, "0")}/${an}`, tip],
+      [],
+      ["Cont", "Denumire", "Tip", "Rulaj debit", "Rulaj credit", "Sume totale debit", "Sume totale credit", "Sold debit", "Sold credit"],
+      ...balance.rows.map((row) => [
+        row.cont,
+        row.denumire,
+        row.tip,
+        row.rulaje_D,
+        row.rulaje_C,
+        row.sume_totale_D,
+        row.sume_totale_C,
+        row.sold_D,
+        row.sold_C
+      ]),
+      [],
+      ["TOTAL", "", "", balance.totals.rulaje_D || 0, balance.totals.rulaje_C || 0, balance.totals.sume_totale_D || 0, balance.totals.sume_totale_C || 0, balance.totals.sold_D || 0, balance.totals.sold_C || 0]
+    ];
+    const workbook = xlsx.utils.book_new();
+    const sheet = xlsx.utils.aoa_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 16 }, { wch: 46 }, { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }];
+    xlsx.utils.book_append_sheet(workbook, sheet, "Balanta");
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Balanta_${tip}_${an}_${String(luna).padStart(2, "0")}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
 });
 
 router.get("/accounting/ledger/:simbol", requireAccountingReports, (req, res) => {
