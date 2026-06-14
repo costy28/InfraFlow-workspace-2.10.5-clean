@@ -1,5 +1,5 @@
 {
-  "version": "2.12.34",
+  "version": "2.12.35",
   "date": "2026-06-13",
-  "changelog": "## v2.12.34 - 2026-06-13\n### Hotfix Contabilitate in module active\n- Contabilitatea este inclusa in catalogul de module configurabile.\n- Backend-ul pastreaza accounting in modules_enabled si in licentele full/all.\n- Sidebar-ul nu mai ascunde Contabilitatea dupa incarcarea setarilor."
+  "changelog": "## v2.12.35 - 2026-06-13\n### Hotfix separare demo/livrabil si contabilitate\n- Demo-ul foloseste explicit data/app-db.demo.json.\n- Script administrativ pentru resetarea bazei MSSQL curate, fara date demo.\n- Planul de conturi Saga se completeaza automat daca baza are doar un seed partial.\n- Tertii contabili pot fi editati din UI, iar erorile de salvare/validare facturi sunt afisate."
 }
