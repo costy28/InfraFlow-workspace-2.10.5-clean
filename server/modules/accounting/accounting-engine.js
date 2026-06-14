@@ -92,7 +92,7 @@ function validateJournal(db, lines) {
 function accountBalance(db, cont) {
   const accounting = ensureAccounting(db);
   const activeJournalIds = new Set(accounting.journals
-    .filter((journal) => journal.status !== "stornat")
+    .filter(isActiveJournal)
     .map((journal) => Number(journal.id)));
   return money(accounting.journalLines
     .filter((line) => line.cont_simbol === cont && activeJournalIds.has(Number(line.journal_id)))
@@ -102,8 +102,8 @@ function accountBalance(db, cont) {
 function checkPeriodOpen(db, an, luna) {
   const accounting = ensureAccounting(db);
   const period = accounting.periods.find((item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna));
-  if (period?.status === "inchisa") {
-    const error = new Error(`Perioada ${String(luna).padStart(2, "0")}/${an} este inchisa.`);
+  if (["inchisa", "depusa"].includes(period?.status)) {
+    const error = new Error(`Perioada ${String(luna).padStart(2, "0")}/${an} este ${period.status}.`);
     error.status = 409;
     throw error;
   }
@@ -191,6 +191,17 @@ function generateJournalFromInvoiceIn(db, user, invoice) {
   const tert = findThirdParty(db, invoice.furnizor_id);
   const contFurnizor = tert.cont_analitic_furnizor || generateAnalyticAccount(db, tert, "furnizor");
   tert.cont_analitic_furnizor = contFurnizor;
+  const invoiceLines = Array.isArray(invoice.lines) && invoice.lines.length
+    ? invoice.lines
+    : [{ cont: invoice.cont_cheltuiala || "628", valoare: invoice.valoare, tva: invoice.tva, denumire: invoice.explicatie || "" }];
+  const expenseLines = invoiceLines.map((line) => ({
+    cont: line.cont || invoice.cont_cheltuiala || "628",
+    debit: line.valoare,
+    tert_id: tert.id,
+    tert_tip: "furnizor",
+    explicatie: line.denumire || invoice.explicatie || `Factura intrare ${invoice.nr_document}`
+  }));
+  const tva = money(invoiceLines.reduce((sum, line) => sum + money(line.tva), 0));
   return createJournal(db, user, {
     an: invoice.an,
     luna: invoice.luna,
@@ -201,8 +212,8 @@ function generateJournalFromInvoiceIn(db, user, invoice) {
     document_ref_tip: "accounting_invoices_in",
     explicatie: invoice.explicatie || `Factura intrare ${invoice.nr_document}`,
     lines: [
-      { cont: invoice.cont_cheltuiala || "628", debit: invoice.valoare, tert_id: tert.id, tert_tip: "furnizor" },
-      { cont: "4426", debit: invoice.tva, tert_id: tert.id, tert_tip: "furnizor" },
+      ...expenseLines,
+      ...(tva > 0 ? [{ cont: "4426", debit: tva, tert_id: tert.id, tert_tip: "furnizor", explicatie: `TVA ${invoice.tva_procent || ""} ${tert.denumire || ""}`.trim() }] : []),
       { cont: contFurnizor, credit: invoice.total, tert_id: tert.id, tert_tip: "furnizor" }
     ]
   });
@@ -212,6 +223,17 @@ function generateJournalFromInvoiceOut(db, user, invoice) {
   const tert = findThirdParty(db, invoice.client_id);
   const contClient = tert.cont_analitic_client || generateAnalyticAccount(db, tert, "client");
   tert.cont_analitic_client = contClient;
+  const invoiceLines = Array.isArray(invoice.lines) && invoice.lines.length
+    ? invoice.lines
+    : [{ cont: invoice.cont_venit || "704", valoare: invoice.valoare, tva: invoice.tva, denumire: invoice.explicatie || "" }];
+  const revenueLines = invoiceLines.map((line) => ({
+    cont: line.cont || invoice.cont_venit || "704",
+    credit: line.valoare,
+    tert_id: tert.id,
+    tert_tip: "client",
+    explicatie: line.denumire || invoice.explicatie || `Factura iesire ${invoice.numar || ""}`.trim()
+  }));
+  const tva = money(invoiceLines.reduce((sum, line) => sum + money(line.tva), 0));
   return createJournal(db, user, {
     an: invoice.an,
     luna: invoice.luna,
@@ -223,8 +245,8 @@ function generateJournalFromInvoiceOut(db, user, invoice) {
     explicatie: invoice.explicatie || `Factura iesire ${invoice.numar || ""}`.trim(),
     lines: [
       { cont: contClient, debit: invoice.total, tert_id: tert.id, tert_tip: "client" },
-      { cont: invoice.cont_venit || "704", credit: invoice.valoare, tert_id: tert.id, tert_tip: "client" },
-      { cont: "4427", credit: invoice.tva, tert_id: tert.id, tert_tip: "client" }
+      ...revenueLines,
+      ...(tva > 0 ? [{ cont: "4427", credit: tva, tert_id: tert.id, tert_tip: "client", explicatie: `TVA ${invoice.tva_procent || ""} ${tert.denumire || ""}`.trim() }] : [])
     ]
   });
 }
@@ -288,10 +310,25 @@ function stornoJournal(db, user, journalIdOrUuid) {
   return storno;
 }
 
+function devalidateJournal(db, user, journalIdOrUuid, reason = "") {
+  const accounting = ensureAccounting(db);
+  const journal = accounting.journals.find((item) => String(item.id) === String(journalIdOrUuid) || item.uuid === journalIdOrUuid);
+  if (!journal) throwHttp(404, "Nota contabila nu a fost gasita.");
+  if (!isActiveJournal(journal)) throwHttp(409, "Nota contabila nu este activa.");
+  checkPeriodOpen(db, journal.an, journal.luna);
+  journal.status = "devalidat";
+  journal.devalidat_de = user?.id || "";
+  journal.devalidat_de_name = user?.name || "";
+  journal.devalidat_la = new Date().toISOString();
+  journal.devalidare_motiv = String(reason || "").trim();
+  journal.updated_at = new Date().toISOString();
+  return journal;
+}
+
 function buildBalance(db, an, luna, tip = "sintetica") {
   const accounting = ensureAccounting(db);
   const journals = accounting.journals.filter((item) =>
-    item.status !== "stornat" && Number(item.an) === Number(an) && (!luna || Number(item.luna) <= Number(luna))
+    isActiveJournal(item) && Number(item.an) === Number(an) && (!luna || Number(item.luna) <= Number(luna))
   );
   const journalIds = new Set(journals.map((item) => Number(item.id)));
   const rowsByCont = new Map();
@@ -337,7 +374,7 @@ function ledger(db, simbol, from = "", to = "") {
   const movements = accounting.journalLines
     .filter((line) => line.cont_simbol === simbol)
     .map((line) => ({ line, journal: journalsById.get(Number(line.journal_id)) }))
-    .filter(({ journal }) => journal && journal.status !== "stornat")
+    .filter(({ journal }) => journal && isActiveJournal(journal))
     .filter(({ journal }) => (!from || journal.data >= from) && (!to || journal.data <= to))
     .sort((a, b) => String(a.journal.data).localeCompare(String(b.journal.data)) || Number(a.line.linie_nr) - Number(b.line.linie_nr))
     .map(({ line, journal }) => {
@@ -407,6 +444,10 @@ function inferAccountCategory(simbol) {
   return "general";
 }
 
+function isActiveJournal(journal) {
+  return !["stornat", "devalidat", "anulat"].includes(String(journal?.status || "activ"));
+}
+
 function throwHttp(status, message) {
   const error = new Error(message);
   error.status = status;
@@ -422,7 +463,9 @@ module.exports = {
   generateJournalFromInvoiceOut,
   generateJournalFromTreasury,
   stornoJournal,
+  devalidateJournal,
   createJournal,
+  isActiveJournal,
   buildBalance,
   ledger,
   accountBalance,

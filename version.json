@@ -1,5 +1,5 @@
 {
-  "version": "2.12.35",
-  "date": "2026-06-13",
-  "changelog": "## v2.12.35 - 2026-06-13\n### Hotfix separare demo/livrabil si contabilitate\n- Demo-ul foloseste explicit data/app-db.demo.json.\n- Script administrativ pentru resetarea bazei MSSQL curate, fara date demo.\n- Planul de conturi Saga se completeaza automat daca baza are doar un seed partial.\n- Tertii contabili pot fi editati din UI, iar erorile de salvare/validare facturi sunt afisate."
+  "version": "2.12.39",
+  "date": "2026-06-14",
+  "changelog": "## v2.12.39 - 2026-06-14\n### Trezorerie utilizabila\n- Registrul de casa, jurnalul de banca si deconturile pot fi create din UI ca draft.\n- Operatiile draft se pot edita, valida sau anula.\n- Operatiile validate se pot devalida si nota contabila aferenta devine inactiva.\n- Formularul afiseaza preview debit/credit pentru incasari si plati."
 }

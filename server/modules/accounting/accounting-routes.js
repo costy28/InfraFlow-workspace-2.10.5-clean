@@ -10,8 +10,8 @@ const router = Router();
 router.get("/accounting/summary", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
   const [an, luna] = monthParts(req.query.luna || currentMonth());
-  const invoicesIn = accounting.invoicesIn.filter((item) => Number(item.an) === an && Number(item.luna) === luna);
-  const invoicesOut = accounting.invoicesOut.filter((item) => Number(item.an) === an && Number(item.luna) === luna);
+  const invoicesIn = accounting.invoicesIn.filter((item) => item.status !== "anulat" && Number(item.an) === an && Number(item.luna) === luna);
+  const invoicesOut = accounting.invoicesOut.filter((item) => item.status !== "anulat" && Number(item.an) === an && Number(item.luna) === luna);
   const vatIn = invoicesIn.reduce((sum, item) => sum + Number(item.tva || 0), 0);
   const vatOut = invoicesOut.reduce((sum, item) => sum + Number(item.tva || 0), 0);
   const period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna) || { an, luna, status: "deschisa" };
@@ -22,8 +22,8 @@ router.get("/accounting/summary", requireAccountingView, (req, res) => {
     invoicesIn: { count: invoicesIn.length, total: sum(invoicesIn, "total") },
     invoicesOut: { count: invoicesOut.length, total: sum(invoicesOut, "total") },
     vat: { deductibil: round(vatIn), colectat: round(vatOut), diferenta: round(vatOut - vatIn) },
-    overdueSuppliers: accounting.invoicesIn.filter((item) => Number(item.neachitat ?? item.total - item.achitat) > 0 && item.data_scadenta < today()).length,
-    overdueClients: accounting.invoicesOut.filter((item) => Number(item.neincasat ?? item.total - item.incasat) > 0 && item.data_scadenta < today()).length,
+    overdueSuppliers: accounting.invoicesIn.filter((item) => item.status !== "anulat" && Number(item.neachitat ?? item.total - item.achitat) > 0 && item.data_scadenta < today()).length,
+    overdueClients: accounting.invoicesOut.filter((item) => item.status !== "anulat" && Number(item.neincasat ?? item.total - item.incasat) > 0 && item.data_scadenta < today()).length,
     alertsNew: accounting.lawAlerts.filter((item) => item.status === "nou").length
   });
 });
@@ -151,6 +151,25 @@ router.post("/accounting/invoices-in/:uuid/validate", requireAccountingPost, (re
   } catch (error) { next(error); }
 });
 
+router.post("/accounting/invoices-in/:uuid/devalidate", requireAccountingPost, (req, res, next) => {
+  try {
+    const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesIn, req.params.uuid, "Factura nu a fost gasita.");
+    devalidateInvoice(req.auth.db, req.auth.user, invoice, "accounting_invoice_in_devalidate", req.body?.motiv);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { invoice });
+  } catch (error) { next(error); }
+});
+
+router.delete("/accounting/invoices-in/:uuid", requireAccountingPost, (req, res, next) => {
+  try {
+    const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesIn, req.params.uuid, "Factura nu a fost gasita.");
+    cancelDraftInvoice(req.auth.db, req.auth.user, invoice, req.body?.motiv || req.query.motiv || "");
+    addAudit(req.auth.db, req.auth.user, "accounting_invoice_in_cancel", invoice.nr_document);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { invoice });
+  } catch (error) { next(error); }
+});
+
 router.post("/accounting/invoices-in/:uuid/storno", requireAccountingPost, (req, res, next) => {
   try {
     const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesIn, req.params.uuid, "Factura nu a fost gasita.");
@@ -217,12 +236,32 @@ router.post("/accounting/invoices-out/:uuid/validate", requireAccountingPost, (r
   try {
     const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesOut, req.params.uuid, "Factura nu a fost gasita.");
     if (invoice.status !== "draft") throwHttp(409, "Factura nu este in draft.");
+    engine.checkPeriodOpen(req.auth.db, invoice.an, invoice.luna);
     const journal = engine.generateJournalFromInvoiceOut(req.auth.db, req.auth.user, invoice);
     invoice.journal_id = journal.id;
     invoice.status = "validat";
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_out_validate", `${invoice.numar || ""} / nota ${journal.id}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { invoice, journal });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/invoices-out/:uuid/devalidate", requireAccountingPost, (req, res, next) => {
+  try {
+    const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesOut, req.params.uuid, "Factura nu a fost gasita.");
+    devalidateInvoice(req.auth.db, req.auth.user, invoice, "accounting_invoice_out_devalidate", req.body?.motiv);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { invoice });
+  } catch (error) { next(error); }
+});
+
+router.delete("/accounting/invoices-out/:uuid", requireAccountingPost, (req, res, next) => {
+  try {
+    const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesOut, req.params.uuid, "Factura nu a fost gasita.");
+    cancelDraftInvoice(req.auth.db, req.auth.user, invoice, req.body?.motiv || req.query.motiv || "");
+    addAudit(req.auth.db, req.auth.user, "accounting_invoice_out_cancel", String(invoice.numar || ""));
+    writeDb(req.auth.db);
+    sendJson(res, 200, { invoice });
   } catch (error) { next(error); }
 });
 
@@ -275,16 +314,49 @@ router.post("/accounting/treasury", requireAccountingPost, (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.patch("/accounting/treasury/:uuid", requireAccountingPost, (req, res, next) => {
+  try {
+    const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
+    if (treasury.status !== "draft") throwHttp(409, "Doar operatiile draft se pot modifica.");
+    engine.checkPeriodOpen(req.auth.db, treasury.an, treasury.luna);
+    Object.assign(treasury, normalizeTreasury(req.body || {}, treasury));
+    engine.checkPeriodOpen(req.auth.db, treasury.an, treasury.luna);
+    addAudit(req.auth.db, req.auth.user, "accounting_treasury_update", `${treasury.tip_operatie} ${treasury.suma}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { treasury });
+  } catch (error) { next(error); }
+});
+
 router.post("/accounting/treasury/:uuid/validate", requireAccountingPost, (req, res, next) => {
   try {
     const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
     if (treasury.status !== "draft") throwHttp(409, "Operatia nu este in draft.");
+    engine.checkPeriodOpen(req.auth.db, treasury.an, treasury.luna);
     const journal = engine.generateJournalFromTreasury(req.auth.db, req.auth.user, treasury);
     treasury.journal_id = journal.id;
     treasury.status = "validat";
     addAudit(req.auth.db, req.auth.user, "accounting_treasury_validate", `${treasury.tip_operatie} ${treasury.suma}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { treasury, journal });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/treasury/:uuid/devalidate", requireAccountingPost, (req, res, next) => {
+  try {
+    const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
+    devalidateTreasury(req.auth.db, req.auth.user, treasury, req.body?.motiv);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { treasury });
+  } catch (error) { next(error); }
+});
+
+router.delete("/accounting/treasury/:uuid", requireAccountingPost, (req, res, next) => {
+  try {
+    const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
+    cancelDraftDocument(req.auth.db, req.auth.user, treasury, req.body?.motiv || req.query.motiv || "");
+    addAudit(req.auth.db, req.auth.user, "accounting_treasury_cancel", `${treasury.tip_operatie} ${treasury.suma}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { treasury });
   } catch (error) { next(error); }
 });
 
@@ -336,7 +408,7 @@ router.get("/accounting/ledger/:simbol", requireAccountingReports, (req, res) =>
 
 router.get("/accounting/journal-book", requireAccountingReports, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
-  sendJson(res, 200, { rows: filterDocuments(accounting.journals, req.query).filter((item) => item.status !== "stornat") });
+  sendJson(res, 200, { rows: filterDocuments(accounting.journals, req.query).filter(engine.isActiveJournal) });
 });
 
 router.get("/accounting/suppliers-status", requireAccountingReports, (req, res) => {
@@ -381,10 +453,38 @@ router.post("/accounting/periods/:an/:luna/reopen", requireAccountingClose, (req
     const accounting = engine.ensureAccounting(req.auth.db);
     const period = accounting.periods.find((item) => Number(item.an) === Number(req.params.an) && Number(item.luna) === Number(req.params.luna));
     if (!period) throwHttp(404, "Perioada nu a fost gasita.");
+    if (period.status === "depusa" && !userHasRole(req.auth.user, "superadmin")) throwHttp(409, "Perioada are declaratii depuse. Redeschiderea este permisa doar superadmin.");
     period.status = "deschisa";
     period.redeschisa_de = req.auth.user.id;
     period.redeschisa_la = new Date().toISOString();
     addAudit(req.auth.db, req.auth.user, "accounting_period_reopen", `${req.params.luna}/${req.params.an}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { period });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/periods/:an/:luna/mark-submitted", requireAccountingClose, (req, res, next) => {
+  try {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const an = Number(req.params.an);
+    const luna = Number(req.params.luna);
+    let period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna);
+    if (!period) {
+      period = {
+        id: engine.nextNumericId(accounting.periods),
+        an,
+        luna,
+        status: "deschisa",
+        created_at: new Date().toISOString()
+      };
+      accounting.periods.push(period);
+    }
+    if (period.status === "depusa") throwHttp(409, "Perioada are deja declaratii depuse.");
+    period.status = "depusa";
+    period.depusa_de = req.auth.user.id;
+    period.depusa_la = new Date().toISOString();
+    period.depunere_ref = String(req.body?.depunere_ref || "").trim();
+    addAudit(req.auth.db, req.auth.user, "accounting_period_submitted", `${luna}/${an}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { period });
   } catch (error) { next(error); }
@@ -474,6 +574,37 @@ function createInvoiceIn(db, user, body) {
   return invoice;
 }
 
+function devalidateInvoice(db, user, invoice, auditAction, reason = "") {
+  if (invoice.status !== "validat") throwHttp(409, "Doar facturile validate se pot devalida.");
+  if (!invoice.journal_id) throwHttp(409, "Factura nu are nota contabila atasata.");
+  engine.checkPeriodOpen(db, invoice.an, invoice.luna);
+  const journal = engine.devalidateJournal(db, user, invoice.journal_id, reason);
+  invoice.status = "draft";
+  invoice.journal_id = null;
+  invoice.devalidat_de = user?.id || "";
+  invoice.devalidat_la = new Date().toISOString();
+  invoice.devalidare_motiv = String(reason || "").trim();
+  invoice.last_devalidated_journal_id = journal.id;
+  invoice.updated_at = new Date().toISOString();
+  addAudit(db, user, auditAction, `${invoice.nr_document || invoice.numar || invoice.id} / nota ${journal.id}`);
+  return invoice;
+}
+
+function cancelDraftInvoice(db, user, invoice, reason = "") {
+  return cancelDraftDocument(db, user, invoice, reason);
+}
+
+function cancelDraftDocument(db, user, document, reason = "") {
+  if (document.status !== "draft") throwHttp(409, "Doar documentele draft se pot anula direct. Pentru documente validate foloseste devalidare sau storno.");
+  engine.checkPeriodOpen(db, document.an, document.luna);
+  document.status = "anulat";
+  document.anulat_de = user?.id || "";
+  document.anulat_la = new Date().toISOString();
+  document.anulare_motiv = String(reason || "").trim();
+  document.updated_at = new Date().toISOString();
+  return document;
+}
+
 function createInvoiceOut(db, user, body) {
   const accounting = engine.ensureAccounting(db);
   const invoice = normalizeInvoiceOut(db, body);
@@ -489,38 +620,65 @@ function createInvoiceOut(db, user, body) {
 
 function createTreasury(db, user, body) {
   const accounting = engine.ensureAccounting(db);
-  const [an, luna] = dateParts(body.data || today());
-  const treasury = {
+  const treasury = normalizeTreasury(body || {}, {
     id: engine.nextNumericId(accounting.treasury),
     uuid: cryptoId(),
-    an: Number(body.an || an),
-    luna: Number(body.luna || luna),
-    tip: ["banca", "casa", "decont"].includes(body.tip) ? body.tip : "banca",
-    cont_trezorerie: String(body.cont_trezorerie || body.cont_banca || (body.tip === "casa" ? "5311" : "5121")).trim(),
-    data: body.data || today(),
-    nr_document: String(body.nr_document || "").trim(),
-    tip_operatie: body.tip_operatie === "incasare" ? "incasare" : "plata",
-    suma: round(body.suma),
-    cont_corespondent: String(body.cont_corespondent || "").trim(),
-    tert_id: body.tert_id || null,
-    explicatie: String(body.explicatie || "").trim(),
     journal_id: null,
     status: "draft",
     created_by: user?.id || "",
     created_at: new Date().toISOString()
-  };
-  if (treasury.suma <= 0) throwHttp(400, "Suma trebuie sa fie pozitiva.");
+  });
   engine.checkPeriodOpen(db, treasury.an, treasury.luna);
   accounting.treasury.push(treasury);
+  return treasury;
+}
+
+function normalizeTreasury(body, existing = {}) {
+  const data = body.data || existing.data || today();
+  const [an, luna] = dateParts(data);
+  const tip = ["banca", "casa", "decont"].includes(body.tip) ? body.tip : existing.tip || "banca";
+  const treasury = {
+    ...existing,
+    an: Number(body.an || an),
+    luna: Number(body.luna || luna),
+    tip,
+    cont_trezorerie: String(body.cont_trezorerie ?? body.cont_banca ?? existing.cont_trezorerie ?? (tip === "casa" ? "5311" : "5121")).trim(),
+    data,
+    nr_document: String(body.nr_document ?? existing.nr_document ?? "").trim(),
+    tip_operatie: body.tip_operatie === "incasare" || (!body.tip_operatie && existing.tip_operatie === "incasare") ? "incasare" : "plata",
+    suma: round(body.suma ?? existing.suma),
+    cont_corespondent: String(body.cont_corespondent ?? existing.cont_corespondent ?? "").trim(),
+    tert_id: body.tert_id === "" ? null : body.tert_id ?? existing.tert_id ?? null,
+    explicatie: String(body.explicatie ?? existing.explicatie ?? "").trim(),
+    updated_at: new Date().toISOString()
+  };
+  if (treasury.suma <= 0) throwHttp(400, "Suma trebuie sa fie pozitiva.");
+  return treasury;
+}
+
+function devalidateTreasury(db, user, treasury, reason = "") {
+  if (treasury.status !== "validat") throwHttp(409, "Doar operatiile validate se pot devalida.");
+  if (!treasury.journal_id) throwHttp(409, "Operatia nu are nota contabila atasata.");
+  engine.checkPeriodOpen(db, treasury.an, treasury.luna);
+  const journal = engine.devalidateJournal(db, user, treasury.journal_id, reason);
+  treasury.status = "draft";
+  treasury.journal_id = null;
+  treasury.devalidat_de = user?.id || "";
+  treasury.devalidat_la = new Date().toISOString();
+  treasury.devalidare_motiv = String(reason || "").trim();
+  treasury.last_devalidated_journal_id = journal.id;
+  treasury.updated_at = new Date().toISOString();
+  addAudit(db, user, "accounting_treasury_devalidate", `${treasury.tip_operatie} ${treasury.suma} / nota ${journal.id}`);
   return treasury;
 }
 
 function normalizeInvoiceIn(db, body, existing = {}) {
   const data = body.data || existing.data || today();
   const [an, luna] = dateParts(data);
-  const valoare = round(body.valoare ?? existing.valoare);
+  const lines = normalizeInvoiceLines(body.lines ?? existing.lines, "628");
+  const valoare = round(lines.length ? lines.reduce((sum, line) => sum + line.valoare, 0) : body.valoare ?? existing.valoare);
   const tvaProcent = Number(body.tva_procent ?? existing.tva_procent ?? 21);
-  const tva = round(body.tva ?? valoare * tvaProcent / 100);
+  const tva = round(lines.length ? lines.reduce((sum, line) => sum + line.tva, 0) : body.tva ?? valoare * tvaProcent / 100);
   const total = round(body.total ?? valoare + tva);
   if (!body.furnizor_id && !existing.furnizor_id) throwHttp(400, "Furnizorul este obligatoriu.");
   if (!body.nr_document && !existing.nr_document) throwHttp(400, "Numarul documentului este obligatoriu.");
@@ -537,6 +695,7 @@ function normalizeInvoiceIn(db, body, existing = {}) {
     tva_procent: tvaProcent,
     tva,
     total,
+    lines,
     achitat: round(existing.achitat || body.achitat || 0),
     neachitat: round(total - Number(existing.achitat || body.achitat || 0)),
     cont_cheltuiala: String(body.cont_cheltuiala ?? existing.cont_cheltuiala ?? "628").trim(),
@@ -547,9 +706,10 @@ function normalizeInvoiceIn(db, body, existing = {}) {
 function normalizeInvoiceOut(db, body, existing = {}) {
   const data = body.data || existing.data || today();
   const [an, luna] = dateParts(data);
-  const valoare = round(body.valoare ?? existing.valoare);
+  const lines = normalizeInvoiceLines(body.lines ?? existing.lines, "704");
+  const valoare = round(lines.length ? lines.reduce((sum, line) => sum + line.valoare, 0) : body.valoare ?? existing.valoare);
   const tvaProcent = Number(body.tva_procent ?? existing.tva_procent ?? 21);
-  const tva = round(body.tva ?? valoare * tvaProcent / 100);
+  const tva = round(lines.length ? lines.reduce((sum, line) => sum + line.tva, 0) : body.tva ?? valoare * tvaProcent / 100);
   const total = round(body.total ?? valoare + tva);
   if (!body.client_id && !existing.client_id) throwHttp(400, "Clientul este obligatoriu.");
   thirdParty(db, body.client_id || existing.client_id);
@@ -566,6 +726,7 @@ function normalizeInvoiceOut(db, body, existing = {}) {
     tva_procent: tvaProcent,
     tva,
     total,
+    lines,
     incasat: round(existing.incasat || body.incasat || 0),
     neincasat: round(total - Number(existing.incasat || body.incasat || 0)),
     cont_venit: String(body.cont_venit ?? existing.cont_venit ?? "704").trim(),
@@ -606,8 +767,31 @@ function normalizeThirdParty(db, body, existing = null) {
   return tert;
 }
 
+function normalizeInvoiceLines(lines, defaultAccount) {
+  if (!Array.isArray(lines)) return [];
+  return lines.map((line, index) => {
+    const valoare = round(line.valoare ?? line.suma ?? line.pret_total ?? 0);
+    const tvaProcent = Number(line.tva_procent ?? line.tvaProcent ?? 21);
+    const tva = round(line.tva ?? valoare * tvaProcent / 100);
+    return {
+      id: line.id || index + 1,
+      nr_crt: Number(line.nr_crt || index + 1),
+      denumire: String(line.denumire || line.descriere || "").trim(),
+      um: String(line.um || "buc").trim(),
+      cantitate: Number(line.cantitate || 1),
+      pret_unitar: round(line.pret_unitar ?? valoare),
+      valoare,
+      tva_procent: tvaProcent,
+      tva,
+      total: round(valoare + tva),
+      cont: String(line.cont || line.cont_simbol || line.cont_cheltuiala || line.cont_venit || defaultAccount).trim()
+    };
+  }).filter((line) => line.valoare > 0);
+}
+
 function filterDocuments(items, query) {
   return items.filter((item) =>
+    (query.status || item.status !== "anulat") &&
     (!query.an || Number(item.an) === Number(query.an)) &&
     (!query.luna || Number(item.luna) === Number(query.luna)) &&
     (!query.status || item.status === query.status) &&
