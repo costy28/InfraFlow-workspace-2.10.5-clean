@@ -441,6 +441,32 @@ router.get("/accounting/ledger/:simbol", requireAccountingReports, (req, res) =>
   sendJson(res, 200, engine.ledger(req.auth.db, req.params.simbol, req.query.de_la || "", req.query.pana_la || ""));
 });
 
+router.get("/accounting/ledger/:simbol/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const ledger = engine.ledger(req.auth.db, req.params.simbol, req.query.de_la || "", req.query.pana_la || "");
+    const rows = [
+      ["Fisa cont", ledger.simbol, ledger.denumire || "", `${req.query.de_la || "inceput"} - ${req.query.pana_la || "sfarsit"}`],
+      [],
+      ["Sold initial", ledger.sold_initial || 0],
+      ["Total debit", ledger.total_debit || 0],
+      ["Total credit", ledger.total_credit || 0],
+      ["Sold final", ledger.sold_final || 0],
+      [],
+      ["Data", "Document", "Tip document", "Explicatie", "Debit", "Credit", "Sold"],
+      ...ledger.movements.map((row) => [row.data, row.nr_document, row.tip_document, row.explicatie, row.debit, row.credit, row.sold])
+    ];
+    const workbook = xlsx.utils.book_new();
+    const sheet = xlsx.utils.aoa_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 48 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    xlsx.utils.book_append_sheet(workbook, sheet, "Fisa cont");
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const safe = String(req.params.simbol || "cont").replace(/[^\w.-]+/g, "_");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Fisa_cont_${safe}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/journal-book", requireAccountingReports, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
   sendJson(res, 200, { rows: filterDocuments(accounting.journals, req.query).filter(engine.isActiveJournal) });

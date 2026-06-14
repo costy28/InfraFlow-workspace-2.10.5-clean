@@ -370,18 +370,25 @@ function buildBalance(db, an, luna, tip = "sintetica") {
 function ledger(db, simbol, from = "", to = "") {
   const accounting = ensureAccounting(db);
   const journalsById = new Map(accounting.journals.map((item) => [Number(item.id), item]));
-  let sold = 0;
-  const movements = accounting.journalLines
+  const account = accounting.chart.find((item) => item.simbol === simbol) || {};
+  const allMovements = accounting.journalLines
     .filter((line) => line.cont_simbol === simbol)
     .map((line) => ({ line, journal: journalsById.get(Number(line.journal_id)) }))
     .filter(({ journal }) => journal && isActiveJournal(journal))
+    .sort((a, b) => String(a.journal.data).localeCompare(String(b.journal.data)) || Number(a.line.linie_nr) - Number(b.line.linie_nr));
+  const soldInitial = money(allMovements
+    .filter(({ journal }) => from && journal.data < from)
+    .reduce((sum, { line }) => sum + money(line.debit) - money(line.credit), 0));
+  let sold = soldInitial;
+  const movements = allMovements
     .filter(({ journal }) => (!from || journal.data >= from) && (!to || journal.data <= to))
-    .sort((a, b) => String(a.journal.data).localeCompare(String(b.journal.data)) || Number(a.line.linie_nr) - Number(b.line.linie_nr))
     .map(({ line, journal }) => {
       sold = money(sold + money(line.debit) - money(line.credit));
-      return { ...line, data: journal.data, nr_document: journal.nr_document, tip_document: journal.tip_document, sold };
+      return { ...line, data: journal.data, nr_document: journal.nr_document, tip_document: journal.tip_document, journal_uuid: journal.uuid, journal_id: journal.id, sold };
     });
-  return { simbol, sold_initial: 0, movements, sold_final: sold };
+  const totalDebit = money(movements.reduce((sum, row) => sum + money(row.debit), 0));
+  const totalCredit = money(movements.reduce((sum, row) => sum + money(row.credit), 0));
+  return { simbol, denumire: account.denumire || "", tip: account.tip || "", sold_initial: soldInitial, total_debit: totalDebit, total_credit: totalCredit, movements, sold_final: sold };
 }
 
 function normalizeLines(db, lines) {
