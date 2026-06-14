@@ -45,6 +45,7 @@ function statusTone(status) {
     stornat: 'danger',
     devalidat: 'warning',
     anulat: 'danger',
+    activ: 'success',
     inchisa: 'danger',
     deschisa: 'success',
     nou: 'warning',
@@ -677,12 +678,118 @@ export function Trezorerie() {
 
 export function RegistruJurnal() {
   const [rows, setRows] = useState([])
-  useEffect(() => { api.get('/accounting/journals').then(res => setRows(res.data.journals || [])).catch(() => setRows([])) }, [])
+  const [month, setMonth] = useState(currentMonth())
+  const [status, setStatus] = useState('')
+  const [selectedUuid, setSelectedUuid] = useState('')
+  const [error, setError] = useState('')
+  const selected = rows.find(row => row.uuid === selectedUuid) || rows[0] || null
+  const difference = selected ? Math.abs(money(selected.total_debit) - money(selected.total_credit)) : 0
+
+  useEffect(() => { load() }, [month, status])
+  useEffect(() => {
+    if (rows.length && !rows.some(row => row.uuid === selectedUuid)) setSelectedUuid(rows[0].uuid)
+    if (!rows.length) setSelectedUuid('')
+  }, [rows, selectedUuid])
+
+  function load() {
+    const [an, luna] = month.split('-')
+    api.get('/accounting/journals', { params: { an, luna: Number(luna), status: status || undefined } })
+      .then(res => setRows(res.data.journals || []))
+      .catch(err => {
+        setRows([])
+        setError(err.response?.data?.error || 'Nu am putut incarca registrul jurnal.')
+      })
+  }
+
+  async function storno(row) {
+    if (!window.confirm('Creezi nota storno pentru nota selectata?')) return
+    try {
+      setError('')
+      await api.post(`/accounting/journals/${row.uuid}/storno`)
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nota storno nu a putut fi creata.')
+    }
+  }
+
   return (
     <AccountingShell active="jurnal" title="Registru jurnal" subtitle="Note contabile active si storno, cu linii debit/credit.">
-      <Table headers={['Data', 'Document', 'Tip', 'Explicatie', 'Debit', 'Credit', 'Status']}>
-        {rows.map(row => <tr key={row.uuid}><td className="px-3 py-2">{row.data}</td><td className="px-3 py-2">{row.nr_document}</td><td className="px-3 py-2">{row.tip_document}</td><td className="px-3 py-2">{row.explicatie}</td><td className="px-3 py-2">{formatMoney(row.total_debit)}</td><td className="px-3 py-2">{formatMoney(row.total_credit)}</td><td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td></tr>)}
-      </Table>
+      {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      <Card>
+        <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
+          <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+          <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
+            { value: '', label: 'Toate fara anulate' },
+            { value: 'activ', label: 'Active' },
+            { value: 'stornat', label: 'Stornate' },
+            { value: 'devalidat', label: 'Devalidate' }
+          ]} />
+          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
+        </div>
+      </Card>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Table headers={['Data', 'Document', 'Tip', 'Explicatie', 'Debit', 'Credit', 'Status']}>
+          {rows.map(row => (
+            <tr key={row.uuid} className={`cursor-pointer hover:bg-primary-50 ${selected?.uuid === row.uuid ? 'bg-primary-50' : ''}`} onClick={() => setSelectedUuid(row.uuid)}>
+              <td className="px-3 py-2">{row.data}</td>
+              <td className="px-3 py-2">{row.nr_document || '-'}</td>
+              <td className="px-3 py-2">{row.tip_document}</td>
+              <td className="px-3 py-2">{row.explicatie}</td>
+              <td className="px-3 py-2">{formatMoney(row.total_debit)}</td>
+              <td className="px-3 py-2">{formatMoney(row.total_credit)}</td>
+              <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+            </tr>
+          ))}
+        </Table>
+        <Card>
+          {selected ? (
+            <div className="grid gap-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase text-slate-500">Nota contabila</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-950">{selected.nr_document || `NC ${selected.id}`}</div>
+                  <div className="text-sm text-slate-500">{selected.data} · {selected.tip_document}</div>
+                </div>
+                <Badge tone={statusTone(selected.status)}>{selected.status}</Badge>
+              </div>
+              <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">{selected.explicatie || 'Fara explicatie.'}</div>
+              <div className="grid grid-cols-3 gap-2">
+                <Info label="Debit" value={formatMoney(selected.total_debit)} />
+                <Info label="Credit" value={formatMoney(selected.total_credit)} />
+                <Info label="Diferenta" value={formatMoney(difference)} />
+              </div>
+              <div className="overflow-hidden rounded-md border border-slate-200">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Cont</th>
+                      <th className="px-3 py-2">Explicatie</th>
+                      <th className="px-3 py-2 text-right">Debit</th>
+                      <th className="px-3 py-2 text-right">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(selected.lines || []).map(line => (
+                      <tr key={line.id}>
+                        <td className="px-3 py-2">
+                          <Link className="font-mono font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${line.cont_simbol}`}>{line.cont_simbol}</Link>
+                          <div className="text-xs text-slate-500">{line.denumire_cont}</div>
+                        </td>
+                        <td className="px-3 py-2">{line.explicatie || '-'}</td>
+                        <td className="px-3 py-2 text-right">{line.debit ? formatMoney(line.debit) : '-'}</td>
+                        <td className="px-3 py-2 text-right">{line.credit ? formatMoney(line.credit) : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {selected.status === 'activ' ? <div className="flex justify-end"><Button variant="secondary" onClick={() => storno(selected)}>Storno nota</Button></div> : null}
+            </div>
+          ) : (
+            <div className="py-10 text-center text-sm text-slate-500">Nu exista note contabile pentru filtrele selectate.</div>
+          )}
+        </Card>
+      </div>
     </AccountingShell>
   )
 }

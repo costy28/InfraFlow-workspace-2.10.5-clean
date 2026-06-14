@@ -1,5 +1,5 @@
 {
-  "version": "2.12.39",
+  "version": "2.12.40",
   "date": "2026-06-14",
-  "changelog": "## v2.12.39 - 2026-06-14\n### Trezorerie utilizabila\n- Registrul de casa, jurnalul de banca si deconturile pot fi create din UI ca draft.\n- Operatiile draft se pot edita, valida sau anula.\n- Operatiile validate se pot devalida si nota contabila aferenta devine inactiva.\n- Formularul afiseaza preview debit/credit pentru incasari si plati."
+  "changelog": "## v2.12.40 - 2026-06-14\n### Registru jurnal verificabil\n- Registrul jurnal are filtre pe luna si status.\n- Selectarea unei note afiseaza detaliile si liniile debit/credit.\n- Liniile permit navigare directa in fisa contului.\n- Notele active pot fi stornate direct din panoul de detalii."
 }
