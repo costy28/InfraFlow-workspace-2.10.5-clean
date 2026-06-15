@@ -63,6 +63,29 @@ function Info({ label, value }) {
   )
 }
 
+function AccountInput({ label, value, onChange, accounts, id }) {
+  const inputId = id || `${label || 'cont'}-${Math.random().toString(36).slice(2)}`
+  const listId = `${inputId}-list`
+  const selected = accounts.find(account => account.simbol === value)
+  return (
+    <div className="grid gap-1">
+      <Input
+        id={inputId}
+        label={label}
+        value={value || ''}
+        list={listId}
+        onChange={onChange}
+        helperText={selected ? selected.denumire : 'Scrie codul sau cauta dupa denumire.'}
+      />
+      <datalist id={listId}>
+        {accounts.map(account => (
+          <option key={account.simbol} value={account.simbol} label={`${account.simbol} - ${account.denumire}`} />
+        ))}
+      </datalist>
+    </div>
+  )
+}
+
 function AccountingShell({ active, title, subtitle, children, actions }) {
   return (
     <div className="grid gap-4">
@@ -334,6 +357,7 @@ export function FacturiContab({ direction = 'in' }) {
   const isIn = direction === 'in'
   const [rows, setRows] = useState([])
   const [thirdParties, setThirdParties] = useState([])
+  const [accounts, setAccounts] = useState([])
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [error, setError] = useState('')
@@ -341,12 +365,14 @@ export function FacturiContab({ direction = 'in' }) {
   const [form, setForm] = useState({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', lines: [emptyLine()] })
   const endpoint = isIn ? '/accounting/invoices-in' : '/accounting/invoices-out'
   async function load() {
-    const [a, t] = await Promise.all([
+    const [a, t, c] = await Promise.all([
       api.get(endpoint),
-      api.get('/accounting/third-parties', { params: { tip: isIn ? 'furnizor' : 'client' } })
+      api.get('/accounting/third-parties', { params: { tip: isIn ? 'furnizor' : 'client' } }),
+      api.get('/accounting/chart')
     ])
     setRows(a.data.invoices || [])
     setThirdParties(t.data.thirdParties || [])
+    setAccounts(c.data.accounts || [])
   }
   useEffect(() => { load().catch(() => {}) }, [direction])
   const invoiceLines = Array.isArray(form.lines) ? form.lines : []
@@ -499,7 +525,7 @@ export function FacturiContab({ direction = 'in' }) {
           <Input label="Document" value={form.nr_document || form.numar || ''} onChange={event => setForm({ ...form, nr_document: event.target.value, numar: event.target.value })} required />
           <Input label="Data" type="date" value={form.data} onChange={event => setForm({ ...form, data: event.target.value })} required />
           <Input label="Scadenta" type="date" value={form.data_scadenta || ''} onChange={event => setForm({ ...form, data_scadenta: event.target.value })} />
-          <Input label={isIn ? 'Cont cheltuiala' : 'Cont venit'} value={isIn ? form.cont_cheltuiala : form.cont_venit} onChange={event => setForm({ ...form, [isIn ? 'cont_cheltuiala' : 'cont_venit']: event.target.value })} />
+          <AccountInput id="factura-cont-principal" label={isIn ? 'Cont cheltuiala' : 'Cont venit'} value={isIn ? form.cont_cheltuiala : form.cont_venit} accounts={accounts} onChange={event => setForm({ ...form, [isIn ? 'cont_cheltuiala' : 'cont_venit']: event.target.value })} />
           <div className="rounded-md border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-sm font-semibold text-slate-800">Linii factura</div>
@@ -510,7 +536,7 @@ export function FacturiContab({ direction = 'in' }) {
                 <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3">
                   <Input label={`Denumire linia ${index + 1}`} value={line.denumire || ''} onChange={event => updateLine(index, { denumire: event.target.value })} />
                   <div className="grid gap-2 sm:grid-cols-[minmax(92px,1fr)_minmax(120px,1.2fr)_minmax(96px,1fr)_44px]">
-                    <Input label="Cont" value={line.cont || ''} onChange={event => updateLine(index, { cont: event.target.value })} />
+                    <AccountInput id={`factura-linie-cont-${index}`} label="Cont" value={line.cont || ''} accounts={accounts} onChange={event => updateLine(index, { cont: event.target.value })} />
                     <Input label="Valoare" type="number" step="0.01" value={line.valoare || ''} onChange={event => updateLine(index, { valoare: event.target.value })} />
                     <Select label="TVA" value={line.tva_procent ?? 21} onChange={event => updateLine(index, { tva_procent: event.target.value })} options={[0,5,9,19,21].map(v => ({ value: v, label: `${v}%` }))} />
                     <div className="flex items-end"><Button type="button" size="sm" variant="secondary" onClick={() => removeLine(index)}>x</Button></div>

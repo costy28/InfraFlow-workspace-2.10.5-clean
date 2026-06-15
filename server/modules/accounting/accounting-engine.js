@@ -3,7 +3,20 @@ const path = require("path");
 const crypto = require("crypto");
 
 const ROOT = path.resolve(__dirname, "../../..");
-const SAGA_CHART_FILE = path.join(ROOT, "data", "accounting-chart-saga.json");
+const CHART_SEED_FILES = [
+  path.join(ROOT, "db", "seeds", "accounting-chart-ro.json"),
+  path.join(ROOT, "data", "accounting-chart-saga.json")
+];
+const REQUIRED_CHART_ACCOUNTS = [
+  { simbol: "401", denumire: "Furnizori", clasa: 4, tip: "P", nivel: 1, tip_cont: "terti" },
+  { simbol: "4111", denumire: "Clienti", clasa: 4, tip: "A", nivel: 2, tip_cont: "terti" },
+  { simbol: "4426", denumire: "TVA deductibila", clasa: 4, tip: "A", nivel: 2, tip_cont: "tva", tva_deductibil: true },
+  { simbol: "4427", denumire: "TVA colectata", clasa: 4, tip: "P", nivel: 2, tip_cont: "tva", tva_colectat: true },
+  { simbol: "5211", denumire: "Conturi la banci in lei", clasa: 5, tip: "A", nivel: 2, tip_cont: "trezorerie" },
+  { simbol: "5311", denumire: "Casa in lei", clasa: 5, tip: "A", nivel: 2, tip_cont: "trezorerie" },
+  { simbol: "628", denumire: "Alte cheltuieli cu serviciile executate de terti", clasa: 6, tip: "A", nivel: 1, tip_cont: "cheltuieli" },
+  { simbol: "704", denumire: "Venituri din servicii prestate", clasa: 7, tip: "P", nivel: 1, tip_cont: "venituri" }
+];
 
 function ensureAccounting(db) {
   if (!db.accounting || typeof db.accounting !== "object") db.accounting = {};
@@ -11,19 +24,17 @@ function ensureAccounting(db) {
   keys.forEach((key) => {
     if (!Array.isArray(db.accounting[key])) db.accounting[key] = [];
   });
-  seedSagaChart(db);
+  seedChart(db);
   return db.accounting;
 }
 
-function seedSagaChart(db) {
+function seedChart(db) {
   const accounting = db.accounting || {};
   const existingChart = Array.isArray(accounting.chart) ? accounting.chart : [];
-  let chart = [];
-  if (fs.existsSync(SAGA_CHART_FILE)) {
-    chart = JSON.parse(fs.readFileSync(SAGA_CHART_FILE, "utf8"));
-  }
+  const seedFile = CHART_SEED_FILES.find((file) => fs.existsSync(file));
+  const chart = seedFile ? JSON.parse(fs.readFileSync(seedFile, "utf8")) : REQUIRED_CHART_ACCOUNTS;
   const existingSymbols = new Set(existingChart.map((item) => String(item.simbol || "").trim()).filter(Boolean));
-  const seededChart = chart.map((item, index) => ({
+  const seededChart = [...chart, ...REQUIRED_CHART_ACCOUNTS].map((item, index) => ({
     id: item.id || index + 1,
     simbol: String(item.simbol || "").trim(),
     denumire: String(item.denumire || "").trim(),
@@ -36,7 +47,7 @@ function seedSagaChart(db) {
     tva_colectat: Boolean(item.tva_colectat || item.simbol === "4427"),
     activ: item.activ !== false,
     sistem: item.sistem !== false,
-    sursa: item.sursa || "Saga C 3.0"
+    sursa: String(item.sursa || "").toLowerCase().includes("saga") ? "Plan contabil RO" : item.sursa || "Plan contabil RO"
   })).filter((item) => item.simbol && item.denumire);
   const nextId = () => nextNumericId(accounting.chart);
   accounting.chart = existingChart;

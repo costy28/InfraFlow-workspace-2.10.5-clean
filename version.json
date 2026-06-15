@@ -1,5 +1,5 @@
 {
-  "version": "2.12.45",
+  "version": "2.12.46",
   "date": "2026-06-15",
-  "changelog": "## v2.12.45 - 2026-06-15\n### Inchidere luna cu verificari\n- Adauga verificare lunara pentru documente draft, note dezechilibrate si balanta.\n- Inchiderea lunii este blocata cand exista diferente sau documente neterminate.\n- Pagina Inchidere luna afiseaza status, blocaje, TVA si actiuni pentru inchidere/redeschidere/declaratii depuse.\n- Declaratiile pot fi marcate depuse doar dupa inchiderea lunii."
+  "changelog": "## v2.12.46 - 2026-06-15\n### Plan conturi in instalari curate\n- Seed-ul complet pentru planul de conturi este livrat din db/seeds, nu din folderul data.\n- Motorul contabil completeaza automat conturile critice daca seed-ul lipseste.\n- Formularul de facturi foloseste sugestii din planul de conturi pentru contul principal si liniile facturii.\n- Validarea facturilor gaseste conturile 5211, 4426 si celelalte conturi incluse in plan."
 }
