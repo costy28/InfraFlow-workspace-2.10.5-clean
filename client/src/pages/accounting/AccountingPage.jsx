@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
@@ -47,6 +47,7 @@ function statusTone(status) {
     anulat: 'danger',
     activ: 'success',
     inchisa: 'danger',
+    depusa: 'info',
     deschisa: 'success',
     nou: 'warning',
     implementat: 'success',
@@ -506,12 +507,14 @@ export function FacturiContab({ direction = 'in' }) {
             </div>
             <div className="grid gap-2 p-3">
               {invoiceLines.map((line, index) => (
-                <div key={index} className="grid gap-2 rounded-md border border-slate-200 p-2 md:grid-cols-[minmax(0,1fr)_110px_120px_96px_40px]">
-                  <Input label="Denumire" value={line.denumire || ''} onChange={event => updateLine(index, { denumire: event.target.value })} />
-                  <Input label="Cont" value={line.cont || ''} onChange={event => updateLine(index, { cont: event.target.value })} />
-                  <Input label="Valoare" type="number" step="0.01" value={line.valoare || ''} onChange={event => updateLine(index, { valoare: event.target.value })} />
-                  <Select label="TVA" value={line.tva_procent ?? 21} onChange={event => updateLine(index, { tva_procent: event.target.value })} options={[0,5,9,19,21].map(v => ({ value: v, label: `${v}%` }))} />
-                  <div className="flex items-end"><Button type="button" size="sm" variant="secondary" onClick={() => removeLine(index)}>x</Button></div>
+                <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3">
+                  <Input label={`Denumire linia ${index + 1}`} value={line.denumire || ''} onChange={event => updateLine(index, { denumire: event.target.value })} />
+                  <div className="grid gap-2 sm:grid-cols-[minmax(92px,1fr)_minmax(120px,1.2fr)_minmax(96px,1fr)_44px]">
+                    <Input label="Cont" value={line.cont || ''} onChange={event => updateLine(index, { cont: event.target.value })} />
+                    <Input label="Valoare" type="number" step="0.01" value={line.valoare || ''} onChange={event => updateLine(index, { valoare: event.target.value })} />
+                    <Select label="TVA" value={line.tva_procent ?? 21} onChange={event => updateLine(index, { tva_procent: event.target.value })} options={[0,5,9,19,21].map(v => ({ value: v, label: `${v}%` }))} />
+                    <div className="flex items-end"><Button type="button" size="sm" variant="secondary" onClick={() => removeLine(index)}>x</Button></div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -682,6 +685,11 @@ export function RegistruJurnal() {
   const [status, setStatus] = useState('')
   const [selectedUuid, setSelectedUuid] = useState('')
   const [error, setError] = useState('')
+  const [importModal, setImportModal] = useState(false)
+  const [importFile, setImportFile] = useState(null)
+  const [importPreview, setImportPreview] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const importInputRef = useRef(null)
   const selected = rows.find(row => row.uuid === selectedUuid) || rows[0] || null
   const difference = selected ? Math.abs(money(selected.total_debit) - money(selected.total_credit)) : 0
 
@@ -712,8 +720,53 @@ export function RegistruJurnal() {
     }
   }
 
+  function importFormData(file) {
+    const data = new FormData()
+    data.append('file', file)
+    return data
+  }
+
+  async function chooseImportFile(file) {
+    setError('')
+    setImportPreview(null)
+    setImportFile(file || null)
+    if (!file) return
+    if (!file.name.toLowerCase().match(/\.xlsx?$/)) {
+      setError('Selecteaza un fisier .xls sau .xlsx.')
+      return
+    }
+    try {
+      const res = await api.post('/accounting/journals/import-xls/preview', importFormData(file), {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setImportPreview(res.data)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nu am putut citi fisierul XLS.')
+    }
+  }
+
+  async function importJournals() {
+    if (!importFile || !importPreview) return
+    setImporting(true)
+    setError('')
+    try {
+      const res = await api.post('/accounting/journals/import-xls', importFormData(importFile), {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setImportModal(false)
+      setImportFile(null)
+      setImportPreview(null)
+      await load()
+      setError('')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Importul nu a putut fi finalizat.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
-    <AccountingShell active="jurnal" title="Registru jurnal" subtitle="Note contabile active si storno, cu linii debit/credit.">
+    <AccountingShell active="jurnal" title="Registru jurnal" subtitle="Note contabile active si storno, cu linii debit/credit." actions={<Button variant="secondary" onClick={() => setImportModal(true)}>Import note XLS</Button>}>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
@@ -790,6 +843,55 @@ export function RegistruJurnal() {
           )}
         </Card>
       </div>
+      <Modal open={importModal} title="Import note contabile XLS" onClose={() => setImportModal(false)}>
+        <div className="grid gap-4">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".xls,.xlsx"
+            className="hidden"
+            onChange={event => chooseImportFile(event.target.files?.[0])}
+          />
+          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4">
+            <div className="text-sm font-semibold text-slate-900">{importFile?.name || 'Niciun fisier selectat'}</div>
+            <div className="mt-1 text-sm text-slate-500">Fisierul trebuie sa contina coloane de tip: data, document, cont debit, cont credit, suma, explicatie.</div>
+            <div className="mt-3"><Button type="button" variant="secondary" onClick={() => importInputRef.current?.click()}>Alege fisier</Button></div>
+          </div>
+          {importPreview ? (
+            <div className="grid gap-3">
+              <div className="grid gap-2 md:grid-cols-4">
+                <Info label="Note" value={importPreview.total_notes || 0} />
+                <Info label="Linii" value={importPreview.total_lines || 0} />
+                <Info label="Debit" value={formatMoney(importPreview.total_debit || 0)} />
+                <Info label="Credit" value={formatMoney(importPreview.total_credit || 0)} />
+              </div>
+              <div className={`rounded-md px-3 py-2 text-sm ${importPreview.balanced && !importPreview.errors?.length ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                {importPreview.balanced ? 'Fisier echilibrat debit-credit.' : 'Fisierul nu este echilibrat.'}
+                {importPreview.duplicate_notes ? ` ${importPreview.duplicate_notes} note par deja importate si vor fi sarite.` : ''}
+              </div>
+              {importPreview.missing_accounts?.length ? <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Conturi lipsa in plan: {importPreview.missing_accounts.slice(0, 8).join(', ')}{importPreview.missing_accounts.length > 8 ? '...' : ''}</div> : null}
+              {importPreview.errors?.length ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{importPreview.errors.slice(0, 3).join(' ')}</div> : null}
+              <Table headers={['Data', 'Document', 'Tip', 'Explicatie', 'Debit', 'Credit', 'Status']}>
+                {(importPreview.notes || []).slice(0, 8).map(note => (
+                  <tr key={note.import_key}>
+                    <td className="px-3 py-2">{note.data}</td>
+                    <td className="px-3 py-2">{note.nr_document || '-'}</td>
+                    <td className="px-3 py-2">{note.tip_document}</td>
+                    <td className="px-3 py-2">{note.explicatie}</td>
+                    <td className="px-3 py-2 text-right">{formatMoney(note.total_debit)}</td>
+                    <td className="px-3 py-2 text-right">{formatMoney(note.total_credit)}</td>
+                    <td className="px-3 py-2"><Badge tone={note.duplicate ? 'warning' : note.balanced ? 'success' : 'danger'}>{note.duplicate ? 'duplicat' : note.balanced ? 'ok' : 'eroare'}</Badge></td>
+                  </tr>
+                ))}
+              </Table>
+            </div>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setImportModal(false)}>Renunta</Button>
+            <Button type="button" disabled={!importPreview || importPreview.errors?.length || importPreview.unbalanced_notes || importPreview.missing_accounts?.length || importing} onClick={importJournals}>{importing ? 'Import...' : 'Importa note'}</Button>
+          </div>
+        </div>
+      </Modal>
     </AccountingShell>
   )
 }
@@ -956,21 +1058,128 @@ export function FisaCont() {
 
 export function InchidereLuna() {
   const [month, setMonth] = useState(currentMonth())
+  const [data, setData] = useState(null)
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => { load() }, [month])
+
+  function load() {
+    const [an, luna] = month.split('-')
+    setError('')
+    api.get(`/accounting/periods/${an}/${Number(luna)}/check`)
+      .then(res => setData(res.data))
+      .catch(err => {
+        setData(null)
+        setError(err.response?.data?.error || 'Nu am putut verifica luna selectata.')
+      })
+  }
+
   async function closeMonth() {
     const [an, luna] = month.split('-')
-    await api.post(`/accounting/periods/${an}/${Number(luna)}/close`)
-    setMessage('Luna a fost inchisa.')
+    try {
+      setError('')
+      await api.post(`/accounting/periods/${an}/${Number(luna)}/close`)
+      setMessage('Luna a fost inchisa.')
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Luna nu a putut fi inchisa.')
+    }
   }
+
+  async function reopenMonth() {
+    const [an, luna] = month.split('-')
+    try {
+      setError('')
+      await api.post(`/accounting/periods/${an}/${Number(luna)}/reopen`)
+      setMessage('Luna a fost redeschisa.')
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Luna nu a putut fi redeschisa.')
+    }
+  }
+
+  async function markSubmitted() {
+    const [an, luna] = month.split('-')
+    try {
+      setError('')
+      await api.post(`/accounting/periods/${an}/${Number(luna)}/mark-submitted`, { depunere_ref: 'Declaratii depuse' })
+      setMessage('Declaratiile au fost marcate ca depuse.')
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Declaratiile nu au putut fi marcate ca depuse.')
+    }
+  }
+
+  const checks = data?.checks || {}
+  const status = data?.period?.status || 'deschisa'
+  const blockers = [
+    checks.draft_count ? `${checks.draft_count} documente draft` : '',
+    checks.unbalanced_journals ? `${checks.unbalanced_journals} note dezechilibrate` : '',
+    checks.balance_ok === false ? 'balanta dezechilibrata' : ''
+  ].filter(Boolean)
+
   return (
-    <AccountingShell active="inchidere" title="Inchidere luna" subtitle="Blocheaza documentele si notele dupa verificare.">
+    <AccountingShell active="inchidere" title="Inchidere luna" subtitle="Verificari contabile, blocare luna si marcarea declaratiilor depuse.">
       <Card>
-        <div className="grid gap-3 md:grid-cols-[240px_auto]">
+        <div className="grid gap-3 md:grid-cols-[240px_auto_auto_auto]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
-          <div className="flex items-end"><Button onClick={closeMonth}>Inchide luna</Button></div>
+          <div className="flex items-end"><Button variant="secondary" onClick={load}>Verifica luna</Button></div>
+          <div className="flex items-end"><Button disabled={!checks.can_close} onClick={closeMonth}>Inchide luna</Button></div>
+          <div className="flex items-end gap-2">
+            <Button variant="secondary" disabled={!checks.can_reopen} onClick={reopenMonth}>Redeschide</Button>
+            <Button variant="secondary" disabled={!checks.can_mark_submitted} onClick={markSubmitted}>Declaratii depuse</Button>
+          </div>
         </div>
       </Card>
+      {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      {data ? (
+        <>
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase text-slate-500">Status luna</div>
+                <div className="mt-1 flex items-center gap-2">
+                  <Badge tone={statusTone(status)}>{status}</Badge>
+                  <span className="text-sm text-slate-600">{checks.can_close ? 'Luna poate fi inchisa.' : blockers.length ? `Blocaje: ${blockers.join(', ')}.` : 'Luna nu este in starea necesara pentru inchidere.'}</span>
+                </div>
+              </div>
+              <div className="text-sm text-slate-500">
+                Note: {data.counts?.journals || 0} · Intrari: {data.counts?.invoices_in || 0} · Iesiri: {data.counts?.invoices_out || 0} · Trezorerie: {data.counts?.treasury || 0}
+              </div>
+            </div>
+          </Card>
+          <div className="grid gap-3 md:grid-cols-4">
+            <Info label="Documente draft" value={checks.draft_count || 0} />
+            <Info label="Note dezechilibrate" value={checks.unbalanced_journals || 0} />
+            <Info label="Balanta" value={data.balance?.balanced ? 'Echilibrata' : formatMoney(data.balance?.difference || 0)} />
+            <Info label="TVA de plata/recuperat" value={formatMoney(data.vat?.diferenta || 0)} />
+          </div>
+          <Table headers={['Data', 'Tip', 'Document', 'Status']}>
+            {(data.drafts || []).map(row => (
+              <tr key={`${row.categorie}-${row.uuid || row.id}`}>
+                <td className="px-3 py-2">{row.data || '-'}</td>
+                <td className="px-3 py-2">{row.categorie}</td>
+                <td className="px-3 py-2">{row.document || '-'}</td>
+                <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+              </tr>
+            ))}
+          </Table>
+          <Table headers={['Data', 'Document', 'Tip', 'Debit', 'Credit', 'Diferenta']}>
+            {(data.unbalanced || []).map(row => (
+              <tr key={row.uuid || row.id}>
+                <td className="px-3 py-2">{row.data || '-'}</td>
+                <td className="px-3 py-2">{row.nr_document || row.id}</td>
+                <td className="px-3 py-2">{row.tip_document || '-'}</td>
+                <td className="px-3 py-2 text-right">{formatMoney(row.total_debit)}</td>
+                <td className="px-3 py-2 text-right">{formatMoney(row.total_credit)}</td>
+                <td className="px-3 py-2 text-right font-semibold text-red-700">{formatMoney(row.diferenta)}</td>
+              </tr>
+            ))}
+          </Table>
+        </>
+      ) : null}
     </AccountingShell>
   )
 }

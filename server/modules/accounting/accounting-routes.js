@@ -5,8 +5,13 @@ const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 const engine = require("./accounting-engine");
 const xlsx = require("xlsx");
+const multer = require("multer");
 
 const router = Router();
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 router.get("/accounting/summary", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
@@ -398,6 +403,55 @@ router.post("/accounting/journals/:uuid/storno", requireAccountingPost, (req, re
   } catch (error) { next(error); }
 });
 
+router.post("/accounting/journals/import-xls/preview", requireAccountingPost, importUpload.single("file"), (req, res, next) => {
+  try {
+    const preview = previewJournalXls(req.auth.db, req.file);
+    sendJson(res, 200, preview);
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/journals/import-xls", requireAccountingPost, importUpload.single("file"), (req, res, next) => {
+  try {
+    const parsed = previewJournalXls(req.auth.db, req.file);
+    if (parsed.errors.length) throwHttp(422, `Importul are erori: ${parsed.errors.slice(0, 3).join(" ")}`);
+    if (parsed.missing_accounts.length) throwHttp(422, `Exista conturi lipsa in plan: ${parsed.missing_accounts.slice(0, 8).join(", ")}.`);
+    if (parsed.unbalanced_notes > 0) throwHttp(422, "Importul contine note dezechilibrate.");
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const imported = [];
+    const skipped = [];
+    parsed.notes.forEach((note) => {
+      if (note.duplicate) {
+        skipped.push(note.import_key);
+        return;
+      }
+      const [an, luna] = dateParts(note.data);
+      const journal = engine.createJournal(req.auth.db, req.auth.user, {
+        an,
+        luna,
+        data: note.data,
+        nr_document: note.nr_document,
+        tip_document: note.tip_document || "import_xls",
+        explicatie: note.explicatie || "Import note contabile XLS",
+        lines: note.lines
+      });
+      journal.import_source = "external_xls";
+      journal.import_key = note.import_key;
+      journal.import_filename = req.file.originalname || "";
+      journal.updated_at = new Date().toISOString();
+      imported.push(journal);
+    });
+    addAudit(req.auth.db, req.auth.user, "accounting_journals_import_xls", `${imported.length} note / ${parsed.total_lines} linii`);
+    writeDb(req.auth.db);
+    sendJson(res, 201, {
+      ok: true,
+      imported_notes: imported.length,
+      skipped_duplicates: skipped.length,
+      total_lines: parsed.total_lines,
+      journals: imported.map((journal) => ({ id: journal.id, uuid: journal.uuid, nr_document: journal.nr_document, total_debit: journal.total_debit, total_credit: journal.total_credit }))
+    });
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/balance-sheet", requireAccountingReports, (req, res) => {
   const [an, luna] = monthParts(req.query.luna || `${req.query.an || new Date().getFullYear()}-${String(req.query.luna || new Date().getMonth() + 1).padStart(2, "0")}`);
   sendJson(res, 200, engine.buildBalance(req.auth.db, Number(req.query.an || an), Number(req.query.luna || luna), req.query.tip || "sintetica"));
@@ -489,14 +543,21 @@ router.get("/accounting/vat-journal", requireAccountingReports, (req, res) => {
   sendJson(res, 200, { jurnal_cumparari: invoicesIn, jurnal_vanzari: invoicesOut, total_4426: total4426, total_4427: total4427, diferenta: round(total4427 - total4426) });
 });
 
+router.get("/accounting/periods/:an/:luna/check", requireAccountingReports, (req, res) => {
+  const an = Number(req.params.an);
+  const luna = Number(req.params.luna);
+  sendJson(res, 200, periodCheck(req.auth.db, an, luna));
+});
+
 router.post("/accounting/periods/:an/:luna/close", requireAccountingClose, (req, res, next) => {
   try {
     const accounting = engine.ensureAccounting(req.auth.db);
     const an = Number(req.params.an);
     const luna = Number(req.params.luna);
-    const draftCount = [...accounting.invoicesIn, ...accounting.invoicesOut, ...accounting.treasury]
-      .filter((item) => Number(item.an) === an && Number(item.luna) === luna && item.status === "draft").length;
-    if (draftCount) throwHttp(409, `Exista ${draftCount} documente draft in luna.`);
+    const check = periodCheck(req.auth.db, an, luna);
+    if (check.checks.draft_count) throwHttp(409, `Exista ${check.checks.draft_count} documente draft in luna.`);
+    if (check.checks.unbalanced_journals) throwHttp(409, `Exista ${check.checks.unbalanced_journals} note contabile dezechilibrate.`);
+    if (!check.checks.balance_ok) throwHttp(409, "Balanta lunii nu este echilibrata.");
     engine.checkPeriodOpen(req.auth.db, an, luna);
     const period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna);
     period.status = "inchisa";
@@ -541,6 +602,7 @@ router.post("/accounting/periods/:an/:luna/mark-submitted", requireAccountingClo
       accounting.periods.push(period);
     }
     if (period.status === "depusa") throwHttp(409, "Perioada are deja declaratii depuse.");
+    if (period.status !== "inchisa") throwHttp(409, "Luna trebuie inchisa inainte de marcarea declaratiilor depuse.");
     period.status = "depusa";
     period.depusa_de = req.auth.user.id;
     period.depusa_la = new Date().toISOString();
@@ -733,6 +795,115 @@ function devalidateTreasury(db, user, treasury, reason = "") {
   return treasury;
 }
 
+function previewJournalXls(db, file) {
+  if (!file?.buffer) throwHttp(400, "Fisierul XLS este obligatoriu.");
+  const name = String(file.originalname || "").toLowerCase();
+  if (!name.endsWith(".xls") && !name.endsWith(".xlsx")) throwHttp(400, "Sunt acceptate fisiere .xls sau .xlsx.");
+  const workbook = xlsx.read(file.buffer, { type: "buffer", cellDates: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) throwHttp(400, "Fisierul nu contine foi de calcul.");
+  const rows = xlsx.utils.sheet_to_json(sheet, { defval: "", raw: false });
+  const accounting = engine.ensureAccounting(db);
+  const accounts = new Set(accounting.chart.map((account) => String(account.simbol)));
+  const existingKeys = new Set(accounting.journals.filter((journal) => journal.import_source === "external_xls" && journal.import_key).map((journal) => String(journal.import_key)));
+  const groups = new Map();
+  const errors = [];
+  const missingAccounts = new Set();
+
+  rows.forEach((row, index) => {
+    const normalized = normalizeImportRow(row);
+    if (!normalized.cont_d && !normalized.cont_c && !normalized.suma) return;
+    if (!normalized.data || !normalized.cont_d || !normalized.cont_c || normalized.suma <= 0) {
+      errors.push(`Rand ${index + 2}: data, cont debit, cont credit si suma sunt obligatorii.`);
+      return;
+    }
+    if (!accounts.has(normalized.cont_d)) missingAccounts.add(normalized.cont_d);
+    if (!accounts.has(normalized.cont_c)) missingAccounts.add(normalized.cont_c);
+    const key = normalized.id_nota || `${normalized.data}|${normalized.ndp}|${normalized.explicatie}`.slice(0, 120);
+    const group = groups.get(key) || {
+      import_key: key,
+      data: normalized.data,
+      nr_document: normalized.ndp,
+      tip_document: normalized.fel_d || "import_xls",
+      explicatie: normalized.explicatie,
+      lines: [],
+      total_debit: 0,
+      total_credit: 0
+    };
+    group.lines.push({ cont: normalized.cont_d, debit: normalized.suma, explicatie: normalized.explicatie });
+    group.lines.push({ cont: normalized.cont_c, credit: normalized.suma, explicatie: normalized.explicatie });
+    group.total_debit = round(group.total_debit + normalized.suma);
+    group.total_credit = round(group.total_credit + normalized.suma);
+    groups.set(key, group);
+  });
+
+  const notes = Array.from(groups.values()).map((note) => ({
+    ...note,
+    balanced: Math.abs(note.total_debit - note.total_credit) <= 0.01,
+    duplicate: existingKeys.has(String(note.import_key)),
+    lines_count: note.lines.length
+  }));
+  const totalDebit = round(notes.reduce((sumValue, note) => sumValue + note.total_debit, 0));
+  const totalCredit = round(notes.reduce((sumValue, note) => sumValue + note.total_credit, 0));
+  return {
+    filename: file.originalname || "",
+    total_rows: rows.length,
+    total_notes: notes.length,
+    total_lines: notes.reduce((sumValue, note) => sumValue + note.lines.length, 0),
+    total_debit: totalDebit,
+    total_credit: totalCredit,
+    balanced: Math.abs(totalDebit - totalCredit) <= 0.01,
+    unbalanced_notes: notes.filter((note) => !note.balanced).length,
+    duplicate_notes: notes.filter((note) => note.duplicate).length,
+    missing_accounts: Array.from(missingAccounts).sort((a, b) => a.localeCompare(b, "ro", { numeric: true })),
+    errors,
+    notes: notes.slice(0, 100)
+  };
+}
+
+function normalizeImportRow(row) {
+  const get = (...names) => {
+    for (const name of names) {
+      if (row[name] !== undefined) return row[name];
+      const key = Object.keys(row).find((item) => item.toLowerCase() === name.toLowerCase());
+      if (key) return row[key];
+    }
+    return "";
+  };
+  return {
+    data: normalizeImportDate(get("data", "date")),
+    ndp: String(get("ndp", "nr_doc", "nr document", "document")).trim(),
+    cont_d: String(get("cont_d", "cont debit", "debit")).trim(),
+    cont_c: String(get("cont_c", "cont credit", "credit")).trim(),
+    suma: round(parseAmount(get("suma", "valoare", "amount"))),
+    explicatie: String(get("explicatie", "descriere", "detalii")).trim(),
+    fel_d: String(get("fel_d", "tip", "categorie")).trim(),
+    id_nota: String(get("id_nota", "id nota", "nota")).trim()
+  };
+}
+
+function normalizeImportDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const match = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (!match) return text;
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
+  const month = first > 12 ? second : first;
+  const day = first > 12 ? first : second;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function parseAmount(value) {
+  if (typeof value === "number") return value;
+  const text = String(value || "0").trim().replace(/\s+/g, "");
+  if (text.includes(",") && text.includes(".")) return Number(text.replace(/\./g, "").replace(",", "."));
+  if (text.includes(",")) return Number(text.replace(",", "."));
+  return Number(text || 0);
+}
+
 function normalizeInvoiceIn(db, body, existing = {}) {
   const data = body.data || existing.data || today();
   const [an, luna] = dateParts(data);
@@ -880,6 +1051,79 @@ function thirdPartyStatus(db, tip) {
     return { ...tert, sold, facturi: invoices.length, scadente_depasite: invoices.filter((item) => Number(item[balanceKey] ?? item.total - Number(item[paidKey] || 0)) > 0 && item.data_scadenta < today()).length };
   });
   return { rows };
+}
+
+function periodCheck(db, an, luna) {
+  const accounting = engine.ensureAccounting(db);
+  const period = accounting.periods.find((item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna)) || {
+    an: Number(an),
+    luna: Number(luna),
+    status: "deschisa"
+  };
+  const inMonth = (item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna) && item.status !== "anulat";
+  const draftDocuments = [
+    ...accounting.invoicesIn.filter(inMonth).map((item) => ({ ...item, categorie: "Factura intrare", document: item.nr_document || item.numar || item.id })),
+    ...accounting.invoicesOut.filter(inMonth).map((item) => ({ ...item, categorie: "Factura iesire", document: item.nr_document || item.numar || item.id })),
+    ...accounting.treasury.filter(inMonth).map((item) => ({ ...item, categorie: "Trezorerie", document: item.nr_document || item.numar || item.id }))
+  ].filter((item) => item.status === "draft");
+  const activeJournals = accounting.journals.filter((item) => engine.isActiveJournal(item) && Number(item.an) === Number(an) && Number(item.luna) === Number(luna));
+  const unbalanced = activeJournals
+    .map((item) => ({ ...item, diferenta: round(Number(item.total_debit || 0) - Number(item.total_credit || 0)) }))
+    .filter((item) => Math.abs(item.diferenta) > 0.01);
+  const balance = engine.buildBalance(db, Number(an), Number(luna), "sintetica");
+  const invoicesIn = accounting.invoicesIn.filter(inMonth);
+  const invoicesOut = accounting.invoicesOut.filter(inMonth);
+  const treasury = accounting.treasury.filter(inMonth);
+  const totalDebit = round(balance.totals?.rulaje_D || 0);
+  const totalCredit = round(balance.totals?.rulaje_C || 0);
+  const balanceDifference = round(totalDebit - totalCredit);
+  const balanceOk = balance.balanced && Math.abs(balanceDifference) <= 0.01;
+  return {
+    period,
+    checks: {
+      draft_count: draftDocuments.length,
+      unbalanced_journals: unbalanced.length,
+      balance_ok: balanceOk,
+      can_close: period.status === "deschisa" && draftDocuments.length === 0 && unbalanced.length === 0 && balanceOk,
+      can_reopen: ["inchisa", "depusa"].includes(period.status),
+      can_mark_submitted: period.status === "inchisa"
+    },
+    drafts: draftDocuments.slice(0, 25).map((item) => ({
+      id: item.id,
+      uuid: item.uuid,
+      data: item.data,
+      categorie: item.categorie,
+      document: item.document,
+      status: item.status
+    })),
+    unbalanced: unbalanced.slice(0, 25).map((item) => ({
+      id: item.id,
+      uuid: item.uuid,
+      data: item.data,
+      nr_document: item.nr_document,
+      tip_document: item.tip_document,
+      total_debit: round(item.total_debit || 0),
+      total_credit: round(item.total_credit || 0),
+      diferenta: item.diferenta
+    })),
+    balance: {
+      balanced: balanceOk,
+      total_debit: totalDebit,
+      total_credit: totalCredit,
+      difference: balanceDifference
+    },
+    vat: {
+      deductibil: sum(invoicesIn, "tva"),
+      colectat: sum(invoicesOut, "tva"),
+      diferenta: round(sum(invoicesOut, "tva") - sum(invoicesIn, "tva"))
+    },
+    counts: {
+      journals: activeJournals.length,
+      invoices_in: invoicesIn.length,
+      invoices_out: invoicesOut.length,
+      treasury: treasury.length
+    }
+  };
 }
 
 function markAlert(status) {

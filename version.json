@@ -1,5 +1,5 @@
 {
-  "version": "2.12.42",
-  "date": "2026-06-14",
-  "changelog": "## v2.12.42 - 2026-06-14\n### Fisa cont detaliata\n- Fisa contului are filtre de interval si sold initial calculat din miscarile anterioare.\n- Sunt afisate rulajele debit/credit si soldul final.\n- Tabelul arata sold progresiv pe fiecare miscare.\n- Export Excel pentru fisa contului este disponibil din backend si UI."
+  "version": "2.12.45",
+  "date": "2026-06-15",
+  "changelog": "## v2.12.45 - 2026-06-15\n### Inchidere luna cu verificari\n- Adauga verificare lunara pentru documente draft, note dezechilibrate si balanta.\n- Inchiderea lunii este blocata cand exista diferente sau documente neterminate.\n- Pagina Inchidere luna afiseaza status, blocaje, TVA si actiuni pentru inchidere/redeschidere/declaratii depuse.\n- Declaratiile pot fi marcate depuse doar dupa inchiderea lunii."
 }
