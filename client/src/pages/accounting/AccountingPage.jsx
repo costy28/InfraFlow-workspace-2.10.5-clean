@@ -18,6 +18,7 @@ const nav = [
   ['iesire', '/contabilitate/facturi-iesire', 'Facturi iesire'],
   ['trezorerie', '/contabilitate/trezorerie', 'Trezorerie'],
   ['jurnal', '/contabilitate/registru-jurnal', 'Registru jurnal'],
+  ['tva', '/contabilitate/tva-d300', 'TVA / D300'],
   ['balanta', '/contabilitate/balanta', 'Balanta'],
   ['inchidere', '/contabilitate/inchidere-luna', 'Inchidere luna'],
   ['alerte', '/contabilitate/alerte', 'Alerte'],
@@ -1017,6 +1018,127 @@ export function RegistruJurnal() {
           </div>
         </div>
       </Modal>
+    </AccountingShell>
+  )
+}
+
+export function TVADeclaratii() {
+  const [month, setMonth] = useState(currentMonth())
+  const [data, setData] = useState({ decont: { randuri: [] } })
+  const [journal, setJournal] = useState({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
+  const [error, setError] = useState('')
+
+  useEffect(() => { load() }, [month])
+
+  function load() {
+    setError('')
+    Promise.all([
+      api.get('/accounting/d300', { params: { perioada: month } }),
+      api.get('/accounting/vat-journal', { params: { perioada: month } })
+    ]).then(([d300Res, journalRes]) => {
+      setData(d300Res.data || { decont: { randuri: [] } })
+      setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
+    }).catch(err => {
+      setData({ decont: { randuri: [] } })
+      setJournal({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
+      setError(err.response?.data?.error || 'Nu am putut incarca TVA / D300.')
+    })
+  }
+
+  async function download(endpoint, filename) {
+    const res = await api.get(endpoint, { params: { perioada: month }, responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const d = data.decont || {}
+  const warnings = data.status?.warnings || []
+  const fileMonth = month.replace('-', '_')
+
+  return (
+    <AccountingShell
+      active="tva"
+      title="TVA / D300"
+      subtitle="Jurnal TVA cumparari si vanzari, sumar de lucru pentru decont."
+      actions={(
+        <>
+          <Button variant="secondary" onClick={() => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`)}>Export Excel</Button>
+          <Button variant="secondary" onClick={() => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`)}>XML lucru</Button>
+        </>
+      )}
+    >
+      {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      <Card>
+        <div className="grid gap-3 md:grid-cols-[220px_auto]">
+          <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
+        </div>
+      </Card>
+      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        Pregatire interna pentru verificare TVA. XML-ul de lucru nu este declaratie ANAF finala si trebuie validat in fluxul oficial inainte de depunere.
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <Info label="TVA colectata" value={formatMoney(d.total_tva_colectata || 0)} />
+        <Info label="TVA deductibila" value={formatMoney(d.total_tva_deductibila || 0)} />
+        <Info label="TVA de plata" value={formatMoney(d.tva_de_plata || 0)} />
+        <Info label="TVA de recuperat" value={formatMoney(d.tva_de_recuperat || 0)} />
+      </div>
+      {warnings.length ? <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">{warnings.join(' ')}</div> : null}
+      <Table headers={['Cod intern', 'Rand decont', 'Baza', 'TVA']}>
+        {(d.randuri || []).map(row => (
+          <tr key={row.cod}>
+            <td className="px-3 py-2 font-mono text-sm">{row.cod}</td>
+            <td className="px-3 py-2">{row.descriere}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.baza || 0)}</td>
+            <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.tva || 0)}</td>
+          </tr>
+        ))}
+      </Table>
+      <Table headers={['Cota', 'Baza cumparari', 'TVA deductibila', 'Baza vanzari', 'TVA colectata']}>
+        {(journal.cote || []).map(row => (
+          <tr key={row.cota}>
+            <td className="px-3 py-2">{row.cota}%</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.cumparari_baza || 0)}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.cumparari_tva || 0)}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.vanzari_baza || 0)}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.vanzari_tva || 0)}</td>
+          </tr>
+        ))}
+      </Table>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Table headers={['Data', 'Document', 'Furnizor', 'Baza', 'TVA', 'Total', 'Status']}>
+          {(journal.jurnal_cumparari || []).map(row => (
+            <tr key={row.uuid || row.id}>
+              <td className="px-3 py-2">{row.data}</td>
+              <td className="px-3 py-2">{row.nr_document || row.numar || '-'}</td>
+              <td className="px-3 py-2">{row.tert || '-'}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.valoare || 0)}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.tva || 0)}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.total || 0)}</td>
+              <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+            </tr>
+          ))}
+        </Table>
+        <Table headers={['Data', 'Document', 'Client', 'Baza', 'TVA', 'Total', 'Status']}>
+          {(journal.jurnal_vanzari || []).map(row => (
+            <tr key={row.uuid || row.id}>
+              <td className="px-3 py-2">{row.data}</td>
+              <td className="px-3 py-2">{row.nr_document || row.numar || '-'}</td>
+              <td className="px-3 py-2">{row.tert || '-'}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.valoare || 0)}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.tva || 0)}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.total || 0)}</td>
+              <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+            </tr>
+          ))}
+        </Table>
+      </div>
     </AccountingShell>
   )
 }

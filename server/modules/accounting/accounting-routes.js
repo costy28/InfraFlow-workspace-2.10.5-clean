@@ -555,12 +555,97 @@ router.get("/accounting/clients-status", requireAccountingReports, (req, res) =>
 });
 
 router.get("/accounting/vat-journal", requireAccountingReports, (req, res) => {
-  const accounting = engine.ensureAccounting(req.auth.db);
-  const invoicesIn = filterDocuments(accounting.invoicesIn, req.query);
-  const invoicesOut = filterDocuments(accounting.invoicesOut, req.query);
-  const total4426 = sum(invoicesIn, "tva");
-  const total4427 = sum(invoicesOut, "tva");
-  sendJson(res, 200, { jurnal_cumparari: invoicesIn, jurnal_vanzari: invoicesOut, total_4426: total4426, total_4427: total4427, diferenta: round(total4427 - total4426) });
+  const data = buildVatData(req.auth.db, req.query);
+  sendJson(res, 200, {
+    jurnal_cumparari: data.jurnal_cumparari,
+    jurnal_vanzari: data.jurnal_vanzari,
+    total_4426: data.total_4426,
+    total_4427: data.total_4427,
+    diferenta: data.diferenta,
+    perioada: data.perioada,
+    cote: data.cote,
+    sumar_d300: data.sumar_d300
+  });
+});
+
+router.get("/accounting/vat-journal/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const data = buildVatData(req.auth.db, req.query);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet([
+      ["Jurnal TVA cumparari", `${String(data.perioada.luna).padStart(2, "0")}/${data.perioada.an}`],
+      [],
+      ["Data", "Document", "Furnizor", "CUI", "Baza", "TVA", "Total", "Cota TVA", "Status"],
+      ...data.jurnal_cumparari.map((row) => [
+        row.data,
+        row.nr_document || row.numar || row.id,
+        row.tert || "",
+        row.cui || "",
+        row.valoare || 0,
+        row.tva || 0,
+        row.total || 0,
+        `${row.tva_procent || 0}%`,
+        row.status || ""
+      ])
+    ]), "Jurnal cumparari");
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet([
+      ["Jurnal TVA vanzari", `${String(data.perioada.luna).padStart(2, "0")}/${data.perioada.an}`],
+      [],
+      ["Data", "Document", "Client", "CUI", "Baza", "TVA", "Total", "Cota TVA", "Status"],
+      ...data.jurnal_vanzari.map((row) => [
+        row.data,
+        row.nr_document || row.numar || row.id,
+        row.tert || "",
+        row.cui || "",
+        row.valoare || 0,
+        row.tva || 0,
+        row.total || 0,
+        `${row.tva_procent || 0}%`,
+        row.status || ""
+      ])
+    ]), "Jurnal vanzari");
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet([
+      ["Pregatire D300", `${String(data.perioada.luna).padStart(2, "0")}/${data.perioada.an}`, "document intern de lucru"],
+      [],
+      ["Cod", "Descriere", "Baza", "TVA"],
+      ...data.sumar_d300.randuri.map((row) => [row.cod, row.descriere, row.baza, row.tva]),
+      [],
+      ["TVA colectata", data.sumar_d300.total_tva_colectata],
+      ["TVA deductibila", data.sumar_d300.total_tva_deductibila],
+      ["TVA de plata", data.sumar_d300.tva_de_plata],
+      ["TVA de recuperat", data.sumar_d300.tva_de_recuperat]
+    ]), "Pregatire D300");
+    const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Jurnal_TVA_${data.perioada.an}_${String(data.perioada.luna).padStart(2, "0")}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
+router.get("/accounting/d300", requireAccountingReports, (req, res) => {
+  const data = buildVatData(req.auth.db, req.query);
+  sendJson(res, 200, {
+    perioada: data.perioada,
+    decont: data.sumar_d300,
+    status: {
+      can_prepare: true,
+      warnings: [
+        "Pregatirea D300 este calculata din facturile contabile validate/draft neanulate.",
+        "XML-ul generat este document intern de lucru, nu declaratie ANAF finala."
+      ]
+    }
+  });
+});
+
+router.get("/accounting/d300/export-xml", requireAccountingReports, (req, res) => {
+  const data = buildVatData(req.auth.db, req.query);
+  const rows = data.sumar_d300.randuri.map((row) =>
+    `    <rand cod="${xmlEscape(row.cod)}"><descriere>${xmlEscape(row.descriere)}</descriere><baza>${row.baza}</baza><tva>${row.tva}</tva></rand>`
+  ).join("\n");
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<infraflow_d300_lucru versiune="1">\n  <perioada an="${data.perioada.an}" luna="${String(data.perioada.luna).padStart(2, "0")}" />\n  <atentie>Document intern de lucru pentru verificare TVA. Nu este declaratie ANAF finala.</atentie>\n  <randuri>\n${rows}\n  </randuri>\n  <totaluri>\n    <tva_colectata>${data.sumar_d300.total_tva_colectata}</tva_colectata>\n    <tva_deductibila>${data.sumar_d300.total_tva_deductibila}</tva_deductibila>\n    <tva_de_plata>${data.sumar_d300.tva_de_plata}</tva_de_plata>\n    <tva_de_recuperat>${data.sumar_d300.tva_de_recuperat}</tva_de_recuperat>\n  </totaluri>\n</infraflow_d300_lucru>\n`;
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="D300_lucru_${data.perioada.an}_${String(data.perioada.luna).padStart(2, "0")}.xml"`);
+  res.end(xml);
 });
 
 router.get("/accounting/periods/:an/:luna/check", requireAccountingReports, (req, res) => {
@@ -1136,6 +1221,104 @@ function thirdPartyStatus(db, tip) {
   return { rows };
 }
 
+function buildVatData(db, query = {}) {
+  const accounting = engine.ensureAccounting(db);
+  const monthValue = query.perioada || query.month || (String(query.luna || "").includes("-") ? query.luna : `${query.an || new Date().getFullYear()}-${String(query.luna || new Date().getMonth() + 1).padStart(2, "0")}`);
+  const [an, luna] = monthParts(monthValue);
+  const filters = { ...query, an, luna };
+  const invoicesIn = filterDocuments(accounting.invoicesIn, filters).filter((item) => item.status !== "anulat");
+  const invoicesOut = filterDocuments(accounting.invoicesOut, filters).filter((item) => item.status !== "anulat");
+  const jurnalCumparari = invoicesIn.map((invoice) => decorateVatInvoice(db, invoice, "furnizor"));
+  const jurnalVanzari = invoicesOut.map((invoice) => decorateVatInvoice(db, invoice, "client"));
+  const total4426 = sum(jurnalCumparari, "tva");
+  const total4427 = sum(jurnalVanzari, "tva");
+  const cote = groupVatRates(jurnalCumparari, jurnalVanzari);
+  const sumarD300 = buildD300Summary(jurnalCumparari, jurnalVanzari);
+  return {
+    perioada: { an, luna },
+    jurnal_cumparari: jurnalCumparari,
+    jurnal_vanzari: jurnalVanzari,
+    total_4426: total4426,
+    total_4427: total4427,
+    diferenta: round(total4427 - total4426),
+    cote,
+    sumar_d300: sumarD300
+  };
+}
+
+function decorateVatInvoice(db, invoice, tip) {
+  const accounting = engine.ensureAccounting(db);
+  const id = tip === "client" ? invoice.client_id : invoice.furnizor_id;
+  const tert = accounting.thirdParties.find((item) => String(item.id) === String(id)) || {};
+  const rate = Number(invoice.tva_procent ?? inferVatRate(invoice.valoare, invoice.tva));
+  return {
+    ...invoice,
+    tert: tert.denumire || invoice.tert || "",
+    cui: tert.cui || "",
+    tva_procent: Number.isFinite(rate) ? rate : 0
+  };
+}
+
+function inferVatRate(base, vat) {
+  const value = Number(base || 0);
+  if (!value) return 0;
+  return round(Number(vat || 0) * 100 / value);
+}
+
+function groupVatRates(invoicesIn, invoicesOut) {
+  const rates = new Map();
+  const add = (row, type) => {
+    const rate = String(Number(row.tva_procent || 0));
+    const current = rates.get(rate) || { cota: Number(row.tva_procent || 0), cumparari_baza: 0, cumparari_tva: 0, vanzari_baza: 0, vanzari_tva: 0 };
+    if (type === "in") {
+      current.cumparari_baza = round(current.cumparari_baza + Number(row.valoare || 0));
+      current.cumparari_tva = round(current.cumparari_tva + Number(row.tva || 0));
+    } else {
+      current.vanzari_baza = round(current.vanzari_baza + Number(row.valoare || 0));
+      current.vanzari_tva = round(current.vanzari_tva + Number(row.tva || 0));
+    }
+    rates.set(rate, current);
+  };
+  invoicesIn.forEach((row) => add(row, "in"));
+  invoicesOut.forEach((row) => add(row, "out"));
+  return [...rates.values()].sort((a, b) => Number(b.cota) - Number(a.cota));
+}
+
+function buildD300Summary(invoicesIn, invoicesOut) {
+  const rows = [];
+  const addRows = (source, prefix, label) => {
+    const byRate = new Map();
+    source.forEach((invoice) => {
+      const rate = Number(invoice.tva_procent || 0);
+      const current = byRate.get(rate) || { baza: 0, tva: 0 };
+      current.baza = round(current.baza + Number(invoice.valoare || 0));
+      current.tva = round(current.tva + Number(invoice.tva || 0));
+      byRate.set(rate, current);
+    });
+    [...byRate.entries()].sort((a, b) => Number(b[0]) - Number(a[0])).forEach(([rate, totals]) => {
+      rows.push({
+        cod: `${prefix}_${rate}`,
+        descriere: `${label} cu TVA ${rate}%`,
+        baza: totals.baza,
+        tva: totals.tva
+      });
+    });
+  };
+  addRows(invoicesOut, "livrari", "Livrari/prestari");
+  addRows(invoicesIn, "achizitii", "Achizitii");
+  const totalColectata = sum(invoicesOut, "tva");
+  const totalDeductibila = sum(invoicesIn, "tva");
+  const diferenta = round(totalColectata - totalDeductibila);
+  return {
+    randuri: rows,
+    total_tva_colectata: totalColectata,
+    total_tva_deductibila: totalDeductibila,
+    diferenta,
+    tva_de_plata: round(Math.max(diferenta, 0)),
+    tva_de_recuperat: round(Math.max(-diferenta, 0))
+  };
+}
+
 function periodCheck(db, an, luna) {
   const accounting = engine.ensureAccounting(db);
   const period = accounting.periods.find((item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna)) || {
@@ -1262,6 +1445,15 @@ function sum(items, key) {
 
 function round(value) {
   return engine.money(value);
+}
+
+function xmlEscape(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function cryptoId() {
