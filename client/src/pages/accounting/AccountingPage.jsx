@@ -63,10 +63,17 @@ function Info({ label, value }) {
   )
 }
 
-function AccountInput({ label, value, onChange, accounts, id }) {
+function AccountInput({ label, value, onChange, accounts, id, recommendedClasses = [] }) {
   const inputId = id || `${label || 'cont'}-${Math.random().toString(36).slice(2)}`
   const listId = `${inputId}-list`
   const selected = accounts.find(account => account.simbol === value)
+  const preferred = recommendedClasses.length
+    ? accounts.filter(account => recommendedClasses.includes(Number(account.clasa)))
+    : accounts
+  const rest = recommendedClasses.length
+    ? accounts.filter(account => !recommendedClasses.includes(Number(account.clasa)))
+    : []
+  const options = [...preferred, ...rest]
   return (
     <div className="grid gap-1">
       <Input
@@ -78,8 +85,8 @@ function AccountInput({ label, value, onChange, accounts, id }) {
         helperText={selected ? selected.denumire : 'Scrie codul sau cauta dupa denumire.'}
       />
       <datalist id={listId}>
-        {accounts.map(account => (
-          <option key={account.simbol} value={account.simbol} label={`${account.simbol} - ${account.denumire}`} />
+        {options.map(account => (
+          <option key={account.simbol} value={account.simbol}>{`${account.simbol} - ${account.denumire}`}</option>
         ))}
       </datalist>
     </div>
@@ -360,6 +367,11 @@ export function FacturiContab({ direction = 'in' }) {
   const [accounts, setAccounts] = useState([])
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [journalModal, setJournalModal] = useState(false)
+  const [journalData, setJournalData] = useState(null)
+  const [devalidateModal, setDevalidateModal] = useState(false)
+  const [devalidateRow, setDevalidateRow] = useState(null)
+  const [devalidateReason, setDevalidateReason] = useState('')
   const [error, setError] = useState('')
   const emptyLine = () => ({ denumire: '', cont: isIn ? '628' : '704', valoare: '', tva_procent: 21 })
   const [form, setForm] = useState({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', lines: [emptyLine()] })
@@ -474,13 +486,35 @@ export function FacturiContab({ direction = 'in' }) {
     }
   }
   async function devalidate(row) {
-    if (!window.confirm('Devalidezi factura si o readuci in draft pentru editare?')) return
+    setDevalidateRow(row)
+    setDevalidateReason('')
+    setDevalidateModal(true)
+  }
+  async function submitDevalidate(event) {
+    event.preventDefault()
+    if (!devalidateRow) return
     try {
       setError('')
-      await api.post(`${endpoint}/${row.uuid}/devalidate`, { motiv: 'Corectie document inainte de depunere' })
+      await api.post(`${endpoint}/${devalidateRow.uuid}/devalidate`, { motiv: devalidateReason })
+      setDevalidateModal(false)
+      setDevalidateRow(null)
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Factura nu a putut fi devalidata.')
+    }
+  }
+  async function showJournal(row) {
+    if (!row.journal_id) {
+      setError('Factura nu are nota contabila atasata.')
+      return
+    }
+    try {
+      setError('')
+      const res = await api.get(`/accounting/journals/${row.journal_id}`)
+      setJournalData(res.data.journal)
+      setJournalModal(true)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nota contabila nu a putut fi incarcata.')
     }
   }
   async function cancelDraft(row) {
@@ -507,10 +541,11 @@ export function FacturiContab({ direction = 'in' }) {
             <td className="px-3 py-2 font-semibold">{formatMoney(row.total)}</td>
             <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
             <td className="px-3 py-2">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Edit</Button> : null}
                 {row.status === 'draft' ? <Button size="sm" onClick={() => validate(row)}>Valideaza</Button> : null}
                 {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => cancelDraft(row)}>Anuleaza</Button> : null}
+                {row.journal_id ? <Button size="sm" variant="secondary" onClick={() => showJournal(row)}>Nota</Button> : null}
                 {row.status === 'validat' ? <Button size="sm" variant="secondary" onClick={() => devalidate(row)}>Devalideaza</Button> : null}
                 {row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? <Button size="sm" variant="secondary" onClick={() => storno(row)}>Storno</Button> : null}
               </div>
@@ -525,7 +560,7 @@ export function FacturiContab({ direction = 'in' }) {
           <Input label="Document" value={form.nr_document || form.numar || ''} onChange={event => setForm({ ...form, nr_document: event.target.value, numar: event.target.value })} required />
           <Input label="Data" type="date" value={form.data} onChange={event => setForm({ ...form, data: event.target.value })} required />
           <Input label="Scadenta" type="date" value={form.data_scadenta || ''} onChange={event => setForm({ ...form, data_scadenta: event.target.value })} />
-          <AccountInput id="factura-cont-principal" label={isIn ? 'Cont cheltuiala' : 'Cont venit'} value={isIn ? form.cont_cheltuiala : form.cont_venit} accounts={accounts} onChange={event => setForm({ ...form, [isIn ? 'cont_cheltuiala' : 'cont_venit']: event.target.value })} />
+          <AccountInput id="factura-cont-principal" label={isIn ? 'Cont cheltuiala' : 'Cont venit'} value={isIn ? form.cont_cheltuiala : form.cont_venit} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => setForm({ ...form, [isIn ? 'cont_cheltuiala' : 'cont_venit']: event.target.value })} />
           <div className="rounded-md border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-sm font-semibold text-slate-800">Linii factura</div>
@@ -536,7 +571,7 @@ export function FacturiContab({ direction = 'in' }) {
                 <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3">
                   <Input label={`Denumire linia ${index + 1}`} value={line.denumire || ''} onChange={event => updateLine(index, { denumire: event.target.value })} />
                   <div className="grid gap-2 sm:grid-cols-[minmax(92px,1fr)_minmax(120px,1.2fr)_minmax(96px,1fr)_44px]">
-                    <AccountInput id={`factura-linie-cont-${index}`} label="Cont" value={line.cont || ''} accounts={accounts} onChange={event => updateLine(index, { cont: event.target.value })} />
+                    <AccountInput id={`factura-linie-cont-${index}`} label="Cont" value={line.cont || ''} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => updateLine(index, { cont: event.target.value })} />
                     <Input label="Valoare" type="number" step="0.01" value={line.valoare || ''} onChange={event => updateLine(index, { valoare: event.target.value })} />
                     <Select label="TVA" value={line.tva_procent ?? 21} onChange={event => updateLine(index, { tva_procent: event.target.value })} options={[0,5,9,19,21].map(v => ({ value: v, label: `${v}%` }))} />
                     <div className="flex items-end"><Button type="button" size="sm" variant="secondary" onClick={() => removeLine(index)}>x</Button></div>
@@ -548,6 +583,52 @@ export function FacturiContab({ direction = 'in' }) {
           <Input label="Explicatie" value={form.explicatie || ''} onChange={event => setForm({ ...form, explicatie: event.target.value })} />
           <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">Preview nota: {isIn ? `linii debit + 4426 = 401.x` : `4111.x = linii venit + 4427`} · Baza {formatMoney(baseValue)} · TVA {formatMoney(tvaLines)} · Total {formatMoney(total)}</div>
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button><Button type="submit">{editing ? 'Salveaza modificari' : 'Salveaza draft'}</Button></div>
+        </form>
+      </Modal>
+      <Modal open={journalModal} title="Nota contabila generata" onClose={() => setJournalModal(false)}>
+        <div className="grid gap-3">
+          {journalData ? (
+            <>
+              <div className="grid gap-2 md:grid-cols-4">
+                <Info label="Document" value={journalData.nr_document || journalData.id} />
+                <Info label="Data" value={journalData.data || '-'} />
+                <Info label="Debit" value={formatMoney(journalData.total_debit || 0)} />
+                <Info label="Credit" value={formatMoney(journalData.total_credit || 0)} />
+              </div>
+              <Table headers={['Cont', 'Denumire', 'Debit', 'Credit', 'Explicatie']}>
+                {(journalData.lines || []).map(line => (
+                  <tr key={line.id || `${line.cont_simbol}-${line.linie_nr}`}>
+                    <td className="px-3 py-2 font-semibold">{line.cont_simbol}</td>
+                    <td className="px-3 py-2">{line.denumire_cont || '-'}</td>
+                    <td className="px-3 py-2 text-right">{line.debit ? formatMoney(line.debit) : '-'}</td>
+                    <td className="px-3 py-2 text-right">{line.credit ? formatMoney(line.credit) : '-'}</td>
+                    <td className="px-3 py-2">{line.explicatie || '-'}</td>
+                  </tr>
+                ))}
+              </Table>
+            </>
+          ) : null}
+          <div className="flex justify-end"><Button variant="secondary" onClick={() => setJournalModal(false)}>Inchide</Button></div>
+        </div>
+      </Modal>
+      <Modal open={devalidateModal} title="Devalidare factura" onClose={() => setDevalidateModal(false)}>
+        <form className="grid gap-3" onSubmit={submitDevalidate}>
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Factura revine in draft, iar nota contabila generata este marcata devalidata. Operatia este permisa doar daca luna nu este inchisa.
+          </div>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Motiv devalidare
+            <textarea
+              className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              value={devalidateReason}
+              onChange={event => setDevalidateReason(event.target.value)}
+              required
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setDevalidateModal(false)}>Renunta</Button>
+            <Button type="submit" disabled={!devalidateReason.trim()}>Devalideaza</Button>
+          </div>
         </form>
       </Modal>
     </AccountingShell>

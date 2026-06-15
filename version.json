@@ -1,5 +1,5 @@
 {
-  "version": "2.12.46",
+  "version": "2.12.47",
   "date": "2026-06-15",
-  "changelog": "## v2.12.46 - 2026-06-15\n### Plan conturi in instalari curate\n- Seed-ul complet pentru planul de conturi este livrat din db/seeds, nu din folderul data.\n- Motorul contabil completeaza automat conturile critice daca seed-ul lipseste.\n- Formularul de facturi foloseste sugestii din planul de conturi pentru contul principal si liniile facturii.\n- Validarea facturilor gaseste conturile 5211, 4426 si celelalte conturi incluse in plan."
+  "changelog": "## v2.12.47 - 2026-06-15\n### Facturi contabile cu nota vizibila\n- Facturile validate afiseaza buton pentru nota contabila generata.\n- Nota contabila se deschide in modal cu linii debit/credit, conturi si explicatii.\n- Devalidarea facturilor cere motiv obligatoriu si pastreaza controlul lunii inchise.\n- Selectorul de conturi din facturi afiseaza toate conturile, cu clasele recomandate primele."
 }

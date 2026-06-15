@@ -375,6 +375,13 @@ router.get("/accounting/journals", requireAccountingView, (req, res) => {
   sendJson(res, 200, { journals });
 });
 
+router.get("/accounting/journals/:uuid", requireAccountingView, (req, res) => {
+  const accounting = engine.ensureAccounting(req.auth.db);
+  const journal = findByUuid(accounting.journals, req.params.uuid, "Nota contabila nu a fost gasita.");
+  const lines = accounting.journalLines.filter((line) => Number(line.journal_id) === Number(journal.id));
+  sendJson(res, 200, { journal: { ...journal, lines } });
+});
+
 router.post("/accounting/journals", requireAccountingPost, (req, res, next) => {
   try {
     const body = req.body || {};
@@ -700,6 +707,7 @@ function createInvoiceIn(db, user, body) {
 function devalidateInvoice(db, user, invoice, auditAction, reason = "") {
   if (invoice.status !== "validat") throwHttp(409, "Doar facturile validate se pot devalida.");
   if (!invoice.journal_id) throwHttp(409, "Factura nu are nota contabila atasata.");
+  if (!String(reason || "").trim()) throwHttp(400, "Motivul devalidarii este obligatoriu.");
   engine.checkPeriodOpen(db, invoice.an, invoice.luna);
   const journal = engine.devalidateJournal(db, user, invoice.journal_id, reason);
   invoice.status = "draft";
