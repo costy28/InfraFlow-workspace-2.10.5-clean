@@ -143,9 +143,14 @@ async function insertCostEntry(entry, db) {
     luna,
     categorie: entry.categorie,
     valoare: numberValue(entry.valoare),
+    tva: numberValue(entry.tva),
+    moneda: entry.moneda || 'RON',
     sursa: entry.sursa,
     sursa_ref_id: entry.sursa_ref_id || null,
     descriere: entry.descriere || null,
+    nr_document: entry.nr_document || null,
+    furnizor: entry.furnizor || null,
+    observatii: entry.observatii || null,
     inregistrat_de: entry.inregistrat_de || null
   }
 
@@ -154,8 +159,8 @@ async function insertCostEntry(entry, db) {
 DECLARE @payload nvarchar(max) = @json;
 INSERT INTO controlling.cost_entries (
   uuid, company_id, cost_center_id, subcentru_id, santier_id,
-  data, luna, categorie, valoare, sursa, sursa_ref_id,
-  descriere, inregistrat_de
+  data, luna, categorie, valoare, tva, moneda, sursa, sursa_ref_id,
+  descriere, nr_document, furnizor, inregistrat_de, observatii
 )
 SELECT
   JSON_VALUE(@payload, '$.uuid'),
@@ -167,10 +172,15 @@ SELECT
   TRY_CONVERT(date, JSON_VALUE(@payload, '$.luna')),
   JSON_VALUE(@payload, '$.categorie'),
   TRY_CONVERT(decimal(15,2), JSON_VALUE(@payload, '$.valoare')),
+  TRY_CONVERT(decimal(15,2), JSON_VALUE(@payload, '$.tva')),
+  JSON_VALUE(@payload, '$.moneda'),
   JSON_VALUE(@payload, '$.sursa'),
   JSON_VALUE(@payload, '$.sursa_ref_id'),
   JSON_VALUE(@payload, '$.descriere'),
-  JSON_VALUE(@payload, '$.inregistrat_de');
+  JSON_VALUE(@payload, '$.nr_document'),
+  JSON_VALUE(@payload, '$.furnizor'),
+  JSON_VALUE(@payload, '$.inregistrat_de'),
+  JSON_VALUE(@payload, '$.observatii');
 SELECT 1;
 `, { jsonInput: JSON.stringify(payload) })
     return

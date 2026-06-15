@@ -1,5 +1,5 @@
 {
-  "version": "2.12.47",
+  "version": "2.12.48",
   "date": "2026-06-15",
-  "changelog": "## v2.12.47 - 2026-06-15\n### Facturi contabile cu nota vizibila\n- Facturile validate afiseaza buton pentru nota contabila generata.\n- Nota contabila se deschide in modal cu linii debit/credit, conturi si explicatii.\n- Devalidarea facturilor cere motiv obligatoriu si pastreaza controlul lunii inchise.\n- Selectorul de conturi din facturi afiseaza toate conturile, cu clasele recomandate primele."
+  "changelog": "## v2.12.48 - 2026-06-15\n### Legatura Contabilitate - Controlling\n- Facturile contabile pot fi legate de centru cost/profit si subcentru.\n- Notele contabile pastreaza centrul si subcentrul pe antet si linii.\n- Validarea facturii de intrare creeaza automat intrare in Controlling.\n- Devalidarea facturii creeaza intrare inversa in Controlling, fara stergere fizica."
 }

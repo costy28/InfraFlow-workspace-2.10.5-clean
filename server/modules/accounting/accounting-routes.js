@@ -4,6 +4,7 @@ const { requireAnyPermission, requirePermission, userHasRole } = require("../../
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 const engine = require("./accounting-engine");
+const { insertCostEntry } = require("../controlling/auto-register");
 const xlsx = require("xlsx");
 const multer = require("multer");
 
@@ -51,6 +52,16 @@ router.get("/accounting/chart/:simbol", requireAccountingView, (req, res) => {
   const account = accounting.chart.find((item) => item.simbol === req.params.simbol);
   if (!account) return sendJson(res, 404, { error: "Contul nu a fost gasit." });
   sendJson(res, 200, { account });
+});
+
+router.get("/accounting/cost-centers", requireAccountingView, (req, res) => {
+  const controlling = req.auth.db.controlling || {};
+  const centers = Array.isArray(controlling.costCenters) ? controlling.costCenters : [];
+  sendJson(res, 200, {
+    costCenters: centers
+      .filter((item) => item.activ !== false && item.activ !== 0)
+      .sort((a, b) => Number(a.nivel || 1) - Number(b.nivel || 1) || String(a.denumire || a.name || "").localeCompare(String(b.denumire || b.name || ""), "ro", { numeric: true }))
+  });
 });
 
 router.post("/accounting/chart", requireAccountingManage, (req, res, next) => {
@@ -143,7 +154,7 @@ router.patch("/accounting/invoices-in/:uuid", requireAccountingPost, (req, res, 
   } catch (error) { next(error); }
 });
 
-router.post("/accounting/invoices-in/:uuid/validate", requireAccountingPost, (req, res, next) => {
+router.post("/accounting/invoices-in/:uuid/validate", requireAccountingPost, async (req, res, next) => {
   try {
     const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesIn, req.params.uuid, "Factura nu a fost gasita.");
     if (invoice.status !== "draft") throwHttp(409, "Factura nu este in draft.");
@@ -151,16 +162,18 @@ router.post("/accounting/invoices-in/:uuid/validate", requireAccountingPost, (re
     const journal = engine.generateJournalFromInvoiceIn(req.auth.db, req.auth.user, invoice);
     invoice.journal_id = journal.id;
     invoice.status = "validat";
+    await registerInvoiceInCostEntry(req.auth.db, req.auth.user, invoice);
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_in_validate", `${invoice.nr_document} / nota ${journal.id}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { invoice, journal });
   } catch (error) { next(error); }
 });
 
-router.post("/accounting/invoices-in/:uuid/devalidate", requireAccountingPost, (req, res, next) => {
+router.post("/accounting/invoices-in/:uuid/devalidate", requireAccountingPost, async (req, res, next) => {
   try {
     const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesIn, req.params.uuid, "Factura nu a fost gasita.");
     devalidateInvoice(req.auth.db, req.auth.user, invoice, "accounting_invoice_in_devalidate", req.body?.motiv);
+    await reverseInvoiceInCostEntry(req.auth.db, req.auth.user, invoice, req.body?.motiv);
     writeDb(req.auth.db);
     sendJson(res, 200, { invoice });
   } catch (error) { next(error); }
@@ -721,6 +734,60 @@ function devalidateInvoice(db, user, invoice, auditAction, reason = "") {
   return invoice;
 }
 
+async function registerInvoiceInCostEntry(db, user, invoice) {
+  if (!invoice.cost_center_id) return;
+  const tert = thirdParty(db, invoice.furnizor_id);
+  await insertCostEntry({
+    cost_center_id: invoice.cost_center_id,
+    subcentru_id: invoice.subcentru_id || null,
+    santier_id: invoice.santier_id || null,
+    data: invoice.data,
+    categorie: controllingCategory(invoice.cont_cheltuiala || invoice.lines?.[0]?.cont),
+    valoare: invoice.valoare,
+    sursa: "factura_furnizor",
+    sursa_ref_id: String(invoice.id),
+    descriere: invoice.explicatie || `Factura ${invoice.nr_document}`,
+    nr_document: invoice.nr_document,
+    furnizor: tert.denumire || "",
+    inregistrat_de: user?.id || ""
+  }, db);
+  invoice.controlling_registered = true;
+  invoice.controlling_registered_at = new Date().toISOString();
+}
+
+async function reverseInvoiceInCostEntry(db, user, invoice, reason = "") {
+  if (!invoice.cost_center_id || !invoice.controlling_registered) return;
+  const tert = thirdParty(db, invoice.furnizor_id);
+  await insertCostEntry({
+    cost_center_id: invoice.cost_center_id,
+    subcentru_id: invoice.subcentru_id || null,
+    santier_id: invoice.santier_id || null,
+    data: today(),
+    categorie: controllingCategory(invoice.cont_cheltuiala || invoice.lines?.[0]?.cont),
+    valoare: -Math.abs(round(invoice.valoare || 0)),
+    sursa: "factura_furnizor",
+    sursa_ref_id: `revers-${invoice.id}-${Date.now()}`,
+    descriere: `Revers devalidare factura ${invoice.nr_document}${reason ? `: ${reason}` : ""}`,
+    nr_document: invoice.nr_document,
+    furnizor: tert.denumire || "",
+    inregistrat_de: user?.id || ""
+  }, db);
+  invoice.controlling_reversed_at = new Date().toISOString();
+}
+
+function controllingCategory(account) {
+  const cont = String(account || "");
+  if (/^6022/.test(cont)) return "combustibil";
+  if (/^602/.test(cont)) return "materiale";
+  if (/^611/.test(cont)) return "reparatii";
+  if (/^612/.test(cont)) return "chirii";
+  if (/^613/.test(cont)) return "asigurari";
+  if (/^635/.test(cont)) return "taxe_impozite";
+  if (/^641/.test(cont)) return "manopera";
+  if (/^6811/.test(cont)) return "amortizare";
+  return "alte_cheltuieli";
+}
+
 function cancelDraftInvoice(db, user, invoice, reason = "") {
   return cancelDraftDocument(db, user, invoice, reason);
 }
@@ -939,6 +1006,9 @@ function normalizeInvoiceIn(db, body, existing = {}) {
     achitat: round(existing.achitat || body.achitat || 0),
     neachitat: round(total - Number(existing.achitat || body.achitat || 0)),
     cont_cheltuiala: String(body.cont_cheltuiala ?? existing.cont_cheltuiala ?? "628").trim(),
+    cost_center_id: body.cost_center_id === "" ? null : body.cost_center_id ?? existing.cost_center_id ?? null,
+    subcentru_id: body.subcentru_id === "" ? null : body.subcentru_id ?? existing.subcentru_id ?? null,
+    santier_id: body.santier_id === "" ? null : body.santier_id ?? existing.santier_id ?? null,
     explicatie: String(body.explicatie ?? existing.explicatie ?? "").trim()
   };
 }
@@ -970,6 +1040,9 @@ function normalizeInvoiceOut(db, body, existing = {}) {
     incasat: round(existing.incasat || body.incasat || 0),
     neincasat: round(total - Number(existing.incasat || body.incasat || 0)),
     cont_venit: String(body.cont_venit ?? existing.cont_venit ?? "704").trim(),
+    cost_center_id: body.cost_center_id === "" ? null : body.cost_center_id ?? existing.cost_center_id ?? null,
+    subcentru_id: body.subcentru_id === "" ? null : body.subcentru_id ?? existing.subcentru_id ?? null,
+    santier_id: body.santier_id === "" ? null : body.santier_id ?? existing.santier_id ?? null,
     explicatie: String(body.explicatie ?? existing.explicatie ?? "").trim()
   };
 }
@@ -1024,7 +1097,9 @@ function normalizeInvoiceLines(lines, defaultAccount) {
       tva_procent: tvaProcent,
       tva,
       total: round(valoare + tva),
-      cont: String(line.cont || line.cont_simbol || line.cont_cheltuiala || line.cont_venit || defaultAccount).trim()
+      cont: String(line.cont || line.cont_simbol || line.cont_cheltuiala || line.cont_venit || defaultAccount).trim(),
+      cost_center_id: line.cost_center_id === "" ? null : line.cost_center_id || null,
+      subcentru_id: line.subcentru_id === "" ? null : line.subcentru_id || null
     };
   }).filter((line) => line.valoare > 0);
 }

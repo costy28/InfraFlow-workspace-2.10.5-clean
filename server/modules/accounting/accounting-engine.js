@@ -169,6 +169,8 @@ function createJournal(db, user, input) {
     tip_document: input.tip_document || "nota_manuala",
     document_ref_id: input.document_ref_id || null,
     document_ref_tip: input.document_ref_tip || "",
+    cost_center_id: input.cost_center_id || null,
+    subcentru_id: input.subcentru_id || null,
     explicatie: input.explicatie || "",
     total_debit: totals.totalDebit,
     total_credit: totals.totalCredit,
@@ -192,6 +194,8 @@ function createJournal(db, user, input) {
       credit: money(line.credit),
       tert_id: line.tert_id || null,
       tert_tip: line.tert_tip || "",
+      cost_center_id: line.cost_center_id || journal.cost_center_id || null,
+      subcentru_id: line.subcentru_id || journal.subcentru_id || null,
       explicatie: line.explicatie || journal.explicatie
     });
   });
@@ -210,6 +214,8 @@ function generateJournalFromInvoiceIn(db, user, invoice) {
     debit: line.valoare,
     tert_id: tert.id,
     tert_tip: "furnizor",
+    cost_center_id: line.cost_center_id || invoice.cost_center_id || null,
+    subcentru_id: line.subcentru_id || invoice.subcentru_id || null,
     explicatie: line.denumire || invoice.explicatie || `Factura intrare ${invoice.nr_document}`
   }));
   const tva = money(invoiceLines.reduce((sum, line) => sum + money(line.tva), 0));
@@ -221,6 +227,8 @@ function generateJournalFromInvoiceIn(db, user, invoice) {
     tip_document: "factura_intrare",
     document_ref_id: invoice.id,
     document_ref_tip: "accounting_invoices_in",
+    cost_center_id: invoice.cost_center_id || null,
+    subcentru_id: invoice.subcentru_id || null,
     explicatie: invoice.explicatie || `Factura intrare ${invoice.nr_document}`,
     lines: [
       ...expenseLines,
@@ -242,6 +250,8 @@ function generateJournalFromInvoiceOut(db, user, invoice) {
     credit: line.valoare,
     tert_id: tert.id,
     tert_tip: "client",
+    cost_center_id: line.cost_center_id || invoice.cost_center_id || null,
+    subcentru_id: line.subcentru_id || invoice.subcentru_id || null,
     explicatie: line.denumire || invoice.explicatie || `Factura iesire ${invoice.numar || ""}`.trim()
   }));
   const tva = money(invoiceLines.reduce((sum, line) => sum + money(line.tva), 0));
@@ -253,6 +263,8 @@ function generateJournalFromInvoiceOut(db, user, invoice) {
     tip_document: "factura_iesire",
     document_ref_id: invoice.id,
     document_ref_tip: "accounting_invoices_out",
+    cost_center_id: invoice.cost_center_id || null,
+    subcentru_id: invoice.subcentru_id || null,
     explicatie: invoice.explicatie || `Factura iesire ${invoice.numar || ""}`.trim(),
     lines: [
       { cont: contClient, debit: invoice.total, tert_id: tert.id, tert_tip: "client" },
