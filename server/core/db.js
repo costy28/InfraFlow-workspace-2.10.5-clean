@@ -587,7 +587,8 @@ const MSSQL_RELATIONAL_CORE_TABLES = [
   "accounting_invoices_in",
   "accounting_invoices_out",
   "accounting_treasury",
-  "accounting_periods"
+  "accounting_periods",
+  "accounting_law_alerts"
 ];
 
 function listMssqlUserTables() {
@@ -656,11 +657,61 @@ function prepareMssqlRelationalSchema() {
   }
   const baseFiles = applyMssqlBaseSchema();
   const migrations = applyMssqlMigrations();
+  const repairFiles = repairMssqlRequiredRelationalTables();
   return {
     baseFiles,
     migrations,
+    repairFiles,
     status: getMssqlRelationalStatus()
   };
+}
+
+function repairMssqlRequiredRelationalTables() {
+  const repairFiles = [];
+  const status = getMssqlRelationalStatus();
+  const missing = new Set(status.missingCoreTables || []);
+  const needsAccountingCore = [
+    "accounting_chart",
+    "accounting_journals",
+    "accounting_journal_lines",
+    "accounting_third_parties",
+    "accounting_invoices_in",
+    "accounting_invoices_out",
+    "accounting_treasury",
+    "accounting_periods",
+    "accounting_law_alerts"
+  ].some((name) => missing.has(name));
+
+  if (needsAccountingCore) {
+    runMssqlMigrationRepairFile("027_accounting_core.sql");
+    repairFiles.push("027_accounting_core.sql");
+  }
+
+  const afterCore = getMssqlRelationalStatus();
+  const hasAccountingTables = ![
+    "accounting_invoices_in",
+    "accounting_invoices_out",
+    "accounting_journals",
+    "accounting_journal_lines"
+  ].some((name) => (afterCore.missingCoreTables || []).includes(name));
+
+  if (hasAccountingTables) {
+    runMssqlMigrationRepairFile("028_accounting_controlling_link.sql");
+    repairFiles.push("028_accounting_controlling_link.sql");
+  }
+
+  return repairFiles;
+}
+
+function runMssqlMigrationRepairFile(fileName) {
+  const filePath = path.join(ROOT, "db", "migrations", fileName);
+  runMssqlScriptFile(filePath);
+  const escapedName = fileName.replace(/'/g, "''");
+  runMssqlScalar(`
+    if not exists (select 1 from dbo.schema_migrations where filename = N'${escapedName}')
+      insert into dbo.schema_migrations (filename) values (N'${escapedName}');
+    select 1;
+  `, { timeoutMs: 300000 });
 }
 
 function applyMssqlMigrations() {

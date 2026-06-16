@@ -1,5 +1,5 @@
 {
-  "version": "2.12.51",
+  "version": "2.12.52",
   "date": "2026-06-16",
-  "changelog": "## v2.12.51 - 2026-06-16\n### Modaluri si schema SQL\n- Modalurile aplicatiei pot fi redimensionate manual din colt, util pentru note contabile si tabele late.\n- Setari > Baza date afiseaza statusul tabelelor relationale din SQL Server.\n- Superadmin poate crea/actualiza tabelele relationale din baza INFRAFLOW fara a schimba sursa principala app_state.\n- Endpointuri noi pentru verificare si pregatire schema SQL relationala."
+  "changelog": "## v2.12.52 - 2026-06-16\n### Hotfix schema SQL contabilitate\n- Pregatirea schemei SQL repara explicit tabelele contabile lipsa, chiar daca migrarile vechi apar deja in schema_migrations.\n- Ruleaza idempotent migrarile 027_accounting_core si 028_accounting_controlling_link cand lipsesc tabelele necesare.\n- Pastreaza app_state ca sursa principala pana la migrarea controlata pe module."
 }
