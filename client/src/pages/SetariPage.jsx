@@ -253,8 +253,10 @@ export default function SetariPage() {
   const [moduleFeatureDraft, setModuleFeatureDraft] = useState({})
   const [databaseConfig, setDatabaseConfig] = useState({ server: '.\\SQLEXPRESS', database: 'INFRAFLOW', authMode: 'windows', user: 'infraflow', password: '', encrypt: 'false', relational: false })
   const [databaseHealth, setDatabaseHealth] = useState(null)
+  const [databaseSchema, setDatabaseSchema] = useState(null)
   const [databaseSaving, setDatabaseSaving] = useState(false)
   const [databaseTesting, setDatabaseTesting] = useState(false)
+  const [databaseSchemaLoading, setDatabaseSchemaLoading] = useState(false)
   const [license, setLicense] = useState(null)
   const [branding, setBranding] = useState(normalizeBranding())
   const [aiStatus, setAiStatus] = useState(null)
@@ -329,7 +331,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, dbSchemaRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -342,6 +344,7 @@ export default function SetariPage() {
         api.get('/integration/piusi/status'),
         api.get('/integration/piusi/mapari'),
         api.get('/system/database-config'),
+        api.get('/system/database-schema'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -374,6 +377,7 @@ export default function SetariPage() {
         setDatabaseConfig({ ...cfg, password: '' })
         setDatabaseHealth(dbConfigRes.value.data.health || null)
       }
+      if (dbSchemaRes.status === 'fulfilled') setDatabaseSchema(dbSchemaRes.value.data || null)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -984,6 +988,31 @@ export default function SetariPage() {
     }
   }
 
+  async function loadDatabaseSchema() {
+    setDatabaseSchemaLoading(true)
+    try {
+      const response = await api.get('/system/database-schema')
+      setDatabaseSchema(response.data || null)
+    } catch (err) {
+      fail(err, 'Schema SQL nu a putut fi verificată.')
+    } finally {
+      setDatabaseSchemaLoading(false)
+    }
+  }
+
+  async function prepareDatabaseSchema() {
+    setDatabaseSchemaLoading(true)
+    try {
+      const response = await api.post('/system/database-schema/prepare')
+      setDatabaseSchema(response.data.status || response.data || null)
+      notify(response.data.message || 'Tabelele SQL au fost pregătite.')
+    } catch (err) {
+      fail(err, 'Tabelele SQL nu au putut fi create.')
+    } finally {
+      setDatabaseSchemaLoading(false)
+    }
+  }
+
   async function saveUser(event) {
     event.preventDefault()
     try {
@@ -1447,6 +1476,51 @@ export default function SetariPage() {
               <Button type="submit" loading={databaseSaving}>Salvează SQL</Button>
             </div>
           </form>
+          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-slate-900">Schema SQL relațională</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  În modul curent aplicația folosește <strong>dbo.app_state</strong> ca sursă principală de date.
+                  Tabelele relaționale pot fi create aici pentru migrarea controlată pe module.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" loading={databaseSchemaLoading} onClick={loadDatabaseSchema}>Verifică schema</Button>
+                <Button type="button" loading={databaseSchemaLoading} onClick={prepareDatabaseSchema}>Creează/actualizează tabele</Button>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="text-slate-500">Tabele găsite</div>
+                <div className="mt-1 text-2xl font-semibold text-slate-900">{databaseSchema?.tableCount ?? '-'}</div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="text-slate-500">Mod relațional</div>
+                <div className={databaseSchema?.enabled ? 'mt-1 font-semibold text-emerald-700' : 'mt-1 font-semibold text-amber-700'}>
+                  {databaseSchema?.enabled ? 'activ la runtime' : 'pregătire / app_state principal'}
+                </div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="text-slate-500">Migrare date app_state</div>
+                <div className={databaseSchema?.syncFileExists ? 'mt-1 font-semibold text-emerald-700' : 'mt-1 font-semibold text-amber-700'}>
+                  {databaseSchema?.syncFileExists ? 'script disponibil' : 'nu este activată încă'}
+                </div>
+              </div>
+            </div>
+            {databaseSchema?.error ? (
+              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{databaseSchema.error}</div>
+            ) : null}
+            {Array.isArray(databaseSchema?.missingCoreTables) && databaseSchema.missingCoreTables.length ? (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Lipsesc încă: {databaseSchema.missingCoreTables.join(', ')}
+              </div>
+            ) : databaseSchema ? (
+              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                Schema de bază este prezentă în SQL Server.
+              </div>
+            ) : null}
+          </div>
         </Card>
       )}
 

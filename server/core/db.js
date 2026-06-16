@@ -577,6 +577,92 @@ function syncMssqlRelationalFromAppState() {
   }
 }
 
+const MSSQL_RELATIONAL_CORE_TABLES = [
+  "app_state",
+  "schema_migrations",
+  "accounting_chart",
+  "accounting_journals",
+  "accounting_journal_lines",
+  "accounting_third_parties",
+  "accounting_invoices_in",
+  "accounting_invoices_out",
+  "accounting_treasury",
+  "accounting_periods"
+];
+
+function listMssqlUserTables() {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) return [];
+  const text = runMssqlScalar(`
+    select isnull(stuff((
+      select char(10) + s.name + N'.' + t.name
+      from sys.tables t
+      inner join sys.schemas s on s.schema_id = t.schema_id
+      where t.is_ms_shipped = 0
+      order by s.name, t.name
+      for xml path(''), type
+    ).value('.', 'nvarchar(max)'), 1, 1, ''), N'');
+  `, { timeoutMs: 30000 });
+  return String(text || "").split(/\r?\n/).map((name) => name.trim()).filter(Boolean);
+}
+
+function getMssqlRelationalStatus() {
+  const supported = ["mssql", "sqlserver"].includes(DB_MODE);
+  const importFile = path.join(ROOT, "db", "mssql-import-app-state.sql");
+  if (!supported) {
+    return {
+      supported: false,
+      mode: DB_MODE,
+      enabled: false,
+      appStatePrimary: false,
+      syncFileExists: fs.existsSync(importFile),
+      tables: [],
+      tableCount: 0,
+      missingCoreTables: MSSQL_RELATIONAL_CORE_TABLES
+    };
+  }
+  try {
+    const tables = listMssqlUserTables();
+    const normalized = new Set(tables.map((name) => String(name).replace(/^dbo\./i, "")));
+    return {
+      supported: true,
+      mode: DB_MODE,
+      enabled: Boolean(mssqlRelationalRuntimeEnabled),
+      configured: Boolean(MSSQL_RELATIONAL_MODE),
+      appStatePrimary: true,
+      syncFileExists: fs.existsSync(importFile),
+      tables,
+      tableCount: tables.length,
+      missingCoreTables: MSSQL_RELATIONAL_CORE_TABLES.filter((name) => !normalized.has(name))
+    };
+  } catch (error) {
+    return {
+      supported: true,
+      mode: DB_MODE,
+      enabled: Boolean(mssqlRelationalRuntimeEnabled),
+      configured: Boolean(MSSQL_RELATIONAL_MODE),
+      appStatePrimary: true,
+      syncFileExists: fs.existsSync(importFile),
+      error: String(error.message || error),
+      tables: [],
+      tableCount: 0,
+      missingCoreTables: MSSQL_RELATIONAL_CORE_TABLES
+    };
+  }
+}
+
+function prepareMssqlRelationalSchema() {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) {
+    throw new Error("Schema relationala este disponibila doar in DB_MODE=mssql.");
+  }
+  const baseFiles = applyMssqlBaseSchema();
+  const migrations = applyMssqlMigrations();
+  return {
+    baseFiles,
+    migrations,
+    status: getMssqlRelationalStatus()
+  };
+}
+
 function applyMssqlMigrations() {
   if (!["mssql", "sqlserver"].includes(DB_MODE)) return [];
   const migrationsDir = path.join(ROOT, "db", "migrations");
@@ -1404,6 +1490,8 @@ module.exports = {
   applyMssqlMigrations,
   syncMssqlCpvCodes,
   ensureMssqlDatabase,
+  getMssqlRelationalStatus,
+  prepareMssqlRelationalSchema,
   databaseHealth,
   mssqlConnectionString,
   mssqlDatabaseName,

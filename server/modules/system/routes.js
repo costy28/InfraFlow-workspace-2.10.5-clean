@@ -27,7 +27,9 @@ const {
   runMssqlScalar: coreRunMssqlScalar,
   closeMssqlPool: coreCloseMssqlPool,
   databaseHealth: coreDatabaseHealth,
-  ensureMssqlDatabase: coreEnsureMssqlDatabase
+  ensureMssqlDatabase: coreEnsureMssqlDatabase,
+  getMssqlRelationalStatus: coreGetMssqlRelationalStatus,
+  prepareMssqlRelationalSchema: corePrepareMssqlRelationalSchema
 } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { verificaLicenta, incarcaLicenta } = require('../../core/license')
@@ -998,6 +1000,35 @@ router.post('/system/database-config', async (req, res, next) => {
       config: publicDatabaseConfig(normalized),
       health: safeDatabaseHealth(),
       needsRestart: true
+    });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.get('/system/database-schema', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    sendJson(res, 200, coreGetMssqlRelationalStatus());
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/system/database-schema/prepare', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const result = corePrepareMssqlRelationalSchema();
+    addAudit(auth.db, auth.user, "schema_sql_pregatita", `${result.status?.tableCount || 0} tabele`);
+    try { writeDb(auth.db); } catch (auditError) { console.warn("Audit schema SQL nu a putut fi salvat:", auditError.message); }
+    sendJson(res, 200, {
+      ok: true,
+      message: "Tabelele SQL relationale au fost create sau actualizate.",
+      ...result
     });
   } catch (error) {
     next(error);

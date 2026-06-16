@@ -1,5 +1,5 @@
 {
-  "version": "2.12.50",
-  "date": "2026-06-15",
-  "changelog": "## v2.12.50 - 2026-06-15\n### Flux contabil completat\n- Facturile folosesc selectori reali pentru conturile din planul de conturi.\n- Registrul jurnal permite creare note contabile manuale cu verificare debit-credit.\n- TVA / D300 are filtre pe status si cota TVA si poate marca TVA-ul lunii ca verificat.\n- Inchiderea lunii este blocata pana cand TVA-ul este verificat."
+  "version": "2.12.51",
+  "date": "2026-06-16",
+  "changelog": "## v2.12.51 - 2026-06-16\n### Modaluri si schema SQL\n- Modalurile aplicatiei pot fi redimensionate manual din colt, util pentru note contabile si tabele late.\n- Setari > Baza date afiseaza statusul tabelelor relationale din SQL Server.\n- Superadmin poate crea/actualiza tabelele relationale din baza INFRAFLOW fara a schimba sursa principala app_state.\n- Endpointuri noi pentru verificare si pregatire schema SQL relationala."
 }
