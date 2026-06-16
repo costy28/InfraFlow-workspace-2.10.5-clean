@@ -564,7 +564,8 @@ router.get("/accounting/vat-journal", requireAccountingReports, (req, res) => {
     diferenta: data.diferenta,
     perioada: data.perioada,
     cote: data.cote,
-    sumar_d300: data.sumar_d300
+    sumar_d300: data.sumar_d300,
+    period_status: data.period_status
   });
 });
 
@@ -627,6 +628,7 @@ router.get("/accounting/d300", requireAccountingReports, (req, res) => {
   sendJson(res, 200, {
     perioada: data.perioada,
     decont: data.sumar_d300,
+    period_status: data.period_status,
     status: {
       can_prepare: true,
       warnings: [
@@ -663,6 +665,7 @@ router.post("/accounting/periods/:an/:luna/close", requireAccountingClose, (req,
     if (check.checks.draft_count) throwHttp(409, `Exista ${check.checks.draft_count} documente draft in luna.`);
     if (check.checks.unbalanced_journals) throwHttp(409, `Exista ${check.checks.unbalanced_journals} note contabile dezechilibrate.`);
     if (!check.checks.balance_ok) throwHttp(409, "Balanta lunii nu este echilibrata.");
+    if (!check.checks.tva_checked) throwHttp(409, "TVA-ul lunii trebuie verificat inainte de inchidere.");
     engine.checkPeriodOpen(req.auth.db, an, luna);
     const period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna);
     period.status = "inchisa";
@@ -671,6 +674,37 @@ router.post("/accounting/periods/:an/:luna/close", requireAccountingClose, (req,
     addAudit(req.auth.db, req.auth.user, "accounting_period_close", `${luna}/${an}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { period });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/periods/:an/:luna/mark-vat-checked", requireAccountingClose, (req, res, next) => {
+  try {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const an = Number(req.params.an);
+    const luna = Number(req.params.luna);
+    let period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna);
+    if (!period) {
+      period = {
+        id: engine.nextNumericId(accounting.periods),
+        an,
+        luna,
+        status: "deschisa",
+        created_at: new Date().toISOString()
+      };
+      accounting.periods.push(period);
+    }
+    if (["inchisa", "depusa"].includes(period.status)) throwHttp(409, "TVA-ul nu poate fi remarcat dupa inchiderea/depunerea lunii.");
+    const data = buildVatData(req.auth.db, { an, luna });
+    period.tva_verificat_de = req.auth.user.id;
+    period.tva_verificat_de_name = req.auth.user.name || "";
+    period.tva_verificat_la = new Date().toISOString();
+    period.tva_verificat_total_4426 = data.total_4426;
+    period.tva_verificat_total_4427 = data.total_4427;
+    period.tva_verificat_diferenta = data.diferenta;
+    period.updated_at = new Date().toISOString();
+    addAudit(req.auth.db, req.auth.user, "accounting_period_vat_checked", `${luna}/${an}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { period, sumar_d300: data.sumar_d300 });
   } catch (error) { next(error); }
 });
 
@@ -1226,10 +1260,12 @@ function buildVatData(db, query = {}) {
   const monthValue = query.perioada || query.month || (String(query.luna || "").includes("-") ? query.luna : `${query.an || new Date().getFullYear()}-${String(query.luna || new Date().getMonth() + 1).padStart(2, "0")}`);
   const [an, luna] = monthParts(monthValue);
   const filters = { ...query, an, luna };
+  const period = accounting.periods.find((item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna)) || { an, luna, status: "deschisa" };
+  const cota = query.cota === undefined || query.cota === "" ? "" : Number(query.cota);
   const invoicesIn = filterDocuments(accounting.invoicesIn, filters).filter((item) => item.status !== "anulat");
   const invoicesOut = filterDocuments(accounting.invoicesOut, filters).filter((item) => item.status !== "anulat");
-  const jurnalCumparari = invoicesIn.map((invoice) => decorateVatInvoice(db, invoice, "furnizor"));
-  const jurnalVanzari = invoicesOut.map((invoice) => decorateVatInvoice(db, invoice, "client"));
+  const jurnalCumparari = invoicesIn.map((invoice) => decorateVatInvoice(db, invoice, "furnizor")).filter((item) => cota === "" || Number(item.tva_procent || 0) === cota);
+  const jurnalVanzari = invoicesOut.map((invoice) => decorateVatInvoice(db, invoice, "client")).filter((item) => cota === "" || Number(item.tva_procent || 0) === cota);
   const total4426 = sum(jurnalCumparari, "tva");
   const total4427 = sum(jurnalVanzari, "tva");
   const cote = groupVatRates(jurnalCumparari, jurnalVanzari);
@@ -1242,7 +1278,12 @@ function buildVatData(db, query = {}) {
     total_4427: total4427,
     diferenta: round(total4427 - total4426),
     cote,
-    sumar_d300: sumarD300
+    sumar_d300: sumarD300,
+    period_status: {
+      status: period.status || "deschisa",
+      tva_verificat_la: period.tva_verificat_la || "",
+      tva_verificat_de_name: period.tva_verificat_de_name || ""
+    }
   };
 }
 
@@ -1344,13 +1385,15 @@ function periodCheck(db, an, luna) {
   const totalCredit = round(balance.totals?.rulaje_C || 0);
   const balanceDifference = round(totalDebit - totalCredit);
   const balanceOk = balance.balanced && Math.abs(balanceDifference) <= 0.01;
+  const tvaChecked = Boolean(period.tva_verificat_la);
   return {
     period,
     checks: {
       draft_count: draftDocuments.length,
       unbalanced_journals: unbalanced.length,
       balance_ok: balanceOk,
-      can_close: period.status === "deschisa" && draftDocuments.length === 0 && unbalanced.length === 0 && balanceOk,
+      tva_checked: tvaChecked,
+      can_close: period.status === "deschisa" && draftDocuments.length === 0 && unbalanced.length === 0 && balanceOk && tvaChecked,
       can_reopen: ["inchisa", "depusa"].includes(period.status),
       can_mark_submitted: period.status === "inchisa"
     },

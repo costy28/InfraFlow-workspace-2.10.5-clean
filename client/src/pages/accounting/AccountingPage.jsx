@@ -94,6 +94,29 @@ function AccountInput({ label, value, onChange, accounts, id, recommendedClasses
   )
 }
 
+function AccountSelect({ label, value, onChange, accounts, recommendedClasses = [], required = false }) {
+  const preferred = recommendedClasses.length
+    ? accounts.filter(account => recommendedClasses.includes(Number(account.clasa)))
+    : accounts
+  const rest = recommendedClasses.length
+    ? accounts.filter(account => !recommendedClasses.includes(Number(account.clasa)))
+    : []
+  const options = [...preferred, ...rest]
+  const selected = accounts.find(account => account.simbol === value)
+  return (
+    <div className="grid gap-1">
+      <Select
+        label={label}
+        value={value || ''}
+        onChange={onChange}
+        required={required}
+        options={[{ value: '', label: 'Selecteaza cont' }, ...options.map(account => ({ value: account.simbol, label: `${account.simbol} - ${account.denumire}` }))]}
+      />
+      {selected ? <div className="text-xs text-slate-500">{selected.tip_cont || 'general'} · clasa {selected.clasa}</div> : null}
+    </div>
+  )
+}
+
 function AccountingShell({ active, title, subtitle, children, actions }) {
   return (
     <div className="grid gap-4">
@@ -568,7 +591,12 @@ export function FacturiContab({ direction = 'in' }) {
       <Modal open={modal} title={editing ? 'Editare factura draft' : 'Factura noua'} onClose={() => setModal(false)}>
         <form className="grid gap-3" onSubmit={submit}>
           {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-          <Select label={isIn ? 'Furnizor' : 'Client'} value={form.tert_id || ''} onChange={event => setForm({ ...form, tert_id: event.target.value })} options={thirdParties.map(t => ({ value: t.id, label: `${t.cod} - ${t.denumire}` }))} required />
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+            <Select label={isIn ? 'Furnizor' : 'Client'} value={form.tert_id || ''} onChange={event => setForm({ ...form, tert_id: event.target.value })} options={thirdParties.map(t => ({ value: t.id, label: `${t.cod} - ${t.denumire}` }))} required />
+            <div className="flex items-end">
+              <Link className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" to={isIn ? '/contabilitate/furnizori' : '/contabilitate/clienti'}>Editeaza terti</Link>
+            </div>
+          </div>
           <Input label="Document" value={form.nr_document || form.numar || ''} onChange={event => setForm({ ...form, nr_document: event.target.value, numar: event.target.value })} required />
           <Input label="Data" type="date" value={form.data} onChange={event => setForm({ ...form, data: event.target.value })} required />
           <Input label="Scadenta" type="date" value={form.data_scadenta || ''} onChange={event => setForm({ ...form, data_scadenta: event.target.value })} />
@@ -576,7 +604,7 @@ export function FacturiContab({ direction = 'in' }) {
             <Select label="Centru cost/profit" value={form.cost_center_id || ''} onChange={event => setForm({ ...form, cost_center_id: event.target.value, subcentru_id: '' })} options={[{ value: '', label: 'Fara centru' }, ...mainCostCenters.map(center => ({ value: center.id, label: `${center.cod || center.id} - ${center.denumire || center.name}` }))]} />
             <Select label="Subcentru" value={form.subcentru_id || ''} onChange={event => setForm({ ...form, subcentru_id: event.target.value })} options={[{ value: '', label: subcenters.length ? 'Fara subcentru' : 'Nu sunt subcentre' }, ...subcenters.map(center => ({ value: center.id, label: `${center.cod || center.id} - ${center.denumire || center.name}` }))]} disabled={!form.cost_center_id || !subcenters.length} />
           </div>
-          <AccountInput id="factura-cont-principal" label={isIn ? 'Cont cheltuiala' : 'Cont venit'} value={isIn ? form.cont_cheltuiala : form.cont_venit} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => setForm({ ...form, [isIn ? 'cont_cheltuiala' : 'cont_venit']: event.target.value })} />
+          <AccountSelect label={isIn ? 'Cont cheltuiala' : 'Cont venit'} value={isIn ? form.cont_cheltuiala : form.cont_venit} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => setForm({ ...form, [isIn ? 'cont_cheltuiala' : 'cont_venit']: event.target.value })} required />
           <div className="rounded-md border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-sm font-semibold text-slate-800">Linii factura</div>
@@ -587,7 +615,7 @@ export function FacturiContab({ direction = 'in' }) {
                 <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3">
                   <Input label={`Denumire linia ${index + 1}`} value={line.denumire || ''} onChange={event => updateLine(index, { denumire: event.target.value })} />
                   <div className="grid gap-2 sm:grid-cols-[minmax(92px,1fr)_minmax(120px,1.2fr)_minmax(96px,1fr)_44px]">
-                    <AccountInput id={`factura-linie-cont-${index}`} label="Cont" value={line.cont || ''} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => updateLine(index, { cont: event.target.value })} />
+                    <AccountSelect label="Cont" value={line.cont || ''} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => updateLine(index, { cont: event.target.value })} required />
                     <Input label="Valoare" type="number" step="0.01" value={line.valoare || ''} onChange={event => updateLine(index, { valoare: event.target.value })} />
                     <Select label="TVA" value={line.tva_procent ?? 21} onChange={event => updateLine(index, { tva_procent: event.target.value })} options={[0,5,9,19,21].map(v => ({ value: v, label: `${v}%` }))} />
                     <div className="flex items-end"><Button type="button" size="sm" variant="secondary" onClick={() => removeLine(index)}>x</Button></div>
@@ -807,10 +835,13 @@ export function Trezorerie() {
 
 export function RegistruJurnal() {
   const [rows, setRows] = useState([])
+  const [accounts, setAccounts] = useState([])
   const [month, setMonth] = useState(currentMonth())
   const [status, setStatus] = useState('')
   const [selectedUuid, setSelectedUuid] = useState('')
   const [error, setError] = useState('')
+  const [noteModal, setNoteModal] = useState(false)
+  const [noteForm, setNoteForm] = useState({ data: today(), nr_document: '', tip_document: 'nota_manuala', explicatie: '', lines: [] })
   const [importModal, setImportModal] = useState(false)
   const [importFile, setImportFile] = useState(null)
   const [importPreview, setImportPreview] = useState(null)
@@ -827,12 +858,67 @@ export function RegistruJurnal() {
 
   function load() {
     const [an, luna] = month.split('-')
-    api.get('/accounting/journals', { params: { an, luna: Number(luna), status: status || undefined } })
-      .then(res => setRows(res.data.journals || []))
+    Promise.all([
+      api.get('/accounting/journals', { params: { an, luna: Number(luna), status: status || undefined } }),
+      api.get('/accounting/chart')
+    ])
+      .then(([journalRes, chartRes]) => {
+        setRows(journalRes.data.journals || [])
+        setAccounts(chartRes.data.accounts || [])
+      })
       .catch(err => {
         setRows([])
         setError(err.response?.data?.error || 'Nu am putut incarca registrul jurnal.')
       })
+  }
+
+  function emptyNoteLine(side = 'debit') {
+    return { cont: '', debit: side === 'debit' ? '' : 0, credit: side === 'credit' ? '' : 0, explicatie: '' }
+  }
+
+  function openManualNote() {
+    setError('')
+    setNoteForm({
+      data: today(),
+      nr_document: '',
+      tip_document: 'nota_manuala',
+      explicatie: '',
+      lines: [emptyNoteLine('debit'), emptyNoteLine('credit')]
+    })
+    setNoteModal(true)
+  }
+
+  function updateNoteLine(index, patch) {
+    const lines = [...(noteForm.lines || [])]
+    lines[index] = { ...lines[index], ...patch }
+    setNoteForm({ ...noteForm, lines })
+  }
+
+  function addNoteLine(side = 'debit') {
+    setNoteForm({ ...noteForm, lines: [...(noteForm.lines || []), emptyNoteLine(side)] })
+  }
+
+  function removeNoteLine(index) {
+    const lines = (noteForm.lines || []).filter((_, lineIndex) => lineIndex !== index)
+    setNoteForm({ ...noteForm, lines: lines.length ? lines : [emptyNoteLine('debit'), emptyNoteLine('credit')] })
+  }
+
+  async function submitManualNote(event) {
+    event.preventDefault()
+    const lines = (noteForm.lines || []).map(line => ({
+      cont: line.cont,
+      debit: money(line.debit),
+      credit: money(line.credit),
+      explicatie: line.explicatie || noteForm.explicatie
+    })).filter(line => line.cont && (line.debit > 0 || line.credit > 0))
+    try {
+      setError('')
+      await api.post('/accounting/journals', { ...noteForm, lines })
+      setNoteModal(false)
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nota contabila nu a putut fi salvata.')
+    }
   }
 
   async function storno(row) {
@@ -891,8 +977,15 @@ export function RegistruJurnal() {
     }
   }
 
+  const noteTotals = (noteForm.lines || []).reduce((acc, line) => {
+    acc.debit += money(line.debit)
+    acc.credit += money(line.credit)
+    return acc
+  }, { debit: 0, credit: 0 })
+  const noteBalanced = Math.abs(noteTotals.debit - noteTotals.credit) <= 0.01 && noteTotals.debit > 0
+
   return (
-    <AccountingShell active="jurnal" title="Registru jurnal" subtitle="Note contabile active si storno, cu linii debit/credit." actions={<Button variant="secondary" onClick={() => setImportModal(true)}>Import note XLS</Button>}>
+    <AccountingShell active="jurnal" title="Registru jurnal" subtitle="Note contabile active si storno, cu linii debit/credit." actions={<><Button onClick={openManualNote}>+ Nota manuala</Button><Button variant="secondary" onClick={() => setImportModal(true)}>Import note XLS</Button></>}>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
@@ -1018,23 +1111,68 @@ export function RegistruJurnal() {
           </div>
         </div>
       </Modal>
+      <Modal open={noteModal} title="Nota contabila manuala" onClose={() => setNoteModal(false)}>
+        <form className="grid gap-3" onSubmit={submitManualNote}>
+          {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+          <div className="grid gap-3 md:grid-cols-3">
+            <Input label="Data" type="date" value={noteForm.data || today()} onChange={event => setNoteForm({ ...noteForm, data: event.target.value })} required />
+            <Input label="Nr. document" value={noteForm.nr_document || ''} onChange={event => setNoteForm({ ...noteForm, nr_document: event.target.value })} />
+            <Input label="Tip document" value={noteForm.tip_document || 'nota_manuala'} onChange={event => setNoteForm({ ...noteForm, tip_document: event.target.value })} />
+          </div>
+          <Input label="Explicatie" value={noteForm.explicatie || ''} onChange={event => setNoteForm({ ...noteForm, explicatie: event.target.value })} />
+          <div className="rounded-md border border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-sm font-semibold text-slate-800">Linii debit / credit</div>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => addNoteLine('debit')}>+ Debit</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => addNoteLine('credit')}>+ Credit</Button>
+              </div>
+            </div>
+            <div className="grid gap-2 p-3">
+              {(noteForm.lines || []).map((line, index) => (
+                <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 md:grid-cols-[minmax(180px,1.4fr)_120px_120px_minmax(160px,1fr)_44px]">
+                  <AccountSelect label="Cont" value={line.cont || ''} accounts={accounts} onChange={event => updateNoteLine(index, { cont: event.target.value })} required />
+                  <Input label="Debit" type="number" step="0.01" value={line.debit || ''} onChange={event => updateNoteLine(index, { debit: event.target.value, credit: event.target.value ? 0 : line.credit })} />
+                  <Input label="Credit" type="number" step="0.01" value={line.credit || ''} onChange={event => updateNoteLine(index, { credit: event.target.value, debit: event.target.value ? 0 : line.debit })} />
+                  <Input label="Explicatie linie" value={line.explicatie || ''} onChange={event => updateNoteLine(index, { explicatie: event.target.value })} />
+                  <div className="flex items-end"><Button type="button" size="sm" variant="secondary" onClick={() => removeNoteLine(index)}>x</Button></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className={`rounded-md px-3 py-2 text-sm ${noteBalanced ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
+            Debit {formatMoney(noteTotals.debit)} · Credit {formatMoney(noteTotals.credit)} · {noteBalanced ? 'nota este echilibrata' : 'nota trebuie echilibrata debit = credit'}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setNoteModal(false)}>Renunta</Button>
+            <Button type="submit" disabled={!noteBalanced}>Salveaza nota</Button>
+          </div>
+        </form>
+      </Modal>
     </AccountingShell>
   )
 }
 
 export function TVADeclaratii() {
   const [month, setMonth] = useState(currentMonth())
+  const [status, setStatus] = useState('')
+  const [cota, setCota] = useState('')
   const [data, setData] = useState({ decont: { randuri: [] } })
   const [journal, setJournal] = useState({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
 
-  useEffect(() => { load() }, [month])
+  useEffect(() => { load() }, [month, status, cota])
+
+  function params() {
+    return { perioada: month, status: status || undefined, cota: cota || undefined }
+  }
 
   function load() {
     setError('')
     Promise.all([
-      api.get('/accounting/d300', { params: { perioada: month } }),
-      api.get('/accounting/vat-journal', { params: { perioada: month } })
+      api.get('/accounting/d300', { params: params() }),
+      api.get('/accounting/vat-journal', { params: params() })
     ]).then(([d300Res, journalRes]) => {
       setData(d300Res.data || { decont: { randuri: [] } })
       setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
@@ -1046,7 +1184,7 @@ export function TVADeclaratii() {
   }
 
   async function download(endpoint, filename) {
-    const res = await api.get(endpoint, { params: { perioada: month }, responseType: 'blob' })
+    const res = await api.get(endpoint, { params: params(), responseType: 'blob' })
     const url = URL.createObjectURL(res.data)
     const link = document.createElement('a')
     link.href = url
@@ -1057,8 +1195,22 @@ export function TVADeclaratii() {
     URL.revokeObjectURL(url)
   }
 
+  async function markVatChecked() {
+    const [an, luna] = month.split('-')
+    try {
+      setError('')
+      await api.post(`/accounting/periods/${an}/${Number(luna)}/mark-vat-checked`)
+      setMessage('TVA-ul lunii a fost marcat verificat.')
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'TVA-ul nu a putut fi marcat verificat.')
+    }
+  }
+
   const d = data.decont || {}
   const warnings = data.status?.warnings || []
+  const periodStatus = data.period_status || journal.period_status || {}
+  const canCheckVat = periodStatus.status !== 'inchisa' && periodStatus.status !== 'depusa'
   const fileMonth = month.replace('-', '_')
 
   return (
@@ -1070,14 +1222,39 @@ export function TVADeclaratii() {
         <>
           <Button variant="secondary" onClick={() => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`)}>Export Excel</Button>
           <Button variant="secondary" onClick={() => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`)}>XML lucru</Button>
+          <Button onClick={markVatChecked} disabled={!canCheckVat}>TVA verificat</Button>
         </>
       )}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <Card>
-        <div className="grid gap-3 md:grid-cols-[220px_auto]">
+        <div className="grid gap-3 md:grid-cols-[220px_180px_180px_auto]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+          <Select label="Status documente" value={status} onChange={event => setStatus(event.target.value)} options={[
+            { value: '', label: 'Toate fara anulate' },
+            { value: 'draft', label: 'Draft' },
+            { value: 'validat', label: 'Validate' },
+            { value: 'achitat', label: 'Achitate' },
+            { value: 'incasat', label: 'Incasate' },
+            { value: 'partial', label: 'Partial' }
+          ]} />
+          <Select label="Cota TVA" value={cota} onChange={event => setCota(event.target.value)} options={[
+            { value: '', label: 'Toate cotele' },
+            ...[21, 19, 9, 5, 0].map(value => ({ value, label: `${value}%` }))
+          ]} />
           <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
+        </div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs uppercase text-slate-500">Status TVA luna</div>
+            <div className="mt-1 text-sm text-slate-700">
+              {periodStatus.tva_verificat_la ? `Verificat la ${periodStatus.tva_verificat_la.slice(0, 16).replace('T', ' ')} de ${periodStatus.tva_verificat_de_name || '-'}` : 'Neverificat pentru inchidere luna.'}
+            </div>
+          </div>
+          <Badge tone={periodStatus.tva_verificat_la ? 'success' : 'warning'}>{periodStatus.tva_verificat_la ? 'verificat' : 'neverificat'}</Badge>
         </div>
       </Card>
       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -1363,7 +1540,8 @@ export function InchidereLuna() {
   const blockers = [
     checks.draft_count ? `${checks.draft_count} documente draft` : '',
     checks.unbalanced_journals ? `${checks.unbalanced_journals} note dezechilibrate` : '',
-    checks.balance_ok === false ? 'balanta dezechilibrata' : ''
+    checks.balance_ok === false ? 'balanta dezechilibrata' : '',
+    checks.tva_checked === false ? 'TVA neverificat' : ''
   ].filter(Boolean)
 
   return (
@@ -1401,7 +1579,7 @@ export function InchidereLuna() {
             <Info label="Documente draft" value={checks.draft_count || 0} />
             <Info label="Note dezechilibrate" value={checks.unbalanced_journals || 0} />
             <Info label="Balanta" value={data.balance?.balanced ? 'Echilibrata' : formatMoney(data.balance?.difference || 0)} />
-            <Info label="TVA de plata/recuperat" value={formatMoney(data.vat?.diferenta || 0)} />
+            <Info label="TVA" value={`${checks.tva_checked ? 'Verificat' : 'Neverificat'} · ${formatMoney(data.vat?.diferenta || 0)}`} />
           </div>
           <Table headers={['Data', 'Tip', 'Document', 'Status']}>
             {(data.drafts || []).map(row => (

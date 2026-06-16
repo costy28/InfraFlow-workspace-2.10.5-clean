@@ -1,5 +1,5 @@
 {
-  "version": "2.12.49",
+  "version": "2.12.50",
   "date": "2026-06-15",
-  "changelog": "## v2.12.49 - 2026-06-15\n### TVA si pregatire D300\n- Contabilitatea are tab TVA / D300 pentru jurnal cumparari, jurnal vanzari si TVA pe cote.\n- Se calculeaza total TVA colectata, deductibila, de plata si de recuperat din documentele contabile.\n- Export Excel pentru jurnal TVA si XML intern de lucru pentru verificarea D300.\n- XML-ul este marcat explicit ca document intern, nu declaratie ANAF finala."
+  "changelog": "## v2.12.50 - 2026-06-15\n### Flux contabil completat\n- Facturile folosesc selectori reali pentru conturile din planul de conturi.\n- Registrul jurnal permite creare note contabile manuale cu verificare debit-credit.\n- TVA / D300 are filtre pe status si cota TVA si poate marca TVA-ul lunii ca verificat.\n- Inchiderea lunii este blocata pana cand TVA-ul este verificat."
 }
