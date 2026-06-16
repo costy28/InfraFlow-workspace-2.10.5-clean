@@ -1,5 +1,5 @@
-import { FacturiContab } from './AccountingPage'
+import FacturiContab from './FacturiContab'
 
-export default function Page() {
+export default function FacturiIesire() {
   return <FacturiContab direction="out" />
 }

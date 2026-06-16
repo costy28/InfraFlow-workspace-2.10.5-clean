@@ -1,5 +1,5 @@
 {
-  "version": "2.12.52",
+  "version": "2.12.53",
   "date": "2026-06-16",
-  "changelog": "## v2.12.52 - 2026-06-16\n### Hotfix schema SQL contabilitate\n- Pregatirea schemei SQL repara explicit tabelele contabile lipsa, chiar daca migrarile vechi apar deja in schema_migrations.\n- Ruleaza idempotent migrarile 027_accounting_core si 028_accounting_controlling_link cand lipsesc tabelele necesare.\n- Pastreaza app_state ca sursa principala pana la migrarea controlata pe module."
+  "changelog": "## v2.12.53 - 2026-06-16\n### Refactor frontend Contabilitate\n- Modulul Contabilitate a fost impartit in pagini si componente shared separate.\n- AccountingPage.jsx ramane doar ca strat de compatibilitate cu re-exporturi.\n- Rutele existente raman neschimbate, iar build-ul frontend confirma incarcarea separata pe pagini."
 }

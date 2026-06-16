@@ -1,5 +1,5 @@
-import { TertiContab } from './AccountingPage'
+import TertiContab from './TertiContab'
 
-export default function Page() {
+export default function ClientiContab() {
   return <TertiContab type="client" />
 }
