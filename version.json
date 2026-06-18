@@ -1,5 +1,5 @@
 {
-  "version": "2.12.60",
+  "version": "2.12.61",
   "date": "2026-06-18",
-  "changelog": "## v2.12.60 - 2026-06-18\n### Hotfix migrare contabilitate SQL\n- Migrarea contabilitatii verifica si repara automat schema SQL inainte de copierea datelor.\n- Setari > Baza date afiseaza mesaj mai clar cand tabelele lipsa pot fi create automat.\n- API-ul intoarce explicit lista tabelelor lipsa daca schema nu poate fi reparata."
+  "changelog": "## v2.12.61 - 2026-06-18\n### Hotfix blocaj migrari generale la migrarea contabilitatii\n- Migrarea contabilitatii nu mai este blocata de migrari vechi nelegate de contabilitate.\n- Erorile din migrarile generale sunt tratate ca avertisment, iar tabelele contabile critice se repara separat.\n- Mesajul UI explica atunci cand unele migrari generale au fost sarite."
 }

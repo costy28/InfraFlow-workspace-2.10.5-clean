@@ -703,7 +703,14 @@ function prepareMssqlRelationalSchema() {
     throw new Error("Schema relationala este disponibila doar in DB_MODE=mssql.");
   }
   const baseFiles = applyMssqlBaseSchema();
-  const migrations = applyMssqlMigrations();
+  let migrations = [];
+  let migrationWarning = "";
+  try {
+    migrations = applyMssqlMigrations();
+  } catch (error) {
+    migrationWarning = cleanMssqlErrorMessage(error);
+    console.warn("[DB] Migrarile generale nu au putut fi aplicate complet. Continui repararea tabelelor critice.", migrationWarning);
+  }
   const repairFiles = repairMssqlRequiredRelationalTables();
   const status = getMssqlRelationalStatus();
   if ((status.missingAccountingSyncTables || []).length) {
@@ -714,8 +721,17 @@ function prepareMssqlRelationalSchema() {
     baseFiles,
     migrations,
     repairFiles,
+    migrationWarning,
     status: getMssqlRelationalStatus()
   };
+}
+
+function cleanMssqlErrorMessage(error) {
+  const raw = String(error?.message || error || "");
+  return raw
+    .replace(/#< CLIXML[\s\S]*/i, "Eroare SQL Server la o migrare generala. Verifica logul serverului pentru detalii.")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function repairMssqlRequiredRelationalTables() {

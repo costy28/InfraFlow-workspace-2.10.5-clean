@@ -1023,7 +1023,8 @@ export default function SetariPage() {
       const repaired = response.data.preparedSchema?.repairFiles?.length
         ? ` Schema reparată: ${response.data.preparedSchema.repairFiles.join(', ')}.`
         : ''
-      notify(`Contabilitatea a fost copiată în SQL: ${counts.chart || 0} conturi, ${counts.thirdParties || 0} terți, ${counts.journals || 0} note.${repaired}`)
+      const warning = response.data.preparedSchema?.warning ? ' Unele migrări generale au fost sărite; contabilitatea a continuat separat.' : ''
+      notify(`Contabilitatea a fost copiată în SQL: ${counts.chart || 0} conturi, ${counts.thirdParties || 0} terți, ${counts.journals || 0} note.${repaired}${warning}`)
     } catch (err) {
       fail(err, 'Datele contabile nu au putut fi copiate în tabelele SQL.')
     } finally {

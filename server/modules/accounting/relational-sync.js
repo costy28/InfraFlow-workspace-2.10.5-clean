@@ -38,7 +38,8 @@ function syncAccountingToMssql(db, user = {}) {
     message: "Datele contabile din app_state au fost copiate in tabelele relationale.",
     preparedSchema: {
       repairFiles: preparedSchema.repairFiles || [],
-      migrations: preparedSchema.migrations || []
+      migrations: preparedSchema.migrations || [],
+      warning: preparedSchema.migrationWarning || ""
     },
     counts,
     status: getMssqlRelationalStatus()
