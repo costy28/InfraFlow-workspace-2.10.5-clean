@@ -1020,7 +1020,10 @@ export default function SetariPage() {
       const response = await api.post('/system/database-schema/sync-accounting')
       setDatabaseSchema(response.data.status || response.data || null)
       const counts = response.data.counts || {}
-      notify(`Contabilitatea a fost copiată în SQL: ${counts.chart || 0} conturi, ${counts.thirdParties || 0} terți, ${counts.journals || 0} note.`)
+      const repaired = response.data.preparedSchema?.repairFiles?.length
+        ? ` Schema reparată: ${response.data.preparedSchema.repairFiles.join(', ')}.`
+        : ''
+      notify(`Contabilitatea a fost copiată în SQL: ${counts.chart || 0} conturi, ${counts.thirdParties || 0} terți, ${counts.journals || 0} note.${repaired}`)
     } catch (err) {
       fail(err, 'Datele contabile nu au putut fi copiate în tabelele SQL.')
     } finally {
@@ -1503,7 +1506,7 @@ export default function SetariPage() {
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" loading={databaseSchemaLoading} onClick={loadDatabaseSchema}>Verifică schema</Button>
                 <Button type="button" loading={databaseSchemaLoading} onClick={prepareDatabaseSchema}>Creează/actualizează tabele</Button>
-                <Button type="button" variant="secondary" loading={databaseAccountingSyncing} onClick={syncAccountingSchema}>Migrează contabilitatea</Button>
+                <Button type="button" variant="secondary" loading={databaseAccountingSyncing} onClick={syncAccountingSchema}>Verifică și migrează contabilitatea</Button>
               </div>
             </div>
             <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
@@ -1520,7 +1523,7 @@ export default function SetariPage() {
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div className="text-slate-500">Migrare date app_state</div>
                 <div className={databaseSchema?.accountingSyncAvailable ? 'mt-1 font-semibold text-emerald-700' : 'mt-1 font-semibold text-amber-700'}>
-                  {databaseSchema?.accountingSyncAvailable ? 'contabilitate disponibilă' : 'pregătește schema întâi'}
+                  {databaseSchema?.accountingSyncAvailable ? 'contabilitate disponibilă' : 'se repară automat la migrare'}
                 </div>
               </div>
             </div>

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.59",
+  "version": "2.12.60",
   "date": "2026-06-18",
-  "changelog": "## v2.12.59 - 2026-06-18\n### Migrare contabilitate catre SQL relational\n- Setari > Baza date are buton dedicat pentru copierea datelor contabile din app_state in tabele SQL.\n- Au fost adaugate tabele relationale pentru liniile facturilor si jurnalul sincronizarilor.\n- Statusul schemei afiseaza ultima migrare si numarul de conturi, terti, facturi si note copiate."
+  "changelog": "## v2.12.60 - 2026-06-18\n### Hotfix migrare contabilitate SQL\n- Migrarea contabilitatii verifica si repara automat schema SQL inainte de copierea datelor.\n- Setari > Baza date afiseaza mesaj mai clar cand tabelele lipsa pot fi create automat.\n- API-ul intoarce explicit lista tabelelor lipsa daca schema nu poate fi reparata."
 }

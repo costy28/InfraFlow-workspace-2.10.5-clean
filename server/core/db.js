@@ -593,6 +593,11 @@ const MSSQL_RELATIONAL_CORE_TABLES = [
   "accounting_law_alerts",
   "accounting_relational_sync"
 ];
+const MSSQL_ACCOUNTING_SYNC_TABLES = [
+  "accounting_invoice_in_lines",
+  "accounting_invoice_out_lines",
+  "accounting_relational_sync"
+];
 
 function listMssqlUserTables() {
   if (!["mssql", "sqlserver"].includes(DB_MODE)) return [];
@@ -627,6 +632,8 @@ function getMssqlRelationalStatus() {
   try {
     const tables = listMssqlUserTables();
     const normalized = new Set(tables.map((name) => String(name).replace(/^dbo\./i, "")));
+    const missingCoreTables = MSSQL_RELATIONAL_CORE_TABLES.filter((name) => !normalized.has(name));
+    const missingAccountingSyncTables = MSSQL_ACCOUNTING_SYNC_TABLES.filter((name) => !normalized.has(name));
     const lastAccountingSync = normalized.has("accounting_relational_sync") ? readMssqlAccountingSyncStatus() : null;
     return {
       supported: true,
@@ -635,11 +642,12 @@ function getMssqlRelationalStatus() {
       configured: Boolean(MSSQL_RELATIONAL_MODE),
       appStatePrimary: true,
       syncFileExists: fs.existsSync(importFile),
-      accountingSyncAvailable: !MSSQL_RELATIONAL_CORE_TABLES.filter((name) => !normalized.has(name)).length,
+      accountingSyncAvailable: !missingCoreTables.length,
+      missingAccountingSyncTables,
       lastAccountingSync,
       tables,
       tableCount: tables.length,
-      missingCoreTables: MSSQL_RELATIONAL_CORE_TABLES.filter((name) => !normalized.has(name))
+      missingCoreTables
     };
   } catch (error) {
     return {
@@ -697,6 +705,11 @@ function prepareMssqlRelationalSchema() {
   const baseFiles = applyMssqlBaseSchema();
   const migrations = applyMssqlMigrations();
   const repairFiles = repairMssqlRequiredRelationalTables();
+  const status = getMssqlRelationalStatus();
+  if ((status.missingAccountingSyncTables || []).length) {
+    runMssqlMigrationRepairFile("029_accounting_relational_sync.sql");
+    repairFiles.push("029_accounting_relational_sync.sql");
+  }
   return {
     baseFiles,
     migrations,
@@ -737,9 +750,20 @@ function repairMssqlRequiredRelationalTables() {
     "accounting_journal_lines"
   ].some((name) => (afterCore.missingCoreTables || []).includes(name));
 
-  if (hasAccountingTables) {
+  const needsControllingLink = [
+    "accounting_invoices_in",
+    "accounting_invoices_out",
+    "accounting_journals",
+    "accounting_journal_lines"
+  ].some((name) => missing.has(name));
+  const needsAccountingSync = MSSQL_ACCOUNTING_SYNC_TABLES.some((name) => missing.has(name));
+
+  if (hasAccountingTables && needsControllingLink) {
     runMssqlMigrationRepairFile("028_accounting_controlling_link.sql");
     repairFiles.push("028_accounting_controlling_link.sql");
+  }
+
+  if (hasAccountingTables && needsAccountingSync) {
     runMssqlMigrationRepairFile("029_accounting_relational_sync.sql");
     repairFiles.push("029_accounting_relational_sync.sql");
   }

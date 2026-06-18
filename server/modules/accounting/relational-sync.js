@@ -9,7 +9,14 @@ function syncAccountingToMssql(db, user = {}) {
   }
 
   const accounting = engine.ensureAccounting(db);
-  prepareMssqlRelationalSchema();
+  const preparedSchema = prepareMssqlRelationalSchema();
+  const schemaStatus = preparedSchema.status || getMssqlRelationalStatus();
+  if ((schemaStatus.missingCoreTables || []).length) {
+    const error = new Error(`Nu pot migra contabilitatea. Lipsesc tabele SQL: ${schemaStatus.missingCoreTables.join(", ")}.`);
+    error.status = 409;
+    error.details = { missingCoreTables: schemaStatus.missingCoreTables };
+    throw error;
+  }
   const prepared = preparePayload(accounting);
   const counts = {
     chart: syncTable("accounting_chart", prepared.chart, sqlChart()),
@@ -29,6 +36,10 @@ function syncAccountingToMssql(db, user = {}) {
   return {
     ok: true,
     message: "Datele contabile din app_state au fost copiate in tabelele relationale.",
+    preparedSchema: {
+      repairFiles: preparedSchema.repairFiles || [],
+      migrations: preparedSchema.migrations || []
+    },
     counts,
     status: getMssqlRelationalStatus()
   };
