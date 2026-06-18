@@ -32,7 +32,10 @@ BEGIN
 
   ALTER TABLE controlling.cost_centers
     ADD CONSTRAINT ck_controlling_cost_centers_tip
-    CHECK (tip IN (N'general', N'departament', N'utilaj', N'lucrare', N'proiect', N'administrativ', N'auxiliar'));
+    CHECK (tip IN (
+      N'general', N'departament', N'utilaj', N'lucrare', N'proiect', N'administrativ', N'auxiliar',
+      N'operational', N'productie', N'spatiu', N'indirect'
+    ));
 END;
 
 IF OBJECT_ID(N'controlling.cost_center_objects', N'U') IS NULL

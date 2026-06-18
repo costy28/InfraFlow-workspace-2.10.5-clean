@@ -33,8 +33,8 @@ BEGIN
     status NVARCHAR(20) DEFAULT 'deschisa',
     sosit BIT DEFAULT 0,
     autominder_id INT NULL,
-    creat_de INT NULL,
-    modified_de INT NULL,
+    creat_de uniqueidentifier NULL,
+    modified_de uniqueidentifier NULL,
     created_at DATETIME2 DEFAULT SYSDATETIME(),
     updated_at DATETIME2 NULL,
     CONSTRAINT FK_fleet_trip_logs_asset

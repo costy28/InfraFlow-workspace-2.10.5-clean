@@ -11,7 +11,7 @@ IF OBJECT_ID(N'integration.intersoft_projects', N'U') IS NULL
 BEGIN
   CREATE TABLE integration.intersoft_projects (
     id int identity(1,1) not null constraint pk_integration_intersoft_projects primary key,
-    santier_id int not null,
+    santier_id uniqueidentifier not null,
     denumire_intersoft nvarchar(300) not null,
     cale_fisier nvarchar(500) null,
     data_import date not null,
@@ -52,7 +52,7 @@ BEGIN
     nr_articole int null,
     status nvarchar(30) not null,
     mesaj nvarchar(max) null,
-    efectuat_de nvarchar(64) null,
+    efectuat_de uniqueidentifier null,
     created_at datetime2(0) not null constraint df_integration_intersoft_sync_log_created_at default sysdatetime(),
     constraint ck_integration_intersoft_sync_log_tip check (tip in (N'import_deviz', N'export_cantitati', N'import_situatie')),
     constraint ck_integration_intersoft_sync_log_status check (status in (N'ok', N'eroare', N'partial')),

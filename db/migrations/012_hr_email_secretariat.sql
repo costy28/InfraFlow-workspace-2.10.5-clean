@@ -8,7 +8,7 @@ BEGIN
     dept_nou NVARCHAR(80) NOT NULL,
     data_transfer DATE NOT NULL,
     motiv NVARCHAR(500) NULL,
-    aprobat_de INT NULL,
+    aprobat_de uniqueidentifier NULL,
     created_at datetime2 DEFAULT sysdatetime(),
     CONSTRAINT FK_hr_department_transfers_employee FOREIGN KEY (employee_id) REFERENCES hr.employees(id) ON DELETE NO ACTION,
     CONSTRAINT FK_hr_department_transfers_user FOREIGN KEY (aprobat_de) REFERENCES core.users(id) ON DELETE NO ACTION
@@ -23,7 +23,7 @@ BEGIN
     department_cod NVARCHAR(80) NOT NULL,
     status NVARCHAR(30) DEFAULT N'in_lucru',
     completat_la datetime2 NULL,
-    completat_de INT NULL,
+    completat_de uniqueidentifier NULL,
     created_at datetime2 DEFAULT sysdatetime(),
     updated_at datetime2 NULL,
     CONSTRAINT UQ_hr_timesheet_departments UNIQUE (luna, department_cod),
@@ -41,7 +41,8 @@ BEGIN
     tip_contract NVARCHAR(50) NULL
 END
 
-IF COL_LENGTH('core.app_settings', 'smtp_host') IS NULL
+IF OBJECT_ID(N'core.app_settings', N'U') IS NOT NULL
+AND COL_LENGTH('core.app_settings', 'smtp_host') IS NULL
 BEGIN
   ALTER TABLE core.app_settings ADD
     smtp_host NVARCHAR(200) NULL,

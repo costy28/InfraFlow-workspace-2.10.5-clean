@@ -1,5 +1,5 @@
 {
-  "version": "2.12.62",
+  "version": "2.12.63",
   "date": "2026-06-18",
-  "changelog": "## v2.12.62 - 2026-06-18\n### Stabilizare migrare contabilitate SQL\n- ID-urile textuale din app_state sunt normalizate numeric inainte de copierea in tabelele SQL.\n- Timeout-ul comenzilor SQL respecta durata ceruta de migrarea contabilitatii.\n- Ecranul de setari afiseaza cate randuri contabile exista efectiv in tabelele SQL dupa migrare."
+  "changelog": "## v2.12.63 - 2026-06-18\n### Stabilizare migrari SQL relationale\n- Migrarile istorice au fost aliniate la schema core reala cu ID-uri uniqueidentifier.\n- Fleet.assets este creat minimal pentru instalari curate inaintea modulelor dependente.\n- Migratorul MSSQL ruleaza fara warning general si Setari afiseaza schema relationala completa."
 }

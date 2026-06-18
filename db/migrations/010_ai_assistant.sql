@@ -16,7 +16,7 @@ BEGIN
   CREATE TABLE ai.conversations (
     id INT IDENTITY(1,1) NOT NULL CONSTRAINT pk_ai_conversations PRIMARY KEY,
     uuid CHAR(36) NOT NULL,
-    user_id INT NOT NULL,
+    user_id uniqueidentifier NOT NULL,
     titlu NVARCHAR(200) NULL,
     created_at DATETIME2 NOT NULL CONSTRAINT df_ai_conversations_created_at DEFAULT sysdatetime(),
     updated_at DATETIME2 NULL,
@@ -65,7 +65,7 @@ BEGIN
     ai_monthly_budget DECIMAL(10,2) CONSTRAINT df_core_app_settings_ai_monthly_budget DEFAULT 200.00,
     ai_limit_per_user INT CONSTRAINT df_core_app_settings_ai_limit_per_user DEFAULT 30,
     ai_limit_per_company INT CONSTRAINT df_core_app_settings_ai_limit_per_company DEFAULT 500,
-    ai_activated_by INT NULL,
+    ai_activated_by uniqueidentifier NULL,
     ai_activated_at DATETIME2 NULL
 END
 

@@ -15,20 +15,23 @@ BEGIN
     cod nvarchar(30) not null,
     denumire nvarchar(200) not null,
     tip nvarchar(30) not null,
-    dept_id nvarchar(64) null,
+    dept_id uniqueidentifier null,
     parinte_id int null,
     nivel tinyint not null constraint df_controlling_cost_centers_nivel default 1,
     tip_resursa nvarchar(30) null,
     resursa_ref_id int null,
     buget_lunar decimal(15,2) null,
     buget_anual decimal(15,2) null,
-    responsabil_id nvarchar(64) null,
+    responsabil_id uniqueidentifier null,
     activ bit not null constraint df_controlling_cost_centers_activ default 1,
     sort_order int not null constraint df_controlling_cost_centers_sort_order default 0,
     created_at datetime2(0) not null constraint df_controlling_cost_centers_created_at default sysdatetime(),
     updated_at datetime2(0) null,
     constraint uq_controlling_cost_centers_cod unique (cod),
-    constraint ck_controlling_cost_centers_tip check (tip in (N'departament', N'proiect', N'administrativ', N'auxiliar')),
+    constraint ck_controlling_cost_centers_tip check (tip in (
+      N'general', N'departament', N'utilaj', N'lucrare', N'proiect', N'administrativ', N'auxiliar',
+      N'operational', N'productie', N'spatiu', N'indirect'
+    )),
     constraint ck_controlling_cost_centers_tip_resursa check (tip_resursa is null or tip_resursa in (N'utilaj', N'vehicul', N'echipa', N'ruta', N'punct_lucru', N'alt')),
     constraint fk_controlling_cost_centers_dept foreign key (dept_id) references core.departments(id) on delete no action,
     constraint fk_controlling_cost_centers_parinte foreign key (parinte_id) references controlling.cost_centers(id) on delete no action,
@@ -45,7 +48,7 @@ BEGIN
     company_id int not null,
     cost_center_id int not null,
     subcentru_id int null,
-    santier_id int null,
+    santier_id uniqueidentifier null,
     data date not null,
     luna date not null,
     categorie nvarchar(50) not null,
@@ -59,9 +62,9 @@ BEGIN
     nr_document nvarchar(100) null,
     furnizor nvarchar(200) null,
     validat bit not null constraint df_controlling_cost_entries_validat default 0,
-    validat_de nvarchar(64) null,
+    validat_de uniqueidentifier null,
     validat_la datetime2(0) null,
-    inregistrat_de nvarchar(64) null,
+    inregistrat_de uniqueidentifier null,
     observatii nvarchar(max) null,
     created_at datetime2(0) not null constraint df_controlling_cost_entries_created_at default sysdatetime(),
     constraint uq_controlling_cost_entries_uuid unique (uuid),
@@ -84,7 +87,7 @@ BEGIN
     luna int null,
     categorie nvarchar(50) null,
     valoare decimal(15,2) not null,
-    aprobat_de nvarchar(64) null,
+    aprobat_de uniqueidentifier null,
     aprobat_la datetime2(0) null,
     created_at datetime2(0) not null constraint df_controlling_budgets_created_at default sysdatetime(),
     constraint uq_controlling_budgets_cost_center_an_luna_categorie unique (cost_center_id, an, luna, categorie),
@@ -156,19 +159,19 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_controlling_allocatio
 INSERT INTO controlling.cost_centers (company_id, cod, denumire, tip, dept_id, nivel, activ, sort_order)
 SELECT
   1,
-  N'CC-' + dept.cod,
-  dept.denumire,
+  N'CC-' + LEFT(ISNULL(NULLIF(dept.module_key, N''), CONVERT(nvarchar(36), dept.id)), 27),
+  dept.name,
   N'departament',
   dept.id,
   1,
   1,
   0
 FROM core.departments dept
-WHERE dept.activ = 1
+WHERE dept.active = 1
   AND NOT EXISTS (
     SELECT 1
     FROM controlling.cost_centers cc
-    WHERE cc.cod = N'CC-' + dept.cod
+    WHERE cc.dept_id = dept.id
   );
 
 COMMIT TRANSACTION;

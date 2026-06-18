@@ -6,6 +6,29 @@ SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'sanitation') EXEC(N'CREATE SCHEMA sanitation');
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'fleet') EXEC(N'CREATE SCHEMA fleet');
+
+IF OBJECT_ID(N'fleet.assets', N'U') IS NULL
+BEGIN
+  CREATE TABLE fleet.assets (
+    id int identity(1,1) not null constraint pk_fleet_assets primary key,
+    uuid char(36) not null constraint df_fleet_assets_uuid default CONVERT(char(36), NEWID()),
+    tip_asset nvarchar(20) null,
+    tip nvarchar(40) null,
+    cod nvarchar(80) null,
+    assetCode nvarchar(80) null,
+    denumire nvarchar(200) null,
+    marca nvarchar(100) null,
+    model nvarchar(100) null,
+    nr_inmatriculare nvarchar(50) null,
+    registration nvarchar(50) null,
+    status nvarchar(30) not null constraint df_fleet_assets_status default N'activ',
+    cost_center_id int null,
+    created_at datetime2(0) not null constraint df_fleet_assets_created_at default sysdatetime(),
+    updated_at datetime2(0) null,
+    constraint uq_fleet_assets_uuid unique (uuid)
+  );
+END;
 
 IF OBJECT_ID(N'sanitation.zones', N'U') IS NULL
 BEGIN
@@ -33,7 +56,7 @@ BEGIN
     frecventa nvarchar(80) null,
     zi_programata nvarchar(30) null,
     vehicul_id int null,
-    responsabil_id nvarchar(64) null,
+    responsabil_id uniqueidentifier null,
     activ bit not null constraint df_sanitation_routes_activ default 1,
     created_at datetime2(0) not null constraint df_sanitation_routes_created_at default sysdatetime(),
     updated_at datetime2(0) null,
@@ -78,7 +101,7 @@ BEGIN
     km_efectuati decimal(10,2) null,
     status nvarchar(30) not null constraint df_sanitation_collections_status default N'planificat',
     observatii nvarchar(max) null,
-    raportat_de nvarchar(64) null,
+    raportat_de uniqueidentifier null,
     created_at datetime2(0) not null constraint df_sanitation_collections_created_at default sysdatetime(),
     updated_at datetime2(0) null,
     constraint uq_sanitation_collections_uuid unique (uuid),
@@ -136,7 +159,7 @@ BEGIN
     total_colectari int not null constraint df_sanitation_monthly_reports_total_colectari default 0,
     total_kg decimal(15,3) not null constraint df_sanitation_monthly_reports_total_kg default 0,
     status nvarchar(30) not null constraint df_sanitation_monthly_reports_status default N'draft',
-    generat_de nvarchar(64) null,
+    generat_de uniqueidentifier null,
     created_at datetime2(0) not null constraint df_sanitation_monthly_reports_created_at default sysdatetime(),
     updated_at datetime2(0) null,
     constraint uq_sanitation_monthly_reports_an_luna_zone unique (an, luna, zone_id),

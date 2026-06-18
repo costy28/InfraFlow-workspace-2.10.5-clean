@@ -55,7 +55,7 @@ BEGIN
     diferenta_motorina AS (motorina_l - (ore_lucru_efectiv * consum_orar_normat)),
     status NVARCHAR(20) NOT NULL CONSTRAINT DF_fc_logs_status DEFAULT 'draft',
     autominder_id INT NULL,
-    creat_de INT NULL,
+    creat_de uniqueidentifier NULL,
     created_at DATETIME2 NOT NULL CONSTRAINT DF_fc_logs_created_at DEFAULT SYSDATETIME(),
     CONSTRAINT UQ_fc_logs_uuid UNIQUE (uuid),
     CONSTRAINT FK_fc_logs_asset FOREIGN KEY (asset_id) REFERENCES fleet.assets(id) ON DELETE NO ACTION,

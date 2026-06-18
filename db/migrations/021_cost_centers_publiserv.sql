@@ -24,6 +24,9 @@ END;
 IF OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'cost_center_id') IS NULL
   ALTER TABLE fleet.assets ADD cost_center_id int NULL;
 
+IF OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'assetCode') IS NULL
+  ALTER TABLE fleet.assets ADD assetCode nvarchar(80) NULL;
+
 IF OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL
 AND OBJECT_ID(N'controlling.cost_centers', N'U') IS NOT NULL
 AND OBJECT_ID(N'fleet.fk_fleet_assets_cost_center', N'F') IS NULL
@@ -74,22 +77,22 @@ BEGIN
   UPDATE fa SET cost_center_id = cc.id
   FROM fleet.assets fa
   JOIN controlling.cost_centers cc ON cc.cod = N'2018611'
-  WHERE UPPER(COALESCE(fa.nr_inmatriculare, fa.registration, fa.cod, fa.assetCode, N'')) IN (N'NT12ZEW', N'NT10SCS', N'NT11SCS');
+  WHERE UPPER(COALESCE(fa.nr_inmatriculare, fa.registration, fa.cod, N'')) IN (N'NT12ZEW', N'NT10SCS', N'NT11SCS');
 
   UPDATE fa SET cost_center_id = cc.id
   FROM fleet.assets fa
   JOIN controlling.cost_centers cc ON cc.cod = N'2018612'
-  WHERE UPPER(COALESCE(fa.nr_inmatriculare, fa.registration, fa.cod, fa.assetCode, N'')) IN (N'B100751', N'NT1292');
+  WHERE UPPER(COALESCE(fa.nr_inmatriculare, fa.registration, fa.cod, N'')) IN (N'B100751', N'NT1292');
 
   UPDATE fa SET cost_center_id = cc.id
   FROM fleet.assets fa
   JOIN controlling.cost_centers cc ON cc.cod = N'0000053'
-  WHERE UPPER(COALESCE(fa.nr_inmatriculare, fa.registration, fa.cod, fa.assetCode, N'')) IN (N'NT1673', N'NT1719', N'NT1348');
+  WHERE UPPER(COALESCE(fa.nr_inmatriculare, fa.registration, fa.cod, N'')) IN (N'NT1673', N'NT1719', N'NT1348');
 
   UPDATE fa SET cost_center_id = cc.id
   FROM fleet.assets fa
   JOIN controlling.cost_centers cc ON cc.cod = N'0000002'
-  WHERE UPPER(COALESCE(fa.nr_inmatriculare, fa.registration, fa.cod, fa.assetCode, N'')) IN (N'NT20SPS', N'NT21SPS');
+  WHERE UPPER(COALESCE(fa.nr_inmatriculare, fa.registration, fa.cod, N'')) IN (N'NT20SPS', N'NT21SPS');
 END;
 
 COMMIT TRANSACTION;

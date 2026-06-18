@@ -23,6 +23,7 @@ IF COL_LENGTH(N'hr.echipamente_dotari', N'predat_la') IS NULL
   ALTER TABLE hr.echipamente_dotari ADD predat_la DATETIME2 NULL
 IF COL_LENGTH(N'hr.echipamente_dotari', N'predat_de') IS NULL
   ALTER TABLE hr.echipamente_dotari ADD predat_de UNIQUEIDENTIFIER NULL
+GO
 
 DECLARE @seed TABLE (
   denumire NVARCHAR(100), categorie NVARCHAR(30), tip_marimi NVARCHAR(20),

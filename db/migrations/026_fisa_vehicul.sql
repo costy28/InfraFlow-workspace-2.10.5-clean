@@ -30,24 +30,24 @@ BEGIN
 END;
 GO
 
-IF COL_LENGTH(N'dbo.fleet_assets', N'consum_orar_normat') IS NULL
-  ALTER TABLE dbo.fleet_assets ADD consum_orar_normat DECIMAL(6,2) NULL;
+IF OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'consum_orar_normat') IS NULL
+  ALTER TABLE fleet.assets ADD consum_orar_normat DECIMAL(6,2) NULL;
 GO
 
-IF COL_LENGTH(N'dbo.fleet_assets', N'consum_normat_km') IS NULL
-  ALTER TABLE dbo.fleet_assets ADD consum_normat_km DECIMAL(6,2) NULL;
+IF OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'consum_normat_km') IS NULL
+  ALTER TABLE fleet.assets ADD consum_normat_km DECIMAL(6,2) NULL;
 GO
 
-IF COL_LENGTH(N'dbo.fleet_assets', N'tip_combustibil') IS NULL
-  ALTER TABLE dbo.fleet_assets ADD tip_combustibil NVARCHAR(20) NULL;
+IF OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'tip_combustibil') IS NULL
+  ALTER TABLE fleet.assets ADD tip_combustibil NVARCHAR(20) NULL;
 GO
 
-IF COL_LENGTH(N'dbo.fleet_assets', N'gps_device_id') IS NULL
-  ALTER TABLE dbo.fleet_assets ADD gps_device_id NVARCHAR(100) NULL;
+IF OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'gps_device_id') IS NULL
+  ALTER TABLE fleet.assets ADD gps_device_id NVARCHAR(100) NULL;
 GO
 
-IF COL_LENGTH(N'dbo.fleet_assets', N'sofer_principal_id') IS NULL
-  ALTER TABLE dbo.fleet_assets ADD sofer_principal_id INT NULL;
+IF OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'sofer_principal_id') IS NULL
+  ALTER TABLE fleet.assets ADD sofer_principal_id INT NULL;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_fleet_asset_drivers_asset' AND object_id = OBJECT_ID(N'dbo.fleet_asset_drivers'))
