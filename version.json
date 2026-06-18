@@ -1,5 +1,5 @@
 {
-  "version": "2.12.56",
+  "version": "2.12.58",
   "date": "2026-06-18",
-  "changelog": "## v2.12.56 - 2026-06-18\n### Flux vizibil Facturi -> Registru jurnal -> Balanta\n- Facturile de intrare si iesire validate afiseaza nota contabila generata.\n- Dupa validare apar linkuri directe catre Registru jurnal si Balanta pe luna facturii.\n- Facturile au filtre pe luna si status, utile pentru verificari rapide.\n- Validarea, devalidarea, stornarea si anularea afiseaza mesaje clare si stari de incarcare."
+  "changelog": "## v2.12.58 - 2026-06-18\n### Cautare CIF/ANAF reutilizata in Tehnic\n- Modulul Tehnic foloseste cautarea CIF din fluxul central ANAF pentru clienti tehnici si vanzari asfalt.\n- Clientul liber din vanzari asfalt poate fi cautat dupa CIF si salvat rapid ca client tehnic.\n- Modalul Client nou afiseaza rezultatul cautarii si completeaza denumirea/adresa."
 }

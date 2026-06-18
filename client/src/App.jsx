@@ -25,6 +25,8 @@ const Balanta = lazy(() => import('./pages/accounting/Balanta'))
 const FisaCont = lazy(() => import('./pages/accounting/FisaCont'))
 const InchidereLuna = lazy(() => import('./pages/accounting/InchidereLuna'))
 const AlerteLegislative = lazy(() => import('./pages/accounting/AlerteLegislative'))
+const ContabilitateAnaf = lazy(() => import('./pages/accounting/ContabilitateAnaf'))
+const ContabilitateControlling = lazy(() => import('./pages/accounting/ContabilitateControlling'))
 const FlotaPage = lazy(() => import('./pages/modules/FlotaPage'))
 const FoaieParcursPage = lazy(() => import('./pages/FoaieParcursPage'))
 const FcUtilajePage = lazy(() => import('./pages/FcUtilajePage'))
@@ -95,6 +97,8 @@ export default function App() {
         <Route path="/contabilitate/registru-jurnal" element={<WithLayout><PermissionGuard permission="accounting:view"><RegistruJurnal /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/tva-d300" element={<WithLayout><PermissionGuard permission="accounting:reports"><TVADeclaratii /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/balanta" element={<WithLayout><PermissionGuard permission="accounting:reports"><Balanta /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/anaf/*" element={<WithLayout><PermissionGuard permission="anaf:view"><ContabilitateAnaf /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ContabilitateControlling /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/fisa-cont/:simbol" element={<WithLayout><PermissionGuard permission="accounting:reports"><FisaCont /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/inchidere-luna" element={<WithLayout><PermissionGuard permission="accounting:close"><InchidereLuna /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/alerte" element={<WithLayout><PermissionGuard permission="accounting:view"><AlerteLegislative /></PermissionGuard></WithLayout>} />

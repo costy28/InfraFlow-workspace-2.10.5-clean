@@ -71,8 +71,10 @@ export default function TehnicPage() {
   const [modal, setModal] = useState('')
   const [period, setPeriod] = useState({ from: monthStart(), to: today() })
   const [workForm, setWorkForm] = useState({ date: today(), assetId: '', costCenterId: '', jobName: '', hours: '', operatorName: '' })
-  const [saleForm, setSaleForm] = useState({ date: today(), clientId: '', client: '', recipeId: '', amount: '', documentNo: '', vehicleNo: '' })
+  const [saleForm, setSaleForm] = useState({ date: today(), clientId: '', client: '', clientCif: '', clientAddress: '', recipeId: '', amount: '', documentNo: '', vehicleNo: '' })
   const [clientForm, setClientForm] = useState({ name: '', cif: '', address: '', contact: '', phone: '', email: '' })
+  const [anafLookup, setAnafLookup] = useState(null)
+  const [anafLoading, setAnafLoading] = useState(false)
   const [orderForm, setOrderForm] = useState({ titlu: '', descriere: '', tip: 'lucrare', data_termen: '', departamente: 'mecanizare, asfalt' })
 
   async function load() {
@@ -176,6 +178,7 @@ export default function TehnicPage() {
       await api.post('/technical/clients', clientForm)
       setModal('')
       setClientForm({ name: '', cif: '', address: '', contact: '', phone: '', email: '' })
+      setAnafLookup(null)
       setMessage('Clientul a fost salvat.')
       await load()
     } catch (err) {
@@ -202,20 +205,60 @@ export default function TehnicPage() {
     await load()
   }
 
-  async function lookupAnaf() {
-    if (!clientForm.cif) return
+  async function lookupAnaf(cifOverride = '') {
+    const lookupCif = cifOverride || clientForm.cif
+    if (!lookupCif) {
+      setError('Completează CUI/CIF înainte de căutare.')
+      return
+    }
+    setAnafLoading(true)
     setError('')
+    setMessage('')
+    setAnafLookup(null)
     try {
-      const response = await api.get('/technical/clients/lookup-cif', { params: { cif: clientForm.cif } })
+      const response = await api.get('/technical/clients/lookup-cif', { params: { cif: lookupCif } })
       const data = response.data.client || response.data
+      const normalized = {
+        name: data.name || data.denumire || '',
+        cif: data.cif || data.cui || lookupCif,
+        address: data.address || data.adresa || '',
+        registrationNo: data.registrationNo || data.nr_reg_com || '',
+        city: data.city || data.localitate || '',
+        county: data.county || data.judet || '',
+        tvaPlatitor: Boolean(data.tvaPlatitor ?? data.tva_platitor)
+      }
+      setAnafLookup(normalized)
       setClientForm(current => ({
         ...current,
-        name: data.name || data.denumire || current.name,
-        address: data.address || data.adresa || current.address,
+        cif: normalized.cif || current.cif,
+        name: normalized.name || current.name,
+        address: normalized.address || current.address,
       }))
+      setSaleForm(current => ({
+        ...current,
+        client: normalized.name || current.client,
+        clientCif: normalized.cif || current.clientCif,
+        clientAddress: normalized.address || current.clientAddress,
+      }))
+      setMessage('Datele ANAF au fost preluate. Verifică și salvează clientul.')
     } catch (err) {
       setError(err.response?.data?.error || 'Căutarea ANAF nu a returnat date.')
+    } finally {
+      setAnafLoading(false)
     }
+  }
+
+  function openClientFromSale() {
+    setClientForm({
+      name: saleForm.client || '',
+      cif: saleForm.clientCif || '',
+      address: saleForm.clientAddress || '',
+      contact: '',
+      phone: '',
+      email: ''
+    })
+    setAnafLookup(null)
+    setModal('Clienți')
   }
 
   return (
@@ -332,6 +375,12 @@ export default function TehnicPage() {
           <Input label="Dată" type="date" value={saleForm.date} onChange={event => setSaleForm({ ...saleForm, date: event.target.value })} />
           <Select label="Client" value={saleForm.clientId} onChange={event => setSaleForm({ ...saleForm, clientId: event.target.value })} options={[{ value: '', label: 'Client liber' }, ...clients.map(client => ({ value: client.id, label: client.name }))]} />
           <Input label="Client liber" value={saleForm.client} onChange={event => setSaleForm({ ...saleForm, client: event.target.value })} />
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <Input label="CUI client liber" value={saleForm.clientCif || ''} onChange={event => setSaleForm({ ...saleForm, clientCif: event.target.value })} />
+            <div className="flex items-end"><Button type="button" variant="secondary" loading={anafLoading} onClick={() => { setClientForm({ name: saleForm.client || '', cif: saleForm.clientCif || '', address: saleForm.clientAddress || '', contact: '', phone: '', email: '' }); lookupAnaf(saleForm.clientCif) }}>Caută CIF</Button></div>
+          </div>
+          <Input label="Adresă client liber" value={saleForm.clientAddress || ''} onChange={event => setSaleForm({ ...saleForm, clientAddress: event.target.value })} />
+          <Button type="button" variant="secondary" onClick={openClientFromSale}>Salvează ca client tehnic</Button>
           <Select label="Rețetă" value={saleForm.recipeId} onChange={event => setSaleForm({ ...saleForm, recipeId: event.target.value })} options={recipes.map(recipe => ({ value: recipe.id, label: recipe.name }))} />
           <Input label="Cantitate tone" type="number" min="0" step="0.01" value={saleForm.amount} onChange={event => setSaleForm({ ...saleForm, amount: event.target.value })} required />
           <Input label="Document" value={saleForm.documentNo} onChange={event => setSaleForm({ ...saleForm, documentNo: event.target.value })} />
@@ -355,8 +404,13 @@ export default function TehnicPage() {
         <form className="grid gap-3" onSubmit={submitClient}>
           <div className="grid gap-2 md:grid-cols-[1fr_auto]">
             <Input label="CUI" value={clientForm.cif} onChange={event => setClientForm({ ...clientForm, cif: event.target.value })} />
-            <div className="flex items-end"><Button type="button" variant="secondary" onClick={lookupAnaf}>🔍 Caută ANAF</Button></div>
+            <div className="flex items-end"><Button type="button" variant="secondary" loading={anafLoading} onClick={lookupAnaf}>Caută CIF</Button></div>
           </div>
+          {anafLookup ? (
+            <div className="rounded-md bg-primary-50 px-3 py-2 text-sm text-primary-700">
+              {anafLookup.name || 'Partener găsit'} · CIF {anafLookup.cif || '-'} · {anafLookup.tvaPlatitor ? 'plătitor TVA' : 'neplătitor TVA / neverificat TVA'}
+            </div>
+          ) : null}
           <Input label="Denumire" value={clientForm.name} onChange={event => setClientForm({ ...clientForm, name: event.target.value })} required />
           <Input label="Adresă" value={clientForm.address} onChange={event => setClientForm({ ...clientForm, address: event.target.value })} />
           <Input label="Contact" value={clientForm.contact} onChange={event => setClientForm({ ...clientForm, contact: event.target.value })} />

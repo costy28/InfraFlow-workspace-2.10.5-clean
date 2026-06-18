@@ -13,15 +13,21 @@ export function PlanConturi() {
   const [accounts, setAccounts] = useState([])
   const [filters, setFilters] = useState({ q: '', clasa: '', tip: '', nivel: '' })
   const [selected, setSelected] = useState(null)
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({})
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
   const [expandedClasses, setExpandedClasses] = useState(() => new Set(['1', '2', '3', '4', '5', '6', '7']))
   const navigate = useNavigate()
-  useEffect(() => {
-    api.get('/accounting/chart', { params: filters }).then(res => setAccounts(res.data.accounts || [])).catch(() => setAccounts([]))
-  }, [filters.q, filters.clasa, filters.tip, filters.nivel])
+  useEffect(() => { load() }, [filters.q, filters.clasa, filters.tip, filters.nivel])
   useEffect(() => {
     if (!selected && accounts.length) setSelected(accounts[0])
     if (selected && accounts.length && !accounts.some(account => account.simbol === selected.simbol)) setSelected(accounts[0])
   }, [accounts, selected])
+  function load() {
+    return api.get('/accounting/chart', { params: filters }).then(res => setAccounts(res.data.accounts || [])).catch(() => setAccounts([]))
+  }
   const byClass = useMemo(() => {
     const groups = new Map()
     accounts.forEach((account) => {
@@ -37,6 +43,50 @@ export function PlanConturi() {
     else next.add(key)
     setExpandedClasses(next)
   }
+  function nextAnalyticSymbol(parent) {
+    const base = String(parent?.simbol || '').trim()
+    if (!base) return ''
+    const existing = accounts
+      .map(account => String(account.simbol || ''))
+      .filter(simbol => simbol.startsWith(`${base}.`))
+      .map(simbol => Number(simbol.split('.').pop()))
+      .filter(Number.isFinite)
+    const next = Math.max(0, ...existing) + 1
+    return `${base}.${String(next).padStart(5, '0')}`
+  }
+  function openAnalytic(parent = selected) {
+    if (!parent) return
+    setError('')
+    setMessage('')
+    setForm({
+      simbol: nextAnalyticSymbol(parent),
+      denumire: '',
+      clasa: parent.clasa || String(parent.simbol || '0')[0],
+      tip: parent.tip || 'B',
+      nivel: 3,
+      parinte_simbol: parent.simbol,
+      tip_cont: parent.tip_cont || 'general'
+    })
+    setModal(true)
+  }
+  async function submitAnalytic(event) {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    setMessage('')
+    try {
+      const res = await api.post('/accounting/chart', form)
+      setModal(false)
+      setMessage(`Contul ${res.data.account?.simbol || form.simbol} a fost creat.`)
+      setFilters({ ...filters, q: form.simbol })
+      await load()
+      setSelected(res.data.account || null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Contul analitic nu a putut fi creat.')
+    } finally {
+      setSaving(false)
+    }
+  }
   const classNames = {
     1: 'Capitaluri',
     2: 'Imobilizari',
@@ -49,7 +99,14 @@ export function PlanConturi() {
     9: 'Gestiune interna'
   }
   return (
-    <AccountingShell active="plan" title="Plan de conturi" subtitle="Seed real extras din Saga C: clase 1-9, sintetice si analitice.">
+    <AccountingShell
+      active="plan"
+      title="Plan de conturi"
+      subtitle="Plan contabil romanesc: clase 1-9, sintetice si analitice."
+      actions={<Button onClick={() => openAnalytic(selected)} disabled={!selected}>+ Analitic</Button>}
+    >
+      {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <Card>
         <div className="grid gap-3 md:grid-cols-4">
           <Input label="Cauta" value={filters.q} onChange={event => setFilters({ ...filters, q: event.target.value })} placeholder="401, TVA, capital..." />
@@ -119,6 +176,7 @@ export function PlanConturi() {
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => navigate(`/contabilitate/fisa-cont/${selected.simbol}`)}>Fisa cont</Button>
                 <Button variant="secondary" onClick={() => setFilters({ ...filters, q: selected.parinte_simbol || selected.simbol.slice(0, 3) })}>Vezi familia</Button>
+                <Button variant="secondary" onClick={() => openAnalytic(selected)}>+ Analitic</Button>
               </div>
             </div>
           ) : (
@@ -126,6 +184,29 @@ export function PlanConturi() {
           )}
         </Card>
       </div>
+      <Modal open={modal} title="Cont analitic nou" onClose={() => setModal(false)}>
+        <form className="grid gap-3" onSubmit={submitAnalytic}>
+          {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="Simbol cont" value={form.simbol || ''} onChange={event => setForm({ ...form, simbol: event.target.value })} required />
+            <Input label="Parinte" value={form.parinte_simbol || ''} onChange={event => setForm({ ...form, parinte_simbol: event.target.value })} required />
+            <Select label="Tip" value={form.tip || 'B'} onChange={event => setForm({ ...form, tip: event.target.value })} options={[
+              { value: 'A', label: 'Activ' },
+              { value: 'P', label: 'Pasiv' },
+              { value: 'B', label: 'Bifunctional' }
+            ]} />
+            <Input label="Categorie" value={form.tip_cont || ''} onChange={event => setForm({ ...form, tip_cont: event.target.value })} />
+          </div>
+          <Input label="Denumire" value={form.denumire || ''} onChange={event => setForm({ ...form, denumire: event.target.value })} required />
+          <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            Contul va fi disponibil imediat in facturi, trezorerie si note contabile.
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button>
+            <Button type="submit" loading={saving}>Creeaza cont</Button>
+          </div>
+        </form>
+      </Modal>
     </AccountingShell>
   )
 }

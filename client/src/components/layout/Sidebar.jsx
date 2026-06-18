@@ -30,8 +30,6 @@ const groups = [
       { to: '/deszapezire', icon: '❄️', label: 'Deszăpezire', moduleKey: 'snow_removal' },
       { to: '/mediu', icon: '🌿', label: 'Mediu', moduleKey: 'environment' },
       { to: '/contabilitate', icon: '🏦', label: 'Contabilitate', moduleKey: 'accounting' },
-      { to: '/controlling', icon: '💰', label: 'Controlling', moduleKey: 'controlling' },
-      { to: '/anaf', icon: '🧾', label: 'ANAF / e-Factură', moduleKey: 'anaf' },
       { to: '/documente', icon: '🗂️', label: 'Documente', moduleKey: 'documents' },
       { to: '/mesaje', icon: '💬', label: 'Mesaje', moduleKey: 'messaging' },
       { to: '/sesizari', icon: '🎫', label: 'Sesizări', moduleKey: 'tickets' },
@@ -57,7 +55,7 @@ const modulePermissionPrefixes = {
   production: ['production', 'consumptions', 'recipes', 'planning', 'daily_report'],
   procurement: ['procurement', 'procurement_orders'],
   referate: ['referate'],
-  accounting: ['accounting'],
+  accounting: ['accounting', 'anaf', 'integration', 'cost_accounting', 'controlling'],
   mechanization: ['mechanization', 'fleet', 'technical'],
   asternere: ['technical', 'field'],
   anaf: ['anaf', 'integration'],
@@ -67,7 +65,7 @@ const moduleActiveAliases = {
   mechanization: ['mechanization', 'fleet'],
   inventory: ['inventory', 'reports'],
   ai: ['ai', 'ai_assistant'],
-  accounting: ['accounting', 'contabilitate'],
+  accounting: ['accounting', 'contabilitate', 'anaf', 'controlling'],
   referate: ['referate', 'procurement'],
 }
 

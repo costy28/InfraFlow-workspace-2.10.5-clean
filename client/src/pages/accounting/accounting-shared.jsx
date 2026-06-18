@@ -15,6 +15,8 @@ const nav = [
   ['jurnal', '/contabilitate/registru-jurnal', 'Registru jurnal'],
   ['tva', '/contabilitate/tva-d300', 'TVA / D300'],
   ['balanta', '/contabilitate/balanta', 'Balanta'],
+  ['anaf', '/contabilitate/anaf', 'ANAF / e-Factura'],
+  ['controlling', '/contabilitate/controlling', 'Controlling'],
   ['inchidere', '/contabilitate/inchidere-luna', 'Inchidere luna'],
   ['alerte', '/contabilitate/alerte', 'Alerte'],
 ]
