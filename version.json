@@ -1,5 +1,5 @@
 {
-  "version": "2.12.53",
+  "version": "2.12.54",
   "date": "2026-06-16",
-  "changelog": "## v2.12.53 - 2026-06-16\n### Refactor frontend Contabilitate\n- Modulul Contabilitate a fost impartit in pagini si componente shared separate.\n- AccountingPage.jsx ramane doar ca strat de compatibilitate cu re-exporturi.\n- Rutele existente raman neschimbate, iar build-ul frontend confirma incarcarea separata pe pagini."
+  "changelog": "## v2.12.54 - 2026-06-16\n### Mesaje ajutatoare validare Trezorerie\n- Validarea operatiilor de trezorerie afiseaza acum motivul concret cand lipsesc date obligatorii.\n- Erorile returnate de backend pentru perioada inchisa, conturi lipsa, nota dezechilibrata sau sold negativ sunt afisate in pagina.\n- Actiunile de validare, devalidare si anulare au indicator de incarcare si confirmari vizibile."
 }

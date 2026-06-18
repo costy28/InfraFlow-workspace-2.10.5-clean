@@ -16,6 +16,8 @@ export function Trezorerie() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({})
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [actionLoading, setActionLoading] = useState('')
   const tertById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
 
   useEffect(() => { load() }, [])
@@ -50,6 +52,7 @@ export function Trezorerie() {
   function openNew() {
     setEditing(null)
     setError('')
+    setMessage('')
     setForm(defaultForm())
     setModal(true)
   }
@@ -57,6 +60,7 @@ export function Trezorerie() {
   function openEdit(row) {
     setEditing(row)
     setError('')
+    setMessage('')
     setForm({ ...defaultForm(), ...row, tert_id: row.tert_id || '' })
     setModal(true)
   }
@@ -73,34 +77,87 @@ export function Trezorerie() {
   async function submit(event) {
     event.preventDefault()
     setError('')
+    setMessage('')
     try {
       const payload = { ...form, tert_id: form.tert_id || null }
       if (editing) await api.patch(`/accounting/treasury/${editing.uuid}`, payload)
       else await api.post('/accounting/treasury', payload)
       setModal(false)
+      setMessage(editing ? 'Operația de trezorerie a fost salvată.' : 'Operația de trezorerie a fost creată ca draft. Următorul pas: validează operația.')
       load()
     } catch (err) {
       setError(err.response?.data?.error || 'Operatia nu a putut fi salvata.')
     }
   }
 
+  function treasuryValidationHint(row) {
+    if (row.status !== 'draft') return 'Operația trebuie să fie în status draft pentru validare.'
+    if (!money(row.suma) || money(row.suma) <= 0) return 'Completează o sumă pozitivă înainte de validare.'
+    if (!row.cont_trezorerie) return 'Completează contul de trezorerie, de exemplu 5121 pentru bancă sau 5311 pentru casă.'
+    if (!row.cont_corespondent && !row.tert_id) return 'Completează un cont corespondent sau selectează un terț contabil.'
+    if (!row.data) return 'Completează data operației înainte de validare.'
+    return ''
+  }
+
+  function errorText(err, fallback) {
+    return err.response?.data?.error || err.response?.data?.message || fallback
+  }
+
   async function validate(row) {
-    await api.post(`/accounting/treasury/${row.uuid}/validate`)
-    load()
+    const hint = treasuryValidationHint(row)
+    if (hint) {
+      setError(hint)
+      setMessage('')
+      return
+    }
+    setActionLoading(`validate-${row.uuid}`)
+    setError('')
+    setMessage('')
+    try {
+      await api.post(`/accounting/treasury/${row.uuid}/validate`)
+      setMessage('Operația a fost validată și nota contabilă a fost generată.')
+      load()
+    } catch (err) {
+      setError(errorText(err, 'Operația nu a putut fi validată. Verifică perioada, conturile și soldurile.'))
+    } finally {
+      setActionLoading('')
+    }
   }
 
   async function devalidate(row) {
-    await api.post(`/accounting/treasury/${row.uuid}/devalidate`, { motiv: 'Corectie document trezorerie' })
-    load()
+    setActionLoading(`devalidate-${row.uuid}`)
+    setError('')
+    setMessage('')
+    try {
+      await api.post(`/accounting/treasury/${row.uuid}/devalidate`, { motiv: 'Corectie document trezorerie' })
+      setMessage('Operația a fost devalidată și revine în draft.')
+      load()
+    } catch (err) {
+      setError(errorText(err, 'Operația nu a putut fi devalidată. Verifică dacă luna este deschisă și nota contabilă există.'))
+    } finally {
+      setActionLoading('')
+    }
   }
 
   async function cancelDraft(row) {
-    await api.delete(`/accounting/treasury/${row.uuid}`)
-    load()
+    setActionLoading(`cancel-${row.uuid}`)
+    setError('')
+    setMessage('')
+    try {
+      await api.delete(`/accounting/treasury/${row.uuid}`)
+      setMessage('Operația draft a fost anulată.')
+      load()
+    } catch (err) {
+      setError(errorText(err, 'Operația nu a putut fi anulată. Doar documentele draft se pot anula direct.'))
+    } finally {
+      setActionLoading('')
+    }
   }
 
   return (
     <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<Button onClick={openNew}>+ Operatie</Button>}>
+      {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+      {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <Table headers={['Data', 'Tip', 'Operatie', 'Document', 'Tert', 'Cont', 'Corespondent', 'Suma', 'Status', 'Actiuni']}>
         {rows.map(row => (
           <tr key={row.uuid}>
@@ -116,9 +173,9 @@ export function Trezorerie() {
             <td className="px-3 py-2">
               <div className="flex flex-wrap gap-2">
                 {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Edit</Button> : null}
-                {row.status === 'draft' ? <Button size="sm" onClick={() => validate(row)}>Valideaza</Button> : null}
-                {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => cancelDraft(row)}>Anuleaza</Button> : null}
-                {row.status === 'validat' ? <Button size="sm" variant="secondary" onClick={() => devalidate(row)}>Devalideaza</Button> : null}
+                {row.status === 'draft' ? <Button size="sm" loading={actionLoading === `validate-${row.uuid}`} onClick={() => validate(row)}>Valideaza</Button> : null}
+                {row.status === 'draft' ? <Button size="sm" variant="secondary" loading={actionLoading === `cancel-${row.uuid}`} onClick={() => cancelDraft(row)}>Anuleaza</Button> : null}
+                {row.status === 'validat' ? <Button size="sm" variant="secondary" loading={actionLoading === `devalidate-${row.uuid}`} onClick={() => devalidate(row)}>Devalideaza</Button> : null}
               </div>
             </td>
           </tr>
