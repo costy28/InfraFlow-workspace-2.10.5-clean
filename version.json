@@ -1,5 +1,5 @@
 {
-  "version": "2.12.61",
+  "version": "2.12.62",
   "date": "2026-06-18",
-  "changelog": "## v2.12.61 - 2026-06-18\n### Hotfix blocaj migrari generale la migrarea contabilitatii\n- Migrarea contabilitatii nu mai este blocata de migrari vechi nelegate de contabilitate.\n- Erorile din migrarile generale sunt tratate ca avertisment, iar tabelele contabile critice se repara separat.\n- Mesajul UI explica atunci cand unele migrari generale au fost sarite."
+  "changelog": "## v2.12.62 - 2026-06-18\n### Stabilizare migrare contabilitate SQL\n- ID-urile textuale din app_state sunt normalizate numeric inainte de copierea in tabelele SQL.\n- Timeout-ul comenzilor SQL respecta durata ceruta de migrarea contabilitatii.\n- Ecranul de setari afiseaza cate randuri contabile exista efectiv in tabelele SQL dupa migrare."
 }

@@ -1018,7 +1018,10 @@ export default function SetariPage() {
     setDatabaseAccountingSyncing(true)
     try {
       const response = await api.post('/system/database-schema/sync-accounting')
-      setDatabaseSchema(response.data.status || response.data || null)
+      setDatabaseSchema({
+        ...(response.data.status || response.data || {}),
+        accountingTableCounts: response.data.tableCounts || null,
+      })
       const counts = response.data.counts || {}
       const repaired = response.data.preparedSchema?.repairFiles?.length
         ? ` Schema reparată: ${response.data.preparedSchema.repairFiles.join(', ')}.`
@@ -1532,6 +1535,12 @@ export default function SetariPage() {
               <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
                 Ultima migrare contabilitate: {formatDate(databaseSchema.lastAccountingSync.synced_at)} ·
                 {` ${databaseSchema.lastAccountingSync.chart || 0} conturi, ${databaseSchema.lastAccountingSync.thirdParties || 0} terți, ${databaseSchema.lastAccountingSync.invoicesIn || 0} facturi intrare, ${databaseSchema.lastAccountingSync.invoicesOut || 0} facturi ieșire, ${databaseSchema.lastAccountingSync.journals || 0} note.`}
+              </div>
+            ) : null}
+            {databaseSchema?.accountingTableCounts ? (
+              <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                SQL contabil acum: {databaseSchema.accountingTableCounts.chart || 0} conturi,
+                {` ${databaseSchema.accountingTableCounts.thirdParties || 0} terți, ${databaseSchema.accountingTableCounts.invoicesIn || 0} facturi intrare, ${databaseSchema.accountingTableCounts.invoiceInLines || 0} linii intrare, ${databaseSchema.accountingTableCounts.invoicesOut || 0} facturi ieșire, ${databaseSchema.accountingTableCounts.invoiceOutLines || 0} linii ieșire, ${databaseSchema.accountingTableCounts.journals || 0} note.`}
               </div>
             ) : null}
             {databaseSchema?.error ? (

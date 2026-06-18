@@ -898,11 +898,11 @@ $jsonPath = [string]$env:ASFALT_MSSQL_JSON_FILE
 $json = if ($jsonPath) { [System.IO.File]::ReadAllText($jsonPath, [System.Text.UTF8Encoding]::new($false)) } else { "" }
 $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
 try {
-  $connection.Open()
+$connection.Open()
   $command = $connection.CreateCommand()
-  $command.CommandTimeout = 60
+  $command.CommandTimeout = [int]($env:ASFALT_MSSQL_COMMAND_TIMEOUT_SECONDS)
   $command.CommandText = $sql
-  if ($json.Length -gt 0) {
+  if ($jsonPath) {
     $parameter = $command.Parameters.Add("@json", [System.Data.SqlDbType]::NVarChar, -1)
     $parameter.Value = $json
   }
@@ -926,7 +926,8 @@ try {
     ...process.env,
     ASFALT_MSSQL_CONNECTION_B64: Buffer.from(options.connectionString || mssqlConnectionString(), "utf8").toString("base64"),
     ASFALT_MSSQL_SQL_B64: Buffer.from(sql, "utf8").toString("base64"),
-    ASFALT_MSSQL_JSON_FILE: jsonFile
+    ASFALT_MSSQL_JSON_FILE: jsonFile,
+    ASFALT_MSSQL_COMMAND_TIMEOUT_SECONDS: String(options.commandTimeoutSeconds || Math.max(60, Math.ceil((options.timeoutMs || 120000) / 1000) - 5))
   };
   try {
     return childProcess.execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodedCommand], {

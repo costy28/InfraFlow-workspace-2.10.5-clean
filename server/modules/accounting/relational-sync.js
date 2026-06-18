@@ -33,6 +33,7 @@ function syncAccountingToMssql(db, user = {}) {
   };
 
   writeSyncLog(counts, user);
+  const tableCounts = readAccountingTableCounts();
   return {
     ok: true,
     message: "Datele contabile din app_state au fost copiate in tabelele relationale.",
@@ -42,6 +43,7 @@ function syncAccountingToMssql(db, user = {}) {
       warning: preparedSchema.migrationWarning || ""
     },
     counts,
+    tableCounts,
     status: getMssqlRelationalStatus()
   };
 }
@@ -49,7 +51,7 @@ function syncAccountingToMssql(db, user = {}) {
 function preparePayload(accounting) {
   const invoiceInLines = [];
   const invoiceOutLines = [];
-  const withIds = (items) => (items || []).map((item, index) => ({ id: Number(item.id || index + 1), ...item }));
+  const withIds = (items) => normalizeRowsWithNumericIds(items || []);
   const invoicesIn = withIds(accounting.invoicesIn);
   const invoicesOut = withIds(accounting.invoicesOut);
 
@@ -71,11 +73,29 @@ function preparePayload(accounting) {
   };
 }
 
+function normalizeRowsWithNumericIds(items) {
+  const used = new Set();
+  return items.map((item, index) => {
+    const id = nextNumericId(item?.id, index + 1, used);
+    return { ...item, id };
+  });
+}
+
+function nextNumericId(value, fallback, used) {
+  let candidate = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(candidate) || candidate <= 0 || used.has(candidate)) {
+    candidate = Math.max(1, Number.parseInt(String(fallback || 1), 10) || 1);
+    while (used.has(candidate)) candidate += 1;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
 function collectInvoiceLines(target, invoice) {
   const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
   lines.forEach((line, index) => {
     target.push({
-      id: Number(line.id || target.length + 1),
+      id: target.length + 1,
       invoice_id: Number(invoice.id),
       linie_nr: Number(line.nr_crt || index + 1),
       denumire: line.denumire || line.descriere || "",
@@ -94,11 +114,21 @@ function collectInvoiceLines(target, invoice) {
 }
 
 function syncTable(label, rows, sql) {
-  const result = runMssqlScalar(sql, {
-    jsonInput: JSON.stringify(rows || []),
-    timeoutMs: 300000
-  });
-  return Number(result || 0);
+  try {
+    const result = runMssqlScalar(sql, {
+      jsonInput: JSON.stringify(rows || []),
+      timeoutMs: 300000,
+      commandTimeoutSeconds: 300
+    });
+    return Number(result || 0);
+  } catch (error) {
+    const wrapped = new Error(`Migrarea contabilitatii a esuat la tabelul ${label}: ${cleanError(error)}`);
+    wrapped.status = 500;
+    wrapped.code = "ACCOUNTING_SYNC_TABLE_FAILED";
+    wrapped.table = label;
+    wrapped.cause = error;
+    throw wrapped;
+  }
 }
 
 function writeSyncLog(counts, user) {
@@ -119,7 +149,58 @@ function writeSyncLog(counts, user) {
       N'Sincronizare manuala din app_state'
     );
     select scope_identity();
-  `, { jsonInput: String(user?.id || ""), timeoutMs: 300000 });
+  `, { jsonInput: String(user?.id || ""), timeoutMs: 300000, commandTimeoutSeconds: 300 });
+}
+
+function readAccountingTableCounts() {
+  const text = runMssqlScalar(`
+    select concat(
+      (select count(1) from dbo.accounting_chart), N'|',
+      (select count(1) from dbo.accounting_third_parties), N'|',
+      (select count(1) from dbo.accounting_periods), N'|',
+      (select count(1) from dbo.accounting_journals), N'|',
+      (select count(1) from dbo.accounting_journal_lines), N'|',
+      (select count(1) from dbo.accounting_invoices_in), N'|',
+      (select count(1) from dbo.accounting_invoice_in_lines), N'|',
+      (select count(1) from dbo.accounting_invoices_out), N'|',
+      (select count(1) from dbo.accounting_invoice_out_lines), N'|',
+      (select count(1) from dbo.accounting_treasury), N'|',
+      (select count(1) from dbo.accounting_law_alerts)
+    );
+  `, { timeoutMs: 30000, commandTimeoutSeconds: 30 });
+  const [
+    chart,
+    thirdParties,
+    periods,
+    journals,
+    journalLines,
+    invoicesIn,
+    invoiceInLines,
+    invoicesOut,
+    invoiceOutLines,
+    treasury,
+    lawAlerts
+  ] = String(text || "").split("|").map((value) => Number(value || 0));
+  return {
+    chart,
+    thirdParties,
+    periods,
+    journals,
+    journalLines,
+    invoicesIn,
+    invoiceInLines,
+    invoicesOut,
+    invoiceOutLines,
+    treasury,
+    lawAlerts
+  };
+}
+
+function cleanError(error) {
+  return String(error?.message || error || "")
+    .replace(/#< CLIXML[\s\S]*/i, "SQL Server a returnat o eroare. Verifica logul serverului pentru detalii.")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function identityMirrorSql(table, columns, selectColumns) {
