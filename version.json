@@ -1,5 +1,5 @@
 {
-  "version": "2.12.55",
-  "date": "2026-06-16",
-  "changelog": "## v2.12.55 - 2026-06-16\n### Flux vizibil Trezorerie -> Registru jurnal -> Balanta\n- Operatiile de trezorerie validate afiseaza nota contabila generata.\n- Dupa validare apar linkuri directe catre Registru jurnal si Balanta pe luna operatiei.\n- Trezoreria are filtre pe luna si status, utile pentru verificari rapide.\n- Registru jurnal si Balanta preiau luna din linkurile interne."
+  "version": "2.12.56",
+  "date": "2026-06-18",
+  "changelog": "## v2.12.56 - 2026-06-18\n### Flux vizibil Facturi -> Registru jurnal -> Balanta\n- Facturile de intrare si iesire validate afiseaza nota contabila generata.\n- Dupa validare apar linkuri directe catre Registru jurnal si Balanta pe luna facturii.\n- Facturile au filtre pe luna si status, utile pentru verificari rapide.\n- Validarea, devalidarea, stornarea si anularea afiseaza mesaje clare si stari de incarcare."
 }

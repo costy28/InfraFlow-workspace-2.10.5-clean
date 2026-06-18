@@ -15,6 +15,8 @@ export function FacturiContab({ direction = 'in' }) {
   const [thirdParties, setThirdParties] = useState([])
   const [accounts, setAccounts] = useState([])
   const [costCenters, setCostCenters] = useState([])
+  const [month, setMonth] = useState(currentMonth())
+  const [status, setStatus] = useState('')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [journalModal, setJournalModal] = useState(false)
@@ -23,12 +25,16 @@ export function FacturiContab({ direction = 'in' }) {
   const [devalidateRow, setDevalidateRow] = useState(null)
   const [devalidateReason, setDevalidateReason] = useState('')
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [validatedJournal, setValidatedJournal] = useState(null)
+  const [actionLoading, setActionLoading] = useState('')
   const emptyLine = () => ({ denumire: '', cont: isIn ? '628' : '704', valoare: '', tva_procent: 21 })
   const [form, setForm] = useState({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', lines: [emptyLine()] })
   const endpoint = isIn ? '/accounting/invoices-in' : '/accounting/invoices-out'
   async function load() {
+    const [an, luna] = month.split('-')
     const [a, t, c, cc] = await Promise.all([
-      api.get(endpoint),
+      api.get(endpoint, { params: { an, luna: Number(luna), status: status || undefined } }),
       api.get('/accounting/third-parties', { params: { tip: isIn ? 'furnizor' : 'client' } }),
       api.get('/accounting/chart'),
       api.get('/accounting/cost-centers')
@@ -38,7 +44,7 @@ export function FacturiContab({ direction = 'in' }) {
     setAccounts(c.data.accounts || [])
     setCostCenters(cc.data.costCenters || [])
   }
-  useEffect(() => { load().catch(() => {}) }, [direction])
+  useEffect(() => { load().catch(() => {}) }, [direction, month, status])
   const invoiceLines = Array.isArray(form.lines) ? form.lines : []
   const valoareLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare), 0)
   const tvaLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare) * money(line.tva_procent) / 100, 0)
@@ -50,12 +56,16 @@ export function FacturiContab({ direction = 'in' }) {
   function openNew() {
     setEditing(null)
     setError('')
+    setMessage('')
+    setValidatedJournal(null)
     setForm({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', cost_center_id: '', subcentru_id: '', lines: [emptyLine()] })
     setModal(true)
   }
   function openEdit(row) {
     setEditing(row)
     setError('')
+    setMessage('')
+    setValidatedJournal(null)
     setForm({
       tert_id: row.furnizor_id || row.client_id || '',
       nr_document: row.nr_document || row.numar || '',
@@ -94,6 +104,8 @@ export function FacturiContab({ direction = 'in' }) {
     event.preventDefault()
     try {
       setError('')
+      setMessage('')
+      setValidatedJournal(null)
       const partyId = form.tert_id || thirdParties[0]?.id
       const payload = {
         ...form,
@@ -120,28 +132,56 @@ export function FacturiContab({ direction = 'in' }) {
       else await api.post(endpoint, payload)
       setModal(false)
       setEditing(null)
+      setMessage(editing ? 'Factura draft a fost salvată.' : 'Factura a fost creată ca draft. Următorul pas: validează factura.')
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Factura nu a putut fi salvata.')
     }
   }
   async function validate(row) {
+    const hint = invoiceValidationHint(row)
+    if (hint) {
+      setError(hint)
+      setMessage('')
+      setValidatedJournal(null)
+      return
+    }
+    setActionLoading(`validate-${row.uuid}`)
     try {
       setError('')
-      await api.post(`${endpoint}/${row.uuid}/validate`)
+      setMessage('')
+      setValidatedJournal(null)
+      const res = await api.post(`${endpoint}/${row.uuid}/validate`)
+      const journal = res.data?.journal
+      setValidatedJournal(journal ? {
+        id: journal.id,
+        uuid: journal.uuid,
+        month: row.balance_month || row.data?.slice(0, 7) || month,
+        totalDebit: journal.total_debit,
+        totalCredit: journal.total_credit
+      } : null)
+      setMessage('Factura a fost validată și nota contabilă a fost generată.')
       await load()
     } catch (err) {
-      setError(err.response?.data?.error || 'Factura nu a putut fi validata.')
+      setError(errorText(err, 'Factura nu a putut fi validată. Verifică perioada, terțul, conturile și liniile facturii.'))
+    } finally {
+      setActionLoading('')
     }
   }
   async function storno(row) {
     if (!window.confirm('Stornezi documentul selectat?')) return
+    setActionLoading(`storno-${row.uuid}`)
     try {
       setError('')
+      setMessage('')
+      setValidatedJournal(null)
       await api.post(`${endpoint}/${row.uuid}/storno`)
+      setMessage('Factura a fost stornată, iar nota storno a fost generată.')
       await load()
     } catch (err) {
-      setError(err.response?.data?.error || 'Factura nu a putut fi stornata.')
+      setError(errorText(err, 'Factura nu a putut fi stornată. Verifică dacă există nota contabilă și luna este deschisă.'))
+    } finally {
+      setActionLoading('')
     }
   }
   async function devalidate(row) {
@@ -154,17 +194,24 @@ export function FacturiContab({ direction = 'in' }) {
     if (!devalidateRow) return
     try {
       setError('')
+      setMessage('')
+      setValidatedJournal(null)
+      setActionLoading(`devalidate-${devalidateRow.uuid}`)
       await api.post(`${endpoint}/${devalidateRow.uuid}/devalidate`, { motiv: devalidateReason })
       setDevalidateModal(false)
       setDevalidateRow(null)
+      setMessage('Factura a fost devalidată și revine în draft.')
       await load()
     } catch (err) {
-      setError(err.response?.data?.error || 'Factura nu a putut fi devalidata.')
+      setError(errorText(err, 'Factura nu a putut fi devalidată. Verifică dacă luna este deschisă și nota contabilă există.'))
+    } finally {
+      setActionLoading('')
     }
   }
   async function showJournal(row) {
     if (!row.journal_id) {
       setError('Factura nu are nota contabila atasata.')
+      setMessage('')
       return
     }
     try {
@@ -178,18 +225,66 @@ export function FacturiContab({ direction = 'in' }) {
   }
   async function cancelDraft(row) {
     if (!window.confirm('Anulezi documentul draft selectat?')) return
+    setActionLoading(`cancel-${row.uuid}`)
     try {
       setError('')
+      setMessage('')
+      setValidatedJournal(null)
       await api.delete(`${endpoint}/${row.uuid}`, { data: { motiv: 'Anulare document draft' } })
+      setMessage('Factura draft a fost anulată.')
       await load()
     } catch (err) {
-      setError(err.response?.data?.error || 'Factura nu a putut fi anulata.')
+      setError(errorText(err, 'Factura nu a putut fi anulată. Doar documentele draft se pot anula direct.'))
+    } finally {
+      setActionLoading('')
     }
+  }
+  function invoiceValidationHint(row) {
+    if (row.status !== 'draft') return 'Factura trebuie să fie în status draft pentru validare.'
+    if (!row.data) return 'Completează data facturii înainte de validare.'
+    if (!money(row.total) || money(row.total) <= 0) return 'Factura trebuie să aibă total pozitiv înainte de validare.'
+    if (isIn && !row.furnizor_id) return 'Selectează furnizorul înainte de validare.'
+    if (!isIn && !row.client_id) return 'Selectează clientul înainte de validare.'
+    const lines = Array.isArray(row.lines) ? row.lines : []
+    if (!lines.length) return 'Adaugă cel puțin o linie de factură înainte de validare.'
+    const missingAccountLine = lines.findIndex(line => !line.cont)
+    if (missingAccountLine >= 0) return `Linia ${missingAccountLine + 1}: selectează contul contabil înainte de validare.`
+    return ''
+  }
+  function errorText(err, fallback) {
+    return err.response?.data?.error || err.response?.data?.message || fallback
   }
   return (
     <AccountingShell active={isIn ? 'intrare' : 'iesire'} title={isIn ? 'Facturi intrare' : 'Facturi iesire'} subtitle="Validarea genereaza automat nota contabila echilibrata." actions={<Button onClick={openNew}>+ Factura</Button>}>
       {error ? <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-      <Table headers={['Data', 'Document', 'Tert', 'Centru cost', 'Valoare', 'TVA', 'Total', 'Status', 'Actiuni']}>
+      {message ? (
+        <div className="mb-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {message}
+          {validatedJournal ? (
+            <span className="ml-2">
+              <Link className="font-semibold underline" to={`/contabilitate/registru-jurnal?luna=${validatedJournal.month}`}>Vezi registru jurnal</Link>
+              <span> · </span>
+              <Link className="font-semibold underline" to={`/contabilitate/balanta?luna=${validatedJournal.month}`}>Verifică balanța</Link>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      <Card>
+        <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
+          <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+          <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
+            { value: '', label: 'Toate fara anulate' },
+            { value: 'draft', label: 'Draft' },
+            { value: 'validat', label: 'Validate' },
+            { value: 'partial', label: 'Partial' },
+            { value: isIn ? 'achitat' : 'incasat', label: isIn ? 'Achitate' : 'Incasate' },
+            { value: 'stornat', label: 'Stornate' },
+            { value: 'anulat', label: 'Anulate' }
+          ]} />
+          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
+        </div>
+      </Card>
+      <Table headers={['Data', 'Document', 'Tert', 'Centru cost', 'Valoare', 'TVA', 'Total', 'Status', 'Nota', 'Actiuni']}>
         {rows.map(row => (
           <tr key={row.uuid}>
             <td className="px-3 py-2">{row.data}</td>
@@ -201,13 +296,18 @@ export function FacturiContab({ direction = 'in' }) {
             <td className="px-3 py-2 font-semibold">{formatMoney(row.total)}</td>
             <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
             <td className="px-3 py-2">
+              {row.journal_uuid ? (
+                <Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/registru-jurnal?luna=${row.balance_month || row.data?.slice(0, 7)}`}>NC {row.journal_id}</Link>
+              ) : '-'}
+            </td>
+            <td className="px-3 py-2">
               <div className="flex flex-wrap gap-2">
                 {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Edit</Button> : null}
-                {row.status === 'draft' ? <Button size="sm" onClick={() => validate(row)}>Valideaza</Button> : null}
-                {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => cancelDraft(row)}>Anuleaza</Button> : null}
+                {row.status === 'draft' ? <Button size="sm" loading={actionLoading === `validate-${row.uuid}`} onClick={() => validate(row)}>Valideaza</Button> : null}
+                {row.status === 'draft' ? <Button size="sm" variant="secondary" loading={actionLoading === `cancel-${row.uuid}`} onClick={() => cancelDraft(row)}>Anuleaza</Button> : null}
                 {row.journal_id ? <Button size="sm" variant="secondary" onClick={() => showJournal(row)}>Nota</Button> : null}
-                {row.status === 'validat' ? <Button size="sm" variant="secondary" onClick={() => devalidate(row)}>Devalideaza</Button> : null}
-                {row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? <Button size="sm" variant="secondary" onClick={() => storno(row)}>Storno</Button> : null}
+                {row.status === 'validat' ? <Button size="sm" variant="secondary" loading={actionLoading === `devalidate-${row.uuid}`} onClick={() => devalidate(row)}>Devalideaza</Button> : null}
+                {row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? <Button size="sm" variant="secondary" loading={actionLoading === `storno-${row.uuid}`} onClick={() => storno(row)}>Storno</Button> : null}
               </div>
             </td>
           </tr>

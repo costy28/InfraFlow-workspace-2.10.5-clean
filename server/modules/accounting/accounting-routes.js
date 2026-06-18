@@ -130,7 +130,8 @@ router.get("/accounting/periods", requireAccountingView, (req, res) => {
 });
 
 router.get("/accounting/invoices-in", requireAccountingView, (req, res) => {
-  sendJson(res, 200, { invoices: filterDocuments(engine.ensureAccounting(req.auth.db).invoicesIn, req.query) });
+  const accounting = engine.ensureAccounting(req.auth.db);
+  sendJson(res, 200, { invoices: filterDocuments(accounting.invoicesIn, req.query).map((row) => decorateInvoice(row, accounting)) });
 });
 
 router.post("/accounting/invoices-in", requireAccountingPost, (req, res, next) => {
@@ -165,7 +166,7 @@ router.post("/accounting/invoices-in/:uuid/validate", requireAccountingPost, asy
     await registerInvoiceInCostEntry(req.auth.db, req.auth.user, invoice);
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_in_validate", `${invoice.nr_document} / nota ${journal.id}`);
     writeDb(req.auth.db);
-    sendJson(res, 200, { invoice, journal });
+    sendJson(res, 200, { invoice: decorateInvoice(invoice, engine.ensureAccounting(req.auth.db)), journal });
   } catch (error) { next(error); }
 });
 
@@ -175,7 +176,7 @@ router.post("/accounting/invoices-in/:uuid/devalidate", requireAccountingPost, a
     devalidateInvoice(req.auth.db, req.auth.user, invoice, "accounting_invoice_in_devalidate", req.body?.motiv);
     await reverseInvoiceInCostEntry(req.auth.db, req.auth.user, invoice, req.body?.motiv);
     writeDb(req.auth.db);
-    sendJson(res, 200, { invoice });
+    sendJson(res, 200, { invoice: decorateInvoice(invoice, engine.ensureAccounting(req.auth.db)) });
   } catch (error) { next(error); }
 });
 
@@ -185,7 +186,7 @@ router.delete("/accounting/invoices-in/:uuid", requireAccountingPost, (req, res,
     cancelDraftInvoice(req.auth.db, req.auth.user, invoice, req.body?.motiv || req.query.motiv || "");
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_in_cancel", invoice.nr_document);
     writeDb(req.auth.db);
-    sendJson(res, 200, { invoice });
+    sendJson(res, 200, { invoice: decorateInvoice(invoice, engine.ensureAccounting(req.auth.db)) });
   } catch (error) { next(error); }
 });
 
@@ -196,7 +197,7 @@ router.post("/accounting/invoices-in/:uuid/storno", requireAccountingPost, (req,
     invoice.status = "stornat";
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_in_storno", invoice.nr_document);
     writeDb(req.auth.db);
-    sendJson(res, 200, { invoice, journal });
+    sendJson(res, 200, { invoice: decorateInvoice(invoice, engine.ensureAccounting(req.auth.db)), journal });
   } catch (error) { next(error); }
 });
 
@@ -227,7 +228,8 @@ router.post("/accounting/invoices-in/:uuid/pay", requireAccountingPost, (req, re
 });
 
 router.get("/accounting/invoices-out", requireAccountingView, (req, res) => {
-  sendJson(res, 200, { invoices: filterDocuments(engine.ensureAccounting(req.auth.db).invoicesOut, req.query) });
+  const accounting = engine.ensureAccounting(req.auth.db);
+  sendJson(res, 200, { invoices: filterDocuments(accounting.invoicesOut, req.query).map((row) => decorateInvoice(row, accounting)) });
 });
 
 router.post("/accounting/invoices-out", requireAccountingPost, (req, res, next) => {
@@ -261,7 +263,7 @@ router.post("/accounting/invoices-out/:uuid/validate", requireAccountingPost, (r
     invoice.status = "validat";
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_out_validate", `${invoice.numar || ""} / nota ${journal.id}`);
     writeDb(req.auth.db);
-    sendJson(res, 200, { invoice, journal });
+    sendJson(res, 200, { invoice: decorateInvoice(invoice, engine.ensureAccounting(req.auth.db)), journal });
   } catch (error) { next(error); }
 });
 
@@ -270,7 +272,7 @@ router.post("/accounting/invoices-out/:uuid/devalidate", requireAccountingPost, 
     const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesOut, req.params.uuid, "Factura nu a fost gasita.");
     devalidateInvoice(req.auth.db, req.auth.user, invoice, "accounting_invoice_out_devalidate", req.body?.motiv);
     writeDb(req.auth.db);
-    sendJson(res, 200, { invoice });
+    sendJson(res, 200, { invoice: decorateInvoice(invoice, engine.ensureAccounting(req.auth.db)) });
   } catch (error) { next(error); }
 });
 
@@ -280,7 +282,7 @@ router.delete("/accounting/invoices-out/:uuid", requireAccountingPost, (req, res
     cancelDraftInvoice(req.auth.db, req.auth.user, invoice, req.body?.motiv || req.query.motiv || "");
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_out_cancel", String(invoice.numar || ""));
     writeDb(req.auth.db);
-    sendJson(res, 200, { invoice });
+    sendJson(res, 200, { invoice: decorateInvoice(invoice, engine.ensureAccounting(req.auth.db)) });
   } catch (error) { next(error); }
 });
 
@@ -291,7 +293,7 @@ router.post("/accounting/invoices-out/:uuid/storno", requireAccountingPost, (req
     invoice.status = "stornat";
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_out_storno", String(invoice.numar || ""));
     writeDb(req.auth.db);
-    sendJson(res, 200, { invoice, journal });
+    sendJson(res, 200, { invoice: decorateInvoice(invoice, engine.ensureAccounting(req.auth.db)), journal });
   } catch (error) { next(error); }
 });
 
@@ -991,6 +993,21 @@ function devalidateTreasury(db, user, treasury, reason = "") {
 }
 
 function decorateTreasury(row, accounting) {
+  const journal = row.journal_id
+    ? accounting.journals.find((item) => Number(item.id) === Number(row.journal_id))
+    : null;
+  const month = row.data ? String(row.data).slice(0, 7) : `${row.an}-${String(row.luna).padStart(2, "0")}`;
+  return {
+    ...row,
+    journal_uuid: journal?.uuid || "",
+    journal_status: journal?.status || "",
+    journal_total_debit: journal?.total_debit || 0,
+    journal_total_credit: journal?.total_credit || 0,
+    balance_month: month
+  };
+}
+
+function decorateInvoice(row, accounting) {
   const journal = row.journal_id
     ? accounting.journals.find((item) => Number(item.id) === Number(row.journal_id))
     : null;
