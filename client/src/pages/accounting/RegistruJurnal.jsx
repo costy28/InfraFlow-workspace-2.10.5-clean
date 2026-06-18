@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -12,7 +12,8 @@ import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statu
 export function RegistruJurnal() {
   const [rows, setRows] = useState([])
   const [accounts, setAccounts] = useState([])
-  const [month, setMonth] = useState(currentMonth())
+  const [searchParams] = useSearchParams()
+  const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [status, setStatus] = useState('')
   const [selectedUuid, setSelectedUuid] = useState('')
   const [error, setError] = useState('')

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -10,7 +10,8 @@ import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function Balanta() {
-  const [month, setMonth] = useState(currentMonth())
+  const [searchParams] = useSearchParams()
+  const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [tip, setTip] = useState('sintetica')
   const [clasa, setClasa] = useState('')
   const [onlyWithValues, setOnlyWithValues] = useState(true)

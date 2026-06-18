@@ -321,7 +321,8 @@ router.post("/accounting/invoices-out/:uuid/collect", requireAccountingPost, (re
 });
 
 router.get("/accounting/treasury", requireAccountingView, (req, res) => {
-  sendJson(res, 200, { treasury: filterDocuments(engine.ensureAccounting(req.auth.db).treasury, req.query) });
+  const accounting = engine.ensureAccounting(req.auth.db);
+  sendJson(res, 200, { treasury: filterDocuments(accounting.treasury, req.query).map((row) => decorateTreasury(row, accounting)) });
 });
 
 router.post("/accounting/treasury", requireAccountingPost, (req, res, next) => {
@@ -356,7 +357,7 @@ router.post("/accounting/treasury/:uuid/validate", requireAccountingPost, (req, 
     treasury.status = "validat";
     addAudit(req.auth.db, req.auth.user, "accounting_treasury_validate", `${treasury.tip_operatie} ${treasury.suma}`);
     writeDb(req.auth.db);
-    sendJson(res, 200, { treasury, journal });
+    sendJson(res, 200, { treasury: decorateTreasury(treasury, engine.ensureAccounting(req.auth.db)), journal });
   } catch (error) { next(error); }
 });
 
@@ -365,7 +366,7 @@ router.post("/accounting/treasury/:uuid/devalidate", requireAccountingPost, (req
     const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
     devalidateTreasury(req.auth.db, req.auth.user, treasury, req.body?.motiv);
     writeDb(req.auth.db);
-    sendJson(res, 200, { treasury });
+    sendJson(res, 200, { treasury: decorateTreasury(treasury, engine.ensureAccounting(req.auth.db)) });
   } catch (error) { next(error); }
 });
 
@@ -375,7 +376,7 @@ router.delete("/accounting/treasury/:uuid", requireAccountingPost, (req, res, ne
     cancelDraftDocument(req.auth.db, req.auth.user, treasury, req.body?.motiv || req.query.motiv || "");
     addAudit(req.auth.db, req.auth.user, "accounting_treasury_cancel", `${treasury.tip_operatie} ${treasury.suma}`);
     writeDb(req.auth.db);
-    sendJson(res, 200, { treasury });
+    sendJson(res, 200, { treasury: decorateTreasury(treasury, engine.ensureAccounting(req.auth.db)) });
   } catch (error) { next(error); }
 });
 
@@ -987,6 +988,21 @@ function devalidateTreasury(db, user, treasury, reason = "") {
   treasury.updated_at = new Date().toISOString();
   addAudit(db, user, "accounting_treasury_devalidate", `${treasury.tip_operatie} ${treasury.suma} / nota ${journal.id}`);
   return treasury;
+}
+
+function decorateTreasury(row, accounting) {
+  const journal = row.journal_id
+    ? accounting.journals.find((item) => Number(item.id) === Number(row.journal_id))
+    : null;
+  const month = row.data ? String(row.data).slice(0, 7) : `${row.an}-${String(row.luna).padStart(2, "0")}`;
+  return {
+    ...row,
+    journal_uuid: journal?.uuid || "",
+    journal_status: journal?.status || "",
+    journal_total_debit: journal?.total_debit || 0,
+    journal_total_credit: journal?.total_credit || 0,
+    balance_month: month
+  };
 }
 
 function previewJournalXls(db, file) {

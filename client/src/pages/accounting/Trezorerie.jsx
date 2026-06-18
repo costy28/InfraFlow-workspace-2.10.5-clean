@@ -12,19 +12,23 @@ import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statu
 export function Trezorerie() {
   const [rows, setRows] = useState([])
   const [thirdParties, setThirdParties] = useState([])
+  const [month, setMonth] = useState(currentMonth())
+  const [status, setStatus] = useState('')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({})
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [validatedJournal, setValidatedJournal] = useState(null)
   const [actionLoading, setActionLoading] = useState('')
   const tertById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [month, status])
 
   function load() {
+    const [an, luna] = month.split('-')
     Promise.all([
-      api.get('/accounting/treasury'),
+      api.get('/accounting/treasury', { params: { an, luna: Number(luna), status: status || undefined } }),
       api.get('/accounting/third-parties')
     ]).then(([treasuryRes, tertRes]) => {
       setRows(treasuryRes.data.treasury || [])
@@ -53,6 +57,7 @@ export function Trezorerie() {
     setEditing(null)
     setError('')
     setMessage('')
+    setValidatedJournal(null)
     setForm(defaultForm())
     setModal(true)
   }
@@ -61,6 +66,7 @@ export function Trezorerie() {
     setEditing(row)
     setError('')
     setMessage('')
+    setValidatedJournal(null)
     setForm({ ...defaultForm(), ...row, tert_id: row.tert_id || '' })
     setModal(true)
   }
@@ -78,6 +84,7 @@ export function Trezorerie() {
     event.preventDefault()
     setError('')
     setMessage('')
+    setValidatedJournal(null)
     try {
       const payload = { ...form, tert_id: form.tert_id || null }
       if (editing) await api.patch(`/accounting/treasury/${editing.uuid}`, payload)
@@ -113,8 +120,17 @@ export function Trezorerie() {
     setActionLoading(`validate-${row.uuid}`)
     setError('')
     setMessage('')
+    setValidatedJournal(null)
     try {
-      await api.post(`/accounting/treasury/${row.uuid}/validate`)
+      const res = await api.post(`/accounting/treasury/${row.uuid}/validate`)
+      const journal = res.data?.journal
+      setValidatedJournal(journal ? {
+        id: journal.id,
+        uuid: journal.uuid,
+        month: row.balance_month || row.data?.slice(0, 7) || month,
+        totalDebit: journal.total_debit,
+        totalCredit: journal.total_credit
+      } : null)
       setMessage('Operația a fost validată și nota contabilă a fost generată.')
       load()
     } catch (err) {
@@ -128,6 +144,7 @@ export function Trezorerie() {
     setActionLoading(`devalidate-${row.uuid}`)
     setError('')
     setMessage('')
+    setValidatedJournal(null)
     try {
       await api.post(`/accounting/treasury/${row.uuid}/devalidate`, { motiv: 'Corectie document trezorerie' })
       setMessage('Operația a fost devalidată și revine în draft.')
@@ -143,6 +160,7 @@ export function Trezorerie() {
     setActionLoading(`cancel-${row.uuid}`)
     setError('')
     setMessage('')
+    setValidatedJournal(null)
     try {
       await api.delete(`/accounting/treasury/${row.uuid}`)
       setMessage('Operația draft a fost anulată.')
@@ -157,8 +175,31 @@ export function Trezorerie() {
   return (
     <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<Button onClick={openNew}>+ Operatie</Button>}>
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
-      {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
-      <Table headers={['Data', 'Tip', 'Operatie', 'Document', 'Tert', 'Cont', 'Corespondent', 'Suma', 'Status', 'Actiuni']}>
+      {message ? (
+        <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {message}
+          {validatedJournal ? (
+            <span className="ml-2">
+              <Link className="font-semibold underline" to={`/contabilitate/registru-jurnal?luna=${validatedJournal.month}`}>Vezi registru jurnal</Link>
+              <span> · </span>
+              <Link className="font-semibold underline" to={`/contabilitate/balanta?luna=${validatedJournal.month}`}>Verifică balanța</Link>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      <Card>
+        <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
+          <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+          <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
+            { value: '', label: 'Toate fara anulate' },
+            { value: 'draft', label: 'Draft' },
+            { value: 'validat', label: 'Validate' },
+            { value: 'anulat', label: 'Anulate' }
+          ]} />
+          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
+        </div>
+      </Card>
+      <Table headers={['Data', 'Tip', 'Operatie', 'Document', 'Tert', 'Cont', 'Corespondent', 'Suma', 'Status', 'Nota', 'Actiuni']}>
         {rows.map(row => (
           <tr key={row.uuid}>
             <td className="px-3 py-2">{row.data}</td>
@@ -170,6 +211,11 @@ export function Trezorerie() {
             <td className="px-3 py-2">{row.cont_corespondent || '-'}</td>
             <td className="px-3 py-2">{formatMoney(row.suma)}</td>
             <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+            <td className="px-3 py-2">
+              {row.journal_uuid ? (
+                <Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/registru-jurnal?luna=${row.balance_month || row.data?.slice(0, 7)}`}>NC {row.journal_id}</Link>
+              ) : '-'}
+            </td>
             <td className="px-3 py-2">
               <div className="flex flex-wrap gap-2">
                 {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Edit</Button> : null}
