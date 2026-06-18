@@ -32,6 +32,7 @@ const {
   prepareMssqlRelationalSchema: corePrepareMssqlRelationalSchema
 } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
+const { syncAccountingToMssql } = require('../accounting/relational-sync')
 const { verificaLicenta, incarcaLicenta } = require('../../core/license')
 const { sendEmail } = require('../messaging/email')
 const {
@@ -1030,6 +1031,20 @@ router.post('/system/database-schema/prepare', (req, res, next) => {
       message: "Tabelele SQL relationale au fost create sau actualizate.",
       ...result
     });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post('/system/database-schema/sync-accounting', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requireSuperadmin(auth, res)) return;
+    const result = syncAccountingToMssql(auth.db, auth.user);
+    addAudit(auth.db, auth.user, "schema_sql_contabilitate_sincronizata", JSON.stringify(result.counts || {}));
+    try { writeDb(auth.db); } catch (auditError) { console.warn("Audit sync contabilitate SQL nu a putut fi salvat:", auditError.message); }
+    sendJson(res, 200, result);
   } catch (error) {
     next(error);
   }

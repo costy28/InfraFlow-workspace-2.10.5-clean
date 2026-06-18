@@ -257,6 +257,7 @@ export default function SetariPage() {
   const [databaseSaving, setDatabaseSaving] = useState(false)
   const [databaseTesting, setDatabaseTesting] = useState(false)
   const [databaseSchemaLoading, setDatabaseSchemaLoading] = useState(false)
+  const [databaseAccountingSyncing, setDatabaseAccountingSyncing] = useState(false)
   const [license, setLicense] = useState(null)
   const [branding, setBranding] = useState(normalizeBranding())
   const [aiStatus, setAiStatus] = useState(null)
@@ -1013,6 +1014,20 @@ export default function SetariPage() {
     }
   }
 
+  async function syncAccountingSchema() {
+    setDatabaseAccountingSyncing(true)
+    try {
+      const response = await api.post('/system/database-schema/sync-accounting')
+      setDatabaseSchema(response.data.status || response.data || null)
+      const counts = response.data.counts || {}
+      notify(`Contabilitatea a fost copiată în SQL: ${counts.chart || 0} conturi, ${counts.thirdParties || 0} terți, ${counts.journals || 0} note.`)
+    } catch (err) {
+      fail(err, 'Datele contabile nu au putut fi copiate în tabelele SQL.')
+    } finally {
+      setDatabaseAccountingSyncing(false)
+    }
+  }
+
   async function saveUser(event) {
     event.preventDefault()
     try {
@@ -1488,6 +1503,7 @@ export default function SetariPage() {
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" loading={databaseSchemaLoading} onClick={loadDatabaseSchema}>Verifică schema</Button>
                 <Button type="button" loading={databaseSchemaLoading} onClick={prepareDatabaseSchema}>Creează/actualizează tabele</Button>
+                <Button type="button" variant="secondary" loading={databaseAccountingSyncing} onClick={syncAccountingSchema}>Migrează contabilitatea</Button>
               </div>
             </div>
             <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
@@ -1503,11 +1519,17 @@ export default function SetariPage() {
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div className="text-slate-500">Migrare date app_state</div>
-                <div className={databaseSchema?.syncFileExists ? 'mt-1 font-semibold text-emerald-700' : 'mt-1 font-semibold text-amber-700'}>
-                  {databaseSchema?.syncFileExists ? 'script disponibil' : 'nu este activată încă'}
+                <div className={databaseSchema?.accountingSyncAvailable ? 'mt-1 font-semibold text-emerald-700' : 'mt-1 font-semibold text-amber-700'}>
+                  {databaseSchema?.accountingSyncAvailable ? 'contabilitate disponibilă' : 'pregătește schema întâi'}
                 </div>
               </div>
             </div>
+            {databaseSchema?.lastAccountingSync ? (
+              <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+                Ultima migrare contabilitate: {formatDate(databaseSchema.lastAccountingSync.synced_at)} ·
+                {` ${databaseSchema.lastAccountingSync.chart || 0} conturi, ${databaseSchema.lastAccountingSync.thirdParties || 0} terți, ${databaseSchema.lastAccountingSync.invoicesIn || 0} facturi intrare, ${databaseSchema.lastAccountingSync.invoicesOut || 0} facturi ieșire, ${databaseSchema.lastAccountingSync.journals || 0} note.`}
+              </div>
+            ) : null}
             {databaseSchema?.error ? (
               <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{databaseSchema.error}</div>
             ) : null}

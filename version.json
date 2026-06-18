@@ -1,5 +1,5 @@
 {
-  "version": "2.12.58",
+  "version": "2.12.59",
   "date": "2026-06-18",
-  "changelog": "## v2.12.58 - 2026-06-18\n### Cautare CIF/ANAF reutilizata in Tehnic\n- Modulul Tehnic foloseste cautarea CIF din fluxul central ANAF pentru clienti tehnici si vanzari asfalt.\n- Clientul liber din vanzari asfalt poate fi cautat dupa CIF si salvat rapid ca client tehnic.\n- Modalul Client nou afiseaza rezultatul cautarii si completeaza denumirea/adresa."
+  "changelog": "## v2.12.59 - 2026-06-18\n### Migrare contabilitate catre SQL relational\n- Setari > Baza date are buton dedicat pentru copierea datelor contabile din app_state in tabele SQL.\n- Au fost adaugate tabele relationale pentru liniile facturilor si jurnalul sincronizarilor.\n- Statusul schemei afiseaza ultima migrare si numarul de conturi, terti, facturi si note copiate."
 }

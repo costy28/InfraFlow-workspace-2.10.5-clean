@@ -585,10 +585,13 @@ const MSSQL_RELATIONAL_CORE_TABLES = [
   "accounting_journal_lines",
   "accounting_third_parties",
   "accounting_invoices_in",
+  "accounting_invoice_in_lines",
   "accounting_invoices_out",
+  "accounting_invoice_out_lines",
   "accounting_treasury",
   "accounting_periods",
-  "accounting_law_alerts"
+  "accounting_law_alerts",
+  "accounting_relational_sync"
 ];
 
 function listMssqlUserTables() {
@@ -624,6 +627,7 @@ function getMssqlRelationalStatus() {
   try {
     const tables = listMssqlUserTables();
     const normalized = new Set(tables.map((name) => String(name).replace(/^dbo\./i, "")));
+    const lastAccountingSync = normalized.has("accounting_relational_sync") ? readMssqlAccountingSyncStatus() : null;
     return {
       supported: true,
       mode: DB_MODE,
@@ -631,6 +635,8 @@ function getMssqlRelationalStatus() {
       configured: Boolean(MSSQL_RELATIONAL_MODE),
       appStatePrimary: true,
       syncFileExists: fs.existsSync(importFile),
+      accountingSyncAvailable: !MSSQL_RELATIONAL_CORE_TABLES.filter((name) => !normalized.has(name)).length,
+      lastAccountingSync,
       tables,
       tableCount: tables.length,
       missingCoreTables: MSSQL_RELATIONAL_CORE_TABLES.filter((name) => !normalized.has(name))
@@ -648,6 +654,39 @@ function getMssqlRelationalStatus() {
       tableCount: 0,
       missingCoreTables: MSSQL_RELATIONAL_CORE_TABLES
     };
+  }
+}
+
+function readMssqlAccountingSyncStatus() {
+  try {
+    const text = runMssqlScalar(`
+      select top 1 concat(
+        convert(nvarchar(30), synced_at, 126), N'|',
+        isnull(convert(nvarchar(20), chart_count), N'0'), N'|',
+        isnull(convert(nvarchar(20), third_parties_count), N'0'), N'|',
+        isnull(convert(nvarchar(20), invoices_in_count), N'0'), N'|',
+        isnull(convert(nvarchar(20), invoices_out_count), N'0'), N'|',
+        isnull(convert(nvarchar(20), treasury_count), N'0'), N'|',
+        isnull(convert(nvarchar(20), journals_count), N'0'), N'|',
+        isnull(convert(nvarchar(20), journal_lines_count), N'0')
+      )
+      from dbo.accounting_relational_sync
+      order by id desc;
+    `, { timeoutMs: 30000 });
+    if (!text) return null;
+    const [synced_at, chart, thirdParties, invoicesIn, invoicesOut, treasury, journals, journalLines] = String(text).split("|");
+    return {
+      synced_at,
+      chart: Number(chart || 0),
+      thirdParties: Number(thirdParties || 0),
+      invoicesIn: Number(invoicesIn || 0),
+      invoicesOut: Number(invoicesOut || 0),
+      treasury: Number(treasury || 0),
+      journals: Number(journals || 0),
+      journalLines: Number(journalLines || 0)
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -676,10 +715,13 @@ function repairMssqlRequiredRelationalTables() {
     "accounting_journal_lines",
     "accounting_third_parties",
     "accounting_invoices_in",
+    "accounting_invoice_in_lines",
     "accounting_invoices_out",
+    "accounting_invoice_out_lines",
     "accounting_treasury",
     "accounting_periods",
-    "accounting_law_alerts"
+    "accounting_law_alerts",
+    "accounting_relational_sync"
   ].some((name) => missing.has(name));
 
   if (needsAccountingCore) {
@@ -698,6 +740,8 @@ function repairMssqlRequiredRelationalTables() {
   if (hasAccountingTables) {
     runMssqlMigrationRepairFile("028_accounting_controlling_link.sql");
     repairFiles.push("028_accounting_controlling_link.sql");
+    runMssqlMigrationRepairFile("029_accounting_relational_sync.sql");
+    repairFiles.push("029_accounting_relational_sync.sql");
   }
 
   return repairFiles;
