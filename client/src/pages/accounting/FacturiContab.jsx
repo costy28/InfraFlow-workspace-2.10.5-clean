@@ -106,7 +106,12 @@ export function FacturiContab({ direction = 'in' }) {
       setError('')
       setMessage('')
       setValidatedJournal(null)
-      const partyId = form.tert_id || thirdParties[0]?.id
+      const formHint = invoiceFormHint()
+      if (formHint) {
+        setError(formHint)
+        return
+      }
+      const partyId = form.tert_id
       const payload = {
         ...form,
         furnizor_id: isIn ? partyId : undefined,
@@ -245,11 +250,40 @@ export function FacturiContab({ direction = 'in' }) {
     if (!money(row.total) || money(row.total) <= 0) return 'Factura trebuie să aibă total pozitiv înainte de validare.'
     if (isIn && !row.furnizor_id) return 'Selectează furnizorul înainte de validare.'
     if (!isIn && !row.client_id) return 'Selectează clientul înainte de validare.'
+    const mainAccount = isIn ? row.cont_cheltuiala : row.cont_venit
+    if (!mainAccount) return `Completează contul ${isIn ? 'de cheltuială' : 'de venit'} înainte de validare.`
+    if (accounts.length && !accountExists(mainAccount)) return `Contul ${mainAccount} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
     const lines = Array.isArray(row.lines) ? row.lines : []
     if (!lines.length) return 'Adaugă cel puțin o linie de factură înainte de validare.'
     const missingAccountLine = lines.findIndex(line => !line.cont)
     if (missingAccountLine >= 0) return `Linia ${missingAccountLine + 1}: selectează contul contabil înainte de validare.`
+    const invalidValueLine = lines.findIndex(line => !money(line.valoare) || money(line.valoare) <= 0)
+    if (invalidValueLine >= 0) return `Linia ${invalidValueLine + 1}: completează o valoare pozitivă înainte de validare.`
+    const invalidAccountLine = accounts.length ? lines.findIndex(line => line.cont && !accountExists(line.cont)) : -1
+    if (invalidAccountLine >= 0) return `Linia ${invalidAccountLine + 1}: contul ${lines[invalidAccountLine].cont} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
     return ''
+  }
+
+  function invoiceFormHint() {
+    if (!thirdParties.length) return `Nu există ${isIn ? 'furnizori' : 'clienți'} în contabilitate. Creează terțul înainte de factură.`
+    if (!form.tert_id) return `Selectează ${isIn ? 'furnizorul' : 'clientul'} înainte de salvare.`
+    if (!(form.nr_document || form.numar || '').trim()) return 'Completează numărul documentului înainte de salvare.'
+    if (!form.data) return 'Completează data facturii înainte de salvare.'
+    const mainAccount = isIn ? form.cont_cheltuiala : form.cont_venit
+    if (!mainAccount) return `Completează contul ${isIn ? 'de cheltuială' : 'de venit'} înainte de salvare.`
+    if (accounts.length && !accountExists(mainAccount)) return `Contul ${mainAccount} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
+    if (!invoiceLines.length) return 'Adaugă cel puțin o linie de factură.'
+    const invalidLine = invoiceLines.findIndex(line => !money(line.valoare) || money(line.valoare) <= 0)
+    if (invalidLine >= 0) return `Linia ${invalidLine + 1}: completează o valoare pozitivă.`
+    const missingLineAccount = invoiceLines.findIndex(line => !line.cont)
+    if (missingLineAccount >= 0) return `Linia ${missingLineAccount + 1}: selectează contul contabil.`
+    const invalidAccountLine = accounts.length ? invoiceLines.findIndex(line => line.cont && !accountExists(line.cont)) : -1
+    if (invalidAccountLine >= 0) return `Linia ${invalidAccountLine + 1}: contul ${invoiceLines[invalidAccountLine].cont} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
+    return ''
+  }
+
+  function accountExists(symbol) {
+    return accounts.some(account => account.simbol === String(symbol || '').trim() && account.activ !== false)
   }
   function errorText(err, fallback) {
     return err.response?.data?.error || err.response?.data?.message || fallback
@@ -339,7 +373,7 @@ export function FacturiContab({ direction = 'in' }) {
               {invoiceLines.map((line, index) => (
                 <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3">
                   <Input label={`Denumire linia ${index + 1}`} value={line.denumire || ''} onChange={event => updateLine(index, { denumire: event.target.value })} />
-                  <div className="grid gap-2 sm:grid-cols-[minmax(92px,1fr)_minmax(120px,1.2fr)_minmax(96px,1fr)_44px]">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(220px,2fr)_minmax(120px,1fr)_minmax(96px,0.7fr)_44px]">
                     <AccountSelect label="Cont" value={line.cont || ''} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => updateLine(index, { cont: event.target.value })} required />
                     <Input label="Valoare" type="number" step="0.01" value={line.valoare || ''} onChange={event => updateLine(index, { valoare: event.target.value })} />
                     <Select label="TVA" value={line.tva_procent ?? 21} onChange={event => updateLine(index, { tva_procent: event.target.value })} options={[0,5,9,19,21].map(v => ({ value: v, label: `${v}%` }))} />

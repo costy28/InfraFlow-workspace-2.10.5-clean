@@ -1,8 +1,8 @@
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
-import Select from '../../components/forms/Select'
 
 const nav = [
   ['dashboard', '/contabilitate', 'Dashboard'],
@@ -91,25 +91,92 @@ export function AccountInput({ label, value, onChange, accounts, id, recommended
   )
 }
 
-export function AccountSelect({ label, value, onChange, accounts, recommendedClasses = [], required = false }) {
-  const preferred = recommendedClasses.length
-    ? accounts.filter(account => recommendedClasses.includes(Number(account.clasa)))
-    : accounts
-  const rest = recommendedClasses.length
-    ? accounts.filter(account => !recommendedClasses.includes(Number(account.clasa)))
-    : []
-  const options = [...preferred, ...rest]
+export function AccountSelect({ label, value, onChange, accounts = [], recommendedClasses = [], required = false, disabled = false }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const inputId = useRef(`account-${Math.random().toString(36).slice(2)}`)
   const selected = accounts.find(account => account.simbol === value)
+  const orderedAccounts = useMemo(() => {
+    const preferred = recommendedClasses.length
+      ? accounts.filter(account => recommendedClasses.includes(Number(account.clasa)))
+      : accounts
+    const rest = recommendedClasses.length
+      ? accounts.filter(account => !recommendedClasses.includes(Number(account.clasa)))
+      : []
+    return [...preferred, ...rest]
+  }, [accounts, recommendedClasses])
+  const filteredAccounts = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return orderedAccounts.slice(0, 80)
+    return orderedAccounts
+      .filter(account => `${account.simbol} ${account.denumire} ${account.tip_cont || ''}`.toLowerCase().includes(needle))
+      .slice(0, 80)
+  }, [orderedAccounts, query])
+  function chooseAccount(account) {
+    onChange({ target: { value: account?.simbol || '' } })
+    setQuery('')
+    setOpen(false)
+  }
+  function acceptExactCode() {
+    const text = query.trim()
+    if (!text) return
+    const exact = accounts.find(account => account.simbol.toLowerCase() === text.toLowerCase())
+    if (exact) chooseAccount(exact)
+  }
   return (
-    <div className="grid gap-1">
-      <Select
-        label={label}
-        value={value || ''}
-        onChange={onChange}
+    <div className="relative grid gap-1">
+      <label htmlFor={inputId.current} className="text-sm font-medium text-slate-700">
+        {label}{required ? <span className="text-red-600"> *</span> : null}
+      </label>
+      <input
+        id={inputId.current}
+        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-100 disabled:text-slate-500"
+        value={open ? query : selected ? `${selected.simbol} - ${selected.denumire}` : value || ''}
+        onFocus={() => {
+          setQuery('')
+          setOpen(true)
+        }}
+        onChange={event => {
+          setQuery(event.target.value)
+          setOpen(true)
+        }}
+        onKeyDown={event => {
+          if (event.key === 'Enter' && open) {
+            event.preventDefault()
+            acceptExactCode()
+          }
+          if (event.key === 'Escape') setOpen(false)
+        }}
+        onBlur={() => {
+          acceptExactCode()
+          window.setTimeout(() => setOpen(false), 120)
+        }}
+        placeholder="Cauta dupa cont sau denumire"
         required={required}
-        options={[{ value: '', label: 'Selecteaza cont' }, ...options.map(account => ({ value: account.simbol, label: `${account.simbol} - ${account.denumire}` }))]}
+        disabled={disabled}
       />
+      {value && !selected ? <div className="text-xs text-rose-600">Contul {value} nu exista in planul de conturi.</div> : null}
       {selected ? <div className="text-xs text-slate-500">{selected.tip_cont || 'general'} · clasa {selected.clasa}</div> : null}
+      {open && !disabled ? (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+          <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-50" onMouseDown={() => chooseAccount(null)}>
+            <span>Fara cont selectat</span>
+          </button>
+          {filteredAccounts.map(account => (
+            <button
+              type="button"
+              key={account.simbol}
+              className={`grid w-full gap-0.5 px-3 py-2 text-left text-sm hover:bg-primary-50 ${account.simbol === value ? 'bg-primary-50 text-primary-800' : 'text-slate-800'}`}
+              onMouseDown={() => chooseAccount(account)}
+            >
+              <span className="font-semibold">{account.simbol} - {account.denumire}</span>
+              <span className="text-xs text-slate-500">{account.tip_cont || 'general'} · clasa {account.clasa}</span>
+            </button>
+          ))}
+          {!filteredAccounts.length ? <div className="px-3 py-3 text-sm text-slate-500">Nu exista cont pentru cautarea curenta.</div> : null}
+          {orderedAccounts.length > filteredAccounts.length ? <div className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">Sunt afisate primele {filteredAccounts.length} rezultate. Scrie mai multe caractere pentru filtrare.</div> : null}
+        </div>
+      ) : null}
     </div>
   )
 }

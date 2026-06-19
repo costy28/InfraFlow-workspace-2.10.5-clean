@@ -12,6 +12,7 @@ import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statu
 export function Trezorerie() {
   const [rows, setRows] = useState([])
   const [thirdParties, setThirdParties] = useState([])
+  const [accounts, setAccounts] = useState([])
   const [month, setMonth] = useState(currentMonth())
   const [status, setStatus] = useState('')
   const [modal, setModal] = useState(false)
@@ -29,13 +30,16 @@ export function Trezorerie() {
     const [an, luna] = month.split('-')
     Promise.all([
       api.get('/accounting/treasury', { params: { an, luna: Number(luna), status: status || undefined } }),
-      api.get('/accounting/third-parties')
-    ]).then(([treasuryRes, tertRes]) => {
+      api.get('/accounting/third-parties'),
+      api.get('/accounting/chart')
+    ]).then(([treasuryRes, tertRes, chartRes]) => {
       setRows(treasuryRes.data.treasury || [])
       setThirdParties(tertRes.data.thirdParties || [])
+      setAccounts(chartRes.data.accounts || [])
     }).catch(() => {
       setRows([])
       setThirdParties([])
+      setAccounts([])
     })
   }
 
@@ -85,6 +89,11 @@ export function Trezorerie() {
     setError('')
     setMessage('')
     setValidatedJournal(null)
+    const hint = treasuryValidationHint({ ...form, status: 'draft' })
+    if (hint) {
+      setError(hint)
+      return
+    }
     try {
       const payload = { ...form, tert_id: form.tert_id || null }
       if (editing) await api.patch(`/accounting/treasury/${editing.uuid}`, payload)
@@ -99,11 +108,17 @@ export function Trezorerie() {
 
   function treasuryValidationHint(row) {
     if (row.status !== 'draft') return 'Operația trebuie să fie în status draft pentru validare.'
+    if (!row.data) return 'Completează data operației înainte de validare.'
     if (!money(row.suma) || money(row.suma) <= 0) return 'Completează o sumă pozitivă înainte de validare.'
     if (!row.cont_trezorerie) return 'Completează contul de trezorerie, de exemplu 5121 pentru bancă sau 5311 pentru casă.'
-    if (!row.cont_corespondent && !row.tert_id) return 'Completează un cont corespondent sau selectează un terț contabil.'
-    if (!row.data) return 'Completează data operației înainte de validare.'
+    if (accounts.length && !accountExists(row.cont_trezorerie)) return `Contul de trezorerie ${row.cont_trezorerie} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
+    if (!row.cont_corespondent) return 'Completează contul corespondent înainte de validare.'
+    if (accounts.length && !accountExists(row.cont_corespondent)) return `Contul corespondent ${row.cont_corespondent} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
     return ''
+  }
+
+  function accountExists(symbol) {
+    return accounts.some(account => account.simbol === String(symbol || '').trim() && account.activ !== false)
   }
 
   function errorText(err, fallback) {
@@ -244,8 +259,8 @@ export function Trezorerie() {
             <Input label="Nr. document" value={form.nr_document || ''} onChange={event => updateForm({ nr_document: event.target.value })} />
             <Select label="Tert optional" value={form.tert_id || ''} onChange={event => updateForm({ tert_id: event.target.value })} options={[{ value: '', label: 'Fara tert' }, ...thirdParties.map(tert => ({ value: tert.id, label: `${tert.cod} - ${tert.denumire}` }))]} />
             <Input label="Suma" type="number" step="0.01" value={form.suma || ''} onChange={event => updateForm({ suma: event.target.value })} required />
-            <Input label="Cont trezorerie" value={form.cont_trezorerie || ''} onChange={event => updateForm({ cont_trezorerie: event.target.value })} required />
-            <Input label="Cont corespondent" value={form.cont_corespondent || ''} onChange={event => updateForm({ cont_corespondent: event.target.value })} />
+            <AccountSelect label="Cont trezorerie" value={form.cont_trezorerie || ''} accounts={accounts} recommendedClasses={[5]} onChange={event => updateForm({ cont_trezorerie: event.target.value })} required />
+            <AccountSelect label="Cont corespondent" value={form.cont_corespondent || ''} accounts={accounts} recommendedClasses={[4, 5, 6, 7]} onChange={event => updateForm({ cont_corespondent: event.target.value })} required />
           </div>
           <Input label="Explicatie" value={form.explicatie || ''} onChange={event => updateForm({ explicatie: event.target.value })} />
           <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">
