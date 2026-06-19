@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useGlobalNotifications } from '../../hooks/useGlobalNotifications'
@@ -37,6 +37,25 @@ export default function Layout({ children }) {
   useGlobalNotifications()
   const location = useLocation()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    function applyAppearance() {
+      const root = document.documentElement
+      const theme = localStorage.getItem('infraflow_theme') || 'light'
+      const density = localStorage.getItem('infraflow_density') || 'normal'
+      const fontScale = localStorage.getItem('infraflow_font_scale') || '1'
+      root.dataset.theme = theme
+      root.dataset.density = density
+      root.style.setProperty('--app-font-scale', fontScale)
+    }
+    applyAppearance()
+    window.addEventListener('storage', applyAppearance)
+    window.addEventListener('infraflow:appearance', applyAppearance)
+    return () => {
+      window.removeEventListener('storage', applyAppearance)
+      window.removeEventListener('infraflow:appearance', applyAppearance)
+    }
+  }, [])
 
   const title = useMemo(() => {
     const match = Object.keys(titles)

@@ -9,21 +9,21 @@ export default function Button({
   ...props
 }) {
   const variants = {
-    primary: 'bg-primary-600 text-white hover:bg-primary-700',
-    secondary: 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50',
-    danger: 'bg-rose-600 text-white hover:bg-rose-700',
+    primary: 'bg-primary-600 text-white shadow-sm shadow-primary-900/10 hover:bg-primary-700',
+    secondary: 'bg-white text-slate-700 ring-1 ring-slate-200 shadow-sm hover:bg-slate-50',
+    danger: 'bg-rose-600 text-white shadow-sm shadow-rose-900/10 hover:bg-rose-700',
     ghost: 'text-slate-700 hover:bg-slate-100',
   }
 
   const sizes = {
-    sm: 'h-8 rounded px-3 text-xs',
-    md: 'h-10 rounded-md px-4 text-sm',
-    lg: 'h-12 rounded-md px-5 text-base',
+    sm: 'h-7 rounded-[var(--radius-control)] px-2.5 text-xs',
+    md: 'h-[var(--control-height)] rounded-[var(--radius-control)] px-[var(--control-px)] text-sm',
+    lg: 'h-10 rounded-[var(--radius-control)] px-4 text-sm',
   }
 
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${sizes[size] || sizes.md} ${variants[variant] || variants.primary} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-semibold tracking-normal transition focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:cursor-not-allowed disabled:opacity-60 ${sizes[size] || sizes.md} ${variants[variant] || variants.primary} ${className}`}
       disabled={disabled || loading}
       {...props}
     >

@@ -260,6 +260,11 @@ export default function SetariPage() {
   const [databaseAccountingSyncing, setDatabaseAccountingSyncing] = useState(false)
   const [license, setLicense] = useState(null)
   const [branding, setBranding] = useState(normalizeBranding())
+  const [appearance, setAppearance] = useState(() => ({
+    theme: localStorage.getItem('infraflow_theme') || 'light',
+    density: localStorage.getItem('infraflow_density') || 'normal',
+    fontScale: Number(localStorage.getItem('infraflow_font_scale') || 1),
+  }))
   const [aiStatus, setAiStatus] = useState(null)
   const [users, setUsers] = useState([])
   const [departments, setDepartments] = useState([])
@@ -414,6 +419,12 @@ export default function SetariPage() {
   useEffect(() => {
     Promise.resolve().then(() => loadDepartments())
   }, [])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = appearance.theme
+    document.documentElement.dataset.density = appearance.density
+    document.documentElement.style.setProperty('--app-font-scale', String(appearance.fontScale))
+  }, [appearance])
 
   function notify(text) {
     setMessage(text)
@@ -583,6 +594,18 @@ export default function SetariPage() {
     } finally {
       setUploadingUpdate(false)
     }
+  }
+
+  function saveAppearance(event) {
+    event.preventDefault()
+    localStorage.setItem('infraflow_theme', appearance.theme)
+    localStorage.setItem('infraflow_density', appearance.density)
+    localStorage.setItem('infraflow_font_scale', String(appearance.fontScale))
+    document.documentElement.dataset.theme = appearance.theme
+    document.documentElement.dataset.density = appearance.density
+    document.documentElement.style.setProperty('--app-font-scale', String(appearance.fontScale))
+    window.dispatchEvent(new Event('infraflow:appearance'))
+    notify('Preferințele vizuale au fost salvate pe acest dispozitiv.')
   }
 
   async function reimportCpvCodes() {
@@ -1594,6 +1617,41 @@ export default function SetariPage() {
 
       {activeTab === 'Aspect' && (
         <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+          <Card title="Interfață" subtitle="Preferințe locale pentru acest dispozitiv.">
+            <form className="grid gap-3" onSubmit={saveAppearance}>
+              <Select label="Temă" value={appearance.theme} onChange={event => setAppearance(current => ({ ...current, theme: event.target.value }))} options={[
+                { value: 'light', label: 'Luminos' },
+                { value: 'dark', label: 'Întunecat' },
+              ]} />
+              <Select label="Densitate" value={appearance.density} onChange={event => setAppearance(current => ({ ...current, density: event.target.value }))} options={[
+                { value: 'compact', label: 'Compact' },
+                { value: 'normal', label: 'Normal' },
+                { value: 'comfortable', label: 'Confortabil' },
+              ]} />
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Mărime font
+                <input
+                  className="accent-primary-600"
+                  type="range"
+                  min="0.9"
+                  max="1.12"
+                  step="0.02"
+                  value={appearance.fontScale}
+                  onChange={event => setAppearance(current => ({ ...current, fontScale: Number(event.target.value) }))}
+                />
+                <span className="text-xs font-normal text-slate-500">{Math.round(appearance.fontScale * 100)}%</span>
+              </label>
+              <div className="rounded-[var(--radius-panel)] border border-slate-200 bg-white p-3">
+                <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Previzualizare UI</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button">Acțiune</Button>
+                  <Button type="button" variant="secondary">Secundar</Button>
+                  <Badge tone="success">validat</Badge>
+                </div>
+              </div>
+              <Button type="submit">Salvează interfața</Button>
+            </form>
+          </Card>
           <Card title="Branding">
             <form className="grid gap-3" onSubmit={saveBranding}>
               <Input label="Upload logo (PNG/SVG max 2MB)" type="file" accept="image/png,image/svg+xml" onChange={uploadLogo} />

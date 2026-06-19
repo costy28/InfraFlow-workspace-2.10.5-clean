@@ -22,13 +22,13 @@ export default function Table({
   const tableRows = data || rows || []
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-[var(--radius-panel)] border border-slate-200 bg-white shadow-[var(--shadow-card)]">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
               {columns.map(column => (
-                <th key={column.key} className="px-3 py-2 text-left font-semibold text-slate-600">
+                <th key={column.key} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {column.label}
                 </th>
               ))}

@@ -11,7 +11,7 @@ export default function Card({
 }) {
   return (
     <section
-      className={`rounded-lg border border-slate-200 bg-white p-4 shadow-sm ${className}`}
+      className={`rounded-[var(--radius-panel)] border border-slate-200 bg-white p-[var(--card-padding)] shadow-[var(--shadow-card)] ${className}`}
       {...props}
     >
       {(title || subtitle || actions) && (

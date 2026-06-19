@@ -1,5 +1,5 @@
 {
-  "version": "2.12.65",
+  "version": "2.12.67",
   "date": "2026-06-19",
-  "changelog": "## v2.12.65 - 2026-06-19\n### Modaluri redimensionabile\n- Modalurile comune pot fi redimensionate cu maner vizibil in coltul dreapta-jos.\n- Dimensiunea aleasa se pastreaza pe sesiunea browserului.\n- Modalul local din Asternere a fost aliniat cu acelasi comportament de redimensionare."
+  "changelog": "## v2.12.67 - 2026-06-19\n### Polish vizual global\n- Butoanele, cardurile, inputurile, selecturile, badge-urile si tabelele au primit o densitate mai fina si un aspect mai profesionist.\n- Setari -> Aspect include tema luminoasa/intunecata, densitate si marime font salvate local pe dispozitiv.\n- Navbar-ul este mai compact si pregatit pentru rafinari vizuale suplimentare."
 }

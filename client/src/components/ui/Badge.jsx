@@ -20,7 +20,7 @@ export default function Badge({ variant, tone, size = 'md', className = '', ...p
 
   return (
     <span
-      className={`inline-flex items-center rounded font-medium ${sizes[size] || sizes.md} ${variants[color] || variants.gray} ${className}`}
+      className={`inline-flex items-center rounded-[var(--radius-control)] font-semibold ${sizes[size] || sizes.md} ${variants[color] || variants.gray} ${className}`}
       {...props}
     />
   )

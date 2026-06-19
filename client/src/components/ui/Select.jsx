@@ -6,7 +6,7 @@ export default function Select({ label, error, options = [], className = '', id,
       {label}
       <select
         id={selectId}
-        className={`h-10 rounded-md border px-3 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 ${
+        className={`h-[var(--control-height)] rounded-[var(--radius-control)] border px-[var(--control-px)] text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 ${
           error ? 'border-rose-400' : 'border-slate-300'
         } ${className}`}
         {...props}

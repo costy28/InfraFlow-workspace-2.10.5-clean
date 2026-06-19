@@ -35,6 +35,78 @@ router.get("/accounting/summary", requireAccountingView, (req, res) => {
   });
 });
 
+router.get("/accounting/health", requireAccountingView, (req, res) => {
+  const accounting = engine.ensureAccounting(req.auth.db);
+  const [an, luna] = monthParts(req.query.luna || currentMonth());
+  const period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna) || { an, luna, status: "deschisa" };
+  const requiredAccounts = [
+    ["401", "Furnizori"],
+    ["4111", "Clienti"],
+    ["4426", "TVA deductibila"],
+    ["4427", "TVA colectata"],
+    ["5121", "Banca in lei"],
+    ["5311", "Casa in lei"],
+    ["628", "Cheltuieli servicii"],
+    ["704", "Venituri servicii"]
+  ].map(([simbol, label]) => {
+    const account = accounting.chart.find((item) => item.simbol === simbol);
+    return {
+      simbol,
+      label,
+      exists: Boolean(account),
+      active: account ? account.activ !== false : false
+    };
+  });
+  const supplierCount = accounting.thirdParties.filter((item) => item.tip === "furnizor" || item.tip === "ambele").length;
+  const clientCount = accounting.thirdParties.filter((item) => item.tip === "client" || item.tip === "ambele").length;
+  const missingAccounts = requiredAccounts.filter((item) => !item.exists || !item.active);
+  const checks = [
+    {
+      key: "chart",
+      label: "Plan de conturi",
+      ok: accounting.chart.length >= requiredAccounts.length && missingAccounts.length === 0,
+      value: `${accounting.chart.length} conturi`,
+      message: missingAccounts.length ? `Lipsesc: ${missingAccounts.map((item) => item.simbol).join(", ")}.` : "Conturile obligatorii sunt disponibile."
+    },
+    {
+      key: "third_parties",
+      label: "Terti contabili",
+      ok: supplierCount > 0 && clientCount > 0,
+      value: `${supplierCount} furnizori / ${clientCount} clienti`,
+      message: supplierCount > 0 && clientCount > 0 ? "Ai terti pentru facturi intrare si iesire." : "Adauga cel putin un furnizor si un client."
+    },
+    {
+      key: "period",
+      label: "Perioada curenta",
+      ok: !["inchisa", "depusa"].includes(period.status),
+      value: `${String(luna).padStart(2, "0")}/${an} - ${period.status}`,
+      message: ["inchisa", "depusa"].includes(period.status) ? "Perioada este inchisa; documentele noi trebuie introduse intr-o luna deschisa." : "Perioada este deschisa pentru operare."
+    },
+    {
+      key: "journals",
+      label: "Registru jurnal",
+      ok: true,
+      value: `${accounting.journals.filter(engine.isActiveJournal).length} note active`,
+      message: "Notele validate vor aparea aici automat."
+    }
+  ];
+  sendJson(res, 200, {
+    status: checks.every((item) => item.ok) ? "ok" : "needs_attention",
+    month: `${an}-${String(luna).padStart(2, "0")}`,
+    checks,
+    requiredAccounts,
+    counts: {
+      chart: accounting.chart.length,
+      suppliers: supplierCount,
+      clients: clientCount,
+      journals: accounting.journals.filter(engine.isActiveJournal).length,
+      invoices_in: accounting.invoicesIn.length,
+      invoices_out: accounting.invoicesOut.length,
+      treasury: accounting.treasury.length
+    }
+  });
+});
+
 router.get("/accounting/chart", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
   const query = String(req.query.q || "").toLowerCase();
