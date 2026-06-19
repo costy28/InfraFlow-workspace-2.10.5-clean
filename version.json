@@ -1,5 +1,5 @@
 {
-  "version": "2.12.64",
+  "version": "2.12.65",
   "date": "2026-06-19",
-  "changelog": "## v2.12.64 - 2026-06-19\n### Contabilitate: selector conturi si mesaje de validare\n- Selectorul de conturi din facturi este cautabil dupa simbol sau denumire.\n- Trezoreria foloseste planul de conturi pentru contul de casa/banca si corespondent.\n- Salvarea si validarea afiseaza mesaje clare cand lipsesc terti, valori sau conturi din plan."
+  "changelog": "## v2.12.65 - 2026-06-19\n### Modaluri redimensionabile\n- Modalurile comune pot fi redimensionate cu maner vizibil in coltul dreapta-jos.\n- Dimensiunea aleasa se pastreaza pe sesiunea browserului.\n- Modalul local din Asternere a fost aliniat cu acelasi comportament de redimensionare."
 }
