@@ -1,5 +1,5 @@
 {
-  "version": "2.12.68",
-  "date": "2026-06-19",
-  "changelog": "## v2.12.68 - 2026-06-19\n### Hotfix changelog local\n- Butonul Vezi CHANGELOG afiseaza acum fisierele recente din updates/ inaintea istoricului vechi.\n- Istoricul local nu mai ramane blocat la CHANGELOG.md invechit."
+  "version": "2.12.69",
+  "date": "2026-06-20",
+  "changelog": "## v2.12.69 - 2026-06-20\n### Controale rapide aspect\n- Bara de sus include comenzi rapide pentru tema luminoasa/intunecata, densitate si marime font.\n- Preferintele vizuale sunt salvate local si aplicate imediat in interfata."
 }
