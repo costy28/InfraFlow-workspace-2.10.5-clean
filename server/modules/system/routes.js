@@ -370,8 +370,7 @@ router.get('/system/update/changelog', async (req, res, next) => {
     if (!auth) return;
     if (!requirePermission(auth, res, "system:view")) return;
     if (String(req.query?.local || "") === "1") {
-      const localPath = path.join(ROOT, "CHANGELOG.md");
-      const text = fs.existsSync(localPath) ? fs.readFileSync(localPath, "utf8") : "";
+      const text = buildLocalChangelog();
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       return res.send(text);
     }
@@ -385,6 +384,23 @@ router.get('/system/update/changelog', async (req, res, next) => {
     next(error);
   }
 })
+
+function buildLocalChangelog() {
+  const updatesDir = path.join(ROOT, "updates");
+  const legacyPath = path.join(ROOT, "CHANGELOG.md");
+  const legacy = fs.existsSync(legacyPath) ? fs.readFileSync(legacyPath, "utf8") : "";
+  if (!fs.existsSync(updatesDir)) return legacy;
+  const updateFiles = fs.readdirSync(updatesDir)
+    .filter((name) => /^UPDATE_\d+.*\.md$/i.test(name))
+    .sort((a, b) => b.localeCompare(a, "ro", { numeric: true }))
+    .slice(0, 80);
+  if (!updateFiles.length) return legacy;
+  const sections = updateFiles.map((name) => {
+    const text = fs.readFileSync(path.join(updatesDir, name), "utf8").trim();
+    return `<!-- ${name} -->\n${text}`;
+  });
+  return `# Changelog InfraFlow\n\n${sections.join("\n\n---\n\n")}\n\n---\n\n## Istoric vechi\n\n${legacy.replace(/^# Changelog\s*/i, "").trim()}`;
+}
 
 router.post('/system/update/install', async (req, res, next) => {
   try {
