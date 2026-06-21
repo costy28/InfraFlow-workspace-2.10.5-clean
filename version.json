@@ -1,5 +1,5 @@
 {
-  "version": "2.12.84",
+  "version": "2.12.85",
   "date": "2026-06-21",
-  "changelog": "## v2.12.84 - 2026-06-21\n### Contabilitate - TVA/D300 si inchidere luna ghidata\n- Jurnalul TVA si D300 includ implicit doar documente contabilizabile, nu drafturi.\n- TVA/D300 afiseaza sumar pe statusuri si avertizari pentru documentele draft neincluse.\n- Inchiderea lunii are linkuri directe catre zonele care blocheaza inchiderea."
+  "changelog": "## v2.12.85 - 2026-06-21\n### Contabilitate - rapoarte contabile navigabile\n- Registrul jurnal are export Excel filtrat dupa luna si status, cu linii si totaluri.\n- Balanta are cautare rapida pe cont/denumire si link direct catre registrul lunii.\n- Fisa contului primeste intervalul din URL si leaga miscarile inapoi catre registrul jurnal."
 }

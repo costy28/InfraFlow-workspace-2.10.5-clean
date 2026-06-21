@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -11,10 +11,12 @@ import { formatMoney } from '../../utils/format'
 import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function FisaCont() {
   const { simbol } = useParams()
-  const [from, setFrom] = useState(`${currentMonth()}-01`)
-  const [to, setTo] = useState(today())
+  const [searchParams] = useSearchParams()
+  const [from, setFrom] = useState(searchParams.get('de_la') || `${currentMonth()}-01`)
+  const [to, setTo] = useState(searchParams.get('pana_la') || today())
   const [data, setData] = useState({ movements: [], sold_initial: 0, total_debit: 0, total_credit: 0, sold_final: 0 })
   const [error, setError] = useState('')
+  const reportMonth = (from || currentMonth()).slice(0, 7)
   useEffect(() => { load() }, [simbol, from, to])
 
   function load() {
@@ -39,7 +41,7 @@ export function FisaCont() {
   }
 
   return (
-    <AccountingShell active="plan" title={`Fisa cont ${simbol}`} subtitle={data.denumire || 'Carte mare pe cont, cu sold progresiv.'} actions={<Button variant="secondary" onClick={exportExcel}>Export Excel</Button>}>
+    <AccountingShell active="plan" title={`Fisa cont ${simbol}`} subtitle={data.denumire || 'Carte mare pe cont, cu sold progresiv.'} actions={<><Button variant="secondary" onClick={exportExcel}>Export Excel</Button><Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-[var(--control-px)] text-sm font-semibold text-slate-700 hover:bg-slate-50" to={`/contabilitate/balanta?luna=${reportMonth}`}>Balanta</Link><Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-[var(--control-px)] text-sm font-semibold text-slate-700 hover:bg-slate-50" to={`/contabilitate/registru-jurnal?luna=${reportMonth}`}>Registru jurnal</Link></>}>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
         <div className="grid gap-3 md:grid-cols-[180px_180px_auto]">
@@ -58,7 +60,7 @@ export function FisaCont() {
         {data.movements.map(row => (
           <tr key={row.id} className="hover:bg-slate-50">
             <td className="px-3 py-2">{row.data}</td>
-            <td className="px-3 py-2">{row.nr_document || '-'}</td>
+            <td className="px-3 py-2"><Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/registru-jurnal?luna=${String(row.data || reportMonth).slice(0, 7)}`}>{row.nr_document || '-'}</Link></td>
             <td className="px-3 py-2">{row.tip_document}</td>
             <td className="px-3 py-2">{row.explicatie}</td>
             <td className="px-3 py-2 text-right">{row.debit ? formatMoney(row.debit) : '-'}</td>

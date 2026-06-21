@@ -496,6 +496,45 @@ router.get("/accounting/journals", requireAccountingView, (req, res) => {
   sendJson(res, 200, { journals });
 });
 
+router.get("/accounting/journals/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const journals = filterDocuments(accounting.journals, req.query).map((journal) => ({
+      ...journal,
+      lines: accounting.journalLines.filter((line) => Number(line.journal_id) === Number(journal.id))
+    }));
+    const rows = [
+      ["Registru jurnal", req.query.an || "", req.query.luna ? String(req.query.luna).padStart(2, "0") : "", req.query.status || "toate fara anulate"],
+      [],
+      ["Data", "Document", "Tip document", "Explicatie nota", "Status", "Linie", "Cont", "Denumire cont", "Debit", "Credit", "Explicatie linie"],
+      ...journals.flatMap((journal) => (journal.lines || []).map((line) => [
+        journal.data || "",
+        journal.nr_document || `NC ${journal.id}`,
+        journal.tip_document || "",
+        journal.explicatie || "",
+        journal.status || "",
+        line.linie_nr || "",
+        line.cont_simbol || "",
+        line.denumire_cont || "",
+        line.debit || 0,
+        line.credit || 0,
+        line.explicatie || ""
+      ])),
+      [],
+      ["TOTAL", "", "", "", "", "", "", "", sum(journals, "total_debit"), sum(journals, "total_credit"), ""]
+    ];
+    const workbook = xlsx.utils.book_new();
+    const sheet = xlsx.utils.aoa_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 42 }, { wch: 12 }, { wch: 8 }, { wch: 16 }, { wch: 36 }, { wch: 14 }, { wch: 14 }, { wch: 42 }];
+    xlsx.utils.book_append_sheet(workbook, sheet, "Registru jurnal");
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const suffix = req.query.an && req.query.luna ? `${req.query.an}_${String(req.query.luna).padStart(2, "0")}` : today();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Registru_jurnal_${suffix}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/journals/:uuid", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
   const journal = findByUuid(accounting.journals, req.params.uuid, "Nota contabila nu a fost gasita.");

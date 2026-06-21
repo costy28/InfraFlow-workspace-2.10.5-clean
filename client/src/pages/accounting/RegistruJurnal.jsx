@@ -28,6 +28,13 @@ export function RegistruJurnal() {
   const importInputRef = useRef(null)
   const selected = rows.find(row => row.uuid === selectedUuid) || rows[0] || null
   const difference = selected ? Math.abs(money(selected.total_debit) - money(selected.total_credit)) : 0
+  const totals = useMemo(() => rows.reduce((acc, row) => {
+    acc.debit += money(row.total_debit)
+    acc.credit += money(row.total_credit)
+    acc.drafts += row.status === 'draft' ? 1 : 0
+    acc.active += row.status === 'activ' ? 1 : 0
+    return acc
+  }, { debit: 0, credit: 0, drafts: 0, active: 0 }), [rows])
 
   useEffect(() => { load() }, [month, status])
   useEffect(() => {
@@ -224,6 +231,22 @@ export function RegistruJurnal() {
     }
   }
 
+  async function exportExcel() {
+    const [an, luna] = month.split('-')
+    const res = await api.get('/accounting/journals/export', {
+      params: { an, luna: Number(luna), status: status || undefined },
+      responseType: 'blob'
+    })
+    const url = URL.createObjectURL(res.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `Registru_jurnal_${an}_${luna}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const noteTotals = (noteForm.lines || []).reduce((acc, line) => {
     acc.debit += money(line.debit)
     acc.credit += money(line.credit)
@@ -232,7 +255,7 @@ export function RegistruJurnal() {
   const noteBalanced = Math.abs(noteTotals.debit - noteTotals.credit) <= 0.01 && noteTotals.debit > 0
 
   return (
-    <AccountingShell active="jurnal" title="Registru jurnal" subtitle="Note contabile active si storno, cu linii debit/credit." actions={<><Button onClick={openManualNote}>+ Nota manuala</Button><Button variant="secondary" onClick={() => setImportModal(true)}>Import note XLS</Button></>}>
+    <AccountingShell active="jurnal" title="Registru jurnal" subtitle="Note contabile active si storno, cu linii debit/credit." actions={<><Button onClick={openManualNote}>+ Nota manuala</Button><Button variant="secondary" onClick={() => setImportModal(true)}>Import note XLS</Button><Button variant="secondary" onClick={exportExcel}>Export Excel</Button></>}>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
@@ -248,6 +271,12 @@ export function RegistruJurnal() {
         </div>
       </Card>
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      <div className="grid gap-3 md:grid-cols-4">
+        <Info label="Note filtrate" value={rows.length} />
+        <Info label="Note active" value={totals.active} />
+        <Info label="Drafturi" value={totals.drafts} />
+        <Info label="Diferenta debit-credit" value={formatMoney(Math.abs(totals.debit - totals.credit))} />
+      </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <Table headers={['Data', 'Document', 'Tip', 'Explicatie', 'Debit', 'Credit', 'Status']}>
           {rows.map(row => (
@@ -293,7 +322,7 @@ export function RegistruJurnal() {
                     {(selected.lines || []).map(line => (
                       <tr key={line.id}>
                         <td className="px-3 py-2">
-                          <Link className="font-mono font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${line.cont_simbol}`}>{line.cont_simbol}</Link>
+                          <Link className="font-mono font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${line.cont_simbol}?de_la=${month}-01&pana_la=${month}-31`}>{line.cont_simbol}</Link>
                           <div className="text-xs text-slate-500">{line.denumire_cont}</div>
                         </td>
                         <td className="px-3 py-2">{line.explicatie || '-'}</td>

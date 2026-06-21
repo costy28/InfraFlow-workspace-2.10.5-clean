@@ -14,26 +14,29 @@ export function Balanta() {
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [tip, setTip] = useState('sintetica')
   const [clasa, setClasa] = useState('')
+  const [q, setQ] = useState('')
   const [onlyWithValues, setOnlyWithValues] = useState(true)
   const [data, setData] = useState({ rows: [], totals: {}, balanced: true })
+  const [an, luna] = month.split('-')
+  const monthStart = `${month}-01`
+  const monthEnd = `${month}-31`
   const rows = useMemo(() => data.rows.filter(row =>
     (!clasa || String(row.cont || '').startsWith(clasa)) &&
+    (!q || `${row.cont || ''} ${row.denumire || ''}`.toLowerCase().includes(q.toLowerCase())) &&
     (!onlyWithValues || ['rulaje_D', 'rulaje_C', 'sold_D', 'sold_C'].some(key => Math.abs(money(row[key])) > 0.009))
-  ), [data.rows, clasa, onlyWithValues])
+  ), [data.rows, clasa, q, onlyWithValues])
   const filteredTotals = useMemo(() => rows.reduce((acc, row) => {
     ['rulaje_D', 'rulaje_C', 'sume_totale_D', 'sume_totale_C', 'sold_D', 'sold_C'].forEach(key => { acc[key] = money((acc[key] || 0) + row[key]) })
     return acc
   }, {}), [rows])
 
   useEffect(() => {
-    const [an, luna] = month.split('-')
     api.get('/accounting/balance-sheet', { params: { an, luna, tip } })
       .then(res => setData(res.data))
       .catch(() => setData({ rows: [], totals: {}, balanced: false }))
   }, [month, tip])
 
   async function exportExcel() {
-    const [an, luna] = month.split('-')
     const res = await api.get('/accounting/balance-sheet/export', { params: { an, luna, tip }, responseType: 'blob' })
     const url = URL.createObjectURL(res.data)
     const link = document.createElement('a')
@@ -46,12 +49,15 @@ export function Balanta() {
   }
 
   return (
-    <AccountingShell active="balanta" title="Balanta" subtitle="Verificare rulaje, solduri si egalitate debit-credit." actions={<Button variant="secondary" onClick={exportExcel}>Export Excel</Button>}>
+    <AccountingShell active="balanta" title="Balanta" subtitle="Verificare rulaje, solduri si egalitate debit-credit." actions={<><Button variant="secondary" onClick={exportExcel}>Export Excel</Button><Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-[var(--control-px)] text-sm font-semibold text-slate-700 hover:bg-slate-50" to={`/contabilitate/registru-jurnal?luna=${month}`}>Registru jurnal</Link></>}>
       <Card>
-        <div className="grid gap-3 md:grid-cols-[180px_180px_180px_1fr]">
+        <div className="grid gap-3 md:grid-cols-[180px_180px_180px_minmax(200px,1fr)]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Select label="Tip balanta" value={tip} onChange={event => setTip(event.target.value)} options={[{ value: 'sintetica', label: 'Sintetica' }, { value: 'analitica', label: 'Analitica' }]} />
           <Select label="Clasa cont" value={clasa} onChange={event => setClasa(event.target.value)} options={[{ value: '', label: 'Toate clasele' }, ...[1,2,3,4,5,6,7,8,9].map(value => ({ value: String(value), label: `Clasa ${value}` }))]} />
+          <Input label="Cauta cont" value={q} onChange={event => setQ(event.target.value)} placeholder="401, TVA, cheltuieli..." />
+        </div>
+        <div className="mt-3">
           <label className="flex items-end gap-2 pb-2 text-sm font-medium text-slate-700">
             <input type="checkbox" checked={onlyWithValues} onChange={event => setOnlyWithValues(event.target.checked)} />
             Doar conturi cu rulaj sau sold
@@ -71,7 +77,7 @@ export function Balanta() {
         {rows.map(row => (
           <tr key={row.cont} className="hover:bg-slate-50">
             <td className="px-3 py-2">
-              <Link className="font-mono font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont}`}>{row.cont}</Link>
+              <Link className="font-mono font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont}?de_la=${monthStart}&pana_la=${monthEnd}`}>{row.cont}</Link>
             </td>
             <td className="px-3 py-2">{row.denumire}</td>
             <td className="px-3 py-2 text-right">{formatMoney(row.rulaje_D)}</td>
