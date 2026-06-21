@@ -70,7 +70,7 @@ function ProgressBar({ value, color = 'bg-primary-500' }) {
 
 function KpiCard({ icon, label, value, sub, color = 'text-primary-600' }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className="rounded-[var(--radius-panel)] border border-slate-200 bg-white p-[var(--card-padding)] shadow-[var(--shadow-card)]">
       <div className="mb-1 flex items-center gap-2 text-slate-500 text-sm">{icon} {label}</div>
       <div className={`text-2xl font-bold ${color}`}>{value}</div>
       {sub && <div className="mt-0.5 text-xs text-slate-400">{sub}</div>}
@@ -82,11 +82,11 @@ function KpiCard({ icon, label, value, sub, color = 'text-primary-600' }) {
 
 function Modal({ title, onClose, children, wide = false }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-12">
-      <div className={`relative max-h-[calc(100vh-4rem)] min-h-[18rem] min-w-[min(22rem,calc(100vw-2rem))] resize overflow-hidden rounded-2xl bg-white shadow-xl ${wide ? 'w-[min(48rem,calc(100vw-2rem))]' : 'w-[min(36rem,calc(100vw-2rem))]'}`}>
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4 pt-12">
+      <div className={`relative max-h-[calc(100vh-4rem)] min-h-[18rem] min-w-[min(22rem,calc(100vw-2rem))] resize overflow-hidden rounded-[var(--radius-panel)] border border-slate-200 bg-white shadow-xl ${wide ? 'w-[min(48rem,calc(100vw-2rem))]' : 'w-[min(36rem,calc(100vw-2rem))]'}`}>
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-6 py-4">
           <h3 className="text-base font-semibold text-slate-800">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+          <button onClick={onClose} className="rounded-[var(--radius-control)] px-2 py-1 text-xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-600">×</button>
         </div>
         <div className="max-h-[calc(100vh-9rem)] overflow-y-auto px-6 py-5">{children}</div>
       </div>
@@ -104,7 +104,7 @@ function Field({ label, error, children }) {
   )
 }
 
-const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-200'
+const inputCls = 'h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-[var(--control-px)] text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100'
 const selectCls = inputCls
 
 // ─── COMPONENT PRINCIPAL ─────────────────────────────────────────────────────

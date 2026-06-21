@@ -9,6 +9,7 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/forms/Input'
+import Modal from '../components/ui/Modal'
 import Select from '../components/forms/Select'
 import { useAuth } from '../hooks/useAuth'
 import axios from 'axios'
@@ -142,18 +143,17 @@ function SignatureCanvas({ onConfirm }) {
         onTouchMove={doDraw}
         onTouchEnd={endDraw}
       />
-      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-        <button
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button
           type="button"
           onClick={clearCanvas}
-          style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer', fontSize: '13px' }}
-        >🗑️ Șterge și refă</button>
-        <button
+          variant="secondary"
+        >Șterge și refă</Button>
+        <Button
           type="button"
           disabled={isEmpty}
           onClick={() => onConfirm(canvasRef.current.toDataURL('image/png'))}
-          style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: isEmpty ? '#94a3b8' : '#1e3a5f', color: 'white', cursor: isEmpty ? 'not-allowed' : 'pointer', fontSize: '13px' }}
-        >✅ Confirmă semnătura</button>
+        >Confirmă semnătura</Button>
       </div>
     </div>
   )
@@ -764,7 +764,7 @@ export default function KioskPage() {
 
           <div className="grid gap-4">
             {/* XI. Activități */}
-            <div className="rounded-xl bg-white p-4">
+            <div className="rounded-[var(--radius-panel)] bg-white p-4 shadow-[var(--shadow-card)]">
               <div className="mb-3 flex items-center justify-between">
                 <div className="font-semibold text-slate-800">XI. Activități (stații)</div>
                 <button onClick={() => setVersoActModal(true)} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white">+ Adaugă stație</button>
@@ -784,7 +784,7 @@ export default function KioskPage() {
             </div>
 
             {/* XII. Index contor */}
-            <div className="rounded-xl bg-white p-4">
+            <div className="rounded-[var(--radius-panel)] bg-white p-4 shadow-[var(--shadow-card)]">
               <div className="mb-3 font-semibold text-slate-800">XII. Index contor</div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
@@ -816,14 +816,14 @@ export default function KioskPage() {
             </div>
 
             {/* Observații */}
-            <div className="rounded-xl bg-white p-4">
+            <div className="rounded-[var(--radius-panel)] bg-white p-4 shadow-[var(--shadow-card)]">
               <label className="mb-1 block text-sm font-medium text-slate-700">Observații generale</label>
               <textarea value={versoForm.observatii} onChange={e => setVersoForm(f => ({ ...f, observatii: e.target.value }))}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" rows={3} placeholder="Orice detalii relevante..." />
             </div>
 
             {/* Semnătură responsabil */}
-            <div className="rounded-xl bg-white p-4">
+            <div className="rounded-[var(--radius-panel)] bg-white p-4 shadow-[var(--shadow-card)]">
               <div className="mb-3 font-semibold text-slate-800">Semnătură responsabil lucrare</div>
               {versoSig
                 ? (
@@ -851,86 +851,79 @@ export default function KioskPage() {
           </div>
 
           {/* Adaugă activitate modal */}
-          {versoActModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-              <div className="w-full max-w-md rounded-2xl bg-white p-6">
-                <div className="mb-4 font-bold text-slate-800">Adaugă stație</div>
-                <div className="grid gap-3">
+          <Modal open={versoActModal} title="Adaugă stație" onClose={() => setVersoActModal(false)} size="md">
+            <div className="grid gap-4">
+              <div className="grid gap-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-600">Locul plecării</label>
                     <input value={versoActForm.locul_plecarii} onChange={e => setVersoActForm(f => ({ ...f, locul_plecarii: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="ex: Depou central" />
+                      className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" placeholder="ex: Depou central" />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-600">Locul sosirii</label>
                     <input value={versoActForm.locul_sosirii} onChange={e => setVersoActForm(f => ({ ...f, locul_sosirii: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="ex: Str. Florilor" />
+                      className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" placeholder="ex: Str. Florilor" />
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-600">Ziua</label>
                       <input type="date" value={versoActForm.ziua} onChange={e => setVersoActForm(f => ({ ...f, ziua: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                        className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-600">Ora</label>
                       <input type="number" min={0} max={23} value={versoActForm.ora} onChange={e => setVersoActForm(f => ({ ...f, ora: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                        className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-600">Minut</label>
                       <input type="number" min={0} max={59} value={versoActForm.minut} onChange={e => setVersoActForm(f => ({ ...f, minut: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                        className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-600">Km încărcat</label>
                       <input type="number" value={versoActForm.km_incarcat} onChange={e => setVersoActForm(f => ({ ...f, km_incarcat: Number(e.target.value) || 0 }))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                        className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-600">Km gol</label>
                       <input type="number" value={versoActForm.km_gol} onChange={e => setVersoActForm(f => ({ ...f, km_gol: Number(e.target.value) || 0 }))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                        className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-600">Tone (opțional)</label>
                       <input type="number" value={versoActForm.tone} onChange={e => setVersoActForm(f => ({ ...f, tone: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                        className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-600">Marfă (opțional)</label>
                       <input value={versoActForm.marfa} onChange={e => setVersoActForm(f => ({ ...f, marfa: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                        className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" />
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <button onClick={addActivitate} className="flex-1 rounded-lg bg-primary-600 py-2 text-sm font-semibold text-white">✅ Adaugă</button>
-                  <button onClick={() => setVersoActModal(false)} className="flex-1 rounded-lg border border-slate-300 py-2 text-sm text-slate-600">Anulează</button>
-                </div>
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+                <Button variant="secondary" onClick={() => setVersoActModal(false)}>Anulează</Button>
+                <Button onClick={addActivitate}>Adaugă</Button>
               </div>
             </div>
-          )}
+          </Modal>
 
-          {/* Semnătură modal */}
-          {versoSigModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-              <div className="w-full max-w-lg rounded-2xl bg-white p-6">
-                <div className="mb-4 font-bold text-slate-800">✍️ Semnătură responsabil lucrare</div>
-                <SignatureCanvas onConfirm={sig => { setVersoSig(sig); setVersoSigModal(false) }} />
-                <div className="mt-4">
+          <Modal open={versoSigModal} title="Semnătură responsabil lucrare" onClose={() => setVersoSigModal(false)} size="lg">
+            <div className="grid gap-4">
+              <SignatureCanvas onConfirm={sig => { setVersoSig(sig); setVersoSigModal(false) }} />
+              <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">Numele responsabilului</label>
                   <input value={versoSigNume} onChange={e => setVersoSigNume(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="ex: Ion Popescu" />
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <button onClick={() => setVersoSigModal(false)} className="flex-1 rounded-lg border border-slate-300 py-2 text-sm text-slate-600">Anulează</button>
-                </div>
+                  className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" placeholder="ex: Ion Popescu" />
+              </div>
+              <div className="flex justify-end border-t border-slate-200 pt-4">
+                <Button variant="secondary" onClick={() => setVersoSigModal(false)}>Anulează</Button>
               </div>
             </div>
-          )}
+          </Modal>
         </div>
       </div>
     )

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.73",
-  "date": "2026-06-20",
-  "changelog": "## v2.12.73 - 2026-06-20\n### Design Pass 1\n- Controale UI mai compacte si mai clare pentru butoane, carduri, inputuri, selecturi, badge-uri si tabele.\n- Setari > Aspect controleaza tema, densitatea, marimea fontului, colturile UI si contrastul.\n- Dashboard si contabilitate au primit o prima trecere vizuala profesionala.\n- Modalul comun respecta tema si colturile alese."
+  "version": "2.12.74",
+  "date": "2026-06-21",
+  "changelog": "## v2.12.74 - 2026-06-21\n### Design Pass 2\n- Modalurile FAZ, Setari roluri si Kiosk verso folosesc componenta comuna resizabila.\n- Kiosk si Asternere respecta mai bine setarile globale de colturi, densitate si tema.\n- Controalele din dialogurile refactorizate au focus/hover si dark mode coerent."
 }

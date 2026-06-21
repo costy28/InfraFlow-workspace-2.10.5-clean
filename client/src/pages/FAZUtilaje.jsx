@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { CheckCircle, Download, FilePlus2, RefreshCw, UploadCloud, X } from 'lucide-react'
+import { CheckCircle, Download, FilePlus2, RefreshCw, UploadCloud } from 'lucide-react'
 import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
+import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
 import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
@@ -351,18 +352,11 @@ export default function FAZUtilaje() {
         </div>
       </Card>
 
-      {modalOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
-          <form onSubmit={save} className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">{form.uuid ? 'Editare FAZ' : 'FAZ Nou'}</h2>
-                <p className="text-sm text-slate-500">{selectedAsset ? assetLabel(selectedAsset) : 'Selecteaza utilajul'}</p>
-              </div>
-              <Button type="button" variant="ghost" icon={<X className="h-4 w-4" />} onClick={() => setModalOpen(false)}>Inchide</Button>
-            </div>
+      <Modal open={modalOpen} title={form.uuid ? 'Editare FAZ' : 'FAZ Nou'} onClose={() => setModalOpen(false)} size="xl">
+        <form onSubmit={save} className="grid gap-4">
+          <p className="text-sm text-slate-500">{selectedAsset ? assetLabel(selectedAsset) : 'Selecteaza utilajul'}</p>
 
-            <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3">
               <Select label="Utilaj" value={form.utilaj_id} onChange={event => setField('utilaj_id', event.target.value)} required>
                 <option value="">Selecteaza</option>
                 {assets.map(asset => <option key={asset.id} value={asset.id}>{assetLabel(asset)}</option>)}
@@ -381,51 +375,44 @@ export default function FAZUtilaje() {
               <Input label="Ore lucrate" type="number" step="0.01" value={form.ore_lucrate} onChange={event => setField('ore_lucrate', event.target.value)} />
               <Input label="Consum orar normat" type="number" step="0.01" value={form.consum_orar_normat} onChange={event => setField('consum_orar_normat', event.target.value)} />
               <Input label="Consum efectiv" type="number" step="0.01" value={form.consum_efectiv} onChange={event => setField('consum_efectiv', event.target.value)} />
-            </div>
+          </div>
 
-            <label className="mt-3 block text-sm font-medium text-slate-700">
+          <label className="block text-sm font-medium text-slate-700">
               Observatii
-              <textarea className="mt-1 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={form.observatii} onChange={event => setField('observatii', event.target.value)} />
-            </label>
+            <textarea className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition hover:border-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={form.observatii} onChange={event => setField('observatii', event.target.value)} />
+          </label>
 
-            <div className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 md:grid-cols-4">
+          <div className="grid gap-3 rounded-[var(--radius-panel)] border border-slate-200 bg-slate-50 p-3 md:grid-cols-4">
               <div><div className="text-xs text-slate-500">Consum normat</div><div className="font-semibold">{fmt(consumNormat)} l</div></div>
               <div><div className="text-xs text-slate-500">Diferenta</div><div className="font-semibold">{fmt(diferenta)} l</div></div>
               <div><div className="text-xs text-slate-500">Procent</div><div className="font-semibold">{fmt(procent, 1)}%</div></div>
               <div><div className="text-xs text-slate-500">Semafor</div><Badge tone={semafor === 'rosu' ? 'danger' : semafor === 'galben' ? 'warning' : 'success'}>{semafor}</Badge></div>
-            </div>
+          </div>
 
-            <div className="mt-5 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Renunta</Button>
-              <Button type="submit" loading={saving} icon={<CheckCircle className="h-4 w-4" />}>Salveaza</Button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Renunta</Button>
+            <Button type="submit" loading={saving} icon={<CheckCircle className="h-4 w-4" />}>Salveaza</Button>
+          </div>
+        </form>
+      </Modal>
 
-      {importOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
-          <form onSubmit={importAutominder} className="w-full max-w-2xl rounded-lg bg-white p-5 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Import Autominder</h2>
-              <Button type="button" variant="ghost" icon={<X className="h-4 w-4" />} onClick={() => setImportOpen(false)}>Inchide</Button>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
+      <Modal open={importOpen} title="Import Autominder" onClose={() => setImportOpen(false)} size="lg">
+        <form onSubmit={importAutominder} className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-2">
               <Input label="Data de la" type="date" value={importForm.data_de} onChange={event => setImportForm(current => ({ ...current, data_de: event.target.value }))} />
               <Input label="Data pana la" type="date" value={importForm.data_pana} onChange={event => setImportForm(current => ({ ...current, data_pana: event.target.value }))} />
-            </div>
-            <label className="mt-3 block text-sm font-medium text-slate-700">
+          </div>
+          <label className="block text-sm font-medium text-slate-700">
               Connection string Autominder
-              <textarea className="mt-1 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={importForm.connection_string} onChange={event => setImportForm(current => ({ ...current, connection_string: event.target.value }))} />
-            </label>
-            {saving ? <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-2/3 animate-pulse rounded-full bg-primary-600" /></div> : null}
-            <div className="mt-5 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setImportOpen(false)}>Renunta</Button>
-              <Button type="submit" loading={saving} icon={<UploadCloud className="h-4 w-4" />}>Importa</Button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+            <textarea className="mt-1 min-h-24 w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition hover:border-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={importForm.connection_string} onChange={event => setImportForm(current => ({ ...current, connection_string: event.target.value }))} />
+          </label>
+          {saving ? <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-2/3 animate-pulse rounded-full bg-primary-600" /></div> : null}
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+            <Button type="button" variant="secondary" onClick={() => setImportOpen(false)}>Renunta</Button>
+            <Button type="submit" loading={saving} icon={<UploadCloud className="h-4 w-4" />}>Importa</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

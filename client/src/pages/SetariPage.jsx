@@ -2174,43 +2174,29 @@ export default function SetariPage() {
         </div>
       )}
 
-      {/* Modal — Creare rol custom */}
-      {roleCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="border-b border-slate-200 px-6 py-4">
-              <div className="text-lg font-bold text-slate-900">Rol nou</div>
-              <div className="text-sm text-slate-500">Creează un rol custom cu permisiuni granulare</div>
-            </div>
-            <div className="px-6 py-4 grid gap-4">
+      <Modal open={roleCreateModal} title="Rol nou" onClose={() => setRoleCreateModal(false)} size="lg">
+        <div className="grid gap-4">
+          <p className="text-sm text-slate-500">Creează un rol custom cu permisiuni granulare.</p>
               {roleCreateMsg && (
                 <div className={`rounded-md px-3 py-2 text-sm ${roleCreateMsg.startsWith('❌') ? 'bg-rose-50 text-rose-700' : 'bg-green-50 text-green-800'}`}>
                   {roleCreateMsg}
                 </div>
               )}
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Nume rol *</label>
-                <input
-                  type="text"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-                  placeholder="ex: Șofer, Gestionar, Sef Echipă"
-                  value={roleCreateForm.name}
-                  onChange={e => setRoleCreateForm(f => ({ ...f, name: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Descriere</label>
-                <input
-                  type="text"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-                  placeholder="Scurtă descriere a responsabilităților"
-                  value={roleCreateForm.description}
-                  onChange={e => setRoleCreateForm(f => ({ ...f, description: e.target.value }))}
-                />
-              </div>
+          <Input
+            label="Nume rol *"
+            placeholder="ex: Șofer, Gestionar, Șef echipă"
+            value={roleCreateForm.name}
+            onChange={e => setRoleCreateForm(f => ({ ...f, name: e.target.value }))}
+          />
+          <Input
+            label="Descriere"
+            placeholder="Scurtă descriere a responsabilităților"
+            value={roleCreateForm.description}
+            onChange={e => setRoleCreateForm(f => ({ ...f, description: e.target.value }))}
+          />
               <div>
                 <div className="mb-2 text-sm font-medium text-slate-700">Permisiuni inițiale (opțional)</div>
-                <div className="grid gap-2 max-h-64 overflow-y-auto border border-slate-200 rounded-lg p-3">
+            <div className="grid max-h-64 gap-2 overflow-y-auto rounded-[var(--radius-panel)] border border-slate-200 bg-slate-50/60 p-3">
                   {permCatalog.map(group => (
                     <div key={group.id}>
                       <div className="text-xs font-semibold text-slate-500 uppercase mb-1">{group.label}</div>
@@ -2236,31 +2222,25 @@ export default function SetariPage() {
                   ))}
                 </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
-              <Button variant="secondary" onClick={() => setRoleCreateModal(false)} disabled={roleCreateSaving}>Anulează</Button>
-              <Button onClick={createRole} disabled={roleCreateSaving}>{roleCreateSaving ? 'Se creează...' : 'Creează rol'}</Button>
-            </div>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+            <Button variant="secondary" onClick={() => setRoleCreateModal(false)} disabled={roleCreateSaving}>Anulează</Button>
+            <Button onClick={createRole} disabled={roleCreateSaving}>{roleCreateSaving ? 'Se creează...' : 'Creează rol'}</Button>
           </div>
         </div>
-      )}
+      </Modal>
 
-      {/* Confirmare ștergere rol */}
-      {roleDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-sm rounded-xl bg-white shadow-2xl p-6">
-            <div className="mb-2 text-lg font-bold text-slate-900">Șterge rolul?</div>
-            <div className="mb-4 text-sm text-slate-600">
-              Rolul <strong>{roleDeleteConfirm.name}</strong> va fi șters definitiv.<br />
-              Asigurați-vă că niciun utilizator nu îl mai folosește.
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setRoleDeleteConfirm(null)}>Anulează</Button>
-              <Button variant="danger" onClick={() => deleteRole(roleDeleteConfirm.id)}>Șterge</Button>
-            </div>
+      <Modal open={!!roleDeleteConfirm} title="Șterge rolul?" onClose={() => setRoleDeleteConfirm(null)} size="sm">
+        <div className="grid gap-4">
+          <div className="text-sm text-slate-600">
+            Rolul <strong>{roleDeleteConfirm?.name}</strong> va fi șters definitiv.<br />
+            Asigurați-vă că niciun utilizator nu îl mai folosește.
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+            <Button variant="secondary" onClick={() => setRoleDeleteConfirm(null)}>Anulează</Button>
+            <Button variant="danger" onClick={() => roleDeleteConfirm?.id && deleteRole(roleDeleteConfirm.id)}>Șterge</Button>
           </div>
         </div>
-      )}
+      </Modal>
 
       {activeTab === 'Module' && (
         <div className="grid gap-4">
