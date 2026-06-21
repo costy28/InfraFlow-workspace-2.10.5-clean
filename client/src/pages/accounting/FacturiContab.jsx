@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -12,10 +12,11 @@ import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statu
 export function FacturiContab({ direction = 'in' }) {
   const isIn = direction === 'in'
   const [rows, setRows] = useState([])
+  const [searchParams] = useSearchParams()
   const [thirdParties, setThirdParties] = useState([])
   const [accounts, setAccounts] = useState([])
   const [costCenters, setCostCenters] = useState([])
-  const [month, setMonth] = useState(currentMonth())
+  const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [status, setStatus] = useState('')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)

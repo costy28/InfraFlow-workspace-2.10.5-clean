@@ -1,5 +1,5 @@
 {
-  "version": "2.12.83",
+  "version": "2.12.84",
   "date": "2026-06-21",
-  "changelog": "## v2.12.83 - 2026-06-21\n### Contabilitate - note manuale draft/validare\n- Notele contabile manuale se salveaza ca draft si pot fi editate inainte de validare.\n- Registrul jurnal are actiuni pentru editare, validare, devalidare, anulare draft si storno.\n- Doar notele active intra in balanta, fisa cont si solduri; drafturile nu mai afecteaza rapoartele."
+  "changelog": "## v2.12.84 - 2026-06-21\n### Contabilitate - TVA/D300 si inchidere luna ghidata\n- Jurnalul TVA si D300 includ implicit doar documente contabilizabile, nu drafturi.\n- TVA/D300 afiseaza sumar pe statusuri si avertizari pentru documentele draft neincluse.\n- Inchiderea lunii are linkuri directe catre zonele care blocheaza inchiderea."
 }

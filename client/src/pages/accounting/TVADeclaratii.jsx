@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -10,7 +10,8 @@ import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function TVADeclaratii() {
-  const [month, setMonth] = useState(currentMonth())
+  const [searchParams] = useSearchParams()
+  const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [status, setStatus] = useState('')
   const [cota, setCota] = useState('')
   const [data, setData] = useState({ decont: { randuri: [] } })
@@ -64,7 +65,7 @@ export function TVADeclaratii() {
   }
 
   const d = data.decont || {}
-  const warnings = data.status?.warnings || []
+  const warnings = [...(data.status?.warnings || []), ...(journal.warnings || [])]
   const periodStatus = data.period_status || journal.period_status || {}
   const canCheckVat = periodStatus.status !== 'inchisa' && periodStatus.status !== 'depusa'
   const fileMonth = month.replace('-', '_')
@@ -123,6 +124,19 @@ export function TVADeclaratii() {
         <Info label="TVA de recuperat" value={formatMoney(d.tva_de_recuperat || 0)} />
       </div>
       {warnings.length ? <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">{warnings.join(' ')}</div> : null}
+      {journal.status_summary?.length ? (
+        <Table headers={['Status', 'Intrari', 'TVA intrari', 'Iesiri', 'TVA iesiri']}>
+          {journal.status_summary.map(row => (
+            <tr key={row.status}>
+              <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+              <td className="px-3 py-2 text-right">{row.intrari || 0}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.tva_intrari || 0)}</td>
+              <td className="px-3 py-2 text-right">{row.iesiri || 0}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.tva_iesiri || 0)}</td>
+            </tr>
+          ))}
+        </Table>
+      ) : null}
       <Table headers={['Cod intern', 'Rand decont', 'Baza', 'TVA']}>
         {(d.randuri || []).map(row => (
           <tr key={row.cod}>

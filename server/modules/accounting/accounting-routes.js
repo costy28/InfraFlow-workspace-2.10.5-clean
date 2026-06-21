@@ -1444,13 +1444,24 @@ function buildVatData(db, query = {}) {
   const accounting = engine.ensureAccounting(db);
   const monthValue = query.perioada || query.month || (String(query.luna || "").includes("-") ? query.luna : `${query.an || new Date().getFullYear()}-${String(query.luna || new Date().getMonth() + 1).padStart(2, "0")}`);
   const [an, luna] = monthParts(monthValue);
-  const filters = { ...query, an, luna };
+  const requestedStatus = query.status === undefined || query.status === "" ? "" : String(query.status);
+  const filters = { ...query, an, luna, status: requestedStatus || undefined };
   const period = accounting.periods.find((item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna)) || { an, luna, status: "deschisa" };
   const cota = query.cota === undefined || query.cota === "" ? "" : Number(query.cota);
-  const invoicesIn = filterDocuments(accounting.invoicesIn, filters).filter((item) => item.status !== "anulat");
-  const invoicesOut = filterDocuments(accounting.invoicesOut, filters).filter((item) => item.status !== "anulat");
+  const allInMonthIn = filterDocuments(accounting.invoicesIn, { an, luna }).filter((item) => item.status !== "anulat");
+  const allInMonthOut = filterDocuments(accounting.invoicesOut, { an, luna }).filter((item) => item.status !== "anulat");
+  const vatReadyStatuses = new Set(["validat", "partial", "achitat", "incasat", "stornat"]);
+  const invoicesIn = filterDocuments(accounting.invoicesIn, filters)
+    .filter((item) => item.status !== "anulat")
+    .filter((item) => requestedStatus || vatReadyStatuses.has(String(item.status || "")));
+  const invoicesOut = filterDocuments(accounting.invoicesOut, filters)
+    .filter((item) => item.status !== "anulat")
+    .filter((item) => requestedStatus || vatReadyStatuses.has(String(item.status || "")));
   const jurnalCumparari = invoicesIn.map((invoice) => decorateVatInvoice(db, invoice, "furnizor")).filter((item) => cota === "" || Number(item.tva_procent || 0) === cota);
   const jurnalVanzari = invoicesOut.map((invoice) => decorateVatInvoice(db, invoice, "client")).filter((item) => cota === "" || Number(item.tva_procent || 0) === cota);
+  const draftIn = allInMonthIn.filter((item) => item.status === "draft").length;
+  const draftOut = allInMonthOut.filter((item) => item.status === "draft").length;
+  const statusSummary = summarizeVatStatuses(allInMonthIn, allInMonthOut);
   const total4426 = sum(jurnalCumparari, "tva");
   const total4427 = sum(jurnalVanzari, "tva");
   const cote = groupVatRates(jurnalCumparari, jurnalVanzari);
@@ -1464,12 +1475,36 @@ function buildVatData(db, query = {}) {
     diferenta: round(total4427 - total4426),
     cote,
     sumar_d300: sumarD300,
+    status_summary: statusSummary,
+    warnings: [
+      draftIn || draftOut ? `Exista documente draft neincluse in calculul TVA: ${draftIn} intrari / ${draftOut} iesiri.` : "",
+      requestedStatus ? `Calculul este filtrat pe statusul ${requestedStatus}.` : "Calculul implicit include doar documente validate/achitate/incasate/partial/stornate."
+    ].filter(Boolean),
     period_status: {
       status: period.status || "deschisa",
       tva_verificat_la: period.tva_verificat_la || "",
       tva_verificat_de_name: period.tva_verificat_de_name || ""
     }
   };
+}
+
+function summarizeVatStatuses(invoicesIn, invoicesOut) {
+  const statuses = new Map();
+  const add = (row, type) => {
+    const status = String(row.status || "draft");
+    const current = statuses.get(status) || { status, intrari: 0, iesiri: 0, tva_intrari: 0, tva_iesiri: 0 };
+    if (type === "in") {
+      current.intrari += 1;
+      current.tva_intrari = round(current.tva_intrari + Number(row.tva || 0));
+    } else {
+      current.iesiri += 1;
+      current.tva_iesiri = round(current.tva_iesiri + Number(row.tva || 0));
+    }
+    statuses.set(status, current);
+  };
+  invoicesIn.forEach((row) => add(row, "in"));
+  invoicesOut.forEach((row) => add(row, "out"));
+  return [...statuses.values()].sort((a, b) => a.status.localeCompare(b.status, "ro"));
 }
 
 function decorateVatInvoice(db, invoice, tip) {
@@ -1554,9 +1589,10 @@ function periodCheck(db, an, luna) {
   };
   const inMonth = (item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna) && item.status !== "anulat";
   const draftDocuments = [
-    ...accounting.invoicesIn.filter(inMonth).map((item) => ({ ...item, categorie: "Factura intrare", document: item.nr_document || item.numar || item.id })),
-    ...accounting.invoicesOut.filter(inMonth).map((item) => ({ ...item, categorie: "Factura iesire", document: item.nr_document || item.numar || item.id })),
-    ...accounting.treasury.filter(inMonth).map((item) => ({ ...item, categorie: "Trezorerie", document: item.nr_document || item.numar || item.id }))
+    ...accounting.invoicesIn.filter(inMonth).map((item) => ({ ...item, categorie: "Factura intrare", document: item.nr_document || item.numar || item.id, resolve_url: `/contabilitate/facturi-intrare?luna=${an}-${String(luna).padStart(2, "0")}` })),
+    ...accounting.invoicesOut.filter(inMonth).map((item) => ({ ...item, categorie: "Factura iesire", document: item.nr_document || item.numar || item.id, resolve_url: `/contabilitate/facturi-iesire?luna=${an}-${String(luna).padStart(2, "0")}` })),
+    ...accounting.treasury.filter(inMonth).map((item) => ({ ...item, categorie: "Trezorerie", document: item.nr_document || item.numar || item.id, resolve_url: `/contabilitate/trezorerie?luna=${an}-${String(luna).padStart(2, "0")}` })),
+    ...accounting.journals.filter((item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna) && item.status === "draft").map((item) => ({ ...item, categorie: "Nota contabila", document: item.nr_document || item.id, resolve_url: `/contabilitate/registru-jurnal?luna=${an}-${String(luna).padStart(2, "0")}` }))
   ].filter((item) => item.status === "draft");
   const activeJournals = accounting.journals.filter((item) => engine.isActiveJournal(item) && Number(item.an) === Number(an) && Number(item.luna) === Number(luna));
   const unbalanced = activeJournals
@@ -1588,7 +1624,8 @@ function periodCheck(db, an, luna) {
       data: item.data,
       categorie: item.categorie,
       document: item.document,
-      status: item.status
+      status: item.status,
+      resolve_url: item.resolve_url || ""
     })),
     unbalanced: unbalanced.slice(0, 25).map((item) => ({
       id: item.id,
