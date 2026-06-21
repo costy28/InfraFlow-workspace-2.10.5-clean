@@ -128,6 +128,8 @@ export default function DocumentePage() {
   const [templates, setTemplates] = useState([])
   const [selected, setSelected] = useState(null)
   const [details, setDetails] = useState({ document: null, steps: [], audit: [] })
+  const [documentHtml, setDocumentHtml] = useState('')
+  const [documentHtmlLoading, setDocumentHtmlLoading] = useState(false)
   const [confirm, setConfirm] = useState(null)
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(true)
@@ -181,6 +183,8 @@ export default function DocumentePage() {
   async function openDetails(document) {
     setSelected(document)
     setError('')
+    setDocumentHtml('')
+    setDocumentHtmlLoading(true)
     try {
       const response = await api.get(`/documents/${document.uuid}`)
       setDetails({
@@ -188,10 +192,22 @@ export default function DocumentePage() {
         steps: arrayFrom(response.data, ['steps']),
         audit: arrayFrom(response.data, ['audit']),
       })
+      const htmlResponse = await api.get(`/documents/${document.uuid}/pdf`, { responseType: 'text' })
+      setDocumentHtml(String(htmlResponse.data || ''))
     } catch (err) {
       setDetails({ document, steps: [], audit: [] })
       setError(err.response?.data?.error || 'Nu am putut încărca detaliile documentului.')
+    } finally {
+      setDocumentHtmlLoading(false)
     }
+  }
+
+  function openDocumentHtml() {
+    if (!documentHtml) return
+    const blob = new Blob([documentHtml], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    window.setTimeout(() => URL.revokeObjectURL(url), 30000)
   }
 
   async function processDocument(action) {
@@ -377,9 +393,9 @@ export default function DocumentePage() {
           <h1 className="text-2xl font-semibold text-slate-900">Documente</h1>
           <p className="text-sm text-slate-600">Circuit electronic, aprobări și template-uri de documente.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {activeTab !== 'Template-uri' ? <Button onClick={openDocumentModal}>+ Document nou</Button> : null}
-          <Button variant="secondary" onClick={load}>Reîncarcă</Button>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Button className="w-full sm:w-auto" onClick={openDocumentModal}>+ Document nou</Button>
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={load}>Reîncarcă</Button>
         </div>
       </div>
 
@@ -395,54 +411,113 @@ export default function DocumentePage() {
 
       {activeTab === 'Template-uri' ? (
         <Card>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Template-uri documente</h2>
               <p className="text-xs text-slate-500">Editor vizual cu variabile pentru firmă, angajat, document și semnături.</p>
             </div>
-            {isAdmin ? <Button onClick={() => openTemplateModal()}>+ Template nou</Button> : null}
+            {isAdmin ? <Button className="w-full sm:w-auto" onClick={() => openTemplateModal()}>+ Template nou</Button> : null}
           </div>
-          <Table
-            columns={[
-              { key: 'id', label: 'Cod' },
-              { key: 'denumire', label: 'Denumire' },
-              { key: 'tip_document', label: 'Tip', render: row => templateTypes.find(([value]) => value === row.tip_document)?.[1] || 'General' },
-              { key: 'categorie', label: 'Categorie', render: row => row.categorie || 'Alt' },
-              { key: 'fisier_model_name', label: 'Model', render: row => row.fisier_model_name ? (
-                <button type="button" className="text-left text-primary-700 hover:underline" onClick={() => downloadTemplate(row)}>
-                  {row.fisier_model_name}
-                </button>
-              ) : <span className="text-slate-400">-</span> },
-              { key: 'serie_prefix', label: 'Serie' },
-              { key: 'activ', label: 'Status', render: row => <Badge tone={row.activ === false ? 'neutral' : 'success'}>{row.activ === false ? 'inactiv' : 'activ'}</Badge> },
-              { key: 'actions', label: '', render: row => isAdmin ? (
-                <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => previewTemplate(row)}><Eye size={14} /> Preview</Button>
-                  {row.fisier_model_path ? <Button size="sm" variant="ghost" onClick={() => downloadTemplate(row)}><Download size={14} /> Model</Button> : null}
-                  <Button size="sm" variant="ghost" onClick={() => openTemplateModal(row)}>Edit</Button>
-                  <Button size="sm" variant="ghost" onClick={() => deleteTemplate(row)}>Dezactivează</Button>
+          <div className="grid gap-3 md:hidden">
+            {loading ? <p className="text-sm text-slate-500">Se încarcă...</p> : templates.length === 0 ? (
+              <p className="text-sm text-slate-500">Nu există template-uri.</p>
+            ) : templates.map(template => (
+              <div key={template.id} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold uppercase text-slate-500">{template.id}</div>
+                    <div className="truncate text-base font-semibold text-slate-900">{template.denumire || '-'}</div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      {templateTypes.find(([value]) => value === template.tip_document)?.[1] || 'General'} · {template.categorie || 'Alt'}
+                    </div>
+                  </div>
+                  <Badge tone={template.activ === false ? 'neutral' : 'success'}>{template.activ === false ? 'inactiv' : 'activ'}</Badge>
                 </div>
-              ) : null },
-            ]}
-            rows={templates}
-            empty={loading ? 'Se încarcă...' : 'Nu există template-uri.'}
-          />
+                {template.fisier_model_name ? (
+                  <button type="button" className="text-left text-sm font-medium text-primary-700 underline" onClick={() => downloadTemplate(template)}>
+                    {template.fisier_model_name}
+                  </button>
+                ) : null}
+                {isAdmin ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => previewTemplate(template)}><Eye size={14} /> Preview</Button>
+                    <Button size="sm" variant="secondary" onClick={() => openTemplateModal(template)}>Edit</Button>
+                    {template.fisier_model_path ? <Button size="sm" variant="secondary" onClick={() => downloadTemplate(template)}><Download size={14} /> Model</Button> : null}
+                    <Button size="sm" variant="ghost" onClick={() => deleteTemplate(template)}>Dezactivează</Button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <Table
+              columns={[
+                { key: 'id', label: 'Cod' },
+                { key: 'denumire', label: 'Denumire' },
+                { key: 'tip_document', label: 'Tip', render: row => templateTypes.find(([value]) => value === row.tip_document)?.[1] || 'General' },
+                { key: 'categorie', label: 'Categorie', render: row => row.categorie || 'Alt' },
+                { key: 'fisier_model_name', label: 'Model', render: row => row.fisier_model_name ? (
+                  <button type="button" className="text-left text-primary-700 hover:underline" onClick={() => downloadTemplate(row)}>
+                    {row.fisier_model_name}
+                  </button>
+                ) : <span className="text-slate-400">-</span> },
+                { key: 'serie_prefix', label: 'Serie' },
+                { key: 'activ', label: 'Status', render: row => <Badge tone={row.activ === false ? 'neutral' : 'success'}>{row.activ === false ? 'inactiv' : 'activ'}</Badge> },
+                { key: 'actions', label: '', render: row => isAdmin ? (
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => previewTemplate(row)}><Eye size={14} /> Preview</Button>
+                    {row.fisier_model_path ? <Button size="sm" variant="ghost" onClick={() => downloadTemplate(row)}><Download size={14} /> Model</Button> : null}
+                    <Button size="sm" variant="ghost" onClick={() => openTemplateModal(row)}>Edit</Button>
+                    <Button size="sm" variant="ghost" onClick={() => deleteTemplate(row)}>Dezactivează</Button>
+                  </div>
+                ) : null },
+              ]}
+              rows={templates}
+              empty={loading ? 'Se încarcă...' : 'Nu există template-uri.'}
+            />
+          </div>
         </Card>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1fr_1.1fr]">
           <Card>
-            <Table
-              columns={[
-                { key: 'nr_document', label: 'Nr. document' },
-                { key: 'tip_id', label: 'Tip' },
-                { key: 'creat_de', label: 'Inițiator' },
-                { key: 'created_at', label: 'Trimis la', render: row => formatDate(row.updated_at || row.created_at) },
-                { key: 'prioritate', label: 'Prioritate', render: row => <Badge tone={toneFor(row.prioritate)}>{label(row.prioritate)}</Badge> },
-                { key: 'actions', label: '', render: row => <Button variant="ghost" onClick={() => openDetails(row)}>Detalii</Button> },
-              ]}
-              rows={visibleDocuments}
-              empty={loading ? 'Se încarcă...' : 'Nu există documente.'}
-            />
+            <div className="grid gap-3 md:hidden">
+              {loading ? <p className="text-sm text-slate-500">Se încarcă...</p> : visibleDocuments.length === 0 ? (
+                <p className="text-sm text-slate-500">Nu există documente.</p>
+              ) : visibleDocuments.map(document => (
+                <button
+                  key={document.uuid || document.id}
+                  type="button"
+                  className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                  onClick={() => openDetails(document)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold uppercase text-slate-500">{document.tip_id}</div>
+                      <div className="break-words text-base font-semibold text-slate-900">{document.nr_document}</div>
+                      <div className="mt-1 text-sm text-slate-500">{formatDate(document.updated_at || document.created_at)}</div>
+                    </div>
+                    <Badge tone={toneFor(document.prioritate)}>{label(document.prioritate)}</Badge>
+                  </div>
+                  <span className="inline-flex h-8 items-center justify-center rounded-[var(--radius-control)] bg-white px-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                    Detalii
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="hidden md:block">
+              <Table
+                columns={[
+                  { key: 'nr_document', label: 'Nr. document' },
+                  { key: 'tip_id', label: 'Tip' },
+                  { key: 'creat_de', label: 'Inițiator' },
+                  { key: 'created_at', label: 'Trimis la', render: row => formatDate(row.updated_at || row.created_at) },
+                  { key: 'prioritate', label: 'Prioritate', render: row => <Badge tone={toneFor(row.prioritate)}>{label(row.prioritate)}</Badge> },
+                  { key: 'actions', label: '', render: row => <Button variant="ghost" onClick={() => openDetails(row)}>Detalii</Button> },
+                ]}
+                rows={visibleDocuments}
+                empty={loading ? 'Se încarcă...' : 'Nu există documente.'}
+              />
+            </div>
           </Card>
 
           <Card className="grid gap-4">
@@ -479,12 +554,18 @@ export default function DocumentePage() {
 
                 <div className="grid gap-2">
                   <h3 className="text-sm font-semibold text-slate-800">PDF document</h3>
-                  <iframe
-                    title="PDF document"
-                    className="h-80 w-full rounded-lg border border-slate-200 bg-slate-50"
-                    src={`/api/documents/${details.document.uuid}/pdf`}
-                  />
-                  <Button variant="secondary" onClick={() => window.open(`/api/documents/${details.document.uuid}/pdf`, '_blank')}>
+                  {documentHtmlLoading ? (
+                    <div className="flex h-80 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-500">
+                      Se încarcă documentul...
+                    </div>
+                  ) : (
+                    <iframe
+                      title="PDF document"
+                      className="h-80 w-full rounded-lg border border-slate-200 bg-slate-50"
+                      srcDoc={documentHtml || '<p style="font-family:Arial;padding:24px;color:#64748b">Documentul nu a putut fi generat.</p>'}
+                    />
+                  )}
+                  <Button variant="secondary" onClick={openDocumentHtml} disabled={!documentHtml}>
                     Deschide documentul
                   </Button>
                 </div>

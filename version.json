@@ -1,5 +1,5 @@
 {
-  "version": "2.12.77",
+  "version": "2.12.79",
   "date": "2026-06-21",
-  "changelog": "## v2.12.77 - 2026-06-21\n### Formular automat din template\n- Catalogul de template-uri expune lista variabilelor gasite in model.\n- Document nou genereaza campuri rapide editabile pentru variabilele template-ului.\n- JSON-ul brut ramane disponibil doar ca zona avansata pentru cazuri speciale."
+  "changelog": "## v2.12.79 - 2026-06-21\n### Hotfix mobil Documente\n- Pagina Documente afiseaza listele ca carduri pe mobil, cu actiunile vizibile.\n- Butonul Document nou este disponibil si pe ecran ingust.\n- Template-urile pot fi previzualizate, editate si descarcate de pe mobil fara tabel lat."
 }
