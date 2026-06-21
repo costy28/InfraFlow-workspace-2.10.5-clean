@@ -1,5 +1,5 @@
 {
-  "version": "2.12.79",
+  "version": "2.12.80",
   "date": "2026-06-21",
-  "changelog": "## v2.12.79 - 2026-06-21\n### Hotfix mobil Documente\n- Pagina Documente afiseaza listele ca carduri pe mobil, cu actiunile vizibile.\n- Butonul Document nou este disponibil si pe ecran ingust.\n- Template-urile pot fi previzualizate, editate si descarcate de pe mobil fara tabel lat."
+  "changelog": "## v2.12.80 - 2026-06-21\n### Hotfix modaluri mobile Documente\n- Modalul general nu mai forteaza latime pe ecran ingust si ascunde manerul de redimensionare pe mobil.\n- Formularul Document nou afiseaza preview-ul doar la cerere pe telefon si foloseste butoane full-width.\n- Editorul de template document nu mai largeste pagina pe mobil."
 }

@@ -229,8 +229,8 @@ export default function DocumentTemplateEditor({ value, onChange }) {
 
   return (
     <div className="grid gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <div ref={toolbarRef} className="flex flex-wrap rounded-md border border-slate-200 bg-white">
+      <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <div ref={toolbarRef} className="flex min-w-0 flex-wrap rounded-md border border-slate-200 bg-white">
           <span className="ql-formats">
             <button className="ql-bold" type="button" />
             <button className="ql-italic" type="button" />
@@ -250,7 +250,7 @@ export default function DocumentTemplateEditor({ value, onChange }) {
             <button className="ql-table" type="button">▦</button>
           </span>
         </div>
-        <select className="h-9 min-w-56 rounded-md border border-amber-300 bg-amber-50 px-2 text-sm" value={selectedVariable} onChange={event => setSelectedVariable(event.target.value)}>
+        <select className="h-9 w-full min-w-0 rounded-md border border-amber-300 bg-amber-50 px-2 text-sm sm:w-auto sm:min-w-56" value={selectedVariable} onChange={event => setSelectedVariable(event.target.value)}>
           <option value="">+ Inserează variabilă</option>
           {variableGroups.map(group => (
             <optgroup key={group.label} label={group.label}>
@@ -258,8 +258,8 @@ export default function DocumentTemplateEditor({ value, onChange }) {
             </optgroup>
           ))}
         </select>
-        <Button type="button" size="sm" variant="secondary" disabled={!selectedVariable} onClick={insertVariable}>Inserează</Button>
-        <Button type="button" size="sm" variant="secondary" onClick={openPreview}>👁️ Previzualizare</Button>
+        <Button type="button" size="sm" variant="secondary" className="w-full sm:w-auto" disabled={!selectedVariable} onClick={insertVariable}>Inserează</Button>
+        <Button type="button" size="sm" variant="secondary" className="w-full sm:w-auto" onClick={openPreview}>Previzualizare</Button>
       </div>
       <div className="document-template-editor overflow-hidden rounded-md border border-slate-300 bg-white">
         <div ref={editorRef} />
@@ -267,7 +267,7 @@ export default function DocumentTemplateEditor({ value, onChange }) {
       {!window.Quill ? <p className="text-xs text-rose-600">Editorul vizual nu s-a încărcat. Verifică accesul la CDN Quill.</p> : null}
 
       <Modal open={previewOpen} title="Previzualizare template" onClose={() => setPreviewOpen(false)} size="xl">
-        <div className="min-h-96 rounded-md border border-slate-200 bg-white p-8 text-sm leading-6 shadow-inner" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+        <div className="min-h-72 rounded-md border border-slate-200 bg-white p-4 text-sm leading-6 shadow-inner md:min-h-96 md:p-8" dangerouslySetInnerHTML={{ __html: previewHtml }} />
       </Modal>
     </div>
   )

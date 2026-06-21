@@ -144,6 +144,7 @@ export default function DocumentePage() {
   const [documentTemplates, setDocumentTemplates] = useState([])
   const [documentFieldValues, setDocumentFieldValues] = useState({})
   const [documentPreview, setDocumentPreview] = useState(null)
+  const [documentPreviewVisible, setDocumentPreviewVisible] = useState(false)
   const [documentSaving, setDocumentSaving] = useState(false)
   const [templateSaving, setTemplateSaving] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
@@ -261,6 +262,7 @@ export default function DocumentePage() {
       })
       setDocumentFieldValues(fieldValues)
       setDocumentPreview(null)
+      setDocumentPreviewVisible(false)
       setDocumentModal(true)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca template-urile disponibile.')
@@ -281,6 +283,7 @@ export default function DocumentePage() {
       if (!documentForm.tip_id) throw new Error('Alege un template.')
       const response = await api.post(`/documents/templates/${documentForm.tip_id}/preview`, { data: parseDocumentData() })
       setDocumentPreview(response.data?.html || '')
+      setDocumentPreviewVisible(true)
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Previzualizarea nu a putut fi generată.')
     }
@@ -307,6 +310,7 @@ export default function DocumentePage() {
       setDocumentModal(false)
       setDocumentForm(emptyDocumentForm)
       setDocumentPreview(null)
+      setDocumentPreviewVisible(false)
       await load()
       if (document?.uuid) await openDetails(document)
     } catch (err) {
@@ -603,6 +607,7 @@ export default function DocumentePage() {
                   }))
                   setDocumentFieldValues(fieldValues)
                   setDocumentPreview(null)
+                  setDocumentPreviewVisible(false)
                 }}
                 required
               >
@@ -662,11 +667,12 @@ export default function DocumentePage() {
             <label className="grid gap-1 text-sm font-medium text-slate-700">
               Date / variabile document (avansat)
               <textarea
-                className="min-h-64 rounded-md border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                className="min-h-36 rounded-md border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 md:min-h-64"
                 value={documentForm.date_json_text}
                 onChange={event => {
                   setDocumentForm(form => ({ ...form, date_json_text: event.target.value }))
                   setDocumentPreview(null)
+                  setDocumentPreviewVisible(false)
                 }}
               />
             </label>
@@ -674,13 +680,23 @@ export default function DocumentePage() {
               Lansează direct în circuit
               <input type="checkbox" checked={documentForm.launch} onChange={event => setDocumentForm(form => ({ ...form, launch: event.target.checked }))} />
             </label>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setDocumentModal(false)}>Anulează</Button>
-              <Button type="button" variant="secondary" onClick={previewNewDocument}>Previzualizează</Button>
-              <Button type="submit" disabled={documentSaving}>{documentSaving ? 'Se salvează...' : 'Creează document'}</Button>
+            <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:justify-end">
+              <Button type="button" variant="secondary" className="w-full lg:w-auto" onClick={() => setDocumentModal(false)}>Anulează</Button>
+              <Button type="button" variant="secondary" className="w-full lg:w-auto" onClick={previewNewDocument}>Previzualizează</Button>
+              <Button type="submit" className="w-full lg:w-auto" disabled={documentSaving}>{documentSaving ? 'Se salvează...' : 'Creează document'}</Button>
+            </div>
+            <div className={`grid content-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 lg:hidden ${documentPreviewVisible || documentPreview ? '' : 'hidden'}`}>
+              <div className="text-sm font-semibold text-slate-700">Preview</div>
+              {documentPreview ? (
+                <div className="max-h-[52dvh] overflow-auto rounded-md border border-slate-200 bg-white p-4 text-sm leading-6" dangerouslySetInnerHTML={{ __html: documentPreview }} />
+              ) : (
+                <div className="flex min-h-40 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-sm text-slate-500">
+                  Generează preview înainte de salvare.
+                </div>
+              )}
             </div>
           </div>
-          <div className="grid min-h-96 content-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="hidden min-h-96 content-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 lg:grid">
             <div className="text-sm font-semibold text-slate-700">Preview</div>
             {documentPreview ? (
               <div className="max-h-[65vh] overflow-auto rounded-md border border-slate-200 bg-white p-6 text-sm leading-6" dangerouslySetInnerHTML={{ __html: documentPreview }} />
@@ -739,12 +755,12 @@ export default function DocumentePage() {
             Descriere
             <input className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={templateForm.descriere} onChange={event => setTemplateForm(form => ({ ...form, descriere: event.target.value }))} />
           </label>
-          <label className="grid gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-700">
+          <label className="grid gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-medium text-slate-700 md:p-4">
             <span className="flex items-center gap-2"><UploadCloud size={18} /> Model client Word/XML/HTML</span>
             <input
               type="file"
               accept=".docx,.xml,.html,.htm"
-              className="text-sm"
+              className="w-full min-w-0 text-sm"
               onChange={event => setTemplateUploadFile(event.target.files?.[0] || null)}
             />
             <span className="text-xs font-normal text-slate-500">
@@ -759,9 +775,9 @@ export default function DocumentePage() {
             Activ
             <input type="checkbox" checked={templateForm.activ} onChange={event => setTemplateForm(form => ({ ...form, activ: event.target.checked }))} />
           </label>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setTemplateModal(false)}>Anulează</Button>
-            <Button type="submit" disabled={templateSaving}>{templateSaving ? 'Se salvează...' : 'Salvează'}</Button>
+          <div className="grid gap-2 sm:flex sm:justify-end">
+            <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setTemplateModal(false)}>Anulează</Button>
+            <Button type="submit" className="w-full sm:w-auto" disabled={templateSaving}>{templateSaving ? 'Se salvează...' : 'Salvează'}</Button>
           </div>
         </form>
       </Modal>
