@@ -514,11 +514,58 @@ router.post("/accounting/journals", requireAccountingPost, (req, res, next) => {
       nr_document: body.nr_document || "",
       tip_document: body.tip_document || "nota_manuala",
       explicatie: body.explicatie || "",
-      lines: body.lines || []
+      lines: body.lines || [],
+      status: body.status || "draft"
     });
     addAudit(req.auth.db, req.auth.user, "accounting_journal_create", `${journal.id} / ${journal.explicatie}`);
     writeDb(req.auth.db);
     sendJson(res, 201, { journal });
+  } catch (error) { next(error); }
+});
+
+router.patch("/accounting/journals/:uuid", requireAccountingPost, (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const [an, luna] = dateParts(body.data || today());
+    const journal = engine.updateJournal(req.auth.db, req.auth.user, req.params.uuid, {
+      an: body.an || an,
+      luna: body.luna || luna,
+      data: body.data || today(),
+      nr_document: body.nr_document || "",
+      tip_document: body.tip_document || "nota_manuala",
+      explicatie: body.explicatie || "",
+      lines: body.lines || []
+    });
+    addAudit(req.auth.db, req.auth.user, "accounting_journal_update", `${journal.id} / ${journal.explicatie}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { journal: { ...journal, lines: engine.ensureAccounting(req.auth.db).journalLines.filter((line) => Number(line.journal_id) === Number(journal.id)) } });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/journals/:uuid/validate", requireAccountingPost, (req, res, next) => {
+  try {
+    const journal = engine.validateManualJournal(req.auth.db, req.auth.user, req.params.uuid);
+    addAudit(req.auth.db, req.auth.user, "accounting_journal_validate", `${journal.id} / ${journal.explicatie}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { journal: { ...journal, lines: engine.ensureAccounting(req.auth.db).journalLines.filter((line) => Number(line.journal_id) === Number(journal.id)) } });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/journals/:uuid/devalidate", requireAccountingPost, (req, res, next) => {
+  try {
+    const journal = engine.devalidateJournal(req.auth.db, req.auth.user, req.params.uuid, req.body?.motiv || "");
+    addAudit(req.auth.db, req.auth.user, "accounting_journal_devalidate", `${journal.id} / ${journal.explicatie}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { journal: { ...journal, lines: engine.ensureAccounting(req.auth.db).journalLines.filter((line) => Number(line.journal_id) === Number(journal.id)) } });
+  } catch (error) { next(error); }
+});
+
+router.delete("/accounting/journals/:uuid", requireAccountingPost, (req, res, next) => {
+  try {
+    const journal = engine.cancelManualJournal(req.auth.db, req.auth.user, req.params.uuid, req.body?.motiv || req.query.motiv || "");
+    addAudit(req.auth.db, req.auth.user, "accounting_journal_cancel", `${journal.id} / ${journal.explicatie}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { journal });
   } catch (error) { next(error); }
 });
 

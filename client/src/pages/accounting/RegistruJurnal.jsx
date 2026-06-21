@@ -17,7 +17,9 @@ export function RegistruJurnal() {
   const [status, setStatus] = useState('')
   const [selectedUuid, setSelectedUuid] = useState('')
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [noteModal, setNoteModal] = useState(false)
+  const [editingNote, setEditingNote] = useState(null)
   const [noteForm, setNoteForm] = useState({ data: today(), nr_document: '', tip_document: 'nota_manuala', explicatie: '', lines: [] })
   const [importModal, setImportModal] = useState(false)
   const [importFile, setImportFile] = useState(null)
@@ -55,12 +57,34 @@ export function RegistruJurnal() {
 
   function openManualNote() {
     setError('')
+    setMessage('')
+    setEditingNote(null)
     setNoteForm({
       data: today(),
       nr_document: '',
       tip_document: 'nota_manuala',
       explicatie: '',
       lines: [emptyNoteLine('debit'), emptyNoteLine('credit')]
+    })
+    setNoteModal(true)
+  }
+
+  function openEditNote(row = selected) {
+    if (!row) return
+    setError('')
+    setMessage('')
+    setEditingNote(row)
+    setNoteForm({
+      data: row.data || today(),
+      nr_document: row.nr_document || '',
+      tip_document: row.tip_document || 'nota_manuala',
+      explicatie: row.explicatie || '',
+      lines: (row.lines || []).map(line => ({
+        cont: line.cont_simbol || line.cont || '',
+        debit: line.debit || '',
+        credit: line.credit || '',
+        explicatie: line.explicatie || ''
+      }))
     })
     setNoteModal(true)
   }
@@ -90,11 +114,57 @@ export function RegistruJurnal() {
     })).filter(line => line.cont && (line.debit > 0 || line.credit > 0))
     try {
       setError('')
-      await api.post('/accounting/journals', { ...noteForm, lines })
+      if (editingNote?.uuid) {
+        await api.patch(`/accounting/journals/${editingNote.uuid}`, { ...noteForm, lines })
+        setMessage('Nota contabila a fost actualizata.')
+      } else {
+        await api.post('/accounting/journals', { ...noteForm, lines })
+        setMessage('Nota contabila a fost salvata ca draft. Valideaz-o cand este verificata.')
+      }
       setNoteModal(false)
+      setEditingNote(null)
       load()
     } catch (err) {
       setError(err.response?.data?.error || 'Nota contabila nu a putut fi salvata.')
+    }
+  }
+
+  async function validateNote(row) {
+    try {
+      setError('')
+      setMessage('')
+      await api.post(`/accounting/journals/${row.uuid}/validate`)
+      setMessage('Nota a fost validata si intra in registru, balanta si fisa cont.')
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nota nu a putut fi validata. Verifica perioada, conturile si egalitatea debit-credit.')
+    }
+  }
+
+  async function devalidateNote(row) {
+    const motiv = window.prompt('Motiv devalidare nota:', 'Corectie nota manuala')
+    if (motiv === null) return
+    try {
+      setError('')
+      setMessage('')
+      await api.post(`/accounting/journals/${row.uuid}/devalidate`, { motiv })
+      setMessage('Nota a fost devalidata si nu mai intra in balanta pana la revalidare.')
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nota nu a putut fi devalidata. Verifica daca luna este deschisa.')
+    }
+  }
+
+  async function cancelDraftNote(row) {
+    if (!window.confirm('Anulezi nota draft selectata?')) return
+    try {
+      setError('')
+      setMessage('')
+      await api.delete(`/accounting/journals/${row.uuid}`, { data: { motiv: 'Anulare nota draft' } })
+      setMessage('Nota draft a fost anulata.')
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nota draft nu a putut fi anulata.')
     }
   }
 
@@ -169,6 +239,7 @@ export function RegistruJurnal() {
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
             { value: '', label: 'Toate fara anulate' },
+            { value: 'draft', label: 'Draft' },
             { value: 'activ', label: 'Active' },
             { value: 'stornat', label: 'Stornate' },
             { value: 'devalidat', label: 'Devalidate' }
@@ -176,6 +247,7 @@ export function RegistruJurnal() {
           <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
         </div>
       </Card>
+      {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <Table headers={['Data', 'Document', 'Tip', 'Explicatie', 'Debit', 'Credit', 'Status']}>
           {rows.map(row => (
@@ -232,7 +304,13 @@ export function RegistruJurnal() {
                   </tbody>
                 </table>
               </div>
-              {selected.status === 'activ' ? <div className="flex justify-end"><Button variant="secondary" onClick={() => storno(selected)}>Storno nota</Button></div> : null}
+              <div className="flex flex-wrap justify-end gap-2">
+                {['draft', 'devalidat'].includes(selected.status) ? <Button variant="secondary" onClick={() => openEditNote(selected)}>Editeaza</Button> : null}
+                {['draft', 'devalidat'].includes(selected.status) ? <Button onClick={() => validateNote(selected)}>Valideaza</Button> : null}
+                {selected.status === 'draft' ? <Button variant="outline" onClick={() => cancelDraftNote(selected)}>Anuleaza</Button> : null}
+                {selected.status === 'activ' ? <Button variant="secondary" onClick={() => devalidateNote(selected)}>Devalideaza</Button> : null}
+                {selected.status === 'activ' ? <Button variant="secondary" onClick={() => storno(selected)}>Storno nota</Button> : null}
+              </div>
             </div>
           ) : (
             <div className="py-10 text-center text-sm text-slate-500">Nu exista note contabile pentru filtrele selectate.</div>
@@ -288,7 +366,7 @@ export function RegistruJurnal() {
           </div>
         </div>
       </Modal>
-      <Modal open={noteModal} title="Nota contabila manuala" onClose={() => setNoteModal(false)}>
+      <Modal open={noteModal} title={editingNote ? 'Editare nota contabila' : 'Nota contabila manuala'} onClose={() => setNoteModal(false)}>
         <form className="grid gap-3" onSubmit={submitManualNote}>
           {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
           <div className="grid gap-3 md:grid-cols-3">
@@ -322,7 +400,7 @@ export function RegistruJurnal() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setNoteModal(false)}>Renunta</Button>
-            <Button type="submit" disabled={!noteBalanced}>Salveaza nota</Button>
+            <Button type="submit" disabled={!noteBalanced}>{editingNote ? 'Salveaza modificarile' : 'Salveaza draft'}</Button>
           </div>
         </form>
       </Modal>

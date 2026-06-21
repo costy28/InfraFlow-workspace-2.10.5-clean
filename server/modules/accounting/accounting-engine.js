@@ -202,6 +202,83 @@ function createJournal(db, user, input) {
   return journal;
 }
 
+function updateJournal(db, user, journalIdOrUuid, input) {
+  const accounting = ensureAccounting(db);
+  const journal = accounting.journals.find((item) => String(item.id) === String(journalIdOrUuid) || item.uuid === journalIdOrUuid);
+  if (!journal) throwHttp(404, "Nota contabila nu a fost gasita.");
+  if (!["draft", "devalidat"].includes(String(journal.status || ""))) throwHttp(409, "Doar notele draft sau devalidate se pot edita.");
+  if (journal.document_ref_tip && journal.tip_document !== "nota_manuala") throwHttp(409, "Notele generate automat se modifica din documentul sursa.");
+  const data = input.data || journal.data || localDate(new Date());
+  const date = new Date(data);
+  const an = Number(input.an || date.getFullYear());
+  const luna = Number(input.luna || date.getMonth() + 1);
+  const lines = normalizeLines(db, input.lines || []);
+  const totals = validateJournal(db, lines);
+  checkPeriodOpen(db, an, luna);
+  journal.an = an;
+  journal.luna = luna;
+  journal.data = data;
+  journal.nr_document = input.nr_document || "";
+  journal.tip_document = input.tip_document || "nota_manuala";
+  journal.explicatie = input.explicatie || "";
+  journal.total_debit = totals.totalDebit;
+  journal.total_credit = totals.totalCredit;
+  journal.updated_by = user?.id || "";
+  journal.updated_by_name = user?.name || "";
+  journal.updated_at = new Date().toISOString();
+  accounting.journalLines = accounting.journalLines.filter((line) => Number(line.journal_id) !== Number(journal.id));
+  lines.forEach((line, index) => {
+    accounting.journalLines.push({
+      id: nextNumericId(accounting.journalLines),
+      journal_id: journal.id,
+      linie_nr: index + 1,
+      cont_simbol: line.cont_simbol,
+      denumire_cont: line.denumire_cont,
+      debit: money(line.debit),
+      credit: money(line.credit),
+      tert_id: line.tert_id || null,
+      tert_tip: line.tert_tip || "",
+      cost_center_id: line.cost_center_id || journal.cost_center_id || null,
+      subcentru_id: line.subcentru_id || journal.subcentru_id || null,
+      explicatie: line.explicatie || journal.explicatie
+    });
+  });
+  return journal;
+}
+
+function validateManualJournal(db, user, journalIdOrUuid) {
+  const accounting = ensureAccounting(db);
+  const journal = accounting.journals.find((item) => String(item.id) === String(journalIdOrUuid) || item.uuid === journalIdOrUuid);
+  if (!journal) throwHttp(404, "Nota contabila nu a fost gasita.");
+  if (!["draft", "devalidat"].includes(String(journal.status || ""))) throwHttp(409, "Doar notele draft sau devalidate se pot valida.");
+  if (journal.document_ref_tip && journal.tip_document !== "nota_manuala") throwHttp(409, "Notele generate automat se valideaza din documentul sursa.");
+  const lines = accounting.journalLines.filter((line) => Number(line.journal_id) === Number(journal.id));
+  validateJournal(db, lines);
+  checkPeriodOpen(db, journal.an, journal.luna);
+  journal.status = "activ";
+  journal.validat_de = user?.id || "";
+  journal.validat_de_name = user?.name || "";
+  journal.validat_la = new Date().toISOString();
+  journal.updated_at = new Date().toISOString();
+  return journal;
+}
+
+function cancelManualJournal(db, user, journalIdOrUuid, reason = "") {
+  const accounting = ensureAccounting(db);
+  const journal = accounting.journals.find((item) => String(item.id) === String(journalIdOrUuid) || item.uuid === journalIdOrUuid);
+  if (!journal) throwHttp(404, "Nota contabila nu a fost gasita.");
+  if (journal.status !== "draft") throwHttp(409, "Doar notele draft se pot anula direct.");
+  if (journal.document_ref_tip && journal.tip_document !== "nota_manuala") throwHttp(409, "Notele generate automat se anuleaza din documentul sursa.");
+  checkPeriodOpen(db, journal.an, journal.luna);
+  journal.status = "anulat";
+  journal.anulat_de = user?.id || "";
+  journal.anulat_de_name = user?.name || "";
+  journal.anulat_la = new Date().toISOString();
+  journal.anulare_motiv = String(reason || "").trim();
+  journal.updated_at = new Date().toISOString();
+  return journal;
+}
+
 function generateJournalFromInvoiceIn(db, user, invoice) {
   const tert = findThirdParty(db, invoice.furnizor_id);
   const contFurnizor = tert.cont_analitic_furnizor || generateAnalyticAccount(db, tert, "furnizor");
@@ -305,7 +382,7 @@ function stornoJournal(db, user, journalIdOrUuid) {
   const accounting = ensureAccounting(db);
   const original = accounting.journals.find((item) => String(item.id) === String(journalIdOrUuid) || item.uuid === journalIdOrUuid);
   if (!original) throwHttp(404, "Nota contabila nu a fost gasita.");
-  if (original.status === "stornat") throwHttp(409, "Nota contabila este deja stornata.");
+  if (!isActiveJournal(original)) throwHttp(409, "Doar notele active pot fi stornate.");
   checkPeriodOpen(db, original.an, original.luna);
   const originalLines = accounting.journalLines.filter((line) => Number(line.journal_id) === Number(original.id));
   const storno = createJournal(db, user, {
@@ -475,7 +552,7 @@ function inferAccountCategory(simbol) {
 }
 
 function isActiveJournal(journal) {
-  return !["stornat", "devalidat", "anulat"].includes(String(journal?.status || "activ"));
+  return String(journal?.status || "activ") === "activ";
 }
 
 function throwHttp(status, message) {
@@ -494,6 +571,9 @@ module.exports = {
   generateJournalFromTreasury,
   stornoJournal,
   devalidateJournal,
+  updateJournal,
+  validateManualJournal,
+  cancelManualJournal,
   createJournal,
   isActiveJournal,
   buildBalance,
