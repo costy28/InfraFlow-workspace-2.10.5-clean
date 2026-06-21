@@ -264,6 +264,8 @@ export default function SetariPage() {
     theme: localStorage.getItem('infraflow_theme') || 'light',
     density: localStorage.getItem('infraflow_density') || 'normal',
     fontScale: Number(localStorage.getItem('infraflow_font_scale') || 1),
+    radius: localStorage.getItem('infraflow_radius') || 'standard',
+    contrast: localStorage.getItem('infraflow_contrast') || 'normal',
   }))
   const [aiStatus, setAiStatus] = useState(null)
   const [users, setUsers] = useState([])
@@ -423,6 +425,8 @@ export default function SetariPage() {
   useEffect(() => {
     document.documentElement.dataset.theme = appearance.theme
     document.documentElement.dataset.density = appearance.density
+    document.documentElement.dataset.radius = appearance.radius
+    document.documentElement.dataset.contrast = appearance.contrast
     document.documentElement.style.setProperty('--app-font-scale', String(appearance.fontScale))
   }, [appearance])
 
@@ -601,8 +605,12 @@ export default function SetariPage() {
     localStorage.setItem('infraflow_theme', appearance.theme)
     localStorage.setItem('infraflow_density', appearance.density)
     localStorage.setItem('infraflow_font_scale', String(appearance.fontScale))
+    localStorage.setItem('infraflow_radius', appearance.radius)
+    localStorage.setItem('infraflow_contrast', appearance.contrast)
     document.documentElement.dataset.theme = appearance.theme
     document.documentElement.dataset.density = appearance.density
+    document.documentElement.dataset.radius = appearance.radius
+    document.documentElement.dataset.contrast = appearance.contrast
     document.documentElement.style.setProperty('--app-font-scale', String(appearance.fontScale))
     window.dispatchEvent(new Event('infraflow:appearance'))
     notify('Preferințele vizuale au fost salvate pe acest dispozitiv.')
@@ -1628,6 +1636,17 @@ export default function SetariPage() {
                 { value: 'normal', label: 'Normal' },
                 { value: 'comfortable', label: 'Confortabil' },
               ]} />
+              <div className="grid gap-3 md:grid-cols-2">
+                <Select label="Colțuri UI" value={appearance.radius} onChange={event => setAppearance(current => ({ ...current, radius: event.target.value }))} options={[
+                  { value: 'sharp', label: 'Drepte' },
+                  { value: 'standard', label: 'Standard' },
+                  { value: 'soft', label: 'Mai rotunjite' },
+                ]} />
+                <Select label="Contrast" value={appearance.contrast} onChange={event => setAppearance(current => ({ ...current, contrast: event.target.value }))} options={[
+                  { value: 'normal', label: 'Normal' },
+                  { value: 'high', label: 'Ridicat' },
+                ]} />
+              </div>
               <label className="grid gap-1 text-sm font-medium text-slate-700">
                 Mărime font
                 <input
@@ -1646,7 +1665,20 @@ export default function SetariPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button">Acțiune</Button>
                   <Button type="button" variant="secondary">Secundar</Button>
+                  <Button type="button" variant="ghost">Text</Button>
                   <Badge tone="success">validat</Badge>
+                </div>
+                <div className="mt-3 overflow-hidden rounded-[var(--radius-control)] border border-slate-200">
+                  <div className="grid grid-cols-[1fr_6rem_5rem] bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase text-slate-500">
+                    <span>Document</span>
+                    <span>Total</span>
+                    <span>Status</span>
+                  </div>
+                  <div className="grid grid-cols-[1fr_6rem_5rem] items-center px-3 py-2 text-sm">
+                    <span className="font-medium text-slate-900">Factură servicii</span>
+                    <span>1.240 RON</span>
+                    <Badge size="sm" tone="warning">draft</Badge>
+                  </div>
                 </div>
               </div>
               <Button type="submit">Salvează interfața</Button>

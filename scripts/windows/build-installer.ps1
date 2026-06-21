@@ -8,6 +8,42 @@
 $ProjectDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location $ProjectDir
 
+function Assert-ClientDistReady {
+    param([string]$DistPath)
+    if (-not (Test-Path (Join-Path $DistPath "index.html"))) {
+        throw "Release blocat: lipseste client\dist\index.html. Ruleaza build-ul React inainte de ZIP."
+    }
+    $assetDir = Join-Path $DistPath "assets"
+    if (-not (Test-Path $assetDir)) {
+        throw "Release blocat: lipseste client\dist\assets. ZIP-ul nu ar actualiza interfata."
+    }
+    $jsCount = @(Get-ChildItem $assetDir -Filter "*.js" -File -ErrorAction SilentlyContinue).Count
+    $cssCount = @(Get-ChildItem $assetDir -Filter "*.css" -File -ErrorAction SilentlyContinue).Count
+    if ($jsCount -lt 1 -or $cssCount -lt 1) {
+        throw "Release blocat: client\dist\assets nu contine bundle JS/CSS valid."
+    }
+    $index = Get-Content (Join-Path $DistPath "index.html") -Raw
+    if ($index -notmatch '/assets/.*\.js' -or $index -notmatch '/assets/.*\.css') {
+        throw "Release blocat: client\dist\index.html nu referentiaza asset-urile build-uite."
+    }
+}
+
+function Assert-UpdatePackageTree {
+    param([string]$PackageRoot)
+    $required = @(
+        "version.json",
+        "server\package.json",
+        "server\app.js",
+        "client\dist\index.html"
+    )
+    foreach ($relativePath in $required) {
+        if (-not (Test-Path (Join-Path $PackageRoot $relativePath))) {
+            throw "Release blocat: pachet update incomplet. Lipseste $relativePath"
+        }
+    }
+    Assert-ClientDistReady (Join-Path $PackageRoot "client\dist")
+}
+
 # Citeste versiunea din package.json
 $pkg = Get-Content "server\package.json" | ConvertFrom-Json
 $version = $pkg.version
@@ -25,6 +61,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 Set-Location $ProjectDir
 Write-Host "  OK - client/dist/ gata" -ForegroundColor Green
+Assert-ClientDistReady "$ProjectDir\client\dist"
 
 # ─── PASUL 2: VERIFICA INNO SETUP ───────────────
 Write-Host "`n[2/5] Verific Inno Setup..." -ForegroundColor Yellow
@@ -117,7 +154,11 @@ Copy-Item "CHANGELOG.md" "$tmp\" -Force -ErrorAction SilentlyContinue
 Copy-Item "package.json" "$tmp\" -Force -ErrorAction SilentlyContinue
 
 # Comprima
+Assert-UpdatePackageTree $tmp
 Compress-Archive -Path "$tmp\*" -DestinationPath $zipUpdate -Force
+if (-not (Test-Path $zipUpdate) -or (Get-Item $zipUpdate).Length -lt 1048576) {
+    throw "Release blocat: ZIP-ul rezultat este suspect de mic si probabil nu include client/dist."
+}
 
 # Curata temp
 Remove-Item $tmp -Recurse -Force

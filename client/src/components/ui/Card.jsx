@@ -5,13 +5,16 @@ export default function Card({
   subtitle,
   actions,
   loading = false,
+  density = 'normal',
   className = '',
   children,
   ...props
 }) {
+  const densityClass = density === 'compact' ? 'p-3' : 'p-[var(--card-padding)]'
+
   return (
     <section
-      className={`rounded-[var(--radius-panel)] border border-slate-200 bg-white p-[var(--card-padding)] shadow-[var(--shadow-card)] ${className}`}
+      className={`rounded-[var(--radius-panel)] border border-slate-200 bg-white ${densityClass} shadow-[var(--shadow-card)] transition-colors ${className}`}
       {...props}
     >
       {(title || subtitle || actions) && (

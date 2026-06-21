@@ -25,10 +25,10 @@ export default function Table({
     <div className="overflow-hidden rounded-[var(--radius-panel)] border border-slate-200 bg-white shadow-[var(--shadow-card)]">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
+          <thead className="bg-slate-50/90">
             <tr>
               {columns.map(column => (
-                <th key={column.key} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <th key={column.key} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   {column.label}
                 </th>
               ))}
@@ -45,10 +45,10 @@ export default function Table({
               <tr
                 key={row.id || row.uuid || index}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={onRowClick ? 'cursor-pointer transition hover:bg-primary-50' : ''}
+                className={`transition ${onRowClick ? 'cursor-pointer hover:bg-primary-50' : 'hover:bg-slate-50/70'}`}
               >
                 {columns.map(column => (
-                  <td key={column.key} className="px-3 py-2 text-slate-700">
+                  <td key={column.key} className="px-3 py-2 align-top text-slate-700">
                     {column.render ? column.render(row, index) : row[column.key]}
                   </td>
                 ))}

@@ -140,6 +140,42 @@ function Assert-CleanPackageTree {
   }
 }
 
+function Assert-ClientDistReady {
+  param([string]$DistPath)
+  if (-not (Test-Path (Join-Path $DistPath "index.html"))) {
+    throw "Release blocat: lipseste client\dist\index.html. Ruleaza build-ul React inainte de ZIP."
+  }
+  $assetDir = Join-Path $DistPath "assets"
+  if (-not (Test-Path $assetDir)) {
+    throw "Release blocat: lipseste client\dist\assets. ZIP-ul nu ar actualiza interfata."
+  }
+  $jsCount = @(Get-ChildItem $assetDir -Filter "*.js" -File -ErrorAction SilentlyContinue).Count
+  $cssCount = @(Get-ChildItem $assetDir -Filter "*.css" -File -ErrorAction SilentlyContinue).Count
+  if ($jsCount -lt 1 -or $cssCount -lt 1) {
+    throw "Release blocat: client\dist\assets nu contine bundle JS/CSS valid."
+  }
+  $index = Get-Content (Join-Path $DistPath "index.html") -Raw
+  if ($index -notmatch '/assets/.*\.js' -or $index -notmatch '/assets/.*\.css') {
+    throw "Release blocat: client\dist\index.html nu referentiaza asset-urile build-uite."
+  }
+}
+
+function Assert-UpdatePackageTree {
+  param([string]$PackageRoot)
+  $required = @(
+    "version.json",
+    "server\package.json",
+    "server\app.js",
+    "client\dist\index.html"
+  )
+  foreach ($relativePath in $required) {
+    if (-not (Test-Path (Join-Path $PackageRoot $relativePath))) {
+      throw "Release blocat: pachet update incomplet. Lipseste $relativePath"
+    }
+  }
+  Assert-ClientDistReady (Join-Path $PackageRoot "client\dist")
+}
+
 $BuildVersion = Read-BuildVersion
 $OutputDir = Join-Path $ROOT "installer\output"
 $Start = Get-Date
@@ -185,6 +221,7 @@ if (-not $SkipClientBuild) {
 } else {
   Write-Host "[2/6] React build skipped" -ForegroundColor DarkGray
 }
+Assert-ClientDistReady (Join-Path $ROOT "client\dist")
 
 $iscc = Find-Iscc
 if (-not $iscc) { throw "Inno Setup 6 ISCC.exe not found." }
@@ -237,7 +274,11 @@ Invoke-Step "[6/6] Update ZIP" {
   }
   if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
   Assert-CleanPackageTree $tmpDir
+  Assert-UpdatePackageTree $tmpDir
   Compress-Archive -Path (Join-Path $tmpDir "*") -DestinationPath $zipPath -CompressionLevel Optimal
+  if (-not (Test-Path $zipPath) -or (Get-Item $zipPath).Length -lt 1048576) {
+    throw "Release blocat: ZIP-ul rezultat este suspect de mic si probabil nu include client/dist."
+  }
   Remove-Item $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 

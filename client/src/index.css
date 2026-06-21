@@ -43,12 +43,17 @@
   background: #f8fafc;
   --app-font-scale: 1;
   --density-scale: 1;
-  --control-height: 2.25rem;
+  --control-height: 2.125rem;
   --control-px: 0.75rem;
   --card-padding: 0.875rem;
   --radius-control: 0.45rem;
   --radius-panel: 0.55rem;
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.03);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 28px rgba(15, 23, 42, 0.035);
+  --surface-body: #f6f8fb;
+  --surface-panel: #ffffff;
+  --border-subtle: #dbe3ef;
+  --text-strong: #0f172a;
+  --text-muted: #64748b;
 }
 
 html {
@@ -57,7 +62,7 @@ html {
 
 html[data-density="compact"] {
   --density-scale: 0.9;
-  --control-height: 2rem;
+  --control-height: 1.95rem;
   --control-px: 0.65rem;
   --card-padding: 0.75rem;
 }
@@ -69,21 +74,50 @@ html[data-density="comfortable"] {
   --card-padding: 1rem;
 }
 
+html[data-radius="sharp"] {
+  --radius-control: 0.28rem;
+  --radius-panel: 0.38rem;
+}
+
+html[data-radius="soft"] {
+  --radius-control: 0.65rem;
+  --radius-panel: 0.75rem;
+}
+
+html[data-contrast="high"] {
+  --border-subtle: #b8c4d6;
+  --shadow-card: 0 0 0 1px rgba(15, 23, 42, 0.05), 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
 html[data-theme="dark"] {
   color-scheme: dark;
   color: #e5edf7;
   background: #0f172a;
+  --surface-body: #0f172a;
+  --surface-panel: #111827;
+  --border-subtle: #334155;
+  --text-strong: #e5edf7;
+  --text-muted: #94a3b8;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 12px 30px rgba(0, 0, 0, 0.22);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background: #f8fafc;
+  background: var(--surface-body);
 }
 
 html[data-theme="dark"] body {
@@ -91,7 +125,7 @@ html[data-theme="dark"] body {
 }
 
 html[data-theme="dark"] .bg-white {
-  background-color: #111827 !important;
+  background-color: var(--surface-panel) !important;
 }
 
 html[data-theme="dark"] .bg-slate-50 {
@@ -126,6 +160,25 @@ html[data-theme="dark"] textarea {
   background-color: #0f172a;
   color: #e5edf7;
   border-color: #334155;
+}
+
+html[data-theme="dark"] table {
+  color: #dbeafe;
+}
+
+html[data-theme="dark"] .shadow-\[var\(--shadow-card\)\] {
+  box-shadow: var(--shadow-card) !important;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+table {
+  font-variant-numeric: tabular-nums;
 }
 
 html[data-theme="dark"] input::placeholder,

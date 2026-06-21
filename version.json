@@ -1,5 +1,5 @@
 {
-  "version": "2.12.69",
+  "version": "2.12.73",
   "date": "2026-06-20",
-  "changelog": "## v2.12.69 - 2026-06-20\n### Controale rapide aspect\n- Bara de sus include comenzi rapide pentru tema luminoasa/intunecata, densitate si marime font.\n- Preferintele vizuale sunt salvate local si aplicate imediat in interfata."
+  "changelog": "## v2.12.73 - 2026-06-20\n### Design Pass 1\n- Controale UI mai compacte si mai clare pentru butoane, carduri, inputuri, selecturi, badge-uri si tabele.\n- Setari > Aspect controleaza tema, densitatea, marimea fontului, colturile UI si contrastul.\n- Dashboard si contabilitate au primit o prima trecere vizuala profesionala.\n- Modalul comun respecta tema si colturile alese."
 }

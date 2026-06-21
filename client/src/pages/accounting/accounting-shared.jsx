@@ -54,8 +54,8 @@ export function statusTone(status) {
 
 export function Info({ label, value }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
-      <div className="text-xs text-slate-500">{label}</div>
+    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
       <div className="mt-1 break-words font-semibold text-slate-900">{value}</div>
     </div>
   )
@@ -130,7 +130,7 @@ export function AccountSelect({ label, value, onChange, accounts = [], recommend
       </label>
       <input
         id={inputId.current}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-100 disabled:text-slate-500"
+        className="h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-[var(--control-px)] text-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-100 disabled:text-slate-500"
         value={open ? query : selected ? `${selected.simbol} - ${selected.denumire}` : value || ''}
         onFocus={() => {
           setQuery('')
@@ -158,7 +158,7 @@ export function AccountSelect({ label, value, onChange, accounts = [], recommend
       {value && !selected ? <div className="text-xs text-rose-600">Contul {value} nu exista in planul de conturi.</div> : null}
       {selected ? <div className="text-xs text-slate-500">{selected.tip_cont || 'general'} · clasa {selected.clasa}</div> : null}
       {open && !disabled ? (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-[var(--radius-panel)] border border-slate-200 bg-white shadow-lg">
           <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-50" onMouseDown={() => chooseAccount(null)}>
             <span>Fara cont selectat</span>
           </button>
@@ -191,10 +191,10 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
         </div>
         <div className="flex flex-wrap gap-2">{actions}</div>
       </div>
-      <Card>
-        <div className="flex flex-wrap gap-2">
+      <Card density="compact">
+        <div className="flex flex-wrap gap-1.5">
           {nav.map(([key, to, label]) => (
-            <Link key={key} to={to} className={`rounded-md border px-3 py-2 text-sm font-medium ${active === key ? 'border-primary-700 bg-primary-700 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+            <Link key={key} to={to} className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm font-semibold transition ${active === key ? 'border-primary-700 bg-primary-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
               {label}
             </Link>
           ))}
@@ -208,10 +208,10 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
 export function Table({ headers, children }) {
   return (
     <Card>
-      <div className="overflow-hidden rounded-lg border border-slate-200">
+      <div className="overflow-hidden rounded-[var(--radius-panel)] border border-slate-200">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-            <tr>{headers.map(header => <th key={header} className="px-3 py-2">{header}</th>)}</tr>
+          <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>{headers.map(header => <th key={header} className="px-3 py-2 font-semibold">{header}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {children?.length ? children : <tr><td colSpan={headers.length} className="px-3 py-8 text-center text-sm text-slate-500">Nu exista date.</td></tr>}

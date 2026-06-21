@@ -144,16 +144,16 @@ function SectionError({ error }) {
 
 function KpiCard({ icon, label, value, loading, error, onClick }) {
   return (
-    <button className="text-left" onClick={onClick}>
-      <Card className="h-full transition hover:border-primary-100 hover:shadow-md">
+    <button className="min-w-0 text-left" onClick={onClick}>
+      <Card className="h-full border-slate-200/90 transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm text-slate-500">{label}</div>
+            <div className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
             {loading ? <Skeleton className="mt-3 h-8 w-16" /> : (
-              <div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div>
+              <div className="mt-1 text-2xl font-bold text-slate-950">{value}</div>
             )}
           </div>
-          <div className="grid h-11 w-11 place-items-center rounded-md bg-primary-50 text-xl">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-panel)] border border-primary-100 bg-primary-50 text-lg">
             {icon}
           </div>
         </div>
@@ -179,11 +179,11 @@ function DirectorDemoPanel({ user, onNavigate, onResetDemo, resettingDemo }) {
   ]
 
   return (
-    <Card className="border-primary-200 bg-primary-50/60">
+    <Card className="border-primary-200 bg-gradient-to-br from-primary-50 via-white to-slate-50">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase text-primary-700">Demo director</div>
-          <h3 className="mt-1 text-lg font-semibold text-slate-900">Flux rapid pentru prezentare</h3>
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Demo director</div>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">Flux rapid pentru prezentare</h3>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
             Contul director vede exact zona de decizie: aprobări, alerte operaționale, oameni și costuri.
           </p>
@@ -201,7 +201,7 @@ function DirectorDemoPanel({ user, onNavigate, onResetDemo, resettingDemo }) {
         {steps.map(step => (
           <button
             key={step.label}
-            className="rounded-md border border-white bg-white p-3 text-left shadow-sm transition hover:border-primary-200 hover:shadow-md"
+            className="rounded-[var(--radius-panel)] border border-slate-100 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md"
             onClick={() => onNavigate(step.route)}
           >
             <div className="text-xs font-semibold uppercase text-slate-500">{step.label}</div>
@@ -210,7 +210,7 @@ function DirectorDemoPanel({ user, onNavigate, onResetDemo, resettingDemo }) {
           </button>
         ))}
       </div>
-      <div className="mt-4 grid gap-2 rounded-md border border-primary-100 bg-white/70 p-3 text-sm text-slate-700 md:grid-cols-4">
+      <div className="mt-4 grid gap-2 rounded-[var(--radius-panel)] border border-primary-100 bg-white/75 p-3 text-sm text-slate-700 md:grid-cols-4">
         {checklist.map((item, index) => (
           <div key={item} className="flex items-start gap-2">
             <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary-600 text-[11px] font-bold text-white">{index + 1}</span>
@@ -241,7 +241,7 @@ function CommandCenterPanel({ data, loading, error, onNavigate }) {
   if (!loading && !hasAlerts && !error) return null
 
   return (
-    <div className="rounded-xl border-2 border-rose-300 bg-rose-50/60 p-4 shadow-sm">
+    <div className="rounded-[var(--radius-panel)] border border-rose-300 bg-rose-50/70 p-4 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-xl">🚨</span>
@@ -684,9 +684,9 @@ export default function DashboardPage() {
           <div className="grid gap-2">
             {loading ? [1, 2, 3, 4].map(item => <Skeleton key={item} className="h-10" />) : (
               view.audit.length ? view.audit.slice(0, 10).map((item, index) => (
-                <div key={item.id || index} className="rounded-md border border-slate-200 px-3 py-2">
+                <div key={item.id || index} className="min-w-0 overflow-hidden rounded-md border border-slate-200 px-3 py-2">
                   <div className="truncate text-sm font-medium text-slate-900">{displayText(item.action || item.actiune, 'actiune')}</div>
-                  <div className="truncate text-xs text-slate-500">{displayText(item.details || item.detalii || item.userName || item.user)}</div>
+                  <div className="truncate break-all text-xs text-slate-500">{displayText(item.details || item.detalii || item.userName || item.user)}</div>
                 </div>
               )) : <p className="text-sm text-slate-500">Nu exista activitate recenta.</p>
             )}

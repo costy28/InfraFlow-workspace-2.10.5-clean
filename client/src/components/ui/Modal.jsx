@@ -72,7 +72,7 @@ export default function Modal({ open, title, children, onClose, size = 'md', res
     <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/40 p-3 md:items-center md:p-4">
       <div
         ref={resizeRef}
-        className="relative flex max-h-[calc(100dvh-1.5rem)] min-h-[18rem] w-full min-w-[min(22rem,calc(100vw-1.5rem))] animate-[slideUp_.18s_ease-out] flex-col overflow-hidden rounded-lg bg-white shadow-xl md:max-h-[calc(100vh-2rem)]"
+        className="relative flex max-h-[calc(100dvh-1.5rem)] min-h-[18rem] w-full min-w-[min(22rem,calc(100vw-1.5rem))] animate-[slideUp_.18s_ease-out] flex-col overflow-hidden rounded-[var(--radius-panel)] border border-slate-200 bg-white shadow-xl md:max-h-[calc(100vh-2rem)]"
         style={{
           width: dimensions?.width ? `${dimensions.width}px` : `min(${initialWidth}, calc(100vw - 2rem))`,
           height: dimensions?.height ? `${dimensions.height}px` : undefined,
@@ -81,7 +81,7 @@ export default function Modal({ open, title, children, onClose, size = 'md', res
           maxHeight: 'calc(100vh - 2rem)'
         }}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
           <Button variant="ghost" onClick={onClose}>Inchide</Button>
         </div>

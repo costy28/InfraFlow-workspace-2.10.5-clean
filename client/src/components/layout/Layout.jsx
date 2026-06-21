@@ -44,8 +44,12 @@ export default function Layout({ children }) {
       const theme = localStorage.getItem('infraflow_theme') || 'light'
       const density = localStorage.getItem('infraflow_density') || 'normal'
       const fontScale = localStorage.getItem('infraflow_font_scale') || '1'
+      const radius = localStorage.getItem('infraflow_radius') || 'standard'
+      const contrast = localStorage.getItem('infraflow_contrast') || 'normal'
       root.dataset.theme = theme
       root.dataset.density = density
+      root.dataset.radius = radius
+      root.dataset.contrast = contrast
       root.style.setProperty('--app-font-scale', fontScale)
     }
     applyAppearance()
@@ -84,13 +88,13 @@ export default function Layout({ children }) {
 
   return (
     <SettingsProvider>
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen w-full overflow-x-hidden bg-slate-50">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         aiEnabled={Boolean(user?.modules?.ai?.enabled)}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
         <Navbar
           title={title}
           user={user}
@@ -112,7 +116,7 @@ export default function Layout({ children }) {
             </div>
           </div>
         ) : null}
-        <main className="flex-1 p-4">
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4">
           {children}
         </main>
       </div>

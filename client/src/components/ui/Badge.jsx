@@ -1,13 +1,14 @@
 const variants = {
-  gray: 'bg-slate-100 text-slate-700',
-  green: 'bg-primary-50 text-primary-700',
-  yellow: 'bg-amber-100 text-amber-800',
-  red: 'bg-rose-100 text-rose-800',
-  blue: 'bg-blue-100 text-blue-800',
-  neutral: 'bg-slate-100 text-slate-700',
-  success: 'bg-primary-50 text-primary-700',
-  warning: 'bg-amber-100 text-amber-800',
-  danger: 'bg-rose-100 text-rose-800',
+  gray: 'border-slate-200 bg-slate-100 text-slate-700',
+  green: 'border-primary-100 bg-primary-50 text-primary-700',
+  yellow: 'border-amber-200 bg-amber-100 text-amber-800',
+  red: 'border-rose-200 bg-rose-100 text-rose-800',
+  blue: 'border-blue-200 bg-blue-100 text-blue-800',
+  neutral: 'border-slate-200 bg-slate-100 text-slate-700',
+  success: 'border-primary-100 bg-primary-50 text-primary-700',
+  warning: 'border-amber-200 bg-amber-100 text-amber-800',
+  danger: 'border-rose-200 bg-rose-100 text-rose-800',
+  info: 'border-blue-200 bg-blue-100 text-blue-800',
 }
 
 const sizes = {
@@ -20,7 +21,7 @@ export default function Badge({ variant, tone, size = 'md', className = '', ...p
 
   return (
     <span
-      className={`inline-flex items-center rounded-[var(--radius-control)] font-semibold ${sizes[size] || sizes.md} ${variants[color] || variants.gray} ${className}`}
+      className={`inline-flex items-center rounded-[calc(var(--radius-control)-0.05rem)] border font-semibold leading-none ${sizes[size] || sizes.md} ${variants[color] || variants.gray} ${className}`}
       {...props}
     />
   )
