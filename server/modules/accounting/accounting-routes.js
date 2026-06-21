@@ -165,6 +165,39 @@ router.post("/accounting/chart", requireAccountingManage, (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.patch("/accounting/chart/:simbol", requireAccountingManage, (req, res, next) => {
+  try {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const account = accounting.chart.find((item) => item.simbol === req.params.simbol);
+    if (!account) return sendJson(res, 404, { error: "Contul nu a fost gasit." });
+
+    const body = req.body || {};
+    const denumire = String(body.denumire ?? account.denumire ?? "").trim();
+    if (!denumire) throwHttp(400, "Denumirea contului este obligatorie.");
+
+    const tip = body.tip === undefined ? account.tip : String(body.tip || "").trim();
+    if (!["A", "P", "B"].includes(tip)) throwHttp(400, "Tipul contului trebuie sa fie A, P sau B.");
+
+    const activ = body.activ === undefined ? account.activ !== false : body.activ !== false;
+    if (activ === false && ["401", "4111", "4426", "4427", "5121", "5211", "5311"].includes(account.simbol)) {
+      throwHttp(409, "Contul este obligatoriu pentru validarile contabile si nu poate fi dezactivat.");
+    }
+
+    account.denumire = denumire;
+    account.tip = tip;
+    account.tip_cont = String(body.tip_cont ?? account.tip_cont ?? "general").trim() || "general";
+    account.parinte_simbol = String(body.parinte_simbol ?? account.parinte_simbol ?? "").trim();
+    account.tva_deductibil = Boolean(body.tva_deductibil ?? account.tva_deductibil);
+    account.tva_colectat = Boolean(body.tva_colectat ?? account.tva_colectat);
+    account.activ = activ;
+    account.updated_at = new Date().toISOString();
+
+    addAudit(req.auth.db, req.auth.user, "accounting_chart_update", `${account.simbol} ${account.denumire}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { account });
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/third-parties", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
   const tip = String(req.query.tip || "");
@@ -1281,23 +1314,23 @@ function normalizeThirdParty(db, body, existing = null) {
     id,
     cod,
     tip: ["furnizor", "client", "ambele"].includes(body.tip) ? body.tip : existing?.tip || "furnizor",
-    denumire: String(body.denumire || existing?.denumire || "").trim(),
-    cui: String(body.cui || existing?.cui || "").trim(),
-    nr_reg_com: String(body.nr_reg_com || existing?.nr_reg_com || "").trim(),
-    tara: String(body.tara || existing?.tara || "RO").trim().slice(0, 2).toUpperCase(),
-    judet: String(body.judet || existing?.judet || "").trim(),
-    localitate: String(body.localitate || existing?.localitate || "").trim(),
-    adresa: String(body.adresa || existing?.adresa || "").trim(),
-    iban: String(body.iban || existing?.iban || "").trim(),
-    banca: String(body.banca || existing?.banca || "").trim(),
-    telefon: String(body.telefon || existing?.telefon || "").trim(),
-    email: String(body.email || existing?.email || "").trim(),
+    denumire: String(body.denumire ?? existing?.denumire ?? "").trim(),
+    cui: String(body.cui ?? existing?.cui ?? "").trim(),
+    nr_reg_com: String(body.nr_reg_com ?? existing?.nr_reg_com ?? "").trim(),
+    tara: String(body.tara ?? existing?.tara ?? "RO").trim().slice(0, 2).toUpperCase(),
+    judet: String(body.judet ?? existing?.judet ?? "").trim(),
+    localitate: String(body.localitate ?? existing?.localitate ?? "").trim(),
+    adresa: String(body.adresa ?? existing?.adresa ?? "").trim(),
+    iban: String(body.iban ?? existing?.iban ?? "").trim(),
+    banca: String(body.banca ?? existing?.banca ?? "").trim(),
+    telefon: String(body.telefon ?? existing?.telefon ?? "").trim(),
+    email: String(body.email ?? existing?.email ?? "").trim(),
     tva_platitor: Boolean(body.tva_platitor ?? existing?.tva_platitor),
-    zile_scadenta: Number(body.zile_scadenta || existing?.zile_scadenta || 30),
+    zile_scadenta: Number(body.zile_scadenta ?? existing?.zile_scadenta ?? 30),
     cont_analitic_furnizor: existing?.cont_analitic_furnizor || body.cont_analitic_furnizor || "",
     cont_analitic_client: existing?.cont_analitic_client || body.cont_analitic_client || "",
     blocat: Boolean(body.blocat ?? existing?.blocat),
-    activ: body.activ !== false,
+    activ: body.activ === undefined ? existing?.activ !== false : body.activ !== false,
     created_at: existing?.created_at || new Date().toISOString()
   };
   if (!tert.denumire) throwHttp(400, "Denumirea tertului este obligatorie.");

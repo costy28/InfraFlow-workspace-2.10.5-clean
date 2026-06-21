@@ -14,6 +14,7 @@ export function PlanConturi() {
   const [filters, setFilters] = useState({ q: '', clasa: '', tip: '', nivel: '' })
   const [selected, setSelected] = useState(null)
   const [modal, setModal] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -56,6 +57,7 @@ export function PlanConturi() {
   }
   function openAnalytic(parent = selected) {
     if (!parent) return
+    setEditing(false)
     setError('')
     setMessage('')
     setForm({
@@ -69,22 +71,60 @@ export function PlanConturi() {
     })
     setModal(true)
   }
-  async function submitAnalytic(event) {
+
+  function openEdit(account = selected) {
+    if (!account) return
+    setEditing(true)
+    setError('')
+    setMessage('')
+    setForm({
+      simbol: account.simbol,
+      denumire: account.denumire || '',
+      clasa: account.clasa || String(account.simbol || '0')[0],
+      tip: account.tip || 'B',
+      nivel: account.nivel || 2,
+      parinte_simbol: account.parinte_simbol || '',
+      tip_cont: account.tip_cont || 'general',
+      tva_deductibil: Boolean(account.tva_deductibil),
+      tva_colectat: Boolean(account.tva_colectat),
+      activ: account.activ !== false
+    })
+    setModal(true)
+  }
+
+  async function submitAccount(event) {
     event.preventDefault()
     setSaving(true)
     setError('')
     setMessage('')
     try {
-      const res = await api.post('/accounting/chart', form)
+      const res = editing
+        ? await api.patch(`/accounting/chart/${form.simbol}`, form)
+        : await api.post('/accounting/chart', form)
       setModal(false)
-      setMessage(`Contul ${res.data.account?.simbol || form.simbol} a fost creat.`)
+      setMessage(editing ? `Contul ${form.simbol} a fost actualizat.` : `Contul ${res.data.account?.simbol || form.simbol} a fost creat.`)
       setFilters({ ...filters, q: form.simbol })
       await load()
       setSelected(res.data.account || null)
     } catch (err) {
-      setError(err.response?.data?.error || 'Contul analitic nu a putut fi creat.')
+      setError(err.response?.data?.error || 'Contul nu a putut fi salvat.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function toggleSelectedActive() {
+    if (!selected) return
+    setError('')
+    setMessage('')
+    try {
+      const nextActive = selected.activ === false
+      const res = await api.patch(`/accounting/chart/${selected.simbol}`, { activ: nextActive })
+      setMessage(nextActive ? `Contul ${selected.simbol} a fost reactivat.` : `Contul ${selected.simbol} a fost dezactivat pentru documente noi.`)
+      await load()
+      setSelected(res.data.account || { ...selected, activ: nextActive })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Statusul contului nu a putut fi schimbat.')
     }
   }
   const classNames = {
@@ -139,10 +179,10 @@ export function PlanConturi() {
                         key={account.simbol}
                         onClick={() => setSelected(account)}
                         onDoubleClick={() => navigate(`/contabilitate/fisa-cont/${account.simbol}`)}
-                        className={`grid w-full grid-cols-[96px_minmax(0,1fr)_72px_90px] items-center gap-3 px-4 py-2 text-left text-sm hover:bg-primary-50 ${selected?.simbol === account.simbol ? 'bg-primary-50 text-primary-900' : 'text-slate-700'}`}
+                        className={`grid w-full grid-cols-[96px_minmax(0,1fr)_72px_90px] items-center gap-3 px-4 py-2 text-left text-sm hover:bg-primary-50 ${account.activ === false ? 'opacity-60' : ''} ${selected?.simbol === account.simbol ? 'bg-primary-50 text-primary-900' : 'text-slate-700'}`}
                       >
                         <span className="font-mono font-semibold">{account.simbol}</span>
-                        <span className="truncate">{account.denumire}</span>
+                        <span className="truncate">{account.denumire}{account.activ === false ? ' (inactiv)' : ''}</span>
                         <span><Badge>{account.tip}</Badge></span>
                         <span className="text-xs text-slate-500">{account.tip_cont || 'general'}</span>
                       </button>
@@ -175,8 +215,10 @@ export function PlanConturi() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => navigate(`/contabilitate/fisa-cont/${selected.simbol}`)}>Fisa cont</Button>
+                <Button variant="secondary" onClick={() => openEdit(selected)}>Editeaza</Button>
                 <Button variant="secondary" onClick={() => setFilters({ ...filters, q: selected.parinte_simbol || selected.simbol.slice(0, 3) })}>Vezi familia</Button>
                 <Button variant="secondary" onClick={() => openAnalytic(selected)}>+ Analitic</Button>
+                <Button variant={selected.activ === false ? 'secondary' : 'outline'} onClick={toggleSelectedActive}>{selected.activ === false ? 'Reactiveaza' : 'Dezactiveaza'}</Button>
               </div>
             </div>
           ) : (
@@ -184,12 +226,12 @@ export function PlanConturi() {
           )}
         </Card>
       </div>
-      <Modal open={modal} title="Cont analitic nou" onClose={() => setModal(false)}>
-        <form className="grid gap-3" onSubmit={submitAnalytic}>
+      <Modal open={modal} title={editing ? 'Editare cont' : 'Cont analitic nou'} onClose={() => setModal(false)}>
+        <form className="grid gap-3" onSubmit={submitAccount}>
           {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
           <div className="grid gap-3 md:grid-cols-2">
-            <Input label="Simbol cont" value={form.simbol || ''} onChange={event => setForm({ ...form, simbol: event.target.value })} required />
-            <Input label="Parinte" value={form.parinte_simbol || ''} onChange={event => setForm({ ...form, parinte_simbol: event.target.value })} required />
+            <Input label="Simbol cont" value={form.simbol || ''} onChange={event => setForm({ ...form, simbol: event.target.value })} required disabled={editing} />
+            <Input label="Parinte" value={form.parinte_simbol || ''} onChange={event => setForm({ ...form, parinte_simbol: event.target.value })} required={!editing} />
             <Select label="Tip" value={form.tip || 'B'} onChange={event => setForm({ ...form, tip: event.target.value })} options={[
               { value: 'A', label: 'Activ' },
               { value: 'P', label: 'Pasiv' },
@@ -198,12 +240,26 @@ export function PlanConturi() {
             <Input label="Categorie" value={form.tip_cont || ''} onChange={event => setForm({ ...form, tip_cont: event.target.value })} />
           </div>
           <Input label="Denumire" value={form.denumire || ''} onChange={event => setForm({ ...form, denumire: event.target.value })} required />
+          <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:grid-cols-3">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={Boolean(form.tva_deductibil)} onChange={event => setForm({ ...form, tva_deductibil: event.target.checked, tva_colectat: event.target.checked ? false : form.tva_colectat })} />
+              TVA deductibila
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={Boolean(form.tva_colectat)} onChange={event => setForm({ ...form, tva_colectat: event.target.checked, tva_deductibil: event.target.checked ? false : form.tva_deductibil })} />
+              TVA colectata
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={form.activ !== false} onChange={event => setForm({ ...form, activ: event.target.checked })} />
+              Activ
+            </label>
+          </div>
           <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            Contul va fi disponibil imediat in facturi, trezorerie si note contabile.
+            {editing ? 'Simbolul ramane neschimbat pentru a pastra legatura cu notele si facturile existente.' : 'Contul va fi disponibil imediat in facturi, trezorerie si note contabile.'}
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button>
-            <Button type="submit" loading={saving}>Creeaza cont</Button>
+            <Button type="submit" loading={saving}>{editing ? 'Salveaza cont' : 'Creeaza cont'}</Button>
           </div>
         </form>
       </Modal>

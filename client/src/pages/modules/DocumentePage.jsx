@@ -109,6 +109,18 @@ function defaultJsonForTemplate(template) {
   return JSON.stringify(values, null, 2)
 }
 
+function documentDataObject(document) {
+  return document?.date_json && typeof document.date_json === 'object'
+    ? document.date_json
+    : (() => {
+        try {
+          return JSON.parse(document?.date_json || '{}')
+        } catch {
+          return {}
+        }
+      })()
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -140,6 +152,7 @@ export default function DocumentePage() {
   const [templateUploadFile, setTemplateUploadFile] = useState(null)
   const [templatePreview, setTemplatePreview] = useState(null)
   const [documentModal, setDocumentModal] = useState(false)
+  const [documentEditing, setDocumentEditing] = useState(null)
   const [documentForm, setDocumentForm] = useState(emptyDocumentForm)
   const [documentTemplates, setDocumentTemplates] = useState([])
   const [documentFieldValues, setDocumentFieldValues] = useState({})
@@ -149,6 +162,9 @@ export default function DocumentePage() {
   const [templateSaving, setTemplateSaving] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
+  const canEditDocument = useCallback(document => (
+    document?.status === 'draft' && String(document.creat_de) === String(userId(user))
+  ), [user])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -254,6 +270,7 @@ export default function DocumentePage() {
       const rows = await loadDocumentTemplates()
       const first = rows[0]
       const fieldValues = defaultFieldValues(first?.variables || [])
+      setDocumentEditing(null)
       setDocumentForm({
         ...emptyDocumentForm,
         tip_id: first?.id || '',
@@ -266,6 +283,38 @@ export default function DocumentePage() {
       setDocumentModal(true)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca template-urile disponibile.')
+    }
+  }
+
+  async function openDocumentEdit(document) {
+    setError('')
+    try {
+      if (!canEditDocument(document)) {
+        setError('Documentul poate fi editat doar cat timp este draft si doar de initiator.')
+        return
+      }
+      const rows = await loadDocumentTemplates()
+      const template = rows.find(item => item.id === document.tip_id)
+      const data = documentDataObject(document)
+      const fieldValues = Object.fromEntries((template?.variables || []).map(variable => [
+        variable,
+        data[variable] ?? sampleValueForVariable(variable)
+      ]))
+      setDocumentEditing(document)
+      setDocumentForm({
+        ...emptyDocumentForm,
+        tip_id: document.tip_id || '',
+        titlu: document.titlu || '',
+        prioritate: document.prioritate || 'normal',
+        date_json_text: JSON.stringify(data, null, 2),
+        launch: false,
+      })
+      setDocumentFieldValues(fieldValues)
+      setDocumentPreview(null)
+      setDocumentPreviewVisible(false)
+      setDocumentModal(true)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nu am putut pregati documentul pentru editare.')
     }
   }
 
@@ -302,12 +351,15 @@ export default function DocumentePage() {
         prioritate: documentForm.prioritate,
         date_json: parseDocumentData(),
       }
-      const response = await api.post('/documents', payload)
+      const response = documentEditing?.uuid
+        ? await api.patch(`/documents/${documentEditing.uuid}`, payload)
+        : await api.post('/documents', payload)
       const document = response.data?.document
       if (documentForm.launch && document?.uuid) {
         await api.post(`/documents/${document.uuid}/launch`, {})
       }
       setDocumentModal(false)
+      setDocumentEditing(null)
       setDocumentForm(emptyDocumentForm)
       setDocumentPreview(null)
       setDocumentPreviewVisible(false)
@@ -488,24 +540,25 @@ export default function DocumentePage() {
               {loading ? <p className="text-sm text-slate-500">Se încarcă...</p> : visibleDocuments.length === 0 ? (
                 <p className="text-sm text-slate-500">Nu există documente.</p>
               ) : visibleDocuments.map(document => (
-                <button
+                <div
                   key={document.uuid || document.id}
-                  type="button"
                   className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-primary-300 hover:bg-primary-50"
-                  onClick={() => openDetails(document)}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <button type="button" className="flex items-start justify-between gap-3 text-left" onClick={() => openDetails(document)}>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold uppercase text-slate-500">{document.tip_id}</div>
                       <div className="break-words text-base font-semibold text-slate-900">{document.nr_document}</div>
                       <div className="mt-1 text-sm text-slate-500">{formatDate(document.updated_at || document.created_at)}</div>
                     </div>
                     <Badge tone={toneFor(document.prioritate)}>{label(document.prioritate)}</Badge>
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => openDetails(document)}>Detalii</Button>
+                    {canEditDocument(document) ? (
+                      <Button size="sm" variant="secondary" onClick={() => openDocumentEdit(document)}>Editează</Button>
+                    ) : null}
                   </div>
-                  <span className="inline-flex h-8 items-center justify-center rounded-[var(--radius-control)] bg-white px-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
-                    Detalii
-                  </span>
-                </button>
+                </div>
               ))}
             </div>
             <div className="hidden md:block">
@@ -516,7 +569,12 @@ export default function DocumentePage() {
                   { key: 'creat_de', label: 'Inițiator' },
                   { key: 'created_at', label: 'Trimis la', render: row => formatDate(row.updated_at || row.created_at) },
                   { key: 'prioritate', label: 'Prioritate', render: row => <Badge tone={toneFor(row.prioritate)}>{label(row.prioritate)}</Badge> },
-                  { key: 'actions', label: '', render: row => <Button variant="ghost" onClick={() => openDetails(row)}>Detalii</Button> },
+                  { key: 'actions', label: '', render: row => (
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" onClick={() => openDetails(row)}>Detalii</Button>
+                      {canEditDocument(row) ? <Button variant="ghost" onClick={() => openDocumentEdit(row)}>Editează</Button> : null}
+                    </div>
+                  ) },
                 ]}
                 rows={visibleDocuments}
                 empty={loading ? 'Se încarcă...' : 'Nu există documente.'}
@@ -535,7 +593,12 @@ export default function DocumentePage() {
                     <h2 className="mt-1 text-xl font-semibold text-slate-900">{details.document.nr_document}</h2>
                     <p className="text-sm text-slate-600">{details.document.titlu || 'Document fără titlu'}</p>
                   </div>
-                  <Badge tone={toneFor(details.document.status)}>{label(details.document.status)}</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canEditDocument(details.document) ? (
+                      <Button variant="secondary" onClick={() => openDocumentEdit(details.document)}>Editează</Button>
+                    ) : null}
+                    <Badge tone={toneFor(details.document.status)}>{label(details.document.status)}</Badge>
+                  </div>
                 </div>
 
                 <div className="grid gap-3">
@@ -588,7 +651,7 @@ export default function DocumentePage() {
         </div>
       )}
 
-      <Modal open={documentModal} title="Document nou din template" onClose={() => setDocumentModal(false)} size="xl">
+      <Modal open={documentModal} title={documentEditing ? 'Editare document draft' : 'Document nou din template'} onClose={() => setDocumentModal(false)} size="xl">
         <form className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]" onSubmit={saveNewDocument}>
           <div className="grid content-start gap-3">
             <label className="grid gap-1 text-sm font-medium text-slate-700">
@@ -596,6 +659,7 @@ export default function DocumentePage() {
               <select
                 className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                 value={documentForm.tip_id}
+                disabled={Boolean(documentEditing)}
                 onChange={event => {
                   const selectedTemplate = documentTemplates.find(template => template.id === event.target.value)
                   const fieldValues = defaultFieldValues(selectedTemplate?.variables || [])
@@ -683,7 +747,7 @@ export default function DocumentePage() {
             <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:justify-end">
               <Button type="button" variant="secondary" className="w-full lg:w-auto" onClick={() => setDocumentModal(false)}>Anulează</Button>
               <Button type="button" variant="secondary" className="w-full lg:w-auto" onClick={previewNewDocument}>Previzualizează</Button>
-              <Button type="submit" className="w-full lg:w-auto" disabled={documentSaving}>{documentSaving ? 'Se salvează...' : 'Creează document'}</Button>
+              <Button type="submit" className="w-full lg:w-auto" disabled={documentSaving}>{documentSaving ? 'Se salvează...' : documentEditing ? 'Salvează modificări' : 'Creează document'}</Button>
             </div>
             <div className={`grid content-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 lg:hidden ${documentPreviewVisible || documentPreview ? '' : 'hidden'}`}>
               <div className="text-sm font-semibold text-slate-700">Preview</div>

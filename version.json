@@ -1,5 +1,5 @@
 {
-  "version": "2.12.80",
+  "version": "2.12.82",
   "date": "2026-06-21",
-  "changelog": "## v2.12.80 - 2026-06-21\n### Hotfix modaluri mobile Documente\n- Modalul general nu mai forteaza latime pe ecran ingust si ascunde manerul de redimensionare pe mobil.\n- Formularul Document nou afiseaza preview-ul doar la cerere pe telefon si foloseste butoane full-width.\n- Editorul de template document nu mai largeste pagina pe mobil."
+  "changelog": "## v2.12.82 - 2026-06-21\n### Contabilitate - nomenclatoare editabile\n- Planul de conturi permite editarea denumirii, tipului, categoriei si statusului activ/inactiv pentru conturile existente.\n- Terții contabili au formular complet pentru date fiscale, contact, banca, scadenta, TVA si status activ/inactiv.\n- Editarea tertilor pastreaza corect statusul inactiv si nu reactiveaza automat inregistrarile."
 }
