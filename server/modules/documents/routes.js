@@ -80,6 +80,10 @@ function requireDocumentPermission(auth, res, permission) {
   return false
 }
 
+function hasDocumentPermission(auth, permission) {
+  return userHasPermission(auth.db, auth.user, permission)
+}
+
 function parseJson(value, fallback = {}) {
   if (!value) return fallback
   if (typeof value === 'object') return value
@@ -172,6 +176,32 @@ function templateModelFields(template = {}) {
 
 function publicTemplate(template = {}) {
   return { ...template, ...templateModelFields(template) }
+}
+
+function extractTemplateVariables(html) {
+  const variables = new Set()
+  String(html || '').replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_, key) => {
+    variables.add(key)
+    return ''
+  })
+  return Array.from(variables).sort((a, b) => a.localeCompare(b))
+}
+
+function publicCatalogTemplate(template = {}) {
+  const fields = templateModelFields(template)
+  return {
+    id: template.id,
+    denumire: template.denumire,
+    categorie: template.categorie,
+    descriere: template.descriere,
+    tip_document: fields.tip_document,
+    template_format: fields.template_format,
+    fisier_model_name: fields.fisier_model_name,
+    fisier_model_size: fields.fisier_model_size,
+    serie_prefix: template.serie_prefix,
+    activ: template.activ !== false,
+    variables: extractTemplateVariables(template.template_html)
+  }
 }
 
 function ensureTemplateSchemaMssql() {
@@ -418,6 +448,32 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
   }
 })
 
+router.get('/documents/template-catalog', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireDocumentPermission(auth, res, 'documents:create')) return
+    if (isMssqlMode()) {
+      ensureTemplateSchemaMssql()
+      const rows = mssqlArray(`
+SELECT id, denumire, categorie, descriere, tip_document, template_format, fisier_model_name, fisier_model_size, serie_prefix, activ, template_html
+FROM documents.document_types
+WHERE activ = 1
+ORDER BY denumire
+FOR JSON PATH;
+`)
+      sendJson(res, 200, { templates: rows.map(publicCatalogTemplate) })
+      return
+    }
+    const templates = ensureDocumentsDb(auth.db).documentTypes
+      .filter(template => template.activ !== false)
+      .map(publicCatalogTemplate)
+    sendJson(res, 200, { templates })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.post('/documents/templates/:id/upload-model', uploadTemplateModel.single('file'), (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
@@ -520,7 +576,10 @@ router.post('/documents/templates/:id/preview', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireDocumentPermission(auth, res, 'documents:templates')) return
+    if (!hasDocumentPermission(auth, 'documents:templates') && !hasDocumentPermission(auth, 'documents:create')) {
+      sendJson(res, 403, { error: 'Nu ai permisiune pentru previzualizarea template-urilor.' })
+      return
+    }
     const id = safeTemplateId(req.params.id)
     let template = null
     if (isMssqlMode()) {

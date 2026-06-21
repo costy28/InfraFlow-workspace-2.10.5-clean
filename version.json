@@ -1,5 +1,5 @@
 {
-  "version": "2.12.75",
+  "version": "2.12.76",
   "date": "2026-06-21",
-  "changelog": "## v2.12.75 - 2026-06-21\n### Template Documente v1\n- Template-urile pot avea model client incarcat DOCX, XML sau HTML.\n- Documentele generate accepta variabile pe domenii: societate, document, client, furnizor, factura si mecanizare.\n- Schema MSSQL primeste tabel separat pentru istoricul fisierelor de model."
+  "changelog": "## v2.12.76 - 2026-06-21\n### Document nou din template\n- Utilizatorii cu drept de creare pot alege template-uri active dintr-un catalog separat.\n- Pagina Documente are modal pentru creare draft, completare variabile JSON, preview si lansare optionala in circuit.\n- Preview-ul template-urilor este disponibil si pentru creatorii de documente, fara drept de administrare template-uri."
 }

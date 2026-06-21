@@ -60,6 +60,14 @@ const emptyTemplateForm = {
   activ: true,
 }
 
+const emptyDocumentForm = {
+  tip_id: '',
+  titlu: '',
+  prioritate: 'normal',
+  date_json_text: '{\n  "continut": "Text document"\n}',
+  launch: false,
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -88,6 +96,11 @@ export default function DocumentePage() {
   const [templateForm, setTemplateForm] = useState(emptyTemplateForm)
   const [templateUploadFile, setTemplateUploadFile] = useState(null)
   const [templatePreview, setTemplatePreview] = useState(null)
+  const [documentModal, setDocumentModal] = useState(false)
+  const [documentForm, setDocumentForm] = useState(emptyDocumentForm)
+  const [documentTemplates, setDocumentTemplates] = useState([])
+  const [documentPreview, setDocumentPreview] = useState(null)
+  const [documentSaving, setDocumentSaving] = useState(false)
   const [templateSaving, setTemplateSaving] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
@@ -169,6 +182,77 @@ export default function DocumentePage() {
     setTemplateModal(true)
   }
 
+  async function loadDocumentTemplates() {
+    const response = await api.get('/documents/template-catalog')
+    const rows = arrayFrom(response.data, ['templates'])
+    setDocumentTemplates(rows)
+    return rows
+  }
+
+  async function openDocumentModal() {
+    setError('')
+    try {
+      const rows = await loadDocumentTemplates()
+      const first = rows[0]
+      setDocumentForm({
+        ...emptyDocumentForm,
+        tip_id: first?.id || '',
+        titlu: first?.denumire || '',
+      })
+      setDocumentPreview(null)
+      setDocumentModal(true)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nu am putut încărca template-urile disponibile.')
+    }
+  }
+
+  function parseDocumentData() {
+    try {
+      return JSON.parse(documentForm.date_json_text || '{}')
+    } catch {
+      throw new Error('Datele documentului trebuie să fie JSON valid.')
+    }
+  }
+
+  async function previewNewDocument() {
+    setError('')
+    try {
+      if (!documentForm.tip_id) throw new Error('Alege un template.')
+      const response = await api.post(`/documents/templates/${documentForm.tip_id}/preview`, { data: parseDocumentData() })
+      setDocumentPreview(response.data?.html || '')
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Previzualizarea nu a putut fi generată.')
+    }
+  }
+
+  async function saveNewDocument(event) {
+    event.preventDefault()
+    setError('')
+    setDocumentSaving(true)
+    try {
+      const payload = {
+        tip_id: documentForm.tip_id,
+        titlu: documentForm.titlu,
+        prioritate: documentForm.prioritate,
+        date_json: parseDocumentData(),
+      }
+      const response = await api.post('/documents', payload)
+      const document = response.data?.document
+      if (documentForm.launch && document?.uuid) {
+        await api.post(`/documents/${document.uuid}/launch`, {})
+      }
+      setDocumentModal(false)
+      setDocumentForm(emptyDocumentForm)
+      setDocumentPreview(null)
+      await load()
+      if (document?.uuid) await openDetails(document)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Documentul nu a putut fi creat.')
+    } finally {
+      setDocumentSaving(false)
+    }
+  }
+
   async function saveTemplate(event) {
     event.preventDefault()
     setError('')
@@ -246,7 +330,10 @@ export default function DocumentePage() {
           <h1 className="text-2xl font-semibold text-slate-900">Documente</h1>
           <p className="text-sm text-slate-600">Circuit electronic, aprobări și template-uri de documente.</p>
         </div>
-        <Button variant="secondary" onClick={load}>Reîncarcă</Button>
+        <div className="flex flex-wrap gap-2">
+          {activeTab !== 'Template-uri' ? <Button onClick={openDocumentModal}>+ Document nou</Button> : null}
+          <Button variant="secondary" onClick={load}>Reîncarcă</Button>
+        </div>
       </div>
 
       {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
@@ -368,6 +455,88 @@ export default function DocumentePage() {
           </Card>
         </div>
       )}
+
+      <Modal open={documentModal} title="Document nou din template" onClose={() => setDocumentModal(false)} size="xl">
+        <form className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]" onSubmit={saveNewDocument}>
+          <div className="grid content-start gap-3">
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Template
+              <select
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={documentForm.tip_id}
+                onChange={event => {
+                  const selectedTemplate = documentTemplates.find(template => template.id === event.target.value)
+                  setDocumentForm(form => ({
+                    ...form,
+                    tip_id: event.target.value,
+                    titlu: form.titlu || selectedTemplate?.denumire || '',
+                  }))
+                  setDocumentPreview(null)
+                }}
+                required
+              >
+                <option value="">Alege template</option>
+                {documentTemplates.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.denumire || template.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Titlu document
+              <input
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={documentForm.titlu}
+                onChange={event => setDocumentForm(form => ({ ...form, titlu: event.target.value }))}
+                required
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Prioritate
+              <select
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={documentForm.prioritate}
+                onChange={event => setDocumentForm(form => ({ ...form, prioritate: event.target.value }))}
+              >
+                <option value="normal">Normală</option>
+                <option value="urgent">Urgentă</option>
+                <option value="critic">Critică</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Date / variabile document
+              <textarea
+                className="min-h-64 rounded-md border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={documentForm.date_json_text}
+                onChange={event => {
+                  setDocumentForm(form => ({ ...form, date_json_text: event.target.value }))
+                  setDocumentPreview(null)
+                }}
+              />
+            </label>
+            <label className="flex items-center justify-between rounded-md border border-slate-200 p-3 text-sm font-medium text-slate-700">
+              Lansează direct în circuit
+              <input type="checkbox" checked={documentForm.launch} onChange={event => setDocumentForm(form => ({ ...form, launch: event.target.checked }))} />
+            </label>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setDocumentModal(false)}>Anulează</Button>
+              <Button type="button" variant="secondary" onClick={previewNewDocument}>Previzualizează</Button>
+              <Button type="submit" disabled={documentSaving}>{documentSaving ? 'Se salvează...' : 'Creează document'}</Button>
+            </div>
+          </div>
+          <div className="grid min-h-96 content-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="text-sm font-semibold text-slate-700">Preview</div>
+            {documentPreview ? (
+              <div className="max-h-[65vh] overflow-auto rounded-md border border-slate-200 bg-white p-6 text-sm leading-6" dangerouslySetInnerHTML={{ __html: documentPreview }} />
+            ) : (
+              <div className="flex min-h-80 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-sm text-slate-500">
+                Generează preview înainte de salvare.
+              </div>
+            )}
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={Boolean(confirm)} title={confirm === 'approve' ? 'Confirmă aprobarea' : 'Confirmă respingerea'} onClose={() => setConfirm(null)}>
         <div className="grid gap-3">
