@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, FileText, X } from 'lucide-react'
+import { Check, Download, Eye, FileText, UploadCloud, X } from 'lucide-react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -53,10 +53,24 @@ const emptyTemplateForm = {
   id: '',
   denumire: '',
   categorie: 'Adeverință',
+  tip_document: 'generic',
+  template_format: 'html',
   descriere: '',
   template_html: '',
   activ: true,
 }
+
+const templateTypes = [
+  ['generic', 'General'],
+  ['referat', 'Referat'],
+  ['comanda', 'Comandă'],
+  ['factura', 'Factură'],
+  ['contract', 'Contract'],
+  ['proces_verbal', 'Proces verbal'],
+  ['adeverinta', 'Adeverință'],
+  ['faz', 'FAZ utilaj'],
+  ['foaie_parcurs', 'Foaie parcurs'],
+]
 
 export default function DocumentePage() {
   const { user } = useAuth()
@@ -72,6 +86,8 @@ export default function DocumentePage() {
   const [templateModal, setTemplateModal] = useState(false)
   const [templateEditing, setTemplateEditing] = useState(null)
   const [templateForm, setTemplateForm] = useState(emptyTemplateForm)
+  const [templateUploadFile, setTemplateUploadFile] = useState(null)
+  const [templatePreview, setTemplatePreview] = useState(null)
   const [templateSaving, setTemplateSaving] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
@@ -143,10 +159,13 @@ export default function DocumentePage() {
       id: template.id || '',
       denumire: template.denumire || '',
       categorie: template.categorie || 'Adeverință',
+      tip_document: template.tip_document || 'generic',
+      template_format: template.template_format || 'html',
       descriere: template.descriere || '',
       template_html: template.template_html || '',
       activ: template.activ !== false,
     } : emptyTemplateForm)
+    setTemplateUploadFile(null)
     setTemplateModal(true)
   }
 
@@ -160,11 +179,21 @@ export default function DocumentePage() {
         id: templateForm.id || templateIdFromName(templateForm.denumire),
         serie_prefix: templateForm.id || templateIdFromName(templateForm.denumire),
       }
-      if (templateEditing) await api.put(`/documents/templates/${templateEditing.id}`, payload)
-      else await api.post('/documents/templates', payload)
+      const response = templateEditing
+        ? await api.put(`/documents/templates/${templateEditing.id}`, payload)
+        : await api.post('/documents/templates', payload)
+      const saved = response.data?.template || payload
+      if (templateUploadFile) {
+        const formData = new FormData()
+        formData.append('file', templateUploadFile)
+        await api.post(`/documents/templates/${saved.id}/upload-model`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      }
       setTemplateModal(false)
       setTemplateEditing(null)
       setTemplateForm(emptyTemplateForm)
+      setTemplateUploadFile(null)
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Template-ul nu a putut fi salvat.')
@@ -181,6 +210,29 @@ export default function DocumentePage() {
     } catch (err) {
       setError(err.response?.data?.error || 'Template-ul nu a putut fi dezactivat.')
     }
+  }
+
+  async function previewTemplate(template) {
+    setError('')
+    try {
+      const response = await api.post(`/documents/templates/${template.id}/preview`, {
+        data: {
+          furnizor: { denumire: 'Furnizor exemplu SRL' },
+          client: { denumire: 'Client exemplu SA' },
+          total: '1.250,00 RON',
+          continut: 'Text demonstrativ generat pentru verificarea modelului.',
+          utilaj: { cod: 'IF-UTIL-01', denumire: 'Buldoexcavator' },
+          sofer_nume: 'Ion Popescu',
+        },
+      })
+      setTemplatePreview({ template, html: response.data?.html || '' })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Previzualizarea nu a putut fi generată.')
+    }
+  }
+
+  function downloadTemplate(template) {
+    window.open(`/api/documents/templates/${template.id}/download-model`, '_blank')
   }
 
   const currentUserStep = details.steps.find(step =>
@@ -220,12 +272,19 @@ export default function DocumentePage() {
             columns={[
               { key: 'id', label: 'Cod' },
               { key: 'denumire', label: 'Denumire' },
+              { key: 'tip_document', label: 'Tip', render: row => templateTypes.find(([value]) => value === row.tip_document)?.[1] || 'General' },
               { key: 'categorie', label: 'Categorie', render: row => row.categorie || 'Alt' },
+              { key: 'fisier_model_name', label: 'Model', render: row => row.fisier_model_name ? (
+                <button type="button" className="text-left text-primary-700 hover:underline" onClick={() => downloadTemplate(row)}>
+                  {row.fisier_model_name}
+                </button>
+              ) : <span className="text-slate-400">-</span> },
               { key: 'serie_prefix', label: 'Serie' },
-              { key: 'nr_curent', label: 'Nr. curent' },
               { key: 'activ', label: 'Status', render: row => <Badge tone={row.activ === false ? 'neutral' : 'success'}>{row.activ === false ? 'inactiv' : 'activ'}</Badge> },
               { key: 'actions', label: '', render: row => isAdmin ? (
                 <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => previewTemplate(row)}><Eye size={14} /> Preview</Button>
+                  {row.fisier_model_path ? <Button size="sm" variant="ghost" onClick={() => downloadTemplate(row)}><Download size={14} /> Model</Button> : null}
                   <Button size="sm" variant="ghost" onClick={() => openTemplateModal(row)}>Edit</Button>
                   <Button size="sm" variant="ghost" onClick={() => deleteTemplate(row)}>Dezactivează</Button>
                 </div>
@@ -347,8 +406,26 @@ export default function DocumentePage() {
             </select>
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Tip document
+            <select className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={templateForm.tip_document} onChange={event => setTemplateForm(form => ({ ...form, tip_document: event.target.value }))}>
+              {templateTypes.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
             Descriere
             <input className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={templateForm.descriere} onChange={event => setTemplateForm(form => ({ ...form, descriere: event.target.value }))} />
+          </label>
+          <label className="grid gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-700">
+            <span className="flex items-center gap-2"><UploadCloud size={18} /> Model client Word/XML/HTML</span>
+            <input
+              type="file"
+              accept=".docx,.xml,.html,.htm"
+              className="text-sm"
+              onChange={event => setTemplateUploadFile(event.target.files?.[0] || null)}
+            />
+            <span className="text-xs font-normal text-slate-500">
+              {templateUploadFile ? `Selectat: ${templateUploadFile.name}` : templateEditing?.fisier_model_name ? `Model curent: ${templateEditing.fisier_model_name}` : 'Opțional. Editorul HTML rămâne disponibil pentru documente generate direct în aplicație.'}
+            </span>
           </label>
           <div className="grid gap-1 text-sm font-medium text-slate-700">
             Conținut
@@ -363,6 +440,10 @@ export default function DocumentePage() {
             <Button type="submit" disabled={templateSaving}>{templateSaving ? 'Se salvează...' : 'Salvează'}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={Boolean(templatePreview)} title={`Preview ${templatePreview?.template?.denumire || ''}`} onClose={() => setTemplatePreview(null)} size="xl">
+        <div className="min-h-96 rounded-md border border-slate-200 bg-white p-8 text-sm leading-6 shadow-inner" dangerouslySetInnerHTML={{ __html: templatePreview?.html || '' }} />
       </Modal>
     </div>
   )

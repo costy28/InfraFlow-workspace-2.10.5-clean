@@ -34,6 +34,7 @@ function ensureDocumentsDb(db) {
   db.documents.circuitSteps = Array.isArray(db.documents.circuitSteps) ? db.documents.circuitSteps : []
   db.documents.circuitAudit = Array.isArray(db.documents.circuitAudit) ? db.documents.circuitAudit : []
   db.documents.documentShares = Array.isArray(db.documents.documentShares) ? db.documents.documentShares : []
+  db.documents.templateFiles = Array.isArray(db.documents.templateFiles) ? db.documents.templateFiles : []
   return db.documents
 }
 
@@ -137,6 +138,18 @@ function saveFinalHtml(document, html) {
   return file
 }
 
+function flattenValues(source, prefix = '', target = {}) {
+  Object.entries(source || {}).forEach(([key, value]) => {
+    const pathKey = prefix ? `${prefix}.${key}` : key
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      flattenValues(value, pathKey, target)
+      return
+    }
+    target[pathKey] = value
+  })
+  return target
+}
+
 function generateDocumentNumber(tipId, db) {
   const year = new Date().getFullYear()
   if (isMssqlMode()) {
@@ -166,6 +179,7 @@ function generateDocumentHtml(document, steps, company = {}) {
   const companyAddress = company.address || company.adresa || company.location || ''
   const values = {
     ...data,
+    ...flattenValues(data),
     nr_document: document.nr_document || '',
     data: currentDate,
     data_document: currentDate,
@@ -190,6 +204,28 @@ function generateDocumentHtml(document, steps, company = {}) {
     stampila: data.stampila || company.stampila || '',
     an
   }
+  Object.assign(values, {
+    'societate.nume': companyName,
+    'societate.cui': values.cui,
+    'societate.adresa': companyAddress,
+    'societate.telefon': values.telefon,
+    'document.numar': document.nr_document || '',
+    'document.data': currentDate,
+    'document.titlu': document.titlu || '',
+    'document.tip': document.tip_id || '',
+    'document.continut': data.continut || data.descriere || document.continut || '',
+    'furnizor.denumire': data.furnizor_denumire || data.furnizor?.denumire || data.tert_denumire || '',
+    'client.denumire': data.client_denumire || data.client?.denumire || data.tert_denumire || '',
+    'factura.numar': data.factura_numar || data.nr_factura || '',
+    'factura.data': data.factura_data || data.data_factura || '',
+    'factura.total': data.factura_total || data.total || data.valoare_totala || '',
+    'utilaj.cod': data.utilaj_cod || data.utilaj?.cod || data.asset_cod || '',
+    'utilaj.denumire': data.utilaj_denumire || data.utilaj?.denumire || data.asset_name || '',
+    'sofer.nume': data.sofer_nume || data.operator_name || data.operator || '',
+    total: data.total || data.valoare_totala || data.suma || '',
+    intocmit_de: data.intocmit_de || data.initiator || document.initiator || document.creat_de || '',
+    continut: data.continut || data.descriere || document.continut || ''
+  })
   const template = document.template_html || '<h1>{{nr_document}}</h1><h2>{{titlu}}</h2><div>{{continut}}</div>'
   const body = template.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_, key) => escapeHtml(values[key] ?? document[key] ?? ''))
   const approvalRows = (steps || []).map(step => `

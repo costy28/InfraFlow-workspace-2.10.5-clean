@@ -1,5 +1,8 @@
 const { Router } = require('express')
 const crypto = require('crypto')
+const fs = require('fs')
+const path = require('path')
+const multer = require('multer')
 const { requireAuth } = require('../../core/auth')
 const { requirePermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
@@ -9,6 +12,9 @@ const router = Router()
 
 const statuses = new Set(['draft', 'in_circuit', 'aprobat', 'respins', 'anulat', 'arhivat'])
 const priorities = new Set(['normal', 'urgent', 'critic'])
+const TEMPLATE_STORAGE_ROOT = path.join(__dirname, '../../../storage/document-templates')
+const allowedTemplateExtensions = new Set(['.docx', '.xml', '.html', '.htm'])
+const uploadTemplateModel = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
 function sendJson(res, status, data) {
   res.status(status).json(data)
@@ -45,6 +51,7 @@ function ensureDocumentsDb(db) {
   db.documents.circuitSteps = Array.isArray(db.documents.circuitSteps) ? db.documents.circuitSteps : []
   db.documents.circuitAudit = Array.isArray(db.documents.circuitAudit) ? db.documents.circuitAudit : []
   db.documents.documentShares = Array.isArray(db.documents.documentShares) ? db.documents.documentShares : []
+  db.documents.templateFiles = Array.isArray(db.documents.templateFiles) ? db.documents.templateFiles : []
   return db.documents
 }
 
@@ -123,6 +130,83 @@ function typeById(db, id) {
   return docs.documentTypes.find(item => item.id === id) || null
 }
 
+function safeTemplateId(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48)
+}
+
+function safeFileName(value) {
+  const ext = path.extname(String(value || '')).toLowerCase()
+  const base = path.basename(String(value || 'model'), ext)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 90) || 'model'
+  return `${base}${ext}`
+}
+
+function templatePublicFilePath(templateId, fileName) {
+  return `/storage/document-templates/${safeTemplateId(templateId)}/${fileName}`
+}
+
+function resolveTemplateFilePath(publicPath) {
+  const clean = String(publicPath || '').replace(/^\/+storage\/+/, '').replace(/\\/g, '/')
+  return path.join(path.dirname(TEMPLATE_STORAGE_ROOT), clean)
+}
+
+function templateModelFields(template = {}) {
+  const attachment = template.atasament_model || {}
+  return {
+    fisier_model_path: template.fisier_model_path || attachment.path || null,
+    fisier_model_name: template.fisier_model_name || attachment.file_name || attachment.name || null,
+    fisier_model_size: template.fisier_model_size || attachment.file_size || attachment.size || null,
+    template_format: template.template_format || attachment.file_ext || 'html',
+    tip_document: template.tip_document || template.tipDocument || 'generic',
+    uploaded_at: template.uploaded_at || attachment.uploaded_at || null
+  }
+}
+
+function publicTemplate(template = {}) {
+  return { ...template, ...templateModelFields(template) }
+}
+
+function ensureTemplateSchemaMssql() {
+  if (!isMssqlMode()) return
+  runMssqlScalar(`
+IF SCHEMA_ID(N'documents') IS NULL EXEC(N'CREATE SCHEMA documents');
+IF OBJECT_ID(N'documents.document_template_files', N'U') IS NULL
+BEGIN
+  CREATE TABLE documents.document_template_files (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    uuid CHAR(36) NOT NULL UNIQUE DEFAULT NEWID(),
+    template_id NVARCHAR(50) NOT NULL,
+    file_path NVARCHAR(500) NOT NULL,
+    file_name NVARCHAR(255) NOT NULL,
+    file_size INT NULL,
+    file_ext NVARCHAR(20) NULL,
+    uploaded_by INT NULL,
+    created_at DATETIME2 DEFAULT SYSDATETIME()
+  );
+END;
+IF OBJECT_ID(N'documents.document_types', N'U') IS NOT NULL
+BEGIN
+  IF COL_LENGTH(N'documents.document_types', N'categorie') IS NULL ALTER TABLE documents.document_types ADD categorie NVARCHAR(80) NULL;
+  IF COL_LENGTH(N'documents.document_types', N'descriere') IS NULL ALTER TABLE documents.document_types ADD descriere NVARCHAR(500) NULL;
+  IF COL_LENGTH(N'documents.document_types', N'tip_document') IS NULL ALTER TABLE documents.document_types ADD tip_document NVARCHAR(50) NULL;
+  IF COL_LENGTH(N'documents.document_types', N'template_format') IS NULL ALTER TABLE documents.document_types ADD template_format NVARCHAR(20) NULL;
+  IF COL_LENGTH(N'documents.document_types', N'fisier_model_path') IS NULL ALTER TABLE documents.document_types ADD fisier_model_path NVARCHAR(500) NULL;
+  IF COL_LENGTH(N'documents.document_types', N'fisier_model_name') IS NULL ALTER TABLE documents.document_types ADD fisier_model_name NVARCHAR(255) NULL;
+  IF COL_LENGTH(N'documents.document_types', N'fisier_model_size') IS NULL ALTER TABLE documents.document_types ADD fisier_model_size INT NULL;
+  IF COL_LENGTH(N'documents.document_types', N'uploaded_at') IS NULL ALTER TABLE documents.document_types ADD uploaded_at DATETIME2 NULL;
+END;
+SELECT 1 AS ok FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`, { jsonInput: '{}' })
+}
+
 function documentMatchesQuery(document, query) {
   if (query.tip && document.tip_id !== query.tip) return false
   if (query.status && document.status !== query.status) return false
@@ -181,11 +265,12 @@ router.get('/documents/templates', (req, res, next) => {
     if (!auth) return
     if (!requireDocumentPermission(auth, res, 'documents:templates')) return
     if (isMssqlMode()) {
-      const templates = mssqlArray(`SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, created_at FROM documents.document_types ORDER BY id FOR JSON PATH;`)
+      ensureTemplateSchemaMssql()
+      const templates = mssqlArray(`SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, categorie, descriere, tip_document, template_format, fisier_model_path, fisier_model_name, fisier_model_size, uploaded_at, created_at FROM documents.document_types ORDER BY id FOR JSON PATH;`)
       sendJson(res, 200, { templates })
       return
     }
-    sendJson(res, 200, { templates: ensureDocumentsDb(auth.db).documentTypes })
+    sendJson(res, 200, { templates: ensureDocumentsDb(auth.db).documentTypes.map(publicTemplate) })
   } catch (error) {
     next(error)
   }
@@ -197,20 +282,28 @@ router.post('/documents/templates', (req, res, next) => {
     if (!auth) return
     if (!requireDocumentPermission(auth, res, 'documents:templates')) return
     const body = req.body || {}
-    const id = String(body.id || '').trim().toUpperCase()
+    const id = safeTemplateId(body.id)
     if (!id) throwHttp(400, 'ID tip document obligatoriu.')
     if (isMssqlMode()) {
+      ensureTemplateSchemaMssql()
       const template = mssqlJson(`
 MERGE documents.document_types AS target
 USING (SELECT JSON_VALUE(@p, '$.id') AS id) AS source
 ON target.id = source.id
 WHEN MATCHED THEN UPDATE SET denumire = JSON_VALUE(@p, '$.denumire'), template_html = JSON_VALUE(@p, '$.templateHtml'),
-  workflow_template_id = NULLIF(JSON_VALUE(@p, '$.workflowTemplateId'), N''), serie_prefix = JSON_VALUE(@p, '$.seriePrefix'), activ = CASE WHEN JSON_VALUE(@p, '$.activ') = N'false' THEN 0 ELSE 1 END
+  workflow_template_id = NULLIF(JSON_VALUE(@p, '$.workflowTemplateId'), N''), serie_prefix = JSON_VALUE(@p, '$.seriePrefix'),
+  categorie = JSON_VALUE(@p, '$.categorie'), descriere = JSON_VALUE(@p, '$.descriere'),
+  tip_document = JSON_VALUE(@p, '$.tipDocument'), template_format = JSON_VALUE(@p, '$.templateFormat'),
+  activ = CASE WHEN JSON_VALUE(@p, '$.activ') = N'false' THEN 0 ELSE 1 END
 WHEN NOT MATCHED THEN INSERT (id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ)
   VALUES (JSON_VALUE(@p, '$.id'), JSON_VALUE(@p, '$.denumire'), JSON_VALUE(@p, '$.templateHtml'), NULLIF(JSON_VALUE(@p, '$.workflowTemplateId'), N''), JSON_VALUE(@p, '$.seriePrefix'), 0, CASE WHEN JSON_VALUE(@p, '$.activ') = N'false' THEN 0 ELSE 1 END);
-SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, created_at FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
+UPDATE documents.document_types
+SET categorie = JSON_VALUE(@p, '$.categorie'), descriere = JSON_VALUE(@p, '$.descriere'),
+  tip_document = JSON_VALUE(@p, '$.tipDocument'), template_format = JSON_VALUE(@p, '$.templateFormat')
+WHERE id = JSON_VALUE(@p, '$.id');
+SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, categorie, descriere, tip_document, template_format, fisier_model_path, fisier_model_name, fisier_model_size, uploaded_at, created_at FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`, { id, denumire: body.denumire || '', templateHtml: body.template_html || '', workflowTemplateId: body.workflow_template_id || '', seriePrefix: body.serie_prefix || id, activ: body.activ !== false })
+`, { id, denumire: body.denumire || '', templateHtml: body.template_html || '', workflowTemplateId: body.workflow_template_id || '', seriePrefix: body.serie_prefix || id, categorie: body.categorie || 'Alt', descriere: body.descriere || '', tipDocument: body.tip_document || 'generic', templateFormat: body.template_format || 'html', activ: body.activ !== false })
       sendJson(res, 200, { template })
       return
     }
@@ -227,6 +320,8 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
       serie_prefix: body.serie_prefix || id,
       categorie: body.categorie || template.categorie || 'Alt',
       descriere: body.descriere || '',
+      tip_document: body.tip_document || template.tip_document || 'generic',
+      template_format: body.template_format || template.template_format || 'html',
       atasament_model: body.atasament_model || null,
       activ: body.activ !== false
     })
@@ -243,22 +338,27 @@ router.put('/documents/templates/:id', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requireDocumentPermission(auth, res, 'documents:templates')) return
-    const id = String(req.params.id || '').trim().toUpperCase()
+    const id = safeTemplateId(req.params.id)
     const body = req.body || {}
     if (!id) throwHttp(400, 'ID tip document obligatoriu.')
     if (isMssqlMode()) {
+      ensureTemplateSchemaMssql()
       const template = mssqlJson(`
 UPDATE documents.document_types
 SET denumire = COALESCE(NULLIF(JSON_VALUE(@p, '$.denumire'), N''), denumire),
   template_html = COALESCE(JSON_VALUE(@p, '$.templateHtml'), template_html),
   workflow_template_id = NULLIF(JSON_VALUE(@p, '$.workflowTemplateId'), N''),
   serie_prefix = COALESCE(NULLIF(JSON_VALUE(@p, '$.seriePrefix'), N''), serie_prefix),
+  categorie = COALESCE(NULLIF(JSON_VALUE(@p, '$.categorie'), N''), categorie),
+  descriere = COALESCE(JSON_VALUE(@p, '$.descriere'), descriere),
+  tip_document = COALESCE(NULLIF(JSON_VALUE(@p, '$.tipDocument'), N''), tip_document),
+  template_format = COALESCE(NULLIF(JSON_VALUE(@p, '$.templateFormat'), N''), template_format),
   activ = CASE WHEN JSON_VALUE(@p, '$.activ') = N'false' THEN 0 ELSE activ END
 WHERE id = JSON_VALUE(@p, '$.id');
-SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, created_at
+SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, categorie, descriere, tip_document, template_format, fisier_model_path, fisier_model_name, fisier_model_size, uploaded_at, created_at
 FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`, { id, denumire: body.denumire || '', templateHtml: body.template_html || '', workflowTemplateId: body.workflow_template_id || '', seriePrefix: body.serie_prefix || id, activ: body.activ !== false })
+`, { id, denumire: body.denumire || '', templateHtml: body.template_html || '', workflowTemplateId: body.workflow_template_id || '', seriePrefix: body.serie_prefix || id, categorie: body.categorie || '', descriere: body.descriere || '', tipDocument: body.tip_document || '', templateFormat: body.template_format || '', activ: body.activ !== false })
       if (!template) throwHttp(404, 'Template-ul nu a fost gasit.')
       sendJson(res, 200, { template })
       return
@@ -273,6 +373,8 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
       serie_prefix: body.serie_prefix || template.serie_prefix || id,
       categorie: body.categorie ?? template.categorie,
       descriere: body.descriere ?? template.descriere,
+      tip_document: body.tip_document ?? template.tip_document ?? 'generic',
+      template_format: body.template_format ?? template.template_format ?? 'html',
       atasament_model: body.atasament_model ?? template.atasament_model,
       activ: body.activ !== undefined ? body.activ !== false : template.activ,
     })
@@ -292,9 +394,10 @@ router.delete('/documents/templates/:id', (req, res, next) => {
     const id = String(req.params.id || '').trim().toUpperCase()
     if (!id) throwHttp(400, 'ID tip document obligatoriu.')
     if (isMssqlMode()) {
+      ensureTemplateSchemaMssql()
       const template = mssqlJson(`
 UPDATE documents.document_types SET activ = 0 WHERE id = JSON_VALUE(@p, '$.id');
-SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, created_at
+SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, categorie, descriere, tip_document, template_format, fisier_model_path, fisier_model_name, fisier_model_size, uploaded_at, created_at
 FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { id })
@@ -310,6 +413,136 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     addAudit(auth.db, auth.user, 'document_template_dezactivat', id)
     writeDb(auth.db)
     sendJson(res, 200, { template })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/documents/templates/:id/upload-model', uploadTemplateModel.single('file'), (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireDocumentPermission(auth, res, 'documents:templates')) return
+    const id = safeTemplateId(req.params.id)
+    if (!id) throwHttp(400, 'ID tip document obligatoriu.')
+    if (!req.file) throwHttp(400, 'Selectează un fișier model.')
+    const ext = path.extname(req.file.originalname || '').toLowerCase()
+    if (!allowedTemplateExtensions.has(ext)) throwHttp(422, 'Sunt acceptate doar modele DOCX, XML sau HTML.')
+    const dir = path.join(TEMPLATE_STORAGE_ROOT, id)
+    fs.mkdirSync(dir, { recursive: true })
+    const fileName = `${Date.now()}-${safeFileName(req.file.originalname)}`
+    const diskPath = path.join(dir, fileName)
+    fs.writeFileSync(diskPath, req.file.buffer)
+    const publicPath = templatePublicFilePath(id, fileName)
+    const uploadedAt = nowIso()
+    const file = {
+      template_id: id,
+      file_path: publicPath,
+      file_name: req.file.originalname,
+      file_size: req.file.size,
+      file_ext: ext.replace(/^\./, ''),
+      uploaded_by: auth.user.id,
+      created_at: uploadedAt
+    }
+    if (isMssqlMode()) {
+      ensureTemplateSchemaMssql()
+      const template = mssqlJson(`
+UPDATE documents.document_types
+SET fisier_model_path = JSON_VALUE(@p, '$.filePath'),
+  fisier_model_name = JSON_VALUE(@p, '$.fileName'),
+  fisier_model_size = CONVERT(int, JSON_VALUE(@p, '$.fileSize')),
+  template_format = JSON_VALUE(@p, '$.fileExt'),
+  uploaded_at = SYSDATETIME()
+WHERE id = JSON_VALUE(@p, '$.id');
+INSERT INTO documents.document_template_files (template_id, file_path, file_name, file_size, file_ext, uploaded_by)
+VALUES (JSON_VALUE(@p, '$.id'), JSON_VALUE(@p, '$.filePath'), JSON_VALUE(@p, '$.fileName'), CONVERT(int, JSON_VALUE(@p, '$.fileSize')), JSON_VALUE(@p, '$.fileExt'), CONVERT(int, JSON_VALUE(@p, '$.uploadedBy')));
+SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, categorie, descriere, tip_document, template_format, fisier_model_path, fisier_model_name, fisier_model_size, uploaded_at, created_at
+FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`, { id, filePath: publicPath, fileName: req.file.originalname, fileSize: req.file.size, fileExt: ext.replace(/^\./, ''), uploadedBy: auth.user.id })
+      if (!template) throwHttp(404, 'Template-ul nu a fost găsit.')
+      sendJson(res, 200, { file, template })
+      return
+    }
+    const docs = ensureDocumentsDb(auth.db)
+    const template = docs.documentTypes.find(item => String(item.id).toUpperCase() === id)
+    if (!template) throwHttp(404, 'Template-ul nu a fost găsit.')
+    docs.templateFiles.push({ id: nextId(docs.templateFiles), uuid: crypto.randomUUID(), ...file })
+    Object.assign(template, {
+      fisier_model_path: publicPath,
+      fisier_model_name: req.file.originalname,
+      fisier_model_size: req.file.size,
+      template_format: ext.replace(/^\./, ''),
+      uploaded_at: uploadedAt,
+      atasament_model: {
+        path: publicPath,
+        file_name: req.file.originalname,
+        file_size: req.file.size,
+        file_ext: ext.replace(/^\./, ''),
+        uploaded_at: uploadedAt
+      }
+    })
+    addAudit(auth.db, auth.user, 'document_template_model_upload', id)
+    writeDb(auth.db)
+    sendJson(res, 200, { file, template: publicTemplate(template) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/documents/templates/:id/download-model', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireDocumentPermission(auth, res, 'documents:templates')) return
+    const id = safeTemplateId(req.params.id)
+    let template = null
+    if (isMssqlMode()) {
+      ensureTemplateSchemaMssql()
+      template = mssqlJson(`
+SELECT TOP 1 id, fisier_model_path, fisier_model_name FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`, { id })
+    } else {
+      template = ensureDocumentsDb(auth.db).documentTypes.find(item => String(item.id).toUpperCase() === id)
+    }
+    const filePath = templateModelFields(template || {}).fisier_model_path
+    if (!filePath) throwHttp(404, 'Template-ul nu are fișier model încărcat.')
+    const diskPath = resolveTemplateFilePath(filePath)
+    if (!fs.existsSync(diskPath)) throwHttp(404, 'Fișierul model nu mai există pe disc.')
+    res.download(diskPath, templateModelFields(template).fisier_model_name || path.basename(diskPath))
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/documents/templates/:id/preview', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireDocumentPermission(auth, res, 'documents:templates')) return
+    const id = safeTemplateId(req.params.id)
+    let template = null
+    if (isMssqlMode()) {
+      ensureTemplateSchemaMssql()
+      template = mssqlJson(`
+SELECT TOP 1 id, denumire, template_html FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`, { id })
+    } else {
+      template = ensureDocumentsDb(auth.db).documentTypes.find(item => String(item.id).toUpperCase() === id)
+    }
+    if (!template) throwHttp(404, 'Template-ul nu a fost găsit.')
+    const html = engine.generateDocumentHtml({
+      uuid: `preview-${id}`,
+      nr_document: `${id}-PREVIEW`,
+      tip_id: id,
+      titlu: template.denumire || id,
+      date_json: JSON.stringify(req.body?.data || {}),
+      created_at: nowIso(),
+      template_html: template.template_html || '<h1>{{document.numar}}</h1><p>{{continut}}</p>'
+    }, [], auth.db.settings?.company || auth.db.settings || {})
+    sendJson(res, 200, { html })
   } catch (error) {
     next(error)
   }

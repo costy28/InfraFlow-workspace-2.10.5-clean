@@ -43,6 +43,14 @@ const DEFAULT_DB = {
   production: { recipes: [], batches: [] },
   controlling: { costCenters: [] },
   messaging: { channels: [], messages: [] },
+  documents: {
+    documentTypes: [],
+    documents: [],
+    circuitSteps: [],
+    circuitAudit: [],
+    documentShares: [],
+    templateFiles: []
+  },
   // Câmpuri flat necesare pentru normalizeDb() și compatibilitate backwards
   materials: [],
   departments: [],
