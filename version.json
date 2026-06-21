@@ -1,5 +1,5 @@
 {
-  "version": "2.12.76",
+  "version": "2.12.77",
   "date": "2026-06-21",
-  "changelog": "## v2.12.76 - 2026-06-21\n### Document nou din template\n- Utilizatorii cu drept de creare pot alege template-uri active dintr-un catalog separat.\n- Pagina Documente are modal pentru creare draft, completare variabile JSON, preview si lansare optionala in circuit.\n- Preview-ul template-urilor este disponibil si pentru creatorii de documente, fara drept de administrare template-uri."
+  "changelog": "## v2.12.77 - 2026-06-21\n### Formular automat din template\n- Catalogul de template-uri expune lista variabilelor gasite in model.\n- Document nou genereaza campuri rapide editabile pentru variabilele template-ului.\n- JSON-ul brut ramane disponibil doar ca zona avansata pentru cazuri speciale."
 }

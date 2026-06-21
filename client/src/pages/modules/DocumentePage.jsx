@@ -68,6 +68,47 @@ const emptyDocumentForm = {
   launch: false,
 }
 
+function variableLabel(value) {
+  const labels = {
+    'societate.nume': 'Societate',
+    'societate.cui': 'CUI societate',
+    'societate.adresa': 'Adresă societate',
+    'document.numar': 'Număr document',
+    'document.data': 'Data documentului',
+    'document.titlu': 'Titlu document',
+    'furnizor.denumire': 'Furnizor',
+    'client.denumire': 'Client',
+    'factura.numar': 'Număr factură',
+    'factura.data': 'Data facturii',
+    'factura.total': 'Total factură',
+    'utilaj.cod': 'Cod utilaj',
+    'utilaj.denumire': 'Denumire utilaj',
+    'sofer.nume': 'Șofer / operator',
+    continut: 'Conținut',
+    total: 'Total',
+    intocmit_de: 'Întocmit de',
+  }
+  return labels[value] || String(value || '').replaceAll('.', ' / ').replaceAll('_', ' ')
+}
+
+function sampleValueForVariable(value) {
+  if (value.includes('data')) return new Date().toISOString().slice(0, 10)
+  if (value.includes('total')) return '0,00 RON'
+  if (value.includes('continut')) return 'Text document'
+  if (value.includes('societate')) return ''
+  return ''
+}
+
+function defaultFieldValues(variables = []) {
+  return Object.fromEntries((variables || []).map(variable => [variable, sampleValueForVariable(variable)]))
+}
+
+function defaultJsonForTemplate(template) {
+  const values = defaultFieldValues(template?.variables || [])
+  if (Object.keys(values).length === 0) values.continut = 'Text document'
+  return JSON.stringify(values, null, 2)
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -99,6 +140,7 @@ export default function DocumentePage() {
   const [documentModal, setDocumentModal] = useState(false)
   const [documentForm, setDocumentForm] = useState(emptyDocumentForm)
   const [documentTemplates, setDocumentTemplates] = useState([])
+  const [documentFieldValues, setDocumentFieldValues] = useState({})
   const [documentPreview, setDocumentPreview] = useState(null)
   const [documentSaving, setDocumentSaving] = useState(false)
   const [templateSaving, setTemplateSaving] = useState(false)
@@ -194,11 +236,14 @@ export default function DocumentePage() {
     try {
       const rows = await loadDocumentTemplates()
       const first = rows[0]
+      const fieldValues = defaultFieldValues(first?.variables || [])
       setDocumentForm({
         ...emptyDocumentForm,
         tip_id: first?.id || '',
         titlu: first?.denumire || '',
+        date_json_text: first ? defaultJsonForTemplate(first) : emptyDocumentForm.date_json_text,
       })
+      setDocumentFieldValues(fieldValues)
       setDocumentPreview(null)
       setDocumentModal(true)
     } catch (err) {
@@ -208,7 +253,7 @@ export default function DocumentePage() {
 
   function parseDocumentData() {
     try {
-      return JSON.parse(documentForm.date_json_text || '{}')
+      return { ...JSON.parse(documentForm.date_json_text || '{}'), ...documentFieldValues }
     } catch {
       throw new Error('Datele documentului trebuie să fie JSON valid.')
     }
@@ -224,6 +269,8 @@ export default function DocumentePage() {
       setError(err.response?.data?.error || err.message || 'Previzualizarea nu a putut fi generată.')
     }
   }
+
+  const selectedDocumentTemplate = documentTemplates.find(template => template.id === documentForm.tip_id)
 
   async function saveNewDocument(event) {
     event.preventDefault()
@@ -466,11 +513,14 @@ export default function DocumentePage() {
                 value={documentForm.tip_id}
                 onChange={event => {
                   const selectedTemplate = documentTemplates.find(template => template.id === event.target.value)
+                  const fieldValues = defaultFieldValues(selectedTemplate?.variables || [])
                   setDocumentForm(form => ({
                     ...form,
                     tip_id: event.target.value,
                     titlu: form.titlu || selectedTemplate?.denumire || '',
+                    date_json_text: selectedTemplate ? defaultJsonForTemplate(selectedTemplate) : form.date_json_text,
                   }))
+                  setDocumentFieldValues(fieldValues)
                   setDocumentPreview(null)
                 }}
                 required
@@ -504,8 +554,32 @@ export default function DocumentePage() {
                 <option value="critic">Critică</option>
               </select>
             </label>
+            {selectedDocumentTemplate?.variables?.length ? (
+              <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-800">Câmpuri din template</div>
+                  <div className="text-xs text-slate-500">Generate automat din variabilele găsite în model.</div>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {selectedDocumentTemplate.variables.map(variable => (
+                    <label key={variable} className="grid gap-1 text-xs font-medium text-slate-600">
+                      {variableLabel(variable)}
+                      <input
+                        className="h-9 rounded-md border border-slate-300 px-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                        value={documentFieldValues[variable] || ''}
+                        onChange={event => {
+                          setDocumentFieldValues(values => ({ ...values, [variable]: event.target.value }))
+                          setDocumentPreview(null)
+                        }}
+                        placeholder={`{{${variable}}}`}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Date / variabile document
+              Date / variabile document (avansat)
               <textarea
                 className="min-h-64 rounded-md border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                 value={documentForm.date_json_text}
