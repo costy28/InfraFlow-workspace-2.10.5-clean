@@ -740,11 +740,11 @@ router.get("/accounting/journal-book", requireAccountingReports, (req, res) => {
   sendJson(res, 200, { rows: filterDocuments(accounting.journals, req.query).filter(engine.isActiveJournal) });
 });
 
-router.get("/accounting/suppliers-status", requireAccountingReports, (req, res) => {
+router.get("/accounting/suppliers-status", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyStatus(req.auth.db, "furnizor"));
 });
 
-router.get("/accounting/clients-status", requireAccountingReports, (req, res) => {
+router.get("/accounting/clients-status", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyStatus(req.auth.db, "client"));
 });
 
@@ -1472,9 +1472,18 @@ function thirdPartyStatus(db, tip) {
   const paidKey = tip === "client" ? "incasat" : "achitat";
   const balanceKey = tip === "client" ? "neincasat" : "neachitat";
   const rows = accounting.thirdParties.filter((tert) => tert.tip === tip || tert.tip === "ambele").map((tert) => {
-    const invoices = source.filter((item) => String(item[idKey]) === String(tert.id));
+    const invoices = source.filter((item) => item.status !== "anulat" && String(item[idKey]) === String(tert.id));
     const sold = round(invoices.reduce((acc, item) => acc + Number(item[balanceKey] ?? item.total - Number(item[paidKey] || 0)), 0));
-    return { ...tert, sold, facturi: invoices.length, scadente_depasite: invoices.filter((item) => Number(item[balanceKey] ?? item.total - Number(item[paidKey] || 0)) > 0 && item.data_scadenta < today()).length };
+    const paid = round(invoices.reduce((acc, item) => acc + Number(item[paidKey] || 0), 0));
+    const total = round(invoices.reduce((acc, item) => acc + Number(item.total || 0), 0));
+    return {
+      ...tert,
+      sold,
+      total_facturat: total,
+      total_achitat: paid,
+      facturi: invoices.length,
+      scadente_depasite: invoices.filter((item) => Number(item[balanceKey] ?? item.total - Number(item[paidKey] || 0)) > 0 && item.data_scadenta < today()).length
+    };
   });
   return { rows };
 }

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.85",
+  "version": "2.12.86",
   "date": "2026-06-21",
-  "changelog": "## v2.12.85 - 2026-06-21\n### Contabilitate - rapoarte contabile navigabile\n- Registrul jurnal are export Excel filtrat dupa luna si status, cu linii si totaluri.\n- Balanta are cautare rapida pe cont/denumire si link direct catre registrul lunii.\n- Fisa contului primeste intervalul din URL si leaga miscarile inapoi catre registrul jurnal."
+  "changelog": "## v2.12.86 - 2026-06-21\n### Contabilitate - terti si facturi conectate\n- Furnizorii si clientii afiseaza sold deschis, facturi si scadente depasite.\n- Analiticele tertilor duc direct catre fisa contului.\n- Facturile se pot filtra dupa tert si cauta rapid dupa document, denumire sau CUI."
 }

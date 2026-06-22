@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
+import { formatMoney } from '../../utils/format'
 import { AccountingShell, Table } from './accounting-shared'
 
 const blankThirdParty = (tip) => ({
@@ -32,12 +35,23 @@ export function TertiContab({ type = 'furnizor' }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
+  const [q, setQ] = useState('')
+  const [activeFilter, setActiveFilter] = useState('active')
   const [form, setForm] = useState(blankThirdParty(type))
   const title = type === 'client' ? 'Clienti' : 'Furnizori'
+  const statusEndpoint = type === 'client' ? '/accounting/clients-status' : '/accounting/suppliers-status'
+  const invoicePath = type === 'client' ? '/contabilitate/facturi-iesire' : '/contabilitate/facturi-intrare'
+  const accountKey = type === 'client' ? 'cont_analitic_client' : 'cont_analitic_furnizor'
+  const tertParam = type === 'client' ? 'client' : 'furnizor'
 
   async function load() {
-    const res = await api.get('/accounting/third-parties', { params: { tip: type } })
-    setRows(res.data.thirdParties || [])
+    try {
+      const res = await api.get(statusEndpoint)
+      setRows(res.data.rows || [])
+    } catch {
+      const res = await api.get('/accounting/third-parties', { params: { tip: type } })
+      setRows(res.data.thirdParties || [])
+    }
   }
 
   useEffect(() => { load().catch(() => setRows([])) }, [type])
@@ -109,12 +123,50 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
+  const filteredRows = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return rows.filter(row => {
+      const haystack = `${row.cod || ''} ${row.denumire || ''} ${row.cui || ''} ${row.email || ''} ${row.telefon || ''} ${row[accountKey] || ''}`.toLowerCase()
+      const activeOk = activeFilter === 'all' || (activeFilter === 'active' ? row.activ !== false : row.activ === false)
+      return activeOk && (!needle || haystack.includes(needle))
+    })
+  }, [rows, q, activeFilter, accountKey])
+
+  const totals = useMemo(() => ({
+    count: filteredRows.length,
+    active: filteredRows.filter(row => row.activ !== false).length,
+    sold: filteredRows.reduce((sum, row) => sum + Number(row.sold || 0), 0),
+    overdue: filteredRows.reduce((sum, row) => sum + Number(row.scadente_depasite || 0), 0)
+  }), [filteredRows])
+
   return (
     <AccountingShell active={type === 'client' ? 'clienti' : 'furnizori'} title={title} subtitle="Terți contabili cu analitice generate automat." actions={<Button onClick={openNew}>+ {type === 'client' ? 'Client' : 'Furnizor'}</Button>}>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
-      <Table headers={['Cod', 'Denumire', 'CUI', 'Cont furnizor', 'Cont client', 'Contact', 'Status', 'Actiuni']}>
-        {rows.map(row => (
+      <Card>
+        <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_120px_160px_160px]">
+          <Input label="Cauta tert" value={q} onChange={event => setQ(event.target.value)} placeholder="Denumire, CUI, cont..." />
+          <Select label="Status" value={activeFilter} onChange={event => setActiveFilter(event.target.value)} options={[
+            { value: 'active', label: 'Activi' },
+            { value: 'inactive', label: 'Inactivi' },
+            { value: 'all', label: 'Toti' }
+          ]} />
+          <div className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="text-xs text-slate-500">Terți</div>
+            <div className="font-semibold">{totals.count}</div>
+          </div>
+          <div className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="text-xs text-slate-500">Sold deschis</div>
+            <div className="font-semibold">{formatMoney(totals.sold)}</div>
+          </div>
+          <div className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="text-xs text-slate-500">Scadente depasite</div>
+            <div className="font-semibold">{totals.overdue}</div>
+          </div>
+        </div>
+      </Card>
+      <Table headers={['Cod', 'Denumire', 'CUI', 'Analitic', 'Sold', 'Facturi', 'Contact', 'Status', 'Actiuni']}>
+        {filteredRows.map(row => (
           <tr key={row.id}>
             <td className="px-3 py-2 font-semibold">{row.cod}</td>
             <td className="px-3 py-2">
@@ -122,8 +174,14 @@ export function TertiContab({ type = 'furnizor' }) {
               <div className="text-xs text-slate-500">{row.localitate || row.judet || '-'}</div>
             </td>
             <td className="px-3 py-2">{row.cui || '-'}</td>
-            <td className="px-3 py-2">{row.cont_analitic_furnizor || '-'}</td>
-            <td className="px-3 py-2">{row.cont_analitic_client || '-'}</td>
+            <td className="px-3 py-2">
+              {row[accountKey] ? <Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row[accountKey]}`}>{row[accountKey]}</Link> : '-'}
+            </td>
+            <td className="px-3 py-2 font-semibold">{formatMoney(row.sold || 0)}</td>
+            <td className="px-3 py-2">
+              <Link className="font-semibold text-primary-700 hover:underline" to={`${invoicePath}?${tertParam}=${row.id}`}>{row.facturi || 0}</Link>
+              {row.scadente_depasite ? <div className="text-xs text-rose-600">{row.scadente_depasite} depasite</div> : null}
+            </td>
             <td className="px-3 py-2">
               <div>{row.email || '-'}</div>
               <div className="text-xs text-slate-500">{row.telefon || ''}</div>

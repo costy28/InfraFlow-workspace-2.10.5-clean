@@ -18,6 +18,8 @@ export function FacturiContab({ direction = 'in' }) {
   const [costCenters, setCostCenters] = useState([])
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [status, setStatus] = useState('')
+  const [tertFilter, setTertFilter] = useState(searchParams.get(isIn ? 'furnizor' : 'client') || '')
+  const [q, setQ] = useState('')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [journalModal, setJournalModal] = useState(false)
@@ -35,7 +37,7 @@ export function FacturiContab({ direction = 'in' }) {
   async function load() {
     const [an, luna] = month.split('-')
     const [a, t, c, cc] = await Promise.all([
-      api.get(endpoint, { params: { an, luna: Number(luna), status: status || undefined } }),
+      api.get(endpoint, { params: { an, luna: Number(luna), status: status || undefined, [isIn ? 'furnizor' : 'client']: tertFilter || undefined } }),
       api.get('/accounting/third-parties', { params: { tip: isIn ? 'furnizor' : 'client' } }),
       api.get('/accounting/chart'),
       api.get('/accounting/cost-centers')
@@ -45,8 +47,26 @@ export function FacturiContab({ direction = 'in' }) {
     setAccounts(c.data.accounts || [])
     setCostCenters(cc.data.costCenters || [])
   }
-  useEffect(() => { load().catch(() => {}) }, [direction, month, status])
+  useEffect(() => {
+    setTertFilter(searchParams.get(isIn ? 'furnizor' : 'client') || '')
+  }, [direction, searchParams])
+  useEffect(() => { load().catch(() => {}) }, [direction, month, status, tertFilter])
   const invoiceLines = Array.isArray(form.lines) ? form.lines : []
+  const thirdPartyById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
+  const visibleRows = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return rows
+    return rows.filter(row => {
+      const tert = thirdPartyById.get(String(row.furnizor_id || row.client_id))
+      return `${row.data || ''} ${row.nr_document || ''} ${row.serie || ''} ${row.numar || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
+    })
+  }, [rows, q, thirdPartyById])
+  const visibleTotals = useMemo(() => ({
+    count: visibleRows.length,
+    total: visibleRows.reduce((sum, row) => sum + money(row.total), 0),
+    tva: visibleRows.reduce((sum, row) => sum + money(row.tva), 0),
+    draft: visibleRows.filter(row => row.status === 'draft').length
+  }), [visibleRows])
   const valoareLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare), 0)
   const tvaLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare) * money(line.tva_procent) / 100, 0)
   const baseValue = invoiceLines.length ? valoareLines : money(form.valoare)
@@ -305,7 +325,7 @@ export function FacturiContab({ direction = 'in' }) {
         </div>
       ) : null}
       <Card>
-        <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
+        <div className="grid gap-3 lg:grid-cols-[180px_180px_minmax(220px,1fr)_minmax(180px,1fr)_auto]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
             { value: '', label: 'Toate fara anulate' },
@@ -316,15 +336,29 @@ export function FacturiContab({ direction = 'in' }) {
             { value: 'stornat', label: 'Stornate' },
             { value: 'anulat', label: 'Anulate' }
           ]} />
+          <Select label={isIn ? 'Furnizor' : 'Client'} value={tertFilter} onChange={event => setTertFilter(event.target.value)} options={[
+            { value: '', label: `Toti ${isIn ? 'furnizorii' : 'clientii'}` },
+            ...thirdParties.map(tert => ({ value: tert.id, label: `${tert.cod} - ${tert.denumire}` }))
+          ]} />
+          <Input label="Cauta" value={q} onChange={event => setQ(event.target.value)} placeholder="Document, tert, CUI..." />
           <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
         </div>
       </Card>
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card density="compact"><div className="text-xs text-slate-500">Facturi filtrate</div><div className="text-lg font-semibold">{visibleTotals.count}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Total</div><div className="text-lg font-semibold">{formatMoney(visibleTotals.total)}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">TVA</div><div className="text-lg font-semibold">{formatMoney(visibleTotals.tva)}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Drafturi</div><div className="text-lg font-semibold">{visibleTotals.draft}</div></Card>
+      </div>
       <Table headers={['Data', 'Document', 'Tert', 'Centru cost', 'Valoare', 'TVA', 'Total', 'Status', 'Nota', 'Actiuni']}>
-        {rows.map(row => (
+        {visibleRows.map(row => (
           <tr key={row.uuid}>
             <td className="px-3 py-2">{row.data}</td>
             <td className="px-3 py-2">{row.nr_document || `${row.serie || ''} ${row.numar || ''}`}</td>
-            <td className="px-3 py-2">{thirdParties.find(t => String(t.id) === String(row.furnizor_id || row.client_id))?.denumire || row.furnizor_id || row.client_id}</td>
+            <td className="px-3 py-2">
+              {thirdPartyById.get(String(row.furnizor_id || row.client_id))?.denumire || row.furnizor_id || row.client_id}
+              {thirdPartyById.get(String(row.furnizor_id || row.client_id))?.cui ? <div className="text-xs text-slate-500">{thirdPartyById.get(String(row.furnizor_id || row.client_id))?.cui}</div> : null}
+            </td>
             <td className="px-3 py-2">{costCenterName(row.subcentru_id) || costCenterName(row.cost_center_id) || '-'}</td>
             <td className="px-3 py-2">{formatMoney(row.valoare)}</td>
             <td className="px-3 py-2">{formatMoney(row.tva)}</td>
