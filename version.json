@@ -1,5 +1,5 @@
 {
-  "version": "2.12.89",
+  "version": "2.12.90",
   "date": "2026-06-22",
-  "changelog": "## v2.12.89 - 2026-06-22\n### Contabilitate - scadentar terti\n- Furnizorii si clientii afiseaza soldul pe vechime: nescadent, 1-30, 31-60, 61-90 si peste 90 zile.\n- Scadentarul calculeaza valoarea totala depasita pentru filtrul curent.\n- Furnizorii si clientii au export Excel de scadentar."
+  "changelog": "## v2.12.90 - 2026-06-22\n### Layout - sidebar colapsabil\n- Sidebar-ul poate fi restrans pe desktop pentru mai mult spatiu in modulele cu tabele late.\n- Preferinta de sidebar restrans/extins se salveaza local si ramane dupa refresh.\n- Pe mobil meniul ramane drawer, fara sa afecteze utilizarea existenta."
 }

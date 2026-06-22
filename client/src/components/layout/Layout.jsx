@@ -33,6 +33,7 @@ const titles = {
 export default function Layout({ children }) {
   const { user, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('infraflow_sidebar_collapsed') === 'true')
   const [presentationMode, setPresentationMode] = useState(() => localStorage.getItem('infraflow_presentation_mode') === 'true')
   useGlobalNotifications()
   const location = useLocation()
@@ -78,6 +79,14 @@ export default function Layout({ children }) {
     setPresentationMode(false)
   }
 
+  function toggleSidebarCollapsed() {
+    setSidebarCollapsed(current => {
+      const next = !current
+      localStorage.setItem('infraflow_sidebar_collapsed', String(next))
+      return next
+    })
+  }
+
   if (loading) {
     return <div className="grid min-h-screen place-items-center text-sm text-slate-500">Se incarca...</div>
   }
@@ -92,6 +101,8 @@ export default function Layout({ children }) {
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={toggleSidebarCollapsed}
         aiEnabled={Boolean(user?.modules?.ai?.enabled)}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
@@ -100,6 +111,8 @@ export default function Layout({ children }) {
           user={user}
           onLogout={handleLogout}
           onToggleSidebar={() => setSidebarOpen(open => !open)}
+          onToggleSidebarCollapsed={toggleSidebarCollapsed}
+          sidebarCollapsed={sidebarCollapsed}
         />
         {presentationMode ? (
           <div className="border-b border-primary-100 bg-primary-50 px-4 py-2 text-sm text-primary-900">

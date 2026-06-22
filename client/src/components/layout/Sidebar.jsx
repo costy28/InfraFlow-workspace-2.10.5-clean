@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { Fragment, useEffect, useState } from 'react'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import api from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import { useSettings } from '../../hooks/useSettings'
@@ -78,7 +79,7 @@ function permissionMatches(permission, prefix) {
   return permission === prefix || permission.startsWith(`${prefix}:`) || permission.startsWith(`${prefix}_`)
 }
 
-export default function Sidebar({ open, onClose, aiEnabled = false }) {
+export default function Sidebar({ open, onClose, collapsed = false, onToggleCollapsed, aiEnabled = false }) {
   const { modules } = useSettings()
   const { user } = useAuth()
   const [departments, setDepartments] = useState([])
@@ -121,7 +122,7 @@ export default function Sidebar({ open, onClose, aiEnabled = false }) {
     if (!visibleItems.length) return null
     return (
       <div key={label} className="mb-5">
-        <div className="mb-2 px-3 text-[11px] font-semibold uppercase text-slate-400">
+        <div className={`mb-2 px-3 text-[11px] font-semibold uppercase text-slate-400 ${collapsed ? 'md:hidden' : ''}`}>
           {label}
         </div>
         <div className="grid gap-1">
@@ -129,16 +130,17 @@ export default function Sidebar({ open, onClose, aiEnabled = false }) {
             <NavLink
               key={item.to}
               to={item.to}
+              title={collapsed ? item.label : undefined}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
+                `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${collapsed ? 'md:justify-center md:px-2' : ''} ${
                   isActive ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-100'
                 }`
               }
             >
-              <span className="w-5 text-center" aria-hidden="true">{item.icon}</span>
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {item.ai ? <Badge tone={aiEnabled ? 'warning' : 'gray'}>{item.badge?.(aiEnabled) || 'INACTIV'}</Badge> : null}
+              <span className="w-5 text-center text-base" aria-hidden="true">{item.icon}</span>
+              <span className={`min-w-0 flex-1 truncate ${collapsed ? 'md:hidden' : ''}`}>{item.label}</span>
+              {item.ai ? <span className={collapsed ? 'md:hidden' : ''}><Badge tone={aiEnabled ? 'warning' : 'gray'}>{item.badge?.(aiEnabled) || 'INACTIV'}</Badge></span> : null}
             </NavLink>
           ))}
         </div>
@@ -174,16 +176,30 @@ export default function Sidebar({ open, onClose, aiEnabled = false }) {
         onClick={onClose}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-[width,transform] duration-200 md:static md:translate-x-0 ${collapsed ? 'md:w-20' : 'md:w-64'} ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="border-b border-slate-200 px-5 py-4">
-          <div className="text-lg font-semibold text-primary-700">InfraFlow</div>
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Statie asfalt</div>
+        <div className={`flex items-center border-b border-slate-200 px-5 py-4 ${collapsed ? 'md:justify-center md:px-3' : 'justify-between'}`}>
+          <div className={collapsed ? 'md:hidden' : ''}>
+            <div className="text-lg font-semibold text-primary-700">InfraFlow</div>
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Statie asfalt</div>
+          </div>
+          <div className={`hidden h-10 w-10 place-items-center rounded-xl bg-primary-700 text-sm font-bold text-white ${collapsed ? 'md:grid' : ''}`}>
+            IF
+          </div>
+          <button
+            type="button"
+            className={`hidden h-9 w-9 place-items-center rounded-[var(--radius-control)] text-slate-500 hover:bg-slate-100 md:grid ${collapsed ? 'md:hidden' : ''}`}
+            title="Restrange meniul lateral"
+            onClick={onToggleCollapsed}
+            aria-label="Restrange meniul lateral"
+          >
+            <PanelLeftClose size={17} />
+          </button>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <nav className={`min-h-0 flex-1 overflow-y-auto py-4 ${collapsed ? 'px-2' : 'px-3'}`}>
           {groups.map(group => (
             <Fragment key={group.label}>
               {renderGroup(group.label, group.items)}
@@ -198,6 +214,17 @@ export default function Sidebar({ open, onClose, aiEnabled = false }) {
             </Fragment>
           ))}
         </nav>
+        {collapsed ? (
+          <button
+            type="button"
+            className="mx-3 mb-4 hidden h-9 place-items-center rounded-[var(--radius-control)] text-slate-500 hover:bg-slate-100 md:grid"
+            title="Extinde meniul lateral"
+            onClick={onToggleCollapsed}
+            aria-label="Extinde meniul lateral"
+          >
+            <PanelLeftOpen size={17} />
+          </button>
+        ) : null}
       </aside>
     </>
   )

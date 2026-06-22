@@ -1,9 +1,9 @@
-import { Bell, CaseSensitive, LayoutGrid, LogOut, Menu, Moon, Sun } from 'lucide-react'
+import { Bell, CaseSensitive, LayoutGrid, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import Button from '../ui/Button'
 import Badge from '../ui/Badge'
 
-export default function Navbar({ title = 'Dashboard', user, onLogout, onToggleSidebar }) {
+export default function Navbar({ title = 'Dashboard', user, onLogout, onToggleSidebar, onToggleSidebarCollapsed, sidebarCollapsed = false }) {
   const role = user?.role || user?.rol || 'operator'
   const name = user?.name || user?.nume || user?.username || 'Utilizator'
   const [theme, setTheme] = useState(() => localStorage.getItem('infraflow_theme') || 'light')
@@ -34,6 +34,15 @@ export default function Navbar({ title = 'Dashboard', user, onLogout, onToggleSi
         <Button variant="ghost" className="px-2 md:hidden" onClick={onToggleSidebar} aria-label="Deschide meniul">
           <Menu size={20} />
         </Button>
+        <button
+          type="button"
+          className="hidden h-9 w-9 place-items-center rounded-[var(--radius-control)] text-slate-600 hover:bg-slate-100 md:grid"
+          title={sidebarCollapsed ? 'Extinde meniul lateral' : 'Restrange meniul lateral'}
+          onClick={onToggleSidebarCollapsed}
+          aria-label={sidebarCollapsed ? 'Extinde meniul lateral' : 'Restrange meniul lateral'}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
         <h1 className="truncate text-lg font-semibold text-slate-900">{title}</h1>
       </div>
 
