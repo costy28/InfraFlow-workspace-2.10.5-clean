@@ -24,6 +24,9 @@ export function FacturiContab({ direction = 'in' }) {
   const [editing, setEditing] = useState(null)
   const [journalModal, setJournalModal] = useState(false)
   const [journalData, setJournalData] = useState(null)
+  const [paymentModal, setPaymentModal] = useState(false)
+  const [paymentRow, setPaymentRow] = useState(null)
+  const [paymentForm, setPaymentForm] = useState({ data: today(), suma: '', cont_trezorerie: '5121', nr_document: '' })
   const [devalidateModal, setDevalidateModal] = useState(false)
   const [devalidateRow, setDevalidateRow] = useState(null)
   const [devalidateReason, setDevalidateReason] = useState('')
@@ -65,7 +68,8 @@ export function FacturiContab({ direction = 'in' }) {
     count: visibleRows.length,
     total: visibleRows.reduce((sum, row) => sum + money(row.total), 0),
     tva: visibleRows.reduce((sum, row) => sum + money(row.tva), 0),
-    draft: visibleRows.filter(row => row.status === 'draft').length
+    draft: visibleRows.filter(row => row.status === 'draft').length,
+    rest: visibleRows.reduce((sum, row) => sum + invoiceRemaining(row), 0)
   }), [visibleRows])
   const valoareLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare), 0)
   const tvaLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare) * money(line.tva_procent) / 100, 0)
@@ -265,6 +269,69 @@ export function FacturiContab({ direction = 'in' }) {
       setActionLoading('')
     }
   }
+  function invoicePaid(row) {
+    return money(isIn ? row.achitat : row.incasat)
+  }
+  function invoiceRemaining(row) {
+    return money(isIn ? row.neachitat ?? money(row.total) - money(row.achitat) : row.neincasat ?? money(row.total) - money(row.incasat))
+  }
+  function canPayInvoice(row) {
+    return ['validat', 'partial'].includes(String(row.status || '')) && invoiceRemaining(row) > 0
+  }
+  function openPayment(row) {
+    setPaymentRow(row)
+    setPaymentForm({
+      data: today(),
+      suma: invoiceRemaining(row) || '',
+      cont_trezorerie: '5121',
+      nr_document: ''
+    })
+    setError('')
+    setMessage('')
+    setValidatedJournal(null)
+    setPaymentModal(true)
+  }
+  async function submitPayment(event) {
+    event.preventDefault()
+    if (!paymentRow) return
+    const amount = money(paymentForm.suma)
+    const remaining = invoiceRemaining(paymentRow)
+    if (!amount || amount <= 0) {
+      setError(`Completează suma de ${isIn ? 'plată' : 'încasare'}.`)
+      return
+    }
+    if (amount > remaining + 0.01) {
+      setError(`Suma depășește restul facturii: ${formatMoney(remaining)}.`)
+      return
+    }
+    setActionLoading(`payment-${paymentRow.uuid}`)
+    setError('')
+    setMessage('')
+    try {
+      const res = await api.post(`${endpoint}/${paymentRow.uuid}/${isIn ? 'pay' : 'collect'}`, {
+        data: paymentForm.data || today(),
+        suma: amount,
+        cont_trezorerie: paymentForm.cont_trezorerie || '5121',
+        nr_document: paymentForm.nr_document || undefined
+      })
+      const journal = res.data?.journal
+      setValidatedJournal(journal ? {
+        id: journal.id,
+        uuid: journal.uuid,
+        month: paymentForm.data?.slice(0, 7) || month,
+        totalDebit: journal.total_debit,
+        totalCredit: journal.total_credit
+      } : null)
+      setPaymentModal(false)
+      setPaymentRow(null)
+      setMessage(isIn ? 'Plata a fost înregistrată și nota contabilă a fost generată.' : 'Încasarea a fost înregistrată și nota contabilă a fost generată.')
+      await load()
+    } catch (err) {
+      setError(errorText(err, isIn ? 'Plata nu a putut fi înregistrată.' : 'Încasarea nu a putut fi înregistrată.'))
+    } finally {
+      setActionLoading('')
+    }
+  }
   function invoiceValidationHint(row) {
     if (row.status !== 'draft') return 'Factura trebuie să fie în status draft pentru validare.'
     if (!row.data) return 'Completează data facturii înainte de validare.'
@@ -348,9 +415,9 @@ export function FacturiContab({ direction = 'in' }) {
         <Card density="compact"><div className="text-xs text-slate-500">Facturi filtrate</div><div className="text-lg font-semibold">{visibleTotals.count}</div></Card>
         <Card density="compact"><div className="text-xs text-slate-500">Total</div><div className="text-lg font-semibold">{formatMoney(visibleTotals.total)}</div></Card>
         <Card density="compact"><div className="text-xs text-slate-500">TVA</div><div className="text-lg font-semibold">{formatMoney(visibleTotals.tva)}</div></Card>
-        <Card density="compact"><div className="text-xs text-slate-500">Drafturi</div><div className="text-lg font-semibold">{visibleTotals.draft}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Rest deschis</div><div className="text-lg font-semibold">{formatMoney(visibleTotals.rest)}</div></Card>
       </div>
-      <Table headers={['Data', 'Document', 'Tert', 'Centru cost', 'Valoare', 'TVA', 'Total', 'Status', 'Nota', 'Actiuni']}>
+      <Table headers={['Data', 'Document', 'Tert', 'Centru cost', 'Valoare', 'TVA', 'Total', isIn ? 'Achitat' : 'Incasat', 'Rest', 'Status', 'Nota', 'Actiuni']}>
         {visibleRows.map(row => (
           <tr key={row.uuid}>
             <td className="px-3 py-2">{row.data}</td>
@@ -363,6 +430,8 @@ export function FacturiContab({ direction = 'in' }) {
             <td className="px-3 py-2">{formatMoney(row.valoare)}</td>
             <td className="px-3 py-2">{formatMoney(row.tva)}</td>
             <td className="px-3 py-2 font-semibold">{formatMoney(row.total)}</td>
+            <td className="px-3 py-2">{formatMoney(invoicePaid(row))}</td>
+            <td className="px-3 py-2 font-semibold">{formatMoney(invoiceRemaining(row))}</td>
             <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
             <td className="px-3 py-2">
               {row.journal_uuid ? (
@@ -374,6 +443,7 @@ export function FacturiContab({ direction = 'in' }) {
                 {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Edit</Button> : null}
                 {row.status === 'draft' ? <Button size="sm" loading={actionLoading === `validate-${row.uuid}`} onClick={() => validate(row)}>Valideaza</Button> : null}
                 {row.status === 'draft' ? <Button size="sm" variant="secondary" loading={actionLoading === `cancel-${row.uuid}`} onClick={() => cancelDraft(row)}>Anuleaza</Button> : null}
+                {canPayInvoice(row) ? <Button size="sm" loading={actionLoading === `payment-${row.uuid}`} onClick={() => openPayment(row)}>{isIn ? 'Plateste' : 'Incaseaza'}</Button> : null}
                 {row.journal_id ? <Button size="sm" variant="secondary" onClick={() => showJournal(row)}>Nota</Button> : null}
                 {row.status === 'validat' ? <Button size="sm" variant="secondary" loading={actionLoading === `devalidate-${row.uuid}`} onClick={() => devalidate(row)}>Devalideaza</Button> : null}
                 {row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? <Button size="sm" variant="secondary" loading={actionLoading === `storno-${row.uuid}`} onClick={() => storno(row)}>Storno</Button> : null}
@@ -451,6 +521,31 @@ export function FacturiContab({ direction = 'in' }) {
           ) : null}
           <div className="flex justify-end"><Button variant="secondary" onClick={() => setJournalModal(false)}>Inchide</Button></div>
         </div>
+      </Modal>
+      <Modal open={paymentModal} title={isIn ? 'Plata factura' : 'Incasare factura'} onClose={() => setPaymentModal(false)}>
+        <form className="grid gap-3" onSubmit={submitPayment}>
+          {paymentRow ? (
+            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              Document {paymentRow.nr_document || paymentRow.numar || paymentRow.id} · Total {formatMoney(paymentRow.total)} · Rest {formatMoney(invoiceRemaining(paymentRow))}
+            </div>
+          ) : null}
+          {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="Data" type="date" value={paymentForm.data || today()} onChange={event => setPaymentForm({ ...paymentForm, data: event.target.value })} required />
+            <Input label="Nr. document" value={paymentForm.nr_document || ''} onChange={event => setPaymentForm({ ...paymentForm, nr_document: event.target.value })} />
+            <Input label="Suma" type="number" step="0.01" value={paymentForm.suma || ''} onChange={event => setPaymentForm({ ...paymentForm, suma: event.target.value })} required />
+            <AccountSelect label="Cont trezorerie" value={paymentForm.cont_trezorerie || '5121'} accounts={accounts} recommendedClasses={[5]} onChange={event => setPaymentForm({ ...paymentForm, cont_trezorerie: event.target.value })} required />
+          </div>
+          <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+            Preview nota: {isIn
+              ? `${thirdPartyById.get(String(paymentRow?.furnizor_id))?.cont_analitic_furnizor || '401.x'} = ${paymentForm.cont_trezorerie || '5121'}`
+              : `${paymentForm.cont_trezorerie || '5121'} = ${thirdPartyById.get(String(paymentRow?.client_id))?.cont_analitic_client || '4111.x'}`}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setPaymentModal(false)}>Renunta</Button>
+            <Button type="submit" loading={actionLoading === `payment-${paymentRow?.uuid}`}>{isIn ? 'Inregistreaza plata' : 'Inregistreaza incasarea'}</Button>
+          </div>
+        </form>
       </Modal>
       <Modal open={devalidateModal} title="Devalidare factura" onClose={() => setDevalidateModal(false)}>
         <form className="grid gap-3" onSubmit={submitDevalidate}>

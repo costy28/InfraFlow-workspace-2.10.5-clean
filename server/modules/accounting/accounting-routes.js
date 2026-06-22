@@ -310,15 +310,22 @@ router.post("/accounting/invoices-in/:uuid/pay", requireAccountingPost, (req, re
   try {
     const accounting = engine.ensureAccounting(req.auth.db);
     const invoice = findByUuid(accounting.invoicesIn, req.params.uuid, "Factura nu a fost gasita.");
+    const remaining = round(invoice.neachitat ?? invoice.total - Number(invoice.achitat || 0));
+    if (!["validat", "partial"].includes(String(invoice.status || ""))) throwHttp(409, "Doar facturile validate sau partial platite se pot plati.");
+    if (remaining <= 0) throwHttp(409, "Factura este deja achitata.");
+    const amount = round(req.body?.suma || remaining);
+    if (amount <= 0) throwHttp(400, "Suma platita trebuie sa fie pozitiva.");
+    if (amount > remaining + 0.01) throwHttp(422, `Suma platita depaseste restul facturii: ${remaining.toFixed(2)}.`);
     const treasury = createTreasury(req.auth.db, req.auth.user, {
       ...(req.body || {}),
       tip: "banca",
       tip_operatie: "plata",
       tert_id: invoice.furnizor_id,
       cont_corespondent: thirdParty(req.auth.db, invoice.furnizor_id).cont_analitic_furnizor,
-      suma: Number(req.body?.suma || invoice.total - Number(invoice.achitat || 0)),
+      suma: amount,
       data: req.body?.data || today(),
-      explicatie: `Plata factura ${invoice.nr_document}`
+      explicatie: `Plata factura ${invoice.nr_document}`,
+      invoice_in_id: invoice.id
     });
     const journal = engine.generateJournalFromTreasury(req.auth.db, req.auth.user, treasury);
     treasury.journal_id = journal.id;
@@ -405,15 +412,22 @@ router.post("/accounting/invoices-out/:uuid/storno", requireAccountingPost, (req
 router.post("/accounting/invoices-out/:uuid/collect", requireAccountingPost, (req, res, next) => {
   try {
     const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesOut, req.params.uuid, "Factura nu a fost gasita.");
+    const remaining = round(invoice.neincasat ?? invoice.total - Number(invoice.incasat || 0));
+    if (!["validat", "partial"].includes(String(invoice.status || ""))) throwHttp(409, "Doar facturile validate sau partial incasate se pot incasa.");
+    if (remaining <= 0) throwHttp(409, "Factura este deja incasata.");
+    const amount = round(req.body?.suma || remaining);
+    if (amount <= 0) throwHttp(400, "Suma incasata trebuie sa fie pozitiva.");
+    if (amount > remaining + 0.01) throwHttp(422, `Suma incasata depaseste restul facturii: ${remaining.toFixed(2)}.`);
     const treasury = createTreasury(req.auth.db, req.auth.user, {
       ...(req.body || {}),
       tip: "banca",
       tip_operatie: "incasare",
       tert_id: invoice.client_id,
       cont_corespondent: thirdParty(req.auth.db, invoice.client_id).cont_analitic_client,
-      suma: Number(req.body?.suma || invoice.total - Number(invoice.incasat || 0)),
+      suma: amount,
       data: req.body?.data || today(),
-      explicatie: `Incasare factura ${invoice.numar || ""}`.trim()
+      explicatie: `Incasare factura ${invoice.numar || ""}`.trim(),
+      invoice_out_id: invoice.id
     });
     const journal = engine.generateJournalFromTreasury(req.auth.db, req.auth.user, treasury);
     treasury.journal_id = journal.id;
@@ -1160,6 +1174,8 @@ function normalizeTreasury(body, existing = {}) {
     suma: round(body.suma ?? existing.suma),
     cont_corespondent: String(body.cont_corespondent ?? existing.cont_corespondent ?? "").trim(),
     tert_id: body.tert_id === "" ? null : body.tert_id ?? existing.tert_id ?? null,
+    invoice_in_id: body.invoice_in_id === "" ? null : body.invoice_in_id ?? existing.invoice_in_id ?? null,
+    invoice_out_id: body.invoice_out_id === "" ? null : body.invoice_out_id ?? existing.invoice_out_id ?? null,
     explicatie: String(body.explicatie ?? existing.explicatie ?? "").trim(),
     updated_at: new Date().toISOString()
   };
@@ -1179,8 +1195,33 @@ function devalidateTreasury(db, user, treasury, reason = "") {
   treasury.devalidare_motiv = String(reason || "").trim();
   treasury.last_devalidated_journal_id = journal.id;
   treasury.updated_at = new Date().toISOString();
+  reverseTreasuryInvoiceEffect(db, treasury);
   addAudit(db, user, "accounting_treasury_devalidate", `${treasury.tip_operatie} ${treasury.suma} / nota ${journal.id}`);
   return treasury;
+}
+
+function reverseTreasuryInvoiceEffect(db, treasury) {
+  const accounting = engine.ensureAccounting(db);
+  if (treasury.invoice_in_id) {
+    const invoice = accounting.invoicesIn.find((item) => String(item.id) === String(treasury.invoice_in_id));
+    if (invoice) {
+      invoice.achitat = round(Math.max(0, Number(invoice.achitat || 0) - Number(treasury.suma || 0)));
+      invoice.neachitat = round(Number(invoice.total || 0) - Number(invoice.achitat || 0));
+      invoice.status = invoice.neachitat <= 0 ? "achitat" : "partial";
+      if (invoice.achitat <= 0) invoice.status = "validat";
+      invoice.updated_at = new Date().toISOString();
+    }
+  }
+  if (treasury.invoice_out_id) {
+    const invoice = accounting.invoicesOut.find((item) => String(item.id) === String(treasury.invoice_out_id));
+    if (invoice) {
+      invoice.incasat = round(Math.max(0, Number(invoice.incasat || 0) - Number(treasury.suma || 0)));
+      invoice.neincasat = round(Number(invoice.total || 0) - Number(invoice.incasat || 0));
+      invoice.status = invoice.neincasat <= 0 ? "incasat" : "partial";
+      if (invoice.incasat <= 0) invoice.status = "validat";
+      invoice.updated_at = new Date().toISOString();
+    }
+  }
 }
 
 function decorateTreasury(row, accounting) {

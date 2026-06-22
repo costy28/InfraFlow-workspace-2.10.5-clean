@@ -1,5 +1,5 @@
 {
-  "version": "2.12.86",
-  "date": "2026-06-21",
-  "changelog": "## v2.12.86 - 2026-06-21\n### Contabilitate - terti si facturi conectate\n- Furnizorii si clientii afiseaza sold deschis, facturi si scadente depasite.\n- Analiticele tertilor duc direct catre fisa contului.\n- Facturile se pot filtra dupa tert si cauta rapid dupa document, denumire sau CUI."
+  "version": "2.12.87",
+  "date": "2026-06-22",
+  "changelog": "## v2.12.87 - 2026-06-22\n### Contabilitate - plati si incasari din factura\n- Facturile validate sau partiale pot fi platite/incasate direct din lista de facturi.\n- Plata/incasarea genereaza automat operatia de trezorerie si nota contabila.\n- Devalidarea operatiei de trezorerie create din factura reface soldul deschis al facturii."
 }
