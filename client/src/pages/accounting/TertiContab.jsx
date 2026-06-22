@@ -136,15 +136,20 @@ export function TertiContab({ type = 'furnizor' }) {
     count: filteredRows.length,
     active: filteredRows.filter(row => row.activ !== false).length,
     sold: filteredRows.reduce((sum, row) => sum + Number(row.sold || 0), 0),
-    overdue: filteredRows.reduce((sum, row) => sum + Number(row.scadente_depasite || 0), 0)
+    overdue: filteredRows.reduce((sum, row) => sum + Number(row.scadente_depasite || 0), 0),
+    overdueAmount: filteredRows.reduce((sum, row) => sum + Number(row.aging?.d1_30 || 0) + Number(row.aging?.d31_60 || 0) + Number(row.aging?.d61_90 || 0) + Number(row.aging?.d90_plus || 0), 0)
   }), [filteredRows])
 
+  function exportExcel() {
+    window.location.href = `/api${statusEndpoint}/export`
+  }
+
   return (
-    <AccountingShell active={type === 'client' ? 'clienti' : 'furnizori'} title={title} subtitle="Terți contabili cu analitice generate automat." actions={<Button onClick={openNew}>+ {type === 'client' ? 'Client' : 'Furnizor'}</Button>}>
+    <AccountingShell active={type === 'client' ? 'clienti' : 'furnizori'} title={title} subtitle="Terți contabili cu analitice generate automat." actions={<><Button onClick={openNew}>+ {type === 'client' ? 'Client' : 'Furnizor'}</Button><Button variant="secondary" onClick={exportExcel}>Export scadentar</Button></>}>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <Card>
-        <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_120px_160px_160px]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_170px_110px_150px_150px_150px]">
           <Input label="Cauta tert" value={q} onChange={event => setQ(event.target.value)} placeholder="Denumire, CUI, cont..." />
           <Select label="Status" value={activeFilter} onChange={event => setActiveFilter(event.target.value)} options={[
             { value: 'active', label: 'Activi' },
@@ -163,9 +168,13 @@ export function TertiContab({ type = 'furnizor' }) {
             <div className="text-xs text-slate-500">Scadente depasite</div>
             <div className="font-semibold">{totals.overdue}</div>
           </div>
+          <div className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="text-xs text-slate-500">Valoare depasita</div>
+            <div className="font-semibold">{formatMoney(totals.overdueAmount)}</div>
+          </div>
         </div>
       </Card>
-      <Table headers={['Cod', 'Denumire', 'CUI', 'Analitic', 'Sold', 'Facturi', 'Contact', 'Status', 'Actiuni']}>
+      <Table headers={['Cod', 'Denumire', 'CUI', 'Analitic', 'Sold', 'Nescadent', '1-30', '31-60', '61-90', '>90', 'Facturi', 'Contact', 'Status', 'Actiuni']}>
         {filteredRows.map(row => (
           <tr key={row.id}>
             <td className="px-3 py-2 font-semibold">{row.cod}</td>
@@ -178,6 +187,11 @@ export function TertiContab({ type = 'furnizor' }) {
               {row[accountKey] ? <Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row[accountKey]}`}>{row[accountKey]}</Link> : '-'}
             </td>
             <td className="px-3 py-2 font-semibold">{formatMoney(row.sold || 0)}</td>
+            <td className="px-3 py-2">{formatMoney(row.aging?.current || 0)}</td>
+            <td className={`px-3 py-2 ${Number(row.aging?.d1_30 || 0) ? 'font-semibold text-amber-700' : ''}`}>{formatMoney(row.aging?.d1_30 || 0)}</td>
+            <td className={`px-3 py-2 ${Number(row.aging?.d31_60 || 0) ? 'font-semibold text-orange-700' : ''}`}>{formatMoney(row.aging?.d31_60 || 0)}</td>
+            <td className={`px-3 py-2 ${Number(row.aging?.d61_90 || 0) ? 'font-semibold text-rose-700' : ''}`}>{formatMoney(row.aging?.d61_90 || 0)}</td>
+            <td className={`px-3 py-2 ${Number(row.aging?.d90_plus || 0) ? 'font-semibold text-red-700' : ''}`}>{formatMoney(row.aging?.d90_plus || 0)}</td>
             <td className="px-3 py-2">
               <Link className="font-semibold text-primary-700 hover:underline" to={`${invoicePath}?${tertParam}=${row.id}`}>{row.facturi || 0}</Link>
               {row.scadente_depasite ? <div className="text-xs text-rose-600">{row.scadente_depasite} depasite</div> : null}

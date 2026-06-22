@@ -802,8 +802,20 @@ router.get("/accounting/suppliers-status", requireAccountingView, (req, res) => 
   sendJson(res, 200, thirdPartyStatus(req.auth.db, "furnizor"));
 });
 
+router.get("/accounting/suppliers-status/export", requireAccountingReports, (req, res, next) => {
+  try {
+    exportThirdPartyStatus(res, req.auth.db, "furnizor");
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/clients-status", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyStatus(req.auth.db, "client"));
+});
+
+router.get("/accounting/clients-status/export", requireAccountingReports, (req, res, next) => {
+  try {
+    exportThirdPartyStatus(res, req.auth.db, "client");
+  } catch (error) { next(error); }
 });
 
 router.get("/accounting/vat-journal", requireAccountingReports, (req, res) => {
@@ -1563,16 +1575,78 @@ function thirdPartyStatus(db, tip) {
     const sold = round(invoices.reduce((acc, item) => acc + Number(item[balanceKey] ?? item.total - Number(item[paidKey] || 0)), 0));
     const paid = round(invoices.reduce((acc, item) => acc + Number(item[paidKey] || 0), 0));
     const total = round(invoices.reduce((acc, item) => acc + Number(item.total || 0), 0));
+    const aging = agingBuckets(invoices, balanceKey, paidKey);
     return {
       ...tert,
       sold,
       total_facturat: total,
       total_achitat: paid,
       facturi: invoices.length,
+      aging,
       scadente_depasite: invoices.filter((item) => Number(item[balanceKey] ?? item.total - Number(item[paidKey] || 0)) > 0 && item.data_scadenta < today()).length
     };
   });
   return { rows };
+}
+
+function exportThirdPartyStatus(res, db, tip) {
+  const data = thirdPartyStatus(db, tip);
+  const label = tip === "client" ? "Clienti" : "Furnizori";
+  const rows = [
+    [`Scadentar ${label}`, today()],
+    [],
+    ["Cod", "Denumire", "CUI", "Analitic furnizor", "Analitic client", "Total facturat", "Achitat/Incasat", "Sold", "Nescadent", "1-30 zile", "31-60 zile", "61-90 zile", "Peste 90 zile", "Facturi", "Scadente depasite", "Email", "Telefon"],
+    ...data.rows.map((row) => [
+      row.cod || "",
+      row.denumire || "",
+      row.cui || "",
+      row.cont_analitic_furnizor || "",
+      row.cont_analitic_client || "",
+      row.total_facturat || 0,
+      row.total_achitat || 0,
+      row.sold || 0,
+      row.aging?.current || 0,
+      row.aging?.d1_30 || 0,
+      row.aging?.d31_60 || 0,
+      row.aging?.d61_90 || 0,
+      row.aging?.d90_plus || 0,
+      row.facturi || 0,
+      row.scadente_depasite || 0,
+      row.email || "",
+      row.telefon || ""
+    ])
+  ];
+  const workbook = xlsx.utils.book_new();
+  const sheet = xlsx.utils.aoa_to_sheet(rows);
+  sheet["!cols"] = [{ wch: 10 }, { wch: 34 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 26 }, { wch: 16 }];
+  xlsx.utils.book_append_sheet(workbook, sheet, "Scadentar");
+  const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Scadentar_${tip}_${today()}.xlsx"`);
+  res.end(buffer);
+}
+
+function agingBuckets(invoices, balanceKey, paidKey) {
+  const buckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90_plus: 0 };
+  invoices.forEach((invoice) => {
+    const rest = round(invoice[balanceKey] ?? Number(invoice.total || 0) - Number(invoice[paidKey] || 0));
+    if (rest <= 0) return;
+    const due = invoice.data_scadenta || invoice.data || today();
+    const days = daysBetween(due, today());
+    if (days <= 0) buckets.current = round(buckets.current + rest);
+    else if (days <= 30) buckets.d1_30 = round(buckets.d1_30 + rest);
+    else if (days <= 60) buckets.d31_60 = round(buckets.d31_60 + rest);
+    else if (days <= 90) buckets.d61_90 = round(buckets.d61_90 + rest);
+    else buckets.d90_plus = round(buckets.d90_plus + rest);
+  });
+  return buckets;
+}
+
+function daysBetween(fromDate, toDate) {
+  const start = new Date(`${fromDate}T00:00:00`);
+  const end = new Date(`${toDate}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.floor((end.getTime() - start.getTime()) / 86400000);
 }
 
 function buildVatData(db, query = {}) {

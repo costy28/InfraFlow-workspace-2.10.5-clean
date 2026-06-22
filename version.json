@@ -1,5 +1,5 @@
 {
-  "version": "2.12.88",
+  "version": "2.12.89",
   "date": "2026-06-22",
-  "changelog": "## v2.12.88 - 2026-06-22\n### Contabilitate - trezorerie verificabila\n- Trezoreria are filtre dupa registru, operatie, tert si cautare rapida.\n- Sunt afisate totaluri pentru incasari, plati, diferenta si drafturi.\n- Registrul de trezorerie se poate exporta in Excel cu aceleasi filtre."
+  "changelog": "## v2.12.89 - 2026-06-22\n### Contabilitate - scadentar terti\n- Furnizorii si clientii afiseaza soldul pe vechime: nescadent, 1-30, 31-60, 61-90 si peste 90 zile.\n- Scadentarul calculeaza valoarea totala depasita pentru filtrul curent.\n- Furnizorii si clientii au export Excel de scadentar."
 }
