@@ -4,6 +4,7 @@ import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
+import DropdownMenu from '../components/ui/DropdownMenu'
 import Input from '../components/ui/Input'
 import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
@@ -11,7 +12,12 @@ import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import { formatDate, formatMoney } from '../utils/format'
 
-const tabs = ['General', 'Bază date', 'Licență', 'Aspect', 'AI Assistant', 'Actualizări', 'Utilizatori', 'Roluri', 'Module', 'Cântar', 'Integrări', 'Departamente']
+const tabGroups = [
+  { label: 'Sistem', tabs: ['General', 'Bază date', 'Licență', 'Actualizări'] },
+  { label: 'Administrare', tabs: ['Utilizatori', 'Roluri', 'Departamente', 'Module'] },
+  { label: 'Interfață', tabs: ['Aspect', 'AI Assistant'] },
+  { label: 'Integrări', tabs: ['Cântar', 'Integrări'] },
+]
 const allModules = [
   'core', 'inventory', 'production', 'reports', 'system', 'fleet', 'hr',
   'controlling', 'accounting', 'procurement', 'documents', 'field', 'messaging', 'tickets',
@@ -1306,18 +1312,29 @@ export default function SetariPage() {
       <PageHeader
         title="Setări"
         subtitle="Configurare sistem, licență, aspect, AI, update, utilizatori și cântar."
-        actions={[<Button key="reload" variant="secondary" onClick={load}>Reîncarcă</Button>]}
+        actions={[
+          <DropdownMenu key="settings-actions" align="right" label="Actiuni" items={[
+            { label: 'Reincarca', onClick: load },
+          ]} />,
+        ]}
       />
 
       {message && <Card className="border-primary-100 bg-primary-50 text-sm text-primary-700">{message}</Card>}
       {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
 
       <div className="flex flex-wrap gap-2">
-        {tabs.map(tab => (
-          <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>
-            {tab}
-          </Button>
-        ))}
+        {tabGroups.map(group => {
+          const items = group.tabs.map(tab => ({ label: tab, active: activeTab === tab, onClick: () => setActiveTab(tab) }))
+          const activeItem = items.find(item => item.active)
+          return (
+            <DropdownMenu
+              key={group.label}
+              label={activeItem ? `${group.label}: ${activeItem.label}` : group.label}
+              active={Boolean(activeItem)}
+              items={items}
+            />
+          )
+        })}
       </div>
 
       {activeTab === 'General' && (

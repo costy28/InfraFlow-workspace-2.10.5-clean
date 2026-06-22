@@ -7,9 +7,15 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import DropdownMenu from '../../components/ui/DropdownMenu'
 import { exportExcel } from '../../utils/export'
 
-const tabs = ['Dashboard', 'Parc Utilaje', 'Planificare', 'Bonuri Lucru', 'Alimentări', 'Alimentări PIUSI', 'Intervenții', 'Revizii predictive', 'Alerte & ISCIR', 'Scadențe & Asigurări', 'Cost/oră', 'FAZ Lunar', 'Raport Lunar']
+const tabGroups = [
+  { label: 'Parc', tabs: ['Parc Utilaje', 'Planificare'] },
+  { label: 'Operatiuni', tabs: ['Bonuri Lucru', 'Alimentări', 'Alimentări PIUSI', 'Intervenții'] },
+  { label: 'Scadente', tabs: ['Revizii predictive', 'Alerte & ISCIR', 'Scadențe & Asigurări'] },
+  { label: 'Rapoarte', tabs: ['Cost/oră', 'FAZ Lunar', 'Raport Lunar'] },
+]
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function currentMonth() { return new Date().toISOString().slice(0, 7) }
@@ -598,26 +604,39 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <p className="text-sm text-slate-500">Parc utilaje, planificare, bonuri de lucru, intervenții</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => navigate('/faz-utilaje')}>🧾 FAZ Utilaje</Button>
-          <Button onClick={() => navigate('/foi-parcurs')}>📋 Foi Parcurs</Button>
+          <Button onClick={() => navigate('/foi-parcurs')}>Foi Parcurs</Button>
+          <DropdownMenu align="right" label="Meniu" items={[
+            { label: 'Registru FAZ utilaje', onClick: () => navigate('/faz-utilaje') },
+            { label: 'Kiosk sofer', onClick: () => window.open('/kiosk', '_blank') },
+          ]} />
         </div>
       </div>
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-0">
-        {tabs.map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium transition rounded-t-md -mb-px border border-b-0 ${
-              activeTab === tab
-                ? 'border-slate-200 bg-white text-primary-700'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >{tab}</button>
-        ))}
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('Dashboard')}
+          className={`inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border px-[var(--control-px)] text-sm font-semibold transition ${
+            activeTab === 'Dashboard' ? 'border-primary-700 bg-primary-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'
+          }`}
+        >
+          Dashboard
+        </button>
+        {tabGroups.map(group => {
+          const items = group.tabs.map(tab => ({ label: tab, active: activeTab === tab, onClick: () => setActiveTab(tab) }))
+          const activeItem = items.find(item => item.active)
+          return (
+            <DropdownMenu
+              key={group.label}
+              label={activeItem ? `${group.label}: ${activeItem.label}` : group.label}
+              active={Boolean(activeItem)}
+              items={items}
+            />
+          )
+        })}
       </div>
 
       {/* ── DASHBOARD ─────────────────────────────────────────────────────────── */}
@@ -986,7 +1005,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Luna" type="month" value={woLuna} onChange={e => setWoLuna(e.target.value)} />
               <Button onClick={() => { setWoForm({ ...emptyWoForm }); setWoEditing(null); setWoModal(true) }}>+ Bon nou</Button>
-              <Button variant="secondary" onClick={() => exportExcel(
+              <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
                 workOrders.map(w => ({
                   'Data': w.date, 'Utilaj': w.asset_name, 'Operator': w.operator,
                   'Activitate': w.activitate, 'Locație': w.locatie,
@@ -995,7 +1014,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   'Status': w.status,
                 })),
                 `BonuriLucru_${woLuna}`
-              )}>📊 Export Excel</Button>
+              ) }]} />
             </div>
           </Card>
 
@@ -1052,14 +1071,14 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Luna" type="month" value={fuelLuna} onChange={e => setFuelLuna(e.target.value)} />
               <Button onClick={() => { setFuelForm({ ...emptyFuelForm }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare</Button>
-              <Button variant="secondary" onClick={() => exportExcel(
+              <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
                 fuelLogs.map(f => ({
                   'Data': f.data, 'Utilaj': f.asset_name, 'Document': f.nr_document,
                   'Furnizor': f.furnizor, 'Litri': f.cantitate_litri, 'Preț/l': f.pret_litru,
                   'Valoare': f.valoare_totala, 'Km/Ore': f.km_ore, 'Operator': f.sofer_operator,
                 })),
                 `Alimentari_${fuelLuna}`
-              )}>📊 Export Excel</Button>
+              ) }]} />
               <div className="ml-auto text-sm text-slate-500">
                 Total: <strong className="text-slate-800">{Number(fuelTotals.cantitate_litri || 0).toFixed(2)} L</strong>
                 <span className="mx-2">·</span>
@@ -1126,8 +1145,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 { value: 'false', label: 'Neprocesate' },
                 { value: 'true', label: 'Procesate' },
               ]} />
-              <Button onClick={loadPiusiFuelRows}>Reîncarcă</Button>
               <Button onClick={importPiusiInFaz}>📥 Import în FAZ</Button>
+              <DropdownMenu label="Actiuni" items={[{ label: 'Reincarca', onClick: loadPiusiFuelRows }]} />
             </div>
           </Card>
 
@@ -1194,7 +1213,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <Card>
             <div className="flex flex-wrap items-end gap-3">
               <Button onClick={() => { setIntForm({ ...emptyIntForm }); setIntEditing(null); setIntModal(true) }}>+ Intervenție nouă</Button>
-              <Button variant="secondary" onClick={() => exportExcel(
+              <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
                 interventions.map(i => ({
                   'Utilaj': i.asset_name, 'Tip': i.tip, 'Dată intrare': i.data_intrare,
                   'Dată ieșire': i.data_iesire || '—', 'Descriere': i.descriere,
@@ -1203,7 +1222,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   'Furnizor': i.furnizor, 'Factură': i.nr_factura, 'Mecanic': i.mecanic, 'Status': i.status,
                 })),
                 `Interventii_${currentMonth()}`
-              )}>📊 Export Excel</Button>
+              ) }]} />
               <div className="flex gap-2 ml-auto text-sm text-slate-500 items-end">
                 <span>Total service: <strong className="text-slate-800">{interventions.reduce((s, i) => s + (Number(i.cost_total || i.cost) || 0), 0).toFixed(2)} RON</strong></span>
                 <span>În lucru: <strong className="text-rose-600">{interventions.filter(i => i.status === 'in_lucru').length}</strong></span>
@@ -1265,7 +1284,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 <div className="font-semibold text-slate-800">Revizii cu calcul predictiv</div>
                 <div className="text-sm text-slate-500">Scadențe calculate din ultima revizie, dată, contor și intervale salvate pe utilaj.</div>
               </div>
-              <Button variant="secondary" onClick={loadRevisions}>Reîncarcă</Button>
+              <DropdownMenu label="Actiuni" items={[{ label: 'Reincarca', onClick: loadRevisions }]} />
             </div>
           </Card>
           <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -1321,7 +1340,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 <div className="font-semibold text-slate-800">Alerte documente, revizii și ISCIR</div>
                 <div className="text-sm text-slate-500">Afișează scadențele sub 30 de zile și reviziile depășite la contor.</div>
               </div>
-              <Button variant="secondary" onClick={loadMechanizationAlerts}>Reîncarcă</Button>
+              <DropdownMenu label="Actiuni" items={[{ label: 'Reincarca', onClick: loadMechanizationAlerts }]} />
             </div>
           </Card>
           <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -1369,11 +1388,14 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 <div className="text-sm text-slate-500">RCA/CASCO, ITP, taxe, rovignete și autorizații ISCIR pentru autovehicule și utilaje.</div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => openFleetDoc('asigurare')}>+ RCA/CASCO</Button>
-                <Button variant="secondary" onClick={() => openFleetDoc('itp')}>+ ITP</Button>
-                <Button variant="secondary" onClick={() => openFleetDoc('taxa')}>+ Taxă</Button>
-                <Button variant="secondary" onClick={() => openFleetDoc('iscir')}>+ ISCIR</Button>
-                <Button onClick={loadScadente}>Reîncarcă</Button>
+                <Button onClick={() => openFleetDoc('asigurare')}>+ RCA/CASCO</Button>
+                <DropdownMenu align="right" label="Actiuni" items={[
+                  { label: 'Adauga ITP', onClick: () => openFleetDoc('itp') },
+                  { label: 'Adauga taxa', onClick: () => openFleetDoc('taxa') },
+                  { label: 'Adauga ISCIR', onClick: () => openFleetDoc('iscir') },
+                  { separator: true },
+                  { label: 'Reincarca', onClick: loadScadente },
+                ]} />
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-1 border-t border-slate-100 pt-3">
@@ -1465,11 +1487,11 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           {scadenteSubtab === 'Raport' ? (
             <Card>
               <div className="mb-3 font-semibold text-slate-800">Rapoarte autoMinder</div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => downloadFleetReport('/fleet/raport-asigurari', `Raport_asigurari_${new Date().getFullYear()}.xlsx`)}>Export asigurări</Button>
-                <Button variant="secondary" onClick={() => downloadFleetReport('/fleet/raport-itp', `Raport_ITP_${new Date().getFullYear()}.xlsx`)}>Export ITP</Button>
-                <Button variant="secondary" onClick={() => downloadFleetReport('/fleet/raport-scadente-anuale', `Plan_reinnoire_${new Date().getFullYear()}.xlsx`)}>Plan reînnoire anual</Button>
-              </div>
+              <DropdownMenu label="Export" items={[
+                { label: 'Export asigurari', onClick: () => downloadFleetReport('/fleet/raport-asigurari', `Raport_asigurari_${new Date().getFullYear()}.xlsx`) },
+                { label: 'Export ITP', onClick: () => downloadFleetReport('/fleet/raport-itp', `Raport_ITP_${new Date().getFullYear()}.xlsx`) },
+                { label: 'Plan reinnoire anual', onClick: () => downloadFleetReport('/fleet/raport-scadente-anuale', `Plan_reinnoire_${new Date().getFullYear()}.xlsx`) },
+              ]} />
             </Card>
           ) : null}
         </div>
@@ -1483,14 +1505,17 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               <Input label="Luna" type="month" value={costLuna} onChange={e => setCostLuna(e.target.value)} />
               <Button onClick={loadCostHour}>Calculează</Button>
               {costHour ? (
-                <Button variant="secondary" onClick={() => exportExcel(
-                  (costHour.rows || []).map(r => ({
-                    'Utilaj': r.asset_name, 'Ore': r.ore_total,
-                    'Cost carburant': r.cost_carburant, 'Cost reparații': r.cost_reparatii,
-                    'Cost total': r.cost_total, 'Cost/oră': r.cost_ora,
-                  })),
-                  `CostOra_${costLuna}`
-                )}>📊 Export Excel</Button>
+                <DropdownMenu label="Export" items={[{
+                  label: 'Export Excel',
+                  onClick: () => exportExcel(
+                    (costHour.rows || []).map(r => ({
+                      'Utilaj': r.asset_name, 'Ore': r.ore_total,
+                      'Cost carburant': r.cost_carburant, 'Cost reparații': r.cost_reparatii,
+                      'Cost total': r.cost_total, 'Cost/oră': r.cost_ora,
+                    })),
+                    `CostOra_${costLuna}`
+                  ),
+                }]} />
               ) : null}
             </div>
           </Card>
@@ -1553,10 +1578,16 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               <Input label="Luna" type="month" value={fazLuna} onChange={e => setFazLuna(e.target.value)} />
               <Select label="Utilaj / Vehicul" value={fazAssetId} onChange={e => setFazAssetId(e.target.value)} options={assetOptions} />
               <Button onClick={loadFazReport}>Previzualizează</Button>
-              <Button variant="secondary" onClick={() => navigate('/faz-utilaje')}>🧾 Registru FAZ</Button>
               {fazReport ? (
                 <>
-                  <Button variant="secondary" onClick={() => exportExcel(
+                  <Button onClick={generateMechanizationFaz}>🖨️ Generează / Print</Button>
+                </>
+              ) : null}
+              <DropdownMenu label="Actiuni" items={[
+                { label: 'Registru FAZ', onClick: () => navigate('/faz-utilaje') },
+                fazReport ? {
+                  label: 'Export Excel',
+                  onClick: () => exportExcel(
                     (fazReport.rows || []).map(r => ({
                       'Data': r.data,
                       'Utilaj': r.asset_name,
@@ -1573,10 +1604,9 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                       'Cost service': r.cost_service,
                     })),
                     `FAZ_Mecanizare_${fazLuna}`
-                  )}>📊 Export Excel</Button>
-                  <Button onClick={generateMechanizationFaz}>🖨️ Generează / Print</Button>
-                </>
-              ) : null}
+                  ),
+                } : null,
+              ]} />
               {fazReport?.generated ? (
                 <span className="ml-auto text-xs text-slate-500">
                   Ultima generare: {new Date(fazReport.generated.generated_at).toLocaleString('ro-RO')}
@@ -1668,24 +1698,27 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               <Input label="Luna" type="month" value={raportLuna} onChange={e => setRaportLuna(e.target.value)} />
               <Button onClick={loadRaport}>📊 Generează</Button>
               {raport ? (
-                <>
-                  <Button variant="secondary" onClick={printRaport}>🖨️ Print / PDF</Button>
-                  <Button variant="secondary" onClick={() => exportExcel(
-                    (raport.rows || []).map(r => ({
-                      'Utilaj': r.asset_name,
-                      'Zile lucrate': r.zile_lucrate,
-                      'Ore lucru': r.ore_total,
-                      'Km parcurși': r.km_total,
-                      'Consum real (L)': r.consum_total,
-                      'Consum normat (L)': r.consum_normat_total,
-                      'Diferență (L)': r.diferenta_consum,
-                      'Cost carburant': r.cost_carburant,
-                      'Cost service': r.cost_service,
-                      'Cost/oră': r.cost_ora,
-                    })),
-                    `RaportMecanizare_${raportLuna}`
-                  )}>📊 Export Excel</Button>
-                </>
+                <DropdownMenu label="Actiuni raport" items={[
+                  { label: 'Print / PDF', onClick: printRaport },
+                  {
+                    label: 'Export Excel',
+                    onClick: () => exportExcel(
+                      (raport.rows || []).map(r => ({
+                        'Utilaj': r.asset_name,
+                        'Zile lucrate': r.zile_lucrate,
+                        'Ore lucru': r.ore_total,
+                        'Km parcurși': r.km_total,
+                        'Consum real (L)': r.consum_total,
+                        'Consum normat (L)': r.consum_normat_total,
+                        'Diferență (L)': r.diferenta_consum,
+                        'Cost carburant': r.cost_carburant,
+                        'Cost service': r.cost_service,
+                        'Cost/oră': r.cost_ora,
+                      })),
+                      `RaportMecanizare_${raportLuna}`
+                    ),
+                  },
+                ]} />
               ) : null}
             </div>
           </Card>

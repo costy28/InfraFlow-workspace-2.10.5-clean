@@ -4,6 +4,7 @@ import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import DropdownMenu from '../../components/ui/DropdownMenu'
 import DocumentTemplateEditor from '../../components/forms/DocumentTemplateEditor'
 import Modal from '../../components/ui/Modal'
 import Table from '../../components/ui/Table'
@@ -451,7 +452,10 @@ export default function DocumentePage() {
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <Button className="w-full sm:w-auto" onClick={openDocumentModal}>+ Document nou</Button>
-          <Button className="w-full sm:w-auto" variant="secondary" onClick={load}>Reîncarcă</Button>
+          <DropdownMenu className="w-full sm:w-auto" align="right" label="Actiuni" items={[
+            { label: 'Reincarca', onClick: load },
+            isAdmin ? { label: 'Template nou', onClick: () => openTemplateModal() } : null,
+          ]} />
         </div>
       </div>
 
@@ -495,12 +499,13 @@ export default function DocumentePage() {
                   </button>
                 ) : null}
                 {isAdmin ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => previewTemplate(template)}><Eye size={14} /> Preview</Button>
-                    <Button size="sm" variant="secondary" onClick={() => openTemplateModal(template)}>Edit</Button>
-                    {template.fisier_model_path ? <Button size="sm" variant="secondary" onClick={() => downloadTemplate(template)}><Download size={14} /> Model</Button> : null}
-                    <Button size="sm" variant="ghost" onClick={() => deleteTemplate(template)}>Dezactivează</Button>
-                  </div>
+                  <DropdownMenu label="Actiuni template" items={[
+                    { label: 'Preview', onClick: () => previewTemplate(template) },
+                    { label: 'Editeaza', onClick: () => openTemplateModal(template) },
+                    template.fisier_model_path ? { label: 'Descarca model', onClick: () => downloadTemplate(template) } : null,
+                    { separator: true },
+                    { label: 'Dezactiveaza', danger: true, onClick: () => deleteTemplate(template) },
+                  ]} />
                 ) : null}
               </div>
             ))}
@@ -520,11 +525,14 @@ export default function DocumentePage() {
                 { key: 'serie_prefix', label: 'Serie' },
                 { key: 'activ', label: 'Status', render: row => <Badge tone={row.activ === false ? 'neutral' : 'success'}>{row.activ === false ? 'inactiv' : 'activ'}</Badge> },
                 { key: 'actions', label: '', render: row => isAdmin ? (
-                  <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => previewTemplate(row)}><Eye size={14} /> Preview</Button>
-                    {row.fisier_model_path ? <Button size="sm" variant="ghost" onClick={() => downloadTemplate(row)}><Download size={14} /> Model</Button> : null}
-                    <Button size="sm" variant="ghost" onClick={() => openTemplateModal(row)}>Edit</Button>
-                    <Button size="sm" variant="ghost" onClick={() => deleteTemplate(row)}>Dezactivează</Button>
+                  <div className="flex justify-end">
+                    <DropdownMenu align="right" label="Actiuni" items={[
+                      { label: 'Preview', onClick: () => previewTemplate(row) },
+                      row.fisier_model_path ? { label: 'Descarca model', onClick: () => downloadTemplate(row) } : null,
+                      { label: 'Editeaza', onClick: () => openTemplateModal(row) },
+                      { separator: true },
+                      { label: 'Dezactiveaza', danger: true, onClick: () => deleteTemplate(row) },
+                    ]} />
                   </div>
                 ) : null },
               ]}
@@ -552,12 +560,10 @@ export default function DocumentePage() {
                     </div>
                     <Badge tone={toneFor(document.prioritate)}>{label(document.prioritate)}</Badge>
                   </button>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => openDetails(document)}>Detalii</Button>
-                    {canEditDocument(document) ? (
-                      <Button size="sm" variant="secondary" onClick={() => openDocumentEdit(document)}>Editează</Button>
-                    ) : null}
-                  </div>
+                  <DropdownMenu label="Actiuni document" items={[
+                    { label: 'Detalii', onClick: () => openDetails(document) },
+                    canEditDocument(document) ? { label: 'Editeaza', onClick: () => openDocumentEdit(document) } : null,
+                  ]} />
                 </div>
               ))}
             </div>
@@ -570,9 +576,11 @@ export default function DocumentePage() {
                   { key: 'created_at', label: 'Trimis la', render: row => formatDate(row.updated_at || row.created_at) },
                   { key: 'prioritate', label: 'Prioritate', render: row => <Badge tone={toneFor(row.prioritate)}>{label(row.prioritate)}</Badge> },
                   { key: 'actions', label: '', render: row => (
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" onClick={() => openDetails(row)}>Detalii</Button>
-                      {canEditDocument(row) ? <Button variant="ghost" onClick={() => openDocumentEdit(row)}>Editează</Button> : null}
+                    <div className="flex justify-end">
+                      <DropdownMenu align="right" label="Actiuni" items={[
+                        { label: 'Detalii', onClick: () => openDetails(row) },
+                        canEditDocument(row) ? { label: 'Editeaza', onClick: () => openDocumentEdit(row) } : null,
+                      ]} />
                     </div>
                   ) },
                 ]}
@@ -594,9 +602,10 @@ export default function DocumentePage() {
                     <p className="text-sm text-slate-600">{details.document.titlu || 'Document fără titlu'}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {canEditDocument(details.document) ? (
-                      <Button variant="secondary" onClick={() => openDocumentEdit(details.document)}>Editează</Button>
-                    ) : null}
+                    <DropdownMenu align="right" label="Actiuni" items={[
+                      canEditDocument(details.document) ? { label: 'Editeaza', onClick: () => openDocumentEdit(details.document) } : null,
+                      { label: 'Deschide documentul', disabled: !documentHtml, onClick: openDocumentHtml },
+                    ]} />
                     <Badge tone={toneFor(details.document.status)}>{label(details.document.status)}</Badge>
                   </div>
                 </div>
@@ -632,9 +641,6 @@ export default function DocumentePage() {
                       srcDoc={documentHtml || '<p style="font-family:Arial;padding:24px;color:#64748b">Documentul nu a putut fi generat.</p>'}
                     />
                   )}
-                  <Button variant="secondary" onClick={openDocumentHtml} disabled={!documentHtml}>
-                    Deschide documentul
-                  </Button>
                 </div>
 
                 {currentUserStep && (
