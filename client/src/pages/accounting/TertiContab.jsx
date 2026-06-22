@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountingShell, Table } from './accounting-shared'
+import { AccountingShell, DropdownMenu, Table } from './accounting-shared'
 
 const blankThirdParty = (tip) => ({
   tip,
@@ -145,7 +145,12 @@ export function TertiContab({ type = 'furnizor' }) {
   }
 
   return (
-    <AccountingShell active={type === 'client' ? 'clienti' : 'furnizori'} title={title} subtitle="Terți contabili cu analitice generate automat." actions={<><Button onClick={openNew}>+ {type === 'client' ? 'Client' : 'Furnizor'}</Button><Button variant="secondary" onClick={exportExcel}>Export scadentar</Button></>}>
+    <AccountingShell
+      active={type === 'client' ? 'clienti' : 'furnizori'}
+      title={title}
+      subtitle="Terți contabili cu analitice generate automat."
+      actions={<><Button onClick={openNew}>+ {type === 'client' ? 'Client' : 'Furnizor'}</Button><DropdownMenu align="right" label="Export" items={[{ label: 'Export scadentar', onClick: exportExcel }]} /></>}
+    >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <Card>

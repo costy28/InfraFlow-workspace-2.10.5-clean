@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountSelect, AccountingShell, DropdownMenu, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function Trezorerie() {
   const [rows, setRows] = useState([])
   const [thirdParties, setThirdParties] = useState([])
@@ -226,7 +226,7 @@ export function Trezorerie() {
   }
 
   return (
-    <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<><Button onClick={openNew}>+ Operatie</Button><Button variant="secondary" onClick={exportExcel}>Export Excel</Button></>}>
+    <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<><Button onClick={openNew}>+ Operatie</Button><DropdownMenu align="right" label="Export" items={[{ label: 'Export Excel', onClick: exportExcel }]} /></>}>
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
       {message ? (
         <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">

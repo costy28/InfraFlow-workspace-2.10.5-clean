@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function FisaCont() {
   const { simbol } = useParams()
   const [searchParams] = useSearchParams()
@@ -41,7 +41,7 @@ export function FisaCont() {
   }
 
   return (
-    <AccountingShell active="plan" title={`Fisa cont ${simbol}`} subtitle={data.denumire || 'Carte mare pe cont, cu sold progresiv.'} actions={<><Button variant="secondary" onClick={exportExcel}>Export Excel</Button><Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-[var(--control-px)] text-sm font-semibold text-slate-700 hover:bg-slate-50" to={`/contabilitate/balanta?luna=${reportMonth}`}>Balanta</Link><Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-[var(--control-px)] text-sm font-semibold text-slate-700 hover:bg-slate-50" to={`/contabilitate/registru-jurnal?luna=${reportMonth}`}>Registru jurnal</Link></>}>
+    <AccountingShell active="plan" title={`Fisa cont ${simbol}`} subtitle={data.denumire || 'Carte mare pe cont, cu sold progresiv.'} actions={<DropdownMenu align="right" label="Actiuni" items={[{ label: 'Export Excel', onClick: exportExcel }, { label: 'Balanta', to: `/contabilitate/balanta?luna=${reportMonth}` }, { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${reportMonth}` }]} />}>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
         <div className="grid gap-3 md:grid-cols-[180px_180px_auto]">

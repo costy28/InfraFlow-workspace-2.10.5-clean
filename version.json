@@ -1,5 +1,5 @@
 {
-  "version": "2.12.90",
+  "version": "2.12.91",
   "date": "2026-06-22",
-  "changelog": "## v2.12.90 - 2026-06-22\n### Layout - sidebar colapsabil\n- Sidebar-ul poate fi restrans pe desktop pentru mai mult spatiu in modulele cu tabele late.\n- Preferinta de sidebar restrans/extins se salveaza local si ramane dupa refresh.\n- Pe mobil meniul ramane drawer, fara sa afecteze utilizarea existenta."
+  "changelog": "## v2.12.91 - 2026-06-22\n### UI - meniuri dropdown pentru actiuni\n- Contabilitatea grupeaza navigatia lunga in meniuri: Nomenclatoare, Operatiuni, Rapoarte si Administrare.\n- Exporturile si actiunile secundare au fost mutate in dropdown-uri pe Terti, Trezorerie, Registru jurnal, Balanta, Fisa cont si TVA/D300.\n- Actiunile principale raman vizibile, pentru acces rapid."
 }

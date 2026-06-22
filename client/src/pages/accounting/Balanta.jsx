@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function Balanta() {
   const [searchParams] = useSearchParams()
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
@@ -49,7 +49,12 @@ export function Balanta() {
   }
 
   return (
-    <AccountingShell active="balanta" title="Balanta" subtitle="Verificare rulaje, solduri si egalitate debit-credit." actions={<><Button variant="secondary" onClick={exportExcel}>Export Excel</Button><Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-[var(--control-px)] text-sm font-semibold text-slate-700 hover:bg-slate-50" to={`/contabilitate/registru-jurnal?luna=${month}`}>Registru jurnal</Link></>}>
+    <AccountingShell
+      active="balanta"
+      title="Balanta"
+      subtitle="Verificare rulaje, solduri si egalitate debit-credit."
+      actions={<DropdownMenu align="right" label="Actiuni" items={[{ label: 'Export Excel', onClick: exportExcel }, { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` }]} />}
+    >
       <Card>
         <div className="grid gap-3 md:grid-cols-[180px_180px_180px_minmax(200px,1fr)]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />

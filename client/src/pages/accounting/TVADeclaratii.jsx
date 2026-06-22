@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function TVADeclaratii() {
   const [searchParams] = useSearchParams()
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
@@ -77,9 +77,11 @@ export function TVADeclaratii() {
       subtitle="Jurnal TVA cumparari si vanzari, sumar de lucru pentru decont."
       actions={(
         <>
-          <Button variant="secondary" onClick={() => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`)}>Export Excel</Button>
-          <Button variant="secondary" onClick={() => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`)}>XML lucru</Button>
           <Button onClick={markVatChecked} disabled={!canCheckVat}>TVA verificat</Button>
+          <DropdownMenu align="right" label="Export" items={[
+            { label: 'Export Excel', onClick: () => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`) },
+            { label: 'XML lucru', onClick: () => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`) },
+          ]} />
         </>
       )}
     >

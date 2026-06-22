@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
+import DropdownMenu from '../../components/ui/DropdownMenu'
+
+export { default as DropdownMenu } from '../../components/ui/DropdownMenu'
 
 const nav = [
   ['dashboard', '/contabilitate', 'Dashboard'],
@@ -20,6 +23,27 @@ const nav = [
   ['inchidere', '/contabilitate/inchidere-luna', 'Inchidere luna'],
   ['alerte', '/contabilitate/alerte', 'Alerte'],
 ]
+
+const navGroups = [
+  {
+    label: 'Nomenclatoare',
+    keys: ['plan', 'furnizori', 'clienti'],
+  },
+  {
+    label: 'Operațiuni',
+    keys: ['intrare', 'iesire', 'trezorerie'],
+  },
+  {
+    label: 'Rapoarte',
+    keys: ['jurnal', 'tva', 'balanta', 'controlling'],
+  },
+  {
+    label: 'Administrare',
+    keys: ['anaf', 'inchidere', 'alerte'],
+  },
+]
+
+const navByKey = Object.fromEntries(nav.map(([key, to, label]) => [key, { key, to, label }]))
 
 export function today() {
   return new Date().toISOString().slice(0, 10)
@@ -192,12 +216,25 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
         <div className="flex flex-wrap gap-2">{actions}</div>
       </div>
       <Card density="compact">
-        <div className="flex flex-wrap gap-1.5">
-          {nav.map(([key, to, label]) => (
-            <Link key={key} to={to} className={`rounded-[var(--radius-control)] border px-3 py-1.5 text-sm font-semibold transition ${active === key ? 'border-primary-700 bg-primary-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-              {label}
-            </Link>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          <Link to="/contabilitate" className={`inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border px-[var(--control-px)] text-sm font-semibold transition ${active === 'dashboard' ? 'border-primary-700 bg-primary-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'}`}>
+            Dashboard
+          </Link>
+          {navGroups.map(group => {
+            const items = group.keys
+              .map(key => navByKey[key])
+              .filter(Boolean)
+              .map(item => ({ ...item, active: active === item.key }))
+            const activeItem = items.find(item => item.active)
+            return (
+              <DropdownMenu
+                key={group.label}
+                label={activeItem ? `${group.label}: ${activeItem.label}` : group.label}
+                active={items.some(item => item.active)}
+                items={items}
+              />
+            )
+          })}
         </div>
       </Card>
       {children}

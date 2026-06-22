@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function RegistruJurnal() {
   const [rows, setRows] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -255,7 +255,12 @@ export function RegistruJurnal() {
   const noteBalanced = Math.abs(noteTotals.debit - noteTotals.credit) <= 0.01 && noteTotals.debit > 0
 
   return (
-    <AccountingShell active="jurnal" title="Registru jurnal" subtitle="Note contabile active si storno, cu linii debit/credit." actions={<><Button onClick={openManualNote}>+ Nota manuala</Button><Button variant="secondary" onClick={() => setImportModal(true)}>Import note XLS</Button><Button variant="secondary" onClick={exportExcel}>Export Excel</Button></>}>
+    <AccountingShell
+      active="jurnal"
+      title="Registru jurnal"
+      subtitle="Note contabile active si storno, cu linii debit/credit."
+      actions={<><Button onClick={openManualNote}>+ Nota manuala</Button><DropdownMenu align="right" label="Mai multe" items={[{ label: 'Import note XLS', onClick: () => setImportModal(true) }, { label: 'Export Excel', onClick: exportExcel }]} /></>}
+    >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
