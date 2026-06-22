@@ -1,5 +1,5 @@
 {
-  "version": "2.12.87",
+  "version": "2.12.88",
   "date": "2026-06-22",
-  "changelog": "## v2.12.87 - 2026-06-22\n### Contabilitate - plati si incasari din factura\n- Facturile validate sau partiale pot fi platite/incasate direct din lista de facturi.\n- Plata/incasarea genereaza automat operatia de trezorerie si nota contabila.\n- Devalidarea operatiei de trezorerie create din factura reface soldul deschis al facturii."
+  "changelog": "## v2.12.88 - 2026-06-22\n### Contabilitate - trezorerie verificabila\n- Trezoreria are filtre dupa registru, operatie, tert si cautare rapida.\n- Sunt afisate totaluri pentru incasari, plati, diferenta si drafturi.\n- Registrul de trezorerie se poate exporta in Excel cu aceleasi filtre."
 }

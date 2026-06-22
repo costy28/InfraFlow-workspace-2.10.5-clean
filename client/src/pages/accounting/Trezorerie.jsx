@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -8,13 +8,17 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountSelect, AccountingShell, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function Trezorerie() {
   const [rows, setRows] = useState([])
   const [thirdParties, setThirdParties] = useState([])
   const [accounts, setAccounts] = useState([])
   const [month, setMonth] = useState(currentMonth())
   const [status, setStatus] = useState('')
+  const [tipFilter, setTipFilter] = useState('')
+  const [operationFilter, setOperationFilter] = useState('')
+  const [tertFilter, setTertFilter] = useState('')
+  const [q, setQ] = useState('')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({})
@@ -24,12 +28,12 @@ export function Trezorerie() {
   const [actionLoading, setActionLoading] = useState('')
   const tertById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
 
-  useEffect(() => { load() }, [month, status])
+  useEffect(() => { load() }, [month, status, tipFilter, operationFilter, tertFilter])
 
   function load() {
     const [an, luna] = month.split('-')
     Promise.all([
-      api.get('/accounting/treasury', { params: { an, luna: Number(luna), status: status || undefined } }),
+      api.get('/accounting/treasury', { params: { an, luna: Number(luna), status: status || undefined, tip: tipFilter || undefined, operatie: operationFilter || undefined, tert_id: tertFilter || undefined } }),
       api.get('/accounting/third-parties'),
       api.get('/accounting/chart')
     ]).then(([treasuryRes, tertRes, chartRes]) => {
@@ -55,6 +59,40 @@ export function Trezorerie() {
       suma: '',
       explicatie: ''
     }
+  }
+
+  const visibleRows = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return rows
+    return rows.filter(row => {
+      const tert = tertById.get(String(row.tert_id))
+      return `${row.data || ''} ${row.tip || ''} ${row.tip_operatie || ''} ${row.nr_document || ''} ${row.cont_trezorerie || ''} ${row.cont_corespondent || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
+    })
+  }, [rows, q, tertById])
+
+  const totals = useMemo(() => {
+    const incasari = visibleRows.filter(row => row.tip_operatie === 'incasare').reduce((sum, row) => sum + money(row.suma), 0)
+    const plati = visibleRows.filter(row => row.tip_operatie === 'plata').reduce((sum, row) => sum + money(row.suma), 0)
+    return {
+      count: visibleRows.length,
+      incasari,
+      plati,
+      diferenta: incasari - plati,
+      drafturi: visibleRows.filter(row => row.status === 'draft').length
+    }
+  }, [visibleRows])
+
+  function exportExcel() {
+    const [an, luna] = month.split('-')
+    const params = new URLSearchParams({
+      an,
+      luna: String(Number(luna))
+    })
+    if (status) params.set('status', status)
+    if (tipFilter) params.set('tip', tipFilter)
+    if (operationFilter) params.set('operatie', operationFilter)
+    if (tertFilter) params.set('tert_id', tertFilter)
+    window.location.href = `/api/accounting/treasury/export?${params.toString()}`
   }
 
   function openNew() {
@@ -188,7 +226,7 @@ export function Trezorerie() {
   }
 
   return (
-    <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<Button onClick={openNew}>+ Operatie</Button>}>
+    <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<><Button onClick={openNew}>+ Operatie</Button><Button variant="secondary" onClick={exportExcel}>Export Excel</Button></>}>
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
       {message ? (
         <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
@@ -203,7 +241,7 @@ export function Trezorerie() {
         </div>
       ) : null}
       <Card>
-        <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
+        <div className="grid gap-3 xl:grid-cols-[160px_160px_160px_160px_minmax(220px,1fr)_minmax(180px,1fr)_auto]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
             { value: '', label: 'Toate fara anulate' },
@@ -211,19 +249,46 @@ export function Trezorerie() {
             { value: 'validat', label: 'Validate' },
             { value: 'anulat', label: 'Anulate' }
           ]} />
+          <Select label="Registru" value={tipFilter} onChange={event => setTipFilter(event.target.value)} options={[
+            { value: '', label: 'Toate' },
+            { value: 'banca', label: 'Banca' },
+            { value: 'casa', label: 'Casa' },
+            { value: 'decont', label: 'Decont' }
+          ]} />
+          <Select label="Operatie" value={operationFilter} onChange={event => setOperationFilter(event.target.value)} options={[
+            { value: '', label: 'Toate' },
+            { value: 'incasare', label: 'Incasari' },
+            { value: 'plata', label: 'Plati' }
+          ]} />
+          <Select label="Tert" value={tertFilter} onChange={event => setTertFilter(event.target.value)} options={[
+            { value: '', label: 'Toti tertii' },
+            ...thirdParties.map(tert => ({ value: tert.id, label: `${tert.cod} - ${tert.denumire}` }))
+          ]} />
+          <Input label="Cauta" value={q} onChange={event => setQ(event.target.value)} placeholder="Document, tert, cont..." />
           <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
         </div>
       </Card>
+      <div className="grid gap-3 md:grid-cols-5">
+        <Card density="compact"><div className="text-xs text-slate-500">Operatii</div><div className="text-lg font-semibold">{totals.count}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Incasari</div><div className="text-lg font-semibold">{formatMoney(totals.incasari)}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Plati</div><div className="text-lg font-semibold">{formatMoney(totals.plati)}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Diferenta</div><div className="text-lg font-semibold">{formatMoney(totals.diferenta)}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Drafturi</div><div className="text-lg font-semibold">{totals.drafturi}</div></Card>
+      </div>
       <Table headers={['Data', 'Tip', 'Operatie', 'Document', 'Tert', 'Cont', 'Corespondent', 'Suma', 'Status', 'Nota', 'Actiuni']}>
-        {rows.map(row => (
+        {visibleRows.map(row => (
           <tr key={row.uuid}>
             <td className="px-3 py-2">{row.data}</td>
             <td className="px-3 py-2 capitalize">{row.tip}</td>
             <td className="px-3 py-2 capitalize">{row.tip_operatie}</td>
             <td className="px-3 py-2">{row.nr_document || '-'}</td>
-            <td className="px-3 py-2">{row.tert_id ? tertById.get(String(row.tert_id))?.denumire || row.tert_id : '-'}</td>
-            <td className="px-3 py-2">{row.cont_trezorerie}</td>
-            <td className="px-3 py-2">{row.cont_corespondent || '-'}</td>
+            <td className="px-3 py-2">
+              {row.tert_id ? tertById.get(String(row.tert_id))?.denumire || row.tert_id : '-'}
+              {row.invoice_in_id ? <div className="text-xs text-slate-500">din factura intrare</div> : null}
+              {row.invoice_out_id ? <div className="text-xs text-slate-500">din factura iesire</div> : null}
+            </td>
+            <td className="px-3 py-2"><Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont_trezorerie}?de_la=${month}-01&pana_la=${month}-31`}>{row.cont_trezorerie}</Link></td>
+            <td className="px-3 py-2">{row.cont_corespondent ? <Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont_corespondent}?de_la=${month}-01&pana_la=${month}-31`}>{row.cont_corespondent}</Link> : '-'}</td>
             <td className="px-3 py-2">{formatMoney(row.suma)}</td>
             <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
             <td className="px-3 py-2">

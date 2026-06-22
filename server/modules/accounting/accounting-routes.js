@@ -446,6 +446,50 @@ router.get("/accounting/treasury", requireAccountingView, (req, res) => {
   sendJson(res, 200, { treasury: filterDocuments(accounting.treasury, req.query).map((row) => decorateTreasury(row, accounting)) });
 });
 
+router.get("/accounting/treasury/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const rows = filterDocuments(accounting.treasury, req.query).map((row) => decorateTreasury(row, accounting));
+    const totalIncasari = round(rows.filter((row) => row.tip_operatie === "incasare").reduce((acc, row) => acc + Number(row.suma || 0), 0));
+    const totalPlati = round(rows.filter((row) => row.tip_operatie === "plata").reduce((acc, row) => acc + Number(row.suma || 0), 0));
+    const exportRows = [
+      ["Registru trezorerie", req.query.an || "", req.query.luna ? String(req.query.luna).padStart(2, "0") : "", req.query.status || "toate fara anulate"],
+      [],
+      ["Data", "Tip", "Operatie", "Document", "Tert", "CUI", "Cont trezorerie", "Cont corespondent", "Suma", "Status", "Nota contabila", "Explicatie"],
+      ...rows.map((row) => {
+        const tert = row.tert_id ? accounting.thirdParties.find((item) => String(item.id) === String(row.tert_id)) : null;
+        return [
+          row.data || "",
+          row.tip || "",
+          row.tip_operatie || "",
+          row.nr_document || "",
+          tert?.denumire || "",
+          tert?.cui || "",
+          row.cont_trezorerie || "",
+          row.cont_corespondent || "",
+          row.suma || 0,
+          row.status || "",
+          row.journal_id ? `NC ${row.journal_id}` : "",
+          row.explicatie || ""
+        ];
+      }),
+      [],
+      ["TOTAL INCASARI", "", "", "", "", "", "", "", totalIncasari, "", "", ""],
+      ["TOTAL PLATI", "", "", "", "", "", "", "", totalPlati, "", "", ""],
+      ["DIFERENTA", "", "", "", "", "", "", "", round(totalIncasari - totalPlati), "", "", ""]
+    ];
+    const workbook = xlsx.utils.book_new();
+    const sheet = xlsx.utils.aoa_to_sheet(exportRows);
+    sheet["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 34 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 42 }];
+    xlsx.utils.book_append_sheet(workbook, sheet, "Trezorerie");
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const suffix = req.query.an && req.query.luna ? `${req.query.an}_${String(req.query.luna).padStart(2, "0")}` : today();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Trezorerie_${suffix}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
 router.post("/accounting/treasury", requireAccountingPost, (req, res, next) => {
   try {
     const treasury = createTreasury(req.auth.db, req.auth.user, req.body || {});
@@ -1496,6 +1540,8 @@ function filterDocuments(items, query) {
     (!query.status || item.status === query.status) &&
     (!query.furnizor || String(item.furnizor_id) === String(query.furnizor)) &&
     (!query.client || String(item.client_id) === String(query.client)) &&
+    (!query.tert_id || String(item.tert_id) === String(query.tert_id)) &&
+    (!query.operatie || String(item.tip_operatie) === String(query.operatie)) &&
     (!query.tip || item.tip_document === query.tip || item.tip === query.tip)
   ).sort((a, b) => String(b.data || b.created_at || "").localeCompare(String(a.data || a.created_at || "")));
 }
