@@ -13,6 +13,8 @@ export function Trezorerie() {
   const [rows, setRows] = useState([])
   const [thirdParties, setThirdParties] = useState([])
   const [accounts, setAccounts] = useState([])
+  const [openInvoicesIn, setOpenInvoicesIn] = useState([])
+  const [openInvoicesOut, setOpenInvoicesOut] = useState([])
   const [month, setMonth] = useState(currentMonth())
   const [status, setStatus] = useState('')
   const [tipFilter, setTipFilter] = useState('')
@@ -27,6 +29,11 @@ export function Trezorerie() {
   const [validatedJournal, setValidatedJournal] = useState(null)
   const [actionLoading, setActionLoading] = useState('')
   const tertById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
+  const invoiceChoices = useMemo(() => {
+    const source = form.tip_operatie === 'incasare' ? openInvoicesOut : openInvoicesIn
+    const tertKey = form.tip_operatie === 'incasare' ? 'client_id' : 'furnizor_id'
+    return source.filter(invoice => !form.tert_id || String(invoice[tertKey]) === String(form.tert_id))
+  }, [form.tip_operatie, form.tert_id, openInvoicesIn, openInvoicesOut])
 
   useEffect(() => { load() }, [month, status, tipFilter, operationFilter, tertFilter])
 
@@ -35,15 +42,21 @@ export function Trezorerie() {
     Promise.all([
       api.get('/accounting/treasury', { params: { an, luna: Number(luna), status: status || undefined, tip: tipFilter || undefined, operatie: operationFilter || undefined, tert_id: tertFilter || undefined } }),
       api.get('/accounting/third-parties'),
-      api.get('/accounting/chart')
-    ]).then(([treasuryRes, tertRes, chartRes]) => {
+      api.get('/accounting/chart'),
+      api.get('/accounting/invoices-in'),
+      api.get('/accounting/invoices-out')
+    ]).then(([treasuryRes, tertRes, chartRes, invoicesInRes, invoicesOutRes]) => {
       setRows(treasuryRes.data.treasury || [])
       setThirdParties(tertRes.data.thirdParties || [])
       setAccounts(chartRes.data.accounts || [])
+      setOpenInvoicesIn((invoicesInRes.data.invoices || []).filter(invoice => ['validat', 'partial'].includes(invoice.status) && invoiceRemaining(invoice, 'intrare') > 0))
+      setOpenInvoicesOut((invoicesOutRes.data.invoices || []).filter(invoice => ['validat', 'partial'].includes(invoice.status) && invoiceRemaining(invoice, 'iesire') > 0))
     }).catch(() => {
       setRows([])
       setThirdParties([])
       setAccounts([])
+      setOpenInvoicesIn([])
+      setOpenInvoicesOut([])
     })
   }
 
@@ -57,8 +70,25 @@ export function Trezorerie() {
       cont_trezorerie: '5121',
       cont_corespondent: '401',
       suma: '',
+      invoice_in_id: '',
+      invoice_out_id: '',
       explicatie: ''
     }
+  }
+
+  function invoiceRemaining(invoice, type) {
+    if (type === 'intrare') return money(invoice.neachitat ?? money(invoice.total) - money(invoice.achitat))
+    return money(invoice.neincasat ?? money(invoice.total) - money(invoice.incasat))
+  }
+
+  function invoiceDocument(invoice) {
+    return invoice.numar || invoice.nr_document || `ID ${invoice.id}`
+  }
+
+  function invoiceOptionLabel(invoice, type) {
+    const tertId = type === 'iesire' ? invoice.client_id : invoice.furnizor_id
+    const tert = tertById.get(String(tertId))
+    return `${invoiceDocument(invoice)} - ${tert?.denumire || 'tert'} - rest ${formatMoney(invoiceRemaining(invoice, type))}`
   }
 
   const visibleRows = useMemo(() => {
@@ -109,7 +139,7 @@ export function Trezorerie() {
     setError('')
     setMessage('')
     setValidatedJournal(null)
-    setForm({ ...defaultForm(), ...row, tert_id: row.tert_id || '' })
+    setForm({ ...defaultForm(), ...row, tert_id: row.tert_id || '', invoice_in_id: row.invoice_in_id || '', invoice_out_id: row.invoice_out_id || '' })
     setModal(true)
   }
 
@@ -117,8 +147,50 @@ export function Trezorerie() {
     const next = { ...form, ...patch }
     if (patch.tip === 'casa' && (!form.cont_trezorerie || form.cont_trezorerie === '5121')) next.cont_trezorerie = '5311'
     if (patch.tip === 'banca' && (!form.cont_trezorerie || form.cont_trezorerie === '5311')) next.cont_trezorerie = '5121'
-    if (patch.tip_operatie === 'incasare' && (!form.cont_corespondent || form.cont_corespondent === '401')) next.cont_corespondent = '4111'
-    if (patch.tip_operatie === 'plata' && (!form.cont_corespondent || form.cont_corespondent === '4111')) next.cont_corespondent = '401'
+    if (patch.tip_operatie === 'incasare') {
+      if (!form.cont_corespondent || form.cont_corespondent === '401') next.cont_corespondent = '4111'
+      next.invoice_in_id = ''
+    }
+    if (patch.tip_operatie === 'plata') {
+      if (!form.cont_corespondent || form.cont_corespondent === '4111') next.cont_corespondent = '401'
+      next.invoice_out_id = ''
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'invoice_in_id')) {
+      next.invoice_out_id = ''
+      const invoice = openInvoicesIn.find(item => String(item.id) === String(patch.invoice_in_id))
+      if (invoice) {
+        const tert = tertById.get(String(invoice.furnizor_id))
+        next.tip_operatie = 'plata'
+        next.tert_id = invoice.furnizor_id || ''
+        next.cont_corespondent = tert?.cont_analitic_furnizor || next.cont_corespondent || '401'
+        next.suma = invoiceRemaining(invoice, 'intrare')
+        next.nr_document = next.nr_document || invoice.nr_document || ''
+        next.explicatie = next.explicatie || `Plata factura ${invoiceDocument(invoice)}`
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'invoice_out_id')) {
+      next.invoice_in_id = ''
+      const invoice = openInvoicesOut.find(item => String(item.id) === String(patch.invoice_out_id))
+      if (invoice) {
+        const tert = tertById.get(String(invoice.client_id))
+        next.tip_operatie = 'incasare'
+        next.tert_id = invoice.client_id || ''
+        next.cont_corespondent = tert?.cont_analitic_client || next.cont_corespondent || '4111'
+        next.suma = invoiceRemaining(invoice, 'iesire')
+        next.nr_document = next.nr_document || invoiceDocument(invoice)
+        next.explicatie = next.explicatie || `Incasare factura ${invoiceDocument(invoice)}`
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'tert_id')) {
+      const activeInvoice = next.invoice_in_id
+        ? openInvoicesIn.find(item => String(item.id) === String(next.invoice_in_id))
+        : openInvoicesOut.find(item => String(item.id) === String(next.invoice_out_id))
+      const tertKey = next.invoice_in_id ? 'furnizor_id' : 'client_id'
+      if (activeInvoice && String(activeInvoice[tertKey]) !== String(patch.tert_id || '')) {
+        next.invoice_in_id = ''
+        next.invoice_out_id = ''
+      }
+    }
     setForm(next)
   }
 
@@ -133,7 +205,7 @@ export function Trezorerie() {
       return
     }
     try {
-      const payload = { ...form, tert_id: form.tert_id || null }
+      const payload = { ...form, tert_id: form.tert_id || null, invoice_in_id: form.invoice_in_id || null, invoice_out_id: form.invoice_out_id || null }
       if (editing) await api.patch(`/accounting/treasury/${editing.uuid}`, payload)
       else await api.post('/accounting/treasury', payload)
       setModal(false)
@@ -152,6 +224,8 @@ export function Trezorerie() {
     if (accounts.length && !accountExists(row.cont_trezorerie)) return `Contul de trezorerie ${row.cont_trezorerie} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
     if (!row.cont_corespondent) return 'Completează contul corespondent înainte de validare.'
     if (accounts.length && !accountExists(row.cont_corespondent)) return `Contul corespondent ${row.cont_corespondent} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
+    if (row.invoice_in_id && row.tip_operatie !== 'plata') return 'Factura de intrare se poate stinge doar prin plată.'
+    if (row.invoice_out_id && row.tip_operatie !== 'incasare') return 'Factura de ieșire se poate stinge doar prin încasare.'
     return ''
   }
 
@@ -284,8 +358,11 @@ export function Trezorerie() {
             <td className="px-3 py-2">{row.nr_document || '-'}</td>
             <td className="px-3 py-2">
               {row.tert_id ? tertById.get(String(row.tert_id))?.denumire || row.tert_id : '-'}
-              {row.invoice_in_id ? <div className="text-xs text-slate-500">din factura intrare</div> : null}
-              {row.invoice_out_id ? <div className="text-xs text-slate-500">din factura iesire</div> : null}
+              {row.linked_invoice ? (
+                <div className="text-xs text-slate-500">
+                  factura {row.linked_invoice.tip}: {row.linked_invoice.document || row.linked_invoice.id}
+                </div>
+              ) : null}
             </td>
             <td className="px-3 py-2"><Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont_trezorerie}?de_la=${month}-01&pana_la=${month}-31`}>{row.cont_trezorerie}</Link></td>
             <td className="px-3 py-2">{row.cont_corespondent ? <Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont_corespondent}?de_la=${month}-01&pana_la=${month}-31`}>{row.cont_corespondent}</Link> : '-'}</td>
@@ -323,6 +400,18 @@ export function Trezorerie() {
             <Input label="Data" type="date" value={form.data || today()} onChange={event => updateForm({ data: event.target.value })} required />
             <Input label="Nr. document" value={form.nr_document || ''} onChange={event => updateForm({ nr_document: event.target.value })} />
             <Select label="Tert optional" value={form.tert_id || ''} onChange={event => updateForm({ tert_id: event.target.value })} options={[{ value: '', label: 'Fara tert' }, ...thirdParties.map(tert => ({ value: tert.id, label: `${tert.cod} - ${tert.denumire}` }))]} />
+            <Select
+              label={form.tip_operatie === 'incasare' ? 'Factura client deschisa' : 'Factura furnizor deschisa'}
+              value={form.tip_operatie === 'incasare' ? form.invoice_out_id || '' : form.invoice_in_id || ''}
+              onChange={event => updateForm(form.tip_operatie === 'incasare' ? { invoice_out_id: event.target.value } : { invoice_in_id: event.target.value })}
+              options={[
+                { value: '', label: 'Fara factura legata' },
+                ...invoiceChoices.map(invoice => ({
+                  value: invoice.id,
+                  label: invoiceOptionLabel(invoice, form.tip_operatie === 'incasare' ? 'iesire' : 'intrare')
+                }))
+              ]}
+            />
             <Input label="Suma" type="number" step="0.01" value={form.suma || ''} onChange={event => updateForm({ suma: event.target.value })} required />
             <AccountSelect label="Cont trezorerie" value={form.cont_trezorerie || ''} accounts={accounts} recommendedClasses={[5]} onChange={event => updateForm({ cont_trezorerie: event.target.value })} required />
             <AccountSelect label="Cont corespondent" value={form.cont_corespondent || ''} accounts={accounts} recommendedClasses={[4, 5, 6, 7]} onChange={event => updateForm({ cont_corespondent: event.target.value })} required />

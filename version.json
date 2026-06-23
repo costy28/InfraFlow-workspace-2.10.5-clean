@@ -1,5 +1,5 @@
 {
-  "version": "2.12.92",
-  "date": "2026-06-22",
-  "changelog": "## v2.12.92 - 2026-06-22\n### UI - dropdown-uri generale pe module\n- Documente muta actiunile secundare pentru documente si template-uri in meniuri dropdown.\n- Mecanizare grupeaza navigatia lunga pe domenii: Parc, Operatiuni, Scadente si Rapoarte.\n- Setari grupeaza taburile in meniuri logice: Sistem, Administrare, Interfata si Integrari."
+  "version": "2.12.94",
+  "date": "2026-06-23",
+  "changelog": "## v2.12.94 - 2026-06-23\n### Contabilitate - trezorerie corelata cu facturi\n- Operatiile de trezorerie pot fi legate de facturi deschise furnizor/client.\n- Validarea unei plati/incasari stinge automat factura legata, inclusiv partial.\n- Devalidarea operatiei revine factura la restul corect."
 }

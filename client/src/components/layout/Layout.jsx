@@ -97,7 +97,7 @@ export default function Layout({ children }) {
 
   return (
     <SettingsProvider>
-    <div className="flex min-h-screen w-full overflow-x-hidden bg-slate-50">
+    <div className="app-shell flex min-h-screen w-full overflow-x-hidden bg-slate-50">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -105,7 +105,7 @@ export default function Layout({ children }) {
         onToggleCollapsed={toggleSidebarCollapsed}
         aiEnabled={Boolean(user?.modules?.ai?.enabled)}
       />
-      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+      <div className="app-content flex min-w-0 flex-1 flex-col overflow-x-hidden">
         <Navbar
           title={title}
           user={user}
@@ -129,7 +129,7 @@ export default function Layout({ children }) {
             </div>
           </div>
         ) : null}
-        <main className="min-w-0 flex-1 overflow-x-hidden p-4">
+        <main className="app-main min-w-0 flex-1 overflow-x-hidden p-4">
           {children}
         </main>
       </div>

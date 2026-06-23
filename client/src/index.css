@@ -181,6 +181,108 @@ table {
   font-variant-numeric: tabular-nums;
 }
 
+#root {
+  isolation: isolate;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: clip;
+}
+
+.app-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-main {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.app-main > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-main :where(.grid, .flex, form, section, article, header, main) {
+  min-width: 0;
+}
+
+.app-main :where(.overflow-hidden):has(> table),
+.app-main :where(.rounded-lg, .rounded-md, .rounded-\[var\(--radius-panel\)\]):has(> table) {
+  max-width: 100%;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-main :where(.overflow-hidden):has(> table) > table,
+.app-main :where(.overflow-x-auto) > table {
+  min-width: max(100%, 44rem);
+}
+
+.app-main :where(th) {
+  white-space: nowrap;
+}
+
+.app-main :where(td) {
+  overflow-wrap: anywhere;
+}
+
+.app-main :where(.table-actions, td:last-child) {
+  white-space: nowrap;
+}
+
+.module-toolbar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.module-toolbar > * {
+  min-width: 0;
+}
+
+.module-tabs {
+  display: flex;
+  max-width: 100%;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.module-tabs > * {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+  .app-main {
+    padding: 0.875rem !important;
+  }
+
+  .app-main :where(table) {
+    font-size: 0.8125rem;
+  }
+
+  .module-toolbar {
+    align-items: stretch;
+  }
+
+  .module-toolbar > button,
+  .module-toolbar > a,
+  .module-toolbar > div {
+    width: 100%;
+  }
+}
+
 html[data-theme="dark"] input::placeholder,
 html[data-theme="dark"] textarea::placeholder {
   color: #64748b;

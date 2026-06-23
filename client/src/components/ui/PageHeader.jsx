@@ -1,7 +1,7 @@
 export default function PageHeader({ title, subtitle, actions = [], breadcrumb = [] }) {
   return (
-    <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div>
+    <header className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="min-w-0">
         {breadcrumb.length > 0 && (
           <nav className="mb-1 flex flex-wrap gap-1 text-xs text-slate-500">
             {breadcrumb.map((item, index) => (
@@ -12,10 +12,10 @@ export default function PageHeader({ title, subtitle, actions = [], breadcrumb =
             ))}
           </nav>
         )}
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
+        <h1 className="truncate text-2xl font-semibold text-slate-900">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
       </div>
-      {actions.length > 0 && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions.length > 0 && <div className="module-toolbar shrink-0 md:justify-end">{actions}</div>}
     </header>
   )
 }

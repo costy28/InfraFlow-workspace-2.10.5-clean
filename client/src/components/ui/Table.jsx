@@ -28,7 +28,7 @@ export default function Table({
           <thead className="bg-slate-50/90">
             <tr>
               {columns.map(column => (
-                <th key={column.key} className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <th key={column.key} className="whitespace-nowrap px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   {column.label}
                 </th>
               ))}
@@ -48,7 +48,7 @@ export default function Table({
                 className={`transition ${onRowClick ? 'cursor-pointer hover:bg-primary-50' : 'hover:bg-slate-50/70'}`}
               >
                 {columns.map(column => (
-                  <td key={column.key} className="px-3 py-2 align-top text-slate-700">
+                  <td key={column.key} className={`min-w-0 px-3 py-2 align-top text-slate-700 ${column.key === 'actions' ? 'table-actions whitespace-nowrap' : ''}`}>
                     {column.render ? column.render(row, index) : row[column.key]}
                   </td>
                 ))}

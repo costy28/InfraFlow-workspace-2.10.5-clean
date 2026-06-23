@@ -505,10 +505,11 @@ router.patch("/accounting/treasury/:uuid", requireAccountingPost, (req, res, nex
     if (treasury.status !== "draft") throwHttp(409, "Doar operatiile draft se pot modifica.");
     engine.checkPeriodOpen(req.auth.db, treasury.an, treasury.luna);
     Object.assign(treasury, normalizeTreasury(req.body || {}, treasury));
+    prepareTreasuryInvoiceLink(req.auth.db, treasury);
     engine.checkPeriodOpen(req.auth.db, treasury.an, treasury.luna);
     addAudit(req.auth.db, req.auth.user, "accounting_treasury_update", `${treasury.tip_operatie} ${treasury.suma}`);
     writeDb(req.auth.db);
-    sendJson(res, 200, { treasury });
+    sendJson(res, 200, { treasury: decorateTreasury(treasury, engine.ensureAccounting(req.auth.db)) });
   } catch (error) { next(error); }
 });
 
@@ -517,7 +518,10 @@ router.post("/accounting/treasury/:uuid/validate", requireAccountingPost, (req, 
     const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
     if (treasury.status !== "draft") throwHttp(409, "Operatia nu este in draft.");
     engine.checkPeriodOpen(req.auth.db, treasury.an, treasury.luna);
+    prepareTreasuryInvoiceLink(req.auth.db, treasury);
+    assertTreasuryInvoiceCanApply(req.auth.db, treasury);
     const journal = engine.generateJournalFromTreasury(req.auth.db, req.auth.user, treasury);
+    applyTreasuryInvoiceEffect(req.auth.db, treasury);
     treasury.journal_id = journal.id;
     treasury.status = "validat";
     addAudit(req.auth.db, req.auth.user, "accounting_treasury_validate", `${treasury.tip_operatie} ${treasury.suma}`);
@@ -1209,6 +1213,7 @@ function createTreasury(db, user, body) {
     created_by: user?.id || "",
     created_at: new Date().toISOString()
   });
+  prepareTreasuryInvoiceLink(db, treasury);
   engine.checkPeriodOpen(db, treasury.an, treasury.luna);
   accounting.treasury.push(treasury);
   return treasury;
@@ -1237,6 +1242,80 @@ function normalizeTreasury(body, existing = {}) {
   };
   if (treasury.suma <= 0) throwHttp(400, "Suma trebuie sa fie pozitiva.");
   return treasury;
+}
+
+function findLinkedTreasuryInvoice(db, treasury) {
+  const accounting = engine.ensureAccounting(db);
+  const hasIn = treasury.invoice_in_id !== null && treasury.invoice_in_id !== undefined && treasury.invoice_in_id !== "";
+  const hasOut = treasury.invoice_out_id !== null && treasury.invoice_out_id !== undefined && treasury.invoice_out_id !== "";
+  if (hasIn && hasOut) throwHttp(422, "Alege o singura factura pentru operatia de trezorerie.");
+  if (hasIn) {
+    const invoice = accounting.invoicesIn.find((item) => String(item.id) === String(treasury.invoice_in_id));
+    if (!invoice) throwHttp(404, "Factura de intrare legata nu a fost gasita.");
+    return { tip: "intrare", invoice };
+  }
+  if (hasOut) {
+    const invoice = accounting.invoicesOut.find((item) => String(item.id) === String(treasury.invoice_out_id));
+    if (!invoice) throwHttp(404, "Factura de iesire legata nu a fost gasita.");
+    return { tip: "iesire", invoice };
+  }
+  return null;
+}
+
+function prepareTreasuryInvoiceLink(db, treasury) {
+  const link = findLinkedTreasuryInvoice(db, treasury);
+  if (!link) return null;
+  if (link.tip === "intrare") {
+    if (treasury.tip_operatie !== "plata") throwHttp(422, "O factura de intrare se stinge prin plata, nu prin incasare.");
+    const tert = thirdParty(db, link.invoice.furnizor_id);
+    treasury.tert_id = link.invoice.furnizor_id;
+    treasury.cont_corespondent = treasury.cont_corespondent || tert.cont_analitic_furnizor || "401";
+    treasury.nr_document = treasury.nr_document || link.invoice.nr_document || "";
+    treasury.explicatie = treasury.explicatie || `Plata factura ${link.invoice.nr_document || link.invoice.id}`;
+  } else {
+    if (treasury.tip_operatie !== "incasare") throwHttp(422, "O factura de iesire se stinge prin incasare, nu prin plata.");
+    const tert = thirdParty(db, link.invoice.client_id);
+    treasury.tert_id = link.invoice.client_id;
+    treasury.cont_corespondent = treasury.cont_corespondent || tert.cont_analitic_client || "4111";
+    treasury.nr_document = treasury.nr_document || link.invoice.numar || link.invoice.nr_document || "";
+    treasury.explicatie = treasury.explicatie || `Incasare factura ${link.invoice.numar || link.invoice.nr_document || link.invoice.id}`;
+  }
+  treasury.updated_at = new Date().toISOString();
+  return link;
+}
+
+function treasuryInvoiceRemaining(link) {
+  if (!link) return 0;
+  if (link.tip === "intrare") return round(link.invoice.neachitat ?? Number(link.invoice.total || 0) - Number(link.invoice.achitat || 0));
+  return round(link.invoice.neincasat ?? Number(link.invoice.total || 0) - Number(link.invoice.incasat || 0));
+}
+
+function assertTreasuryInvoiceCanApply(db, treasury) {
+  const link = findLinkedTreasuryInvoice(db, treasury);
+  if (!link) return;
+  if (!["validat", "partial"].includes(String(link.invoice.status || ""))) {
+    throwHttp(409, "Factura legata trebuie sa fie validata sau partial stinsa.");
+  }
+  const remaining = treasuryInvoiceRemaining(link);
+  if (remaining <= 0) throwHttp(409, "Factura legata este deja stinsa.");
+  if (Number(treasury.suma || 0) > remaining + 0.01) {
+    throwHttp(422, `Suma operatiei depaseste restul facturii: ${remaining.toFixed(2)}.`);
+  }
+}
+
+function applyTreasuryInvoiceEffect(db, treasury) {
+  const link = findLinkedTreasuryInvoice(db, treasury);
+  if (!link) return;
+  if (link.tip === "intrare") {
+    link.invoice.achitat = round(Number(link.invoice.achitat || 0) + Number(treasury.suma || 0));
+    link.invoice.neachitat = round(Number(link.invoice.total || 0) - Number(link.invoice.achitat || 0));
+    link.invoice.status = link.invoice.neachitat <= 0 ? "achitat" : "partial";
+  } else {
+    link.invoice.incasat = round(Number(link.invoice.incasat || 0) + Number(treasury.suma || 0));
+    link.invoice.neincasat = round(Number(link.invoice.total || 0) - Number(link.invoice.incasat || 0));
+    link.invoice.status = link.invoice.neincasat <= 0 ? "incasat" : "partial";
+  }
+  link.invoice.updated_at = new Date().toISOString();
 }
 
 function devalidateTreasury(db, user, treasury, reason = "") {
@@ -1284,9 +1363,30 @@ function decorateTreasury(row, accounting) {
   const journal = row.journal_id
     ? accounting.journals.find((item) => Number(item.id) === Number(row.journal_id))
     : null;
+  const invoiceIn = row.invoice_in_id
+    ? accounting.invoicesIn.find((item) => String(item.id) === String(row.invoice_in_id))
+    : null;
+  const invoiceOut = row.invoice_out_id
+    ? accounting.invoicesOut.find((item) => String(item.id) === String(row.invoice_out_id))
+    : null;
   const month = row.data ? String(row.data).slice(0, 7) : `${row.an}-${String(row.luna).padStart(2, "0")}`;
   return {
     ...row,
+    linked_invoice: invoiceIn ? {
+      tip: "intrare",
+      id: invoiceIn.id,
+      uuid: invoiceIn.uuid,
+      document: invoiceIn.nr_document || "",
+      total: invoiceIn.total || 0,
+      rest: round(invoiceIn.neachitat ?? Number(invoiceIn.total || 0) - Number(invoiceIn.achitat || 0))
+    } : invoiceOut ? {
+      tip: "iesire",
+      id: invoiceOut.id,
+      uuid: invoiceOut.uuid,
+      document: invoiceOut.numar || invoiceOut.nr_document || "",
+      total: invoiceOut.total || 0,
+      rest: round(invoiceOut.neincasat ?? Number(invoiceOut.total || 0) - Number(invoiceOut.incasat || 0))
+    } : null,
     journal_uuid: journal?.uuid || "",
     journal_status: journal?.status || "",
     journal_total_debit: journal?.total_debit || 0,
