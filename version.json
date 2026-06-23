@@ -1,5 +1,5 @@
 {
-  "version": "2.12.103",
+  "version": "2.12.104",
   "date": "2026-06-23",
-  "changelog": "## v2.12.103 - 2026-06-23\n### Contabilitate - jurnale contabile clasice\n- Pagina noua Jurnale in modulul Contabilitate, in grupul Rapoarte.\n- Afisare separata pentru jurnal cumparari, jurnal vanzari, registru casa si jurnal banca.\n- Export Excel unic cu foi separate pentru fiecare jurnal."
+  "changelog": "## v2.12.104 - 2026-06-23\n### Contabilitate - solduri registru casa si banca\n- Registrul de casa si jurnalul de banca calculeaza sold initial, incasari, plati si sold final.\n- Fiecare operatie afiseaza soldul curent dupa inregistrare.\n- Jurnalele clasice includ implicit operatiunile validate, cu drafturile disponibile doar prin filtru."
 }

@@ -2049,20 +2049,8 @@ function buildClassicJournalsData(db, query = {}) {
   const accounting = engine.ensureAccounting(db);
   const vatData = buildVatData(db, query);
   const { an, luna } = vatData.perioada;
-  const treasuryRows = filterDocuments(accounting.treasury, { ...query, an, luna })
-    .map((row) => {
-      const decorated = decorateTreasury(row, accounting);
-      const tert = decorated.tert_id
-        ? accounting.thirdParties.find((item) => String(item.id) === String(decorated.tert_id))
-        : null;
-      return {
-        ...decorated,
-        tert_denumire: tert?.denumire || "",
-        tert_cui: tert?.cui || ""
-      };
-    });
-  const registruCasa = treasuryRows.filter((row) => String(row.tip || "").toLowerCase() === "casa");
-  const jurnalBanca = treasuryRows.filter((row) => String(row.tip || "").toLowerCase() !== "casa");
+  const registruCasa = buildTreasuryRegister(accounting, query, an, luna, "casa");
+  const jurnalBanca = buildTreasuryRegister(accounting, query, an, luna, "banca");
   return {
     perioada: { an, luna },
     filters: {
@@ -2078,12 +2066,14 @@ function buildClassicJournalsData(db, query = {}) {
       totals: invoiceJournalTotals(vatData.jurnal_vanzari)
     },
     registru_casa: {
-      rows: registruCasa,
-      totals: treasuryJournalTotals(registruCasa)
+      rows: registruCasa.rows,
+      totals: registruCasa.totals,
+      accounts: registruCasa.accounts
     },
     jurnal_banca: {
-      rows: jurnalBanca,
-      totals: treasuryJournalTotals(jurnalBanca)
+      rows: jurnalBanca.rows,
+      totals: jurnalBanca.totals,
+      accounts: jurnalBanca.accounts
     },
     period_status: vatData.period_status,
     warnings: vatData.warnings || []
@@ -2099,20 +2089,97 @@ function invoiceJournalTotals(rows) {
   };
 }
 
-function treasuryJournalTotals(rows) {
-  const incasari = rows.filter((row) => row.tip_operatie === "incasare");
-  const plati = rows.filter((row) => row.tip_operatie === "plata");
+function buildTreasuryRegister(accounting, query, an, luna, registerType) {
+  const firstDay = `${an}-${String(luna).padStart(2, "0")}-01`;
+  const requestedStatus = query.status === undefined || query.status === "" ? "validat" : String(query.status);
+  const matchesType = (row) => {
+    const tip = String(row.tip || "").toLowerCase();
+    return registerType === "casa" ? tip === "casa" : tip !== "casa";
+  };
+  const decorate = (row) => {
+    const decorated = decorateTreasury(row, accounting);
+    const tert = decorated.tert_id
+      ? accounting.thirdParties.find((item) => String(item.id) === String(decorated.tert_id))
+      : null;
+    return {
+      ...decorated,
+      tert_denumire: tert?.denumire || "",
+      tert_cui: tert?.cui || ""
+    };
+  };
+  const previousRows = accounting.treasury
+    .filter((row) => matchesType(row))
+    .filter((row) => String(row.status || "") === "validat")
+    .filter((row) => String(row.data || "") < firstDay)
+    .map(decorate);
+  const rows = accounting.treasury
+    .filter((row) => Number(row.an) === Number(an) && Number(row.luna) === Number(luna))
+    .filter((row) => matchesType(row))
+    .filter((row) => requestedStatus ? String(row.status || "") === requestedStatus : row.status !== "anulat")
+    .map(decorate)
+    .sort((a, b) => String(a.data || "").localeCompare(String(b.data || "")) || Number(a.id || 0) - Number(b.id || 0));
+  const opening = treasuryMovementTotal(previousRows);
+  let sold = opening;
+  const rowsWithSold = rows.map((row) => {
+    const incasari = row.tip_operatie === "incasare" ? Number(row.suma || 0) : 0;
+    const plati = row.tip_operatie === "plata" ? Number(row.suma || 0) : 0;
+    sold = round(sold + incasari - plati);
+    return {
+      ...row,
+      incasari,
+      plati,
+      sold_curent: sold
+    };
+  });
+  return {
+    rows: rowsWithSold,
+    totals: treasuryJournalTotals(rowsWithSold, opening),
+    accounts: treasuryAccountSummary(previousRows, rowsWithSold)
+  };
+}
+
+function treasuryMovementTotal(rows) {
+  return round(rows.reduce((acc, row) => acc + (row.tip_operatie === "incasare" ? Number(row.suma || 0) : -Number(row.suma || 0)), 0));
+}
+
+function treasuryJournalTotals(rows, opening = 0) {
+  const incasari = rows.reduce((acc, row) => acc + Number(row.incasari || (row.tip_operatie === "incasare" ? row.suma : 0) || 0), 0);
+  const plati = rows.reduce((acc, row) => acc + Number(row.plati || (row.tip_operatie === "plata" ? row.suma : 0) || 0), 0);
   return {
     count: rows.length,
-    incasari: sum(incasari, "suma"),
-    plati: sum(plati, "suma"),
-    sold: round(sum(incasari, "suma") - sum(plati, "suma"))
+    sold_initial: round(opening),
+    incasari: round(incasari),
+    plati: round(plati),
+    sold: round(opening + incasari - plati),
+    sold_final: round(opening + incasari - plati)
   };
+}
+
+function treasuryAccountSummary(previousRows, currentRows) {
+  const accounts = new Map();
+  const ensure = (account) => {
+    const key = account || "-";
+    if (!accounts.has(key)) accounts.set(key, { cont_trezorerie: key, sold_initial: 0, incasari: 0, plati: 0, sold_final: 0 });
+    return accounts.get(key);
+  };
+  previousRows.forEach((row) => {
+    const summary = ensure(row.cont_trezorerie);
+    summary.sold_initial = round(summary.sold_initial + (row.tip_operatie === "incasare" ? Number(row.suma || 0) : -Number(row.suma || 0)));
+  });
+  currentRows.forEach((row) => {
+    const summary = ensure(row.cont_trezorerie);
+    summary.incasari = round(summary.incasari + Number(row.incasari || 0));
+    summary.plati = round(summary.plati + Number(row.plati || 0));
+  });
+  return [...accounts.values()].map((row) => ({
+    ...row,
+    sold_final: round(row.sold_initial + row.incasari - row.plati)
+  })).sort((a, b) => String(a.cont_trezorerie).localeCompare(String(b.cont_trezorerie), "ro"));
 }
 
 function treasuryExportRows(rows) {
   return [
-    ["Data", "Document", "Operatie", "Tert", "Cont trezorerie", "Cont corespondent", "Incasari", "Plati", "Status", "Nota", "Explicatie"],
+    ["Data", "Document", "Operatie", "Tert", "Cont trezorerie", "Cont corespondent", "Incasari", "Plati", "Sold", "Status", "Nota", "Explicatie"],
     ...rows.map((row) => [
       row.data || "",
       row.nr_document || "",
@@ -2120,8 +2187,9 @@ function treasuryExportRows(rows) {
       row.tert_denumire || "",
       row.cont_trezorerie || "",
       row.cont_corespondent || "",
-      row.tip_operatie === "incasare" ? row.suma || 0 : 0,
-      row.tip_operatie === "plata" ? row.suma || 0 : 0,
+      row.incasari || 0,
+      row.plati || 0,
+      row.sold_curent || 0,
       row.status || "",
       row.journal_id ? `NC ${row.journal_id}` : "",
       row.explicatie || ""
@@ -2138,9 +2206,11 @@ function appendClassicJournalSheet(workbook, name, rows, perioada, totals) {
     ["Total documente", totals.count || 0],
     ["Total baza", totals.baza || 0],
     ["Total TVA", totals.tva || 0],
-    ["Total general", totals.total || totals.sold || 0],
+    ["Sold initial", totals.sold_initial || 0],
+    ["Total general", totals.total || totals.sold_final || totals.sold || 0],
     ["Total incasari", totals.incasari || 0],
-    ["Total plati", totals.plati || 0]
+    ["Total plati", totals.plati || 0],
+    ["Sold final", totals.sold_final || totals.sold || 0]
   ];
   const sheet = xlsx.utils.aoa_to_sheet(exportRows);
   sheet["!cols"] = [

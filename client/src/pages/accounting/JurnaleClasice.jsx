@@ -92,8 +92,8 @@ export function JurnaleClasice() {
       <div className="grid gap-3 md:grid-cols-4">
         <Info label="Cumparari" value={`${formatMoney(totals.cumparari.total || 0)} / TVA ${formatMoney(totals.cumparari.tva || 0)}`} />
         <Info label="Vanzari" value={`${formatMoney(totals.vanzari.total || 0)} / TVA ${formatMoney(totals.vanzari.tva || 0)}`} />
-        <Info label="Casa" value={`Sold ${formatMoney(totals.casa.sold || 0)}`} />
-        <Info label="Banca" value={`Sold ${formatMoney(totals.banca.sold || 0)}`} />
+        <Info label="Casa" value={`Final ${formatMoney(totals.casa.sold_final || totals.casa.sold || 0)}`} />
+        <Info label="Banca" value={`Final ${formatMoney(totals.banca.sold_final || totals.banca.sold || 0)}`} />
       </div>
       {(data.warnings || []).length ? <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{data.warnings.join(' ')}</div> : null}
       <div className="grid gap-4 xl:grid-cols-2">
@@ -101,8 +101,8 @@ export function JurnaleClasice() {
         <JournalInvoiceTable title="Jurnal vanzari" rows={data.jurnal_vanzari?.rows || []} partyLabel="Client" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <TreasuryTable title="Registru casa" rows={data.registru_casa?.rows || []} />
-        <TreasuryTable title="Jurnal banca" rows={data.jurnal_banca?.rows || []} />
+        <TreasuryTable title="Registru casa" rows={data.registru_casa?.rows || []} totals={data.registru_casa?.totals || {}} accounts={data.registru_casa?.accounts || []} />
+        <TreasuryTable title="Jurnal banca" rows={data.jurnal_banca?.rows || []} totals={data.jurnal_banca?.totals || {}} accounts={data.jurnal_banca?.accounts || []} />
       </div>
     </AccountingShell>
   )
@@ -129,19 +129,38 @@ function JournalInvoiceTable({ title, rows, partyLabel }) {
   )
 }
 
-function TreasuryTable({ title, rows }) {
+function TreasuryTable({ title, rows, totals, accounts }) {
   return (
     <div className="grid gap-2">
-      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-      <Table headers={['Data', 'Document', 'Operatie', 'Tert', 'Incasari', 'Plati', 'Nota', 'Status']}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+        <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+          <span className="rounded-md bg-slate-100 px-2 py-1">Initial {formatMoney(totals.sold_initial || 0)}</span>
+          <span className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">Incasari {formatMoney(totals.incasari || 0)}</span>
+          <span className="rounded-md bg-rose-50 px-2 py-1 text-rose-700">Plati {formatMoney(totals.plati || 0)}</span>
+          <span className="rounded-md bg-primary-50 px-2 py-1 text-primary-800">Final {formatMoney(totals.sold_final || totals.sold || 0)}</span>
+        </div>
+      </div>
+      {accounts?.length > 1 ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {accounts.map(account => (
+            <div key={account.cont_trezorerie} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+              <span className="font-semibold text-slate-900">{account.cont_trezorerie}</span>
+              {' '}initial {formatMoney(account.sold_initial || 0)} · incasari {formatMoney(account.incasari || 0)} · plati {formatMoney(account.plati || 0)} · final {formatMoney(account.sold_final || 0)}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <Table headers={['Data', 'Document', 'Operatie', 'Tert', 'Incasari', 'Plati', 'Sold', 'Nota', 'Status']}>
         {rows.map(row => (
           <tr key={row.uuid || row.id}>
             <td className="px-3 py-2">{row.data}</td>
             <td className="px-3 py-2">{row.nr_document || '-'}</td>
             <td className="px-3 py-2">{row.tip_operatie || '-'}</td>
             <td className="px-3 py-2">{row.tert_denumire || '-'}</td>
-            <td className="px-3 py-2 text-right">{row.tip_operatie === 'incasare' ? formatMoney(row.suma || 0) : '-'}</td>
-            <td className="px-3 py-2 text-right">{row.tip_operatie === 'plata' ? formatMoney(row.suma || 0) : '-'}</td>
+            <td className="px-3 py-2 text-right">{row.incasari ? formatMoney(row.incasari) : '-'}</td>
+            <td className="px-3 py-2 text-right">{row.plati ? formatMoney(row.plati) : '-'}</td>
+            <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.sold_curent || 0)}</td>
             <td className="px-3 py-2">{row.journal_id ? `NC ${row.journal_id}` : '-'}</td>
             <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
           </tr>
