@@ -1006,6 +1006,51 @@ router.get("/accounting/vat-journal", requireAccountingReports, (req, res) => {
   });
 });
 
+router.get("/accounting/classic-journals", requireAccountingReports, (req, res) => {
+  sendJson(res, 200, buildClassicJournalsData(req.auth.db, req.query));
+});
+
+router.get("/accounting/classic-journals/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const data = buildClassicJournalsData(req.auth.db, req.query);
+    const workbook = xlsx.utils.book_new();
+    appendClassicJournalSheet(workbook, "Jurnal cumparari", [
+      ["Data", "Document", "Furnizor", "CUI", "Baza", "TVA", "Total", "Cota TVA", "Status"],
+      ...data.jurnal_cumparari.rows.map((row) => [
+        row.data || "",
+        row.nr_document || row.numar || row.id || "",
+        row.tert || "",
+        row.cui || "",
+        row.valoare || 0,
+        row.tva || 0,
+        row.total || 0,
+        `${row.tva_procent || 0}%`,
+        row.status || ""
+      ])
+    ], data.perioada, data.jurnal_cumparari.totals);
+    appendClassicJournalSheet(workbook, "Jurnal vanzari", [
+      ["Data", "Document", "Client", "CUI", "Baza", "TVA", "Total", "Cota TVA", "Status"],
+      ...data.jurnal_vanzari.rows.map((row) => [
+        row.data || "",
+        row.nr_document || row.numar || row.id || "",
+        row.tert || "",
+        row.cui || "",
+        row.valoare || 0,
+        row.tva || 0,
+        row.total || 0,
+        `${row.tva_procent || 0}%`,
+        row.status || ""
+      ])
+    ], data.perioada, data.jurnal_vanzari.totals);
+    appendClassicJournalSheet(workbook, "Registru casa", treasuryExportRows(data.registru_casa.rows), data.perioada, data.registru_casa.totals);
+    appendClassicJournalSheet(workbook, "Jurnal banca", treasuryExportRows(data.jurnal_banca.rows), data.perioada, data.jurnal_banca.totals);
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Jurnale_contabile_${data.perioada.an}_${String(data.perioada.luna).padStart(2, "0")}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/vat-journal/export", requireAccountingReports, (req, res, next) => {
   try {
     const data = buildVatData(req.auth.db, req.query);
@@ -1998,6 +2043,112 @@ function decorateVatInvoice(db, invoice, tip) {
     cui: tert.cui || "",
     tva_procent: Number.isFinite(rate) ? rate : 0
   };
+}
+
+function buildClassicJournalsData(db, query = {}) {
+  const accounting = engine.ensureAccounting(db);
+  const vatData = buildVatData(db, query);
+  const { an, luna } = vatData.perioada;
+  const treasuryRows = filterDocuments(accounting.treasury, { ...query, an, luna })
+    .map((row) => {
+      const decorated = decorateTreasury(row, accounting);
+      const tert = decorated.tert_id
+        ? accounting.thirdParties.find((item) => String(item.id) === String(decorated.tert_id))
+        : null;
+      return {
+        ...decorated,
+        tert_denumire: tert?.denumire || "",
+        tert_cui: tert?.cui || ""
+      };
+    });
+  const registruCasa = treasuryRows.filter((row) => String(row.tip || "").toLowerCase() === "casa");
+  const jurnalBanca = treasuryRows.filter((row) => String(row.tip || "").toLowerCase() !== "casa");
+  return {
+    perioada: { an, luna },
+    filters: {
+      status: query.status || "",
+      cota: query.cota || ""
+    },
+    jurnal_cumparari: {
+      rows: vatData.jurnal_cumparari,
+      totals: invoiceJournalTotals(vatData.jurnal_cumparari)
+    },
+    jurnal_vanzari: {
+      rows: vatData.jurnal_vanzari,
+      totals: invoiceJournalTotals(vatData.jurnal_vanzari)
+    },
+    registru_casa: {
+      rows: registruCasa,
+      totals: treasuryJournalTotals(registruCasa)
+    },
+    jurnal_banca: {
+      rows: jurnalBanca,
+      totals: treasuryJournalTotals(jurnalBanca)
+    },
+    period_status: vatData.period_status,
+    warnings: vatData.warnings || []
+  };
+}
+
+function invoiceJournalTotals(rows) {
+  return {
+    count: rows.length,
+    baza: sum(rows, "valoare"),
+    tva: sum(rows, "tva"),
+    total: sum(rows, "total")
+  };
+}
+
+function treasuryJournalTotals(rows) {
+  const incasari = rows.filter((row) => row.tip_operatie === "incasare");
+  const plati = rows.filter((row) => row.tip_operatie === "plata");
+  return {
+    count: rows.length,
+    incasari: sum(incasari, "suma"),
+    plati: sum(plati, "suma"),
+    sold: round(sum(incasari, "suma") - sum(plati, "suma"))
+  };
+}
+
+function treasuryExportRows(rows) {
+  return [
+    ["Data", "Document", "Operatie", "Tert", "Cont trezorerie", "Cont corespondent", "Incasari", "Plati", "Status", "Nota", "Explicatie"],
+    ...rows.map((row) => [
+      row.data || "",
+      row.nr_document || "",
+      row.tip_operatie || "",
+      row.tert_denumire || "",
+      row.cont_trezorerie || "",
+      row.cont_corespondent || "",
+      row.tip_operatie === "incasare" ? row.suma || 0 : 0,
+      row.tip_operatie === "plata" ? row.suma || 0 : 0,
+      row.status || "",
+      row.journal_id ? `NC ${row.journal_id}` : "",
+      row.explicatie || ""
+    ])
+  ];
+}
+
+function appendClassicJournalSheet(workbook, name, rows, perioada, totals) {
+  const exportRows = [
+    [name, `${String(perioada.luna).padStart(2, "0")}/${perioada.an}`],
+    [],
+    ...rows,
+    [],
+    ["Total documente", totals.count || 0],
+    ["Total baza", totals.baza || 0],
+    ["Total TVA", totals.tva || 0],
+    ["Total general", totals.total || totals.sold || 0],
+    ["Total incasari", totals.incasari || 0],
+    ["Total plati", totals.plati || 0]
+  ];
+  const sheet = xlsx.utils.aoa_to_sheet(exportRows);
+  sheet["!cols"] = [
+    { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 34 }, { wch: 16 },
+    { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 42 }
+  ];
+  sheet["!freeze"] = { xSplit: 0, ySplit: 3 };
+  xlsx.utils.book_append_sheet(workbook, sheet, name.slice(0, 31));
 }
 
 function inferVatRate(base, vat) {

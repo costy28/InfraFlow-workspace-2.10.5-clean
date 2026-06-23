@@ -15,6 +15,7 @@ const nav = [
   ['intrare', '/contabilitate/facturi-intrare', 'Facturi intrare'],
   ['iesire', '/contabilitate/facturi-iesire', 'Facturi iesire'],
   ['trezorerie', '/contabilitate/trezorerie', 'Trezorerie'],
+  ['jurnale', '/contabilitate/jurnale', 'Jurnale'],
   ['jurnal', '/contabilitate/registru-jurnal', 'Registru jurnal'],
   ['tva', '/contabilitate/tva-d300', 'TVA / D300'],
   ['balanta', '/contabilitate/balanta', 'Balanta'],
@@ -36,7 +37,7 @@ const navGroups = [
   },
   {
     label: 'Rapoarte',
-    keys: ['jurnal', 'tva', 'balanta', 'controlling'],
+    keys: ['jurnale', 'jurnal', 'tva', 'balanta', 'controlling'],
   },
   {
     label: 'Administrare',

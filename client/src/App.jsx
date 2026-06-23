@@ -19,6 +19,7 @@ const ClientiContab = lazy(() => import('./pages/accounting/ClientiContab'))
 const FacturiIntrare = lazy(() => import('./pages/accounting/FacturiIntrare'))
 const FacturiIesire = lazy(() => import('./pages/accounting/FacturiIesire'))
 const Trezorerie = lazy(() => import('./pages/accounting/Trezorerie'))
+const JurnaleClasice = lazy(() => import('./pages/accounting/JurnaleClasice'))
 const RegistruJurnal = lazy(() => import('./pages/accounting/RegistruJurnal'))
 const TVADeclaratii = lazy(() => import('./pages/accounting/TVADeclaratii'))
 const Balanta = lazy(() => import('./pages/accounting/Balanta'))
@@ -95,6 +96,7 @@ export default function App() {
         <Route path="/contabilitate/facturi-intrare" element={<WithLayout><PermissionGuard permission="accounting:view"><FacturiIntrare /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/facturi-iesire" element={<WithLayout><PermissionGuard permission="accounting:view"><FacturiIesire /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/trezorerie" element={<WithLayout><PermissionGuard permission="accounting:view"><Trezorerie /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/jurnale" element={<WithLayout><PermissionGuard permission="accounting:reports"><JurnaleClasice /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/registru-jurnal" element={<WithLayout><PermissionGuard permission="accounting:view"><RegistruJurnal /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/tva-d300" element={<WithLayout><PermissionGuard permission="accounting:reports"><TVADeclaratii /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/balanta" element={<WithLayout><PermissionGuard permission="accounting:reports"><Balanta /></PermissionGuard></WithLayout>} />

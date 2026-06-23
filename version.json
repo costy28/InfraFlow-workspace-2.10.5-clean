@@ -1,5 +1,5 @@
 {
-  "version": "2.12.102",
+  "version": "2.12.103",
   "date": "2026-06-23",
-  "changelog": "## v2.12.102 - 2026-06-23\n### Contabilitate - administrare sabloane note\n- Sabloanele de note contabile pot fi vazute si administrate din Contabilitate.\n- Se pot crea, edita si dezactiva sabloane custom pentru facturi intrare si iesire.\n- Sabloanele de sistem raman protejate, iar meniul ramane integrat in modulul Contabilitate."
+  "changelog": "## v2.12.103 - 2026-06-23\n### Contabilitate - jurnale contabile clasice\n- Pagina noua Jurnale in modulul Contabilitate, in grupul Rapoarte.\n- Afisare separata pentru jurnal cumparari, jurnal vanzari, registru casa si jurnal banca.\n- Export Excel unic cu foi separate pentru fiecare jurnal."
 }
