@@ -12,19 +12,34 @@ import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statu
 export function ContabilitateDashboard() {
   const [summary, setSummary] = useState(null)
   const [health, setHealth] = useState(null)
+  const [reconciliation, setReconciliation] = useState(null)
   const [month, setMonth] = useState(currentMonth())
   const [error, setError] = useState('')
   useEffect(() => {
     Promise.all([
       api.get('/accounting/summary', { params: { luna: month } }),
-      api.get('/accounting/health', { params: { luna: month } })
+      api.get('/accounting/health', { params: { luna: month } }),
+      api.get('/accounting/reconciliation', { params: { luna: month } })
     ])
-      .then(([summaryRes, healthRes]) => {
+      .then(([summaryRes, healthRes, reconciliationRes]) => {
         setSummary(summaryRes.data)
         setHealth(healthRes.data)
+        setReconciliation(reconciliationRes.data)
       })
       .catch(err => setError(err.response?.data?.error || 'Nu am putut incarca dashboard-ul contabil.'))
   }, [month])
+  const actionableIssues = useMemo(() => {
+    const issues = reconciliation?.issues || {}
+    return [
+      ...(issues.draft_invoices || []).map(row => ({ ...row, group: 'Facturi draft', action: 'Validează sau anulează factura.' })),
+      ...(issues.draft_treasury || []).map(row => ({ ...row, group: 'Trezorerie draft', action: 'Validează operația sau anuleaz-o.' })),
+      ...(issues.open_suppliers || []).map(row => ({ ...row, group: 'Furnizori de plată', action: 'Plătește factura sau verifică scadența.' })),
+      ...(issues.open_clients || []).map(row => ({ ...row, group: 'Clienți de încasat', action: 'Încasează factura sau verifică scadența.' })),
+      ...(issues.unlinked_treasury || []).map(row => ({ ...row, group: 'Trezorerie necorelată', action: 'Leagă operația de factură sau marcheaz-o ca avans/corecție.' })),
+      ...(issues.invoice_missing_journal || []).map(row => ({ ...row, group: 'Facturi fără notă', action: 'Devalidează și validează din nou documentul.' })),
+      ...(issues.unbalanced_journals || []).map(row => ({ ...row, group: 'Note dezechilibrate', action: 'Corectează debitul și creditul notei.' }))
+    ].slice(0, 12)
+  }, [reconciliation])
   return (
     <AccountingShell active="dashboard" title="Contabilitate" subtitle="Registru, facturi, TVA, balanta si inchidere perioada.">
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
@@ -47,6 +62,49 @@ export function ContabilitateDashboard() {
         ))}
       </div>
       {summary?.alertsNew ? <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Exista {summary.alertsNew} alerte legislative noi.</div> : null}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Reconciliere lunară</h3>
+            <p className="text-sm text-slate-500">Probleme concrete de rezolvat înainte de închiderea perioadei.</p>
+          </div>
+          <Badge tone={reconciliation?.status === 'ok' ? 'success' : reconciliation?.status === 'danger' ? 'danger' : 'warning'}>
+            {reconciliation?.status === 'ok' ? 'Totul arată bine' : 'Verifică'}
+          </Badge>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {(reconciliation?.checks || []).map(check => (
+            <Link
+              key={check.key}
+              to={check.link || '/contabilitate'}
+              className={`rounded-md border p-3 transition hover:-translate-y-0.5 hover:shadow-sm ${check.severity === 'ok' ? 'border-emerald-200 bg-emerald-50' : check.severity === 'danger' ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-semibold text-slate-900">{check.label}</div>
+                <Badge tone={check.severity === 'ok' ? 'success' : check.severity === 'danger' ? 'danger' : 'warning'}>{check.value}</Badge>
+              </div>
+              <div className="mt-2 text-xs text-slate-600">{check.message}</div>
+            </Link>
+          ))}
+        </div>
+        <div className="mt-4 overflow-hidden rounded-md border border-slate-200">
+          <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">De lucrat acum</div>
+          {actionableIssues.length ? (
+            <div className="divide-y divide-slate-100">
+              {actionableIssues.map((issue, index) => (
+                <Link key={`${issue.group}-${issue.uuid || issue.id}-${index}`} to={issue.link || '/contabilitate'} className="grid gap-1 px-3 py-2 text-sm hover:bg-slate-50 md:grid-cols-[170px_minmax(160px,1fr)_140px_minmax(200px,1.5fr)] md:items-center">
+                  <div className="font-semibold text-slate-700">{issue.group}</div>
+                  <div className="text-slate-900">{issue.document || issue.id} <span className="text-slate-500">{issue.data || ''}</span></div>
+                  <div className="font-semibold text-slate-900">{issue.rest !== null && issue.rest !== undefined ? formatMoney(issue.rest) : issue.suma !== undefined ? formatMoney(issue.suma) : issue.difference !== undefined ? formatMoney(issue.difference) : ''}</div>
+                  <div className="text-slate-600">{issue.action}</div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="px-3 py-5 text-sm text-slate-500">Nu sunt probleme contabile evidente pentru luna selectată.</div>
+          )}
+        </div>
+      </Card>
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

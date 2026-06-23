@@ -1,5 +1,5 @@
 {
-  "version": "2.12.94",
+  "version": "2.12.95",
   "date": "2026-06-23",
-  "changelog": "## v2.12.94 - 2026-06-23\n### Contabilitate - trezorerie corelata cu facturi\n- Operatiile de trezorerie pot fi legate de facturi deschise furnizor/client.\n- Validarea unei plati/incasari stinge automat factura legata, inclusiv partial.\n- Devalidarea operatiei revine factura la restul corect."
+  "changelog": "## v2.12.95 - 2026-06-23\n### Contabilitate - reconciliere lunara\n- Dashboard-ul contabil afiseaza verificari concrete pentru luna curenta.\n- Sunt evidentiate facturi draft, facturi deschise, trezorerie necorelata si note dezechilibrate.\n- Fiecare problema are mesaj de actiune si link catre zona de corectie."
 }

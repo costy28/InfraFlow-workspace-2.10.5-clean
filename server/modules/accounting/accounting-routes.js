@@ -107,6 +107,11 @@ router.get("/accounting/health", requireAccountingView, (req, res) => {
   });
 });
 
+router.get("/accounting/reconciliation", requireAccountingView, (req, res) => {
+  const [an, luna] = monthParts(req.query.luna || currentMonth());
+  sendJson(res, 200, buildReconciliation(req.auth.db, an, luna));
+});
+
 router.get("/accounting/chart", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
   const query = String(req.query.q || "").toLowerCase();
@@ -1981,6 +1986,153 @@ function markAlert(status) {
       sendJson(res, 200, { alert });
     } catch (error) { next(error); }
   };
+}
+
+function buildReconciliation(db, an, luna) {
+  const accounting = engine.ensureAccounting(db);
+  const month = `${an}-${String(luna).padStart(2, "0")}`;
+  const inMonth = (item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna);
+  const invoiceInRest = (item) => round(item.neachitat ?? Number(item.total || 0) - Number(item.achitat || 0));
+  const invoiceOutRest = (item) => round(item.neincasat ?? Number(item.total || 0) - Number(item.incasat || 0));
+  const activeOrReceivableIn = accounting.invoicesIn.filter((item) => item.status !== "anulat" && item.status !== "stornat" && inMonth(item));
+  const activeOrReceivableOut = accounting.invoicesOut.filter((item) => item.status !== "anulat" && item.status !== "stornat" && inMonth(item));
+  const openIn = activeOrReceivableIn.filter((item) => ["validat", "partial"].includes(String(item.status || "")) && invoiceInRest(item) > 0);
+  const openOut = activeOrReceivableOut.filter((item) => ["validat", "partial"].includes(String(item.status || "")) && invoiceOutRest(item) > 0);
+  const openInWithRest = openIn.map((item) => ({ ...item, _rest: invoiceInRest(item) }));
+  const openOutWithRest = openOut.map((item) => ({ ...item, _rest: invoiceOutRest(item) }));
+  const overdueIn = openIn.filter((item) => item.data_scadenta && item.data_scadenta < today());
+  const overdueOut = openOut.filter((item) => item.data_scadenta && item.data_scadenta < today());
+  const draftInvoices = [
+    ...activeOrReceivableIn.filter((item) => item.status === "draft").map((item) => ({ ...item, source: "intrare" })),
+    ...activeOrReceivableOut.filter((item) => item.status === "draft").map((item) => ({ ...item, source: "iesire" }))
+  ];
+  const invoiceMissingJournal = [
+    ...activeOrReceivableIn.filter((item) => ["validat", "partial", "achitat"].includes(String(item.status || "")) && !item.journal_id).map((item) => ({ ...item, source: "intrare" })),
+    ...activeOrReceivableOut.filter((item) => ["validat", "partial", "incasat"].includes(String(item.status || "")) && !item.journal_id).map((item) => ({ ...item, source: "iesire" }))
+  ];
+  const treasury = accounting.treasury.filter((item) => item.status !== "anulat" && inMonth(item));
+  const treasuryDraft = treasury.filter((item) => item.status === "draft");
+  const treasuryUnlinked = treasury.filter((item) =>
+    item.status === "validat" &&
+    item.tert_id &&
+    !item.invoice_in_id &&
+    !item.invoice_out_id &&
+    ["401", "4111"].some((prefix) => String(item.cont_corespondent || "").startsWith(prefix))
+  );
+  const journalIds = new Set(accounting.journalLines.map((line) => Number(line.journal_id)));
+  const journals = accounting.journals.filter((item) => item.status !== "anulat" && Number(item.an) === Number(an) && Number(item.luna) === Number(luna));
+  const unbalancedJournals = journals.filter((journal) => {
+    if (!journalIds.has(Number(journal.id))) return false;
+    return Math.abs(Number(journal.total_debit || 0) - Number(journal.total_credit || 0)) > 0.01;
+  });
+  const balance = engine.buildBalance(db, an, luna, "sintetica");
+  const balanceDiff = round(Math.abs(Number(balance.totals?.rulaje_D || 0) - Number(balance.totals?.rulaje_C || 0)));
+  const checks = [
+    {
+      key: "draft_documents",
+      label: "Documente draft",
+      severity: draftInvoices.length || treasuryDraft.length ? "warning" : "ok",
+      value: draftInvoices.length + treasuryDraft.length,
+      message: draftInvoices.length || treasuryDraft.length ? "Valideaza sau anuleaza documentele draft inainte de inchiderea lunii." : "Nu exista documente draft in luna selectata.",
+      link: "/contabilitate/inchidere-luna"
+    },
+    {
+      key: "open_suppliers",
+      label: "Furnizori de platit",
+      severity: overdueIn.length ? "danger" : openIn.length ? "warning" : "ok",
+      value: formatReconciliationMoney(sum(openInWithRest, "_rest")),
+      message: openIn.length ? `${openIn.length} facturi deschise, ${overdueIn.length} depasite.` : "Nu exista facturi furnizor deschise in luna selectata.",
+      link: "/contabilitate/furnizori"
+    },
+    {
+      key: "open_clients",
+      label: "Clienti de incasat",
+      severity: overdueOut.length ? "danger" : openOut.length ? "warning" : "ok",
+      value: formatReconciliationMoney(sum(openOutWithRest, "_rest")),
+      message: openOut.length ? `${openOut.length} facturi deschise, ${overdueOut.length} depasite.` : "Nu exista facturi client deschise in luna selectata.",
+      link: "/contabilitate/clienti"
+    },
+    {
+      key: "unlinked_treasury",
+      label: "Trezorerie necorelata",
+      severity: treasuryUnlinked.length ? "warning" : "ok",
+      value: treasuryUnlinked.length,
+      message: treasuryUnlinked.length ? "Exista plati/incasari pe terti fara factura legata. Verifica daca sunt avansuri sau corectii." : "Operatiile pe terti sunt corelate cu facturile disponibile.",
+      link: "/contabilitate/trezorerie"
+    },
+    {
+      key: "journal_consistency",
+      label: "Note contabile",
+      severity: unbalancedJournals.length || invoiceMissingJournal.length ? "danger" : "ok",
+      value: unbalancedJournals.length + invoiceMissingJournal.length,
+      message: unbalancedJournals.length || invoiceMissingJournal.length ? "Exista note dezechilibrate sau facturi validate fara nota contabila." : "Notele contabile sunt coerente pentru luna selectata.",
+      link: "/contabilitate/registru-jurnal"
+    },
+    {
+      key: "balance",
+      label: "Balanta",
+      severity: balance.balanced ? "ok" : "danger",
+      value: formatReconciliationMoney(balanceDiff),
+      message: balance.balanced ? "Balanta este echilibrata." : "Balanta are diferenta intre debit si credit.",
+      link: `/contabilitate/balanta?luna=${month}`
+    }
+  ];
+  return {
+    month,
+    status: checks.some((item) => item.severity === "danger") ? "danger" : checks.some((item) => item.severity === "warning") ? "warning" : "ok",
+    checks,
+    issues: {
+      draft_invoices: draftInvoices.slice(0, 10).map(reconcileInvoiceRow),
+      draft_treasury: treasuryDraft.slice(0, 10).map(reconcileTreasuryRow),
+      open_suppliers: openInWithRest.sort((a, b) => b._rest - a._rest).slice(0, 10).map((item) => reconcileInvoiceRow(item, item._rest)),
+      open_clients: openOutWithRest.sort((a, b) => b._rest - a._rest).slice(0, 10).map((item) => reconcileInvoiceRow(item, item._rest)),
+      unlinked_treasury: treasuryUnlinked.slice(0, 10).map(reconcileTreasuryRow),
+      invoice_missing_journal: invoiceMissingJournal.slice(0, 10).map(reconcileInvoiceRow),
+      unbalanced_journals: unbalancedJournals.slice(0, 10).map((item) => ({
+        id: item.id,
+        uuid: item.uuid,
+        data: item.data,
+        document: item.nr_document || item.id,
+        difference: round(Number(item.total_debit || 0) - Number(item.total_credit || 0)),
+        status: item.status,
+        link: `/contabilitate/registru-jurnal?luna=${month}`
+      }))
+    }
+  };
+}
+
+function reconcileInvoiceRow(item, rest = null) {
+  const source = item.source || (item.furnizor_id ? "intrare" : "iesire");
+  return {
+    id: item.id,
+    uuid: item.uuid,
+    source,
+    data: item.data,
+    scadenta: item.data_scadenta,
+    document: item.nr_document || item.numar || item.id,
+    total: item.total || 0,
+    rest: rest === null ? null : rest,
+    status: item.status,
+    link: source === "intrare" ? "/contabilitate/facturi-intrare" : "/contabilitate/facturi-iesire"
+  };
+}
+
+function reconcileTreasuryRow(item) {
+  return {
+    id: item.id,
+    uuid: item.uuid,
+    data: item.data,
+    document: item.nr_document || item.id,
+    tip: item.tip,
+    operatie: item.tip_operatie,
+    suma: item.suma || 0,
+    status: item.status,
+    link: "/contabilitate/trezorerie"
+  };
+}
+
+function formatReconciliationMoney(value) {
+  return `${round(value).toFixed(2)} RON`;
 }
 
 function findByUuid(items, uuid, message) {
