@@ -16,6 +16,7 @@ export function FacturiContab({ direction = 'in' }) {
   const [thirdParties, setThirdParties] = useState([])
   const [accounts, setAccounts] = useState([])
   const [costCenters, setCostCenters] = useState([])
+  const [templates, setTemplates] = useState([])
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [status, setStatus] = useState(searchParams.get('status') || '')
   const [tertFilter, setTertFilter] = useState(searchParams.get(isIn ? 'furnizor' : 'client') || '')
@@ -39,16 +40,18 @@ export function FacturiContab({ direction = 'in' }) {
   const endpoint = isIn ? '/accounting/invoices-in' : '/accounting/invoices-out'
   async function load() {
     const [an, luna] = month.split('-')
-    const [a, t, c, cc] = await Promise.all([
+    const [a, t, c, cc, tpl] = await Promise.all([
       api.get(endpoint, { params: { an, luna: Number(luna), status: status || undefined, [isIn ? 'furnizor' : 'client']: tertFilter || undefined } }),
       api.get('/accounting/third-parties', { params: { tip: isIn ? 'furnizor' : 'client' } }),
       api.get('/accounting/chart'),
-      api.get('/accounting/cost-centers')
+      api.get('/accounting/cost-centers'),
+      api.get('/accounting/journal-templates', { params: { source: isIn ? 'intrare' : 'iesire' } })
     ])
     setRows(a.data.invoices || [])
     setThirdParties(t.data.thirdParties || [])
     setAccounts(c.data.accounts || [])
     setCostCenters(cc.data.costCenters || [])
+    setTemplates(tpl.data.templates || [])
   }
   useEffect(() => {
     setMonth(searchParams.get('luna') || currentMonth())
@@ -81,12 +84,13 @@ export function FacturiContab({ direction = 'in' }) {
   const mainCostCenters = costCenters.filter(center => !center.parinte_id)
   const subcenters = costCenters.filter(center => String(center.parinte_id || '') === String(form.cost_center_id || ''))
   const costCenterName = id => costCenters.find(center => String(center.id) === String(id))?.denumire || costCenters.find(center => String(center.id) === String(id))?.name || ''
+  const selectedTemplate = templates.find(template => template.key === form.template_key)
   function openNew() {
     setEditing(null)
     setError('')
     setMessage('')
     setValidatedJournal(null)
-    setForm({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', cost_center_id: '', subcentru_id: '', lines: [emptyLine()] })
+    setForm({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', template_key: '', cost_center_id: '', subcentru_id: '', lines: [emptyLine()] })
     setModal(true)
   }
   function openEdit(row) {
@@ -104,6 +108,7 @@ export function FacturiContab({ direction = 'in' }) {
       tva_procent: row.tva_procent ?? 21,
       cont_cheltuiala: row.cont_cheltuiala || '628',
       cont_venit: row.cont_venit || '704',
+      template_key: row.template_key || '',
       cost_center_id: row.cost_center_id || '',
       subcentru_id: row.subcentru_id || '',
       lines: Array.isArray(row.lines) && row.lines.length ? row.lines.map(line => ({
@@ -128,6 +133,26 @@ export function FacturiContab({ direction = 'in' }) {
     const lines = invoiceLines.filter((_, lineIndex) => lineIndex !== index)
     setForm({ ...form, lines: lines.length ? lines : [emptyLine()] })
   }
+  function applyTemplate(templateKey) {
+    const template = templates.find(item => item.key === templateKey)
+    if (!template) {
+      setForm({ ...form, template_key: '' })
+      return
+    }
+    const accountField = isIn ? 'cont_cheltuiala' : 'cont_venit'
+    const previousMainAccount = form[accountField]
+    const nextLines = invoiceLines.length ? invoiceLines : [emptyLine()]
+    setForm({
+      ...form,
+      template_key: template.key,
+      [accountField]: template.main_account,
+      lines: nextLines.map(line => ({
+        ...line,
+        cont: !line.cont || line.cont === previousMainAccount ? template.line_account || template.main_account : line.cont
+      })),
+      explicatie: form.explicatie || template.label
+    })
+  }
   async function submit(event) {
     event.preventDefault()
     try {
@@ -146,6 +171,7 @@ export function FacturiContab({ direction = 'in' }) {
         client_id: isIn ? undefined : partyId,
         nr_document: form.nr_document || form.numar || 'DOC-1',
         numar: form.numar || undefined,
+        template_key: form.template_key || '',
         valoare: money(baseValue),
         tva_procent: money(form.tva_procent),
         lines: invoiceLines
@@ -467,6 +493,21 @@ export function FacturiContab({ direction = 'in' }) {
           <Input label="Document" value={form.nr_document || form.numar || ''} onChange={event => setForm({ ...form, nr_document: event.target.value, numar: event.target.value })} required />
           <Input label="Data" type="date" value={form.data} onChange={event => setForm({ ...form, data: event.target.value })} required />
           <Input label="Scadenta" type="date" value={form.data_scadenta || ''} onChange={event => setForm({ ...form, data_scadenta: event.target.value })} />
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)]">
+            <Select
+              label="Sablon nota contabila"
+              value={form.template_key || ''}
+              onChange={event => applyTemplate(event.target.value)}
+              options={[
+                { value: '', label: 'Manual / fara sablon' },
+                ...templates.map(template => ({ value: template.key, label: template.label }))
+              ]}
+            />
+            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              <div className="font-semibold text-slate-800">{selectedTemplate?.preview || (isIn ? 'linii debit + 4426 = 401.x' : '4111.x = linii venit + 4427')}</div>
+              <div className="mt-1 text-xs">{selectedTemplate?.description || 'Alege un sablon pentru completarea automata a conturilor.'}</div>
+            </div>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <Select label="Centru cost/profit" value={form.cost_center_id || ''} onChange={event => setForm({ ...form, cost_center_id: event.target.value, subcentru_id: '' })} options={[{ value: '', label: 'Fara centru' }, ...mainCostCenters.map(center => ({ value: center.id, label: `${center.cod || center.id} - ${center.denumire || center.name}` }))]} />
             <Select label="Subcentru" value={form.subcentru_id || ''} onChange={event => setForm({ ...form, subcentru_id: event.target.value })} options={[{ value: '', label: subcenters.length ? 'Fara subcentru' : 'Nu sunt subcentre' }, ...subcenters.map(center => ({ value: center.id, label: `${center.cod || center.id} - ${center.denumire || center.name}` }))]} disabled={!form.cost_center_id || !subcenters.length} />

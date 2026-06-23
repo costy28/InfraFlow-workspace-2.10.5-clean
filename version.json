@@ -1,5 +1,5 @@
 {
-  "version": "2.12.100",
+  "version": "2.12.101",
   "date": "2026-06-23",
-  "changelog": "## v2.12.100 - 2026-06-23\n### Contabilitate - export scadentar autentificat\n- Exportul scadentar din Furnizori si Clienti foloseste sesiunea autentificata.\n- Descarcarea nu mai navigheaza direct spre API si evita raspunsul JSON Autentificare necesara."
+  "changelog": "## v2.12.101 - 2026-06-23\n### Contabilitate - sabloane note contabile pe facturi\n- Backendul expune sabloane implicite pentru facturi intrare si iesire.\n- Modalul de factura poate aplica automat conturile pentru servicii, materiale, combustibil, reparatii, venituri si productie.\n- Cheia sablonului se pastreaza pe document pentru audit si extinderi ulterioare."
 }

@@ -14,6 +14,86 @@ const importUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
+const JOURNAL_TEMPLATES = [
+  {
+    key: "in_servicii",
+    source: "intrare",
+    label: "Servicii terti",
+    description: "Factura furnizor pentru servicii generale.",
+    main_account: "628",
+    line_account: "628",
+    vat_account: "4426",
+    party_account: "401.x",
+    preview: "628 + 4426 = 401.x"
+  },
+  {
+    key: "in_marfa_materiale",
+    source: "intrare",
+    label: "Marfuri / materiale",
+    description: "Factura furnizor pentru materiale sau marfa.",
+    main_account: "371",
+    line_account: "371",
+    vat_account: "4426",
+    party_account: "401.x",
+    preview: "371 + 4426 = 401.x"
+  },
+  {
+    key: "in_combustibil",
+    source: "intrare",
+    label: "Combustibil",
+    description: "Factura furnizor pentru motorina, benzina sau carburanti.",
+    main_account: "6022",
+    line_account: "6022",
+    vat_account: "4426",
+    party_account: "401.x",
+    preview: "6022 + 4426 = 401.x"
+  },
+  {
+    key: "in_reparatii",
+    source: "intrare",
+    label: "Reparatii / intretinere",
+    description: "Factura furnizor pentru reparatii si mentenanta.",
+    main_account: "611",
+    line_account: "611",
+    vat_account: "4426",
+    party_account: "401.x",
+    preview: "611 + 4426 = 401.x"
+  },
+  {
+    key: "out_servicii",
+    source: "iesire",
+    label: "Servicii prestate",
+    description: "Factura client pentru servicii.",
+    main_account: "704",
+    line_account: "704",
+    vat_account: "4427",
+    party_account: "4111.x",
+    preview: "4111.x = 704 + 4427"
+  },
+  {
+    key: "out_marfa",
+    source: "iesire",
+    label: "Vanzare marfuri",
+    description: "Factura client pentru marfuri.",
+    main_account: "707",
+    line_account: "707",
+    vat_account: "4427",
+    party_account: "4111.x",
+    preview: "4111.x = 707 + 4427"
+  },
+  {
+    key: "out_productie",
+    source: "iesire",
+    label: "Productie / asfalt",
+    description: "Factura client pentru produse finite sau asfalt.",
+    main_account: "701",
+    line_account: "701",
+    vat_account: "4427",
+    party_account: "4111.x",
+    preview: "4111.x = 701 + 4427"
+  }
+];
+
 router.get("/accounting/summary", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
   const [an, luna] = monthParts(req.query.luna || currentMonth());
@@ -105,6 +185,14 @@ router.get("/accounting/health", requireAccountingView, (req, res) => {
       treasury: accounting.treasury.length
     }
   });
+});
+
+router.get("/accounting/journal-templates", requireAccountingView, (req, res) => {
+  const source = String(req.query.source || "").trim();
+  const templates = source
+    ? JOURNAL_TEMPLATES.filter((item) => item.source === source)
+    : JOURNAL_TEMPLATES;
+  sendJson(res, 200, { templates });
 });
 
 router.get("/accounting/reconciliation", requireAccountingView, (req, res) => {
@@ -1598,6 +1686,7 @@ function normalizeInvoiceIn(db, body, existing = {}) {
     lines,
     achitat: round(existing.achitat || body.achitat || 0),
     neachitat: round(total - Number(existing.achitat || body.achitat || 0)),
+    template_key: String(body.template_key ?? existing.template_key ?? "").trim(),
     cont_cheltuiala: String(body.cont_cheltuiala ?? existing.cont_cheltuiala ?? "628").trim(),
     cost_center_id: body.cost_center_id === "" ? null : body.cost_center_id ?? existing.cost_center_id ?? null,
     subcentru_id: body.subcentru_id === "" ? null : body.subcentru_id ?? existing.subcentru_id ?? null,
@@ -1632,6 +1721,7 @@ function normalizeInvoiceOut(db, body, existing = {}) {
     lines,
     incasat: round(existing.incasat || body.incasat || 0),
     neincasat: round(total - Number(existing.incasat || body.incasat || 0)),
+    template_key: String(body.template_key ?? existing.template_key ?? "").trim(),
     cont_venit: String(body.cont_venit ?? existing.cont_venit ?? "704").trim(),
     cost_center_id: body.cost_center_id === "" ? null : body.cost_center_id ?? existing.cost_center_id ?? null,
     subcentru_id: body.subcentru_id === "" ? null : body.subcentru_id ?? existing.subcentru_id ?? null,
