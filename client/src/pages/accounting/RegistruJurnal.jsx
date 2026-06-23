@@ -14,8 +14,8 @@ export function RegistruJurnal() {
   const [accounts, setAccounts] = useState([])
   const [searchParams] = useSearchParams()
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
-  const [status, setStatus] = useState('')
-  const [selectedUuid, setSelectedUuid] = useState('')
+  const [status, setStatus] = useState(searchParams.get('status') || '')
+  const [selectedUuid, setSelectedUuid] = useState(searchParams.get('note') || '')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [noteModal, setNoteModal] = useState(false)
@@ -35,6 +35,12 @@ export function RegistruJurnal() {
     acc.active += row.status === 'activ' ? 1 : 0
     return acc
   }, { debit: 0, credit: 0, drafts: 0, active: 0 }), [rows])
+
+  useEffect(() => {
+    setMonth(searchParams.get('luna') || currentMonth())
+    setStatus(searchParams.get('status') || '')
+    setSelectedUuid(searchParams.get('note') || '')
+  }, [searchParams])
 
   useEffect(() => { load() }, [month, status])
   useEffect(() => {

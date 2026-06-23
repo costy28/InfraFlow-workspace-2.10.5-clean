@@ -140,8 +140,21 @@ export function TertiContab({ type = 'furnizor' }) {
     overdueAmount: filteredRows.reduce((sum, row) => sum + Number(row.aging?.d1_30 || 0) + Number(row.aging?.d31_60 || 0) + Number(row.aging?.d61_90 || 0) + Number(row.aging?.d90_plus || 0), 0)
   }), [filteredRows])
 
-  function exportExcel() {
-    window.location.href = `/api${statusEndpoint}/export`
+  async function exportExcel() {
+    setError('')
+    try {
+      const res = await api.get(`${statusEndpoint}/export`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Scadentar_${type === 'client' ? 'clienti' : 'furnizori'}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Exportul scadentar nu a putut fi generat.')
+    }
   }
 
   return (

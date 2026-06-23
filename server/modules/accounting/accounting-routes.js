@@ -117,21 +117,42 @@ router.get("/accounting/reconciliation/export", requireAccountingReports, (req, 
     const [an, luna] = monthParts(req.query.luna || currentMonth());
     const reconciliation = buildReconciliation(req.auth.db, an, luna, { issueLimit: 10000 });
     const issueRows = flattenReconciliationIssues(reconciliation);
-    const rows = [
-      ["Reconciliere contabila", reconciliation.month, reconciliation.status],
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const summaryRows = [
+      ["Reconciliere contabila", reconciliation.month],
+      ["Status general", reconciliationStatusLabel(reconciliation.status)],
       [],
-      ["Verificari"],
       ["Zona", "Status", "Valoare", "Mesaj", "Link"],
-      ...reconciliation.checks.map((check) => [check.label, check.severity, check.value, check.message, check.link || ""]),
+      ...reconciliation.checks.map((check) => [check.label, reconciliationStatusLabel(check.severity), check.value, check.message, absoluteAppLink(baseUrl, check.link)])
+    ];
+    const problemRows = [
+      ["Probleme de rezolvat", reconciliation.month],
+      ["Total probleme", issueRows.length],
       [],
-      ["Probleme de rezolvat"],
-      ["Grupa", "Data", "Document", "Status", "Suma/Rest/Diferenta", "Actiune", "Link"],
-      ...issueRows.map((issue) => [issue.group, issue.data || "", issue.document || issue.id || "", issue.status || "", issue.amount || "", issue.action || "", issue.link || ""])
+      ["Grupa", "Data", "Document", "Status", "Suma / Rest / Diferenta", "Actiune recomandata", "Link"],
+      ...(issueRows.length ? issueRows.map((issue) => [
+        issue.group,
+        issue.data || "",
+        issue.document || issue.id || "",
+        issue.status || "",
+        issue.amount || "",
+        issue.action || "",
+        absoluteAppLink(baseUrl, issue.link)
+      ]) : [["Fara probleme", "", "", "", "", "Nu sunt probleme contabile evidente pentru luna selectata.", ""]])
     ];
     const workbook = xlsx.utils.book_new();
-    const sheet = xlsx.utils.aoa_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 20 }, { wch: 46 }, { wch: 38 }];
-    xlsx.utils.book_append_sheet(workbook, sheet, "Reconciliere");
+    const summarySheet = xlsx.utils.aoa_to_sheet(summaryRows);
+    summarySheet["!cols"] = [{ wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 74 }, { wch: 58 }];
+    summarySheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    summarySheet["!autofilter"] = { ref: `A4:E${summaryRows.length}` };
+    addHyperlinks(summarySheet, summaryRows, 4);
+    xlsx.utils.book_append_sheet(workbook, summarySheet, "Sumar");
+    const problemsSheet = xlsx.utils.aoa_to_sheet(problemRows);
+    problemsSheet["!cols"] = [{ wch: 26 }, { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 22 }, { wch: 76 }, { wch: 58 }];
+    problemsSheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    problemsSheet["!autofilter"] = { ref: `A4:G${problemRows.length}` };
+    addHyperlinks(problemsSheet, problemRows, 6);
+    xlsx.utils.book_append_sheet(workbook, problemsSheet, "Probleme");
     const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="Reconciliere_contabila_${reconciliation.month}.xlsx"`);
@@ -2110,12 +2131,12 @@ function buildReconciliation(db, an, luna, options = {}) {
     status: checks.some((item) => item.severity === "danger") ? "danger" : checks.some((item) => item.severity === "warning") ? "warning" : "ok",
     checks,
     issues: {
-      draft_invoices: draftInvoices.slice(0, issueLimit).map(reconcileInvoiceRow),
-      draft_treasury: treasuryDraft.slice(0, issueLimit).map(reconcileTreasuryRow),
-      open_suppliers: openInWithRest.sort((a, b) => b._rest - a._rest).slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, item._rest)),
-      open_clients: openOutWithRest.sort((a, b) => b._rest - a._rest).slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, item._rest)),
-      unlinked_treasury: treasuryUnlinked.slice(0, issueLimit).map(reconcileTreasuryRow),
-      invoice_missing_journal: invoiceMissingJournal.slice(0, issueLimit).map(reconcileInvoiceRow),
+      draft_invoices: draftInvoices.slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, null, month)),
+      draft_treasury: treasuryDraft.slice(0, issueLimit).map((item) => reconcileTreasuryRow(item, month)),
+      open_suppliers: openInWithRest.sort((a, b) => b._rest - a._rest).slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, item._rest, month)),
+      open_clients: openOutWithRest.sort((a, b) => b._rest - a._rest).slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, item._rest, month)),
+      unlinked_treasury: treasuryUnlinked.slice(0, issueLimit).map((item) => reconcileTreasuryRow(item, month)),
+      invoice_missing_journal: invoiceMissingJournal.slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, null, month)),
       unbalanced_journals: unbalancedJournals.slice(0, issueLimit).map((item) => ({
         id: item.id,
         uuid: item.uuid,
@@ -2123,7 +2144,7 @@ function buildReconciliation(db, an, luna, options = {}) {
         document: item.nr_document || item.id,
         difference: round(Number(item.total_debit || 0) - Number(item.total_credit || 0)),
         status: item.status,
-        link: `/contabilitate/registru-jurnal?luna=${month}`
+        link: accountingLink("/contabilitate/registru-jurnal", { luna: month, note: item.uuid || item.id })
       }))
     }
   };
@@ -2151,33 +2172,78 @@ function flattenReconciliationIssues(reconciliation) {
   }));
 }
 
-function reconcileInvoiceRow(item, rest = null) {
+function reconciliationStatusLabel(status) {
+  return {
+    ok: "OK",
+    warning: "Atentie",
+    danger: "Critic"
+  }[String(status || "")] || String(status || "");
+}
+
+function absoluteAppLink(baseUrl, link) {
+  if (!link) return "";
+  if (/^https?:\/\//i.test(String(link))) return String(link);
+  return `${baseUrl}${String(link).startsWith("/") ? "" : "/"}${link}`;
+}
+
+function addHyperlinks(sheet, rows, columnIndex) {
+  rows.forEach((row, rowIndex) => {
+    const value = row[columnIndex];
+    if (!value || !/^https?:\/\//i.test(String(value))) return;
+    const address = xlsx.utils.encode_cell({ r: rowIndex, c: columnIndex });
+    if (sheet[address]) sheet[address].l = { Target: value, Tooltip: "Deschide in InfraFlow" };
+  });
+}
+
+function accountingLink(path, params = {}) {
+  const query = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join("&");
+  return query ? `${path}?${query}` : path;
+}
+
+function reconciliationDocumentSearch(item) {
+  return item.nr_document || item.numar || item.uuid || item.id;
+}
+
+function reconcileInvoiceRow(item, rest = null, month = "") {
   const source = item.source || (item.furnizor_id ? "intrare" : "iesire");
+  const document = item.nr_document || item.numar || item.id;
   return {
     id: item.id,
     uuid: item.uuid,
     source,
     data: item.data,
     scadenta: item.data_scadenta,
-    document: item.nr_document || item.numar || item.id,
+    document,
     total: item.total || 0,
     rest: rest === null ? null : rest,
     status: item.status,
-    link: source === "intrare" ? "/contabilitate/facturi-intrare" : "/contabilitate/facturi-iesire"
+    link: accountingLink(source === "intrare" ? "/contabilitate/facturi-intrare" : "/contabilitate/facturi-iesire", {
+      luna: month,
+      status: item.status,
+      q: reconciliationDocumentSearch(item)
+    })
   };
 }
 
-function reconcileTreasuryRow(item) {
+function reconcileTreasuryRow(item, month = "") {
+  const document = item.nr_document || item.id;
   return {
     id: item.id,
     uuid: item.uuid,
     data: item.data,
-    document: item.nr_document || item.id,
+    document,
     tip: item.tip,
     operatie: item.tip_operatie,
     suma: item.suma || 0,
     status: item.status,
-    link: "/contabilitate/trezorerie"
+    link: accountingLink("/contabilitate/trezorerie", {
+      luna: month,
+      status: item.status,
+      q: item.nr_document || item.uuid || item.id
+    })
   };
 }
 

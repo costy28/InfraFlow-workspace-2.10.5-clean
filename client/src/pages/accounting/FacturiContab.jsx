@@ -17,9 +17,9 @@ export function FacturiContab({ direction = 'in' }) {
   const [accounts, setAccounts] = useState([])
   const [costCenters, setCostCenters] = useState([])
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState(searchParams.get('status') || '')
   const [tertFilter, setTertFilter] = useState(searchParams.get(isIn ? 'furnizor' : 'client') || '')
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(searchParams.get('q') || '')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [journalModal, setJournalModal] = useState(false)
@@ -51,7 +51,10 @@ export function FacturiContab({ direction = 'in' }) {
     setCostCenters(cc.data.costCenters || [])
   }
   useEffect(() => {
+    setMonth(searchParams.get('luna') || currentMonth())
+    setStatus(searchParams.get('status') || '')
     setTertFilter(searchParams.get(isIn ? 'furnizor' : 'client') || '')
+    setQ(searchParams.get('q') || '')
   }, [direction, searchParams])
   useEffect(() => { load().catch(() => {}) }, [direction, month, status, tertFilter])
   const invoiceLines = Array.isArray(form.lines) ? form.lines : []
@@ -61,7 +64,7 @@ export function FacturiContab({ direction = 'in' }) {
     if (!needle) return rows
     return rows.filter(row => {
       const tert = thirdPartyById.get(String(row.furnizor_id || row.client_id))
-      return `${row.data || ''} ${row.nr_document || ''} ${row.serie || ''} ${row.numar || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
+      return `${row.id || ''} ${row.uuid || ''} ${row.data || ''} ${row.nr_document || ''} ${row.serie || ''} ${row.numar || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
     })
   }, [rows, q, thirdPartyById])
   const visibleTotals = useMemo(() => ({

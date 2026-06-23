@@ -1,5 +1,5 @@
 {
-  "version": "2.12.97",
+  "version": "2.12.100",
   "date": "2026-06-23",
-  "changelog": "## v2.12.97 - 2026-06-23\n### Hotfix export reconciliere\n- Exportul Excel din dashboard-ul contabil foloseste descarcare autentificata prin API client.\n- Nu mai deschide ruta /api direct in browser, deci nu mai pierde tokenul de sesiune."
+  "changelog": "## v2.12.100 - 2026-06-23\n### Contabilitate - export scadentar autentificat\n- Exportul scadentar din Furnizori si Clienti foloseste sesiunea autentificata.\n- Descarcarea nu mai navigheaza direct spre API si evita raspunsul JSON Autentificare necesara."
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -11,16 +11,17 @@ import { formatMoney } from '../../utils/format'
 import { AccountSelect, AccountingShell, DropdownMenu, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function Trezorerie() {
   const [rows, setRows] = useState([])
+  const [searchParams] = useSearchParams()
   const [thirdParties, setThirdParties] = useState([])
   const [accounts, setAccounts] = useState([])
   const [openInvoicesIn, setOpenInvoicesIn] = useState([])
   const [openInvoicesOut, setOpenInvoicesOut] = useState([])
-  const [month, setMonth] = useState(currentMonth())
-  const [status, setStatus] = useState('')
-  const [tipFilter, setTipFilter] = useState('')
-  const [operationFilter, setOperationFilter] = useState('')
-  const [tertFilter, setTertFilter] = useState('')
-  const [q, setQ] = useState('')
+  const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
+  const [status, setStatus] = useState(searchParams.get('status') || '')
+  const [tipFilter, setTipFilter] = useState(searchParams.get('tip') || '')
+  const [operationFilter, setOperationFilter] = useState(searchParams.get('operatie') || '')
+  const [tertFilter, setTertFilter] = useState(searchParams.get('tert_id') || '')
+  const [q, setQ] = useState(searchParams.get('q') || '')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({})
@@ -34,6 +35,15 @@ export function Trezorerie() {
     const tertKey = form.tip_operatie === 'incasare' ? 'client_id' : 'furnizor_id'
     return source.filter(invoice => !form.tert_id || String(invoice[tertKey]) === String(form.tert_id))
   }, [form.tip_operatie, form.tert_id, openInvoicesIn, openInvoicesOut])
+
+  useEffect(() => {
+    setMonth(searchParams.get('luna') || currentMonth())
+    setStatus(searchParams.get('status') || '')
+    setTipFilter(searchParams.get('tip') || '')
+    setOperationFilter(searchParams.get('operatie') || '')
+    setTertFilter(searchParams.get('tert_id') || '')
+    setQ(searchParams.get('q') || '')
+  }, [searchParams])
 
   useEffect(() => { load() }, [month, status, tipFilter, operationFilter, tertFilter])
 
@@ -96,7 +106,7 @@ export function Trezorerie() {
     if (!needle) return rows
     return rows.filter(row => {
       const tert = tertById.get(String(row.tert_id))
-      return `${row.data || ''} ${row.tip || ''} ${row.tip_operatie || ''} ${row.nr_document || ''} ${row.cont_trezorerie || ''} ${row.cont_corespondent || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
+      return `${row.id || ''} ${row.uuid || ''} ${row.data || ''} ${row.tip || ''} ${row.tip_operatie || ''} ${row.nr_document || ''} ${row.cont_trezorerie || ''} ${row.cont_corespondent || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
     })
   }, [rows, q, tertById])
 
@@ -112,17 +122,32 @@ export function Trezorerie() {
     }
   }, [visibleRows])
 
-  function exportExcel() {
+  async function exportExcel() {
     const [an, luna] = month.split('-')
-    const params = new URLSearchParams({
-      an,
-      luna: String(Number(luna))
-    })
-    if (status) params.set('status', status)
-    if (tipFilter) params.set('tip', tipFilter)
-    if (operationFilter) params.set('operatie', operationFilter)
-    if (tertFilter) params.set('tert_id', tertFilter)
-    window.location.href = `/api/accounting/treasury/export?${params.toString()}`
+    setError('')
+    try {
+      const res = await api.get('/accounting/treasury/export', {
+        params: {
+          an,
+          luna: Number(luna),
+          status: status || undefined,
+          tip: tipFilter || undefined,
+          operatie: operationFilter || undefined,
+          tert_id: tertFilter || undefined
+        },
+        responseType: 'blob'
+      })
+      const url = URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Trezorerie_${an}_${String(luna).padStart(2, '0')}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Exportul trezoreriei nu a putut fi generat.')
+    }
   }
 
   function openNew() {
