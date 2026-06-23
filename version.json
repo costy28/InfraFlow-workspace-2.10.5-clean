@@ -1,5 +1,5 @@
 {
-  "version": "2.12.101",
+  "version": "2.12.102",
   "date": "2026-06-23",
-  "changelog": "## v2.12.101 - 2026-06-23\n### Contabilitate - sabloane note contabile pe facturi\n- Backendul expune sabloane implicite pentru facturi intrare si iesire.\n- Modalul de factura poate aplica automat conturile pentru servicii, materiale, combustibil, reparatii, venituri si productie.\n- Cheia sablonului se pastreaza pe document pentru audit si extinderi ulterioare."
+  "changelog": "## v2.12.102 - 2026-06-23\n### Contabilitate - administrare sabloane note\n- Sabloanele de note contabile pot fi vazute si administrate din Contabilitate.\n- Se pot crea, edita si dezactiva sabloane custom pentru facturi intrare si iesire.\n- Sabloanele de sistem raman protejate, iar meniul ramane integrat in modulul Contabilitate."
 }

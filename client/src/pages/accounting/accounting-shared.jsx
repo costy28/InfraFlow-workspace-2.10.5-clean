@@ -21,6 +21,7 @@ const nav = [
   ['anaf', '/contabilitate/anaf', 'ANAF / e-Factura'],
   ['controlling', '/contabilitate/controlling', 'Controlling'],
   ['inchidere', '/contabilitate/inchidere-luna', 'Inchidere luna'],
+  ['sabloane', '/contabilitate/sabloane-note', 'Sabloane note'],
   ['alerte', '/contabilitate/alerte', 'Alerte'],
 ]
 
@@ -39,7 +40,7 @@ const navGroups = [
   },
   {
     label: 'Administrare',
-    keys: ['anaf', 'inchidere', 'alerte'],
+    keys: ['anaf', 'inchidere', 'sabloane', 'alerte'],
   },
 ]
 

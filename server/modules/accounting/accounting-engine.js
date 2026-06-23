@@ -20,7 +20,7 @@ const REQUIRED_CHART_ACCOUNTS = [
 
 function ensureAccounting(db) {
   if (!db.accounting || typeof db.accounting !== "object") db.accounting = {};
-  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts"];
+  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts", "journalTemplates"];
   keys.forEach((key) => {
     if (!Array.isArray(db.accounting[key])) db.accounting[key] = [];
   });

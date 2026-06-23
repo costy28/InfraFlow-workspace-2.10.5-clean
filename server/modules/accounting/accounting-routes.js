@@ -188,11 +188,39 @@ router.get("/accounting/health", requireAccountingView, (req, res) => {
 });
 
 router.get("/accounting/journal-templates", requireAccountingView, (req, res) => {
-  const source = String(req.query.source || "").trim();
-  const templates = source
-    ? JOURNAL_TEMPLATES.filter((item) => item.source === source)
-    : JOURNAL_TEMPLATES;
+  const templates = getJournalTemplates(req.auth.db, req.query);
   sendJson(res, 200, { templates });
+});
+
+router.post("/accounting/journal-templates", requireAccountingManage, (req, res, next) => {
+  try {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const template = normalizeJournalTemplate(req.body || {});
+    template.id = engine.nextNumericId(accounting.journalTemplates);
+    template.key = template.key || `custom_${template.id}`;
+    if (JOURNAL_TEMPLATES.some((item) => item.key === template.key) || accounting.journalTemplates.some((item) => item.key === template.key)) {
+      throwHttp(409, "Cheia sablonului exista deja.");
+    }
+    template.system = false;
+    template.created_at = new Date().toISOString();
+    accounting.journalTemplates.push(template);
+    addAudit(req.auth.db, req.auth.user, "accounting_journal_template_create", template.label);
+    writeDb(req.auth.db);
+    sendJson(res, 201, { template });
+  } catch (error) { next(error); }
+});
+
+router.patch("/accounting/journal-templates/:key", requireAccountingManage, (req, res, next) => {
+  try {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const template = accounting.journalTemplates.find((item) => item.key === req.params.key);
+    if (!template) throwHttp(404, "Sablonul nu a fost gasit sau este sablon de sistem.");
+    const nextTemplate = normalizeJournalTemplate({ ...template, ...(req.body || {}), key: template.key });
+    Object.assign(template, nextTemplate, { system: false, updated_at: new Date().toISOString() });
+    addAudit(req.auth.db, req.auth.user, "accounting_journal_template_update", template.label);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { template });
+  } catch (error) { next(error); }
 });
 
 router.get("/accounting/reconciliation", requireAccountingView, (req, res) => {
@@ -2339,6 +2367,42 @@ function reconcileTreasuryRow(item, month = "") {
 
 function formatReconciliationMoney(value) {
   return `${round(value).toFixed(2)} RON`;
+}
+
+function getJournalTemplates(db, query = {}) {
+  const accounting = engine.ensureAccounting(db);
+  const source = String(query.source || "").trim();
+  const custom = accounting.journalTemplates.map((item) => ({ ...item, system: false }));
+  const byKey = new Map(JOURNAL_TEMPLATES.map((item) => [item.key, { ...item, system: true, activ: true }]));
+  custom.forEach((item) => byKey.set(item.key, item));
+  return Array.from(byKey.values())
+    .filter((item) => item.activ !== false)
+    .filter((item) => !source || item.source === source)
+    .sort((a, b) => String(a.source).localeCompare(String(b.source), "ro") || String(a.label).localeCompare(String(b.label), "ro"));
+}
+
+function normalizeJournalTemplate(body) {
+  const key = String(body.key || "").trim().replace(/[^a-zA-Z0-9_-]+/g, "_").toLowerCase();
+  const source = String(body.source || "").trim();
+  if (!["intrare", "iesire"].includes(source)) throwHttp(400, "Tipul sablonului trebuie sa fie intrare sau iesire.");
+  const label = String(body.label || "").trim();
+  if (!label) throwHttp(400, "Denumirea sablonului este obligatorie.");
+  const mainAccount = String(body.main_account || "").trim();
+  const lineAccount = String(body.line_account || mainAccount).trim();
+  if (!mainAccount || !lineAccount) throwHttp(400, "Contul principal si contul liniei sunt obligatorii.");
+  return {
+    id: body.id || null,
+    key,
+    source,
+    label,
+    description: String(body.description || "").trim(),
+    main_account: mainAccount,
+    line_account: lineAccount,
+    vat_account: String(body.vat_account || (source === "intrare" ? "4426" : "4427")).trim(),
+    party_account: String(body.party_account || (source === "intrare" ? "401.x" : "4111.x")).trim(),
+    preview: String(body.preview || (source === "intrare" ? `${lineAccount} + 4426 = 401.x` : `4111.x = ${lineAccount} + 4427`)).trim(),
+    activ: body.activ !== false
+  };
 }
 
 function findByUuid(items, uuid, message) {
