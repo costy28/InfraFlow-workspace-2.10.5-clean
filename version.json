@@ -1,5 +1,5 @@
 {
-  "version": "2.12.96",
+  "version": "2.12.97",
   "date": "2026-06-23",
-  "changelog": "## v2.12.96 - 2026-06-23\n### Contabilitate - export reconciliere\n- Reconcilierea lunara poate fi exportata in Excel din dashboard.\n- Exportul include verificarile si lista de probleme de rezolvat.\n- Raportul ajuta la controlul perioadei inainte de inchidere."
+  "changelog": "## v2.12.97 - 2026-06-23\n### Hotfix export reconciliere\n- Exportul Excel din dashboard-ul contabil foloseste descarcare autentificata prin API client.\n- Nu mai deschide ruta /api direct in browser, deci nu mai pierde tokenul de sesiune."
 }

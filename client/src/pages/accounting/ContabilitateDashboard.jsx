@@ -40,9 +40,21 @@ export function ContabilitateDashboard() {
       ...(issues.unbalanced_journals || []).map(row => ({ ...row, group: 'Note dezechilibrate', action: 'Corectează debitul și creditul notei.' }))
     ].slice(0, 12)
   }, [reconciliation])
-  function exportReconciliation() {
-    const params = new URLSearchParams({ luna: month })
-    window.location.href = `/api/accounting/reconciliation/export?${params.toString()}`
+  async function exportReconciliation() {
+    setError('')
+    try {
+      const res = await api.get('/accounting/reconciliation/export', { params: { luna: month }, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Reconciliere_contabila_${month}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Exportul reconcilierii nu a putut fi generat.')
+    }
   }
   return (
     <AccountingShell active="dashboard" title="Contabilitate" subtitle="Registru, facturi, TVA, balanta si inchidere perioada.">
