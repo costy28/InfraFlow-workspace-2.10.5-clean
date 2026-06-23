@@ -1,5 +1,5 @@
 {
-  "version": "2.12.104",
+  "version": "2.12.105",
   "date": "2026-06-23",
-  "changelog": "## v2.12.104 - 2026-06-23\n### Contabilitate - solduri registru casa si banca\n- Registrul de casa si jurnalul de banca calculeaza sold initial, incasari, plati si sold final.\n- Fiecare operatie afiseaza soldul curent dupa inregistrare.\n- Jurnalele clasice includ implicit operatiunile validate, cu drafturile disponibile doar prin filtru."
+  "changelog": "## v2.12.105 - 2026-06-23\n### Contabilitate - solduri initiale\n- Adaugata pagina Solduri initiale pentru conturile de pornire pe an fiscal.\n- Balanta afiseaza separat sold initial debit/credit si verifica echilibrarea pe sume totale.\n- Tabelele contabile late au scroll orizontal intern, fara sa largeasca pagina."
 }

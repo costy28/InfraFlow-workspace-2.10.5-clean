@@ -20,7 +20,7 @@ const REQUIRED_CHART_ACCOUNTS = [
 
 function ensureAccounting(db) {
   if (!db.accounting || typeof db.accounting !== "object") db.accounting = {};
-  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts", "journalTemplates"];
+  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts", "journalTemplates", "openingBalances"];
   keys.forEach((key) => {
     if (!Array.isArray(db.accounting[key])) db.accounting[key] = [];
   });
@@ -105,7 +105,10 @@ function accountBalance(db, cont) {
   const activeJournalIds = new Set(accounting.journals
     .filter(isActiveJournal)
     .map((journal) => Number(journal.id)));
-  return money(accounting.journalLines
+  const opening = accounting.openingBalances
+    .filter((row) => row.cont_simbol === cont && row.activ !== false)
+    .reduce((sum, row) => sum + money(row.debit) - money(row.credit), 0);
+  return money(opening + accounting.journalLines
     .filter((line) => line.cont_simbol === cont && activeJournalIds.has(Number(line.journal_id)))
     .reduce((sum, line) => sum + money(line.debit) - money(line.credit), 0));
 }
@@ -432,12 +435,12 @@ function buildBalance(db, an, luna, tip = "sintetica") {
   );
   const journalIds = new Set(journals.map((item) => Number(item.id)));
   const rowsByCont = new Map();
-  accounting.journalLines.filter((line) => journalIds.has(Number(line.journal_id))).forEach((line) => {
-    const simbol = tip === "sintetica" ? String(line.cont_simbol).split(".")[0] : line.cont_simbol;
-    const account = accounting.chart.find((item) => item.simbol === simbol) || accounting.chart.find((item) => item.simbol === line.cont_simbol);
+  const ensureRow = (cont) => {
+    const simbol = tip === "sintetica" ? String(cont).split(".")[0] : cont;
+    const account = accounting.chart.find((item) => item.simbol === simbol) || accounting.chart.find((item) => item.simbol === cont);
     const row = rowsByCont.get(simbol) || {
       cont: simbol,
-      denumire: account?.denumire || line.denumire_cont || "",
+      denumire: account?.denumire || "",
       tip: account?.tip || "B",
       sume_precedente_D: 0,
       sume_precedente_C: 0,
@@ -448,35 +451,54 @@ function buildBalance(db, an, luna, tip = "sintetica") {
       sold_D: 0,
       sold_C: 0
     };
+    rowsByCont.set(simbol, row);
+    return row;
+  };
+  accounting.openingBalances
+    .filter((row) => Number(row.an) === Number(an) && row.activ !== false)
+    .forEach((opening) => {
+      const row = ensureRow(opening.cont_simbol);
+      row.sume_precedente_D = money(row.sume_precedente_D + money(opening.debit));
+      row.sume_precedente_C = money(row.sume_precedente_C + money(opening.credit));
+    });
+  accounting.journalLines.filter((line) => journalIds.has(Number(line.journal_id))).forEach((line) => {
+    const row = ensureRow(line.cont_simbol);
+    if (!row.denumire) row.denumire = line.denumire_cont || "";
     row.rulaje_D = money(row.rulaje_D + line.debit);
     row.rulaje_C = money(row.rulaje_C + line.credit);
-    row.sume_totale_D = row.rulaje_D;
-    row.sume_totale_C = row.rulaje_C;
+  });
+  rowsByCont.forEach((row) => {
+    row.sume_totale_D = money(row.sume_precedente_D + row.rulaje_D);
+    row.sume_totale_C = money(row.sume_precedente_C + row.rulaje_C);
     const sold = money(row.sume_totale_D - row.sume_totale_C);
     row.sold_D = sold > 0 ? sold : 0;
     row.sold_C = sold < 0 ? Math.abs(sold) : 0;
-    rowsByCont.set(simbol, row);
   });
   const rows = Array.from(rowsByCont.values()).sort((a, b) => a.cont.localeCompare(b.cont, "ro"));
   const totals = rows.reduce((acc, row) => {
-    ["rulaje_D", "rulaje_C", "sume_totale_D", "sume_totale_C", "sold_D", "sold_C"].forEach((key) => {
+    ["sume_precedente_D", "sume_precedente_C", "rulaje_D", "rulaje_C", "sume_totale_D", "sume_totale_C", "sold_D", "sold_C"].forEach((key) => {
       acc[key] = money((acc[key] || 0) + row[key]);
     });
     return acc;
   }, {});
-  return { rows, totals, balanced: Math.abs((totals.rulaje_D || 0) - (totals.rulaje_C || 0)) <= 0.01 };
+  return { rows, totals, balanced: Math.abs((totals.sume_totale_D || 0) - (totals.sume_totale_C || 0)) <= 0.01 };
 }
 
 function ledger(db, simbol, from = "", to = "") {
   const accounting = ensureAccounting(db);
   const journalsById = new Map(accounting.journals.map((item) => [Number(item.id), item]));
   const account = accounting.chart.find((item) => item.simbol === simbol) || {};
+  const fromYear = Number(String(from || "").slice(0, 4)) || new Date().getFullYear();
+  const opening = money(accounting.openingBalances
+    .filter((row) => row.cont_simbol === simbol && row.activ !== false)
+    .filter((row) => Number(row.an) === fromYear)
+    .reduce((sum, row) => sum + money(row.debit) - money(row.credit), 0));
   const allMovements = accounting.journalLines
     .filter((line) => line.cont_simbol === simbol)
     .map((line) => ({ line, journal: journalsById.get(Number(line.journal_id)) }))
     .filter(({ journal }) => journal && isActiveJournal(journal))
     .sort((a, b) => String(a.journal.data).localeCompare(String(b.journal.data)) || Number(a.line.linie_nr) - Number(b.line.linie_nr));
-  const soldInitial = money(allMovements
+  const soldInitial = money(opening + allMovements
     .filter(({ journal }) => from && journal.data < from)
     .reduce((sum, { line }) => sum + money(line.debit) - money(line.credit), 0));
   let sold = soldInitial;

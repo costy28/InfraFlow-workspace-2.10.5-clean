@@ -10,6 +10,7 @@ export { default as DropdownMenu } from '../../components/ui/DropdownMenu'
 const nav = [
   ['dashboard', '/contabilitate', 'Dashboard'],
   ['plan', '/contabilitate/plan-conturi', 'Plan de conturi'],
+  ['solduri', '/contabilitate/solduri-initiale', 'Solduri initiale'],
   ['furnizori', '/contabilitate/furnizori', 'Furnizori'],
   ['clienti', '/contabilitate/clienti', 'Clienti'],
   ['intrare', '/contabilitate/facturi-intrare', 'Facturi intrare'],
@@ -29,7 +30,7 @@ const nav = [
 const navGroups = [
   {
     label: 'Nomenclatoare',
-    keys: ['plan', 'furnizori', 'clienti'],
+    keys: ['plan', 'solduri', 'furnizori', 'clienti'],
   },
   {
     label: 'Operațiuni',
@@ -247,8 +248,8 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
 export function Table({ headers, children }) {
   return (
     <Card>
-      <div className="overflow-hidden rounded-[var(--radius-panel)] border border-slate-200">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-[var(--radius-panel)] border border-slate-200">
+        <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
             <tr>{headers.map(header => <th key={header} className="px-3 py-2 font-semibold">{header}</th>)}</tr>
           </thead>

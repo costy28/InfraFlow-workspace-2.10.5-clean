@@ -23,10 +23,10 @@ export function Balanta() {
   const rows = useMemo(() => data.rows.filter(row =>
     (!clasa || String(row.cont || '').startsWith(clasa)) &&
     (!q || `${row.cont || ''} ${row.denumire || ''}`.toLowerCase().includes(q.toLowerCase())) &&
-    (!onlyWithValues || ['rulaje_D', 'rulaje_C', 'sold_D', 'sold_C'].some(key => Math.abs(money(row[key])) > 0.009))
+    (!onlyWithValues || ['sume_precedente_D', 'sume_precedente_C', 'rulaje_D', 'rulaje_C', 'sold_D', 'sold_C'].some(key => Math.abs(money(row[key])) > 0.009))
   ), [data.rows, clasa, q, onlyWithValues])
   const filteredTotals = useMemo(() => rows.reduce((acc, row) => {
-    ['rulaje_D', 'rulaje_C', 'sume_totale_D', 'sume_totale_C', 'sold_D', 'sold_C'].forEach(key => { acc[key] = money((acc[key] || 0) + row[key]) })
+    ['sume_precedente_D', 'sume_precedente_C', 'rulaje_D', 'rulaje_C', 'sume_totale_D', 'sume_totale_C', 'sold_D', 'sold_C'].forEach(key => { acc[key] = money((acc[key] || 0) + row[key]) })
     return acc
   }, {}), [rows])
 
@@ -70,21 +70,25 @@ export function Balanta() {
         </div>
       </Card>
       <div className={`rounded-md px-3 py-2 text-sm ${data.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-        {data.balanced ? 'Balanta este echilibrata.' : `Balanta nu este echilibrata: diferenta ${formatMoney(Math.abs(money(data.totals.rulaje_D) - money(data.totals.rulaje_C)))}`}
+        {data.balanced ? 'Balanta este echilibrata.' : `Balanta nu este echilibrata: diferenta ${formatMoney(Math.abs(money(data.totals.sume_totale_D) - money(data.totals.sume_totale_C)))}`}
       </div>
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-6">
+        <Info label="Sold init. debit" value={formatMoney(filteredTotals.sume_precedente_D || 0)} />
+        <Info label="Sold init. credit" value={formatMoney(filteredTotals.sume_precedente_C || 0)} />
         <Info label="Rulaj debit" value={formatMoney(filteredTotals.rulaje_D || 0)} />
         <Info label="Rulaj credit" value={formatMoney(filteredTotals.rulaje_C || 0)} />
         <Info label="Sold debit" value={formatMoney(filteredTotals.sold_D || 0)} />
         <Info label="Sold credit" value={formatMoney(filteredTotals.sold_C || 0)} />
       </div>
-      <Table headers={['Cont', 'Denumire', 'Rulaj D', 'Rulaj C', 'Sume D', 'Sume C', 'Sold D', 'Sold C']}>
+      <Table headers={['Cont', 'Denumire', 'Init D', 'Init C', 'Rulaj D', 'Rulaj C', 'Sume D', 'Sume C', 'Sold D', 'Sold C']}>
         {rows.map(row => (
           <tr key={row.cont} className="hover:bg-slate-50">
             <td className="px-3 py-2">
               <Link className="font-mono font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont}?de_la=${monthStart}&pana_la=${monthEnd}`}>{row.cont}</Link>
             </td>
             <td className="px-3 py-2">{row.denumire}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.sume_precedente_D)}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.sume_precedente_C)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(row.rulaje_D)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(row.rulaje_C)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(row.sume_totale_D)}</td>
@@ -97,6 +101,8 @@ export function Balanta() {
           <tr className="bg-slate-50 font-semibold">
             <td className="px-3 py-2">TOTAL</td>
             <td className="px-3 py-2">{rows.length} conturi</td>
+            <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.sume_precedente_D || 0)}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.sume_precedente_C || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.rulaje_D || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.rulaje_C || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.sume_totale_D || 0)}</td>

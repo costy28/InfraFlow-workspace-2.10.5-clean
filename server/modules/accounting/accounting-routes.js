@@ -223,6 +223,39 @@ router.patch("/accounting/journal-templates/:key", requireAccountingManage, (req
   } catch (error) { next(error); }
 });
 
+router.get("/accounting/opening-balances", requireAccountingReports, (req, res) => {
+  const accounting = engine.ensureAccounting(req.auth.db);
+  const an = Number(req.query.an || new Date().getFullYear());
+  const rows = accounting.openingBalances
+    .filter((row) => Number(row.an) === an && row.activ !== false)
+    .map((row) => decorateOpeningBalance(row, accounting))
+    .sort((a, b) => String(a.cont_simbol).localeCompare(String(b.cont_simbol), "ro"));
+  sendJson(res, 200, { an, rows, totals: openingBalanceTotals(rows) });
+});
+
+router.put("/accounting/opening-balances/:an", requireAccountingPost, (req, res, next) => {
+  try {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const an = Number(req.params.an || new Date().getFullYear());
+    if (!Number.isFinite(an) || an < 2000 || an > 2100) throwHttp(400, "Anul soldurilor initiale este invalid.");
+    const rows = normalizeOpeningBalances(req.auth.db, req.body?.rows || [], an);
+    accounting.openingBalances = accounting.openingBalances.filter((row) => Number(row.an) !== an);
+    rows.forEach((row) => accounting.openingBalances.push({
+      id: engine.nextNumericId(accounting.openingBalances),
+      ...row,
+      activ: true,
+      updated_by: req.auth.user?.id || "",
+      updated_at: new Date().toISOString()
+    }));
+    addAudit(req.auth.db, req.auth.user, "accounting_opening_balances_update", `${an} / ${rows.length} conturi`);
+    writeDb(req.auth.db);
+    const decorated = rows
+      .map((row) => decorateOpeningBalance(row, accounting))
+      .sort((a, b) => String(a.cont_simbol).localeCompare(String(b.cont_simbol), "ro"));
+    sendJson(res, 200, { an, rows: decorated, totals: openingBalanceTotals(decorated) });
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/reconciliation", requireAccountingView, (req, res) => {
   const [an, luna] = monthParts(req.query.luna || currentMonth());
   sendJson(res, 200, buildReconciliation(req.auth.db, an, luna));
@@ -2623,6 +2656,57 @@ function normalizeJournalTemplate(body) {
     party_account: String(body.party_account || (source === "intrare" ? "401.x" : "4111.x")).trim(),
     preview: String(body.preview || (source === "intrare" ? `${lineAccount} + 4426 = 401.x` : `4111.x = ${lineAccount} + 4427`)).trim(),
     activ: body.activ !== false
+  };
+}
+
+function normalizeOpeningBalances(db, rows, an) {
+  const accounting = engine.ensureAccounting(db);
+  if (!Array.isArray(rows)) throwHttp(400, "Lista soldurilor initiale este obligatorie.");
+  const accounts = new Map(accounting.chart
+    .filter((account) => account.activ !== false)
+    .map((account) => [String(account.simbol), account]));
+  const seen = new Set();
+  return rows.map((row, index) => {
+    const cont = String(row.cont_simbol || row.cont || "").trim();
+    const debit = round(row.debit || 0);
+    const credit = round(row.credit || 0);
+    if (!cont && debit === 0 && credit === 0) return null;
+    if (!cont) throwHttp(400, `Linia ${index + 1}: cont lipsa.`);
+    if (!accounts.has(cont)) throwHttp(422, `Linia ${index + 1}: contul ${cont} nu exista in planul de conturi.`);
+    if (seen.has(cont)) throwHttp(422, `Linia ${index + 1}: contul ${cont} este introdus de doua ori.`);
+    seen.add(cont);
+    if (debit < 0 || credit < 0) throwHttp(422, `Linia ${index + 1}: soldurile nu pot fi negative.`);
+    if (debit > 0 && credit > 0) throwHttp(422, `Linia ${index + 1}: completeaza sold debit sau sold credit, nu ambele.`);
+    if (debit === 0 && credit === 0) return null;
+    return {
+      an: Number(an),
+      cont_simbol: cont,
+      debit,
+      credit,
+      observatii: String(row.observatii || "").trim()
+    };
+  }).filter(Boolean);
+}
+
+function decorateOpeningBalance(row, accounting) {
+  const account = accounting.chart.find((item) => item.simbol === row.cont_simbol) || {};
+  return {
+    ...row,
+    denumire_cont: account.denumire || "",
+    tip: account.tip || "",
+    clasa: Number(account.clasa || String(row.cont_simbol || "0")[0] || 0)
+  };
+}
+
+function openingBalanceTotals(rows) {
+  const debit = round(rows.reduce((sum, row) => sum + Number(row.debit || 0), 0));
+  const credit = round(rows.reduce((sum, row) => sum + Number(row.credit || 0), 0));
+  return {
+    debit,
+    credit,
+    diferenta: round(debit - credit),
+    balanced: Math.abs(debit - credit) <= 0.01,
+    count: rows.length
   };
 }
 
