@@ -40,6 +40,10 @@ export function ContabilitateDashboard() {
       ...(issues.unbalanced_journals || []).map(row => ({ ...row, group: 'Note dezechilibrate', action: 'Corectează debitul și creditul notei.' }))
     ].slice(0, 12)
   }, [reconciliation])
+  function exportReconciliation() {
+    const params = new URLSearchParams({ luna: month })
+    window.location.href = `/api/accounting/reconciliation/export?${params.toString()}`
+  }
   return (
     <AccountingShell active="dashboard" title="Contabilitate" subtitle="Registru, facturi, TVA, balanta si inchidere perioada.">
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
@@ -68,9 +72,12 @@ export function ContabilitateDashboard() {
             <h3 className="text-base font-semibold text-slate-900">Reconciliere lunară</h3>
             <p className="text-sm text-slate-500">Probleme concrete de rezolvat înainte de închiderea perioadei.</p>
           </div>
-          <Badge tone={reconciliation?.status === 'ok' ? 'success' : reconciliation?.status === 'danger' ? 'danger' : 'warning'}>
-            {reconciliation?.status === 'ok' ? 'Totul arată bine' : 'Verifică'}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={reconciliation?.status === 'ok' ? 'success' : reconciliation?.status === 'danger' ? 'danger' : 'warning'}>
+              {reconciliation?.status === 'ok' ? 'Totul arată bine' : 'Verifică'}
+            </Badge>
+            <Button variant="secondary" onClick={exportReconciliation}>Export Excel</Button>
+          </div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {(reconciliation?.checks || []).map(check => (

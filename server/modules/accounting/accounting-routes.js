@@ -112,6 +112,33 @@ router.get("/accounting/reconciliation", requireAccountingView, (req, res) => {
   sendJson(res, 200, buildReconciliation(req.auth.db, an, luna));
 });
 
+router.get("/accounting/reconciliation/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const [an, luna] = monthParts(req.query.luna || currentMonth());
+    const reconciliation = buildReconciliation(req.auth.db, an, luna, { issueLimit: 10000 });
+    const issueRows = flattenReconciliationIssues(reconciliation);
+    const rows = [
+      ["Reconciliere contabila", reconciliation.month, reconciliation.status],
+      [],
+      ["Verificari"],
+      ["Zona", "Status", "Valoare", "Mesaj", "Link"],
+      ...reconciliation.checks.map((check) => [check.label, check.severity, check.value, check.message, check.link || ""]),
+      [],
+      ["Probleme de rezolvat"],
+      ["Grupa", "Data", "Document", "Status", "Suma/Rest/Diferenta", "Actiune", "Link"],
+      ...issueRows.map((issue) => [issue.group, issue.data || "", issue.document || issue.id || "", issue.status || "", issue.amount || "", issue.action || "", issue.link || ""])
+    ];
+    const workbook = xlsx.utils.book_new();
+    const sheet = xlsx.utils.aoa_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 24 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 20 }, { wch: 46 }, { wch: 38 }];
+    xlsx.utils.book_append_sheet(workbook, sheet, "Reconciliere");
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Reconciliere_contabila_${reconciliation.month}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/chart", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
   const query = String(req.query.q || "").toLowerCase();
@@ -1988,8 +2015,9 @@ function markAlert(status) {
   };
 }
 
-function buildReconciliation(db, an, luna) {
+function buildReconciliation(db, an, luna, options = {}) {
   const accounting = engine.ensureAccounting(db);
+  const issueLimit = Number(options.issueLimit || 10);
   const month = `${an}-${String(luna).padStart(2, "0")}`;
   const inMonth = (item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna);
   const invoiceInRest = (item) => round(item.neachitat ?? Number(item.total || 0) - Number(item.achitat || 0));
@@ -2082,13 +2110,13 @@ function buildReconciliation(db, an, luna) {
     status: checks.some((item) => item.severity === "danger") ? "danger" : checks.some((item) => item.severity === "warning") ? "warning" : "ok",
     checks,
     issues: {
-      draft_invoices: draftInvoices.slice(0, 10).map(reconcileInvoiceRow),
-      draft_treasury: treasuryDraft.slice(0, 10).map(reconcileTreasuryRow),
-      open_suppliers: openInWithRest.sort((a, b) => b._rest - a._rest).slice(0, 10).map((item) => reconcileInvoiceRow(item, item._rest)),
-      open_clients: openOutWithRest.sort((a, b) => b._rest - a._rest).slice(0, 10).map((item) => reconcileInvoiceRow(item, item._rest)),
-      unlinked_treasury: treasuryUnlinked.slice(0, 10).map(reconcileTreasuryRow),
-      invoice_missing_journal: invoiceMissingJournal.slice(0, 10).map(reconcileInvoiceRow),
-      unbalanced_journals: unbalancedJournals.slice(0, 10).map((item) => ({
+      draft_invoices: draftInvoices.slice(0, issueLimit).map(reconcileInvoiceRow),
+      draft_treasury: treasuryDraft.slice(0, issueLimit).map(reconcileTreasuryRow),
+      open_suppliers: openInWithRest.sort((a, b) => b._rest - a._rest).slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, item._rest)),
+      open_clients: openOutWithRest.sort((a, b) => b._rest - a._rest).slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, item._rest)),
+      unlinked_treasury: treasuryUnlinked.slice(0, issueLimit).map(reconcileTreasuryRow),
+      invoice_missing_journal: invoiceMissingJournal.slice(0, issueLimit).map(reconcileInvoiceRow),
+      unbalanced_journals: unbalancedJournals.slice(0, issueLimit).map((item) => ({
         id: item.id,
         uuid: item.uuid,
         data: item.data,
@@ -2099,6 +2127,28 @@ function buildReconciliation(db, an, luna) {
       }))
     }
   };
+}
+
+function flattenReconciliationIssues(reconciliation) {
+  const issues = reconciliation.issues || {};
+  return [
+    ...(issues.draft_invoices || []).map((row) => ({ ...row, group: "Facturi draft", action: "Valideaza sau anuleaza factura." })),
+    ...(issues.draft_treasury || []).map((row) => ({ ...row, group: "Trezorerie draft", action: "Valideaza operatia sau anuleaz-o." })),
+    ...(issues.open_suppliers || []).map((row) => ({ ...row, group: "Furnizori de plata", action: "Plateste factura sau verifica scadenta." })),
+    ...(issues.open_clients || []).map((row) => ({ ...row, group: "Clienti de incasat", action: "Incaseaza factura sau verifica scadenta." })),
+    ...(issues.unlinked_treasury || []).map((row) => ({ ...row, group: "Trezorerie necorelata", action: "Leaga operatia de factura sau marcheaz-o ca avans/corectie." })),
+    ...(issues.invoice_missing_journal || []).map((row) => ({ ...row, group: "Facturi fara nota", action: "Devalideaza si valideaza din nou documentul." })),
+    ...(issues.unbalanced_journals || []).map((row) => ({ ...row, group: "Note dezechilibrate", action: "Corecteaza debitul si creditul notei." }))
+  ].map((row) => ({
+    ...row,
+    amount: row.rest !== null && row.rest !== undefined
+      ? formatReconciliationMoney(row.rest)
+      : row.suma !== undefined
+        ? formatReconciliationMoney(row.suma)
+        : row.difference !== undefined
+          ? formatReconciliationMoney(row.difference)
+          : ""
+  }));
 }
 
 function reconcileInvoiceRow(item, rest = null) {
