@@ -1109,6 +1109,12 @@ router.get("/accounting/suppliers-status/:id/confirmation", requireAccountingRep
   } catch (error) { next(error); }
 });
 
+router.get("/accounting/suppliers-status/:id/confirmation/print", requireAccountingReports, (req, res, next) => {
+  try {
+    sendThirdPartyBalanceConfirmationHtml(res, req.auth.db, "furnizor", req.params.id);
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/suppliers-status/:id", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyDetail(req.auth.db, "furnizor", req.params.id));
 });
@@ -1132,6 +1138,12 @@ router.get("/accounting/clients-status/:id/export", requireAccountingReports, (r
 router.get("/accounting/clients-status/:id/confirmation", requireAccountingReports, (req, res, next) => {
   try {
     exportThirdPartyBalanceConfirmation(res, req.auth.db, "client", req.params.id);
+  } catch (error) { next(error); }
+});
+
+router.get("/accounting/clients-status/:id/confirmation/print", requireAccountingReports, (req, res, next) => {
+  try {
+    sendThirdPartyBalanceConfirmationHtml(res, req.auth.db, "client", req.params.id);
   } catch (error) { next(error); }
 });
 
@@ -2372,6 +2384,104 @@ function exportThirdPartyBalanceConfirmation(res, db, tip, id) {
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="Confirmare_sold_${tip}_${safe}_${today()}.xlsx"`);
   res.end(buffer);
+}
+
+function sendThirdPartyBalanceConfirmationHtml(res, db, tip, id) {
+  const detail = thirdPartyDetail(db, tip, id);
+  const direction = tip === "client" ? "de incasat de la" : "de plata catre";
+  const invoiceRows = detail.openInvoices.length
+    ? detail.openInvoices.map((invoice) => `
+      <tr>
+        <td>${accountingHtmlEscape(invoice.data || "")}</td>
+        <td>${accountingHtmlEscape(invoice.nr_document || "")}</td>
+        <td>${accountingHtmlEscape(invoice.data_scadenta || "")}</td>
+        <td>${accountingHtmlEscape(invoice.status || "")}</td>
+        <td class="num">${formatReconciliationMoney(invoice.total || 0)}</td>
+        <td class="num">${formatReconciliationMoney(invoice.paid || 0)}</td>
+        <td class="num strong">${formatReconciliationMoney(invoice.rest || 0)}</td>
+        <td class="num">${accountingHtmlEscape(invoice.days_overdue || 0)}</td>
+      </tr>
+    `).join("")
+    : `<tr><td colspan="8" class="empty">Nu exista facturi deschise.</td></tr>`;
+  const html = `<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <title>Confirmare sold - ${accountingHtmlEscape(detail.tert.denumire || "")}</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #111827; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.45; }
+    .actions { position: sticky; top: 0; margin: 0 0 14px; padding: 10px; background: #f8fafc; border-bottom: 1px solid #e5e7eb; text-align: right; }
+    button { border: 1px solid #d1d5db; background: #065f46; color: white; border-radius: 6px; padding: 8px 14px; font-weight: 700; cursor: pointer; }
+    .sheet { max-width: 190mm; margin: 0 auto; }
+    h1 { margin: 0 0 6px; text-align: center; font-size: 18pt; letter-spacing: .03em; text-transform: uppercase; }
+    .subtitle { text-align: center; color: #475569; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin: 16px 0; }
+    .box { border: 1px solid #d9e2ec; border-radius: 8px; padding: 10px 12px; background: #fbfdff; }
+    .label { color: #64748b; font-size: 9pt; text-transform: uppercase; }
+    .value { margin-top: 2px; font-weight: 700; }
+    .lead { margin: 18px 0; padding: 12px; border-left: 4px solid #065f46; background: #f0fdf4; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border: 1px solid #cbd5e1; padding: 6px 7px; vertical-align: top; }
+    th { background: #f1f5f9; text-align: left; color: #334155; font-size: 9pt; text-transform: uppercase; }
+    .num { text-align: right; white-space: nowrap; }
+    .strong { font-weight: 700; }
+    .total { margin-top: 14px; text-align: right; font-size: 13pt; font-weight: 700; }
+    .empty { text-align: center; color: #64748b; padding: 16px; }
+    .note { margin-top: 18px; color: #334155; }
+    .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; margin-top: 42px; }
+    .signature { min-height: 80px; border-top: 1px solid #111827; padding-top: 8px; text-align: center; }
+    .footer { margin-top: 28px; color: #64748b; font-size: 9pt; text-align: center; }
+    @media print {
+      .actions { display: none; }
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="actions"><button onclick="window.print()">Tipareste / Salveaza PDF</button></div>
+  <main class="sheet">
+    <h1>Confirmare sold</h1>
+    <div class="subtitle">Document generat din InfraFlow ERP la ${accountingHtmlEscape(today())}</div>
+    <section class="grid">
+      <div class="box"><div class="label">Tert</div><div class="value">${accountingHtmlEscape(detail.tert.denumire || "")}</div></div>
+      <div class="box"><div class="label">CUI</div><div class="value">${accountingHtmlEscape(detail.tert.cui || "-")}</div></div>
+      <div class="box"><div class="label">Cod tert</div><div class="value">${accountingHtmlEscape(detail.tert.cod || "-")}</div></div>
+      <div class="box"><div class="label">Analitic</div><div class="value">${accountingHtmlEscape(detail.account || "-")}</div></div>
+    </section>
+    <p class="lead">Conform evidentei contabile, soldul ${accountingHtmlEscape(direction)} tertul mentionat este <strong>${accountingHtmlEscape(formatReconciliationMoney(detail.totals.rest || 0))}</strong>, din care depasit la scadenta <strong>${accountingHtmlEscape(formatReconciliationMoney(detail.totals.overdue || 0))}</strong>.</p>
+    <h2>Facturi care compun soldul</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>Document</th><th>Scadenta</th><th>Status</th>
+          <th>Total</th><th>${tip === "client" ? "Incasat" : "Achitat"}</th><th>Rest</th><th>Zile int.</th>
+        </tr>
+      </thead>
+      <tbody>${invoiceRows}</tbody>
+    </table>
+    <div class="total">Total sold confirmat: ${accountingHtmlEscape(formatReconciliationMoney(detail.totals.rest || 0))}</div>
+    <p class="note">Va rugam sa confirmati soldul sau sa transmiteti diferentele constatate.</p>
+    <section class="signatures">
+      <div class="signature">Emitent<br>Nume / functie / semnatura</div>
+      <div class="signature">Confirmat de tert<br>Nume / functie / semnatura</div>
+    </section>
+    <div class="footer">InfraFlow ERP - Confirmare sold generata automat</div>
+  </main>
+</body>
+</html>`;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
+}
+
+function accountingHtmlEscape(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function agingBuckets(invoices, balanceKey, paidKey) {

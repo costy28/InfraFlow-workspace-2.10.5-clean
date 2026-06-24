@@ -1,5 +1,5 @@
 {
-  "version": "2.12.116",
+  "version": "2.12.117",
   "date": "2026-06-24",
-  "changelog": "## v2.12.116 - 2026-06-24\n### Contabilitate - confirmare sold tert\n- Detaliul de client/furnizor poate genera o confirmare de sold in Excel.\n- Documentul include datele tertului, soldul deschis, soldul depasit si facturile care compun soldul.\n- Confirmarea are zone pentru semnatura emitentului si confirmarea tertului."
+  "changelog": "## v2.12.117 - 2026-06-24\n### Contabilitate - confirmare sold tiparibila\n- Detaliul de client/furnizor poate deschide confirmarea de sold in format HTML pentru print sau salvare PDF.\n- Pagina tiparibila include facturile deschise, soldurile si zonele de semnatura.\n- Exportul Excel de confirmare sold ramane disponibil separat."
 }

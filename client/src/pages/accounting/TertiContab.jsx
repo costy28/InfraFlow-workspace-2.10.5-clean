@@ -212,6 +212,13 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
+  function printConfirmation() {
+    if (!detail?.tert?.id) return
+    const token = localStorage.getItem('infraflow_token')
+    const authQuery = token ? `?token=${encodeURIComponent(token)}` : ''
+    window.open(`/api${statusEndpoint}/${detail.tert.id}/confirmation/print${authQuery}`, '_blank', 'noopener,noreferrer')
+  }
+
   return (
     <AccountingShell
       active={type === 'client' ? 'clienti' : 'furnizori'}
@@ -364,6 +371,7 @@ export function TertiContab({ type = 'furnizor' }) {
               {detail?.tert?.telefon ? <span> · {detail.tert.telefon}</span> : null}
             </div>
             <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onClick={printConfirmation}>Tipareste confirmare</Button>
               <Button variant="secondary" onClick={exportConfirmation}>Confirmare sold</Button>
               <Button variant="secondary" onClick={exportDetail}>Exporta fisa tert</Button>
             </div>
