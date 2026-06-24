@@ -969,6 +969,89 @@ router.get("/accounting/balance-sheet/export", requireAccountingReports, (req, r
   } catch (error) { next(error); }
 });
 
+router.get("/accounting/general-ledger", requireAccountingReports, (req, res) => {
+  sendJson(res, 200, buildGeneralLedger(req.auth.db, req.query));
+});
+
+router.get("/accounting/general-ledger/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const data = buildGeneralLedger(req.auth.db, req.query);
+    const rows = [
+      ["Cartea Mare", `${data.perioada.de_la || "inceput"} - ${data.perioada.pana_la || "sfarsit"}`],
+      [],
+      ["Cont", "Denumire", "Tip", "Sold initial", "Rulaj debit", "Rulaj credit", "Sold final", "Nr. miscari"],
+      ...data.accounts.map((row) => [
+        row.simbol,
+        row.denumire,
+        row.tip,
+        row.sold_initial,
+        row.total_debit,
+        row.total_credit,
+        row.sold_final,
+        row.movements_count
+      ]),
+      [],
+      ["TOTAL", "", "", data.totals.sold_initial, data.totals.total_debit, data.totals.total_credit, data.totals.sold_final, data.totals.movements_count],
+      [],
+      ["Miscari detaliate"],
+      ["Cont", "Data", "Document", "Tip document", "Explicatie", "Debit", "Credit", "Sold"],
+      ...data.accounts.flatMap((account) => account.movements.map((row) => [
+        account.simbol,
+        row.data,
+        row.nr_document,
+        row.tip_document,
+        row.explicatie,
+        row.debit,
+        row.credit,
+        row.sold
+      ]))
+    ];
+    const workbook = xlsx.utils.book_new();
+    const sheet = xlsx.utils.aoa_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 16 }, { wch: 42 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+    xlsx.utils.book_append_sheet(workbook, sheet, "Cartea Mare");
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const suffix = `${data.perioada.de_la || "start"}_${data.perioada.pana_la || "final"}`.replace(/[^\w.-]+/g, "_");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Cartea_Mare_${suffix}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
+router.get("/accounting/profit-loss", requireAccountingReports, (req, res) => {
+  sendJson(res, 200, buildProfitLoss(req.auth.db, req.query));
+});
+
+router.get("/accounting/profit-loss/export", requireAccountingReports, (req, res, next) => {
+  try {
+    const data = buildProfitLoss(req.auth.db, req.query);
+    const rows = [
+      ["Cont profit si pierdere", `${String(data.perioada.luna).padStart(2, "0")}/${data.perioada.an}`, data.tip],
+      [],
+      ["Indicator", "Valoare"],
+      ["Venituri", data.totals.venituri],
+      ["Cheltuieli", data.totals.cheltuieli],
+      ["Rezultat", data.totals.rezultat],
+      [],
+      ["Venituri pe conturi"],
+      ["Cont", "Denumire", "Credit", "Debit", "Valoare"],
+      ...data.venituri.map((row) => [row.cont, row.denumire, row.credit, row.debit, row.valoare]),
+      [],
+      ["Cheltuieli pe conturi"],
+      ["Cont", "Denumire", "Debit", "Credit", "Valoare"],
+      ...data.cheltuieli.map((row) => [row.cont, row.denumire, row.debit, row.credit, row.valoare])
+    ];
+    const workbook = xlsx.utils.book_new();
+    const sheet = xlsx.utils.aoa_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 16 }, { wch: 48 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    xlsx.utils.book_append_sheet(workbook, sheet, "Profit si pierdere");
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Profit_si_pierdere_${data.perioada.an}_${String(data.perioada.luna).padStart(2, "0")}.xlsx"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/ledger/:simbol", requireAccountingReports, (req, res) => {
   sendJson(res, 200, engine.ledger(req.auth.db, req.params.simbol, req.query.de_la || "", req.query.pana_la || ""));
 });
@@ -2657,6 +2740,100 @@ function normalizeJournalTemplate(body) {
     preview: String(body.preview || (source === "intrare" ? `${lineAccount} + 4426 = 401.x` : `4111.x = ${lineAccount} + 4427`)).trim(),
     activ: body.activ !== false
   };
+}
+
+function buildGeneralLedger(db, query = {}) {
+  const accounting = engine.ensureAccounting(db);
+  const deLa = String(query.de_la || "").trim();
+  const panaLa = String(query.pana_la || "").trim();
+  const clasa = String(query.clasa || "").trim();
+  const q = String(query.q || "").trim().toLowerCase();
+  const onlyWithValues = String(query.only_with_values ?? "true") !== "false";
+  const accounts = accounting.chart
+    .filter((account) => account.activ !== false)
+    .filter((account) => !clasa || String(account.simbol || "").startsWith(clasa))
+    .filter((account) => !q || `${account.simbol || ""} ${account.denumire || ""}`.toLowerCase().includes(q))
+    .map((account) => {
+      const ledger = engine.ledger(db, account.simbol, deLa, panaLa);
+      return {
+        simbol: account.simbol,
+        denumire: account.denumire || ledger.denumire || "",
+        tip: account.tip || ledger.tip || "",
+        clasa: account.clasa || String(account.simbol || "0")[0],
+        sold_initial: ledger.sold_initial || 0,
+        total_debit: ledger.total_debit || 0,
+        total_credit: ledger.total_credit || 0,
+        sold_final: ledger.sold_final || 0,
+        movements_count: ledger.movements.length,
+        movements: ledger.movements
+      };
+    })
+    .filter((row) => !onlyWithValues || row.movements_count > 0 || Math.abs(row.sold_initial) > 0.009 || Math.abs(row.sold_final) > 0.009)
+    .sort((a, b) => String(a.simbol).localeCompare(String(b.simbol), "ro"));
+  const totals = accounts.reduce((acc, row) => {
+    ["sold_initial", "total_debit", "total_credit", "sold_final", "movements_count"].forEach((key) => {
+      acc[key] = round((acc[key] || 0) + Number(row[key] || 0));
+    });
+    return acc;
+  }, {});
+  totals.balanced = Math.abs(round((totals.sold_initial || 0) + (totals.total_debit || 0) - (totals.total_credit || 0) - (totals.sold_final || 0))) <= 0.01;
+  return {
+    perioada: { de_la: deLa, pana_la: panaLa },
+    filters: { clasa, q, only_with_values: onlyWithValues },
+    accounts,
+    totals
+  };
+}
+
+function buildProfitLoss(db, query = {}) {
+  const [defaultAn, defaultLuna] = monthParts(currentMonth());
+  const an = Number(query.an || defaultAn);
+  const luna = Number(query.luna || defaultLuna);
+  const endDate = monthEndDate(an, luna);
+  const tip = query.tip || "analitica";
+  const balance = engine.buildBalance(db, an, luna, tip);
+  const mapRow = (row, kind) => {
+    const debit = round(row.rulaje_D || 0);
+    const credit = round(row.rulaje_C || 0);
+    const valoare = kind === "venituri" ? round(credit - debit) : round(debit - credit);
+    return {
+      cont: row.cont,
+      denumire: row.denumire || "",
+      debit,
+      credit,
+      valoare,
+      link: accountingLink(`/contabilitate/fisa-cont/${row.cont}`, {
+        de_la: `${an}-01-01`,
+        pana_la: endDate
+      })
+    };
+  };
+  const venituri = balance.rows
+    .filter((row) => String(row.cont || "").startsWith("7"))
+    .map((row) => mapRow(row, "venituri"))
+    .filter((row) => Math.abs(row.valoare) > 0.009 || row.debit || row.credit);
+  const cheltuieli = balance.rows
+    .filter((row) => String(row.cont || "").startsWith("6"))
+    .map((row) => mapRow(row, "cheltuieli"))
+    .filter((row) => Math.abs(row.valoare) > 0.009 || row.debit || row.credit);
+  const totalVenituri = round(venituri.reduce((sum, row) => sum + row.valoare, 0));
+  const totalCheltuieli = round(cheltuieli.reduce((sum, row) => sum + row.valoare, 0));
+  return {
+    perioada: { an, luna, de_la: `${an}-01-01`, pana_la: endDate },
+    tip,
+    venituri,
+    cheltuieli,
+    totals: {
+      venituri: totalVenituri,
+      cheltuieli: totalCheltuieli,
+      rezultat: round(totalVenituri - totalCheltuieli),
+      profit: totalVenituri >= totalCheltuieli
+    }
+  };
+}
+
+function monthEndDate(an, luna) {
+  return engine.localDate(new Date(Number(an), Number(luna), 0));
 }
 
 function normalizeOpeningBalances(db, rows, an) {

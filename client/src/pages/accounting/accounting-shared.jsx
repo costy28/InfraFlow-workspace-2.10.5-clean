@@ -18,8 +18,10 @@ const nav = [
   ['trezorerie', '/contabilitate/trezorerie', 'Trezorerie'],
   ['jurnale', '/contabilitate/jurnale', 'Jurnale'],
   ['jurnal', '/contabilitate/registru-jurnal', 'Registru jurnal'],
+  ['cartea-mare', '/contabilitate/cartea-mare', 'Cartea Mare'],
   ['tva', '/contabilitate/tva-d300', 'TVA / D300'],
   ['balanta', '/contabilitate/balanta', 'Balanta'],
+  ['profit-pierdere', '/contabilitate/profit-pierdere', 'Profit/Pierdere'],
   ['anaf', '/contabilitate/anaf', 'ANAF / e-Factura'],
   ['controlling', '/contabilitate/controlling', 'Controlling'],
   ['inchidere', '/contabilitate/inchidere-luna', 'Inchidere luna'],
@@ -38,7 +40,7 @@ const navGroups = [
   },
   {
     label: 'Rapoarte',
-    keys: ['jurnale', 'jurnal', 'tva', 'balanta', 'controlling'],
+    keys: ['jurnale', 'jurnal', 'cartea-mare', 'tva', 'balanta', 'profit-pierdere', 'controlling'],
   },
   {
     label: 'Administrare',

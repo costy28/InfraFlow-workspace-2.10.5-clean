@@ -1,5 +1,5 @@
 {
-  "version": "2.12.105",
-  "date": "2026-06-23",
-  "changelog": "## v2.12.105 - 2026-06-23\n### Contabilitate - solduri initiale\n- Adaugata pagina Solduri initiale pentru conturile de pornire pe an fiscal.\n- Balanta afiseaza separat sold initial debit/credit si verifica echilibrarea pe sume totale.\n- Tabelele contabile late au scroll orizontal intern, fara sa largeasca pagina."
+  "version": "2.12.107",
+  "date": "2026-06-24",
+  "changelog": "## v2.12.107 - 2026-06-24\n### Contabilitate - Profit si Pierdere\n- Adaugata pagina Profit/Pierdere in grupul Rapoarte din modulul Contabilitate.\n- Raportul calculeaza venituri, cheltuieli si rezultat pe luna selectata, din conturile claselor 6 si 7.\n- Adaugat export Excel si legaturi directe spre fisa fiecarui cont."
 }
