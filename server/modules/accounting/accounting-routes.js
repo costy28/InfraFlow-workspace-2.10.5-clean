@@ -2093,8 +2093,9 @@ function thirdPartyDetail(db, tip, id) {
 function exportThirdPartyStatus(res, db, tip) {
   const data = thirdPartyStatus(db, tip);
   const label = tip === "client" ? "Clienti" : "Furnizori";
-  const rows = [
-    [`Scadentar ${label}`, today()],
+  const summaryRows = [
+    [`Scadentar ${label}`, `Generat la ${today()}`],
+    [`Total sold`, data.rows.reduce((total, row) => round(total + Number(row.sold || 0)), 0)],
     [],
     ["Cod", "Denumire", "CUI", "Analitic furnizor", "Analitic client", "Total facturat", "Achitat/Incasat", "Sold", "Nescadent", "1-30 zile", "31-60 zile", "61-90 zile", "Peste 90 zile", "Facturi", "Scadente depasite", "Email", "Telefon"],
     ...data.rows.map((row) => [
@@ -2117,14 +2118,54 @@ function exportThirdPartyStatus(res, db, tip) {
       row.telefon || ""
     ])
   ];
+  const detailRows = buildThirdPartyOpenInvoiceRows(db, tip);
   const workbook = xlsx.utils.book_new();
-  const sheet = xlsx.utils.aoa_to_sheet(rows);
-  sheet["!cols"] = [{ wch: 10 }, { wch: 34 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 26 }, { wch: 16 }];
-  xlsx.utils.book_append_sheet(workbook, sheet, "Scadentar");
+  const summarySheet = xlsx.utils.aoa_to_sheet(summaryRows);
+  summarySheet["!cols"] = [{ wch: 10 }, { wch: 34 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 26 }, { wch: 16 }];
+  summarySheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+  summarySheet["!freeze"] = { xSplit: 0, ySplit: 4 };
+  summarySheet["!autofilter"] = { ref: `A4:Q${Math.max(summaryRows.length, 4)}` };
+  xlsx.utils.book_append_sheet(workbook, summarySheet, "Scadentar");
+  const detailSheet = xlsx.utils.aoa_to_sheet(detailRows);
+  detailSheet["!cols"] = [{ wch: 12 }, { wch: 34 }, { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 36 }, { wch: 36 }];
+  detailSheet["!freeze"] = { xSplit: 0, ySplit: 3 };
+  detailSheet["!autofilter"] = { ref: `A3:M${Math.max(detailRows.length, 3)}` };
+  xlsx.utils.book_append_sheet(workbook, detailSheet, "Facturi deschise");
   const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="Scadentar_${tip}_${today()}.xlsx"`);
   res.end(buffer);
+}
+
+function buildThirdPartyOpenInvoiceRows(db, tip) {
+  const data = thirdPartyStatus(db, tip);
+  const rows = [
+    [`Facturi deschise ${tip === "client" ? "clienti" : "furnizori"}`, `Generat la ${today()}`],
+    [],
+    ["Cod tert", "Tert", "CUI", "Analitic", "Document", "Data", "Scadenta", "Total", "Achitat/Incasat", "Rest", "Zile intarziere", "Actiune recomandata", "Link"]
+  ];
+  data.rows.forEach((row) => {
+    const detail = thirdPartyDetail(db, tip, row.id);
+    detail.openInvoices.forEach((invoice) => {
+      rows.push([
+        detail.tert.cod || "",
+        detail.tert.denumire || "",
+        detail.tert.cui || "",
+        detail.account || "",
+        invoice.nr_document || "",
+        invoice.data || "",
+        invoice.data_scadenta || "",
+        invoice.total || 0,
+        invoice.paid || 0,
+        invoice.rest || 0,
+        invoice.days_overdue || 0,
+        tip === "client" ? "Incaseaza sau verifica scadenta." : "Plateste sau verifica scadenta.",
+        invoice.treasury_url || invoice.invoice_url || ""
+      ]);
+    });
+  });
+  if (rows.length === 3) rows.push(["", "Nu exista facturi deschise pentru filtrul curent.", "", "", "", "", "", 0, 0, 0, 0, "", ""]);
+  return rows;
 }
 
 function agingBuckets(invoices, balanceKey, paidKey) {

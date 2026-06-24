@@ -31,6 +31,9 @@ export function Trezorerie() {
   const [actionLoading, setActionLoading] = useState('')
   const [autoOpenKey, setAutoOpenKey] = useState('')
   const [savingMode, setSavingMode] = useState('')
+  const [journalModal, setJournalModal] = useState(false)
+  const [journalData, setJournalData] = useState(null)
+  const [journalLoading, setJournalLoading] = useState(false)
   const tertById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
   const invoiceChoices = useMemo(() => {
     const source = form.tip_operatie === 'incasare' ? openInvoicesOut : openInvoicesIn
@@ -390,6 +393,23 @@ export function Trezorerie() {
     }
   }
 
+  async function openJournal(row) {
+    if (!row?.journal_uuid) return
+    setJournalLoading(true)
+    setJournalData(null)
+    setError('')
+    setJournalModal(true)
+    try {
+      const res = await api.get(`/accounting/journals/${row.journal_uuid}`)
+      setJournalData(res.data?.journal || null)
+    } catch (err) {
+      setJournalModal(false)
+      setError(errorText(err, 'Nota contabilă nu a putut fi încărcată.'))
+    } finally {
+      setJournalLoading(false)
+    }
+  }
+
   return (
     <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<><Button onClick={openNew}>+ Operatie</Button><DropdownMenu align="right" label="Export" items={[{ label: 'Export Excel', onClick: exportExcel }]} /></>}>
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
@@ -461,7 +481,7 @@ export function Trezorerie() {
             <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
             <td className="px-3 py-2">
               {row.journal_uuid ? (
-                <Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/registru-jurnal?luna=${row.balance_month || row.data?.slice(0, 7)}`}>NC {row.journal_id}</Link>
+                <button className="font-semibold text-primary-700 hover:underline" type="button" onClick={() => openJournal(row)}>NC {row.journal_id}</button>
               ) : '-'}
             </td>
             <td className="px-3 py-2">
@@ -519,6 +539,55 @@ export function Trezorerie() {
             <Button type="button" loading={savingMode === 'save-validate'} onClick={(event) => submit(event, true)}>Salveaza si valideaza</Button>
           </div>
         </form>
+      </Modal>
+      <Modal open={journalModal} title="Nota contabila" onClose={() => setJournalModal(false)}>
+        {journalLoading ? (
+          <div className="py-8 text-center text-sm text-slate-500">Se incarca nota...</div>
+        ) : (
+          <div className="grid gap-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Document</div>
+                <div className="font-semibold">{journalData?.nr_document || `NC ${journalData?.id || '-'}`}</div>
+              </div>
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Data</div>
+                <div className="font-semibold">{journalData?.data || '-'}</div>
+              </div>
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Debit</div>
+                <div className="font-semibold">{formatMoney(journalData?.total_debit || 0)}</div>
+              </div>
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Credit</div>
+                <div className="font-semibold">{formatMoney(journalData?.total_credit || 0)}</div>
+              </div>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {journalData?.explicatie || 'Fara explicatie.'}
+            </div>
+            <Table headers={['Cont', 'Denumire', 'Debit', 'Credit', 'Explicatie']}>
+              {(journalData?.lines || []).map(line => (
+                <tr key={line.id || `${line.cont_simbol}-${line.linie_nr}`} className="hover:bg-slate-50">
+                  <td className="px-3 py-2">
+                    <Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${line.cont_simbol}?de_la=${month}-01&pana_la=${month}-31`}>{line.cont_simbol}</Link>
+                  </td>
+                  <td className="px-3 py-2">{line.denumire_cont || '-'}</td>
+                  <td className="px-3 py-2 text-right">{formatMoney(line.debit || 0)}</td>
+                  <td className="px-3 py-2 text-right">{formatMoney(line.credit || 0)}</td>
+                  <td className="px-3 py-2">{line.explicatie || '-'}</td>
+                </tr>
+              ))}
+              {(journalData?.lines || []).length ? null : (
+                <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={5}>Nota nu are linii disponibile.</td></tr>
+              )}
+            </Table>
+            <div className="flex justify-end gap-2">
+              <Link className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={`/contabilitate/registru-jurnal?luna=${journalData?.data?.slice(0, 7) || month}&note=${journalData?.uuid || ''}`}>Deschide in registru</Link>
+              <Button variant="secondary" onClick={() => setJournalModal(false)}>Inchide</Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </AccountingShell>
   )

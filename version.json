@@ -1,5 +1,5 @@
 {
-  "version": "2.12.110",
+  "version": "2.12.112",
   "date": "2026-06-24",
-  "changelog": "## v2.12.110 - 2026-06-24\n### Contabilitate - validare rapida trezorerie\n- Formularul de trezorerie are actiune Salveaza si valideaza.\n- Operatia pregatita din scadentar poate genera nota contabila intr-un singur flux.\n- Dupa validare sunt afisate linkuri rapide spre registru jurnal si balanta."
+  "changelog": "## v2.12.112 - 2026-06-24\n### Contabilitate - export scadentar detaliat\n- Exportul de scadentar pentru clienti si furnizori include o foaie sumar si o foaie cu facturile deschise.\n- Foaia de detaliu include documentul, scadenta, restul, zilele de intarziere si actiunea recomandata.\n- Workbook-ul are coloane dimensionate, freeze pe header si filtre active pentru verificare rapida."
 }
