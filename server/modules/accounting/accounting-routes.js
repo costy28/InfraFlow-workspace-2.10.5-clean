@@ -1097,6 +1097,12 @@ router.get("/accounting/suppliers-status/export", requireAccountingReports, (req
   } catch (error) { next(error); }
 });
 
+router.get("/accounting/suppliers-status/confirmations/export", requireAccountingReports, (req, res, next) => {
+  try {
+    exportThirdPartyBalanceConfirmationRegister(res, req.auth.db, "furnizor");
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/suppliers-status/:id/export", requireAccountingReports, (req, res, next) => {
   try {
     exportThirdPartyDetail(res, req.auth.db, "furnizor", req.params.id);
@@ -1144,6 +1150,12 @@ router.get("/accounting/clients-status", requireAccountingView, (req, res) => {
 router.get("/accounting/clients-status/export", requireAccountingReports, (req, res, next) => {
   try {
     exportThirdPartyStatus(res, req.auth.db, "client");
+  } catch (error) { next(error); }
+});
+
+router.get("/accounting/clients-status/confirmations/export", requireAccountingReports, (req, res, next) => {
+  try {
+    exportThirdPartyBalanceConfirmationRegister(res, req.auth.db, "client");
   } catch (error) { next(error); }
 });
 
@@ -2289,6 +2301,54 @@ function exportThirdPartyStatus(res, db, tip) {
   const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="Scadentar_${tip}_${today()}.xlsx"`);
+  res.end(buffer);
+}
+
+function exportThirdPartyBalanceConfirmationRegister(res, db, tip) {
+  const data = thirdPartyStatus(db, tip);
+  const label = tip === "client" ? "clienti" : "furnizori";
+  const rows = [
+    [`Registru confirmari sold ${label}`, `Generat la ${today()}`],
+    [],
+    ["Cod", "Denumire", "CUI", "Analitic", "Sold", "Sold depasit", "Facturi deschise", "Status confirmare", "Data sold", "Trimisa la", "Primita la", "Sold confirmat", "Diferenta", "Observatii", "Email", "Telefon"],
+    ...data.rows.map((row) => {
+      const confirmation = row.confirmation || {};
+      const overdue = row.aging ? round(Number(row.aging.d1_30 || 0) + Number(row.aging.d31_60 || 0) + Number(row.aging.d61_90 || 0) + Number(row.aging.d90_plus || 0)) : 0;
+      return [
+        row.cod || "",
+        row.denumire || "",
+        row.cui || "",
+        tip === "client" ? row.cont_analitic_client || "" : row.cont_analitic_furnizor || "",
+        row.sold || 0,
+        overdue,
+        row.scadente_depasite || 0,
+        confirmation.status || "netrimisa",
+        confirmation.data_sold || "",
+        confirmation.sent_at ? String(confirmation.sent_at).slice(0, 10) : "",
+        confirmation.received_at ? String(confirmation.received_at).slice(0, 10) : "",
+        confirmation.confirmed_sold ?? "",
+        confirmation.diferenta ?? "",
+        confirmation.observatii || "",
+        row.email || "",
+        row.telefon || ""
+      ];
+    })
+  ];
+  const workbook = xlsx.utils.book_new();
+  const sheet = xlsx.utils.aoa_to_sheet(rows);
+  sheet["!cols"] = [
+    { wch: 10 }, { wch: 34 }, { wch: 16 }, { wch: 18 },
+    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 },
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+    { wch: 14 }, { wch: 36 }, { wch: 28 }, { wch: 16 }
+  ];
+  sheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+  sheet["!freeze"] = { xSplit: 0, ySplit: 3 };
+  sheet["!autofilter"] = { ref: `A3:P${Math.max(rows.length, 3)}` };
+  xlsx.utils.book_append_sheet(workbook, sheet, "Confirmari sold");
+  const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Registru_confirmari_sold_${label}_${today()}.xlsx"`);
   res.end(buffer);
 }
 

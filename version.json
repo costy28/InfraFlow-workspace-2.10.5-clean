@@ -1,5 +1,5 @@
 {
-  "version": "2.12.118",
+  "version": "2.12.119",
   "date": "2026-06-24",
-  "changelog": "## v2.12.118 - 2026-06-24\n### Contabilitate - urmarire confirmari sold\n- Clientii si furnizorii afiseaza ultima stare a confirmarii de sold: netrimisa, trimisa sau confirmata.\n- Detaliul tertului permite marcarea confirmarii ca trimisa sau primita.\n- Confirmarile pastreaza soldul, numarul de facturi deschise, data si diferenta confirmata."
+  "changelog": "## v2.12.119 - 2026-06-24\n### Contabilitate - registru confirmari sold\n- Meniul Export din Clienti si Furnizori include registrul confirmarilor de sold.\n- Registrul Excel afiseaza statusul confirmarii, soldul, soldul depasit, datele trimiterii/primirii si diferenta confirmata.\n- Raportul ajuta contabilitatea sa urmareasca rapid tertii cu solduri netrimise sau neconfirmate."
 }

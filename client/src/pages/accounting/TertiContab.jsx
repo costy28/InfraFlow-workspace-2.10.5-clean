@@ -189,6 +189,23 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
+  async function exportConfirmationsRegister() {
+    setError('')
+    try {
+      const res = await api.get(`${statusEndpoint}/confirmations/export`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Registru_confirmari_sold_${type === 'client' ? 'clienti' : 'furnizori'}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Registrul confirmarilor de sold nu a putut fi generat.')
+    }
+  }
+
   async function exportDetail() {
     if (!detail?.tert?.id) return
     setError('')
@@ -256,7 +273,7 @@ export function TertiContab({ type = 'furnizor' }) {
       active={type === 'client' ? 'clienti' : 'furnizori'}
       title={title}
       subtitle="Terți contabili cu analitice generate automat."
-      actions={<><Button onClick={openNew}>+ {type === 'client' ? 'Client' : 'Furnizor'}</Button><DropdownMenu align="right" label="Export" items={[{ label: 'Export scadentar', onClick: exportExcel }]} /></>}
+      actions={<><Button onClick={openNew}>+ {type === 'client' ? 'Client' : 'Furnizor'}</Button><DropdownMenu align="right" label="Export" items={[{ label: 'Export scadentar', onClick: exportExcel }, { label: 'Registru confirmari sold', onClick: exportConfirmationsRegister }]} /></>}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
