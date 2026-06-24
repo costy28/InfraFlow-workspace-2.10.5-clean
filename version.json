@@ -1,5 +1,5 @@
 {
-  "version": "2.12.112",
+  "version": "2.12.113",
   "date": "2026-06-24",
-  "changelog": "## v2.12.112 - 2026-06-24\n### Contabilitate - export scadentar detaliat\n- Exportul de scadentar pentru clienti si furnizori include o foaie sumar si o foaie cu facturile deschise.\n- Foaia de detaliu include documentul, scadenta, restul, zilele de intarziere si actiunea recomandata.\n- Workbook-ul are coloane dimensionate, freeze pe header si filtre active pentru verificare rapida."
+  "changelog": "## v2.12.113 - 2026-06-24\n### Contabilitate - istoric trezorerie pe tert\n- Detaliul de client/furnizor include acum miscarile de trezorerie aferente tertului.\n- Modalul de scadentar afiseaza total incasari/plati, numar operatii si ultimele miscari.\n- Fiecare operatie are link direct spre filtrarea din Trezorerie."
 }

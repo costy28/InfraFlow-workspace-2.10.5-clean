@@ -2071,6 +2071,33 @@ function thirdPartyDetail(db, tip, id) {
     })
     .sort((a, b) => String(a.data_scadenta || a.data || "").localeCompare(String(b.data_scadenta || b.data || "")));
   const open = invoices.filter((item) => item.rest > 0);
+  const movements = accounting.treasury
+    .filter((item) => item.status !== "anulat" && String(item.tert_id || "") === String(tert.id))
+    .map((item) => {
+      const decorated = decorateTreasury(item, accounting);
+      return {
+        id: decorated.id,
+        uuid: decorated.uuid,
+        data: decorated.data,
+        tip: decorated.tip || "",
+        tip_operatie: decorated.tip_operatie || "",
+        nr_document: decorated.nr_document || decorated.id,
+        cont_trezorerie: decorated.cont_trezorerie || "",
+        cont_corespondent: decorated.cont_corespondent || "",
+        suma: round(decorated.suma || 0),
+        status: decorated.status || "",
+        journal_id: decorated.journal_id || "",
+        journal_uuid: decorated.journal_uuid || "",
+        linked_invoice: decorated.linked_invoice,
+        explicatie: decorated.explicatie || "",
+        treasury_url: accountingLink("/contabilitate/trezorerie", {
+          luna: decorated.balance_month,
+          tert_id: tert.id,
+          q: decorated.nr_document || decorated.uuid || decorated.id
+        })
+      };
+    })
+    .sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
   const totals = {
     total: round(invoices.reduce((sum, item) => sum + item.total, 0)),
     paid: round(invoices.reduce((sum, item) => sum + item.paid, 0)),
@@ -2078,7 +2105,10 @@ function thirdPartyDetail(db, tip, id) {
     overdue: round(open.filter((item) => item.overdue).reduce((sum, item) => sum + item.rest, 0)),
     invoices: invoices.length,
     open: open.length,
-    overdue_count: open.filter((item) => item.overdue).length
+    overdue_count: open.filter((item) => item.overdue).length,
+    treasury_in: round(movements.filter((item) => item.tip_operatie === "incasare").reduce((sum, item) => sum + item.suma, 0)),
+    treasury_out: round(movements.filter((item) => item.tip_operatie === "plata").reduce((sum, item) => sum + item.suma, 0)),
+    treasury_count: movements.length
   };
   return {
     tert,
@@ -2086,7 +2116,8 @@ function thirdPartyDetail(db, tip, id) {
     account: tip === "client" ? tert.cont_analitic_client : tert.cont_analitic_furnizor,
     totals,
     invoices,
-    openInvoices: open
+    openInvoices: open,
+    treasury: movements
   };
 }
 

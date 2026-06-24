@@ -128,10 +128,10 @@ export function TertiContab({ type = 'furnizor' }) {
   async function openDetails(row) {
     setError('')
     setDetailLoading(true)
-    setDetail({ tert: row, invoices: [], openInvoices: [], totals: {} })
+    setDetail({ tert: row, invoices: [], openInvoices: [], treasury: [], totals: {} })
     try {
       const res = await api.get(`${statusEndpoint}/${row.id}`)
-      setDetail(res.data || { tert: row, invoices: [], openInvoices: [], totals: {} })
+      setDetail(res.data || { tert: row, invoices: [], openInvoices: [], treasury: [], totals: {} })
     } catch (err) {
       setDetail(null)
       setError(err.response?.data?.error || 'Detaliile tertului nu au putut fi incarcate.')
@@ -311,6 +311,14 @@ export function TertiContab({ type = 'furnizor' }) {
                 <div className="text-xs text-slate-500">Analitic</div>
                 <div className="font-semibold">{detail?.account || '-'}</div>
               </div>
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">{type === 'client' ? 'Incasari' : 'Plati'}</div>
+                <div className="font-semibold">{formatMoney(type === 'client' ? detail?.totals?.treasury_in || 0 : detail?.totals?.treasury_out || 0)}</div>
+              </div>
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Operatii trezorerie</div>
+                <div className="font-semibold">{detail?.totals?.treasury_count || 0}</div>
+              </div>
             </div>
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
               {detail?.tert?.cui ? <span>CUI {detail.tert.cui}</span> : <span>CUI necompletat</span>}
@@ -344,6 +352,37 @@ export function TertiContab({ type = 'furnizor' }) {
                 <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>Nu exista facturi deschise pentru acest tert.</td></tr>
               )}
             </Table>
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-slate-900">Miscari trezorerie</h3>
+              <Table headers={['Data', 'Document', 'Operatie', 'Cont', 'Suma', 'Status', 'Factura', 'Actiuni']}>
+                {(detail?.treasury || []).slice(0, 30).map(row => (
+                  <tr key={`${row.uuid || row.id}-${row.nr_document}`} className="hover:bg-slate-50">
+                    <td className="px-3 py-2">{row.data || '-'}</td>
+                    <td className="px-3 py-2">
+                      <div className="font-semibold">{row.nr_document || '-'}</div>
+                      <div className="text-xs text-slate-500">{row.explicatie || '-'}</div>
+                    </td>
+                    <td className="px-3 py-2">{row.tip_operatie || '-'}</td>
+                    <td className="px-3 py-2">
+                      <div>{row.cont_trezorerie || '-'}</div>
+                      <div className="text-xs text-slate-500">{row.cont_corespondent || '-'}</div>
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.suma || 0)}</td>
+                    <td className="px-3 py-2"><Badge tone={row.status === 'validat' ? 'success' : 'neutral'}>{row.status || '-'}</Badge></td>
+                    <td className="px-3 py-2">{row.linked_invoice?.document || '-'}</td>
+                    <td className="px-3 py-2">
+                      <Link className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={row.treasury_url}>Trezorerie</Link>
+                    </td>
+                  </tr>
+                ))}
+                {(detail?.treasury || []).length ? null : (
+                  <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>Nu exista miscari de trezorerie pentru acest tert.</td></tr>
+                )}
+              </Table>
+              {(detail?.treasury || []).length > 30 ? (
+                <div className="mt-2 text-xs text-slate-500">Sunt afisate ultimele 30 operatii.</div>
+              ) : null}
+            </div>
             <div className="flex justify-end">
               <Button variant="secondary" onClick={() => setDetail(null)}>Inchide</Button>
             </div>
