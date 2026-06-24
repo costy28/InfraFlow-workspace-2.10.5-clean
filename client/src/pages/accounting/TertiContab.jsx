@@ -35,6 +35,8 @@ export function TertiContab({ type = 'furnizor' }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
+  const [detail, setDetail] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [q, setQ] = useState('')
   const [activeFilter, setActiveFilter] = useState('active')
   const [form, setForm] = useState(blankThirdParty(type))
@@ -120,6 +122,21 @@ export function TertiContab({ type = 'furnizor' }) {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Statusul tertului nu a putut fi schimbat.')
+    }
+  }
+
+  async function openDetails(row) {
+    setError('')
+    setDetailLoading(true)
+    setDetail({ tert: row, invoices: [], openInvoices: [], totals: {} })
+    try {
+      const res = await api.get(`${statusEndpoint}/${row.id}`)
+      setDetail(res.data || { tert: row, invoices: [], openInvoices: [], totals: {} })
+    } catch (err) {
+      setDetail(null)
+      setError(err.response?.data?.error || 'Detaliile tertului nu au putut fi incarcate.')
+    } finally {
+      setDetailLoading(false)
     }
   }
 
@@ -221,6 +238,7 @@ export function TertiContab({ type = 'furnizor' }) {
             <td className="px-3 py-2"><Badge tone={row.activ === false ? 'neutral' : 'success'}>{row.activ === false ? 'inactiv' : 'activ'}</Badge></td>
             <td className="px-3 py-2">
               <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => openDetails(row)}>Detalii</Button>
                 <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Editeaza</Button>
                 <Button size="sm" variant={row.activ === false ? 'secondary' : 'outline'} onClick={() => toggleActive(row)}>{row.activ === false ? 'Reactiveaza' : 'Dezactiveaza'}</Button>
               </div>
@@ -270,6 +288,67 @@ export function TertiContab({ type = 'furnizor' }) {
             <Button type="submit" loading={saving}>Salveaza</Button>
           </div>
         </form>
+      </Modal>
+      <Modal open={Boolean(detail)} title={`Scadentar ${detail?.tert?.denumire || ''}`} onClose={() => setDetail(null)}>
+        {detailLoading ? (
+          <div className="py-8 text-center text-sm text-slate-500">Se incarca detaliile...</div>
+        ) : (
+          <div className="grid gap-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Sold deschis</div>
+                <div className="font-semibold">{formatMoney(detail?.totals?.rest || 0)}</div>
+              </div>
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Depasit</div>
+                <div className="font-semibold text-rose-700">{formatMoney(detail?.totals?.overdue || 0)}</div>
+              </div>
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Facturi deschise</div>
+                <div className="font-semibold">{detail?.totals?.open || 0}</div>
+              </div>
+              <div className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-xs text-slate-500">Analitic</div>
+                <div className="font-semibold">{detail?.account || '-'}</div>
+              </div>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {detail?.tert?.cui ? <span>CUI {detail.tert.cui}</span> : <span>CUI necompletat</span>}
+              {detail?.tert?.email ? <span> · {detail.tert.email}</span> : null}
+              {detail?.tert?.telefon ? <span> · {detail.tert.telefon}</span> : null}
+            </div>
+            <Table headers={['Data', 'Document', 'Scadenta', 'Total', type === 'client' ? 'Incasat' : 'Achitat', 'Rest', 'Intarziere', 'Actiuni']}>
+              {(detail?.openInvoices || []).map(invoice => (
+                <tr key={`${invoice.id}-${invoice.nr_document}`} className="hover:bg-slate-50">
+                  <td className="px-3 py-2">{invoice.data || '-'}</td>
+                  <td className="px-3 py-2">
+                    <div className="font-semibold">{invoice.nr_document || '-'}</div>
+                    <div className="text-xs text-slate-500">{invoice.explicatie || '-'}</div>
+                  </td>
+                  <td className="px-3 py-2">{invoice.data_scadenta || '-'}</td>
+                  <td className="px-3 py-2 text-right">{formatMoney(invoice.total || 0)}</td>
+                  <td className="px-3 py-2 text-right">{formatMoney(invoice.paid || 0)}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{formatMoney(invoice.rest || 0)}</td>
+                  <td className={`px-3 py-2 ${invoice.overdue ? 'font-semibold text-rose-700' : 'text-slate-500'}`}>
+                    {invoice.overdue ? `${invoice.days_overdue} zile` : 'nescadent'}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Link className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={invoice.invoice_url}>Factura</Link>
+                      <Link className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={invoice.treasury_url}>Trezorerie</Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {(detail?.openInvoices || []).length ? null : (
+                <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>Nu exista facturi deschise pentru acest tert.</td></tr>
+              )}
+            </Table>
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={() => setDetail(null)}>Inchide</Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </AccountingShell>
   )

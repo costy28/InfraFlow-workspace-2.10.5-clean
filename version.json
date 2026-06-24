@@ -1,5 +1,5 @@
 {
-  "version": "2.12.107",
+  "version": "2.12.108",
   "date": "2026-06-24",
-  "changelog": "## v2.12.107 - 2026-06-24\n### Contabilitate - Profit si Pierdere\n- Adaugata pagina Profit/Pierdere in grupul Rapoarte din modulul Contabilitate.\n- Raportul calculeaza venituri, cheltuieli si rezultat pe luna selectata, din conturile claselor 6 si 7.\n- Adaugat export Excel si legaturi directe spre fisa fiecarui cont."
+  "changelog": "## v2.12.108 - 2026-06-24\n### Contabilitate - detaliu scadentar terti\n- Adaugat detaliu pe client/furnizor cu facturi deschise, rest, scadenta si zile intarziere.\n- Lista tertilor primeste actiune Detalii langa editare/dezactivare.\n- Detaliul include linkuri rapide catre facturi si trezorerie pentru incasare/plata."
 }

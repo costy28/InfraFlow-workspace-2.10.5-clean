@@ -1097,6 +1097,10 @@ router.get("/accounting/suppliers-status/export", requireAccountingReports, (req
   } catch (error) { next(error); }
 });
 
+router.get("/accounting/suppliers-status/:id", requireAccountingView, (req, res) => {
+  sendJson(res, 200, thirdPartyDetail(req.auth.db, "furnizor", req.params.id));
+});
+
 router.get("/accounting/clients-status", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyStatus(req.auth.db, "client"));
 });
@@ -1105,6 +1109,10 @@ router.get("/accounting/clients-status/export", requireAccountingReports, (req, 
   try {
     exportThirdPartyStatus(res, req.auth.db, "client");
   } catch (error) { next(error); }
+});
+
+router.get("/accounting/clients-status/:id", requireAccountingView, (req, res) => {
+  sendJson(res, 200, thirdPartyDetail(req.auth.db, "client", req.params.id));
 });
 
 router.get("/accounting/vat-journal", requireAccountingReports, (req, res) => {
@@ -2019,6 +2027,62 @@ function thirdPartyStatus(db, tip) {
     };
   });
   return { rows };
+}
+
+function thirdPartyDetail(db, tip, id) {
+  const accounting = engine.ensureAccounting(db);
+  const tert = accounting.thirdParties.find((item) => String(item.id) === String(id) && (item.tip === tip || item.tip === "ambele"));
+  if (!tert) throwHttp(404, "Tertul nu a fost gasit.");
+  const source = tip === "client" ? accounting.invoicesOut : accounting.invoicesIn;
+  const idKey = tip === "client" ? "client_id" : "furnizor_id";
+  const paidKey = tip === "client" ? "incasat" : "achitat";
+  const balanceKey = tip === "client" ? "neincasat" : "neachitat";
+  const invoices = source
+    .filter((item) => item.status !== "anulat" && String(item[idKey]) === String(tert.id))
+    .map((invoice) => {
+      const rest = round(invoice[balanceKey] ?? Number(invoice.total || 0) - Number(invoice[paidKey] || 0));
+      const due = invoice.data_scadenta || invoice.data || today();
+      const days_overdue = rest > 0 ? Math.max(0, daysBetween(due, today())) : 0;
+      const luna = invoice.an && invoice.luna ? `${invoice.an}-${String(invoice.luna).padStart(2, "0")}` : "";
+      return {
+        id: invoice.id,
+        uuid: invoice.uuid,
+        data: invoice.data,
+        data_scadenta: invoice.data_scadenta || "",
+        nr_document: invoice.nr_document || invoice.numar || invoice.id,
+        explicatie: invoice.explicatie || "",
+        status: invoice.status || "",
+        total: round(invoice.total || 0),
+        paid: round(invoice[paidKey] || 0),
+        rest,
+        days_overdue,
+        overdue: days_overdue > 0,
+        invoice_url: `${tip === "client" ? "/contabilitate/facturi-iesire" : "/contabilitate/facturi-intrare"}${luna ? `?luna=${luna}` : ""}`,
+        treasury_url: accountingLink("/contabilitate/trezorerie", {
+          tert_id: tert.id,
+          operatie: tip === "client" ? "incasare" : "plata"
+        })
+      };
+    })
+    .sort((a, b) => String(a.data_scadenta || a.data || "").localeCompare(String(b.data_scadenta || b.data || "")));
+  const open = invoices.filter((item) => item.rest > 0);
+  const totals = {
+    total: round(invoices.reduce((sum, item) => sum + item.total, 0)),
+    paid: round(invoices.reduce((sum, item) => sum + item.paid, 0)),
+    rest: round(open.reduce((sum, item) => sum + item.rest, 0)),
+    overdue: round(open.filter((item) => item.overdue).reduce((sum, item) => sum + item.rest, 0)),
+    invoices: invoices.length,
+    open: open.length,
+    overdue_count: open.filter((item) => item.overdue).length
+  };
+  return {
+    tert,
+    tip,
+    account: tip === "client" ? tert.cont_analitic_client : tert.cont_analitic_furnizor,
+    totals,
+    invoices,
+    openInvoices: open
+  };
 }
 
 function exportThirdPartyStatus(res, db, tip) {
