@@ -28,6 +28,20 @@ const blankThirdParty = (tip) => ({
   activ: true
 })
 
+function confirmationLabel(confirmation) {
+  if (!confirmation) return 'netrimisa'
+  if (confirmation.status === 'confirmata') return 'confirmata'
+  if (confirmation.status === 'trimisa') return 'trimisa'
+  return confirmation.status || 'draft'
+}
+
+function confirmationTone(confirmation) {
+  if (!confirmation) return 'neutral'
+  if (confirmation.status === 'confirmata') return Math.abs(Number(confirmation.diferenta || 0)) > 0.01 ? 'warning' : 'success'
+  if (confirmation.status === 'trimisa') return 'warning'
+  return 'neutral'
+}
+
 export function TertiContab({ type = 'furnizor' }) {
   const [rows, setRows] = useState([])
   const [modal, setModal] = useState(false)
@@ -37,6 +51,7 @@ export function TertiContab({ type = 'furnizor' }) {
   const [saving, setSaving] = useState(false)
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [confirmationSaving, setConfirmationSaving] = useState('')
   const [q, setQ] = useState('')
   const [activeFilter, setActiveFilter] = useState('active')
   const [form, setForm] = useState(blankThirdParty(type))
@@ -219,6 +234,23 @@ export function TertiContab({ type = 'furnizor' }) {
     window.open(`/api${statusEndpoint}/${detail.tert.id}/confirmation/print${authQuery}`, '_blank', 'noopener,noreferrer')
   }
 
+  async function markConfirmation(action) {
+    if (!detail?.tert?.id) return
+    setError('')
+    setMessage('')
+    setConfirmationSaving(action)
+    try {
+      const res = await api.post(`${statusEndpoint}/${detail.tert.id}/confirmation/${action}`)
+      setDetail(res.data.detail || detail)
+      setMessage(action === 'sent' ? 'Confirmarea de sold a fost marcata ca trimisa.' : 'Confirmarea de sold a fost marcata ca primita.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Statusul confirmarii de sold nu a putut fi salvat.')
+    } finally {
+      setConfirmationSaving('')
+    }
+  }
+
   return (
     <AccountingShell
       active={type === 'client' ? 'clienti' : 'furnizori'}
@@ -254,7 +286,7 @@ export function TertiContab({ type = 'furnizor' }) {
           </div>
         </div>
       </Card>
-      <Table headers={['Cod', 'Denumire', 'CUI', 'Analitic', 'Sold', 'Nescadent', '1-30', '31-60', '61-90', '>90', 'Facturi', 'Contact', 'Status', 'Actiuni']}>
+      <Table headers={['Cod', 'Denumire', 'CUI', 'Analitic', 'Sold', 'Nescadent', '1-30', '31-60', '61-90', '>90', 'Facturi', 'Confirmare', 'Contact', 'Status', 'Actiuni']}>
         {filteredRows.map(row => (
           <tr key={row.id}>
             <td className="px-3 py-2 font-semibold">{row.cod}</td>
@@ -275,6 +307,10 @@ export function TertiContab({ type = 'furnizor' }) {
             <td className="px-3 py-2">
               <Link className="font-semibold text-primary-700 hover:underline" to={`${invoicePath}?${tertParam}=${row.id}`}>{row.facturi || 0}</Link>
               {row.scadente_depasite ? <div className="text-xs text-rose-600">{row.scadente_depasite} depasite</div> : null}
+            </td>
+            <td className="px-3 py-2">
+              <Badge tone={confirmationTone(row.confirmation)}>{confirmationLabel(row.confirmation)}</Badge>
+              {row.confirmation?.updated_at ? <div className="mt-1 text-xs text-slate-500">{String(row.confirmation.updated_at).slice(0, 10)}</div> : null}
             </td>
             <td className="px-3 py-2">
               <div>{row.email || '-'}</div>
@@ -369,6 +405,24 @@ export function TertiContab({ type = 'furnizor' }) {
               {detail?.tert?.cui ? <span>CUI {detail.tert.cui}</span> : <span>CUI necompletat</span>}
               {detail?.tert?.email ? <span> · {detail.tert.email}</span> : null}
               {detail?.tert?.telefon ? <span> · {detail.tert.telefon}</span> : null}
+            </div>
+            <div className="grid gap-3 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm md:grid-cols-[1fr_auto]">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-slate-900">Confirmare sold</span>
+                  <Badge tone={confirmationTone(detail?.confirmation)}>{confirmationLabel(detail?.confirmation)}</Badge>
+                </div>
+                <div className="mt-1 text-slate-600">
+                  {detail?.confirmation
+                    ? `Sold ${formatMoney(detail.confirmation.sold || 0)} · deschis ${detail.confirmation.facturi_deschise || 0} facturi · actualizat ${String(detail.confirmation.updated_at || detail.confirmation.created_at || '').slice(0, 10)}`
+                    : 'Nu exista confirmare de sold marcata pentru acest tert.'}
+                  {Math.abs(Number(detail?.confirmation?.diferenta || 0)) > 0.01 ? ` · diferenta ${formatMoney(detail.confirmation.diferenta)}` : ''}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => markConfirmation('sent')} loading={confirmationSaving === 'sent'}>Marcheaza trimisa</Button>
+                <Button size="sm" variant="secondary" onClick={() => markConfirmation('received')} loading={confirmationSaving === 'received'}>Marcheaza primita</Button>
+              </div>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="secondary" onClick={printConfirmation}>Tipareste confirmare</Button>

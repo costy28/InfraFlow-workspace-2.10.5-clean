@@ -1115,6 +1115,24 @@ router.get("/accounting/suppliers-status/:id/confirmation/print", requireAccount
   } catch (error) { next(error); }
 });
 
+router.post("/accounting/suppliers-status/:id/confirmation/sent", requireAccountingPost, (req, res, next) => {
+  try {
+    const confirmation = markThirdPartyBalanceConfirmation(req.auth.db, req.auth.user, "furnizor", req.params.id, "trimisa", req.body || {});
+    addAudit(req.auth.db, req.auth.user, "accounting_balance_confirmation_sent", confirmation.tert_denumire || confirmation.tert_id);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { confirmation, detail: thirdPartyDetail(req.auth.db, "furnizor", req.params.id) });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/suppliers-status/:id/confirmation/received", requireAccountingPost, (req, res, next) => {
+  try {
+    const confirmation = markThirdPartyBalanceConfirmation(req.auth.db, req.auth.user, "furnizor", req.params.id, "confirmata", req.body || {});
+    addAudit(req.auth.db, req.auth.user, "accounting_balance_confirmation_received", confirmation.tert_denumire || confirmation.tert_id);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { confirmation, detail: thirdPartyDetail(req.auth.db, "furnizor", req.params.id) });
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/suppliers-status/:id", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyDetail(req.auth.db, "furnizor", req.params.id));
 });
@@ -1144,6 +1162,24 @@ router.get("/accounting/clients-status/:id/confirmation", requireAccountingRepor
 router.get("/accounting/clients-status/:id/confirmation/print", requireAccountingReports, (req, res, next) => {
   try {
     sendThirdPartyBalanceConfirmationHtml(res, req.auth.db, "client", req.params.id);
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/clients-status/:id/confirmation/sent", requireAccountingPost, (req, res, next) => {
+  try {
+    const confirmation = markThirdPartyBalanceConfirmation(req.auth.db, req.auth.user, "client", req.params.id, "trimisa", req.body || {});
+    addAudit(req.auth.db, req.auth.user, "accounting_balance_confirmation_sent", confirmation.tert_denumire || confirmation.tert_id);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { confirmation, detail: thirdPartyDetail(req.auth.db, "client", req.params.id) });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/clients-status/:id/confirmation/received", requireAccountingPost, (req, res, next) => {
+  try {
+    const confirmation = markThirdPartyBalanceConfirmation(req.auth.db, req.auth.user, "client", req.params.id, "confirmata", req.body || {});
+    addAudit(req.auth.db, req.auth.user, "accounting_balance_confirmation_received", confirmation.tert_denumire || confirmation.tert_id);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { confirmation, detail: thirdPartyDetail(req.auth.db, "client", req.params.id) });
   } catch (error) { next(error); }
 });
 
@@ -2059,6 +2095,7 @@ function thirdPartyStatus(db, tip) {
       total_achitat: paid,
       facturi: invoices.length,
       aging,
+      confirmation: latestBalanceConfirmation(accounting, tip, tert.id),
       scadente_depasite: invoices.filter((item) => Number(item[balanceKey] ?? item.total - Number(item[paidKey] || 0)) > 0 && item.data_scadenta < today()).length
     };
   });
@@ -2151,10 +2188,61 @@ function thirdPartyDetail(db, tip, id) {
     tip,
     account: tip === "client" ? tert.cont_analitic_client : tert.cont_analitic_furnizor,
     totals,
+    confirmation: latestBalanceConfirmation(accounting, tip, tert.id),
+    confirmations: balanceConfirmationsFor(accounting, tip, tert.id).slice(0, 10),
     invoices,
     openInvoices: open,
     treasury: movements
   };
+}
+
+function markThirdPartyBalanceConfirmation(db, user, tip, id, status, body = {}) {
+  const accounting = engine.ensureAccounting(db);
+  const detail = thirdPartyDetail(db, tip, id);
+  const existingOpen = balanceConfirmationsFor(accounting, tip, id).find((item) => item.status === "trimisa");
+  const now = new Date().toISOString();
+  const confirmation = status === "confirmata" && existingOpen ? existingOpen : {
+    id: engine.nextNumericId(accounting.balanceConfirmations),
+    uuid: cryptoId(),
+    tip,
+    tert_id: detail.tert.id,
+    tert_denumire: detail.tert.denumire || "",
+    tert_cui: detail.tert.cui || "",
+    sold: round(detail.totals.rest || 0),
+    sold_depasit: round(detail.totals.overdue || 0),
+    facturi_deschise: Number(detail.totals.open || 0),
+    data_sold: today(),
+    status: "draft",
+    observatii: "",
+    created_by: user?.id || null,
+    created_at: now
+  };
+  confirmation.status = status;
+  confirmation.observatii = String(body.observatii ?? confirmation.observatii ?? "").trim();
+  confirmation.updated_by = user?.id || null;
+  confirmation.updated_at = now;
+  if (status === "trimisa") {
+    confirmation.sent_at = body.data || now;
+    confirmation.sent_by = user?.id || null;
+  }
+  if (status === "confirmata") {
+    confirmation.received_at = body.data || now;
+    confirmation.received_by = user?.id || null;
+    confirmation.confirmed_sold = body.confirmed_sold === "" || body.confirmed_sold === undefined ? confirmation.sold : round(body.confirmed_sold);
+    confirmation.diferenta = round(Number(confirmation.confirmed_sold || 0) - Number(confirmation.sold || 0));
+  }
+  if (!accounting.balanceConfirmations.some((item) => item.id === confirmation.id)) accounting.balanceConfirmations.push(confirmation);
+  return confirmation;
+}
+
+function latestBalanceConfirmation(accounting, tip, tertId) {
+  return balanceConfirmationsFor(accounting, tip, tertId)[0] || null;
+}
+
+function balanceConfirmationsFor(accounting, tip, tertId) {
+  return (accounting.balanceConfirmations || [])
+    .filter((item) => item.tip === tip && String(item.tert_id) === String(tertId))
+    .sort((a, b) => String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || "")));
 }
 
 function exportThirdPartyStatus(res, db, tip) {

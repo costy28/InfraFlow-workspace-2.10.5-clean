@@ -1,5 +1,5 @@
 {
-  "version": "2.12.117",
+  "version": "2.12.118",
   "date": "2026-06-24",
-  "changelog": "## v2.12.117 - 2026-06-24\n### Contabilitate - confirmare sold tiparibila\n- Detaliul de client/furnizor poate deschide confirmarea de sold in format HTML pentru print sau salvare PDF.\n- Pagina tiparibila include facturile deschise, soldurile si zonele de semnatura.\n- Exportul Excel de confirmare sold ramane disponibil separat."
+  "changelog": "## v2.12.118 - 2026-06-24\n### Contabilitate - urmarire confirmari sold\n- Clientii si furnizorii afiseaza ultima stare a confirmarii de sold: netrimisa, trimisa sau confirmata.\n- Detaliul tertului permite marcarea confirmarii ca trimisa sau primita.\n- Confirmarile pastreaza soldul, numarul de facturi deschise, data si diferenta confirmata."
 }
