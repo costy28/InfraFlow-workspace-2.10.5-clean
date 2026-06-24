@@ -1,5 +1,5 @@
 {
-  "version": "2.12.120",
+  "version": "2.12.121",
   "date": "2026-06-24",
-  "changelog": "## v2.12.120 - 2026-06-24\n### Contabilitate - filtre confirmari sold\n- Listele de clienti si furnizori pot fi filtrate dupa statusul confirmarii de sold.\n- Cardul de filtre afiseaza indicatori rapizi pentru confirmari netrimise, trimise si confirmate.\n- Indicatorii sunt clickabili si aplica filtrul aferent."
+  "changelog": "## v2.12.121 - 2026-06-24\n### Contabilitate - sold confirmat si observatii\n- Marcarea unei confirmari ca primita deschide un formular dedicat.\n- Contabilul poate introduce soldul confirmat de tert si observatii.\n- Diferenta fata de soldul din evidenta este calculata inainte de salvare si ajunge in registrul confirmarilor."
 }
