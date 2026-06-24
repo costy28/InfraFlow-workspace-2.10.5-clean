@@ -174,6 +174,25 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
+  async function exportDetail() {
+    if (!detail?.tert?.id) return
+    setError('')
+    try {
+      const res = await api.get(`${statusEndpoint}/${detail.tert.id}/export`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      const safeName = String(detail.tert.denumire || detail.tert.cod || 'tert').replace(/[^\w.-]+/g, '_')
+      link.download = `Fisa_tert_${type}_${safeName}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Fisa tertului nu a putut fi exportata.')
+    }
+  }
+
   return (
     <AccountingShell
       active={type === 'client' ? 'clienti' : 'furnizori'}
@@ -324,6 +343,9 @@ export function TertiContab({ type = 'furnizor' }) {
               {detail?.tert?.cui ? <span>CUI {detail.tert.cui}</span> : <span>CUI necompletat</span>}
               {detail?.tert?.email ? <span> · {detail.tert.email}</span> : null}
               {detail?.tert?.telefon ? <span> · {detail.tert.telefon}</span> : null}
+            </div>
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={exportDetail}>Exporta fisa tert</Button>
             </div>
             <Table headers={['Data', 'Document', 'Scadenta', 'Total', type === 'client' ? 'Incasat' : 'Achitat', 'Rest', 'Intarziere', 'Actiuni']}>
               {(detail?.openInvoices || []).map(invoice => (

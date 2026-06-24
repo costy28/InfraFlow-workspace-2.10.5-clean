@@ -1,5 +1,5 @@
 {
-  "version": "2.12.113",
+  "version": "2.12.114",
   "date": "2026-06-24",
-  "changelog": "## v2.12.113 - 2026-06-24\n### Contabilitate - istoric trezorerie pe tert\n- Detaliul de client/furnizor include acum miscarile de trezorerie aferente tertului.\n- Modalul de scadentar afiseaza total incasari/plati, numar operatii si ultimele miscari.\n- Fiecare operatie are link direct spre filtrarea din Trezorerie."
+  "changelog": "## v2.12.114 - 2026-06-24\n### Contabilitate - fisa tert exportabila\n- Detaliul de client/furnizor poate fi exportat in Excel.\n- Fisa tertului include sumar, facturi deschise si miscari de trezorerie.\n- Exportul are foi separate, filtre si coloane dimensionate pentru verificare rapida."
 }

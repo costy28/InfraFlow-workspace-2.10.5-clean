@@ -1097,6 +1097,12 @@ router.get("/accounting/suppliers-status/export", requireAccountingReports, (req
   } catch (error) { next(error); }
 });
 
+router.get("/accounting/suppliers-status/:id/export", requireAccountingReports, (req, res, next) => {
+  try {
+    exportThirdPartyDetail(res, req.auth.db, "furnizor", req.params.id);
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/suppliers-status/:id", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyDetail(req.auth.db, "furnizor", req.params.id));
 });
@@ -1108,6 +1114,12 @@ router.get("/accounting/clients-status", requireAccountingView, (req, res) => {
 router.get("/accounting/clients-status/export", requireAccountingReports, (req, res, next) => {
   try {
     exportThirdPartyStatus(res, req.auth.db, "client");
+  } catch (error) { next(error); }
+});
+
+router.get("/accounting/clients-status/:id/export", requireAccountingReports, (req, res, next) => {
+  try {
+    exportThirdPartyDetail(res, req.auth.db, "client", req.params.id);
   } catch (error) { next(error); }
 });
 
@@ -2197,6 +2209,79 @@ function buildThirdPartyOpenInvoiceRows(db, tip) {
   });
   if (rows.length === 3) rows.push(["", "Nu exista facturi deschise pentru filtrul curent.", "", "", "", "", "", 0, 0, 0, 0, "", ""]);
   return rows;
+}
+
+function exportThirdPartyDetail(res, db, tip, id) {
+  const detail = thirdPartyDetail(db, tip, id);
+  const label = tip === "client" ? "Client" : "Furnizor";
+  const summaryRows = [
+    [`Fisa tert - ${label}`, detail.tert.denumire || ""],
+    ["Generat la", today()],
+    ["Cod", detail.tert.cod || ""],
+    ["CUI", detail.tert.cui || ""],
+    ["Analitic", detail.account || ""],
+    ["Total facturat", detail.totals.total || 0],
+    [tip === "client" ? "Total incasat" : "Total achitat", detail.totals.paid || 0],
+    ["Sold deschis", detail.totals.rest || 0],
+    ["Sold depasit", detail.totals.overdue || 0],
+    ["Facturi deschise", detail.totals.open || 0],
+    [tip === "client" ? "Total incasari trezorerie" : "Total plati trezorerie", tip === "client" ? detail.totals.treasury_in || 0 : detail.totals.treasury_out || 0],
+    ["Operatii trezorerie", detail.totals.treasury_count || 0]
+  ];
+  const invoiceRows = [
+    ["Data", "Document", "Scadenta", "Status", "Total", tip === "client" ? "Incasat" : "Achitat", "Rest", "Zile intarziere", "Explicatie", "Link trezorerie"],
+    ...detail.openInvoices.map((invoice) => [
+      invoice.data || "",
+      invoice.nr_document || "",
+      invoice.data_scadenta || "",
+      invoice.status || "",
+      invoice.total || 0,
+      invoice.paid || 0,
+      invoice.rest || 0,
+      invoice.days_overdue || 0,
+      invoice.explicatie || "",
+      invoice.treasury_url || ""
+    ])
+  ];
+  const treasuryRows = [
+    ["Data", "Document", "Operatie", "Tip", "Cont trezorerie", "Cont corespondent", "Suma", "Status", "Nota", "Factura legata", "Explicatie", "Link"],
+    ...detail.treasury.map((row) => [
+      row.data || "",
+      row.nr_document || "",
+      row.tip_operatie || "",
+      row.tip || "",
+      row.cont_trezorerie || "",
+      row.cont_corespondent || "",
+      row.suma || 0,
+      row.status || "",
+      row.journal_id ? `NC ${row.journal_id}` : "",
+      row.linked_invoice?.document || "",
+      row.explicatie || "",
+      row.treasury_url || ""
+    ])
+  ];
+  if (invoiceRows.length === 1) invoiceRows.push(["", "Nu exista facturi deschise.", "", "", 0, 0, 0, 0, "", ""]);
+  if (treasuryRows.length === 1) treasuryRows.push(["", "Nu exista miscari de trezorerie.", "", "", "", "", 0, "", "", "", "", ""]);
+
+  const workbook = xlsx.utils.book_new();
+  const summarySheet = xlsx.utils.aoa_to_sheet(summaryRows);
+  summarySheet["!cols"] = [{ wch: 30 }, { wch: 34 }];
+  xlsx.utils.book_append_sheet(workbook, summarySheet, "Sumar");
+  const invoicesSheet = xlsx.utils.aoa_to_sheet(invoiceRows);
+  invoicesSheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 36 }, { wch: 36 }];
+  invoicesSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  invoicesSheet["!autofilter"] = { ref: `A1:J${Math.max(invoiceRows.length, 1)}` };
+  xlsx.utils.book_append_sheet(workbook, invoicesSheet, "Facturi deschise");
+  const treasurySheet = xlsx.utils.aoa_to_sheet(treasuryRows);
+  treasurySheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 36 }, { wch: 36 }];
+  treasurySheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  treasurySheet["!autofilter"] = { ref: `A1:L${Math.max(treasuryRows.length, 1)}` };
+  xlsx.utils.book_append_sheet(workbook, treasurySheet, "Trezorerie");
+  const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  const safe = String(detail.tert.denumire || detail.tert.cod || id || "tert").replace(/[^\w.-]+/g, "_").slice(0, 60);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Fisa_tert_${tip}_${safe}_${today()}.xlsx"`);
+  res.end(buffer);
 }
 
 function agingBuckets(invoices, balanceKey, paidKey) {
