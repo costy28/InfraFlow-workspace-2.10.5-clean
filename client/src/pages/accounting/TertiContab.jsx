@@ -193,6 +193,25 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
+  async function exportConfirmation() {
+    if (!detail?.tert?.id) return
+    setError('')
+    try {
+      const res = await api.get(`${statusEndpoint}/${detail.tert.id}/confirmation`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      const safeName = String(detail.tert.denumire || detail.tert.cod || 'tert').replace(/[^\w.-]+/g, '_')
+      link.download = `Confirmare_sold_${type}_${safeName}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Confirmarea de sold nu a putut fi exportata.')
+    }
+  }
+
   return (
     <AccountingShell
       active={type === 'client' ? 'clienti' : 'furnizori'}
@@ -344,7 +363,8 @@ export function TertiContab({ type = 'furnizor' }) {
               {detail?.tert?.email ? <span> · {detail.tert.email}</span> : null}
               {detail?.tert?.telefon ? <span> · {detail.tert.telefon}</span> : null}
             </div>
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onClick={exportConfirmation}>Confirmare sold</Button>
               <Button variant="secondary" onClick={exportDetail}>Exporta fisa tert</Button>
             </div>
             <Table headers={['Data', 'Document', 'Scadenta', 'Total', type === 'client' ? 'Incasat' : 'Achitat', 'Rest', 'Intarziere', 'Actiuni']}>
@@ -374,6 +394,34 @@ export function TertiContab({ type = 'furnizor' }) {
                 <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>Nu exista facturi deschise pentru acest tert.</td></tr>
               )}
             </Table>
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-slate-900">Istoric facturi</h3>
+              <Table headers={['Data', 'Document', 'Scadenta', 'Status', 'Total', type === 'client' ? 'Incasat' : 'Achitat', 'Rest', 'Actiuni']}>
+                {(detail?.invoices || []).slice().sort((a, b) => String(b.data || '').localeCompare(String(a.data || ''))).slice(0, 30).map(invoice => (
+                  <tr key={`history-${invoice.id}-${invoice.nr_document}`} className="hover:bg-slate-50">
+                    <td className="px-3 py-2">{invoice.data || '-'}</td>
+                    <td className="px-3 py-2">
+                      <div className="font-semibold">{invoice.nr_document || '-'}</div>
+                      <div className="text-xs text-slate-500">{invoice.explicatie || '-'}</div>
+                    </td>
+                    <td className="px-3 py-2">{invoice.data_scadenta || '-'}</td>
+                    <td className="px-3 py-2"><Badge tone={invoice.rest > 0 ? 'warning' : 'success'}>{invoice.status || '-'}</Badge></td>
+                    <td className="px-3 py-2 text-right">{formatMoney(invoice.total || 0)}</td>
+                    <td className="px-3 py-2 text-right">{formatMoney(invoice.paid || 0)}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{formatMoney(invoice.rest || 0)}</td>
+                    <td className="px-3 py-2">
+                      <Link className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={invoice.invoice_url}>Factura</Link>
+                    </td>
+                  </tr>
+                ))}
+                {(detail?.invoices || []).length ? null : (
+                  <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>Nu exista facturi in istoricul acestui tert.</td></tr>
+                )}
+              </Table>
+              {(detail?.invoices || []).length > 30 ? (
+                <div className="mt-2 text-xs text-slate-500">Sunt afisate ultimele 30 facturi.</div>
+              ) : null}
+            </div>
             <div>
               <h3 className="mb-2 text-sm font-semibold text-slate-900">Miscari trezorerie</h3>
               <Table headers={['Data', 'Document', 'Operatie', 'Cont', 'Suma', 'Status', 'Factura', 'Actiuni']}>

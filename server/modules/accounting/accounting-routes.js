@@ -1103,6 +1103,12 @@ router.get("/accounting/suppliers-status/:id/export", requireAccountingReports, 
   } catch (error) { next(error); }
 });
 
+router.get("/accounting/suppliers-status/:id/confirmation", requireAccountingReports, (req, res, next) => {
+  try {
+    exportThirdPartyBalanceConfirmation(res, req.auth.db, "furnizor", req.params.id);
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/suppliers-status/:id", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyDetail(req.auth.db, "furnizor", req.params.id));
 });
@@ -1120,6 +1126,12 @@ router.get("/accounting/clients-status/export", requireAccountingReports, (req, 
 router.get("/accounting/clients-status/:id/export", requireAccountingReports, (req, res, next) => {
   try {
     exportThirdPartyDetail(res, req.auth.db, "client", req.params.id);
+  } catch (error) { next(error); }
+});
+
+router.get("/accounting/clients-status/:id/confirmation", requireAccountingReports, (req, res, next) => {
+  try {
+    exportThirdPartyBalanceConfirmation(res, req.auth.db, "client", req.params.id);
   } catch (error) { next(error); }
 });
 
@@ -2243,6 +2255,24 @@ function exportThirdPartyDetail(res, db, tip, id) {
       invoice.treasury_url || ""
     ])
   ];
+  const allInvoiceRows = [
+    ["Data", "Document", "Scadenta", "Status", "Total", tip === "client" ? "Incasat" : "Achitat", "Rest", "Zile intarziere", "Explicatie", "Link factura"],
+    ...detail.invoices
+      .slice()
+      .sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")))
+      .map((invoice) => [
+        invoice.data || "",
+        invoice.nr_document || "",
+        invoice.data_scadenta || "",
+        invoice.status || "",
+        invoice.total || 0,
+        invoice.paid || 0,
+        invoice.rest || 0,
+        invoice.days_overdue || 0,
+        invoice.explicatie || "",
+        invoice.invoice_url || ""
+      ])
+  ];
   const treasuryRows = [
     ["Data", "Document", "Operatie", "Tip", "Cont trezorerie", "Cont corespondent", "Suma", "Status", "Nota", "Factura legata", "Explicatie", "Link"],
     ...detail.treasury.map((row) => [
@@ -2261,6 +2291,7 @@ function exportThirdPartyDetail(res, db, tip, id) {
     ])
   ];
   if (invoiceRows.length === 1) invoiceRows.push(["", "Nu exista facturi deschise.", "", "", 0, 0, 0, 0, "", ""]);
+  if (allInvoiceRows.length === 1) allInvoiceRows.push(["", "Nu exista facturi in istoricul tertului.", "", "", 0, 0, 0, 0, "", ""]);
   if (treasuryRows.length === 1) treasuryRows.push(["", "Nu exista miscari de trezorerie.", "", "", "", "", 0, "", "", "", "", ""]);
 
   const workbook = xlsx.utils.book_new();
@@ -2272,6 +2303,11 @@ function exportThirdPartyDetail(res, db, tip, id) {
   invoicesSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
   invoicesSheet["!autofilter"] = { ref: `A1:J${Math.max(invoiceRows.length, 1)}` };
   xlsx.utils.book_append_sheet(workbook, invoicesSheet, "Facturi deschise");
+  const allInvoicesSheet = xlsx.utils.aoa_to_sheet(allInvoiceRows);
+  allInvoicesSheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 36 }, { wch: 36 }];
+  allInvoicesSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  allInvoicesSheet["!autofilter"] = { ref: `A1:J${Math.max(allInvoiceRows.length, 1)}` };
+  xlsx.utils.book_append_sheet(workbook, allInvoicesSheet, "Istoric facturi");
   const treasurySheet = xlsx.utils.aoa_to_sheet(treasuryRows);
   treasurySheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 36 }, { wch: 36 }];
   treasurySheet["!freeze"] = { xSplit: 0, ySplit: 1 };
@@ -2281,6 +2317,60 @@ function exportThirdPartyDetail(res, db, tip, id) {
   const safe = String(detail.tert.denumire || detail.tert.cod || id || "tert").replace(/[^\w.-]+/g, "_").slice(0, 60);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="Fisa_tert_${tip}_${safe}_${today()}.xlsx"`);
+  res.end(buffer);
+}
+
+function exportThirdPartyBalanceConfirmation(res, db, tip, id) {
+  const detail = thirdPartyDetail(db, tip, id);
+  const direction = tip === "client" ? "de incasat de la" : "de plata catre";
+  const rows = [
+    ["CONFIRMARE SOLD"],
+    [],
+    ["Data emiterii", today()],
+    ["Tert", detail.tert.denumire || ""],
+    ["Cod tert", detail.tert.cod || ""],
+    ["CUI", detail.tert.cui || ""],
+    ["Analitic", detail.account || ""],
+    [],
+    [`Conform evidentei contabile, soldul ${direction} tertul mentionat este:`, detail.totals.rest || 0],
+    ["Din care sold depasit la scadenta", detail.totals.overdue || 0],
+    ["Numar facturi deschise", detail.totals.open || 0],
+    [],
+    ["Facturi care compun soldul"],
+    ["Data", "Document", "Scadenta", "Status", "Total", tip === "client" ? "Incasat" : "Achitat", "Rest", "Zile intarziere", "Explicatie"],
+    ...detail.openInvoices.map((invoice) => [
+      invoice.data || "",
+      invoice.nr_document || "",
+      invoice.data_scadenta || "",
+      invoice.status || "",
+      invoice.total || 0,
+      invoice.paid || 0,
+      invoice.rest || 0,
+      invoice.days_overdue || 0,
+      invoice.explicatie || ""
+    ]),
+    [],
+    ["Total sold confirmat", "", "", "", "", "", detail.totals.rest || 0],
+    [],
+    ["Va rugam sa confirmati soldul sau sa transmiteti diferentele constatate."],
+    [],
+    ["Emitent", "", "", "", "Confirmat de tert"],
+    ["Nume / functie / semnatura", "", "", "", "Nume / functie / semnatura"]
+  ];
+  if (!detail.openInvoices.length) rows.splice(14, 0, ["", "Nu exista facturi deschise.", "", "", 0, 0, 0, 0, ""]);
+  const workbook = xlsx.utils.book_new();
+  const sheet = xlsx.utils.aoa_to_sheet(rows);
+  sheet["!cols"] = [{ wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 40 }];
+  sheet["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+    { s: { r: 8, c: 0 }, e: { r: 8, c: 5 } },
+    { s: { r: rows.length - 4, c: 0 }, e: { r: rows.length - 4, c: 8 } }
+  ];
+  xlsx.utils.book_append_sheet(workbook, sheet, "Confirmare sold");
+  const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  const safe = String(detail.tert.denumire || detail.tert.cod || id || "tert").replace(/[^\w.-]+/g, "_").slice(0, 60);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Confirmare_sold_${tip}_${safe}_${today()}.xlsx"`);
   res.end(buffer);
 }
 

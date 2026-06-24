@@ -1,5 +1,5 @@
 {
-  "version": "2.12.114",
+  "version": "2.12.116",
   "date": "2026-06-24",
-  "changelog": "## v2.12.114 - 2026-06-24\n### Contabilitate - fisa tert exportabila\n- Detaliul de client/furnizor poate fi exportat in Excel.\n- Fisa tertului include sumar, facturi deschise si miscari de trezorerie.\n- Exportul are foi separate, filtre si coloane dimensionate pentru verificare rapida."
+  "changelog": "## v2.12.116 - 2026-06-24\n### Contabilitate - confirmare sold tert\n- Detaliul de client/furnizor poate genera o confirmare de sold in Excel.\n- Documentul include datele tertului, soldul deschis, soldul depasit si facturile care compun soldul.\n- Confirmarea are zone pentru semnatura emitentului si confirmarea tertului."
 }
