@@ -1,5 +1,5 @@
 {
-  "version": "2.12.119",
+  "version": "2.12.120",
   "date": "2026-06-24",
-  "changelog": "## v2.12.119 - 2026-06-24\n### Contabilitate - registru confirmari sold\n- Meniul Export din Clienti si Furnizori include registrul confirmarilor de sold.\n- Registrul Excel afiseaza statusul confirmarii, soldul, soldul depasit, datele trimiterii/primirii si diferenta confirmata.\n- Raportul ajuta contabilitatea sa urmareasca rapid tertii cu solduri netrimise sau neconfirmate."
+  "changelog": "## v2.12.120 - 2026-06-24\n### Contabilitate - filtre confirmari sold\n- Listele de clienti si furnizori pot fi filtrate dupa statusul confirmarii de sold.\n- Cardul de filtre afiseaza indicatori rapizi pentru confirmari netrimise, trimise si confirmate.\n- Indicatorii sunt clickabili si aplica filtrul aferent."
 }

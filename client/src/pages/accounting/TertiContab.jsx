@@ -54,6 +54,7 @@ export function TertiContab({ type = 'furnizor' }) {
   const [confirmationSaving, setConfirmationSaving] = useState('')
   const [q, setQ] = useState('')
   const [activeFilter, setActiveFilter] = useState('active')
+  const [confirmationFilter, setConfirmationFilter] = useState('all')
   const [form, setForm] = useState(blankThirdParty(type))
   const title = type === 'client' ? 'Clienti' : 'Furnizori'
   const statusEndpoint = type === 'client' ? '/accounting/clients-status' : '/accounting/suppliers-status'
@@ -160,16 +161,20 @@ export function TertiContab({ type = 'furnizor' }) {
     return rows.filter(row => {
       const haystack = `${row.cod || ''} ${row.denumire || ''} ${row.cui || ''} ${row.email || ''} ${row.telefon || ''} ${row[accountKey] || ''}`.toLowerCase()
       const activeOk = activeFilter === 'all' || (activeFilter === 'active' ? row.activ !== false : row.activ === false)
-      return activeOk && (!needle || haystack.includes(needle))
+      const confirmationOk = confirmationFilter === 'all' || confirmationLabel(row.confirmation) === confirmationFilter
+      return activeOk && confirmationOk && (!needle || haystack.includes(needle))
     })
-  }, [rows, q, activeFilter, accountKey])
+  }, [rows, q, activeFilter, confirmationFilter, accountKey])
 
   const totals = useMemo(() => ({
     count: filteredRows.length,
     active: filteredRows.filter(row => row.activ !== false).length,
     sold: filteredRows.reduce((sum, row) => sum + Number(row.sold || 0), 0),
     overdue: filteredRows.reduce((sum, row) => sum + Number(row.scadente_depasite || 0), 0),
-    overdueAmount: filteredRows.reduce((sum, row) => sum + Number(row.aging?.d1_30 || 0) + Number(row.aging?.d31_60 || 0) + Number(row.aging?.d61_90 || 0) + Number(row.aging?.d90_plus || 0), 0)
+    overdueAmount: filteredRows.reduce((sum, row) => sum + Number(row.aging?.d1_30 || 0) + Number(row.aging?.d31_60 || 0) + Number(row.aging?.d61_90 || 0) + Number(row.aging?.d90_plus || 0), 0),
+    confirmationMissing: filteredRows.filter(row => confirmationLabel(row.confirmation) === 'netrimisa').length,
+    confirmationSent: filteredRows.filter(row => confirmationLabel(row.confirmation) === 'trimisa').length,
+    confirmationConfirmed: filteredRows.filter(row => confirmationLabel(row.confirmation) === 'confirmata').length
   }), [filteredRows])
 
   async function exportExcel() {
@@ -278,12 +283,18 @@ export function TertiContab({ type = 'furnizor' }) {
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <Card>
-        <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_170px_110px_150px_150px_150px]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_170px_190px_110px_150px_150px_150px]">
           <Input label="Cauta tert" value={q} onChange={event => setQ(event.target.value)} placeholder="Denumire, CUI, cont..." />
           <Select label="Status" value={activeFilter} onChange={event => setActiveFilter(event.target.value)} options={[
             { value: 'active', label: 'Activi' },
             { value: 'inactive', label: 'Inactivi' },
             { value: 'all', label: 'Toti' }
+          ]} />
+          <Select label="Confirmare" value={confirmationFilter} onChange={event => setConfirmationFilter(event.target.value)} options={[
+            { value: 'all', label: 'Toate' },
+            { value: 'netrimisa', label: 'Netrimise' },
+            { value: 'trimisa', label: 'Trimise' },
+            { value: 'confirmata', label: 'Confirmate' }
           ]} />
           <div className="rounded-md bg-slate-50 px-3 py-2">
             <div className="text-xs text-slate-500">Terți</div>
@@ -301,6 +312,20 @@ export function TertiContab({ type = 'furnizor' }) {
             <div className="text-xs text-slate-500">Valoare depasita</div>
             <div className="font-semibold">{formatMoney(totals.overdueAmount)}</div>
           </div>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <button type="button" onClick={() => setConfirmationFilter('netrimisa')} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50">
+            <div className="text-xs text-slate-500">Confirmari netrimise</div>
+            <div className="font-semibold">{totals.confirmationMissing}</div>
+          </button>
+          <button type="button" onClick={() => setConfirmationFilter('trimisa')} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-left hover:bg-amber-100">
+            <div className="text-xs text-amber-700">Trimise, asteapta raspuns</div>
+            <div className="font-semibold text-amber-900">{totals.confirmationSent}</div>
+          </button>
+          <button type="button" onClick={() => setConfirmationFilter('confirmata')} className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left hover:bg-emerald-100">
+            <div className="text-xs text-emerald-700">Confirmate</div>
+            <div className="font-semibold text-emerald-900">{totals.confirmationConfirmed}</div>
+          </button>
         </div>
       </Card>
       <Table headers={['Cod', 'Denumire', 'CUI', 'Analitic', 'Sold', 'Nescadent', '1-30', '31-60', '61-90', '>90', 'Facturi', 'Confirmare', 'Contact', 'Status', 'Actiuni']}>
