@@ -1,5 +1,5 @@
 {
-  "version": "2.12.108",
+  "version": "2.12.110",
   "date": "2026-06-24",
-  "changelog": "## v2.12.108 - 2026-06-24\n### Contabilitate - detaliu scadentar terti\n- Adaugat detaliu pe client/furnizor cu facturi deschise, rest, scadenta si zile intarziere.\n- Lista tertilor primeste actiune Detalii langa editare/dezactivare.\n- Detaliul include linkuri rapide catre facturi si trezorerie pentru incasare/plata."
+  "changelog": "## v2.12.110 - 2026-06-24\n### Contabilitate - validare rapida trezorerie\n- Formularul de trezorerie are actiune Salveaza si valideaza.\n- Operatia pregatita din scadentar poate genera nota contabila intr-un singur flux.\n- Dupa validare sunt afisate linkuri rapide spre registru jurnal si balanta."
 }

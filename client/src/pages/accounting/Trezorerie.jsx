@@ -29,6 +29,8 @@ export function Trezorerie() {
   const [message, setMessage] = useState('')
   const [validatedJournal, setValidatedJournal] = useState(null)
   const [actionLoading, setActionLoading] = useState('')
+  const [autoOpenKey, setAutoOpenKey] = useState('')
+  const [savingMode, setSavingMode] = useState('')
   const tertById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
   const invoiceChoices = useMemo(() => {
     const source = form.tip_operatie === 'incasare' ? openInvoicesOut : openInvoicesIn
@@ -46,6 +48,51 @@ export function Trezorerie() {
   }, [searchParams])
 
   useEffect(() => { load() }, [month, status, tipFilter, operationFilter, tertFilter])
+
+  useEffect(() => {
+    const shouldOpen = searchParams.get('new') === '1'
+    const invoiceInId = searchParams.get('invoice_in_id') || ''
+    const invoiceOutId = searchParams.get('invoice_out_id') || ''
+    const key = `${invoiceInId || invoiceOutId}-${month}-${operationFilter}`
+    if (!shouldOpen || (!invoiceInId && !invoiceOutId) || autoOpenKey === key) return
+    const invoiceIn = invoiceInId ? openInvoicesIn.find(item => String(item.id) === String(invoiceInId)) : null
+    const invoiceOut = invoiceOutId ? openInvoicesOut.find(item => String(item.id) === String(invoiceOutId)) : null
+    if ((invoiceInId && !invoiceIn) || (invoiceOutId && !invoiceOut)) {
+      if (openInvoicesIn.length || openInvoicesOut.length) {
+        setAutoOpenKey(key)
+        setError('Factura selectata nu mai are rest deschis sau nu este validata.')
+      }
+      return
+    }
+    const next = defaultForm()
+    if (invoiceIn) {
+      const tert = tertById.get(String(invoiceIn.furnizor_id))
+      next.tip_operatie = 'plata'
+      next.tert_id = invoiceIn.furnizor_id || ''
+      next.cont_corespondent = tert?.cont_analitic_furnizor || '401'
+      next.suma = invoiceRemaining(invoiceIn, 'intrare')
+      next.nr_document = invoiceIn.nr_document || ''
+      next.invoice_in_id = invoiceIn.id
+      next.explicatie = `Plata factura ${invoiceDocument(invoiceIn)}`
+    }
+    if (invoiceOut) {
+      const tert = tertById.get(String(invoiceOut.client_id))
+      next.tip_operatie = 'incasare'
+      next.tert_id = invoiceOut.client_id || ''
+      next.cont_corespondent = tert?.cont_analitic_client || '4111'
+      next.suma = invoiceRemaining(invoiceOut, 'iesire')
+      next.nr_document = invoiceDocument(invoiceOut)
+      next.invoice_out_id = invoiceOut.id
+      next.explicatie = `Incasare factura ${invoiceDocument(invoiceOut)}`
+    }
+    setAutoOpenKey(key)
+    setEditing(null)
+    setError('')
+    setMessage('Operația a fost pregatită din scadentar. Verifică documentul și salvează draftul.')
+    setValidatedJournal(null)
+    setForm(next)
+    setModal(true)
+  }, [searchParams, openInvoicesIn, openInvoicesOut, tertById, month, operationFilter, autoOpenKey])
 
   function load() {
     const [an, luna] = month.split('-')
@@ -219,25 +266,44 @@ export function Trezorerie() {
     setForm(next)
   }
 
-  async function submit(event) {
+  async function submit(event, validateAfterSave = false) {
     event.preventDefault()
     setError('')
     setMessage('')
     setValidatedJournal(null)
+    setSavingMode(validateAfterSave ? 'save-validate' : 'save')
     const hint = treasuryValidationHint({ ...form, status: 'draft' })
     if (hint) {
       setError(hint)
+      setSavingMode('')
       return
     }
     try {
       const payload = { ...form, tert_id: form.tert_id || null, invoice_in_id: form.invoice_in_id || null, invoice_out_id: form.invoice_out_id || null }
-      if (editing) await api.patch(`/accounting/treasury/${editing.uuid}`, payload)
-      else await api.post('/accounting/treasury', payload)
+      const saveRes = editing
+        ? await api.patch(`/accounting/treasury/${editing.uuid}`, payload)
+        : await api.post('/accounting/treasury', payload)
+      const savedTreasury = saveRes.data?.treasury
+      if (validateAfterSave && savedTreasury?.uuid) {
+        const validateRes = await api.post(`/accounting/treasury/${savedTreasury.uuid}/validate`)
+        const journal = validateRes.data?.journal
+        setValidatedJournal(journal ? {
+          id: journal.id,
+          uuid: journal.uuid,
+          month: savedTreasury.balance_month || savedTreasury.data?.slice(0, 7) || month,
+          totalDebit: journal.total_debit,
+          totalCredit: journal.total_credit
+        } : null)
+      }
       setModal(false)
-      setMessage(editing ? 'Operația de trezorerie a fost salvată.' : 'Operația de trezorerie a fost creată ca draft. Următorul pas: validează operația.')
+      setMessage(validateAfterSave
+        ? 'Operația a fost salvată, validată și nota contabilă a fost generată.'
+        : editing ? 'Operația de trezorerie a fost salvată.' : 'Operația de trezorerie a fost creată ca draft. Următorul pas: validează operația.')
       load()
     } catch (err) {
-      setError(err.response?.data?.error || 'Operatia nu a putut fi salvata.')
+      setError(err.response?.data?.error || (validateAfterSave ? 'Operația nu a putut fi salvată și validată.' : 'Operatia nu a putut fi salvata.'))
+    } finally {
+      setSavingMode('')
     }
   }
 
@@ -449,7 +515,8 @@ export function Trezorerie() {
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button>
-            <Button type="submit">{editing ? 'Salveaza modificari' : 'Salveaza draft'}</Button>
+            <Button type="submit" loading={savingMode === 'save'}>{editing ? 'Salveaza modificari' : 'Salveaza draft'}</Button>
+            <Button type="button" loading={savingMode === 'save-validate'} onClick={(event) => submit(event, true)}>Salveaza si valideaza</Button>
           </div>
         </form>
       </Modal>

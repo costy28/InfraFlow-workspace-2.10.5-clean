@@ -335,7 +335,7 @@ export function TertiContab({ type = 'furnizor' }) {
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
                       <Link className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={invoice.invoice_url}>Factura</Link>
-                      <Link className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={invoice.treasury_url}>Trezorerie</Link>
+                      <Link className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={invoice.treasury_url}>{type === 'client' ? 'Incaseaza' : 'Plateste'}</Link>
                     </div>
                   </td>
                 </tr>

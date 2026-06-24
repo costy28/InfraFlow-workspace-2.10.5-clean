@@ -2044,6 +2044,14 @@ function thirdPartyDetail(db, tip, id) {
       const due = invoice.data_scadenta || invoice.data || today();
       const days_overdue = rest > 0 ? Math.max(0, daysBetween(due, today())) : 0;
       const luna = invoice.an && invoice.luna ? `${invoice.an}-${String(invoice.luna).padStart(2, "0")}` : "";
+      const treasuryParams = {
+        new: 1,
+        luna,
+        tert_id: tert.id,
+        operatie: tip === "client" ? "incasare" : "plata"
+      };
+      if (tip === "client") treasuryParams.invoice_out_id = invoice.id;
+      else treasuryParams.invoice_in_id = invoice.id;
       return {
         id: invoice.id,
         uuid: invoice.uuid,
@@ -2058,10 +2066,7 @@ function thirdPartyDetail(db, tip, id) {
         days_overdue,
         overdue: days_overdue > 0,
         invoice_url: `${tip === "client" ? "/contabilitate/facturi-iesire" : "/contabilitate/facturi-intrare"}${luna ? `?luna=${luna}` : ""}`,
-        treasury_url: accountingLink("/contabilitate/trezorerie", {
-          tert_id: tert.id,
-          operatie: tip === "client" ? "incasare" : "plata"
-        })
+        treasury_url: accountingLink("/contabilitate/trezorerie", treasuryParams)
       };
     })
     .sort((a, b) => String(a.data_scadenta || a.data || "").localeCompare(String(b.data_scadenta || b.data || "")));
