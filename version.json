@@ -1,5 +1,5 @@
 {
-  "version": "2.12.126",
+  "version": "2.12.127",
   "date": "2026-06-25",
-  "changelog": "## v2.12.126 - 2026-06-25\n### Contabilitate - actiuni compacte in facturi\n- Actiunile din Facturi intrare si Facturi iesire sunt grupate intr-un dropdown per rand.\n- Meniul afiseaza doar actiunile relevante pentru starea facturii: editare, validare, plata/incasare, devalidare, storno, nota si fisa tertului.\n- Tabelele de facturi sunt mai aerisite si mai potrivite pentru ecrane inguste."
+  "changelog": "## v2.12.127 - 2026-06-25\n### Contabilitate - actiuni dashboard\n- Dashboard-ul de contabilitate foloseste meniu Actiuni pentru exportul reconcilierii si scurtaturi operationale.\n- Bara de comenzi ramane mai curata, in acelasi stil cu facturile si trezoreria.\n- Au fost curatate importurile nefolosite din componenta dashboard contabil."
 }

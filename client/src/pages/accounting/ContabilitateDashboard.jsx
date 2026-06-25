@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../../api/client'
-import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
-import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
-import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountingShell, DropdownMenu, currentMonth } from './accounting-shared'
 export function ContabilitateDashboard() {
   const [summary, setSummary] = useState(null)
   const [health, setHealth] = useState(null)
@@ -88,7 +85,17 @@ export function ContabilitateDashboard() {
             <Badge tone={reconciliation?.status === 'ok' ? 'success' : reconciliation?.status === 'danger' ? 'danger' : 'warning'}>
               {reconciliation?.status === 'ok' ? 'Totul arată bine' : 'Verifică'}
             </Badge>
-            <Button variant="secondary" onClick={exportReconciliation}>Export Excel</Button>
+            <DropdownMenu
+              align="right"
+              label="Actiuni"
+              items={[
+                { label: 'Export reconciliere Excel', onClick: exportReconciliation },
+                { label: 'Facturi intrare', to: '/contabilitate/facturi-intrare' },
+                { label: 'Facturi iesire', to: '/contabilitate/facturi-iesire' },
+                { label: 'Trezorerie', to: '/contabilitate/trezorerie' },
+                { label: 'Inchidere luna', to: `/contabilitate/inchidere-luna?luna=${month}` },
+              ]}
+            />
           </div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
