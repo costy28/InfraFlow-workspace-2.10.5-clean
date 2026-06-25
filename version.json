@@ -1,5 +1,5 @@
 {
-  "version": "2.12.129",
+  "version": "2.12.130",
   "date": "2026-06-25",
-  "changelog": "## v2.12.129 - 2026-06-25\n### Contabilitate - plan de conturi mai aerisit\n- Planul de conturi foloseste dropdown Actiuni cont pentru fisa, editare, familie, analitic si activare/dezactivare.\n- Componenta DropdownMenu accepta corect separatoare definite prin type=separator.\n- Importurile nefolosite din Plan de conturi au fost curatate."
+  "changelog": "## v2.12.130 - 2026-06-25\n### Contabilitate - actiuni compacte terti\n- Furnizorii si clientii folosesc meniul Actiuni pentru adaugare si exporturi.\n- Detaliul tertului grupeaza confirmarea de sold, exporturile, fisa cont si scurtaturile intr-un meniu contextual.\n- Panoul de confirmare sold este mai aerisit si pastreaza aceleasi operatii."
 }

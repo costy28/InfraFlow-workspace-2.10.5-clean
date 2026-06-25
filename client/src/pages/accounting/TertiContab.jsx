@@ -322,12 +322,34 @@ export function TertiContab({ type = 'furnizor' }) {
     ]
   }
 
+  function detailActionMenu() {
+    if (!detail?.tert?.id) return []
+    return [
+      { label: 'Marcheaza confirmare trimisa', onClick: () => markConfirmation('sent') },
+      { label: 'Marcheaza confirmare primita', onClick: () => openReceiveConfirmation() },
+      detail?.confirmation ? { label: 'Anuleaza confirmarea', onClick: () => cancelConfirmation(detail.tert), danger: true } : null,
+      { type: 'separator' },
+      { label: 'Tipareste confirmare', onClick: printConfirmation },
+      { label: 'Export confirmare sold', onClick: exportConfirmation },
+      { label: 'Export fisa tert', onClick: exportDetail },
+      { type: 'separator' },
+      { label: 'Facturi tert', to: `${invoicePath}?${tertParam}=${detail.tert.id}` },
+      detail?.account ? { label: 'Fisa cont analitic', to: `/contabilitate/fisa-cont/${detail.account}` } : null,
+      { label: 'Trezorerie', to: `/contabilitate/trezorerie?tert=${detail.tert.id}` },
+    ].filter(Boolean)
+  }
+
   return (
     <AccountingShell
       active={type === 'client' ? 'clienti' : 'furnizori'}
       title={title}
       subtitle="Terți contabili cu analitice generate automat."
-      actions={<><Button onClick={openNew}>+ {type === 'client' ? 'Client' : 'Furnizor'}</Button><DropdownMenu align="right" label="Export" items={[{ label: 'Export scadentar', onClick: exportExcel }, { label: 'Registru confirmari sold', onClick: exportConfirmationsRegister }]} /></>}
+      actions={<DropdownMenu align="right" label="Actiuni" items={[
+        { label: `Adauga ${type === 'client' ? 'client' : 'furnizor'}`, onClick: openNew },
+        { type: 'separator' },
+        { label: 'Export scadentar', onClick: exportExcel },
+        { label: 'Registru confirmari sold', onClick: exportConfirmationsRegister },
+      ]} />}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
@@ -507,15 +529,11 @@ export function TertiContab({ type = 'furnizor' }) {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="secondary" onClick={() => markConfirmation('sent')} loading={confirmationSaving === `sent-${detail?.tert?.id}`}>Marcheaza trimisa</Button>
-                <Button size="sm" variant="secondary" onClick={() => openReceiveConfirmation()} loading={confirmationSaving === `received-${detail?.tert?.id}`}>Marcheaza primita</Button>
-                {detail?.confirmation ? <Button size="sm" variant="outline" onClick={() => cancelConfirmation(detail.tert)} loading={confirmationSaving === `cancel-${detail?.tert?.id}`}>Anuleaza</Button> : null}
+                <DropdownMenu align="right" label={confirmationSaving ? 'Se salveaza...' : 'Actiuni confirmare'} items={detailActionMenu()} />
               </div>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="secondary" onClick={printConfirmation}>Tipareste confirmare</Button>
-              <Button variant="secondary" onClick={exportConfirmation}>Confirmare sold</Button>
-              <Button variant="secondary" onClick={exportDetail}>Exporta fisa tert</Button>
+              <DropdownMenu align="right" label="Actiuni tert" items={detailActionMenu()} />
             </div>
             <Table headers={['Data', 'Document', 'Scadenta', 'Total', type === 'client' ? 'Incasat' : 'Achitat', 'Rest', 'Intarziere', 'Actiuni']}>
               {(detail?.openInvoices || []).map(invoice => (
