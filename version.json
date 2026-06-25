@@ -1,5 +1,5 @@
 {
-  "version": "2.12.138",
+  "version": "2.12.139",
   "date": "2026-06-25",
-  "changelog": "## v2.12.138 - 2026-06-25\n### Contabilitate - facturi deschise in Trezorerie\n- Trezoreria afiseaza facturile furnizor de platit si facturile client de incasat.\n- Fiecare factura deschisa are actiune directa pentru pregatirea platii sau incasarii.\n- Panoul afiseaza totaluri si evidentiaza facturile cu scadenta depasita.\n- Linkurile duc rapid catre factura si fisa tertului."
+  "changelog": "## v2.12.139 - 2026-06-25\n### Contabilitate - potrivire facturi in Trezorerie\n- Operatiile de trezorerie fara factura legata primesc sugestii automate dupa tert, suma si scadenta.\n- Rindurile necorelate afiseaza cea mai probabila factura si motivul potrivirii.\n- Dropdown-ul de actiuni poate lega rapid factura sugerata pentru operatiile draft.\n- Validarea ramine controlata: utilizatorul verifica sugestia si apoi valideaza."
 }

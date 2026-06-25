@@ -441,6 +441,26 @@ export function Trezorerie() {
     }
   }
 
+  async function attachSuggestedInvoice(row, suggestion) {
+    if (!row?.uuid || !suggestion?.id) return
+    setActionLoading(`match-${row.uuid}`)
+    setError('')
+    setMessage('')
+    setValidatedJournal(null)
+    try {
+      const payload = suggestion.tip === 'intrare'
+        ? { invoice_in_id: suggestion.id, invoice_out_id: null }
+        : { invoice_out_id: suggestion.id, invoice_in_id: null }
+      await api.patch(`/accounting/treasury/${row.uuid}`, payload)
+      setMessage(`Operația a fost legată de factura ${suggestion.document}. Verifică și validează când e în regulă.`)
+      load()
+    } catch (err) {
+      setError(errorText(err, 'Factura sugerată nu a putut fi legată. Verifică dacă operația este draft și tipul este corect.'))
+    } finally {
+      setActionLoading('')
+    }
+  }
+
   async function openJournal(row) {
     if (!row?.journal_uuid) return
     setJournalLoading(true)
@@ -462,6 +482,7 @@ export function Trezorerie() {
     const rowMonth = row.balance_month || row.data?.slice(0, 7) || month
     const canValidate = row.status === 'draft'
     const canDevalidate = row.status === 'validat'
+    const bestSuggestion = (row.suggested_matches || [])[0]
     const invoiceLink = row.linked_invoice
       ? row.linked_invoice.tip === 'intrare'
         ? `/contabilitate/facturi-intrare?factura=${row.linked_invoice.id}`
@@ -469,6 +490,7 @@ export function Trezorerie() {
       : ''
     return [
       canValidate ? { label: 'Editeaza operatia', onClick: () => openEdit(row) } : null,
+      canValidate && bestSuggestion ? { label: `Leaga factura sugerata ${bestSuggestion.document}`, onClick: () => attachSuggestedInvoice(row, bestSuggestion) } : null,
       canValidate ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
       canValidate ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
       canDevalidate ? { label: 'Devalideaza', onClick: () => devalidate(row), danger: true } : null,
@@ -620,6 +642,11 @@ export function Trezorerie() {
               {row.linked_invoice ? (
                 <div className="text-xs text-slate-500">
                   factura {row.linked_invoice.tip}: {row.linked_invoice.document || row.linked_invoice.id}
+                </div>
+              ) : null}
+              {!row.linked_invoice && row.suggested_matches?.length ? (
+                <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                  Posibil: {row.suggested_matches[0].document} · {formatMoney(row.suggested_matches[0].rest)} · {row.suggested_matches[0].motiv}
                 </div>
               ) : null}
             </td>

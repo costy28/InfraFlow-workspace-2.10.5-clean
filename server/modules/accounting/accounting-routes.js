@@ -1831,8 +1831,64 @@ function decorateTreasury(row, accounting) {
     journal_status: journal?.status || "",
     journal_total_debit: journal?.total_debit || 0,
     journal_total_credit: journal?.total_credit || 0,
-    balance_month: month
+    balance_month: month,
+    suggested_matches: suggestTreasuryInvoiceMatches(row, accounting)
   };
+}
+
+function suggestTreasuryInvoiceMatches(row, accounting) {
+  if (!row || row.invoice_in_id || row.invoice_out_id || !row.tert_id) return [];
+  const amount = round(row.suma || 0);
+  if (amount <= 0) return [];
+  const operation = String(row.tip_operatie || "");
+  const source = operation === "incasare" ? accounting.invoicesOut : operation === "plata" ? accounting.invoicesIn : [];
+  const tertKey = operation === "incasare" ? "client_id" : "furnizor_id";
+  const type = operation === "incasare" ? "iesire" : "intrare";
+  const documentNeedle = String(row.nr_document || "").trim().toLowerCase();
+  const rowDate = row.data ? new Date(row.data) : null;
+
+  return source
+    .filter((invoice) => ["validat", "partial"].includes(String(invoice.status || "")))
+    .filter((invoice) => String(invoice[tertKey]) === String(row.tert_id))
+    .map((invoice) => {
+      const rest = round(type === "iesire"
+        ? invoice.neincasat ?? Number(invoice.total || 0) - Number(invoice.incasat || 0)
+        : invoice.neachitat ?? Number(invoice.total || 0) - Number(invoice.achitat || 0));
+      if (rest <= 0) return null;
+      const document = invoice.numar || invoice.nr_document || String(invoice.id || "");
+      const difference = round(Math.abs(rest - amount));
+      const dueDate = invoice.data_scadenta ? new Date(invoice.data_scadenta) : null;
+      const dueDays = rowDate && dueDate && !Number.isNaN(rowDate.valueOf()) && !Number.isNaN(dueDate.valueOf())
+        ? Math.abs(Math.round((rowDate - dueDate) / 86400000))
+        : 9999;
+      let score = 0;
+      if (difference <= 0.01) score += 70;
+      else if (difference <= Math.max(1, amount * 0.05)) score += 45;
+      else if (difference <= Math.max(5, amount * 0.15)) score += 20;
+      if (documentNeedle && String(document).toLowerCase().includes(documentNeedle)) score += 20;
+      if (dueDays <= 7) score += 10;
+      if (dueDays <= 30) score += 5;
+      return {
+        tip: type,
+        id: invoice.id,
+        uuid: invoice.uuid,
+        document,
+        tert_id: invoice[tertKey],
+        data: invoice.data || "",
+        data_scadenta: invoice.data_scadenta || "",
+        total: invoice.total || 0,
+        rest,
+        diferenta: difference,
+        score,
+        motiv: difference <= 0.01
+          ? "sumă identică"
+          : `diferență ${difference.toFixed(2)} RON`
+      };
+    })
+    .filter(Boolean)
+    .filter((match) => match.score >= 20)
+    .sort((a, b) => b.score - a.score || a.diferenta - b.diferenta || String(a.data_scadenta || "").localeCompare(String(b.data_scadenta || "")))
+    .slice(0, 3);
 }
 
 function decorateInvoice(row, accounting) {
