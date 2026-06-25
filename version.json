@@ -1,5 +1,5 @@
 {
-  "version": "2.12.131",
+  "version": "2.12.132",
   "date": "2026-06-25",
-  "changelog": "## v2.12.131 - 2026-06-25\n### Contabilitate - actiuni solduri si sabloane\n- Soldurile initiale folosesc meniuri Actiuni pentru salvare, adaugare linie, reincarcare si verificare in balanta.\n- Randurile din solduri initiale au actiuni compacte pentru adaugare/stergere linie.\n- Sabloanele de note contabile folosesc meniuri Actiuni pentru creare, editare si activare/dezactivare."
+  "changelog": "## v2.12.132 - 2026-06-25\n### Contabilitate - actiuni compacte documente\n- Facturile de intrare/iesire au actiunile principale grupate in meniul Actiuni.\n- Trezoreria grupeaza operatia noua, reincarcarea, exportul si scurtaturile contabile.\n- Registrul jurnal grupeaza nota manuala, importul, exportul si scurtaturile catre rapoarte."
 }

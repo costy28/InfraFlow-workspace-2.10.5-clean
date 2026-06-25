@@ -428,7 +428,21 @@ export function FacturiContab({ direction = 'in' }) {
   }
 
   return (
-    <AccountingShell active={isIn ? 'intrare' : 'iesire'} title={isIn ? 'Facturi intrare' : 'Facturi iesire'} subtitle="Validarea genereaza automat nota contabila echilibrata." actions={<Button onClick={openNew}>+ Factura</Button>}>
+    <AccountingShell
+      active={isIn ? 'intrare' : 'iesire'}
+      title={isIn ? 'Facturi intrare' : 'Facturi iesire'}
+      subtitle="Validarea genereaza automat nota contabila echilibrata."
+      actions={<DropdownMenu align="right" label="Actiuni" items={[
+        { label: isIn ? 'Factura intrare noua' : 'Factura iesire noua', onClick: openNew },
+        { label: 'Reincarca lista', onClick: load },
+        { type: 'separator' },
+        { label: isIn ? 'Furnizori' : 'Clienti', to: isIn ? '/contabilitate/furnizori' : '/contabilitate/clienti' },
+        { label: 'Sabloane note', to: '/contabilitate/sabloane-note' },
+        { type: 'separator' },
+        { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
+        { label: 'Trezorerie', to: `/contabilitate/trezorerie?luna=${month}` }
+      ]} />}
+    >
       {error ? <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? (
         <div className="mb-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">

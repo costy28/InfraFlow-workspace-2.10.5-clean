@@ -435,7 +435,20 @@ export function Trezorerie() {
   }
 
   return (
-    <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<><Button onClick={openNew}>+ Operatie</Button><DropdownMenu align="right" label="Export" items={[{ label: 'Export Excel', onClick: exportExcel }]} /></>}>
+    <AccountingShell
+      active="trezorerie"
+      title="Trezorerie"
+      subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate."
+      actions={<DropdownMenu align="right" label="Actiuni" items={[
+        { label: 'Operatie noua', onClick: openNew },
+        { label: 'Reincarca lista', onClick: load },
+        { label: 'Export Excel', onClick: exportExcel },
+        { type: 'separator' },
+        { label: 'Facturi intrare', to: `/contabilitate/facturi-intrare?luna=${month}` },
+        { label: 'Facturi iesire', to: `/contabilitate/facturi-iesire?luna=${month}` },
+        { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` }
+      ]} />}
+    >
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
       {message ? (
         <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">

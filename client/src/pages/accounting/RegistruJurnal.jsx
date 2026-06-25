@@ -279,7 +279,15 @@ export function RegistruJurnal() {
       active="jurnal"
       title="Registru jurnal"
       subtitle="Note contabile active si storno, cu linii debit/credit."
-      actions={<><Button onClick={openManualNote}>+ Nota manuala</Button><DropdownMenu align="right" label="Mai multe" items={[{ label: 'Import note XLS', onClick: () => setImportModal(true) }, { label: 'Export Excel', onClick: exportExcel }]} /></>}
+      actions={<DropdownMenu align="right" label="Actiuni" items={[
+        { label: 'Nota manuala noua', onClick: openManualNote },
+        { label: 'Import note XLS', onClick: () => setImportModal(true) },
+        { label: 'Export Excel', onClick: exportExcel },
+        { label: 'Reincarca registru', onClick: load },
+        { type: 'separator' },
+        { label: 'Balanta lunii', to: `/contabilitate/balanta?luna=${month}` },
+        { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${month}-01&pana_la=${month}-31` }
+      ]} />}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
