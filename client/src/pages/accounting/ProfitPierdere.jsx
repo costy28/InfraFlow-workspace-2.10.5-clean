@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
-import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
@@ -59,7 +58,9 @@ export function ProfitPierdere() {
       title="Profit si pierdere"
       subtitle="Venituri, cheltuieli si rezultat pe perioada selectata, pe baza conturilor din clasele 6 si 7."
       actions={<DropdownMenu align="right" label="Actiuni" items={[
+        { label: 'Reincarca raport', onClick: load },
         { label: 'Export Excel', onClick: exportExcel },
+        { type: 'separator' },
         { label: 'Balanta', to: `/contabilitate/balanta?luna=${month}` },
         { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${data.perioada?.de_la || `${month}-01`}&pana_la=${data.perioada?.pana_la || `${month}-31`}` },
       ]} />}
@@ -67,7 +68,7 @@ export function ProfitPierdere() {
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
 
       <Card>
-        <div className="grid gap-3 md:grid-cols-[180px_180px_auto]">
+        <div className="grid gap-3 md:grid-cols-[180px_180px]">
           <div className="grid gap-1">
             <label className="text-sm font-semibold text-slate-700">Luna</label>
             <input
@@ -86,9 +87,6 @@ export function ProfitPierdere() {
               { value: 'sintetica', label: 'Sintetic' },
             ]}
           />
-          <div className="flex items-end justify-end">
-            <Button variant="secondary" onClick={load}>Reincarca</Button>
-          </div>
         </div>
       </Card>
 

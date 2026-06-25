@@ -1,5 +1,5 @@
 {
-  "version": "2.12.132",
+  "version": "2.12.133",
   "date": "2026-06-25",
-  "changelog": "## v2.12.132 - 2026-06-25\n### Contabilitate - actiuni compacte documente\n- Facturile de intrare/iesire au actiunile principale grupate in meniul Actiuni.\n- Trezoreria grupeaza operatia noua, reincarcarea, exportul si scurtaturile contabile.\n- Registrul jurnal grupeaza nota manuala, importul, exportul si scurtaturile catre rapoarte."
+  "changelog": "## v2.12.133 - 2026-06-25\n### Contabilitate - actiuni compacte rapoarte\n- Cartea Mare, Fisa cont, Jurnalele contabile si Profit/Pierdere muta reincarcarea si exporturile in meniul Actiuni.\n- Cartea Mare are actiuni compacte pe rand pentru Fisa cont si Registru jurnal.\n- Zonele de filtre raman mai inguste si mai aerisite."
 }

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
-import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
@@ -76,16 +75,21 @@ export function CarteaMare() {
       active="cartea-mare"
       title="Cartea Mare"
       subtitle="Solduri si miscari pe toate conturile, cu legatura spre fisa fiecarui cont."
-      actions={<DropdownMenu align="right" label="Actiuni" items={[{ label: 'Export Excel', onClick: exportExcel }, { label: 'Balanta', to: `/contabilitate/balanta?luna=${String(from || currentMonth()).slice(0, 7)}` }]} />}
+      actions={<DropdownMenu align="right" label="Actiuni" items={[
+        { label: 'Reincarca raport', onClick: load },
+        { label: 'Export Excel', onClick: exportExcel },
+        { type: 'separator' },
+        { label: 'Balanta', to: `/contabilitate/balanta?luna=${String(from || currentMonth()).slice(0, 7)}` },
+        { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${String(from || currentMonth()).slice(0, 7)}` }
+      ]} />}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
-        <div className="grid gap-3 lg:grid-cols-[160px_160px_150px_minmax(180px,1fr)_auto]">
+        <div className="grid gap-3 lg:grid-cols-[160px_160px_150px_minmax(180px,1fr)]">
           <Input label="De la" type="date" value={from} onChange={event => setFrom(event.target.value)} />
           <Input label="Pana la" type="date" value={to} onChange={event => setTo(event.target.value)} />
           <Select label="Clasa" value={clasa} onChange={event => setClasa(event.target.value)} options={[{ value: '', label: 'Toate clasele' }, ...[1,2,3,4,5,6,7,8,9].map(value => ({ value: String(value), label: `Clasa ${value}` }))]} />
           <Input label="Cauta cont" value={q} onChange={event => setQ(event.target.value)} placeholder="401, TVA, banca..." />
-          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-700">
           <input type="checkbox" checked={onlyWithValues} onChange={event => setOnlyWithValues(event.target.checked)} />
@@ -115,7 +119,12 @@ export function CarteaMare() {
             <td className="px-3 py-2 text-right">{formatMoney(row.total_credit || 0)}</td>
             <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.sold_final || 0)}</td>
             <td className="px-3 py-2 text-right">{row.movements_count || 0}</td>
-            <td className="px-3 py-2"><Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.simbol}?de_la=${from}&pana_la=${to}`}>Fisa cont</Link></td>
+            <td className="px-3 py-2">
+              <DropdownMenu align="right" label="Actiuni" items={[
+                { label: 'Fisa cont', to: `/contabilitate/fisa-cont/${row.simbol}?de_la=${from}&pana_la=${to}` },
+                { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${String(from || currentMonth()).slice(0, 7)}` }
+              ]} />
+            </td>
           </tr>
         ))}
         {rows.length ? (

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
-import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
@@ -41,13 +40,19 @@ export function FisaCont() {
   }
 
   return (
-    <AccountingShell active="plan" title={`Fisa cont ${simbol}`} subtitle={data.denumire || 'Carte mare pe cont, cu sold progresiv.'} actions={<DropdownMenu align="right" label="Actiuni" items={[{ label: 'Export Excel', onClick: exportExcel }, { label: 'Balanta', to: `/contabilitate/balanta?luna=${reportMonth}` }, { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${reportMonth}` }]} />}>
+    <AccountingShell active="plan" title={`Fisa cont ${simbol}`} subtitle={data.denumire || 'Carte mare pe cont, cu sold progresiv.'} actions={<DropdownMenu align="right" label="Actiuni" items={[
+      { label: 'Reincarca fisa', onClick: load },
+      { label: 'Export Excel', onClick: exportExcel },
+      { type: 'separator' },
+      { label: 'Balanta', to: `/contabilitate/balanta?luna=${reportMonth}` },
+      { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${reportMonth}` },
+      { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${from}&pana_la=${to}` }
+    ]} />}>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
-        <div className="grid gap-3 md:grid-cols-[180px_180px_auto]">
+        <div className="grid gap-3 md:grid-cols-[180px_180px]">
           <Input label="De la" type="date" value={from} onChange={event => setFrom(event.target.value)} />
           <Input label="Pana la" type="date" value={to} onChange={event => setTo(event.target.value)} />
-          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
         </div>
       </Card>
       <div className="grid gap-3 md:grid-cols-4">
