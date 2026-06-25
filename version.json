@@ -1,5 +1,5 @@
 {
-  "version": "2.12.134",
+  "version": "2.12.135",
   "date": "2026-06-25",
-  "changelog": "## v2.12.134 - 2026-06-25\n### Contabilitate - curatare actiuni duplicate\n- Facturile, Trezoreria si Registrul jurnal nu mai afiseaza buton duplicat de reincarcare in filtre.\n- Balanta si TVA/D300 includ reincarcarea in meniul Actiuni.\n- Inchiderea lunii muta meniul Actiuni luna in header pentru consistenta."
+  "changelog": "## v2.12.135 - 2026-06-25\n### Contabilitate - actiuni pe rand in rapoarte\n- Balanta are dropdown Actiuni pe fiecare cont pentru Fisa cont, Cartea Mare si Registru jurnal.\n- TVA / D300 are actiuni pe documentele din jurnalele de cumparari si vanzari.\n- Inchidere luna foloseste dropdown-uri de rezolvare pentru documente draft si note dezechilibrate."
 }

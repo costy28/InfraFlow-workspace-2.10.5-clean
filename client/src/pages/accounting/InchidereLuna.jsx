@@ -135,7 +135,14 @@ export function InchidereLuna() {
                 <td className="px-3 py-2">{row.categorie}</td>
                 <td className="px-3 py-2">{row.document || '-'}</td>
                 <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
-                <td className="px-3 py-2"><Link className="font-semibold text-primary-700 hover:underline" to={resolveTarget(row)}>Deschide</Link></td>
+                <td className="px-3 py-2">
+                  <DropdownMenu align="right" label="Actiuni" items={[
+                    { label: 'Deschide documentul', to: resolveTarget(row) },
+                    { label: 'Facturi intrare', to: `/contabilitate/facturi-intrare?luna=${month}&status=draft` },
+                    { label: 'Facturi iesire', to: `/contabilitate/facturi-iesire?luna=${month}&status=draft` },
+                    { label: 'Trezorerie draft', to: `/contabilitate/trezorerie?luna=${month}&status=draft` }
+                  ]} />
+                </td>
               </tr>
             ))}
           </Table>
@@ -148,7 +155,13 @@ export function InchidereLuna() {
                 <td className="px-3 py-2 text-right">{formatMoney(row.total_debit)}</td>
                 <td className="px-3 py-2 text-right">{formatMoney(row.total_credit)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-red-700">{formatMoney(row.diferenta)}</td>
-                <td className="px-3 py-2"><Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/registru-jurnal?luna=${month}`}>Registru</Link></td>
+                <td className="px-3 py-2">
+                  <DropdownMenu align="right" label="Actiuni" items={[
+                    { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
+                    { label: 'Balanta', to: `/contabilitate/balanta?luna=${month}` },
+                    { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${month}-01&pana_la=${month}-31` }
+                  ]} />
+                </td>
               </tr>
             ))}
           </Table>

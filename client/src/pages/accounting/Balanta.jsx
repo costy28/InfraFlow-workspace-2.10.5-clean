@@ -85,7 +85,7 @@ export function Balanta() {
         <Info label="Sold debit" value={formatMoney(filteredTotals.sold_D || 0)} />
         <Info label="Sold credit" value={formatMoney(filteredTotals.sold_C || 0)} />
       </div>
-      <Table headers={['Cont', 'Denumire', 'Init D', 'Init C', 'Rulaj D', 'Rulaj C', 'Sume D', 'Sume C', 'Sold D', 'Sold C']}>
+      <Table headers={['Cont', 'Denumire', 'Init D', 'Init C', 'Rulaj D', 'Rulaj C', 'Sume D', 'Sume C', 'Sold D', 'Sold C', 'Actiuni']}>
         {rows.map(row => (
           <tr key={row.cont} className="hover:bg-slate-50">
             <td className="px-3 py-2">
@@ -100,6 +100,13 @@ export function Balanta() {
             <td className="px-3 py-2 text-right">{formatMoney(row.sume_totale_C)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(row.sold_D)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(row.sold_C)}</td>
+            <td className="px-3 py-2">
+              <DropdownMenu align="right" label="Actiuni" items={[
+                { label: 'Fisa cont', to: `/contabilitate/fisa-cont/${row.cont}?de_la=${monthStart}&pana_la=${monthEnd}` },
+                { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${monthStart}&pana_la=${monthEnd}&q=${encodeURIComponent(row.cont)}` },
+                { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` }
+              ]} />
+            </td>
           </tr>
         ))}
         {rows.length ? (
@@ -114,6 +121,7 @@ export function Balanta() {
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.sume_totale_C || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.sold_D || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.sold_C || 0)}</td>
+            <td className="px-3 py-2">-</td>
           </tr>
         ) : null}
       </Table>

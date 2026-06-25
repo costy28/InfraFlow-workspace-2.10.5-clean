@@ -162,7 +162,7 @@ export function TVADeclaratii() {
         ))}
       </Table>
       <div className="grid gap-4 xl:grid-cols-2">
-        <Table headers={['Data', 'Document', 'Furnizor', 'Baza', 'TVA', 'Total', 'Status']}>
+        <Table headers={['Data', 'Document', 'Furnizor', 'Baza', 'TVA', 'Total', 'Status', 'Actiuni']}>
           {(journal.jurnal_cumparari || []).map(row => (
             <tr key={row.uuid || row.id}>
               <td className="px-3 py-2">{row.data}</td>
@@ -172,10 +172,17 @@ export function TVADeclaratii() {
               <td className="px-3 py-2 text-right">{formatMoney(row.tva || 0)}</td>
               <td className="px-3 py-2 text-right">{formatMoney(row.total || 0)}</td>
               <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+              <td className="px-3 py-2">
+                <DropdownMenu align="right" label="Actiuni" items={[
+                  { label: 'Deschide factura', to: `/contabilitate/facturi-intrare?luna=${month}&q=${encodeURIComponent(row.nr_document || row.numar || row.uuid || row.id || '')}` },
+                  { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
+                  { label: 'Jurnale contabile', to: `/contabilitate/jurnale?luna=${month}` }
+                ]} />
+              </td>
             </tr>
           ))}
         </Table>
-        <Table headers={['Data', 'Document', 'Client', 'Baza', 'TVA', 'Total', 'Status']}>
+        <Table headers={['Data', 'Document', 'Client', 'Baza', 'TVA', 'Total', 'Status', 'Actiuni']}>
           {(journal.jurnal_vanzari || []).map(row => (
             <tr key={row.uuid || row.id}>
               <td className="px-3 py-2">{row.data}</td>
@@ -185,6 +192,13 @@ export function TVADeclaratii() {
               <td className="px-3 py-2 text-right">{formatMoney(row.tva || 0)}</td>
               <td className="px-3 py-2 text-right">{formatMoney(row.total || 0)}</td>
               <td className="px-3 py-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+              <td className="px-3 py-2">
+                <DropdownMenu align="right" label="Actiuni" items={[
+                  { label: 'Deschide factura', to: `/contabilitate/facturi-iesire?luna=${month}&q=${encodeURIComponent(row.nr_document || row.numar || row.uuid || row.id || '')}` },
+                  { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
+                  { label: 'Jurnale contabile', to: `/contabilitate/jurnale?luna=${month}` }
+                ]} />
+              </td>
             </tr>
           ))}
         </Table>
