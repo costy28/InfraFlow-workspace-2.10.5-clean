@@ -1,5 +1,5 @@
 {
-  "version": "2.12.125",
+  "version": "2.12.126",
   "date": "2026-06-25",
-  "changelog": "## v2.12.125 - 2026-06-25\n### Contabilitate - actiuni compacte in trezorerie\n- Actiunile operatiilor de trezorerie sunt grupate in dropdown per rand.\n- Meniul permite validare, devalidare, anulare draft, nota contabila, factura legata si fise de cont.\n- Tabelul de trezorerie este mai aerisit si mai usor de folosit pe ecrane inguste."
+  "changelog": "## v2.12.126 - 2026-06-25\n### Contabilitate - actiuni compacte in facturi\n- Actiunile din Facturi intrare si Facturi iesire sunt grupate intr-un dropdown per rand.\n- Meniul afiseaza doar actiunile relevante pentru starea facturii: editare, validare, plata/incasare, devalidare, storno, nota si fisa tertului.\n- Tabelele de facturi sunt mai aerisite si mai potrivite pentru ecrane inguste."
 }

@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
 export function FacturiContab({ direction = 'in' }) {
   const isIn = direction === 'in'
   const [rows, setRows] = useState([])
@@ -405,6 +405,28 @@ export function FacturiContab({ direction = 'in' }) {
   function errorText(err, fallback) {
     return err.response?.data?.error || err.response?.data?.message || fallback
   }
+
+  function rowActionMenu(row) {
+    const rowMonth = row.balance_month || row.data?.slice(0, 7) || month
+    const partyId = row.furnizor_id || row.client_id
+    const partyAccount = thirdPartyById.get(String(partyId))?.[isIn ? 'cont_analitic_furnizor' : 'cont_analitic_client']
+    return [
+      row.status === 'draft' ? { label: 'Editeaza factura', onClick: () => openEdit(row) } : null,
+      row.status === 'draft' ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
+      row.status === 'draft' ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
+      canPayInvoice(row) ? { label: isIn ? 'Inregistreaza plata' : 'Inregistreaza incasarea', onClick: () => openPayment(row) } : null,
+      row.status === 'validat' ? { label: 'Devalideaza factura', onClick: () => devalidate(row), danger: true } : null,
+      row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? { label: 'Storno factura', onClick: () => storno(row), danger: true } : null,
+      { separator: true },
+      row.journal_id ? { label: 'Vezi nota contabila', onClick: () => showJournal(row) } : null,
+      row.journal_uuid ? { label: 'Deschide registru jurnal', to: `/contabilitate/registru-jurnal?luna=${rowMonth}&note=${row.journal_uuid}` } : null,
+      { label: isIn ? 'Trezorerie plati' : 'Trezorerie incasari', to: `/contabilitate/trezorerie?luna=${rowMonth}&${isIn ? 'invoice_in_id' : 'invoice_out_id'}=${row.id}&new=1` },
+      { separator: true },
+      partyId ? { label: isIn ? 'Fisa furnizor' : 'Fisa client', to: isIn ? `/contabilitate/furnizori?furnizor=${partyId}` : `/contabilitate/clienti?client=${partyId}` } : null,
+      partyAccount ? { label: `Fisa cont ${partyAccount}`, to: `/contabilitate/fisa-cont/${partyAccount}?de_la=${rowMonth}-01&pana_la=${rowMonth}-31` } : null
+    ]
+  }
+
   return (
     <AccountingShell active={isIn ? 'intrare' : 'iesire'} title={isIn ? 'Facturi intrare' : 'Facturi iesire'} subtitle="Validarea genereaza automat nota contabila echilibrata." actions={<Button onClick={openNew}>+ Factura</Button>}>
       {error ? <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
@@ -468,15 +490,7 @@ export function FacturiContab({ direction = 'in' }) {
               ) : '-'}
             </td>
             <td className="px-3 py-2">
-              <div className="flex flex-wrap gap-2">
-                {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Edit</Button> : null}
-                {row.status === 'draft' ? <Button size="sm" loading={actionLoading === `validate-${row.uuid}`} onClick={() => validate(row)}>Valideaza</Button> : null}
-                {row.status === 'draft' ? <Button size="sm" variant="secondary" loading={actionLoading === `cancel-${row.uuid}`} onClick={() => cancelDraft(row)}>Anuleaza</Button> : null}
-                {canPayInvoice(row) ? <Button size="sm" loading={actionLoading === `payment-${row.uuid}`} onClick={() => openPayment(row)}>{isIn ? 'Plateste' : 'Incaseaza'}</Button> : null}
-                {row.journal_id ? <Button size="sm" variant="secondary" onClick={() => showJournal(row)}>Nota</Button> : null}
-                {row.status === 'validat' ? <Button size="sm" variant="secondary" loading={actionLoading === `devalidate-${row.uuid}`} onClick={() => devalidate(row)}>Devalideaza</Button> : null}
-                {row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? <Button size="sm" variant="secondary" loading={actionLoading === `storno-${row.uuid}`} onClick={() => storno(row)}>Storno</Button> : null}
-              </div>
+              <DropdownMenu align="right" label={actionLoading.endsWith(`-${row.uuid}`) ? 'Se lucreaza...' : 'Actiuni'} items={rowActionMenu(row)} />
             </td>
           </tr>
         ))}
