@@ -463,7 +463,7 @@ export function Trezorerie() {
         </div>
       ) : null}
       <Card>
-        <div className="grid gap-3 xl:grid-cols-[160px_160px_160px_160px_minmax(220px,1fr)_minmax(180px,1fr)_auto]">
+        <div className="grid gap-3 xl:grid-cols-[160px_160px_160px_160px_minmax(220px,1fr)_minmax(180px,1fr)]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
             { value: '', label: 'Toate fara anulate' },
@@ -487,7 +487,6 @@ export function Trezorerie() {
             ...thirdParties.map(tert => ({ value: tert.id, label: `${tert.cod} - ${tert.denumire}` }))
           ]} />
           <Input label="Cauta" value={q} onChange={event => setQ(event.target.value)} placeholder="Document, tert, cont..." />
-          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
         </div>
       </Card>
       <div className="grid gap-3 md:grid-cols-5">

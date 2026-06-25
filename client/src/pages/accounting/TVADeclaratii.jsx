@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
-import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/forms/Input'
@@ -76,6 +75,7 @@ export function TVADeclaratii() {
       subtitle="Jurnal TVA cumparari si vanzari, sumar de lucru pentru decont."
       actions={(
         <DropdownMenu align="right" label="Actiuni" items={[
+            { label: 'Reincarca TVA', onClick: load },
             canCheckVat ? { label: 'Marcheaza TVA verificat', onClick: markVatChecked } : null,
             { type: 'separator' },
             { label: 'Export Excel', onClick: () => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`) },
@@ -90,7 +90,7 @@ export function TVADeclaratii() {
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <Card>
-        <div className="grid gap-3 md:grid-cols-[220px_180px_180px_auto]">
+        <div className="grid gap-3 md:grid-cols-[220px_180px_180px]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Select label="Status documente" value={status} onChange={event => setStatus(event.target.value)} options={[
             { value: '', label: 'Toate fara anulate' },
@@ -104,7 +104,6 @@ export function TVADeclaratii() {
             { value: '', label: 'Toate cotele' },
             ...[21, 19, 9, 5, 0].map(value => ({ value, label: `${value}%` }))
           ]} />
-          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
         </div>
       </Card>
       <Card>

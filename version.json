@@ -1,5 +1,5 @@
 {
-  "version": "2.12.133",
+  "version": "2.12.134",
   "date": "2026-06-25",
-  "changelog": "## v2.12.133 - 2026-06-25\n### Contabilitate - actiuni compacte rapoarte\n- Cartea Mare, Fisa cont, Jurnalele contabile si Profit/Pierdere muta reincarcarea si exporturile in meniul Actiuni.\n- Cartea Mare are actiuni compacte pe rand pentru Fisa cont si Registru jurnal.\n- Zonele de filtre raman mai inguste si mai aerisite."
+  "changelog": "## v2.12.134 - 2026-06-25\n### Contabilitate - curatare actiuni duplicate\n- Facturile, Trezoreria si Registrul jurnal nu mai afiseaza buton duplicat de reincarcare in filtre.\n- Balanta si TVA/D300 includ reincarcarea in meniul Actiuni.\n- Inchiderea lunii muta meniul Actiuni luna in header pentru consistenta."
 }

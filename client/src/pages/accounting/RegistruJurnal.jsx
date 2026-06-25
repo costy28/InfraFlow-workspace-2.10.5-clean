@@ -291,7 +291,7 @@ export function RegistruJurnal() {
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
-        <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
+        <div className="grid gap-3 md:grid-cols-[220px_220px]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
             { value: '', label: 'Toate fara anulate' },
@@ -300,7 +300,6 @@ export function RegistruJurnal() {
             { value: 'stornat', label: 'Stornate' },
             { value: 'devalidat', label: 'Devalidate' }
           ]} />
-          <div className="flex items-end justify-end"><Button variant="secondary" onClick={load}>Reincarca</Button></div>
         </div>
       </Card>
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}

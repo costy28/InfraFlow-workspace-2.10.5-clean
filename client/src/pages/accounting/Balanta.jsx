@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
-import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
-import Badge from '../../components/ui/Badge'
-import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountingShell, DropdownMenu, Info, Table, currentMonth, money } from './accounting-shared'
 export function Balanta() {
   const [searchParams] = useSearchParams()
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
@@ -30,11 +27,13 @@ export function Balanta() {
     return acc
   }, {}), [rows])
 
-  useEffect(() => {
+  useEffect(() => { load() }, [month, tip])
+
+  function load() {
     api.get('/accounting/balance-sheet', { params: { an, luna, tip } })
       .then(res => setData(res.data))
       .catch(() => setData({ rows: [], totals: {}, balanced: false }))
-  }, [month, tip])
+  }
 
   async function exportExcel() {
     const res = await api.get('/accounting/balance-sheet/export', { params: { an, luna, tip }, responseType: 'blob' })
@@ -53,7 +52,13 @@ export function Balanta() {
       active="balanta"
       title="Balanta"
       subtitle="Verificare rulaje, solduri si egalitate debit-credit."
-      actions={<DropdownMenu align="right" label="Actiuni" items={[{ label: 'Export Excel', onClick: exportExcel }, { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` }]} />}
+      actions={<DropdownMenu align="right" label="Actiuni" items={[
+        { label: 'Reincarca balanta', onClick: load },
+        { label: 'Export Excel', onClick: exportExcel },
+        { type: 'separator' },
+        { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
+        { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${monthStart}&pana_la=${monthEnd}` }
+      ]} />}
     >
       <Card>
         <div className="grid gap-3 md:grid-cols-[180px_180px_180px_minmax(200px,1fr)]">

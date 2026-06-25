@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
-import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/forms/Input'
@@ -84,13 +83,15 @@ export function InchidereLuna() {
   ].filter(Boolean)
 
   return (
-    <AccountingShell active="inchidere" title="Inchidere luna" subtitle="Verificari contabile, blocare luna si marcarea declaratiilor depuse.">
+    <AccountingShell
+      active="inchidere"
+      title="Inchidere luna"
+      subtitle="Verificari contabile, blocare luna si marcarea declaratiilor depuse."
+      actions={<DropdownMenu align="right" label="Actiuni luna" items={actionItems} />}
+    >
       <Card>
-        <div className="grid gap-3 md:grid-cols-[240px_auto]">
+        <div className="grid gap-3 md:grid-cols-[240px]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
-          <div className="flex items-end justify-end">
-            <DropdownMenu align="right" label="Actiuni luna" items={actionItems} />
-          </div>
         </div>
       </Card>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
