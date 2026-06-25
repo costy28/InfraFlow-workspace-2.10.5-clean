@@ -1,5 +1,5 @@
 {
-  "version": "2.12.135",
+  "version": "2.12.136",
   "date": "2026-06-25",
-  "changelog": "## v2.12.135 - 2026-06-25\n### Contabilitate - actiuni pe rand in rapoarte\n- Balanta are dropdown Actiuni pe fiecare cont pentru Fisa cont, Cartea Mare si Registru jurnal.\n- TVA / D300 are actiuni pe documentele din jurnalele de cumparari si vanzari.\n- Inchidere luna foloseste dropdown-uri de rezolvare pentru documente draft si note dezechilibrate."
+  "changelog": "## v2.12.136 - 2026-06-25\n### Contabilitate - actiuni pentru linii in modale\n- Facturile folosesc dropdown Actiuni linii pentru adaugarea liniilor si actiuni compacte pe fiecare linie.\n- Registrul jurnal foloseste dropdown pentru adaugarea liniilor debit/credit si stergere linie.\n- Modalele contabile au coloane mai stabile pentru actiuni, fara butoane izolate."
 }

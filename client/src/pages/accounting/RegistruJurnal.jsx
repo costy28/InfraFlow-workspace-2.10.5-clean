@@ -435,19 +435,23 @@ export function RegistruJurnal() {
           <div className="rounded-md border border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-sm font-semibold text-slate-800">Linii debit / credit</div>
-              <div className="flex gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => addNoteLine('debit')}>+ Debit</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => addNoteLine('credit')}>+ Credit</Button>
-              </div>
+              <DropdownMenu align="right" label="Actiuni linii" items={[
+                { label: 'Adauga linie debit', onClick: () => addNoteLine('debit') },
+                { label: 'Adauga linie credit', onClick: () => addNoteLine('credit') }
+              ]} />
             </div>
             <div className="grid gap-2 p-3">
               {(noteForm.lines || []).map((line, index) => (
-                <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 md:grid-cols-[minmax(180px,1.4fr)_120px_120px_minmax(160px,1fr)_44px]">
+                <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3 md:grid-cols-[minmax(180px,1.4fr)_120px_120px_minmax(160px,1fr)_minmax(120px,auto)]">
                   <AccountSelect label="Cont" value={line.cont || ''} accounts={accounts} onChange={event => updateNoteLine(index, { cont: event.target.value })} required />
                   <Input label="Debit" type="number" step="0.01" value={line.debit || ''} onChange={event => updateNoteLine(index, { debit: event.target.value, credit: event.target.value ? 0 : line.credit })} />
                   <Input label="Credit" type="number" step="0.01" value={line.credit || ''} onChange={event => updateNoteLine(index, { credit: event.target.value, debit: event.target.value ? 0 : line.debit })} />
                   <Input label="Explicatie linie" value={line.explicatie || ''} onChange={event => updateNoteLine(index, { explicatie: event.target.value })} />
-                  <div className="flex items-end"><Button type="button" size="sm" variant="secondary" onClick={() => removeNoteLine(index)}>x</Button></div>
+                  <div className="flex items-end">
+                    <DropdownMenu align="right" label="Actiuni" items={[
+                      { label: 'Sterge linia', onClick: () => removeNoteLine(index), danger: true }
+                    ]} />
+                  </div>
                 </div>
               ))}
             </div>

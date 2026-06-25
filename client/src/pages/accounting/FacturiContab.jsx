@@ -543,17 +543,23 @@ export function FacturiContab({ direction = 'in' }) {
           <div className="rounded-md border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-sm font-semibold text-slate-800">Linii factura</div>
-              <Button type="button" size="sm" variant="secondary" onClick={addLine}>+ Linie</Button>
+              <DropdownMenu align="right" label="Actiuni linii" items={[
+                { label: 'Adauga linie', onClick: addLine }
+              ]} />
             </div>
             <div className="grid gap-2 p-3">
               {invoiceLines.map((line, index) => (
                 <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-white p-3">
                   <Input label={`Denumire linia ${index + 1}`} value={line.denumire || ''} onChange={event => updateLine(index, { denumire: event.target.value })} />
-                  <div className="grid gap-2 sm:grid-cols-[minmax(220px,2fr)_minmax(120px,1fr)_minmax(96px,0.7fr)_44px]">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(220px,2fr)_minmax(120px,1fr)_minmax(96px,0.7fr)_minmax(120px,auto)]">
                     <AccountSelect label="Cont" value={line.cont || ''} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => updateLine(index, { cont: event.target.value })} required />
                     <Input label="Valoare" type="number" step="0.01" value={line.valoare || ''} onChange={event => updateLine(index, { valoare: event.target.value })} />
                     <Select label="TVA" value={line.tva_procent ?? 21} onChange={event => updateLine(index, { tva_procent: event.target.value })} options={[0,5,9,19,21].map(v => ({ value: v, label: `${v}%` }))} />
-                    <div className="flex items-end"><Button type="button" size="sm" variant="secondary" onClick={() => removeLine(index)}>x</Button></div>
+                    <div className="flex items-end">
+                      <DropdownMenu align="right" label="Actiuni" items={[
+                        { label: 'Sterge linia', onClick: () => removeLine(index), danger: true }
+                      ]} />
+                    </div>
                   </div>
                 </div>
               ))}
