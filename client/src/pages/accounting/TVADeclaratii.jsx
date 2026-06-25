@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
-import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountingShell, DropdownMenu, Info, Table, currentMonth, statusTone } from './accounting-shared'
 export function TVADeclaratii() {
   const [searchParams] = useSearchParams()
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
@@ -76,13 +75,16 @@ export function TVADeclaratii() {
       title="TVA / D300"
       subtitle="Jurnal TVA cumparari si vanzari, sumar de lucru pentru decont."
       actions={(
-        <>
-          <Button onClick={markVatChecked} disabled={!canCheckVat}>TVA verificat</Button>
-          <DropdownMenu align="right" label="Export" items={[
+        <DropdownMenu align="right" label="Actiuni" items={[
+            canCheckVat ? { label: 'Marcheaza TVA verificat', onClick: markVatChecked } : null,
+            { type: 'separator' },
             { label: 'Export Excel', onClick: () => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`) },
             { label: 'XML lucru', onClick: () => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`) },
-          ]} />
-        </>
+            { type: 'separator' },
+            { label: 'Facturi intrare', to: `/contabilitate/facturi-intrare?luna=${month}` },
+            { label: 'Facturi iesire', to: `/contabilitate/facturi-iesire?luna=${month}` },
+            { label: 'Inchidere luna', to: `/contabilitate/inchidere-luna?luna=${month}` },
+          ].filter(Boolean)} />
       )}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}

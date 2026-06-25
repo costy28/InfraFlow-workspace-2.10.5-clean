@@ -33,7 +33,7 @@ export default function DropdownMenu({ label, items = [], active = false, align 
   }
 
   function renderItem(item, index) {
-    if (item.separator) return <div key={`sep-${index}`} className="my-1 border-t border-slate-100" />
+    if (item.separator || item.type === 'separator') return <div key={`sep-${index}`} className="my-1 border-t border-slate-100" />
     if (item.to) {
       return (
         <Link key={item.key || item.to || index} to={item.to} className={itemClass(item)} onClick={() => setOpen(false)}>

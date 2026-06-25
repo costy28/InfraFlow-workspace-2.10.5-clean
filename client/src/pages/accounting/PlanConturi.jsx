@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -7,8 +7,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
-import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountingShell, DropdownMenu, Info } from './accounting-shared'
 export function PlanConturi() {
   const [accounts, setAccounts] = useState([])
   const [filters, setFilters] = useState({ q: '', clasa: '', tip: '', nivel: '' })
@@ -127,6 +126,21 @@ export function PlanConturi() {
       setError(err.response?.data?.error || 'Statusul contului nu a putut fi schimbat.')
     }
   }
+  function selectedActionMenu(account = selected) {
+    if (!account) return []
+    return [
+      { label: 'Fisa cont', to: `/contabilitate/fisa-cont/${account.simbol}` },
+      { label: 'Editeaza cont', onClick: () => openEdit(account) },
+      { label: 'Vezi familia', onClick: () => setFilters({ ...filters, q: account.parinte_simbol || account.simbol.slice(0, 3) }) },
+      { label: 'Adauga analitic', onClick: () => openAnalytic(account) },
+      { type: 'separator' },
+      {
+        label: account.activ === false ? 'Reactiveaza cont' : 'Dezactiveaza cont',
+        onClick: toggleSelectedActive,
+        danger: account.activ !== false,
+      },
+    ]
+  }
   const classNames = {
     1: 'Capitaluri',
     2: 'Imobilizari',
@@ -143,7 +157,7 @@ export function PlanConturi() {
       active="plan"
       title="Plan de conturi"
       subtitle="Plan contabil romanesc: clase 1-9, sintetice si analitice."
-      actions={<Button onClick={() => openAnalytic(selected)} disabled={!selected}>+ Analitic</Button>}
+      actions={<DropdownMenu align="right" label="Actiuni cont" items={selectedActionMenu(selected)} />}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
@@ -214,11 +228,7 @@ export function PlanConturi() {
                 {selected.tva_deductibil ? 'Cont folosit pentru TVA deductibila.' : selected.tva_colectat ? 'Cont folosit pentru TVA colectata.' : 'Cont disponibil pentru note contabile si documente.'}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => navigate(`/contabilitate/fisa-cont/${selected.simbol}`)}>Fisa cont</Button>
-                <Button variant="secondary" onClick={() => openEdit(selected)}>Editeaza</Button>
-                <Button variant="secondary" onClick={() => setFilters({ ...filters, q: selected.parinte_simbol || selected.simbol.slice(0, 3) })}>Vezi familia</Button>
-                <Button variant="secondary" onClick={() => openAnalytic(selected)}>+ Analitic</Button>
-                <Button variant={selected.activ === false ? 'secondary' : 'outline'} onClick={toggleSelectedActive}>{selected.activ === false ? 'Reactiveaza' : 'Dezactiveaza'}</Button>
+                <DropdownMenu align="right" label="Actiuni cont" items={selectedActionMenu(selected)} />
               </div>
             </div>
           ) : (

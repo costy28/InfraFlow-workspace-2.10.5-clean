@@ -1,14 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
-import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
-import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { AccountingShell, DropdownMenu, Info, Table, currentMonth, statusTone } from './accounting-shared'
 export function InchidereLuna() {
   const [searchParams] = useSearchParams()
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
@@ -74,17 +72,24 @@ export function InchidereLuna() {
     checks.tva_checked === false ? 'TVA neverificat' : ''
   ].filter(Boolean)
   const resolveTarget = (row) => row.resolve_url || '/contabilitate'
+  const actionItems = [
+    { label: 'Verifica luna', onClick: load },
+    checks.can_close ? { label: 'Inchide luna', onClick: closeMonth } : null,
+    checks.can_reopen ? { label: 'Redeschide luna', onClick: reopenMonth } : null,
+    checks.can_mark_submitted ? { label: 'Declaratii depuse', onClick: markSubmitted } : null,
+    { type: 'separator' },
+    { label: 'TVA / D300', to: `/contabilitate/tva-d300?luna=${month}` },
+    { label: 'Balanta', to: `/contabilitate/balanta?luna=${month}` },
+    { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
+  ].filter(Boolean)
 
   return (
     <AccountingShell active="inchidere" title="Inchidere luna" subtitle="Verificari contabile, blocare luna si marcarea declaratiilor depuse.">
       <Card>
-        <div className="grid gap-3 md:grid-cols-[240px_auto_auto_auto]">
+        <div className="grid gap-3 md:grid-cols-[240px_auto]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
-          <div className="flex items-end"><Button variant="secondary" onClick={load}>Verifica luna</Button></div>
-          <div className="flex items-end"><Button disabled={!checks.can_close} onClick={closeMonth}>Inchide luna</Button></div>
-          <div className="flex items-end gap-2">
-            <Button variant="secondary" disabled={!checks.can_reopen} onClick={reopenMonth}>Redeschide</Button>
-            <Button variant="secondary" disabled={!checks.can_mark_submitted} onClick={markSubmitted}>Declaratii depuse</Button>
+          <div className="flex items-end justify-end">
+            <DropdownMenu align="right" label="Actiuni luna" items={actionItems} />
           </div>
         </div>
       </Card>

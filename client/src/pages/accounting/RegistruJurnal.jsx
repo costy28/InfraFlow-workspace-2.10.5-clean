@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -253,6 +253,20 @@ export function RegistruJurnal() {
     URL.revokeObjectURL(url)
   }
 
+  function selectedActionMenu(row) {
+    if (!row) return []
+    return [
+      ['draft', 'devalidat'].includes(row.status) ? { label: 'Editeaza nota', onClick: () => openEditNote(row) } : null,
+      ['draft', 'devalidat'].includes(row.status) ? { label: 'Valideaza nota', onClick: () => validateNote(row) } : null,
+      row.status === 'draft' ? { label: 'Anuleaza draft', onClick: () => cancelDraftNote(row) } : null,
+      row.status === 'activ' ? { label: 'Devalideaza nota', onClick: () => devalidateNote(row) } : null,
+      row.status === 'activ' ? { label: 'Storno nota', onClick: () => storno(row) } : null,
+      { type: 'separator' },
+      { label: 'Fisa primul cont', to: row.lines?.[0]?.cont_simbol ? `/contabilitate/fisa-cont/${row.lines[0].cont_simbol}?de_la=${month}-01&pana_la=${month}-31` : '/contabilitate/plan-conturi' },
+      { label: 'Balanta lunii', to: `/contabilitate/balanta?luna=${month}` },
+    ].filter(Boolean)
+  }
+
   const noteTotals = (noteForm.lines || []).reduce((acc, line) => {
     acc.debit += money(line.debit)
     acc.credit += money(line.credit)
@@ -345,11 +359,7 @@ export function RegistruJurnal() {
                 </table>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
-                {['draft', 'devalidat'].includes(selected.status) ? <Button variant="secondary" onClick={() => openEditNote(selected)}>Editeaza</Button> : null}
-                {['draft', 'devalidat'].includes(selected.status) ? <Button onClick={() => validateNote(selected)}>Valideaza</Button> : null}
-                {selected.status === 'draft' ? <Button variant="outline" onClick={() => cancelDraftNote(selected)}>Anuleaza</Button> : null}
-                {selected.status === 'activ' ? <Button variant="secondary" onClick={() => devalidateNote(selected)}>Devalideaza</Button> : null}
-                {selected.status === 'activ' ? <Button variant="secondary" onClick={() => storno(selected)}>Storno nota</Button> : null}
+                <DropdownMenu align="right" label="Actiuni nota" items={selectedActionMenu(selected)} />
               </div>
             </div>
           ) : (

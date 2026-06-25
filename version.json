@@ -1,5 +1,5 @@
 {
-  "version": "2.12.127",
+  "version": "2.12.129",
   "date": "2026-06-25",
-  "changelog": "## v2.12.127 - 2026-06-25\n### Contabilitate - actiuni dashboard\n- Dashboard-ul de contabilitate foloseste meniu Actiuni pentru exportul reconcilierii si scurtaturi operationale.\n- Bara de comenzi ramane mai curata, in acelasi stil cu facturile si trezoreria.\n- Au fost curatate importurile nefolosite din componenta dashboard contabil."
+  "changelog": "## v2.12.129 - 2026-06-25\n### Contabilitate - plan de conturi mai aerisit\n- Planul de conturi foloseste dropdown Actiuni cont pentru fisa, editare, familie, analitic si activare/dezactivare.\n- Componenta DropdownMenu accepta corect separatoare definite prin type=separator.\n- Importurile nefolosite din Plan de conturi au fost curatate."
 }
