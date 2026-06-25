@@ -171,6 +171,25 @@ export function Trezorerie() {
       drafturi: visibleRows.filter(row => row.status === 'draft').length
     }
   }, [visibleRows])
+  const openInvoiceSummary = useMemo(() => {
+    const suppliers = openInvoicesIn.map(invoice => ({ ...invoice, rest: invoiceRemaining(invoice, 'intrare'), type: 'intrare' }))
+    const clients = openInvoicesOut.map(invoice => ({ ...invoice, rest: invoiceRemaining(invoice, 'iesire'), type: 'iesire' }))
+    return {
+      suppliers,
+      clients,
+      supplierTotal: suppliers.reduce((sum, invoice) => sum + invoice.rest, 0),
+      clientTotal: clients.reduce((sum, invoice) => sum + invoice.rest, 0),
+      overdueSuppliers: suppliers.filter(invoice => invoice.data_scadenta && invoice.data_scadenta < today()).length,
+      overdueClients: clients.filter(invoice => invoice.data_scadenta && invoice.data_scadenta < today()).length,
+      priority: [...suppliers, ...clients]
+        .sort((a, b) => {
+          const aDue = a.data_scadenta || '9999-12-31'
+          const bDue = b.data_scadenta || '9999-12-31'
+          return aDue.localeCompare(bDue) || b.rest - a.rest
+        })
+        .slice(0, 6)
+    }
+  }, [openInvoicesIn, openInvoicesOut])
 
   async function exportExcel() {
     const [an, luna] = month.split('-')
@@ -215,6 +234,35 @@ export function Trezorerie() {
     setMessage('')
     setValidatedJournal(null)
     setForm({ ...defaultForm(), ...row, tert_id: row.tert_id || '', invoice_in_id: row.invoice_in_id || '', invoice_out_id: row.invoice_out_id || '' })
+    setModal(true)
+  }
+
+  function openInvoiceOperation(invoice, type) {
+    const next = defaultForm()
+    if (type === 'intrare') {
+      const tert = tertById.get(String(invoice.furnizor_id))
+      next.tip_operatie = 'plata'
+      next.tert_id = invoice.furnizor_id || ''
+      next.cont_corespondent = tert?.cont_analitic_furnizor || '401'
+      next.suma = invoiceRemaining(invoice, 'intrare')
+      next.nr_document = invoice.nr_document || invoiceDocument(invoice)
+      next.invoice_in_id = invoice.id
+      next.explicatie = `Plata factura ${invoiceDocument(invoice)}`
+    } else {
+      const tert = tertById.get(String(invoice.client_id))
+      next.tip_operatie = 'incasare'
+      next.tert_id = invoice.client_id || ''
+      next.cont_corespondent = tert?.cont_analitic_client || '4111'
+      next.suma = invoiceRemaining(invoice, 'iesire')
+      next.nr_document = invoiceDocument(invoice)
+      next.invoice_out_id = invoice.id
+      next.explicatie = `Incasare factura ${invoiceDocument(invoice)}`
+    }
+    setEditing(null)
+    setError('')
+    setMessage(type === 'intrare' ? 'Plata a fost pregătită din factura furnizor.' : 'Încasarea a fost pregătită din factura client.')
+    setValidatedJournal(null)
+    setForm(next)
     setModal(true)
   }
 
@@ -496,6 +544,70 @@ export function Trezorerie() {
         <Card density="compact"><div className="text-xs text-slate-500">Diferenta</div><div className="text-lg font-semibold">{formatMoney(totals.diferenta)}</div></Card>
         <Card density="compact"><div className="text-xs text-slate-500">Drafturi</div><div className="text-lg font-semibold">{totals.drafturi}</div></Card>
       </div>
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Facturi deschise pentru trezorerie</h3>
+            <p className="text-sm text-slate-500">Plăți și încasări pregătite direct din facturile validate cu rest.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-sm">
+            <Badge tone={openInvoiceSummary.overdueSuppliers ? 'danger' : openInvoiceSummary.suppliers.length ? 'warning' : 'success'}>
+              Furnizori {formatMoney(openInvoiceSummary.supplierTotal)}
+            </Badge>
+            <Badge tone={openInvoiceSummary.overdueClients ? 'danger' : openInvoiceSummary.clients.length ? 'warning' : 'success'}>
+              Clienți {formatMoney(openInvoiceSummary.clientTotal)}
+            </Badge>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          <div className="rounded-md border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-sm font-semibold text-slate-800">De plătit furnizori</div>
+              <Badge tone={openInvoiceSummary.overdueSuppliers ? 'danger' : openInvoiceSummary.suppliers.length ? 'warning' : 'success'}>{openInvoiceSummary.suppliers.length}</Badge>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {openInvoiceSummary.suppliers.slice(0, 4).map(invoice => (
+                <div key={`in-${invoice.id}`} className="grid gap-2 px-3 py-2 text-sm md:grid-cols-[minmax(160px,1fr)_110px_120px] md:items-center">
+                  <div>
+                    <div className="font-semibold text-slate-900">{invoiceDocument(invoice)}</div>
+                    <div className="text-xs text-slate-500">{tertById.get(String(invoice.furnizor_id))?.denumire || 'Furnizor'} · scadent {invoice.data_scadenta || '-'}</div>
+                  </div>
+                  <div className="font-semibold text-slate-900">{formatMoney(invoice.rest)}</div>
+                  <DropdownMenu align="right" label="Actiuni" items={[
+                    { label: 'Pregateste plata', onClick: () => openInvoiceOperation(invoice, 'intrare') },
+                    { label: 'Deschide factura', to: `/contabilitate/facturi-intrare?luna=${month}&q=${encodeURIComponent(invoiceDocument(invoice))}` },
+                    { label: 'Fisa furnizor', to: `/contabilitate/furnizori?furnizor=${invoice.furnizor_id}` }
+                  ]} />
+                </div>
+              ))}
+              {openInvoiceSummary.suppliers.length ? null : <div className="px-3 py-5 text-sm text-slate-500">Nu sunt facturi furnizor deschise.</div>}
+            </div>
+          </div>
+          <div className="rounded-md border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-sm font-semibold text-slate-800">De încasat clienți</div>
+              <Badge tone={openInvoiceSummary.overdueClients ? 'danger' : openInvoiceSummary.clients.length ? 'warning' : 'success'}>{openInvoiceSummary.clients.length}</Badge>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {openInvoiceSummary.clients.slice(0, 4).map(invoice => (
+                <div key={`out-${invoice.id}`} className="grid gap-2 px-3 py-2 text-sm md:grid-cols-[minmax(160px,1fr)_110px_120px] md:items-center">
+                  <div>
+                    <div className="font-semibold text-slate-900">{invoiceDocument(invoice)}</div>
+                    <div className="text-xs text-slate-500">{tertById.get(String(invoice.client_id))?.denumire || 'Client'} · scadent {invoice.data_scadenta || '-'}</div>
+                  </div>
+                  <div className="font-semibold text-slate-900">{formatMoney(invoice.rest)}</div>
+                  <DropdownMenu align="right" label="Actiuni" items={[
+                    { label: 'Pregateste incasarea', onClick: () => openInvoiceOperation(invoice, 'iesire') },
+                    { label: 'Deschide factura', to: `/contabilitate/facturi-iesire?luna=${month}&q=${encodeURIComponent(invoiceDocument(invoice))}` },
+                    { label: 'Fisa client', to: `/contabilitate/clienti?client=${invoice.client_id}` }
+                  ]} />
+                </div>
+              ))}
+              {openInvoiceSummary.clients.length ? null : <div className="px-3 py-5 text-sm text-slate-500">Nu sunt facturi client deschise.</div>}
+            </div>
+          </div>
+        </div>
+      </Card>
       <Table headers={['Data', 'Tip', 'Operatie', 'Document', 'Tert', 'Cont', 'Corespondent', 'Suma', 'Status', 'Nota', 'Actiuni']}>
         {visibleRows.map(row => (
           <tr key={row.uuid}>
