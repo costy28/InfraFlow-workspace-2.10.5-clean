@@ -5,7 +5,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
-import { AccountSelect, AccountingShell, Table } from './accounting-shared'
+import { AccountSelect, AccountingShell, DropdownMenu, Table } from './accounting-shared'
 
 const blankTemplate = {
   source: 'intrare',
@@ -110,8 +110,35 @@ export function SabloaneNote() {
     }
   }
 
+  function templateMenu(template) {
+    if (template.system) {
+      return [
+        { label: 'Sablon de sistem', disabled: true },
+        { label: 'Creeaza sablon custom', onClick: openNew }
+      ]
+    }
+    return [
+      { label: 'Editeaza sablon', onClick: () => openEdit(template) },
+      {
+        label: template.activ === false ? 'Activeaza sablon' : 'Dezactiveaza sablon',
+        onClick: () => toggleActive(template),
+        danger: template.activ !== false
+      }
+    ]
+  }
+
   return (
-    <AccountingShell active="sabloane" title="Sabloane note contabile" subtitle="Reguli rapide pentru completarea conturilor pe facturi.">
+    <AccountingShell
+      active="sabloane"
+      title="Sabloane note contabile"
+      subtitle="Reguli rapide pentru completarea conturilor pe facturi."
+      actions={<DropdownMenu align="right" label="Actiuni" items={[
+        { label: 'Sablon nou', onClick: openNew },
+        { type: 'separator' },
+        { label: 'Facturi intrare', to: '/contabilitate/facturi-intrare' },
+        { label: 'Facturi iesire', to: '/contabilitate/facturi-iesire' }
+      ]} />}
+    >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
@@ -120,7 +147,9 @@ export function SabloaneNote() {
           { value: 'intrare', label: 'Facturi intrare' },
           { value: 'iesire', label: 'Facturi iesire' }
         ]} />
-        <Button onClick={openNew}>+ Sablon</Button>
+        <DropdownMenu align="right" label="Actiuni" items={[
+          { label: 'Sablon nou', onClick: openNew }
+        ]} />
       </div>
       <Table headers={['Tip', 'Denumire', 'Nota', 'Cont linie', 'TVA', 'Tert', 'Status', 'Actiuni']}>
         {filtered.map(template => (
@@ -138,10 +167,7 @@ export function SabloaneNote() {
               <Badge tone={template.activ === false ? 'danger' : template.system ? 'info' : 'success'}>{template.activ === false ? 'inactiv' : template.system ? 'sistem' : 'custom'}</Badge>
             </td>
             <td className="px-3 py-2">
-              <div className="flex flex-wrap gap-2">
-                {!template.system ? <Button size="sm" variant="secondary" onClick={() => openEdit(template)}>Edit</Button> : null}
-                {!template.system ? <Button size="sm" variant="secondary" onClick={() => toggleActive(template)}>{template.activ === false ? 'Activeaza' : 'Dezactiveaza'}</Button> : null}
-              </div>
+              <DropdownMenu align="right" label="Actiuni" items={templateMenu(template)} />
             </td>
           </tr>
         ))}

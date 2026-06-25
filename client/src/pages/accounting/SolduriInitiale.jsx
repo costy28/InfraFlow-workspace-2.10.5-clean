@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../../api/client'
-import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
 import { formatMoney } from '../../utils/format'
-import { AccountSelect, AccountingShell, Info, Table, money } from './accounting-shared'
+import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, money } from './accounting-shared'
 
 function currentYear() {
   return String(new Date().getFullYear())
@@ -99,13 +98,20 @@ export function SolduriInitiale() {
   }
 
   const status = localTotals.balanced ? 'Echilibrat' : `Diferenta ${formatMoney(Math.abs(localTotals.diferenta))}`
+  const hasEditableRows = visibleRows.some(row => row.cont_simbol || row.debit || row.credit || row.observatii)
 
   return (
     <AccountingShell
       active="solduri"
       title="Solduri initiale"
       subtitle="Punctul de pornire pentru balanta si fisa contului."
-      actions={<Button onClick={save} loading={saving}>Salveaza solduri</Button>}
+      actions={<DropdownMenu align="right" label={saving ? 'Se salveaza...' : 'Actiuni'} items={[
+        { label: 'Salveaza solduri', onClick: save, disabled: saving || !hasEditableRows },
+        { label: 'Adauga linie', onClick: addRow },
+        { label: 'Reincarca solduri', onClick: load },
+        { type: 'separator' },
+        { label: 'Verifica in balanta', to: `/contabilitate/balanta?luna=${year}-01` }
+      ]} />}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
@@ -123,7 +129,7 @@ export function SolduriInitiale() {
         <Info label="Sold credit" value={formatMoney(localTotals.credit || totals.credit || 0)} />
         <Info label="Diferenta" value={formatMoney(Math.abs(localTotals.diferenta || totals.diferenta || 0))} />
       </div>
-      <Table headers={['Cont', 'Sold debit', 'Sold credit', 'Observatii', '']}>
+      <Table headers={['Cont', 'Sold debit', 'Sold credit', 'Observatii', 'Actiuni']}>
         {visibleRows.map((row, index) => (
           <tr key={`${row.cont_simbol || 'nou'}-${index}`} className="align-top hover:bg-slate-50">
             <td className="min-w-[320px] px-3 py-2">
@@ -156,7 +162,10 @@ export function SolduriInitiale() {
               <Input label="Observatii" value={row.observatii || ''} onChange={event => updateRow(index, { observatii: event.target.value })} />
             </td>
             <td className="px-3 py-8 text-right">
-              <Button variant="secondary" onClick={() => removeRow(index)} disabled={visibleRows.length === 1 && !row.cont_simbol}>Sterge</Button>
+              <DropdownMenu align="right" label="Actiuni" items={[
+                { label: 'Adauga linie sub aceasta', onClick: () => setRows([...visibleRows.slice(0, index + 1), emptyRow(), ...visibleRows.slice(index + 1)]) },
+                { label: 'Sterge linia', onClick: () => removeRow(index), disabled: visibleRows.length === 1 && !row.cont_simbol, danger: true }
+              ]} />
             </td>
           </tr>
         ))}
@@ -165,7 +174,12 @@ export function SolduriInitiale() {
           <td className="px-3 py-2 text-right">{formatMoney(localTotals.debit)}</td>
           <td className="px-3 py-2 text-right">{formatMoney(localTotals.credit)}</td>
           <td className="px-3 py-2">{status}</td>
-          <td className="px-3 py-2 text-right"><Button variant="secondary" onClick={addRow}>+ Linie</Button></td>
+          <td className="px-3 py-2 text-right">
+            <DropdownMenu align="right" label="Actiuni" items={[
+              { label: 'Adauga linie', onClick: addRow },
+              { label: 'Salveaza solduri', onClick: save, disabled: saving || !hasEditableRows }
+            ]} />
+          </td>
         </tr>
       </Table>
     </AccountingShell>

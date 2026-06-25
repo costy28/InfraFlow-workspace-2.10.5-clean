@@ -1,5 +1,5 @@
 {
-  "version": "2.12.130",
+  "version": "2.12.131",
   "date": "2026-06-25",
-  "changelog": "## v2.12.130 - 2026-06-25\n### Contabilitate - actiuni compacte terti\n- Furnizorii si clientii folosesc meniul Actiuni pentru adaugare si exporturi.\n- Detaliul tertului grupeaza confirmarea de sold, exporturile, fisa cont si scurtaturile intr-un meniu contextual.\n- Panoul de confirmare sold este mai aerisit si pastreaza aceleasi operatii."
+  "changelog": "## v2.12.131 - 2026-06-25\n### Contabilitate - actiuni solduri si sabloane\n- Soldurile initiale folosesc meniuri Actiuni pentru salvare, adaugare linie, reincarcare si verificare in balanta.\n- Randurile din solduri initiale au actiuni compacte pentru adaugare/stergere linie.\n- Sabloanele de note contabile folosesc meniuri Actiuni pentru creare, editare si activare/dezactivare."
 }
