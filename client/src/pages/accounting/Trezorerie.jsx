@@ -410,6 +410,30 @@ export function Trezorerie() {
     }
   }
 
+  function rowActionMenu(row) {
+    const rowMonth = row.balance_month || row.data?.slice(0, 7) || month
+    const canValidate = row.status === 'draft'
+    const canDevalidate = row.status === 'validat'
+    const invoiceLink = row.linked_invoice
+      ? row.linked_invoice.tip === 'intrare'
+        ? `/contabilitate/facturi-intrare?factura=${row.linked_invoice.id}`
+        : `/contabilitate/facturi-iesire?factura=${row.linked_invoice.id}`
+      : ''
+    return [
+      canValidate ? { label: 'Editeaza operatia', onClick: () => openEdit(row) } : null,
+      canValidate ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
+      canValidate ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
+      canDevalidate ? { label: 'Devalideaza', onClick: () => devalidate(row), danger: true } : null,
+      { separator: true },
+      row.journal_uuid ? { label: 'Vezi nota contabila', onClick: () => openJournal(row) } : null,
+      row.journal_uuid ? { label: 'Deschide registru jurnal', to: `/contabilitate/registru-jurnal?luna=${rowMonth}&note=${row.journal_uuid}` } : null,
+      invoiceLink ? { label: 'Deschide factura legata', to: invoiceLink } : null,
+      { separator: true },
+      row.cont_trezorerie ? { label: `Fisa cont ${row.cont_trezorerie}`, to: `/contabilitate/fisa-cont/${row.cont_trezorerie}?de_la=${rowMonth}-01&pana_la=${rowMonth}-31` } : null,
+      row.cont_corespondent ? { label: `Fisa cont ${row.cont_corespondent}`, to: `/contabilitate/fisa-cont/${row.cont_corespondent}?de_la=${rowMonth}-01&pana_la=${rowMonth}-31` } : null
+    ]
+  }
+
   return (
     <AccountingShell active="trezorerie" title="Trezorerie" subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate." actions={<><Button onClick={openNew}>+ Operatie</Button><DropdownMenu align="right" label="Export" items={[{ label: 'Export Excel', onClick: exportExcel }]} /></>}>
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
@@ -485,12 +509,7 @@ export function Trezorerie() {
               ) : '-'}
             </td>
             <td className="px-3 py-2">
-              <div className="flex flex-wrap gap-2">
-                {row.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Edit</Button> : null}
-                {row.status === 'draft' ? <Button size="sm" loading={actionLoading === `validate-${row.uuid}`} onClick={() => validate(row)}>Valideaza</Button> : null}
-                {row.status === 'draft' ? <Button size="sm" variant="secondary" loading={actionLoading === `cancel-${row.uuid}`} onClick={() => cancelDraft(row)}>Anuleaza</Button> : null}
-                {row.status === 'validat' ? <Button size="sm" variant="secondary" loading={actionLoading === `devalidate-${row.uuid}`} onClick={() => devalidate(row)}>Devalideaza</Button> : null}
-              </div>
+              <DropdownMenu align="right" label={actionLoading.endsWith(`-${row.uuid}`) ? 'Se lucreaza...' : 'Actiuni'} items={rowActionMenu(row)} />
             </td>
           </tr>
         ))}

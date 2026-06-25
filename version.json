@@ -1,5 +1,5 @@
 {
-  "version": "2.12.124",
+  "version": "2.12.125",
   "date": "2026-06-25",
-  "changelog": "## v2.12.124 - 2026-06-25\n### Contabilitate - actiuni rapide confirmari sold\n- Confirmarile de sold pot fi tiparite, exportate, marcate ca trimise sau primite direct din lista de clienti/furnizori.\n- Confirmarile gresite pot fi anulate fara stergere fizica.\n- Actiunile tertului sunt grupate in dropdown pentru o interfata mai aerisita."
+  "changelog": "## v2.12.125 - 2026-06-25\n### Contabilitate - actiuni compacte in trezorerie\n- Actiunile operatiilor de trezorerie sunt grupate in dropdown per rand.\n- Meniul permite validare, devalidare, anulare draft, nota contabila, factura legata si fise de cont.\n- Tabelul de trezorerie este mai aerisit si mai usor de folosit pe ecrane inguste."
 }
