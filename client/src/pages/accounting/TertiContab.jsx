@@ -53,6 +53,7 @@ export function TertiContab({ type = 'furnizor' }) {
   const [detailLoading, setDetailLoading] = useState(false)
   const [confirmationSaving, setConfirmationSaving] = useState('')
   const [receiveModal, setReceiveModal] = useState(false)
+  const [receiveTarget, setReceiveTarget] = useState(null)
   const [receiveForm, setReceiveForm] = useState({ confirmed_sold: '', observatii: '' })
   const [q, setQ] = useState('')
   const [activeFilter, setActiveFilter] = useState('active')
@@ -232,15 +233,15 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
-  async function exportConfirmation() {
-    if (!detail?.tert?.id) return
+  async function exportConfirmation(target = detail?.tert) {
+    if (!target?.id) return
     setError('')
     try {
-      const res = await api.get(`${statusEndpoint}/${detail.tert.id}/confirmation`, { responseType: 'blob' })
+      const res = await api.get(`${statusEndpoint}/${target.id}/confirmation`, { responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
       const link = document.createElement('a')
       link.href = url
-      const safeName = String(detail.tert.denumire || detail.tert.cod || 'tert').replace(/[^\w.-]+/g, '_')
+      const safeName = String(target.denumire || target.cod || 'tert').replace(/[^\w.-]+/g, '_')
       link.download = `Confirmare_sold_${type}_${safeName}.xlsx`
       document.body.appendChild(link)
       link.click()
@@ -251,22 +252,26 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
-  function printConfirmation() {
-    if (!detail?.tert?.id) return
+  function printConfirmation(target = detail?.tert) {
+    if (!target?.id) return
     const token = localStorage.getItem('infraflow_token')
     const authQuery = token ? `?token=${encodeURIComponent(token)}` : ''
-    window.open(`/api${statusEndpoint}/${detail.tert.id}/confirmation/print${authQuery}`, '_blank', 'noopener,noreferrer')
+    window.open(`/api${statusEndpoint}/${target.id}/confirmation/print${authQuery}`, '_blank', 'noopener,noreferrer')
   }
 
-  async function markConfirmation(action, payload = {}) {
-    if (!detail?.tert?.id) return
+  async function markConfirmation(action, payload = {}, target = detail?.tert) {
+    if (!target?.id) return
     setError('')
     setMessage('')
-    setConfirmationSaving(action)
+    setConfirmationSaving(`${action}-${target.id}`)
     try {
-      const res = await api.post(`${statusEndpoint}/${detail.tert.id}/confirmation/${action}`, payload)
-      setDetail(res.data.detail || detail)
-      setMessage(action === 'sent' ? 'Confirmarea de sold a fost marcata ca trimisa.' : 'Confirmarea de sold a fost marcata ca primita.')
+      const res = await api.post(`${statusEndpoint}/${target.id}/confirmation/${action}`, payload)
+      if (detail?.tert?.id && String(detail.tert.id) === String(target.id)) setDetail(res.data.detail || detail)
+      setMessage(action === 'sent'
+        ? 'Confirmarea de sold a fost marcata ca trimisa.'
+        : action === 'received'
+          ? 'Confirmarea de sold a fost marcata ca primita.'
+          : 'Confirmarea de sold a fost anulata.')
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Statusul confirmarii de sold nu a putut fi salvat.')
@@ -275,11 +280,12 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
-  function openReceiveConfirmation() {
-    if (!detail?.tert?.id) return
+  function openReceiveConfirmation(target = detail?.tert) {
+    if (!target?.id) return
+    setReceiveTarget(target)
     setReceiveForm({
-      confirmed_sold: String(detail?.confirmation?.confirmed_sold ?? detail?.totals?.rest ?? 0),
-      observatii: detail?.confirmation?.observatii || ''
+      confirmed_sold: String(target?.confirmation?.confirmed_sold ?? target?.sold ?? detail?.totals?.rest ?? 0),
+      observatii: target?.confirmation?.observatii || ''
     })
     setReceiveModal(true)
   }
@@ -289,8 +295,31 @@ export function TertiContab({ type = 'furnizor' }) {
     await markConfirmation('received', {
       confirmed_sold: receiveForm.confirmed_sold,
       observatii: receiveForm.observatii
-    })
+    }, receiveTarget || detail?.tert)
     setReceiveModal(false)
+    setReceiveTarget(null)
+  }
+
+  async function cancelConfirmation(row) {
+    if (!row?.id) return
+    const ok = window.confirm('Anulezi ultima confirmare de sold pentru acest tert? Istoricul ramane pastrat.')
+    if (!ok) return
+    await markConfirmation('cancel', { motiv: 'Anulare confirmare sold' }, row)
+  }
+
+  function confirmationMenu(row) {
+    return [
+      { label: 'Detalii tert', onClick: () => openDetails(row) },
+      { label: 'Editeaza tert', onClick: () => openEdit(row) },
+      { separator: true },
+      { label: 'Tipareste confirmare', onClick: () => printConfirmation(row) },
+      { label: 'Export confirmare sold', onClick: () => exportConfirmation(row) },
+      { label: 'Marcheaza trimisa', onClick: () => markConfirmation('sent', {}, row) },
+      { label: 'Marcheaza primita', onClick: () => openReceiveConfirmation(row) },
+      row.confirmation ? { label: 'Anuleaza confirmarea', onClick: () => cancelConfirmation(row), danger: true } : null,
+      { separator: true },
+      { label: row.activ === false ? 'Reactiveaza tert' : 'Dezactiveaza tert', onClick: () => toggleActive(row), danger: row.activ !== false }
+    ]
   }
 
   return (
@@ -380,11 +409,7 @@ export function TertiContab({ type = 'furnizor' }) {
             </td>
             <td className="px-3 py-2"><Badge tone={row.activ === false ? 'neutral' : 'success'}>{row.activ === false ? 'inactiv' : 'activ'}</Badge></td>
             <td className="px-3 py-2">
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={() => openDetails(row)}>Detalii</Button>
-                <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>Editeaza</Button>
-                <Button size="sm" variant={row.activ === false ? 'secondary' : 'outline'} onClick={() => toggleActive(row)}>{row.activ === false ? 'Reactiveaza' : 'Dezactiveaza'}</Button>
-              </div>
+              <DropdownMenu align="right" label={confirmationSaving.endsWith(`-${row.id}`) ? 'Se salveaza...' : 'Actiuni'} items={confirmationMenu(row)} />
             </td>
           </tr>
         ))}
@@ -482,8 +507,9 @@ export function TertiContab({ type = 'furnizor' }) {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="secondary" onClick={() => markConfirmation('sent')} loading={confirmationSaving === 'sent'}>Marcheaza trimisa</Button>
-                <Button size="sm" variant="secondary" onClick={openReceiveConfirmation} loading={confirmationSaving === 'received'}>Marcheaza primita</Button>
+                <Button size="sm" variant="secondary" onClick={() => markConfirmation('sent')} loading={confirmationSaving === `sent-${detail?.tert?.id}`}>Marcheaza trimisa</Button>
+                <Button size="sm" variant="secondary" onClick={() => openReceiveConfirmation()} loading={confirmationSaving === `received-${detail?.tert?.id}`}>Marcheaza primita</Button>
+                {detail?.confirmation ? <Button size="sm" variant="outline" onClick={() => cancelConfirmation(detail.tert)} loading={confirmationSaving === `cancel-${detail?.tert?.id}`}>Anuleaza</Button> : null}
               </div>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
@@ -586,7 +612,7 @@ export function TertiContab({ type = 'furnizor' }) {
       <Modal open={receiveModal} title="Confirmare sold primita" onClose={() => setReceiveModal(false)}>
         <form className="grid gap-3" onSubmit={submitReceiveConfirmation}>
           <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            Sold in evidenta: <strong>{formatMoney(detail?.totals?.rest || 0)}</strong>
+            Sold in evidenta: <strong>{formatMoney(receiveTarget?.sold ?? detail?.totals?.rest ?? 0)}</strong>
           </div>
           <Input
             label="Sold confirmat"
@@ -605,11 +631,11 @@ export function TertiContab({ type = 'furnizor' }) {
             />
           </label>
           <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            Diferenta calculata: <strong>{formatMoney(Number(receiveForm.confirmed_sold || 0) - Number(detail?.totals?.rest || 0))}</strong>
+            Diferenta calculata: <strong>{formatMoney(Number(receiveForm.confirmed_sold || 0) - Number(receiveTarget?.sold ?? detail?.totals?.rest ?? 0))}</strong>
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setReceiveModal(false)}>Renunta</Button>
-            <Button type="submit" loading={confirmationSaving === 'received'}>Salveaza confirmarea</Button>
+            <Button type="button" variant="secondary" onClick={() => { setReceiveModal(false); setReceiveTarget(null) }}>Renunta</Button>
+            <Button type="submit" loading={confirmationSaving.startsWith('received-')}>Salveaza confirmarea</Button>
           </div>
         </form>
       </Modal>

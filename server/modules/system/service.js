@@ -557,18 +557,19 @@ function installUpdatePackage(db, user, archiveBuffer, options = {}) {
     const packageRoot = findExtractedPackageRoot(extractDir);
     const { payload } = verifyReleaseManifest(packageRoot);
     validateUpdatePackageRoot(packageRoot, payload);
+    const currentVersion = readPackageVersion();
     const packageVersion = readPackageVersionFrom(packageRoot);
-    if (compareVersions(packageVersion, APP_VERSION) <= 0) {
-      throwHttp(400, `Pachetul are versiunea ${packageVersion}, iar aplicatia curenta este ${APP_VERSION}. Incarca o versiune mai noua.`);
+    if (compareVersions(packageVersion, currentVersion) <= 0) {
+      throwHttp(400, `Pachetul are versiunea ${packageVersion}, iar aplicatia curenta este ${currentVersion}. Incarca o versiune mai noua.`);
     }
-    const dataBackup = createServerBackup(db, user, `Backup automat inainte de update ${APP_VERSION} -> ${packageVersion}`);
+    const dataBackup = createServerBackup(db, user, `Backup automat inainte de update ${currentVersion} -> ${packageVersion}`);
     const filesBackup = backupApplicationFiles([...payload.files, { path: "release-manifest.json" }], timestamp);
     installManifestFiles(packageRoot, payload.files);
     fs.copyFileSync(path.join(packageRoot, "release-manifest.json"), RELEASE_MANIFEST_FILE);
-    addAudit(db, user, "update_aplicatie_instalat", `Update ${APP_VERSION} -> ${packageVersion}. Pachet: ${fileName}. Backup date: ${dataBackup?.name || "-"}. Backup fisiere: ${path.basename(filesBackup)}`);
+    addAudit(db, user, "update_aplicatie_instalat", `Update ${currentVersion} -> ${packageVersion}. Pachet: ${fileName}. Backup date: ${dataBackup?.name || "-"}. Backup fisiere: ${path.basename(filesBackup)}`);
     return {
       ok: true,
-      currentVersion: APP_VERSION,
+      currentVersion,
       installedVersion: packageVersion,
       cacheVersion: readCacheVersionFromPackage(packageRoot),
       backup: dataBackup,
@@ -583,7 +584,7 @@ function installUpdatePackage(db, user, archiveBuffer, options = {}) {
 }
 
 async function verificaUpdateDisponibil(licenta) {
-  const versiuneCurenta = require('../../package.json').version || '0.2.44'
+  const versiuneCurenta = readPackageVersion()
   try {
     const url = 'https://updates.infraflow.ro/api/check' +
       '?versiune=' + versiuneCurenta +
@@ -613,7 +614,8 @@ async function instaleazaUpdateOnline(db, user, licenta, versiune) {
   }
   const targetVersion = versiune || (await verificaUpdateDisponibil(licenta)).versiune_noua
   if (!targetVersion) throwHttp(400, 'Versiune update lipsă.')
-  createServerBackup(db, user, `Backup automat înainte de update online ${APP_VERSION} -> ${targetVersion}`)
+  const currentVersion = readPackageVersion()
+  createServerBackup(db, user, `Backup automat înainte de update online ${currentVersion} -> ${targetVersion}`)
   const url = 'https://updates.infraflow.ro/api/download/' + encodeURIComponent(targetVersion) +
     '?licenta=' + encodeURIComponent(licenta?.licenseId || 'DEMO')
   const response = await fetch(url, { signal: AbortSignal.timeout(120000) })
@@ -739,6 +741,8 @@ try {
     if ($task) {
       "[$(Get-Date -Format o)] Restart task InfraFlow ERP." | Add-Content -LiteralPath $logPath -Encoding UTF8
       Stop-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
+      Start-Sleep -Seconds 2
+      Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
       Start-Sleep -Seconds 2
       Start-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction Stop
     } else {
@@ -997,12 +1001,21 @@ function networkUrls() {
 }
 
 function readPackageVersion() {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-    return pkg.version || "0.0.0";
-  } catch {
-    return "0.0.0";
+  const candidates = [
+    path.join(ROOT, "version.json"),
+    path.join(ROOT, "package.json"),
+    path.join(ROOT, "server", "package.json")
+  ];
+  for (const filePath of candidates) {
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      const pkg = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      if (String(pkg.version || "").trim()) return String(pkg.version).trim();
+    } catch {
+      // Continua cu urmatorul fisier.
+    }
   }
+  return "0.0.0";
 }
 
 function ensureDefaultWorkflowTemplates(db) {

@@ -86,6 +86,68 @@ const updateUpload = multer({
   limits: { fileSize: 500 * 1024 * 1024 }
 })
 
+function readRuntimeVersionInfo() {
+  const candidates = [
+    path.join(ROOT, "version.json"),
+    path.join(ROOT, "package.json"),
+    path.join(ROOT, "server", "package.json")
+  ];
+  for (const filePath of candidates) {
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      const info = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      if (String(info.version || "").trim()) {
+        return {
+          version: String(info.version).trim(),
+          date: info.date || null,
+          source: path.relative(ROOT, filePath).replace(/\\/g, "/")
+        };
+      }
+    } catch {
+      // Continua cu urmatorul candidat; versiunea nu trebuie sa blocheze pornirea.
+    }
+  }
+  return { version: APP_VERSION || "dev", date: null, source: "runtime" };
+}
+
+function readRuntimeVersion() {
+  return readRuntimeVersionInfo().version;
+}
+
+function updateJsonVersionFile(filePath, version) {
+  if (!fs.existsSync(filePath)) return;
+  try {
+    const info = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    info.version = version;
+    fs.writeFileSync(filePath, JSON.stringify(info, null, 2) + "\n");
+    delete require.cache[require.resolve(filePath)];
+  } catch {
+    // Nu blocam update-ul daca un package auxiliar lipseste sau este partial.
+  }
+}
+
+function syncRuntimeVersionFiles(version, versionInfo = {}) {
+  const normalized = String(version || "").trim();
+  if (!normalized) return;
+  const versionPath = path.join(ROOT, "version.json");
+  if (!fs.existsSync(versionPath)) {
+    fs.writeFileSync(versionPath, JSON.stringify({
+      version: normalized,
+      date: new Date().toISOString().slice(0, 10),
+      changelog: versionInfo.changelog || ""
+    }, null, 2) + "\n");
+  } else {
+    updateJsonVersionFile(versionPath, normalized);
+  }
+  [
+    path.join(ROOT, "package.json"),
+    path.join(ROOT, "server", "package.json"),
+    path.join(ROOT, "client", "package.json"),
+    path.join(ROOT, "electron", "package.json")
+  ].forEach((filePath) => updateJsonVersionFile(filePath, normalized));
+  updateCheckCache = { at: 0, data: null };
+}
+
 const baseModuleKeys = new Set(["core", "inventory", "production", "reports", "system"])
 const configurableModuleKeys = new Set([
   "fleet",
@@ -352,12 +414,14 @@ router.get(['/system/update/check', '/system/update-check'], async (req, res, ne
     if (!auth) return;
     if (!requirePermission(auth, res, "system:view")) return;
     const now = Date.now();
-    if (!updateCheckCache.data || now - updateCheckCache.at > 60 * 60 * 1000) {
+    const currentVersion = readRuntimeVersion();
+    if (!updateCheckCache.data || updateCheckCache.data.versiune_curenta !== currentVersion || now - updateCheckCache.at > 60 * 60 * 1000) {
       updateCheckCache = {
         at: now,
         data: await verificaUpdateDisponibil(global.LICENTA)
       };
     }
+    updateCheckCache.data.versiune_curenta = currentVersion;
     sendJson(res, 200, updateCheckCache.data);
   } catch (error) {
     next(error);
@@ -434,7 +498,7 @@ router.post(['/system/update/upload', '/system/update-upload'], updateUpload.sin
       return sendJson(res, 400, { error: "Fișier .zip invalid — lipsește version.json" });
     }
     const versionInfo = parseUpdateVersion(versionEntry);
-    const current = require("../../package.json").version;
+    const current = readRuntimeVersion();
     if (compareVersions(versionInfo.version, current) <= 0) {
       fs.unlink(req.file.path, () => {});
       return sendJson(res, 400, {
@@ -471,7 +535,7 @@ router.post('/system/update/apply', async (req, res, next) => {
     const versionEntry = findUpdateVersionEntry(zip);
     if (!versionEntry) throwHttp(400, "Fișier .zip invalid — lipsește version.json");
     const versionInfo = parseUpdateVersion(versionEntry);
-    const current = require("../../package.json").version;
+    const current = readRuntimeVersion();
     if (compareVersions(versionInfo.version, current) <= 0) {
       throwHttp(400, `Versiunea ${versionInfo.version} nu e mai nouă decât ${current}`);
     }
@@ -490,13 +554,14 @@ router.post('/system/update/apply', async (req, res, next) => {
     copyDir(path.join(packageRoot, 'db', 'templates'), path.join(ROOT, 'db', 'templates'));
     copyDir(path.join(packageRoot, 'db', 'sqlserver'), path.join(ROOT, 'db', 'sqlserver'));
     copyDir(path.join(packageRoot, 'scripts'), path.join(ROOT, 'scripts'));
+    copyDir(path.join(packageRoot, 'updates'), path.join(ROOT, 'updates'));
     copyFileIfExists(path.join(packageRoot, 'version.json'), path.join(ROOT, 'version.json'));
+    copyFileIfExists(path.join(packageRoot, 'package.json'), path.join(ROOT, 'package.json'));
+    copyFileIfExists(path.join(packageRoot, 'client', 'package.json'), path.join(ROOT, 'client', 'package.json'));
+    copyFileIfExists(path.join(packageRoot, 'electron', 'package.json'), path.join(ROOT, 'electron', 'package.json'));
     copyFileIfExists(path.join(packageRoot, 'CHANGELOG.md'), path.join(ROOT, 'CHANGELOG.md'));
 
-    const pkgPath = path.join(ROOT, 'server', 'package.json');
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    pkg.version = versionInfo.version;
-    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+    syncRuntimeVersionFiles(versionInfo.version, versionInfo);
 
     auth.db.settings = auth.db.settings || {};
     auth.db.settings.update_history = Array.isArray(auth.db.settings.update_history) ? auth.db.settings.update_history : [];
@@ -948,9 +1013,11 @@ router.delete('/departments/:id', (req, res, next) => {
 // Endpoint public (fără autentificare) — versiunea aplicației
 // Folosit de frontend pentru a afișa versiunea corectă în orice context
 router.get('/system/version', (req, res) => {
+  const versionInfo = readRuntimeVersionInfo();
   sendJson(res, 200, {
-    version: APP_VERSION,
-    date: (() => { try { return require('../../../version.json').date } catch { return null } })(),
+    version: versionInfo.version,
+    date: versionInfo.date,
+    source: versionInfo.source
   });
 })
 
@@ -1324,7 +1391,7 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "GET" && url.pathname === "/api/client/version") {
     sendJson(res, 200, {
-      appVersion: APP_VERSION,
+      appVersion: readRuntimeVersion(),
       cacheVersion: CLIENT_CACHE_VERSION,
       minLauncherVersion: "1.1.0",
       mode: DB_MODE
@@ -1336,7 +1403,7 @@ async function handleApi(req, res, url) {
     const db = readDb();
     sendJson(res, 200, {
       required: requiresInitialSetup(db),
-      appVersion: APP_VERSION,
+      appVersion: readRuntimeVersion(),
       companyName: db.settings?.companyName || "",
       stationName: db.settings?.stationName || ""
     });

@@ -5,7 +5,7 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\windows\build-installer.ps1
 # ================================================
 
-$ProjectDir = "E:\CODEX 1\Bitum app\InfraFlow-proiect\InfraFlow Git"
+$ProjectDir = Split-Path -Parent $PSScriptRoot
 Set-Location $ProjectDir
 
 # Citeste versiunea din package.json

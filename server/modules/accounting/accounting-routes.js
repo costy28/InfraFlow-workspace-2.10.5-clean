@@ -1139,6 +1139,15 @@ router.post("/accounting/suppliers-status/:id/confirmation/received", requireAcc
   } catch (error) { next(error); }
 });
 
+router.post("/accounting/suppliers-status/:id/confirmation/cancel", requireAccountingPost, (req, res, next) => {
+  try {
+    const confirmation = cancelThirdPartyBalanceConfirmation(req.auth.db, req.auth.user, "furnizor", req.params.id, req.body || {});
+    addAudit(req.auth.db, req.auth.user, "accounting_balance_confirmation_cancelled", confirmation.tert_denumire || confirmation.tert_id);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { confirmation, detail: thirdPartyDetail(req.auth.db, "furnizor", req.params.id) });
+  } catch (error) { next(error); }
+});
+
 router.get("/accounting/suppliers-status/:id", requireAccountingView, (req, res) => {
   sendJson(res, 200, thirdPartyDetail(req.auth.db, "furnizor", req.params.id));
 });
@@ -1190,6 +1199,15 @@ router.post("/accounting/clients-status/:id/confirmation/received", requireAccou
   try {
     const confirmation = markThirdPartyBalanceConfirmation(req.auth.db, req.auth.user, "client", req.params.id, "confirmata", req.body || {});
     addAudit(req.auth.db, req.auth.user, "accounting_balance_confirmation_received", confirmation.tert_denumire || confirmation.tert_id);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { confirmation, detail: thirdPartyDetail(req.auth.db, "client", req.params.id) });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/clients-status/:id/confirmation/cancel", requireAccountingPost, (req, res, next) => {
+  try {
+    const confirmation = cancelThirdPartyBalanceConfirmation(req.auth.db, req.auth.user, "client", req.params.id, req.body || {});
+    addAudit(req.auth.db, req.auth.user, "accounting_balance_confirmation_cancelled", confirmation.tert_denumire || confirmation.tert_id);
     writeDb(req.auth.db);
     sendJson(res, 200, { confirmation, detail: thirdPartyDetail(req.auth.db, "client", req.params.id) });
   } catch (error) { next(error); }
@@ -2247,6 +2265,21 @@ function markThirdPartyBalanceConfirmation(db, user, tip, id, status, body = {})
   return confirmation;
 }
 
+function cancelThirdPartyBalanceConfirmation(db, user, tip, id, body = {}) {
+  const accounting = engine.ensureAccounting(db);
+  thirdPartyDetail(db, tip, id);
+  const confirmation = balanceConfirmationsFor(accounting, tip, id).find((item) => item.status !== "anulata");
+  if (!confirmation) throwHttp("Nu exista confirmare de sold activa pentru acest tert.", 404);
+  const now = new Date().toISOString();
+  confirmation.status = "anulata";
+  confirmation.cancelled_at = now;
+  confirmation.cancelled_by = user?.id || null;
+  confirmation.cancelled_reason = String(body.motiv || body.reason || "Anulare confirmare sold").trim();
+  confirmation.updated_at = now;
+  confirmation.updated_by = user?.id || null;
+  return confirmation;
+}
+
 function latestBalanceConfirmation(accounting, tip, tertId) {
   return balanceConfirmationsFor(accounting, tip, tertId)[0] || null;
 }
@@ -2254,6 +2287,7 @@ function latestBalanceConfirmation(accounting, tip, tertId) {
 function balanceConfirmationsFor(accounting, tip, tertId) {
   return (accounting.balanceConfirmations || [])
     .filter((item) => item.tip === tip && String(item.tert_id) === String(tertId))
+    .filter((item) => item.status !== "anulata")
     .sort((a, b) => String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || "")));
 }
 

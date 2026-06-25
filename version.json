@@ -1,5 +1,5 @@
 {
-  "version": "2.12.121",
-  "date": "2026-06-24",
-  "changelog": "## v2.12.121 - 2026-06-24\n### Contabilitate - sold confirmat si observatii\n- Marcarea unei confirmari ca primita deschide un formular dedicat.\n- Contabilul poate introduce soldul confirmat de tert si observatii.\n- Diferenta fata de soldul din evidenta este calculata inainte de salvare si ajunge in registrul confirmarilor."
+  "version": "2.12.124",
+  "date": "2026-06-25",
+  "changelog": "## v2.12.124 - 2026-06-25\n### Contabilitate - actiuni rapide confirmari sold\n- Confirmarile de sold pot fi tiparite, exportate, marcate ca trimise sau primite direct din lista de clienti/furnizori.\n- Confirmarile gresite pot fi anulate fara stergere fizica.\n- Actiunile tertului sunt grupate in dropdown pentru o interfata mai aerisita."
 }
