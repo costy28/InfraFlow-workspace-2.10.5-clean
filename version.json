@@ -1,5 +1,5 @@
 {
-  "version": "2.12.136",
+  "version": "2.12.137",
   "date": "2026-06-25",
-  "changelog": "## v2.12.136 - 2026-06-25\n### Contabilitate - actiuni pentru linii in modale\n- Facturile folosesc dropdown Actiuni linii pentru adaugarea liniilor si actiuni compacte pe fiecare linie.\n- Registrul jurnal foloseste dropdown pentru adaugarea liniilor debit/credit si stergere linie.\n- Modalele contabile au coloane mai stabile pentru actiuni, fara butoane izolate."
+  "changelog": "## v2.12.137 - 2026-06-25\n### Contabilitate - reconciliere cu actiuni rapide\n- Dashboard-ul contabil afiseaza actiuni contextuale pe problemele de reconciliere.\n- Facturile furnizor deschise pot porni direct plata in Trezorerie.\n- Facturile client deschise pot porni direct incasarea in Trezorerie.\n- Problemele de trezorerie si jurnal trimit direct catre zona de corectie."
 }

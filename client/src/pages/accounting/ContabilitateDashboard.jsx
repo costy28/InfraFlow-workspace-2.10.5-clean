@@ -28,15 +28,49 @@ export function ContabilitateDashboard() {
   const actionableIssues = useMemo(() => {
     const issues = reconciliation?.issues || {}
     return [
-      ...(issues.draft_invoices || []).map(row => ({ ...row, group: 'Facturi draft', action: 'Validează sau anulează factura.' })),
-      ...(issues.draft_treasury || []).map(row => ({ ...row, group: 'Trezorerie draft', action: 'Validează operația sau anuleaz-o.' })),
-      ...(issues.open_suppliers || []).map(row => ({ ...row, group: 'Furnizori de plată', action: 'Plătește factura sau verifică scadența.' })),
-      ...(issues.open_clients || []).map(row => ({ ...row, group: 'Clienți de încasat', action: 'Încasează factura sau verifică scadența.' })),
-      ...(issues.unlinked_treasury || []).map(row => ({ ...row, group: 'Trezorerie necorelată', action: 'Leagă operația de factură sau marcheaz-o ca avans/corecție.' })),
-      ...(issues.invoice_missing_journal || []).map(row => ({ ...row, group: 'Facturi fără notă', action: 'Devalidează și validează din nou documentul.' })),
-      ...(issues.unbalanced_journals || []).map(row => ({ ...row, group: 'Note dezechilibrate', action: 'Corectează debitul și creditul notei.' }))
+      ...(issues.draft_invoices || []).map(row => ({ ...row, kind: 'draft_invoice', group: 'Facturi draft', action: 'Validează sau anulează factura.' })),
+      ...(issues.draft_treasury || []).map(row => ({ ...row, kind: 'draft_treasury', group: 'Trezorerie draft', action: 'Validează operația sau anuleaz-o.' })),
+      ...(issues.open_suppliers || []).map(row => ({ ...row, kind: 'open_supplier', group: 'Furnizori de plată', action: 'Plătește factura sau verifică scadența.' })),
+      ...(issues.open_clients || []).map(row => ({ ...row, kind: 'open_client', group: 'Clienți de încasat', action: 'Încasează factura sau verifică scadența.' })),
+      ...(issues.unlinked_treasury || []).map(row => ({ ...row, kind: 'unlinked_treasury', group: 'Trezorerie necorelată', action: 'Leagă operația de factură sau marcheaz-o ca avans/corecție.' })),
+      ...(issues.invoice_missing_journal || []).map(row => ({ ...row, kind: 'invoice_missing_journal', group: 'Facturi fără notă', action: 'Devalidează și validează din nou documentul.' })),
+      ...(issues.unbalanced_journals || []).map(row => ({ ...row, kind: 'unbalanced_journal', group: 'Note dezechilibrate', action: 'Corectează debitul și creditul notei.' }))
     ].slice(0, 12)
   }, [reconciliation])
+
+  function issueActionMenu(issue) {
+    const treasuryBase = `/contabilitate/trezorerie?luna=${month}`
+    if (issue.kind === 'open_supplier') {
+      return [
+        { label: 'Inregistreaza plata', to: `${treasuryBase}&invoice_in_id=${issue.id}&new=1` },
+        { label: 'Deschide factura', to: issue.link || '/contabilitate/facturi-intrare' },
+        { label: 'Vezi trezoreria lunii', to: treasuryBase }
+      ]
+    }
+    if (issue.kind === 'open_client') {
+      return [
+        { label: 'Inregistreaza incasarea', to: `${treasuryBase}&invoice_out_id=${issue.id}&new=1` },
+        { label: 'Deschide factura', to: issue.link || '/contabilitate/facturi-iesire' },
+        { label: 'Vezi trezoreria lunii', to: treasuryBase }
+      ]
+    }
+    if (issue.kind === 'draft_treasury' || issue.kind === 'unlinked_treasury') {
+      return [
+        { label: 'Deschide in trezorerie', to: issue.link || treasuryBase },
+        { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` }
+      ]
+    }
+    if (issue.kind === 'unbalanced_journal') {
+      return [
+        { label: 'Deschide nota', to: issue.link || `/contabilitate/registru-jurnal?luna=${month}` },
+        { label: 'Verifica balanta', to: `/contabilitate/balanta?luna=${month}` }
+      ]
+    }
+    return [
+      { label: 'Deschide documentul', to: issue.link || '/contabilitate' },
+      { label: 'Inchidere luna', to: `/contabilitate/inchidere-luna?luna=${month}` }
+    ]
+  }
   async function exportReconciliation() {
     setError('')
     try {
@@ -118,12 +152,15 @@ export function ContabilitateDashboard() {
           {actionableIssues.length ? (
             <div className="divide-y divide-slate-100">
               {actionableIssues.map((issue, index) => (
-                <Link key={`${issue.group}-${issue.uuid || issue.id}-${index}`} to={issue.link || '/contabilitate'} className="grid gap-1 px-3 py-2 text-sm hover:bg-slate-50 md:grid-cols-[170px_minmax(160px,1fr)_140px_minmax(200px,1.5fr)] md:items-center">
+                <div key={`${issue.group}-${issue.uuid || issue.id}-${index}`} className="grid gap-2 px-3 py-2 text-sm hover:bg-slate-50 md:grid-cols-[170px_minmax(160px,1fr)_140px_minmax(200px,1.5fr)_120px] md:items-center">
                   <div className="font-semibold text-slate-700">{issue.group}</div>
                   <div className="text-slate-900">{issue.document || issue.id} <span className="text-slate-500">{issue.data || ''}</span></div>
                   <div className="font-semibold text-slate-900">{issue.rest !== null && issue.rest !== undefined ? formatMoney(issue.rest) : issue.suma !== undefined ? formatMoney(issue.suma) : issue.difference !== undefined ? formatMoney(issue.difference) : ''}</div>
                   <div className="text-slate-600">{issue.action}</div>
-                </Link>
+                  <div className="flex md:justify-end">
+                    <DropdownMenu align="right" label="Actiuni" items={issueActionMenu(issue)} />
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
