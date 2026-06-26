@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.140 - 2026-06-26
+
+- Trezorerie: operatiile fara factura legata pot fi marcate ca avans sau corectie.
+- Reconciliere contabila: avansurile si corectiile marcate nu mai apar la trezorerie necorelata.
+- Formular Trezorerie: camp Corelare si observatii pentru avans/corectie.
+- Lista Trezorerie: badge vizibil pentru operatiile marcate.
+- Validare: corelarea de tip factura cere factura selectata.
+
 # v2.12.8 — 2026-06-02
 
 - Installerul detectează automat instanța, versiunea și ediția SQL Server existente.

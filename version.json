@@ -1,5 +1,5 @@
 {
-  "version": "2.12.139",
-  "date": "2026-06-25",
-  "changelog": "## v2.12.139 - 2026-06-25\n### Contabilitate - potrivire facturi in Trezorerie\n- Operatiile de trezorerie fara factura legata primesc sugestii automate dupa tert, suma si scadenta.\n- Rindurile necorelate afiseaza cea mai probabila factura si motivul potrivirii.\n- Dropdown-ul de actiuni poate lega rapid factura sugerata pentru operatiile draft.\n- Validarea ramine controlata: utilizatorul verifica sugestia si apoi valideaza."
+  "version": "2.12.140",
+  "date": "2026-06-26",
+  "changelog": "## v2.12.140 - 2026-06-26\n### Contabilitate - avansuri si corectii in Trezorerie\n- Operatiile de trezorerie fara factura legata pot fi marcate ca avans sau corectie.\n- Avansurile si corectiile marcate nu mai apar ca trezorerie necorelata in reconcilierea contabila.\n- Formularul Trezorerie are camp Corelare si observatii pentru avans/corectie.\n- Lista Trezorerie afiseaza badge pentru avansuri si corectii.\n- Validarea blocheaza corelarea de tip factura daca nu este selectata o factura."
 }

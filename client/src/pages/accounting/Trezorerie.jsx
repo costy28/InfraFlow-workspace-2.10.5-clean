@@ -132,6 +132,8 @@ export function Trezorerie() {
       suma: '',
       invoice_in_id: '',
       invoice_out_id: '',
+      corelare_tip: 'neclasificat',
+      corelare_observatii: '',
       explicatie: ''
     }
   }
@@ -273,10 +275,12 @@ export function Trezorerie() {
     if (patch.tip_operatie === 'incasare') {
       if (!form.cont_corespondent || form.cont_corespondent === '401') next.cont_corespondent = '4111'
       next.invoice_in_id = ''
+      if (next.corelare_tip === 'factura') next.corelare_tip = 'neclasificat'
     }
     if (patch.tip_operatie === 'plata') {
       if (!form.cont_corespondent || form.cont_corespondent === '4111') next.cont_corespondent = '401'
       next.invoice_out_id = ''
+      if (next.corelare_tip === 'factura') next.corelare_tip = 'neclasificat'
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'invoice_in_id')) {
       next.invoice_out_id = ''
@@ -289,6 +293,7 @@ export function Trezorerie() {
         next.suma = invoiceRemaining(invoice, 'intrare')
         next.nr_document = next.nr_document || invoice.nr_document || ''
         next.explicatie = next.explicatie || `Plata factura ${invoiceDocument(invoice)}`
+        next.corelare_tip = 'factura'
       }
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'invoice_out_id')) {
@@ -302,6 +307,7 @@ export function Trezorerie() {
         next.suma = invoiceRemaining(invoice, 'iesire')
         next.nr_document = next.nr_document || invoiceDocument(invoice)
         next.explicatie = next.explicatie || `Incasare factura ${invoiceDocument(invoice)}`
+        next.corelare_tip = 'factura'
       }
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'tert_id')) {
@@ -312,7 +318,11 @@ export function Trezorerie() {
       if (activeInvoice && String(activeInvoice[tertKey]) !== String(patch.tert_id || '')) {
         next.invoice_in_id = ''
         next.invoice_out_id = ''
+        next.corelare_tip = 'neclasificat'
       }
+    }
+    if ((Object.prototype.hasOwnProperty.call(patch, 'invoice_in_id') && !patch.invoice_in_id) || (Object.prototype.hasOwnProperty.call(patch, 'invoice_out_id') && !patch.invoice_out_id)) {
+      if (!next.invoice_in_id && !next.invoice_out_id && next.corelare_tip === 'factura') next.corelare_tip = 'neclasificat'
     }
     setForm(next)
   }
@@ -368,6 +378,7 @@ export function Trezorerie() {
     if (accounts.length && !accountExists(row.cont_corespondent)) return `Contul corespondent ${row.cont_corespondent} nu există în planul de conturi. Alege contul din listă sau adaugă-l în Plan de conturi.`
     if (row.invoice_in_id && row.tip_operatie !== 'plata') return 'Factura de intrare se poate stinge doar prin plată.'
     if (row.invoice_out_id && row.tip_operatie !== 'incasare') return 'Factura de ieșire se poate stinge doar prin încasare.'
+    if (row.corelare_tip === 'factura' && !row.invoice_in_id && !row.invoice_out_id) return 'Alege factura legată sau marchează operația ca avans/corecție.'
     return ''
   }
 
@@ -461,6 +472,30 @@ export function Trezorerie() {
     }
   }
 
+  async function classifyTreasury(row, type) {
+    setActionLoading(`classify-${row.uuid}`)
+    setError('')
+    setMessage('')
+    setValidatedJournal(null)
+    try {
+      const label = type === 'avans' ? 'avans' : type === 'corectie' ? 'corecție' : 'neclasificată'
+      await api.post(`/accounting/treasury/${row.uuid}/classify`, {
+        corelare_tip: type,
+        observatii: type === 'avans'
+          ? 'Marcat ca avans fara factura la momentul inregistrarii.'
+          : type === 'corectie'
+            ? 'Marcat ca diferenta/corectie fara factura directa.'
+            : ''
+      })
+      setMessage(`Operația a fost marcată ca ${label}.`)
+      load()
+    } catch (err) {
+      setError(errorText(err, 'Operația nu a putut fi clasificată. Verifică dacă luna este deschisă.'))
+    } finally {
+      setActionLoading('')
+    }
+  }
+
   async function openJournal(row) {
     if (!row?.journal_uuid) return
     setJournalLoading(true)
@@ -493,6 +528,9 @@ export function Trezorerie() {
       canValidate && bestSuggestion ? { label: `Leaga factura sugerata ${bestSuggestion.document}`, onClick: () => attachSuggestedInvoice(row, bestSuggestion) } : null,
       canValidate ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
       canValidate ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
+      !row.linked_invoice && row.tert_id ? { label: 'Marcheaza ca avans', onClick: () => classifyTreasury(row, 'avans') } : null,
+      !row.linked_invoice && row.tert_id ? { label: 'Marcheaza ca corectie', onClick: () => classifyTreasury(row, 'corectie') } : null,
+      row.corelare_tip && !['neclasificat', 'factura'].includes(row.corelare_tip) ? { label: 'Scoate marcajul avans/corectie', onClick: () => classifyTreasury(row, 'neclasificat') } : null,
       canDevalidate ? { label: 'Devalideaza', onClick: () => devalidate(row), danger: true } : null,
       { separator: true },
       row.journal_uuid ? { label: 'Vezi nota contabila', onClick: () => openJournal(row) } : null,
@@ -644,6 +682,13 @@ export function Trezorerie() {
                   factura {row.linked_invoice.tip}: {row.linked_invoice.document || row.linked_invoice.id}
                 </div>
               ) : null}
+              {!row.linked_invoice && row.corelare_tip && row.corelare_tip !== 'neclasificat' ? (
+                <div className="mt-1">
+                  <Badge tone={row.corelare_tip === 'avans' ? 'warning' : row.corelare_tip === 'corectie' ? 'info' : 'muted'}>
+                    {row.corelare_label || row.corelare_tip}
+                  </Badge>
+                </div>
+              ) : null}
               {!row.linked_invoice && row.suggested_matches?.length ? (
                 <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
                   Posibil: {row.suggested_matches[0].document} · {formatMoney(row.suggested_matches[0].rest)} · {row.suggested_matches[0].motiv}
@@ -694,9 +739,18 @@ export function Trezorerie() {
               ]}
             />
             <Input label="Suma" type="number" step="0.01" value={form.suma || ''} onChange={event => updateForm({ suma: event.target.value })} required />
+            <Select label="Corelare" value={form.corelare_tip || 'neclasificat'} onChange={event => updateForm({ corelare_tip: event.target.value })} options={[
+              { value: 'neclasificat', label: 'De corelat ulterior' },
+              { value: 'factura', label: 'Factura legata' },
+              { value: 'avans', label: 'Avans' },
+              { value: 'corectie', label: 'Corectie / diferenta' }
+            ]} />
             <AccountSelect label="Cont trezorerie" value={form.cont_trezorerie || ''} accounts={accounts} recommendedClasses={[5]} onChange={event => updateForm({ cont_trezorerie: event.target.value })} required />
             <AccountSelect label="Cont corespondent" value={form.cont_corespondent || ''} accounts={accounts} recommendedClasses={[4, 5, 6, 7]} onChange={event => updateForm({ cont_corespondent: event.target.value })} required />
           </div>
+          {['avans', 'corectie'].includes(form.corelare_tip) ? (
+            <Input label="Observatii corelare" value={form.corelare_observatii || ''} onChange={event => updateForm({ corelare_observatii: event.target.value })} />
+          ) : null}
           <Input label="Explicatie" value={form.explicatie || ''} onChange={event => updateForm({ explicatie: event.target.value })} />
           <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">
             Preview nota: {form.tip_operatie === 'incasare'

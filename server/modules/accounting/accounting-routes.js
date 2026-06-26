@@ -715,6 +715,22 @@ router.patch("/accounting/treasury/:uuid", requireAccountingPost, (req, res, nex
   } catch (error) { next(error); }
 });
 
+router.post("/accounting/treasury/:uuid/classify", requireAccountingPost, (req, res, next) => {
+  try {
+    const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
+    if (treasury.status === "anulat") throwHttp(409, "Operatiile anulate nu se pot clasifica.");
+    engine.checkPeriodOpen(req.auth.db, treasury.an, treasury.luna);
+    treasury.corelare_tip = normalizeTreasuryCorrelationType(req.body?.corelare_tip || req.body?.tip || "neclasificat");
+    treasury.corelare_observatii = String(req.body?.observatii || req.body?.motiv || "").trim();
+    treasury.corelare_de = req.auth.user?.id || "";
+    treasury.corelare_la = new Date().toISOString();
+    treasury.updated_at = new Date().toISOString();
+    addAudit(req.auth.db, req.auth.user, "accounting_treasury_classify", `${treasury.tip_operatie} ${treasury.suma} / ${treasury.corelare_tip}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { treasury: decorateTreasury(treasury, engine.ensureAccounting(req.auth.db)) });
+  } catch (error) { next(error); }
+});
+
 router.post("/accounting/treasury/:uuid/validate", requireAccountingPost, (req, res, next) => {
   try {
     const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
@@ -1677,11 +1693,21 @@ function normalizeTreasury(body, existing = {}) {
     tert_id: body.tert_id === "" ? null : body.tert_id ?? existing.tert_id ?? null,
     invoice_in_id: body.invoice_in_id === "" ? null : body.invoice_in_id ?? existing.invoice_in_id ?? null,
     invoice_out_id: body.invoice_out_id === "" ? null : body.invoice_out_id ?? existing.invoice_out_id ?? null,
+    corelare_tip: normalizeTreasuryCorrelationType(body.corelare_tip ?? existing.corelare_tip ?? "neclasificat"),
+    corelare_observatii: String(body.corelare_observatii ?? existing.corelare_observatii ?? "").trim(),
     explicatie: String(body.explicatie ?? existing.explicatie ?? "").trim(),
     updated_at: new Date().toISOString()
   };
+  if (treasury.invoice_in_id || treasury.invoice_out_id) treasury.corelare_tip = "factura";
+  else if (treasury.corelare_tip === "factura") treasury.corelare_tip = "neclasificat";
   if (treasury.suma <= 0) throwHttp(400, "Suma trebuie sa fie pozitiva.");
   return treasury;
+}
+
+function normalizeTreasuryCorrelationType(value) {
+  const type = String(value || "").trim().toLowerCase();
+  if (["factura", "avans", "corectie", "neclasificat"].includes(type)) return type;
+  return "neclasificat";
 }
 
 function findLinkedTreasuryInvoice(db, treasury) {
@@ -1720,6 +1746,7 @@ function prepareTreasuryInvoiceLink(db, treasury) {
     treasury.nr_document = treasury.nr_document || link.invoice.numar || link.invoice.nr_document || "";
     treasury.explicatie = treasury.explicatie || `Incasare factura ${link.invoice.numar || link.invoice.nr_document || link.invoice.id}`;
   }
+  treasury.corelare_tip = "factura";
   treasury.updated_at = new Date().toISOString();
   return link;
 }
@@ -1831,9 +1858,20 @@ function decorateTreasury(row, accounting) {
     journal_status: journal?.status || "",
     journal_total_debit: journal?.total_debit || 0,
     journal_total_credit: journal?.total_credit || 0,
+    corelare_tip: row.corelare_tip || (invoiceIn || invoiceOut ? "factura" : "neclasificat"),
+    corelare_label: treasuryCorrelationLabel(row.corelare_tip || (invoiceIn || invoiceOut ? "factura" : "neclasificat")),
     balance_month: month,
     suggested_matches: suggestTreasuryInvoiceMatches(row, accounting)
   };
+}
+
+function treasuryCorrelationLabel(type) {
+  return {
+    factura: "Factura",
+    avans: "Avans",
+    corectie: "Corectie",
+    neclasificat: "Neclasificat"
+  }[String(type || "")] || "Neclasificat";
 }
 
 function suggestTreasuryInvoiceMatches(row, accounting) {
@@ -3185,6 +3223,7 @@ function buildReconciliation(db, an, luna, options = {}) {
     item.tert_id &&
     !item.invoice_in_id &&
     !item.invoice_out_id &&
+    !["avans", "corectie"].includes(String(item.corelare_tip || "").toLowerCase()) &&
     ["401", "4111"].some((prefix) => String(item.cont_corespondent || "").startsWith(prefix))
   );
   const journalIds = new Set(accounting.journalLines.map((line) => Number(line.journal_id)));
@@ -3358,6 +3397,7 @@ function reconcileTreasuryRow(item, month = "") {
     operatie: item.tip_operatie,
     suma: item.suma || 0,
     status: item.status,
+    corelare_tip: item.corelare_tip || "neclasificat",
     link: accountingLink("/contabilitate/trezorerie", {
       luna: month,
       status: item.status,
