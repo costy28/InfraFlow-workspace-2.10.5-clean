@@ -16,6 +16,7 @@ export function TVADeclaratii() {
   const [journal, setJournal] = useState({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
   const [readiness, setReadiness] = useState({ checks: [], declarations: [] })
   const [d394, setD394] = useState({ terti: [], warnings: [], totaluri: {} })
+  const [saft, setSaft] = useState({ areas: [], issues: [], coverage: 0 })
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -31,17 +32,20 @@ export function TVADeclaratii() {
       api.get('/accounting/d300', { params: params() }),
       api.get('/accounting/vat-journal', { params: params() }),
       api.get('/accounting/declarations/readiness', { params: params() }),
-      api.get('/accounting/d394', { params: params() })
-    ]).then(([d300Res, journalRes, readinessRes, d394Res]) => {
+      api.get('/accounting/d394', { params: params() }),
+      api.get('/accounting/saft/readiness', { params: params() })
+    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes]) => {
       setData(d300Res.data || { decont: { randuri: [] } })
       setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
       setReadiness(readinessRes.data || { checks: [], declarations: [] })
       setD394(d394Res.data || { terti: [], warnings: [], totaluri: {} })
+      setSaft(saftRes.data || { areas: [], issues: [], coverage: 0 })
     }).catch(err => {
       setData({ decont: { randuri: [] } })
       setJournal({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
       setReadiness({ checks: [], declarations: [] })
       setD394({ terti: [], warnings: [], totaluri: {} })
+      setSaft({ areas: [], issues: [], coverage: 0 })
       setError(err.response?.data?.error || 'Nu am putut incarca TVA / D300.')
     })
   }
@@ -89,6 +93,7 @@ export function TVADeclaratii() {
             { label: 'Export Excel', onClick: () => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`) },
             { label: 'XML lucru', onClick: () => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`) },
             { label: 'D394 lucru Excel', onClick: () => download('/accounting/d394/export', `D394_lucru_${fileMonth}.xlsx`) },
+            { label: 'Diagnostic SAF-T Excel', onClick: () => download('/accounting/saft/export-mapping', `Diagnostic_SAFT_${fileMonth}.xlsx`) },
             { type: 'separator' },
             { label: 'Facturi intrare', to: `/contabilitate/facturi-intrare?luna=${month}` },
             { label: 'Facturi iesire', to: `/contabilitate/facturi-iesire?luna=${month}` },
@@ -114,6 +119,28 @@ export function TVADeclaratii() {
             ...[21, 19, 9, 5, 0].map(value => ({ value, label: `${value}%` }))
           ]} />
         </div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Mapare D406 / SAF-T</h3>
+            <p className="text-sm text-slate-500">Acoperire tehnica a datelor necesare, fara generarea prematura a XML-ului fiscal.</p>
+          </div>
+          <Badge tone={saft.ready ? 'success' : 'warning'}>{saft.coverage || 0}% mapat</Badge>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {(saft.areas || []).map(area => (
+            <div key={area.label} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-2"><strong>{area.label}</strong><Badge tone={area.ok ? 'success' : 'warning'}>{area.mapped}/{area.total}</Badge></div>
+              {area.missing ? <div className="mt-1 text-xs text-amber-700">Lipsesc {area.missing} mapari</div> : null}
+            </div>
+          ))}
+        </div>
+        {(saft.issues || []).length ? (
+          <div className="mt-3 max-h-48 overflow-auto rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {(saft.issues || []).slice(0, 20).map((issue, index) => <div key={`${issue.area}-${issue.id}-${index}`}><strong>{issue.area}:</strong> {issue.message} {issue.action}</div>)}
+          </div>
+        ) : null}
       </Card>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">

@@ -20,7 +20,7 @@ const REQUIRED_CHART_ACCOUNTS = [
 
 function ensureAccounting(db) {
   if (!db.accounting || typeof db.accounting !== "object") db.accounting = {};
-  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts", "journalTemplates", "openingBalances", "balanceConfirmations"];
+  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts", "journalTemplates", "openingBalances", "balanceConfirmations", "periodSnapshots", "periodEvents", "bankImports", "bankImportHashes", "stockPostings", "fixedAssets", "depreciationRuns", "annualClosings"];
   keys.forEach((key) => {
     if (!Array.isArray(db.accounting[key])) db.accounting[key] = [];
   });
@@ -506,11 +506,32 @@ function ledger(db, simbol, from = "", to = "") {
     .filter(({ journal }) => (!from || journal.data >= from) && (!to || journal.data <= to))
     .map(({ line, journal }) => {
       sold = money(sold + money(line.debit) - money(line.credit));
-      return { ...line, data: journal.data, nr_document: journal.nr_document, tip_document: journal.tip_document, journal_uuid: journal.uuid, journal_id: journal.id, sold };
+      const corespondente = accounting.journalLines
+        .filter((candidate) => Number(candidate.journal_id) === Number(journal.id) && Number(candidate.id) !== Number(line.id) && candidate.cont_simbol !== simbol)
+        .map((candidate) => candidate.cont_simbol)
+        .filter(Boolean);
+      return { ...line, data: journal.data, nr_document: journal.nr_document, tip_document: journal.tip_document, journal_uuid: journal.uuid, journal_id: journal.id, conturi_corespondente: [...new Set(corespondente)], sold };
     });
   const totalDebit = money(movements.reduce((sum, row) => sum + money(row.debit), 0));
   const totalCredit = money(movements.reduce((sum, row) => sum + money(row.credit), 0));
-  return { simbol, denumire: account.denumire || "", tip: account.tip || "", sold_initial: soldInitial, total_debit: totalDebit, total_credit: totalCredit, movements, sold_final: sold };
+  let monthlyOpening = soldInitial;
+  const monthlySummary = [];
+  const monthGroups = new Map();
+  movements.forEach((row) => {
+    const month = String(row.data || "").slice(0, 7) || "fara-data";
+    const summary = monthGroups.get(month) || { luna: month, sold_initial: 0, debit: 0, credit: 0, sold_final: 0, miscari: 0 };
+    summary.debit = money(summary.debit + money(row.debit));
+    summary.credit = money(summary.credit + money(row.credit));
+    summary.miscari += 1;
+    monthGroups.set(month, summary);
+  });
+  [...monthGroups.values()].sort((a, b) => a.luna.localeCompare(b.luna)).forEach((summary) => {
+    summary.sold_initial = monthlyOpening;
+    summary.sold_final = money(monthlyOpening + summary.debit - summary.credit);
+    monthlyOpening = summary.sold_final;
+    monthlySummary.push(summary);
+  });
+  return { simbol, denumire: account.denumire || "", tip: account.tip || "", sold_initial: soldInitial, total_debit: totalDebit, total_credit: totalCredit, miscari_nete: money(totalDebit - totalCredit), movements, monthly_summary: monthlySummary, sold_final: sold };
 }
 
 function normalizeLines(db, lines) {

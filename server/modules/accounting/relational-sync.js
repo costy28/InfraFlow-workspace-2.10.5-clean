@@ -29,7 +29,14 @@ function syncAccountingToMssql(db, user = {}) {
     invoicesOut: syncTable("accounting_invoices_out", prepared.invoicesOut, sqlInvoicesOut()),
     invoiceOutLines: syncTable("accounting_invoice_out_lines", prepared.invoiceOutLines, sqlInvoiceLines("accounting_invoice_out_lines")),
     treasury: syncTable("accounting_treasury", prepared.treasury, sqlTreasury()),
-    lawAlerts: syncTable("accounting_law_alerts", prepared.lawAlerts, sqlLawAlerts())
+    lawAlerts: syncTable("accounting_law_alerts", prepared.lawAlerts, sqlLawAlerts()),
+    periodSnapshots: syncTable("accounting_period_snapshots", prepared.periodSnapshots, sqlPeriodSnapshots()),
+    periodEvents: syncTable("accounting_period_events", prepared.periodEvents, sqlPeriodEvents()),
+    bankImports: syncTable("accounting_bank_imports", prepared.bankImports, sqlBankImports()),
+    stockPostings: syncTable("accounting_stock_postings", prepared.stockPostings, sqlStockPostings()),
+    fixedAssets: syncTable("accounting_fixed_assets", prepared.fixedAssets, sqlFixedAssets()),
+    depreciationRuns: syncTable("accounting_depreciation_runs", prepared.depreciationRuns, sqlDepreciationRuns()),
+    annualClosings: syncTable("accounting_annual_closings", prepared.annualClosings, sqlAnnualClosings())
   };
 
   writeSyncLog(counts, user);
@@ -69,7 +76,14 @@ function preparePayload(accounting) {
     invoicesOut,
     invoiceOutLines,
     treasury: withIds(accounting.treasury),
-    lawAlerts: withIds(accounting.lawAlerts)
+    lawAlerts: withIds(accounting.lawAlerts),
+    periodSnapshots: withIds(accounting.periodSnapshots),
+    periodEvents: withIds(accounting.periodEvents),
+    bankImports: withIds(accounting.bankImports),
+    stockPostings: withIds(accounting.stockPostings),
+    fixedAssets: withIds(accounting.fixedAssets),
+    depreciationRuns: withIds(accounting.depreciationRuns),
+    annualClosings: withIds(accounting.annualClosings)
   };
 }
 
@@ -165,7 +179,14 @@ function readAccountingTableCounts() {
       (select count(1) from dbo.accounting_invoices_out), N'|',
       (select count(1) from dbo.accounting_invoice_out_lines), N'|',
       (select count(1) from dbo.accounting_treasury), N'|',
-      (select count(1) from dbo.accounting_law_alerts)
+      (select count(1) from dbo.accounting_law_alerts), N'|',
+      (select count(1) from dbo.accounting_period_snapshots), N'|',
+      (select count(1) from dbo.accounting_period_events), N'|',
+      (select count(1) from dbo.accounting_bank_imports), N'|',
+      (select count(1) from dbo.accounting_stock_postings), N'|',
+      (select count(1) from dbo.accounting_fixed_assets), N'|',
+      (select count(1) from dbo.accounting_depreciation_runs), N'|',
+      (select count(1) from dbo.accounting_annual_closings)
     );
   `, { timeoutMs: 30000, commandTimeoutSeconds: 30 });
   const [
@@ -179,7 +200,14 @@ function readAccountingTableCounts() {
     invoicesOut,
     invoiceOutLines,
     treasury,
-    lawAlerts
+    lawAlerts,
+    periodSnapshots,
+    periodEvents,
+    bankImports,
+    stockPostings,
+    fixedAssets,
+    depreciationRuns,
+    annualClosings
   ] = String(text || "").split("|").map((value) => Number(value || 0));
   return {
     chart,
@@ -192,7 +220,14 @@ function readAccountingTableCounts() {
     invoicesOut,
     invoiceOutLines,
     treasury,
-    lawAlerts
+    lawAlerts,
+    periodSnapshots,
+    periodEvents,
+    bankImports,
+    stockPostings,
+    fixedAssets,
+    depreciationRuns,
+    annualClosings
   };
 }
 
@@ -297,6 +332,55 @@ function sqlLawAlerts() {
   return identityMirrorSql("accounting_law_alerts",
     ["id", "titlu", "descriere", "sursa_url", "data_publicare", "tip", "afecteaza_modul", "status", "citit_de", "citit_la"],
     [sqlValue("id", "int", "1"), sqlValue("titlu"), sqlValue("descriere"), sqlValue("sursa_url"), sqlValue("data_publicare", "date"), sqlValue("tip"), sqlValue("afecteaza_modul"), `isnull(${sqlValue("status")}, 'nou')`, sqlValue("citit_de", "int"), `try_convert(datetime2, ${sqlValue("citit_la")})`]
+  );
+}
+
+function sqlPeriodSnapshots() {
+  return identityMirrorSql("accounting_period_snapshots",
+    ["id", "an", "luna", "versiune", "checksum", "created_by", "created_by_name", "created_at", "snapshot_json"],
+    [sqlValue("id", "int", "1"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("versiune", "int", "1"), sqlValue("checksum"), sqlValue("created_by", "int"), sqlValue("created_by_name"), `try_convert(datetime2, ${sqlValue("created_at")})`, "value"]
+  );
+}
+
+function sqlPeriodEvents() {
+  return identityMirrorSql("accounting_period_events",
+    ["id", "an", "luna", "tip", "user_id", "user_name", "created_at", "event_json"],
+    [sqlValue("id", "int", "1"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("type"), sqlValue("user_id", "int"), sqlValue("user_name"), `try_convert(datetime2, ${sqlValue("created_at")})`, "value"]
+  );
+}
+
+function sqlBankImports() {
+  return identityMirrorSql("accounting_bank_imports",
+    ["id", "file_name", "imported_at", "imported_by", "result_json"],
+    [sqlValue("id", "int", "1"), sqlValue("file_name"), `try_convert(datetime2, ${sqlValue("imported_at")})`, sqlValue("imported_by", "int"), "value"]
+  );
+}
+
+function sqlStockPostings() {
+  return identityMirrorSql("accounting_stock_postings",
+    ["id", "movement_id", "journal_id", "an", "luna", "created_at"],
+    [sqlValue("id", "int", "1"), sqlValue("movement_id"), sqlValue("journal_id", "int", "0"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), `try_convert(datetime2, ${sqlValue("created_at")})`]
+  );
+}
+
+function sqlFixedAssets() {
+  return identityMirrorSql("accounting_fixed_assets",
+    ["id", "uuid", "inventory_no", "name", "acquisition_date", "depreciation_start", "acquisition_value", "residual_value", "useful_life_months", "accumulated_depreciation", "net_value", "account_asset", "account_depreciation", "account_expense", "status", "created_at"],
+    [sqlValue("id", "int", "1"), `left(isnull(${sqlValue("uuid")}, newid()), 36)`, sqlValue("inventory_no"), sqlValue("name"), sqlValue("acquisition_date", "date"), sqlValue("depreciation_start", "date"), sqlValue("acquisition_value", "decimal"), sqlValue("residual_value", "decimal"), sqlValue("useful_life_months", "int", "1"), sqlValue("accumulated_depreciation", "decimal"), sqlValue("net_value", "decimal"), sqlValue("account_asset"), sqlValue("account_depreciation"), sqlValue("account_expense"), `isnull(${sqlValue("status")}, 'activ')`, `try_convert(datetime2, ${sqlValue("created_at")})`]
+  );
+}
+
+function sqlDepreciationRuns() {
+  return identityMirrorSql("accounting_depreciation_runs",
+    ["id", "an", "luna", "status", "total", "created_by", "created_at", "run_json"],
+    [sqlValue("id", "int", "1"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("status"), sqlValue("total", "decimal"), sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`, "value"]
+  );
+}
+
+function sqlAnnualClosings() {
+  return identityMirrorSql("accounting_annual_closings",
+    ["id", "an", "journal_id", "result", "status", "created_by", "created_at"],
+    [sqlValue("id", "int", "1"), sqlValue("an", "int", "year(getdate())"), sqlValue("journal_id", "int", "0"), sqlValue("result", "decimal"), sqlValue("status"), sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`]
   );
 }
 

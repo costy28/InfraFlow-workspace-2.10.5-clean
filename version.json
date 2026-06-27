@@ -1,5 +1,5 @@
 {
-  "version": "2.12.142",
+  "version": "2.12.144",
   "date": "2026-06-27",
-  "changelog": "## v2.12.142 - 2026-06-27\n### Contabilitate - avansuri, inchidere si declaratii\n- Trezoreria are filtru si sumar pentru avansurile nestinse.\n- Reconcilierea si inchiderea lunii urmaresc avansurile si structura notelor contabile.\n- Redeschiderea retine motivul, iar depunerea poate retine referinta recipisei.\n- TVA include pregatirea D394 pe terti si panou de disponibilitate D300, D394 si SAF-T."
+  "changelog": "## v2.12.144 - 2026-06-27\n### Contabilitate - operatiuni complete\n- Importul extraselor bancare creeaza operatiuni de trezorerie draft si sugereaza facturile potrivite.\n- Miscarile de stoc pot fi sincronizate controlat in note contabile, fara duplicate.\n- Mijloacele fixe includ evidenta, amortizare liniara lunara si anulare cu istoric.\n- Declaratiile verifica diferentele dintre TVA-ul documentelor si conturile 4426/4427.\n- Inchiderea anuala inchide clasele 6 si 7 prin contul 121 dupa controalele obligatorii.\n- Noua pagina Operatiuni grupeaza aceste fluxuri intr-un singur spatiu de lucru."
 }

@@ -99,14 +99,15 @@ export function CarteaMare() {
       <div className={`rounded-md px-3 py-2 text-sm ${data.totals?.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
         {data.totals?.balanced ? 'Cartea Mare este coerenta pe intervalul selectat.' : 'Exista diferente intre sold initial + rulaje si sold final.'}
       </div>
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Info label="Conturi" value={rows.length} />
         <Info label="Sold initial" value={formatMoney(filteredTotals.sold_initial || 0)} />
         <Info label="Rulaj debit" value={formatMoney(filteredTotals.total_debit || 0)} />
         <Info label="Rulaj credit" value={formatMoney(filteredTotals.total_credit || 0)} />
         <Info label="Sold final" value={formatMoney(filteredTotals.sold_final || 0)} />
+        <Info label="Miscari" value={filteredTotals.movements_count || 0} />
       </div>
-      <Table headers={['Cont', 'Denumire', 'Tip', 'Sold initial', 'Debit', 'Credit', 'Sold final', 'Miscari', 'Actiuni']}>
+      <Table headers={['Cont', 'Denumire', 'Tip', 'Sold initial', 'Debit', 'Credit', 'Sold final', 'Natura', 'Miscari', 'Actiuni']}>
         {rows.map(row => (
           <tr key={row.simbol} className="hover:bg-slate-50">
             <td className="px-3 py-2">
@@ -118,6 +119,7 @@ export function CarteaMare() {
             <td className="px-3 py-2 text-right">{formatMoney(row.total_debit || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(row.total_credit || 0)}</td>
             <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.sold_final || 0)}</td>
+            <td className="px-3 py-2 text-center font-semibold">{money(row.sold_final) > 0 ? 'D' : money(row.sold_final) < 0 ? 'C' : '-'}</td>
             <td className="px-3 py-2 text-right">{row.movements_count || 0}</td>
             <td className="px-3 py-2">
               <DropdownMenu align="right" label="Actiuni" items={[
@@ -135,6 +137,7 @@ export function CarteaMare() {
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.total_debit || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.total_credit || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(filteredTotals.sold_final || 0)}</td>
+            <td className="px-3 py-2 text-center">-</td>
             <td className="px-3 py-2 text-right">{filteredTotals.movements_count || 0}</td>
             <td className="px-3 py-2">-</td>
           </tr>

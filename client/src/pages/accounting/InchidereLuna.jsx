@@ -42,6 +42,10 @@ export function InchidereLuna() {
 
   async function reopenMonth() {
     const [an, luna] = month.split('-')
+    if (!reopenReason.trim()) {
+      setError('Completeaza motivul redeschiderii pentru jurnalul de audit.')
+      return
+    }
     try {
       setError('')
       await api.post(`/accounting/periods/${an}/${Number(luna)}/reopen`, { motiv: reopenReason })
@@ -54,9 +58,13 @@ export function InchidereLuna() {
 
   async function markSubmitted() {
     const [an, luna] = month.split('-')
+    if (!submissionRef.trim()) {
+      setError('Completeaza numarul recipisei sau referinta depunerii.')
+      return
+    }
     try {
       setError('')
-      await api.post(`/accounting/periods/${an}/${Number(luna)}/mark-submitted`, { depunere_ref: submissionRef || 'Declaratii depuse' })
+      await api.post(`/accounting/periods/${an}/${Number(luna)}/mark-submitted`, { depunere_ref: submissionRef })
       setMessage('Declaratiile au fost marcate ca depuse.')
       load()
     } catch (err) {
@@ -174,6 +182,28 @@ export function InchidereLuna() {
                     { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${month}-01&pana_la=${month}-31` }
                   ]} />
                 </td>
+              </tr>
+            ))}
+          </Table>
+          {data.latest_snapshot ? (
+            <Card>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Snapshot contabil</h3>
+                  <p className="text-sm text-slate-500">Versiunea {data.latest_snapshot.versiune} · {data.latest_snapshot.created_at?.slice(0, 16).replace('T', ' ')} · {data.latest_snapshot.created_by_name || '-'}</p>
+                </div>
+                <Badge tone="info">{data.latest_snapshot.balance_rows?.length || 0} conturi</Badge>
+              </div>
+              <div className="mt-3 break-all rounded-md bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600">SHA-256: {data.latest_snapshot.checksum}</div>
+            </Card>
+          ) : null}
+          <Table headers={['Data', 'Eveniment', 'Utilizator', 'Detalii']}>
+            {(data.history || []).map(event => (
+              <tr key={event.id}>
+                <td className="px-3 py-2">{event.created_at?.slice(0, 16).replace('T', ' ') || '-'}</td>
+                <td className="px-3 py-2"><Badge tone={event.type === 'redeschidere' ? 'warning' : event.type === 'depunere' ? 'info' : 'success'}>{event.type}</Badge></td>
+                <td className="px-3 py-2">{event.user_name || event.user_id || '-'}</td>
+                <td className="px-3 py-2">{event.details?.motiv || event.details?.referinta || event.details?.checksum || '-'}</td>
               </tr>
             ))}
           </Table>

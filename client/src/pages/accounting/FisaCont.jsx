@@ -61,12 +61,27 @@ export function FisaCont() {
         <Info label="Rulaj credit" value={formatMoney(data.total_credit || 0)} />
         <Info label="Sold final" value={formatMoney(data.sold_final || 0)} />
       </div>
-      <Table headers={['Data', 'Document', 'Tip', 'Explicatie', 'Debit', 'Credit', 'Sold']}>
+      {(data.monthly_summary || []).length ? (
+        <Table headers={['Luna', 'Sold initial', 'Rulaj debit', 'Rulaj credit', 'Sold final', 'Miscari']}>
+          {(data.monthly_summary || []).map(row => (
+            <tr key={row.luna}>
+              <td className="px-3 py-2 font-semibold">{row.luna}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.sold_initial)}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.debit)}</td>
+              <td className="px-3 py-2 text-right">{formatMoney(row.credit)}</td>
+              <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.sold_final)}</td>
+              <td className="px-3 py-2 text-right">{row.miscari}</td>
+            </tr>
+          ))}
+        </Table>
+      ) : null}
+      <Table headers={['Data', 'Document', 'Tip', 'Corespondent', 'Explicatie', 'Debit', 'Credit', 'Sold']}>
         {data.movements.map(row => (
           <tr key={row.id} className="hover:bg-slate-50">
             <td className="px-3 py-2">{row.data}</td>
             <td className="px-3 py-2"><Link className="font-semibold text-primary-700 hover:underline" to={`/contabilitate/registru-jurnal?luna=${String(row.data || reportMonth).slice(0, 7)}`}>{row.nr_document || '-'}</Link></td>
             <td className="px-3 py-2">{row.tip_document}</td>
+            <td className="px-3 py-2 font-mono text-xs">{(row.conturi_corespondente || []).join(', ') || '-'}</td>
             <td className="px-3 py-2">{row.explicatie}</td>
             <td className="px-3 py-2 text-right">{row.debit ? formatMoney(row.debit) : '-'}</td>
             <td className="px-3 py-2 text-right">{row.credit ? formatMoney(row.credit) : '-'}</td>
@@ -76,7 +91,7 @@ export function FisaCont() {
         {data.movements.length ? (
           <tr className="bg-slate-50 font-semibold">
             <td className="px-3 py-2">TOTAL</td>
-            <td className="px-3 py-2" colSpan={3}>{data.movements.length} miscari</td>
+            <td className="px-3 py-2" colSpan={4}>{data.movements.length} miscari</td>
             <td className="px-3 py-2 text-right">{formatMoney(data.total_debit || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(data.total_credit || 0)}</td>
             <td className="px-3 py-2 text-right">{formatMoney(data.sold_final || 0)}</td>

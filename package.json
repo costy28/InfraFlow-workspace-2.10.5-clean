@@ -4,10 +4,11 @@
     "dev:client": "cd client && npm run dev",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build": "cd client && npm run build",
-    "start": "node server/src/server.js"
+    "start": "node server/src/server.js",
+    "test:accounting": "node --test server/tests/accounting-regression.test.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
-  "version": "2.12.142"
+  "version": "2.12.144"
 }

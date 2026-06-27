@@ -8,6 +8,8 @@ const { insertCostEntry } = require("../controlling/auto-register");
 const xlsx = require("xlsx");
 const multer = require("multer");
 const registerDeclarationRoutes = require("./declaration-routes");
+const periodSnapshots = require("./period-snapshots");
+const registerOperationsRoutes = require("./operations-routes");
 
 const router = Router();
 const importUpload = multer({
@@ -1030,7 +1032,7 @@ router.get("/accounting/general-ledger", requireAccountingReports, (req, res) =>
 router.get("/accounting/general-ledger/export", requireAccountingReports, (req, res, next) => {
   try {
     const data = buildGeneralLedger(req.auth.db, req.query);
-    const rows = [
+    const summaryRows = [
       ["Cartea Mare", `${data.perioada.de_la || "inceput"} - ${data.perioada.pana_la || "sfarsit"}`],
       [],
       ["Cont", "Denumire", "Tip", "Sold initial", "Rulaj debit", "Rulaj credit", "Sold final", "Nr. miscari"],
@@ -1045,9 +1047,11 @@ router.get("/accounting/general-ledger/export", requireAccountingReports, (req, 
         row.movements_count
       ]),
       [],
-      ["TOTAL", "", "", data.totals.sold_initial, data.totals.total_debit, data.totals.total_credit, data.totals.sold_final, data.totals.movements_count],
+      ["TOTAL", "", "", data.totals.sold_initial, data.totals.total_debit, data.totals.total_credit, data.totals.sold_final, data.totals.movements_count]
+    ];
+    const detailRows = [
+      ["Miscari detaliate", `${data.perioada.de_la || "inceput"} - ${data.perioada.pana_la || "sfarsit"}`],
       [],
-      ["Miscari detaliate"],
       ["Cont", "Data", "Document", "Tip document", "Explicatie", "Debit", "Credit", "Sold"],
       ...data.accounts.flatMap((account) => account.movements.map((row) => [
         account.simbol,
@@ -1061,9 +1065,14 @@ router.get("/accounting/general-ledger/export", requireAccountingReports, (req, 
       ]))
     ];
     const workbook = xlsx.utils.book_new();
-    const sheet = xlsx.utils.aoa_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 16 }, { wch: 42 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
-    xlsx.utils.book_append_sheet(workbook, sheet, "Cartea Mare");
+    const summarySheet = xlsx.utils.aoa_to_sheet(summaryRows);
+    summarySheet["!cols"] = [{ wch: 16 }, { wch: 42 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+    summarySheet["!autofilter"] = { ref: `A3:H${Math.max(3, data.accounts.length + 3)}` };
+    xlsx.utils.book_append_sheet(workbook, summarySheet, "Sumar conturi");
+    const detailSheet = xlsx.utils.aoa_to_sheet(detailRows);
+    detailSheet["!cols"] = [{ wch: 16 }, { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 48 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    detailSheet["!autofilter"] = { ref: `A3:H${Math.max(3, detailRows.length)}` };
+    xlsx.utils.book_append_sheet(workbook, detailSheet, "Miscari");
     const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
     const suffix = `${data.perioada.de_la || "start"}_${data.perioada.pana_la || "final"}`.replace(/[^\w.-]+/g, "_");
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -1121,13 +1130,19 @@ router.get("/accounting/ledger/:simbol/export", requireAccountingReports, (req, 
       ["Total credit", ledger.total_credit || 0],
       ["Sold final", ledger.sold_final || 0],
       [],
-      ["Data", "Document", "Tip document", "Explicatie", "Debit", "Credit", "Sold"],
-      ...ledger.movements.map((row) => [row.data, row.nr_document, row.tip_document, row.explicatie, row.debit, row.credit, row.sold])
+      ["Data", "Document", "Tip document", "Cont corespondent", "Explicatie", "Debit", "Credit", "Sold"],
+      ...ledger.movements.map((row) => [row.data, row.nr_document, row.tip_document, (row.conturi_corespondente || []).join(", "), row.explicatie, row.debit, row.credit, row.sold])
     ];
     const workbook = xlsx.utils.book_new();
     const sheet = xlsx.utils.aoa_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 48 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    sheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 48 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
     xlsx.utils.book_append_sheet(workbook, sheet, "Fisa cont");
+    const monthlySheet = xlsx.utils.aoa_to_sheet([
+      ["Luna", "Sold initial", "Rulaj debit", "Rulaj credit", "Sold final", "Miscari"],
+      ...(ledger.monthly_summary || []).map((row) => [row.luna, row.sold_initial, row.debit, row.credit, row.sold_final, row.miscari])
+    ]);
+    monthlySheet["!cols"] = [{ wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 12 }];
+    xlsx.utils.book_append_sheet(workbook, monthlySheet, "Sumar lunar");
     const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
     const safe = String(req.params.simbol || "cont").replace(/[^\w.-]+/g, "_");
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -1418,6 +1433,10 @@ router.get("/accounting/periods/:an/:luna/check", requireAccountingReports, (req
   sendJson(res, 200, periodCheck(req.auth.db, an, luna));
 });
 
+router.get("/accounting/periods/:an/:luna/history", requireAccountingReports, (req, res) => {
+  sendJson(res, 200, periodSnapshots.periodHistory(req.auth.db, Number(req.params.an), Number(req.params.luna)));
+});
+
 router.post("/accounting/periods/:an/:luna/close", requireAccountingClose, (req, res, next) => {
   try {
     const accounting = engine.ensureAccounting(req.auth.db);
@@ -1430,12 +1449,16 @@ router.post("/accounting/periods/:an/:luna/close", requireAccountingClose, (req,
     if (!check.checks.tva_checked) throwHttp(409, "TVA-ul lunii trebuie verificat inainte de inchidere.");
     engine.checkPeriodOpen(req.auth.db, an, luna);
     const period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna);
+    const snapshot = periodSnapshots.createPeriodSnapshot(req.auth.db, req.auth.user, an, luna, check);
     period.status = "inchisa";
     period.inchisa_de = req.auth.user.id;
     period.inchisa_la = new Date().toISOString();
+    period.snapshot_id = snapshot.id;
+    period.snapshot_checksum = snapshot.checksum;
+    periodSnapshots.addPeriodEvent(req.auth.db, req.auth.user, an, luna, "inchidere", { snapshot_id: snapshot.id, checksum: snapshot.checksum });
     addAudit(req.auth.db, req.auth.user, "accounting_period_close", `${luna}/${an}`);
     writeDb(req.auth.db);
-    sendJson(res, 200, { period });
+    sendJson(res, 200, { period, snapshot });
   } catch (error) { next(error); }
 });
 
@@ -1481,6 +1504,7 @@ router.post("/accounting/periods/:an/:luna/reopen", requireAccountingClose, (req
     period.redeschisa_de = req.auth.user.id;
     period.redeschisa_la = new Date().toISOString();
     period.redeschisa_motiv = String(req.body?.motiv || "").trim();
+    periodSnapshots.addPeriodEvent(req.auth.db, req.auth.user, req.params.an, req.params.luna, "redeschidere", { motiv: period.redeschisa_motiv, snapshot_id: period.snapshot_id || null });
     addAudit(req.auth.db, req.auth.user, "accounting_period_reopen", `${req.params.luna}/${req.params.an}${period.redeschisa_motiv ? ` / ${period.redeschisa_motiv}` : ""}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { period });
@@ -1509,6 +1533,7 @@ router.post("/accounting/periods/:an/:luna/mark-submitted", requireAccountingClo
     period.depusa_de = req.auth.user.id;
     period.depusa_la = new Date().toISOString();
     period.depunere_ref = String(req.body?.depunere_ref || "").trim();
+    periodSnapshots.addPeriodEvent(req.auth.db, req.auth.user, an, luna, "depunere", { referinta: period.depunere_ref, snapshot_id: period.snapshot_id || null });
     addAudit(req.auth.db, req.auth.user, "accounting_period_submitted", `${luna}/${an}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { period });
@@ -3193,8 +3218,11 @@ function periodCheck(db, an, luna) {
   const balanceDifference = round(totalDebit - totalCredit);
   const balanceOk = balance.balanced && Math.abs(balanceDifference) <= 0.01;
   const tvaChecked = Boolean(period.tva_verificat_la);
+  const history = periodSnapshots.periodHistory(db, an, luna);
   return {
     period,
+    latest_snapshot: history.latest_snapshot,
+    history: history.events.slice(0, 20),
     checks: {
       draft_count: draftDocuments.length,
       unbalanced_journals: unbalanced.length,
@@ -3563,6 +3591,7 @@ function buildGeneralLedger(db, query = {}) {
         sold_initial: ledger.sold_initial || 0,
         total_debit: ledger.total_debit || 0,
         total_credit: ledger.total_credit || 0,
+        miscari_nete: ledger.miscari_nete || 0,
         sold_final: ledger.sold_final || 0,
         movements_count: ledger.movements.length,
         movements: ledger.movements
@@ -3749,5 +3778,6 @@ function throwHttp(status, message) {
 }
 
 registerDeclarationRoutes(router, { requireAccountingReports });
+registerOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose });
 
 module.exports = router;

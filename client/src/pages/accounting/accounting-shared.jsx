@@ -16,6 +16,7 @@ const nav = [
   ['intrare', '/contabilitate/facturi-intrare', 'Facturi intrare'],
   ['iesire', '/contabilitate/facturi-iesire', 'Facturi iesire'],
   ['trezorerie', '/contabilitate/trezorerie', 'Trezorerie'],
+  ['operatiuni', '/contabilitate/operatiuni', 'Operațiuni contabile'],
   ['jurnale', '/contabilitate/jurnale', 'Jurnale'],
   ['jurnal', '/contabilitate/registru-jurnal', 'Registru jurnal'],
   ['cartea-mare', '/contabilitate/cartea-mare', 'Cartea Mare'],
@@ -36,7 +37,7 @@ const navGroups = [
   },
   {
     label: 'Operațiuni',
-    keys: ['intrare', 'iesire', 'trezorerie'],
+    keys: ['intrare', 'iesire', 'trezorerie', 'operatiuni'],
   },
   {
     label: 'Rapoarte',

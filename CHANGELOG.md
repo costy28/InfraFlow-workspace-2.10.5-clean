@@ -1,5 +1,30 @@
 # Changelog
 
+# v2.12.144 - 2026-06-27
+
+- Import extrase bancare CSV/XLS/XLSX cu detectarea duplicatelor si potrivire exacta dupa factura si suma.
+- Operatiunile importate intra in Trezorerie ca draft si pastreaza validarea contabila existenta.
+- Sincronizare controlata a miscarilor de stoc in contabilitate, cu verificarea costului si protectie la duplicate.
+- Registru de mijloace fixe, anulare cu istoric si calcul lunar al amortizarii liniare.
+- Note automate de amortizare pe conturile 6811, 2813 si contul de imobilizare configurat.
+- Control TVA intre facturi si rulajele conturilor 4426/4427 in panoul declaratiilor.
+- Inchidere anuala a claselor 6 si 7 prin rezultatul exercitiului, numai dupa controalele perioadei.
+- Pagina Contabilitate > Operatiuni pentru banca, stocuri, mijloace fixe, amortizare si inchidere anuala.
+- MSSQL: cinci tabele relationale noi pentru noile fluxuri contabile.
+- Regresie extinsa la noua teste automate pentru nucleul contabil.
+
+# v2.12.143 - 2026-06-27
+
+- D394 detaliat: documente, cote TVA, operatiuni, terti romani si validari CUI/document/data.
+- Export D394 cu foi separate pentru sumar, documente si probleme de rezolvat.
+- Inchidere luna: snapshot contabil versionat cu balanța analitica, documente si checksum SHA-256.
+- Istoric pentru inchidere, redeschidere si depunere, vizibil direct in pagina perioadei.
+- Cartea Mare: export separat pentru sumar si miscari detaliate.
+- Fisa de cont: conturi corespondente, sumar lunar si export imbunatatit.
+- SAF-T: diagnostic de mapare pentru companie, conturi, terti, facturi, note si materiale.
+- MSSQL: tabele relationale pentru snapshoturile si evenimentele perioadelor.
+- Regresie: cinci teste automate pentru fluxul contabil critic.
+
 # v2.12.142 - 2026-06-27
 
 - Trezorerie: filtru rapid, totaluri si avertizare pentru avansurile nestinse.
