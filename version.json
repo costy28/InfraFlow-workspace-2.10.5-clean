@@ -1,5 +1,5 @@
 {
-  "version": "2.12.140",
-  "date": "2026-06-26",
-  "changelog": "## v2.12.140 - 2026-06-26\n### Contabilitate - avansuri si corectii in Trezorerie\n- Operatiile de trezorerie fara factura legata pot fi marcate ca avans sau corectie.\n- Avansurile si corectiile marcate nu mai apar ca trezorerie necorelata in reconcilierea contabila.\n- Formularul Trezorerie are camp Corelare si observatii pentru avans/corectie.\n- Lista Trezorerie afiseaza badge pentru avansuri si corectii.\n- Validarea blocheaza corelarea de tip factura daca nu este selectata o factura."
+  "version": "2.12.142",
+  "date": "2026-06-27",
+  "changelog": "## v2.12.142 - 2026-06-27\n### Contabilitate - avansuri, inchidere si declaratii\n- Trezoreria are filtru si sumar pentru avansurile nestinse.\n- Reconcilierea si inchiderea lunii urmaresc avansurile si structura notelor contabile.\n- Redeschiderea retine motivul, iar depunerea poate retine referinta recipisei.\n- TVA include pregatirea D394 pe terti si panou de disponibilitate D300, D394 si SAF-T."
 }

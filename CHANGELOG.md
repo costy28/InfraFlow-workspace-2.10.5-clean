@@ -1,5 +1,21 @@
 # Changelog
 
+# v2.12.142 - 2026-06-27
+
+- Trezorerie: filtru rapid, totaluri si avertizare pentru avansurile nestinse.
+- Reconciliere: avansurile nestinse apar separat de operatiile necorelate.
+- Inchidere luna: verifica notele fara linii si afiseaza avansurile ramase fara a bloca inchiderea.
+- Redeschidere/depunere: motivul redeschiderii si referinta recipisei sunt pastrate in perioada si audit.
+- Declaratii: panou de pregatire D300, D394 si SAF-T, cu raport D394 intern grupat pe tert/CUI.
+- Export D394: registru Excel de lucru cu totaluri si verificari pentru tertii fara CUI.
+
+# v2.12.141 - 2026-06-26
+
+- Trezorerie: avansurile validate pot fi stinse ulterior cu factura sugerata.
+- Stingerea avansului actualizeaza restul facturii fara sa rescrie nota contabila initiala.
+- Operatia de trezorerie primeste legatura catre factura si audit dedicat.
+- Interfata afiseaza actiunea rapida doar cand exista o potrivire probabila.
+
 # v2.12.140 - 2026-06-26
 
 - Trezorerie: operatiile fara factura legata pot fi marcate ca avans sau corectie.

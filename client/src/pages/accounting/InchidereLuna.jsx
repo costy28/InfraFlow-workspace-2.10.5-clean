@@ -12,6 +12,8 @@ export function InchidereLuna() {
   const [data, setData] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [submissionRef, setSubmissionRef] = useState('')
+  const [reopenReason, setReopenReason] = useState('')
 
   useEffect(() => { load() }, [month])
 
@@ -42,7 +44,7 @@ export function InchidereLuna() {
     const [an, luna] = month.split('-')
     try {
       setError('')
-      await api.post(`/accounting/periods/${an}/${Number(luna)}/reopen`)
+      await api.post(`/accounting/periods/${an}/${Number(luna)}/reopen`, { motiv: reopenReason })
       setMessage('Luna a fost redeschisa.')
       load()
     } catch (err) {
@@ -54,7 +56,7 @@ export function InchidereLuna() {
     const [an, luna] = month.split('-')
     try {
       setError('')
-      await api.post(`/accounting/periods/${an}/${Number(luna)}/mark-submitted`, { depunere_ref: 'Declaratii depuse' })
+      await api.post(`/accounting/periods/${an}/${Number(luna)}/mark-submitted`, { depunere_ref: submissionRef || 'Declaratii depuse' })
       setMessage('Declaratiile au fost marcate ca depuse.')
       load()
     } catch (err) {
@@ -67,6 +69,7 @@ export function InchidereLuna() {
   const blockers = [
     checks.draft_count ? `${checks.draft_count} documente draft` : '',
     checks.unbalanced_journals ? `${checks.unbalanced_journals} note dezechilibrate` : '',
+    checks.journal_structure_ok === false ? 'note fara linii contabile' : '',
     checks.balance_ok === false ? 'balanta dezechilibrata' : '',
     checks.tva_checked === false ? 'TVA neverificat' : ''
   ].filter(Boolean)
@@ -90,8 +93,10 @@ export function InchidereLuna() {
       actions={<DropdownMenu align="right" label="Actiuni luna" items={actionItems} />}
     >
       <Card>
-        <div className="grid gap-3 md:grid-cols-[240px]">
+        <div className="grid gap-3 md:grid-cols-3">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+          <Input label="Referinta depunere" value={submissionRef} onChange={event => setSubmissionRef(event.target.value)} placeholder="Recipisa / numar inregistrare" />
+          <Input label="Motiv redeschidere" value={reopenReason} onChange={event => setReopenReason(event.target.value)} placeholder="Corectie document, control..." />
         </div>
       </Card>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
@@ -112,12 +117,19 @@ export function InchidereLuna() {
               </div>
             </div>
           </Card>
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Info label="Documente draft" value={checks.draft_count || 0} />
             <Info label="Note dezechilibrate" value={checks.unbalanced_journals || 0} />
             <Info label="Balanta" value={data.balance?.balanced ? 'Echilibrata' : formatMoney(data.balance?.difference || 0)} />
             <Info label="TVA" value={`${checks.tva_checked ? 'Verificat' : 'Neverificat'} · ${formatMoney(data.vat?.diferenta || 0)}`} />
+            <Info label="Structura note" value={checks.journal_structure_ok ? 'Corecta' : `${checks.journals_without_lines || 0} fara linii`} />
+            <Info label="Avansuri nestinse" value={checks.outstanding_advances || 0} />
           </div>
+          {checks.outstanding_advances ? (
+            <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
+              Avansurile nestinse nu blocheaza inchiderea, dar trebuie urmarite in lunile urmatoare. <Link className="font-semibold underline" to={`/contabilitate/trezorerie?luna=${month}&corelare=avans_nestins`}>Vezi avansurile</Link>
+            </div>
+          ) : null}
           {checks.tva_checked === false ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               TVA-ul lunii trebuie verificat inainte de inchidere. <Link className="font-semibold underline" to={`/contabilitate/tva-d300?luna=${month}`}>Mergi la TVA / D300</Link>

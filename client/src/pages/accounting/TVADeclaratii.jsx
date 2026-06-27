@@ -14,6 +14,8 @@ export function TVADeclaratii() {
   const [cota, setCota] = useState('')
   const [data, setData] = useState({ decont: { randuri: [] } })
   const [journal, setJournal] = useState({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
+  const [readiness, setReadiness] = useState({ checks: [], declarations: [] })
+  const [d394, setD394] = useState({ terti: [], warnings: [], totaluri: {} })
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -27,13 +29,19 @@ export function TVADeclaratii() {
     setError('')
     Promise.all([
       api.get('/accounting/d300', { params: params() }),
-      api.get('/accounting/vat-journal', { params: params() })
-    ]).then(([d300Res, journalRes]) => {
+      api.get('/accounting/vat-journal', { params: params() }),
+      api.get('/accounting/declarations/readiness', { params: params() }),
+      api.get('/accounting/d394', { params: params() })
+    ]).then(([d300Res, journalRes, readinessRes, d394Res]) => {
       setData(d300Res.data || { decont: { randuri: [] } })
       setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
+      setReadiness(readinessRes.data || { checks: [], declarations: [] })
+      setD394(d394Res.data || { terti: [], warnings: [], totaluri: {} })
     }).catch(err => {
       setData({ decont: { randuri: [] } })
       setJournal({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
+      setReadiness({ checks: [], declarations: [] })
+      setD394({ terti: [], warnings: [], totaluri: {} })
       setError(err.response?.data?.error || 'Nu am putut incarca TVA / D300.')
     })
   }
@@ -80,6 +88,7 @@ export function TVADeclaratii() {
             { type: 'separator' },
             { label: 'Export Excel', onClick: () => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`) },
             { label: 'XML lucru', onClick: () => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`) },
+            { label: 'D394 lucru Excel', onClick: () => download('/accounting/d394/export', `D394_lucru_${fileMonth}.xlsx`) },
             { type: 'separator' },
             { label: 'Facturi intrare', to: `/contabilitate/facturi-intrare?luna=${month}` },
             { label: 'Facturi iesire', to: `/contabilitate/facturi-iesire?luna=${month}` },
@@ -109,6 +118,33 @@ export function TVADeclaratii() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
+            <h3 className="text-base font-semibold text-slate-900">Pregatire declaratii</h3>
+            <p className="text-sm text-slate-500">Control intern al datelor inainte de validarea in aplicatiile oficiale.</p>
+          </div>
+          <Badge tone={readiness.status === 'ready' ? 'success' : 'warning'}>{readiness.status === 'ready' ? 'pregatit' : 'necesita verificari'}</Badge>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {(readiness.declarations || []).map(item => (
+            <div key={item.code} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <strong className="text-sm text-slate-900">{item.code}</strong>
+                <Badge tone={item.status === 'pregatit' ? 'success' : item.status === 'in_lucru' ? 'warning' : 'gray'}>{item.status.replace('_', ' ')}</Badge>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {(readiness.checks || []).map(check => (
+            <div key={check.key} className={`rounded-md border px-3 py-2 text-sm ${check.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+              <strong>{check.label}:</strong> {check.message}
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
             <div className="text-xs uppercase text-slate-500">Status TVA luna</div>
             <div className="mt-1 text-sm text-slate-700">
               {periodStatus.tva_verificat_la ? `Verificat la ${periodStatus.tva_verificat_la.slice(0, 16).replace('T', ' ')} de ${periodStatus.tva_verificat_de_name || '-'}` : 'Neverificat pentru inchidere luna.'}
@@ -127,6 +163,20 @@ export function TVADeclaratii() {
         <Info label="TVA de recuperat" value={formatMoney(d.tva_de_recuperat || 0)} />
       </div>
       {warnings.length ? <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">{warnings.join(' ')}</div> : null}
+      {d394.warnings?.length ? <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{d394.warnings.join(' ')}</div> : null}
+      <Table headers={['CUI', 'Tert', 'Tip', 'Documente', 'Baza', 'TVA', 'Total']}>
+        {(d394.terti || []).map(row => (
+          <tr key={`${row.tip}-${row.cui}`}>
+            <td className="px-3 py-2 font-mono">{row.cui}</td>
+            <td className="px-3 py-2">{row.denumire}</td>
+            <td className="px-3 py-2">{row.tip}</td>
+            <td className="px-3 py-2 text-right">{row.documente}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.baza)}</td>
+            <td className="px-3 py-2 text-right">{formatMoney(row.tva)}</td>
+            <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.total)}</td>
+          </tr>
+        ))}
+      </Table>
       {journal.status_summary?.length ? (
         <Table headers={['Status', 'Intrari', 'TVA intrari', 'Iesiri', 'TVA iesiri']}>
           {journal.status_summary.map(row => (

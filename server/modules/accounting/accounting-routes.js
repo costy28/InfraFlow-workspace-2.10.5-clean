@@ -7,6 +7,7 @@ const engine = require("./accounting-engine");
 const { insertCostEntry } = require("../controlling/auto-register");
 const xlsx = require("xlsx");
 const multer = require("multer");
+const registerDeclarationRoutes = require("./declaration-routes");
 
 const router = Router();
 const importUpload = multer({
@@ -645,7 +646,8 @@ router.post("/accounting/invoices-out/:uuid/collect", requireAccountingPost, (re
 
 router.get("/accounting/treasury", requireAccountingView, (req, res) => {
   const accounting = engine.ensureAccounting(req.auth.db);
-  sendJson(res, 200, { treasury: filterDocuments(accounting.treasury, req.query).map((row) => decorateTreasury(row, accounting)) });
+  const treasury = filterDocuments(accounting.treasury, req.query).map((row) => decorateTreasury(row, accounting));
+  sendJson(res, 200, { treasury, summary: treasurySummary(treasury) });
 });
 
 router.get("/accounting/treasury/export", requireAccountingReports, (req, res, next) => {
@@ -657,7 +659,7 @@ router.get("/accounting/treasury/export", requireAccountingReports, (req, res, n
     const exportRows = [
       ["Registru trezorerie", req.query.an || "", req.query.luna ? String(req.query.luna).padStart(2, "0") : "", req.query.status || "toate fara anulate"],
       [],
-      ["Data", "Tip", "Operatie", "Document", "Tert", "CUI", "Cont trezorerie", "Cont corespondent", "Suma", "Status", "Nota contabila", "Explicatie"],
+      ["Data", "Tip", "Operatie", "Document", "Tert", "CUI", "Cont trezorerie", "Cont corespondent", "Suma", "Status", "Corelare", "Nota contabila", "Explicatie"],
       ...rows.map((row) => {
         const tert = row.tert_id ? accounting.thirdParties.find((item) => String(item.id) === String(row.tert_id)) : null;
         return [
@@ -671,18 +673,19 @@ router.get("/accounting/treasury/export", requireAccountingReports, (req, res, n
           row.cont_corespondent || "",
           row.suma || 0,
           row.status || "",
+          row.corelare_label || "",
           row.journal_id ? `NC ${row.journal_id}` : "",
           row.explicatie || ""
         ];
       }),
       [],
-      ["TOTAL INCASARI", "", "", "", "", "", "", "", totalIncasari, "", "", ""],
-      ["TOTAL PLATI", "", "", "", "", "", "", "", totalPlati, "", "", ""],
-      ["DIFERENTA", "", "", "", "", "", "", "", round(totalIncasari - totalPlati), "", "", ""]
+      ["TOTAL INCASARI", "", "", "", "", "", "", "", totalIncasari, "", "", "", ""],
+      ["TOTAL PLATI", "", "", "", "", "", "", "", totalPlati, "", "", "", ""],
+      ["DIFERENTA", "", "", "", "", "", "", "", round(totalIncasari - totalPlati), "", "", "", ""]
     ];
     const workbook = xlsx.utils.book_new();
     const sheet = xlsx.utils.aoa_to_sheet(exportRows);
-    sheet["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 34 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 42 }];
+    sheet["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 34 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 42 }];
     xlsx.utils.book_append_sheet(workbook, sheet, "Trezorerie");
     const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
     const suffix = req.query.an && req.query.luna ? `${req.query.an}_${String(req.query.luna).padStart(2, "0")}` : today();
@@ -728,6 +731,41 @@ router.post("/accounting/treasury/:uuid/classify", requireAccountingPost, (req, 
     addAudit(req.auth.db, req.auth.user, "accounting_treasury_classify", `${treasury.tip_operatie} ${treasury.suma} / ${treasury.corelare_tip}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { treasury: decorateTreasury(treasury, engine.ensureAccounting(req.auth.db)) });
+  } catch (error) { next(error); }
+});
+
+router.post("/accounting/treasury/:uuid/settle-advance", requireAccountingPost, (req, res, next) => {
+  try {
+    const treasury = findByUuid(engine.ensureAccounting(req.auth.db).treasury, req.params.uuid, "Operatia nu a fost gasita.");
+    if (treasury.status !== "validat") throwHttp(409, "Doar avansurile validate se pot stinge cu o factura.");
+    if (treasury.invoice_in_id || treasury.invoice_out_id) throwHttp(409, "Operatia este deja legata de o factura.");
+    if (String(treasury.corelare_tip || "").toLowerCase() !== "avans") throwHttp(409, "Operatia trebuie marcata ca avans inainte de stingere.");
+    const candidate = {
+      ...treasury,
+      invoice_in_id: req.body?.invoice_in_id || null,
+      invoice_out_id: req.body?.invoice_out_id || null
+    };
+    const link = prepareTreasuryInvoiceLink(req.auth.db, candidate);
+    if (!link) throwHttp(422, "Alege factura care stinge avansul.");
+    engine.checkPeriodOpen(req.auth.db, link.invoice.an, link.invoice.luna);
+    assertTreasuryInvoiceCanApply(req.auth.db, candidate);
+    Object.assign(treasury, {
+      invoice_in_id: candidate.invoice_in_id,
+      invoice_out_id: candidate.invoice_out_id,
+      tert_id: candidate.tert_id,
+      cont_corespondent: candidate.cont_corespondent,
+      nr_document: candidate.nr_document,
+      explicatie: candidate.explicatie,
+      corelare_tip: candidate.corelare_tip
+    });
+    applyTreasuryInvoiceEffect(req.auth.db, treasury);
+    treasury.corelare_observatii = String(req.body?.observatii || `Avans stins cu factura ${link.invoice.nr_document || link.invoice.numar || link.invoice.id}`).trim();
+    treasury.corelare_de = req.auth.user?.id || "";
+    treasury.corelare_la = new Date().toISOString();
+    treasury.updated_at = new Date().toISOString();
+    addAudit(req.auth.db, req.auth.user, "accounting_treasury_advance_settle", `${treasury.tip_operatie} ${treasury.suma} / factura ${link.invoice.nr_document || link.invoice.numar || link.invoice.id}`);
+    writeDb(req.auth.db);
+    sendJson(res, 200, { treasury: decorateTreasury(treasury, engine.ensureAccounting(req.auth.db)), invoice: link.invoice });
   } catch (error) { next(error); }
 });
 
@@ -1442,7 +1480,8 @@ router.post("/accounting/periods/:an/:luna/reopen", requireAccountingClose, (req
     period.status = "deschisa";
     period.redeschisa_de = req.auth.user.id;
     period.redeschisa_la = new Date().toISOString();
-    addAudit(req.auth.db, req.auth.user, "accounting_period_reopen", `${req.params.luna}/${req.params.an}`);
+    period.redeschisa_motiv = String(req.body?.motiv || "").trim();
+    addAudit(req.auth.db, req.auth.user, "accounting_period_reopen", `${req.params.luna}/${req.params.an}${period.redeschisa_motiv ? ` / ${period.redeschisa_motiv}` : ""}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { period });
   } catch (error) { next(error); }
@@ -1874,6 +1913,25 @@ function treasuryCorrelationLabel(type) {
   }[String(type || "")] || "Neclasificat";
 }
 
+function treasurySummary(rows) {
+  const outstandingAdvances = rows.filter((row) =>
+    row.status === "validat" &&
+    row.corelare_tip === "avans" &&
+    !row.invoice_in_id &&
+    !row.invoice_out_id
+  );
+  return {
+    count: rows.length,
+    advances: {
+      count: outstandingAdvances.length,
+      incasari: round(outstandingAdvances.filter((row) => row.tip_operatie === "incasare").reduce((sum, row) => sum + Number(row.suma || 0), 0)),
+      plati: round(outstandingAdvances.filter((row) => row.tip_operatie === "plata").reduce((sum, row) => sum + Number(row.suma || 0), 0))
+    },
+    unclassified: rows.filter((row) => row.status === "validat" && row.corelare_tip === "neclasificat" && row.tert_id).length,
+    corrections: rows.filter((row) => row.corelare_tip === "corectie").length
+  };
+}
+
 function suggestTreasuryInvoiceMatches(row, accounting) {
   if (!row || row.invoice_in_id || row.invoice_out_id || !row.tert_id) return [];
   const amount = round(row.suma || 0);
@@ -2190,6 +2248,11 @@ function filterDocuments(items, query) {
     (!query.client || String(item.client_id) === String(query.client)) &&
     (!query.tert_id || String(item.tert_id) === String(query.tert_id)) &&
     (!query.operatie || String(item.tip_operatie) === String(query.operatie)) &&
+    (!query.corelare || (
+      query.corelare === "avans_nestins"
+        ? item.status === "validat" && item.corelare_tip === "avans" && !item.invoice_in_id && !item.invoice_out_id
+        : String(item.corelare_tip || (item.invoice_in_id || item.invoice_out_id ? "factura" : "neclasificat")) === String(query.corelare)
+    )) &&
     (!query.tip || item.tip_document === query.tip || item.tip === query.tip)
   ).sort((a, b) => String(b.data || b.created_at || "").localeCompare(String(a.data || a.created_at || "")));
 }
@@ -3121,6 +3184,10 @@ function periodCheck(db, an, luna) {
   const invoicesIn = accounting.invoicesIn.filter(inMonth);
   const invoicesOut = accounting.invoicesOut.filter(inMonth);
   const treasury = accounting.treasury.filter(inMonth);
+  const outstandingAdvances = treasury.filter((item) => item.status === "validat" && item.corelare_tip === "avans" && !item.invoice_in_id && !item.invoice_out_id);
+  const journalLineIds = new Set(accounting.journalLines.map((item) => Number(item.journal_id)));
+  const journalsWithoutLines = activeJournals.filter((item) => !journalLineIds.has(Number(item.id)));
+  const orphanJournalLines = [];
   const totalDebit = round(balance.totals?.rulaje_D || 0);
   const totalCredit = round(balance.totals?.rulaje_C || 0);
   const balanceDifference = round(totalDebit - totalCredit);
@@ -3132,8 +3199,12 @@ function periodCheck(db, an, luna) {
       draft_count: draftDocuments.length,
       unbalanced_journals: unbalanced.length,
       balance_ok: balanceOk,
+      journal_structure_ok: journalsWithoutLines.length === 0 && orphanJournalLines.length === 0,
+      journals_without_lines: journalsWithoutLines.length,
+      orphan_journal_lines: orphanJournalLines.length,
       tva_checked: tvaChecked,
-      can_close: period.status === "deschisa" && draftDocuments.length === 0 && unbalanced.length === 0 && balanceOk && tvaChecked,
+      outstanding_advances: outstandingAdvances.length,
+      can_close: period.status === "deschisa" && draftDocuments.length === 0 && unbalanced.length === 0 && journalsWithoutLines.length === 0 && orphanJournalLines.length === 0 && balanceOk && tvaChecked,
       can_reopen: ["inchisa", "depusa"].includes(period.status),
       can_mark_submitted: period.status === "inchisa"
     },
@@ -3155,6 +3226,15 @@ function periodCheck(db, an, luna) {
       total_debit: round(item.total_debit || 0),
       total_credit: round(item.total_credit || 0),
       diferenta: item.diferenta
+    })),
+    advances: outstandingAdvances.slice(0, 25).map((item) => ({
+      id: item.id,
+      uuid: item.uuid,
+      data: item.data,
+      nr_document: item.nr_document || item.id,
+      tip_operatie: item.tip_operatie,
+      suma: round(item.suma || 0),
+      resolve_url: `/contabilitate/trezorerie?luna=${an}-${String(luna).padStart(2, "0")}&corelare=avans_nestins`
     })),
     balance: {
       balanced: balanceOk,
@@ -3226,6 +3306,12 @@ function buildReconciliation(db, an, luna, options = {}) {
     !["avans", "corectie"].includes(String(item.corelare_tip || "").toLowerCase()) &&
     ["401", "4111"].some((prefix) => String(item.cont_corespondent || "").startsWith(prefix))
   );
+  const outstandingAdvances = treasury.filter((item) =>
+    item.status === "validat" &&
+    String(item.corelare_tip || "").toLowerCase() === "avans" &&
+    !item.invoice_in_id &&
+    !item.invoice_out_id
+  );
   const journalIds = new Set(accounting.journalLines.map((line) => Number(line.journal_id)));
   const journals = accounting.journals.filter((item) => item.status !== "anulat" && Number(item.an) === Number(an) && Number(item.luna) === Number(luna));
   const unbalancedJournals = journals.filter((journal) => {
@@ -3268,6 +3354,14 @@ function buildReconciliation(db, an, luna, options = {}) {
       link: "/contabilitate/trezorerie"
     },
     {
+      key: "outstanding_advances",
+      label: "Avansuri nestinse",
+      severity: outstandingAdvances.length ? "warning" : "ok",
+      value: outstandingAdvances.length,
+      message: outstandingAdvances.length ? "Exista avansuri validate care asteapta o factura pentru stingere." : "Nu exista avansuri nestinse in luna selectata.",
+      link: `/contabilitate/trezorerie?luna=${month}&corelare=avans_nestins`
+    },
+    {
       key: "journal_consistency",
       label: "Note contabile",
       severity: unbalancedJournals.length || invoiceMissingJournal.length ? "danger" : "ok",
@@ -3294,6 +3388,7 @@ function buildReconciliation(db, an, luna, options = {}) {
       open_suppliers: openInWithRest.sort((a, b) => b._rest - a._rest).slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, item._rest, month)),
       open_clients: openOutWithRest.sort((a, b) => b._rest - a._rest).slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, item._rest, month)),
       unlinked_treasury: treasuryUnlinked.slice(0, issueLimit).map((item) => reconcileTreasuryRow(item, month)),
+      outstanding_advances: outstandingAdvances.slice(0, issueLimit).map((item) => reconcileTreasuryRow(item, month)),
       invoice_missing_journal: invoiceMissingJournal.slice(0, issueLimit).map((item) => reconcileInvoiceRow(item, null, month)),
       unbalanced_journals: unbalancedJournals.slice(0, issueLimit).map((item) => ({
         id: item.id,
@@ -3316,6 +3411,7 @@ function flattenReconciliationIssues(reconciliation) {
     ...(issues.open_suppliers || []).map((row) => ({ ...row, group: "Furnizori de plata", action: "Plateste factura sau verifica scadenta." })),
     ...(issues.open_clients || []).map((row) => ({ ...row, group: "Clienti de incasat", action: "Incaseaza factura sau verifica scadenta." })),
     ...(issues.unlinked_treasury || []).map((row) => ({ ...row, group: "Trezorerie necorelata", action: "Leaga operatia de factura sau marcheaz-o ca avans/corectie." })),
+    ...(issues.outstanding_advances || []).map((row) => ({ ...row, group: "Avansuri nestinse", action: "Stinge avansul cand factura devine disponibila." })),
     ...(issues.invoice_missing_journal || []).map((row) => ({ ...row, group: "Facturi fara nota", action: "Devalideaza si valideaza din nou documentul." })),
     ...(issues.unbalanced_journals || []).map((row) => ({ ...row, group: "Note dezechilibrate", action: "Corecteaza debitul si creditul notei." }))
   ].map((row) => ({
@@ -3651,5 +3747,7 @@ function throwHttp(status, message) {
   error.status = status;
   throw error;
 }
+
+registerDeclarationRoutes(router, { requireAccountingReports });
 
 module.exports = router;

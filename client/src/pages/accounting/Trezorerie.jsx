@@ -20,6 +20,7 @@ export function Trezorerie() {
   const [status, setStatus] = useState(searchParams.get('status') || '')
   const [tipFilter, setTipFilter] = useState(searchParams.get('tip') || '')
   const [operationFilter, setOperationFilter] = useState(searchParams.get('operatie') || '')
+  const [correlationFilter, setCorrelationFilter] = useState(searchParams.get('corelare') || '')
   const [tertFilter, setTertFilter] = useState(searchParams.get('tert_id') || '')
   const [q, setQ] = useState(searchParams.get('q') || '')
   const [modal, setModal] = useState(false)
@@ -34,6 +35,7 @@ export function Trezorerie() {
   const [journalModal, setJournalModal] = useState(false)
   const [journalData, setJournalData] = useState(null)
   const [journalLoading, setJournalLoading] = useState(false)
+  const [serverSummary, setServerSummary] = useState({ advances: {} })
   const tertById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
   const invoiceChoices = useMemo(() => {
     const source = form.tip_operatie === 'incasare' ? openInvoicesOut : openInvoicesIn
@@ -46,11 +48,12 @@ export function Trezorerie() {
     setStatus(searchParams.get('status') || '')
     setTipFilter(searchParams.get('tip') || '')
     setOperationFilter(searchParams.get('operatie') || '')
+    setCorrelationFilter(searchParams.get('corelare') || '')
     setTertFilter(searchParams.get('tert_id') || '')
     setQ(searchParams.get('q') || '')
   }, [searchParams])
 
-  useEffect(() => { load() }, [month, status, tipFilter, operationFilter, tertFilter])
+  useEffect(() => { load() }, [month, status, tipFilter, operationFilter, correlationFilter, tertFilter])
 
   useEffect(() => {
     const shouldOpen = searchParams.get('new') === '1'
@@ -100,19 +103,21 @@ export function Trezorerie() {
   function load() {
     const [an, luna] = month.split('-')
     Promise.all([
-      api.get('/accounting/treasury', { params: { an, luna: Number(luna), status: status || undefined, tip: tipFilter || undefined, operatie: operationFilter || undefined, tert_id: tertFilter || undefined } }),
+      api.get('/accounting/treasury', { params: { an, luna: Number(luna), status: status || undefined, tip: tipFilter || undefined, operatie: operationFilter || undefined, corelare: correlationFilter || undefined, tert_id: tertFilter || undefined } }),
       api.get('/accounting/third-parties'),
       api.get('/accounting/chart'),
       api.get('/accounting/invoices-in'),
       api.get('/accounting/invoices-out')
     ]).then(([treasuryRes, tertRes, chartRes, invoicesInRes, invoicesOutRes]) => {
       setRows(treasuryRes.data.treasury || [])
+      setServerSummary(treasuryRes.data.summary || { advances: {} })
       setThirdParties(tertRes.data.thirdParties || [])
       setAccounts(chartRes.data.accounts || [])
       setOpenInvoicesIn((invoicesInRes.data.invoices || []).filter(invoice => ['validat', 'partial'].includes(invoice.status) && invoiceRemaining(invoice, 'intrare') > 0))
       setOpenInvoicesOut((invoicesOutRes.data.invoices || []).filter(invoice => ['validat', 'partial'].includes(invoice.status) && invoiceRemaining(invoice, 'iesire') > 0))
     }).catch(() => {
       setRows([])
+      setServerSummary({ advances: {} })
       setThirdParties([])
       setAccounts([])
       setOpenInvoicesIn([])
@@ -158,7 +163,7 @@ export function Trezorerie() {
     if (!needle) return rows
     return rows.filter(row => {
       const tert = tertById.get(String(row.tert_id))
-      return `${row.id || ''} ${row.uuid || ''} ${row.data || ''} ${row.tip || ''} ${row.tip_operatie || ''} ${row.nr_document || ''} ${row.cont_trezorerie || ''} ${row.cont_corespondent || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
+      return `${row.id || ''} ${row.uuid || ''} ${row.data || ''} ${row.tip || ''} ${row.tip_operatie || ''} ${row.nr_document || ''} ${row.cont_trezorerie || ''} ${row.cont_corespondent || ''} ${row.corelare_label || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
     })
   }, [rows, q, tertById])
 
@@ -204,6 +209,7 @@ export function Trezorerie() {
           status: status || undefined,
           tip: tipFilter || undefined,
           operatie: operationFilter || undefined,
+          corelare: correlationFilter || undefined,
           tert_id: tertFilter || undefined
         },
         responseType: 'blob'
@@ -472,6 +478,26 @@ export function Trezorerie() {
     }
   }
 
+  async function settleAdvance(row, suggestion) {
+    if (!row?.uuid || !suggestion?.id) return
+    setActionLoading(`settle-${row.uuid}`)
+    setError('')
+    setMessage('')
+    setValidatedJournal(null)
+    try {
+      const payload = suggestion.tip === 'intrare'
+        ? { invoice_in_id: suggestion.id, invoice_out_id: null }
+        : { invoice_out_id: suggestion.id, invoice_in_id: null }
+      await api.post(`/accounting/treasury/${row.uuid}/settle-advance`, payload)
+      setMessage(`Avansul a fost stins cu factura ${suggestion.document}.`)
+      load()
+    } catch (err) {
+      setError(errorText(err, 'Avansul nu a putut fi stins. Verifică factura sugerată, suma rămasă și luna contabilă.'))
+    } finally {
+      setActionLoading('')
+    }
+  }
+
   async function classifyTreasury(row, type) {
     setActionLoading(`classify-${row.uuid}`)
     setError('')
@@ -518,6 +544,7 @@ export function Trezorerie() {
     const canValidate = row.status === 'draft'
     const canDevalidate = row.status === 'validat'
     const bestSuggestion = (row.suggested_matches || [])[0]
+    const canSettleAdvance = row.status === 'validat' && row.corelare_tip === 'avans' && !row.linked_invoice && bestSuggestion
     const invoiceLink = row.linked_invoice
       ? row.linked_invoice.tip === 'intrare'
         ? `/contabilitate/facturi-intrare?factura=${row.linked_invoice.id}`
@@ -526,6 +553,7 @@ export function Trezorerie() {
     return [
       canValidate ? { label: 'Editeaza operatia', onClick: () => openEdit(row) } : null,
       canValidate && bestSuggestion ? { label: `Leaga factura sugerata ${bestSuggestion.document}`, onClick: () => attachSuggestedInvoice(row, bestSuggestion) } : null,
+      canSettleAdvance ? { label: `Stinge avans cu ${bestSuggestion.document}`, onClick: () => settleAdvance(row, bestSuggestion) } : null,
       canValidate ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
       canValidate ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
       !row.linked_invoice && row.tert_id ? { label: 'Marcheaza ca avans', onClick: () => classifyTreasury(row, 'avans') } : null,
@@ -571,7 +599,7 @@ export function Trezorerie() {
         </div>
       ) : null}
       <Card>
-        <div className="grid gap-3 xl:grid-cols-[160px_160px_160px_160px_minmax(220px,1fr)_minmax(180px,1fr)]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Select label="Status" value={status} onChange={event => setStatus(event.target.value)} options={[
             { value: '', label: 'Toate fara anulate' },
@@ -590,6 +618,14 @@ export function Trezorerie() {
             { value: 'incasare', label: 'Incasari' },
             { value: 'plata', label: 'Plati' }
           ]} />
+          <Select label="Corelare" value={correlationFilter} onChange={event => setCorrelationFilter(event.target.value)} options={[
+            { value: '', label: 'Toate' },
+            { value: 'factura', label: 'Facturi' },
+            { value: 'avans_nestins', label: 'Avansuri nestinse' },
+            { value: 'avans', label: 'Toate avansurile' },
+            { value: 'corectie', label: 'Corectii' },
+            { value: 'neclasificat', label: 'Neclasificate' }
+          ]} />
           <Select label="Tert" value={tertFilter} onChange={event => setTertFilter(event.target.value)} options={[
             { value: '', label: 'Toti tertii' },
             ...thirdParties.map(tert => ({ value: tert.id, label: `${tert.cod} - ${tert.denumire}` }))
@@ -597,13 +633,23 @@ export function Trezorerie() {
           <Input label="Cauta" value={q} onChange={event => setQ(event.target.value)} placeholder="Document, tert, cont..." />
         </div>
       </Card>
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
         <Card density="compact"><div className="text-xs text-slate-500">Operatii</div><div className="text-lg font-semibold">{totals.count}</div></Card>
         <Card density="compact"><div className="text-xs text-slate-500">Incasari</div><div className="text-lg font-semibold">{formatMoney(totals.incasari)}</div></Card>
         <Card density="compact"><div className="text-xs text-slate-500">Plati</div><div className="text-lg font-semibold">{formatMoney(totals.plati)}</div></Card>
         <Card density="compact"><div className="text-xs text-slate-500">Diferenta</div><div className="text-lg font-semibold">{formatMoney(totals.diferenta)}</div></Card>
         <Card density="compact"><div className="text-xs text-slate-500">Drafturi</div><div className="text-lg font-semibold">{totals.drafturi}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Avansuri nestinse</div><div className="text-lg font-semibold">{serverSummary.advances?.count || 0}</div></Card>
+        <Card density="compact"><div className="text-xs text-slate-500">Sold avansuri</div><div className="text-lg font-semibold">{formatMoney(money(serverSummary.advances?.incasari) - money(serverSummary.advances?.plati))}</div></Card>
       </div>
+      {serverSummary.advances?.count ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span>{serverSummary.advances.count} avansuri validate asteapta factura: incasari {formatMoney(serverSummary.advances.incasari)} · plati {formatMoney(serverSummary.advances.plati)}.</span>
+          <Button variant="secondary" size="sm" onClick={() => setCorrelationFilter(correlationFilter === 'avans_nestins' ? '' : 'avans_nestins')}>
+            {correlationFilter === 'avans_nestins' ? 'Arata toate' : 'Vezi avansurile'}
+          </Button>
+        </div>
+      ) : null}
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
