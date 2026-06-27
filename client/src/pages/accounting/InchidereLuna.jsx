@@ -92,6 +92,14 @@ export function InchidereLuna() {
     { label: 'Balanta', to: `/contabilitate/balanta?luna=${month}` },
     { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
   ].filter(Boolean)
+  const assistantSteps = [
+    { label: 'Documente', ok: !checks.draft_count, detail: checks.draft_count ? `${checks.draft_count} draft` : 'Toate documentele sunt validate', to: `/contabilitate/inchidere-luna?luna=${month}` },
+    { label: 'Trezorerie', ok: !(data?.drafts || []).some(row => row.categorie === 'Trezorerie'), detail: checks.outstanding_advances ? `${checks.outstanding_advances} avansuri de urmărit` : 'Operațiile sunt procesate', to: `/contabilitate/trezorerie?luna=${month}` },
+    { label: 'Stocuri', ok: true, detail: 'Verifică sincronizarea și CMP', to: `/contabilitate/operatiuni?luna=${month}` },
+    { label: 'TVA', ok: checks.tva_checked, detail: checks.tva_checked ? 'TVA verificat' : 'TVA necesită verificare', to: `/contabilitate/tva-d300?luna=${month}` },
+    { label: 'Balanță', ok: checks.balance_ok && checks.journal_structure_ok, detail: checks.balance_ok ? 'Balanță echilibrată' : 'Există diferențe', to: `/contabilitate/balanta?luna=${month}` },
+    { label: 'Închidere', ok: checks.can_close || ['inchisa', 'depusa'].includes(status), detail: ['inchisa', 'depusa'].includes(status) ? `Luna este ${status}` : checks.can_close ? 'Pregătită pentru închidere' : 'Așteaptă pașii anteriori', to: `/contabilitate/inchidere-luna?luna=${month}` }
+  ]
 
   return (
     <AccountingShell
@@ -123,6 +131,18 @@ export function InchidereLuna() {
               <div className="text-sm text-slate-500">
                 Note: {data.counts?.journals || 0} · Intrari: {data.counts?.invoices_in || 0} · Iesiri: {data.counts?.invoices_out || 0} · Trezorerie: {data.counts?.treasury || 0}
               </div>
+            </div>
+          </Card>
+          <Card>
+            <h3 className="text-base font-semibold text-slate-900">Asistent închidere lunară</h3>
+            <p className="mt-1 text-sm text-slate-500">Parcurge pașii în ordine. Fiecare etapă deschide direct zona care trebuie verificată.</p>
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {assistantSteps.map((step, index) => (
+                <Link key={step.label} to={step.to} className={`flex items-start gap-3 rounded-md border px-3 py-3 transition hover:shadow-sm ${step.ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${step.ok ? 'bg-emerald-700 text-white' : 'bg-amber-500 text-white'}`}>{step.ok ? '✓' : index + 1}</span>
+                  <span><strong className="block text-sm text-slate-900">{step.label}</strong><span className="text-xs text-slate-600">{step.detail}</span></span>
+                </Link>
+              ))}
             </div>
           </Card>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">

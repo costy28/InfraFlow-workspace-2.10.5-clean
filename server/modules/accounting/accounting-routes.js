@@ -11,6 +11,7 @@ const registerDeclarationRoutes = require("./declaration-routes");
 const periodSnapshots = require("./period-snapshots");
 const registerOperationsRoutes = require("./operations-routes");
 const registerAdvancedOperationsRoutes = require("./operations-advanced-routes");
+const registerAccountingControlRoutes = require("./accounting-control-routes");
 
 const router = Router();
 const importUpload = multer({
@@ -3781,5 +3782,6 @@ function throwHttp(status, message) {
 registerDeclarationRoutes(router, { requireAccountingReports, requireAccountingPost });
 registerOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose });
 registerAdvancedOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose, requireAccountingReports });
+registerAccountingControlRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingReports });
 
 module.exports = router;

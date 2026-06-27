@@ -5,6 +5,7 @@ const declarations = require("../modules/accounting/declaration-routes");
 const snapshots = require("../modules/accounting/period-snapshots");
 const operations = require("../modules/accounting/operations-routes");
 const advancedOperations = require("../modules/accounting/operations-advanced-routes");
+const controls = require("../modules/accounting/accounting-control-routes");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -165,4 +166,28 @@ test("D300 ramane in lucru cand TVA-ul nu corespunde conturilor", () => {
   const readiness = declarations.buildDeclarationReadiness(db, { perioada: "2026-06" });
   assert.equal(readiness.vat_control.consistent, false);
   assert.equal(readiness.declarations.find((item) => item.code === "D300").status, "in_lucru");
+});
+
+test("receptia propune factura dupa document si furnizor", () => {
+  const { db, accounting } = fixture();
+  db.procurementReceipts = [{ id: "r1", date: "2026-06-11", document: "NIR-44", orderNo: "PO-1", supplier: "Tert Test", materialName: "Bitum", amount: 10 }];
+  accounting.invoicesIn.push({ id: 4, uuid: "fi4", an: 2026, luna: 6, nr_document: "NIR-44", furnizor_id: 1, total: 500, status: "validat", lines: [{ denumire: "Bitum rutier" }] });
+  const report = controls.buildInventoryInvoiceReconciliation(db, "2026-06");
+  assert.equal(report.summary.suggested, 1);
+  assert.equal(report.rows[0].best_suggestion.score, 100);
+});
+
+test("auditul detecteaza documentele validate fara nota", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesIn.push({ id: 5, an: 2026, luna: 6, nr_document: "F-5", furnizor_id: 1, status: "validat", journal_id: null });
+  const report = controls.buildIntegrityAudit(db, "2026-06");
+  assert.equal(report.status, "needs_attention");
+  assert.ok(report.issues.some((item) => item.area === "Documente"));
+});
+
+test("planul de amortizare inchide valoarea amortizabila", () => {
+  const schedule = controls.buildDepreciationSchedule({ acquisition_date: "2026-01-01", depreciation_start: "2026-02-01", acquisition_value: 1200, residual_value: 120, useful_life_months: 12 });
+  assert.equal(schedule.rows.length, 12);
+  assert.equal(schedule.rows[11].cumulata, 1080);
+  assert.equal(schedule.rows[11].valoare_neta, 120);
 });

@@ -28,6 +28,8 @@ export function OperatiuniContabile() {
   const [reconciliation, setReconciliation] = useState({ operations: [], summary: {} })
   const [valuation, setValuation] = useState({ rows: [], errors: [], totals: {} })
   const [carryforward, setCarryforward] = useState({ blockers: [], entries: [] })
+  const [inventoryReconciliation, setInventoryReconciliation] = useState({ rows: [], summary: {} })
+  const [integrity, setIntegrity] = useState({ checks: [], issues: [], status: 'ok' })
   const [asset, setAsset] = useState(defaultAsset())
   const [file, setFile] = useState(null)
   const [busy, setBusy] = useState('')
@@ -44,15 +46,34 @@ export function OperatiuniContabile() {
       api.get(`/accounting/annual-close/${year}/check`),
       api.get('/accounting/bank-reconciliation', { params: { perioada: month } }),
       api.get('/accounting/stock-valuation', { params: { perioada: month } }),
-      api.get(`/accounting/annual-close/${year}/carryforward-check`)
-    ]).then(([statusRes, stockRes, annualRes, reconciliationRes, valuationRes, carryforwardRes]) => {
+      api.get(`/accounting/annual-close/${year}/carryforward-check`),
+      api.get('/accounting/inventory-invoice-reconciliation', { params: { perioada: month } }),
+      api.get('/accounting/integrity-audit', { params: { perioada: month } })
+    ]).then(([statusRes, stockRes, annualRes, reconciliationRes, valuationRes, carryforwardRes, inventoryRes, integrityRes]) => {
       setStatus(statusRes.data || {})
       setStock(stockRes.data || { pending: [], errors: [] })
       setAnnual(annualRes.data || { blockers: [] })
       setReconciliation(reconciliationRes.data || { operations: [], summary: {} })
       setValuation(valuationRes.data || { rows: [], errors: [], totals: {} })
       setCarryforward(carryforwardRes.data || { blockers: [], entries: [] })
+      setInventoryReconciliation(inventoryRes.data || { rows: [], summary: {} })
+      setIntegrity(integrityRes.data || { checks: [], issues: [], status: 'ok' })
     }).catch(err => setError(err.response?.data?.error || 'Operațiunile contabile nu au putut fi încărcate.'))
+  }
+
+  async function download(endpoint, filename, openInNewTab = false) {
+    try {
+      const res = await api.get(endpoint, { params: { perioada: month }, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = openInNewTab ? '' : filename
+      if (openInNewTab) link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000)
+    } catch (err) { setError(err.response?.data?.error || 'Fișierul nu a putut fi generat.') }
   }
 
   async function confirmSuggestion(operation) {
@@ -76,6 +97,17 @@ export function OperatiuniContabile() {
       setMessage(`Extrasul ${batch.file_name} a fost marcat procesat.`)
       load()
     } catch (err) { setError(err.response?.data?.error || 'Extrasul nu poate fi finalizat încă.') } finally { setBusy('') }
+  }
+
+  async function confirmReceiptInvoice(row) {
+    const suggestion = row.best_suggestion
+    if (!suggestion) return
+    setBusy(`receipt-${row.id}`); setError(''); setMessage('')
+    try {
+      await api.post(`/accounting/inventory-invoice-reconciliation/${row.id}/confirm`, { invoice_id: suggestion.invoice_id })
+      setMessage(`Recepția ${row.document || row.orderNo} a fost legată de factura ${suggestion.document}.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Legătura recepție–factură nu a putut fi salvată.') } finally { setBusy('') }
   }
 
   async function importBank() {
@@ -171,7 +203,10 @@ export function OperatiuniContabile() {
       actions={<DropdownMenu align="right" label="Acțiuni" items={[
         { label: 'Reîncarcă', onClick: load },
         { label: 'Trezorerie', to: `/contabilitate/trezorerie?luna=${month}` },
-        { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` }
+        { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
+        { type: 'separator' },
+        { label: 'Exportă registrul MF', onClick: () => download('/accounting/fixed-assets/export', 'Registru_mijloace_fixe.xlsx') },
+        { label: 'Exportă auditul contabil', onClick: () => download('/accounting/integrity-audit/export', `Audit_contabil_${month}.xlsx`) }
       ]} />}
     >
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
@@ -181,6 +216,28 @@ export function OperatiuniContabile() {
           <Input label="Luna de lucru" type="month" value={month} onChange={event => setMonth(event.target.value)} />
           <Input label="An închidere" type="number" value={year} onChange={event => setYear(event.target.value)} />
         </div>
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="text-base font-semibold">Recepții și facturi furnizor</h3><p className="mt-1 text-sm text-slate-500">Legătură explicită între Gestiune, factura furnizor și contabilitate.</p></div>
+          <Badge tone={inventoryReconciliation.summary?.pending ? 'warning' : 'success'}>{inventoryReconciliation.summary?.linked || 0}/{inventoryReconciliation.summary?.total || 0} legate</Badge>
+        </div>
+        <div className="mt-3 space-y-2">
+          {(inventoryReconciliation.rows || []).filter(row => !row.linked_invoice).slice(0, 10).map(row => (
+            <div key={row.id} className="grid gap-2 border-t border-slate-100 py-2 text-sm md:grid-cols-[120px_1fr_1fr_auto] md:items-center">
+              <span>{row.date}</span><span>{row.document || row.orderNo} · {row.supplier || '-'}</span>
+              <span>{row.best_suggestion ? `${row.best_suggestion.document} · ${row.best_suggestion.furnizor} · ${row.best_suggestion.score}%` : 'Fără sugestie suficientă'}</span>
+              {row.best_suggestion ? <Button variant="secondary" onClick={() => confirmReceiptInvoice(row)} disabled={busy === `receipt-${row.id}`}>Confirmă</Button> : null}
+            </div>
+          ))}
+          {!(inventoryReconciliation.rows || []).some(row => !row.linked_invoice) ? <div className="text-sm text-slate-500">Toate recepțiile lunii sunt legate de facturi.</div> : null}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-base font-semibold">Audit integritate contabilă</h3><p className="mt-1 text-sm text-slate-500">Documente, note, duplicate, stocuri și declarații.</p></div><Badge tone={integrity.status === 'ok' ? 'success' : 'warning'}>{integrity.issues?.length || 0} probleme</Badge></div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{(integrity.checks || []).map(check => <div key={check.key} className={`border-t py-2 text-sm ${check.value ? 'border-amber-300 text-amber-800' : 'border-emerald-200 text-emerald-800'}`}><strong>{check.label}</strong><div className="text-xs">{check.message}</div></div>)}</div>
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -268,6 +325,7 @@ export function OperatiuniContabile() {
               { label: 'Pune în funcțiune', onClick: () => assetAction(row, 'punere_in_functiune') },
               { label: 'Transferă', onClick: () => assetAction(row, 'transfer') },
               { label: 'Reevaluează', onClick: () => assetAction(row, 'reevaluare') },
+              { label: 'Tipărește fișa', onClick: () => download(`/accounting/fixed-assets/${row.uuid}/print`, '', true) },
               { type: 'separator' },
               { label: 'Casează', onClick: () => assetAction(row, 'casare'), danger: true },
               { label: 'Scoate din evidență fără notă', onClick: () => cancelAsset(row), danger: true }

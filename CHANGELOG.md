@@ -1,5 +1,19 @@
 # Changelog
 
+# v2.12.146 - 2026-06-27
+
+- Meniul global Actiuni foloseste portal la nivelul paginii si nu mai este taiat de tabele sau containere cu overflow.
+- Meniurile se repozitioneaza automat la scroll, resize si lipsa de spatiu sub buton.
+- Asistent de inchidere lunara in sase etape: documente, trezorerie, stocuri, TVA, balanta si inchidere.
+- Reconciliere intre receptiile din Gestiune si facturile furnizor dupa document, furnizor si material.
+- Legatura confirmata este pastrata atat pe receptie, cat si pe factura contabila.
+- Registrul mijloacelor fixe poate fi exportat Excel.
+- Fisa fiecarui mijloc fix include istoricul si planul complet de amortizare pentru tiparire.
+- Raport consolidat pentru controalele si istoricul D300/D394.
+- Audit de integritate pentru documente fara note, note fara linii, linii orfane, duplicate, stocuri si declaratii.
+- Export Excel al auditului contabil cu sumar si lista problemelor.
+- Verificare reala in browser pe server separat si 17 teste automate trecute.
+
 # v2.12.145 - 2026-06-27
 
 - Reconciliere bancara asistata cu punctaj dupa suma, document si tert.
