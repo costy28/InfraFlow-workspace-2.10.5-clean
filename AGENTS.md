@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.12.17** (build EXE v2.12.8 existent)
-**Versiune în lucru: v2.12.17**
+**Versiune curentă sursă: v2.12.150**
+**Versiune în lucru: v2.12.150**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -1068,5 +1068,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 Iunie 2026 | InfraFlow sursă v2.12.17*
+*AGENTS.md actualizat: 27 Iunie 2026 | InfraFlow sursă v2.12.150*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

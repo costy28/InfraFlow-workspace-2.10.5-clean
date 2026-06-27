@@ -20,12 +20,23 @@ const REQUIRED_CHART_ACCOUNTS = [
 
 function ensureAccounting(db) {
   if (!db.accounting || typeof db.accounting !== "object") db.accounting = {};
-  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts", "journalTemplates", "openingBalances", "balanceConfirmations", "periodSnapshots", "periodEvents", "bankImports", "bankImportHashes", "stockPostings", "fixedAssets", "fixedAssetEvents", "depreciationRuns", "annualClosings", "declarationRuns", "carryforwardRuns"];
+  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "treasury", "lawAlerts", "journalTemplates", "openingBalances", "balanceConfirmations", "periodSnapshots", "periodEvents", "bankImports", "bankImportHashes", "stockPostings", "fixedAssets", "fixedAssetEvents", "fixedAssetCategories", "fixedAssetInventories", "depreciationRuns", "annualClosings", "declarationRuns", "anafSchemas", "carryforwardRuns"];
   keys.forEach((key) => {
     if (!Array.isArray(db.accounting[key])) db.accounting[key] = [];
   });
   seedChart(db);
+  seedFixedAssetCategories(db.accounting);
   return db.accounting;
+}
+
+function seedFixedAssetCategories(accounting) {
+  if (accounting.fixedAssetCategories.length) return;
+  [
+    ["1", "Constructii", 480],
+    ["2.1", "Echipamente tehnologice", 96],
+    ["2.3", "Mijloace de transport", 72],
+    ["3.1", "Mobilier si aparatura birotica", 60]
+  ].forEach(([code, name, months], index) => accounting.fixedAssetCategories.push({ id: index + 1, code, name, default_life_months: months, active: true, system: true }));
 }
 
 function seedChart(db) {

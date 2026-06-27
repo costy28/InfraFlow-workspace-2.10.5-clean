@@ -16,6 +16,9 @@ function defaultAsset() {
     acquisition_value: '',
     residual_value: '0',
     useful_life_months: '60'
+    ,category_code: '2.1'
+    ,location: ''
+    ,custodian: ''
   }
 }
 
@@ -30,8 +33,10 @@ export function OperatiuniContabile() {
   const [carryforward, setCarryforward] = useState({ blockers: [], entries: [] })
   const [inventoryReconciliation, setInventoryReconciliation] = useState({ rows: [], summary: {} })
   const [integrity, setIntegrity] = useState({ checks: [], issues: [], status: 'ok' })
+  const [assetCategories, setAssetCategories] = useState([])
   const [asset, setAsset] = useState(defaultAsset())
   const [file, setFile] = useState(null)
+  const [efacturaFile, setEfacturaFile] = useState(null)
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -48,8 +53,9 @@ export function OperatiuniContabile() {
       api.get('/accounting/stock-valuation', { params: { perioada: month } }),
       api.get(`/accounting/annual-close/${year}/carryforward-check`),
       api.get('/accounting/inventory-invoice-reconciliation', { params: { perioada: month } }),
-      api.get('/accounting/integrity-audit', { params: { perioada: month } })
-    ]).then(([statusRes, stockRes, annualRes, reconciliationRes, valuationRes, carryforwardRes, inventoryRes, integrityRes]) => {
+      api.get('/accounting/integrity-audit', { params: { perioada: month } }),
+      api.get('/accounting/fixed-assets/categories')
+    ]).then(([statusRes, stockRes, annualRes, reconciliationRes, valuationRes, carryforwardRes, inventoryRes, integrityRes, categoriesRes]) => {
       setStatus(statusRes.data || {})
       setStock(stockRes.data || { pending: [], errors: [] })
       setAnnual(annualRes.data || { blockers: [] })
@@ -58,6 +64,7 @@ export function OperatiuniContabile() {
       setCarryforward(carryforwardRes.data || { blockers: [], entries: [] })
       setInventoryReconciliation(inventoryRes.data || { rows: [], summary: {} })
       setIntegrity(integrityRes.data || { checks: [], issues: [], status: 'ok' })
+      setAssetCategories(categoriesRes.data?.categories || [])
     }).catch(err => setError(err.response?.data?.error || 'Operațiunile contabile nu au putut fi încărcate.'))
   }
 
@@ -108,6 +115,36 @@ export function OperatiuniContabile() {
       setMessage(`Recepția ${row.document || row.orderNo} a fost legată de factura ${suggestion.document}.`)
       load()
     } catch (err) { setError(err.response?.data?.error || 'Legătura recepție–factură nu a putut fi salvată.') } finally { setBusy('') }
+  }
+
+  async function createInvoiceFromReceipt(row) {
+    setBusy(`receipt-create-${row.id}`); setError(''); setMessage('')
+    try {
+      const res = await api.post(`/accounting/inventory-invoice-reconciliation/${row.id}/create-invoice`)
+      setMessage(`Factura ${res.data?.invoice?.nr_document || ''} a fost creată ca draft din NIR și poate fi verificată în Facturi intrare.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Factura nu a putut fi creată din recepție.') } finally { setBusy('') }
+  }
+
+  async function importEfactura() {
+    if (!efacturaFile) { setError('Selectează fișierul XML e-Factura primit.'); return }
+    setBusy('efactura'); setError(''); setMessage('')
+    try {
+      const body = new FormData()
+      body.append('file', efacturaFile)
+      const res = await api.post('/accounting/efactura/import', body)
+      setMessage(`e-Factura ${res.data?.invoice?.nr_document || ''} a fost importată ca draft.`)
+      setEfacturaFile(null)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Fișierul e-Factura nu a putut fi importat.') } finally { setBusy('') }
+  }
+
+  async function inventoryAssets() {
+    setBusy('asset-inventory'); setError(''); setMessage('')
+    try {
+      const res = await api.post('/accounting/fixed-assets/inventory', { date: today() })
+      setMessage(`Inventarierea a fost înregistrată pentru ${res.data?.inventory?.items?.length || 0} mijloace fixe.`)
+    } catch (err) { setError(err.response?.data?.error || 'Inventarierea nu a putut fi înregistrată.') } finally { setBusy('') }
   }
 
   async function importBank() {
@@ -228,10 +265,21 @@ export function OperatiuniContabile() {
             <div key={row.id} className="grid gap-2 border-t border-slate-100 py-2 text-sm md:grid-cols-[120px_1fr_1fr_auto] md:items-center">
               <span>{row.date}</span><span>{row.document || row.orderNo} · {row.supplier || '-'}</span>
               <span>{row.best_suggestion ? `${row.best_suggestion.document} · ${row.best_suggestion.furnizor} · ${row.best_suggestion.score}%` : 'Fără sugestie suficientă'}</span>
-              {row.best_suggestion ? <Button variant="secondary" onClick={() => confirmReceiptInvoice(row)} disabled={busy === `receipt-${row.id}`}>Confirmă</Button> : null}
+              {row.best_suggestion
+                ? <Button variant="secondary" onClick={() => confirmReceiptInvoice(row)} disabled={busy === `receipt-${row.id}`}>Confirmă</Button>
+                : <Button variant="secondary" onClick={() => createInvoiceFromReceipt(row)} disabled={busy === `receipt-create-${row.id}`}>Creează factură</Button>}
             </div>
           ))}
           {!(inventoryReconciliation.rows || []).some(row => !row.linked_invoice) ? <div className="text-sm text-slate-500">Toate recepțiile lunii sunt legate de facturi.</div> : null}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="text-base font-semibold">Import e-Factura primită</h3>
+        <p className="mt-1 text-sm text-slate-500">Citește XML UBL, identifică furnizorul și creează factura ca draft pentru verificare.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <input className="min-w-0 flex-1 text-sm" type="file" accept=".xml,text/xml,application/xml" onChange={event => setEfacturaFile(event.target.files?.[0] || null)} />
+          <Button onClick={importEfactura} disabled={busy === 'efactura'}>{busy === 'efactura' ? 'Se importă...' : 'Importă XML'}</Button>
         </div>
       </Card>
 
@@ -309,6 +357,9 @@ export function OperatiuniContabile() {
           <Input label="Valoare" type="number" step="0.01" value={asset.acquisition_value} onChange={event => setAsset({ ...asset, acquisition_value: event.target.value })} required />
           <Input label="Valoare reziduală" type="number" step="0.01" value={asset.residual_value} onChange={event => setAsset({ ...asset, residual_value: event.target.value })} />
           <Input label="Durată (luni)" type="number" value={asset.useful_life_months} onChange={event => setAsset({ ...asset, useful_life_months: event.target.value })} required />
+          <label className="grid gap-1 text-sm"><span className="font-medium text-slate-700">Categorie</span><select className="h-10 rounded-md border border-slate-300 bg-white px-3" value={asset.category_code} onChange={event => { const category = assetCategories.find(item => item.code === event.target.value); setAsset({ ...asset, category_code: event.target.value, useful_life_months: category?.default_life_months || asset.useful_life_months }) }}>{assetCategories.map(item => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label>
+          <Input label="Locație" value={asset.location} onChange={event => setAsset({ ...asset, location: event.target.value })} />
+          <Input label="Responsabil" value={asset.custodian} onChange={event => setAsset({ ...asset, custodian: event.target.value })} />
           <div className="flex items-end"><Button type="submit" disabled={busy === 'asset'}>{busy === 'asset' ? 'Se salvează...' : 'Adaugă imobilizare'}</Button></div>
         </form>
       </Card>
@@ -326,6 +377,7 @@ export function OperatiuniContabile() {
               { label: 'Transferă', onClick: () => assetAction(row, 'transfer') },
               { label: 'Reevaluează', onClick: () => assetAction(row, 'reevaluare') },
               { label: 'Tipărește fișa', onClick: () => download(`/accounting/fixed-assets/${row.uuid}/print`, '', true) },
+              { label: 'Proces-verbal scoatere', onClick: () => download(`/accounting/fixed-assets/${row.uuid}/disposal-report`, '', true) },
               { type: 'separator' },
               { label: 'Casează', onClick: () => assetAction(row, 'casare'), danger: true },
               { label: 'Scoate din evidență fără notă', onClick: () => cancelAsset(row), danger: true }
@@ -333,7 +385,7 @@ export function OperatiuniContabile() {
           </tr>
         ))}
       </Table>
-      <div className="flex justify-end"><Button onClick={runDepreciation} disabled={busy === 'depreciation'}>{busy === 'depreciation' ? 'Se calculează...' : `Calculează amortizarea ${month}`}</Button></div>
+      <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={inventoryAssets} disabled={busy === 'asset-inventory'}>Inventariază registrul</Button><Button onClick={runDepreciation} disabled={busy === 'depreciation'}>{busy === 'depreciation' ? 'Se calculează...' : `Calculează amortizarea ${month}`}</Button></div>
 
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">

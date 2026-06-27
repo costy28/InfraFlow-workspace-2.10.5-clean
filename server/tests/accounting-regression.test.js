@@ -6,6 +6,7 @@ const snapshots = require("../modules/accounting/period-snapshots");
 const operations = require("../modules/accounting/operations-routes");
 const advancedOperations = require("../modules/accounting/operations-advanced-routes");
 const controls = require("../modules/accounting/accounting-control-routes");
+const procurement = require("../modules/procurement/routes");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -190,4 +191,34 @@ test("planul de amortizare inchide valoarea amortizabila", () => {
   assert.equal(schedule.rows.length, 12);
   assert.equal(schedule.rows[11].cumulata, 1080);
   assert.equal(schedule.rows[11].valoare_neta, 120);
+});
+
+test("receptia valorizata actualizeaza CMP si totalul NIR", () => {
+  const db = {
+    materials: [{ id: "m1", name: "Bitum", stock: 10, stoc_curent: 10, averageCost: 10, unit: "kg" }],
+    procurementOrders: [{ id: "o1", uuid: "order-1", orderNo: "PO-1", supplier: "Furnizor", status: "sent", lines: [{ material_id: "m1", cantitate: 10, pret: 20, unit: "kg" }] }],
+    procurementReceipts: [], stockMovements: [], deliveries: []
+  };
+  const result = procurement.receiveProcurementOrderV2(db, { id: 1, name: "Tester" }, "order-1", { nr_aviz: "AV-1", date: "2026-06-20", linii: [{ material_id: "m1", cantitate_receptionata: 10, pret_unitar: 20, cota_tva: 21 }] });
+  assert.equal(result.receipt.valoare, 200);
+  assert.equal(result.receipt.total, 242);
+  assert.equal(db.materials[0].averageCost, 15);
+  assert.equal(db.stockMovements[0].unitPrice, 20);
+});
+
+test("factura draft se genereaza din liniile NIR", () => {
+  const { accounting, user } = fixture();
+  const invoice = controls.createInvoiceFromReceipt(accounting, { id: "r1", nr_nir: "NIR-1", date: "2026-06-20", lines: [{ material_id: "m1", materialName: "Bitum", cantitate: 2, pret_unitar: 100, cota_tva: 21, valoare: 200, valoare_tva: 42 }] }, accounting.thirdParties[0], user);
+  assert.equal(invoice.status, "draft");
+  assert.equal(invoice.total, 242);
+  assert.equal(invoice.lines[0].cont, "3028");
+});
+
+test("parserul UBL extrage furnizorul, liniile si totalul", async () => {
+  const xml = `<?xml version="1.0"?><Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"><ID>F-100</ID><IssueDate>2026-06-20</IssueDate><AccountingSupplierParty><Party><PartyLegalEntity><RegistrationName>Furnizor XML</RegistrationName></PartyLegalEntity><PartyTaxScheme><CompanyID>RO12345678</CompanyID></PartyTaxScheme></Party></AccountingSupplierParty><InvoiceLine><ID>1</ID><InvoicedQuantity unitCode="KGM">2</InvoicedQuantity><LineExtensionAmount>200</LineExtensionAmount><Item><Name>Bitum</Name><ClassifiedTaxCategory><Percent>21</Percent></ClassifiedTaxCategory></Item><Price><PriceAmount>100</PriceAmount></Price></InvoiceLine><TaxTotal><TaxAmount>42</TaxAmount></TaxTotal><LegalMonetaryTotal><TaxExclusiveAmount>200</TaxExclusiveAmount><PayableAmount>242</PayableAmount></LegalMonetaryTotal></Invoice>`;
+  const parsed = await controls.parseUblInvoice(Buffer.from(xml));
+  assert.equal(parsed.document, "F-100");
+  assert.equal(parsed.supplier_name, "Furnizor XML");
+  assert.equal(parsed.lines[0].um, "KGM");
+  assert.equal(parsed.total, 242);
 });

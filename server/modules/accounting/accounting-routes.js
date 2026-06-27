@@ -3782,6 +3782,6 @@ function throwHttp(status, message) {
 registerDeclarationRoutes(router, { requireAccountingReports, requireAccountingPost });
 registerOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose });
 registerAdvancedOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose, requireAccountingReports });
-registerAccountingControlRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingReports });
+registerAccountingControlRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingReports });
 
 module.exports = router;

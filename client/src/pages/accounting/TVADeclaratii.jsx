@@ -19,6 +19,9 @@ export function TVADeclaratii() {
   const [d394, setD394] = useState({ terti: [], warnings: [], totaluri: {} })
   const [saft, setSaft] = useState({ areas: [], issues: [], coverage: 0 })
   const [declarationHistory, setDeclarationHistory] = useState([])
+  const [schemas, setSchemas] = useState([])
+  const [schemaCode, setSchemaCode] = useState('D300')
+  const [schemaFile, setSchemaFile] = useState(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -36,14 +39,16 @@ export function TVADeclaratii() {
       api.get('/accounting/declarations/readiness', { params: params() }),
       api.get('/accounting/d394', { params: params() }),
       api.get('/accounting/saft/readiness', { params: params() }),
-      api.get('/accounting/declarations/history', { params: params() })
-    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, historyRes]) => {
+      api.get('/accounting/declarations/history', { params: params() }),
+      api.get('/accounting/declarations/schemas')
+    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, historyRes, schemasRes]) => {
       setData(d300Res.data || { decont: { randuri: [] } })
       setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
       setReadiness(readinessRes.data || { checks: [], declarations: [] })
       setD394(d394Res.data || { terti: [], warnings: [], totaluri: {} })
       setSaft(saftRes.data || { areas: [], issues: [], coverage: 0 })
       setDeclarationHistory(historyRes.data?.runs || [])
+      setSchemas(schemasRes.data?.schemas || [])
     }).catch(err => {
       setData({ decont: { randuri: [] } })
       setJournal({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
@@ -51,6 +56,7 @@ export function TVADeclaratii() {
       setD394({ terti: [], warnings: [], totaluri: {} })
       setSaft({ areas: [], issues: [], coverage: 0 })
       setDeclarationHistory([])
+      setSchemas([])
       setError(err.response?.data?.error || 'Nu am putut incarca TVA / D300.')
     })
   }
@@ -102,6 +108,20 @@ export function TVADeclaratii() {
     }
   }
 
+  async function uploadSchema() {
+    if (!schemaFile) { setError('Selectează arhiva ZIP sau fișierul XSD oficial ANAF.'); return }
+    try {
+      setError(''); setMessage('')
+      const body = new FormData()
+      body.append('code', schemaCode)
+      body.append('file', schemaFile)
+      await api.post('/accounting/declarations/schemas', body)
+      setSchemaFile(null)
+      setMessage(`Schema oficială ${schemaCode} a fost înregistrată.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Schema nu a putut fi încărcată.') }
+  }
+
   const d = data.decont || {}
   const warnings = [...(data.status?.warnings || []), ...(journal.warnings || [])]
   const periodStatus = data.period_status || journal.period_status || {}
@@ -132,6 +152,18 @@ export function TVADeclaratii() {
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="text-base font-semibold text-slate-900">Scheme oficiale ANAF</h3><p className="text-sm text-slate-500">Versiunile XSD/ZIP sunt păstrate cu amprentă SHA-256. Validarea internă nu este prezentată ca validare ANAF fără schema corectă.</p></div>
+          <Badge tone={schemas.some(item => item.active) ? 'success' : 'warning'}>{schemas.filter(item => item.active).length} active</Badge>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr_auto] md:items-end">
+          <Select label="Declarație" value={schemaCode} onChange={event => setSchemaCode(event.target.value)} options={['D300', 'D394', 'D112', 'SAF-T'].map(value => ({ value, label: value }))} />
+          <label className="grid gap-1 text-sm"><span className="font-medium text-slate-700">Fișier oficial</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xsd,.zip" onChange={event => setSchemaFile(event.target.files?.[0] || null)} /></label>
+          <Button onClick={uploadSchema}>Încarcă schema</Button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">{schemas.filter(item => item.active).map(item => <Badge key={item.uuid || item.id} tone="success">{item.code} · {item.original_name}</Badge>)}</div>
+      </Card>
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_180px_180px]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />

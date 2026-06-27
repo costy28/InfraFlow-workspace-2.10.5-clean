@@ -136,7 +136,10 @@ function receiveProcurementOrderV2(db, user, uuid, body) {
     orderUuid: order.uuid,
     orderNo: order.orderNo,
     nr_aviz: body.nr_aviz || body.document || '',
+    document: body.nr_aviz || body.document || '',
+    nr_nir: `NIR-${new Date().getFullYear()}-${String((db.procurementReceipts || []).filter(item => String(item.date || '').startsWith(String(new Date().getFullYear()))).length + 1).padStart(5, '0')}`,
     date: validDateValue(body.data_receptie || body.date) ? String(body.data_receptie || body.date) : localDate(new Date()),
+    supplier: order.supplier || order.furnizor || '',
     observatii: body.observatii || '',
     createdBy: user.id,
     createdByName: user.name,
@@ -155,16 +158,29 @@ function receiveProcurementOrderV2(db, user, uuid, body) {
     const previousReceived = Number(line.cantitate_receptionata || 0)
     const ordered = Number(line.cantitate || line.amount || 0)
     if (previousReceived + amount > ordered + 0.0001) throwHttp(409, `Cantitatea receptionata depaseste comanda pentru ${materialLabel(material)}.`)
-    material.stock = round(Number(material.stock || material.stoc_curent || 0) + amount)
+    const unitPrice = round(Number(input.pret_unitar ?? input.unitPrice ?? line.pret ?? line.unitPrice ?? 0))
+    const vatRate = round(Number(input.cota_tva ?? input.tva_procent ?? 21))
+    if (unitPrice <= 0) throwHttp(422, `Completeaza pretul unitar pentru ${materialLabel(material)}.`)
+    const baseValue = round(amount * unitPrice)
+    const vatValue = round(baseValue * vatRate / 100)
+    const previousStock = Number(material.stock || material.stoc_curent || 0)
+    const previousAverage = Number(material.averageCost || material.average_cost || material.pret_achizitie || 0)
+    material.stock = round(previousStock + amount)
     material.stoc_curent = material.stock
+    material.averageCost = material.stock > 0 ? round((previousStock * previousAverage + baseValue) / material.stock) : unitPrice
+    material.average_cost = material.averageCost
+    material.pret_achizitie = unitPrice
     line.cantitate_receptionata = round(previousReceived + amount)
     line.cantitate_ramasa = Math.max(0, round(ordered - line.cantitate_receptionata))
-    receipt.lines.push({ material_id: material.id, materialName: materialLabel(material), cantitate_receptionata: amount, unit: materialUnit(material) })
-    db.stockMovements.push({ id: id('stock'), type: 'delivery', materialId: material.id, materialName: materialLabel(material), date: receipt.date, amount, unit: materialUnit(material), note: [order.orderNo, receipt.nr_aviz].filter(Boolean).join(' / '), createdAt: new Date().toISOString() })
-    db.deliveries.push({ id: id('intrare'), date: receipt.date, materialId: material.id, materialName: materialLabel(material), amount, unit: materialUnit(material), supplier: order.supplier, document: receipt.nr_aviz, operatorId: user.id, operatorName: user.name, sourceOrderId: order.id, sourceReceiptId: receipt.id, canceled: false, createdAt: new Date().toISOString() })
-    stocuriActualizate.push({ material_id: material.id, materialName: materialLabel(material), cantitate: amount, unit: materialUnit(material), stoc_curent: material.stock })
+    receipt.lines.push({ material_id: material.id, materialName: materialLabel(material), cantitate_receptionata: amount, cantitate: amount, unit: materialUnit(material), pret_unitar: unitPrice, cota_tva: vatRate, valoare: baseValue, valoare_tva: vatValue, total: round(baseValue + vatValue) })
+    db.stockMovements.push({ id: id('stock'), type: 'delivery', materialId: material.id, materialName: materialLabel(material), date: receipt.date, amount, unit: materialUnit(material), unitPrice, cost: unitPrice, sourceReceiptId: receipt.id, note: [order.orderNo, receipt.nr_aviz, receipt.nr_nir].filter(Boolean).join(' / '), createdAt: new Date().toISOString() })
+    db.deliveries.push({ id: id('intrare'), date: receipt.date, materialId: material.id, materialName: materialLabel(material), amount, unit: materialUnit(material), unitPrice, supplier: order.supplier, document: receipt.nr_aviz, operatorId: user.id, operatorName: user.name, sourceOrderId: order.id, sourceReceiptId: receipt.id, canceled: false, createdAt: new Date().toISOString() })
+    stocuriActualizate.push({ material_id: material.id, materialName: materialLabel(material), cantitate: amount, unit: materialUnit(material), pret_unitar: unitPrice, valoare: baseValue, stoc_curent: material.stock, cost_mediu: material.averageCost })
   }
   if (!receipt.lines.length) throwHttp(400, 'Cantitatea receptionata trebuie sa fie mai mare decat zero.')
+  receipt.valoare = round(receipt.lines.reduce((sum, item) => sum + Number(item.valoare || 0), 0))
+  receipt.valoare_tva = round(receipt.lines.reduce((sum, item) => sum + Number(item.valoare_tva || 0), 0))
+  receipt.total = round(receipt.valoare + receipt.valoare_tva)
   db.procurementReceipts.push(receipt)
   order.lines = lines
   const totalRemaining = lines.reduce((sum, line) => sum + Number(line.cantitate_ramasa || 0), 0)
@@ -8771,3 +8787,4 @@ process.on("uncaughtException", (error) => {
   console.error(error);
 });
 module.exports = router
+module.exports.receiveProcurementOrderV2 = receiveProcurementOrderV2

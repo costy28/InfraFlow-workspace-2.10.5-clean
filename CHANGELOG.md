@@ -1,5 +1,30 @@
 # Changelog
 
+# v2.12.150 - 2026-06-27
+
+- Schema MSSQL 034 pentru categorii si inventarieri de mijloace fixe, registrul schemelor ANAF si campurile tehnice extinse.
+- Sincronizarea relationala include noile colectii fara schimbarea sursei principale app_state.
+- Interfata grupeaza noile actiuni in Contabilitate > Operatiuni si TVA / D300.
+- Regresie extinsa la 20 de teste automate si build complet Server + Client.
+
+# v2.12.149 - 2026-06-27
+
+- Categorii de mijloace fixe cu durata implicita si metoda liniara explicita.
+- Inventariere a registrului activ si proces-verbal tiparibil de scoatere din evidenta.
+- Incarcare controlata XSD/ZIP pentru D300, D394, D112 si SAF-T, cu amprenta SHA-256 si versiune activa.
+
+# v2.12.148 - 2026-06-27
+
+- Import XML UBL pentru e-Facturile primite, direct in Facturi intrare ca draft verificabil.
+- Furnizorul este identificat dupa CUI sau denumire si este creat numai daca lipseste.
+- Protectie la import duplicat dupa furnizor si numar document.
+
+# v2.12.147 - 2026-06-27
+
+- NIR valoric cu pret unitar, TVA, baza si total pe fiecare linie.
+- Receptia actualizeaza costul mediu ponderat si pastreaza costul in miscarea de stoc.
+- Factura furnizor se poate genera ca draft direct din receptia necorelata.
+
 # v2.12.146 - 2026-06-27
 
 - Meniul global Actiuni foloseste portal la nivelul paginii si nu mai este taiat de tabele sau containere cu overflow.

@@ -36,9 +36,12 @@ function syncAccountingToMssql(db, user = {}) {
     stockPostings: syncTable("accounting_stock_postings", prepared.stockPostings, sqlStockPostings()),
     fixedAssets: syncTable("accounting_fixed_assets", prepared.fixedAssets, sqlFixedAssets()),
     fixedAssetEvents: syncTable("accounting_fixed_asset_events", prepared.fixedAssetEvents, sqlFixedAssetEvents()),
+    fixedAssetCategories: syncTable("accounting_fixed_asset_categories", prepared.fixedAssetCategories, sqlFixedAssetCategories()),
+    fixedAssetInventories: syncTable("accounting_fixed_asset_inventories", prepared.fixedAssetInventories, sqlFixedAssetInventories()),
     depreciationRuns: syncTable("accounting_depreciation_runs", prepared.depreciationRuns, sqlDepreciationRuns()),
     annualClosings: syncTable("accounting_annual_closings", prepared.annualClosings, sqlAnnualClosings()),
     declarationRuns: syncTable("accounting_declaration_runs", prepared.declarationRuns, sqlDeclarationRuns()),
+    anafSchemas: syncTable("accounting_anaf_schemas", prepared.anafSchemas, sqlAnafSchemas()),
     carryforwardRuns: syncTable("accounting_carryforward_runs", prepared.carryforwardRuns, sqlCarryforwardRuns())
   };
 
@@ -86,9 +89,12 @@ function preparePayload(accounting) {
     stockPostings: withIds(accounting.stockPostings),
     fixedAssets: withIds(accounting.fixedAssets),
     fixedAssetEvents: withIds(accounting.fixedAssetEvents),
+    fixedAssetCategories: withIds(accounting.fixedAssetCategories),
+    fixedAssetInventories: withIds(accounting.fixedAssetInventories),
     depreciationRuns: withIds(accounting.depreciationRuns),
     annualClosings: withIds(accounting.annualClosings),
     declarationRuns: withIds(accounting.declarationRuns),
+    anafSchemas: withIds(accounting.anafSchemas),
     carryforwardRuns: withIds(accounting.carryforwardRuns)
   };
 }
@@ -380,8 +386,22 @@ function sqlStockPostings() {
 
 function sqlFixedAssets() {
   return identityMirrorSql("accounting_fixed_assets",
-    ["id", "uuid", "inventory_no", "name", "acquisition_date", "depreciation_start", "acquisition_value", "residual_value", "useful_life_months", "accumulated_depreciation", "net_value", "account_asset", "account_depreciation", "account_expense", "status", "created_at"],
-    [sqlValue("id", "int", "1"), `left(isnull(${sqlValue("uuid")}, newid()), 36)`, sqlValue("inventory_no"), sqlValue("name"), sqlValue("acquisition_date", "date"), sqlValue("depreciation_start", "date"), sqlValue("acquisition_value", "decimal"), sqlValue("residual_value", "decimal"), sqlValue("useful_life_months", "int", "1"), sqlValue("accumulated_depreciation", "decimal"), sqlValue("net_value", "decimal"), sqlValue("account_asset"), sqlValue("account_depreciation"), sqlValue("account_expense"), `isnull(${sqlValue("status")}, 'activ')`, `try_convert(datetime2, ${sqlValue("created_at")})`]
+    ["id", "uuid", "inventory_no", "name", "acquisition_date", "depreciation_start", "acquisition_value", "residual_value", "useful_life_months", "accumulated_depreciation", "net_value", "account_asset", "account_depreciation", "account_expense", "category_code", "depreciation_method", "fiscal_life_months", "location", "custodian", "status", "created_at"],
+    [sqlValue("id", "int", "1"), `left(isnull(${sqlValue("uuid")}, newid()), 36)`, sqlValue("inventory_no"), sqlValue("name"), sqlValue("acquisition_date", "date"), sqlValue("depreciation_start", "date"), sqlValue("acquisition_value", "decimal"), sqlValue("residual_value", "decimal"), sqlValue("useful_life_months", "int", "1"), sqlValue("accumulated_depreciation", "decimal"), sqlValue("net_value", "decimal"), sqlValue("account_asset"), sqlValue("account_depreciation"), sqlValue("account_expense"), sqlValue("category_code"), sqlValue("depreciation_method"), sqlValue("fiscal_life_months", "int", "1"), sqlValue("location"), sqlValue("custodian"), `isnull(${sqlValue("status")}, 'activ')`, `try_convert(datetime2, ${sqlValue("created_at")})`]
+  );
+}
+
+function sqlFixedAssetCategories() {
+  return identityMirrorSql("accounting_fixed_asset_categories",
+    ["id", "code", "name", "default_life_months", "active", "category_json"],
+    [sqlValue("id", "int", "1"), sqlValue("code"), sqlValue("name"), sqlValue("default_life_months", "int", "1"), sqlValue("active", "bit", "1"), "value"]
+  );
+}
+
+function sqlFixedAssetInventories() {
+  return identityMirrorSql("accounting_fixed_asset_inventories",
+    ["id", "uuid", "inventory_date", "commission", "status", "created_by", "created_at", "inventory_json"],
+    [sqlValue("id", "int", "1"), `left(isnull(${sqlValue("uuid")}, newid()), 36)`, sqlValue("date", "date"), sqlValue("commission"), sqlValue("status"), sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`, "value"]
   );
 }
 
@@ -410,6 +430,13 @@ function sqlDeclarationRuns() {
   return identityMirrorSql("accounting_declaration_runs",
     ["id", "code", "an", "luna", "status", "checksum", "recipisa", "validated_by", "validated_at", "submitted_by", "submitted_at", "run_json"],
     [sqlValue("id", "int", "1"), sqlValue("code"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("status"), sqlValue("checksum"), sqlValue("recipisa"), sqlValue("validated_by", "int"), `try_convert(datetime2, ${sqlValue("validated_at")})`, sqlValue("submitted_by", "int"), `try_convert(datetime2, ${sqlValue("submitted_at")})`, "value"]
+  );
+}
+
+function sqlAnafSchemas() {
+  return identityMirrorSql("accounting_anaf_schemas",
+    ["id", "uuid", "code", "original_name", "file_path", "sha256", "active", "uploaded_by", "uploaded_at", "schema_json"],
+    [sqlValue("id", "int", "1"), `left(isnull(${sqlValue("uuid")}, newid()), 36)`, sqlValue("code"), sqlValue("original_name"), sqlValue("file_path"), sqlValue("sha256"), sqlValue("active", "bit", "1"), sqlValue("uploaded_by", "int"), `try_convert(datetime2, ${sqlValue("uploaded_at")})`, "value"]
   );
 }
 

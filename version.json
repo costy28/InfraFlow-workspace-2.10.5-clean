@@ -1,5 +1,5 @@
 {
-  "version": "2.12.146",
+  "version": "2.12.150",
   "date": "2026-06-27",
-  "changelog": "## v2.12.146 - 2026-06-27\n### Contabilitate - control operational si interfata\n- Meniul Actiuni este randat deasupra containerelor si functioneaza inclusiv in tabele.\n- Inchiderea lunii are asistent vizual cu sase etape si legaturi directe de rezolvare.\n- Receptiile din Gestiune se pot reconcilia explicit cu facturile furnizor.\n- Registrul mijloacelor fixe are export Excel, plan de amortizare si fisa tiparibila.\n- Declaratiile au raport consolidat de control.\n- Auditul contabil detecteaza documente fara note, note invalide, duplicate, probleme de stoc si declaratii."
+  "changelog": "## v2.12.150 - 2026-06-27\n### Contabilitate - NIR, e-Factura, mijloace fixe si scheme ANAF\n- Receptii valorice cu pret, TVA, total si cost mediu ponderat.\n- Factura furnizor draft generata direct din NIR.\n- Import XML UBL e-Factura primit, cu protectie la duplicate.\n- Categorii, inventariere si proces-verbal pentru mijloace fixe.\n- Registru versionat pentru schemele oficiale ANAF XSD/ZIP.\n- Migrare MSSQL 034 si sincronizare relationala extinsa.\n- 20 de teste automate contabile."
 }

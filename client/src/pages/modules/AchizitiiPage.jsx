@@ -258,6 +258,8 @@ export default function AchizitiiPage() {
         cantitate: Number(line.cantitate || line.amount || 0),
         cantitate_ramasa: Number(line.cantitate_ramasa ?? line.remainingAmount ?? line.cantitate ?? line.amount ?? 0),
         cantitate_receptionata: Number(line.cantitate_ramasa ?? line.remainingAmount ?? line.cantitate ?? line.amount ?? 0),
+        pret_unitar: Number(line.pret ?? line.unitPrice ?? 0),
+        cota_tva: 21,
         unit: line.unit,
       })),
     })
@@ -569,9 +571,11 @@ export default function AchizitiiPage() {
           </div>
           <div className="grid gap-2">
             {receiveForm.linii.map((line, index) => (
-              <div key={line.material_id} className="grid gap-2 rounded-md border border-slate-200 p-3 md:grid-cols-[1fr_150px] md:items-end">
+              <div key={line.material_id} className="grid gap-2 rounded-md border border-slate-200 p-3 md:grid-cols-[1fr_130px_130px_110px] md:items-end">
                 <div className="text-sm"><div className="font-medium">{line.materialName}</div><div className="text-slate-500">Comandat: {line.cantitate} {line.unit} / Rămas: {line.cantitate_ramasa} {line.unit}</div></div>
                 <Input label="Primit" type="number" step="0.001" value={line.cantitate_receptionata} onChange={event => setReceiveForm(current => ({ ...current, linii: current.linii.map((item, i) => i === index ? { ...item, cantitate_receptionata: Number(event.target.value) } : item) }))} />
+                <Input label="Preț unitar" type="number" min="0" step="0.01" value={line.pret_unitar} onChange={event => setReceiveForm(current => ({ ...current, linii: current.linii.map((item, i) => i === index ? { ...item, pret_unitar: Number(event.target.value) } : item) }))} />
+                <Input label="TVA %" type="number" min="0" step="1" value={line.cota_tva} onChange={event => setReceiveForm(current => ({ ...current, linii: current.linii.map((item, i) => i === index ? { ...item, cota_tva: Number(event.target.value) } : item) }))} />
               </div>
             ))}
           </div>

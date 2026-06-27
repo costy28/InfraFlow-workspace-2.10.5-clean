@@ -1,12 +1,20 @@
 const xlsx = require("xlsx");
+const multer = require("multer");
+const xml2js = require("xml2js");
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const engine = require("./accounting-engine");
 const operations = require("./operations-routes");
 const declarations = require("./declaration-routes");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
+const xmlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const schemaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
 function registerAccountingControlRoutes(router, middleware) {
-  const { requireAccountingView, requireAccountingPost, requireAccountingReports } = middleware;
+  const { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingReports } = middleware;
 
   router.get("/accounting/inventory-invoice-reconciliation", requireAccountingView, (req, res) => {
     res.status(200).json(buildInventoryInvoiceReconciliation(req.auth.db, req.query.perioada));
@@ -30,6 +38,121 @@ function registerAccountingControlRoutes(router, middleware) {
       addAudit(req.auth.db, req.auth.user, "accounting_inventory_invoice_link", `${receipt.orderNo || receipt.id} / ${invoice.nr_document || invoice.id}`);
       writeDb(req.auth.db);
       res.status(200).json({ receipt, invoice });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/inventory-invoice-reconciliation/:receiptId/create-invoice", requireAccountingPost, (req, res, next) => {
+    try {
+      const db = req.auth.db;
+      const receipt = (db.procurementReceipts || []).find((item) => String(item.id) === String(req.params.receiptId) && !item.canceled && !item.deleted);
+      if (!receipt) throwHttp(404, "Receptia nu a fost gasita.");
+      if (receipt.accounting_invoice_id) throwHttp(409, "Receptia este deja legata de o factura.");
+      const accounting = engine.ensureAccounting(db);
+      const party = resolveSupplierParty(db, accounting, receipt.supplier || receipt.furnizor || "Furnizor neidentificat", req.body?.cui || "");
+      const invoice = createInvoiceFromReceipt(accounting, receipt, party, req.auth.user);
+      accounting.invoicesIn.push(invoice);
+      linkReceiptInvoice(receipt, invoice, req.auth.user);
+      addAudit(db, req.auth.user, "accounting_invoice_from_receipt", `${receipt.nr_nir || receipt.orderNo || receipt.id} / ${invoice.nr_document}`);
+      writeDb(db);
+      res.status(201).json({ invoice, receipt, party });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/efactura/import", requireAccountingPost, xmlUpload.single("file"), async (req, res, next) => {
+    try {
+      if (!req.file?.buffer) throwHttp(400, "Selecteaza fisierul XML e-Factura primit.");
+      const parsed = await parseUblInvoice(req.file.buffer);
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const party = resolveSupplierParty(req.auth.db, accounting, parsed.supplier_name, parsed.supplier_cui);
+      const duplicate = accounting.invoicesIn.find((item) => String(item.furnizor_id) === String(party.id) && String(item.nr_document || "").toLowerCase() === parsed.document.toLowerCase() && !["anulat", "stornat"].includes(item.status));
+      if (duplicate) throwHttp(409, `Factura ${parsed.document} exista deja pentru acest furnizor.`);
+      const [an, luna] = dateParts(parsed.date);
+      engine.checkPeriodOpen(req.auth.db, an, luna);
+      const invoice = {
+        id: engine.nextNumericId(accounting.invoicesIn), uuid: crypto.randomUUID(), an, luna,
+        nr_intern: accounting.invoicesIn.filter((item) => Number(item.an) === an).length + 1,
+        nr_document: parsed.document, furnizor_id: party.id, data: parsed.date, data_scadenta: parsed.due_date || parsed.date,
+        valoare: parsed.base, tva_procent: parsed.lines[0]?.tva_procent ?? 21, tva: parsed.vat, total: parsed.total,
+        achitat: 0, neachitat: parsed.total, cont_cheltuiala: String(req.body?.cont_cheltuiala || "628"),
+        explicatie: `Import e-Factura ${parsed.document}`, lines: parsed.lines, status: "draft", journal_id: null,
+        source: "efactura_import", source_file: req.file.originalname, source_xml_hash: crypto.createHash("sha256").update(req.file.buffer).digest("hex"),
+        created_by: req.auth.user?.id || "", created_at: new Date().toISOString()
+      };
+      accounting.invoicesIn.push(invoice);
+      addAudit(req.auth.db, req.auth.user, "accounting_efactura_import", `${parsed.document} / ${party.denumire} / ${parsed.total}`);
+      writeDb(req.auth.db);
+      res.status(201).json({ invoice, party, parsed: { document: parsed.document, date: parsed.date, total: parsed.total, lines: parsed.lines.length } });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/fixed-assets/categories", requireAccountingView, (req, res) => {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    res.status(200).json({ categories: accounting.fixedAssetCategories.filter((item) => item.active !== false) });
+  });
+
+  router.post("/accounting/fixed-assets/categories", requireAccountingManage, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const code = String(req.body?.code || "").trim();
+      const name = String(req.body?.name || "").trim();
+      const months = Number(req.body?.default_life_months || 0);
+      if (!code || !name || months <= 0) throwHttp(400, "Completeaza codul, denumirea si durata categoriei.");
+      if (accounting.fixedAssetCategories.some((item) => item.code === code && item.active !== false)) throwHttp(409, "Categoria exista deja.");
+      const category = { id: engine.nextNumericId(accounting.fixedAssetCategories), code, name, default_life_months: months, active: true, system: false, created_at: new Date().toISOString() };
+      accounting.fixedAssetCategories.push(category);
+      addAudit(req.auth.db, req.auth.user, "accounting_fixed_asset_category_create", `${code} ${name}`);
+      writeDb(req.auth.db);
+      res.status(201).json({ category });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/fixed-assets/inventory", requireAccountingManage, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const assetIds = new Set((req.body?.asset_ids || []).map(String));
+      const assets = accounting.fixedAssets.filter((item) => item.status === "activ" && (!assetIds.size || assetIds.has(String(item.uuid || item.id))));
+      if (!assets.length) throwHttp(400, "Nu exista mijloace fixe active pentru inventariere.");
+      const inventory = { id: engine.nextNumericId(accounting.fixedAssetInventories), uuid: crypto.randomUUID(), date: String(req.body?.date || engine.localDate(new Date())), commission: String(req.body?.commission || "").trim(), status: "finalizat", items: assets.map((item) => ({ asset_id: item.id, inventory_no: item.inventory_no, name: item.name, found: true, location: item.location || "", custodian: item.custodian || "" })), created_by: req.auth.user?.id || "", created_at: new Date().toISOString() };
+      accounting.fixedAssetInventories.push(inventory);
+      addAudit(req.auth.db, req.auth.user, "accounting_fixed_asset_inventory", `${inventory.date} / ${assets.length} pozitii`);
+      writeDb(req.auth.db);
+      res.status(201).json({ inventory });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/fixed-assets/:uuid/disposal-report", requireAccountingReports, (req, res, next) => {
+    try {
+      const asset = findAsset(req.auth.db, req.params.uuid);
+      const events = engine.ensureAccounting(req.auth.db).fixedAssetEvents.filter((item) => String(item.asset_id) === String(asset.id));
+      const last = events.slice().reverse().find((item) => ["casare", "vanzare", "scoatere_din_evidenta"].includes(item.action));
+      res.type("html").send(renderDisposalReport(asset, last, req.auth.user));
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/declarations/schemas", requireAccountingReports, (req, res) => {
+    const schemas = engine.ensureAccounting(req.auth.db).anafSchemas.slice().sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+    res.status(200).json({ schemas });
+  });
+
+  router.post("/accounting/declarations/schemas", requireAccountingManage, schemaUpload.single("file"), (req, res, next) => {
+    try {
+      if (!req.file?.buffer) throwHttp(400, "Selecteaza schema ANAF in format XSD sau ZIP.");
+      const extension = path.extname(req.file.originalname || "").toLowerCase();
+      if (![".xsd", ".zip"].includes(extension)) throwHttp(422, "Sunt acceptate doar fisiere XSD sau ZIP.");
+      const code = String(req.body?.code || "").trim().toUpperCase();
+      if (!/^D\d{3}$/.test(code) && code !== "SAF-T") throwHttp(400, "Codul declaratiei trebuie sa fie D300, D394, D112 sau SAF-T.");
+      const directory = path.resolve(__dirname, "../../../storage/anaf-schemas");
+      fs.mkdirSync(directory, { recursive: true });
+      const hash = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
+      const fileName = `${code.replace(/[^A-Z0-9-]/g, "_")}-${Date.now()}${extension}`;
+      fs.writeFileSync(path.join(directory, fileName), req.file.buffer);
+      const accounting = engine.ensureAccounting(req.auth.db);
+      accounting.anafSchemas.forEach((item) => { if (item.code === code) item.active = false; });
+      const schema = { id: engine.nextNumericId(accounting.anafSchemas), uuid: crypto.randomUUID(), code, original_name: req.file.originalname, file_name: fileName, file_path: `storage/anaf-schemas/${fileName}`, sha256: hash, active: true, uploaded_by: req.auth.user?.id || "", uploaded_at: new Date().toISOString() };
+      accounting.anafSchemas.push(schema);
+      addAudit(req.auth.db, req.auth.user, "accounting_anaf_schema_upload", `${code} / ${req.file.originalname}`);
+      writeDb(req.auth.db);
+      res.status(201).json({ schema });
     } catch (error) { next(error); }
   });
 
@@ -133,10 +256,87 @@ function receiptInvoiceSuggestions(accounting, receipt) {
     let score = document && documentText.includes(document) ? 55 : 0;
     if (party?.denumire && supplierText && (supplierText.includes(String(party.denumire).toLowerCase()) || String(party.denumire).toLowerCase().includes(supplierText))) score += 30;
     const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
-    if (lines.some((line) => String(line.denumire || line.descriere || "").toLowerCase().includes(String(receipt.materialName || "").toLowerCase()))) score += 15;
+    const receiptMaterials = Array.isArray(receipt.lines) ? receipt.lines.map((line) => String(line.materialName || line.denumire || "").toLowerCase()).filter(Boolean) : [String(receipt.materialName || "").toLowerCase()].filter(Boolean);
+    if (receiptMaterials.some((material) => lines.some((line) => String(line.denumire || line.descriere || "").toLowerCase().includes(material)))) score += 15;
     return { invoice_id: invoice.id, document: invoice.nr_document || invoice.id, furnizor: party?.denumire || "Furnizor", total: Number(invoice.total || 0), score };
   }).filter((item) => item.score >= 30).sort((a, b) => b.score - a.score).slice(0, 5);
 }
+
+function createInvoiceFromReceipt(accounting, receipt, party, user) {
+  const lines = (receipt.lines || []).map((line, index) => {
+    const quantity = Number(line.cantitate_receptionata || line.cantitate || 0);
+    const unitPrice = Number(line.pret_unitar || line.unitPrice || 0);
+    const base = money(line.valoare ?? quantity * unitPrice);
+    const rate = Number(line.cota_tva ?? line.tva_procent ?? 21);
+    const vat = money(line.valoare_tva ?? base * rate / 100);
+    return { nr_crt: index + 1, denumire: line.materialName || line.denumire || "Material receptionat", um: line.unit || "buc", cantitate: quantity, pret_unitar: unitPrice, valoare: base, tva_procent: rate, tva: vat, total: money(base + vat), cont: line.cont_stoc || "3028", material_id: line.material_id || null };
+  });
+  if (!lines.length || lines.some((line) => line.cantitate <= 0 || line.pret_unitar <= 0)) throwHttp(422, "Receptia trebuie sa aiba cantitati si preturi unitare pentru generarea facturii.");
+  const date = String(receipt.date || engine.localDate(new Date()));
+  const [an, luna] = dateParts(date);
+  const base = money(lines.reduce((sum, line) => sum + line.valoare, 0));
+  const vat = money(lines.reduce((sum, line) => sum + line.tva, 0));
+  return {
+    id: engine.nextNumericId(accounting.invoicesIn), uuid: crypto.randomUUID(), an, luna,
+    nr_intern: accounting.invoicesIn.filter((item) => Number(item.an) === an).length + 1,
+    nr_document: String(receipt.document || receipt.nr_aviz || receipt.nr_nir || receipt.orderNo || receipt.id),
+    furnizor_id: party.id, data: date, data_scadenta: date, valoare: base, tva_procent: lines[0]?.tva_procent ?? 21,
+    tva: vat, total: money(base + vat), achitat: 0, neachitat: money(base + vat), cont_cheltuiala: "3028",
+    explicatie: `Factura din receptia ${receipt.nr_nir || receipt.orderNo || receipt.id}`, lines, status: "draft", journal_id: null,
+    source: "procurement_receipt", source_receipt_ids: [receipt.id], created_by: user?.id || "", created_at: new Date().toISOString()
+  };
+}
+
+function linkReceiptInvoice(receipt, invoice, user) {
+  receipt.accounting_invoice_id = invoice.id;
+  receipt.accounting_invoice_uuid = invoice.uuid;
+  receipt.accounting_linked_at = new Date().toISOString();
+  receipt.accounting_linked_by = user?.id || "";
+}
+
+function resolveSupplierParty(db, accounting, name, cui) {
+  const normalizedCui = String(cui || "").replace(/^RO/i, "").replace(/\s+/g, "");
+  const normalizedName = String(name || "Furnizor neidentificat").trim();
+  let party = accounting.thirdParties.find((item) => normalizedCui && String(item.cui || "").replace(/^RO/i, "") === normalizedCui)
+    || accounting.thirdParties.find((item) => String(item.denumire || "").trim().toLowerCase() === normalizedName.toLowerCase());
+  if (party) return party;
+  party = {
+    id: engine.nextNumericId(accounting.thirdParties), cod: String(engine.nextNumericId(accounting.thirdParties)).padStart(5, "0"), tip: "furnizor",
+    denumire: normalizedName, cui: normalizedCui ? `RO${normalizedCui}` : "", tara: "RO", cont_analitic_furnizor: "401", activ: true,
+    created_at: new Date().toISOString()
+  };
+  accounting.thirdParties.push(party);
+  return party;
+}
+
+async function parseUblInvoice(buffer) {
+  const parsed = await xml2js.parseStringPromise(buffer.toString("utf8"), { explicitArray: false, tagNameProcessors: [xml2js.processors.stripPrefix], trim: true });
+  const invoice = parsed.Invoice || parsed.CreditNote || parsed;
+  const supplierParty = invoice.AccountingSupplierParty?.Party || {};
+  const supplierName = scalar(supplierParty.PartyLegalEntity?.RegistrationName || supplierParty.PartyName?.Name || "Furnizor e-Factura");
+  const supplierCui = scalar(supplierParty.PartyTaxScheme?.CompanyID || supplierParty.PartyIdentification?.ID || "");
+  const rawLines = asArray(invoice.InvoiceLine || invoice.CreditNoteLine);
+  const lines = rawLines.map((line, index) => {
+    const quantity = Number(scalar(line.InvoicedQuantity || line.CreditedQuantity || 1));
+    const unitPrice = Number(scalar(line.Price?.PriceAmount || 0));
+    const base = money(Number(scalar(line.LineExtensionAmount || quantity * unitPrice)));
+    const rate = Number(scalar(line.Item?.ClassifiedTaxCategory?.Percent || 0));
+    const vat = money(base * rate / 100);
+    const quantityNode = line.InvoicedQuantity || line.CreditedQuantity;
+    return { nr_crt: index + 1, denumire: scalar(line.Item?.Name || line.Item?.Description || `Linia ${index + 1}`), um: scalar(quantityNode?.$?.unitCode || quantityNode?.unitCode || "buc"), cantitate: quantity, pret_unitar: unitPrice, valoare: base, tva_procent: rate, tva: vat, total: money(base + vat), cont: "628" };
+  });
+  const base = money(Number(scalar(invoice.LegalMonetaryTotal?.TaxExclusiveAmount || lines.reduce((sum, line) => sum + line.valoare, 0))));
+  const vat = money(Number(scalar(invoice.TaxTotal?.TaxAmount || lines.reduce((sum, line) => sum + line.tva, 0))));
+  const total = money(Number(scalar(invoice.LegalMonetaryTotal?.PayableAmount || invoice.LegalMonetaryTotal?.TaxInclusiveAmount || base + vat)));
+  const document = scalar(invoice.ID || "").trim();
+  const date = scalar(invoice.IssueDate || "").trim();
+  if (!document || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !lines.length || total <= 0) throwHttp(422, "XML-ul nu contine numar, data, linii si total e-Factura valide.");
+  return { document, date, due_date: scalar(invoice.DueDate || ""), supplier_name: supplierName, supplier_cui: supplierCui, lines, base, vat, total };
+}
+
+function scalar(value) { if (value === null || value === undefined) return ""; if (typeof value === "object") return value._ ?? value["#text"] ?? ""; return String(value); }
+function asArray(value) { return value === undefined || value === null ? [] : Array.isArray(value) ? value : [value]; }
+function dateParts(value) { return [Number(String(value).slice(0, 4)), Number(String(value).slice(5, 7))]; }
 
 function buildIntegrityAudit(db, periodValue) {
   const accounting = engine.ensureAccounting(db);
@@ -182,6 +382,10 @@ function renderAssetSheet(asset, schedule, events) {
   return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Fisa ${escapeHtml(asset.inventory_no)}</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#14213d}h1{font-size:22px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #cbd5e1;padding:7px;text-align:left;font-size:12px}.num{text-align:right}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Tipareste</button><h1>Fisa mijloc fix ${escapeHtml(asset.inventory_no)}</h1><p><strong>${escapeHtml(asset.name)}</strong></p><p>Valoare intrare: ${Number(asset.acquisition_value || 0).toFixed(2)} RON · Durata: ${asset.useful_life_months} luni · Status: ${escapeHtml(asset.status)}</p><h2>Istoric</h2><table><thead><tr><th>Data</th><th>Actiune</th><th>Detalii</th></tr></thead><tbody>${eventRows || "<tr><td colspan=\"3\">Fara evenimente.</td></tr>"}</tbody></table><h2>Plan amortizare</h2><table><thead><tr><th>Luna</th><th>Amortizare</th><th>Cumulata</th><th>Valoare neta</th></tr></thead><tbody>${scheduleRows}</tbody></table></body></html>`;
 }
 
+function renderDisposalReport(asset, event, user) {
+  return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Proces verbal ${escapeHtml(asset.inventory_no)}</title><style>body{font-family:Arial,sans-serif;margin:42px;color:#172033}h1{text-align:center;font-size:22px}p{line-height:1.55}.line{margin-top:42px;border-top:1px solid #64748b;width:260px;padding-top:6px}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Tipareste</button><h1>PROCES-VERBAL DE SCOATERE DIN EVIDENTA</h1><p>Astazi, <strong>${escapeHtml(event?.data || engine.localDate(new Date()))}</strong>, se propune scoaterea din evidenta a mijlocului fix cu numarul de inventar <strong>${escapeHtml(asset.inventory_no)}</strong>, denumit <strong>${escapeHtml(asset.name)}</strong>.</p><p>Valoare de intrare: <strong>${Number(asset.acquisition_value || 0).toFixed(2)} RON</strong><br>Amortizare cumulata: <strong>${Number(asset.accumulated_depreciation || 0).toFixed(2)} RON</strong><br>Valoare neta: <strong>${Number(asset.net_value || 0).toFixed(2)} RON</strong></p><p>Motiv / detalii: ${escapeHtml(event?.details || "Se completeaza de comisie.")}</p><div class="line">Comisia de inventariere</div><div class="line">Intocmit: ${escapeHtml(user?.name || "")}</div></body></html>`;
+}
+
 function duplicateInvoices(items, partyKey) { const seen = new Set(); const duplicates = new Set(); items.filter((item) => !["anulat", "stornat"].includes(item.status)).forEach((item) => { const key = `${item[partyKey] || "-"}|${String(item.nr_document || item.numar || "").toLowerCase()}`; if (key.endsWith("|")) return; if (seen.has(key)) duplicates.add(key); seen.add(key); }); return [...duplicates]; }
 function summarizeIssues(issues, areas) { return areas.map((area) => { const count = issues.filter((item) => item.area === area).length; return { key: area.toLowerCase().replace(/\s+/g, "_"), label: area, severity: count ? "warning" : "ok", value: count, message: count ? `${count} probleme necesita verificare.` : "Fara probleme identificate." }; }); }
 function invoiceLabel(invoice) { return { id: invoice.id, uuid: invoice.uuid || "", document: invoice.nr_document || invoice.id, total: Number(invoice.total || 0), status: invoice.status }; }
@@ -197,3 +401,5 @@ module.exports = registerAccountingControlRoutes;
 module.exports.buildInventoryInvoiceReconciliation = buildInventoryInvoiceReconciliation;
 module.exports.buildIntegrityAudit = buildIntegrityAudit;
 module.exports.buildDepreciationSchedule = buildDepreciationSchedule;
+module.exports.parseUblInvoice = parseUblInvoice;
+module.exports.createInvoiceFromReceipt = createInvoiceFromReceipt;
