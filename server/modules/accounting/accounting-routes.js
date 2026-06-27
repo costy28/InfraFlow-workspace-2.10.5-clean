@@ -1192,6 +1192,12 @@ router.get("/accounting/suppliers-status/:id/confirmation/print", requireAccount
   } catch (error) { next(error); }
 });
 
+router.get("/accounting/suppliers-status/:id/print", requireAccountingReports, (req, res, next) => {
+  try {
+    sendThirdPartyDetailHtml(res, req.auth.db, "furnizor", req.params.id);
+  } catch (error) { next(error); }
+});
+
 router.post("/accounting/suppliers-status/:id/confirmation/sent", requireAccountingPost, (req, res, next) => {
   try {
     const confirmation = markThirdPartyBalanceConfirmation(req.auth.db, req.auth.user, "furnizor", req.params.id, "trimisa", req.body || {});
@@ -2297,7 +2303,7 @@ function thirdPartyStatus(db, tip) {
   const paidKey = tip === "client" ? "incasat" : "achitat";
   const balanceKey = tip === "client" ? "neincasat" : "neachitat";
   const rows = accounting.thirdParties.filter((tert) => tert.tip === tip || tert.tip === "ambele").map((tert) => {
-    const invoices = source.filter((item) => item.status !== "anulat" && String(item[idKey]) === String(tert.id));
+    const invoices = source.filter((item) => !["anulat", "stornat"].includes(item.status) && String(item[idKey]) === String(tert.id));
     const sold = round(invoices.reduce((acc, item) => acc + Number(item[balanceKey] ?? item.total - Number(item[paidKey] || 0)), 0));
     const paid = round(invoices.reduce((acc, item) => acc + Number(item[paidKey] || 0), 0));
     const total = round(invoices.reduce((acc, item) => acc + Number(item.total || 0), 0));
@@ -2325,7 +2331,7 @@ function thirdPartyDetail(db, tip, id) {
   const paidKey = tip === "client" ? "incasat" : "achitat";
   const balanceKey = tip === "client" ? "neincasat" : "neachitat";
   const invoices = source
-    .filter((item) => item.status !== "anulat" && String(item[idKey]) === String(tert.id))
+    .filter((item) => !["anulat", "stornat"].includes(item.status) && String(item[idKey]) === String(tert.id))
     .map((invoice) => {
       const rest = round(invoice[balanceKey] ?? Number(invoice.total || 0) - Number(invoice[paidKey] || 0));
       const due = invoice.data_scadenta || invoice.data || today();
@@ -2349,6 +2355,7 @@ function thirdPartyDetail(db, tip, id) {
         status: invoice.status || "",
         total: round(invoice.total || 0),
         paid: round(invoice[paidKey] || 0),
+        credit: round(invoice.credit_total || 0),
         rest,
         days_overdue,
         overdue: days_overdue > 0,
@@ -2358,6 +2365,10 @@ function thirdPartyDetail(db, tip, id) {
     })
     .sort((a, b) => String(a.data_scadenta || a.data || "").localeCompare(String(b.data_scadenta || b.data || "")));
   const open = invoices.filter((item) => item.rest > 0);
+  const creditNotes = tip === "furnizor" ? accounting.creditNotes
+    .filter((item) => String(item.furnizor_id) === String(tert.id) && item.status !== "anulat")
+    .map((item) => ({ ...item, invoice_document: accounting.invoicesIn.find((invoice) => String(invoice.id) === String(item.invoice_id))?.nr_document || item.invoice_id }))
+    .sort((a, b) => String(b.data || b.created_at || "").localeCompare(String(a.data || a.created_at || ""))) : [];
   const movements = accounting.treasury
     .filter((item) => item.status !== "anulat" && String(item.tert_id || "") === String(tert.id))
     .map((item) => {
@@ -2388,6 +2399,7 @@ function thirdPartyDetail(db, tip, id) {
   const totals = {
     total: round(invoices.reduce((sum, item) => sum + item.total, 0)),
     paid: round(invoices.reduce((sum, item) => sum + item.paid, 0)),
+    credit: round(creditNotes.filter((item) => item.status === "validat").reduce((sum, item) => sum + Number(item.total || 0), 0)),
     rest: round(open.reduce((sum, item) => sum + item.rest, 0)),
     overdue: round(open.filter((item) => item.overdue).reduce((sum, item) => sum + item.rest, 0)),
     invoices: invoices.length,
@@ -2397,6 +2409,7 @@ function thirdPartyDetail(db, tip, id) {
     treasury_out: round(movements.filter((item) => item.tip_operatie === "plata").reduce((sum, item) => sum + item.suma, 0)),
     treasury_count: movements.length
   };
+  const procurement = tip === "furnizor" ? supplierProcurementLifecycle(db, accounting, tert, invoices) : null;
   return {
     tert,
     tip,
@@ -2406,8 +2419,50 @@ function thirdPartyDetail(db, tip, id) {
     confirmations: balanceConfirmationsFor(accounting, tip, tert.id).slice(0, 10),
     invoices,
     openInvoices: open,
-    treasury: movements
+    treasury: movements,
+    creditNotes,
+    procurement
   };
+}
+
+function supplierProcurementLifecycle(db, accounting, tert, invoices) {
+  const normalizedName = normalizePartyName(tert.denumire);
+  const invoiceIds = new Set(invoices.map((item) => String(item.id)));
+  const receipts = (db.procurementReceipts || []).filter((item) =>
+    invoiceIds.has(String(item.accounting_invoice_id)) || (normalizedName && normalizePartyName(item.supplier) === normalizedName)
+  );
+  const receiptIds = new Set(receipts.map((item) => String(item.id)));
+  const orderIds = new Set(receipts.flatMap((item) => [item.orderId, item.orderUuid].filter(Boolean).map(String)));
+  const orders = (db.procurementOrders || []).filter((item) =>
+    orderIds.has(String(item.id)) || orderIds.has(String(item.uuid)) || (normalizedName && normalizePartyName(item.supplier || item.furnizor) === normalizedName)
+  );
+  const returns = (db.procurementReturns || []).filter((item) => receiptIds.has(String(item.receipt_id)));
+  const lifecycle = orders.map((order) => {
+    const orderReceipts = receipts.filter((item) => String(item.orderId) === String(order.id) || String(item.orderUuid) === String(order.uuid));
+    const linkedInvoiceIds = new Set(orderReceipts.map((item) => item.accounting_invoice_id).filter(Boolean).map(String));
+    const orderInvoices = accounting.invoicesIn.filter((item) => linkedInvoiceIds.has(String(item.id)));
+    const orderReturns = returns.filter((item) => orderReceipts.some((receipt) => String(receipt.id) === String(item.receipt_id)));
+    const payments = accounting.treasury.filter((item) => item.status === "validat" && orderInvoices.some((invoice) => String(invoice.id) === String(item.invoice_in_id)));
+    const missingStep = !orderReceipts.length ? "Inregistreaza receptia NIR"
+      : !orderInvoices.length ? "Leaga sau creeaza factura furnizor"
+        : orderInvoices.some((invoice) => ["draft", "devalidat"].includes(invoice.status)) ? "Valideaza factura"
+          : orderInvoices.some((invoice) => Number(invoice.neachitat ?? invoice.total - Number(invoice.achitat || 0)) > 0) ? "Inregistreaza plata sau corectia"
+            : "Circuit finalizat";
+    return {
+      order_id: order.id, order_uuid: order.uuid || "", order_no: order.orderNo || order.nr_comanda || order.id,
+      date: order.date || order.data || "", status: order.status || "", value: Number(order.value || order.valoare || order.total || 0),
+      receptions: orderReceipts.length, reception_total: round(orderReceipts.reduce((sum, item) => sum + Number(item.total || 0), 0)),
+      invoices: orderInvoices.length, invoice_total: round(orderInvoices.reduce((sum, item) => sum + Number(item.total || 0), 0)),
+      payments: payments.length, paid_total: round(payments.reduce((sum, item) => sum + Number(item.suma || 0), 0)),
+      returns: orderReturns.length, return_total: round(orderReturns.reduce((sum, item) => sum + Number(item.total || 0), 0)),
+      missing_step: missingStep, complete: missingStep === "Circuit finalizat"
+    };
+  }).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  return { orders, receipts, returns, lifecycle };
+}
+
+function normalizePartyName(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function markThirdPartyBalanceConfirmation(db, user, tip, id, status, body = {}) {
@@ -2612,6 +2667,7 @@ function exportThirdPartyDetail(res, db, tip, id) {
     ["Analitic", detail.account || ""],
     ["Total facturat", detail.totals.total || 0],
     [tip === "client" ? "Total incasat" : "Total achitat", detail.totals.paid || 0],
+    ...(tip === "furnizor" ? [["Note de credit validate", detail.totals.credit || 0]] : []),
     ["Sold deschis", detail.totals.rest || 0],
     ["Sold depasit", detail.totals.overdue || 0],
     ["Facturi deschise", detail.totals.open || 0],
@@ -2668,9 +2724,19 @@ function exportThirdPartyDetail(res, db, tip, id) {
       row.treasury_url || ""
     ])
   ];
+  const creditRows = [
+    ["Data", "Document", "Factura", "Status", "Baza", "TVA", "Total", "Observatii"],
+    ...(detail.creditNotes || []).map((row) => [row.data || "", row.nr_document || "", row.invoice_document || "", row.status || "", row.valoare || 0, row.tva || 0, row.total || 0, row.observatii || ""])
+  ];
+  const lifecycleRows = [
+    ["Data", "Comanda", "Status", "Valoare", "NIR-uri", "Total NIR", "Facturi", "Total facturi", "Plati", "Total platit", "Retururi", "Total retur", "Pas urmator"],
+    ...((detail.procurement?.lifecycle || []).map((row) => [row.date || "", row.order_no || "", row.status || "", row.value || 0, row.receptions || 0, row.reception_total || 0, row.invoices || 0, row.invoice_total || 0, row.payments || 0, row.paid_total || 0, row.returns || 0, row.return_total || 0, row.missing_step || ""]))
+  ];
   if (invoiceRows.length === 1) invoiceRows.push(["", "Nu exista facturi deschise.", "", "", 0, 0, 0, 0, "", ""]);
   if (allInvoiceRows.length === 1) allInvoiceRows.push(["", "Nu exista facturi in istoricul tertului.", "", "", 0, 0, 0, 0, "", ""]);
   if (treasuryRows.length === 1) treasuryRows.push(["", "Nu exista miscari de trezorerie.", "", "", "", "", 0, "", "", "", "", ""]);
+  if (creditRows.length === 1) creditRows.push(["", "Nu exista note de credit.", "", "", 0, 0, 0, ""]);
+  if (lifecycleRows.length === 1) lifecycleRows.push(["", "Nu exista comenzi corelate.", "", 0, 0, 0, 0, 0, 0, 0, 0, 0, ""]);
 
   const workbook = xlsx.utils.book_new();
   const summarySheet = xlsx.utils.aoa_to_sheet(summaryRows);
@@ -2691,6 +2757,18 @@ function exportThirdPartyDetail(res, db, tip, id) {
   treasurySheet["!freeze"] = { xSplit: 0, ySplit: 1 };
   treasurySheet["!autofilter"] = { ref: `A1:L${Math.max(treasuryRows.length, 1)}` };
   xlsx.utils.book_append_sheet(workbook, treasurySheet, "Trezorerie");
+  if (tip === "furnizor") {
+    const creditSheet = xlsx.utils.aoa_to_sheet(creditRows);
+    creditSheet["!cols"] = [{ wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 40 }];
+    creditSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+    creditSheet["!autofilter"] = { ref: `A1:H${Math.max(creditRows.length, 1)}` };
+    xlsx.utils.book_append_sheet(workbook, creditSheet, "Note de credit");
+    const lifecycleSheet = xlsx.utils.aoa_to_sheet(lifecycleRows);
+    lifecycleSheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 36 }];
+    lifecycleSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+    lifecycleSheet["!autofilter"] = { ref: `A1:M${Math.max(lifecycleRows.length, 1)}` };
+    xlsx.utils.book_append_sheet(workbook, lifecycleSheet, "Circuit achizitii");
+  }
   const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
   const safe = String(detail.tert.denumire || detail.tert.cod || id || "tert").replace(/[^\w.-]+/g, "_").slice(0, 60);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -2750,6 +2828,15 @@ function exportThirdPartyBalanceConfirmation(res, db, tip, id) {
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="Confirmare_sold_${tip}_${safe}_${today()}.xlsx"`);
   res.end(buffer);
+}
+
+function sendThirdPartyDetailHtml(res, db, tip, id) {
+  const detail = thirdPartyDetail(db, tip, id);
+  const invoiceRows = detail.invoices.slice(0, 50).map((row) => `<tr><td>${accountingHtmlEscape(row.data)}</td><td>${accountingHtmlEscape(row.nr_document)}</td><td>${accountingHtmlEscape(row.status)}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.total))}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.paid))}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.credit || 0))}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.rest))}</td></tr>`).join("");
+  const creditRows = (detail.creditNotes || []).map((row) => `<tr><td>${accountingHtmlEscape(row.data)}</td><td>${accountingHtmlEscape(row.nr_document)}</td><td>${accountingHtmlEscape(row.invoice_document)}</td><td>${accountingHtmlEscape(row.status)}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.total))}</td></tr>`).join("");
+  const lifecycleRows = (detail.procurement?.lifecycle || []).slice(0, 50).map((row) => `<tr><td>${accountingHtmlEscape(row.date)}</td><td>${accountingHtmlEscape(row.order_no)}</td><td class="num">${row.receptions}</td><td class="num">${row.invoices}</td><td class="num">${row.payments}</td><td class="num">${row.returns}</td><td>${accountingHtmlEscape(row.missing_step)}</td></tr>`).join("");
+  const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Fisa furnizor ${accountingHtmlEscape(detail.tert.denumire)}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;margin-top:24px}.meta{color:#64748b;font-size:12px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.box{border:1px solid #cbd5e1;padding:9px}.box small{display:block;color:#64748b}.box strong{font-size:15px}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px}th,td{border:1px solid #cbd5e1;padding:5px;text-align:left}th{background:#f1f5f9}.num{text-align:right}.actions{margin-bottom:12px}@media print{.actions{display:none}.summary{grid-template-columns:repeat(4,1fr)}body{margin:10mm}}</style></head><body><div class="actions"><button onclick="window.print()">Tipareste / Salveaza PDF</button></div><h1>Fisa furnizor</h1><div class="meta">${accountingHtmlEscape(detail.tert.denumire)} · CUI ${accountingHtmlEscape(detail.tert.cui || "-")} · Analitic ${accountingHtmlEscape(detail.account || "-")} · generat ${today()}</div><div class="summary"><div class="box"><small>Total facturat</small><strong>${formatReconciliationMoney(detail.totals.total)}</strong></div><div class="box"><small>Achitat</small><strong>${formatReconciliationMoney(detail.totals.paid)}</strong></div><div class="box"><small>Note credit</small><strong>${formatReconciliationMoney(detail.totals.credit)}</strong></div><div class="box"><small>Sold deschis</small><strong>${formatReconciliationMoney(detail.totals.rest)}</strong></div></div><h2>Facturi</h2><table><thead><tr><th>Data</th><th>Document</th><th>Status</th><th>Total</th><th>Achitat</th><th>Credit</th><th>Rest</th></tr></thead><tbody>${invoiceRows || '<tr><td colspan="7">Fara facturi.</td></tr>'}</tbody></table><h2>Note de credit</h2><table><thead><tr><th>Data</th><th>Document</th><th>Factura</th><th>Status</th><th>Total</th></tr></thead><tbody>${creditRows || '<tr><td colspan="5">Fara note de credit.</td></tr>'}</tbody></table><h2>Circuit Achizitii - Contabilitate</h2><table><thead><tr><th>Data</th><th>Comanda</th><th>NIR</th><th>Facturi</th><th>Plati</th><th>Retururi</th><th>Pas urmator</th></tr></thead><tbody>${lifecycleRows || '<tr><td colspan="7">Fara comenzi corelate.</td></tr>'}</tbody></table></body></html>`;
+  res.status(200).type("html").send(html);
 }
 
 function sendThirdPartyBalanceConfirmationHtml(res, db, tip, id) {
@@ -2883,14 +2970,17 @@ function buildVatData(db, query = {}) {
   const cota = query.cota === undefined || query.cota === "" ? "" : Number(query.cota);
   const allInMonthIn = filterDocuments(accounting.invoicesIn, { an, luna }).filter((item) => item.status !== "anulat");
   const allInMonthOut = filterDocuments(accounting.invoicesOut, { an, luna }).filter((item) => item.status !== "anulat");
-  const vatReadyStatuses = new Set(["validat", "partial", "achitat", "incasat", "stornat"]);
+  const vatReadyStatuses = new Set(["validat", "partial", "achitat", "incasat", "creditata", "stornat"]);
   const invoicesIn = filterDocuments(accounting.invoicesIn, filters)
     .filter((item) => item.status !== "anulat")
     .filter((item) => requestedStatus || vatReadyStatuses.has(String(item.status || "")));
   const invoicesOut = filterDocuments(accounting.invoicesOut, filters)
     .filter((item) => item.status !== "anulat")
     .filter((item) => requestedStatus || vatReadyStatuses.has(String(item.status || "")));
-  const jurnalCumparari = invoicesIn.map((invoice) => decorateVatInvoice(db, invoice, "furnizor")).filter((item) => cota === "" || Number(item.tva_procent || 0) === cota);
+  const creditNotes = accounting.creditNotes
+    .filter((item) => Number(item.an) === an && Number(item.luna) === luna && item.status === "validat")
+    .map((item) => ({ ...item, valoare: -Math.abs(Number(item.valoare || 0)), tva: -Math.abs(Number(item.tva || 0)), total: -Math.abs(Number(item.total || 0)), tva_procent: Number(item.lines?.[0]?.tva_procent ?? 21), document_type: "nota_credit" }));
+  const jurnalCumparari = [...invoicesIn, ...creditNotes].map((invoice) => decorateVatInvoice(db, invoice, "furnizor")).filter((item) => cota === "" || Number(item.tva_procent || 0) === cota);
   const jurnalVanzari = invoicesOut.map((invoice) => decorateVatInvoice(db, invoice, "client")).filter((item) => cota === "" || Number(item.tva_procent || 0) === cota);
   const draftIn = allInMonthIn.filter((item) => item.status === "draft").length;
   const draftOut = allInMonthOut.filter((item) => item.status === "draft").length;

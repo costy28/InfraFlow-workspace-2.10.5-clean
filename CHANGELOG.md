@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.152 - 2026-06-27
+
+- Note de credit furnizor create din retururi parțiale, cu validare, devalidare și storno controlat.
+- Corecția actualizează soldul facturii, jurnalul contabil, TVA/D300 și D394.
+- Formular dedicat pentru factura din mai multe NIR-uri, cu distribuirea proporțională a diferenței și păstrarea cotelor TVA.
+- Fișa furnizorului include notele de credit, circuitul complet Achiziții - Contabilitate și export PDF/Excel.
+- Circuitul indică veriga lipsă dintre comandă, NIR, factură, plată și retur.
+- Regresie extinsă la 28 de teste automate și verificare responsive la 390 px.
+
 # v2.12.151 - 2026-06-27
 
 - Factură furnizor creată din unul sau mai multe NIR-uri ale aceluiași furnizor.

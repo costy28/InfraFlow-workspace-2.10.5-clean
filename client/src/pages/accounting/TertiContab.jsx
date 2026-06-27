@@ -159,6 +159,30 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
+  async function creditNoteAction(note, action) {
+    const reason = action === 'devalidate' ? window.prompt('Motivul devalidarii notei de credit:', '') : ''
+    if (action === 'devalidate' && !reason) return
+    if (action === 'storno' && !window.confirm(`Stornezi nota de credit ${note.nr_document}?`)) return
+    setError('')
+    setMessage('')
+    try {
+      await api.post(`/accounting/credit-notes/${note.uuid}/${action}`, reason ? { motiv: reason } : {})
+      setMessage(action === 'validate' ? 'Nota de credit a fost validata.' : action === 'devalidate' ? 'Nota de credit a fost devalidata.' : 'Nota de credit a fost stornata.')
+      await openDetails(detail.tert)
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Actiunea asupra notei de credit nu a putut fi efectuata.')
+    }
+  }
+
+  function creditNoteMenu(note) {
+    return [
+      ['draft', 'devalidat'].includes(note.status) ? { label: 'Valideaza nota', onClick: () => creditNoteAction(note, 'validate') } : null,
+      note.status === 'validat' ? { label: 'Devalideaza nota', onClick: () => creditNoteAction(note, 'devalidate'), danger: true } : null,
+      note.status === 'validat' ? { label: 'Storno nota', onClick: () => creditNoteAction(note, 'storno'), danger: true } : null
+    ]
+  }
+
   const filteredRows = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return rows.filter(row => {
@@ -259,6 +283,13 @@ export function TertiContab({ type = 'furnizor' }) {
     window.open(`/api${statusEndpoint}/${target.id}/confirmation/print${authQuery}`, '_blank', 'noopener,noreferrer')
   }
 
+  function printDetail(target = detail?.tert) {
+    if (type !== 'furnizor' || !target?.id) return
+    const token = localStorage.getItem('infraflow_token')
+    const authQuery = token ? `?token=${encodeURIComponent(token)}` : ''
+    window.open(`/api/accounting/suppliers-status/${target.id}/print${authQuery}`, '_blank', 'noopener,noreferrer')
+  }
+
   async function markConfirmation(action, payload = {}, target = detail?.tert) {
     if (!target?.id) return
     setError('')
@@ -332,6 +363,7 @@ export function TertiContab({ type = 'furnizor' }) {
       { label: 'Tipareste confirmare', onClick: printConfirmation },
       { label: 'Export confirmare sold', onClick: exportConfirmation },
       { label: 'Export fisa tert', onClick: exportDetail },
+      type === 'furnizor' ? { label: 'Tipareste fisa furnizor', onClick: printDetail } : null,
       { type: 'separator' },
       { label: 'Facturi tert', to: `${invoicePath}?${tertParam}=${detail.tert.id}` },
       detail?.account ? { label: 'Fisa cont analitic', to: `/contabilitate/fisa-cont/${detail.account}` } : null,
@@ -509,6 +541,7 @@ export function TertiContab({ type = 'furnizor' }) {
                 <div className="text-xs text-slate-500">Operatii trezorerie</div>
                 <div className="font-semibold">{detail?.totals?.treasury_count || 0}</div>
               </div>
+              {type === 'furnizor' ? <div className="rounded-md bg-slate-50 px-3 py-2"><div className="text-xs text-slate-500">Note de credit</div><div className="font-semibold">{formatMoney(detail?.totals?.credit || 0)}</div></div> : null}
             </div>
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
               {detail?.tert?.cui ? <span>CUI {detail.tert.cui}</span> : <span>CUI necompletat</span>}
@@ -590,6 +623,32 @@ export function TertiContab({ type = 'furnizor' }) {
                 <div className="mt-2 text-xs text-slate-500">Sunt afisate ultimele 30 facturi.</div>
               ) : null}
             </div>
+            {type === 'furnizor' ? <div>
+              <h3 className="mb-2 text-sm font-semibold text-slate-900">Note de credit furnizor</h3>
+              <Table headers={['Data', 'Document', 'Factura', 'Status', 'Baza', 'TVA', 'Total', 'Actiuni']}>
+                {(detail?.creditNotes || []).map(note => <tr key={note.uuid || note.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2">{note.data || '-'}</td><td className="px-3 py-2 font-semibold">{note.nr_document || '-'}</td><td className="px-3 py-2">{note.invoice_document || '-'}</td>
+                  <td className="px-3 py-2"><Badge tone={note.status === 'validat' ? 'success' : note.status === 'stornat' ? 'neutral' : 'warning'}>{note.status || '-'}</Badge></td>
+                  <td className="px-3 py-2 text-right">{formatMoney(note.valoare || 0)}</td><td className="px-3 py-2 text-right">{formatMoney(note.tva || 0)}</td><td className="px-3 py-2 text-right font-semibold">{formatMoney(note.total || 0)}</td>
+                  <td className="px-3 py-2"><DropdownMenu align="right" label="Actiuni" items={creditNoteMenu(note)} /></td>
+                </tr>)}
+                {(detail?.creditNotes || []).length ? null : <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>Nu exista note de credit pentru acest furnizor.</td></tr>}
+              </Table>
+            </div> : null}
+            {type === 'furnizor' ? <div>
+              <h3 className="mb-2 text-sm font-semibold text-slate-900">Circuit Achizitii - Contabilitate</h3>
+              <Table headers={['Comanda', 'NIR', 'Factura', 'Plata', 'Retur', 'Status circuit']}>
+                {(detail?.procurement?.lifecycle || []).slice(0, 30).map(row => <tr key={row.order_uuid || row.order_id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2"><div className="font-semibold">{row.order_no}</div><div className="text-xs text-slate-500">{row.date || '-'} · {row.status || '-'}</div></td>
+                  <td className="px-3 py-2"><Badge tone={row.receptions ? 'success' : 'warning'}>{row.receptions || 0}</Badge><div className="mt-1 text-xs">{formatMoney(row.reception_total || 0)}</div></td>
+                  <td className="px-3 py-2"><Badge tone={row.invoices ? 'success' : 'warning'}>{row.invoices || 0}</Badge><div className="mt-1 text-xs">{formatMoney(row.invoice_total || 0)}</div></td>
+                  <td className="px-3 py-2"><Badge tone={row.payments ? 'success' : 'neutral'}>{row.payments || 0}</Badge><div className="mt-1 text-xs">{formatMoney(row.paid_total || 0)}</div></td>
+                  <td className="px-3 py-2"><Badge tone={row.returns ? 'warning' : 'neutral'}>{row.returns || 0}</Badge><div className="mt-1 text-xs">{formatMoney(row.return_total || 0)}</div></td>
+                  <td className="px-3 py-2"><Badge tone={row.complete ? 'success' : 'warning'}>{row.complete ? 'Finalizat' : 'In lucru'}</Badge><div className="mt-1 text-xs text-slate-600">{row.missing_step}</div></td>
+                </tr>)}
+                {(detail?.procurement?.lifecycle || []).length ? null : <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={6}>Nu exista comenzi corelate cu acest furnizor.</td></tr>}
+              </Table>
+            </div> : null}
             <div>
               <h3 className="mb-2 text-sm font-semibold text-slate-900">Miscari trezorerie</h3>
               <Table headers={['Data', 'Document', 'Operatie', 'Cont', 'Suma', 'Status', 'Factura', 'Actiuni']}>

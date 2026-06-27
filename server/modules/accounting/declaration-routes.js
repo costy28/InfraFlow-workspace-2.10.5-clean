@@ -149,7 +149,7 @@ function buildDeclarationReadiness(db, query = {}) {
   const [an, luna] = monthParts(query.perioada || query.luna);
   const perioada = `${an}-${String(luna).padStart(2, "0")}`;
   const inMonth = (item) => Number(item.an) === an && Number(item.luna) === luna && !["anulat", "stornat"].includes(String(item.status || ""));
-  const invoices = [...accounting.invoicesIn.filter(inMonth), ...accounting.invoicesOut.filter(inMonth)];
+  const invoices = [...accounting.invoicesIn.filter(inMonth), ...accounting.invoicesOut.filter(inMonth), ...accounting.creditNotes.filter(inMonth)];
   const drafts = invoices.filter((item) => item.status === "draft");
   const period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna) || { an, luna, status: "deschisa" };
   const d394 = buildD394Data(db, { perioada });
@@ -215,13 +215,14 @@ function buildD394Data(db, query = {}) {
   const accounting = engine.ensureAccounting(db);
   const [an, luna] = monthParts(query.perioada || query.luna);
   const perioada = `${an}-${String(luna).padStart(2, "0")}`;
-  const acceptedStatuses = new Set(["validat", "partial", "achitat", "incasat"]);
+  const acceptedStatuses = new Set(["validat", "partial", "achitat", "incasat", "creditata"]);
   const groups = new Map();
   const missing = [];
   const details = [];
   let foreignDocuments = 0;
 
   addInvoices(accounting.invoicesIn, "achizitie", "furnizor_id");
+  addInvoices(accounting.creditNotes.filter((item) => item.status === "validat").map((item) => ({ ...item, valoare: -Math.abs(Number(item.valoare || 0)), tva: -Math.abs(Number(item.tva || 0)), total: -Math.abs(Number(item.total || 0)) })), "achizitie", "furnizor_id");
   addInvoices(accounting.invoicesOut, "livrare", "client_id");
 
   function addInvoices(invoices, tip, partyKey) {
@@ -311,7 +312,7 @@ function buildSaftReadiness(db, query = {}) {
     if (!party.denumire) issues.push(issue("Terti", party.id, "Tert fara denumire.", "Completeaza denumirea tertului."));
     if (String(party.tara || "RO").toUpperCase() === "RO" && !isValidRomanianCui(normalizeCui(party.cui))) issues.push(issue("Terti", party.cod || party.id, "Tert roman fara CUI valid.", "Completeaza CUI-ul in fisa tertului."));
   });
-  const accepted = new Set(["validat", "partial", "achitat", "incasat"]);
+  const accepted = new Set(["validat", "partial", "achitat", "incasat", "creditata"]);
   const invoices = [...accounting.invoicesIn, ...accounting.invoicesOut].filter((item) => Number(item.an) === an && Number(item.luna) === luna && accepted.has(String(item.status || "")));
   invoices.forEach((invoice) => {
     if (!invoice.data) issues.push(issue("Facturi", invoice.id, "Factura fara data.", "Completeaza data documentului."));

@@ -20,6 +20,15 @@ function registerAccountingControlRoutes(router, middleware) {
     res.status(200).json(buildInventoryInvoiceReconciliation(req.auth.db, req.query.perioada));
   });
 
+  router.get("/accounting/credit-notes", requireAccountingView, (req, res) => {
+    const notes = engine.ensureAccounting(req.auth.db).creditNotes
+      .filter((item) => !req.query.furnizor_id || String(item.furnizor_id) === String(req.query.furnizor_id))
+      .filter((item) => !req.query.invoice_id || String(item.invoice_id) === String(req.query.invoice_id))
+      .filter((item) => req.query.status ? item.status === req.query.status : item.status !== "anulat")
+      .sort((a, b) => String(b.data || b.created_at || "").localeCompare(String(a.data || a.created_at || "")));
+    res.status(200).json({ creditNotes: notes });
+  });
+
   router.post("/accounting/inventory-invoice-reconciliation/:receiptId/confirm", requireAccountingPost, (req, res, next) => {
     try {
       const accounting = engine.ensureAccounting(req.auth.db);
@@ -118,6 +127,79 @@ function registerAccountingControlRoutes(router, middleware) {
       addAudit(db, req.auth.user, "accounting_inventory_return_storno", `${returnRecord.id} / ${invoice.nr_document}`);
       writeDb(db);
       res.status(200).json({ returnRecord, invoice, journal });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/inventory-returns/:returnId/credit-note", requireAccountingPost, (req, res, next) => {
+    try {
+      const note = createCreditNoteFromReturn(req.auth.db, req.auth.user, req.params.returnId, req.body || {});
+      addAudit(req.auth.db, req.auth.user, "accounting_credit_note_create", `${note.nr_document} / ${note.total}`);
+      writeDb(req.auth.db);
+      res.status(201).json({ creditNote: note });
+    } catch (error) { next(error); }
+  });
+
+  router.patch("/accounting/credit-notes/:uuid", requireAccountingPost, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const note = findCreditNote(accounting, req.params.uuid);
+      if (!["draft", "devalidat"].includes(note.status)) throwHttp(409, "Doar nota de credit draft sau devalidata se poate edita.");
+      const data = String(req.body?.data || note.data);
+      const [an, luna] = dateParts(data);
+      engine.checkPeriodOpen(req.auth.db, an, luna);
+      note.nr_document = String(req.body?.nr_document || note.nr_document).trim();
+      if (!note.nr_document) throwHttp(400, "Numarul notei de credit este obligatoriu.");
+      note.data = data;
+      note.an = an;
+      note.luna = luna;
+      note.observatii = String(req.body?.observatii ?? note.observatii ?? "").trim();
+      note.updated_at = new Date().toISOString();
+      addAudit(req.auth.db, req.auth.user, "accounting_credit_note_update", note.nr_document);
+      writeDb(req.auth.db);
+      res.status(200).json({ creditNote: note });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/credit-notes/:uuid/validate", requireAccountingPost, (req, res, next) => {
+    try {
+      const note = validateCreditNote(req.auth.db, req.auth.user, req.params.uuid);
+      addAudit(req.auth.db, req.auth.user, "accounting_credit_note_validate", `${note.nr_document} / ${note.total}`);
+      writeDb(req.auth.db);
+      res.status(200).json({ creditNote: note });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/credit-notes/:uuid/devalidate", requireAccountingPost, (req, res, next) => {
+    try {
+      const note = devalidateCreditNote(req.auth.db, req.auth.user, req.params.uuid, req.body?.motiv);
+      addAudit(req.auth.db, req.auth.user, "accounting_credit_note_devalidate", note.nr_document);
+      writeDb(req.auth.db);
+      res.status(200).json({ creditNote: note });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/credit-notes/:uuid/storno", requireAccountingPost, (req, res, next) => {
+    try {
+      const note = stornoCreditNote(req.auth.db, req.auth.user, req.params.uuid);
+      addAudit(req.auth.db, req.auth.user, "accounting_credit_note_storno", note.nr_document);
+      writeDb(req.auth.db);
+      res.status(200).json({ creditNote: note });
+    } catch (error) { next(error); }
+  });
+
+  router.delete("/accounting/credit-notes/:uuid", requireAccountingPost, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const note = findCreditNote(accounting, req.params.uuid);
+      if (note.status !== "draft") throwHttp(409, "Doar nota de credit draft poate fi anulata direct.");
+      note.status = "anulat";
+      note.cancelled_at = new Date().toISOString();
+      note.cancelled_by = req.auth.user?.id || "";
+      note.cancelled_reason = String(req.body?.motiv || "Anulare nota de credit").trim();
+      releaseCreditNoteReturn(req.auth.db, note);
+      addAudit(req.auth.db, req.auth.user, "accounting_credit_note_cancel", note.nr_document);
+      writeDb(req.auth.db);
+      res.status(200).json({ creditNote: note });
     } catch (error) { next(error); }
   });
 
@@ -297,6 +379,148 @@ function registerAccountingControlRoutes(router, middleware) {
   });
 }
 
+function findCreditNote(accounting, id) {
+  const note = accounting.creditNotes.find((item) => String(item.id) === String(id) || String(item.uuid) === String(id));
+  if (!note) throwHttp(404, "Nota de credit nu a fost gasita.");
+  return note;
+}
+
+function createCreditNoteFromReturn(db, user, returnId, input = {}) {
+  const accounting = engine.ensureAccounting(db);
+  const returnRecord = (db.procurementReturns || []).find((item) => String(item.id) === String(returnId));
+  if (!returnRecord) throwHttp(404, "Returul nu a fost gasit.");
+  if (!returnRecord.requires_credit_note) throwHttp(409, "Returul nu are o factura furnizor legata.");
+  if (returnRecord.accounting_resolved_at) throwHttp(409, "Returul este deja rezolvat contabil.");
+  const existing = accounting.creditNotes.find((item) => String(item.return_id) === String(returnRecord.id) && !["anulat", "stornat"].includes(item.status));
+  if (existing) throwHttp(409, `Returul are deja nota de credit ${existing.nr_document || existing.id}.`);
+  const receipt = (db.procurementReceipts || []).find((item) => String(item.id) === String(returnRecord.receipt_id));
+  const invoice = accounting.invoicesIn.find((item) => String(item.id) === String(receipt?.accounting_invoice_id));
+  if (!invoice || ["anulat", "stornat"].includes(invoice.status)) throwHttp(404, "Factura activa legata de retur nu a fost gasita.");
+  const data = String(input.data || engine.localDate(new Date()));
+  const [an, luna] = dateParts(data);
+  engine.checkPeriodOpen(db, an, luna);
+  const document = String(input.nr_document || "").trim();
+  if (!document) throwHttp(400, "Numarul notei de credit este obligatoriu.");
+  const lines = (returnRecord.lines || []).map((line, index) => ({
+    nr_crt: index + 1,
+    denumire: line.materialName || line.denumire || "Material returnat",
+    um: line.unit || "buc",
+    cantitate: Number(line.cantitate || 0),
+    pret_unitar: money(line.pret_unitar || 0),
+    valoare: money(line.valoare || 0),
+    tva_procent: Number(line.cota_tva ?? line.tva_procent ?? 21),
+    tva: money(line.valoare_tva || 0),
+    total: money(line.total || Number(line.valoare || 0) + Number(line.valoare_tva || 0)),
+    cont: String(line.cont || line.cont_stoc || "3028"),
+    material_id: line.material_id || null
+  }));
+  if (!lines.length || lines.some((line) => line.cantitate <= 0 || line.total <= 0)) throwHttp(422, "Returul nu contine linii valorice valide pentru nota de credit.");
+  const note = {
+    id: engine.nextNumericId(accounting.creditNotes), uuid: crypto.randomUUID(), nr_document: document, data, an, luna,
+    furnizor_id: invoice.furnizor_id, invoice_id: invoice.id, invoice_uuid: invoice.uuid || "", return_id: returnRecord.id,
+    receipt_id: receipt.id, valoare: money(lines.reduce((sum, line) => sum + line.valoare, 0)),
+    tva: money(lines.reduce((sum, line) => sum + line.tva, 0)), total: money(lines.reduce((sum, line) => sum + line.total, 0)),
+    lines, observatii: String(input.observatii || returnRecord.reason || "").trim(), status: "draft", journal_id: null,
+    created_by: user?.id || "", created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+  };
+  accounting.creditNotes.push(note);
+  returnRecord.credit_note_id = note.id;
+  returnRecord.credit_note_uuid = note.uuid;
+  returnRecord.accounting_action = "nota_credit_draft";
+  return note;
+}
+
+function validateCreditNote(db, user, id) {
+  const accounting = engine.ensureAccounting(db);
+  const note = findCreditNote(accounting, id);
+  if (!["draft", "devalidat"].includes(note.status)) throwHttp(409, "Doar nota de credit draft sau devalidata se poate valida.");
+  const invoice = accounting.invoicesIn.find((item) => String(item.id) === String(note.invoice_id));
+  if (!invoice || !["validat", "partial", "achitat", "creditata"].includes(invoice.status)) throwHttp(409, "Valideaza mai intai factura furnizor legata.");
+  engine.checkPeriodOpen(db, note.an, note.luna);
+  const activeOtherCredits = accounting.creditNotes.filter((item) => String(item.invoice_id) === String(invoice.id) && String(item.id) !== String(note.id) && item.status === "validat");
+  const existingCredit = money(activeOtherCredits.reduce((sum, item) => sum + Number(item.total || 0), 0));
+  const available = money(Number(invoice.total || 0) - Number(invoice.achitat || 0) - existingCredit);
+  if (note.total > available + 0.01) throwHttp(409, `Nota de credit depaseste soldul disponibil al facturii (${available.toFixed(2)} RON). Corecteaza mai intai plata din Trezorerie.`);
+  const party = accounting.thirdParties.find((item) => String(item.id) === String(note.furnizor_id));
+  if (!party) throwHttp(404, "Furnizorul notei de credit nu a fost gasit.");
+  const supplierAccount = party.cont_analitic_furnizor || engine.generateAnalyticAccount(db, party, "furnizor");
+  party.cont_analitic_furnizor = supplierAccount;
+  const journal = engine.createJournal(db, user, {
+    an: note.an, luna: note.luna, data: note.data, nr_document: note.nr_document,
+    tip_document: "nota_credit_furnizor", document_ref_id: note.id, document_ref_tip: "accounting_credit_notes",
+    explicatie: `Nota de credit ${note.nr_document}`,
+    lines: [
+      { cont: supplierAccount, debit: note.total, tert_id: party.id, tert_tip: "furnizor", explicatie: `Reducere datorie ${party.denumire}` },
+      ...note.lines.map((line) => ({ cont: line.cont || "3028", credit: line.valoare, tert_id: party.id, tert_tip: "furnizor", explicatie: line.denumire })),
+      ...(note.tva > 0 ? [{ cont: "4426", credit: note.tva, tert_id: party.id, tert_tip: "furnizor", explicatie: "Corectie TVA deductibila" }] : [])
+    ]
+  });
+  note.journal_id = journal.id;
+  note.status = "validat";
+  note.validated_at = new Date().toISOString();
+  note.validated_by = user?.id || "";
+  note.updated_at = note.validated_at;
+  recalculateInvoiceCredits(accounting, invoice);
+  const returnRecord = (db.procurementReturns || []).find((item) => String(item.id) === String(note.return_id));
+  if (returnRecord) {
+    returnRecord.accounting_resolved_at = note.validated_at;
+    returnRecord.accounting_resolved_by = user?.id || "";
+    returnRecord.accounting_action = "nota_credit_validata";
+  }
+  return note;
+}
+
+function devalidateCreditNote(db, user, id, reason = "") {
+  const accounting = engine.ensureAccounting(db);
+  const note = findCreditNote(accounting, id);
+  if (note.status !== "validat" || !note.journal_id) throwHttp(409, "Doar nota de credit validata se poate devalida.");
+  engine.devalidateJournal(db, user, note.journal_id, reason);
+  note.status = "devalidat";
+  note.devalidated_at = new Date().toISOString();
+  note.devalidated_by = user?.id || "";
+  note.devalidation_reason = String(reason || "").trim();
+  const invoice = accounting.invoicesIn.find((item) => String(item.id) === String(note.invoice_id));
+  if (invoice) recalculateInvoiceCredits(accounting, invoice);
+  releaseCreditNoteReturn(db, note);
+  return note;
+}
+
+function stornoCreditNote(db, user, id) {
+  const accounting = engine.ensureAccounting(db);
+  const note = findCreditNote(accounting, id);
+  if (note.status !== "validat" || !note.journal_id) throwHttp(409, "Doar nota de credit validata se poate storna.");
+  const journal = engine.stornoJournal(db, user, note.journal_id);
+  note.status = "stornat";
+  note.storno_journal_id = journal.id;
+  note.stornat_at = new Date().toISOString();
+  note.stornat_by = user?.id || "";
+  const invoice = accounting.invoicesIn.find((item) => String(item.id) === String(note.invoice_id));
+  if (invoice) recalculateInvoiceCredits(accounting, invoice);
+  releaseCreditNoteReturn(db, note);
+  return note;
+}
+
+function recalculateInvoiceCredits(accounting, invoice) {
+  const credit = money(accounting.creditNotes.filter((item) => String(item.invoice_id) === String(invoice.id) && item.status === "validat").reduce((sum, item) => sum + Number(item.total || 0), 0));
+  invoice.credit_total = credit;
+  invoice.neachitat = Math.max(0, money(Number(invoice.total || 0) - Number(invoice.achitat || 0) - credit));
+  if (!["anulat", "stornat", "draft"].includes(invoice.status)) {
+    if (invoice.neachitat <= 0.01) invoice.status = credit > 0 ? "creditata" : "achitat";
+    else if (Number(invoice.achitat || 0) > 0 || credit > 0) invoice.status = "partial";
+    else invoice.status = "validat";
+  }
+  invoice.updated_at = new Date().toISOString();
+  return invoice;
+}
+
+function releaseCreditNoteReturn(db, note) {
+  const returnRecord = (db.procurementReturns || []).find((item) => String(item.id) === String(note.return_id));
+  if (!returnRecord) return;
+  returnRecord.accounting_resolved_at = null;
+  returnRecord.accounting_resolved_by = null;
+  returnRecord.accounting_action = note.status === "anulat" ? "nota_credit_anulata" : "nota_credit_nevalidata";
+}
+
 function buildInventoryInvoiceReconciliation(db, periodValue) {
   const accounting = engine.ensureAccounting(db);
   const [an, luna] = monthParts(periodValue);
@@ -318,7 +542,8 @@ function buildInventoryInvoiceReconciliation(db, periodValue) {
     }
     const returns = (db.procurementReturns || []).filter((item) => String(item.receipt_id) === String(receipt.id));
     const pendingReturn = returns.find((item) => item.requires_credit_note && !item.accounting_resolved_at) || null;
-    return { ...receipt, linked_invoice: linked ? invoiceLabel(linked) : null, variance, returns, pending_return: pendingReturn, suggestions, best_suggestion: suggestions[0] || null };
+    const creditNote = pendingReturn ? accounting.creditNotes.find((item) => String(item.return_id) === String(pendingReturn.id) && item.status !== "anulat") || null : null;
+    return { ...receipt, linked_invoice: linked ? invoiceLabel(linked) : null, variance, returns, pending_return: pendingReturn, credit_note: creditNote, suggestions, best_suggestion: suggestions[0] || null };
   });
   return { perioada: month, rows, summary: { total: rows.length, linked: rows.filter((row) => row.linked_invoice).length, pending: rows.filter((row) => !row.linked_invoice).length, suggested: rows.filter((row) => row.best_suggestion).length, discrepancies: discrepancyInvoices.size, pending_returns: rows.filter((row) => row.pending_return).length } };
 }
@@ -347,7 +572,7 @@ function createInvoiceFromReceipt(accounting, receipt, party, user) {
 }
 
 function createInvoiceFromReceipts(accounting, receipts, party, user, input = {}) {
-  const lines = receipts.flatMap((receipt) => (receipt.lines || []).map((line) => ({ ...line, source_receipt_id: receipt.id, source_nir: receipt.nr_nir || receipt.document || receipt.id }))).map((line, index) => {
+  let lines = receipts.flatMap((receipt) => (receipt.lines || []).map((line) => ({ ...line, source_receipt_id: receipt.id, source_nir: receipt.nr_nir || receipt.document || receipt.id }))).map((line, index) => {
     const quantity = Number(line.cantitate_receptionata || line.cantitate || 0);
     const unitPrice = Number(line.pret_unitar || line.unitPrice || 0);
     const base = money(line.valoare ?? quantity * unitPrice);
@@ -358,10 +583,12 @@ function createInvoiceFromReceipts(accounting, receipts, party, user, input = {}
   if (!lines.length || lines.some((line) => line.cantitate <= 0 || line.pret_unitar <= 0)) throwHttp(422, "Receptia trebuie sa aiba cantitati si preturi unitare pentru generarea facturii.");
   const date = String(input.data || receipts[0]?.date || engine.localDate(new Date()));
   const [an, luna] = dateParts(date);
+  const receiptTotal = money(receipts.reduce((sum, receipt) => sum + Number(receipt.total || 0), 0));
+  const calculatedTotal = money(lines.reduce((sum, line) => sum + line.total, 0));
+  const declaredTotal = input.total_factura === undefined || input.total_factura === "" ? calculatedTotal : money(input.total_factura);
+  if (input.distribute_difference && declaredTotal > 0 && Math.abs(declaredTotal - calculatedTotal) > 0.01) lines = distributeInvoiceDifference(lines, declaredTotal);
   const base = money(lines.reduce((sum, line) => sum + line.valoare, 0));
   const vat = money(lines.reduce((sum, line) => sum + line.tva, 0));
-  const receiptTotal = money(receipts.reduce((sum, receipt) => sum + Number(receipt.total || 0), 0));
-  const declaredTotal = input.total_factura === undefined || input.total_factura === "" ? money(base + vat) : money(input.total_factura);
   return {
     id: engine.nextNumericId(accounting.invoicesIn), uuid: crypto.randomUUID(), an, luna,
     nr_intern: accounting.invoicesIn.filter((item) => Number(item.an) === an).length + 1,
@@ -370,9 +597,26 @@ function createInvoiceFromReceipts(accounting, receipts, party, user, input = {}
     tva: vat, total: money(base + vat), achitat: 0, neachitat: money(base + vat), cont_cheltuiala: "3028",
     explicatie: `Factura din ${receipts.length} receptii: ${receipts.map((receipt) => receipt.nr_nir || receipt.orderNo || receipt.id).join(", ")}`, lines, status: "draft", journal_id: null,
     source: "procurement_receipt", source_receipt_ids: receipts.map((receipt) => receipt.id), receipt_total: receiptTotal,
-    declared_total: declaredTotal, receipt_variance: money(declaredTotal - receiptTotal),
+    declared_total: declaredTotal, receipt_variance: money(declaredTotal - receiptTotal), distribution_applied: Boolean(input.distribute_difference && Math.abs(declaredTotal - calculatedTotal) > 0.01),
     created_by: user?.id || "", created_at: new Date().toISOString()
   };
+}
+
+function distributeInvoiceDifference(lines, targetTotal) {
+  const sourceTotal = money(lines.reduce((sum, line) => sum + Number(line.total || 0), 0));
+  if (sourceTotal <= 0 || targetTotal <= 0) throwHttp(422, "Diferenta nu poate fi distribuita pe linii fara valori pozitive.");
+  let allocatedGross = 0;
+  return lines.map((line, index) => {
+    const rate = Number(line.tva_procent || 0);
+    const targetGross = index === lines.length - 1
+      ? money(targetTotal - allocatedGross)
+      : money(Number(line.total || 0) / sourceTotal * targetTotal);
+    allocatedGross = money(allocatedGross + targetGross);
+    const value = money(targetGross / (1 + rate / 100));
+    const vat = money(targetGross - value);
+    const quantity = Number(line.cantitate || 1);
+    return { ...line, valoare: value, tva: vat, total: targetGross, pret_unitar: quantity > 0 ? money(value / quantity) : value, difference_distributed: true };
+  });
 }
 
 function linkReceiptInvoice(receipt, invoice, user) {
@@ -493,3 +737,8 @@ module.exports.buildDepreciationSchedule = buildDepreciationSchedule;
 module.exports.parseUblInvoice = parseUblInvoice;
 module.exports.createInvoiceFromReceipt = createInvoiceFromReceipt;
 module.exports.createInvoiceFromReceipts = createInvoiceFromReceipts;
+module.exports.createCreditNoteFromReturn = createCreditNoteFromReturn;
+module.exports.validateCreditNote = validateCreditNote;
+module.exports.devalidateCreditNote = devalidateCreditNote;
+module.exports.stornoCreditNote = stornoCreditNote;
+module.exports.recalculateInvoiceCredits = recalculateInvoiceCredits;

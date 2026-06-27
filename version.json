@@ -1,5 +1,5 @@
 {
-  "version": "2.12.151",
+  "version": "2.12.152",
   "date": "2026-06-27",
-  "changelog": "## v2.12.151 - 2026-06-27\n### Contabilitate - facturi din mai multe NIR-uri si retururi furnizor\n- O factura furnizor poate reuni mai multe NIR-uri ale aceluiasi furnizor.\n- Diferentele dintre totalul facturii si totalul receptiilor sunt semnalate explicit.\n- Tab nou Receptii in Achizitii, cu retur partial sau integral pe fiecare material.\n- Returul scade stocul, redeschide cantitatea comenzii si pastreaza trasabilitatea.\n- Returul integral poate anula factura draft sau storna factura validata.\n- Facturile achitate cer mai intai corectarea platii din Trezorerie.\n- 24 de teste automate contabile."
+  "changelog": "## v2.12.152 - 2026-06-27\n### Contabilitate - note de credit si circuit furnizor complet\n- Note de credit furnizor create din retururi partiale, cu validare, devalidare si storno.\n- Nota validata corecteaza soldul facturii, jurnalul contabil, TVA/D300 si D394.\n- Formular dedicat pentru factura din unul sau mai multe NIR-uri, cu distribuirea proportionala a diferentei.\n- Fisa furnizor extinsa cu note de credit, export Excel/PDF si circuit Achizitii - Contabilitate.\n- Mesaje explicite pentru verigile lipsa din circuitul comanda, NIR, factura, plata si retur.\n- 28 de teste automate contabile si verificare responsive la 390 px."
 }

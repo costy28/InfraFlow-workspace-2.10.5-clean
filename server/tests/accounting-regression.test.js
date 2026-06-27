@@ -227,6 +227,18 @@ test("factura furnizor reuneste mai multe NIR-uri si calculeaza diferenta", () =
   assert.equal(invoice.receipt_variance, 2);
 });
 
+test("diferenta facturii multi-NIR se distribuie proportional pe linii", () => {
+  const { accounting, user } = fixture();
+  const receipts = [
+    { id: "r1", nr_nir: "NIR-1", date: "2026-06-20", total: 121, lines: [{ material_id: "m1", materialName: "Bitum", cantitate: 1, pret_unitar: 100, cota_tva: 21 }] },
+    { id: "r2", nr_nir: "NIR-2", date: "2026-06-21", total: 242, lines: [{ material_id: "m2", materialName: "Motorina", cantitate: 2, pret_unitar: 100, cota_tva: 21 }] }
+  ];
+  const invoice = controls.createInvoiceFromReceipts(accounting, receipts, accounting.thirdParties[0], user, { nr_document: "F-201", total_factura: 365, distribute_difference: true });
+  assert.equal(invoice.total, 365);
+  assert.equal(invoice.distribution_applied, true);
+  assert.equal(invoice.lines.reduce((sum, line) => sum + line.total, 0), 365);
+});
+
 test("returul NIR scade stocul si redeschide comanda", () => {
   const db = {
     materials: [{ id: "m1", name: "Bitum", stock: 10, stoc_curent: 10, averageCost: 20, unit: "kg" }],
@@ -260,6 +272,53 @@ test("reconcilierea semnaleaza returul contabil nerezolvat", () => {
   const report = controls.buildInventoryInvoiceReconciliation(db, "2026-06");
   assert.equal(report.summary.pending_returns, 1);
   assert.equal(report.rows[0].pending_return.id, "ret1");
+});
+
+test("nota de credit validata reduce soldul facturii si poate fi devalidata", () => {
+  const { db, accounting, user } = fixture();
+  accounting.invoicesIn.push({ id: 10, uuid: "fi10", an: 2026, luna: 6, data: "2026-06-10", nr_document: "F-10", furnizor_id: 1, valoare: 100, tva: 21, total: 121, achitat: 0, neachitat: 121, status: "validat", lines: [{ denumire: "Bitum", cont: "3028", valoare: 100, tva: 21 }] });
+  accounting.invoicesIn[0].journal_id = engine.generateJournalFromInvoiceIn(db, user, accounting.invoicesIn[0]).id;
+  db.procurementReceipts = [{ id: "r1", accounting_invoice_id: 10 }];
+  db.procurementReturns = [{ id: "ret1", receipt_id: "r1", requires_credit_note: true, reason: "Retur partial", lines: [{ material_id: "m1", materialName: "Bitum", cantitate: 0.5, pret_unitar: 100, cota_tva: 21, valoare: 50, valoare_tva: 10.5, total: 60.5 }] }];
+  const note = controls.createCreditNoteFromReturn(db, user, "ret1", { nr_document: "NC-1", data: "2026-06-22" });
+  controls.validateCreditNote(db, user, note.uuid);
+  assert.equal(note.status, "validat");
+  assert.equal(accounting.invoicesIn[0].credit_total, 60.5);
+  assert.equal(accounting.invoicesIn[0].neachitat, 60.5);
+  assert.equal(db.procurementReturns[0].accounting_action, "nota_credit_validata");
+  const d394 = declarations.buildD394Data(db, { perioada: "2026-06" });
+  assert.equal(d394.totaluri.total, 60.5);
+  assert.equal(d394.detalii.some((item) => item.document === "NC-1" && item.total === -60.5), true);
+  controls.devalidateCreditNote(db, user, note.uuid, "Corectie test");
+  assert.equal(note.status, "devalidat");
+  assert.equal(accounting.invoicesIn[0].credit_total, 0);
+  assert.equal(accounting.invoicesIn[0].neachitat, 121);
+  assert.equal(db.procurementReturns[0].accounting_resolved_at, null);
+});
+
+test("storno notei de credit reface soldul facturii", () => {
+  const { db, accounting, user } = fixture();
+  accounting.invoicesIn.push({ id: 11, uuid: "fi11", an: 2026, luna: 6, data: "2026-06-10", nr_document: "F-11", furnizor_id: 1, valoare: 100, tva: 21, total: 121, achitat: 0, neachitat: 121, status: "validat", lines: [{ denumire: "Bitum", cont: "3028", valoare: 100, tva: 21 }] });
+  accounting.invoicesIn[0].journal_id = engine.generateJournalFromInvoiceIn(db, user, accounting.invoicesIn[0]).id;
+  db.procurementReceipts = [{ id: "r2", accounting_invoice_id: 11 }];
+  db.procurementReturns = [{ id: "ret2", receipt_id: "r2", requires_credit_note: true, reason: "Retur", lines: [{ material_id: "m1", materialName: "Bitum", cantitate: 1, pret_unitar: 100, cota_tva: 21, valoare: 100, valoare_tva: 21, total: 121 }] }];
+  const note = controls.createCreditNoteFromReturn(db, user, "ret2", { nr_document: "NC-2", data: "2026-06-22" });
+  controls.validateCreditNote(db, user, note.uuid);
+  assert.equal(accounting.invoicesIn[0].status, "creditata");
+  assert.equal(declarations.buildD394Data(db, { perioada: "2026-06" }).totaluri.total, 0);
+  controls.stornoCreditNote(db, user, note.uuid);
+  assert.equal(note.status, "stornat");
+  assert.equal(accounting.invoicesIn[0].status, "validat");
+  assert.equal(accounting.invoicesIn[0].neachitat, 121);
+});
+
+test("nota de credit nu poate depasi soldul dupa plati", () => {
+  const { db, accounting, user } = fixture();
+  accounting.invoicesIn.push({ id: 12, uuid: "fi12", an: 2026, luna: 6, data: "2026-06-10", nr_document: "F-12", furnizor_id: 1, total: 121, achitat: 100, neachitat: 21, status: "partial" });
+  db.procurementReceipts = [{ id: "r3", accounting_invoice_id: 12 }];
+  db.procurementReturns = [{ id: "ret3", receipt_id: "r3", requires_credit_note: true, reason: "Retur", lines: [{ material_id: "m1", materialName: "Bitum", cantitate: 1, pret_unitar: 100, cota_tva: 21, valoare: 100, valoare_tva: 21, total: 121 }] }];
+  const note = controls.createCreditNoteFromReturn(db, user, "ret3", { nr_document: "NC-3", data: "2026-06-22" });
+  assert.throws(() => controls.validateCreditNote(db, user, note.uuid), /depaseste soldul disponibil/);
 });
 
 test("parserul UBL extrage furnizorul, liniile si totalul", async () => {

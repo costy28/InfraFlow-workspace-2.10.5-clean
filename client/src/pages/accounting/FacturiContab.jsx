@@ -464,6 +464,7 @@ export function FacturiContab({ direction = 'in' }) {
             { value: 'draft', label: 'Draft' },
             { value: 'validat', label: 'Validate' },
             { value: 'partial', label: 'Partial' },
+            ...(isIn ? [{ value: 'creditata', label: 'Creditate' }] : []),
             { value: isIn ? 'achitat' : 'incasat', label: isIn ? 'Achitate' : 'Incasate' },
             { value: 'stornat', label: 'Stornate' },
             { value: 'anulat', label: 'Anulate' }

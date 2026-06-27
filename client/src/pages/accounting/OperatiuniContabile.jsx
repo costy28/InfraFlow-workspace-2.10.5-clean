@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
+import Modal from '../../components/ui/Modal'
 import { formatMoney } from '../../utils/format'
 import { AccountingShell, DropdownMenu, Table, currentMonth, today } from './accounting-shared'
 
@@ -38,9 +39,16 @@ export function OperatiuniContabile() {
   const [file, setFile] = useState(null)
   const [efacturaFile, setEfacturaFile] = useState(null)
   const [selectedReceipts, setSelectedReceipts] = useState([])
+  const [batchModal, setBatchModal] = useState(false)
+  const [batchForm, setBatchForm] = useState({ nr_document: '', data: today(), data_scadenta: today(), total_factura: '', distribute_difference: true })
+  const [creditModal, setCreditModal] = useState(false)
+  const [creditTarget, setCreditTarget] = useState(null)
+  const [creditForm, setCreditForm] = useState({ nr_document: '', data: today(), observatii: '' })
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const selectedReceiptRows = useMemo(() => (inventoryReconciliation.rows || []).filter(row => selectedReceipts.includes(row.id)), [inventoryReconciliation.rows, selectedReceipts])
+  const selectedReceiptTotal = useMemo(() => selectedReceiptRows.reduce((sum, row) => sum + Number(row.total || 0), 0), [selectedReceiptRows])
 
   useEffect(() => { load() }, [month, year])
 
@@ -127,22 +135,27 @@ export function OperatiuniContabile() {
     } catch (err) { setError(err.response?.data?.error || 'Factura nu a putut fi creată din recepție.') } finally { setBusy('') }
   }
 
-  async function createBatchInvoice() {
+  function openBatchInvoice() {
     if (!selectedReceipts.length) { setError('Selectează NIR-urile care aparțin aceleiași facturi.'); return }
-    const nrDocument = window.prompt('Numărul facturii furnizor:', '')
-    if (!nrDocument) return
-    const totalFactura = window.prompt('Totalul facturii pentru controlul diferențelor (opțional):', '')
+    const suppliers = new Set(selectedReceiptRows.map(row => String(row.supplier || '').trim().toLowerCase()))
+    if (suppliers.size > 1) { setError('NIR-urile selectate trebuie să aparțină aceluiași furnizor.'); return }
+    setBatchForm({ nr_document: '', data: today(), data_scadenta: today(), total_factura: String(selectedReceiptTotal || ''), distribute_difference: true })
+    setBatchModal(true)
+  }
+
+  async function createBatchInvoice(event) {
+    event.preventDefault()
     setBusy('receipt-batch'); setError(''); setMessage('')
     try {
       const res = await api.post('/accounting/inventory-invoice-reconciliation/create-invoice-batch', {
         receipt_ids: selectedReceipts,
-        nr_document: nrDocument,
-        data: today(),
-        total_factura: totalFactura || undefined
+        ...batchForm,
+        total_factura: batchForm.total_factura || undefined
       })
       const difference = Number(res.data?.variance || 0)
-      setMessage(`Factura ${nrDocument} a fost creată din ${selectedReceipts.length} NIR-uri.${Math.abs(difference) > 0.01 ? ` Diferență de verificat: ${formatMoney(difference)}.` : ''}`)
+      setMessage(`Factura ${batchForm.nr_document} a fost creată din ${selectedReceipts.length} NIR-uri.${Math.abs(difference) > 0.01 ? ` Diferență față de recepții: ${formatMoney(difference)}.` : ''}`)
       setSelectedReceipts([])
+      setBatchModal(false)
       load()
     } catch (err) { setError(err.response?.data?.error || 'Factura multiplă nu a putut fi creată.') } finally { setBusy('') }
   }
@@ -159,6 +172,34 @@ export function OperatiuniContabile() {
       setMessage(`Returul a fost rezolvat contabil. Factura este ${res.data?.invoice?.status || 'stornată'}.`)
       load()
     } catch (err) { setError(err.response?.data?.error || 'Returul nu a putut fi rezolvat contabil.') } finally { setBusy('') }
+  }
+
+  function openCreditNote(row) {
+    setCreditTarget(row)
+    setCreditForm({ nr_document: row.credit_note?.nr_document || '', data: row.credit_note?.data || today(), observatii: row.credit_note?.observatii || row.pending_return?.reason || '' })
+    setCreditModal(true)
+  }
+
+  async function saveCreditNote(event) {
+    event.preventDefault()
+    if (!creditTarget?.pending_return) return
+    setBusy('credit-note'); setError(''); setMessage('')
+    try {
+      if (creditTarget.credit_note) await api.patch(`/accounting/credit-notes/${creditTarget.credit_note.uuid}`, creditForm)
+      else await api.post(`/accounting/inventory-returns/${creditTarget.pending_return.id}/credit-note`, creditForm)
+      setMessage('Nota de credit a fost salvată ca draft. Verific-o, apoi valideaz-o pentru actualizarea soldului furnizorului.')
+      setCreditModal(false)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Nota de credit nu a putut fi salvată.') } finally { setBusy('') }
+  }
+
+  async function validateCreditNote(note) {
+    setBusy(`credit-${note.id}`); setError(''); setMessage('')
+    try {
+      await api.post(`/accounting/credit-notes/${note.uuid}/validate`)
+      setMessage(`Nota de credit ${note.nr_document} a fost validată și soldul facturii a fost recalculat.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Nota de credit nu a putut fi validată.') } finally { setBusy('') }
   }
 
   async function importEfactura() {
@@ -293,7 +334,7 @@ export function OperatiuniContabile() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="text-base font-semibold">Recepții și facturi furnizor</h3><p className="mt-1 text-sm text-slate-500">Selectează mai multe NIR-uri ale aceluiași furnizor când sunt cuprinse într-o singură factură.</p></div>
-          <div className="flex flex-wrap items-center gap-2"><Badge tone={inventoryReconciliation.summary?.discrepancies ? 'warning' : 'success'}>{inventoryReconciliation.summary?.discrepancies || 0} diferențe</Badge><Badge tone={inventoryReconciliation.summary?.pending ? 'warning' : 'success'}>{inventoryReconciliation.summary?.linked || 0}/{inventoryReconciliation.summary?.total || 0} legate</Badge><Button variant="secondary" onClick={createBatchInvoice} disabled={!selectedReceipts.length || busy === 'receipt-batch'}>Factură din selecție ({selectedReceipts.length})</Button></div>
+          <div className="flex flex-wrap items-center gap-2"><Badge tone={inventoryReconciliation.summary?.discrepancies ? 'warning' : 'success'}>{inventoryReconciliation.summary?.discrepancies || 0} diferențe</Badge><Badge tone={inventoryReconciliation.summary?.pending ? 'warning' : 'success'}>{inventoryReconciliation.summary?.linked || 0}/{inventoryReconciliation.summary?.total || 0} legate</Badge><Button variant="secondary" onClick={openBatchInvoice} disabled={!selectedReceipts.length || busy === 'receipt-batch'}>Factură din selecție ({selectedReceipts.length})</Button></div>
         </div>
         <div className="mt-3 space-y-2">
           {(inventoryReconciliation.rows || []).filter(row => !row.linked_invoice).slice(0, 10).map(row => (
@@ -312,8 +353,12 @@ export function OperatiuniContabile() {
         {(inventoryReconciliation.rows || []).some(row => row.pending_return) ? <div className="mt-4 border-t border-rose-200 pt-3">
           <div className="text-sm font-semibold text-rose-900">Retururi care cer corecție contabilă</div>
           {(inventoryReconciliation.rows || []).filter(row => row.pending_return).map(row => <div key={`return-${row.pending_return.id}`} className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800">
-            <span>{row.nr_nir || row.document}: retur {formatMoney(row.pending_return.total)}. {row.pending_return.full_return ? 'Factura poate fi stornată automat.' : 'Retur parțial: înregistrează nota de credit primită de la furnizor.'}</span>
-            {row.pending_return.full_return ? <Button variant="secondary" onClick={() => resolveFullReturn(row.pending_return)} disabled={busy === `return-${row.pending_return.id}`}>Stornează factura</Button> : null}
+            <span>{row.nr_nir || row.document}: retur {formatMoney(row.pending_return.total)}. {row.pending_return.full_return ? 'Factura poate fi stornată automat.' : row.credit_note ? `Nota ${row.credit_note.nr_document} este ${row.credit_note.status}.` : 'Retur parțial: înregistrează nota de credit primită de la furnizor.'}</span>
+            <div className="flex flex-wrap gap-2">
+              {row.pending_return.full_return ? <Button variant="secondary" onClick={() => resolveFullReturn(row.pending_return)} disabled={busy === `return-${row.pending_return.id}`}>Stornează factura</Button> : null}
+              {!row.pending_return.full_return && !row.credit_note ? <Button variant="secondary" onClick={() => openCreditNote(row)}>Creează nota de credit</Button> : null}
+              {!row.pending_return.full_return && row.credit_note && ["draft", "devalidat"].includes(row.credit_note.status) ? <><Button variant="secondary" onClick={() => openCreditNote(row)}>Editează</Button><Button onClick={() => validateCreditNote(row.credit_note)} disabled={busy === `credit-${row.credit_note.id}`}>Validează</Button></> : null}
+            </div>
           </div>)}
         </div> : null}
       </Card>
@@ -453,6 +498,31 @@ export function OperatiuniContabile() {
           </div>
         </div>
       </Card>
+
+      <Modal open={batchModal} title="Factură furnizor din NIR-uri" onClose={() => setBatchModal(false)} size="lg">
+        <form className="grid gap-4" onSubmit={createBatchInvoice}>
+          <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">{selectedReceiptRows.length} NIR-uri · {selectedReceiptRows[0]?.supplier || 'Furnizor'} · total recepții <strong>{formatMoney(selectedReceiptTotal)}</strong></div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="Număr factură" value={batchForm.nr_document} onChange={event => setBatchForm({ ...batchForm, nr_document: event.target.value })} required />
+            <Input label="Total factură" type="number" min="0.01" step="0.01" value={batchForm.total_factura} onChange={event => setBatchForm({ ...batchForm, total_factura: event.target.value })} required />
+            <Input label="Data facturii" type="date" value={batchForm.data} onChange={event => setBatchForm({ ...batchForm, data: event.target.value })} required />
+            <Input label="Scadență" type="date" value={batchForm.data_scadenta} onChange={event => setBatchForm({ ...batchForm, data_scadenta: event.target.value })} required />
+          </div>
+          <label className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700"><input className="mt-1" type="checkbox" checked={batchForm.distribute_difference} onChange={event => setBatchForm({ ...batchForm, distribute_difference: event.target.checked })} /><span><strong>Distribuie diferența pe liniile facturii</strong><br />Păstrează cotele TVA și ajustează proporțional valorile liniilor pentru ca totalul să corespundă facturii.</span></label>
+          <div className="max-h-48 overflow-auto rounded-md border border-slate-200">{selectedReceiptRows.map(row => <div key={row.id} className="flex justify-between gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-0"><span>{row.nr_nir || row.document} · {row.date}</span><strong>{formatMoney(row.total)}</strong></div>)}</div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setBatchModal(false)}>Renunță</Button><Button type="submit" disabled={busy === 'receipt-batch'}>Creează factura draft</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={creditModal} title="Notă de credit furnizor" onClose={() => setCreditModal(false)}>
+        <form className="grid gap-4" onSubmit={saveCreditNote}>
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Retur {formatMoney(creditTarget?.pending_return?.total || 0)} · factura {creditTarget?.linked_invoice?.document || '-'}. Validarea notei va reduce soldul furnizorului și va genera nota contabilă.</div>
+          <Input label="Număr notă de credit" value={creditForm.nr_document} onChange={event => setCreditForm({ ...creditForm, nr_document: event.target.value })} required />
+          <Input label="Data notei" type="date" value={creditForm.data} onChange={event => setCreditForm({ ...creditForm, data: event.target.value })} required />
+          <Input label="Observații" value={creditForm.observatii} onChange={event => setCreditForm({ ...creditForm, observatii: event.target.value })} />
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreditModal(false)}>Renunță</Button><Button type="submit" disabled={busy === 'credit-note'}>Salvează draft</Button></div>
+        </form>
+      </Modal>
     </AccountingShell>
   )
 }
