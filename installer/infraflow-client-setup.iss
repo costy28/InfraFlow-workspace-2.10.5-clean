@@ -14,13 +14,13 @@
 [Setup]
 AppId={{B2C3D4E5-F6A7-8901-BCDE-F12345678901}
 AppName=InfraFlow ERP Client
-AppVersion=2.12.150
+AppVersion=2.12.151
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow Client
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Client-Setup-v2.12.150
+OutputBaseFilename=InfraFlow-Client-Setup-v2.12.151
 WizardStyle=modern
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -83,7 +83,7 @@ Filename: "{app}\InfraFlow ERP.exe"; \
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Client v2.12.150' + #13#10#13#10 +
+    'InfraFlow ERP Client v2.12.151' + #13#10#13#10 +
     'AplicaÃˆâ€ºie desktop pentru accesarea serverului InfraFlow' + #13#10 +
     'din reÃˆâ€ºeaua localÃ„Æ’ sau de pe internet.' + #13#10#13#10 +
     'La prima pornire vei fi ghidat sÃ„Æ’ introduci' + #13#10 +

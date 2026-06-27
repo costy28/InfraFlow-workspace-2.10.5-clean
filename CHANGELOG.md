@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.151 - 2026-06-27
+
+- Factură furnizor creată din unul sau mai multe NIR-uri ale aceluiași furnizor.
+- Control automat al diferenței dintre totalul declarat al facturii și totalul recepțiilor.
+- Tab Recepții în Achiziții, cu retur parțial sau integral pe material.
+- Returul actualizează stocul, costul mediu, comanda și trasabilitatea mișcărilor.
+- Retururile cu factură legată apar în Contabilitate cu pas ajutător; returul integral poate genera storno automat.
+- Protecție la storno pentru facturi cu plăți deja înregistrate.
+- Regresie extinsă la 24 de teste automate și verificare responsive la 390 px.
+
 # v2.12.150 - 2026-06-27
 
 - Schema MSSQL 034 pentru categorii si inventarieri de mijloace fixe, registrul schemelor ANAF si campurile tehnice extinse.

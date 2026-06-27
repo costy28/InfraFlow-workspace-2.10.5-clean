@@ -214,6 +214,54 @@ test("factura draft se genereaza din liniile NIR", () => {
   assert.equal(invoice.lines[0].cont, "3028");
 });
 
+test("factura furnizor reuneste mai multe NIR-uri si calculeaza diferenta", () => {
+  const { accounting, user } = fixture();
+  const receipts = [
+    { id: "r1", nr_nir: "NIR-1", date: "2026-06-20", total: 121, lines: [{ material_id: "m1", materialName: "Bitum", cantitate: 1, pret_unitar: 100, cota_tva: 21 }] },
+    { id: "r2", nr_nir: "NIR-2", date: "2026-06-21", total: 242, lines: [{ material_id: "m2", materialName: "Motorina", cantitate: 2, pret_unitar: 100, cota_tva: 21 }] }
+  ];
+  const invoice = controls.createInvoiceFromReceipts(accounting, receipts, accounting.thirdParties[0], user, { nr_document: "F-200", total_factura: 365 });
+  assert.equal(invoice.lines.length, 2);
+  assert.deepEqual(invoice.source_receipt_ids, ["r1", "r2"]);
+  assert.equal(invoice.total, 363);
+  assert.equal(invoice.receipt_variance, 2);
+});
+
+test("returul NIR scade stocul si redeschide comanda", () => {
+  const db = {
+    materials: [{ id: "m1", name: "Bitum", stock: 10, stoc_curent: 10, averageCost: 20, unit: "kg" }],
+    procurementOrders: [{ id: "o1", uuid: "order-1", status: "received", receivedAmount: 10, remainingAmount: 0, lines: [{ material_id: "m1", cantitate: 10, cantitate_receptionata: 10, cantitate_ramasa: 0 }] }],
+    procurementReceipts: [{ id: "r1", orderId: "o1", orderUuid: "order-1", nr_nir: "NIR-1", supplier: "Furnizor", lines: [{ material_id: "m1", materialName: "Bitum", cantitate_receptionata: 10, pret_unitar: 20, cota_tva: 21 }] }],
+    procurementReturns: [], stockMovements: [], deliveries: []
+  };
+  const result = procurement.returnProcurementReceipt(db, { id: 1, name: "Tester" }, "r1", { motiv: "Necorespunzator", data: "2026-06-22", linii: [{ material_id: "m1", cantitate: 2 }] });
+  assert.equal(result.returnRecord.total, 48.4);
+  assert.equal(result.returnRecord.full_return, false);
+  assert.equal(db.materials[0].stock, 8);
+  assert.equal(db.procurementOrders[0].remainingAmount, 2);
+  assert.equal(db.stockMovements[0].amount, -2);
+});
+
+test("returul peste cantitatea receptionata este blocat", () => {
+  const db = {
+    materials: [{ id: "m1", name: "Bitum", stock: 20, averageCost: 20 }],
+    procurementOrders: [],
+    procurementReceipts: [{ id: "r1", lines: [{ material_id: "m1", materialName: "Bitum", cantitate_receptionata: 10, pret_unitar: 20 }] }],
+    procurementReturns: [], stockMovements: [], deliveries: []
+  };
+  assert.throws(() => procurement.returnProcurementReceipt(db, { id: 1, name: "Tester" }, "r1", { motiv: "Test", linii: [{ material_id: "m1", cantitate: 11 }] }), /depaseste cantitatea receptionata/);
+});
+
+test("reconcilierea semnaleaza returul contabil nerezolvat", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesIn.push({ id: 10, nr_document: "F-10", total: 121, declared_total: 121, status: "validat", source_receipt_ids: ["r1"] });
+  db.procurementReceipts = [{ id: "r1", date: "2026-06-20", nr_nir: "NIR-1", total: 121, accounting_invoice_id: 10 }];
+  db.procurementReturns = [{ id: "ret1", receipt_id: "r1", total: 121, full_return: true, requires_credit_note: true }];
+  const report = controls.buildInventoryInvoiceReconciliation(db, "2026-06");
+  assert.equal(report.summary.pending_returns, 1);
+  assert.equal(report.rows[0].pending_return.id, "ret1");
+});
+
 test("parserul UBL extrage furnizorul, liniile si totalul", async () => {
   const xml = `<?xml version="1.0"?><Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"><ID>F-100</ID><IssueDate>2026-06-20</IssueDate><AccountingSupplierParty><Party><PartyLegalEntity><RegistrationName>Furnizor XML</RegistrationName></PartyLegalEntity><PartyTaxScheme><CompanyID>RO12345678</CompanyID></PartyTaxScheme></Party></AccountingSupplierParty><InvoiceLine><ID>1</ID><InvoicedQuantity unitCode="KGM">2</InvoicedQuantity><LineExtensionAmount>200</LineExtensionAmount><Item><Name>Bitum</Name><ClassifiedTaxCategory><Percent>21</Percent></ClassifiedTaxCategory></Item><Price><PriceAmount>100</PriceAmount></Price></InvoiceLine><TaxTotal><TaxAmount>42</TaxAmount></TaxTotal><LegalMonetaryTotal><TaxExclusiveAmount>200</TaxExclusiveAmount><PayableAmount>242</PayableAmount></LegalMonetaryTotal></Invoice>`;
   const parsed = await controls.parseUblInvoice(Buffer.from(xml));

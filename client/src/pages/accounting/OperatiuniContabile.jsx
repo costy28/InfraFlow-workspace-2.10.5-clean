@@ -37,6 +37,7 @@ export function OperatiuniContabile() {
   const [asset, setAsset] = useState(defaultAsset())
   const [file, setFile] = useState(null)
   const [efacturaFile, setEfacturaFile] = useState(null)
+  const [selectedReceipts, setSelectedReceipts] = useState([])
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -124,6 +125,40 @@ export function OperatiuniContabile() {
       setMessage(`Factura ${res.data?.invoice?.nr_document || ''} a fost creată ca draft din NIR și poate fi verificată în Facturi intrare.`)
       load()
     } catch (err) { setError(err.response?.data?.error || 'Factura nu a putut fi creată din recepție.') } finally { setBusy('') }
+  }
+
+  async function createBatchInvoice() {
+    if (!selectedReceipts.length) { setError('Selectează NIR-urile care aparțin aceleiași facturi.'); return }
+    const nrDocument = window.prompt('Numărul facturii furnizor:', '')
+    if (!nrDocument) return
+    const totalFactura = window.prompt('Totalul facturii pentru controlul diferențelor (opțional):', '')
+    setBusy('receipt-batch'); setError(''); setMessage('')
+    try {
+      const res = await api.post('/accounting/inventory-invoice-reconciliation/create-invoice-batch', {
+        receipt_ids: selectedReceipts,
+        nr_document: nrDocument,
+        data: today(),
+        total_factura: totalFactura || undefined
+      })
+      const difference = Number(res.data?.variance || 0)
+      setMessage(`Factura ${nrDocument} a fost creată din ${selectedReceipts.length} NIR-uri.${Math.abs(difference) > 0.01 ? ` Diferență de verificat: ${formatMoney(difference)}.` : ''}`)
+      setSelectedReceipts([])
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Factura multiplă nu a putut fi creată.') } finally { setBusy('') }
+  }
+
+  function toggleReceipt(id) {
+    setSelectedReceipts(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+  }
+
+  async function resolveFullReturn(returnRecord) {
+    if (!window.confirm('Factura și nota contabilă legată vor fi stornate. Continui?')) return
+    setBusy(`return-${returnRecord.id}`); setError(''); setMessage('')
+    try {
+      const res = await api.post(`/accounting/inventory-returns/${returnRecord.id}/storno-linked-invoice`)
+      setMessage(`Returul a fost rezolvat contabil. Factura este ${res.data?.invoice?.status || 'stornată'}.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Returul nu a putut fi rezolvat contabil.') } finally { setBusy('') }
   }
 
   async function importEfactura() {
@@ -257,13 +292,14 @@ export function OperatiuniContabile() {
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="text-base font-semibold">Recepții și facturi furnizor</h3><p className="mt-1 text-sm text-slate-500">Legătură explicită între Gestiune, factura furnizor și contabilitate.</p></div>
-          <Badge tone={inventoryReconciliation.summary?.pending ? 'warning' : 'success'}>{inventoryReconciliation.summary?.linked || 0}/{inventoryReconciliation.summary?.total || 0} legate</Badge>
+          <div><h3 className="text-base font-semibold">Recepții și facturi furnizor</h3><p className="mt-1 text-sm text-slate-500">Selectează mai multe NIR-uri ale aceluiași furnizor când sunt cuprinse într-o singură factură.</p></div>
+          <div className="flex flex-wrap items-center gap-2"><Badge tone={inventoryReconciliation.summary?.discrepancies ? 'warning' : 'success'}>{inventoryReconciliation.summary?.discrepancies || 0} diferențe</Badge><Badge tone={inventoryReconciliation.summary?.pending ? 'warning' : 'success'}>{inventoryReconciliation.summary?.linked || 0}/{inventoryReconciliation.summary?.total || 0} legate</Badge><Button variant="secondary" onClick={createBatchInvoice} disabled={!selectedReceipts.length || busy === 'receipt-batch'}>Factură din selecție ({selectedReceipts.length})</Button></div>
         </div>
         <div className="mt-3 space-y-2">
           {(inventoryReconciliation.rows || []).filter(row => !row.linked_invoice).slice(0, 10).map(row => (
-            <div key={row.id} className="grid gap-2 border-t border-slate-100 py-2 text-sm md:grid-cols-[120px_1fr_1fr_auto] md:items-center">
-              <span>{row.date}</span><span>{row.document || row.orderNo} · {row.supplier || '-'}</span>
+            <div key={row.id} className="grid gap-2 border-t border-slate-100 py-2 text-sm md:grid-cols-[28px_110px_1fr_1fr_auto] md:items-center">
+              <input aria-label={`Selectează ${row.nr_nir || row.document || row.id}`} type="checkbox" checked={selectedReceipts.includes(row.id)} onChange={() => toggleReceipt(row.id)} />
+              <span>{row.date}</span><span>{row.nr_nir || row.document || row.orderNo} · {row.supplier || '-'}</span>
               <span>{row.best_suggestion ? `${row.best_suggestion.document} · ${row.best_suggestion.furnizor} · ${row.best_suggestion.score}%` : 'Fără sugestie suficientă'}</span>
               {row.best_suggestion
                 ? <Button variant="secondary" onClick={() => confirmReceiptInvoice(row)} disabled={busy === `receipt-${row.id}`}>Confirmă</Button>
@@ -272,6 +308,14 @@ export function OperatiuniContabile() {
           ))}
           {!(inventoryReconciliation.rows || []).some(row => !row.linked_invoice) ? <div className="text-sm text-slate-500">Toate recepțiile lunii sunt legate de facturi.</div> : null}
         </div>
+        {(inventoryReconciliation.rows || []).some(row => row.linked_invoice && row.variance?.primary && !row.variance.ok) ? <div className="mt-4 border-t border-amber-200 pt-3"><div className="text-sm font-semibold text-amber-900">Diferențe factură–NIR</div>{(inventoryReconciliation.rows || []).filter(row => row.linked_invoice && row.variance?.primary && !row.variance.ok).map(row => <div key={`variance-${row.id}`} className="mt-2 text-sm text-amber-800">{row.linked_invoice.document}: factură {formatMoney(row.variance.invoice_total)}, NIR-uri {formatMoney(row.variance.receipt_total)}, diferență {formatMoney(row.variance.difference)}.</div>)}</div> : null}
+        {(inventoryReconciliation.rows || []).some(row => row.pending_return) ? <div className="mt-4 border-t border-rose-200 pt-3">
+          <div className="text-sm font-semibold text-rose-900">Retururi care cer corecție contabilă</div>
+          {(inventoryReconciliation.rows || []).filter(row => row.pending_return).map(row => <div key={`return-${row.pending_return.id}`} className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            <span>{row.nr_nir || row.document}: retur {formatMoney(row.pending_return.total)}. {row.pending_return.full_return ? 'Factura poate fi stornată automat.' : 'Retur parțial: înregistrează nota de credit primită de la furnizor.'}</span>
+            {row.pending_return.full_return ? <Button variant="secondary" onClick={() => resolveFullReturn(row.pending_return)} disabled={busy === `return-${row.pending_return.id}`}>Stornează factura</Button> : null}
+          </div>)}
+        </div> : null}
       </Card>
 
       <Card>

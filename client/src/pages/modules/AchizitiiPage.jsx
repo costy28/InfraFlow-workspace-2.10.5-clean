@@ -8,7 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import CPVSelector from '../../components/forms/CPVSelector'
 
-const tabs = ['Comenzi', 'Cerințe', 'Cântar', 'Plan anual']
+const tabs = ['Comenzi', 'Recepții', 'Cerințe', 'Cântar', 'Plan anual']
 const pageSize = 10
 
 function today() {
@@ -110,6 +110,7 @@ function EmptyRow({ colSpan, loading }) {
 export default function AchizitiiPage() {
   const [activeTab, setActiveTab] = useState('Comenzi')
   const [orders, setOrders] = useState([])
+  const [receipts, setReceipts] = useState([])
   const [requirements, setRequirements] = useState([])
   const [scaleStatus, setScaleStatus] = useState(null)
   const [tickets, setTickets] = useState([])
@@ -121,6 +122,7 @@ export default function AchizitiiPage() {
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [receiveOrder, setReceiveOrder] = useState(null)
+  const [returnReceipt, setReturnReceipt] = useState(null)
   const [materialModal, setMaterialModal] = useState(false)
   const [planYear, setPlanYear] = useState(new Date().getFullYear() + 1)
   const [planRows, setPlanRows] = useState([])
@@ -128,6 +130,7 @@ export default function AchizitiiPage() {
   const [paapEditing, setPaapEditing] = useState(null)
   const [paapForm, setPaapForm] = useState(emptyPaap(new Date().getFullYear() + 1))
   const [receiveForm, setReceiveForm] = useState({ nr_aviz: '', data_receptie: today(), observatii: '', linii: [] })
+  const [returnForm, setReturnForm] = useState({ data: today(), motiv: '', linii: [] })
   const [materialForm, setMaterialForm] = useState({ cod: '', denumire: '', um: 'kg', categorie: 'materie_prima', stoc_minim: '', pret_unitar: '', cod_cpv: '', furnizor_implicit: '' })
   const [form, setForm] = useState({
     date: today(),
@@ -155,6 +158,7 @@ export default function AchizitiiPage() {
       ])
 
       setOrders(arrayFrom(ordersRes.data, ['orders', 'items', 'data']))
+      setReceipts(arrayFrom(ordersRes.data, ['receipts']))
       setRequirements(arrayFrom(requirementsRes.data, ['requirements', 'items', 'data']))
       setScaleStatus(scaleRes.data || null)
       setTickets(arrayFrom(ticketsRes.data, ['tickets', 'items', 'scaleTickets', 'data']))
@@ -178,6 +182,7 @@ export default function AchizitiiPage() {
   }
 
   const pagedOrders = useMemo(() => orders.slice((page - 1) * pageSize, page * pageSize), [orders, page])
+  const pagedReceipts = useMemo(() => receipts.slice((page - 1) * pageSize, page * pageSize), [receipts, page])
   const pagedRequirements = useMemo(() => requirements.slice((page - 1) * pageSize, page * pageSize), [requirements, page])
   const pagedTickets = useMemo(() => tickets.slice((page - 1) * pageSize, page * pageSize), [tickets, page])
   const productMapRows = useMemo(() => productMap.map(row => {
@@ -285,6 +290,47 @@ export default function AchizitiiPage() {
     }
   }
 
+  function openReturn(receipt) {
+    const lines = (receipt.lines || []).map(line => {
+      const received = Number(line.cantitate_receptionata || line.cantitate || 0)
+      const returned = Number(line.cantitate_returnata || 0)
+      return {
+        material_id: line.material_id || line.materialId,
+        materialName: line.materialName || line.denumire || 'Material',
+        unit: line.unit || line.um || '',
+        disponibil: Math.max(0, received - returned),
+        cantitate: 0,
+      }
+    }).filter(line => line.disponibil > 0)
+    setReturnReceipt(receipt)
+    setReturnForm({ data: today(), motiv: '', linii: lines })
+  }
+
+  async function submitReturn(event) {
+    event.preventDefault()
+    if (!returnReceipt) return
+    const lines = returnForm.linii.filter(line => Number(line.cantitate || 0) > 0)
+    if (!lines.length) {
+      setError('Completează cantitatea returnată pentru cel puțin un material.')
+      return
+    }
+    setError('')
+    setMessage('')
+    try {
+      const response = await api.post(`/procurement-receipts/${returnReceipt.id}/return`, {
+        data: returnForm.data,
+        motiv: returnForm.motiv,
+        linii: lines.map(line => ({ material_id: line.material_id, cantitate: Number(line.cantitate) })),
+      })
+      const warning = response.data?.warning ? ` ${response.data.warning}` : ''
+      setMessage(`Returul de ${money(response.data?.returnRecord?.total)} RON a fost înregistrat.${warning}`)
+      setReturnReceipt(null)
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Returul nu a putut fi înregistrat.')
+    }
+  }
+
   async function loadPlan() {
     const response = await api.get('/paap', { params: { an: planYear } })
     setPlanRows(response.data.paap || [])
@@ -389,6 +435,33 @@ export default function AchizitiiPage() {
             </table>
           </div>
           <Pager page={page} total={orders.length} onPage={setPage} />
+        </Card>
+      )}
+
+      {activeTab === 'Recepții' && (
+        <Card title="Recepții furnizori" subtitle="NIR-uri, legătura cu factura și retururile către furnizor." loading={loading}>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                <tr><th className="px-3 py-2">Data</th><th className="px-3 py-2">NIR / Aviz</th><th className="px-3 py-2">Furnizor</th><th className="px-3 py-2 text-right">Valoare</th><th className="px-3 py-2">Contabilitate</th><th className="px-3 py-2">Retur</th><th className="px-3 py-2 text-right">Acțiuni</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pagedReceipts.length === 0 ? <EmptyRow colSpan={7} loading={loading} /> : pagedReceipts.map(receipt => {
+                  const hasAvailable = (receipt.lines || []).some(line => Number(line.cantitate_receptionata || line.cantitate || 0) - Number(line.cantitate_returnata || 0) > 0)
+                  return <tr key={receipt.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-3">{dateValue(receipt.date)}</td>
+                    <td className="px-3 py-3 font-medium text-slate-800">{receipt.nr_nir || receipt.document || receipt.nr_aviz || receipt.id}</td>
+                    <td className="px-3 py-3">{receipt.supplier || '-'}</td>
+                    <td className="px-3 py-3 text-right">{money(receipt.total)} RON</td>
+                    <td className="px-3 py-3"><Badge variant={receipt.accounting_invoice_id ? 'green' : 'yellow'}>{receipt.accounting_invoice_id ? 'Factură legată' : 'Factură în așteptare'}</Badge></td>
+                    <td className="px-3 py-3"><Badge variant={receipt.return_status ? 'yellow' : 'gray'}>{receipt.return_status === 'returnata_integral' ? 'Integral' : receipt.return_status === 'returnata_partial' ? 'Parțial' : 'Fără retur'}</Badge></td>
+                    <td className="px-3 py-3 text-right">{hasAvailable ? <Button size="sm" variant="secondary" onClick={() => openReturn(receipt)}>Înregistrează retur</Button> : <span className="text-xs text-slate-500">Nimic disponibil</span>}</td>
+                  </tr>
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} total={receipts.length} onPage={setPage} />
         </Card>
       )}
 
@@ -581,6 +654,23 @@ export default function AchizitiiPage() {
           </div>
           <Input label="Observații" value={receiveForm.observatii} onChange={event => setReceiveForm({ ...receiveForm, observatii: event.target.value })} />
           <Button type="submit">Confirmă recepția</Button>
+        </form>
+      </Modal>
+
+      <Modal open={!!returnReceipt} title={`Retur ${returnReceipt?.nr_nir || returnReceipt?.document || ''}`} onClose={() => setReturnReceipt(null)} size="lg">
+        <form className="grid gap-4" onSubmit={submitReturn}>
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Returul scade stocul și redeschide cantitatea din comandă. Dacă NIR-ul are factură legată, Contabilitatea va afișa pasul de corecție.</div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="Data returului" type="date" value={returnForm.data} onChange={event => setReturnForm({ ...returnForm, data: event.target.value })} required />
+            <Input label="Motiv" value={returnForm.motiv} onChange={event => setReturnForm({ ...returnForm, motiv: event.target.value })} required />
+          </div>
+          <div className="grid gap-2">
+            {returnForm.linii.map((line, index) => <div key={line.material_id} className="grid gap-2 rounded-md border border-slate-200 p-3 md:grid-cols-[1fr_160px] md:items-end">
+              <div className="text-sm"><div className="font-medium text-slate-800">{line.materialName}</div><div className="text-slate-500">Disponibil pentru retur: {numberValue(line.disponibil)} {line.unit}</div></div>
+              <Input label="Cantitate retur" type="number" min="0" max={line.disponibil} step="0.001" value={line.cantitate} onChange={event => setReturnForm(current => ({ ...current, linii: current.linii.map((item, i) => i === index ? { ...item, cantitate: event.target.value } : item) }))} />
+            </div>)}
+          </div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setReturnReceipt(null)}>Renunță</Button><Button type="submit">Confirmă returul</Button></div>
         </form>
       </Modal>
 

@@ -50,11 +50,74 @@ function registerAccountingControlRoutes(router, middleware) {
       const accounting = engine.ensureAccounting(db);
       const party = resolveSupplierParty(db, accounting, receipt.supplier || receipt.furnizor || "Furnizor neidentificat", req.body?.cui || "");
       const invoice = createInvoiceFromReceipt(accounting, receipt, party, req.auth.user);
+      engine.checkPeriodOpen(db, invoice.an, invoice.luna);
+      if (accounting.invoicesIn.some((item) => String(item.furnizor_id) === String(party.id) && normalizeText(item.nr_document) === normalizeText(invoice.nr_document) && !["anulat", "stornat"].includes(item.status))) throwHttp(409, "Factura exista deja pentru acest furnizor.");
       accounting.invoicesIn.push(invoice);
       linkReceiptInvoice(receipt, invoice, req.auth.user);
       addAudit(db, req.auth.user, "accounting_invoice_from_receipt", `${receipt.nr_nir || receipt.orderNo || receipt.id} / ${invoice.nr_document}`);
       writeDb(db);
       res.status(201).json({ invoice, receipt, party });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/inventory-invoice-reconciliation/create-invoice-batch", requireAccountingPost, (req, res, next) => {
+    try {
+      const db = req.auth.db;
+      const ids = new Set((req.body?.receipt_ids || []).map(String));
+      if (!ids.size) throwHttp(400, "Selecteaza cel putin un NIR.");
+      const receipts = (db.procurementReceipts || []).filter((item) => ids.has(String(item.id)) && !item.canceled && !item.deleted);
+      if (receipts.length !== ids.size) throwHttp(404, "Unul dintre NIR-urile selectate nu mai exista.");
+      if (receipts.some((item) => item.accounting_invoice_id)) throwHttp(409, "Unul dintre NIR-uri este deja legat de o factura.");
+      const supplierNames = [...new Set(receipts.map((item) => normalizeText(item.supplier || item.furnizor)).filter(Boolean))];
+      if (supplierNames.length > 1) throwHttp(409, "Factura multipla poate grupa numai NIR-uri ale aceluiasi furnizor.");
+      const accounting = engine.ensureAccounting(db);
+      const party = resolveSupplierParty(db, accounting, receipts[0].supplier || receipts[0].furnizor || "Furnizor neidentificat", req.body?.cui || "");
+      const document = String(req.body?.nr_document || "").trim();
+      if (!document) throwHttp(400, "Numarul facturii furnizor este obligatoriu.");
+      if (accounting.invoicesIn.some((item) => String(item.furnizor_id) === String(party.id) && normalizeText(item.nr_document) === normalizeText(document) && !["anulat", "stornat"].includes(item.status))) throwHttp(409, "Factura exista deja pentru acest furnizor.");
+      const invoice = createInvoiceFromReceipts(accounting, receipts, party, req.auth.user, req.body);
+      engine.checkPeriodOpen(db, invoice.an, invoice.luna);
+      accounting.invoicesIn.push(invoice);
+      receipts.forEach((receipt) => linkReceiptInvoice(receipt, invoice, req.auth.user));
+      addAudit(db, req.auth.user, "accounting_invoice_from_receipts", `${document} / ${receipts.length} NIR-uri / ${invoice.total}`);
+      writeDb(db);
+      res.status(201).json({ invoice, receipts, party, variance: invoice.receipt_variance });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/inventory-returns/:returnId/storno-linked-invoice", requireAccountingPost, (req, res, next) => {
+    try {
+      const db = req.auth.db;
+      const returnRecord = (db.procurementReturns || []).find((item) => String(item.id) === String(req.params.returnId));
+      if (!returnRecord) throwHttp(404, "Returul nu a fost gasit.");
+      if (!returnRecord.full_return) throwHttp(409, "Storno automat este permis doar pentru returul integral. Pentru retur partial inregistreaza nota de credit furnizor.");
+      if (returnRecord.accounting_resolved_at) throwHttp(409, "Returul a fost deja rezolvat contabil.");
+      const receipt = (db.procurementReceipts || []).find((item) => String(item.id) === String(returnRecord.receipt_id));
+      const accounting = engine.ensureAccounting(db);
+      const invoice = accounting.invoicesIn.find((item) => String(item.id) === String(receipt?.accounting_invoice_id));
+      if (!invoice) throwHttp(404, "Factura legata de NIR nu a fost gasita.");
+      if (Number(invoice.achitat || 0) > 0) throwHttp(409, "Factura are plati inregistrate. Corecteaza mai intai plata din Trezorerie, apoi reia storno.");
+      let journal = null;
+      if (invoice.status === "draft") {
+        invoice.status = "anulat";
+        invoice.cancelled_at = new Date().toISOString();
+        invoice.cancelled_by = req.auth.user?.id || "";
+        invoice.cancelled_reason = `Retur integral ${returnRecord.id}: ${returnRecord.reason}`;
+      } else if (invoice.status === "validat" && invoice.journal_id) {
+        journal = engine.stornoJournal(db, req.auth.user, invoice.journal_id);
+        invoice.status = "stornat";
+        invoice.storno_journal_id = journal.id;
+        invoice.stornat_la = new Date().toISOString();
+        invoice.stornat_de = req.auth.user?.id || "";
+      } else {
+        throwHttp(409, "Factura trebuie sa fie draft sau validata si neachitata pentru storno automat.");
+      }
+      returnRecord.accounting_resolved_at = new Date().toISOString();
+      returnRecord.accounting_resolved_by = req.auth.user?.id || "";
+      returnRecord.accounting_action = invoice.status === "anulat" ? "anulare_draft" : "storno";
+      addAudit(db, req.auth.user, "accounting_inventory_return_storno", `${returnRecord.id} / ${invoice.nr_document}`);
+      writeDb(db);
+      res.status(200).json({ returnRecord, invoice, journal });
     } catch (error) { next(error); }
   });
 
@@ -239,12 +302,25 @@ function buildInventoryInvoiceReconciliation(db, periodValue) {
   const [an, luna] = monthParts(periodValue);
   const month = `${an}-${String(luna).padStart(2, "0")}`;
   const receipts = (db.procurementReceipts || []).filter((item) => !item.canceled && !item.deleted && String(item.date || "").startsWith(month));
+  const discrepancyInvoices = new Set();
   const rows = receipts.map((receipt) => {
     const linked = receipt.accounting_invoice_id ? accounting.invoicesIn.find((item) => String(item.id) === String(receipt.accounting_invoice_id)) : null;
     const suggestions = linked ? [] : receiptInvoiceSuggestions(accounting, receipt);
-    return { ...receipt, linked_invoice: linked ? invoiceLabel(linked) : null, suggestions, best_suggestion: suggestions[0] || null };
+    let variance = null;
+    if (linked) {
+      const linkedIds = new Set((linked.source_receipt_ids || [receipt.id]).map(String));
+      const linkedReceipts = (db.procurementReceipts || []).filter((item) => linkedIds.has(String(item.id)));
+      const receiptTotal = money(linkedReceipts.reduce((sum, item) => sum + Number(item.total || 0), 0));
+      const invoiceTotal = money(linked.declared_total ?? linked.total);
+      const difference = money(invoiceTotal - receiptTotal);
+      variance = { receipt_total: receiptTotal, invoice_total: invoiceTotal, difference, ok: Math.abs(difference) <= 0.01, receipt_count: linkedReceipts.length, primary: String(linkedReceipts[0]?.id) === String(receipt.id) };
+      if (!variance.ok) discrepancyInvoices.add(String(linked.id));
+    }
+    const returns = (db.procurementReturns || []).filter((item) => String(item.receipt_id) === String(receipt.id));
+    const pendingReturn = returns.find((item) => item.requires_credit_note && !item.accounting_resolved_at) || null;
+    return { ...receipt, linked_invoice: linked ? invoiceLabel(linked) : null, variance, returns, pending_return: pendingReturn, suggestions, best_suggestion: suggestions[0] || null };
   });
-  return { perioada: month, rows, summary: { total: rows.length, linked: rows.filter((row) => row.linked_invoice).length, pending: rows.filter((row) => !row.linked_invoice).length, suggested: rows.filter((row) => row.best_suggestion).length } };
+  return { perioada: month, rows, summary: { total: rows.length, linked: rows.filter((row) => row.linked_invoice).length, pending: rows.filter((row) => !row.linked_invoice).length, suggested: rows.filter((row) => row.best_suggestion).length, discrepancies: discrepancyInvoices.size, pending_returns: rows.filter((row) => row.pending_return).length } };
 }
 
 function receiptInvoiceSuggestions(accounting, receipt) {
@@ -263,7 +339,15 @@ function receiptInvoiceSuggestions(accounting, receipt) {
 }
 
 function createInvoiceFromReceipt(accounting, receipt, party, user) {
-  const lines = (receipt.lines || []).map((line, index) => {
+  return createInvoiceFromReceipts(accounting, [receipt], party, user, {
+    nr_document: receipt.document || receipt.nr_aviz || receipt.nr_nir || receipt.orderNo || receipt.id,
+    data: receipt.date,
+    data_scadenta: receipt.date
+  });
+}
+
+function createInvoiceFromReceipts(accounting, receipts, party, user, input = {}) {
+  const lines = receipts.flatMap((receipt) => (receipt.lines || []).map((line) => ({ ...line, source_receipt_id: receipt.id, source_nir: receipt.nr_nir || receipt.document || receipt.id }))).map((line, index) => {
     const quantity = Number(line.cantitate_receptionata || line.cantitate || 0);
     const unitPrice = Number(line.pret_unitar || line.unitPrice || 0);
     const base = money(line.valoare ?? quantity * unitPrice);
@@ -272,18 +356,22 @@ function createInvoiceFromReceipt(accounting, receipt, party, user) {
     return { nr_crt: index + 1, denumire: line.materialName || line.denumire || "Material receptionat", um: line.unit || "buc", cantitate: quantity, pret_unitar: unitPrice, valoare: base, tva_procent: rate, tva: vat, total: money(base + vat), cont: line.cont_stoc || "3028", material_id: line.material_id || null };
   });
   if (!lines.length || lines.some((line) => line.cantitate <= 0 || line.pret_unitar <= 0)) throwHttp(422, "Receptia trebuie sa aiba cantitati si preturi unitare pentru generarea facturii.");
-  const date = String(receipt.date || engine.localDate(new Date()));
+  const date = String(input.data || receipts[0]?.date || engine.localDate(new Date()));
   const [an, luna] = dateParts(date);
   const base = money(lines.reduce((sum, line) => sum + line.valoare, 0));
   const vat = money(lines.reduce((sum, line) => sum + line.tva, 0));
+  const receiptTotal = money(receipts.reduce((sum, receipt) => sum + Number(receipt.total || 0), 0));
+  const declaredTotal = input.total_factura === undefined || input.total_factura === "" ? money(base + vat) : money(input.total_factura);
   return {
     id: engine.nextNumericId(accounting.invoicesIn), uuid: crypto.randomUUID(), an, luna,
     nr_intern: accounting.invoicesIn.filter((item) => Number(item.an) === an).length + 1,
-    nr_document: String(receipt.document || receipt.nr_aviz || receipt.nr_nir || receipt.orderNo || receipt.id),
-    furnizor_id: party.id, data: date, data_scadenta: date, valoare: base, tva_procent: lines[0]?.tva_procent ?? 21,
+    nr_document: String(input.nr_document || receipts[0]?.document || receipts[0]?.nr_aviz || receipts[0]?.nr_nir || receipts[0]?.orderNo || receipts[0]?.id),
+    furnizor_id: party.id, data: date, data_scadenta: String(input.data_scadenta || date), valoare: base, tva_procent: lines[0]?.tva_procent ?? 21,
     tva: vat, total: money(base + vat), achitat: 0, neachitat: money(base + vat), cont_cheltuiala: "3028",
-    explicatie: `Factura din receptia ${receipt.nr_nir || receipt.orderNo || receipt.id}`, lines, status: "draft", journal_id: null,
-    source: "procurement_receipt", source_receipt_ids: [receipt.id], created_by: user?.id || "", created_at: new Date().toISOString()
+    explicatie: `Factura din ${receipts.length} receptii: ${receipts.map((receipt) => receipt.nr_nir || receipt.orderNo || receipt.id).join(", ")}`, lines, status: "draft", journal_id: null,
+    source: "procurement_receipt", source_receipt_ids: receipts.map((receipt) => receipt.id), receipt_total: receiptTotal,
+    declared_total: declaredTotal, receipt_variance: money(declaredTotal - receiptTotal),
+    created_by: user?.id || "", created_at: new Date().toISOString()
   };
 }
 
@@ -337,6 +425,7 @@ async function parseUblInvoice(buffer) {
 function scalar(value) { if (value === null || value === undefined) return ""; if (typeof value === "object") return value._ ?? value["#text"] ?? ""; return String(value); }
 function asArray(value) { return value === undefined || value === null ? [] : Array.isArray(value) ? value : [value]; }
 function dateParts(value) { return [Number(String(value).slice(0, 4)), Number(String(value).slice(5, 7))]; }
+function normalizeText(value) { return String(value || "").trim().toLowerCase().replace(/\s+/g, " "); }
 
 function buildIntegrityAudit(db, periodValue) {
   const accounting = engine.ensureAccounting(db);
@@ -403,3 +492,4 @@ module.exports.buildIntegrityAudit = buildIntegrityAudit;
 module.exports.buildDepreciationSchedule = buildDepreciationSchedule;
 module.exports.parseUblInvoice = parseUblInvoice;
 module.exports.createInvoiceFromReceipt = createInvoiceFromReceipt;
+module.exports.createInvoiceFromReceipts = createInvoiceFromReceipts;

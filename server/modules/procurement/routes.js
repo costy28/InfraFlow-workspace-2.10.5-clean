@@ -42,6 +42,7 @@ function materialUnit(material) {
 function ensureProcurementExtensions(db) {
   db.procurementOrders = Array.isArray(db.procurementOrders) ? db.procurementOrders : []
   db.procurementReceipts = Array.isArray(db.procurementReceipts) ? db.procurementReceipts : []
+  db.procurementReturns = Array.isArray(db.procurementReturns) ? db.procurementReturns : []
   db.deliveries = Array.isArray(db.deliveries) ? db.deliveries : []
   db.stockMovements = Array.isArray(db.stockMovements) ? db.stockMovements : []
   db.procurementPlans = Array.isArray(db.procurementPlans) ? db.procurementPlans : []
@@ -390,6 +391,21 @@ router.post('/procurement-orders/:uuid/receive', async (req, res, next) => {
     const body = await readJsonBody(req)
     const result = receiveProcurementOrderV2(auth.db, auth.user, req.params.uuid, body)
     addAudit(auth.db, auth.user, "receptie_comanda", `${result.order.orderNo || req.params.uuid} / ${result.stocuri_actualizate.length} linii`)
+    writeDb(auth.db)
+    sendJson(res, 201, result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/procurement-receipts/:receiptId/return', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'procurement_orders:receive')) return
+    const body = await readJsonBody(req)
+    const result = returnProcurementReceipt(auth.db, auth.user, req.params.receiptId, body)
+    addAudit(auth.db, auth.user, 'retur_receptie', `${result.receipt.nr_nir || result.receipt.id} / ${result.returnRecord.lines.length} linii / ${result.returnRecord.total} RON`)
     writeDb(auth.db)
     sendJson(res, 201, result)
   } catch (error) {
@@ -8783,8 +8799,81 @@ function httpError(status, message) {
   return error;
 }
 
+function returnProcurementReceipt(db, user, receiptId, body = {}) {
+  ensureProcurementExtensions(db)
+  const receipt = db.procurementReceipts.find(item => String(item.id) === String(receiptId) && !item.canceled && !item.deleted)
+  if (!receipt) throwHttp(404, 'Receptia nu a fost gasita.')
+  const reason = String(body.motiv || body.reason || '').trim()
+  if (!reason) throwHttp(400, 'Motivul returului este obligatoriu.')
+  const requested = Array.isArray(body.linii) ? body.linii : []
+  if (!requested.length) throwHttp(400, 'Selecteaza cel putin o linie pentru retur.')
+  const now = new Date().toISOString()
+  const returnRecord = {
+    id: id('retur'), uuid: crypto.randomUUID(), receipt_id: receipt.id, order_id: receipt.orderId || null,
+    date: validDateValue(body.data || body.date) ? String(body.data || body.date) : localDate(new Date()),
+    reason, lines: [], valoare: 0, valoare_tva: 0, total: 0, status: 'finalizat',
+    created_by: user.id, created_by_name: user.name, created_at: now
+  }
+  for (const input of requested) {
+    const receiptLine = (receipt.lines || []).find(line => String(line.material_id || line.materialId) === String(input.material_id || input.materialId))
+    if (!receiptLine) throwHttp(404, 'Linia de receptie selectata nu exista.')
+    const quantity = round(Number(input.cantitate || input.amount || 0))
+    const alreadyReturned = Number(receiptLine.cantitate_returnata || 0)
+    const received = Number(receiptLine.cantitate_receptionata || receiptLine.cantitate || 0)
+    if (quantity <= 0) throwHttp(400, `Cantitatea returnata pentru ${receiptLine.materialName || receiptLine.material_id} trebuie sa fie pozitiva.`)
+    if (alreadyReturned + quantity > received + 0.0001) throwHttp(409, `Returul depaseste cantitatea receptionata pentru ${receiptLine.materialName || receiptLine.material_id}.`)
+    const materialId = receiptLine.material_id || receiptLine.materialId
+    const material = (db.materials || []).find(item => String(item.id) === String(materialId))
+    if (!material) throwHttp(404, `Materialul ${receiptLine.materialName || receiptLine.material_id} nu mai exista.`)
+    const previousStock = Number(material.stock || material.stoc_curent || 0)
+    if (quantity > previousStock + 0.0001) throwHttp(409, `Stoc insuficient pentru returul ${receiptLine.materialName || materialLabel(material)}.`)
+    const unitPrice = round(Number(receiptLine.pret_unitar || receiptLine.unitPrice || 0))
+    const vatRate = round(Number(receiptLine.cota_tva ?? receiptLine.tva_procent ?? 21))
+    const baseValue = round(quantity * unitPrice)
+    const vatValue = round(baseValue * vatRate / 100)
+    const previousAverage = Number(material.averageCost || material.average_cost || material.pret_achizitie || unitPrice)
+    const newStock = round(previousStock - quantity)
+    const newValue = round(previousStock * previousAverage - baseValue)
+    material.stock = newStock
+    material.stoc_curent = newStock
+    material.averageCost = newStock > 0 ? round(Math.max(0, newValue) / newStock) : 0
+    material.average_cost = material.averageCost
+    receiptLine.cantitate_returnata = round(alreadyReturned + quantity)
+    receiptLine.cantitate_disponibila = round(received - receiptLine.cantitate_returnata)
+    returnRecord.lines.push({ material_id: material.id, materialName: materialLabel(material), cantitate: quantity, unit: materialUnit(material), pret_unitar: unitPrice, cota_tva: vatRate, valoare: baseValue, valoare_tva: vatValue, total: round(baseValue + vatValue) })
+    db.stockMovements.push({ id: id('stock-retur'), type: 'supplier_return', materialId: material.id, materialName: materialLabel(material), date: returnRecord.date, amount: -quantity, unit: materialUnit(material), unitPrice, cost: unitPrice, sourceReceiptId: receipt.id, sourceReturnId: returnRecord.id, note: `${receipt.nr_nir || receipt.id} / ${reason}`, createdAt: now })
+    db.deliveries.push({ id: id('retur-intrare'), date: returnRecord.date, materialId: material.id, materialName: materialLabel(material), amount: -quantity, unit: materialUnit(material), unitPrice, supplier: receipt.supplier || '', document: `RETUR ${receipt.nr_nir || receipt.id}`, operatorId: user.id, operatorName: user.name, sourceReceiptId: receipt.id, sourceReturnId: returnRecord.id, return: true, canceled: false, createdAt: now })
+    const order = (db.procurementOrders || []).find(item => String(item.id) === String(receipt.orderId) || String(item.uuid) === String(receipt.orderUuid))
+    const normalizedOrderLines = order ? orderLines(order) : []
+    if (order && !Array.isArray(order.lines)) order.lines = normalizedOrderLines
+    const orderLine = normalizedOrderLines.find(line => String(line.material_id || line.materialId) === String(material.id))
+    if (orderLine) {
+      orderLine.cantitate_receptionata = Math.max(0, round(Number(orderLine.cantitate_receptionata || 0) - quantity))
+      orderLine.cantitate_ramasa = Math.max(0, round(Number(orderLine.cantitate || orderLine.amount || 0) - orderLine.cantitate_receptionata))
+      order.receivedAmount = round(normalizedOrderLines.reduce((sum, line) => sum + Number(line.cantitate_receptionata || 0), 0))
+      order.remainingAmount = round(normalizedOrderLines.reduce((sum, line) => sum + Number(line.cantitate_ramasa || 0), 0))
+      order.status = 'partial'
+      order.updatedAt = now
+    }
+  }
+  returnRecord.valoare = round(returnRecord.lines.reduce((sum, line) => sum + line.valoare, 0))
+  returnRecord.valoare_tva = round(returnRecord.lines.reduce((sum, line) => sum + line.valoare_tva, 0))
+  returnRecord.total = round(returnRecord.valoare + returnRecord.valoare_tva)
+  const totalReceived = round((receipt.lines || []).reduce((sum, line) => sum + Number(line.cantitate_receptionata || line.cantitate || 0), 0))
+  const totalReturned = round((receipt.lines || []).reduce((sum, line) => sum + Number(line.cantitate_returnata || 0), 0))
+  returnRecord.full_return = totalReceived > 0 && Math.abs(totalReceived - totalReturned) <= 0.0001
+  returnRecord.requires_credit_note = Boolean(receipt.accounting_invoice_id)
+  receipt.return_status = returnRecord.full_return ? 'returnata_integral' : 'returnata_partial'
+  receipt.returned_total = round(Number(receipt.returned_total || 0) + returnRecord.total)
+  receipt.return_ids = [...(receipt.return_ids || []), returnRecord.id]
+  receipt.updated_at = now
+  db.procurementReturns.push(returnRecord)
+  return { receipt, returnRecord, warning: returnRecord.requires_credit_note ? 'Receptia are factura legata. Inregistreaza nota de credit sau storno in Contabilitate.' : '' }
+}
+
 process.on("uncaughtException", (error) => {
   console.error(error);
 });
 module.exports = router
 module.exports.receiveProcurementOrderV2 = receiveProcurementOrderV2
+module.exports.returnProcurementReceipt = returnProcurementReceipt
