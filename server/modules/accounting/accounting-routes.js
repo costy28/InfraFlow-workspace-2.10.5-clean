@@ -10,6 +10,7 @@ const multer = require("multer");
 const registerDeclarationRoutes = require("./declaration-routes");
 const periodSnapshots = require("./period-snapshots");
 const registerOperationsRoutes = require("./operations-routes");
+const registerAdvancedOperationsRoutes = require("./operations-advanced-routes");
 
 const router = Router();
 const importUpload = multer({
@@ -3777,7 +3778,8 @@ function throwHttp(status, message) {
   throw error;
 }
 
-registerDeclarationRoutes(router, { requireAccountingReports });
+registerDeclarationRoutes(router, { requireAccountingReports, requireAccountingPost });
 registerOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose });
+registerAdvancedOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose, requireAccountingReports });
 
 module.exports = router;

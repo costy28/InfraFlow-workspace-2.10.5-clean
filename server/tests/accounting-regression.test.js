@@ -4,6 +4,7 @@ const engine = require("../modules/accounting/accounting-engine");
 const declarations = require("../modules/accounting/declaration-routes");
 const snapshots = require("../modules/accounting/period-snapshots");
 const operations = require("../modules/accounting/operations-routes");
+const advancedOperations = require("../modules/accounting/operations-advanced-routes");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -113,4 +114,55 @@ test("verificarea inchiderii anuale calculeaza rezultatul", () => {
   assert.equal(check.expenses, 100);
   assert.equal(check.revenues, 100);
   assert.equal(check.result, 0);
+});
+
+test("profilul extrasului bancar este detectat din antete", () => {
+  assert.equal(operations.detectBankProfile([{ "Data operatiunii": "", "Detalii tranzactie": "" }]), "Banca Transilvania");
+  assert.equal(operations.detectBankProfile([{ Booking_Date: "", Transaction_Description: "" }]), "ING");
+});
+
+test("reconcilierea bancara sugereaza factura dupa suma si document", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesOut.push({ id: 7, uuid: "f7", an: 2026, luna: 6, numar: "IF-77", client_id: 1, total: 121, incasat: 0, neincasat: 121, status: "validat" });
+  accounting.treasury.push({ id: 3, uuid: "t3", an: 2026, luna: 6, tip: "banca", tip_operatie: "incasare", suma: 121, nr_document: "IF-77", explicatie: "Incasare IF-77", status: "draft", corelare_tip: "neclasificat" });
+  const report = advancedOperations.buildBankReconciliation(db, "2026-06");
+  assert.equal(report.summary.suggested, 1);
+  assert.equal(report.operations[0].best_suggestion.invoice_id, 7);
+  assert.equal(report.operations[0].best_suggestion.score, 85);
+});
+
+test("evaluarea CMP recalculeaza costul iesirilor cronologic", () => {
+  const { db } = fixture();
+  db.materials = [{ id: "m1", cod: "MAT", name: "Material" }];
+  db.stockMovements = [
+    { id: "i1", materialId: "m1", date: "2026-06-01", amount: 10, unitPrice: 10 },
+    { id: "i2", materialId: "m1", date: "2026-06-02", amount: 10, unitPrice: 20 },
+    { id: "o1", materialId: "m1", date: "2026-06-03", amount: -4 }
+  ];
+  const report = advancedOperations.buildStockValuation(db, "2026-06");
+  assert.equal(report.movement_costs.o1, 15);
+  assert.equal(report.rows[0].quantity, 16);
+  assert.equal(report.rows[0].value, 240);
+});
+
+test("reportarea soldurilor exclude conturile de venituri si cheltuieli", () => {
+  const { db, accounting, user } = fixture();
+  engine.createJournal(db, user, {
+    an: 2026, luna: 12, data: "2026-12-31", nr_document: "CAPITAL",
+    lines: [{ cont_simbol: "5121", debit: 500 }, { cont_simbol: "1012", credit: 500 }]
+  });
+  accounting.annualClosings.push({ id: 1, an: 2026, status: "generat" });
+  const check = advancedOperations.buildCarryforwardCheck(db, 2026);
+  assert.equal(check.can_carryforward, true);
+  assert.ok(check.entries.some((item) => item.cont_simbol === "5121" && item.debit === 500));
+  assert.ok(check.entries.every((item) => !["6", "7"].includes(item.cont_simbol[0])));
+});
+
+test("D300 ramane in lucru cand TVA-ul nu corespunde conturilor", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesOut.push({ id: 9, an: 2026, luna: 6, data: "2026-06-10", numar: "F9", status: "validat", client_id: 1, valoare: 100, tva: 21, total: 121 });
+  accounting.periods.push({ id: 1, an: 2026, luna: 6, status: "deschisa", tva_verificat_la: new Date().toISOString() });
+  const readiness = declarations.buildDeclarationReadiness(db, { perioada: "2026-06" });
+  assert.equal(readiness.vat_control.consistent, false);
+  assert.equal(readiness.declarations.find((item) => item.code === "D300").status, "in_lucru");
 });

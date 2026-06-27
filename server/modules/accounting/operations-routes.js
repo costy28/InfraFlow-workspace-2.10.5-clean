@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const multer = require("multer");
 const xlsx = require("xlsx");
 const engine = require("./accounting-engine");
+const advancedOperations = require("./operations-advanced-routes");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
@@ -17,7 +18,9 @@ function registerOperationsRoutes(router, middleware) {
       stock_postings: accounting.stockPostings.slice(-10).reverse(),
       fixed_assets: accounting.fixedAssets.filter((item) => item.status !== "anulat"),
       depreciation_runs: accounting.depreciationRuns.slice(-12).reverse(),
-      annual_closings: accounting.annualClosings.slice().reverse()
+      annual_closings: accounting.annualClosings.slice().reverse(),
+      fixed_asset_events: accounting.fixedAssetEvents.slice(-30).reverse(),
+      carryforward_runs: accounting.carryforwardRuns.slice().reverse()
     });
   });
 
@@ -32,6 +35,16 @@ function registerOperationsRoutes(router, middleware) {
       const rows = rawRows.map(normalizeBankRow).filter((row) => row.data && row.suma !== 0);
       const result = { total: rawRows.length, valide: rows.length, importate: 0, duplicate: 0, potrivite: 0, erori: [] };
       const imported = [];
+      const batch = {
+        id: engine.nextNumericId(accounting.bankImports),
+        file_name: req.file.originalname,
+        profile: detectBankProfile(rawRows),
+        status: "in_lucru",
+        imported_at: new Date().toISOString(),
+        imported_by: req.auth.user?.id || "",
+        treasury_ids: [],
+        result
+      };
       rows.forEach((row, index) => {
         try {
           const hash = bankRowHash(row);
@@ -61,6 +74,10 @@ function registerOperationsRoutes(router, middleware) {
             explicatie: row.explicatie || "Import extras bancar",
             status: "draft",
             import_hash: hash,
+            bank_import_id: batch.id,
+            counterparty_name: row.counterparty_name,
+            counterparty_iban: row.counterparty_iban,
+            counterparty_cui: row.counterparty_cui,
             import_source: req.file.originalname,
             created_by: req.auth.user?.id || "",
             created_at: new Date().toISOString()
@@ -68,19 +85,13 @@ function registerOperationsRoutes(router, middleware) {
           accounting.treasury.push(operation);
           accounting.bankImportHashes.push({ hash, data: row.data, suma: row.suma, created_at: new Date().toISOString() });
           imported.push(operation);
+          batch.treasury_ids.push(operation.id);
           result.importate += 1;
           if (match) result.potrivite += 1;
         } catch (error) {
           result.erori.push(`Rand ${index + 2}: ${error.message}`);
         }
       });
-      const batch = {
-        id: engine.nextNumericId(accounting.bankImports),
-        file_name: req.file.originalname,
-        imported_at: new Date().toISOString(),
-        imported_by: req.auth.user?.id || "",
-        result
-      };
       accounting.bankImports.push(batch);
       addAudit(req.auth.db, req.auth.user, "accounting_bank_statement_import", `${req.file.originalname} / ${result.importate} operatii`);
       writeDb(req.auth.db);
@@ -243,8 +254,20 @@ function normalizeBankRow(raw) {
     data: normalizeDate(pick(row, ["data", "data_operatie", "data_tranzactie", "date"])),
     suma: money(amount),
     referinta: String(pick(row, ["referinta", "nr_document", "document", "id_tranzactie", "reference"]) || "").trim(),
-    explicatie: String(pick(row, ["explicatie", "descriere", "detalii", "beneficiar", "description"]) || "").trim()
+    explicatie: String(pick(row, ["explicatie", "descriere", "detalii", "beneficiar", "description", "detalii_tranzactie"]) || "").trim(),
+    counterparty_name: String(pick(row, ["beneficiar", "ordonator", "partener", "nume_partener", "contraparte"]) || "").trim(),
+    counterparty_iban: String(pick(row, ["iban_beneficiar", "iban_ordonator", "iban_partener", "cont_partener", "iban"]) || "").replace(/\s+/g, "").toUpperCase(),
+    counterparty_cui: String(pick(row, ["cui", "cif", "cui_partener", "cod_fiscal"]) || "").replace(/^RO/i, "").replace(/\s+/g, "")
   };
+}
+
+function detectBankProfile(rows) {
+  const keys = Object.keys(rows?.[0] || {}).map(normalizeKey);
+  const joined = keys.join("|");
+  if (/data_operatiunii|detalii_tranzactie|cont_contraparte/.test(joined)) return "Banca Transilvania";
+  if (/booking_date|value_date|transaction_description/.test(joined)) return "ING";
+  if (/data_tranzactie|ordonator|beneficiar|referinta_platii/.test(joined)) return "CEC/BRD";
+  return "Generic CSV/Excel";
 }
 
 function findInvoiceMatch(accounting, row) {
@@ -267,6 +290,7 @@ function findInvoiceMatch(accounting, row) {
 function buildStockSyncStatus(db, periodValue) {
   const accounting = engine.ensureAccounting(db);
   const [an, luna] = monthParts(periodValue);
+  const valuation = advancedOperations.buildStockValuation(db, `${an}-${String(luna).padStart(2, "0")}`);
   const materials = Array.isArray(db.materials) ? db.materials : Array.isArray(db.inventory?.materials) ? db.inventory.materials : [];
   const posted = new Set(accounting.stockPostings.map((item) => String(item.movement_id)));
   const pending = [];
@@ -280,7 +304,7 @@ function buildStockSyncStatus(db, periodValue) {
     if (["opening_stock", "transfer_to_dept", "transfer_from_dept"].includes(movement.type)) { skipped += 1; return; }
     const material = materials.find((item) => String(item.id) === String(movement.materialId));
     const quantity = Math.abs(Number(movement.amount || 0));
-    const unitCost = Number(movement.unitPrice || movement.unit_price || movement.cost || material?.averageCost || material?.average_cost || material?.price || 0);
+    const unitCost = Number(movement.unitPrice || movement.unit_price || movement.cost || valuation.movement_costs[String(movement.id)] || material?.averageCost || material?.average_cost || material?.price || 0);
     const value = money(quantity * unitCost);
     if (!material || value <= 0) {
       errors.push(`${movement.id}: lipseste materialul sau costul unitar.`);
@@ -396,6 +420,7 @@ function throwHttp(status, message) { const error = new Error(message); error.st
 
 module.exports = registerOperationsRoutes;
 module.exports.normalizeBankRow = normalizeBankRow;
+module.exports.detectBankProfile = detectBankProfile;
 module.exports.buildStockSyncStatus = buildStockSyncStatus;
 module.exports.monthlyDepreciation = monthlyDepreciation;
 module.exports.buildAnnualCloseCheck = buildAnnualCloseCheck;

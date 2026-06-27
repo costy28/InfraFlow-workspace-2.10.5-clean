@@ -1,5 +1,5 @@
 {
-  "version": "2.12.144",
+  "version": "2.12.145",
   "date": "2026-06-27",
-  "changelog": "## v2.12.144 - 2026-06-27\n### Contabilitate - operatiuni complete\n- Importul extraselor bancare creeaza operatiuni de trezorerie draft si sugereaza facturile potrivite.\n- Miscarile de stoc pot fi sincronizate controlat in note contabile, fara duplicate.\n- Mijloacele fixe includ evidenta, amortizare liniara lunara si anulare cu istoric.\n- Declaratiile verifica diferentele dintre TVA-ul documentelor si conturile 4426/4427.\n- Inchiderea anuala inchide clasele 6 si 7 prin contul 121 dupa controalele obligatorii.\n- Noua pagina Operatiuni grupeaza aceste fluxuri intr-un singur spatiu de lucru."
+  "changelog": "## v2.12.145 - 2026-06-27\n### Contabilitate - reconciliere si inchidere completa\n- Reconcilierea bancara propune facturi dupa suma, document si tert, cu confirmare manuala.\n- Extrasele detecteaza profilul bancii si pot fi finalizate numai dupa clasificarea operatiilor.\n- Stocurile sunt evaluate cronologic prin cost mediu ponderat.\n- Mijloacele fixe au punere in functiune, transfer, reevaluare si casare cu note contabile.\n- D300 si D394 au validare interna cu checksum, istoric si recipisa ANAF.\n- Soldurile bilantiere pot fi reportate controlat in anul urmator dupa inchiderea anuala."
 }

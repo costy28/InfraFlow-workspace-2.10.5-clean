@@ -1,5 +1,20 @@
 # Changelog
 
+# v2.12.145 - 2026-06-27
+
+- Reconciliere bancara asistata cu punctaj dupa suma, document si tert.
+- Confirmarea sugestiei pastreaza validarea finala in fluxul existent de Trezorerie.
+- Detectare profil extras bancar si finalizare controlata a lotului importat.
+- Evaluare cronologica a stocurilor prin cost mediu ponderat, cu alerte pentru cost lipsa si stoc negativ.
+- Costul CMP completeaza automat iesirile de stoc care nu au cost unitar explicit.
+- Ciclul mijloacelor fixe include punere in functiune, transfer, reevaluare si casare.
+- Reevaluarea si casarea genereaza note contabile echilibrate si evenimente de istoric.
+- D300 si D394 au validare interna versionata, checksum si inregistrarea recipisei ANAF.
+- D300 ramane in lucru daca TVA-ul documentelor nu corespunde conturilor 4426/4427.
+- Reportarea soldurilor bilantiere in anul urmator este protejata la duplicate si are export Excel de control.
+- MSSQL: tabele relationale pentru evenimentele mijloacelor fixe, validari de declaratii si reportari.
+- Regresie extinsa la 14 teste automate pentru fluxurile contabile critice.
+
 # v2.12.144 - 2026-06-27
 
 - Import extrase bancare CSV/XLS/XLSX cu detectarea duplicatelor si potrivire exacta dupa factura si suma.

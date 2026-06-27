@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
@@ -17,6 +18,7 @@ export function TVADeclaratii() {
   const [readiness, setReadiness] = useState({ checks: [], declarations: [] })
   const [d394, setD394] = useState({ terti: [], warnings: [], totaluri: {} })
   const [saft, setSaft] = useState({ areas: [], issues: [], coverage: 0 })
+  const [declarationHistory, setDeclarationHistory] = useState([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -33,21 +35,47 @@ export function TVADeclaratii() {
       api.get('/accounting/vat-journal', { params: params() }),
       api.get('/accounting/declarations/readiness', { params: params() }),
       api.get('/accounting/d394', { params: params() }),
-      api.get('/accounting/saft/readiness', { params: params() })
-    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes]) => {
+      api.get('/accounting/saft/readiness', { params: params() }),
+      api.get('/accounting/declarations/history', { params: params() })
+    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, historyRes]) => {
       setData(d300Res.data || { decont: { randuri: [] } })
       setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
       setReadiness(readinessRes.data || { checks: [], declarations: [] })
       setD394(d394Res.data || { terti: [], warnings: [], totaluri: {} })
       setSaft(saftRes.data || { areas: [], issues: [], coverage: 0 })
+      setDeclarationHistory(historyRes.data?.runs || [])
     }).catch(err => {
       setData({ decont: { randuri: [] } })
       setJournal({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
       setReadiness({ checks: [], declarations: [] })
       setD394({ terti: [], warnings: [], totaluri: {} })
       setSaft({ areas: [], issues: [], coverage: 0 })
+      setDeclarationHistory([])
       setError(err.response?.data?.error || 'Nu am putut incarca TVA / D300.')
     })
+  }
+
+  async function validateDeclaration(code) {
+    try {
+      setError(''); setMessage('')
+      await api.post(`/accounting/declarations/${code}/validate`, { perioada: month })
+      setMessage(`${code} a trecut validarea internă.`)
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.run?.errors?.join(' ') || `${code} are verificări nerezolvate.`)
+      load()
+    }
+  }
+
+  async function markDeclarationSubmitted(code) {
+    const recipisa = window.prompt(`Numărul recipisei ANAF pentru ${code}:`, '')
+    if (!recipisa) return
+    try {
+      setError(''); setMessage('')
+      await api.post(`/accounting/declarations/${code}/submit`, { perioada: month, recipisa })
+      setMessage(`${code} a fost marcată depusă cu recipisa ${recipisa}.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || `${code} nu a putut fi marcată depusă.`) }
   }
 
   async function download(endpoint, filename) {
@@ -167,6 +195,16 @@ export function TVADeclaratii() {
               <strong>{check.label}:</strong> {check.message}
             </div>
           ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+          {['D300', 'D394'].map(code => {
+            const latest = declarationHistory.find(item => item.code === code)
+            return <div key={code} className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => validateDeclaration(code)}>Validează {code}</Button>
+              {latest?.status === 'validat_intern' ? <Button onClick={() => markDeclarationSubmitted(code)}>Înregistrează recipisa</Button> : null}
+              {latest ? <Badge tone={latest.status === 'depus' ? 'success' : latest.status === 'cu_erori' ? 'warning' : 'gray'}>{latest.status.replaceAll('_', ' ')}</Badge> : null}
+            </div>
+          })}
         </div>
       </Card>
       <Card>

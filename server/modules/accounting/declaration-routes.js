@@ -1,7 +1,9 @@
 const xlsx = require("xlsx");
 const engine = require("./accounting-engine");
+const { writeDb } = require("../../core/db");
+const { addAudit } = require("../../core/audit");
 
-function registerDeclarationRoutes(router, { requireAccountingReports }) {
+function registerDeclarationRoutes(router, { requireAccountingReports, requireAccountingPost }) {
   router.get("/accounting/declarations/readiness", requireAccountingReports, (req, res) => {
     const data = buildDeclarationReadiness(req.auth.db, req.query);
     res.status(200).json(data);
@@ -13,6 +15,56 @@ function registerDeclarationRoutes(router, { requireAccountingReports }) {
 
   router.get("/accounting/saft/readiness", requireAccountingReports, (req, res) => {
     res.status(200).json(buildSaftReadiness(req.auth.db, req.query));
+  });
+
+  router.get("/accounting/declarations/history", requireAccountingReports, (req, res) => {
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const [an, luna] = monthParts(req.query.perioada || req.query.luna);
+    const runs = accounting.declarationRuns.filter((item) => Number(item.an) === an && Number(item.luna) === luna).slice().reverse();
+    res.status(200).json({ perioada: `${an}-${String(luna).padStart(2, "0")}`, runs });
+  });
+
+  router.post("/accounting/declarations/:code/validate", requireAccountingPost, (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      if (!["D300", "D394"].includes(code)) throwHttp(400, "Declaratia selectata nu are inca validare interna disponibila.");
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const readiness = buildDeclarationReadiness(req.auth.db, req.body || req.query || {});
+      const [an, luna] = monthParts(readiness.perioada);
+      const relevant = code === "D300"
+        ? readiness.checks.filter((item) => ["documents", "vat", "vat_accounting"].includes(item.key))
+        : readiness.checks.filter((item) => ["documents", "d394_partners", "vat_accounting"].includes(item.key));
+      const errors = relevant.filter((item) => !item.ok).map((item) => item.message);
+      const run = {
+        id: engine.nextNumericId(accounting.declarationRuns), code, an, luna,
+        status: errors.length ? "cu_erori" : "validat_intern", errors,
+        checksum: require("crypto").createHash("sha256").update(JSON.stringify({ code, perioada: readiness.perioada, checks: relevant, vat: readiness.vat_control })).digest("hex"),
+        validated_by: req.auth.user?.id || "", validated_at: new Date().toISOString()
+      };
+      accounting.declarationRuns.push(run);
+      addAudit(req.auth.db, req.auth.user, "accounting_declaration_validate", `${code} ${readiness.perioada} / ${run.status}`);
+      writeDb(req.auth.db);
+      res.status(errors.length ? 422 : 201).json({ run, checks: relevant });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/declarations/:code/submit", requireAccountingPost, (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      const [an, luna] = monthParts(req.body?.perioada);
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const run = accounting.declarationRuns.slice().reverse().find((item) => item.code === code && Number(item.an) === an && Number(item.luna) === luna && item.status === "validat_intern");
+      if (!run) throwHttp(409, "Ruleaza mai intai validarea interna fara erori.");
+      const receipt = String(req.body?.recipisa || "").trim();
+      if (!receipt) throwHttp(400, "Completeaza numarul recipisei ANAF.");
+      run.status = "depus";
+      run.recipisa = receipt;
+      run.submitted_at = new Date().toISOString();
+      run.submitted_by = req.auth.user?.id || "";
+      addAudit(req.auth.db, req.auth.user, "accounting_declaration_submit", `${code} ${an}-${String(luna).padStart(2, "0")} / ${receipt}`);
+      writeDb(req.auth.db);
+      res.status(200).json({ run });
+    } catch (error) { next(error); }
   });
 
   router.get("/accounting/saft/export-mapping", requireAccountingReports, (req, res, next) => {
@@ -151,7 +203,7 @@ function buildDeclarationReadiness(db, query = {}) {
     status: checks.every((item) => item.ok) ? "ready" : "needs_attention",
     checks,
     declarations: [
-      { code: "D300", status: drafts.length === 0 && period.tva_verificat_la ? "pregatit" : "in_lucru", description: "Decont TVA din jurnalele de cumparari si vanzari." },
+      { code: "D300", status: drafts.length === 0 && period.tva_verificat_la && vatConsistent ? "pregatit" : "in_lucru", description: "Decont TVA din jurnalele de cumparari si vanzari." },
       { code: "D394", status: d394.ready ? "pregatit" : "in_lucru", description: "Operatiuni interne grupate pe tert si CUI." },
       { code: "D406 / SAF-T", status: saft.ready ? "pregatit_mapare" : "neconfigurat", description: `Mapare tehnica ${saft.coverage}%. XML-ul fiscal necesita in continuare schema ANAF aplicabila.` }
     ],
@@ -320,6 +372,12 @@ function area(label, total, mapped) {
 
 function money(value) {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function throwHttp(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  throw error;
 }
 
 module.exports = registerDeclarationRoutes;

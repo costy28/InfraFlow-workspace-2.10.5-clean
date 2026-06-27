@@ -35,8 +35,11 @@ function syncAccountingToMssql(db, user = {}) {
     bankImports: syncTable("accounting_bank_imports", prepared.bankImports, sqlBankImports()),
     stockPostings: syncTable("accounting_stock_postings", prepared.stockPostings, sqlStockPostings()),
     fixedAssets: syncTable("accounting_fixed_assets", prepared.fixedAssets, sqlFixedAssets()),
+    fixedAssetEvents: syncTable("accounting_fixed_asset_events", prepared.fixedAssetEvents, sqlFixedAssetEvents()),
     depreciationRuns: syncTable("accounting_depreciation_runs", prepared.depreciationRuns, sqlDepreciationRuns()),
-    annualClosings: syncTable("accounting_annual_closings", prepared.annualClosings, sqlAnnualClosings())
+    annualClosings: syncTable("accounting_annual_closings", prepared.annualClosings, sqlAnnualClosings()),
+    declarationRuns: syncTable("accounting_declaration_runs", prepared.declarationRuns, sqlDeclarationRuns()),
+    carryforwardRuns: syncTable("accounting_carryforward_runs", prepared.carryforwardRuns, sqlCarryforwardRuns())
   };
 
   writeSyncLog(counts, user);
@@ -82,8 +85,11 @@ function preparePayload(accounting) {
     bankImports: withIds(accounting.bankImports),
     stockPostings: withIds(accounting.stockPostings),
     fixedAssets: withIds(accounting.fixedAssets),
+    fixedAssetEvents: withIds(accounting.fixedAssetEvents),
     depreciationRuns: withIds(accounting.depreciationRuns),
-    annualClosings: withIds(accounting.annualClosings)
+    annualClosings: withIds(accounting.annualClosings),
+    declarationRuns: withIds(accounting.declarationRuns),
+    carryforwardRuns: withIds(accounting.carryforwardRuns)
   };
 }
 
@@ -185,8 +191,11 @@ function readAccountingTableCounts() {
       (select count(1) from dbo.accounting_bank_imports), N'|',
       (select count(1) from dbo.accounting_stock_postings), N'|',
       (select count(1) from dbo.accounting_fixed_assets), N'|',
+      (select count(1) from dbo.accounting_fixed_asset_events), N'|',
       (select count(1) from dbo.accounting_depreciation_runs), N'|',
-      (select count(1) from dbo.accounting_annual_closings)
+      (select count(1) from dbo.accounting_annual_closings), N'|',
+      (select count(1) from dbo.accounting_declaration_runs), N'|',
+      (select count(1) from dbo.accounting_carryforward_runs)
     );
   `, { timeoutMs: 30000, commandTimeoutSeconds: 30 });
   const [
@@ -206,8 +215,11 @@ function readAccountingTableCounts() {
     bankImports,
     stockPostings,
     fixedAssets,
+    fixedAssetEvents,
     depreciationRuns,
-    annualClosings
+    annualClosings,
+    declarationRuns,
+    carryforwardRuns
   ] = String(text || "").split("|").map((value) => Number(value || 0));
   return {
     chart,
@@ -226,8 +238,11 @@ function readAccountingTableCounts() {
     bankImports,
     stockPostings,
     fixedAssets,
+    fixedAssetEvents,
     depreciationRuns,
-    annualClosings
+    annualClosings,
+    declarationRuns,
+    carryforwardRuns
   };
 }
 
@@ -377,10 +392,31 @@ function sqlDepreciationRuns() {
   );
 }
 
+function sqlFixedAssetEvents() {
+  return identityMirrorSql("accounting_fixed_asset_events",
+    ["id", "asset_id", "action", "data", "details", "journal_id", "created_by", "created_at"],
+    [sqlValue("id", "int", "1"), sqlValue("asset_id", "int", "0"), sqlValue("action"), sqlValue("data", "date"), sqlValue("details"), sqlValue("journal_id", "int"), sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`]
+  );
+}
+
 function sqlAnnualClosings() {
   return identityMirrorSql("accounting_annual_closings",
     ["id", "an", "journal_id", "result", "status", "created_by", "created_at"],
     [sqlValue("id", "int", "1"), sqlValue("an", "int", "year(getdate())"), sqlValue("journal_id", "int", "0"), sqlValue("result", "decimal"), sqlValue("status"), sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`]
+  );
+}
+
+function sqlDeclarationRuns() {
+  return identityMirrorSql("accounting_declaration_runs",
+    ["id", "code", "an", "luna", "status", "checksum", "recipisa", "validated_by", "validated_at", "submitted_by", "submitted_at", "run_json"],
+    [sqlValue("id", "int", "1"), sqlValue("code"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("status"), sqlValue("checksum"), sqlValue("recipisa"), sqlValue("validated_by", "int"), `try_convert(datetime2, ${sqlValue("validated_at")})`, sqlValue("submitted_by", "int"), `try_convert(datetime2, ${sqlValue("submitted_at")})`, "value"]
+  );
+}
+
+function sqlCarryforwardRuns() {
+  return identityMirrorSql("accounting_carryforward_runs",
+    ["id", "an", "next_year", "entries", "checksum", "status", "created_by", "created_at"],
+    [sqlValue("id", "int", "1"), sqlValue("an", "int", "year(getdate())"), sqlValue("next_year", "int", "year(getdate()) + 1"), sqlValue("entries", "int", "0"), sqlValue("checksum"), sqlValue("status"), sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`]
   );
 }
 
