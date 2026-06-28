@@ -79,7 +79,10 @@ export function InchidereLuna() {
     checks.unbalanced_journals ? `${checks.unbalanced_journals} note dezechilibrate` : '',
     checks.journal_structure_ok === false ? 'note fara linii contabile' : '',
     checks.balance_ok === false ? 'balanta dezechilibrata' : '',
-    checks.tva_checked === false ? 'TVA neverificat' : ''
+    checks.tva_checked === false ? 'TVA neverificat' : '',
+    checks.tva_current === false ? 'TVA modificat după verificare' : '',
+    checks.bank_unclassified ? `${checks.bank_unclassified} operații bancare neclasificate` : '',
+    checks.bank_imports_unfinished ? `${checks.bank_imports_unfinished} extrase bancare nefinalizate` : ''
   ].filter(Boolean)
   const resolveTarget = (row) => row.resolve_url || '/contabilitate'
   const actionItems = [
@@ -94,9 +97,9 @@ export function InchidereLuna() {
   ].filter(Boolean)
   const assistantSteps = [
     { label: 'Documente', ok: !checks.draft_count, detail: checks.draft_count ? `${checks.draft_count} draft` : 'Toate documentele sunt validate', to: `/contabilitate/inchidere-luna?luna=${month}` },
-    { label: 'Trezorerie', ok: !(data?.drafts || []).some(row => row.categorie === 'Trezorerie'), detail: checks.outstanding_advances ? `${checks.outstanding_advances} avansuri de urmărit` : 'Operațiile sunt procesate', to: `/contabilitate/trezorerie?luna=${month}` },
+    { label: 'Trezorerie', ok: !(data?.drafts || []).some(row => row.categorie === 'Trezorerie') && checks.bank_reconciliation_ok !== false, detail: checks.bank_reconciliation_ok === false ? `${checks.bank_unclassified || 0} neclasificate · ${checks.bank_imports_unfinished || 0} importuri deschise` : checks.outstanding_advances ? `${checks.outstanding_advances} avansuri de urmărit` : 'Operațiile sunt procesate', to: `/contabilitate/operatiuni?luna=${month}` },
     { label: 'Stocuri', ok: true, detail: 'Verifică sincronizarea și CMP', to: `/contabilitate/operatiuni?luna=${month}` },
-    { label: 'TVA', ok: checks.tva_checked, detail: checks.tva_checked ? 'TVA verificat' : 'TVA necesită verificare', to: `/contabilitate/tva-d300?luna=${month}` },
+    { label: 'TVA', ok: checks.tva_checked && checks.tva_current !== false, detail: checks.tva_checked ? checks.tva_current === false ? 'Documente modificate, reverifică' : 'TVA verificat și actual' : 'TVA necesită verificare', to: `/contabilitate/tva-d300?luna=${month}` },
     { label: 'Balanță', ok: checks.balance_ok && checks.journal_structure_ok, detail: checks.balance_ok ? 'Balanță echilibrată' : 'Există diferențe', to: `/contabilitate/balanta?luna=${month}` },
     { label: 'Închidere', ok: checks.can_close || ['inchisa', 'depusa'].includes(status), detail: ['inchisa', 'depusa'].includes(status) ? `Luna este ${status}` : checks.can_close ? 'Pregătită pentru închidere' : 'Așteaptă pașii anteriori', to: `/contabilitate/inchidere-luna?luna=${month}` }
   ]
@@ -145,22 +148,29 @@ export function InchidereLuna() {
               ))}
             </div>
           </Card>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
             <Info label="Documente draft" value={checks.draft_count || 0} />
             <Info label="Note dezechilibrate" value={checks.unbalanced_journals || 0} />
             <Info label="Balanta" value={data.balance?.balanced ? 'Echilibrata' : formatMoney(data.balance?.difference || 0)} />
-            <Info label="TVA" value={`${checks.tva_checked ? 'Verificat' : 'Neverificat'} · ${formatMoney(data.vat?.diferenta || 0)}`} />
+            <Info label="TVA" value={`${checks.tva_checked ? checks.tva_current === false ? 'Reverifică' : 'Verificat' : 'Neverificat'} · ${formatMoney(data.vat?.diferenta || 0)}`} />
             <Info label="Structura note" value={checks.journal_structure_ok ? 'Corecta' : `${checks.journals_without_lines || 0} fara linii`} />
             <Info label="Avansuri nestinse" value={checks.outstanding_advances || 0} />
+            <Info label="Bancă neclasificat" value={checks.bank_unclassified || 0} />
+            <Info label="Importuri deschise" value={checks.bank_imports_unfinished || 0} />
           </div>
           {checks.outstanding_advances ? (
             <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
               Avansurile nestinse nu blocheaza inchiderea, dar trebuie urmarite in lunile urmatoare. <Link className="font-semibold underline" to={`/contabilitate/trezorerie?luna=${month}&corelare=avans_nestins`}>Vezi avansurile</Link>
             </div>
           ) : null}
-          {checks.tva_checked === false ? (
+          {checks.tva_checked === false || checks.tva_current === false ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              TVA-ul lunii trebuie verificat inainte de inchidere. <Link className="font-semibold underline" to={`/contabilitate/tva-d300?luna=${month}`}>Mergi la TVA / D300</Link>
+              {checks.tva_current === false ? 'Documentele cu TVA s-au modificat după ultima verificare.' : 'TVA-ul lunii trebuie verificat înainte de închidere.'} <Link className="font-semibold underline" to={`/contabilitate/tva-d300?luna=${month}`}>Mergi la TVA / D300</Link>
+            </div>
+          ) : null}
+          {checks.bank_reconciliation_ok === false ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Reconcilierea bancară nu este finalizată: {checks.bank_unclassified || 0} operații neclasificate și {checks.bank_imports_unfinished || 0} importuri deschise. <Link className="font-semibold underline" to={`/contabilitate/operatiuni?luna=${month}`}>Rezolvă reconcilierea</Link>
             </div>
           ) : null}
           {checks.balance_ok === false ? (

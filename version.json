@@ -1,5 +1,5 @@
 {
-  "version": "2.12.153",
-  "date": "2026-06-27",
-  "changelog": "## v2.12.153 - 2026-06-27\n### Contabilitate - stingeri furnizori si inchidere consolidata\n- O plata poate stinge una sau mai multe facturi ale aceluiasi tert, manual sau FIFO dupa scadenta.\n- Avansurile 409/419 pot fi alocate ulterior, cu nota de transfer si anulare controlata a grupului.\n- Soldurile facturilor tin cont simultan de plati si note de credit.\n- Fisa furnizor include rulajul anual, stingerile, export Excel si forma tiparibila.\n- Jurnalul de cumparari evidentiaza separat notele de credit.\n- Inchiderea lunii blocheaza notele de credit ramase draft.\n- 33 de teste automate contabile si verificare browser desktop/mobil."
+  "version": "2.12.154",
+  "date": "2026-06-28",
+  "changelog": "## v2.12.154 - 2026-06-28\n### Contabilitate - control lunar complet\n- Reconciliere bancara automata in lot pentru potrivirile sigure, cu oprire la cazurile ambigue.\n- Registrele Casa si Banca includ solduri zilnice si foi Excel dedicate.\n- Inchiderea lunii blocheaza operatiile bancare neclasificate si importurile nefinalizate.\n- TVA-ul trebuie reverificat daca documentele s-au modificat dupa ultima confirmare.\n- Motivul redeschiderii si referinta depunerii sunt validate si auditate pe server.\n- Fisele tertilor, confirmarile de sold, jurnalele si stingerile raman integrate in acelasi flux.\n- 37 de teste automate contabile, build frontend si verificare API/export Excel."
 }

@@ -106,8 +106,8 @@ export function JurnaleClasice() {
         <JournalInvoiceTable title="Jurnal vanzari" rows={data.jurnal_vanzari?.rows || []} partyLabel="Client" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <TreasuryTable title="Registru casa" rows={data.registru_casa?.rows || []} totals={data.registru_casa?.totals || {}} accounts={data.registru_casa?.accounts || []} />
-        <TreasuryTable title="Jurnal banca" rows={data.jurnal_banca?.rows || []} totals={data.jurnal_banca?.totals || {}} accounts={data.jurnal_banca?.accounts || []} />
+        <TreasuryTable title="Registru casa" rows={data.registru_casa?.rows || []} totals={data.registru_casa?.totals || {}} accounts={data.registru_casa?.accounts || []} daily={data.registru_casa?.daily || []} />
+        <TreasuryTable title="Jurnal banca" rows={data.jurnal_banca?.rows || []} totals={data.jurnal_banca?.totals || {}} accounts={data.jurnal_banca?.accounts || []} daily={data.jurnal_banca?.daily || []} />
       </div>
     </AccountingShell>
   )
@@ -138,7 +138,7 @@ function JournalInvoiceTable({ title, rows, partyLabel, totals = {} }) {
   )
 }
 
-function TreasuryTable({ title, rows, totals, accounts }) {
+function TreasuryTable({ title, rows, totals, accounts, daily }) {
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -158,6 +158,23 @@ function TreasuryTable({ title, rows, totals, accounts }) {
               {' '}initial {formatMoney(account.sold_initial || 0)} · incasari {formatMoney(account.incasari || 0)} · plati {formatMoney(account.plati || 0)} · final {formatMoney(account.sold_final || 0)}
             </div>
           ))}
+        </div>
+      ) : null}
+      {daily?.length ? (
+        <div>
+          <div className="mb-1 text-xs font-semibold uppercase text-slate-500">Solduri zilnice</div>
+          <Table headers={['Data', 'Inițial', 'Încasări', 'Plăți', 'Final', 'Operațiuni']}>
+            {daily.map(day => (
+              <tr key={day.data}>
+                <td className="px-3 py-2">{day.data}</td>
+                <td className="px-3 py-2 text-right">{formatMoney(day.sold_initial)}</td>
+                <td className="px-3 py-2 text-right text-emerald-700">{formatMoney(day.incasari)}</td>
+                <td className="px-3 py-2 text-right text-rose-700">{formatMoney(day.plati)}</td>
+                <td className="px-3 py-2 text-right font-semibold">{formatMoney(day.sold_final)}</td>
+                <td className="px-3 py-2 text-right">{day.operatiuni}</td>
+              </tr>
+            ))}
+          </Table>
         </div>
       ) : null}
       <Table headers={['Data', 'Document', 'Operatie', 'Tert', 'Incasari', 'Plati', 'Sold', 'Nota', 'Status']}>

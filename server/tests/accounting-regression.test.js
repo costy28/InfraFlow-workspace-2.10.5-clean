@@ -390,6 +390,63 @@ test("nota de credit draft blocheaza inchiderea lunii", () => {
   assert.equal(report.counts.credit_notes, 1);
 });
 
+test("reconcilierea bancara automata confirma doar sugestia sigura", () => {
+  const { db, accounting, user } = fixture();
+  accounting.thirdParties[0].cont_analitic_furnizor = "401.00001";
+  accounting.invoicesIn.push(
+    { id: 61, uuid: "fi61", an: 2026, luna: 6, nr_document: "F-61", furnizor_id: 1, total: 121, neachitat: 121, status: "validat" },
+    { id: 62, uuid: "fi62", an: 2026, luna: 6, nr_document: "F-62", furnizor_id: 1, total: 242, neachitat: 242, status: "validat" }
+  );
+  accounting.treasury.push({ id: 71, uuid: "tr71", an: 2026, luna: 6, data: "2026-06-20", nr_document: "OP-71", tip: "banca", tip_operatie: "plata", suma: 121, explicatie: "Plata F-61 RO12345678", status: "draft", corelare_tip: "neclasificat" });
+  const result = advancedOperations.autoReconcileBank(db, user, "2026-06", 85);
+  assert.equal(result.confirmed, 1);
+  assert.equal(accounting.treasury[0].invoice_in_id, 61);
+  assert.equal(accounting.treasury[0].corelare_tip, "factura");
+  assert.ok(accounting.treasury[0].reconciliation_score >= 85);
+});
+
+test("reconcilierea automata lasa potrivirile ambigue pentru operator", () => {
+  const { db, accounting, user } = fixture();
+  accounting.invoicesIn.push(
+    { id: 63, nr_document: "F-63", furnizor_id: 1, total: 121, neachitat: 121, status: "validat" },
+    { id: 64, nr_document: "F-64", furnizor_id: 1, total: 121, neachitat: 121, status: "validat" }
+  );
+  accounting.treasury.push({ id: 72, uuid: "tr72", an: 2026, luna: 6, data: "2026-06-20", nr_document: "OP-72", tip: "banca", tip_operatie: "plata", suma: 121, explicatie: "Plata furnizor", status: "draft", corelare_tip: "neclasificat" });
+  const result = advancedOperations.autoReconcileBank(db, user, "2026-06", 60);
+  assert.equal(result.confirmed, 0);
+  assert.equal(result.ambiguous, 1);
+  assert.equal(accounting.treasury[0].corelare_tip, "neclasificat");
+});
+
+test("registrele casa calculeaza soldurile zilnice cronologic", () => {
+  const { db, accounting } = fixture();
+  accounting.treasury.push(
+    { id: 80, an: 2026, luna: 5, data: "2026-05-31", tip: "casa", tip_operatie: "incasare", suma: 100, status: "validat" },
+    { id: 81, an: 2026, luna: 6, data: "2026-06-01", tip: "casa", tip_operatie: "incasare", suma: 50, status: "validat" },
+    { id: 82, an: 2026, luna: 6, data: "2026-06-01", tip: "casa", tip_operatie: "plata", suma: 20, status: "validat" },
+    { id: 83, an: 2026, luna: 6, data: "2026-06-02", tip: "casa", tip_operatie: "plata", suma: 10, status: "validat" }
+  );
+  const report = accountingRoutes.buildClassicJournalsData(db, { perioada: "2026-06" });
+  assert.deepEqual(report.registru_casa.daily, [
+    { data: "2026-06-01", sold_initial: 100, incasari: 50, plati: 20, sold_final: 130, operatiuni: 2 },
+    { data: "2026-06-02", sold_initial: 130, incasari: 0, plati: 10, sold_final: 120, operatiuni: 1 }
+  ]);
+});
+
+test("inchiderea lunii detecteaza banca nereconciliata si TVA invechit", () => {
+  const { db, accounting } = fixture();
+  accounting.periods.push({ id: 1, an: 2026, luna: 6, status: "deschisa", tva_verificat_la: new Date().toISOString(), tva_verificat_total_4426: 0, tva_verificat_total_4427: 0 });
+  accounting.invoicesIn.push({ id: 91, an: 2026, luna: 6, data: "2026-06-10", nr_document: "F-91", furnizor_id: 1, valoare: 100, tva: 21, total: 121, status: "validat" });
+  accounting.bankImports.push({ id: 1, file_name: "extras.xlsx", status: "in_lucru" });
+  accounting.treasury.push({ id: 92, uuid: "tr92", bank_import_id: 1, an: 2026, luna: 6, data: "2026-06-11", tip: "banca", tip_operatie: "plata", suma: 121, status: "validat", corelare_tip: "neclasificat" });
+  const report = accountingRoutes.periodCheck(db, 2026, 6);
+  assert.equal(report.checks.tva_current, false);
+  assert.equal(report.checks.bank_unclassified, 1);
+  assert.equal(report.checks.bank_imports_unfinished, 1);
+  assert.equal(report.checks.bank_reconciliation_ok, false);
+  assert.equal(report.checks.can_close, false);
+});
+
 test("parserul UBL extrage furnizorul, liniile si totalul", async () => {
   const xml = `<?xml version="1.0"?><Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"><ID>F-100</ID><IssueDate>2026-06-20</IssueDate><AccountingSupplierParty><Party><PartyLegalEntity><RegistrationName>Furnizor XML</RegistrationName></PartyLegalEntity><PartyTaxScheme><CompanyID>RO12345678</CompanyID></PartyTaxScheme></Party></AccountingSupplierParty><InvoiceLine><ID>1</ID><InvoicedQuantity unitCode="KGM">2</InvoicedQuantity><LineExtensionAmount>200</LineExtensionAmount><Item><Name>Bitum</Name><ClassifiedTaxCategory><Percent>21</Percent></ClassifiedTaxCategory></Item><Price><PriceAmount>100</PriceAmount></Price></InvoiceLine><TaxTotal><TaxAmount>42</TaxAmount></TaxTotal><LegalMonetaryTotal><TaxExclusiveAmount>200</TaxExclusiveAmount><PayableAmount>242</PayableAmount></LegalMonetaryTotal></Invoice>`;
   const parsed = await controls.parseUblInvoice(Buffer.from(xml));

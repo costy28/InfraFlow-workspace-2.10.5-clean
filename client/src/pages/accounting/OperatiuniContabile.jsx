@@ -106,6 +106,16 @@ export function OperatiuniContabile() {
     } catch (err) { setError(err.response?.data?.error || 'Potrivirea nu a putut fi confirmată.') } finally { setBusy('') }
   }
 
+  async function autoConfirmBank() {
+    setBusy('reconcile-auto'); setError(''); setMessage('')
+    try {
+      const res = await api.post('/accounting/bank-reconciliation/auto-confirm', { perioada: month, min_score: 85 })
+      const result = res.data || {}
+      setMessage(`${result.confirmed || 0} operații au fost potrivite automat. ${result.ambiguous || 0} au rămas pentru verificare manuală.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Reconcilierea automată nu a putut fi executată.') } finally { setBusy('') }
+  }
+
   async function finalizeBankImport(batch) {
     setBusy(`batch-${batch.id}`); setError(''); setMessage('')
     try {
@@ -411,13 +421,17 @@ export function OperatiuniContabile() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="text-base font-semibold">Reconciliere bancară asistată</h3><p className="mt-1 text-sm text-slate-500">Confirmă sugestiile aici, apoi validează operațiile în Trezorerie.</p></div>
-          <Badge tone={reconciliation.summary?.pending ? 'warning' : 'success'}>{reconciliation.summary?.reconciled || 0}/{reconciliation.summary?.total || 0} reconciliate</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={reconciliation.summary?.pending ? 'warning' : 'success'}>{reconciliation.summary?.reconciled || 0}/{reconciliation.summary?.total || 0} reconciliate</Badge>
+            <Badge tone={reconciliation.summary?.ambiguous ? 'warning' : 'neutral'}>{reconciliation.summary?.ambiguous || 0} ambigue</Badge>
+            <Button variant="secondary" onClick={autoConfirmBank} disabled={busy === 'reconcile-auto' || !reconciliation.summary?.auto_eligible}>{busy === 'reconcile-auto' ? 'Se potrivește...' : `Potrivește sigur (${reconciliation.summary?.auto_eligible || 0})`}</Button>
+          </div>
         </div>
         <div className="mt-4 space-y-2">
           {(reconciliation.operations || []).filter(row => row.corelare_tip === 'neclasificat').slice(0, 10).map(row => (
             <div key={row.uuid || row.id} className="grid gap-2 border-t border-slate-100 py-2 text-sm md:grid-cols-[120px_1fr_150px_1fr_auto] md:items-center">
               <span>{row.data}</span><span className="min-w-0 truncate">{row.explicatie || row.nr_document}</span><strong className="text-right">{formatMoney(row.suma)}</strong>
-              <span>{row.best_suggestion ? `${row.best_suggestion.document} · ${row.best_suggestion.tert} · ${row.best_suggestion.score}%` : 'Fără sugestie sigură'}</span>
+              <span>{row.best_suggestion ? `${row.best_suggestion.document} · ${row.best_suggestion.tert} · ${row.best_suggestion.score}%${row.auto_eligible ? ' · sigură' : ' · verifică'}` : 'Fără sugestie sigură'}</span>
               {row.best_suggestion ? <Button variant="secondary" onClick={() => confirmSuggestion(row)} disabled={busy === `reconcile-${row.uuid}`}>Confirmă</Button> : null}
             </div>
           ))}

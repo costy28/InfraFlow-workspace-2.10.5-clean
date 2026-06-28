@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.154 - 2026-06-28
+
+- Reconciliere bancara automata in lot pentru sugestiile cu scor minimum 85% si rezultat neambiguu.
+- Potrivirile concurente sau slabe raman explicit pentru confirmarea operatorului.
+- Registrele Casa si Banca includ sold initial, incasari, plati si sold final pentru fiecare zi.
+- Exportul jurnalelor include foile `Sold zilnic casa` si `Sold zilnic banca`.
+- Inchiderea lunii este blocata de operatii bancare validate dar neclasificate si de importuri nefinalizate.
+- Marcajul TVA devine invalid daca totalurile 4426/4427 se modifica dupa verificare.
+- Redeschiderea cere motiv, iar depunerea declaratiilor cere referinta, validate inclusiv in backend.
+- Verificat cu 37 teste contabile, build frontend si integrare API/export Excel.
+
 # v2.12.153 - 2026-06-27
 
 - O plata poate stinge una sau mai multe facturi ale aceluiasi tert, manual sau FIFO dupa scadenta.

@@ -1348,6 +1348,8 @@ router.get("/accounting/classic-journals/export", requireAccountingReports, (req
     ], data.perioada, data.jurnal_vanzari.totals);
     appendClassicJournalSheet(workbook, "Registru casa", treasuryExportRows(data.registru_casa.rows), data.perioada, data.registru_casa.totals);
     appendClassicJournalSheet(workbook, "Jurnal banca", treasuryExportRows(data.jurnal_banca.rows), data.perioada, data.jurnal_banca.totals);
+    appendDailyRegisterSheet(workbook, "Sold zilnic casa", data.registru_casa.daily, data.perioada);
+    appendDailyRegisterSheet(workbook, "Sold zilnic banca", data.jurnal_banca.daily, data.perioada);
     const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="Jurnale_contabile_${data.perioada.an}_${String(data.perioada.luna).padStart(2, "0")}.xlsx"`);
@@ -1456,6 +1458,9 @@ router.post("/accounting/periods/:an/:luna/close", requireAccountingClose, (req,
     if (check.checks.unbalanced_journals) throwHttp(409, `Exista ${check.checks.unbalanced_journals} note contabile dezechilibrate.`);
     if (!check.checks.balance_ok) throwHttp(409, "Balanta lunii nu este echilibrata.");
     if (!check.checks.tva_checked) throwHttp(409, "TVA-ul lunii trebuie verificat inainte de inchidere.");
+    if (!check.checks.tva_current) throwHttp(409, "Documentele TVA s-au modificat dupa ultima verificare. Verifica din nou TVA / D300.");
+    if (check.checks.bank_unclassified) throwHttp(409, `Exista ${check.checks.bank_unclassified} operatii bancare validate, dar neclasificate.`);
+    if (check.checks.bank_imports_unfinished) throwHttp(409, `Exista ${check.checks.bank_imports_unfinished} importuri bancare nefinalizate.`);
     engine.checkPeriodOpen(req.auth.db, an, luna);
     const period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna);
     const snapshot = periodSnapshots.createPeriodSnapshot(req.auth.db, req.auth.user, an, luna, check);
@@ -1506,13 +1511,15 @@ router.post("/accounting/periods/:an/:luna/reopen", requireAccountingClose, (req
   try {
     if (!userHasRole(req.auth.user, "superadmin") && !userHasRole(req.auth.user, "admin")) throwHttp(403, "Doar administratorul poate redeschide luna.");
     const accounting = engine.ensureAccounting(req.auth.db);
+    const reason = String(req.body?.motiv || "").trim();
+    if (reason.length < 5) throwHttp(400, "Motivul redeschiderii este obligatoriu si trebuie sa aiba minimum 5 caractere.");
     const period = accounting.periods.find((item) => Number(item.an) === Number(req.params.an) && Number(item.luna) === Number(req.params.luna));
     if (!period) throwHttp(404, "Perioada nu a fost gasita.");
     if (period.status === "depusa" && !userHasRole(req.auth.user, "superadmin")) throwHttp(409, "Perioada are declaratii depuse. Redeschiderea este permisa doar superadmin.");
     period.status = "deschisa";
     period.redeschisa_de = req.auth.user.id;
     period.redeschisa_la = new Date().toISOString();
-    period.redeschisa_motiv = String(req.body?.motiv || "").trim();
+    period.redeschisa_motiv = reason;
     periodSnapshots.addPeriodEvent(req.auth.db, req.auth.user, req.params.an, req.params.luna, "redeschidere", { motiv: period.redeschisa_motiv, snapshot_id: period.snapshot_id || null });
     addAudit(req.auth.db, req.auth.user, "accounting_period_reopen", `${req.params.luna}/${req.params.an}${period.redeschisa_motiv ? ` / ${period.redeschisa_motiv}` : ""}`);
     writeDb(req.auth.db);
@@ -1525,6 +1532,8 @@ router.post("/accounting/periods/:an/:luna/mark-submitted", requireAccountingClo
     const accounting = engine.ensureAccounting(req.auth.db);
     const an = Number(req.params.an);
     const luna = Number(req.params.luna);
+    const submissionReference = String(req.body?.depunere_ref || "").trim();
+    if (submissionReference.length < 3) throwHttp(400, "Completeaza numarul recipisei sau referinta depunerii.");
     let period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna);
     if (!period) {
       period = {
@@ -1541,7 +1550,7 @@ router.post("/accounting/periods/:an/:luna/mark-submitted", requireAccountingClo
     period.status = "depusa";
     period.depusa_de = req.auth.user.id;
     period.depusa_la = new Date().toISOString();
-    period.depunere_ref = String(req.body?.depunere_ref || "").trim();
+    period.depunere_ref = submissionReference;
     periodSnapshots.addPeriodEvent(req.auth.db, req.auth.user, an, luna, "depunere", { referinta: period.depunere_ref, snapshot_id: period.snapshot_id || null });
     addAudit(req.auth.db, req.auth.user, "accounting_period_submitted", `${luna}/${an}`);
     writeDb(req.auth.db);
@@ -3111,12 +3120,14 @@ function buildClassicJournalsData(db, query = {}) {
     registru_casa: {
       rows: registruCasa.rows,
       totals: registruCasa.totals,
-      accounts: registruCasa.accounts
+      accounts: registruCasa.accounts,
+      daily: registruCasa.daily
     },
     jurnal_banca: {
       rows: jurnalBanca.rows,
       totals: jurnalBanca.totals,
-      accounts: jurnalBanca.accounts
+      accounts: jurnalBanca.accounts,
+      daily: jurnalBanca.daily
     },
     period_status: vatData.period_status,
     warnings: vatData.warnings || []
@@ -3177,8 +3188,27 @@ function buildTreasuryRegister(accounting, query, an, luna, registerType) {
   return {
     rows: rowsWithSold,
     totals: treasuryJournalTotals(rowsWithSold, opening),
-    accounts: treasuryAccountSummary(previousRows, rowsWithSold)
+    accounts: treasuryAccountSummary(previousRows, rowsWithSold),
+    daily: buildDailyTreasurySummary(rowsWithSold, opening)
   };
+}
+
+function buildDailyTreasurySummary(rows, opening = 0) {
+  const days = [];
+  let sold = round(opening);
+  rows.forEach((row) => {
+    let day = days[days.length - 1];
+    if (!day || day.data !== row.data) {
+      day = { data: row.data || "", sold_initial: sold, incasari: 0, plati: 0, sold_final: sold, operatiuni: 0 };
+      days.push(day);
+    }
+    day.incasari = round(day.incasari + Number(row.incasari || 0));
+    day.plati = round(day.plati + Number(row.plati || 0));
+    day.operatiuni += 1;
+    sold = round(sold + Number(row.incasari || 0) - Number(row.plati || 0));
+    day.sold_final = sold;
+  });
+  return days;
 }
 
 function treasuryMovementTotal(rows) {
@@ -3260,6 +3290,18 @@ function appendClassicJournalSheet(workbook, name, rows, perioada, totals) {
     { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 34 }, { wch: 16 },
     { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 42 }
   ];
+  sheet["!freeze"] = { xSplit: 0, ySplit: 3 };
+  xlsx.utils.book_append_sheet(workbook, sheet, name.slice(0, 31));
+}
+
+function appendDailyRegisterSheet(workbook, name, rows, perioada) {
+  const sheet = xlsx.utils.aoa_to_sheet([
+    [name, `${String(perioada.luna).padStart(2, "0")}/${perioada.an}`],
+    [],
+    ["Data", "Sold initial", "Incasari", "Plati", "Sold final", "Operatiuni"],
+    ...(rows || []).map((row) => [row.data, row.sold_initial, row.incasari, row.plati, row.sold_final, row.operatiuni])
+  ]);
+  sheet["!cols"] = [{ wch: 13 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 12 }];
   sheet["!freeze"] = { xSplit: 0, ySplit: 3 };
   xlsx.utils.book_append_sheet(workbook, sheet, name.slice(0, 31));
 }
@@ -3348,6 +3390,9 @@ function periodCheck(db, an, luna) {
   const invoicesOut = accounting.invoicesOut.filter(inMonth);
   const treasury = accounting.treasury.filter(inMonth);
   const settlements = accounting.settlements.filter(inMonth).filter((item) => item.status === "activ");
+  const bankUnclassified = treasury.filter((item) => item.tip === "banca" && item.status === "validat" && item.corelare_tip === "neclasificat");
+  const monthBatchIds = new Set(treasury.map((item) => String(item.bank_import_id || "")).filter(Boolean));
+  const unfinishedBankImports = accounting.bankImports.filter((item) => monthBatchIds.has(String(item.id)) && item.status !== "procesat");
   const outstandingAdvances = treasury.filter((item) => item.status === "validat" && item.corelare_tip === "avans" && !item.invoice_in_id && !item.invoice_out_id);
   const journalLineIds = new Set(accounting.journalLines.map((item) => Number(item.journal_id)));
   const journalsWithoutLines = activeJournals.filter((item) => !journalLineIds.has(Number(item.id)));
@@ -3357,6 +3402,13 @@ function periodCheck(db, an, luna) {
   const balanceDifference = round(totalDebit - totalCredit);
   const balanceOk = balance.balanced && Math.abs(balanceDifference) <= 0.01;
   const tvaChecked = Boolean(period.tva_verificat_la);
+  const vatData = buildVatData(db, { an, luna });
+  const vatComparable = period.tva_verificat_total_4426 !== undefined && period.tva_verificat_total_4427 !== undefined;
+  const vatCurrent = !tvaChecked || !vatComparable || (
+    Math.abs(Number(period.tva_verificat_total_4426 || 0) - Number(vatData.total_4426 || 0)) <= 0.01
+    && Math.abs(Number(period.tva_verificat_total_4427 || 0) - Number(vatData.total_4427 || 0)) <= 0.01
+  );
+  const bankReconciliationOk = bankUnclassified.length === 0 && unfinishedBankImports.length === 0;
   const history = periodSnapshots.periodHistory(db, an, luna);
   return {
     period,
@@ -3370,8 +3422,12 @@ function periodCheck(db, an, luna) {
       journals_without_lines: journalsWithoutLines.length,
       orphan_journal_lines: orphanJournalLines.length,
       tva_checked: tvaChecked,
+      tva_current: vatCurrent,
+      bank_unclassified: bankUnclassified.length,
+      bank_imports_unfinished: unfinishedBankImports.length,
+      bank_reconciliation_ok: bankReconciliationOk,
       outstanding_advances: outstandingAdvances.length,
-      can_close: period.status === "deschisa" && draftDocuments.length === 0 && unbalanced.length === 0 && journalsWithoutLines.length === 0 && orphanJournalLines.length === 0 && balanceOk && tvaChecked,
+      can_close: period.status === "deschisa" && draftDocuments.length === 0 && unbalanced.length === 0 && journalsWithoutLines.length === 0 && orphanJournalLines.length === 0 && balanceOk && tvaChecked && vatCurrent && bankReconciliationOk,
       can_reopen: ["inchisa", "depusa"].includes(period.status),
       can_mark_submitted: period.status === "inchisa"
     },
@@ -3403,6 +3459,10 @@ function periodCheck(db, an, luna) {
       suma: round(item.suma || 0),
       resolve_url: `/contabilitate/trezorerie?luna=${an}-${String(luna).padStart(2, "0")}&corelare=avans_nestins`
     })),
+    bank: {
+      unclassified: bankUnclassified.slice(0, 25).map((item) => ({ id: item.id, uuid: item.uuid, data: item.data, nr_document: item.nr_document || item.id, suma: round(item.suma || 0) })),
+      unfinished_imports: unfinishedBankImports.slice(0, 25).map((item) => ({ id: item.id, file_name: item.file_name || "Extras bancar", status: item.status || "in_lucru" }))
+    },
     balance: {
       balanced: balanceOk,
       total_debit: totalDebit,
@@ -3410,9 +3470,10 @@ function periodCheck(db, an, luna) {
       difference: balanceDifference
     },
     vat: {
-      deductibil: sum(invoicesIn, "tva"),
-      colectat: sum(invoicesOut, "tva"),
-      diferenta: round(sum(invoicesOut, "tva") - sum(invoicesIn, "tva"))
+      deductibil: vatData.total_4426,
+      colectat: vatData.total_4427,
+      diferenta: vatData.diferenta,
+      current: vatCurrent
     },
     counts: {
       journals: activeJournals.length,

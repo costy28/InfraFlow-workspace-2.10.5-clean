@@ -14,38 +14,19 @@ function registerAdvancedOperationsRoutes(router, middleware) {
     try {
       const accounting = engine.ensureAccounting(req.auth.db);
       const operation = findRecord(accounting.treasury, req.params.uuid, "Operatia bancara nu a fost gasita.");
-      if (operation.status !== "draft") throwHttp(409, "Doar operatiile draft se pot reconcilia.");
-      const invoiceInId = emptyToNull(req.body?.invoice_in_id);
-      const invoiceOutId = emptyToNull(req.body?.invoice_out_id);
-      if (invoiceInId && invoiceOutId) throwHttp(422, "Alege o singura factura.");
-      if (invoiceInId || invoiceOutId) {
-        const incoming = Boolean(invoiceOutId);
-        if ((incoming && operation.tip_operatie !== "incasare") || (!incoming && operation.tip_operatie !== "plata")) throwHttp(422, "Sensul operatiei nu corespunde facturii selectate.");
-        const invoice = incoming
-          ? accounting.invoicesOut.find((item) => String(item.id) === String(invoiceOutId))
-          : accounting.invoicesIn.find((item) => String(item.id) === String(invoiceInId));
-        if (!invoice) throwHttp(404, "Factura selectata nu a fost gasita.");
-        const partyId = incoming ? invoice.client_id : invoice.furnizor_id;
-        const party = accounting.thirdParties.find((item) => String(item.id) === String(partyId));
-        operation.invoice_in_id = incoming ? null : invoice.id;
-        operation.invoice_out_id = incoming ? invoice.id : null;
-        operation.tert_id = partyId;
-        operation.cont_corespondent = incoming ? party?.cont_analitic_client || "4111" : party?.cont_analitic_furnizor || "401";
-        operation.corelare_tip = "factura";
-        operation.reconciliation_score = Number(req.body?.score || 100);
-      } else {
-        operation.invoice_in_id = null;
-        operation.invoice_out_id = null;
-        operation.corelare_tip = normalizeCorrelation(req.body?.corelare_tip);
-        operation.cont_corespondent = String(req.body?.cont_corespondent || operation.cont_corespondent || "473");
-      }
-      operation.corelare_observatii = String(req.body?.observatii || "Reconciliere confirmata manual").trim();
-      operation.corelare_de = req.auth.user?.id || "";
-      operation.corelare_la = new Date().toISOString();
-      operation.updated_at = new Date().toISOString();
+      confirmBankOperation(accounting, operation, req.body || {}, req.auth.user);
       addAudit(req.auth.db, req.auth.user, "accounting_bank_reconcile", `${operation.nr_document || operation.id} / ${operation.corelare_tip}`);
       writeDb(req.auth.db);
       res.status(200).json({ operation });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/bank-reconciliation/auto-confirm", requireAccountingPost, (req, res, next) => {
+    try {
+      const result = autoReconcileBank(req.auth.db, req.auth.user, req.body?.perioada, req.body?.min_score);
+      addAudit(req.auth.db, req.auth.user, "accounting_bank_reconcile_batch", `${result.perioada} / ${result.confirmed} confirmate`);
+      writeDb(req.auth.db);
+      res.status(200).json(result);
     } catch (error) { next(error); }
   });
 
@@ -181,7 +162,10 @@ function buildBankReconciliation(db, periodValue) {
   const rows = accounting.treasury.filter((item) => Number(item.an) === an && Number(item.luna) === luna && item.tip === "banca" && item.status !== "anulat");
   const operations = rows.map((operation) => {
     const suggestions = operation.invoice_in_id || operation.invoice_out_id ? [] : invoiceSuggestions(accounting, operation);
-    return { ...operation, suggestions, best_suggestion: suggestions[0] || null };
+    const best = suggestions[0] || null;
+    const spread = best ? best.score - Number(suggestions[1]?.score || 0) : 0;
+    const autoEligible = operation.status === "draft" && operation.corelare_tip === "neclasificat" && best && best.score >= 85 && (!suggestions[1] || spread >= 15);
+    return { ...operation, suggestions, best_suggestion: best, suggestion_spread: spread, auto_eligible: Boolean(autoEligible) };
   });
   return {
     perioada: `${an}-${String(luna).padStart(2, "0")}`,
@@ -190,9 +174,67 @@ function buildBankReconciliation(db, periodValue) {
       total: operations.length,
       reconciled: operations.filter((item) => item.corelare_tip !== "neclasificat").length,
       pending: operations.filter((item) => item.corelare_tip === "neclasificat").length,
-      suggested: operations.filter((item) => item.best_suggestion).length
+      suggested: operations.filter((item) => item.best_suggestion).length,
+      auto_eligible: operations.filter((item) => item.auto_eligible).length,
+      ambiguous: operations.filter((item) => item.best_suggestion && !item.auto_eligible && item.corelare_tip === "neclasificat").length
     }
   };
+}
+
+function autoReconcileBank(db, user, periodValue, minimumScore = 85) {
+  const report = buildBankReconciliation(db, periodValue);
+  const accounting = engine.ensureAccounting(db);
+  const minScore = Math.max(60, Math.min(100, Number(minimumScore || 85)));
+  const result = { perioada: report.perioada, minimum_score: minScore, confirmed: 0, ambiguous: 0, without_suggestion: 0, skipped: 0, operations: [] };
+  report.operations.forEach((row) => {
+    if (row.status !== "draft" || row.corelare_tip !== "neclasificat") { result.skipped += 1; return; }
+    if (!row.best_suggestion) { result.without_suggestion += 1; return; }
+    const uniqueEnough = !row.suggestions[1] || row.suggestion_spread >= 15;
+    if (row.best_suggestion.score < minScore || !uniqueEnough) { result.ambiguous += 1; return; }
+    const operation = accounting.treasury.find((item) => String(item.uuid || item.id) === String(row.uuid || row.id));
+    confirmBankOperation(accounting, operation, {
+      [row.best_suggestion.tip === "intrare" ? "invoice_in_id" : "invoice_out_id"]: row.best_suggestion.invoice_id,
+      score: row.best_suggestion.score,
+      observatii: `Reconciliere automata ${row.best_suggestion.score}%`
+    }, user);
+    result.confirmed += 1;
+    result.operations.push({ operation_id: operation.id, operation_uuid: operation.uuid, invoice_id: row.best_suggestion.invoice_id, score: row.best_suggestion.score });
+  });
+  return result;
+}
+
+function confirmBankOperation(accounting, operation, body, user) {
+  if (!operation) throwHttp(404, "Operatia bancara nu a fost gasita.");
+  if (operation.status !== "draft") throwHttp(409, "Doar operatiile draft se pot reconcilia.");
+  const invoiceInId = emptyToNull(body.invoice_in_id);
+  const invoiceOutId = emptyToNull(body.invoice_out_id);
+  if (invoiceInId && invoiceOutId) throwHttp(422, "Alege o singura factura.");
+  if (invoiceInId || invoiceOutId) {
+    const incoming = Boolean(invoiceOutId);
+    if ((incoming && operation.tip_operatie !== "incasare") || (!incoming && operation.tip_operatie !== "plata")) throwHttp(422, "Sensul operatiei nu corespunde facturii selectate.");
+    const invoice = incoming
+      ? accounting.invoicesOut.find((item) => String(item.id) === String(invoiceOutId))
+      : accounting.invoicesIn.find((item) => String(item.id) === String(invoiceInId));
+    if (!invoice) throwHttp(404, "Factura selectata nu a fost gasita.");
+    const partyId = incoming ? invoice.client_id : invoice.furnizor_id;
+    const party = accounting.thirdParties.find((item) => String(item.id) === String(partyId));
+    operation.invoice_in_id = incoming ? null : invoice.id;
+    operation.invoice_out_id = incoming ? invoice.id : null;
+    operation.tert_id = partyId;
+    operation.cont_corespondent = incoming ? party?.cont_analitic_client || "4111" : party?.cont_analitic_furnizor || "401";
+    operation.corelare_tip = "factura";
+    operation.reconciliation_score = Number(body.score || 100);
+  } else {
+    operation.invoice_in_id = null;
+    operation.invoice_out_id = null;
+    operation.corelare_tip = normalizeCorrelation(body.corelare_tip);
+    operation.cont_corespondent = String(body.cont_corespondent || operation.cont_corespondent || "473");
+  }
+  operation.corelare_observatii = String(body.observatii || "Reconciliere confirmata manual").trim();
+  operation.corelare_de = user?.id || "";
+  operation.corelare_la = new Date().toISOString();
+  operation.updated_at = new Date().toISOString();
+  return operation;
 }
 
 function invoiceSuggestions(accounting, operation) {
@@ -288,5 +330,7 @@ function throwHttp(status, message) { const error = new Error(message); error.st
 
 module.exports = registerAdvancedOperationsRoutes;
 module.exports.buildBankReconciliation = buildBankReconciliation;
+module.exports.autoReconcileBank = autoReconcileBank;
+module.exports.confirmBankOperation = confirmBankOperation;
 module.exports.buildStockValuation = buildStockValuation;
 module.exports.buildCarryforwardCheck = buildCarryforwardCheck;
