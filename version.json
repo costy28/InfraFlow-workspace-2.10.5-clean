@@ -1,5 +1,5 @@
 {
-  "version": "2.12.157",
+  "version": "2.12.159",
   "date": "2026-06-28",
-  "changelog": "## v2.12.157 - 2026-06-28\n### Declaratii fiscale, D112 si e-Factura\n- D112 are diagnostic de pregatire pentru angajati, CNP, contracte, salarii si pontaje validate.\n- Registrul fiscal include D300, D394 si D112, cu arhivarea separata a declaratiei si recipisei.\n- Export Excel pentru controlul datelor sursa D112, fara calcule salariale fiscale inventate.\n- Diagnosticul SAF-T include taxe, mijloace fixe, trezorerie si schema oficiala.\n- Statusul e-Factura se sincronizeaza inapoi in factura contabila.\n- Exporturile D300/D394 din interfata cer validare interna prealabila.\n- 44 de teste contabile si build frontend verificate."
+  "changelog": "## v2.12.159 - 2026-06-28\n### Transfer angajat intre departamente\n- Departamentul poate fi schimbat direct din editarea angajatului.\n- Transferul cere data si motiv si este pastrat in istoricul fisei.\n- MSSQL actualizeaza sincron department_id si department_cod.\n- Istoricul transferurilor este disponibil in JSON si MSSQL.\n- 50 de teste de regresie si build frontend verificate."
 }

@@ -33,6 +33,7 @@ const AlerteLegislative = lazy(() => import('./pages/accounting/AlerteLegislativ
 const SabloaneNote = lazy(() => import('./pages/accounting/SabloaneNote'))
 const ContabilitateAnaf = lazy(() => import('./pages/accounting/ContabilitateAnaf'))
 const ContabilitateControlling = lazy(() => import('./pages/accounting/ContabilitateControlling'))
+const Salarizare = lazy(() => import('./pages/accounting/Salarizare'))
 const FlotaPage = lazy(() => import('./pages/modules/FlotaPage'))
 const FoaieParcursPage = lazy(() => import('./pages/FoaieParcursPage'))
 const FcUtilajePage = lazy(() => import('./pages/FcUtilajePage'))
@@ -110,6 +111,7 @@ export default function App() {
         <Route path="/contabilitate/profit-pierdere" element={<WithLayout><PermissionGuard permission="accounting:reports"><ProfitPierdere /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/anaf/*" element={<WithLayout><PermissionGuard permission="anaf:view"><ContabilitateAnaf /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ContabilitateControlling /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/salarizare" element={<WithLayout><PermissionGuard permission="hr:salary_view"><Salarizare /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/fisa-cont/:simbol" element={<WithLayout><PermissionGuard permission="accounting:reports"><FisaCont /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/inchidere-luna" element={<WithLayout><PermissionGuard permission="accounting:close"><InchidereLuna /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/alerte" element={<WithLayout><PermissionGuard permission="accounting:view"><AlerteLegislative /></PermissionGuard></WithLayout>} />

@@ -11,6 +11,7 @@ const settlements = require("../modules/accounting/settlement-routes");
 const accountingRoutes = require("../modules/accounting/accounting-routes");
 const procurement = require("../modules/procurement/routes");
 const anafRoutes = require("../modules/anaf/routes");
+const payrollRoutes = require("../modules/hr/payroll-routes");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -74,13 +75,65 @@ test("pregatirea D112 verifica angajatii contractele si pontajul", () => {
   db.hr = {
     employees: [{ id: 1, marca: "150", nume: "Popescu", prenume: "Ion", cnp: "1800101223344", activ: true }],
     contracts: [{ id: 1, employee_id: 1, nr_contract: "CIM-1", data_start: "2026-01-01", salariu_baza: 5000, status: "activ" }],
-    timeSheets: [{ id: 1, employee_id: 1, data: "2026-06-02", ore_lucrate: 8, validat: true }]
+    timeSheets: [{ id: 1, employee_id: 1, data: "2026-06-02", ore_lucrate: 8, validat: true }],
+    payrollRuns: [{ id: 1, uuid: "payroll-1", luna: "2026-06", status: "validat", employee_count: 1, error_count: 0, total_gross: 5000, total_net: 2925 }],
+    payrollLines: [{ id: 1, run_id: 1, employee_id: 1, gross: 5000, net: 2925 }]
   };
   const report = declarations.buildD112Readiness(db, { perioada: "2026-06" });
   assert.equal(report.ready, true);
   assert.equal(report.final_export_available, false);
   assert.equal(report.totals.employees, 1);
   assert.equal(report.employees[0].hours, 8);
+  assert.equal(report.payroll.employee_count, 1);
+});
+
+test("D112 asteapta statul salarial validat", () => {
+  const { db } = fixture();
+  db.hr = {
+    employees: [{ id: 1, nume: "Popescu", cnp: "1800101223344", activ: true }],
+    contracts: [{ id: 1, employee_id: 1, data_start: "2026-01-01", salariu_baza: 5000, status: "activ" }],
+    timeSheets: [{ id: 1, employee_id: 1, data: "2026-06-02", ore_lucrate: 8, validat: true }]
+  };
+  const report = declarations.buildD112Readiness(db, { perioada: "2026-06" });
+  assert.equal(report.ready_inputs, true);
+  assert.equal(report.ready, false);
+  assert.equal(report.status, "asteapta_stat_salarial");
+});
+
+test("calculul salarial standard determina contributiile si netul", () => {
+  const hr = payrollRoutes.ensurePayroll({ hr: {} });
+  hr.contracts.push({ id: 1, employee_id: 1, data_start: "2026-01-01", salariu_baza: 5000, norma_ore: 8, status: "activ" });
+  const days = payrollRoutes.workdaysInMonth("2026-06");
+  for (let day = 1, added = 0; added < days; day += 1) {
+    const date = new Date(2026, 5, day);
+    if (![0, 6].includes(date.getDay())) {
+      hr.timeSheets.push({ employee_id: 1, data: `2026-06-${String(day).padStart(2, "0")}`, ore_lucrate: 8, validat: true });
+      added += 1;
+    }
+  }
+  const line = payrollRoutes.calculatePayrollLine(hr, { id: 1, nume: "Popescu", prenume: "Ion", cnp: "1800101223344" }, "2026-06", hr.payrollProfiles[0], {});
+  assert.equal(line.gross, 5000);
+  assert.equal(line.cas, 1250);
+  assert.equal(line.cass, 500);
+  assert.equal(line.income_tax, 325);
+  assert.equal(line.net, 2925);
+  assert.equal(line.cam, 112.5);
+  assert.equal(line.employer_cost, 5112.5);
+  assert.deepEqual(line.errors, []);
+});
+
+test("checklistul fiscal semnaleaza lipsa salarizarii si e-Factura", () => {
+  const { db, accounting } = fixture();
+  db.hr = {
+    employees: [{ id: 1, nume: "Popescu", cnp: "1800101223344", activ: true }],
+    contracts: [{ id: 1, employee_id: 1, data_start: "2026-01-01", salariu_baza: 5000, status: "activ" }],
+    timeSheets: [{ id: 1, employee_id: 1, data: "2026-06-02", ore_lucrate: 8, validat: true }]
+  };
+  accounting.invoicesOut.push({ id: 1, uuid: "out-1", an: 2026, luna: 6, status: "validat" });
+  const report = declarations.buildFiscalMonthCheck(db, { perioada: "2026-06" });
+  assert.equal(report.ready, false);
+  assert.equal(report.checks.find((item) => item.key === "d112").ok, false);
+  assert.equal(report.checks.find((item) => item.key === "efactura_unlinked").ok, false);
 });
 
 test("pregatirea D112 explica datele lipsa fara a calcula contributii", () => {
@@ -100,6 +153,34 @@ test("statusul e-Factura se propaga inapoi in factura contabila", () => {
   assert.equal(linked.efactura_id, 70);
   assert.equal(linked.efactura_status, "acceptata");
   assert.equal(accounting.invoicesOut[0].status, "validat");
+});
+
+test("validarea e-Factura respinge documentul incomplet", () => {
+  const errors = anafRoutes.validateEInvoice({
+    numar_factura: '', data_factura: '2026-06-28', emitent: {}, partener: {}, linii: [],
+    totalFaraTVA: 0, totalTVA: 0, totalCuTVA: 0
+  });
+  assert.ok(errors.some((item) => item.includes("Numarul")));
+  assert.ok(errors.some((item) => item.includes("emitentului")));
+  assert.ok(errors.some((item) => item.includes("cel putin o linie")));
+});
+
+test("validarea e-Factura compara totalul cu factura contabila", () => {
+  const db = { accounting: { invoicesOut: [{ uuid: "out-1", total: 121, tva: 21 }] } };
+  const errors = anafRoutes.validateEInvoice({
+    numar_factura: 'IF-1', data_factura: '2026-06-28',
+    emitent: { cif: 'RO9126534', denumire: 'Emitent' }, partener: { cif: '12345678', denumire: 'Client' },
+    linii: [{ descriere: 'Servicii', cantitate: 1, pretUnitar: 90, cotaTVA: 21, valoareFaraTVA: 90, valoareTVA: 18.9 }],
+    totalFaraTVA: 90, totalTVA: 18.9, totalCuTVA: 108.9, accounting_invoice_uuid: 'out-1'
+  }, db);
+  assert.ok(errors.some((item) => item.includes("Totalul difera")));
+  assert.ok(errors.some((item) => item.includes("TVA-ul difera")));
+});
+
+test("fluxul e-Factura blocheaza sarirea etapelor", () => {
+  assert.doesNotThrow(() => anafRoutes.assertStatusTransition('draft', 'validata', false));
+  assert.throws(() => anafRoutes.assertStatusTransition('draft', 'acceptata', true), /nu este permisa/);
+  assert.throws(() => anafRoutes.assertStatusTransition('acceptata', 'draft', true), /nu este permisa/);
 });
 
 test("diagnosticul SAF-T include schema taxe mijloace fixe si trezorerie", () => {

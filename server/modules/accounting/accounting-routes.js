@@ -620,6 +620,15 @@ router.post("/accounting/invoices-out/:uuid/efactura", requireAccountingPost, (r
     if (!lines.length) {
       lines.push({ nr: 1, descriere: invoice.explicatie || "Servicii", cantitate: 1, unitateMasura: "BUC", pretUnitar: invoice.valoare, cotaTVA: invoice.tva_procent, valoareFaraTVA: invoice.valoare, valoareTVA: invoice.tva });
     }
+    const sourceBase = round(lines.reduce((sum, line) => sum + line.valoareFaraTVA, 0));
+    const sourceVat = round(lines.reduce((sum, line) => sum + line.valoareTVA, 0));
+    const sourceTotal = round(sourceBase + sourceVat);
+    if (existing && existing.status !== "draft") {
+      const changed = Math.abs(Number(existing.totalFaraTVA || 0) - sourceBase) > 0.01
+        || Math.abs(Number(existing.totalTVA || 0) - sourceVat) > 0.01
+        || Math.abs(Number(existing.totalCuTVA || 0) - sourceTotal) > 0.01;
+      if (changed) throwHttp(409, "Factura e-Factura nu mai este draft, iar valorile contabile s-au modificat. Corecteaza mai intai fluxul e-Factura sau devalideaza documentul cu drepturi de administrator.");
+    }
     const record = existing || { id: engine.nextNumericId(db.anaf.invoices), created_at: new Date().toISOString() };
     Object.assign(record, {
       accounting_invoice_id: invoice.id,
@@ -634,9 +643,9 @@ router.post("/accounting/invoices-out/:uuid/efactura", requireAccountingPost, (r
       linii: lines,
       moneda: "RON",
       mentiuni: invoice.explicatie || "",
-      totalFaraTVA: round(lines.reduce((sum, line) => sum + line.valoareFaraTVA, 0)),
-      totalTVA: round(lines.reduce((sum, line) => sum + line.valoareTVA, 0)),
-      totalCuTVA: round(lines.reduce((sum, line) => sum + line.valoareFaraTVA + line.valoareTVA, 0)),
+      totalFaraTVA: sourceBase,
+      totalTVA: sourceVat,
+      totalCuTVA: sourceTotal,
       updated_at: new Date().toISOString()
     });
     if (!existing) db.anaf.invoices.push(record);

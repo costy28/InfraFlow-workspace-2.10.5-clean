@@ -1845,7 +1845,14 @@ router.get('/hr/employees/:id/transfers', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:view')) return
-    if (isMssqlMode()) return sendJson(res, 200, [])
+    if (isMssqlMode()) return sendJson(res, 200, mssqlArray(`
+      SELECT t.*, old_d.denumire AS departament_vechi_nume, new_d.denumire AS departament_nou_nume
+      FROM hr.department_transfers t
+      LEFT JOIN core.departments old_d ON old_d.cod=t.dept_vechi OR CONVERT(nvarchar(80),old_d.id)=t.dept_vechi
+      LEFT JOIN core.departments new_d ON new_d.cod=t.dept_nou OR CONVERT(nvarchar(80),new_d.id)=t.dept_nou
+      WHERE t.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id'))
+      ORDER BY t.data_transfer DESC,t.id DESC
+      FOR JSON PATH;`, req.params))
     const hr = ensureHrDb(readDb())
     sendJson(res, 200, hr.departmentTransfers.filter((item) => String(item.employee_id) === String(req.params.id)))
   } catch (error) {
@@ -1860,9 +1867,19 @@ router.post('/hr/employees/:id/transfer', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:manage')) return
     const db = readDb()
     if (isMssqlMode()) {
-      const newDept = departmentCod(db, req.body.department_nou || req.body.dept_nou || req.body.departament_nou)
+      const rawDepartment = req.body.department_nou || req.body.dept_nou || req.body.departament_nou
+      const newDept = departmentCod(db, rawDepartment)
       if (!newDept) return sendJson(res, 400, { error: 'Departamentul nou este obligatoriu.' })
-      const result = mssqlObject(`DECLARE @old nvarchar(80)=(SELECT COALESCE(department_cod,CONVERT(nvarchar(80),department_id)) FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id'))); UPDATE hr.employees SET department_cod=JSON_VALUE(@p,'$.dept_nou'), updated_at=sysdatetime() WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')); INSERT INTO hr.department_transfers (uuid,employee_id,dept_vechi,dept_nou,data_transfer,motiv,aprobat_de) VALUES (JSON_VALUE(@p,'$.uuid'),TRY_CONVERT(int,JSON_VALUE(@p,'$.id')),@old,JSON_VALUE(@p,'$.dept_nou'),TRY_CONVERT(date,JSON_VALUE(@p,'$.data_transfer')),NULLIF(JSON_VALUE(@p,'$.motiv'),''),JSON_VALUE(@p,'$.aprobat_de')); SELECT TOP 1 * FROM hr.department_transfers WHERE id=SCOPE_IDENTITY() FOR JSON PATH;`, { id: req.params.id, uuid: crypto.randomUUID(), dept_nou: newDept, data_transfer: req.body.data_transfer || todayIso(), motiv: req.body.motiv || '', aprobat_de: auth.user.id })
+      const result = mssqlObject(`
+        DECLARE @employeeId int=TRY_CONVERT(int,JSON_VALUE(@p,'$.id'));
+        DECLARE @old nvarchar(80)=(SELECT COALESCE(NULLIF(department_cod,N''),CONVERT(nvarchar(80),department_id)) FROM hr.employees WHERE id=@employeeId);
+        DECLARE @newId int=TRY_CONVERT(int,JSON_VALUE(@p,'$.department_id'));
+        IF @newId IS NULL SELECT TOP 1 @newId=id FROM core.departments WHERE LOWER(cod)=LOWER(JSON_VALUE(@p,'$.dept_nou'));
+        IF @newId IS NULL BEGIN RAISERROR(N'Departamentul selectat nu exista.',16,1); RETURN; END;
+        UPDATE hr.employees SET department_id=@newId,department_cod=JSON_VALUE(@p,'$.dept_nou'),updated_at=sysdatetime() WHERE id=@employeeId;
+        INSERT INTO hr.department_transfers (uuid,employee_id,dept_vechi,dept_nou,data_transfer,motiv,aprobat_de)
+        VALUES (JSON_VALUE(@p,'$.uuid'),@employeeId,@old,JSON_VALUE(@p,'$.dept_nou'),TRY_CONVERT(date,JSON_VALUE(@p,'$.data_transfer')),NULLIF(JSON_VALUE(@p,'$.motiv'),''),JSON_VALUE(@p,'$.aprobat_de'));
+        SELECT TOP 1 * FROM hr.department_transfers WHERE id=SCOPE_IDENTITY() FOR JSON PATH;`, { id: req.params.id, uuid: crypto.randomUUID(), department_id: rawDepartment, dept_nou: newDept, data_transfer: req.body.data_transfer || todayIso(), motiv: req.body.motiv || '', aprobat_de: auth.user.id })
       addAudit(db, auth.user, 'hr_employee_transferred', `${req.params.id}: ${newDept}`)
       writeDb(db)
       return sendJson(res, 200, { transfer: result })

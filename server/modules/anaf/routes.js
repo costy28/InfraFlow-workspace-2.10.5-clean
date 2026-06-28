@@ -10,7 +10,12 @@ const { requirePermission } = require('../../core/permissions')
 const { readDb, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const https = require('https')
+const fs = require('fs')
+const path = require('path')
+const crypto = require('crypto')
+const multer = require('multer')
 const router = Router()
+const responseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
 function sendJson(res, status, data) {
   res.status(status).json(data)
@@ -130,6 +135,62 @@ function recalculateInvoice(invoice) {
   invoice.totalFaraTVA = Number(invoice.linii.reduce((sum, line) => sum + line.valoareFaraTVA, 0).toFixed(2))
   invoice.totalTVA = Number(invoice.linii.reduce((sum, line) => sum + line.valoareTVA, 0).toFixed(2))
   invoice.totalCuTVA = Number((invoice.totalFaraTVA + invoice.totalTVA).toFixed(2))
+}
+
+function validateEInvoice(invoice, db = {}) {
+  const errors = []
+  if (!String(invoice.numar_factura || '').trim()) errors.push('Numarul facturii este obligatoriu.')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(invoice.data_factura || ''))) errors.push('Data facturii este invalida.')
+  if (!String(invoice.emitent?.denumire || '').trim()) errors.push('Denumirea emitentului lipseste.')
+  if (normalizeRomanianCif(invoice.emitent?.cif).length < 2) errors.push('CIF-ul emitentului lipseste sau este invalid.')
+  if (!String(invoice.partener?.denumire || '').trim()) errors.push('Denumirea partenerului lipseste.')
+  if (normalizeRomanianCif(invoice.partener?.cif).length < 2) errors.push('CIF-ul partenerului lipseste sau este invalid.')
+  if (!Array.isArray(invoice.linii) || !invoice.linii.length) errors.push('Factura trebuie sa contina cel putin o linie.')
+  ;(invoice.linii || []).forEach((line, index) => {
+    if (!String(line.descriere || '').trim()) errors.push(`Linia ${index + 1}: descrierea este obligatorie.`)
+    if (!(Number(line.cantitate) > 0)) errors.push(`Linia ${index + 1}: cantitatea trebuie sa fie pozitiva.`)
+    if (!(Number(line.pretUnitar) >= 0)) errors.push(`Linia ${index + 1}: pretul unitar este invalid.`)
+    if (!Number.isFinite(Number(line.cotaTVA)) || Number(line.cotaTVA) < 0) errors.push(`Linia ${index + 1}: cota TVA este invalida.`)
+  })
+  const base = Number((invoice.linii || []).reduce((sum, line) => sum + Number(line.valoareFaraTVA || 0), 0).toFixed(2))
+  const vat = Number((invoice.linii || []).reduce((sum, line) => sum + Number(line.valoareTVA || 0), 0).toFixed(2))
+  if (Math.abs(base - Number(invoice.totalFaraTVA || 0)) > 0.01) errors.push('Totalul fara TVA nu corespunde liniilor.')
+  if (Math.abs(vat - Number(invoice.totalTVA || 0)) > 0.01) errors.push('Totalul TVA nu corespunde liniilor.')
+  if (invoice.accounting_invoice_uuid) {
+    const source = (db.accounting?.invoicesOut || []).find(item => item.uuid === invoice.accounting_invoice_uuid)
+    if (!source) errors.push('Factura contabila sursa nu mai exista.')
+    else {
+      if (Math.abs(Number(source.total || 0) - Number(invoice.totalCuTVA || 0)) > 0.01) errors.push('Totalul difera de factura contabila sursa.')
+      if (Math.abs(Number(source.tva || 0) - Number(invoice.totalTVA || 0)) > 0.01) errors.push('TVA-ul difera de factura contabila sursa.')
+    }
+  }
+  return errors
+}
+
+function archiveInvoiceXml(invoice) {
+  const xml = generateUblXml(invoice)
+  const period = String(invoice.data_factura || localDate()).slice(0, 7)
+  const directory = path.join(process.cwd(), 'storage', 'anaf', 'efactura-out', period)
+  fs.mkdirSync(directory, { recursive: true })
+  const safeNumber = String(invoice.numar_factura || invoice.id).replace(/[^a-zA-Z0-9._-]/g, '_')
+  const filePath = path.join(directory, `${safeNumber}-${invoice.id}.xml`)
+  fs.writeFileSync(filePath, xml, 'utf8')
+  invoice.xml_path = filePath
+  invoice.xml_sha256 = crypto.createHash('sha256').update(xml).digest('hex')
+  invoice.xml_archived_at = nowIso()
+  return xml
+}
+
+function assertStatusTransition(from, to, admin) {
+  if (from === to) return
+  const allowed = {
+    draft: ['validata'],
+    validata: ['trimisa_spv', ...(admin ? ['draft'] : [])],
+    trimisa_spv: ['acceptata', 'respinsa'],
+    respinsa: [...(admin ? ['draft'] : [])],
+    acceptata: []
+  }
+  if (!(allowed[from] || []).includes(to)) throw Object.assign(new Error(`Tranzitia ${from} -> ${to} nu este permisa.`), { status: 409 })
 }
 
 function isAdmin(user) {
@@ -275,10 +336,12 @@ router.patch('/anaf/invoices/:id', (req, res, next) => {
     if (editsContent && invoice.status !== 'draft' && !(invoice.status === 'validata' && isAdmin(auth.user))) {
       return sendJson(res, 409, { error: 'Doar facturile draft pot fi editate. Factura validată poate fi editată doar de Admin.' })
     }
-    if (body.status !== undefined) {
+    const previousStatus = invoice.status
+    const requestedStatus = body.status
+    if (requestedStatus !== undefined) {
       const allowedStatuses = ['draft', 'validata', 'trimisa_spv', 'acceptata', 'respinsa']
-      if (!allowedStatuses.includes(body.status)) return sendJson(res, 422, { error: 'Status e-Factura invalid.' })
-      invoice.status = body.status
+      if (!allowedStatuses.includes(requestedStatus)) return sendJson(res, 422, { error: 'Status e-Factura invalid.' })
+      assertStatusTransition(previousStatus, requestedStatus, isAdmin(auth.user))
     }
     if (body.numar_factura !== undefined) invoice.numar_factura = String(body.numar_factura || '').trim()
     if (body.data_factura !== undefined) invoice.data_factura = body.data_factura
@@ -304,11 +367,63 @@ router.patch('/anaf/invoices/:id', (req, res, next) => {
       invoice.linii = normalizeInvoiceLines(auth.db, body.linii)
       recalculateInvoice(invoice)
     }
+    if (requestedStatus === 'validata') {
+      const errors = validateEInvoice(invoice, auth.db)
+      if (errors.length) return sendJson(res, 422, { error: 'Factura nu poate fi validata.', errors })
+      archiveInvoiceXml(invoice)
+    }
+    if (requestedStatus !== undefined) invoice.status = requestedStatus
     invoice.updated_at = nowIso()
     syncAccountingInvoiceStatus(auth.db, invoice)
     addAudit(auth.db, auth.user, editsContent ? 'anaf_factura_editata' : 'anaf_factura_status', `${invoice.numar_factura} / ${invoice.status}`)
     writeDb(auth.db)
     sendJson(res, 200, { invoice })
+  } catch (err) { next(err) }
+})
+
+router.post('/anaf/invoices/:id/response', responseUpload.single('file'), (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:manage')) return
+    const anaf = ensureAnafDb(auth.db)
+    const invoice = anaf.invoices.find(i => String(i.id) === String(req.params.id))
+    if (!invoice) return sendJson(res, 404, { error: 'Factura inexistenta.' })
+    const status = String(req.body?.status || '')
+    if (!['acceptata', 'respinsa'].includes(status)) return sendJson(res, 422, { error: 'Rezultatul SPV trebuie sa fie acceptata sau respinsa.' })
+    if (!['trimisa_spv', status].includes(invoice.status)) return sendJson(res, 409, { error: 'Marcheaza mai intai factura ca trimisa in SPV.' })
+    if (!req.file) return sendJson(res, 400, { error: 'Ataseaza recipisa sau raspunsul primit din SPV.' })
+    const extension = path.extname(req.file.originalname || '').toLowerCase()
+    if (!['.pdf', '.xml', '.zip', '.txt'].includes(extension)) return sendJson(res, 422, { error: 'Sunt acceptate doar fisiere PDF, XML, ZIP sau TXT.' })
+    const period = String(invoice.data_factura || localDate()).slice(0, 7)
+    const directory = path.join(process.cwd(), 'storage', 'anaf', 'efactura-responses', period)
+    fs.mkdirSync(directory, { recursive: true })
+    const fileName = `${invoice.id}-${Date.now()}${extension}`
+    const filePath = path.join(directory, fileName)
+    fs.writeFileSync(filePath, req.file.buffer)
+    invoice.status = status
+    invoice.response_path = filePath
+    invoice.response_original_name = req.file.originalname
+    invoice.response_sha256 = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
+    invoice.response_receipt_no = String(req.body?.receipt_no || '').trim()
+    invoice.response_message = String(req.body?.message || '').trim()
+    invoice.response_at = nowIso()
+    invoice.updated_at = invoice.response_at
+    syncAccountingInvoiceStatus(auth.db, invoice)
+    addAudit(auth.db, auth.user, 'anaf_factura_raspuns_spv', `${invoice.numar_factura} / ${status} / ${invoice.response_receipt_no || '-'}`)
+    writeDb(auth.db)
+    sendJson(res, 200, { invoice })
+  } catch (err) { next(err) }
+})
+
+router.get('/anaf/invoices/:id/response', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'anaf:view')) return
+    const invoice = ensureAnafDb(auth.db).invoices.find(i => String(i.id) === String(req.params.id))
+    if (!invoice?.response_path || !fs.existsSync(invoice.response_path)) return sendJson(res, 404, { error: 'Raspunsul SPV nu a fost gasit.' })
+    res.download(invoice.response_path, invoice.response_original_name || path.basename(invoice.response_path))
   } catch (err) { next(err) }
 })
 
@@ -442,3 +557,5 @@ function generateUblXml(inv) {
 module.exports = router
 module.exports.lookupAnafPublic = lookupAnaf
 module.exports.syncAccountingInvoiceStatus = syncAccountingInvoiceStatus
+module.exports.validateEInvoice = validateEInvoice
+module.exports.assertStatusTransition = assertStatusTransition

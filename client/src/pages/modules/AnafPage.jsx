@@ -71,6 +71,8 @@ export default function AnafPage() {
   const [implicitVat, setImplicitVat] = useState(21)
   const [filterStatus, setFilterStatus] = useState('')
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()))
+  const [responseInvoice, setResponseInvoice] = useState(null)
+  const [responseForm, setResponseForm] = useState({ status: 'acceptata', receipt_no: '', message: '', file: null })
 
   // ── Parteneri ──
   const [partners, setPartners] = useState([])
@@ -218,8 +220,37 @@ export default function AnafPage() {
       await api.patch(`/anaf/invoices/${invoice.id}`, { status })
       await loadInvoices()
     } catch (err) {
-      setError(err.response?.data?.error || 'Statusul nu a putut fi actualizat.')
+      const details = err.response?.data?.errors?.join(' ')
+      setError(details || err.response?.data?.error || 'Statusul nu a putut fi actualizat.')
     }
+  }
+
+  async function saveSpvResponse(event) {
+    event.preventDefault()
+    if (!responseForm.file) { setError('Ataseaza recipisa sau raspunsul primit din SPV.'); return }
+    try {
+      const body = new FormData()
+      body.append('status', responseForm.status)
+      body.append('receipt_no', responseForm.receipt_no)
+      body.append('message', responseForm.message)
+      body.append('file', responseForm.file)
+      await api.post(`/anaf/invoices/${responseInvoice.id}/response`, body)
+      setResponseInvoice(null)
+      setResponseForm({ status: 'acceptata', receipt_no: '', message: '', file: null })
+      await loadInvoices()
+    } catch (err) { setError(err.response?.data?.error || 'Raspunsul SPV nu a putut fi arhivat.') }
+  }
+
+  async function downloadSpvResponse(invoice) {
+    try {
+      const response = await api.get(`/anaf/invoices/${invoice.id}/response`, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = invoice.response_original_name || `Raspuns_SPV_${invoice.numar_factura}`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) { setError(err.response?.data?.error || 'Raspunsul SPV nu a putut fi descarcat.') }
   }
 
   // ── Linii factură ──
@@ -401,6 +432,7 @@ export default function AnafPage() {
                           <FileText size={14} className="text-slate-400" />
                           {inv.numar_factura}
                         </div>
+                        {inv.accounting_invoice_uuid ? <div className="mt-1 text-[11px] text-emerald-700">Legata la contabilitate</div> : null}
                       </td>
                       <td className="px-3 py-2 text-slate-600">{inv.data_factura}</td>
                       <td className="px-3 py-2">
@@ -445,6 +477,13 @@ export default function AnafPage() {
                               Marcheaz. trimisă
                             </button>
                           )}
+                          {inv.status === 'trimisa_spv' && (
+                            <button
+                              onClick={() => { setResponseInvoice(inv); setResponseForm({ status: 'acceptata', receipt_no: '', message: '', file: null }) }}
+                              className="rounded-md border border-primary-200 bg-primary-50 px-2 py-1 text-xs text-primary-700 hover:bg-primary-100"
+                            >Raspuns SPV</button>
+                          )}
+                          {inv.response_path && <button onClick={() => downloadSpvResponse(inv)} className="rounded-md border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50">Recipisa</button>}
                         </div>
                       </td>
                     </tr>
@@ -596,6 +635,15 @@ export default function AnafPage() {
               {invSaving ? 'Se salvează...' : editingInvoice ? '💾 Salvează modificările' : '💾 Salvează factura'}
             </Button>}
           </div>
+        </form>
+      </Modal>
+      <Modal open={Boolean(responseInvoice)} title={`Raspuns SPV - ${responseInvoice?.numar_factura || ''}`} onClose={() => setResponseInvoice(null)} size="md">
+        <form className="grid gap-3" onSubmit={saveSpvResponse}>
+          <Select label="Rezultat" value={responseForm.status} onChange={event => setResponseForm(current => ({ ...current, status: event.target.value }))} options={[{ value: 'acceptata', label: 'Acceptata' }, { value: 'respinsa', label: 'Respinsa' }]} />
+          <Input label="Numar recipisa" value={responseForm.receipt_no} onChange={event => setResponseForm(current => ({ ...current, receipt_no: event.target.value }))} />
+          <Input label="Mesaj / observatii" value={responseForm.message} onChange={event => setResponseForm(current => ({ ...current, message: event.target.value }))} />
+          <label className="grid gap-1 text-sm"><span className="font-medium text-slate-700">Fisier PDF, XML, ZIP sau TXT</span><input type="file" accept=".pdf,.xml,.zip,.txt" onChange={event => setResponseForm(current => ({ ...current, file: event.target.files?.[0] || null }))} /></label>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setResponseInvoice(null)}>Renunta</Button><Button type="submit">Arhiveaza raspunsul</Button></div>
         </form>
       </Modal>
     </div>

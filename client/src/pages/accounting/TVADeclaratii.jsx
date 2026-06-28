@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -9,7 +9,8 @@ import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { AccountingShell, DropdownMenu, Info, Table, currentMonth, statusTone } from './accounting-shared'
 export function TVADeclaratii() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [tab, setTab] = useState(searchParams.get('tab') || 'control')
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [status, setStatus] = useState('')
   const [cota, setCota] = useState('')
@@ -28,6 +29,8 @@ export function TVADeclaratii() {
   const [schemaFile, setSchemaFile] = useState(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [fiscalCheck, setFiscalCheck] = useState({ checks: [], ready: false })
+  const [calendar, setCalendar] = useState({ obligations: [] })
 
   useEffect(() => { load() }, [month, status, cota])
 
@@ -46,8 +49,10 @@ export function TVADeclaratii() {
       api.get('/accounting/d112/readiness', { params: params() }),
       api.get('/accounting/declarations/history', { params: params() }),
       api.get('/accounting/declarations/register', { params: params() }),
-      api.get('/accounting/declarations/schemas')
-    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, d112Res, historyRes, registerRes, schemasRes]) => {
+      api.get('/accounting/declarations/schemas'),
+      api.get('/accounting/fiscal/month-check', { params: params() }),
+      api.get('/accounting/fiscal/calendar', { params: { an: month.slice(0, 4) } })
+    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, d112Res, historyRes, registerRes, schemasRes, fiscalRes, calendarRes]) => {
       setData(d300Res.data || { decont: { randuri: [] } })
       setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
       setReadiness(readinessRes.data || { checks: [], declarations: [] })
@@ -57,6 +62,8 @@ export function TVADeclaratii() {
       setDeclarationHistory(historyRes.data?.runs || [])
       setDeclarationRegister(registerRes.data || { declarations: [] })
       setSchemas(schemasRes.data?.schemas || [])
+      setFiscalCheck(fiscalRes.data || { checks: [], ready: false })
+      setCalendar(calendarRes.data || { obligations: [] })
     }).catch(err => {
       setData({ decont: { randuri: [] } })
       setJournal({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
@@ -67,8 +74,18 @@ export function TVADeclaratii() {
       setDeclarationHistory([])
       setDeclarationRegister({ declarations: [] })
       setSchemas([])
-      setError(err.response?.data?.error || 'Nu am putut incarca TVA / D300.')
+      setFiscalCheck({ checks: [], ready: false })
+      setCalendar({ obligations: [] })
+      setError(err.response?.data?.error || 'Nu am putut incarca centrul fiscal.')
     })
+  }
+
+  function changeTab(value) {
+    setTab(value)
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', value)
+    next.set('luna', month)
+    setSearchParams(next, { replace: true })
   }
 
   async function validateDeclaration(code) {
@@ -176,8 +193,8 @@ export function TVADeclaratii() {
   return (
     <AccountingShell
       active="tva"
-      title="TVA / D300"
-      subtitle="Jurnal TVA cumparari si vanzari, sumar de lucru pentru decont."
+      title="Centru fiscal"
+      subtitle="Control lunar, declaratii, e-Factura si legatura cu salarizarea."
       actions={(
         <DropdownMenu align="right" label="Actiuni" items={[
             { label: 'Reincarca TVA', onClick: load },
@@ -198,6 +215,45 @@ export function TVADeclaratii() {
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      <Card density="compact">
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['control', 'Control lunar'], ['d300', 'D300 / TVA'], ['d394', 'D394'],
+            ['d112', 'D112'], ['saft', 'SAF-T'], ['registru', 'Registru']
+          ].map(([value, label]) => <Button key={value} size="sm" variant={tab === value ? 'primary' : 'secondary'} onClick={() => changeTab(value)}>{label}</Button>)}
+          <Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-[var(--control-px)] text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" to="/contabilitate/anaf">e-Factura</Link>
+        </div>
+      </Card>
+      {tab === 'control' ? (
+        <>
+          <Card>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><h3 className="text-base font-semibold text-slate-900">Checklist fiscal {month}</h3><p className="text-sm text-slate-500">Blocajele sunt legate direct de zona in care trebuie rezolvate.</p></div>
+              <Badge tone={fiscalCheck.ready ? 'success' : 'warning'}>{fiscalCheck.ready ? 'pregatit' : 'necesita verificari'}</Badge>
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {(fiscalCheck.checks || []).map(check => (
+                <Link key={check.key} to={check.to} className={`rounded-md border px-3 py-3 text-sm transition hover:shadow-sm ${check.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : check.severity === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-red-200 bg-red-50 text-red-900'}`}>
+                  <div className="flex items-center justify-between gap-2"><strong>{check.label}</strong><span>{check.ok ? 'OK' : 'De rezolvat'}</span></div>
+                  <p className="mt-1 text-xs opacity-80">{check.message}</p>
+                </Link>
+              ))}
+            </div>
+          </Card>
+          <Card>
+            <div><h3 className="text-base font-semibold text-slate-900">Calendar fiscal orientativ</h3><p className="text-sm text-slate-500">Termenul configurat este ziua {calendar.termen_zi || 25}; verifica exceptiile in calendarul oficial ANAF.</p></div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {(calendar.obligations || []).filter(item => item.perioada === month).map(item => (
+                <div key={item.code} className="rounded-md border border-slate-200 px-3 py-3">
+                  <div className="flex items-center justify-between"><strong>{item.code}</strong><Badge tone={['depus', 'acceptat'].includes(item.status) ? 'success' : 'gray'}>{item.status}</Badge></div>
+                  <div className="mt-1 text-xs text-slate-500">Termen orientativ: {item.termen_orientativ}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </>
+      ) : null}
+      {tab !== 'control' ? <>
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h3 className="text-base font-semibold text-slate-900">Scheme oficiale ANAF</h3><p className="text-sm text-slate-500">Versiunile XSD/ZIP sunt păstrate cu amprentă SHA-256. Validarea internă nu este prezentată ca validare ANAF fără schema corectă.</p></div>
@@ -457,6 +513,7 @@ export function TVADeclaratii() {
           ))}
         </Table>
       </div>
+      </> : null}
     </AccountingShell>
   )
 }

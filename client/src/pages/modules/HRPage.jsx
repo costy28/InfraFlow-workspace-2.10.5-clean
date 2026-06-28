@@ -226,6 +226,7 @@ export default function HRPage() {
   const [employeeDetails, setEmployeeDetails] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({})
+  const [transferHistory, setTransferHistory] = useState([])
   const [employeeForm, setEmployeeForm] = useState(emptyEmployeeForm)
   const [employeeModal, setEmployeeModal] = useState(false)
   const [importModal, setImportModal] = useState(false)
@@ -350,15 +351,17 @@ export default function HRPage() {
     setPhotoFile(null)
     setEmployeeEquipment(null)
     try {
-      const [detailsRes, coRes, equipmentRes] = await Promise.all([
+      const [detailsRes, coRes, equipmentRes, transfersRes] = await Promise.all([
         api.get(`/hr/employees/${employee.id}`),
         api.get(`/hr/employees/${employee.id}/co-balance`).catch(() => ({ data: null })),
         api.get(`/hr/echipamente/angajat/${employee.id}`).catch(() => ({ data: null })),
+        api.get(`/hr/employees/${employee.id}/transfers`).catch(() => ({ data: [] })),
       ])
       setEmployeeDetails(detailsRes.data)
-      setEditForm({ ...detailsRes.data })
+      setEditForm({ ...detailsRes.data, department_transfer_date: new Date().toISOString().slice(0, 10), department_transfer_reason: '' })
       setCoBalance(coRes.data)
       setEmployeeEquipment(equipmentRes.data)
+      setTransferHistory(arrayFrom(transfersRes.data, ['transfers', 'items']))
     } catch {
       setEmployeeDetails(employee)
       setEditForm({ ...employee })
@@ -1094,7 +1097,23 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
     try {
       const payload = { ...editForm }
       delete payload.photo_url
+      delete payload.department_transfer_date
+      delete payload.department_transfer_reason
+      const previousDepartment = String(employeeDetails.department_id || '')
+      const nextDepartment = String(editForm.department_id || '')
+      const departmentChanged = previousDepartment !== nextDepartment
+      delete payload.department_id
+      if (departmentChanged && !nextDepartment) throw new Error('Alege departamentul nou.')
+      if (departmentChanged && !String(editForm.department_transfer_reason || '').trim()) throw new Error('Completeaza motivul transferului.')
       await api.patch(`/hr/employees/${selectedEmployee.id}`, payload)
+
+      if (departmentChanged) {
+        await api.post(`/hr/employees/${selectedEmployee.id}/transfer`, {
+          department_nou: nextDepartment,
+          data_transfer: editForm.department_transfer_date || new Date().toISOString().slice(0, 10),
+          motiv: editForm.department_transfer_reason
+        })
+      }
 
       if (photoFile) {
         const fd = new FormData()
@@ -1111,15 +1130,19 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
       setEditMode(false)
       await load()
-      const response = await api.get(`/hr/employees/${selectedEmployee.id}`)
+      const [response, transfersResponse] = await Promise.all([
+        api.get(`/hr/employees/${selectedEmployee.id}`),
+        api.get(`/hr/employees/${selectedEmployee.id}/transfers`).catch(() => ({ data: [] }))
+      ])
       // Păstrează cache-busting dacă photo_url vine fără timestamp
       const details = response.data
       if (details.photo_url && !details.photo_url.includes('?t=')) {
         details.photo_url = details.photo_url + '?t=' + Date.now()
       }
       setEmployeeDetails(details)
+      setTransferHistory(arrayFrom(transfersResponse.data, ['transfers', 'items']))
     } catch (err) {
-      setError(err.response?.data?.error || 'Eroare la salvare.')
+      setError(err.response?.data?.error || err.message || 'Eroare la salvare.')
     }
   }
 
@@ -2153,6 +2176,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input label="Funcția" value={editForm.functia || ''} onChange={e => setEditForm({...editForm, functia: e.target.value})} />
                     <Input label="Cod COR" value={editForm.functie_cor || ''} onChange={e => setEditForm({...editForm, functie_cor: e.target.value})} />
+                    <Select label="Departament" value={String(editForm.department_id || '')} onChange={e => setEditForm({...editForm, department_id: e.target.value})} options={[{ value: '', label: 'Alege departament' }, ...departments]} />
                     <Select label="Nivel studii" value={editForm.nivel_studii || ''} onChange={e => setEditForm({...editForm, nivel_studii: e.target.value})} options={[
                       { value: '', label: 'Alege nivel' },
                       { value: 'primar', label: 'Primar' },
@@ -2165,6 +2189,12 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                     <Input label="Zile CO / an" type="number" value={editForm.zile_co_drept ?? 21} onChange={e => setEditForm({...editForm, zile_co_drept: Number(e.target.value)})} />
                     <Input label="Expiră contract" type="date" value={editForm.data_expirare_contract || ''} onChange={e => setEditForm({...editForm, data_expirare_contract: e.target.value})} />
                   </div>
+                  {String(editForm.department_id || '') !== String(employeeDetails.department_id || '') ? (
+                    <div className="mt-3 grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 sm:grid-cols-2">
+                      <Input label="Data transferului" type="date" value={editForm.department_transfer_date || ''} onChange={e => setEditForm({...editForm, department_transfer_date: e.target.value})} required />
+                      <Input label="Motiv transfer" value={editForm.department_transfer_reason || ''} onChange={e => setEditForm({...editForm, department_transfer_reason: e.target.value})} placeholder="Transfer intern, reorganizare..." required />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="rounded-lg border border-slate-200 p-3">
                   <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">💰 Date financiare <Badge tone="warning" size="sm">Confidențial</Badge></div>
@@ -2274,6 +2304,14 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 </div>
               </div>
             )}
+            {transferHistory.length ? (
+              <div className="rounded-lg border border-slate-200 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Istoric departamente</div>
+                <div className="grid gap-2">
+                  {transferHistory.map(item => <div key={item.uuid || item.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span><strong>{item.departament_vechi_nume || item.dept_vechi || 'Fara departament'}</strong> → <strong>{item.departament_nou_nume || item.dept_nou}</strong></span><span className="text-xs text-slate-500">{item.data_transfer} · {item.motiv || 'fara motiv'}</span></div>)}
+                </div>
+              </div>
+            ) : null}
             <div className="rounded-lg border border-primary-100 bg-primary-50/40 p-3">
               <div className="mb-3 flex items-center justify-between"><div className="text-xs font-semibold uppercase text-primary-700">🦺 Echipamente și inventar în răspundere</div>{canManageEquipment ? <Button size="sm" onClick={() => { const first = employeeEquipment?.marimi?.[0]; setDotareForm({ angajat_id: employeeDetails.id, tip_id: first?.id || '', marime: first?.marime || '', numar_serie: '', valoare_inventar: first?.valoare_inventar || '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'nou', observatii: '' }); setDotareModal(true) }}>+ Înregistrează dotare nouă</Button> : null}</div>
               {employeeEquipment ? <>

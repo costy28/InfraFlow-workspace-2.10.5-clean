@@ -28,6 +28,18 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
     res.status(200).json(buildD112Readiness(req.auth.db, req.query));
   });
 
+  router.get("/accounting/fiscal/calendar", requireAccountingReports, (req, res, next) => {
+    try {
+      res.status(200).json(buildFiscalCalendar(req.auth.db, req.query));
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/fiscal/month-check", requireAccountingReports, (req, res, next) => {
+    try {
+      res.status(200).json(buildFiscalMonthCheck(req.auth.db, req.query));
+    } catch (error) { next(error); }
+  });
+
   router.get("/accounting/declarations/history", requireAccountingReports, (req, res) => {
     const accounting = engine.ensureAccounting(req.auth.db);
     const [an, luna] = monthParts(req.query.perioada || req.query.luna);
@@ -498,6 +510,8 @@ function buildD112Readiness(db, query = {}) {
   const allEmployees = Array.isArray(hr.employees) ? hr.employees : [];
   const contracts = Array.isArray(hr.contracts) ? hr.contracts : [];
   const timeSheets = Array.isArray(hr.timeSheets) ? hr.timeSheets : [];
+  const payrollRuns = Array.isArray(hr.payrollRuns) ? hr.payrollRuns : [];
+  const payrollLines = Array.isArray(hr.payrollLines) ? hr.payrollLines : [];
   const activeEmployees = allEmployees.filter((item) => item.activ !== false && item.status !== "incetat");
   const issues = [];
   const rows = activeEmployees.map((employee) => {
@@ -531,18 +545,42 @@ function buildD112Readiness(db, query = {}) {
     };
   });
   if (!activeEmployees.length) issues.push(issue("D112", "angajati", "Nu exista angajati activi pentru perioada selectata.", "Verifica nomenclatorul de angajati."));
+  const payrollRun = [...payrollRuns].reverse().find((item) => item.luna === perioada && item.status === "validat" && !item.cancelled_at) || null;
+  const activePayrollLines = payrollRun
+    ? payrollLines.filter((item) => item.run_id === payrollRun.id && !item.cancelled_at)
+    : [];
+  const inputsReady = rows.length > 0 && issues.length === 0;
+  const payrollReady = Boolean(payrollRun && activePayrollLines.length === rows.length && Number(payrollRun.error_count || 0) === 0);
+  if (inputsReady && !payrollReady) {
+    issues.push(issue("D112", "salarizare", "Statul salarial al lunii nu este validat sau nu cuprinde toti angajatii activi.", "Genereaza si valideaza statul din Contabilitate > Salarizare."));
+  }
   const activeSchema = engine.ensureAccounting(db).anafSchemas.find((item) => item.code === "D112" && item.active !== false);
   return {
     perioada,
-    ready: rows.length > 0 && issues.length === 0,
-    status: issues.length ? "date_incomplete" : "pregatit_pentru_calcul_salarial",
+    ready_inputs: inputsReady,
+    ready: inputsReady && payrollReady,
+    status: !inputsReady ? "date_incomplete" : payrollReady ? "pregatit_pentru_mapare_d112" : "asteapta_stat_salarial",
     final_export_available: false,
     active_schema: activeSchema ? { original_name: activeSchema.original_name, sha256: activeSchema.sha256 } : null,
-    note: "Controlul verifica datele sursa. Calculul contributiilor si XML-ul D112 final necesita motorul de salarizare si schema ANAF aplicabila.",
+    note: "Controlul verifica datele sursa si statul salarial validat. XML-ul D112 final necesita in continuare schema ANAF aplicabila.",
+    payroll: payrollRun ? {
+      id: payrollRun.id,
+      uuid: payrollRun.uuid,
+      status: payrollRun.status,
+      employee_count: activePayrollLines.length,
+      total_gross: money(payrollRun.total_gross),
+      total_net: money(payrollRun.total_net),
+      total_cas: money(payrollRun.total_cas),
+      total_cass: money(payrollRun.total_cass),
+      total_income_tax: money(payrollRun.total_income_tax),
+      total_cam: money(payrollRun.total_cam),
+      validated_at: payrollRun.validated_at || null
+    } : null,
     checks: [
       { key: "d112_employees", label: "Angajati si CNP", ok: rows.length > 0 && rows.every((item) => /^\d{13}$/.test(item.cnp)), message: rows.length ? `${rows.filter((item) => /^\d{13}$/.test(item.cnp)).length}/${rows.length} angajati au CNP complet.` : "Nu exista angajati activi." },
       { key: "d112_contracts", label: "Contracte si salarii", ok: rows.length > 0 && rows.every((item) => item.has_contract && item.salary_base > 0), message: `${rows.filter((item) => item.has_contract && item.salary_base > 0).length}/${rows.length} angajati au contract si salariu de baza.` },
-      { key: "d112_timesheets", label: "Pontaj validat", ok: rows.length > 0 && rows.every((item) => item.days > 0 && item.timesheet_validated), message: `${rows.filter((item) => item.days > 0 && item.timesheet_validated).length}/${rows.length} angajati au pontaj validat.` }
+      { key: "d112_timesheets", label: "Pontaj validat", ok: rows.length > 0 && rows.every((item) => item.days > 0 && item.timesheet_validated), message: `${rows.filter((item) => item.days > 0 && item.timesheet_validated).length}/${rows.length} angajati au pontaj validat.` },
+      { key: "d112_payroll", label: "Stat salarial validat", ok: payrollReady, message: payrollReady ? `Stat validat pentru ${activePayrollLines.length} angajati.` : "Genereaza si valideaza statul salarial al lunii." }
     ],
     totals: {
       employees: rows.length,
@@ -553,6 +591,62 @@ function buildD112Readiness(db, query = {}) {
     employees: rows,
     issues
   };
+}
+
+function buildFiscalCalendar(db, query = {}) {
+  const requestedYear = Number(query.an || new Date().getFullYear());
+  if (!Number.isInteger(requestedYear) || requestedYear < 2000 || requestedYear > 2200) throwHttp(400, "Anul fiscal este invalid.");
+  const accounting = engine.ensureAccounting(db);
+  const dueDay = Math.min(28, Math.max(1, Number(db.settings?.fiscal?.due_day || 25)));
+  const obligations = [];
+  for (let month = 1; month <= 12; month += 1) {
+    const period = `${requestedYear}-${String(month).padStart(2, "0")}`;
+    const dueDate = new Date(requestedYear, month, dueDay).toISOString().slice(0, 10);
+    ["D300", "D394", "D112"].forEach((code) => {
+      const run = fiscal.latestRun(accounting.declarationRuns, code, requestedYear, month, ["validat_intern", "exportat", "depus", "respins"]);
+      obligations.push({
+        code,
+        perioada: period,
+        termen_orientativ: dueDate,
+        status: run?.status || "neinceput",
+        receipt_status: run?.receipt_status || null,
+        run_id: run?.id || null
+      });
+    });
+  }
+  return {
+    an: requestedYear,
+    termen_zi: dueDay,
+    orientativ: true,
+    note: "Termenele sunt orientative. Verifica inainte de depunere calendarul fiscal ANAF si eventualele exceptii sau zile nelucratoare.",
+    obligations
+  };
+}
+
+function buildFiscalMonthCheck(db, query = {}) {
+  const accounting = engine.ensureAccounting(db);
+  const [an, luna] = monthParts(query.perioada || query.luna);
+  const perioada = `${an}-${String(luna).padStart(2, "0")}`;
+  const declarations = buildDeclarationReadiness(db, { perioada });
+  const d112 = buildD112Readiness(db, { perioada });
+  const saft = buildSaftReadiness(db, { perioada });
+  const activeStatuses = new Set(["validat", "partial", "achitat", "incasat", "creditata"]);
+  const outgoing = accounting.invoicesOut.filter((item) => Number(item.an) === an && Number(item.luna) === luna && activeStatuses.has(String(item.status || "")));
+  const eInvoices = Array.isArray(db.anaf?.invoices) ? db.anaf.invoices : [];
+  const unlinked = outgoing.filter((invoice) => !eInvoices.some((item) => item.accounting_invoice_uuid === invoice.uuid));
+  const rejected = eInvoices.filter((item) => String(item.data || "").startsWith(perioada) && item.status === "respinsa");
+  const unclassifiedTreasury = accounting.treasury.filter((item) => Number(item.an) === an && Number(item.luna) === luna && item.status === "validat" && item.corelare_tip === "neclasificat");
+  const checks = [
+    { key: "d300", label: "D300", ok: declarations.declarations.find((item) => item.code === "D300")?.status === "pregatit", severity: "error", message: declarations.declarations.find((item) => item.code === "D300")?.description, to: "/contabilitate/tva-d300?tab=d300" },
+    { key: "d394", label: "D394", ok: declarations.declarations.find((item) => item.code === "D394")?.status === "pregatit", severity: "error", message: declarations.declarations.find((item) => item.code === "D394")?.description, to: "/contabilitate/tva-d300?tab=d394" },
+    { key: "d112", label: "D112", ok: d112.ready, severity: "error", message: d112.ready ? "Pontajul si statul salarial validat sunt pregatite." : d112.issues[0]?.message || "D112 necesita verificare.", to: "/contabilitate/tva-d300?tab=d112" },
+    { key: "saft", label: "SAF-T", ok: saft.ready, severity: "warning", message: saft.ready ? `Acoperire tehnica ${saft.coverage}%.` : `Acoperire tehnica ${saft.coverage}%; completarile sunt inca necesare.`, to: "/contabilitate/tva-d300?tab=saft" },
+    { key: "efactura_unlinked", label: "Facturi nelivrate in e-Factura", ok: unlinked.length === 0, severity: "error", message: unlinked.length ? `${unlinked.length} facturi de iesire validate nu sunt legate la e-Factura.` : "Toate facturile validate sunt legate la e-Factura.", to: "/contabilitate/anaf" },
+    { key: "efactura_rejected", label: "e-Factura respinse", ok: rejected.length === 0, severity: "error", message: rejected.length ? `${rejected.length} documente sunt respinse si necesita corectie.` : "Nu exista documente respinse in perioada.", to: "/contabilitate/anaf" },
+    { key: "treasury", label: "Trezorerie corelata", ok: unclassifiedTreasury.length === 0, severity: "error", message: unclassifiedTreasury.length ? `${unclassifiedTreasury.length} operatiuni validate sunt neclasificate.` : "Operatiunile validate sunt corelate.", to: "/contabilitate/trezorerie" }
+  ];
+  const blocking = checks.filter((item) => item.severity === "error" && !item.ok);
+  return { perioada, ready: blocking.length === 0, status: blocking.length ? "needs_attention" : "ready", checks };
 }
 
 function buildSaftReadiness(db, query = {}) {
@@ -670,3 +764,5 @@ module.exports.buildD394Data = buildD394Data;
 module.exports.buildDeclarationReadiness = buildDeclarationReadiness;
 module.exports.buildSaftReadiness = buildSaftReadiness;
 module.exports.buildD112Readiness = buildD112Readiness;
+module.exports.buildFiscalCalendar = buildFiscalCalendar;
+module.exports.buildFiscalMonthCheck = buildFiscalMonthCheck;

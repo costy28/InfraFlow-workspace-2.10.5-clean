@@ -20,7 +20,8 @@ const nav = [
   ['jurnale', '/contabilitate/jurnale', 'Jurnale'],
   ['jurnal', '/contabilitate/registru-jurnal', 'Registru jurnal'],
   ['cartea-mare', '/contabilitate/cartea-mare', 'Cartea Mare'],
-  ['tva', '/contabilitate/tva-d300', 'TVA / D300'],
+  ['tva', '/contabilitate/tva-d300', 'Centru fiscal'],
+  ['salarizare', '/contabilitate/salarizare', 'Salarizare'],
   ['balanta', '/contabilitate/balanta', 'Balanta'],
   ['profit-pierdere', '/contabilitate/profit-pierdere', 'Profit/Pierdere'],
   ['anaf', '/contabilitate/anaf', 'ANAF / e-Factura'],
@@ -45,7 +46,7 @@ const navGroups = [
   },
   {
     label: 'Administrare',
-    keys: ['anaf', 'inchidere', 'sabloane', 'alerte'],
+    keys: ['salarizare', 'anaf', 'inchidere', 'sabloane', 'alerte'],
   },
 ]
 

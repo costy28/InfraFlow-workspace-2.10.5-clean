@@ -1,5 +1,30 @@
 # Changelog
 
+# v2.12.159 - 2026-06-28
+
+## Transfer angajat intre departamente
+
+- Departamentul poate fi schimbat direct din editarea fisei angajatului.
+- Schimbarea cere data si motiv si este inregistrata ca transfer auditat.
+- Fisa angajatului afiseaza istoricul departamentelor.
+- In MSSQL se actualizeaza impreuna `department_id` si `department_cod`, astfel incat filtrele, pontajul si salarizarea folosesc acelasi departament.
+- Istoricul transferurilor este disponibil atat in DB_MODE=json, cat si in DB_MODE=mssql.
+- 50 de teste de regresie si build-ul frontend au fost verificate.
+
+# v2.12.158 - 2026-06-28
+
+## Centru fiscal, salarizare si e-Factura
+
+- Centrul fiscal deschide implicit checklistul lunar si calendarul orientativ pentru D300, D394 si D112.
+- Salarizarea faza 1 calculeaza brutul, sporurile, CAS, CASS, impozitul, retinerile, netul, CAM si costul angajatorului.
+- Profilurile fiscale sunt versionate dupa data intrarii in vigoare, iar cazurile speciale raman marcate pentru verificarea operatorului.
+- Statul salarial poate fi generat, corectat, validat, devalidat cu motiv si exportat in Excel.
+- D112 devine pregatit numai dupa validarea pontajului si a statului salarial pentru toti angajatii activi.
+- e-Factura verifica datele obligatorii, liniile, totalurile si corespondenta cu factura contabila sursa.
+- XML-ul validat si raspunsurile SPV sunt arhivate cu checksum SHA-256 si descarcare autentificata.
+- Schema relationala include tabelele HR pentru profiluri, state si linii salariale.
+- 50 de teste de regresie si build-ul frontend au fost verificate.
+
 # v2.12.157 - 2026-06-28
 
 ## Declaratii fiscale, D112 si e-Factura
