@@ -6,6 +6,8 @@ const snapshots = require("../modules/accounting/period-snapshots");
 const operations = require("../modules/accounting/operations-routes");
 const advancedOperations = require("../modules/accounting/operations-advanced-routes");
 const controls = require("../modules/accounting/accounting-control-routes");
+const settlements = require("../modules/accounting/settlement-routes");
+const accountingRoutes = require("../modules/accounting/accounting-routes");
 const procurement = require("../modules/procurement/routes");
 
 function fixture() {
@@ -319,6 +321,73 @@ test("nota de credit nu poate depasi soldul dupa plati", () => {
   db.procurementReturns = [{ id: "ret3", receipt_id: "r3", requires_credit_note: true, reason: "Retur", lines: [{ material_id: "m1", materialName: "Bitum", cantitate: 1, pret_unitar: 100, cota_tva: 21, valoare: 100, valoare_tva: 21, total: 121 }] }];
   const note = controls.createCreditNoteFromReturn(db, user, "ret3", { nr_document: "NC-3", data: "2026-06-22" });
   assert.throws(() => controls.validateCreditNote(db, user, note.uuid), /depaseste soldul disponibil/);
+});
+
+test("o plata furnizor se aloca pe mai multe facturi", () => {
+  const { db, accounting, user } = fixture();
+  accounting.invoicesIn.push(
+    { id: 21, uuid: "fi21", an: 2026, luna: 6, data: "2026-06-01", nr_document: "F-21", furnizor_id: 1, total: 121, achitat: 0, neachitat: 121, status: "validat" },
+    { id: 22, uuid: "fi22", an: 2026, luna: 6, data: "2026-06-02", nr_document: "F-22", furnizor_id: 1, total: 242, achitat: 0, neachitat: 242, status: "validat" }
+  );
+  accounting.treasury.push({ id: 31, uuid: "tr31", an: 2026, luna: 6, data: "2026-06-20", nr_document: "OP-31", tip_operatie: "plata", suma: 300, tert_id: 1, cont_corespondent: "401", status: "validat", corelare_tip: "neclasificat" });
+  const result = settlements.allocateTreasury(db, user, "tr31", { allocations: [{ invoice_id: 21, suma: 121 }, { invoice_id: 22, suma: 179 }] });
+  assert.equal(result.total, 300);
+  assert.equal(result.settlements.length, 2);
+  assert.equal(result.available, 0);
+  assert.equal(accounting.invoicesIn[0].status, "achitat");
+  assert.equal(accounting.invoicesIn[1].status, "partial");
+  assert.equal(accounting.invoicesIn[1].neachitat, 63);
+  assert.equal(accounting.treasury[0].corelare_tip, "factura");
+});
+
+test("plata respecta soldul ramas dupa nota de credit", () => {
+  const { db, accounting, user } = fixture();
+  accounting.invoicesIn.push({ id: 23, uuid: "fi23", an: 2026, luna: 6, data: "2026-06-01", nr_document: "F-23", furnizor_id: 1, total: 121, credit_total: 60.5, achitat: 0, neachitat: 60.5, status: "partial" });
+  accounting.treasury.push({ id: 32, uuid: "tr32", an: 2026, luna: 6, data: "2026-06-20", nr_document: "OP-32", tip_operatie: "plata", suma: 60.5, tert_id: 1, cont_corespondent: "401", status: "validat", corelare_tip: "neclasificat" });
+  settlements.allocateTreasury(db, user, "tr32", { allocations: [{ invoice_id: 23, suma: 60.5 }] });
+  assert.equal(accounting.invoicesIn[0].achitat, 60.5);
+  assert.equal(accounting.invoicesIn[0].neachitat, 0);
+  assert.equal(accounting.invoicesIn[0].status, "achitat");
+  assert.throws(() => settlements.allocateTreasury(db, user, "tr32", { allocations: [{ invoice_id: 23, suma: 1 }] }), /suma disponibila|disponibila pentru stingere/);
+});
+
+test("stingerea unui avans genereaza nota si poate fi anulata", () => {
+  const { db, accounting, user } = fixture();
+  accounting.thirdParties[0].cont_analitic_furnizor = "401";
+  accounting.invoicesIn.push({ id: 24, uuid: "fi24", an: 2026, luna: 6, data: "2026-06-01", nr_document: "F-24", furnizor_id: 1, total: 121, achitat: 0, neachitat: 121, status: "validat" });
+  const advance = { id: 33, uuid: "tr33", an: 2026, luna: 6, data: "2026-06-20", nr_document: "OP-33", tip_operatie: "plata", suma: 121, tert_id: 1, cont_trezorerie: "5121", cont_corespondent: "409", status: "validat", corelare_tip: "avans" };
+  advance.journal_id = engine.generateJournalFromTreasury(db, user, advance).id;
+  accounting.treasury.push(advance);
+  const result = settlements.allocateTreasury(db, user, "tr33", { allocations: [{ invoice_id: 24, suma: 121 }] });
+  assert.ok(result.journal?.id);
+  assert.equal(accounting.invoicesIn[0].status, "achitat");
+  const reversed = settlements.reverseSettlementGroup(db, user, result.group_uuid, "Test anulare");
+  assert.ok(reversed.journal?.id);
+  assert.equal(accounting.invoicesIn[0].status, "validat");
+  assert.equal(accounting.invoicesIn[0].neachitat, 121);
+  assert.equal(accounting.settlements[0].status, "anulat");
+  assert.equal(accounting.treasury[0].corelare_tip, "avans");
+});
+
+test("jurnalul de cumparari separa notele de credit", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesIn.push({ id: 41, uuid: "fi41", an: 2026, luna: 6, data: "2026-06-01", nr_document: "F-41", furnizor_id: 1, valoare: 100, tva: 21, total: 121, status: "validat" });
+  accounting.creditNotes.push({ id: 42, uuid: "nc42", an: 2026, luna: 6, data: "2026-06-10", nr_document: "NC-42", furnizor_id: 1, valoare: 20, tva: 4.2, total: 24.2, status: "validat" });
+  const report = accountingRoutes.buildClassicJournalsData(db, { perioada: "2026-06" });
+  assert.equal(report.jurnal_cumparari.rows.length, 2);
+  assert.equal(report.jurnal_cumparari.totals.credit_notes, 1);
+  assert.equal(report.jurnal_cumparari.totals.credit_total, 24.2);
+  assert.equal(report.jurnal_cumparari.totals.total, 96.8);
+});
+
+test("nota de credit draft blocheaza inchiderea lunii", () => {
+  const { db, accounting } = fixture();
+  accounting.creditNotes.push({ id: 51, uuid: "nc51", an: 2026, luna: 6, data: "2026-06-10", nr_document: "NC-51", furnizor_id: 1, total: 24.2, status: "draft" });
+  accounting.periods.push({ id: 1, an: 2026, luna: 6, status: "deschisa", tva_verificat_la: new Date().toISOString() });
+  const report = accountingRoutes.periodCheck(db, 2026, 6);
+  assert.equal(report.checks.can_close, false);
+  assert.ok(report.drafts.some((item) => item.categorie === "Nota de credit"));
+  assert.equal(report.counts.credit_notes, 1);
 });
 
 test("parserul UBL extrage furnizorul, liniile si totalul", async () => {

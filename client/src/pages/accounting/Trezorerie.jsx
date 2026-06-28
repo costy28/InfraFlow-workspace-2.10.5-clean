@@ -35,6 +35,10 @@ export function Trezorerie() {
   const [journalModal, setJournalModal] = useState(false)
   const [journalData, setJournalData] = useState(null)
   const [journalLoading, setJournalLoading] = useState(false)
+  const [settlementModal, setSettlementModal] = useState(false)
+  const [settlementData, setSettlementData] = useState(null)
+  const [settlementAmounts, setSettlementAmounts] = useState({})
+  const [settlementLoading, setSettlementLoading] = useState(false)
   const [serverSummary, setServerSummary] = useState({ advances: {} })
   const tertById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
   const invoiceChoices = useMemo(() => {
@@ -330,6 +334,12 @@ export function Trezorerie() {
     if ((Object.prototype.hasOwnProperty.call(patch, 'invoice_in_id') && !patch.invoice_in_id) || (Object.prototype.hasOwnProperty.call(patch, 'invoice_out_id') && !patch.invoice_out_id)) {
       if (!next.invoice_in_id && !next.invoice_out_id && next.corelare_tip === 'factura') next.corelare_tip = 'neclasificat'
     }
+    if (patch.corelare_tip === 'avans' && !next.invoice_in_id && !next.invoice_out_id) {
+      next.cont_corespondent = next.tip_operatie === 'incasare' ? '419' : '409'
+    }
+    if (patch.corelare_tip === 'neclasificat' && ['409', '419'].includes(next.cont_corespondent)) {
+      next.cont_corespondent = next.tip_operatie === 'incasare' ? '4111' : '401'
+    }
     setForm(next)
   }
 
@@ -498,6 +508,74 @@ export function Trezorerie() {
     }
   }
 
+  async function openSettlement(row) {
+    setSettlementLoading(true)
+    setSettlementData(null)
+    setSettlementAmounts({})
+    setError('')
+    setSettlementModal(true)
+    try {
+      const res = await api.get(`/accounting/treasury/${row.uuid}/settlement-preview`)
+      setSettlementData(res.data)
+    } catch (err) {
+      setSettlementModal(false)
+      setError(errorText(err, 'Operația nu poate fi pregătită pentru stingerea facturilor.'))
+    } finally {
+      setSettlementLoading(false)
+    }
+  }
+
+  function allocateOldestFirst() {
+    let available = money(settlementData?.totals?.available)
+    const next = {}
+    for (const invoice of settlementData?.invoices || []) {
+      if (available <= 0) break
+      const amount = Math.min(available, money(invoice.rest))
+      if (amount > 0) next[invoice.id] = amount.toFixed(2)
+      available = money(available - amount)
+    }
+    setSettlementAmounts(next)
+  }
+
+  async function submitSettlement() {
+    const allocations = Object.entries(settlementAmounts)
+      .map(([invoice_id, suma]) => ({ invoice_id, suma: money(suma) }))
+      .filter(item => item.suma > 0)
+    if (!allocations.length) {
+      setError('Completează cel puțin o sumă de alocat pe factură.')
+      return
+    }
+    setSettlementLoading(true)
+    setError('')
+    try {
+      await api.post(`/accounting/treasury/${settlementData.treasury.uuid}/allocate`, { allocations })
+      setSettlementModal(false)
+      setMessage(`Au fost stinse ${allocations.length} facturi. Restul nealocat rămâne avans.`)
+      load()
+    } catch (err) {
+      setError(errorText(err, 'Stingerea facturilor nu a putut fi salvată.'))
+    } finally {
+      setSettlementLoading(false)
+    }
+  }
+
+  async function reverseSettlement(groupUuid) {
+    setSettlementLoading(true)
+    setError('')
+    try {
+      await api.post(`/accounting/settlement-groups/${groupUuid}/reverse`, { motiv: 'Corecție alocare facturi' })
+      const res = await api.get(`/accounting/treasury/${settlementData.treasury.uuid}/settlement-preview`)
+      setSettlementData(res.data)
+      setSettlementAmounts({})
+      setMessage('Grupul de stingeri a fost anulat, iar soldurile facturilor au fost refăcute.')
+      load()
+    } catch (err) {
+      setError(errorText(err, 'Stingerea nu a putut fi anulată. Verifică dacă luna este deschisă.'))
+    } finally {
+      setSettlementLoading(false)
+    }
+  }
+
   async function classifyTreasury(row, type) {
     setActionLoading(`classify-${row.uuid}`)
     setError('')
@@ -543,6 +621,7 @@ export function Trezorerie() {
     const rowMonth = row.balance_month || row.data?.slice(0, 7) || month
     const canValidate = row.status === 'draft'
     const canDevalidate = row.status === 'validat'
+    const canAllocate = row.status === 'validat' && row.tert_id && !row.linked_invoice && money(row.available_total ?? row.suma - money(row.allocated_total)) > 0
     const bestSuggestion = (row.suggested_matches || [])[0]
     const canSettleAdvance = row.status === 'validat' && row.corelare_tip === 'avans' && !row.linked_invoice && bestSuggestion
     const invoiceLink = row.linked_invoice
@@ -554,6 +633,7 @@ export function Trezorerie() {
       canValidate ? { label: 'Editeaza operatia', onClick: () => openEdit(row) } : null,
       canValidate && bestSuggestion ? { label: `Leaga factura sugerata ${bestSuggestion.document}`, onClick: () => attachSuggestedInvoice(row, bestSuggestion) } : null,
       canSettleAdvance ? { label: `Stinge avans cu ${bestSuggestion.document}`, onClick: () => settleAdvance(row, bestSuggestion) } : null,
+      canAllocate ? { label: 'Aloca pe mai multe facturi', onClick: () => openSettlement(row) } : null,
       canValidate ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
       canValidate ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
       !row.linked_invoice && row.tert_id ? { label: 'Marcheaza ca avans', onClick: () => classifyTreasury(row, 'avans') } : null,
@@ -735,6 +815,11 @@ export function Trezorerie() {
                   </Badge>
                 </div>
               ) : null}
+              {money(row.allocated_total) > 0 ? (
+                <div className="mt-1 text-xs text-emerald-700">
+                  alocat {formatMoney(row.allocated_total)} · disponibil {formatMoney(row.available_total)}
+                </div>
+              ) : null}
               {!row.linked_invoice && row.suggested_matches?.length ? (
                 <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
                   Posibil: {row.suggested_matches[0].document} · {formatMoney(row.suggested_matches[0].rest)} · {row.suggested_matches[0].motiv}
@@ -858,6 +943,70 @@ export function Trezorerie() {
             </div>
           </div>
         )}
+      </Modal>
+      <Modal open={settlementModal} title="Alocare plată pe facturi" onClose={() => setSettlementModal(false)}>
+        {settlementLoading && !settlementData ? (
+          <div className="py-8 text-center text-sm text-slate-500">Se pregătesc facturile deschise...</div>
+        ) : settlementData ? (
+          <div className="grid gap-4">
+            {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Card density="compact"><div className="text-xs text-slate-500">Valoare operație</div><div className="font-semibold">{formatMoney(settlementData.totals.operation)}</div></Card>
+              <Card density="compact"><div className="text-xs text-slate-500">Deja alocat</div><div className="font-semibold">{formatMoney(settlementData.totals.allocated)}</div></Card>
+              <Card density="compact"><div className="text-xs text-slate-500">Disponibil</div><div className="font-semibold text-primary-800">{formatMoney(settlementData.totals.available)}</div></Card>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Facturi deschise</h3>
+                <p className="text-sm text-slate-500">Poți împărți suma între facturile aceluiași terț.</p>
+              </div>
+              <Button type="button" size="sm" variant="secondary" onClick={allocateOldestFirst}>Distribuie după scadență</Button>
+            </div>
+            <Table headers={['Document', 'Data', 'Scadență', 'Rest', 'Alocă']}>
+              {(settlementData.invoices || []).map(invoice => (
+                <tr key={invoice.id}>
+                  <td className="px-3 py-2 font-semibold">{invoice.document}</td>
+                  <td className="px-3 py-2">{invoice.data || '-'}</td>
+                  <td className="px-3 py-2">{invoice.data_scadenta || '-'}</td>
+                  <td className="px-3 py-2 text-right">{formatMoney(invoice.rest)}</td>
+                  <td className="px-3 py-2">
+                    <input
+                      aria-label={`Alocare ${invoice.document}`}
+                      className="w-32 rounded-md border border-slate-300 px-2 py-1 text-right text-sm"
+                      type="number"
+                      min="0"
+                      max={invoice.rest}
+                      step="0.01"
+                      value={settlementAmounts[invoice.id] || ''}
+                      onChange={event => setSettlementAmounts(current => ({ ...current, [invoice.id]: event.target.value }))}
+                    />
+                  </td>
+                </tr>
+              ))}
+              {(settlementData.invoices || []).length ? null : <tr><td className="px-3 py-5 text-center text-slate-500" colSpan={5}>Nu există facturi deschise pentru acest terț.</td></tr>}
+            </Table>
+            {(settlementData.settlements || []).length ? (
+              <div className="grid gap-2">
+                <h3 className="text-base font-semibold text-slate-900">Alocări existente</h3>
+                <Table headers={['Data', 'Factură', 'Suma', 'Sursa', 'Acțiuni']}>
+                  {(settlementData.settlements || []).map(item => (
+                    <tr key={item.uuid}>
+                      <td className="px-3 py-2">{item.data || '-'}</td>
+                      <td className="px-3 py-2">{item.invoice_document || '-'}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(item.suma)}</td>
+                      <td className="px-3 py-2"><Badge tone={item.source_type === 'avans' ? 'warning' : 'success'}>{item.source_type}</Badge></td>
+                      <td className="px-3 py-2"><Button type="button" size="sm" variant="secondary" onClick={() => reverseSettlement(item.group_uuid)}>Anulează grupul</Button></td>
+                    </tr>
+                  ))}
+                </Table>
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setSettlementModal(false)}>Închide</Button>
+              <Button type="button" loading={settlementLoading} disabled={!settlementData.totals.available || !(settlementData.invoices || []).length} onClick={submitSettlement}>Salvează stingerea</Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </AccountingShell>
   )

@@ -102,7 +102,7 @@ export function JurnaleClasice() {
       </div>
       {(data.warnings || []).length ? <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{data.warnings.join(' ')}</div> : null}
       <div className="grid gap-4 xl:grid-cols-2">
-        <JournalInvoiceTable title="Jurnal cumparari" rows={data.jurnal_cumparari?.rows || []} partyLabel="Furnizor" />
+        <JournalInvoiceTable title="Jurnal cumparari" rows={data.jurnal_cumparari?.rows || []} partyLabel="Furnizor" totals={data.jurnal_cumparari?.totals || {}} />
         <JournalInvoiceTable title="Jurnal vanzari" rows={data.jurnal_vanzari?.rows || []} partyLabel="Client" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
@@ -113,14 +113,18 @@ export function JurnaleClasice() {
   )
 }
 
-function JournalInvoiceTable({ title, rows, partyLabel }) {
+function JournalInvoiceTable({ title, rows, partyLabel, totals = {} }) {
   return (
     <div className="grid gap-2">
-      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-      <Table headers={['Data', 'Document', partyLabel, 'Baza', 'TVA', 'Total', 'Status']}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+        {totals.credit_notes ? <Badge tone="info">{totals.credit_notes} note de credit · {formatMoney(totals.credit_total)}</Badge> : null}
+      </div>
+      <Table headers={['Data', 'Tip', 'Document', partyLabel, 'Baza', 'TVA', 'Total', 'Status']}>
         {rows.map(row => (
           <tr key={row.uuid || row.id}>
             <td className="px-3 py-2">{row.data}</td>
+            <td className="px-3 py-2"><Badge tone={row.document_type === 'nota_credit' ? 'info' : 'neutral'}>{row.document_type === 'nota_credit' ? 'Notă credit' : 'Factură'}</Badge></td>
             <td className="px-3 py-2">{row.nr_document || row.numar || '-'}</td>
             <td className="px-3 py-2">{row.tert || '-'}</td>
             <td className="px-3 py-2 text-right">{formatMoney(row.valoare || 0)}</td>

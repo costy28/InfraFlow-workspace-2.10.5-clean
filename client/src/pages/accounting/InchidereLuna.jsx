@@ -129,7 +129,7 @@ export function InchidereLuna() {
                 </div>
               </div>
               <div className="text-sm text-slate-500">
-                Note: {data.counts?.journals || 0} · Intrari: {data.counts?.invoices_in || 0} · Iesiri: {data.counts?.invoices_out || 0} · Trezorerie: {data.counts?.treasury || 0}
+                Note: {data.counts?.journals || 0} · Intrari: {data.counts?.invoices_in || 0} · Note credit: {data.counts?.credit_notes || 0} · Stingeri: {data.counts?.settlements || 0} · Trezorerie: {data.counts?.treasury || 0}
               </div>
             </div>
           </Card>

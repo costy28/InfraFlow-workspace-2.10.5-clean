@@ -12,6 +12,7 @@ const periodSnapshots = require("./period-snapshots");
 const registerOperationsRoutes = require("./operations-routes");
 const registerAdvancedOperationsRoutes = require("./operations-advanced-routes");
 const registerAccountingControlRoutes = require("./accounting-control-routes");
+const registerSettlementRoutes = require("./settlement-routes");
 
 const router = Router();
 const importUpload = multer({
@@ -538,8 +539,8 @@ router.post("/accounting/invoices-in/:uuid/pay", requireAccountingPost, (req, re
     treasury.journal_id = journal.id;
     treasury.status = "validat";
     invoice.achitat = round(Number(invoice.achitat || 0) + Number(treasury.suma || 0));
-    invoice.neachitat = round(invoice.total - invoice.achitat);
-    invoice.status = invoice.neachitat <= 0 ? "achitat" : "partial";
+    invoice.neachitat = round(Math.max(0, Number(invoice.total || 0) - Number(invoice.credit_total || 0) - Number(invoice.achitat || 0)));
+    invoice.status = invoice.neachitat <= 0 ? (Number(invoice.credit_total || 0) >= Number(invoice.total || 0) - 0.01 ? "creditata" : "achitat") : "partial";
     addAudit(req.auth.db, req.auth.user, "accounting_invoice_in_pay", `${invoice.nr_document} / ${treasury.suma}`);
     writeDb(req.auth.db);
     sendJson(res, 200, { invoice, treasury, journal });
@@ -1847,8 +1848,8 @@ function applyTreasuryInvoiceEffect(db, treasury) {
   if (!link) return;
   if (link.tip === "intrare") {
     link.invoice.achitat = round(Number(link.invoice.achitat || 0) + Number(treasury.suma || 0));
-    link.invoice.neachitat = round(Number(link.invoice.total || 0) - Number(link.invoice.achitat || 0));
-    link.invoice.status = link.invoice.neachitat <= 0 ? "achitat" : "partial";
+    link.invoice.neachitat = round(Math.max(0, Number(link.invoice.total || 0) - Number(link.invoice.credit_total || 0) - Number(link.invoice.achitat || 0)));
+    link.invoice.status = link.invoice.neachitat <= 0 ? (Number(link.invoice.credit_total || 0) >= Number(link.invoice.total || 0) - 0.01 ? "creditata" : "achitat") : "partial";
   } else {
     link.invoice.incasat = round(Number(link.invoice.incasat || 0) + Number(treasury.suma || 0));
     link.invoice.neincasat = round(Number(link.invoice.total || 0) - Number(link.invoice.incasat || 0));
@@ -1860,6 +1861,8 @@ function applyTreasuryInvoiceEffect(db, treasury) {
 function devalidateTreasury(db, user, treasury, reason = "") {
   if (treasury.status !== "validat") throwHttp(409, "Doar operatiile validate se pot devalida.");
   if (!treasury.journal_id) throwHttp(409, "Operatia nu are nota contabila atasata.");
+  const activeSettlements = engine.ensureAccounting(db).settlements.filter((item) => String(item.treasury_id) === String(treasury.id) && item.status === "activ");
+  if (activeSettlements.length) throwHttp(409, `Operatia are ${activeSettlements.length} alocari active. Anuleaza mai intai stingerea facturilor.`);
   engine.checkPeriodOpen(db, treasury.an, treasury.luna);
   const journal = engine.devalidateJournal(db, user, treasury.journal_id, reason);
   treasury.status = "draft";
@@ -1880,9 +1883,9 @@ function reverseTreasuryInvoiceEffect(db, treasury) {
     const invoice = accounting.invoicesIn.find((item) => String(item.id) === String(treasury.invoice_in_id));
     if (invoice) {
       invoice.achitat = round(Math.max(0, Number(invoice.achitat || 0) - Number(treasury.suma || 0)));
-      invoice.neachitat = round(Number(invoice.total || 0) - Number(invoice.achitat || 0));
-      invoice.status = invoice.neachitat <= 0 ? "achitat" : "partial";
-      if (invoice.achitat <= 0) invoice.status = "validat";
+      invoice.neachitat = round(Math.max(0, Number(invoice.total || 0) - Number(invoice.credit_total || 0) - Number(invoice.achitat || 0)));
+      invoice.status = invoice.neachitat <= 0 ? (Number(invoice.credit_total || 0) >= Number(invoice.total || 0) - 0.01 ? "creditata" : "achitat") : "partial";
+      if (invoice.achitat <= 0 && invoice.neachitat > 0) invoice.status = "validat";
       invoice.updated_at = new Date().toISOString();
     }
   }
@@ -2396,6 +2399,20 @@ function thirdPartyDetail(db, tip, id) {
       };
     })
     .sort((a, b) => String(b.data || "").localeCompare(String(a.data || "")));
+  const settlements = accounting.settlements
+    .filter((item) => item.status !== "anulat" && String(item.tert_id || "") === String(tert.id))
+    .map((item) => {
+      const treasury = accounting.treasury.find((row) => String(row.id) === String(item.treasury_id));
+      const invoice = item.invoice_in_id
+        ? accounting.invoicesIn.find((row) => String(row.id) === String(item.invoice_in_id))
+        : accounting.invoicesOut.find((row) => String(row.id) === String(item.invoice_out_id));
+      return {
+        ...item,
+        treasury_document: treasury?.nr_document || treasury?.id || "",
+        invoice_document: invoice?.nr_document || invoice?.numar || invoice?.id || ""
+      };
+    })
+    .sort((a, b) => String(b.data || b.created_at || "").localeCompare(String(a.data || a.created_at || "")));
   const totals = {
     total: round(invoices.reduce((sum, item) => sum + item.total, 0)),
     paid: round(invoices.reduce((sum, item) => sum + item.paid, 0)),
@@ -2407,19 +2424,26 @@ function thirdPartyDetail(db, tip, id) {
     overdue_count: open.filter((item) => item.overdue).length,
     treasury_in: round(movements.filter((item) => item.tip_operatie === "incasare").reduce((sum, item) => sum + item.suma, 0)),
     treasury_out: round(movements.filter((item) => item.tip_operatie === "plata").reduce((sum, item) => sum + item.suma, 0)),
-    treasury_count: movements.length
+    treasury_count: movements.length,
+    settlement_total: round(settlements.reduce((sum, item) => sum + Number(item.suma || 0), 0)),
+    settlement_count: settlements.length
   };
+  const account = tip === "client" ? tert.cont_analitic_client : tert.cont_analitic_furnizor;
+  const statementYear = Number(String(today()).slice(0, 4));
+  const statement = account ? engine.ledger(db, account, `${statementYear}-01-01`, today()) : null;
   const procurement = tip === "furnizor" ? supplierProcurementLifecycle(db, accounting, tert, invoices) : null;
   return {
     tert,
     tip,
-    account: tip === "client" ? tert.cont_analitic_client : tert.cont_analitic_furnizor,
+    account,
+    statement: statement ? { year: statementYear, sold_initial: statement.sold_initial, debit: statement.total_debit, credit: statement.total_credit, sold_final: statement.sold_final } : null,
     totals,
     confirmation: latestBalanceConfirmation(accounting, tip, tert.id),
     confirmations: balanceConfirmationsFor(accounting, tip, tert.id).slice(0, 10),
     invoices,
     openInvoices: open,
     treasury: movements,
+    settlements,
     creditNotes,
     procurement
   };
@@ -2443,6 +2467,7 @@ function supplierProcurementLifecycle(db, accounting, tert, invoices) {
     const orderInvoices = accounting.invoicesIn.filter((item) => linkedInvoiceIds.has(String(item.id)));
     const orderReturns = returns.filter((item) => orderReceipts.some((receipt) => String(receipt.id) === String(item.receipt_id)));
     const payments = accounting.treasury.filter((item) => item.status === "validat" && orderInvoices.some((invoice) => String(invoice.id) === String(item.invoice_in_id)));
+    const allocations = accounting.settlements.filter((item) => item.status === "activ" && orderInvoices.some((invoice) => String(invoice.id) === String(item.invoice_in_id)));
     const missingStep = !orderReceipts.length ? "Inregistreaza receptia NIR"
       : !orderInvoices.length ? "Leaga sau creeaza factura furnizor"
         : orderInvoices.some((invoice) => ["draft", "devalidat"].includes(invoice.status)) ? "Valideaza factura"
@@ -2453,7 +2478,7 @@ function supplierProcurementLifecycle(db, accounting, tert, invoices) {
       date: order.date || order.data || "", status: order.status || "", value: Number(order.value || order.valoare || order.total || 0),
       receptions: orderReceipts.length, reception_total: round(orderReceipts.reduce((sum, item) => sum + Number(item.total || 0), 0)),
       invoices: orderInvoices.length, invoice_total: round(orderInvoices.reduce((sum, item) => sum + Number(item.total || 0), 0)),
-      payments: payments.length, paid_total: round(payments.reduce((sum, item) => sum + Number(item.suma || 0), 0)),
+      payments: payments.length + allocations.length, paid_total: round(payments.reduce((sum, item) => sum + Number(item.suma || 0), 0) + allocations.reduce((sum, item) => sum + Number(item.suma || 0), 0)),
       returns: orderReturns.length, return_total: round(orderReturns.reduce((sum, item) => sum + Number(item.total || 0), 0)),
       missing_step: missingStep, complete: missingStep === "Circuit finalizat"
     };
@@ -2665,6 +2690,10 @@ function exportThirdPartyDetail(res, db, tip, id) {
     ["Cod", detail.tert.cod || ""],
     ["CUI", detail.tert.cui || ""],
     ["Analitic", detail.account || ""],
+    ["Sold initial an", detail.statement?.sold_initial || 0],
+    ["Rulaj debit an", detail.statement?.debit || 0],
+    ["Rulaj credit an", detail.statement?.credit || 0],
+    ["Sold contabil", detail.statement?.sold_final || 0],
     ["Total facturat", detail.totals.total || 0],
     [tip === "client" ? "Total incasat" : "Total achitat", detail.totals.paid || 0],
     ...(tip === "furnizor" ? [["Note de credit validate", detail.totals.credit || 0]] : []),
@@ -2724,6 +2753,10 @@ function exportThirdPartyDetail(res, db, tip, id) {
       row.treasury_url || ""
     ])
   ];
+  const settlementRows = [
+    ["Data", "Plata", "Factura", "Suma", "Sursa", "Status", "Grup", "Nota contabila"],
+    ...(detail.settlements || []).map((row) => [row.data || "", row.treasury_document || "", row.invoice_document || "", row.suma || 0, row.source_type || "", row.status || "", row.group_uuid || "", row.journal_id ? `NC ${row.journal_id}` : ""])
+  ];
   const creditRows = [
     ["Data", "Document", "Factura", "Status", "Baza", "TVA", "Total", "Observatii"],
     ...(detail.creditNotes || []).map((row) => [row.data || "", row.nr_document || "", row.invoice_document || "", row.status || "", row.valoare || 0, row.tva || 0, row.total || 0, row.observatii || ""])
@@ -2735,6 +2768,7 @@ function exportThirdPartyDetail(res, db, tip, id) {
   if (invoiceRows.length === 1) invoiceRows.push(["", "Nu exista facturi deschise.", "", "", 0, 0, 0, 0, "", ""]);
   if (allInvoiceRows.length === 1) allInvoiceRows.push(["", "Nu exista facturi in istoricul tertului.", "", "", 0, 0, 0, 0, "", ""]);
   if (treasuryRows.length === 1) treasuryRows.push(["", "Nu exista miscari de trezorerie.", "", "", "", "", 0, "", "", "", "", ""]);
+  if (settlementRows.length === 1) settlementRows.push(["", "Nu exista stingeri multiple.", "", 0, "", "", "", ""]);
   if (creditRows.length === 1) creditRows.push(["", "Nu exista note de credit.", "", "", 0, 0, 0, ""]);
   if (lifecycleRows.length === 1) lifecycleRows.push(["", "Nu exista comenzi corelate.", "", 0, 0, 0, 0, 0, 0, 0, 0, 0, ""]);
 
@@ -2757,6 +2791,11 @@ function exportThirdPartyDetail(res, db, tip, id) {
   treasurySheet["!freeze"] = { xSplit: 0, ySplit: 1 };
   treasurySheet["!autofilter"] = { ref: `A1:L${Math.max(treasuryRows.length, 1)}` };
   xlsx.utils.book_append_sheet(workbook, treasurySheet, "Trezorerie");
+  const settlementSheet = xlsx.utils.aoa_to_sheet(settlementRows);
+  settlementSheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 38 }, { wch: 16 }];
+  settlementSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  settlementSheet["!autofilter"] = { ref: `A1:H${Math.max(settlementRows.length, 1)}` };
+  xlsx.utils.book_append_sheet(workbook, settlementSheet, "Stingeri");
   if (tip === "furnizor") {
     const creditSheet = xlsx.utils.aoa_to_sheet(creditRows);
     creditSheet["!cols"] = [{ wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 40 }];
@@ -2834,8 +2873,9 @@ function sendThirdPartyDetailHtml(res, db, tip, id) {
   const detail = thirdPartyDetail(db, tip, id);
   const invoiceRows = detail.invoices.slice(0, 50).map((row) => `<tr><td>${accountingHtmlEscape(row.data)}</td><td>${accountingHtmlEscape(row.nr_document)}</td><td>${accountingHtmlEscape(row.status)}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.total))}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.paid))}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.credit || 0))}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.rest))}</td></tr>`).join("");
   const creditRows = (detail.creditNotes || []).map((row) => `<tr><td>${accountingHtmlEscape(row.data)}</td><td>${accountingHtmlEscape(row.nr_document)}</td><td>${accountingHtmlEscape(row.invoice_document)}</td><td>${accountingHtmlEscape(row.status)}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.total))}</td></tr>`).join("");
+  const settlementRows = (detail.settlements || []).map((row) => `<tr><td>${accountingHtmlEscape(row.data)}</td><td>${accountingHtmlEscape(row.treasury_document)}</td><td>${accountingHtmlEscape(row.invoice_document)}</td><td>${accountingHtmlEscape(row.source_type)}</td><td class="num">${accountingHtmlEscape(formatReconciliationMoney(row.suma))}</td></tr>`).join("");
   const lifecycleRows = (detail.procurement?.lifecycle || []).slice(0, 50).map((row) => `<tr><td>${accountingHtmlEscape(row.date)}</td><td>${accountingHtmlEscape(row.order_no)}</td><td class="num">${row.receptions}</td><td class="num">${row.invoices}</td><td class="num">${row.payments}</td><td class="num">${row.returns}</td><td>${accountingHtmlEscape(row.missing_step)}</td></tr>`).join("");
-  const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Fisa furnizor ${accountingHtmlEscape(detail.tert.denumire)}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;margin-top:24px}.meta{color:#64748b;font-size:12px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.box{border:1px solid #cbd5e1;padding:9px}.box small{display:block;color:#64748b}.box strong{font-size:15px}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px}th,td{border:1px solid #cbd5e1;padding:5px;text-align:left}th{background:#f1f5f9}.num{text-align:right}.actions{margin-bottom:12px}@media print{.actions{display:none}.summary{grid-template-columns:repeat(4,1fr)}body{margin:10mm}}</style></head><body><div class="actions"><button onclick="window.print()">Tipareste / Salveaza PDF</button></div><h1>Fisa furnizor</h1><div class="meta">${accountingHtmlEscape(detail.tert.denumire)} · CUI ${accountingHtmlEscape(detail.tert.cui || "-")} · Analitic ${accountingHtmlEscape(detail.account || "-")} · generat ${today()}</div><div class="summary"><div class="box"><small>Total facturat</small><strong>${formatReconciliationMoney(detail.totals.total)}</strong></div><div class="box"><small>Achitat</small><strong>${formatReconciliationMoney(detail.totals.paid)}</strong></div><div class="box"><small>Note credit</small><strong>${formatReconciliationMoney(detail.totals.credit)}</strong></div><div class="box"><small>Sold deschis</small><strong>${formatReconciliationMoney(detail.totals.rest)}</strong></div></div><h2>Facturi</h2><table><thead><tr><th>Data</th><th>Document</th><th>Status</th><th>Total</th><th>Achitat</th><th>Credit</th><th>Rest</th></tr></thead><tbody>${invoiceRows || '<tr><td colspan="7">Fara facturi.</td></tr>'}</tbody></table><h2>Note de credit</h2><table><thead><tr><th>Data</th><th>Document</th><th>Factura</th><th>Status</th><th>Total</th></tr></thead><tbody>${creditRows || '<tr><td colspan="5">Fara note de credit.</td></tr>'}</tbody></table><h2>Circuit Achizitii - Contabilitate</h2><table><thead><tr><th>Data</th><th>Comanda</th><th>NIR</th><th>Facturi</th><th>Plati</th><th>Retururi</th><th>Pas urmator</th></tr></thead><tbody>${lifecycleRows || '<tr><td colspan="7">Fara comenzi corelate.</td></tr>'}</tbody></table></body></html>`;
+  const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Fisa furnizor ${accountingHtmlEscape(detail.tert.denumire)}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;margin-top:24px}.meta{color:#64748b;font-size:12px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.box{border:1px solid #cbd5e1;padding:9px}.box small{display:block;color:#64748b}.box strong{font-size:15px}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px}th,td{border:1px solid #cbd5e1;padding:5px;text-align:left}th{background:#f1f5f9}.num{text-align:right}.actions{margin-bottom:12px}@media print{.actions{display:none}.summary{grid-template-columns:repeat(4,1fr)}body{margin:10mm}}</style></head><body><div class="actions"><button onclick="window.print()">Tipareste / Salveaza PDF</button></div><h1>Fisa furnizor</h1><div class="meta">${accountingHtmlEscape(detail.tert.denumire)} · CUI ${accountingHtmlEscape(detail.tert.cui || "-")} · Analitic ${accountingHtmlEscape(detail.account || "-")} · generat ${today()}</div><div class="summary"><div class="box"><small>Sold initial</small><strong>${formatReconciliationMoney(detail.statement?.sold_initial || 0)}</strong></div><div class="box"><small>Rulaj debit</small><strong>${formatReconciliationMoney(detail.statement?.debit || 0)}</strong></div><div class="box"><small>Rulaj credit</small><strong>${formatReconciliationMoney(detail.statement?.credit || 0)}</strong></div><div class="box"><small>Sold deschis</small><strong>${formatReconciliationMoney(detail.totals.rest)}</strong></div></div><h2>Facturi</h2><table><thead><tr><th>Data</th><th>Document</th><th>Status</th><th>Total</th><th>Achitat</th><th>Credit</th><th>Rest</th></tr></thead><tbody>${invoiceRows || '<tr><td colspan="7">Fara facturi.</td></tr>'}</tbody></table><h2>Note de credit</h2><table><thead><tr><th>Data</th><th>Document</th><th>Factura</th><th>Status</th><th>Total</th></tr></thead><tbody>${creditRows || '<tr><td colspan="5">Fara note de credit.</td></tr>'}</tbody></table><h2>Stingeri si alocari</h2><table><thead><tr><th>Data</th><th>Plata</th><th>Factura</th><th>Sursa</th><th>Suma</th></tr></thead><tbody>${settlementRows || '<tr><td colspan="5">Fara stingeri multiple.</td></tr>'}</tbody></table><h2>Circuit Achizitii - Contabilitate</h2><table><thead><tr><th>Data</th><th>Comanda</th><th>NIR</th><th>Facturi</th><th>Plati</th><th>Retururi</th><th>Pas urmator</th></tr></thead><tbody>${lifecycleRows || '<tr><td colspan="7">Fara comenzi corelate.</td></tr>'}</tbody></table></body></html>`;
   res.status(200).type("html").send(html);
 }
 
@@ -3037,6 +3077,7 @@ function decorateVatInvoice(db, invoice, tip) {
   const rate = Number(invoice.tva_procent ?? inferVatRate(invoice.valoare, invoice.tva));
   return {
     ...invoice,
+    document_type: invoice.document_type || "factura",
     tert: tert.denumire || invoice.tert || "",
     cui: tert.cui || "",
     tva_procent: Number.isFinite(rate) ? rate : 0
@@ -3057,7 +3098,11 @@ function buildClassicJournalsData(db, query = {}) {
     },
     jurnal_cumparari: {
       rows: vatData.jurnal_cumparari,
-      totals: invoiceJournalTotals(vatData.jurnal_cumparari)
+      totals: {
+        ...invoiceJournalTotals(vatData.jurnal_cumparari),
+        credit_notes: vatData.jurnal_cumparari.filter((item) => item.document_type === "nota_credit").length,
+        credit_total: round(Math.abs(vatData.jurnal_cumparari.filter((item) => item.document_type === "nota_credit").reduce((sum, item) => sum + Number(item.total || 0), 0)))
+      }
     },
     jurnal_vanzari: {
       rows: vatData.jurnal_vanzari,
@@ -3290,6 +3335,7 @@ function periodCheck(db, an, luna) {
   const draftDocuments = [
     ...accounting.invoicesIn.filter(inMonth).map((item) => ({ ...item, categorie: "Factura intrare", document: item.nr_document || item.numar || item.id, resolve_url: `/contabilitate/facturi-intrare?luna=${an}-${String(luna).padStart(2, "0")}` })),
     ...accounting.invoicesOut.filter(inMonth).map((item) => ({ ...item, categorie: "Factura iesire", document: item.nr_document || item.numar || item.id, resolve_url: `/contabilitate/facturi-iesire?luna=${an}-${String(luna).padStart(2, "0")}` })),
+    ...accounting.creditNotes.filter(inMonth).map((item) => ({ ...item, categorie: "Nota de credit", document: item.nr_document || item.id, resolve_url: `/contabilitate/operatiuni?luna=${an}-${String(luna).padStart(2, "0")}` })),
     ...accounting.treasury.filter(inMonth).map((item) => ({ ...item, categorie: "Trezorerie", document: item.nr_document || item.numar || item.id, resolve_url: `/contabilitate/trezorerie?luna=${an}-${String(luna).padStart(2, "0")}` })),
     ...accounting.journals.filter((item) => Number(item.an) === Number(an) && Number(item.luna) === Number(luna) && item.status === "draft").map((item) => ({ ...item, categorie: "Nota contabila", document: item.nr_document || item.id, resolve_url: `/contabilitate/registru-jurnal?luna=${an}-${String(luna).padStart(2, "0")}` }))
   ].filter((item) => item.status === "draft");
@@ -3301,6 +3347,7 @@ function periodCheck(db, an, luna) {
   const invoicesIn = accounting.invoicesIn.filter(inMonth);
   const invoicesOut = accounting.invoicesOut.filter(inMonth);
   const treasury = accounting.treasury.filter(inMonth);
+  const settlements = accounting.settlements.filter(inMonth).filter((item) => item.status === "activ");
   const outstandingAdvances = treasury.filter((item) => item.status === "validat" && item.corelare_tip === "avans" && !item.invoice_in_id && !item.invoice_out_id);
   const journalLineIds = new Set(accounting.journalLines.map((item) => Number(item.journal_id)));
   const journalsWithoutLines = activeJournals.filter((item) => !journalLineIds.has(Number(item.id)));
@@ -3371,7 +3418,9 @@ function periodCheck(db, an, luna) {
       journals: activeJournals.length,
       invoices_in: invoicesIn.length,
       invoices_out: invoicesOut.length,
-      treasury: treasury.length
+      credit_notes: accounting.creditNotes.filter(inMonth).length,
+      treasury: treasury.length,
+      settlements: settlements.length
     }
   };
 }
@@ -3873,5 +3922,9 @@ registerDeclarationRoutes(router, { requireAccountingReports, requireAccountingP
 registerOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose });
 registerAdvancedOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose, requireAccountingReports });
 registerAccountingControlRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingReports });
+registerSettlementRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingReports });
+
+router.periodCheck = periodCheck;
+router.buildClassicJournalsData = buildClassicJournalsData;
 
 module.exports = router;

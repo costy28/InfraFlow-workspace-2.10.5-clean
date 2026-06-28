@@ -29,6 +29,8 @@ function syncAccountingToMssql(db, user = {}) {
     invoicesOut: syncTable("accounting_invoices_out", prepared.invoicesOut, sqlInvoicesOut()),
     invoiceOutLines: syncTable("accounting_invoice_out_lines", prepared.invoiceOutLines, sqlInvoiceLines("accounting_invoice_out_lines")),
     treasury: syncTable("accounting_treasury", prepared.treasury, sqlTreasury()),
+    creditNotes: syncTable("accounting_credit_notes", prepared.creditNotes, sqlCreditNotes()),
+    settlements: syncTable("accounting_settlements", prepared.settlements, sqlSettlements()),
     lawAlerts: syncTable("accounting_law_alerts", prepared.lawAlerts, sqlLawAlerts()),
     periodSnapshots: syncTable("accounting_period_snapshots", prepared.periodSnapshots, sqlPeriodSnapshots()),
     periodEvents: syncTable("accounting_period_events", prepared.periodEvents, sqlPeriodEvents()),
@@ -82,6 +84,8 @@ function preparePayload(accounting) {
     invoicesOut,
     invoiceOutLines,
     treasury: withIds(accounting.treasury),
+    creditNotes: withIds(accounting.creditNotes),
+    settlements: withIds(accounting.settlements),
     lawAlerts: withIds(accounting.lawAlerts),
     periodSnapshots: withIds(accounting.periodSnapshots),
     periodEvents: withIds(accounting.periodEvents),
@@ -191,6 +195,8 @@ function readAccountingTableCounts() {
       (select count(1) from dbo.accounting_invoices_out), N'|',
       (select count(1) from dbo.accounting_invoice_out_lines), N'|',
       (select count(1) from dbo.accounting_treasury), N'|',
+      (select count(1) from dbo.accounting_credit_notes), N'|',
+      (select count(1) from dbo.accounting_settlements), N'|',
       (select count(1) from dbo.accounting_law_alerts), N'|',
       (select count(1) from dbo.accounting_period_snapshots), N'|',
       (select count(1) from dbo.accounting_period_events), N'|',
@@ -215,6 +221,8 @@ function readAccountingTableCounts() {
     invoicesOut,
     invoiceOutLines,
     treasury,
+    creditNotes,
+    settlements,
     lawAlerts,
     periodSnapshots,
     periodEvents,
@@ -238,6 +246,8 @@ function readAccountingTableCounts() {
     invoicesOut,
     invoiceOutLines,
     treasury,
+    creditNotes,
+    settlements,
     lawAlerts,
     periodSnapshots,
     periodEvents,
@@ -346,6 +356,20 @@ function sqlTreasury() {
   return identityMirrorSql("accounting_treasury",
     ["id", "uuid", "an", "luna", "tip", "cont_trezorerie", "data", "nr_document", "tip_operatie", "suma", "cont_corespondent", "tert_id", "explicatie", "journal_id", "status", "created_by"],
     [sqlValue("id", "int", "1"), `left(isnull(${sqlValue("uuid")}, newid()), 36)`, sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("tip"), sqlValue("cont_trezorerie"), sqlValue("data", "date"), sqlValue("nr_document"), sqlValue("tip_operatie"), sqlValue("suma", "decimal"), sqlValue("cont_corespondent"), sqlValue("tert_id", "int"), sqlValue("explicatie"), sqlValue("journal_id", "int"), `isnull(${sqlValue("status")}, 'draft')`, sqlValue("created_by", "int")]
+  );
+}
+
+function sqlCreditNotes() {
+  return identityMirrorSql("accounting_credit_notes",
+    ["id", "uuid", "invoice_id", "return_id", "furnizor_id", "an", "luna", "data", "nr_document", "valoare", "tva", "total", "journal_id", "status", "created_by", "created_at", "note_json"],
+    [sqlValue("id", "int", "1"), `left(isnull(${sqlValue("uuid")}, newid()), 36)`, sqlValue("invoice_id", "int", "0"), sqlValue("return_id"), sqlValue("furnizor_id", "int", "0"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("data", "date"), sqlValue("nr_document"), sqlValue("valoare", "decimal"), sqlValue("tva", "decimal"), sqlValue("total", "decimal"), sqlValue("journal_id", "int"), `isnull(${sqlValue("status")}, 'draft')`, sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`, "value"]
+  );
+}
+
+function sqlSettlements() {
+  return identityMirrorSql("accounting_settlements",
+    ["id", "uuid", "group_uuid", "treasury_id", "invoice_in_id", "invoice_out_id", "tert_id", "an", "luna", "data", "suma", "source_type", "journal_id", "status", "created_by", "created_at", "cancelled_by", "cancelled_at", "cancelled_reason", "settlement_json"],
+    [sqlValue("id", "int", "1"), `left(isnull(${sqlValue("uuid")}, newid()), 36)`, `left(isnull(${sqlValue("group_uuid")}, newid()), 36)`, sqlValue("treasury_id", "int", "0"), sqlValue("invoice_in_id", "int"), sqlValue("invoice_out_id", "int"), sqlValue("tert_id", "int", "0"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("data", "date"), sqlValue("suma", "decimal"), sqlValue("source_type"), sqlValue("journal_id", "int"), `isnull(${sqlValue("status")}, 'activ')`, sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`, sqlValue("cancelled_by", "int"), `try_convert(datetime2, ${sqlValue("cancelled_at")})`, sqlValue("cancelled_reason"), "value"]
   );
 }
 

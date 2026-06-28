@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.153 - 2026-06-27
+
+- O plata poate stinge una sau mai multe facturi ale aceluiasi tert, manual sau FIFO dupa scadenta.
+- Avansurile furnizor/client din conturile 409/419 pot fi alocate ulterior, cu nota contabila de transfer.
+- Grupurile de stingeri se pot anula controlat, cu restaurarea soldurilor si storno contabil.
+- Soldurile facturilor furnizor tin cont simultan de plati si note de credit.
+- Fisa furnizor include rulaj anual, stingeri, export Excel si forma tiparibila.
+- Jurnalul de cumparari evidentiaza distinct notele de credit.
+- Inchiderea lunii blocheaza notele de credit ramase in draft.
+- Schema MSSQL include oglinzile relationale `accounting_credit_notes` si `accounting_settlements`.
+- Verificat cu 33 de teste contabile si flux browser desktop/mobil.
+
 # v2.12.152 - 2026-06-27
 
 - Note de credit furnizor create din retururi parțiale, cu validare, devalidare și storno controlat.

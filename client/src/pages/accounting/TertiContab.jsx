@@ -543,6 +543,14 @@ export function TertiContab({ type = 'furnizor' }) {
               </div>
               {type === 'furnizor' ? <div className="rounded-md bg-slate-50 px-3 py-2"><div className="text-xs text-slate-500">Note de credit</div><div className="font-semibold">{formatMoney(detail?.totals?.credit || 0)}</div></div> : null}
             </div>
+            {detail?.statement ? (
+              <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div><div className="text-xs text-slate-500">Sold inițial {detail.statement.year}</div><div className="font-semibold">{formatMoney(detail.statement.sold_initial)}</div></div>
+                <div><div className="text-xs text-slate-500">Rulaj debit</div><div className="font-semibold">{formatMoney(detail.statement.debit)}</div></div>
+                <div><div className="text-xs text-slate-500">Rulaj credit</div><div className="font-semibold">{formatMoney(detail.statement.credit)}</div></div>
+                <div><div className="text-xs text-slate-500">Sold contabil</div><div className="font-semibold text-primary-800">{formatMoney(detail.statement.sold_final)}</div></div>
+              </div>
+            ) : null}
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
               {detail?.tert?.cui ? <span>CUI {detail.tert.cui}</span> : <span>CUI necompletat</span>}
               {detail?.tert?.email ? <span> · {detail.tert.email}</span> : null}
@@ -635,6 +643,20 @@ export function TertiContab({ type = 'furnizor' }) {
                 {(detail?.creditNotes || []).length ? null : <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>Nu exista note de credit pentru acest furnizor.</td></tr>}
               </Table>
             </div> : null}
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-slate-900">Stingeri si alocari</h3>
+              <Table headers={['Data', 'Plata', 'Factura', 'Suma', 'Sursa', 'Status']}>
+                {(detail?.settlements || []).map(item => <tr key={item.uuid || item.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2">{item.data || '-'}</td>
+                  <td className="px-3 py-2">{item.treasury_document || '-'}</td>
+                  <td className="px-3 py-2">{item.invoice_document || '-'}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{formatMoney(item.suma || 0)}</td>
+                  <td className="px-3 py-2"><Badge tone={item.source_type === 'avans' ? 'warning' : 'success'}>{item.source_type || 'plata'}</Badge></td>
+                  <td className="px-3 py-2"><Badge tone={item.status === 'activ' ? 'success' : 'neutral'}>{item.status || '-'}</Badge></td>
+                </tr>)}
+                {(detail?.settlements || []).length ? null : <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={6}>Nu exista stingeri multiple pentru acest tert.</td></tr>}
+              </Table>
+            </div>
             {type === 'furnizor' ? <div>
               <h3 className="mb-2 text-sm font-semibold text-slate-900">Circuit Achizitii - Contabilitate</h3>
               <Table headers={['Comanda', 'NIR', 'Factura', 'Plata', 'Retur', 'Status circuit']}>
