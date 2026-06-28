@@ -1,5 +1,18 @@
 # Changelog
 
+# v2.12.157 - 2026-06-28
+
+## Declaratii fiscale, D112 si e-Factura
+
+- D112 verifica datele sursa din HR: angajati, CNP, contracte, salarii de baza si pontaje validate.
+- Registrul fiscal include D300, D394 si D112, cu fisierele declaratiei si recipisei arhivate separat.
+- Exportul Excel D112 este un control de pregatire, fara simularea contributiilor sau a XML-ului fiscal final.
+- Diagnosticul SAF-T acopera suplimentar taxele, mijloacele fixe, trezoreria si prezenta schemei oficiale.
+- Modificarea statusului e-Factura actualizeaza automat factura contabila legata.
+- Sincronizarea facturilor de iesire reutilizeaza inregistrarea e-Factura existenta si evita duplicatele.
+- Exporturile D300 si D394 din interfata cer o validare interna fara erori.
+- 44 de teste contabile si buildul frontend au fost verificate.
+
 # v2.12.156 - 2026-06-28
 
 ## Hotfix update ZIP si instalere

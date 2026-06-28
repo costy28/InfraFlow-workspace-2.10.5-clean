@@ -92,6 +92,17 @@ function ensureAnafDb(db) {
   return db.anaf
 }
 
+function syncAccountingInvoiceStatus(db, invoice) {
+  if (!invoice?.accounting_invoice_uuid) return null
+  const accountingInvoices = db.accounting?.invoicesOut || db.accounting?.invoices_out || []
+  const accountingInvoice = accountingInvoices.find(item => item.uuid === invoice.accounting_invoice_uuid)
+  if (!accountingInvoice) return null
+  accountingInvoice.efactura_id = invoice.id
+  accountingInvoice.efactura_status = invoice.status
+  accountingInvoice.efactura_status_updated_at = invoice.updated_at || nowIso()
+  return accountingInvoice
+}
+
 function implicitVat(db) {
   return Number(db.settings?.tva_implicit ?? db.settings?.cota_tva_standard ?? 21)
 }
@@ -264,7 +275,11 @@ router.patch('/anaf/invoices/:id', (req, res, next) => {
     if (editsContent && invoice.status !== 'draft' && !(invoice.status === 'validata' && isAdmin(auth.user))) {
       return sendJson(res, 409, { error: 'Doar facturile draft pot fi editate. Factura validată poate fi editată doar de Admin.' })
     }
-    if (body.status !== undefined) invoice.status = body.status
+    if (body.status !== undefined) {
+      const allowedStatuses = ['draft', 'validata', 'trimisa_spv', 'acceptata', 'respinsa']
+      if (!allowedStatuses.includes(body.status)) return sendJson(res, 422, { error: 'Status e-Factura invalid.' })
+      invoice.status = body.status
+    }
     if (body.numar_factura !== undefined) invoice.numar_factura = String(body.numar_factura || '').trim()
     if (body.data_factura !== undefined) invoice.data_factura = body.data_factura
     if (body.data_scadenta !== undefined) invoice.data_scadenta = body.data_scadenta
@@ -290,6 +305,7 @@ router.patch('/anaf/invoices/:id', (req, res, next) => {
       recalculateInvoice(invoice)
     }
     invoice.updated_at = nowIso()
+    syncAccountingInvoiceStatus(auth.db, invoice)
     addAudit(auth.db, auth.user, editsContent ? 'anaf_factura_editata' : 'anaf_factura_status', `${invoice.numar_factura} / ${invoice.status}`)
     writeDb(auth.db)
     sendJson(res, 200, { invoice })
@@ -425,3 +441,4 @@ function generateUblXml(inv) {
 // Export public pentru lookup din Setup Wizard (fără autentificare)
 module.exports = router
 module.exports.lookupAnafPublic = lookupAnaf
+module.exports.syncAccountingInvoiceStatus = syncAccountingInvoiceStatus

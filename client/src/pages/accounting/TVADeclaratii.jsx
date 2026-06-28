@@ -18,9 +18,11 @@ export function TVADeclaratii() {
   const [readiness, setReadiness] = useState({ checks: [], declarations: [] })
   const [d394, setD394] = useState({ terti: [], warnings: [], totaluri: {} })
   const [saft, setSaft] = useState({ areas: [], issues: [], coverage: 0 })
+  const [d112, setD112] = useState({ checks: [], issues: [], employees: [], totals: {} })
   const [declarationHistory, setDeclarationHistory] = useState([])
   const [declarationRegister, setDeclarationRegister] = useState({ declarations: [] })
   const [receiptForm, setReceiptForm] = useState(null)
+  const [archiveForm, setArchiveForm] = useState(null)
   const [schemas, setSchemas] = useState([])
   const [schemaCode, setSchemaCode] = useState('D300')
   const [schemaFile, setSchemaFile] = useState(null)
@@ -41,15 +43,17 @@ export function TVADeclaratii() {
       api.get('/accounting/declarations/readiness', { params: params() }),
       api.get('/accounting/d394', { params: params() }),
       api.get('/accounting/saft/readiness', { params: params() }),
+      api.get('/accounting/d112/readiness', { params: params() }),
       api.get('/accounting/declarations/history', { params: params() }),
       api.get('/accounting/declarations/register', { params: params() }),
       api.get('/accounting/declarations/schemas')
-    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, historyRes, registerRes, schemasRes]) => {
+    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, d112Res, historyRes, registerRes, schemasRes]) => {
       setData(d300Res.data || { decont: { randuri: [] } })
       setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
       setReadiness(readinessRes.data || { checks: [], declarations: [] })
       setD394(d394Res.data || { terti: [], warnings: [], totaluri: {} })
       setSaft(saftRes.data || { areas: [], issues: [], coverage: 0 })
+      setD112(d112Res.data || { checks: [], issues: [], employees: [], totals: {} })
       setDeclarationHistory(historyRes.data?.runs || [])
       setDeclarationRegister(registerRes.data || { declarations: [] })
       setSchemas(schemasRes.data?.schemas || [])
@@ -59,6 +63,7 @@ export function TVADeclaratii() {
       setReadiness({ checks: [], declarations: [] })
       setD394({ terti: [], warnings: [], totaluri: {} })
       setSaft({ areas: [], issues: [], coverage: 0 })
+      setD112({ checks: [], issues: [], employees: [], totals: {} })
       setDeclarationHistory([])
       setDeclarationRegister({ declarations: [] })
       setSchemas([])
@@ -95,9 +100,30 @@ export function TVADeclaratii() {
     } catch (err) { setError(err.response?.data?.error || 'Recipisa nu a putut fi înregistrată.') }
   }
 
+  async function archiveDeclaration() {
+    if (!archiveForm?.file) { setError('Selectează fișierul declarației.'); return }
+    try {
+      setError(''); setMessage('')
+      const body = new FormData()
+      body.append('perioada', month)
+      body.append('file', archiveForm.file)
+      await api.post(`/accounting/declarations/${archiveForm.code}/archive`, body)
+      setMessage(`${archiveForm.code}: fișierul declarației a fost arhivat.`)
+      setArchiveForm(null)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Fișierul declarației nu a putut fi arhivat.') }
+  }
+
   async function download(endpoint, filename, declarationCode = '') {
     try {
       setError('')
+      if (declarationCode) {
+        const latest = declarationRegister.declarations?.find(item => item.code === declarationCode)?.latest
+        if (!['validat_intern', 'exportat'].includes(latest?.status)) {
+          setError(`Validează intern ${declarationCode} înainte de export.`)
+          return
+        }
+      }
       const res = await api.get(endpoint, { params: params(), responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
       const link = document.createElement('a')
@@ -162,6 +188,7 @@ export function TVADeclaratii() {
             { label: 'D394 lucru Excel', onClick: () => download('/accounting/d394/export', `D394_lucru_${fileMonth}.xlsx`, 'D394') },
             { label: 'Raport control declarații', onClick: () => download('/accounting/declarations/control-export', `Control_declaratii_${fileMonth}.xlsx`) },
             { label: 'Diagnostic SAF-T Excel', onClick: () => download('/accounting/saft/export-mapping', `Diagnostic_SAFT_${fileMonth}.xlsx`) },
+            { label: 'Pregătire date D112 Excel', onClick: () => download('/accounting/d112/export-inputs', `Pregatire_D112_${fileMonth}.xlsx`) },
             { type: 'separator' },
             { label: 'Facturi intrare', to: `/contabilitate/facturi-intrare?luna=${month}` },
             { label: 'Facturi iesire', to: `/contabilitate/facturi-iesire?luna=${month}` },
@@ -182,6 +209,22 @@ export function TVADeclaratii() {
           <Button onClick={uploadSchema}>Încarcă schema</Button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">{schemas.filter(item => item.active).map(item => <Badge key={item.uuid || item.id} tone="success">{item.code} · {item.original_name}</Badge>)}</div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="text-base font-semibold text-slate-900">Pregătire D112</h3><p className="text-sm text-slate-500">Controlul datelor HR înaintea calculului salarial. Nu generează încă XML-ul fiscal final.</p></div>
+          <Badge tone={d112.ready ? 'success' : 'warning'}>{d112.ready ? 'date pregătite' : 'date incomplete'}</Badge>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Info label="Angajați activi" value={d112.totals?.employees || 0} />
+          <Info label="Contracte active" value={d112.totals?.contracts || 0} />
+          <Info label="Angajați pontați" value={d112.totals?.timesheet_employees || 0} />
+          <Info label="Pontaje validate" value={d112.totals?.validated_timesheets || 0} />
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          {(d112.checks || []).map(check => <div key={check.key} className={`rounded-md border px-3 py-2 text-sm ${check.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><strong>{check.label}:</strong> {check.message}</div>)}
+        </div>
+        <p className="mt-3 text-xs text-slate-500">{d112.note}</p>
       </Card>
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_180px_180px]">
@@ -235,7 +278,7 @@ export function TVADeclaratii() {
             <div key={item.code} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
               <div className="flex items-center justify-between gap-2">
                 <strong className="text-sm text-slate-900">{item.code}</strong>
-                <Badge tone={item.status === 'pregatit' ? 'success' : item.status === 'in_lucru' ? 'warning' : 'gray'}>{item.status.replace('_', ' ')}</Badge>
+                <Badge tone={['pregatit', 'pregatit_date', 'pregatit_mapare'].includes(item.status) ? 'success' : ['in_lucru', 'date_incomplete'].includes(item.status) ? 'warning' : 'gray'}>{item.status.replaceAll('_', ' ')}</Badge>
               </div>
               <p className="mt-2 text-sm text-slate-600">{item.description}</p>
             </div>
@@ -249,10 +292,11 @@ export function TVADeclaratii() {
           ))}
         </div>
         <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-          {['D300', 'D394'].map(code => {
+          {['D300', 'D394', 'D112'].map(code => {
             const latest = declarationHistory.find(item => item.code === code)
             return <div key={code} className="flex items-center gap-2">
               <Button variant="secondary" onClick={() => validateDeclaration(code)}>Validează {code}</Button>
+              {['validat_intern', 'exportat'].includes(latest?.status) ? <Button variant="secondary" onClick={() => setArchiveForm({ code, file: null })}>Arhivează fișier</Button> : null}
               {['validat_intern', 'exportat', 'depus', 'respins'].includes(latest?.status) ? <Button onClick={() => setReceiptForm({ code, recipisa: '', status: 'acceptata', message: '', file: null })}>Recipisă</Button> : null}
               {latest ? <Badge tone={['acceptat', 'depus'].includes(latest.status) ? 'success' : ['cu_erori', 'respins'].includes(latest.status) ? 'warning' : 'gray'}>{latest.status.replaceAll('_', ' ')}</Badge> : null}
             </div>
@@ -274,9 +318,19 @@ export function TVADeclaratii() {
         </div>
         <div className="mt-3 flex justify-end"><Button onClick={saveReceipt}>Salvează recipisa</Button></div>
       </Card> : null}
+      {archiveForm ? <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="text-base font-semibold text-slate-900">Fișier declarație · {archiveForm.code}</h3><p className="text-sm text-slate-500">Arhivează fișierul pregătit sau validat în aplicația oficială.</p></div>
+          <Button variant="secondary" onClick={() => setArchiveForm(null)}>Închide</Button>
+        </div>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="grid min-w-72 flex-1 gap-1 text-sm"><span className="font-medium text-slate-700">PDF, XML, ZIP sau TXT</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".pdf,.xml,.zip,.txt" onChange={event => setArchiveForm({ ...archiveForm, file: event.target.files?.[0] || null })} /></label>
+          <Button onClick={archiveDeclaration}>Arhivează</Button>
+        </div>
+      </Card> : null}
       <Card>
         <div><h3 className="text-base font-semibold text-slate-900">Registru declarații</h3><p className="text-sm text-slate-500">Validare internă, export, depunere și recipisă pentru perioada selectată.</p></div>
-        <div className="mt-3"><Table headers={['Declarație', 'Status', 'Validată', 'Exportată', 'Recipisă', 'Rezultat', 'Fișier']}>
+        <div className="mt-3"><Table headers={['Declarație', 'Status', 'Validată', 'Exportată', 'Recipisă', 'Rezultat', 'Declarație', 'Recipisă']}>
           {(declarationRegister.declarations || []).map(item => {
             const run = item.latest
             return <tr key={item.code}>
@@ -286,6 +340,7 @@ export function TVADeclaratii() {
               <td className="px-3 py-2">{run?.exported_at?.slice(0, 16).replace('T', ' ') || '-'}</td>
               <td className="px-3 py-2">{run?.recipisa || '-'}</td>
               <td className="px-3 py-2">{run?.receipt_status?.replaceAll('_', ' ') || '-'}</td>
+              <td className="px-3 py-2">{run?.declaration_file ? <Button variant="secondary" onClick={() => download(`/accounting/declarations/runs/${run.id}/file`, run.declaration_original_name || `Declaratie_${item.code}`)}>Descarcă</Button> : '-'}</td>
               <td className="px-3 py-2">{run?.receipt_file ? <Button variant="secondary" onClick={() => download(`/accounting/declarations/runs/${run.id}/receipt`, run.receipt_original_name || `Recipisa_${item.code}`)}>Descarcă</Button> : '-'}</td>
             </tr>
           })}

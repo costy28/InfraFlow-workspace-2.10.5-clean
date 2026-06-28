@@ -599,7 +599,9 @@ router.post("/accounting/invoices-out/:uuid/efactura", requireAccountingPost, (r
     if (!client.cui) throwHttp(422, "Clientul nu are CUI. Completeaza fisa clientului inainte de e-Factura.");
     db.anaf = db.anaf || {};
     db.anaf.invoices = Array.isArray(db.anaf.invoices) ? db.anaf.invoices : [];
-    const existing = db.anaf.invoices.find((item) => item.accounting_invoice_uuid === invoice.uuid);
+    const expectedNumber = `${invoice.serie || "IF"}-${invoice.numar}`;
+    const existing = db.anaf.invoices.find((item) => item.accounting_invoice_uuid === invoice.uuid)
+      || db.anaf.invoices.find((item) => item.tip === "emisa" && item.numar_factura === expectedNumber && item.data_factura === invoice.data);
     const general = db.settings?.general || {};
     const lines = (invoice.lines || []).map((line, index) => {
       const base = round(line.valoare || 0);
@@ -622,7 +624,7 @@ router.post("/accounting/invoices-out/:uuid/efactura", requireAccountingPost, (r
     Object.assign(record, {
       accounting_invoice_id: invoice.id,
       accounting_invoice_uuid: invoice.uuid,
-      numar_factura: `${invoice.serie || "IF"}-${invoice.numar}`,
+      numar_factura: expectedNumber,
       data_factura: invoice.data,
       data_scadenta: invoice.data_scadenta || invoice.data,
       tip: "emisa",

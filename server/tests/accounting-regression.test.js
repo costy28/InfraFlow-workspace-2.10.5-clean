@@ -10,6 +10,7 @@ const controls = require("../modules/accounting/accounting-control-routes");
 const settlements = require("../modules/accounting/settlement-routes");
 const accountingRoutes = require("../modules/accounting/accounting-routes");
 const procurement = require("../modules/procurement/routes");
+const anafRoutes = require("../modules/anaf/routes");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -66,6 +67,50 @@ test("diagnosticul SAF-T semnaleaza maparile lipsa", () => {
   assert.equal(report.ready, false);
   assert.ok(report.issues.some((item) => item.area === "Terti"));
   assert.ok(report.coverage < 100);
+});
+
+test("pregatirea D112 verifica angajatii contractele si pontajul", () => {
+  const { db } = fixture();
+  db.hr = {
+    employees: [{ id: 1, marca: "150", nume: "Popescu", prenume: "Ion", cnp: "1800101223344", activ: true }],
+    contracts: [{ id: 1, employee_id: 1, nr_contract: "CIM-1", data_start: "2026-01-01", salariu_baza: 5000, status: "activ" }],
+    timeSheets: [{ id: 1, employee_id: 1, data: "2026-06-02", ore_lucrate: 8, validat: true }]
+  };
+  const report = declarations.buildD112Readiness(db, { perioada: "2026-06" });
+  assert.equal(report.ready, true);
+  assert.equal(report.final_export_available, false);
+  assert.equal(report.totals.employees, 1);
+  assert.equal(report.employees[0].hours, 8);
+});
+
+test("pregatirea D112 explica datele lipsa fara a calcula contributii", () => {
+  const { db } = fixture();
+  db.hr = { employees: [{ id: 2, marca: "151", nume: "Ionescu", activ: true }], contracts: [], timeSheets: [] };
+  const report = declarations.buildD112Readiness(db, { perioada: "2026-06" });
+  assert.equal(report.ready, false);
+  assert.ok(report.issues.some((item) => item.message.includes("CNP")));
+  assert.ok(report.issues.some((item) => item.message.includes("contract")));
+  assert.ok(report.issues.some((item) => item.message.includes("pontaj")));
+});
+
+test("statusul e-Factura se propaga inapoi in factura contabila", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesOut.push({ id: 7, uuid: "invoice-7", status: "validat" });
+  const linked = anafRoutes.syncAccountingInvoiceStatus(db, { id: 70, accounting_invoice_uuid: "invoice-7", status: "acceptata", updated_at: "2026-06-28T10:00:00Z" });
+  assert.equal(linked.efactura_id, 70);
+  assert.equal(linked.efactura_status, "acceptata");
+  assert.equal(accounting.invoicesOut[0].status, "validat");
+});
+
+test("diagnosticul SAF-T include schema taxe mijloace fixe si trezorerie", () => {
+  const { db, accounting } = fixture();
+  accounting.anafSchemas.push({ id: 1, code: "SAF-T", active: true, original_name: "saft.zip", sha256: "abc" });
+  accounting.fixedAssets.push({ id: 1, inventory_number: "MF-1", acquisition_value: 1000, active: true });
+  accounting.treasury.push({ id: 1, an: 2026, luna: 6, status: "validat", cont_trezorerie: "5121", cont_corespondent: "401" });
+  const report = declarations.buildSaftReadiness(db, { perioada: "2026-06" });
+  assert.ok(report.areas.some((item) => item.label === "Schema SAF-T" && item.ok));
+  assert.ok(report.areas.some((item) => item.label === "Mijloace fixe" && item.ok));
+  assert.ok(report.areas.some((item) => item.label === "Trezorerie" && item.ok));
 });
 
 test("registrul fiscal grupeaza istoricul si pastreaza ultima stare", () => {

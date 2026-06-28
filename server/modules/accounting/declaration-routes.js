@@ -24,6 +24,10 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
     res.status(200).json(buildSaftReadiness(req.auth.db, req.query));
   });
 
+  router.get("/accounting/d112/readiness", requireAccountingReports, (req, res) => {
+    res.status(200).json(buildD112Readiness(req.auth.db, req.query));
+  });
+
   router.get("/accounting/declarations/history", requireAccountingReports, (req, res) => {
     const accounting = engine.ensureAccounting(req.auth.db);
     const [an, luna] = monthParts(req.query.perioada || req.query.luna);
@@ -43,13 +47,15 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
   router.post("/accounting/declarations/:code/validate", requireAccountingPost, (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
-      if (!["D300", "D394"].includes(code)) throwHttp(400, "Declaratia selectata nu are inca validare interna disponibila.");
+      if (!["D300", "D394", "D112"].includes(code)) throwHttp(400, "Declaratia selectata nu are inca validare interna disponibila.");
       const accounting = engine.ensureAccounting(req.auth.db);
       const readiness = buildDeclarationReadiness(req.auth.db, req.body || req.query || {});
       const [an, luna] = monthParts(readiness.perioada);
       const relevant = code === "D300"
         ? readiness.checks.filter((item) => ["documents", "vat", "vat_accounting", "vat_balance"].includes(item.key))
-        : readiness.checks.filter((item) => ["documents", "d394_partners", "vat_accounting", "vat_balance"].includes(item.key));
+        : code === "D394"
+          ? readiness.checks.filter((item) => ["documents", "d394_partners", "vat_accounting", "vat_balance"].includes(item.key))
+          : buildD112Readiness(req.auth.db, { perioada: readiness.perioada }).checks;
       const errors = relevant.filter((item) => !item.ok).map((item) => item.message);
       const run = {
         id: engine.nextNumericId(accounting.declarationRuns), code, an, luna,
@@ -88,7 +94,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
   router.post("/accounting/declarations/:code/exported", requireAccountingPost, (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
-      if (!["D300", "D394"].includes(code)) throwHttp(400, "Declaratia selectata nu poate fi marcata exportata.");
+      if (!["D300", "D394", "D112"].includes(code)) throwHttp(400, "Declaratia selectata nu poate fi marcata exportata.");
       const period = fiscal.declarationPeriod(req.body?.perioada);
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
       const accounting = engine.ensureAccounting(req.auth.db);
@@ -105,10 +111,39 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
     } catch (error) { next(error); }
   });
 
+  router.post("/accounting/declarations/:code/archive", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      if (!["D300", "D394", "D112"].includes(code)) throwHttp(400, "Declaratia selectata nu poate fi arhivata.");
+      const period = fiscal.declarationPeriod(req.body?.perioada);
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      if (!req.file?.buffer) throwHttp(400, "Selecteaza fisierul declaratiei.");
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const run = fiscal.latestRun(accounting.declarationRuns, code, period.an, period.luna, ["validat_intern", "exportat"]);
+      if (!fiscal.canExport(run)) throwHttp(409, "Valideaza intern datele declaratiei inainte de arhivare.");
+      const storedName = fiscal.safeStoredName(req.file.originalname, `${code}_${period.value}_${Date.now()}`);
+      if (!storedName) throwHttp(400, "Declaratia trebuie sa fie PDF, XML, ZIP sau TXT.");
+      const folder = path.join(process.cwd(), "storage", "accounting-declarations", period.value, code);
+      fs.mkdirSync(folder, { recursive: true });
+      const fullPath = path.join(folder, storedName);
+      fs.writeFileSync(fullPath, req.file.buffer);
+      run.status = "exportat";
+      run.declaration_file = path.relative(process.cwd(), fullPath).replace(/\\/g, "/");
+      run.declaration_original_name = req.file.originalname;
+      run.declaration_sha256 = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
+      run.exported_at = new Date().toISOString();
+      run.exported_by = req.auth.user?.id || "";
+      run.updated_at = run.exported_at;
+      addAudit(req.auth.db, req.auth.user, "accounting_declaration_archive", `${code} ${period.value} / ${req.file.originalname}`);
+      writeDb(req.auth.db);
+      res.status(200).json({ run });
+    } catch (error) { next(error); }
+  });
+
   router.post("/accounting/declarations/:code/receipt", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
-      if (!["D300", "D394"].includes(code)) throwHttp(400, "Declaratia selectata nu accepta recipisa.");
+      if (!["D300", "D394", "D112"].includes(code)) throwHttp(400, "Declaratia selectata nu accepta recipisa.");
       const period = fiscal.declarationPeriod(req.body?.perioada);
       const status = fiscal.receiptStatus(req.body?.status);
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
@@ -153,6 +188,48 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       const fullPath = path.resolve(process.cwd(), run.receipt_file);
       if (!fullPath.startsWith(`${storageRoot}${path.sep}`) || !fs.existsSync(fullPath)) throwHttp(404, "Fisierul recipisei nu a fost gasit.");
       res.download(fullPath, run.receipt_original_name || path.basename(fullPath));
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/declarations/runs/:id/file", requireAccountingReports, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const run = accounting.declarationRuns.find((item) => String(item.id) === String(req.params.id));
+      if (!run?.declaration_file) throwHttp(404, "Declaratia nu are fisier arhivat.");
+      const storageRoot = path.resolve(process.cwd(), "storage", "accounting-declarations");
+      const fullPath = path.resolve(process.cwd(), run.declaration_file);
+      if (!fullPath.startsWith(`${storageRoot}${path.sep}`) || !fs.existsSync(fullPath)) throwHttp(404, "Fisierul declaratiei nu a fost gasit.");
+      res.download(fullPath, run.declaration_original_name || path.basename(fullPath));
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/d112/export-inputs", requireAccountingReports, (req, res, next) => {
+    try {
+      const data = buildD112Readiness(req.auth.db, req.query);
+      const workbook = xlsx.utils.book_new();
+      const summary = xlsx.utils.aoa_to_sheet([
+        ["Pregatire date D112", data.perioada, "Document intern - nu este declaratie ANAF"],
+        [],
+        ["Indicator", "Valoare"],
+        ["Angajati activi", data.totals.employees],
+        ["Contracte active", data.totals.contracts],
+        ["Angajati pontati", data.totals.timesheet_employees],
+        ["Pontaje validate", data.totals.validated_timesheets],
+        ["Probleme", data.issues.length]
+      ]);
+      summary["!cols"] = [{ wch: 34 }, { wch: 24 }, { wch: 46 }];
+      xlsx.utils.book_append_sheet(workbook, summary, "Sumar");
+      const employees = xlsx.utils.aoa_to_sheet([
+        ["Marca", "Nume", "CNP", "Contract", "Salariu baza", "Zile pontate", "Ore", "Pontaj validat", "Status"],
+        ...data.employees.map((item) => [item.marca, item.nume, item.cnp, item.contract_number, item.salary_base, item.days, item.hours, item.timesheet_validated ? "DA" : "NU", item.ok ? "OK" : item.problems.join("; ")])
+      ]);
+      employees["!cols"] = [{ wch: 12 }, { wch: 36 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 60 }];
+      employees["!autofilter"] = { ref: `A1:I${Math.max(1, data.employees.length + 1)}` };
+      xlsx.utils.book_append_sheet(workbook, employees, "Angajati");
+      const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="Pregatire_D112_${data.perioada.replace("-", "_")}.xlsx"`);
+      res.end(buffer);
     } catch (error) { next(error); }
   });
 
@@ -243,6 +320,7 @@ function buildDeclarationReadiness(db, query = {}) {
   const period = accounting.periods.find((item) => Number(item.an) === an && Number(item.luna) === luna) || { an, luna, status: "deschisa" };
   const d394 = buildD394Data(db, { perioada });
   const saft = buildSaftReadiness(db, { perioada });
+  const d112 = buildD112Readiness(db, { perioada });
   const activeJournalIds = new Set(accounting.journals.filter((item) => engine.isActiveJournal(item) && Number(item.an) === an && Number(item.luna) === luna).map((item) => Number(item.id)));
   const vatLines = accounting.journalLines.filter((item) => activeJournalIds.has(Number(item.journal_id)) && ["4426", "4427"].includes(String(item.cont_simbol)));
   const vatAccounting = {
@@ -312,6 +390,7 @@ function buildDeclarationReadiness(db, query = {}) {
     declarations: [
       { code: "D300", status: drafts.length === 0 && period.tva_verificat_la && vatConsistent && vatBalanceConsistent ? "pregatit" : "in_lucru", description: "Decont TVA din jurnalele de cumparari si vanzari." },
       { code: "D394", status: d394.ready && vatConsistent && vatBalanceConsistent ? "pregatit" : "in_lucru", description: "Operatiuni interne grupate pe tert si CUI." },
+      { code: "D112", status: d112.ready ? "pregatit_date" : "date_incomplete", description: "Date sursa din HR pentru calcul salarial si declaratia D112." },
       { code: "D406 / SAF-T", status: saft.ready ? "pregatit_mapare" : "neconfigurat", description: `Mapare tehnica ${saft.coverage}%. XML-ul fiscal necesita in continuare schema ANAF aplicabila.` }
     ],
     vat_control: {
@@ -411,6 +490,71 @@ function buildD394Data(db, query = {}) {
   };
 }
 
+function buildD112Readiness(db, query = {}) {
+  const [an, luna] = monthParts(query.perioada || query.luna);
+  const perioada = `${an}-${String(luna).padStart(2, "0")}`;
+  const monthEnd = new Date(an, luna, 0).toISOString().slice(0, 10);
+  const hr = db.hr || {};
+  const allEmployees = Array.isArray(hr.employees) ? hr.employees : [];
+  const contracts = Array.isArray(hr.contracts) ? hr.contracts : [];
+  const timeSheets = Array.isArray(hr.timeSheets) ? hr.timeSheets : [];
+  const activeEmployees = allEmployees.filter((item) => item.activ !== false && item.status !== "incetat");
+  const issues = [];
+  const rows = activeEmployees.map((employee) => {
+    const contract = contracts
+      .filter((item) => String(item.employee_id) === String(employee.id) && item.status !== "incetat" && (!item.data_start || item.data_start <= monthEnd))
+      .sort((a, b) => String(b.data_start || b.created_at || "").localeCompare(String(a.data_start || a.created_at || "")))[0];
+    const sheets = timeSheets.filter((item) => String(item.employee_id) === String(employee.id) && String(item.data || "").startsWith(perioada));
+    const problems = [];
+    const cnp = String(employee.cnp || "").replace(/\D/g, "");
+    if (!/^\d{13}$/.test(cnp)) problems.push("CNP lipsa sau invalid");
+    if (!contract) problems.push("contract activ lipsa");
+    const salary = Number(contract?.salariu_baza ?? employee.salariu_baza ?? 0);
+    if (!(salary > 0)) problems.push("salariu de baza lipsa");
+    if (!sheets.length) problems.push("pontaj lipsa");
+    const validated = sheets.length > 0 && sheets.every((item) => item.validat === true || item.validat === 1);
+    if (sheets.length && !validated) problems.push("pontaj nevalidat");
+    problems.forEach((message) => issues.push(issue("D112", employee.marca || employee.id, `${employee.nume || ""} ${employee.prenume || ""}: ${message}.`, "Completeaza datele in Resurse Umane si valideaza pontajul.")));
+    return {
+      id: employee.id,
+      marca: employee.marca || "",
+      nume: `${employee.nume || ""} ${employee.prenume || ""}`.trim(),
+      cnp,
+      has_contract: Boolean(contract),
+      contract_number: contract?.nr_contract || contract?.numar || "",
+      salary_base: money(salary),
+      days: new Set(sheets.map((item) => item.data)).size,
+      hours: money(sheets.reduce((sum, item) => sum + Number(item.ore_lucrate || item.ore || 0), 0)),
+      timesheet_validated: validated,
+      problems,
+      ok: problems.length === 0
+    };
+  });
+  if (!activeEmployees.length) issues.push(issue("D112", "angajati", "Nu exista angajati activi pentru perioada selectata.", "Verifica nomenclatorul de angajati."));
+  const activeSchema = engine.ensureAccounting(db).anafSchemas.find((item) => item.code === "D112" && item.active !== false);
+  return {
+    perioada,
+    ready: rows.length > 0 && issues.length === 0,
+    status: issues.length ? "date_incomplete" : "pregatit_pentru_calcul_salarial",
+    final_export_available: false,
+    active_schema: activeSchema ? { original_name: activeSchema.original_name, sha256: activeSchema.sha256 } : null,
+    note: "Controlul verifica datele sursa. Calculul contributiilor si XML-ul D112 final necesita motorul de salarizare si schema ANAF aplicabila.",
+    checks: [
+      { key: "d112_employees", label: "Angajati si CNP", ok: rows.length > 0 && rows.every((item) => /^\d{13}$/.test(item.cnp)), message: rows.length ? `${rows.filter((item) => /^\d{13}$/.test(item.cnp)).length}/${rows.length} angajati au CNP complet.` : "Nu exista angajati activi." },
+      { key: "d112_contracts", label: "Contracte si salarii", ok: rows.length > 0 && rows.every((item) => item.has_contract && item.salary_base > 0), message: `${rows.filter((item) => item.has_contract && item.salary_base > 0).length}/${rows.length} angajati au contract si salariu de baza.` },
+      { key: "d112_timesheets", label: "Pontaj validat", ok: rows.length > 0 && rows.every((item) => item.days > 0 && item.timesheet_validated), message: `${rows.filter((item) => item.days > 0 && item.timesheet_validated).length}/${rows.length} angajati au pontaj validat.` }
+    ],
+    totals: {
+      employees: rows.length,
+      contracts: rows.filter((item) => item.has_contract).length,
+      timesheet_employees: rows.filter((item) => item.days > 0).length,
+      validated_timesheets: rows.filter((item) => item.timesheet_validated).length
+    },
+    employees: rows,
+    issues
+  };
+}
+
 function buildSaftReadiness(db, query = {}) {
   const accounting = engine.ensureAccounting(db);
   const [an, luna] = monthParts(query.perioada || query.luna);
@@ -443,6 +587,21 @@ function buildSaftReadiness(db, query = {}) {
   materials.forEach((material) => {
     if (!(material.cod || material.code)) issues.push(issue("Produse", material.id, "Material fara cod intern.", "Completeaza codul materialului in Gestiune."));
   });
+  const taxDocuments = invoices.filter((item) => Number.isFinite(Number(item.tva_procent)) && Number(item.tva_procent) >= 0);
+  invoices.filter((item) => !Number.isFinite(Number(item.tva_procent)) || Number(item.tva_procent) < 0).forEach((item) => {
+    issues.push(issue("Taxe", item.nr_document || item.numar || item.id, "Factura nu are cota TVA mapata.", "Completeaza cota TVA pe factura."));
+  });
+  const fixedAssets = accounting.fixedAssets.filter((item) => item.active !== false && item.status !== "casat");
+  fixedAssets.forEach((item) => {
+    if (!item.inventory_number && !item.nr_inventar) issues.push(issue("Mijloace fixe", item.id, "Mijloc fix fara numar de inventar.", "Completeaza fisa mijlocului fix."));
+    if (!(Number(item.acquisition_value || item.valoare_intrare || 0) > 0)) issues.push(issue("Mijloace fixe", item.id, "Mijloc fix fara valoare de intrare.", "Completeaza valoarea de intrare."));
+  });
+  const treasury = accounting.treasury.filter((item) => Number(item.an) === an && Number(item.luna) === luna && item.status === "validat");
+  treasury.forEach((item) => {
+    if (!item.cont_trezorerie || !item.cont_corespondent) issues.push(issue("Trezorerie", item.nr_document || item.id, "Operatiune fara conturi complete.", "Completeaza contul de trezorerie si contul corespondent."));
+  });
+  const activeSaftSchema = accounting.anafSchemas.find((item) => item.code === "SAF-T" && item.active !== false);
+  if (!activeSaftSchema) issues.push(issue("Schema", "SAF-T", "Schema oficiala SAF-T nu este incarcata.", "Incarca arhiva ZIP sau XSD din sectiunea Scheme oficiale ANAF."));
 
   const areas = [
     area("Companie", 1, isValidRomanianCui(companyCui) ? 1 : 0),
@@ -450,7 +609,11 @@ function buildSaftReadiness(db, query = {}) {
     area("Terti", accounting.thirdParties.filter((item) => item.activ !== false).length, accounting.thirdParties.filter((item) => item.activ !== false && item.denumire && (String(item.tara || "RO").toUpperCase() !== "RO" || isValidRomanianCui(normalizeCui(item.cui)))).length),
     area("Facturi perioada", invoices.length, invoices.filter((item) => item.data && (item.nr_document || item.numar)).length),
     area("Linii contabile", periodLines.length, periodLines.filter((item) => accountSymbols.has(String(item.cont_simbol || ""))).length),
-    area("Produse/materiale", materials.length, materials.filter((item) => item.cod || item.code).length)
+    area("Produse/materiale", materials.length, materials.filter((item) => item.cod || item.code).length),
+    area("Taxe", invoices.length, taxDocuments.length),
+    area("Mijloace fixe", fixedAssets.length, fixedAssets.filter((item) => (item.inventory_number || item.nr_inventar) && Number(item.acquisition_value || item.valoare_intrare || 0) > 0).length),
+    area("Trezorerie", treasury.length, treasury.filter((item) => item.cont_trezorerie && item.cont_corespondent).length),
+    area("Schema SAF-T", 1, activeSaftSchema ? 1 : 0)
   ];
   const total = areas.reduce((sum, item) => sum + item.total, 0);
   const mapped = areas.reduce((sum, item) => sum + item.mapped, 0);
@@ -460,6 +623,7 @@ function buildSaftReadiness(db, query = {}) {
     coverage: total ? Math.round(mapped * 10000 / total) / 100 : 0,
     areas,
     issues,
+    active_schema: activeSaftSchema ? { original_name: activeSaftSchema.original_name, sha256: activeSaftSchema.sha256 } : null,
     note: "Diagnostic tehnic de mapare. Generarea si validarea XML D406 necesita schema ANAF aplicabila perioadei."
   };
 }
@@ -505,3 +669,4 @@ module.exports = registerDeclarationRoutes;
 module.exports.buildD394Data = buildD394Data;
 module.exports.buildDeclarationReadiness = buildDeclarationReadiness;
 module.exports.buildSaftReadiness = buildSaftReadiness;
+module.exports.buildD112Readiness = buildD112Readiness;
