@@ -1,5 +1,26 @@
 # Changelog
 
+# v2.12.156 - 2026-06-28
+
+## Hotfix update ZIP si instalere
+
+- Componenta `AsternerePage` foloseste acum exclusiv un nume de fisier si identificator ASCII.
+- Update-ul ZIP se extrage consecvent pe Windows, fara diferenta intre numele arhivat si cel cautat de updater.
+- Textele vizibile din instalerele Server si Client au fost rescrise fara diacritice si fara secvente corupte.
+- Pachetul include integral functionalitatile contabile din v2.12.155.
+
+# v2.12.155 - 2026-06-28
+
+## Contabilitate - control fiscal si declaratii
+
+- Registru fiscal D300/D394 cu starile validat intern, exportat, depus, acceptat si respins.
+- Recipisele ANAF pot fi arhivate ca PDF, XML, ZIP sau TXT, cu amprenta SHA-256 si descarcare autentificata.
+- Validarea TVA compara documentele, rulajele conturilor 4426/4427 si balanta de verificare.
+- Facturile contabile de iesire validate pot crea sau actualiza direct draftul e-Factura.
+- Facturile primite prin import e-Factura sunt marcate vizibil in registrul facturilor de intrare.
+- SAF-T afiseaza in continuare diagnosticul de mapare fara a pretinde generarea unui XML fiscal final.
+- 40 de teste contabile si build-ul frontend au fost verificate.
+
 # v2.12.154 - 2026-06-28
 
 - Reconciliere bancara automata in lot pentru sugestiile cu scor minimum 85% si rezultat neambiguu.

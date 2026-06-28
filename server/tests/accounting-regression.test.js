@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const engine = require("../modules/accounting/accounting-engine");
 const declarations = require("../modules/accounting/declaration-routes");
+const fiscal = require("../modules/accounting/fiscal-register");
 const snapshots = require("../modules/accounting/period-snapshots");
 const operations = require("../modules/accounting/operations-routes");
 const advancedOperations = require("../modules/accounting/operations-advanced-routes");
@@ -65,6 +66,37 @@ test("diagnosticul SAF-T semnaleaza maparile lipsa", () => {
   assert.equal(report.ready, false);
   assert.ok(report.issues.some((item) => item.area === "Terti"));
   assert.ok(report.coverage < 100);
+});
+
+test("registrul fiscal grupeaza istoricul si pastreaza ultima stare", () => {
+  const runs = [
+    { id: 1, code: "D300", an: 2026, luna: 6, status: "validat_intern", validated_at: "2026-06-20T10:00:00Z" },
+    { id: 2, code: "D300", an: 2026, luna: 6, status: "exportat", updated_at: "2026-06-20T11:00:00Z" },
+    { id: 3, code: "D394", an: 2026, luna: 6, status: "cu_erori", updated_at: "2026-06-20T09:00:00Z" }
+  ];
+  const report = fiscal.buildRegister(runs, fiscal.declarationPeriod("2026-06"));
+  assert.equal(report.declarations[0].latest.id, 2);
+  assert.equal(report.declarations[1].latest.status, "cu_erori");
+});
+
+test("registrul fiscal valideaza tranzitiile si extensiile recipisei", () => {
+  assert.equal(fiscal.canExport({ status: "validat_intern" }), true);
+  assert.equal(fiscal.canExport({ status: "cu_erori" }), false);
+  assert.equal(fiscal.runStatusFromReceipt("acceptata"), "acceptat");
+  assert.equal(fiscal.runStatusFromReceipt("respinsa"), "respins");
+  assert.match(fiscal.safeStoredName("recipisa.pdf", "D300_2026-06"), /\.pdf$/);
+  assert.equal(fiscal.safeStoredName("script.exe", "D300"), null);
+});
+
+test("controlul TVA confirma documente, jurnale si balanta", () => {
+  const { db, accounting, user } = fixture();
+  accounting.invoicesOut.push({ id: 11, an: 2026, luna: 6, data: "2026-06-12", numar: "F-11", status: "validat", client_id: 1, valoare: 100, tva: 21, total: 121 });
+  engine.createJournal(db, user, { an: 2026, luna: 6, data: "2026-06-12", nr_document: "F-11", lines: [{ cont_simbol: "4111", debit: 121 }, { cont_simbol: "704", credit: 100 }, { cont_simbol: "4427", credit: 21 }] });
+  accounting.periods.push({ id: 1, an: 2026, luna: 6, status: "inchisa", tva_verificat_la: new Date().toISOString() });
+  const report = declarations.buildDeclarationReadiness(db, { perioada: "2026-06" });
+  assert.equal(report.vat_control.documents_consistent, true);
+  assert.equal(report.vat_control.balance_consistent, true);
+  assert.equal(report.vat_control.balance_balanced, true);
 });
 
 test("snapshotul perioadei are versiune si checksum stabil", () => {

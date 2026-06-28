@@ -227,6 +227,16 @@ export function FacturiContab({ direction = 'in' }) {
       setActionLoading('')
     }
   }
+  async function syncEfactura(row) {
+    setActionLoading(`efactura-${row.uuid}`)
+    try {
+      setError(''); setMessage('')
+      const res = await api.post(`/accounting/invoices-out/${row.uuid}/efactura`)
+      setMessage(`Factura a fost pregătită în e-Factura cu status ${res.data?.efactura?.status || 'draft'}.`)
+      await load()
+    } catch (err) { setError(errorText(err, 'Factura nu a putut fi pregătită pentru e-Factura.')) }
+    finally { setActionLoading('') }
+  }
   async function storno(row) {
     if (!window.confirm('Stornezi documentul selectat?')) return
     setActionLoading(`storno-${row.uuid}`)
@@ -416,6 +426,8 @@ export function FacturiContab({ direction = 'in' }) {
       row.status === 'draft' ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
       canPayInvoice(row) ? { label: isIn ? 'Inregistreaza plata' : 'Inregistreaza incasarea', onClick: () => openPayment(row) } : null,
       row.status === 'validat' ? { label: 'Devalideaza factura', onClick: () => devalidate(row), danger: true } : null,
+      !isIn && ['validat', 'partial', 'incasat'].includes(row.status) ? { label: row.efactura_id ? 'Actualizeaza e-Factura' : 'Pregateste e-Factura', onClick: () => syncEfactura(row) } : null,
+      !isIn && row.efactura_id ? { label: `Deschide e-Factura (${row.efactura_status || 'draft'})`, to: '/contabilitate/anaf' } : null,
       row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? { label: 'Storno factura', onClick: () => storno(row), danger: true } : null,
       { separator: true },
       row.journal_id ? { label: 'Vezi nota contabila', onClick: () => showJournal(row) } : null,
@@ -486,7 +498,7 @@ export function FacturiContab({ direction = 'in' }) {
         {visibleRows.map(row => (
           <tr key={row.uuid}>
             <td className="px-3 py-2">{row.data}</td>
-            <td className="px-3 py-2">{row.nr_document || `${row.serie || ''} ${row.numar || ''}`}</td>
+            <td className="px-3 py-2">{row.nr_document || `${row.serie || ''} ${row.numar || ''}`}{row.source === 'efactura_import' ? <div className="mt-1"><Badge tone="success">e-Factura importată</Badge></div> : row.efactura_id ? <div className="mt-1"><Badge tone="success">e-Factura {row.efactura_status || 'draft'}</Badge></div> : null}</td>
             <td className="px-3 py-2">
               {thirdPartyById.get(String(row.furnizor_id || row.client_id))?.denumire || row.furnizor_id || row.client_id}
               {thirdPartyById.get(String(row.furnizor_id || row.client_id))?.cui ? <div className="text-xs text-slate-500">{thirdPartyById.get(String(row.furnizor_id || row.client_id))?.cui}</div> : null}

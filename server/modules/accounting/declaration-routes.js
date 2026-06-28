@@ -1,7 +1,14 @@
 const xlsx = require("xlsx");
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
 const engine = require("./accounting-engine");
+const fiscal = require("./fiscal-register");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
+
+const receiptUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 function registerDeclarationRoutes(router, { requireAccountingReports, requireAccountingPost }) {
   router.get("/accounting/declarations/readiness", requireAccountingReports, (req, res) => {
@@ -24,6 +31,15 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
     res.status(200).json({ perioada: `${an}-${String(luna).padStart(2, "0")}`, runs });
   });
 
+  router.get("/accounting/declarations/register", requireAccountingReports, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const period = fiscal.declarationPeriod(req.query.perioada || req.query.luna || currentMonth());
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      res.status(200).json(fiscal.buildRegister(accounting.declarationRuns, period));
+    } catch (error) { next(error); }
+  });
+
   router.post("/accounting/declarations/:code/validate", requireAccountingPost, (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
@@ -32,14 +48,14 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       const readiness = buildDeclarationReadiness(req.auth.db, req.body || req.query || {});
       const [an, luna] = monthParts(readiness.perioada);
       const relevant = code === "D300"
-        ? readiness.checks.filter((item) => ["documents", "vat", "vat_accounting"].includes(item.key))
-        : readiness.checks.filter((item) => ["documents", "d394_partners", "vat_accounting"].includes(item.key));
+        ? readiness.checks.filter((item) => ["documents", "vat", "vat_accounting", "vat_balance"].includes(item.key))
+        : readiness.checks.filter((item) => ["documents", "d394_partners", "vat_accounting", "vat_balance"].includes(item.key));
       const errors = relevant.filter((item) => !item.ok).map((item) => item.message);
       const run = {
         id: engine.nextNumericId(accounting.declarationRuns), code, an, luna,
         status: errors.length ? "cu_erori" : "validat_intern", errors,
-        checksum: require("crypto").createHash("sha256").update(JSON.stringify({ code, perioada: readiness.perioada, checks: relevant, vat: readiness.vat_control })).digest("hex"),
-        validated_by: req.auth.user?.id || "", validated_at: new Date().toISOString()
+        checksum: crypto.createHash("sha256").update(JSON.stringify({ code, perioada: readiness.perioada, checks: relevant, vat: readiness.vat_control })).digest("hex"),
+        validated_by: req.auth.user?.id || "", validated_at: new Date().toISOString(), updated_at: new Date().toISOString()
       };
       accounting.declarationRuns.push(run);
       addAudit(req.auth.db, req.auth.user, "accounting_declaration_validate", `${code} ${readiness.perioada} / ${run.status}`);
@@ -53,17 +69,90 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       const code = String(req.params.code || "").toUpperCase();
       const [an, luna] = monthParts(req.body?.perioada);
       const accounting = engine.ensureAccounting(req.auth.db);
-      const run = accounting.declarationRuns.slice().reverse().find((item) => item.code === code && Number(item.an) === an && Number(item.luna) === luna && item.status === "validat_intern");
-      if (!run) throwHttp(409, "Ruleaza mai intai validarea interna fara erori.");
+      const run = fiscal.latestRun(accounting.declarationRuns, code, an, luna, ["validat_intern", "exportat", "depus"]);
+      if (!run) throwHttp(409, "Ruleaza mai intai validarea interna fara erori si exporta declaratia.");
       const receipt = String(req.body?.recipisa || "").trim();
       if (!receipt) throwHttp(400, "Completeaza numarul recipisei ANAF.");
       run.status = "depus";
       run.recipisa = receipt;
       run.submitted_at = new Date().toISOString();
       run.submitted_by = req.auth.user?.id || "";
+      run.receipt_status = "in_procesare";
+      run.updated_at = new Date().toISOString();
       addAudit(req.auth.db, req.auth.user, "accounting_declaration_submit", `${code} ${an}-${String(luna).padStart(2, "0")} / ${receipt}`);
       writeDb(req.auth.db);
       res.status(200).json({ run });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/declarations/:code/exported", requireAccountingPost, (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      if (!["D300", "D394"].includes(code)) throwHttp(400, "Declaratia selectata nu poate fi marcata exportata.");
+      const period = fiscal.declarationPeriod(req.body?.perioada);
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const run = fiscal.latestRun(accounting.declarationRuns, code, period.an, period.luna, ["validat_intern", "exportat"]);
+      if (!fiscal.canExport(run)) throwHttp(409, "Valideaza intern declaratia fara erori inainte de export.");
+      run.status = "exportat";
+      run.exported_at = new Date().toISOString();
+      run.exported_by = req.auth.user?.id || "";
+      run.export_file = String(req.body?.filename || "").slice(0, 250);
+      run.updated_at = new Date().toISOString();
+      addAudit(req.auth.db, req.auth.user, "accounting_declaration_export", `${code} ${period.value} / ${run.export_file || "fisier"}`);
+      writeDb(req.auth.db);
+      res.status(200).json({ run });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/declarations/:code/receipt", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      if (!["D300", "D394"].includes(code)) throwHttp(400, "Declaratia selectata nu accepta recipisa.");
+      const period = fiscal.declarationPeriod(req.body?.perioada);
+      const status = fiscal.receiptStatus(req.body?.status);
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      if (!status) throwHttp(400, "Status recipisa invalid.");
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const run = fiscal.latestRun(accounting.declarationRuns, code, period.an, period.luna, ["validat_intern", "exportat", "depus", "respins"]);
+      if (!fiscal.canReceiveReceipt(run)) throwHttp(409, "Nu exista o validare activa pentru aceasta declaratie sau recipisa finala este deja inregistrata.");
+      const receipt = String(req.body?.recipisa || "").trim();
+      if (!receipt) throwHttp(400, "Completeaza numarul recipisei ANAF.");
+      if (req.file) {
+        const storedName = fiscal.safeStoredName(req.file.originalname, `${code}_${period.value}_${Date.now()}`);
+        if (!storedName) throwHttp(400, "Recipisa trebuie sa fie PDF, XML, ZIP sau TXT.");
+        const folder = path.join(process.cwd(), "storage", "accounting-declarations", period.value, code);
+        fs.mkdirSync(folder, { recursive: true });
+        const fullPath = path.join(folder, storedName);
+        fs.writeFileSync(fullPath, req.file.buffer);
+        run.receipt_file = path.relative(process.cwd(), fullPath).replace(/\\/g, "/");
+        run.receipt_original_name = req.file.originalname;
+        run.receipt_sha256 = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
+      }
+      run.status = fiscal.runStatusFromReceipt(status);
+      run.recipisa = receipt;
+      run.receipt_status = status;
+      run.receipt_message = String(req.body?.message || "").trim().slice(0, 1000);
+      run.received_at = new Date().toISOString();
+      run.received_by = req.auth.user?.id || "";
+      run.submitted_at = run.submitted_at || run.received_at;
+      run.submitted_by = run.submitted_by || req.auth.user?.id || "";
+      run.updated_at = run.received_at;
+      addAudit(req.auth.db, req.auth.user, "accounting_declaration_receipt", `${code} ${period.value} / ${receipt} / ${status}`);
+      writeDb(req.auth.db);
+      res.status(200).json({ run });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/declarations/runs/:id/receipt", requireAccountingReports, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const run = accounting.declarationRuns.find((item) => String(item.id) === String(req.params.id));
+      if (!run?.receipt_file) throwHttp(404, "Recipisa nu are fisier atasat.");
+      const storageRoot = path.resolve(process.cwd(), "storage", "accounting-declarations");
+      const fullPath = path.resolve(process.cwd(), run.receipt_file);
+      if (!fullPath.startsWith(`${storageRoot}${path.sep}`) || !fs.existsSync(fullPath)) throwHttp(404, "Fisierul recipisei nu a fost gasit.");
+      res.download(fullPath, run.receipt_original_name || path.basename(fullPath));
     } catch (error) { next(error); }
   });
 
@@ -165,6 +254,16 @@ function buildDeclarationReadiness(db, query = {}) {
     colectata: money(d394.detalii.filter((item) => item.tip === "livrare").reduce((sum, item) => sum + item.tva, 0))
   };
   const vatConsistent = Math.abs(vatAccounting.deductibila - vatDocuments.deductibila) <= 0.01 && Math.abs(vatAccounting.colectata - vatDocuments.colectata) <= 0.01;
+  const balance = engine.buildBalance(db, an, luna, "sintetica");
+  const balance4426 = balance.rows.find((item) => item.cont === "4426") || {};
+  const balance4427 = balance.rows.find((item) => item.cont === "4427") || {};
+  const vatBalance = {
+    deductibila: money(Number(balance4426.rulaje_D || 0) - Number(balance4426.rulaje_C || 0)),
+    colectata: money(Number(balance4427.rulaje_C || 0) - Number(balance4427.rulaje_D || 0))
+  };
+  const vatBalanceConsistent = balance.balanced
+    && Math.abs(vatBalance.deductibila - vatAccounting.deductibila) <= 0.01
+    && Math.abs(vatBalance.colectata - vatAccounting.colectata) <= 0.01;
   const checks = [
     {
       key: "documents",
@@ -191,6 +290,14 @@ function buildDeclarationReadiness(db, query = {}) {
       message: vatConsistent ? "TVA-ul documentelor corespunde rulajelor 4426/4427." : `Diferente: 4426 ${money(vatAccounting.deductibila - vatDocuments.deductibila)}, 4427 ${money(vatAccounting.colectata - vatDocuments.colectata)}.`
     },
     {
+      key: "vat_balance",
+      label: "TVA jurnale vs balanta",
+      ok: vatBalanceConsistent,
+      message: vatBalanceConsistent
+        ? "Rulajele TVA corespund balantei, iar balanta este echilibrata."
+        : `Balanta: 4426 ${vatBalance.deductibila}, 4427 ${vatBalance.colectata}; verificati notele contabile si echilibrul balantei.`
+    },
+    {
       key: "period",
       label: "Status perioada",
       ok: ["inchisa", "depusa"].includes(period.status),
@@ -203,11 +310,19 @@ function buildDeclarationReadiness(db, query = {}) {
     status: checks.every((item) => item.ok) ? "ready" : "needs_attention",
     checks,
     declarations: [
-      { code: "D300", status: drafts.length === 0 && period.tva_verificat_la && vatConsistent ? "pregatit" : "in_lucru", description: "Decont TVA din jurnalele de cumparari si vanzari." },
-      { code: "D394", status: d394.ready ? "pregatit" : "in_lucru", description: "Operatiuni interne grupate pe tert si CUI." },
+      { code: "D300", status: drafts.length === 0 && period.tva_verificat_la && vatConsistent && vatBalanceConsistent ? "pregatit" : "in_lucru", description: "Decont TVA din jurnalele de cumparari si vanzari." },
+      { code: "D394", status: d394.ready && vatConsistent && vatBalanceConsistent ? "pregatit" : "in_lucru", description: "Operatiuni interne grupate pe tert si CUI." },
       { code: "D406 / SAF-T", status: saft.ready ? "pregatit_mapare" : "neconfigurat", description: `Mapare tehnica ${saft.coverage}%. XML-ul fiscal necesita in continuare schema ANAF aplicabila.` }
     ],
-    vat_control: { accounting: vatAccounting, documents: vatDocuments, consistent: vatConsistent }
+    vat_control: {
+      accounting: vatAccounting,
+      documents: vatDocuments,
+      balance: vatBalance,
+      consistent: vatConsistent && vatBalanceConsistent,
+      documents_consistent: vatConsistent,
+      balance_consistent: vatBalanceConsistent,
+      balance_balanced: balance.balanced
+    }
   };
 }
 
@@ -353,6 +468,11 @@ function monthParts(value) {
   const current = new Date();
   const [year, month] = String(value || "").split("-").map(Number);
   return [year || current.getFullYear(), month || current.getMonth() + 1];
+}
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function normalizeCui(value) {

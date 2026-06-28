@@ -61,7 +61,7 @@ const KioskPage = lazy(() => import('./pages/KioskPage'))
 const MecanizarePage = lazy(() => import('./pages/modules/MecanizarePage'))
 const GestiunePage = lazy(() => import('./pages/modules/GestiunePage'))
 const SoferPage = lazy(() => import('./pages/SoferPage'))
-const AsternерePage = lazy(() => import('./pages/modules/AsternерePage'))
+const AsternerePage = lazy(() => import('./pages/modules/AsternerePage'))
 const SetupWizardPage = lazy(() => import('./pages/SetupWizardPage'))
 const FleetSignPage = lazy(() => import('./pages/FleetSignPage'))
 const FleetVerifyPage = lazy(() => import('./pages/FleetVerifyPage'))
@@ -146,7 +146,7 @@ export default function App() {
         <Route path="/kiosk" element={<KioskPage />} />
         <Route path="/my-vehicle" element={<WithLayout><MyVehicle /></WithLayout>} />
         <Route path="/sofer/*" element={<SoferPage />} />
-        <Route path="/asternere/*" element={<WithLayout><PermissionGuard permission="asternere:view"><AsternерePage /></PermissionGuard></WithLayout>} />
+        <Route path="/asternere/*" element={<WithLayout><PermissionGuard permission="asternere:view"><AsternerePage /></PermissionGuard></WithLayout>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>

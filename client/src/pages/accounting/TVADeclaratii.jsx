@@ -19,6 +19,8 @@ export function TVADeclaratii() {
   const [d394, setD394] = useState({ terti: [], warnings: [], totaluri: {} })
   const [saft, setSaft] = useState({ areas: [], issues: [], coverage: 0 })
   const [declarationHistory, setDeclarationHistory] = useState([])
+  const [declarationRegister, setDeclarationRegister] = useState({ declarations: [] })
+  const [receiptForm, setReceiptForm] = useState(null)
   const [schemas, setSchemas] = useState([])
   const [schemaCode, setSchemaCode] = useState('D300')
   const [schemaFile, setSchemaFile] = useState(null)
@@ -40,14 +42,16 @@ export function TVADeclaratii() {
       api.get('/accounting/d394', { params: params() }),
       api.get('/accounting/saft/readiness', { params: params() }),
       api.get('/accounting/declarations/history', { params: params() }),
+      api.get('/accounting/declarations/register', { params: params() }),
       api.get('/accounting/declarations/schemas')
-    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, historyRes, schemasRes]) => {
+    ]).then(([d300Res, journalRes, readinessRes, d394Res, saftRes, historyRes, registerRes, schemasRes]) => {
       setData(d300Res.data || { decont: { randuri: [] } })
       setJournal(journalRes.data || { jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
       setReadiness(readinessRes.data || { checks: [], declarations: [] })
       setD394(d394Res.data || { terti: [], warnings: [], totaluri: {} })
       setSaft(saftRes.data || { areas: [], issues: [], coverage: 0 })
       setDeclarationHistory(historyRes.data?.runs || [])
+      setDeclarationRegister(registerRes.data || { declarations: [] })
       setSchemas(schemasRes.data?.schemas || [])
     }).catch(err => {
       setData({ decont: { randuri: [] } })
@@ -56,6 +60,7 @@ export function TVADeclaratii() {
       setD394({ terti: [], warnings: [], totaluri: {} })
       setSaft({ areas: [], issues: [], coverage: 0 })
       setDeclarationHistory([])
+      setDeclarationRegister({ declarations: [] })
       setSchemas([])
       setError(err.response?.data?.error || 'Nu am putut incarca TVA / D300.')
     })
@@ -73,27 +78,41 @@ export function TVADeclaratii() {
     }
   }
 
-  async function markDeclarationSubmitted(code) {
-    const recipisa = window.prompt(`Numărul recipisei ANAF pentru ${code}:`, '')
-    if (!recipisa) return
+  async function saveReceipt() {
+    if (!receiptForm?.recipisa) { setError('Completează numărul recipisei ANAF.'); return }
     try {
       setError(''); setMessage('')
-      await api.post(`/accounting/declarations/${code}/submit`, { perioada: month, recipisa })
-      setMessage(`${code} a fost marcată depusă cu recipisa ${recipisa}.`)
+      const body = new FormData()
+      body.append('perioada', month)
+      body.append('recipisa', receiptForm.recipisa)
+      body.append('status', receiptForm.status || 'acceptata')
+      body.append('message', receiptForm.message || '')
+      if (receiptForm.file) body.append('file', receiptForm.file)
+      await api.post(`/accounting/declarations/${receiptForm.code}/receipt`, body)
+      setMessage(`${receiptForm.code}: recipisa ${receiptForm.recipisa} a fost înregistrată.`)
+      setReceiptForm(null)
       load()
-    } catch (err) { setError(err.response?.data?.error || `${code} nu a putut fi marcată depusă.`) }
+    } catch (err) { setError(err.response?.data?.error || 'Recipisa nu a putut fi înregistrată.') }
   }
 
-  async function download(endpoint, filename) {
-    const res = await api.get(endpoint, { params: params(), responseType: 'blob' })
-    const url = URL.createObjectURL(res.data)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+  async function download(endpoint, filename, declarationCode = '') {
+    try {
+      setError('')
+      const res = await api.get(endpoint, { params: params(), responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      if (declarationCode) {
+        await api.post(`/accounting/declarations/${declarationCode}/exported`, { perioada: month, filename })
+        setMessage(`${declarationCode} a fost exportată și înregistrată în registrul fiscal.`)
+        load()
+      }
+    } catch (err) { setError(err.response?.data?.error || 'Fișierul nu a putut fi exportat.') }
   }
 
   async function markVatChecked() {
@@ -139,8 +158,8 @@ export function TVADeclaratii() {
             canCheckVat ? { label: 'Marcheaza TVA verificat', onClick: markVatChecked } : null,
             { type: 'separator' },
             { label: 'Export Excel', onClick: () => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`) },
-            { label: 'XML lucru', onClick: () => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`) },
-            { label: 'D394 lucru Excel', onClick: () => download('/accounting/d394/export', `D394_lucru_${fileMonth}.xlsx`) },
+            { label: 'XML lucru D300', onClick: () => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`, 'D300') },
+            { label: 'D394 lucru Excel', onClick: () => download('/accounting/d394/export', `D394_lucru_${fileMonth}.xlsx`, 'D394') },
             { label: 'Raport control declarații', onClick: () => download('/accounting/declarations/control-export', `Control_declaratii_${fileMonth}.xlsx`) },
             { label: 'Diagnostic SAF-T Excel', onClick: () => download('/accounting/saft/export-mapping', `Diagnostic_SAFT_${fileMonth}.xlsx`) },
             { type: 'separator' },
@@ -234,11 +253,43 @@ export function TVADeclaratii() {
             const latest = declarationHistory.find(item => item.code === code)
             return <div key={code} className="flex items-center gap-2">
               <Button variant="secondary" onClick={() => validateDeclaration(code)}>Validează {code}</Button>
-              {latest?.status === 'validat_intern' ? <Button onClick={() => markDeclarationSubmitted(code)}>Înregistrează recipisa</Button> : null}
-              {latest ? <Badge tone={latest.status === 'depus' ? 'success' : latest.status === 'cu_erori' ? 'warning' : 'gray'}>{latest.status.replaceAll('_', ' ')}</Badge> : null}
+              {['validat_intern', 'exportat', 'depus', 'respins'].includes(latest?.status) ? <Button onClick={() => setReceiptForm({ code, recipisa: '', status: 'acceptata', message: '', file: null })}>Recipisă</Button> : null}
+              {latest ? <Badge tone={['acceptat', 'depus'].includes(latest.status) ? 'success' : ['cu_erori', 'respins'].includes(latest.status) ? 'warning' : 'gray'}>{latest.status.replaceAll('_', ' ')}</Badge> : null}
             </div>
           })}
         </div>
+      </Card>
+      {receiptForm ? <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="text-base font-semibold text-slate-900">Recipisă ANAF · {receiptForm.code}</h3><p className="text-sm text-slate-500">Înregistrează rezultatul și arhivează opțional fișierul primit.</p></div>
+          <Button variant="secondary" onClick={() => setReceiptForm(null)}>Închide</Button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <Input label="Număr recipisă" value={receiptForm.recipisa} onChange={event => setReceiptForm({ ...receiptForm, recipisa: event.target.value })} />
+          <Select label="Rezultat" value={receiptForm.status} onChange={event => setReceiptForm({ ...receiptForm, status: event.target.value })} options={[
+            { value: 'acceptata', label: 'Acceptată' }, { value: 'respinsa', label: 'Respinsă' }, { value: 'in_procesare', label: 'În procesare' }
+          ]} />
+          <Input label="Mesaj / observații" value={receiptForm.message} onChange={event => setReceiptForm({ ...receiptForm, message: event.target.value })} />
+          <label className="grid gap-1 text-sm"><span className="font-medium text-slate-700">Fișier recipisă</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".pdf,.xml,.zip,.txt" onChange={event => setReceiptForm({ ...receiptForm, file: event.target.files?.[0] || null })} /></label>
+        </div>
+        <div className="mt-3 flex justify-end"><Button onClick={saveReceipt}>Salvează recipisa</Button></div>
+      </Card> : null}
+      <Card>
+        <div><h3 className="text-base font-semibold text-slate-900">Registru declarații</h3><p className="text-sm text-slate-500">Validare internă, export, depunere și recipisă pentru perioada selectată.</p></div>
+        <div className="mt-3"><Table headers={['Declarație', 'Status', 'Validată', 'Exportată', 'Recipisă', 'Rezultat', 'Fișier']}>
+          {(declarationRegister.declarations || []).map(item => {
+            const run = item.latest
+            return <tr key={item.code}>
+              <td className="px-3 py-2 font-semibold">{item.code}</td>
+              <td className="px-3 py-2"><Badge tone={['acceptat', 'depus'].includes(run?.status) ? 'success' : ['cu_erori', 'respins'].includes(run?.status) ? 'warning' : 'gray'}>{run?.status?.replaceAll('_', ' ') || 'neînceput'}</Badge></td>
+              <td className="px-3 py-2">{run?.validated_at?.slice(0, 16).replace('T', ' ') || '-'}</td>
+              <td className="px-3 py-2">{run?.exported_at?.slice(0, 16).replace('T', ' ') || '-'}</td>
+              <td className="px-3 py-2">{run?.recipisa || '-'}</td>
+              <td className="px-3 py-2">{run?.receipt_status?.replaceAll('_', ' ') || '-'}</td>
+              <td className="px-3 py-2">{run?.receipt_file ? <Button variant="secondary" onClick={() => download(`/accounting/declarations/runs/${run.id}/receipt`, run.receipt_original_name || `Recipisa_${item.code}`)}>Descarcă</Button> : '-'}</td>
+            </tr>
+          })}
+        </Table></div>
       </Card>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">

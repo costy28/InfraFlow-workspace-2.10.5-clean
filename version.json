@@ -1,5 +1,5 @@
 {
-  "version": "2.12.154",
+  "version": "2.12.156",
   "date": "2026-06-28",
-  "changelog": "## v2.12.154 - 2026-06-28\n### Contabilitate - control lunar complet\n- Reconciliere bancara automata in lot pentru potrivirile sigure, cu oprire la cazurile ambigue.\n- Registrele Casa si Banca includ solduri zilnice si foi Excel dedicate.\n- Inchiderea lunii blocheaza operatiile bancare neclasificate si importurile nefinalizate.\n- TVA-ul trebuie reverificat daca documentele s-au modificat dupa ultima confirmare.\n- Motivul redeschiderii si referinta depunerii sunt validate si auditate pe server.\n- Fisele tertilor, confirmarile de sold, jurnalele si stingerile raman integrate in acelasi flux.\n- 37 de teste automate contabile, build frontend si verificare API/export Excel."
+  "changelog": "## v2.12.156 - 2026-06-28\n### Hotfix update ZIP si instalere\n- Componenta Asternere foloseste exclusiv un nume de fisier ASCII.\n- Arhiva ZIP nu mai produce nume diferite la extragerea pe Windows.\n- Textele vizibile din instalerele Server si Client nu mai contin diacritice sau caractere corupte.\n- Include integral controlul fiscal si declaratiile din v2.12.155."
 }

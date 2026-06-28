@@ -1,31 +1,31 @@
 ; ================================================
-; InfraFlow ERP Ã¢â‚¬â€ Client Desktop (Electron) Installer
+; InfraFlow ERP - Client Desktop (Electron) Installer
 ; Inno Setup 6 Script
 ; ================================================
 ;
-; PREREQUISITE: Electron app trebuie construit ÃƒÂ®nainte cu:
+; PREREQUISITE: aplicatia Electron trebuie construita inainte cu:
 ;   cd electron && npm install && npm run build
-;   Ã¢â€ â€™ genereazÃ„Æ’ electron\dist\win-unpacked\InfraFlow ERP.exe
+;   genereaza electron\dist\win-unpacked\InfraFlow ERP.exe
 ;
-; SAU folosiÃˆâ€ºi electron-builder care genereazÃ„Æ’ propriul NSIS installer.
+; Sau folositi electron-builder, care genereaza propriul installer NSIS.
 ; Acest .iss este alternativa Inno Setup pentru Electron packaged app.
 ; ================================================
 
 [Setup]
 AppId={{B2C3D4E5-F6A7-8901-BCDE-F12345678901}
 AppName=InfraFlow ERP Client
-AppVersion=2.12.154
+AppVersion=2.12.156
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow Client
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Client-Setup-v2.12.154
+OutputBaseFilename=InfraFlow-Client-Setup-v2.12.156
 WizardStyle=modern
 Compression=lzma2/ultra64
 SolidCompression=yes
 MinVersion=10.0
-; Nu necesitÃ„Æ’ admin Ã¢â‚¬â€ instalare per utilizator posibilÃ„Æ’
+; Nu necesita administrator - instalarea per utilizator este posibila
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline dialog
 
@@ -34,16 +34,16 @@ Name: "romanian"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; \
-  Description: "CreeazÃ„Æ’ scurtÃ„Æ’turÃ„Æ’ pe Desktop"; \
-  GroupDescription: "ScurtÃ„Æ’turi:"
+  Description: "Creeaza scurtatura pe Desktop"; \
+  GroupDescription: "Scurtaturi:"
 Name: "autostart"; \
-  Description: "PorneÃˆâ„¢te InfraFlow Client la Windows login"; \
-  GroupDescription: "OpÃˆâ€ºiuni:"; \
+  Description: "Porneste InfraFlow Client la autentificarea Windows"; \
+  GroupDescription: "Optiuni:"; \
   Flags: unchecked
 
 [Files]
-; Electron app Ã¢â‚¬â€ build result (win-unpacked sau similar)
-; Trebuie sÃ„Æ’ existe ÃƒÂ®nainte de compilarea .iss:
+; Rezultatul build-ului Electron (win-unpacked sau similar)
+; Trebuie sa existe inainte de compilarea .iss:
 ;   electron\dist\win-unpacked\*
 Source: "..\electron\dist\win-unpacked\*"; \
   DestDir: "{app}"; \
@@ -60,7 +60,7 @@ Name: "{commondesktop}\InfraFlow ERP"; \
   Tasks: desktopicon
 
 [Registry]
-; Autostart opÃˆâ€ºional
+; Autostart optional
 Root: HKCU; \
   Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; \
   ValueType: string; ValueName: "InfraFlow Client"; \
@@ -76,17 +76,17 @@ Root: HKCU; \
 
 [Run]
 Filename: "{app}\InfraFlow ERP.exe"; \
-  Description: "PorneÃˆâ„¢te InfraFlow ERP Client"; \
+  Description: "Porneste InfraFlow ERP Client"; \
   Flags: nowait postinstall skipifsilent
 
 [Code]
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Client v2.12.154' + #13#10#13#10 +
-    'AplicaÃˆâ€ºie desktop pentru accesarea serverului InfraFlow' + #13#10 +
-    'din reÃˆâ€ºeaua localÃ„Æ’ sau de pe internet.' + #13#10#13#10 +
-    'La prima pornire vei fi ghidat sÃ„Æ’ introduci' + #13#10 +
+    'InfraFlow ERP Client v2.12.156' + #13#10#13#10 +
+    'Aplicatie desktop pentru accesarea serverului InfraFlow' + #13#10 +
+    'din reteaua locala sau de pe internet.' + #13#10#13#10 +
+    'La prima pornire vei fi ghidat sa introduci' + #13#10 +
     'adresa serverului InfraFlow (ex: 192.168.100.27:4180).' + #13#10#13#10 +
     'Dimensiune instalare: ~120 MB' + #13#10 +
     'Durata: ~1 minut.';

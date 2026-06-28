@@ -587,6 +587,66 @@ router.post("/accounting/invoices-out/:uuid/validate", requireAccountingPost, (r
   } catch (error) { next(error); }
 });
 
+router.post("/accounting/invoices-out/:uuid/efactura", requireAccountingPost, (req, res, next) => {
+  try {
+    const db = req.auth.db;
+    const accounting = engine.ensureAccounting(db);
+    const invoice = findByUuid(accounting.invoicesOut, req.params.uuid, "Factura nu a fost gasita.");
+    if (!["validat", "partial", "incasat"].includes(String(invoice.status || ""))) {
+      throwHttp(409, "Valideaza factura si nota contabila inainte de pregatirea e-Factura.");
+    }
+    const client = thirdParty(db, invoice.client_id);
+    if (!client.cui) throwHttp(422, "Clientul nu are CUI. Completeaza fisa clientului inainte de e-Factura.");
+    db.anaf = db.anaf || {};
+    db.anaf.invoices = Array.isArray(db.anaf.invoices) ? db.anaf.invoices : [];
+    const existing = db.anaf.invoices.find((item) => item.accounting_invoice_uuid === invoice.uuid);
+    const general = db.settings?.general || {};
+    const lines = (invoice.lines || []).map((line, index) => {
+      const base = round(line.valoare || 0);
+      const rate = Number(line.tva_procent ?? invoice.tva_procent ?? 21);
+      return {
+        nr: index + 1,
+        descriere: String(line.denumire || line.explicatie || `Linia ${index + 1}`),
+        cantitate: 1,
+        unitateMasura: String(line.um || "BUC"),
+        pretUnitar: base,
+        cotaTVA: rate,
+        valoareFaraTVA: base,
+        valoareTVA: round(line.tva ?? base * rate / 100)
+      };
+    });
+    if (!lines.length) {
+      lines.push({ nr: 1, descriere: invoice.explicatie || "Servicii", cantitate: 1, unitateMasura: "BUC", pretUnitar: invoice.valoare, cotaTVA: invoice.tva_procent, valoareFaraTVA: invoice.valoare, valoareTVA: invoice.tva });
+    }
+    const record = existing || { id: engine.nextNumericId(db.anaf.invoices), created_at: new Date().toISOString() };
+    Object.assign(record, {
+      accounting_invoice_id: invoice.id,
+      accounting_invoice_uuid: invoice.uuid,
+      numar_factura: `${invoice.serie || "IF"}-${invoice.numar}`,
+      data_factura: invoice.data,
+      data_scadenta: invoice.data_scadenta || invoice.data,
+      tip: "emisa",
+      status: existing?.status || "draft",
+      emitent: { cif: general.cif || db.settings?.cif || "", denumire: general.companyName || db.settings?.companyName || "InfraFlow", adresa: general.address || "", iban: general.iban || "", banca: general.banca || "" },
+      partener: { cif: String(client.cui || "").replace(/^RO/i, ""), denumire: client.denumire || "", adresa: client.adresa || "" },
+      linii: lines,
+      moneda: "RON",
+      mentiuni: invoice.explicatie || "",
+      totalFaraTVA: round(lines.reduce((sum, line) => sum + line.valoareFaraTVA, 0)),
+      totalTVA: round(lines.reduce((sum, line) => sum + line.valoareTVA, 0)),
+      totalCuTVA: round(lines.reduce((sum, line) => sum + line.valoareFaraTVA + line.valoareTVA, 0)),
+      updated_at: new Date().toISOString()
+    });
+    if (!existing) db.anaf.invoices.push(record);
+    invoice.efactura_id = record.id;
+    invoice.efactura_status = record.status;
+    invoice.efactura_synced_at = new Date().toISOString();
+    addAudit(db, req.auth.user, "accounting_invoice_out_efactura", `${record.numar_factura} / e-Factura ${record.id}`);
+    writeDb(db);
+    sendJson(res, existing ? 200 : 201, { invoice: decorateInvoice(invoice, accounting), efactura: record });
+  } catch (error) { next(error); }
+});
+
 router.post("/accounting/invoices-out/:uuid/devalidate", requireAccountingPost, (req, res, next) => {
   try {
     const invoice = findByUuid(engine.ensureAccounting(req.auth.db).invoicesOut, req.params.uuid, "Factura nu a fost gasita.");

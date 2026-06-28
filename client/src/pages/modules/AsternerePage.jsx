@@ -109,7 +109,7 @@ const selectCls = inputCls
 
 // ─── COMPONENT PRINCIPAL ─────────────────────────────────────────────────────
 
-export default function AsternерePage() {
+export default function AsternerePage() {
   const [tab, setTab] = useState('Dashboard')
   const [lucrari, setLucrari]   = useState([])
   const [rapoarte, setRapoarte] = useState([])
