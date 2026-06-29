@@ -31,6 +31,8 @@ function ensurePayroll(db) {
   db.hr.payrollProfiles = Array.isArray(db.hr.payrollProfiles) ? db.hr.payrollProfiles : [];
   db.hr.payrollRuns = Array.isArray(db.hr.payrollRuns) ? db.hr.payrollRuns : [];
   db.hr.payrollLines = Array.isArray(db.hr.payrollLines) ? db.hr.payrollLines : [];
+  db.hr.payrollAdjustments = Array.isArray(db.hr.payrollAdjustments) ? db.hr.payrollAdjustments : [];
+  db.hr.payrollPayments = Array.isArray(db.hr.payrollPayments) ? db.hr.payrollPayments : [];
   if (!db.hr.payrollProfiles.length) db.hr.payrollProfiles.push({ ...DEFAULT_PROFILE });
   return db.hr;
 }
@@ -229,16 +231,19 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
   const overtime1 = money(sum(sheets, "ore_suplimentare_s1") * hourly * profile.overtime_rate_1 / 100);
   const overtime2 = money(sum(sheets, "ore_suplimentare_s2") * hourly * profile.overtime_rate_2 / 100);
   const nightBonus = money(sum(sheets, "ore_noapte") * hourly * profile.night_rate / 100);
-  const manualBonus = money(override.manual_bonus);
-  const taxableBenefits = money(override.taxable_benefits);
-  const totalBonuses = money(overtime1 + overtime2 + nightBonus + manualBonus + taxableBenefits);
+  const adjustments = hr.payrollAdjustments.filter((item) => adjustmentApplies(item, employee.id, month));
+  const adjustmentTotal = (type) => money(adjustments.filter((item) => item.tip === type).reduce((total, item) => total + num(item.amount), 0));
+  const manualBonus = money(override.manual_bonus !== undefined ? override.manual_bonus : adjustmentTotal("bonus"));
+  const taxableBenefits = money(override.taxable_benefits !== undefined ? override.taxable_benefits : adjustmentTotal("beneficiu_impozabil"));
+  const medicalIndemnity = money(override.medical_indemnity !== undefined ? override.medical_indemnity : adjustmentTotal("indemnizatie_medicala"));
+  const totalBonuses = money(overtime1 + overtime2 + nightBonus + manualBonus + taxableBenefits + medicalIndemnity);
   const gross = money(baseGross + totalBonuses);
   const cas = money(gross * profile.cas_rate / 100);
   const cass = money(gross * profile.cass_rate / 100);
   const personalDeduction = money(override.personal_deduction);
   const taxBase = money(Math.max(0, gross - cas - cass - personalDeduction));
   const incomeTax = money(taxBase * profile.income_tax_rate / 100);
-  const otherDeductions = money(override.other_deductions);
+  const otherDeductions = money(override.other_deductions !== undefined ? override.other_deductions : adjustmentTotal("retinere"));
   const net = money(Math.max(0, gross - cas - cass - incomeTax - otherDeductions));
   const cam = money(gross * profile.cam_rate / 100);
   const errors = [];
@@ -248,7 +253,7 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
   if (!(salaryBase > 0)) errors.push("Salariu de baza lipsa");
   if (!sheets.length) errors.push("Pontaj lipsa");
   if (sheets.length && !sheets.every((item) => item.validat === true || item.validat === 1)) errors.push("Pontaj nevalidat");
-  if (medicalDays > 0 && override.base_gross === undefined) warnings.push("Concediul medical necesita calcul si verificare separata");
+  if (medicalDays > 0 && medicalIndemnity <= 0) errors.push("Concediul medical necesita indemnizatie aprobata");
   if (personalDeduction === 0) warnings.push("Deducerea personala este zero; verificati daca angajatul are dreptul la deducere");
   return {
     employee_id: employee.id,
@@ -268,6 +273,7 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
     night_bonus: nightBonus,
     manual_bonus: manualBonus,
     taxable_benefits: taxableBenefits,
+    medical_indemnity: medicalIndemnity,
     total_bonuses: totalBonuses,
     gross,
     cas,
@@ -282,6 +288,13 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
     errors,
     warnings
   };
+}
+
+function adjustmentApplies(item, employeeId, month) {
+  if (item.cancelled_at || item.active === false || String(item.employee_id) !== String(employeeId)) return false;
+  const start = String(item.data_start || item.luna || "").slice(0, 7);
+  const end = String(item.data_sfarsit || item.luna || "9999-12").slice(0, 7);
+  return (!start || start <= month) && (!end || end >= month);
 }
 
 function currentProfile(hr, month) {
@@ -352,5 +365,10 @@ function throwHttp(status, message) { const error = new Error(message); error.st
 router.ensurePayroll = ensurePayroll;
 router.calculatePayrollLine = calculatePayrollLine;
 router.workdaysInMonth = workdaysInMonth;
+router.findRun = findRun;
+router.summarizeRun = summarizeRun;
+router.money = money;
+router.validMonth = validMonth;
+router.nextId = nextId;
 
 module.exports = router;

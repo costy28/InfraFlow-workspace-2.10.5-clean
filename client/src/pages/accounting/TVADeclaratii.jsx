@@ -206,6 +206,7 @@ export function TVADeclaratii() {
             { label: 'Raport control declarații', onClick: () => download('/accounting/declarations/control-export', `Control_declaratii_${fileMonth}.xlsx`) },
             { label: 'Diagnostic SAF-T Excel', onClick: () => download('/accounting/saft/export-mapping', `Diagnostic_SAFT_${fileMonth}.xlsx`) },
             { label: 'Pregătire date D112 Excel', onClick: () => download('/accounting/d112/export-inputs', `Pregatire_D112_${fileMonth}.xlsx`) },
+            { label: 'Sursa XML D112', onClick: () => download('/accounting/d112/export-source-xml', `D112_sursa_${fileMonth}.xml`, 'D112') },
             { type: 'separator' },
             { label: 'Facturi intrare', to: `/contabilitate/facturi-intrare?luna=${month}` },
             { label: 'Facturi iesire', to: `/contabilitate/facturi-iesire?luna=${month}` },

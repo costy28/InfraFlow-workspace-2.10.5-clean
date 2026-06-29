@@ -5,6 +5,7 @@ const path = require("path");
 const multer = require("multer");
 const engine = require("./accounting-engine");
 const fiscal = require("./fiscal-register");
+const d112Generator = require("./d112-generator");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
@@ -25,7 +26,24 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
   });
 
   router.get("/accounting/d112/readiness", requireAccountingReports, (req, res) => {
-    res.status(200).json(buildD112Readiness(req.auth.db, req.query));
+    res.status(200).json({ ...buildD112Readiness(req.auth.db, req.query), validator: d112Generator.validatorDiagnostic(req.auth.db) });
+  });
+
+  router.get("/accounting/d112/validator-diagnostic", requireAccountingReports, (req, res) => {
+    res.status(200).json(d112Generator.validatorDiagnostic(req.auth.db));
+  });
+
+  router.get("/accounting/d112/export-source-xml", requireAccountingReports, (req, res, next) => {
+    try {
+      const period = fiscal.declarationPeriod(req.query.perioada || req.query.luna || currentMonth());
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      const source = d112Generator.buildSource(req.auth.db, period.value);
+      const generated = d112Generator.toWorkingXml(source);
+      res.setHeader("Content-Type", "application/xml; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="D112_sursa_${period.value.replace("-", "_")}.xml"`);
+      res.setHeader("X-InfraFlow-SHA256", generated.sha256);
+      res.send(generated.content);
+    } catch (error) { next(error); }
   });
 
   router.get("/accounting/fiscal/calendar", requireAccountingReports, (req, res, next) => {

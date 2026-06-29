@@ -1,5 +1,5 @@
 {
-  "version": "2.12.159",
+  "version": "2.12.160",
   "date": "2026-06-28",
-  "changelog": "## v2.12.159 - 2026-06-28\n### Transfer angajat intre departamente\n- Departamentul poate fi schimbat direct din editarea angajatului.\n- Transferul cere data si motiv si este pastrat in istoricul fisei.\n- MSSQL actualizeaza sincron department_id si department_cod.\n- Istoricul transferurilor este disponibil in JSON si MSSQL.\n- 50 de teste de regresie si build frontend verificate."
+  "changelog": "## v2.12.160 - 2026-06-28\n### Salarizare faza 2 si control fiscal\n- Sporuri, beneficii, indemnizatii medicale si retineri recurente.\n- Fluturasi, export plati bancare si nota contabila automata.\n- Sursa XML D112 din stat validat, marcata explicit pentru validare oficiala externa.\n- Inchiderea lunii foloseste checklistul fiscal si explica blocajele.\n- Marcarea depunerii cere recipise acceptate pentru declaratiile obligatorii."
 }

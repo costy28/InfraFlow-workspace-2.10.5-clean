@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.160 - 2026-06-28
+
+- Salarizare faza 2: ajustari recurente, indemnizatii medicale, fluturasi si plati bancare.
+- Nota contabila a statului salarial se genereaza o singura data din statul validat.
+- Sursa XML D112 este construita din stat si ramane marcata pentru validare oficiala externa.
+- Inchiderea lunii blocheaza lipsurile din checklistul fiscal si afiseaza pasul necesar.
+- Marcarea perioadei ca depusa cere recipise acceptate D300, D394 si D112.
+- Schema MSSQL pentru ajustarile si platile salariale este versionata separat.
+
 # v2.12.159 - 2026-06-28
 
 ## Transfer angajat intre departamente

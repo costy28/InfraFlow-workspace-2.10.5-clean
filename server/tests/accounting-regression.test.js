@@ -12,6 +12,7 @@ const accountingRoutes = require("../modules/accounting/accounting-routes");
 const procurement = require("../modules/procurement/routes");
 const anafRoutes = require("../modules/anaf/routes");
 const payrollRoutes = require("../modules/hr/payroll-routes");
+const d112Generator = require("../modules/accounting/d112-generator");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -612,4 +613,33 @@ test("parserul UBL extrage furnizorul, liniile si totalul", async () => {
   assert.equal(parsed.supplier_name, "Furnizor XML");
   assert.equal(parsed.lines[0].um, "KGM");
   assert.equal(parsed.total, 242);
+});
+
+test("ajustarile salariale recurente intra in brut si retineri", () => {
+  const hr = {
+    contracts: [{ id: 1, employee_id: 1, data_start: "2026-01-01", salariu_baza: 4000, norma_ore: 8, status: "activ" }],
+    timeSheets: Array.from({ length: 22 }, (_, index) => ({ employee_id: 1, data: `2026-06-${String(index + 1).padStart(2, "0")}`, ore_lucrate: 8, validat: true })),
+    payrollAdjustments: [
+      { employee_id: 1, tip: "bonus", amount: 500, data_start: "2026-01-01", data_sfarsit: "2026-12-31", active: true },
+      { employee_id: 1, tip: "retinere", amount: 100, data_start: "2026-06-01", data_sfarsit: "2026-06-30", active: true }
+    ]
+  };
+  const employee = { id: 1, cnp: "1800101223344", nume: "Popescu", prenume: "Ion" };
+  const line = payrollRoutes.calculatePayrollLine(hr, employee, "2026-06", { cas_rate: 25, cass_rate: 10, income_tax_rate: 10, cam_rate: 2.25, overtime_rate_1: 75, overtime_rate_2: 100, night_rate: 25 });
+  assert.equal(line.manual_bonus, 500);
+  assert.equal(line.other_deductions, 100);
+  assert.equal(line.gross, 4500);
+});
+
+test("sursa D112 se genereaza numai din stat validat si ramane marcata tehnic", () => {
+  const { db } = fixture();
+  db.hr = {
+    employees: [{ id: 1, cnp: "1800101223344", nume: "Popescu", prenume: "Ion" }],
+    payrollRuns: [{ id: 1, luna: "2026-06", status: "validat", total_gross: 5000, total_cas: 1250, total_cass: 500, total_income_tax: 325, total_cam: 112.5, total_net: 2925 }],
+    payrollLines: [{ id: 1, run_id: 1, employee_id: 1, cnp: "1800101223344", employee_name: "Popescu Ion", gross: 5000, cas: 1250, cass: 500, income_tax: 325, cam: 112.5, net: 2925 }]
+  };
+  const generated = d112Generator.toWorkingXml(d112Generator.buildSource(db, "2026-06"));
+  assert.match(generated.content, /urn:infraflow:d112:source:1/);
+  assert.match(generated.content, /Necesita transformare si validare/);
+  assert.equal(generated.sha256.length, 64);
 });
