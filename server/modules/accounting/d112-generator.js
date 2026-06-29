@@ -1,5 +1,8 @@
 const crypto = require("crypto");
 const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { spawnSync } = require("child_process");
 
 function buildSource(db, period) {
   const hr = db.hr || {};
@@ -58,15 +61,65 @@ ${employees}
 
 function validatorDiagnostic(db) {
   const configured = String(process.env.D112_VALIDATOR_PATH || db.settings?.d112_validator_path || db.accounting?.d112_validator_path || "").trim();
+  const command = String(process.env.D112_VALIDATOR_COMMAND || db.settings?.d112_validator_command || "").trim();
+  const args = validatorArgs(db);
   return {
     configured: Boolean(configured),
     path: configured,
     available: Boolean(configured && fs.existsSync(configured)),
-    execution_enabled: false,
-    message: configured && fs.existsSync(configured)
-      ? "Validatorul este localizat. Executia automata ramane dezactivata pana la configurarea comenzii oficiale pentru versiunea curenta."
-      : "Configureaza D112_VALIDATOR_PATH catre validatorul oficial instalat local."
+    command,
+    args_configured: args.length > 0,
+    execution_enabled: Boolean(command && args.includes("{file}")),
+    message: command && args.includes("{file}")
+      ? "Comanda validatorului este configurata. Rezultatul ANAF va fi preluat fara reinterpretare."
+      : configured && fs.existsSync(configured)
+        ? "Validatorul este localizat. Configureaza D112_VALIDATOR_COMMAND si D112_VALIDATOR_ARGS cu parametrul {file}."
+        : "Configureaza validatorul oficial D112 si comanda sa de executie."
   };
+}
+
+function validateOfficialXml(db, buffer, originalName = "D112.xml") {
+  const diagnostic = validatorDiagnostic(db);
+  if (!diagnostic.execution_enabled) throwHttp(409, diagnostic.message);
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "infraflow-d112-"));
+  const safeName = path.basename(String(originalName || "D112.xml")).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const file = path.join(folder, safeName.toLowerCase().endsWith(".xml") ? safeName : `${safeName}.xml`);
+  try {
+    fs.writeFileSync(file, buffer);
+    const args = validatorArgs(db).map((item) => item.replaceAll("{file}", file));
+    const result = spawnSync(diagnostic.command, args, {
+      cwd: diagnostic.available && fs.statSync(diagnostic.path).isDirectory() ? diagnostic.path : process.cwd(),
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 120000,
+      maxBuffer: 5 * 1024 * 1024
+    });
+    const stdout = String(result.stdout || "").trim();
+    const stderr = String(result.stderr || "").trim();
+    const exitCode = Number.isInteger(result.status) ? result.status : -1;
+    return {
+      accepted: exitCode === 0 && !/\b(error|eroare|fatal)\b/i.test(`${stdout}\n${stderr}`),
+      exit_code: exitCode,
+      stdout,
+      stderr: result.error ? `${stderr}\n${result.error.message}`.trim() : stderr,
+      sha256: crypto.createHash("sha256").update(buffer).digest("hex"),
+      validator_path: diagnostic.path,
+      validated_at: new Date().toISOString()
+    };
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+}
+
+function validatorArgs(db) {
+  const value = process.env.D112_VALIDATOR_ARGS || db.settings?.d112_validator_args || "";
+  if (Array.isArray(value)) return value.map(String);
+  try {
+    const parsed = JSON.parse(String(value || "[]"));
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch (_) {
+    return [];
+  }
 }
 
 function companyData(db) {
@@ -81,4 +134,4 @@ function number(value) { return Number(value || 0).toFixed(2); }
 function xml(value) { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[char])); }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
-module.exports = { buildSource, toWorkingXml, validatorDiagnostic };
+module.exports = { buildSource, toWorkingXml, validatorDiagnostic, validateOfficialXml };

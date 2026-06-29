@@ -643,3 +643,37 @@ test("sursa D112 se genereaza numai din stat validat si ramane marcata tehnic", 
   assert.match(generated.content, /Necesita transformare si validare/);
   assert.equal(generated.sha256.length, 64);
 });
+
+test("avansul poprirea si tichetele raman distincte in stat", () => {
+  const hr = {
+    contracts: [{ id: 1, employee_id: 1, data_start: "2026-01-01", salariu_baza: 5000, norma_ore: 8, status: "activ" }],
+    timeSheets: Array.from({ length: 22 }, (_, index) => ({ employee_id: 1, data: `2026-06-${String(index + 1).padStart(2, "0")}`, ore_lucrate: 8, validat: true })),
+    payrollAdjustments: [
+      { employee_id: 1, tip: "avans", amount: 500, data_start: "2026-06-01", data_sfarsit: "2026-06-30" },
+      { employee_id: 1, tip: "poprire", amount: 200, data_start: "2026-06-01", data_sfarsit: "2026-06-30" },
+      { employee_id: 1, tip: "tichete_masa", amount: 400, data_start: "2026-06-01", data_sfarsit: "2026-06-30" }
+    ]
+  };
+  const line = payrollRoutes.calculatePayrollLine(hr, { id: 1, cnp: "1800101223344", nume: "Popescu", prenume: "Ion" }, "2026-06", {
+    cas_rate: 25, cass_rate: 10, income_tax_rate: 10, cam_rate: 2.25,
+    overtime_rate_1: 75, overtime_rate_2: 100, night_rate: 25,
+    meal_tickets_taxable: false, meal_tickets_cass: false
+  });
+  assert.equal(line.advances, 500);
+  assert.equal(line.garnishments, 200);
+  assert.equal(line.meal_tickets, 400);
+  assert.equal(line.other_deductions, 700);
+});
+
+test("plata salariala stinge contul 421 prin banca", () => {
+  const { db, accounting, user } = fixture();
+  const treasury = {
+    id: 101, an: 2026, luna: 6, data: "2026-06-30", nr_document: "SAL-2026-06",
+    tip: "banca", tip_operatie: "plata", suma: 2925, cont_trezorerie: "5121",
+    cont_corespondent: "421", explicatie: "Plata salarii 2026-06"
+  };
+  const journal = engine.generateJournalFromTreasury(db, user, treasury);
+  const lines = accounting.journalLines.filter((item) => item.journal_id === journal.id);
+  assert.equal(lines.find((item) => item.cont_simbol === "421").debit, 2925);
+  assert.equal(lines.find((item) => item.cont_simbol === "5121").credit, 2925);
+});

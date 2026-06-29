@@ -18,6 +18,8 @@ const DEFAULT_PROFILE = {
   overtime_rate_1: 75,
   overtime_rate_2: 100,
   night_rate: 25,
+  meal_tickets_taxable: false,
+  meal_tickets_cass: false,
   active: true,
   system: true,
   source: "Codul fiscal si formularul D112; procentele trebuie confirmate la schimbarea legislatiei."
@@ -33,7 +35,18 @@ function ensurePayroll(db) {
   db.hr.payrollLines = Array.isArray(db.hr.payrollLines) ? db.hr.payrollLines : [];
   db.hr.payrollAdjustments = Array.isArray(db.hr.payrollAdjustments) ? db.hr.payrollAdjustments : [];
   db.hr.payrollPayments = Array.isArray(db.hr.payrollPayments) ? db.hr.payrollPayments : [];
+  db.hr.payrollBankProfiles = Array.isArray(db.hr.payrollBankProfiles) ? db.hr.payrollBankProfiles : [];
   if (!db.hr.payrollProfiles.length) db.hr.payrollProfiles.push({ ...DEFAULT_PROFILE });
+  if (!db.hr.payrollBankProfiles.length) {
+    db.hr.payrollBankProfiles.push({
+      id: "bank-generic-xlsx",
+      name: "Excel bancar generic",
+      format: "xlsx",
+      treasury_account: "5121",
+      active: true,
+      system: true
+    });
+  }
   return db.hr;
 }
 
@@ -76,6 +89,8 @@ router.post("/hr/payroll/settings", requireSalaryManage, (req, res, next) => {
       overtime_rate_1: rate(body.overtime_rate_1 ?? 75, "spor suplimentar 1"),
       overtime_rate_2: rate(body.overtime_rate_2 ?? 100, "spor suplimentar 2"),
       night_rate: rate(body.night_rate ?? 25, "spor noapte"),
+      meal_tickets_taxable: Boolean(body.meal_tickets_taxable),
+      meal_tickets_cass: Boolean(body.meal_tickets_cass),
       active: true,
       system: false,
       source: String(body.source || "Configurat de utilizator").trim(),
@@ -94,7 +109,8 @@ router.get("/hr/payroll", requireSalaryView, (req, res) => {
   const month = validMonth(req.query.luna || monthNow());
   const run = [...hr.payrollRuns].reverse().find((item) => item.luna === month && !item.cancelled_at) || null;
   const lines = run ? hr.payrollLines.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
-  res.json({ luna: month, run, lines, profile: run?.profile || currentProfile(hr, month) });
+  const payments = run ? hr.payrollPayments.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
+  res.json({ luna: month, run, lines, payments, profile: run?.profile || currentProfile(hr, month) });
 });
 
 router.post("/hr/payroll/generate", requireSalaryManage, (req, res, next) => {
@@ -180,6 +196,9 @@ router.post("/hr/payroll/:runId/devalidate", requireSalaryManage, (req, res, nex
     const hr = ensurePayroll(db);
     const run = findRun(hr, req.params.runId);
     if (run.status !== "validat") throwHttp(409, "Statul salarial nu este validat.");
+    const activePayment = hr.payrollPayments.find((item) => item.run_id === run.id && !item.cancelled_at && item.status !== "stornat");
+    if (activePayment) throwHttp(409, "Storneaza plata salariala din trezorerie inainte de devalidarea statului.");
+    if (run.accounting_journal_id && !run.accounting_reversed_at) throwHttp(409, "Storneaza nota contabila a statului inainte de devalidare.");
     const reason = String(req.body?.motiv || "").trim();
     if (reason.length < 5) throwHttp(400, "Motivul devalidarii trebuie completat.");
     run.status = "draft";
@@ -236,14 +255,19 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
   const manualBonus = money(override.manual_bonus !== undefined ? override.manual_bonus : adjustmentTotal("bonus"));
   const taxableBenefits = money(override.taxable_benefits !== undefined ? override.taxable_benefits : adjustmentTotal("beneficiu_impozabil"));
   const medicalIndemnity = money(override.medical_indemnity !== undefined ? override.medical_indemnity : adjustmentTotal("indemnizatie_medicala"));
+  const mealTickets = money(override.meal_tickets !== undefined ? override.meal_tickets : adjustmentTotal("tichete_masa"));
+  const taxableMealTickets = profile.meal_tickets_taxable ? mealTickets : 0;
   const totalBonuses = money(overtime1 + overtime2 + nightBonus + manualBonus + taxableBenefits + medicalIndemnity);
   const gross = money(baseGross + totalBonuses);
   const cas = money(gross * profile.cas_rate / 100);
-  const cass = money(gross * profile.cass_rate / 100);
+  const cass = money((gross + (profile.meal_tickets_cass ? mealTickets : 0)) * profile.cass_rate / 100);
   const personalDeduction = money(override.personal_deduction);
-  const taxBase = money(Math.max(0, gross - cas - cass - personalDeduction));
+  const taxBase = money(Math.max(0, gross + taxableMealTickets - cas - cass - personalDeduction));
   const incomeTax = money(taxBase * profile.income_tax_rate / 100);
-  const otherDeductions = money(override.other_deductions !== undefined ? override.other_deductions : adjustmentTotal("retinere"));
+  const advances = money(override.advances !== undefined ? override.advances : adjustmentTotal("avans"));
+  const garnishments = money(override.garnishments !== undefined ? override.garnishments : adjustmentTotal("poprire"));
+  const otherDeductionsBase = money(override.other_deductions !== undefined ? override.other_deductions : adjustmentTotal("retinere"));
+  const otherDeductions = money(otherDeductionsBase + advances + garnishments);
   const net = money(Math.max(0, gross - cas - cass - incomeTax - otherDeductions));
   const cam = money(gross * profile.cam_rate / 100);
   const errors = [];
@@ -254,6 +278,9 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
   if (!sheets.length) errors.push("Pontaj lipsa");
   if (sheets.length && !sheets.every((item) => item.validat === true || item.validat === 1)) errors.push("Pontaj nevalidat");
   if (medicalDays > 0 && medicalIndemnity <= 0) errors.push("Concediul medical necesita indemnizatie aprobata");
+  const medicalAdjustments = adjustments.filter((item) => item.tip === "indemnizatie_medicala");
+  if (medicalDays > 0 && medicalAdjustments.some((item) => !item.operator_confirmed)) errors.push("Confirma certificatul si indemnizatia de concediu medical");
+  if (mealTickets > 0 && !profile.meal_tickets_taxable && !profile.meal_tickets_cass) warnings.push("Regimul fiscal al tichetelor este neactivat in profil; verificati configurarea aplicabila perioadei");
   if (personalDeduction === 0) warnings.push("Deducerea personala este zero; verificati daca angajatul are dreptul la deducere");
   return {
     employee_id: employee.id,
@@ -274,6 +301,7 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
     manual_bonus: manualBonus,
     taxable_benefits: taxableBenefits,
     medical_indemnity: medicalIndemnity,
+    meal_tickets: mealTickets,
     total_bonuses: totalBonuses,
     gross,
     cas,
@@ -281,6 +309,9 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
     personal_deduction: personalDeduction,
     tax_base: taxBase,
     income_tax: incomeTax,
+    advances,
+    garnishments,
+    other_deductions_base: otherDeductionsBase,
     other_deductions: otherDeductions,
     net,
     cam,
@@ -312,9 +343,12 @@ function activeContract(hr, employeeId, month) {
 }
 
 function summarizeRun(run, lines) {
-  ["total_bonuses", "total_gross", "total_cas", "total_cass", "total_income_tax", "total_other_deductions", "total_net", "total_cam", "total_employer_cost"].forEach((key) => { run[key] = 0; });
+  ["total_bonuses", "total_meal_tickets", "total_advances", "total_garnishments", "total_gross", "total_cas", "total_cass", "total_income_tax", "total_other_deductions", "total_net", "total_cam", "total_employer_cost"].forEach((key) => { run[key] = 0; });
   lines.forEach((line) => {
     run.total_bonuses += line.total_bonuses;
+    run.total_meal_tickets += line.meal_tickets || 0;
+    run.total_advances += line.advances || 0;
+    run.total_garnishments += line.garnishments || 0;
     run.total_gross += line.gross;
     run.total_cas += line.cas;
     run.total_cass += line.cass;

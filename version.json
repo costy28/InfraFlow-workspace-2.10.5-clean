@@ -1,5 +1,5 @@
 {
-  "version": "2.12.160",
-  "date": "2026-06-28",
-  "changelog": "## v2.12.160 - 2026-06-28\n### Salarizare faza 2 si control fiscal\n- Sporuri, beneficii, indemnizatii medicale si retineri recurente.\n- Fluturasi, export plati bancare si nota contabila automata.\n- Sursa XML D112 din stat validat, marcata explicit pentru validare oficiala externa.\n- Inchiderea lunii foloseste checklistul fiscal si explica blocajele.\n- Marcarea depunerii cere recipise acceptate pentru declaratiile obligatorii."
+  "version": "2.12.161",
+  "date": "2026-06-29",
+  "changelog": "## v2.12.161 - 2026-06-29\n### Salarizare, plati si validare D112\n- Avansuri, popriri, tichete de masa si concedii medicale controlate separat.\n- Fluturasi colectivi si registru de plata Excel.\n- Profiluri bancare XLSX/CSV si plata salariilor integrata cu trezoreria.\n- Stornare controlata pentru plata si nota contabila salariala.\n- Validare XML D112 prin comanda DUK configurata local, cu diagnostic complet."
 }

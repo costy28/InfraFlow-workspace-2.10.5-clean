@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.161 - 2026-06-29
+
+- Salarizarea trateaza separat avansuri, popriri, tichete de masa si concedii medicale confirmate.
+- Sunt disponibile fluturasii colectivi si registrul de plata Excel.
+- Profilurile bancare genereaza XLSX sau CSV, iar plata creeaza trezoreria si nota `421 = banca`.
+- Plata si nota contabila salariala se storneaza controlat, cu motiv si audit.
+- XML-ul D112 poate fi verificat prin comanda DUK configurata local; acceptarea este raportata numai dupa succesul validatorului.
+- Migrarea MSSQL 038 adauga profilurile bancare si legaturile de plata/stornare.
+
 # v2.12.160 - 2026-06-28
 
 - Salarizare faza 2: ajustari recurente, indemnizatii medicale, fluturasi si plati bancare.

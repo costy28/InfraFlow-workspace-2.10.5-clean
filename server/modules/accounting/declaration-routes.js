@@ -46,6 +46,29 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
     } catch (error) { next(error); }
   });
 
+  router.post("/accounting/d112/validate-official-xml", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
+    try {
+      if (!req.file) throwHttp(400, "Selecteaza fisierul XML D112 generat pentru validare.");
+      if (!String(req.file.originalname || "").toLowerCase().endsWith(".xml")) throwHttp(400, "Validatorul D112 accepta aici doar fisiere XML.");
+      const period = fiscal.declarationPeriod(req.body?.perioada || req.body?.luna || currentMonth());
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      const result = d112Generator.validateOfficialXml(req.auth.db, req.file.buffer, req.file.originalname);
+      const accounting = engine.ensureAccounting(req.auth.db);
+      accounting.d112ValidationRuns = Array.isArray(accounting.d112ValidationRuns) ? accounting.d112ValidationRuns : [];
+      const run = {
+        id: accounting.d112ValidationRuns.reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1,
+        perioada: period.value,
+        file_name: req.file.originalname,
+        ...result,
+        created_by: req.auth.user?.id || ""
+      };
+      accounting.d112ValidationRuns.push(run);
+      addAudit(req.auth.db, req.auth.user, "accounting_d112_official_validate", `${period.value} / ${result.accepted ? "acceptat" : "erori"}`);
+      writeDb(req.auth.db);
+      res.status(200).json({ run });
+    } catch (error) { next(error); }
+  });
+
   router.get("/accounting/fiscal/calendar", requireAccountingReports, (req, res, next) => {
     try {
       res.status(200).json(buildFiscalCalendar(req.auth.db, req.query));

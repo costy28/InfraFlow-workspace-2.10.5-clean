@@ -27,6 +27,8 @@ export function TVADeclaratii() {
   const [schemas, setSchemas] = useState([])
   const [schemaCode, setSchemaCode] = useState('D300')
   const [schemaFile, setSchemaFile] = useState(null)
+  const [d112Xml, setD112Xml] = useState(null)
+  const [d112Validation, setD112Validation] = useState(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [fiscalCheck, setFiscalCheck] = useState({ checks: [], ready: false })
@@ -184,6 +186,19 @@ export function TVADeclaratii() {
     } catch (err) { setError(err.response?.data?.error || 'Schema nu a putut fi încărcată.') }
   }
 
+  async function validateD112Xml() {
+    if (!d112Xml) { setError('Selectează fișierul XML D112 pentru validatorul oficial.'); return }
+    try {
+      setError(''); setMessage(''); setD112Validation(null)
+      const body = new FormData()
+      body.append('perioada', month)
+      body.append('file', d112Xml)
+      const response = await api.post('/accounting/d112/validate-official-xml', body)
+      setD112Validation(response.data?.run || null)
+      setMessage(response.data?.run?.accepted ? 'Validatorul oficial a acceptat XML-ul D112.' : 'Validatorul oficial a returnat erori. Vezi diagnosticul de mai jos.')
+    } catch (err) { setError(err.response?.data?.error || 'XML-ul D112 nu a putut fi validat.') }
+  }
+
   const d = data.decont || {}
   const warnings = [...(data.status?.warnings || []), ...(journal.warnings || [])]
   const periodStatus = data.period_status || journal.period_status || {}
@@ -282,6 +297,14 @@ export function TVADeclaratii() {
           {(d112.checks || []).map(check => <div key={check.key} className={`rounded-md border px-3 py-2 text-sm ${check.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><strong>{check.label}:</strong> {check.message}</div>)}
         </div>
         <p className="mt-3 text-xs text-slate-500">{d112.note}</p>
+        {tab === 'd112' ? <div className="mt-4 border-t border-slate-100 pt-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <label className="grid gap-1 text-sm"><span className="font-medium text-slate-700">XML D112 pentru validatorul oficial</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xml" onChange={event => setD112Xml(event.target.files?.[0] || null)} /></label>
+            <Button onClick={validateD112Xml}>Validează cu DUK</Button>
+          </div>
+          <div className="mt-2 text-xs text-slate-500">Necesită configurarea locală a comenzii DUK. InfraFlow nu marchează declarația acceptată doar pe baza verificărilor interne.</div>
+          {d112Validation ? <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${d112Validation.accepted ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}><strong>{d112Validation.accepted ? 'Acceptat' : 'Respins'}:</strong> cod ieșire {d112Validation.exit_code}<pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs">{d112Validation.stderr || d112Validation.stdout || 'Validatorul nu a furnizat detalii.'}</pre></div> : null}
+        </div> : null}
       </Card>
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_180px_180px]">

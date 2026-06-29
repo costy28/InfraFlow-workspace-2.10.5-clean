@@ -13,11 +13,12 @@ const emptyCorrection = {
   salary_base: '', base_gross: '', manual_bonus: '', taxable_benefits: '',
   personal_deduction: '', other_deductions: ''
 }
-const emptyAdjustment = { employee_id: '', tip: 'bonus', amount: '', descriere: '', data_start: '', data_sfarsit: '', recurent: false }
+const emptyAdjustment = { employee_id: '', tip: 'bonus', amount: '', descriere: '', data_start: '', data_sfarsit: '', recurent: false, quantity: '', unit_value: '', certificate_code: '', operator_confirmed: false }
+const emptyBankProfile = { name: '', bank_name: '', format: 'xlsx', treasury_account: '5121', active: true }
 
 export default function Salarizare() {
   const [month, setMonth] = useState(currentMonth())
-  const [data, setData] = useState({ run: null, lines: [], profile: null })
+  const [data, setData] = useState({ run: null, lines: [], payments: [], profile: null })
   const [settings, setSettings] = useState(null)
   const [adjustments, setAdjustments] = useState([])
   const [adjustmentOpen, setAdjustmentOpen] = useState(false)
@@ -26,6 +27,10 @@ export default function Salarizare() {
   const [correction, setCorrection] = useState(emptyCorrection)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [profile, setProfile] = useState({})
+  const [bankProfiles, setBankProfiles] = useState([])
+  const [selectedBankId, setSelectedBankId] = useState('')
+  const [bankOpen, setBankOpen] = useState(false)
+  const [bankProfile, setBankProfile] = useState(emptyBankProfile)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -34,15 +39,18 @@ export default function Salarizare() {
   async function load() {
     try {
       setError('')
-      const [payroll, config, adjustmentRes] = await Promise.all([
+      const [payroll, config, adjustmentRes, bankRes] = await Promise.all([
         api.get('/hr/payroll', { params: { luna: month } }),
         api.get('/hr/payroll/settings', { params: { luna: month } }),
-        api.get('/hr/payroll/adjustments', { params: { luna: month } })
+        api.get('/hr/payroll/adjustments', { params: { luna: month } }),
+        api.get('/hr/payroll/bank-profiles')
       ])
       setData(payroll.data)
       setSettings(config.data)
       setProfile({ ...config.data.current, effective_from: `${month}-01` })
       setAdjustments(adjustmentRes.data?.items || [])
+      setBankProfiles(bankRes.data?.items || [])
+      setSelectedBankId(current => current || bankRes.data?.items?.[0]?.id || '')
     } catch (err) {
       setError(err.response?.data?.error || 'Datele de salarizare nu au putut fi incarcate.')
     }
@@ -121,8 +129,9 @@ export default function Salarizare() {
 
   async function downloadBank() {
     try {
-      const response = await api.get(`/hr/payroll/${data.run.id}/bank-export`, { responseType: 'blob' })
-      downloadBlob(response.data, `Plati_salarii_${month.replace('-', '_')}.xlsx`)
+      const selected = bankProfiles.find(item => String(item.id) === String(selectedBankId))
+      const response = await api.get(`/hr/payroll/${data.run.id}/bank-export`, { params: { profile_id: selectedBankId }, responseType: 'blob' })
+      downloadBlob(response.data, `Plati_salarii_${month.replace('-', '_')}.${selected?.format === 'csv_semicolon' ? 'csv' : 'xlsx'}`)
     } catch (err) { setError(err.response?.data?.error || 'Fisierul bancar nu a putut fi generat.') }
   }
 
@@ -141,6 +150,56 @@ export default function Salarizare() {
       window.open(url, '_blank', 'noopener,noreferrer')
       window.setTimeout(() => URL.revokeObjectURL(url), 60000)
     } catch (err) { setError(err.response?.data?.error || 'Fluturasul nu a putut fi deschis.') }
+  }
+
+  async function openPayrollDocument(endpoint, filename = '') {
+    try {
+      const response = await api.get(endpoint, { responseType: 'blob' })
+      if (filename) return downloadBlob(response.data, filename)
+      const url = URL.createObjectURL(response.data)
+      window.open(url, '_blank', 'noopener,noreferrer')
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err) { setError(err.response?.data?.error || 'Documentul nu a putut fi generat.') }
+  }
+
+  async function payPayroll() {
+    if (!window.confirm(`Înregistrezi plata netă de ${formatMoney(data.run.total_net)} în trezorerie?`)) return
+    try {
+      await api.post(`/hr/payroll/${data.run.id}/pay`, { profile_id: selectedBankId, data: new Date().toISOString().slice(0, 10) })
+      setMessage('Plata salariilor a fost înregistrată în trezorerie și în contul 421.')
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Plata salariilor nu a putut fi înregistrată.') }
+  }
+
+  async function reversePayment() {
+    const motiv = window.prompt('Motivul stornării plății:')
+    if (!motiv) return
+    try {
+      await api.post(`/hr/payroll/${data.run.id}/reverse-payment`, { motiv })
+      setMessage('Plata salarială a fost stornată controlat.')
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Plata nu a putut fi stornată.') }
+  }
+
+  async function reverseAccounting() {
+    const motiv = window.prompt('Motivul stornării notei contabile:')
+    if (!motiv) return
+    try {
+      await api.post(`/hr/payroll/${data.run.id}/reverse-accounting`, { motiv })
+      setMessage('Nota contabilă salarială a fost stornată.')
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Nota contabilă nu a putut fi stornată.') }
+  }
+
+  async function saveBankProfile(event) {
+    event.preventDefault()
+    try {
+      const response = await api.post('/hr/payroll/bank-profiles', bankProfile)
+      setSelectedBankId(response.data?.item?.id || '')
+      setBankOpen(false); setBankProfile(emptyBankProfile)
+      setMessage('Profilul bancar a fost salvat.')
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Profilul bancar nu a putut fi salvat.') }
   }
 
   async function saveAdjustment(event) {
@@ -164,16 +223,23 @@ export default function Salarizare() {
   }
 
   const run = data.run
+  const activePayment = data.payments?.find(item => item.status === 'platit')
   const actionItems = [
     { label: run ? 'Regenereaza din pontaj' : 'Genereaza din pontaj', onClick: generate, disabled: run?.status === 'validat' },
     run?.status === 'draft' ? { label: 'Valideaza statul', onClick: validate } : null,
     run?.status === 'validat' ? { label: 'Devalideaza', onClick: devalidate } : null,
     run ? { label: 'Export Excel', onClick: exportExcel } : null,
     run?.status === 'validat' ? { label: 'Export plati banca', onClick: downloadBank } : null,
-    run?.status === 'validat' && !run.accounting_journal_id ? { label: 'Genereaza nota contabila', onClick: postAccounting } : null,
+    run ? { label: 'Toți fluturașii', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/payslips`) } : null,
+    run ? { label: 'Registru plată Excel', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/payment-register`, `Registru_plata_${month.replace('-', '_')}.xlsx`) } : null,
+    run?.status === 'validat' && (!run.accounting_journal_id || run.accounting_reversed_at) ? { label: 'Genereaza nota contabila', onClick: postAccounting } : null,
+    run?.status === 'validat' && run.accounting_journal_id && !run.accounting_reversed_at && !activePayment ? { label: 'Înregistrează plata', onClick: payPayroll } : null,
+    activePayment ? { label: 'Stornează plata', onClick: reversePayment } : null,
+    run?.accounting_journal_id && !run.accounting_reversed_at && !activePayment ? { label: 'Stornează nota contabilă', onClick: reverseAccounting } : null,
     { type: 'separator' },
     { label: 'Adauga spor / retinere', onClick: () => { setAdjustment({ ...emptyAdjustment, employee_id: data.lines?.[0]?.employee_id || '', data_start: `${month}-01` }); setAdjustmentOpen(true) } },
     { label: 'Profil fiscal', onClick: () => setSettingsOpen(true) },
+    { label: 'Profil bancar nou', onClick: () => setBankOpen(true) },
     { label: 'Pregatire D112', to: `/contabilitate/tva-d300?tab=d112&luna=${month}` }
   ].filter(Boolean)
 
@@ -197,7 +263,8 @@ export default function Salarizare() {
         <Info label="Contributii + impozit" value={formatMoney((run?.total_cas || 0) + (run?.total_cass || 0) + (run?.total_income_tax || 0) + (run?.total_cam || 0))} />
         <Info label="Cost angajator" value={formatMoney(run?.total_employer_cost || 0)} />
       </div>
-      {run?.accounting_journal_id ? <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Nota contabila #{run.accounting_journal_id} este generata.</div> : null}
+      <Card><div className="grid gap-3 md:grid-cols-[minmax(220px,360px)_1fr] md:items-end"><Select label="Profil bancar" value={selectedBankId} onChange={event => setSelectedBankId(event.target.value)} options={bankProfiles.filter(item => item.active !== false).map(item => ({ value: item.id, label: `${item.name} · ${item.format}` }))} /><div className="text-sm text-slate-600">Plată: <strong>{activePayment ? `înregistrată la ${activePayment.payment_date || '-'}` : run?.payment_status === 'stornat' ? 'stornată' : 'neînregistrată'}</strong></div></div></Card>
+      {run?.accounting_journal_id ? <div className={`rounded-md border px-3 py-2 text-sm ${run.accounting_reversed_at ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>Nota contabilă #{run.accounting_journal_id} este {run.accounting_reversed_at ? `stornată prin nota #${run.accounting_storno_journal_id || '-'}` : 'activă'}.</div> : null}
       <Table headers={['Marca', 'Angajat', 'Ore', 'Brut', 'CAS', 'CASS', 'Impozit', 'Net', 'CAM', 'Control', 'Actiuni']}>
         {(data.lines || []).map(line => (
           <tr key={line.id}>
@@ -235,11 +302,22 @@ export default function Salarizare() {
       <Modal open={adjustmentOpen} title="Spor, indemnizatie sau retinere" onClose={() => setAdjustmentOpen(false)} size="md">
         <form className="grid gap-3" onSubmit={saveAdjustment}>
           <Select label="Angajat" value={adjustment.employee_id} onChange={event => setAdjustment(current => ({ ...current, employee_id: event.target.value }))} options={(data.lines || []).map(line => ({ value: line.employee_id, label: line.employee_name }))} required />
-          <Select label="Tip" value={adjustment.tip} onChange={event => setAdjustment(current => ({ ...current, tip: event.target.value }))} options={[{ value: 'bonus', label: 'Spor / prima' }, { value: 'beneficiu_impozabil', label: 'Beneficiu impozabil' }, { value: 'indemnizatie_medicala', label: 'Indemnizatie concediu medical' }, { value: 'retinere', label: 'Retinere' }]} />
+          <Select label="Tip" value={adjustment.tip} onChange={event => setAdjustment(current => ({ ...current, tip: event.target.value }))} options={[{ value: 'bonus', label: 'Spor / primă' }, { value: 'beneficiu_impozabil', label: 'Beneficiu impozabil' }, { value: 'indemnizatie_medicala', label: 'Indemnizație concediu medical' }, { value: 'tichete_masa', label: 'Tichete de masă' }, { value: 'avans', label: 'Avans salarial' }, { value: 'poprire', label: 'Poprire' }, { value: 'retinere', label: 'Altă reținere' }]} />
           <div className="grid gap-3 sm:grid-cols-2"><Input label="Suma" type="number" min="0.01" step="0.01" value={adjustment.amount} onChange={event => setAdjustment(current => ({ ...current, amount: event.target.value }))} required /><Input label="Descriere" value={adjustment.descriere} onChange={event => setAdjustment(current => ({ ...current, descriere: event.target.value }))} /></div>
           <div className="grid gap-3 sm:grid-cols-2"><Input label="De la" type="date" value={adjustment.data_start} onChange={event => setAdjustment(current => ({ ...current, data_start: event.target.value }))} required /><Input label="Pana la" type="date" value={adjustment.data_sfarsit} onChange={event => setAdjustment(current => ({ ...current, data_sfarsit: event.target.value }))} /></div>
+          {adjustment.tip === 'tichete_masa' ? <div className="grid gap-3 sm:grid-cols-2"><Input label="Număr tichete" type="number" step="1" value={adjustment.quantity} onChange={event => setAdjustment(current => ({ ...current, quantity: event.target.value }))} /><Input label="Valoare unitară" type="number" step="0.01" value={adjustment.unit_value} onChange={event => setAdjustment(current => ({ ...current, unit_value: event.target.value }))} /></div> : null}
+          {adjustment.tip === 'indemnizatie_medicala' ? <><Input label="Cod certificat medical" value={adjustment.certificate_code} onChange={event => setAdjustment(current => ({ ...current, certificate_code: event.target.value }))} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={adjustment.operator_confirmed} onChange={event => setAdjustment(current => ({ ...current, operator_confirmed: event.target.checked }))} /> Certificatul și suma au fost verificate de operator</label></> : null}
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={adjustment.recurent} onChange={event => setAdjustment(current => ({ ...current, recurent: event.target.checked }))} /> Ajustare recurenta</label>
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setAdjustmentOpen(false)}>Renunta</Button><Button type="submit">Salveaza</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={bankOpen} title="Profil bancar salarizare" onClose={() => setBankOpen(false)} size="md">
+        <form className="grid gap-3" onSubmit={saveBankProfile}>
+          <Input label="Denumire profil" value={bankProfile.name} onChange={event => setBankProfile(current => ({ ...current, name: event.target.value }))} required />
+          <Input label="Bancă" value={bankProfile.bank_name} onChange={event => setBankProfile(current => ({ ...current, bank_name: event.target.value }))} />
+          <div className="grid gap-3 sm:grid-cols-2"><Select label="Format" value={bankProfile.format} onChange={event => setBankProfile(current => ({ ...current, format: event.target.value }))} options={[{ value: 'xlsx', label: 'Excel XLSX' }, { value: 'csv_semicolon', label: 'CSV delimitat cu ;' }]} /><Input label="Cont bancar contabil" value={bankProfile.treasury_account} onChange={event => setBankProfile(current => ({ ...current, treasury_account: event.target.value }))} required /></div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setBankOpen(false)}>Renunță</Button><Button type="submit">Salvează</Button></div>
         </form>
       </Modal>
 
