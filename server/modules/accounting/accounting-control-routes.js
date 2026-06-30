@@ -276,7 +276,8 @@ function registerAccountingControlRoutes(router, middleware) {
   });
 
   router.get("/accounting/declarations/schemas", requireAccountingReports, (req, res) => {
-    const schemas = engine.ensureAccounting(req.auth.db).anafSchemas.slice().sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+    const schemas = [...schemaProfiles.bundled(), ...engine.ensureAccounting(req.auth.db).anafSchemas]
+      .sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
     res.status(200).json({ schemas });
   });
 

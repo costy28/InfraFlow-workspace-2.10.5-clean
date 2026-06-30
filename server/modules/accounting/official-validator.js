@@ -29,7 +29,7 @@ function getConfig(db, code) {
 
 function saveConfig(db, code, input, user) {
   const key = String(code || "").toUpperCase();
-  if (!new Set(["D112", "D300", "D394"]).has(key)) throwHttp(400, "Declaratia nu accepta configurare de validator.");
+  if (!new Set(["D112", "D300", "D394", "D406"]).has(key)) throwHttp(400, "Declaratia nu accepta configurare de validator.");
   const args = parseArgs(input.args);
   if (input.command && !args.includes("{file}")) throwHttp(400, "Argumentele validatorului trebuie sa contina parametrul {file}.");
   const item = {

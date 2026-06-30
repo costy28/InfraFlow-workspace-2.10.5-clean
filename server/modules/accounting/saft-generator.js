@@ -4,10 +4,11 @@ const engine = require("./accounting-engine");
 function generate(db, period, profile = null) {
   const source = buildSource(db, period);
   const namespace = profile?.target_namespace || "urn:StandardAuditFile-Taxation-Financial:RO";
-  const version = profile?.schema_version || "2.00";
-  const content = render(source, namespace, version);
+  const schemaVersion = profile?.schema_version || "";
+  const auditFileVersion = profile?.audit_file_version || "2.00";
+  const content = render(source, namespace, auditFileVersion);
   return {
-    code: "D406", perioada: source.perioada, schema_version: version, profile: profile || null,
+    code: "D406", perioada: source.perioada, schema_version: schemaVersion, audit_file_version: auditFileVersion, profile: profile || null,
     content, source_summary: source.summary, issues: source.issues,
     sha256: crypto.createHash("sha256").update(content).digest("hex"), generated_at: new Date().toISOString(),
     warning: "Candidat D406. Fisierul devine export valid numai dupa acceptarea validatorului ANAF configurat."

@@ -9,6 +9,7 @@ const d112Generator = require("./d112-generator");
 const officialValidator = require("./official-validator");
 const declarationCandidates = require("./declaration-candidates");
 const schemaProfiles = require("./schema-profiles");
+const xsdValidator = require("./xsd-validator");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
@@ -130,17 +131,20 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       const fileName = `${code}_candidat_${period.value.replace("-", "_")}_${Date.now()}.xml`;
       const fullPath = path.join(folder, fileName);
       fs.writeFileSync(fullPath, candidate.content, "utf8");
-      const result = validator.execution_enabled ? officialValidator.validate(req.auth.db, code, Buffer.from(candidate.content), fileName) : null;
+      const xsdValidation = code === "D406" ? xsdValidator.validate(Buffer.from(candidate.content), activeSchema) : null;
+      const result = (!xsdValidation || xsdValidation.accepted) && validator.execution_enabled
+        ? officialValidator.validate(req.auth.db, code, Buffer.from(candidate.content), fileName) : null;
       const item = {
         id: engine.nextNumericId(accounting.declarationCandidates), ...candidate,
         stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
         schema_profile: activeProfile,
-        accepted: Boolean(result?.accepted), validation: result,
+        accepted: Boolean(result?.accepted && (!xsdValidation || xsdValidation.accepted)), xsd_validation: xsdValidation, validation: result,
         created_by: req.auth.user?.id || ""
       };
       delete item.content;
       accounting.declarationCandidates.push(item);
-      addAudit(req.auth.db, req.auth.user, "accounting_declaration_candidate", `${code} ${period.value} / ${result ? result.accepted ? "acceptat" : "erori" : "nevalidat"}`);
+      const validationStatus = xsdValidation && !xsdValidation.accepted ? "erori_xsd" : result ? result.accepted ? "acceptat" : "erori_validator" : "nevalidat";
+      addAudit(req.auth.db, req.auth.user, "accounting_declaration_candidate", `${code} ${period.value} / ${validationStatus}`);
       writeDb(req.auth.db);
       res.status(201).json({ candidate: item });
     } catch (error) { next(error); }

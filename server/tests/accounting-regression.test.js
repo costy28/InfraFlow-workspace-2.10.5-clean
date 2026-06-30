@@ -706,6 +706,8 @@ test("configurarea validatorului cere parametrul de fisier", () => {
   const saved = officialValidator.saveConfig(db, "D112", { path: "C:\\DUK", command: "java", args: '["-jar","validator.jar","{file}"]', schema_version: "01/2026" }, { id: 1 });
   assert.equal(saved.schema_version, "01/2026");
   assert.equal(officialValidator.diagnostic(db, "D112").execution_enabled, true);
+  const d406 = officialValidator.saveConfig(db, "D406", { command: "java", args: '["-jar","DUKIntegrator.jar","{file}"]', schema_version: "2.4.9" }, { id: 1 });
+  assert.equal(d406.code, "D406");
 });
 
 test("maparea D112 raporteaza campul lipsa pe angajat", () => {
@@ -769,6 +771,17 @@ test("profilul XSD extrage namespace radacina si campurile obligatorii", () => {
   assert.deepEqual(result.required_attributes, ["cui"]);
 });
 
+test("schema SAF-T oficiala inclusa este verificata prin hash si selectata pentru D406", () => {
+  const profiles = schemaProfiles.bundled();
+  assert.equal(profiles.length, 1);
+  assert.equal(profiles[0].sha256, "80AD7EAAF2AAFD656A6E3C0E69E3A8FCDB23262640287EBBA6383FF3014DCCC2");
+  assert.equal(profiles[0].actual_sha256, profiles[0].sha256);
+  assert.equal(profiles[0].hash_valid, true);
+  const selected = schemaProfiles.select({ anafSchemas: [] }, "D406", "2026-06");
+  assert.equal(selected.schema_metadata.schema_version, "2.4.9");
+  assert.equal(schemaProfiles.profile(selected).target_namespace, "mfp:anaf:dgti:d406t:declaratie:v1");
+});
+
 test("schema ANAF este selectata dupa perioada de valabilitate", () => {
   const accounting = { anafSchemas: [
     { id: 1, code: "D300", active: true, valid_from: "2025-01-01", valid_to: "2025-12-31" },
@@ -808,6 +821,14 @@ test("generatorul SAF-T include fisiere master registru si documente sursa", () 
   assert.match(result.content, /<MasterFiles>/);
   assert.match(result.content, /<GeneralLedgerEntries>/);
   assert.match(result.content, /<SourceDocuments>/);
+});
+
+test("generatorul SAF-T separa versiunea XSD de versiunea AuditFile", () => {
+  const { db } = fixture();
+  const result = saftGenerator.generate(db, "2026-06", { schema_version: "2.4.9", audit_file_version: "2.00", target_namespace: "mfp:anaf:dgti:d406t:declaratie:v1" });
+  assert.equal(result.schema_version, "2.4.9");
+  assert.equal(result.audit_file_version, "2.00");
+  assert.match(result.content, /<AuditFileVersion>2\.00<\/AuditFileVersion>/);
 });
 
 test("profilurile financiare izoleaza maparile pe formular", () => {

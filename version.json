@@ -1,5 +1,5 @@
 {
-  "version": "2.12.177",
+  "version": "2.12.178",
   "date": "2026-06-30",
-  "changelog": "## v2.12.177 - 2026-06-30\n### Circuit fiscal controlat\n- Acceptanta contabila lunara cu pasi de remediere.\n- Profiluri configurabile pentru situatii financiare.\n- Adaptoare D300/D394 bazate pe profil XSD.\n- SAF-T D406 pe MasterFiles, registru general si documente sursa.\n- Dosar fiscal extins si pagina Audit fiscal."
+  "changelog": "## v2.12.178 - 2026-06-30\n### Schema oficiala SAF-T\n- Schema ANAF v2.4.9 este inclusa si verificata prin SHA-256.\n- Candidatii D406 sunt verificati structural cu XSD inainte de validatorul DUK.\n- Erorile XSD sunt pastrate si afisate in Audit fiscal.\n- Configurarea validatorului D406 este disponibila in backend."
 }

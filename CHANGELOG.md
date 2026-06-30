@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.178 - 2026-06-30
+
+- Schema oficiala ANAF SAF-T v2.4.9 este inclusa si verificata prin SHA-256.
+- Profilul D406 foloseste automat namespace-ul oficial pentru perioadele din 2025 inainte.
+- Validare XSD locala obligatorie inaintea validatorului DUK configurat.
+- Erorile structurale sunt vizibile in Audit fiscal si blocheaza exportul fiscal.
+- Configurarea validatorului D406 este acceptata de backend.
+
 # v2.12.177 - 2026-06-30
 
 - Acceptanta contabil-fiscala lunara cu mesaje si pasi de remediere.

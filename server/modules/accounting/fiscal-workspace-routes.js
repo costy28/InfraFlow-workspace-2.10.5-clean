@@ -9,6 +9,7 @@ const financialStatements = require("./financial-statement-routes");
 const schemaProfiles = require("./schema-profiles");
 const officialValidator = require("./official-validator");
 const saftGenerator = require("./saft-generator");
+const xsdValidator = require("./xsd-validator");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
@@ -86,21 +87,22 @@ function registerFiscalWorkspaceRoutes(router, middleware) {
     try {
       const period = normalizePeriod(req.body?.perioada || req.body?.luna);
       const accounting = engine.ensureAccounting(req.auth.db);
-      const schema = schemaProfiles.select(accounting, "SAF-T", period) || schemaProfiles.select(accounting, "D406", period);
+       const schema = schemaProfiles.select(accounting, "SAF-T", period);
       if (!schema) throwHttp(409, "Incarca mai intai schema SAF-T aplicabila perioadei.");
       const generated = saftGenerator.generate(req.auth.db, period, schemaProfiles.profile(schema));
       const folder = path.join(process.cwd(), "storage", "accounting-declarations", period, "D406", "candidates");
       fs.mkdirSync(folder, { recursive: true });
       const fileName = `D406_candidat_${period.replace("-", "_")}_${Date.now()}.xml`;
-      const fullPath = path.join(folder, fileName); fs.writeFileSync(fullPath, generated.content, "utf8");
-      const diagnostic = officialValidator.diagnostic(req.auth.db, "D406");
-      const validation = diagnostic.execution_enabled ? officialValidator.validate(req.auth.db, "D406", Buffer.from(generated.content), fileName) : null;
+       const fullPath = path.join(folder, fileName); fs.writeFileSync(fullPath, generated.content, "utf8");
+       const xsdValidation = xsdValidator.validate(Buffer.from(generated.content), schema);
+       const diagnostic = officialValidator.diagnostic(req.auth.db, "D406");
+       const validation = xsdValidation.accepted && diagnostic.execution_enabled ? officialValidator.validate(req.auth.db, "D406", Buffer.from(generated.content), fileName) : null;
       const run = {
         id: engine.nextNumericId(accounting.saftRuns), uuid: crypto.randomUUID(), code: "D406", perioada: period,
-        schema_profile: generated.profile, source_summary: generated.source_summary, issues: generated.issues,
-        sha256: generated.sha256, stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
-        status: validation?.accepted ? "acceptat_validator" : validation ? "respins_validator" : "candidat_nevalidat",
-        validation, created_at: generated.generated_at, created_by: req.auth.user?.id || ""
+         schema_profile: generated.profile, source_summary: generated.source_summary, issues: [...generated.issues, ...xsdValidation.errors],
+         sha256: generated.sha256, stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
+         status: !xsdValidation.accepted ? "respins_xsd" : validation?.accepted ? "acceptat_validator" : validation ? "respins_validator" : "valid_xsd_nevalidat_duk",
+         xsd_validation: xsdValidation, validation, created_at: generated.generated_at, created_by: req.auth.user?.id || ""
       };
       accounting.saftRuns.push(run);
       addAudit(req.auth.db, req.auth.user, "accounting_saft_generate", `${period} / ${run.status}`);

@@ -1,0 +1,21 @@
+{
+  "code": "SAF-T",
+  "declaration_code": "D406",
+  "original_name": "Ro_SAFT_Schema_v249_2025.xsd",
+  "file_name": "Ro_SAFT_Schema_v249_2025.xsd",
+  "sha256": "80AD7EAAF2AAFD656A6E3C0E69E3A8FCDB23262640287EBBA6383FF3014DCCC2",
+  "valid_from": "2025-01-01",
+  "valid_to": "",
+  "source_url": "https://static.anaf.ro/static/10/Anaf/Informatii_R/Ro_SAFT_Schema_v249_2025.xsd",
+  "order_reference": "OPANAF 1783/2021 - D406 SAF-T",
+  "published_at": "2025-07-08",
+  "schema_metadata": {
+    "xsd_name": "Ro_SAFT_Schema_v249_2025.xsd",
+    "target_namespace": "mfp:anaf:dgti:d406t:declaratie:v1",
+    "schema_version": "2.4.9",
+    "audit_file_version": "2.00",
+    "documentation_version": "2.4.8",
+    "documentation_modified_at": "21-11-2023",
+    "root_element": "AuditFile"
+  }
+}
