@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.170 - 2026-06-30
+
+- Profiluri XSD ANAF cu valabilitate pe perioada, namespace, radacina si atribute obligatorii.
+- Resolver de schema pentru D112, D300 si D394, fara suprascrierea istoricului.
+- Situatii financiare comparative cu mapari configurabile pe conturi.
+- Export Excel, coperta print/PDF si control activ/pasiv.
+- Build complet Server EXE, Client EXE si update ZIP.
+
 # v2.12.168 - 2026-06-30
 
 - Detectie si testare asistata pentru Java si validatoarele locale D112, D300 si D394.

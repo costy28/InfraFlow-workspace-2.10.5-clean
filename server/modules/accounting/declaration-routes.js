@@ -8,6 +8,7 @@ const fiscal = require("./fiscal-register");
 const d112Generator = require("./d112-generator");
 const officialValidator = require("./official-validator");
 const declarationCandidates = require("./declaration-candidates");
+const schemaProfiles = require("./schema-profiles");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
@@ -120,8 +121,10 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       const period = fiscal.declarationPeriod(req.body?.perioada || req.body?.luna || currentMonth());
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
       const validator = officialValidator.diagnostic(req.auth.db, code);
-      const candidate = declarationCandidates.generate(req.auth.db, code, period.value, validator.schema_version);
       const accounting = engine.ensureAccounting(req.auth.db);
+      const activeSchema = schemaProfiles.select(accounting, code, period.value);
+      const activeProfile = schemaProfiles.profile(activeSchema);
+      const candidate = declarationCandidates.generate(req.auth.db, code, period.value, activeProfile?.schema_version || validator.schema_version);
       const folder = path.join(process.cwd(), "storage", "accounting-declarations", period.value, code, "candidates");
       fs.mkdirSync(folder, { recursive: true });
       const fileName = `${code}_candidat_${period.value.replace("-", "_")}_${Date.now()}.xml`;
@@ -131,6 +134,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       const item = {
         id: engine.nextNumericId(accounting.declarationCandidates), ...candidate,
         stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
+        schema_profile: activeProfile,
         accepted: Boolean(result?.accepted), validation: result,
         created_by: req.auth.user?.id || ""
       };

@@ -16,6 +16,7 @@ const registerOperationsRoutes = require("./operations-routes");
 const registerAdvancedOperationsRoutes = require("./operations-advanced-routes");
 const registerAccountingControlRoutes = require("./accounting-control-routes");
 const registerSettlementRoutes = require("./settlement-routes");
+const registerFinancialStatementRoutes = require("./financial-statement-routes");
 
 const router = Router();
 const importUpload = multer({
@@ -4121,6 +4122,7 @@ registerOperationsRoutes(router, { requireAccountingView, requireAccountingPost,
 registerAdvancedOperationsRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingClose, requireAccountingReports });
 registerAccountingControlRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingReports });
 registerSettlementRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingReports });
+registerFinancialStatementRoutes(router, { requireAccountingReports, requireAccountingManage });
 
 router.periodCheck = periodCheck;
 router.buildClassicJournalsData = buildClassicJournalsData;

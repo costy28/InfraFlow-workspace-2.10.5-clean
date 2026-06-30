@@ -24,6 +24,7 @@ const nav = [
   ['salarizare', '/contabilitate/salarizare', 'Salarizare'],
   ['balanta', '/contabilitate/balanta', 'Balanta'],
   ['profit-pierdere', '/contabilitate/profit-pierdere', 'Profit/Pierdere'],
+  ['situatii-financiare', '/contabilitate/situatii-financiare', 'Situatii financiare'],
   ['anaf', '/contabilitate/anaf', 'ANAF / e-Factura'],
   ['controlling', '/contabilitate/controlling', 'Controlling'],
   ['inchidere', '/contabilitate/inchidere-luna', 'Inchidere luna'],
@@ -42,7 +43,7 @@ const navGroups = [
   },
   {
     label: 'Rapoarte',
-    keys: ['jurnale', 'jurnal', 'cartea-mare', 'tva', 'balanta', 'profit-pierdere', 'controlling'],
+    keys: ['jurnale', 'jurnal', 'cartea-mare', 'tva', 'balanta', 'profit-pierdere', 'situatii-financiare', 'controlling'],
   },
   {
     label: 'Administrare',

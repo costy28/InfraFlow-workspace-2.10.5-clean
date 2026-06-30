@@ -7,6 +7,7 @@ const path = require("path");
 const engine = require("./accounting-engine");
 const operations = require("./operations-routes");
 const declarations = require("./declaration-routes");
+const schemaProfiles = require("./schema-profiles");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
@@ -279,6 +280,15 @@ function registerAccountingControlRoutes(router, middleware) {
     res.status(200).json({ schemas });
   });
 
+  router.get("/accounting/declarations/schemas/resolve", requireAccountingReports, (req, res, next) => {
+    try {
+      const period = String(req.query.perioada || req.query.luna || "").slice(0, 7);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      const schema = schemaProfiles.select(engine.ensureAccounting(req.auth.db), req.query.code, period);
+      res.json({ perioada: period, profile: schemaProfiles.profile(schema), ready: Boolean(schema) });
+    } catch (error) { next(error); }
+  });
+
   router.post("/accounting/declarations/schemas", requireAccountingManage, schemaUpload.single("file"), (req, res, next) => {
     try {
       if (!req.file?.buffer) throwHttp(400, "Selecteaza schema ANAF in format XSD sau ZIP.");
@@ -289,11 +299,23 @@ function registerAccountingControlRoutes(router, middleware) {
       const directory = path.resolve(__dirname, "../../../storage/anaf-schemas");
       fs.mkdirSync(directory, { recursive: true });
       const hash = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
+      const metadata = schemaProfiles.inspect(req.file.originalname, req.file.buffer);
+      const validFrom = String(req.body?.valid_from || "").trim();
+      const validTo = String(req.body?.valid_to || "").trim();
+      if (validFrom && !/^\d{4}-\d{2}-\d{2}$/.test(validFrom)) throwHttp(400, "Valabil de la trebuie sa aiba formatul YYYY-MM-DD.");
+      if (validTo && !/^\d{4}-\d{2}-\d{2}$/.test(validTo)) throwHttp(400, "Valabil pana la trebuie sa aiba formatul YYYY-MM-DD.");
       const fileName = `${code.replace(/[^A-Z0-9-]/g, "_")}-${Date.now()}${extension}`;
       fs.writeFileSync(path.join(directory, fileName), req.file.buffer);
       const accounting = engine.ensureAccounting(req.auth.db);
-      accounting.anafSchemas.forEach((item) => { if (item.code === code) item.active = false; });
-      const schema = { id: engine.nextNumericId(accounting.anafSchemas), uuid: crypto.randomUUID(), code, original_name: req.file.originalname, file_name: fileName, file_path: `storage/anaf-schemas/${fileName}`, sha256: hash, active: true, uploaded_by: req.auth.user?.id || "", uploaded_at: new Date().toISOString() };
+      const schema = {
+        id: engine.nextNumericId(accounting.anafSchemas), uuid: crypto.randomUUID(), code,
+        original_name: req.file.originalname, file_name: fileName, file_path: `storage/anaf-schemas/${fileName}`,
+        sha256: hash, active: true, valid_from: validFrom, valid_to: validTo,
+        order_reference: String(req.body?.order_reference || "").trim().slice(0, 200),
+        source_url: String(req.body?.source_url || "").trim().slice(0, 1000),
+        schema_metadata: metadata, schema_json: JSON.stringify(metadata),
+        uploaded_by: req.auth.user?.id || "", uploaded_at: new Date().toISOString()
+      };
       accounting.anafSchemas.push(schema);
       addAudit(req.auth.db, req.auth.user, "accounting_anaf_schema_upload", `${code} / ${req.file.originalname}`);
       writeDb(req.auth.db);

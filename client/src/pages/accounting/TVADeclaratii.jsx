@@ -27,6 +27,7 @@ export function TVADeclaratii() {
   const [schemas, setSchemas] = useState([])
   const [schemaCode, setSchemaCode] = useState('D300')
   const [schemaFile, setSchemaFile] = useState(null)
+  const [schemaMeta, setSchemaMeta] = useState({ valid_from: '', valid_to: '', order_reference: '', source_url: '' })
   const [d112Mapping, setD112Mapping] = useState({ rows: [], company_errors: [], ready: false })
   const [officialFile, setOfficialFile] = useState(null)
   const [officialValidation, setOfficialValidation] = useState(null)
@@ -258,6 +259,7 @@ export function TVADeclaratii() {
       const body = new FormData()
       body.append('code', schemaCode)
       body.append('file', schemaFile)
+      Object.entries(schemaMeta).forEach(([key, value]) => { if (value) body.append(key, value) })
       await api.post('/accounting/declarations/schemas', body)
       setSchemaFile(null)
       setMessage(`Schema oficială ${schemaCode} a fost înregistrată.`)
@@ -358,7 +360,8 @@ export function TVADeclaratii() {
           <label className="grid gap-1 text-sm"><span className="font-medium text-slate-700">Fișier oficial</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xsd,.zip" onChange={event => setSchemaFile(event.target.files?.[0] || null)} /></label>
           <Button onClick={uploadSchema}>Încarcă schema</Button>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">{schemas.filter(item => item.active).map(item => <Badge key={item.uuid || item.id} tone="success">{item.code} · {item.original_name}</Badge>)}</div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Input label="Valabil de la" type="date" value={schemaMeta.valid_from} onChange={event => setSchemaMeta(current => ({ ...current, valid_from: event.target.value }))} /><Input label="Valabil pana la" type="date" value={schemaMeta.valid_to} onChange={event => setSchemaMeta(current => ({ ...current, valid_to: event.target.value }))} /><Input label="Ordin / referinta" value={schemaMeta.order_reference} onChange={event => setSchemaMeta(current => ({ ...current, order_reference: event.target.value }))} /><Input label="URL oficial" value={schemaMeta.source_url} onChange={event => setSchemaMeta(current => ({ ...current, source_url: event.target.value }))} /></div>
+        <div className="mt-3 flex flex-wrap gap-2">{schemas.filter(item => item.active).map(item => <Badge key={item.uuid || item.id} tone="success">{item.code} · {item.original_name}{item.valid_from ? ` · din ${item.valid_from}` : ''}</Badge>)}</div>
       </Card>
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">

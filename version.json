@@ -1,5 +1,5 @@
 {
-  "version": "2.12.168",
+  "version": "2.12.170",
   "date": "2026-06-30",
-  "changelog": "## v2.12.168 - 2026-06-30\n### Validatoare, salarizare si inchidere lunara\n- Detectie si testare asistata pentru validatoarele locale D112, D300 si D394.\n- XML candidat cu descarcare blocata pana la acceptarea validatorului configurat.\n- State salariale rectificative si cazuri speciale extinse.\n- Dosar lunar ZIP cu manifest, snapshot, audit si coperta tiparibila."
+  "changelog": "## v2.12.170 - 2026-06-30\n### Profiluri ANAF si situatii financiare\n- Profiluri XSD selectate dupa perioada, cu namespace si campuri obligatorii inspectate automat.\n- Situatia pozitiei financiare si profit/pierdere cu mapari configurabile.\n- Comparatie cu anul precedent, control activ/pasiv, Excel si print/PDF.\n- Build complet Server, Client si update ZIP."
 }

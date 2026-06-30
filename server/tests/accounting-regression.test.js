@@ -17,6 +17,8 @@ const payrollObligations = require("../modules/hr/payroll-obligation-routes");
 const officialValidator = require("../modules/accounting/official-validator");
 const endToEndAudit = require("../modules/accounting/end-to-end-audit-routes");
 const declarationCandidates = require("../modules/accounting/declaration-candidates");
+const schemaProfiles = require("../modules/accounting/schema-profiles");
+const financialStatements = require("../modules/accounting/financial-statement-routes");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -753,4 +755,33 @@ test("concediul fara plata ramane distinct in linia salariala", () => {
   });
   assert.equal(line.unpaid_leave_days, 1);
   assert.equal(line.paid_hours, 0);
+});
+
+test("profilul XSD extrage namespace radacina si campurile obligatorii", () => {
+  const xsd = Buffer.from('<?xml version="1.0"?><xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test:d300" version="10"><xs:element name="declaratie300"/><xs:attribute name="cui" type="xs:string" use="required"/></xs:schema>');
+  const result = schemaProfiles.inspect("d300.xsd", xsd);
+  assert.equal(result.target_namespace, "urn:test:d300");
+  assert.equal(result.root_element, "declaratie300");
+  assert.deepEqual(result.required_attributes, ["cui"]);
+});
+
+test("schema ANAF este selectata dupa perioada de valabilitate", () => {
+  const accounting = { anafSchemas: [
+    { id: 1, code: "D300", active: true, valid_from: "2025-01-01", valid_to: "2025-12-31" },
+    { id: 2, code: "D300", active: true, valid_from: "2026-01-01", valid_to: "" }
+  ] };
+  assert.equal(schemaProfiles.select(accounting, "D300", "2026-06").id, 2);
+  assert.equal(schemaProfiles.select(accounting, "D300", "2025-06").id, 1);
+});
+
+test("situatia financiara compara anul curent cu precedentul", () => {
+  const { db, accounting, user } = fixture();
+  engine.createJournal(db, user, { an: 2025, luna: 6, data: "2025-06-30", lines: [{ cont_simbol: "5121", debit: 100 }, { cont_simbol: "1012", credit: 100 }] });
+  engine.createJournal(db, user, { an: 2026, luna: 6, data: "2026-06-30", lines: [{ cont_simbol: "5121", debit: 150 }, { cont_simbol: "1012", credit: 150 }] });
+  const report = financialStatements.buildReport(db, { an: 2026, luna: 6, tip: "BILANT" });
+  const cash = report.rows.find((item) => item.code === "A04");
+  assert.equal(cash.current, 150);
+  assert.equal(cash.previous, 100);
+  assert.equal(report.control.ok, true);
+  assert.ok(accounting.financialStatementMappings.length > 0);
 });
