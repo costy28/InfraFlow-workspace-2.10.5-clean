@@ -27,14 +27,18 @@ export function TVADeclaratii() {
   const [schemas, setSchemas] = useState([])
   const [schemaCode, setSchemaCode] = useState('D300')
   const [schemaFile, setSchemaFile] = useState(null)
-  const [d112Xml, setD112Xml] = useState(null)
-  const [d112Validation, setD112Validation] = useState(null)
+  const [d112Mapping, setD112Mapping] = useState({ rows: [], company_errors: [], ready: false })
+  const [officialFile, setOfficialFile] = useState(null)
+  const [officialValidation, setOfficialValidation] = useState(null)
+  const [validatorConfig, setValidatorConfig] = useState({ path: '', command: '', args: '["{file}"]', schema_version: '', source_url: '' })
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [fiscalCheck, setFiscalCheck] = useState({ checks: [], ready: false })
   const [calendar, setCalendar] = useState({ obligations: [] })
+  const [endToEndAudit, setEndToEndAudit] = useState({ checks: [], ready: false })
 
   useEffect(() => { load() }, [month, status, cota])
+  useEffect(() => { loadValidator() }, [tab])
 
   function params() {
     return { perioada: month, status: status || undefined, cota: cota || undefined }
@@ -66,6 +70,8 @@ export function TVADeclaratii() {
       setSchemas(schemasRes.data?.schemas || [])
       setFiscalCheck(fiscalRes.data || { checks: [], ready: false })
       setCalendar(calendarRes.data || { obligations: [] })
+      api.get('/accounting/d112/mapping', { params: params() }).then(response => setD112Mapping(response.data || { rows: [], company_errors: [], ready: false })).catch(() => setD112Mapping({ rows: [], company_errors: [], ready: false }))
+      api.get('/accounting/audit/end-to-end', { params: { luna: month } }).then(response => setEndToEndAudit(response.data || { checks: [], ready: false })).catch(() => setEndToEndAudit({ checks: [], ready: false }))
     }).catch(err => {
       setData({ decont: { randuri: [] } })
       setJournal({ jurnal_cumparari: [], jurnal_vanzari: [], cote: [] })
@@ -78,8 +84,45 @@ export function TVADeclaratii() {
       setSchemas([])
       setFiscalCheck({ checks: [], ready: false })
       setCalendar({ obligations: [] })
+      setEndToEndAudit({ checks: [], ready: false })
       setError(err.response?.data?.error || 'Nu am putut incarca centrul fiscal.')
     })
+  }
+
+  function activeDeclarationCode() {
+    return ({ d112: 'D112', d300: 'D300', d394: 'D394' })[tab] || ''
+  }
+
+  async function loadValidator() {
+    const code = activeDeclarationCode()
+    if (!code) return
+    try {
+      const response = await api.get(`/accounting/declarations/validators/${code}`)
+      const item = response.data || {}
+      setValidatorConfig({ ...item, args: JSON.stringify(item.args || ['{file}']) })
+    } catch (_) { setValidatorConfig({ path: '', command: '', args: '["{file}"]', schema_version: '', source_url: '' }) }
+  }
+
+  async function saveValidator() {
+    const code = activeDeclarationCode()
+    try {
+      const response = await api.put(`/accounting/declarations/validators/${code}`, validatorConfig)
+      const item = response.data?.diagnostic || {}
+      setValidatorConfig({ ...item, args: JSON.stringify(item.args || ['{file}']) })
+      setMessage(`Validatorul ${code} a fost configurat.`)
+    } catch (err) { setError(err.response?.data?.error || 'Validatorul nu a putut fi configurat.') }
+  }
+
+  async function validateOfficialFile() {
+    const code = activeDeclarationCode()
+    if (!officialFile) { setError(`Selectează fișierul XML ${code}.`); return }
+    try {
+      setError(''); setOfficialValidation(null)
+      const body = new FormData(); body.append('perioada', month); body.append('file', officialFile)
+      const response = await api.post(`/accounting/declarations/${code}/validate-official-file`, body)
+      setOfficialValidation(response.data?.run || null)
+      setMessage(response.data?.run?.accepted ? `${code} a fost acceptată de validator.` : `${code} conține erori raportate de validator.`)
+    } catch (err) { setError(err.response?.data?.error || `Validarea ${code} nu a putut fi executată.`) }
   }
 
   function changeTab(value) {
@@ -186,19 +229,6 @@ export function TVADeclaratii() {
     } catch (err) { setError(err.response?.data?.error || 'Schema nu a putut fi încărcată.') }
   }
 
-  async function validateD112Xml() {
-    if (!d112Xml) { setError('Selectează fișierul XML D112 pentru validatorul oficial.'); return }
-    try {
-      setError(''); setMessage(''); setD112Validation(null)
-      const body = new FormData()
-      body.append('perioada', month)
-      body.append('file', d112Xml)
-      const response = await api.post('/accounting/d112/validate-official-xml', body)
-      setD112Validation(response.data?.run || null)
-      setMessage(response.data?.run?.accepted ? 'Validatorul oficial a acceptat XML-ul D112.' : 'Validatorul oficial a returnat erori. Vezi diagnosticul de mai jos.')
-    } catch (err) { setError(err.response?.data?.error || 'XML-ul D112 nu a putut fi validat.') }
-  }
-
   const d = data.decont || {}
   const warnings = [...(data.status?.warnings || []), ...(journal.warnings || [])]
   const periodStatus = data.period_status || journal.period_status || {}
@@ -219,6 +249,7 @@ export function TVADeclaratii() {
             { label: 'XML lucru D300', onClick: () => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`, 'D300') },
             { label: 'D394 lucru Excel', onClick: () => download('/accounting/d394/export', `D394_lucru_${fileMonth}.xlsx`, 'D394') },
             { label: 'Raport control declarații', onClick: () => download('/accounting/declarations/control-export', `Control_declaratii_${fileMonth}.xlsx`) },
+            { label: 'Audit contabil end-to-end', onClick: () => download('/accounting/audit/end-to-end/export', `Audit_contabil_${fileMonth}.xlsx`) },
             { label: 'Diagnostic SAF-T Excel', onClick: () => download('/accounting/saft/export-mapping', `Diagnostic_SAFT_${fileMonth}.xlsx`) },
             { label: 'Pregătire date D112 Excel', onClick: () => download('/accounting/d112/export-inputs', `Pregatire_D112_${fileMonth}.xlsx`) },
             { label: 'Sursa XML D112', onClick: () => download('/accounting/d112/export-source-xml', `D112_sursa_${fileMonth}.xml`, 'D112') },
@@ -257,19 +288,29 @@ export function TVADeclaratii() {
             </div>
           </Card>
           <Card>
-            <div><h3 className="text-base font-semibold text-slate-900">Calendar fiscal orientativ</h3><p className="text-sm text-slate-500">Termenul configurat este ziua {calendar.termen_zi || 25}; verifica exceptiile in calendarul oficial ANAF.</p></div>
+            <div><h3 className="text-base font-semibold text-slate-900">Calendar fiscal orientativ</h3><p className="text-sm text-slate-500">D300 și D112 folosesc ziua 25, iar D394 ziua 30, cu excepțiile configurate. Verifică mereu calendarul oficial ANAF.</p></div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {(calendar.obligations || []).filter(item => item.perioada === month).map(item => (
                 <div key={item.code} className="rounded-md border border-slate-200 px-3 py-3">
-                  <div className="flex items-center justify-between"><strong>{item.code}</strong><Badge tone={['depus', 'acceptat'].includes(item.status) ? 'success' : 'gray'}>{item.status}</Badge></div>
-                  <div className="mt-1 text-xs text-slate-500">Termen orientativ: {item.termen_orientativ}</div>
+                  <div className="flex items-center justify-between"><strong>{item.code}</strong><Badge tone={['depus', 'acceptat'].includes(item.status) ? 'success' : ['urgent', 'depasit'].includes(item.alert) ? 'danger' : item.alert === 'apropiat' ? 'warning' : 'gray'}>{item.status}</Badge></div>
+                  <div className="mt-1 text-xs text-slate-500">Termen orientativ: {item.termen_orientativ} · {item.alert}</div>
                 </div>
               ))}
             </div>
           </Card>
+          <Card>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-slate-900">Audit contabil end-to-end</h3><p className="text-sm text-slate-500">Facturi, note, trezorerie, salarizare și declarații urmărite în același control.</p></div><Badge tone={endToEndAudit.ready ? 'success' : 'warning'}>{endToEndAudit.ready ? 'circuit complet' : 'necesită verificări'}</Badge></div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{(endToEndAudit.checks || []).map(item => <div key={item.area} className={`rounded-md border px-3 py-2 text-sm ${item.status === 'ok' || item.count === 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><div className="flex justify-between gap-2"><strong>{item.area}</strong><span>{item.count || item.status}</span></div><div className="mt-1 text-xs">{item.message}</div></div>)}</div>
+          </Card>
         </>
       ) : null}
       {tab !== 'control' ? <>
+      {activeDeclarationCode() ? <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-slate-900">Validator oficial {activeDeclarationCode()}</h3><p className="text-sm text-slate-500">Comanda locală și versiunea schemei sunt păstrate separat pentru fiecare declarație.</p></div><Badge tone={validatorConfig.execution_enabled ? 'success' : 'warning'}>{validatorConfig.execution_enabled ? 'configurat' : 'neconfigurat'}</Badge></div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2"><Input label="Director / cale validator" value={validatorConfig.path || ''} onChange={event => setValidatorConfig(current => ({ ...current, path: event.target.value }))} /><Input label="Comandă executabilă" value={validatorConfig.command || ''} onChange={event => setValidatorConfig(current => ({ ...current, command: event.target.value }))} /><Input label={'Argumente JSON (include {file})'} value={validatorConfig.args || ''} onChange={event => setValidatorConfig(current => ({ ...current, args: event.target.value }))} /><Input label="Versiune schemă" value={validatorConfig.schema_version || ''} onChange={event => setValidatorConfig(current => ({ ...current, schema_version: event.target.value }))} /></div>
+        <div className="mt-3 flex flex-wrap items-end gap-3"><Button variant="secondary" onClick={saveValidator}>Salvează configurarea</Button><label className="grid min-w-72 flex-1 gap-1 text-sm"><span className="font-medium text-slate-700">XML pentru verificare</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xml" onChange={event => setOfficialFile(event.target.files?.[0] || null)} /></label><Button onClick={validateOfficialFile}>Rulează validatorul</Button></div>
+        {officialValidation ? <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${officialValidation.accepted ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}><strong>{officialValidation.accepted ? 'Acceptat' : 'Erori'} · cod {officialValidation.exit_code}</strong><pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">{officialValidation.stderr || officialValidation.stdout || 'Fără detalii.'}</pre></div> : null}
+      </Card> : null}
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h3 className="text-base font-semibold text-slate-900">Scheme oficiale ANAF</h3><p className="text-sm text-slate-500">Versiunile XSD/ZIP sunt păstrate cu amprentă SHA-256. Validarea internă nu este prezentată ca validare ANAF fără schema corectă.</p></div>
@@ -297,14 +338,7 @@ export function TVADeclaratii() {
           {(d112.checks || []).map(check => <div key={check.key} className={`rounded-md border px-3 py-2 text-sm ${check.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><strong>{check.label}:</strong> {check.message}</div>)}
         </div>
         <p className="mt-3 text-xs text-slate-500">{d112.note}</p>
-        {tab === 'd112' ? <div className="mt-4 border-t border-slate-100 pt-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-            <label className="grid gap-1 text-sm"><span className="font-medium text-slate-700">XML D112 pentru validatorul oficial</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xml" onChange={event => setD112Xml(event.target.files?.[0] || null)} /></label>
-            <Button onClick={validateD112Xml}>Validează cu DUK</Button>
-          </div>
-          <div className="mt-2 text-xs text-slate-500">Necesită configurarea locală a comenzii DUK. InfraFlow nu marchează declarația acceptată doar pe baza verificărilor interne.</div>
-          {d112Validation ? <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${d112Validation.accepted ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}><strong>{d112Validation.accepted ? 'Acceptat' : 'Respins'}:</strong> cod ieșire {d112Validation.exit_code}<pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs">{d112Validation.stderr || d112Validation.stdout || 'Validatorul nu a furnizat detalii.'}</pre></div> : null}
-        </div> : null}
+        {tab === 'd112' ? <div className="mt-4 border-t border-slate-100 pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><strong>Mapare pe angajat</strong><div className="text-xs text-slate-500">{d112Mapping.rows?.filter(item => item.ready).length || 0}/{d112Mapping.rows?.length || 0} angajați fără erori de mapare</div></div><Button variant="secondary" onClick={() => download('/accounting/d112/mapping-export', `Mapare_D112_${fileMonth}.xlsx`)}>Export mapare</Button></div>{(d112Mapping.company_errors || []).map(item => <div key={item} className="mt-2 text-sm text-red-700">{item}</div>)}<div className="mt-3 max-h-56 overflow-auto">{(d112Mapping.rows || []).map(item => <div key={item.employee_id} className="flex items-start justify-between gap-3 border-b border-slate-100 py-2 text-sm"><span><strong>{item.numeAsig} {item.prenAsig}</strong><small className="ml-2 text-slate-500">{item.cnpAsig || 'CNP lipsă'}</small></span><span className={item.ready ? 'text-emerald-700' : 'max-w-md text-right text-red-700'}>{item.ready ? 'OK' : item.errors.join('; ')}</span></div>)}</div></div> : null}
       </Card>
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_180px_180px]">

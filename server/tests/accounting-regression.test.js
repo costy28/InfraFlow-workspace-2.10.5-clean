@@ -13,6 +13,9 @@ const procurement = require("../modules/procurement/routes");
 const anafRoutes = require("../modules/anaf/routes");
 const payrollRoutes = require("../modules/hr/payroll-routes");
 const d112Generator = require("../modules/accounting/d112-generator");
+const payrollObligations = require("../modules/hr/payroll-obligation-routes");
+const officialValidator = require("../modules/accounting/official-validator");
+const endToEndAudit = require("../modules/accounting/end-to-end-audit-routes");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -676,4 +679,47 @@ test("plata salariala stinge contul 421 prin banca", () => {
   const lines = accounting.journalLines.filter((item) => item.journal_id === journal.id);
   assert.equal(lines.find((item) => item.cont_simbol === "421").debit, 2925);
   assert.equal(lines.find((item) => item.cont_simbol === "5121").credit, 2925);
+});
+
+test("obligatiile salariale separa contributiile si termenul", () => {
+  const items = payrollObligations.obligationDefinitions({ total_cas: 1000, total_cass: 400, total_income_tax: 300, total_cam: 90 });
+  assert.deepEqual(items.map((item) => item.accounting_account), ["4315", "4316", "444", "436"]);
+  assert.equal(items.reduce((sum, item) => sum + item.amount, 0), 1790);
+  assert.equal(payrollObligations.contributionDueDate("2026-06"), "2026-07-25");
+});
+
+test("calendarul fiscal foloseste termene distincte", () => {
+  assert.equal(declarations.declarationDueDate(2026, 6, "D112"), "2026-07-25");
+  assert.equal(declarations.declarationDueDate(2026, 6, "D394"), "2026-07-30");
+  assert.equal(declarations.declarationDueDate(2026, 11, "D300"), "2026-12-21");
+});
+
+test("configurarea validatorului cere parametrul de fisier", () => {
+  const db = {};
+  assert.throws(() => officialValidator.saveConfig(db, "D112", { command: "java", args: "[]" }, { id: 1 }), /\{file\}/);
+  const saved = officialValidator.saveConfig(db, "D112", { path: "C:\\DUK", command: "java", args: '["-jar","validator.jar","{file}"]', schema_version: "01/2026" }, { id: 1 });
+  assert.equal(saved.schema_version, "01/2026");
+  assert.equal(officialValidator.diagnostic(db, "D112").execution_enabled, true);
+});
+
+test("maparea D112 raporteaza campul lipsa pe angajat", () => {
+  const { db } = fixture();
+  db.company = { name: "Companie Test", cif: "RO9126534" };
+  db.hr = {
+    employees: [{ id: 1, cnp: "", nume: "Popescu", prenume: "Ion" }],
+    contracts: [{ id: 1, employee_id: 1, data_start: "2026-01-01", status: "activ" }],
+    payrollRuns: [{ id: 1, luna: "2026-06", status: "validat", total_gross: 5000 }],
+    payrollLines: [{ id: 1, run_id: 1, employee_id: 1, gross: 5000, cas: 1250, cass: 500, income_tax: 325 }]
+  };
+  const report = d112Generator.buildMappingReport(db, "2026-06");
+  assert.equal(report.ready, false);
+  assert.match(report.rows[0].errors.join(" "), /cnpAsig/);
+});
+
+test("auditul end-to-end detecteaza factura fara nota", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesIn.push({ id: 500, an: 2026, luna: 6, status: "validat" });
+  const report = endToEndAudit.buildAudit(db, "2026-06");
+  assert.equal(report.checks.find((item) => item.area === "Facturi validate fara nota").count, 1);
+  assert.equal(report.ready, false);
 });

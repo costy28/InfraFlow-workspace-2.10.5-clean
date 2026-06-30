@@ -18,7 +18,7 @@ const emptyBankProfile = { name: '', bank_name: '', format: 'xlsx', treasury_acc
 
 export default function Salarizare() {
   const [month, setMonth] = useState(currentMonth())
-  const [data, setData] = useState({ run: null, lines: [], payments: [], profile: null })
+  const [data, setData] = useState({ run: null, lines: [], payments: [], paymentOrders: [], profile: null })
   const [settings, setSettings] = useState(null)
   const [adjustments, setAdjustments] = useState([])
   const [adjustmentOpen, setAdjustmentOpen] = useState(false)
@@ -202,6 +202,33 @@ export default function Salarizare() {
     } catch (err) { setError(err.response?.data?.error || 'Profilul bancar nu a putut fi salvat.') }
   }
 
+  async function generateObligations() {
+    try {
+      await api.post(`/hr/payroll/${data.run.id}/obligations/generate`)
+      setMessage('Ordinele pentru contribuții și impozit au fost pregătite.')
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Ordinele de plată nu au putut fi generate.') }
+  }
+
+  async function payObligation(order) {
+    if (!window.confirm(`Înregistrezi plata ${order.code} de ${formatMoney(order.amount)}?`)) return
+    try {
+      await api.post(`/hr/payroll/${data.run.id}/obligations/${order.id}/pay`, { profile_id: selectedBankId, data: new Date().toISOString().slice(0, 10) })
+      setMessage(`${order.code} a fost înregistrat în trezorerie.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Ordinul nu a putut fi înregistrat.') }
+  }
+
+  async function reverseObligation(order) {
+    const motiv = window.prompt(`Motivul stornării ${order.code}:`)
+    if (!motiv) return
+    try {
+      await api.post(`/hr/payroll/${data.run.id}/obligations/${order.id}/reverse`, { motiv })
+      setMessage(`${order.code} a fost stornat.`)
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Ordinul nu a putut fi stornat.') }
+  }
+
   async function saveAdjustment(event) {
     event.preventDefault()
     try {
@@ -232,6 +259,8 @@ export default function Salarizare() {
     run?.status === 'validat' ? { label: 'Export plati banca', onClick: downloadBank } : null,
     run ? { label: 'Toți fluturașii', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/payslips`) } : null,
     run ? { label: 'Registru plată Excel', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/payment-register`, `Registru_plata_${month.replace('-', '_')}.xlsx`) } : null,
+    run?.status === 'validat' && run.accounting_journal_id && !run.accounting_reversed_at && !data.paymentOrders?.length ? { label: 'Generează obligații bugetare', onClick: generateObligations } : null,
+    data.paymentOrders?.length ? { label: 'Export obligații bugetare', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/obligations/export`, `Obligatii_salariale_${month.replace('-', '_')}.xlsx`) } : null,
     run?.status === 'validat' && (!run.accounting_journal_id || run.accounting_reversed_at) ? { label: 'Genereaza nota contabila', onClick: postAccounting } : null,
     run?.status === 'validat' && run.accounting_journal_id && !run.accounting_reversed_at && !activePayment ? { label: 'Înregistrează plata', onClick: payPayroll } : null,
     activePayment ? { label: 'Stornează plata', onClick: reversePayment } : null,
@@ -264,6 +293,7 @@ export default function Salarizare() {
         <Info label="Cost angajator" value={formatMoney(run?.total_employer_cost || 0)} />
       </div>
       <Card><div className="grid gap-3 md:grid-cols-[minmax(220px,360px)_1fr] md:items-end"><Select label="Profil bancar" value={selectedBankId} onChange={event => setSelectedBankId(event.target.value)} options={bankProfiles.filter(item => item.active !== false).map(item => ({ value: item.id, label: `${item.name} · ${item.format}` }))} /><div className="text-sm text-slate-600">Plată: <strong>{activePayment ? `înregistrată la ${activePayment.payment_date || '-'}` : run?.payment_status === 'stornat' ? 'stornată' : 'neînregistrată'}</strong></div></div></Card>
+      {data.paymentOrders?.length ? <Card><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold">Obligații salariale</h3><p className="text-sm text-slate-500">CAS, CASS, impozit și CAM generate din statul validat.</p></div><Badge tone={data.paymentOrders.every(item => item.status === 'platit') ? 'success' : 'warning'}>{data.paymentOrders.filter(item => item.status === 'platit').length}/{data.paymentOrders.length} plătite</Badge></div><div className="mt-3 grid gap-2 md:grid-cols-2">{data.paymentOrders.map(order => <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm"><div><strong>{order.code}</strong> · {formatMoney(order.amount)}<div className="text-xs text-slate-500">Scadență {order.due_date} · {order.status}</div></div><DropdownMenu label="Acțiuni" items={[order.status === 'pregatit' ? { label: 'Înregistrează plata', onClick: () => payObligation(order) } : null, order.status === 'platit' ? { label: 'Stornează plata', onClick: () => reverseObligation(order) } : null].filter(Boolean)} /></div>)}</div></Card> : null}
       {run?.accounting_journal_id ? <div className={`rounded-md border px-3 py-2 text-sm ${run.accounting_reversed_at ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>Nota contabilă #{run.accounting_journal_id} este {run.accounting_reversed_at ? `stornată prin nota #${run.accounting_storno_journal_id || '-'}` : 'activă'}.</div> : null}
       <Table headers={['Marca', 'Angajat', 'Ore', 'Brut', 'CAS', 'CASS', 'Impozit', 'Net', 'CAM', 'Control', 'Actiuni']}>
         {(data.lines || []).map(line => (

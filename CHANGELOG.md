@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.164 - 2026-06-29
+
+- Ordinele CAS, CASS, impozit si CAM sunt generate din statul validat si pot fi platite/stornate prin trezorerie.
+- Raportul D112 arata maparea si erorile pentru fiecare angajat.
+- Configurarea validatorului oficial este separata pentru D300, D394 si D112.
+- XML-urile verificate sunt arhivate cu SHA-256 si rezultatul nativ al validatorului.
+- Calendarul fiscal foloseste termene distincte si semnaleaza apropierea sau depasirea lor.
+- Auditul end-to-end urmareste facturi, note, trezorerie, salarizare, declaratii si recipise.
+- Migrari MSSQL noi: 039, 040 si 041.
+
 # v2.12.161 - 2026-06-29
 
 - Salarizarea trateaza separat avansuri, popriri, tichete de masa si concedii medicale confirmate.

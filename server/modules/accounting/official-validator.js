@@ -1,0 +1,92 @@
+const crypto = require("crypto");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { spawnSync } = require("child_process");
+
+function ensureConfigs(db) {
+  db.accounting = db.accounting || {};
+  db.accounting.validatorConfigs = db.accounting.validatorConfigs && typeof db.accounting.validatorConfigs === "object"
+    ? db.accounting.validatorConfigs : {};
+  return db.accounting.validatorConfigs;
+}
+
+function getConfig(db, code) {
+  const key = String(code || "").toUpperCase();
+  const saved = ensureConfigs(db)[key] || {};
+  const prefix = key.replace(/[^A-Z0-9]/g, "_");
+  return {
+    code: key,
+    path: String(process.env[`${prefix}_VALIDATOR_PATH`] || saved.path || "").trim(),
+    command: String(process.env[`${prefix}_VALIDATOR_COMMAND`] || saved.command || "").trim(),
+    args: parseArgs(process.env[`${prefix}_VALIDATOR_ARGS`] || saved.args || []),
+    schema_version: String(saved.schema_version || "").trim(),
+    source_url: String(saved.source_url || "").trim(),
+    updated_at: saved.updated_at || null,
+    updated_by: saved.updated_by || null
+  };
+}
+
+function saveConfig(db, code, input, user) {
+  const key = String(code || "").toUpperCase();
+  if (!new Set(["D112", "D300", "D394"]).has(key)) throwHttp(400, "Declaratia nu accepta configurare de validator.");
+  const args = parseArgs(input.args);
+  if (input.command && !args.includes("{file}")) throwHttp(400, "Argumentele validatorului trebuie sa contina parametrul {file}.");
+  const item = {
+    path: String(input.path || "").trim(), command: String(input.command || "").trim(), args,
+    schema_version: String(input.schema_version || "").trim(), source_url: String(input.source_url || "").trim(),
+    updated_at: new Date().toISOString(), updated_by: user?.id || ""
+  };
+  ensureConfigs(db)[key] = item;
+  return { code: key, ...item };
+}
+
+function diagnostic(db, code) {
+  const config = getConfig(db, code);
+  const available = Boolean(config.path && fs.existsSync(config.path));
+  const executionEnabled = Boolean(config.command && config.args.includes("{file}"));
+  return {
+    ...config, configured: Boolean(config.path || config.command), available,
+    args_configured: config.args.length > 0, execution_enabled: executionEnabled,
+    message: executionEnabled
+      ? "Comanda validatorului este configurata. Rezultatul este preluat fara reinterpretare."
+      : available
+        ? `Validatorul ${config.code} este localizat. Completeaza comanda si argumentele cu {file}.`
+        : `Configureaza validatorul oficial ${config.code}.`
+  };
+}
+
+function validate(db, code, buffer, originalName) {
+  const info = diagnostic(db, code);
+  if (!info.execution_enabled) throwHttp(409, info.message);
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), `infraflow-${String(code).toLowerCase()}-`));
+  const safeName = path.basename(String(originalName || `${code}.xml`)).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const file = path.join(folder, safeName);
+  try {
+    fs.writeFileSync(file, buffer);
+    const result = spawnSync(info.command, info.args.map((item) => item.replaceAll("{file}", file)), {
+      cwd: info.available && fs.statSync(info.path).isDirectory() ? info.path : process.cwd(),
+      encoding: "utf8", windowsHide: true, timeout: 120000, maxBuffer: 5 * 1024 * 1024
+    });
+    const stdout = String(result.stdout || "").trim();
+    const stderr = String(result.stderr || "").trim();
+    const exitCode = Number.isInteger(result.status) ? result.status : -1;
+    return {
+      code: info.code, accepted: exitCode === 0 && !/\b(error|eroare|fatal)\b/i.test(`${stdout}\n${stderr}`),
+      exit_code: exitCode, stdout, stderr: result.error ? `${stderr}\n${result.error.message}`.trim() : stderr,
+      sha256: crypto.createHash("sha256").update(buffer).digest("hex"), validator_path: info.path,
+      schema_version: info.schema_version, validated_at: new Date().toISOString()
+    };
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+}
+
+function parseArgs(value) {
+  if (Array.isArray(value)) return value.map(String);
+  try { const parsed = JSON.parse(String(value || "[]")); return Array.isArray(parsed) ? parsed.map(String) : []; }
+  catch (_) { throwHttp(400, "Argumentele validatorului trebuie sa fie un array JSON."); }
+}
+function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
+
+module.exports = { getConfig, saveConfig, diagnostic, validate };

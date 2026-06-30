@@ -1,5 +1,5 @@
 {
-  "version": "2.12.161",
+  "version": "2.12.164",
   "date": "2026-06-29",
-  "changelog": "## v2.12.161 - 2026-06-29\n### Salarizare, plati si validare D112\n- Avansuri, popriri, tichete de masa si concedii medicale controlate separat.\n- Fluturasi colectivi si registru de plata Excel.\n- Profiluri bancare XLSX/CSV si plata salariilor integrata cu trezoreria.\n- Stornare controlata pentru plata si nota contabila salariala.\n- Validare XML D112 prin comanda DUK configurata local, cu diagnostic complet."
+  "changelog": "## v2.12.164 - 2026-06-29\n### Salarizare, declaratii si audit complet\n- Ordine separate pentru CAS, CASS, impozit si CAM, integrate cu trezoreria.\n- Mapare D112 pe angajat si configurator pentru validatorul oficial.\n- Validator local reutilizabil pentru D300, D394 si D112.\n- Calendar fiscal distinct cu alerte de termen.\n- Audit end-to-end pentru facturi, note, trezorerie, salarizare si declaratii."
 }

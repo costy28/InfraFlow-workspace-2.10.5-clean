@@ -1,10 +1,7 @@
 const crypto = require("crypto");
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const { spawnSync } = require("child_process");
+const officialValidator = require("./official-validator");
 
-function buildSource(db, period) {
+function buildSource(db, period, options = {}) {
   const hr = db.hr || {};
   const runs = Array.isArray(hr.payrollRuns) ? hr.payrollRuns : [];
   const lines = Array.isArray(hr.payrollLines) ? hr.payrollLines : [];
@@ -32,7 +29,7 @@ function buildSource(db, period) {
     };
   });
   const invalid = rows.filter((item) => !/^\d{13}$/.test(item.cnp));
-  if (invalid.length) throwHttp(422, `${invalid.length} angajati au CNP invalid.`);
+  if (invalid.length && options.strict !== false) throwHttp(422, `${invalid.length} angajati au CNP invalid.`);
   return {
     period,
     run,
@@ -59,67 +56,44 @@ ${employees}
   return { content, sha256: crypto.createHash("sha256").update(content).digest("hex") };
 }
 
-function validatorDiagnostic(db) {
-  const configured = String(process.env.D112_VALIDATOR_PATH || db.settings?.d112_validator_path || db.accounting?.d112_validator_path || "").trim();
-  const command = String(process.env.D112_VALIDATOR_COMMAND || db.settings?.d112_validator_command || "").trim();
-  const args = validatorArgs(db);
-  return {
-    configured: Boolean(configured),
-    path: configured,
-    available: Boolean(configured && fs.existsSync(configured)),
-    command,
-    args_configured: args.length > 0,
-    execution_enabled: Boolean(command && args.includes("{file}")),
-    message: command && args.includes("{file}")
-      ? "Comanda validatorului este configurata. Rezultatul ANAF va fi preluat fara reinterpretare."
-      : configured && fs.existsSync(configured)
-        ? "Validatorul este localizat. Configureaza D112_VALIDATOR_COMMAND si D112_VALIDATOR_ARGS cu parametrul {file}."
-        : "Configureaza validatorul oficial D112 si comanda sa de executie."
-  };
-}
+function validatorDiagnostic(db) { return officialValidator.diagnostic(db, "D112"); }
+function validateOfficialXml(db, buffer, originalName = "D112.xml") { return officialValidator.validate(db, "D112", buffer, originalName); }
 
-function validateOfficialXml(db, buffer, originalName = "D112.xml") {
-  const diagnostic = validatorDiagnostic(db);
-  if (!diagnostic.execution_enabled) throwHttp(409, diagnostic.message);
-  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "infraflow-d112-"));
-  const safeName = path.basename(String(originalName || "D112.xml")).replace(/[^a-zA-Z0-9._-]/g, "_");
-  const file = path.join(folder, safeName.toLowerCase().endsWith(".xml") ? safeName : `${safeName}.xml`);
-  try {
-    fs.writeFileSync(file, buffer);
-    const args = validatorArgs(db).map((item) => item.replaceAll("{file}", file));
-    const result = spawnSync(diagnostic.command, args, {
-      cwd: diagnostic.available && fs.statSync(diagnostic.path).isDirectory() ? diagnostic.path : process.cwd(),
-      encoding: "utf8",
-      windowsHide: true,
-      timeout: 120000,
-      maxBuffer: 5 * 1024 * 1024
-    });
-    const stdout = String(result.stdout || "").trim();
-    const stderr = String(result.stderr || "").trim();
-    const exitCode = Number.isInteger(result.status) ? result.status : -1;
+function buildMappingReport(db, period) {
+  const source = buildSource(db, period, { strict: false });
+  const hr = db.hr || {};
+  const contracts = Array.isArray(hr.contracts) ? hr.contracts : [];
+  const employees = Array.isArray(hr.employees) ? hr.employees : [];
+  const employeeMap = new Map(employees.map((item) => [String(item.id), item]));
+  const runLines = (hr.payrollLines || []).filter((item) => item.run_id === source.run.id && !item.cancelled_at);
+  const rows = runLines.map((line) => {
+    const employee = employeeMap.get(String(line.employee_id)) || {};
+    const contract = contracts.filter((item) => String(item.employee_id) === String(line.employee_id) && item.status !== "incetat").sort((a, b) => String(b.data_start || "").localeCompare(String(a.data_start || "")))[0] || {};
+    const errors = [];
+    const cnp = String(line.cnp || employee.cnp || "").replace(/\D/g, "");
+    if (!/^\d{13}$/.test(cnp)) errors.push("cnpAsig: CNP invalid");
+    if (!String(employee.nume || "").trim()) errors.push("numeAsig: nume lipsa");
+    if (!String(employee.prenume || "").trim()) errors.push("prenAsig: prenume lipsa");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(contract.data_start || ""))) errors.push("dataAng: data angajarii lipsa");
+    if (!(Number(line.gross || 0) >= 0)) errors.push("E3_8: venit brut invalid");
+    if (Number(line.medical_days || 0) > 0 && !(Number(line.medical_indemnity || 0) > 0)) errors.push("sectiune concedii medicale incompleta");
     return {
-      accepted: exitCode === 0 && !/\b(error|eroare|fatal)\b/i.test(`${stdout}\n${stderr}`),
-      exit_code: exitCode,
-      stdout,
-      stderr: result.error ? `${stderr}\n${result.error.message}`.trim() : stderr,
-      sha256: crypto.createHash("sha256").update(buffer).digest("hex"),
-      validator_path: diagnostic.path,
-      validated_at: new Date().toISOString()
+      employee_id: line.employee_id, marca: line.marca || "", cnpAsig: cnp,
+      numeAsig: employee.nume || "", prenAsig: employee.prenume || "", dataAng: contract.data_start || "",
+      ore_lucrate: line.worked_hours || 0, venit_brut: line.gross || 0, cas: line.cas || 0,
+      cass: line.cass || 0, impozit: line.income_tax || 0, zile_cm: line.medical_days || 0,
+      errors, ready: errors.length === 0
     };
-  } finally {
-    fs.rmSync(folder, { recursive: true, force: true });
-  }
-}
-
-function validatorArgs(db) {
-  const value = process.env.D112_VALIDATOR_ARGS || db.settings?.d112_validator_args || "";
-  if (Array.isArray(value)) return value.map(String);
-  try {
-    const parsed = JSON.parse(String(value || "[]"));
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch (_) {
-    return [];
-  }
+  });
+  const companyErrors = [];
+  if (!source.company.cif) companyErrors.push("angajator.cif lipsa");
+  if (!source.company.name) companyErrors.push("angajator.den lipsa");
+  return {
+    perioada: period, schema: "D112 valabila de la 01/2026", namespace: "mfp:anaf:dgti:declaratie_unica:declaratie:v6",
+    company: source.company, company_errors: companyErrors, rows,
+    ready: companyErrors.length === 0 && rows.length > 0 && rows.every((item) => item.ready),
+    note: "Raport de mapare. XML-ul fiscal final ramane conditionat de schema si validatorul ANAF aplicabile perioadei."
+  };
 }
 
 function companyData(db) {
@@ -134,4 +108,4 @@ function number(value) { return Number(value || 0).toFixed(2); }
 function xml(value) { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[char])); }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
-module.exports = { buildSource, toWorkingXml, validatorDiagnostic, validateOfficialXml };
+module.exports = { buildSource, toWorkingXml, validatorDiagnostic, validateOfficialXml, buildMappingReport };

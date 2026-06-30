@@ -6,6 +6,7 @@ const multer = require("multer");
 const engine = require("./accounting-engine");
 const fiscal = require("./fiscal-register");
 const d112Generator = require("./d112-generator");
+const officialValidator = require("./official-validator");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
@@ -31,6 +32,71 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
 
   router.get("/accounting/d112/validator-diagnostic", requireAccountingReports, (req, res) => {
     res.status(200).json(d112Generator.validatorDiagnostic(req.auth.db));
+  });
+
+  router.get("/accounting/declarations/validators/:code", requireAccountingReports, (req, res, next) => {
+    try { res.json(officialValidator.diagnostic(req.auth.db, req.params.code)); }
+    catch (error) { next(error); }
+  });
+
+  router.put("/accounting/declarations/validators/:code", requireAccountingPost, (req, res, next) => {
+    try {
+      const item = officialValidator.saveConfig(req.auth.db, req.params.code, req.body || {}, req.auth.user);
+      addAudit(req.auth.db, req.auth.user, "accounting_validator_config", `${item.code} / ${item.schema_version || "fara versiune"}`);
+      writeDb(req.auth.db);
+      res.json({ item, diagnostic: officialValidator.diagnostic(req.auth.db, item.code) });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/d112/mapping", requireAccountingReports, (req, res, next) => {
+    try {
+      const period = fiscal.declarationPeriod(req.query.perioada || req.query.luna || currentMonth());
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      res.json(d112Generator.buildMappingReport(req.auth.db, period.value));
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/d112/mapping-export", requireAccountingReports, (req, res, next) => {
+    try {
+      const period = fiscal.declarationPeriod(req.query.perioada || req.query.luna || currentMonth());
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      const report = d112Generator.buildMappingReport(req.auth.db, period.value);
+      const rows = report.rows.map((item) => [item.marca, item.cnpAsig, item.numeAsig, item.prenAsig, item.dataAng, item.ore_lucrate, item.venit_brut, item.cas, item.cass, item.impozit, item.zile_cm, item.ready ? "OK" : item.errors.join("; ")]);
+      const sheet = xlsx.utils.aoa_to_sheet([["Mapare D112", period.value, report.schema], [], ["Marca", "CNP", "Nume", "Prenume", "Data angajarii", "Ore", "Brut", "CAS", "CASS", "Impozit", "Zile CM", "Control"], ...rows]);
+      sheet["!cols"] = [{ wch: 12 }, { wch: 16 }, { wch: 22 }, { wch: 22 }, { wch: 15 }, ...Array(6).fill({ wch: 14 }), { wch: 60 }];
+      const workbook = xlsx.utils.book_new(); xlsx.utils.book_append_sheet(workbook, sheet, "Mapare D112");
+      const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="Mapare_D112_${period.value.replace("-", "_")}.xlsx"`);
+      res.end(buffer);
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/declarations/:code/validate-official-file", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      if (!new Set(["D112", "D300", "D394"]).has(code)) throwHttp(400, "Declaratia nu accepta validare externa.");
+      if (!req.file || !String(req.file.originalname || "").toLowerCase().endsWith(".xml")) throwHttp(400, "Selecteaza fisierul XML al declaratiei.");
+      const period = fiscal.declarationPeriod(req.body?.perioada || req.body?.luna || currentMonth());
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      const result = officialValidator.validate(req.auth.db, code, req.file.buffer, req.file.originalname);
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const folder = path.join(process.cwd(), "storage", "accounting-declarations", period.value, code, "validated");
+      fs.mkdirSync(folder, { recursive: true });
+      const storedName = fiscal.safeStoredName(req.file.originalname, `${code}_${period.value}_${Date.now()}`);
+      const fullPath = path.join(folder, storedName);
+      fs.writeFileSync(fullPath, req.file.buffer);
+      const run = {
+        id: engine.nextNumericId(accounting.declarationValidationRuns), perioada: period.value,
+        an: period.an, luna: period.luna, file_name: req.file.originalname,
+        stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
+        ...result, created_by: req.auth.user?.id || "", created_at: new Date().toISOString()
+      };
+      accounting.declarationValidationRuns.push(run);
+      addAudit(req.auth.db, req.auth.user, "accounting_official_validator", `${code} ${period.value} / ${result.accepted ? "acceptat" : "erori"}`);
+      writeDb(req.auth.db);
+      res.json({ run });
+    } catch (error) { next(error); }
   });
 
   router.get("/accounting/d112/export-source-xml", requireAccountingReports, (req, res, next) => {
@@ -638,26 +704,27 @@ function buildFiscalCalendar(db, query = {}) {
   const requestedYear = Number(query.an || new Date().getFullYear());
   if (!Number.isInteger(requestedYear) || requestedYear < 2000 || requestedYear > 2200) throwHttp(400, "Anul fiscal este invalid.");
   const accounting = engine.ensureAccounting(db);
-  const dueDay = Math.min(28, Math.max(1, Number(db.settings?.fiscal?.due_day || 25)));
   const obligations = [];
   for (let month = 1; month <= 12; month += 1) {
     const period = `${requestedYear}-${String(month).padStart(2, "0")}`;
-    const dueDate = new Date(requestedYear, month, dueDay).toISOString().slice(0, 10);
     ["D300", "D394", "D112"].forEach((code) => {
       const run = fiscal.latestRun(accounting.declarationRuns, code, requestedYear, month, ["validat_intern", "exportat", "depus", "respins"]);
+      const dueDate = declarationDueDate(requestedYear, month, code, db.settings?.fiscal || {});
+      const daysRemaining = Math.ceil((new Date(`${dueDate}T23:59:59Z`) - new Date()) / 86400000);
       obligations.push({
         code,
         perioada: period,
         termen_orientativ: dueDate,
         status: run?.status || "neinceput",
         receipt_status: run?.receipt_status || null,
-        run_id: run?.id || null
+        run_id: run?.id || null,
+        days_remaining: daysRemaining,
+        alert: run?.status === "acceptat" ? "finalizat" : daysRemaining < 0 ? "depasit" : daysRemaining <= 5 ? "urgent" : daysRemaining <= 15 ? "apropiat" : "normal"
       });
     });
   }
   return {
     an: requestedYear,
-    termen_zi: dueDay,
     orientativ: true,
     note: "Termenele sunt orientative. Verifica inainte de depunere calendarul fiscal ANAF si eventualele exceptii sau zile nelucratoare.",
     obligations
@@ -677,6 +744,9 @@ function buildFiscalMonthCheck(db, query = {}) {
   const unlinked = outgoing.filter((invoice) => !eInvoices.some((item) => item.accounting_invoice_uuid === invoice.uuid));
   const rejected = eInvoices.filter((item) => String(item.data || "").startsWith(perioada) && item.status === "respinsa");
   const unclassifiedTreasury = accounting.treasury.filter((item) => Number(item.an) === an && Number(item.luna) === luna && item.status === "validat" && item.corelare_tip === "neclasificat");
+  const officialValidation = (code) => [...accounting.declarationValidationRuns].reverse().find((item) => item.code === code && item.perioada === perioada && item.accepted);
+  const payrollRun = [...(db.hr?.payrollRuns || [])].reverse().find((item) => item.luna === perioada && item.status === "validat" && !item.cancelled_at);
+  const unpaidPayrollOrders = payrollRun ? (db.hr?.payrollPaymentOrders || []).filter((item) => item.run_id === payrollRun.id && !item.cancelled_at && item.status === "pregatit") : [];
   const checks = [
     { key: "d300", label: "D300", ok: declarations.declarations.find((item) => item.code === "D300")?.status === "pregatit", severity: "error", message: declarations.declarations.find((item) => item.code === "D300")?.description, to: "/contabilitate/tva-d300?tab=d300" },
     { key: "d394", label: "D394", ok: declarations.declarations.find((item) => item.code === "D394")?.status === "pregatit", severity: "error", message: declarations.declarations.find((item) => item.code === "D394")?.description, to: "/contabilitate/tva-d300?tab=d394" },
@@ -685,9 +755,19 @@ function buildFiscalMonthCheck(db, query = {}) {
     { key: "efactura_unlinked", label: "Facturi nelivrate in e-Factura", ok: unlinked.length === 0, severity: "error", message: unlinked.length ? `${unlinked.length} facturi de iesire validate nu sunt legate la e-Factura.` : "Toate facturile validate sunt legate la e-Factura.", to: "/contabilitate/anaf" },
     { key: "efactura_rejected", label: "e-Factura respinse", ok: rejected.length === 0, severity: "error", message: rejected.length ? `${rejected.length} documente sunt respinse si necesita corectie.` : "Nu exista documente respinse in perioada.", to: "/contabilitate/anaf" },
     { key: "treasury", label: "Trezorerie corelata", ok: unclassifiedTreasury.length === 0, severity: "error", message: unclassifiedTreasury.length ? `${unclassifiedTreasury.length} operatiuni validate sunt neclasificate.` : "Operatiunile validate sunt corelate.", to: "/contabilitate/trezorerie" }
+    ,{ key: "payroll_obligations", label: "Obligatii salariale", ok: unpaidPayrollOrders.length === 0, severity: "warning", message: unpaidPayrollOrders.length ? `${unpaidPayrollOrders.length} ordine salariale sunt pregatite si neplatite.` : "Nu exista ordine salariale restante in aplicatie.", to: "/contabilitate/salarizare" }
+    ,...['D300', 'D394', 'D112'].map((code) => ({ key: `official_${code.toLowerCase()}`, label: `${code} validator oficial`, ok: Boolean(officialValidation(code)), severity: "warning", message: officialValidation(code) ? "Exista un XML acceptat de validator pentru perioada." : "Nu exista inca un XML acceptat de validatorul configurat.", to: `/contabilitate/tva-d300?tab=${code.toLowerCase()}` }))
   ];
   const blocking = checks.filter((item) => item.severity === "error" && !item.ok);
   return { perioada, ready: blocking.length === 0, status: blocking.length ? "needs_attention" : "ready", checks };
+}
+
+function declarationDueDate(reportYear, reportMonth, code, settings = {}) {
+  const configured = Number(settings?.due_days?.[code]);
+  const day = Number.isInteger(configured) && configured >= 1 && configured <= 31 ? configured : code === "D394" ? 30 : 25;
+  const due = new Date(Date.UTC(reportYear, reportMonth, day));
+  if (code === "D300" && due.getUTCMonth() === 11 && day === 25) due.setUTCDate(21);
+  return due.toISOString().slice(0, 10);
 }
 
 function buildSaftReadiness(db, query = {}) {
@@ -807,3 +887,4 @@ module.exports.buildSaftReadiness = buildSaftReadiness;
 module.exports.buildD112Readiness = buildD112Readiness;
 module.exports.buildFiscalCalendar = buildFiscalCalendar;
 module.exports.buildFiscalMonthCheck = buildFiscalMonthCheck;
+module.exports.declarationDueDate = declarationDueDate;

@@ -35,6 +35,7 @@ function ensurePayroll(db) {
   db.hr.payrollLines = Array.isArray(db.hr.payrollLines) ? db.hr.payrollLines : [];
   db.hr.payrollAdjustments = Array.isArray(db.hr.payrollAdjustments) ? db.hr.payrollAdjustments : [];
   db.hr.payrollPayments = Array.isArray(db.hr.payrollPayments) ? db.hr.payrollPayments : [];
+  db.hr.payrollPaymentOrders = Array.isArray(db.hr.payrollPaymentOrders) ? db.hr.payrollPaymentOrders : [];
   db.hr.payrollBankProfiles = Array.isArray(db.hr.payrollBankProfiles) ? db.hr.payrollBankProfiles : [];
   if (!db.hr.payrollProfiles.length) db.hr.payrollProfiles.push({ ...DEFAULT_PROFILE });
   if (!db.hr.payrollBankProfiles.length) {
@@ -110,7 +111,8 @@ router.get("/hr/payroll", requireSalaryView, (req, res) => {
   const run = [...hr.payrollRuns].reverse().find((item) => item.luna === month && !item.cancelled_at) || null;
   const lines = run ? hr.payrollLines.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
   const payments = run ? hr.payrollPayments.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
-  res.json({ luna: month, run, lines, payments, profile: run?.profile || currentProfile(hr, month) });
+  const paymentOrders = run ? hr.payrollPaymentOrders.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
+  res.json({ luna: month, run, lines, payments, paymentOrders, profile: run?.profile || currentProfile(hr, month) });
 });
 
 router.post("/hr/payroll/generate", requireSalaryManage, (req, res, next) => {
