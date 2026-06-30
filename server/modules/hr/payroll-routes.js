@@ -214,6 +214,45 @@ router.post("/hr/payroll/:runId/devalidate", requireSalaryManage, (req, res, nex
   } catch (error) { next(error); }
 });
 
+router.post("/hr/payroll/:runId/corrective", requireSalaryManage, (req, res, next) => {
+  try {
+    const db = req.auth.db;
+    const hr = ensurePayroll(db);
+    const parent = findRun(hr, req.params.runId);
+    if (parent.status !== "validat") throwHttp(409, "Doar un stat validat poate avea o rectificare.");
+    if (hr.payrollPayments.some((item) => item.run_id === parent.id && !item.cancelled_at && item.status !== "stornat")) throwHttp(409, "Storneaza plata salariala inainte de rectificare.");
+    if (parent.accounting_journal_id && !parent.accounting_reversed_at) throwHttp(409, "Storneaza nota contabila inainte de rectificare.");
+    if (hr.payrollRuns.some((item) => item.parent_run_id === parent.id && !item.cancelled_at && item.status === "draft")) throwHttp(409, "Exista deja o rectificare draft pentru acest stat.");
+    const reason = String(req.body?.motiv || "").trim();
+    if (reason.length < 5) throwHttp(400, "Motivul rectificarii trebuie sa aiba minimum 5 caractere.");
+    const run = {
+      id: nextId(hr.payrollRuns), uuid: `payroll-corrective-${Date.now()}`, luna: parent.luna,
+      status: "draft", run_type: "rectificativ", parent_run_id: parent.id,
+      revision_no: hr.payrollRuns.filter((item) => item.luna === parent.luna && item.run_type === "rectificativ").length + 1,
+      correction_reason: reason, profile: { ...parent.profile }, created_by: req.auth.user?.id || "", created_at: new Date().toISOString()
+    };
+    const firstLineId = nextId(hr.payrollLines);
+    const lines = hr.payrollLines.filter((item) => item.run_id === parent.id && !item.cancelled_at).map((item, index) => ({
+      ...item, id: firstLineId + index, run_id: run.id, source_line_id: item.id,
+      errors: [...(item.errors || [])], warnings: [...(item.warnings || [])], created_at: run.created_at
+    }));
+    summarizeRun(run, lines);
+    hr.payrollRuns.push(run); hr.payrollLines.push(...lines);
+    addAudit(db, req.auth.user, "hr_payroll_corrective_create", `${parent.luna} / rev ${run.revision_no} / ${reason}`);
+    writeDb(db);
+    res.status(201).json({ run, lines });
+  } catch (error) { next(error); }
+});
+
+router.get("/hr/payroll/:runId/history", requireSalaryView, (req, res, next) => {
+  try {
+    const hr = ensurePayroll(req.auth.db);
+    const run = findRun(hr, req.params.runId);
+    const rootId = run.parent_run_id || run.id;
+    res.json({ runs: hr.payrollRuns.filter((item) => (item.id === rootId || item.parent_run_id === rootId) && !item.cancelled_at).sort((a, b) => Number(a.revision_no || 0) - Number(b.revision_no || 0)) });
+  } catch (error) { next(error); }
+});
+
 router.get("/hr/payroll/:runId/export", requireSalaryView, (req, res, next) => {
   try {
     const hr = ensurePayroll(req.auth.db);
@@ -245,6 +284,7 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
   const workedHours = sum(sheets, "ore_lucrate");
   const leaveDays = sheets.filter((item) => ["co", "concediu_odihna"].includes(String(item.tip || "").toLowerCase())).length;
   const medicalDays = sheets.filter((item) => ["cm", "concediu_medical"].includes(String(item.tip || "").toLowerCase())).length;
+  let unpaidLeaveDays = sheets.filter((item) => ["cfp", "concediu_fara_plata"].includes(String(item.tip || "").toLowerCase())).length;
   const paidHours = Math.min(normHours, workedHours + leaveDays * Number(contract?.norma_ore || 8));
   const salaryBase = num(override.salary_base ?? contract?.salariu_baza ?? employee.salariu_baza);
   const hourly = normHours > 0 ? salaryBase / normHours : 0;
@@ -253,10 +293,13 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
   const overtime2 = money(sum(sheets, "ore_suplimentare_s2") * hourly * profile.overtime_rate_2 / 100);
   const nightBonus = money(sum(sheets, "ore_noapte") * hourly * profile.night_rate / 100);
   const adjustments = hr.payrollAdjustments.filter((item) => adjustmentApplies(item, employee.id, month));
+  unpaidLeaveDays += adjustments.filter((item) => item.tip === "concediu_fara_plata").reduce((total, item) => total + num(item.quantity), 0);
   const adjustmentTotal = (type) => money(adjustments.filter((item) => item.tip === type).reduce((total, item) => total + num(item.amount), 0));
   const manualBonus = money(override.manual_bonus !== undefined ? override.manual_bonus : adjustmentTotal("bonus"));
   const taxableBenefits = money(override.taxable_benefits !== undefined ? override.taxable_benefits : adjustmentTotal("beneficiu_impozabil"));
   const medicalIndemnity = money(override.medical_indemnity !== undefined ? override.medical_indemnity : adjustmentTotal("indemnizatie_medicala"));
+  const medicalEmployerAmount = money(adjustments.filter((item) => item.tip === "indemnizatie_medicala").reduce((total, item) => total + num(item.medical_employer_amount), 0));
+  const medicalFundAmount = money(adjustments.filter((item) => item.tip === "indemnizatie_medicala").reduce((total, item) => total + num(item.medical_fund_amount), 0));
   const mealTickets = money(override.meal_tickets !== undefined ? override.meal_tickets : adjustmentTotal("tichete_masa"));
   const taxableMealTickets = profile.meal_tickets_taxable ? mealTickets : 0;
   const totalBonuses = money(overtime1 + overtime2 + nightBonus + manualBonus + taxableBenefits + medicalIndemnity);
@@ -282,6 +325,7 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
   if (medicalDays > 0 && medicalIndemnity <= 0) errors.push("Concediul medical necesita indemnizatie aprobata");
   const medicalAdjustments = adjustments.filter((item) => item.tip === "indemnizatie_medicala");
   if (medicalDays > 0 && medicalAdjustments.some((item) => !item.operator_confirmed)) errors.push("Confirma certificatul si indemnizatia de concediu medical");
+  if (medicalIndemnity > 0 && medicalEmployerAmount + medicalFundAmount > 0 && Math.abs(medicalIndemnity - medicalEmployerAmount - medicalFundAmount) > 0.01) errors.push("Impartirea indemnizatiei medicale nu corespunde sumei totale");
   if (mealTickets > 0 && !profile.meal_tickets_taxable && !profile.meal_tickets_cass) warnings.push("Regimul fiscal al tichetelor este neactivat in profil; verificati configurarea aplicabila perioadei");
   if (personalDeduction === 0) warnings.push("Deducerea personala este zero; verificati daca angajatul are dreptul la deducere");
   return {
@@ -296,6 +340,7 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
     paid_hours: money(paidHours),
     leave_days: leaveDays,
     medical_days: medicalDays,
+    unpaid_leave_days: unpaidLeaveDays,
     base_gross: baseGross,
     overtime_1: overtime1,
     overtime_2: overtime2,
@@ -303,6 +348,8 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
     manual_bonus: manualBonus,
     taxable_benefits: taxableBenefits,
     medical_indemnity: medicalIndemnity,
+    medical_employer_amount: medicalEmployerAmount,
+    medical_fund_amount: medicalFundAmount,
     meal_tickets: mealTickets,
     total_bonuses: totalBonuses,
     gross,

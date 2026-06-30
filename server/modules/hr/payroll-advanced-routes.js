@@ -8,7 +8,7 @@ const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
 const router = Router();
-const TYPES = new Set(["bonus", "beneficiu_impozabil", "retinere", "indemnizatie_medicala", "avans", "poprire", "tichete_masa"]);
+const TYPES = new Set(["bonus", "beneficiu_impozabil", "retinere", "indemnizatie_medicala", "concediu_fara_plata", "avans", "poprire", "tichete_masa"]);
 
 router.get("/hr/payroll/adjustments", salaryView, (req, res) => {
   const hr = payrollRoutes.ensurePayroll(req.auth.db);
@@ -25,7 +25,8 @@ router.post("/hr/payroll/adjustments", salaryManage, (req, res, next) => {
     if (!TYPES.has(body.tip)) throwHttp(400, "Tipul ajustarii salariale este invalid.");
     if (!hr.employees.some((item) => String(item.id) === String(body.employee_id))) throwHttp(404, "Angajatul nu a fost gasit.");
     const amount = payrollRoutes.money(body.amount);
-    if (!(amount > 0)) throwHttp(400, "Suma ajustarii trebuie sa fie mai mare decat zero.");
+    if (body.tip === "concediu_fara_plata" && !(payrollRoutes.money(body.quantity) > 0)) throwHttp(400, "Numarul zilelor de concediu fara plata este obligatoriu.");
+    if (body.tip !== "concediu_fara_plata" && !(amount > 0)) throwHttp(400, "Suma ajustarii trebuie sa fie mai mare decat zero.");
     const item = {
       id: payrollRoutes.nextId(hr.payrollAdjustments),
       uuid: `payroll-adjustment-${Date.now()}`,
@@ -37,6 +38,9 @@ router.post("/hr/payroll/adjustments", salaryManage, (req, res, next) => {
       quantity: payrollRoutes.money(body.quantity),
       unit_value: payrollRoutes.money(body.unit_value),
       certificate_code: String(body.certificate_code || "").trim().slice(0, 50),
+      medical_employer_amount: payrollRoutes.money(body.medical_employer_amount),
+      medical_fund_amount: payrollRoutes.money(body.medical_fund_amount),
+      medical_diagnostic_code: String(body.medical_diagnostic_code || "").trim().slice(0, 30),
       operator_confirmed: Boolean(body.operator_confirmed),
       data_start: validDate(body.data_start || `${payrollRoutes.validMonth(body.luna)}-01`),
       data_sfarsit: body.recurent ? validDate(body.data_sfarsit || "2099-12-31") : validDate(body.data_sfarsit || body.data_start || `${payrollRoutes.validMonth(body.luna)}-01`),
@@ -60,12 +64,14 @@ router.patch("/hr/payroll/adjustments/:id", salaryManage, (req, res, next) => {
     if (!item) throwHttp(404, "Ajustarea salariala nu a fost gasita.");
     if (req.body.tip !== undefined && !TYPES.has(req.body.tip)) throwHttp(400, "Tipul ajustarii salariale este invalid.");
     if (req.body.amount !== undefined && !(payrollRoutes.money(req.body.amount) > 0)) throwHttp(400, "Suma ajustarii trebuie sa fie mai mare decat zero.");
-    ["tip", "cod", "descriere", "data_start", "data_sfarsit", "recurent", "active", "certificate_code", "operator_confirmed"].forEach((key) => {
+    ["tip", "cod", "descriere", "data_start", "data_sfarsit", "recurent", "active", "certificate_code", "medical_diagnostic_code", "operator_confirmed"].forEach((key) => {
       if (req.body[key] !== undefined) item[key] = req.body[key];
     });
     if (req.body.amount !== undefined) item.amount = payrollRoutes.money(req.body.amount);
     if (req.body.quantity !== undefined) item.quantity = payrollRoutes.money(req.body.quantity);
     if (req.body.unit_value !== undefined) item.unit_value = payrollRoutes.money(req.body.unit_value);
+    if (req.body.medical_employer_amount !== undefined) item.medical_employer_amount = payrollRoutes.money(req.body.medical_employer_amount);
+    if (req.body.medical_fund_amount !== undefined) item.medical_fund_amount = payrollRoutes.money(req.body.medical_fund_amount);
     item.updated_at = new Date().toISOString();
     item.updated_by = req.auth.user?.id || "";
     addAudit(db, req.auth.user, "hr_payroll_adjustment_update", `${item.id} / ${item.tip}`);

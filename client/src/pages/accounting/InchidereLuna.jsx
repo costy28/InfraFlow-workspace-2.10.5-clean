@@ -72,6 +72,26 @@ export function InchidereLuna() {
     }
   }
 
+  async function downloadDossier() {
+    const [an, luna] = month.split('-')
+    try {
+      const response = await api.post(`/accounting/periods/${an}/${Number(luna)}/dossier`, {}, { responseType: 'blob' })
+      downloadBlob(response.data, `Dosar_contabil_${an}_${luna}.zip`)
+      setMessage('Dosarul lunar a fost generat si arhivat in audit.')
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Dosarul lunar nu a putut fi generat.') }
+  }
+
+  async function printDossier() {
+    const [an, luna] = month.split('-')
+    try {
+      const response = await api.get(`/accounting/periods/${an}/${Number(luna)}/dossier-print`, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      window.open(url, '_blank', 'noopener,noreferrer')
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err) { setError(err.response?.data?.error || 'Coperta dosarului nu a putut fi deschisa.') }
+  }
+
   const checks = data?.checks || {}
   const status = data?.period?.status || 'deschisa'
   const blockers = [
@@ -90,6 +110,8 @@ export function InchidereLuna() {
     checks.can_close ? { label: 'Inchide luna', onClick: closeMonth } : null,
     checks.can_reopen ? { label: 'Redeschide luna', onClick: reopenMonth } : null,
     checks.can_mark_submitted ? { label: 'Declaratii depuse', onClick: markSubmitted } : null,
+    ['inchisa', 'depusa'].includes(status) ? { label: 'Descarca dosar ZIP', onClick: downloadDossier } : null,
+    { label: 'Coperta / PDF', onClick: printDossier },
     { type: 'separator' },
     { label: 'TVA / D300', to: `/contabilitate/tva-d300?luna=${month}` },
     { label: 'Balanta', to: `/contabilitate/balanta?luna=${month}` },
@@ -244,3 +266,10 @@ export function InchidereLuna() {
 }
 
 export default InchidereLuna
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url; link.download = filename; link.click()
+  URL.revokeObjectURL(url)
+}

@@ -1,5 +1,12 @@
 # Changelog
 
+# v2.12.168 - 2026-06-30
+
+- Detectie si testare asistata pentru Java si validatoarele locale D112, D300 si D394.
+- Generare XML candidat, validare automata si descarcare numai dupa acceptare.
+- Stat salarial rectificativ, concediu fara plata si detalii medicale controlate.
+- Dosar lunar ZIP cu manifest, snapshot, istoric, documente fiscale si coperta A4.
+
 # v2.12.164 - 2026-06-29
 
 - Ordinele CAS, CASS, impozit si CAM sunt generate din statul validat si pot fi platite/stornate prin trezorerie.

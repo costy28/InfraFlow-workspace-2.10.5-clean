@@ -7,6 +7,7 @@ const engine = require("./accounting-engine");
 const fiscal = require("./fiscal-register");
 const d112Generator = require("./d112-generator");
 const officialValidator = require("./official-validator");
+const declarationCandidates = require("./declaration-candidates");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
@@ -45,6 +46,20 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       addAudit(req.auth.db, req.auth.user, "accounting_validator_config", `${item.code} / ${item.schema_version || "fara versiune"}`);
       writeDb(req.auth.db);
       res.json({ item, diagnostic: officialValidator.diagnostic(req.auth.db, item.code) });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/declarations/validators/:code/discover", requireAccountingReports, (req, res, next) => {
+    try { res.json(officialValidator.discover(req.auth.db, req.params.code)); }
+    catch (error) { next(error); }
+  });
+
+  router.post("/accounting/declarations/validators/:code/test", requireAccountingPost, (req, res, next) => {
+    try {
+      const result = officialValidator.testEnvironment(req.auth.db, req.params.code);
+      addAudit(req.auth.db, req.auth.user, "accounting_validator_test", `${result.code} / ${result.ok ? "ok" : "eroare"}`);
+      writeDb(req.auth.db);
+      res.json({ result });
     } catch (error) { next(error); }
   });
 
@@ -96,6 +111,47 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       addAudit(req.auth.db, req.auth.user, "accounting_official_validator", `${code} ${period.value} / ${result.accepted ? "acceptat" : "erori"}`);
       writeDb(req.auth.db);
       res.json({ run });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/declarations/:code/generate-candidate", requireAccountingPost, (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      const period = fiscal.declarationPeriod(req.body?.perioada || req.body?.luna || currentMonth());
+      if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
+      const validator = officialValidator.diagnostic(req.auth.db, code);
+      const candidate = declarationCandidates.generate(req.auth.db, code, period.value, validator.schema_version);
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const folder = path.join(process.cwd(), "storage", "accounting-declarations", period.value, code, "candidates");
+      fs.mkdirSync(folder, { recursive: true });
+      const fileName = `${code}_candidat_${period.value.replace("-", "_")}_${Date.now()}.xml`;
+      const fullPath = path.join(folder, fileName);
+      fs.writeFileSync(fullPath, candidate.content, "utf8");
+      const result = validator.execution_enabled ? officialValidator.validate(req.auth.db, code, Buffer.from(candidate.content), fileName) : null;
+      const item = {
+        id: engine.nextNumericId(accounting.declarationCandidates), ...candidate,
+        stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
+        accepted: Boolean(result?.accepted), validation: result,
+        created_by: req.auth.user?.id || ""
+      };
+      delete item.content;
+      accounting.declarationCandidates.push(item);
+      addAudit(req.auth.db, req.auth.user, "accounting_declaration_candidate", `${code} ${period.value} / ${result ? result.accepted ? "acceptat" : "erori" : "nevalidat"}`);
+      writeDb(req.auth.db);
+      res.status(201).json({ candidate: item });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/declarations/:code/candidate-download", requireAccountingReports, (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      const period = fiscal.declarationPeriod(req.query.perioada || req.query.luna || currentMonth());
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const item = [...accounting.declarationCandidates].reverse().find((row) => row.code === code && row.perioada === period?.value && row.accepted);
+      if (!item) throwHttp(409, `Nu exista un candidat ${code} acceptat de validator pentru perioada selectata.`);
+      const fullPath = path.resolve(process.cwd(), item.stored_file);
+      if (!fs.existsSync(fullPath)) throwHttp(404, "Fisierul candidat validat nu mai exista in arhiva.");
+      res.download(fullPath, path.basename(fullPath));
     } catch (error) { next(error); }
   });
 

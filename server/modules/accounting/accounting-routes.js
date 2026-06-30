@@ -7,6 +7,9 @@ const engine = require("./accounting-engine");
 const { insertCostEntry } = require("../controlling/auto-register");
 const xlsx = require("xlsx");
 const multer = require("multer");
+const AdmZip = require("adm-zip");
+const fs = require("fs");
+const path = require("path");
 const registerDeclarationRoutes = require("./declaration-routes");
 const periodSnapshots = require("./period-snapshots");
 const registerOperationsRoutes = require("./operations-routes");
@@ -1517,6 +1520,55 @@ router.get("/accounting/periods/:an/:luna/check", requireAccountingReports, (req
 
 router.get("/accounting/periods/:an/:luna/history", requireAccountingReports, (req, res) => {
   sendJson(res, 200, periodSnapshots.periodHistory(req.auth.db, Number(req.params.an), Number(req.params.luna)));
+});
+
+router.post("/accounting/periods/:an/:luna/dossier", requireAccountingClose, (req, res, next) => {
+  try {
+    const an = Number(req.params.an); const luna = Number(req.params.luna);
+    const accounting = engine.ensureAccounting(req.auth.db);
+    const check = periodCheck(req.auth.db, an, luna);
+    if (!['inchisa', 'depusa'].includes(check.period.status)) throwHttp(409, "Inchide luna inainte de generarea dosarului final.");
+    const history = periodSnapshots.periodHistory(req.auth.db, an, luna);
+    const period = `${an}-${String(luna).padStart(2, "0")}`;
+    const manifest = {
+      produs: "InfraFlow ERP", perioada: period, status: check.period.status,
+      generat_la: new Date().toISOString(), generat_de: req.auth.user?.name || req.auth.user?.username || req.auth.user?.id || "",
+      snapshot_checksum: history.latest_snapshot?.checksum || "", counts: check.counts, checks: check.checks
+    };
+    const zip = new AdmZip();
+    zip.addFile("00_MANIFEST.json", Buffer.from(JSON.stringify(manifest, null, 2), "utf8"));
+    zip.addFile("01_COPERTA.html", Buffer.from(periodDossierHtml(req.auth.db, check, manifest), "utf8"));
+    zip.addFile("02_SNAPSHOT.json", Buffer.from(JSON.stringify(history.latest_snapshot || {}, null, 2), "utf8"));
+    zip.addFile("03_ISTORIC.json", Buffer.from(JSON.stringify(history.events || [], null, 2), "utf8"));
+    const runs = accounting.declarationRuns.filter((item) => Number(item.an) === an && Number(item.luna) === luna);
+    runs.forEach((run) => [run.export_file, run.archive_file, run.receipt_file].filter(Boolean).forEach((stored) => {
+      const full = path.resolve(process.cwd(), stored);
+      const storageRoot = path.resolve(process.cwd(), "storage");
+      if (full.startsWith(storageRoot) && fs.existsSync(full) && fs.statSync(full).isFile()) zip.addLocalFile(full, `04_DECLARATII/${run.code || "DECLARATIE"}`);
+    }));
+    const buffer = zip.toBuffer();
+    const dossier = {
+      id: engine.nextNumericId(accounting.periodDossiers), an, luna, status: "generat",
+      sha256: require("crypto").createHash("sha256").update(buffer).digest("hex"),
+      size: buffer.length, created_at: manifest.generat_la, created_by: req.auth.user?.id || ""
+    };
+    accounting.periodDossiers.push(dossier);
+    periodSnapshots.addPeriodEvent(req.auth.db, req.auth.user, an, luna, "dosar_lunar", { sha256: dossier.sha256, size: dossier.size });
+    addAudit(req.auth.db, req.auth.user, "accounting_period_dossier", `${period} / ${dossier.sha256}`);
+    writeDb(req.auth.db);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="Dosar_contabil_${an}_${String(luna).padStart(2, "0")}.zip"`);
+    res.end(buffer);
+  } catch (error) { next(error); }
+});
+
+router.get("/accounting/periods/:an/:luna/dossier-print", requireAccountingReports, (req, res, next) => {
+  try {
+    const an = Number(req.params.an); const luna = Number(req.params.luna);
+    const check = periodCheck(req.auth.db, an, luna);
+    const manifest = { perioada: `${an}-${String(luna).padStart(2, "0")}`, status: check.period.status, generat_la: new Date().toISOString(), generat_de: req.auth.user?.name || req.auth.user?.username || "" };
+    res.type("html").send(periodDossierHtml(req.auth.db, check, manifest));
+  } catch (error) { next(error); }
 });
 
 router.post("/accounting/periods/:an/:luna/close", requireAccountingClose, (req, res, next) => {
@@ -3563,6 +3615,12 @@ function periodCheck(db, an, luna) {
       settlements: settlements.length
     }
   };
+}
+
+function periodDossierHtml(db, check, manifest) {
+  const company = db.company || db.settings?.company || {};
+  const rows = Object.entries(check.checks || {}).map(([key, value]) => `<tr><td>${xmlEscape(key)}</td><td>${xmlEscape(typeof value === "object" ? JSON.stringify(value) : value)}</td></tr>`).join("");
+  return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Dosar contabil ${xmlEscape(manifest.perioada)}</title><style>@page{size:A4;margin:18mm}body{font-family:Arial,sans-serif;color:#172033}h1{color:#075b49}table{width:100%;border-collapse:collapse;margin-top:20px}td,th{border:1px solid #ccd5df;padding:7px;text-align:left}.meta{background:#f3f7f6;padding:14px}.no-print{margin:12px 0}@media print{.no-print{display:none}}</style></head><body><button class="no-print" onclick="window.print()">Tipareste / Salveaza PDF</button><h1>Dosar contabil lunar</h1><div class="meta"><strong>${xmlEscape(company.name || company.denumire || "Societate")}</strong><br>Perioada: ${xmlEscape(manifest.perioada)}<br>Status: ${xmlEscape(manifest.status)}<br>Generat: ${xmlEscape(manifest.generat_la)}<br>Operator: ${xmlEscape(manifest.generat_de || "-")}</div><h2>Controale de inchidere</h2><table><thead><tr><th>Control</th><th>Rezultat</th></tr></thead><tbody>${rows}</tbody></table><p>Document generat de InfraFlow ERP. Arhiva ZIP contine manifestul, snapshot-ul, istoricul si fisierele fiscale disponibile.</p></body></html>`;
 }
 
 function markAlert(status) {

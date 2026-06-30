@@ -20,7 +20,7 @@ const REQUIRED_CHART_ACCOUNTS = [
 
 function ensureAccounting(db) {
   if (!db.accounting || typeof db.accounting !== "object") db.accounting = {};
-  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "creditNotes", "treasury", "settlements", "lawAlerts", "journalTemplates", "openingBalances", "balanceConfirmations", "periodSnapshots", "periodEvents", "bankImports", "bankImportHashes", "stockPostings", "fixedAssets", "fixedAssetEvents", "fixedAssetCategories", "fixedAssetInventories", "depreciationRuns", "annualClosings", "declarationRuns", "declarationValidationRuns", "anafSchemas", "carryforwardRuns"];
+  const keys = ["periods", "chart", "journals", "journalLines", "thirdParties", "invoicesIn", "invoicesOut", "creditNotes", "treasury", "settlements", "lawAlerts", "journalTemplates", "openingBalances", "balanceConfirmations", "periodSnapshots", "periodEvents", "bankImports", "bankImportHashes", "stockPostings", "fixedAssets", "fixedAssetEvents", "fixedAssetCategories", "fixedAssetInventories", "depreciationRuns", "annualClosings", "declarationRuns", "declarationValidationRuns", "declarationCandidates", "periodDossiers", "anafSchemas", "carryforwardRuns"];
   keys.forEach((key) => {
     if (!Array.isArray(db.accounting[key])) db.accounting[key] = [];
   });

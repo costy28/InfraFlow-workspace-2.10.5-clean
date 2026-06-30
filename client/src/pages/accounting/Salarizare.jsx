@@ -13,7 +13,7 @@ const emptyCorrection = {
   salary_base: '', base_gross: '', manual_bonus: '', taxable_benefits: '',
   personal_deduction: '', other_deductions: ''
 }
-const emptyAdjustment = { employee_id: '', tip: 'bonus', amount: '', descriere: '', data_start: '', data_sfarsit: '', recurent: false, quantity: '', unit_value: '', certificate_code: '', operator_confirmed: false }
+const emptyAdjustment = { employee_id: '', tip: 'bonus', amount: '', descriere: '', data_start: '', data_sfarsit: '', recurent: false, quantity: '', unit_value: '', certificate_code: '', medical_diagnostic_code: '', medical_employer_amount: '', medical_fund_amount: '', operator_confirmed: false }
 const emptyBankProfile = { name: '', bank_name: '', format: 'xlsx', treasury_account: '5121', active: true }
 
 export default function Salarizare() {
@@ -83,6 +83,16 @@ export default function Salarizare() {
       setMessage('Statul salarial a fost redeschis pentru corectii.')
       load()
     } catch (err) { setError(err.response?.data?.error || 'Statul salarial nu a putut fi devalidat.') }
+  }
+
+  async function createCorrective() {
+    const motiv = window.prompt('Motivul rectificarii statului salarial:')
+    if (!motiv) return
+    try {
+      await api.post(`/hr/payroll/${data.run.id}/corrective`, { motiv })
+      setMessage('Statul rectificativ a fost creat ca draft. Originalul ramane in istoric.')
+      load()
+    } catch (err) { setError(err.response?.data?.error || 'Statul rectificativ nu a putut fi creat.') }
   }
 
   function editLine(line) {
@@ -255,6 +265,7 @@ export default function Salarizare() {
     { label: run ? 'Regenereaza din pontaj' : 'Genereaza din pontaj', onClick: generate, disabled: run?.status === 'validat' },
     run?.status === 'draft' ? { label: 'Valideaza statul', onClick: validate } : null,
     run?.status === 'validat' ? { label: 'Devalideaza', onClick: devalidate } : null,
+    run?.status === 'validat' ? { label: 'Creeaza stat rectificativ', onClick: createCorrective } : null,
     run ? { label: 'Export Excel', onClick: exportExcel } : null,
     run?.status === 'validat' ? { label: 'Export plati banca', onClick: downloadBank } : null,
     run ? { label: 'Toți fluturașii', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/payslips`) } : null,
@@ -332,11 +343,11 @@ export default function Salarizare() {
       <Modal open={adjustmentOpen} title="Spor, indemnizatie sau retinere" onClose={() => setAdjustmentOpen(false)} size="md">
         <form className="grid gap-3" onSubmit={saveAdjustment}>
           <Select label="Angajat" value={adjustment.employee_id} onChange={event => setAdjustment(current => ({ ...current, employee_id: event.target.value }))} options={(data.lines || []).map(line => ({ value: line.employee_id, label: line.employee_name }))} required />
-          <Select label="Tip" value={adjustment.tip} onChange={event => setAdjustment(current => ({ ...current, tip: event.target.value }))} options={[{ value: 'bonus', label: 'Spor / primă' }, { value: 'beneficiu_impozabil', label: 'Beneficiu impozabil' }, { value: 'indemnizatie_medicala', label: 'Indemnizație concediu medical' }, { value: 'tichete_masa', label: 'Tichete de masă' }, { value: 'avans', label: 'Avans salarial' }, { value: 'poprire', label: 'Poprire' }, { value: 'retinere', label: 'Altă reținere' }]} />
-          <div className="grid gap-3 sm:grid-cols-2"><Input label="Suma" type="number" min="0.01" step="0.01" value={adjustment.amount} onChange={event => setAdjustment(current => ({ ...current, amount: event.target.value }))} required /><Input label="Descriere" value={adjustment.descriere} onChange={event => setAdjustment(current => ({ ...current, descriere: event.target.value }))} /></div>
+          <Select label="Tip" value={adjustment.tip} onChange={event => setAdjustment(current => ({ ...current, tip: event.target.value }))} options={[{ value: 'bonus', label: 'Spor / primă' }, { value: 'beneficiu_impozabil', label: 'Beneficiu impozabil' }, { value: 'indemnizatie_medicala', label: 'Indemnizație concediu medical' }, { value: 'concediu_fara_plata', label: 'Concediu fără plată' }, { value: 'tichete_masa', label: 'Tichete de masă' }, { value: 'avans', label: 'Avans salarial' }, { value: 'poprire', label: 'Poprire' }, { value: 'retinere', label: 'Altă reținere' }]} />
+          <div className="grid gap-3 sm:grid-cols-2">{adjustment.tip === 'concediu_fara_plata' ? <Input label="Numar zile" type="number" min="0.5" step="0.5" value={adjustment.quantity} onChange={event => setAdjustment(current => ({ ...current, quantity: event.target.value, amount: 0 }))} required /> : <Input label="Suma" type="number" min="0.01" step="0.01" value={adjustment.amount} onChange={event => setAdjustment(current => ({ ...current, amount: event.target.value }))} required />}<Input label="Descriere" value={adjustment.descriere} onChange={event => setAdjustment(current => ({ ...current, descriere: event.target.value }))} /></div>
           <div className="grid gap-3 sm:grid-cols-2"><Input label="De la" type="date" value={adjustment.data_start} onChange={event => setAdjustment(current => ({ ...current, data_start: event.target.value }))} required /><Input label="Pana la" type="date" value={adjustment.data_sfarsit} onChange={event => setAdjustment(current => ({ ...current, data_sfarsit: event.target.value }))} /></div>
           {adjustment.tip === 'tichete_masa' ? <div className="grid gap-3 sm:grid-cols-2"><Input label="Număr tichete" type="number" step="1" value={adjustment.quantity} onChange={event => setAdjustment(current => ({ ...current, quantity: event.target.value }))} /><Input label="Valoare unitară" type="number" step="0.01" value={adjustment.unit_value} onChange={event => setAdjustment(current => ({ ...current, unit_value: event.target.value }))} /></div> : null}
-          {adjustment.tip === 'indemnizatie_medicala' ? <><Input label="Cod certificat medical" value={adjustment.certificate_code} onChange={event => setAdjustment(current => ({ ...current, certificate_code: event.target.value }))} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={adjustment.operator_confirmed} onChange={event => setAdjustment(current => ({ ...current, operator_confirmed: event.target.checked }))} /> Certificatul și suma au fost verificate de operator</label></> : null}
+          {adjustment.tip === 'indemnizatie_medicala' ? <><div className="grid gap-3 sm:grid-cols-2"><Input label="Cod certificat medical" value={adjustment.certificate_code} onChange={event => setAdjustment(current => ({ ...current, certificate_code: event.target.value }))} /><Input label="Cod diagnostic" value={adjustment.medical_diagnostic_code} onChange={event => setAdjustment(current => ({ ...current, medical_diagnostic_code: event.target.value }))} /><Input label="Suportat angajator" type="number" step="0.01" value={adjustment.medical_employer_amount} onChange={event => setAdjustment(current => ({ ...current, medical_employer_amount: event.target.value }))} /><Input label="Suportat fond" type="number" step="0.01" value={adjustment.medical_fund_amount} onChange={event => setAdjustment(current => ({ ...current, medical_fund_amount: event.target.value }))} /></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={adjustment.operator_confirmed} onChange={event => setAdjustment(current => ({ ...current, operator_confirmed: event.target.checked }))} /> Certificatul și suma au fost verificate de operator</label></> : null}
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={adjustment.recurent} onChange={event => setAdjustment(current => ({ ...current, recurent: event.target.checked }))} /> Ajustare recurenta</label>
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setAdjustmentOpen(false)}>Renunta</Button><Button type="submit">Salveaza</Button></div>
         </form>

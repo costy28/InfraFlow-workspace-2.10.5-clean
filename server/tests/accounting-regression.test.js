@@ -16,6 +16,7 @@ const d112Generator = require("../modules/accounting/d112-generator");
 const payrollObligations = require("../modules/hr/payroll-obligation-routes");
 const officialValidator = require("../modules/accounting/official-validator");
 const endToEndAudit = require("../modules/accounting/end-to-end-audit-routes");
+const declarationCandidates = require("../modules/accounting/declaration-candidates");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -722,4 +723,34 @@ test("auditul end-to-end detecteaza factura fara nota", () => {
   const report = endToEndAudit.buildAudit(db, "2026-06");
   assert.equal(report.checks.find((item) => item.area === "Facturi validate fara nota").count, 1);
   assert.equal(report.ready, false);
+});
+
+test("XML-ul candidat D300 ramane marcat pentru validare externa", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesIn.push({ id: 1, an: 2026, luna: 6, status: "validat", valoare: 100, tva: 21, total: 121 });
+  accounting.invoicesOut.push({ id: 2, an: 2026, luna: 6, status: "validat", valoare: 200, tva: 42, total: 242 });
+  const result = declarationCandidates.generate(db, "D300", "2026-06", "schema-test");
+  assert.match(result.content, /declaration-candidate/);
+  assert.match(result.content, /Necesita validare externa/);
+  assert.equal(result.sha256.length, 64);
+});
+
+test("detectia validatorului returneaza diagnostic fara configurare", () => {
+  const result = officialValidator.discover({}, "D300");
+  assert.equal(result.code, "D300");
+  assert.ok(Array.isArray(result.java));
+  assert.ok(Array.isArray(result.validators));
+});
+
+test("concediul fara plata ramane distinct in linia salariala", () => {
+  const hr = {
+    contracts: [{ id: 1, employee_id: 1, data_start: "2026-01-01", salariu_baza: 4000, norma_ore: 8, status: "activ" }],
+    timeSheets: [{ employee_id: 1, data: "2026-06-01", tip: "cfp", ore_lucrate: 0, validat: true }],
+    payrollAdjustments: []
+  };
+  const line = payrollRoutes.calculatePayrollLine(hr, { id: 1, cnp: "1800101223344", nume: "Popescu", prenume: "Ion" }, "2026-06", {
+    cas_rate: 25, cass_rate: 10, income_tax_rate: 10, cam_rate: 2.25, overtime_rate_1: 75, overtime_rate_2: 100, night_rate: 25
+  });
+  assert.equal(line.unpaid_leave_days, 1);
+  assert.equal(line.paid_hours, 0);
 });

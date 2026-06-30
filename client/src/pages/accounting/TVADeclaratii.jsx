@@ -30,6 +30,7 @@ export function TVADeclaratii() {
   const [d112Mapping, setD112Mapping] = useState({ rows: [], company_errors: [], ready: false })
   const [officialFile, setOfficialFile] = useState(null)
   const [officialValidation, setOfficialValidation] = useState(null)
+  const [validatorDiscovery, setValidatorDiscovery] = useState(null)
   const [validatorConfig, setValidatorConfig] = useState({ path: '', command: '', args: '["{file}"]', schema_version: '', source_url: '' })
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -111,6 +112,41 @@ export function TVADeclaratii() {
       setValidatorConfig({ ...item, args: JSON.stringify(item.args || ['{file}']) })
       setMessage(`Validatorul ${code} a fost configurat.`)
     } catch (err) { setError(err.response?.data?.error || 'Validatorul nu a putut fi configurat.') }
+  }
+
+  async function discoverValidator() {
+    const code = activeDeclarationCode()
+    try {
+      const response = await api.get(`/accounting/declarations/validators/${code}/discover`)
+      const result = response.data || {}
+      setValidatorDiscovery(result)
+      if (result.suggestion) setValidatorConfig(current => ({ ...current, ...result.suggestion, args: JSON.stringify(result.suggestion.args || ['{file}']) }))
+      setMessage(result.message || `Detectia ${code} s-a incheiat.`)
+    } catch (err) { setError(err.response?.data?.error || 'Detectia validatorului nu a putut fi executata.') }
+  }
+
+  async function testValidator() {
+    const code = activeDeclarationCode()
+    try {
+      const response = await api.post(`/accounting/declarations/validators/${code}/test`)
+      setValidatorDiscovery(response.data?.result || null)
+      setMessage(response.data?.result?.ok ? 'Comanda validatorului raspunde corect.' : 'Comanda validatorului a raspuns cu eroare.')
+    } catch (err) { setError(err.response?.data?.error || 'Testul validatorului nu a putut fi executat.') }
+  }
+
+  async function generateCandidate() {
+    const code = activeDeclarationCode()
+    try {
+      const response = await api.post(`/accounting/declarations/${code}/generate-candidate`, { perioada: month })
+      const item = response.data?.candidate
+      setOfficialValidation(item?.validation || { accepted: false, stderr: 'Candidatul a fost generat, dar validatorul nu este configurat.' })
+      setMessage(item?.accepted ? `${code}: candidatul a fost acceptat de validator.` : `${code}: candidatul a fost generat pentru verificare.`)
+    } catch (err) { setError(err.response?.data?.error || `Candidatul ${code} nu a putut fi generat.`) }
+  }
+
+  async function downloadValidatedCandidate() {
+    const code = activeDeclarationCode()
+    await download(`/accounting/declarations/${code}/candidate-download`, `${code}_validat_${month.replace('-', '_')}.xml`, code)
   }
 
   async function validateOfficialFile() {
@@ -308,7 +344,8 @@ export function TVADeclaratii() {
       {activeDeclarationCode() ? <Card>
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-slate-900">Validator oficial {activeDeclarationCode()}</h3><p className="text-sm text-slate-500">Comanda locală și versiunea schemei sunt păstrate separat pentru fiecare declarație.</p></div><Badge tone={validatorConfig.execution_enabled ? 'success' : 'warning'}>{validatorConfig.execution_enabled ? 'configurat' : 'neconfigurat'}</Badge></div>
         <div className="mt-3 grid gap-3 md:grid-cols-2"><Input label="Director / cale validator" value={validatorConfig.path || ''} onChange={event => setValidatorConfig(current => ({ ...current, path: event.target.value }))} /><Input label="Comandă executabilă" value={validatorConfig.command || ''} onChange={event => setValidatorConfig(current => ({ ...current, command: event.target.value }))} /><Input label={'Argumente JSON (include {file})'} value={validatorConfig.args || ''} onChange={event => setValidatorConfig(current => ({ ...current, args: event.target.value }))} /><Input label="Versiune schemă" value={validatorConfig.schema_version || ''} onChange={event => setValidatorConfig(current => ({ ...current, schema_version: event.target.value }))} /></div>
-        <div className="mt-3 flex flex-wrap items-end gap-3"><Button variant="secondary" onClick={saveValidator}>Salvează configurarea</Button><label className="grid min-w-72 flex-1 gap-1 text-sm"><span className="font-medium text-slate-700">XML pentru verificare</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xml" onChange={event => setOfficialFile(event.target.files?.[0] || null)} /></label><Button onClick={validateOfficialFile}>Rulează validatorul</Button></div>
+        <div className="mt-3 flex flex-wrap items-end gap-2"><Button variant="secondary" onClick={discoverValidator}>Detectează</Button><Button variant="secondary" onClick={saveValidator}>Salvează</Button><Button variant="secondary" onClick={testValidator}>Testează</Button><Button onClick={generateCandidate}>Generează și verifică</Button><Button variant="secondary" onClick={downloadValidatedCandidate}>Descarcă acceptat</Button><label className="grid min-w-72 flex-1 gap-1 text-sm"><span className="font-medium text-slate-700">XML extern pentru verificare</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xml" onChange={event => setOfficialFile(event.target.files?.[0] || null)} /></label><Button onClick={validateOfficialFile}>Verifică fișier</Button></div>
+        {validatorDiscovery ? <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"><strong>Diagnostic:</strong> {validatorDiscovery.message || validatorDiscovery.output || (validatorDiscovery.ok ? 'Comanda raspunde.' : 'Verifica configurarea.')} {validatorDiscovery.validators?.length ? ` · ${validatorDiscovery.validators.length} candidati gasiti` : ''}</div> : null}
         {officialValidation ? <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${officialValidation.accepted ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}><strong>{officialValidation.accepted ? 'Acceptat' : 'Erori'} · cod {officialValidation.exit_code}</strong><pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">{officialValidation.stderr || officialValidation.stdout || 'Fără detalii.'}</pre></div> : null}
       </Card> : null}
       <Card>

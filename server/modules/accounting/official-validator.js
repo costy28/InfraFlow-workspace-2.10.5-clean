@@ -56,6 +56,54 @@ function diagnostic(db, code) {
   };
 }
 
+function discover(db, code) {
+  const config = getConfig(db, code);
+  const javaCandidates = [
+    process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", "java.exe") : "",
+    findOnPath("java.exe"),
+    findOnPath("java")
+  ].filter(Boolean).filter((item, index, all) => all.indexOf(item) === index);
+  const roots = [
+    config.path,
+    path.join(process.cwd(), "storage", "validators", config.code),
+    "C:\\SAGA C.3.0\\FreeTab\\dist",
+    "C:\\SAGA C.3.0",
+    "C:\\TEMP"
+  ].filter(Boolean);
+  const validatorFiles = roots.flatMap((root) => findValidatorFiles(root)).filter((item, index, all) => all.indexOf(item) === index);
+  const java = javaCandidates.find((item) => executableExists(item)) || "";
+  const jar = validatorFiles.find((item) => /duk.*\.jar$/i.test(path.basename(item))) || validatorFiles.find((item) => /\.jar$/i.test(item)) || "";
+  return {
+    code: config.code,
+    java: javaCandidates.map((item) => ({ path: item, available: executableExists(item) })),
+    validators: validatorFiles.map((item) => ({ path: item, type: path.extname(item).slice(1).toLowerCase() })),
+    suggestion: java && jar ? { path: path.dirname(jar), command: java, args: ["-jar", jar, "{file}"] } : null,
+    message: java && jar
+      ? "Java si un validator candidat au fost detectate. Confirma versiunea schemei inainte de salvare."
+      : !java ? "Java nu a fost detectat. Instaleaza sau configureaza Java, apoi repeta detectia."
+        : "Java este disponibil, dar nu a fost gasit un validator local candidat."
+  };
+}
+
+function testEnvironment(db, code) {
+  const info = diagnostic(db, code);
+  if (!info.command) throwHttp(409, "Configureaza mai intai comanda validatorului.");
+  if (!executableExists(info.command)) throwHttp(409, `Comanda nu a fost gasita: ${info.command}`);
+  const isJava = /(^|[\\/])java(?:\.exe)?$/i.test(info.command);
+  const testArgs = isJava ? ["-version"] : ["--version"];
+  const result = spawnSync(info.command, testArgs, { encoding: "utf8", windowsHide: true, timeout: 15000 });
+  return {
+    code: info.code,
+    ok: Number.isInteger(result.status) && result.status === 0,
+    exit_code: Number.isInteger(result.status) ? result.status : -1,
+    command: info.command,
+    output: String(result.stderr || result.stdout || result.error?.message || "").trim(),
+    validator_available: info.available,
+    execution_enabled: info.execution_enabled,
+    tested_at: new Date().toISOString()
+  };
+}
+
 function validate(db, code, buffer, originalName) {
   const info = diagnostic(db, code);
   if (!info.execution_enabled) throwHttp(409, info.message);
@@ -87,6 +135,28 @@ function parseArgs(value) {
   try { const parsed = JSON.parse(String(value || "[]")); return Array.isArray(parsed) ? parsed.map(String) : []; }
   catch (_) { throwHttp(400, "Argumentele validatorului trebuie sa fie un array JSON."); }
 }
+function findOnPath(command) {
+  const result = spawnSync("where.exe", [command], { encoding: "utf8", windowsHide: true, timeout: 5000 });
+  return result.status === 0 ? String(result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find(Boolean) || "" : "";
+}
+function executableExists(command) {
+  if (!command) return false;
+  if (path.isAbsolute(command)) return fs.existsSync(command);
+  return Boolean(findOnPath(command));
+}
+function findValidatorFiles(root) {
+  try {
+    if (!fs.existsSync(root)) return [];
+    const stat = fs.statSync(root);
+    if (stat.isFile()) return /\.(jar|exe|bat|cmd)$/i.test(root) ? [path.resolve(root)] : [];
+    return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(root, entry.name);
+      if (entry.isFile() && /\.(jar|exe|bat|cmd)$/i.test(entry.name) && /(duk|validator|declar|anaf)/i.test(entry.name)) return [path.resolve(full)];
+      if (entry.isDirectory() && /(dist|lib|validator|duk|anaf)/i.test(entry.name)) return findValidatorFiles(full);
+      return [];
+    });
+  } catch (_) { return []; }
+}
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
-module.exports = { getConfig, saveConfig, diagnostic, validate };
+module.exports = { getConfig, saveConfig, diagnostic, discover, testEnvironment, validate };
