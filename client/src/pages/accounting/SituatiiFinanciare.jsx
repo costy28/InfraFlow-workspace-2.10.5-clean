@@ -9,7 +9,8 @@ import Modal from '../../components/ui/Modal'
 import { formatMoney } from '../../utils/format'
 import { AccountingShell, DropdownMenu, Info, Table } from './accounting-shared'
 
-const emptyMapping = { statement_type: 'BILANT', code: '', label: '', calculation: 'asset', prefixes: '', order: 10, active: true }
+const emptyMapping = { profile_code: 'MANAGERIAL_STANDARD', statement_type: 'BILANT', code: '', label: '', calculation: 'asset', prefixes: '', order: 10, active: true }
+const emptyProfile = { code: '', label: '', entity_type: 'general', valid_from: '', valid_to: '', source_url: '', active: true }
 
 export default function SituatiiFinanciare() {
   const now = new Date()
@@ -18,21 +19,27 @@ export default function SituatiiFinanciare() {
   const [tip, setTip] = useState('BILANT')
   const [data, setData] = useState({ rows: [], control: {} })
   const [mappings, setMappings] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [profileCode, setProfileCode] = useState('MANAGERIAL_STANDARD')
   const [mappingOpen, setMappingOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [mapping, setMapping] = useState(emptyMapping)
+  const [profile, setProfile] = useState(emptyProfile)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  useEffect(() => { load() }, [an, luna, tip])
+  useEffect(() => { load() }, [an, luna, tip, profileCode])
 
   async function load() {
     try {
-      const [report, mapResponse] = await Promise.all([
-        api.get('/accounting/financial-statements', { params: { an, luna, tip } }),
-        api.get('/accounting/financial-statements/mappings')
+      const [report, mapResponse, profileResponse] = await Promise.all([
+        api.get('/accounting/financial-statements', { params: { an, luna, tip, profile_code: profileCode } }),
+        api.get('/accounting/financial-statements/mappings'),
+        api.get('/accounting/financial-statements/profiles')
       ])
       setData(report.data || { rows: [], control: {} })
       setMappings(mapResponse.data?.mappings || [])
+      setProfiles(profileResponse.data?.profiles || [])
       setError('')
     } catch (err) { setError(err.response?.data?.error || 'Situatia financiara nu a putut fi calculata.') }
   }
@@ -40,9 +47,15 @@ export default function SituatiiFinanciare() {
   async function saveMapping(event) {
     event.preventDefault()
     try {
-      await api.post('/accounting/financial-statements/mappings', { ...mapping, prefixes: String(mapping.prefixes || '').split(/[,;\s]+/).filter(Boolean), order: Number(mapping.order) })
+      await api.post('/accounting/financial-statements/mappings', { ...mapping, profile_code: mapping.profile_code || profileCode, prefixes: String(mapping.prefixes || '').split(/[,;\s]+/).filter(Boolean), order: Number(mapping.order) })
       setMappingOpen(false); setMapping(emptyMapping); setMessage('Maparea a fost salvata.'); load()
     } catch (err) { setError(err.response?.data?.error || 'Maparea nu a putut fi salvata.') }
+  }
+
+  async function saveProfile(event) {
+    event.preventDefault()
+    try { const response = await api.post('/accounting/financial-statements/profiles', profile); const saved = response.data?.item; setProfileOpen(false); setProfile(emptyProfile); if (saved?.code) setProfileCode(saved.code); setMessage('Profilul financiar a fost salvat.') }
+    catch (err) { setError(err.response?.data?.error || 'Profilul nu a putut fi salvat.') }
   }
 
   async function removeMapping(item) {
@@ -52,7 +65,7 @@ export default function SituatiiFinanciare() {
   }
 
   function editMapping(item = null) {
-    setMapping(item ? { ...item, prefixes: (item.prefixes || []).join(', ') } : { ...emptyMapping, statement_type: tip })
+    setMapping(item ? { ...item, prefixes: (item.prefixes || []).join(', ') } : { ...emptyMapping, profile_code: profileCode, statement_type: tip })
     setMappingOpen(true)
   }
 
@@ -65,7 +78,7 @@ export default function SituatiiFinanciare() {
     } catch (err) { setError(err.response?.data?.error || 'Documentul nu a putut fi generat.') }
   }
 
-  const activeMappings = mappings.filter(item => item.statement_type === tip)
+  const activeMappings = mappings.filter(item => item.statement_type === tip && (item.profile_code || 'MANAGERIAL_STANDARD') === profileCode)
   return (
     <AccountingShell
       active="situatii-financiare"
@@ -76,10 +89,11 @@ export default function SituatiiFinanciare() {
         { label: 'Export Excel', onClick: () => download('/accounting/financial-statements/export', `Situatie_${tip}_${an}_${luna}.xlsx`) },
         { label: 'Tipareste / PDF', onClick: () => download('/accounting/financial-statements/print', '', true) },
         { type: 'separator' },
-        { label: 'Adauga mapare', onClick: () => editMapping() }
+        { label: 'Adauga mapare', onClick: () => editMapping() },
+        { label: 'Adauga profil', onClick: () => setProfileOpen(true) }
       ]} />}
     >
-      <Card><div className="grid gap-3 sm:grid-cols-3"><Input label="An" type="number" min="2000" max="2100" value={an} onChange={event => setAn(Number(event.target.value))} /><Select label="Luna de raportare" value={luna} onChange={event => setLuna(Number(event.target.value))} options={Array.from({ length: 12 }, (_, index) => ({ value: index + 1, label: String(index + 1).padStart(2, '0') }))} /><Select label="Situatie" value={tip} onChange={event => setTip(event.target.value)} options={[{ value: 'BILANT', label: 'Pozitie financiara' }, { value: 'CPP', label: 'Profit si pierdere' }]} /></div></Card>
+      <Card><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Input label="An" type="number" min="2000" max="2100" value={an} onChange={event => setAn(Number(event.target.value))} /><Select label="Luna de raportare" value={luna} onChange={event => setLuna(Number(event.target.value))} options={Array.from({ length: 12 }, (_, index) => ({ value: index + 1, label: String(index + 1).padStart(2, '0') }))} /><Select label="Situatie" value={tip} onChange={event => setTip(event.target.value)} options={[{ value: 'BILANT', label: 'Pozitie financiara' }, { value: 'CPP', label: 'Profit si pierdere' }]} /><Select label="Profil formular" value={profileCode} onChange={event => setProfileCode(event.target.value)} options={profiles.map(item => ({ value: item.code, label: item.label }))} /></div></Card>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       <div className="grid gap-3 sm:grid-cols-3"><Info label="Perioada" value={data.period_end || '-'} /><Info label="Comparativ" value={data.previous_period_end || '-'} /><Info label="Control" value={<Badge tone={data.control?.ok ? 'success' : 'warning'}>{data.control?.message || '-'}</Badge>} /></div>
@@ -95,6 +109,15 @@ export default function SituatiiFinanciare() {
           <Input label="Prefixe conturi" value={mapping.prefixes} onChange={event => setMapping(current => ({ ...current, prefixes: event.target.value }))} placeholder="20, 21, 28" required />
           <div className="grid gap-3 sm:grid-cols-2"><Select label="Calcul" value={mapping.calculation} onChange={event => setMapping(current => ({ ...current, calculation: event.target.value }))} options={[{ value: 'asset', label: 'Sold debitor - creditor' }, { value: 'liability', label: 'Sold creditor - debitor' }, { value: 'revenue', label: 'Rulaj credit - debit' }, { value: 'expense', label: 'Rulaj debit - credit' }]} /><Input label="Ordine" type="number" value={mapping.order} onChange={event => setMapping(current => ({ ...current, order: event.target.value }))} /></div>
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setMappingOpen(false)}>Renunta</Button><Button type="submit">Salveaza</Button></div>
+        </form>
+      </Modal>
+      <Modal open={profileOpen} title="Profil financiar nou" onClose={() => setProfileOpen(false)} size="md">
+        <form className="grid gap-3" onSubmit={saveProfile}>
+          <div className="grid gap-3 sm:grid-cols-2"><Input label="Cod profil" value={profile.code} onChange={event => setProfile(current => ({ ...current, code: event.target.value }))} required /><Input label="Tip entitate" value={profile.entity_type} onChange={event => setProfile(current => ({ ...current, entity_type: event.target.value }))} /></div>
+          <Input label="Denumire profil" value={profile.label} onChange={event => setProfile(current => ({ ...current, label: event.target.value }))} required />
+          <div className="grid gap-3 sm:grid-cols-2"><Input label="Valabil de la" type="date" value={profile.valid_from} onChange={event => setProfile(current => ({ ...current, valid_from: event.target.value }))} /><Input label="Valabil pana la" type="date" value={profile.valid_to} onChange={event => setProfile(current => ({ ...current, valid_to: event.target.value }))} /></div>
+          <Input label="Sursa / pagina oficiala" value={profile.source_url} onChange={event => setProfile(current => ({ ...current, source_url: event.target.value }))} />
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setProfileOpen(false)}>Renunta</Button><Button type="submit">Salveaza profilul</Button></div>
         </form>
       </Modal>
     </AccountingShell>

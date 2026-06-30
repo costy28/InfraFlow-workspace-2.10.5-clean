@@ -19,6 +19,9 @@ const endToEndAudit = require("../modules/accounting/end-to-end-audit-routes");
 const declarationCandidates = require("../modules/accounting/declaration-candidates");
 const schemaProfiles = require("../modules/accounting/schema-profiles");
 const financialStatements = require("../modules/accounting/financial-statement-routes");
+const declarationAdapters = require("../modules/accounting/declaration-adapters");
+const saftGenerator = require("../modules/accounting/saft-generator");
+const fiscalWorkspace = require("../modules/accounting/fiscal-workspace-routes");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -727,13 +730,14 @@ test("auditul end-to-end detecteaza factura fara nota", () => {
   assert.equal(report.ready, false);
 });
 
-test("XML-ul candidat D300 ramane marcat pentru validare externa", () => {
+test("XML-ul candidat D300 foloseste profilul fiscal si ramane marcat pentru validare", () => {
   const { db, accounting } = fixture();
   accounting.invoicesIn.push({ id: 1, an: 2026, luna: 6, status: "validat", valoare: 100, tva: 21, total: 121 });
   accounting.invoicesOut.push({ id: 2, an: 2026, luna: 6, status: "validat", valoare: 200, tva: 42, total: 242 });
   const result = declarationCandidates.generate(db, "D300", "2026-06", "schema-test");
-  assert.match(result.content, /declaration-candidate/);
-  assert.match(result.content, /Necesita validare externa/);
+  assert.match(result.content, /<declaratie300/);
+  assert.match(result.content, /urn:infraflow:adapter:1/);
+  assert.match(result.warning, /validator/);
   assert.equal(result.sha256.length, 64);
 });
 
@@ -784,4 +788,40 @@ test("situatia financiara compara anul curent cu precedentul", () => {
   assert.equal(cash.previous, 100);
   assert.equal(report.control.ok, true);
   assert.ok(accounting.financialStatementMappings.length > 0);
+});
+
+test("adaptorul D394 foloseste radacina si namespace-ul profilului incarcat", () => {
+  const { db, accounting } = fixture();
+  accounting.invoicesOut.push({ id: 1, an: 2026, luna: 6, status: "validat", client_id: 1, nr_document: "FV-1", data: "2026-06-10", valoare: 100, tva: 21, total: 121 });
+  const result = declarationAdapters.generate(db, "D394", "2026-06", { root_element: "declaratie394", target_namespace: "urn:test:d394", schema_version: "2026" });
+  assert.match(result.content, /<declaratie394 xmlns="urn:test:d394"/);
+  assert.match(result.content, /nrFact="FV-1"/);
+});
+
+test("generatorul SAF-T include fisiere master registru si documente sursa", () => {
+  const { db, accounting, user } = fixture();
+  accounting.thirdParties[0].tip = "client";
+  accounting.invoicesOut.push({ id: 1, an: 2026, luna: 6, status: "validat", client_id: 1, nr_document: "FV-1", data: "2026-06-10", valoare: 100, tva: 21, total: 121 });
+  engine.createJournal(db, user, { an: 2026, luna: 6, data: "2026-06-10", lines: [{ cont_simbol: "4111", debit: 121 }, { cont_simbol: "704", credit: 100 }, { cont_simbol: "4427", credit: 21 }] });
+  const result = saftGenerator.generate(db, "2026-06", { target_namespace: "urn:test:saft", schema_version: "2.00" });
+  assert.match(result.content, /<AuditFile xmlns="urn:test:saft">/);
+  assert.match(result.content, /<MasterFiles>/);
+  assert.match(result.content, /<GeneralLedgerEntries>/);
+  assert.match(result.content, /<SourceDocuments>/);
+});
+
+test("profilurile financiare izoleaza maparile pe formular", () => {
+  const { db } = fixture();
+  financialStatements.ensureProfiles(db).push({ id: 2, code: "CLIENT_TEST", label: "Client test", valid_from: "2026-01-01", active: true });
+  financialStatements.ensureMappings(db).push({ id: 100, profile_code: "CLIENT_TEST", statement_type: "BILANT", code: "A99", label: "Test", calculation: "asset", prefixes: ["5"], order: 1, active: true });
+  const report = financialStatements.buildReport(db, { an: 2026, luna: 6, tip: "BILANT", profile_code: "CLIENT_TEST" });
+  assert.equal(report.profile.code, "CLIENT_TEST");
+  assert.deepEqual(report.rows.map((item) => item.code), ["A99"]);
+});
+
+test("acceptanta fiscala ofera pas urmator pentru fiecare blocaj", () => {
+  const { db } = fixture();
+  const report = fiscalWorkspace.buildAcceptance(db, "2026-06");
+  assert.equal(report.perioada, "2026-06");
+  assert.ok(report.checks.some((item) => !item.ok && item.next_action && item.to));
 });

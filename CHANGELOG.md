@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.177 - 2026-06-30
+
+- Acceptanta contabil-fiscala lunara cu mesaje si pasi de remediere.
+- Profiluri de situatii financiare valabile pe perioade.
+- Candidati D300/D394 bazati pe profilurile XSD incarcate.
+- Generator D406 pentru MasterFiles, GeneralLedgerEntries si SourceDocuments.
+- Dosar fiscal extins si pagina centrala Audit fiscal.
+
 # v2.12.170 - 2026-06-30
 
 - Profiluri XSD ANAF cu valabilitate pe perioada, namespace, radacina si atribute obligatorii.

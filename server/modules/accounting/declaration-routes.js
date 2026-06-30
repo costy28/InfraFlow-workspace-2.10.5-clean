@@ -91,7 +91,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
   router.post("/accounting/declarations/:code/validate-official-file", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
-      if (!new Set(["D112", "D300", "D394"]).has(code)) throwHttp(400, "Declaratia nu accepta validare externa.");
+      if (!new Set(["D112", "D300", "D394", "D406"]).has(code)) throwHttp(400, "Declaratia nu accepta validare externa.");
       if (!req.file || !String(req.file.originalname || "").toLowerCase().endsWith(".xml")) throwHttp(400, "Selecteaza fisierul XML al declaratiei.");
       const period = fiscal.declarationPeriod(req.body?.perioada || req.body?.luna || currentMonth());
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
@@ -122,9 +122,9 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
       const validator = officialValidator.diagnostic(req.auth.db, code);
       const accounting = engine.ensureAccounting(req.auth.db);
-      const activeSchema = schemaProfiles.select(accounting, code, period.value);
+      const activeSchema = schemaProfiles.select(accounting, code, period.value) || (code === "D406" ? schemaProfiles.select(accounting, "SAF-T", period.value) : null);
       const activeProfile = schemaProfiles.profile(activeSchema);
-      const candidate = declarationCandidates.generate(req.auth.db, code, period.value, activeProfile?.schema_version || validator.schema_version);
+      const candidate = declarationCandidates.generate(req.auth.db, code, period.value, activeProfile || { schema_version: validator.schema_version });
       const folder = path.join(process.cwd(), "storage", "accounting-declarations", period.value, code, "candidates");
       fs.mkdirSync(folder, { recursive: true });
       const fileName = `${code}_candidat_${period.value.replace("-", "_")}_${Date.now()}.xml`;
@@ -226,7 +226,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
   router.post("/accounting/declarations/:code/validate", requireAccountingPost, (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
-      if (!["D300", "D394", "D112"].includes(code)) throwHttp(400, "Declaratia selectata nu are inca validare interna disponibila.");
+      if (!["D300", "D394", "D112", "D406"].includes(code)) throwHttp(400, "Declaratia selectata nu are inca validare interna disponibila.");
       const accounting = engine.ensureAccounting(req.auth.db);
       const readiness = buildDeclarationReadiness(req.auth.db, req.body || req.query || {});
       const [an, luna] = monthParts(readiness.perioada);
@@ -234,7 +234,9 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
         ? readiness.checks.filter((item) => ["documents", "vat", "vat_accounting", "vat_balance"].includes(item.key))
         : code === "D394"
           ? readiness.checks.filter((item) => ["documents", "d394_partners", "vat_accounting", "vat_balance"].includes(item.key))
-          : buildD112Readiness(req.auth.db, { perioada: readiness.perioada }).checks;
+          : code === "D112"
+            ? buildD112Readiness(req.auth.db, { perioada: readiness.perioada }).checks
+            : buildSaftReadiness(req.auth.db, { perioada: readiness.perioada }).areas.map((item) => ({ key: item.label, label: item.label, ok: item.ok, message: item.ok ? "Mapare completa." : `${item.missing} mapari lipsa.` }));
       const errors = relevant.filter((item) => !item.ok).map((item) => item.message);
       const run = {
         id: engine.nextNumericId(accounting.declarationRuns), code, an, luna,
@@ -273,7 +275,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
   router.post("/accounting/declarations/:code/exported", requireAccountingPost, (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
-      if (!["D300", "D394", "D112"].includes(code)) throwHttp(400, "Declaratia selectata nu poate fi marcata exportata.");
+      if (!["D300", "D394", "D112", "D406"].includes(code)) throwHttp(400, "Declaratia selectata nu poate fi marcata exportata.");
       const period = fiscal.declarationPeriod(req.body?.perioada);
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
       const accounting = engine.ensureAccounting(req.auth.db);
@@ -293,7 +295,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
   router.post("/accounting/declarations/:code/archive", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
-      if (!["D300", "D394", "D112"].includes(code)) throwHttp(400, "Declaratia selectata nu poate fi arhivata.");
+      if (!["D300", "D394", "D112", "D406"].includes(code)) throwHttp(400, "Declaratia selectata nu poate fi arhivata.");
       const period = fiscal.declarationPeriod(req.body?.perioada);
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
       if (!req.file?.buffer) throwHttp(400, "Selecteaza fisierul declaratiei.");
@@ -322,7 +324,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
   router.post("/accounting/declarations/:code/receipt", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();
-      if (!["D300", "D394", "D112"].includes(code)) throwHttp(400, "Declaratia selectata nu accepta recipisa.");
+      if (!["D300", "D394", "D112", "D406"].includes(code)) throwHttp(400, "Declaratia selectata nu accepta recipisa.");
       const period = fiscal.declarationPeriod(req.body?.perioada);
       const status = fiscal.receiptStatus(req.body?.status);
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
@@ -767,7 +769,7 @@ function buildFiscalCalendar(db, query = {}) {
   const obligations = [];
   for (let month = 1; month <= 12; month += 1) {
     const period = `${requestedYear}-${String(month).padStart(2, "0")}`;
-    ["D300", "D394", "D112"].forEach((code) => {
+    ["D300", "D394", "D112", "D406"].forEach((code) => {
       const run = fiscal.latestRun(accounting.declarationRuns, code, requestedYear, month, ["validat_intern", "exportat", "depus", "respins"]);
       const dueDate = declarationDueDate(requestedYear, month, code, db.settings?.fiscal || {});
       const daysRemaining = Math.ceil((new Date(`${dueDate}T23:59:59Z`) - new Date()) / 86400000);
@@ -816,7 +818,7 @@ function buildFiscalMonthCheck(db, query = {}) {
     { key: "efactura_rejected", label: "e-Factura respinse", ok: rejected.length === 0, severity: "error", message: rejected.length ? `${rejected.length} documente sunt respinse si necesita corectie.` : "Nu exista documente respinse in perioada.", to: "/contabilitate/anaf" },
     { key: "treasury", label: "Trezorerie corelata", ok: unclassifiedTreasury.length === 0, severity: "error", message: unclassifiedTreasury.length ? `${unclassifiedTreasury.length} operatiuni validate sunt neclasificate.` : "Operatiunile validate sunt corelate.", to: "/contabilitate/trezorerie" }
     ,{ key: "payroll_obligations", label: "Obligatii salariale", ok: unpaidPayrollOrders.length === 0, severity: "warning", message: unpaidPayrollOrders.length ? `${unpaidPayrollOrders.length} ordine salariale sunt pregatite si neplatite.` : "Nu exista ordine salariale restante in aplicatie.", to: "/contabilitate/salarizare" }
-    ,...['D300', 'D394', 'D112'].map((code) => ({ key: `official_${code.toLowerCase()}`, label: `${code} validator oficial`, ok: Boolean(officialValidation(code)), severity: "warning", message: officialValidation(code) ? "Exista un XML acceptat de validator pentru perioada." : "Nu exista inca un XML acceptat de validatorul configurat.", to: `/contabilitate/tva-d300?tab=${code.toLowerCase()}` }))
+    ,...['D300', 'D394', 'D112', 'D406'].map((code) => ({ key: `official_${code.toLowerCase()}`, label: `${code} validator oficial`, ok: Boolean(officialValidation(code)), severity: "warning", message: officialValidation(code) ? "Exista un XML acceptat de validator pentru perioada." : "Nu exista inca un XML acceptat de validatorul configurat.", to: code === "D406" ? `/contabilitate/audit-fiscal?luna=${perioada}` : `/contabilitate/tva-d300?tab=${code.toLowerCase()}` }))
   ];
   const blocking = checks.filter((item) => item.severity === "error" && !item.ok);
   return { perioada, ready: blocking.length === 0, status: blocking.length ? "needs_attention" : "ready", checks };

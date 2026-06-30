@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.12.170**
-**Versiune în lucru: v2.12.170**
+**Versiune curentă sursă: v2.12.177**
+**Versiune în lucru: v2.12.177**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -541,8 +541,8 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.17
-BUILD EXE EXISTENT: 2.12.8 ✅
+VERSIUNE CURENTĂ SURSĂ: 2.12.177
+BUILD EXE EXISTENT: 2.12.170 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -579,10 +579,17 @@ UPDATES ÎN LUCRU:
   2.12.15 → UPDATE 035 Asigurări + ITP + ISCIR + Taxe ✅
   2.12.16 → UPDATE 036 Integrare PIUSI Self-Service ✅
   2.12.17 → UPDATE 037 Căi surse externe ✅
+  2.12.171 → UPDATE 191 Acceptanță contabilă MSSQL ✅
+  2.12.172 → UPDATE 192 Formulare financiare configurabile ✅
+  2.12.173 → UPDATE 193 Adaptoare D300/D394 ✅
+  2.12.174 → UPDATE 194 SAF-T MasterFiles + registru general ✅
+  2.12.175 → UPDATE 195 SAF-T documente sursă ✅
+  2.12.176 → UPDATE 196 Dosar fiscal lunar ✅
+  2.12.177 → UPDATE 197 Audit fiscal ghidat ✅
 
-NEXT BUILD: v2.12.17
-  → InfraFlow-Server-Setup-v2.12.17.exe
-  → InfraFlow-Client-Setup-v2.12.17.exe
+NEXT BUILD: v2.12.180
+  → InfraFlow-Server-Setup-v2.12.180.exe
+  → InfraFlow-Client-Setup-v2.12.180.exe
   → Versiunea citită automat din package.json
   → Script: scripts/build-installer.ps1
 
@@ -1068,5 +1075,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 30 Iunie 2026 | InfraFlow sursă v2.12.170*
+*AGENTS.md actualizat: 30 Iunie 2026 | InfraFlow sursă v2.12.177*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

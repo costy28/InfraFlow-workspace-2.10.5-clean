@@ -17,6 +17,7 @@ const registerAdvancedOperationsRoutes = require("./operations-advanced-routes")
 const registerAccountingControlRoutes = require("./accounting-control-routes");
 const registerSettlementRoutes = require("./settlement-routes");
 const registerFinancialStatementRoutes = require("./financial-statement-routes");
+const registerFiscalWorkspaceRoutes = require("./fiscal-workspace-routes");
 
 const router = Router();
 const importUpload = multer({
@@ -1542,11 +1543,19 @@ router.post("/accounting/periods/:an/:luna/dossier", requireAccountingClose, (re
     zip.addFile("02_SNAPSHOT.json", Buffer.from(JSON.stringify(history.latest_snapshot || {}, null, 2), "utf8"));
     zip.addFile("03_ISTORIC.json", Buffer.from(JSON.stringify(history.events || [], null, 2), "utf8"));
     const runs = accounting.declarationRuns.filter((item) => Number(item.an) === an && Number(item.luna) === luna);
-    runs.forEach((run) => [run.export_file, run.archive_file, run.receipt_file].filter(Boolean).forEach((stored) => {
+    runs.forEach((run) => [run.export_file, run.archive_file, run.declaration_file, run.receipt_file].filter(Boolean).forEach((stored) => {
       const full = path.resolve(process.cwd(), stored);
       const storageRoot = path.resolve(process.cwd(), "storage");
       if (full.startsWith(storageRoot) && fs.existsSync(full) && fs.statSync(full).isFile()) zip.addLocalFile(full, `04_DECLARATII/${run.code || "DECLARATIE"}`);
     }));
+    const acceptedCandidates = accounting.declarationCandidates.filter((item) => item.perioada === period && item.accepted && item.stored_file);
+    acceptedCandidates.forEach((item) => addStoredFile(zip, item.stored_file, `04_DECLARATII/${item.code || "DECLARATIE"}`));
+    const acceptedSaft = accounting.saftRuns.filter((item) => item.perioada === period && item.status === "acceptat_validator" && item.stored_file);
+    acceptedSaft.forEach((item) => addStoredFile(zip, item.stored_file, "04_DECLARATII/D406"));
+    const latestAcceptance = [...accounting.fiscalAcceptanceRuns].reverse().find((item) => item.perioada === period);
+    if (latestAcceptance) zip.addFile("05_CONTROALE/acceptanta.json", Buffer.from(JSON.stringify(latestAcceptance, null, 2), "utf8"));
+    zip.addFile("05_CONTROALE/situatie_pozitie_financiara.json", Buffer.from(JSON.stringify(registerFinancialStatementRoutes.buildReport(req.auth.db, { an, luna, tip: "BILANT" }), null, 2), "utf8"));
+    zip.addFile("05_CONTROALE/profit_pierdere.json", Buffer.from(JSON.stringify(registerFinancialStatementRoutes.buildReport(req.auth.db, { an, luna, tip: "CPP" }), null, 2), "utf8"));
     const buffer = zip.toBuffer();
     const dossier = {
       id: engine.nextNumericId(accounting.periodDossiers), an, luna, status: "generat",
@@ -4111,6 +4120,12 @@ function sendJson(res, status, data) {
   res.status(status).json(data);
 }
 
+function addStoredFile(zip, stored, destination) {
+  const full = path.resolve(process.cwd(), stored || "");
+  const storageRoot = path.resolve(process.cwd(), "storage");
+  if (full.startsWith(storageRoot) && fs.existsSync(full) && fs.statSync(full).isFile()) zip.addLocalFile(full, destination);
+}
+
 function throwHttp(status, message) {
   const error = new Error(message);
   error.status = status;
@@ -4123,6 +4138,7 @@ registerAdvancedOperationsRoutes(router, { requireAccountingView, requireAccount
 registerAccountingControlRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingReports });
 registerSettlementRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingReports });
 registerFinancialStatementRoutes(router, { requireAccountingReports, requireAccountingManage });
+registerFiscalWorkspaceRoutes(router, { requireAccountingReports, requireAccountingPost });
 
 router.periodCheck = periodCheck;
 router.buildClassicJournalsData = buildClassicJournalsData;

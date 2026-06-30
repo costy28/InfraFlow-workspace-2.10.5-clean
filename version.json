@@ -1,5 +1,5 @@
 {
-  "version": "2.12.170",
+  "version": "2.12.177",
   "date": "2026-06-30",
-  "changelog": "## v2.12.170 - 2026-06-30\n### Profiluri ANAF si situatii financiare\n- Profiluri XSD selectate dupa perioada, cu namespace si campuri obligatorii inspectate automat.\n- Situatia pozitiei financiare si profit/pierdere cu mapari configurabile.\n- Comparatie cu anul precedent, control activ/pasiv, Excel si print/PDF.\n- Build complet Server, Client si update ZIP."
+  "changelog": "## v2.12.177 - 2026-06-30\n### Circuit fiscal controlat\n- Acceptanta contabila lunara cu pasi de remediere.\n- Profiluri configurabile pentru situatii financiare.\n- Adaptoare D300/D394 bazate pe profil XSD.\n- SAF-T D406 pe MasterFiles, registru general si documente sursa.\n- Dosar fiscal extins si pagina Audit fiscal."
 }
