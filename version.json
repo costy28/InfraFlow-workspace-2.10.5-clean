@@ -1,5 +1,5 @@
 {
-  "version": "2.12.181",
+  "version": "2.12.182",
   "date": "2026-07-01",
-  "changelog": "## v2.12.181 - 2026-07-01\n### Validare DUK SAF-T\n- Identificatorii tertilor, conturile, unitatile si platile sunt normalizate pentru DUK.\n- Sectiunile D406 respecta tipul declaratiei.\n- Raportul real al validatorului este afisat in Audit fiscal."
+  "changelog": "## v2.12.182 - 2026-07-01\n### DUK asistat si remediere SAF-T\n- Configurare automata DUK din Audit fiscal.\n- Problemele SAF-T au actiuni si legaturi directe de remediere.\n- Tertul indicat de diagnostic se deschide automat pentru editare."
 }

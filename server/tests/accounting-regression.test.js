@@ -22,6 +22,7 @@ const financialStatements = require("../modules/accounting/financial-statement-r
 const declarationAdapters = require("../modules/accounting/declaration-adapters");
 const saftGenerator = require("../modules/accounting/saft-generator");
 const xsdValidator = require("../modules/accounting/xsd-validator");
+const saftGuidance = require("../modules/accounting/saft-guidance");
 const fiscalWorkspace = require("../modules/accounting/fiscal-workspace-routes");
 
 function fixture() {
@@ -824,6 +825,21 @@ test("generatorul SAF-T include fisiere master registru si documente sursa", () 
   assert.match(result.content, /<SourceDocuments>/);
   assert.match(result.content, /<InvoiceType>380<\/InvoiceType>/);
   assert.match(result.content, /<TaxCode>310344<\/TaxCode>/);
+});
+
+test("ghidul SAF-T trimite erorile validatorului spre zona de remediere", () => {
+  assert.equal(saftGuidance.guide("CustomerID lipseste").to, "/contabilitate/clienti");
+  assert.equal(saftGuidance.guide("TaxCode invalid").to, "/contabilitate/tva-declaratii?tab=saft");
+  assert.equal(saftGuidance.guide("AccountID invalid").to, "/contabilitate/plan-conturi");
+});
+
+test("sursa SAF-T ofera legatura directa pentru tertul incomplet", () => {
+  const { db, accounting } = fixture();
+  accounting.thirdParties[0].tip = "client";
+  const source = saftGenerator.buildSource(db, "2026-06");
+  const issue = source.issueDetails.find((item) => item.entity_type === "client");
+  assert.ok(issue);
+  assert.match(issue.to, /\/contabilitate\/clienti\?client=1&edit=1/);
 });
 
 test("generatorul SAF-T separa versiunea XSD de versiunea AuditFile", () => {

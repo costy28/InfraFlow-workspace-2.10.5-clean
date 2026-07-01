@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -43,6 +43,8 @@ function confirmationTone(confirmation) {
 }
 
 export function TertiContab({ type = 'furnizor' }) {
+  const [searchParams] = useSearchParams()
+  const autoEditKey = useRef('')
   const [rows, setRows] = useState([])
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -76,6 +78,14 @@ export function TertiContab({ type = 'furnizor' }) {
   }
 
   useEffect(() => { load().catch(() => setRows([])) }, [type])
+
+  useEffect(() => {
+    const id = searchParams.get(tertParam)
+    const key = `${type}:${id}:${searchParams.get('edit')}`
+    if (!id || searchParams.get('edit') !== '1' || autoEditKey.current === key || !rows.length) return
+    const target = rows.find(row => String(row.id) === String(id))
+    if (target) { autoEditKey.current = key; openEdit(target) }
+  }, [rows, searchParams, tertParam, type])
 
   function openNew() {
     setEditing(null)

@@ -10,7 +10,7 @@ function generate(db, period, profile = null) {
   const content = renderer.render(source, namespace, auditFileVersion);
   return {
     code: "D406", perioada: source.perioada, schema_version: schemaVersion, audit_file_version: auditFileVersion, profile: profile || null,
-    content, source_summary: source.summary, issues: source.issues,
+    content, source_summary: source.summary, issues: source.issues, issue_details: source.issueDetails,
     sha256: crypto.createHash("sha256").update(content).digest("hex"), generated_at: new Date().toISOString(),
     warning: "Candidat D406. Fisierul devine export valid numai dupa acceptarea validatorului ANAF configurat."
   };

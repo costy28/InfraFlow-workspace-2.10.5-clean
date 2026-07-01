@@ -56,6 +56,24 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
     catch (error) { next(error); }
   });
 
+  router.post("/accounting/declarations/validators/:code/auto-configure", requireAccountingPost, (req, res, next) => {
+    try {
+      const code = String(req.params.code || "").toUpperCase();
+      const discovery = officialValidator.discover(req.auth.db, code);
+      if (!discovery.suggestion) throwHttp(409, discovery.message || `Validatorul ${code} nu a fost detectat.`);
+      const current = officialValidator.getConfig(req.auth.db, code);
+      const item = officialValidator.saveConfig(req.auth.db, code, {
+        ...discovery.suggestion,
+        schema_version: req.body?.schema_version || current.schema_version || "",
+        source_url: req.body?.source_url || current.source_url || "https://static.anaf.ro/"
+      }, req.auth.user);
+      const test = officialValidator.testEnvironment(req.auth.db, code);
+      addAudit(req.auth.db, req.auth.user, "accounting_validator_auto_config", `${code} / ${test.ok ? "ok" : "eroare"}`);
+      writeDb(req.auth.db);
+      res.json({ item, diagnostic: officialValidator.diagnostic(req.auth.db, code), discovery, test });
+    } catch (error) { next(error); }
+  });
+
   router.post("/accounting/declarations/validators/:code/test", requireAccountingPost, (req, res, next) => {
     try {
       const result = officialValidator.testEnvironment(req.auth.db, req.params.code);

@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.12.181**
-**Versiune în lucru: v2.12.181**
+**Versiune curentă sursă: v2.12.182**
+**Versiune în lucru: v2.12.182**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -590,6 +590,7 @@ UPDATES ÎN LUCRU:
   2.12.179 → UPDATE 199 Generator SAF-T complet + XSD ✅
   2.12.180 → UPDATE 200 Nomenclatoare SAF-T + integrare DUK ✅
   2.12.181 → UPDATE 201 Validare DUK SAF-T ✅
+  2.12.182 → UPDATE 202 DUK asistat + remediere SAF-T ✅
   2.12.179 → UPDATE 199 Generator SAF-T conform structural XSD ✅
   2.12.180 → UPDATE 200 Nomenclatoare SAF-T + integrare DUK ✅
 

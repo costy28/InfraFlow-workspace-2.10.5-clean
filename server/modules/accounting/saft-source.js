@@ -19,28 +19,33 @@ function buildSource(db, period) {
   const stockMovements = company.declaration_type === "C"
     ? movementList(db).filter((item) => dateOf(item) >= start && dateOf(item) <= end && !item.canceled && !item.cancelledAt)
     : [];
-  const issues = companyIssues(company);
+  const issues = [];
+  const issueDetails = [];
+  const addIssue = (message, details = {}) => { issues.push(message); issueDetails.push({ message, ...details }); };
+  companyIssues(company).forEach((message) => addIssue(message, { area: "Companie", action: "Completeaza datele societatii.", to: "/setari" }));
   const usedAccounts = new Set(accounting.journalLines.map((item) => normalizeAccount(item.cont_simbol)).filter(Boolean));
   const accounts = accounting.chart.filter((item) => item.activ !== false && usedAccounts.has(normalizeAccount(item.simbol)));
-  lines.forEach((line) => { if (!line.cont_simbol) issues.push(`Linia contabila ${line.id || "-"} nu are cont.`); });
+  lines.forEach((line) => { if (!line.cont_simbol) addIssue(`Linia contabila ${line.id || "-"} nu are cont.`, { area: "Registru jurnal", action: "Completeaza contul liniei.", to: `/contabilitate/registru-jurnal?luna=${perioada}`, entity_type: "journal_line", entity_id: line.id || "" }); });
   products.forEach((item) => {
-    if (!commodityCode(item)) issues.push(`Produsul ${item.cod || item.code || item.id || "-"} nu are cod NC/commodity pentru SAF-T.`);
+    if (!commodityCode(item)) addIssue(`Produsul ${item.cod || item.code || item.id || "-"} nu are cod NC/commodity pentru SAF-T.`, { area: "Produse", action: "Completeaza codul NC al produsului.", to: "/gestiune", entity_type: "product", entity_id: item.id || "" });
   });
-  sales.forEach((item) => { if (!item.client_id && !item.tert_id) issues.push(`Factura de iesire ${documentNo(item)} nu are client.`); });
-  purchases.forEach((item) => { if (!item.furnizor_id && !item.tert_id) issues.push(`Factura de intrare ${documentNo(item)} nu are furnizor.`); });
+  sales.forEach((item) => { if (!item.client_id && !item.tert_id) addIssue(`Factura de iesire ${documentNo(item)} nu are client.`, { area: "Facturi iesire", action: "Selecteaza clientul facturii.", to: `/contabilitate/facturi-iesire?luna=${perioada}&q=${encodeURIComponent(documentNo(item))}`, entity_type: "invoice_out", entity_id: item.id || item.uuid || "" }); });
+  purchases.forEach((item) => { if (!item.furnizor_id && !item.tert_id) addIssue(`Factura de intrare ${documentNo(item)} nu are furnizor.`, { area: "Facturi intrare", action: "Selecteaza furnizorul facturii.", to: `/contabilitate/facturi-intrare?luna=${perioada}&q=${encodeURIComponent(documentNo(item))}`, entity_type: "invoice_in", entity_id: item.id || item.uuid || "" }); });
   const customers = accounting.thirdParties.filter((item) => item.activ !== false && (item.tip === "client" || item.cont_analitic_client));
   const suppliers = accounting.thirdParties.filter((item) => item.activ !== false && (item.tip === "furnizor" || item.cont_analitic_furnizor));
   [...customers, ...suppliers].forEach((item) => {
     const label = item.denumire || item.nume || item.cod || item.id;
-    if (!item.iban) issues.push(`Tertul ${label} nu are IBAN pentru SAF-T.`);
-    if (String(item.tara || "RO").toUpperCase() === "RO" && !validRomanianCui(item.cui || item.cif)) issues.push(`Tertul ${label} nu are un CUI romanesc valid.`);
+    const type = item.tip === "furnizor" || item.cont_analitic_furnizor ? "furnizor" : "client";
+    const to = `/contabilitate/${type === "furnizor" ? "furnizori" : "clienti"}?${type}=${item.id}&edit=1`;
+    if (!item.iban) addIssue(`Tertul ${label} nu are IBAN pentru SAF-T.`, { area: type === "furnizor" ? "Furnizori" : "Clienti", action: "Completeaza IBAN-ul tertului.", to, entity_type: type, entity_id: item.id || "" });
+    if (String(item.tara || "RO").toUpperCase() === "RO" && !validRomanianCui(item.cui || item.cif)) addIssue(`Tertul ${label} nu are un CUI romanesc valid.`, { area: type === "furnizor" ? "Furnizori" : "Clienti", action: "Corecteaza CUI-ul tertului.", to, entity_type: type, entity_id: item.id || "" });
   });
 
   return {
     perioada, an, luna, start, end, company,
     accounts, customers, suppliers,
     products, journals, lines, allJournals: accounting.journals, allLines: accounting.journalLines,
-    sales, purchases, payments, stockMovements, issues,
+    sales, purchases, payments, stockMovements, issues, issueDetails,
     summary: {
       accounts: accounts.length,
       customers: customers.length,

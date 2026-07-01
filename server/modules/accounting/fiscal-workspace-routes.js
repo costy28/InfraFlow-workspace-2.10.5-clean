@@ -9,6 +9,7 @@ const financialStatements = require("./financial-statement-routes");
 const schemaProfiles = require("./schema-profiles");
 const officialValidator = require("./official-validator");
 const saftGenerator = require("./saft-generator");
+const saftGuidance = require("./saft-guidance");
 const xsdValidator = require("./xsd-validator");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
@@ -71,7 +72,8 @@ function registerFiscalWorkspaceRoutes(router, middleware) {
       const period = normalizePeriod(req.query.perioada || req.query.luna);
       const source = saftGenerator.buildSource(req.auth.db, period);
       const readiness = declarations.buildSaftReadiness(req.auth.db, { perioada: period });
-      res.json({ perioada: period, summary: source.summary, issues: [...new Set([...source.issues, ...readiness.issues.map((item) => item.message)])], readiness });
+      const issueDetails = saftGuidance.guideMany([...(source.issueDetails || []), ...readiness.issues.map((item) => ({ message: item.message, area: item.area, action: item.action }))]);
+      res.json({ perioada: period, summary: source.summary, issues: issueDetails.map((item) => item.message), issue_details: issueDetails, readiness });
     } catch (error) { next(error); }
   });
 
@@ -103,7 +105,9 @@ function registerFiscalWorkspaceRoutes(router, middleware) {
          schema_profile: generated.profile, source_summary: generated.source_summary, issues: [...generated.issues, ...xsdValidation.errors],
          sha256: generated.sha256, stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
          status: !xsdValidation.accepted ? "respins_xsd" : !sourceComplete ? "date_incomplete" : validation?.accepted ? "acceptat_validator" : validation ? "respins_validator" : "valid_xsd_nevalidat_duk",
-         xsd_validation: xsdValidation, validation, created_at: generated.generated_at, created_by: req.auth.user?.id || ""
+         xsd_validation: xsdValidation, validation,
+         guidance: saftGuidance.guideMany([...(generated.issue_details || []), ...xsdValidation.errors, ...(validation?.issues || [])]),
+         created_at: generated.generated_at, created_by: req.auth.user?.id || ""
       };
       accounting.saftRuns.push(run);
       addAudit(req.auth.db, req.auth.user, "accounting_saft_generate", `${period} / ${run.status}`);

@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.182 - 2026-07-01
+
+- Configurare automata DUK direct din Audit fiscal.
+- Detectare CLI si Java inclus in kitul validatorului.
+- Probleme SAF-T cu actiuni si legaturi directe de remediere.
+- Deschidere automata a tertului indicat de diagnostic.
+- Ghid distinct pentru erori DUK, XSD si date sursa.
+
 # v2.12.181 - 2026-07-01
 
 - Identificatori SAF-T pentru terti in formatul oficial `00+CUI`.

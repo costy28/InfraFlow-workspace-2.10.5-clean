@@ -70,13 +70,14 @@ function discover(db, code) {
   const javaCandidates = [
     process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", "java.exe") : "",
     ...roots.flatMap((root) => [path.join(root, "jre8", "bin", "java.exe"), path.join(root, "jre", "bin", "java.exe")]),
+    ...findInstalledJava(),
     findOnPath("java.exe"),
     findOnPath("java")
   ].filter(Boolean).filter((item, index, all) => all.indexOf(item) === index);
   const validatorFiles = roots.flatMap((root) => findValidatorFiles(root)).filter((item, index, all) => all.indexOf(item) === index);
   const java = javaCandidates.find((item) => executableExists(item)) || "";
-  const jar = validatorFiles.find((item) => /DUKIntegrator_AnLunaUI\.jar$/i.test(path.basename(item)))
-    || validatorFiles.find((item) => /DUKIntegrator\.jar$/i.test(path.basename(item)))
+  const jar = validatorFiles.find((item) => /^DUKIntegrator\.jar$/i.test(path.basename(item)))
+    || validatorFiles.find((item) => /DUKIntegrator_AnLunaUI\.jar$/i.test(path.basename(item)))
     || validatorFiles.find((item) => /duk.*\.jar$/i.test(path.basename(item)))
     || validatorFiles.find((item) => /\.jar$/i.test(item)) || "";
   const suggestionArgs = config.code === "D406"
@@ -89,7 +90,9 @@ function discover(db, code) {
     suggestion: java && jar ? { path: path.dirname(jar), command: java, args: suggestionArgs } : null,
     message: java && jar
       ? "Java si un validator candidat au fost detectate. Confirma versiunea schemei inainte de salvare."
-      : !java ? "Java nu a fost detectat. Instaleaza sau configureaza Java, apoi repeta detectia."
+      : !java && jar
+        ? `Validatorul DUK a fost gasit la ${jar}, dar Java nu este instalat sau nu a fost detectat. Instaleaza Java, apoi repeta configurarea.`
+        : !java ? "Java nu a fost detectat. Instaleaza sau configureaza Java, apoi repeta detectia."
         : "Java este disponibil, dar nu a fost gasit un validator local candidat."
   };
 }
@@ -172,6 +175,32 @@ function parseArgs(value) {
 function findOnPath(command) {
   const result = spawnSync("where.exe", [command], { encoding: "utf8", windowsHide: true, timeout: 5000 });
   return result.status === 0 ? String(result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find(Boolean) || "" : "";
+}
+function findInstalledJava() {
+  const bases = [
+    process.env.ProgramFiles,
+    process.env["ProgramFiles(x86)"],
+    "C:\\Program Files",
+    "C:\\Program Files (x86)"
+  ].filter(Boolean).filter((item, index, all) => all.indexOf(item) === index);
+  const vendors = ["Java", "Eclipse Adoptium", "Microsoft", "Amazon Corretto", "Zulu"];
+  const found = [];
+  for (const base of bases) {
+    for (const vendor of vendors) {
+      const root = path.join(base, vendor);
+      try {
+        if (!fs.existsSync(root)) continue;
+        for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const direct = path.join(root, entry.name, "bin", "java.exe");
+          const nested = path.join(root, entry.name, "jre", "bin", "java.exe");
+          if (fs.existsSync(direct)) found.push(direct);
+          if (fs.existsSync(nested)) found.push(nested);
+        }
+      } catch (_) { /* Locatiile fara acces sunt ignorate. */ }
+    }
+  }
+  return found;
 }
 function executableExists(command) {
   if (!command) return false;
