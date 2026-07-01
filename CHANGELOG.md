@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.181 - 2026-07-01
+
+- Identificatori SAF-T pentru terti in formatul oficial `00+CUI`.
+- Conturi de terti, unitati UNECE si metode de plata normalizate pentru DUK.
+- Sectiuni D406 generate conditionat dupa tipul declaratiei si continut.
+- Erorile reale din raportul DUK sunt afisate in Audit fiscal.
+- Detectare Java inclus local in kitul validatorului ANAF.
+
 # v2.12.180 - 2026-06-30
 
 - Coduri SAF-T oficiale pentru tipurile de factura, TVA si miscarile de stoc.

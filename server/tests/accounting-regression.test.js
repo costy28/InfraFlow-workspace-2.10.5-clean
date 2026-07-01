@@ -849,7 +849,11 @@ test("candidatul SAF-T complet respecta structural schema XSD ANAF", { skip: pro
   const validation = xsdValidator.validate(Buffer.from(generated.content), schema);
   assert.equal(validation.accepted, true, validation.errors.join("\n"));
   assert.equal(validation.error_count, 0);
-  assert.match(generated.content, /<MovementType>70<\/MovementType>/);
+  assert.match(generated.content, /<MovementOfGoods><\/MovementOfGoods>/);
+  assert.doesNotMatch(generated.content, /<MovementType>70<\/MovementType>/);
+  assert.match(generated.content, /<CustomerID>0012345678<\/CustomerID>/);
+  assert.match(generated.content, /<PaymentMethod>03<\/PaymentMethod>/);
+  assert.match(generated.content, /<Payments><NumberOfEntries>1<\/NumberOfEntries><TotalDebit>121\.00<\/TotalDebit>/);
   assert.doesNotMatch(generated.content, /<InvoiceType>FT<\/InvoiceType>/);
 });
 

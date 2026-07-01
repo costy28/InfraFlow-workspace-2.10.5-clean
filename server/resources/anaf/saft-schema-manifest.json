@@ -12,6 +12,7 @@
   "schema_metadata": {
     "xsd_name": "Ro_SAFT_Schema_v249_2025.xsd",
     "target_namespace": "mfp:anaf:dgti:d406t:declaratie:v1",
+    "filing_namespace": "mfp:anaf:dgti:d406:declaratie:v1",
     "schema_version": "2.4.9",
     "audit_file_version": "2.00",
     "documentation_version": "2.4.8",

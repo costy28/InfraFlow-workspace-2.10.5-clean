@@ -15,27 +15,36 @@ function buildSource(db, period) {
   const purchases = accounting.invoicesIn.filter((item) => Number(item.an) === an && Number(item.luna) === luna && accepted.has(String(item.status)));
   const payments = accounting.treasury.filter((item) => Number(item.an) === an && Number(item.luna) === luna && item.status === "validat");
   const products = materialList(db).filter((item) => item.active !== false && item.activ !== false);
-  const stockMovements = movementList(db).filter((item) => dateOf(item) >= start && dateOf(item) <= end && !item.canceled && !item.cancelledAt);
   const company = companyData(settings);
+  const stockMovements = company.declaration_type === "C"
+    ? movementList(db).filter((item) => dateOf(item) >= start && dateOf(item) <= end && !item.canceled && !item.cancelledAt)
+    : [];
   const issues = companyIssues(company);
+  const usedAccounts = new Set(accounting.journalLines.map((item) => normalizeAccount(item.cont_simbol)).filter(Boolean));
+  const accounts = accounting.chart.filter((item) => item.activ !== false && usedAccounts.has(normalizeAccount(item.simbol)));
   lines.forEach((line) => { if (!line.cont_simbol) issues.push(`Linia contabila ${line.id || "-"} nu are cont.`); });
   products.forEach((item) => {
     if (!commodityCode(item)) issues.push(`Produsul ${item.cod || item.code || item.id || "-"} nu are cod NC/commodity pentru SAF-T.`);
   });
   sales.forEach((item) => { if (!item.client_id && !item.tert_id) issues.push(`Factura de iesire ${documentNo(item)} nu are client.`); });
   purchases.forEach((item) => { if (!item.furnizor_id && !item.tert_id) issues.push(`Factura de intrare ${documentNo(item)} nu are furnizor.`); });
+  const customers = accounting.thirdParties.filter((item) => item.activ !== false && (item.tip === "client" || item.cont_analitic_client));
+  const suppliers = accounting.thirdParties.filter((item) => item.activ !== false && (item.tip === "furnizor" || item.cont_analitic_furnizor));
+  [...customers, ...suppliers].forEach((item) => {
+    const label = item.denumire || item.nume || item.cod || item.id;
+    if (!item.iban) issues.push(`Tertul ${label} nu are IBAN pentru SAF-T.`);
+    if (String(item.tara || "RO").toUpperCase() === "RO" && !validRomanianCui(item.cui || item.cif)) issues.push(`Tertul ${label} nu are un CUI romanesc valid.`);
+  });
 
   return {
     perioada, an, luna, start, end, company,
-    accounts: accounting.chart.filter((item) => item.activ !== false),
-    customers: accounting.thirdParties.filter((item) => item.activ !== false && (item.tip === "client" || item.cont_analitic_client)),
-    suppliers: accounting.thirdParties.filter((item) => item.activ !== false && (item.tip === "furnizor" || item.cont_analitic_furnizor)),
+    accounts, customers, suppliers,
     products, journals, lines, allJournals: accounting.journals, allLines: accounting.journalLines,
     sales, purchases, payments, stockMovements, issues,
     summary: {
-      accounts: accounting.chart.filter((item) => item.activ !== false).length,
-      customers: accounting.thirdParties.filter((item) => item.activ !== false && (item.tip === "client" || item.cont_analitic_client)).length,
-      suppliers: accounting.thirdParties.filter((item) => item.activ !== false && (item.tip === "furnizor" || item.cont_analitic_furnizor)).length,
+      accounts: accounts.length,
+      customers: customers.length,
+      suppliers: suppliers.length,
       products: products.length, journals: journals.length, lines: lines.length,
       sales: sales.length, purchases: purchases.length, payments: payments.length, stock_movements: stockMovements.length
     }
@@ -53,7 +62,8 @@ function companyData(settings) {
     email: first(settings.email, settings.companyEmail),
     iban: normalizeIban(first(settings.iban, settings.companyIban, settings.company_iban)),
     bank: first(settings.bank, settings.banca, settings.companyBank),
-    contact_name: first(settings.contactName, settings.contact_name, settings.reprezentant, "InfraFlow Operator")
+    contact_name: first(settings.contactName, settings.contact_name, settings.reprezentant, "InfraFlow Operator"),
+    declaration_type: declarationType(first(settings.saftDeclarationType, settings.saft_declaration_type, settings.tip_decl, "L"))
   };
 }
 
@@ -80,9 +90,27 @@ function commodityCode(item) { return first(item.productCommodityCode, item.comm
 function documentNo(item) { return first(item.nr_document, item.numar, item.number, item.id, "NECOMPLETAT"); }
 function dateOf(item) { return String(first(item.date, item.data, item.created_at, item.createdAt)).slice(0, 10); }
 function normalizeCui(value) { return String(value || "").toUpperCase().replace(/^RO/, "").replace(/\D/g, ""); }
+function partyIdentifier(item) {
+  const country = String(item?.tara || item?.country || "RO").trim().toUpperCase().slice(0, 2) || "RO";
+  const raw = String(item?.cui || item?.cif || item?.tax_id || "").trim().toUpperCase();
+  const taxId = raw.replace(new RegExp(`^${country}`), "").replace(/[^A-Z0-9]/g, "");
+  if (country === "RO" && /^\d{2,10}$/.test(taxId)) return `00${taxId}`;
+  if (country !== "RO" && taxId) return `${isEuropeanUnion(country) ? "01" : "02"}${country}${taxId}`;
+  const internal = String(item?.cod || item?.code || item?.id || "NECOMPLETAT").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  return `04${internal || "NECOMPLETAT"}`;
+}
 function normalizeIban(value) { return String(value || "").replace(/\s/g, "").toUpperCase(); }
+function normalizeAccount(value) { return String(value || "").trim().replace(/\.+$/, ""); }
+function declarationType(value) { const code = String(value || "L").trim().toUpperCase(); return new Set(["L", "T", "A", "C", "NL", "NT"]).has(code) ? code : "L"; }
+function validRomanianCui(value) {
+  const digits = normalizeCui(value); if (!/^\d{2,10}$/.test(digits)) return false;
+  const control = "753217532".slice(-digits.length + 1); let sum = 0;
+  for (let index = 0; index < digits.length - 1; index += 1) sum += Number(digits[index]) * Number(control[index]);
+  return (sum * 10) % 11 % 10 === Number(digits.at(-1));
+}
+function isEuropeanUnion(country) { return new Set(["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE"]).has(country); }
 function first(...values) { return values.find((value) => value !== undefined && value !== null && String(value).trim() !== "") || ""; }
 function periodParts(period) { const match = String(period || "").match(/^(\d{4})-(\d{1,2})$/); if (!match) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM."); return [Number(match[1]), Number(match[2])]; }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
-module.exports = { buildSource, commodityCode, dateOf, documentNo, first, normalizeCui };
+module.exports = { buildSource, commodityCode, dateOf, documentNo, first, normalizeAccount, normalizeCui, partyIdentifier, validRomanianCui };

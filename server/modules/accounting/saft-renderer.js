@@ -9,13 +9,13 @@ function headerXml(source, version) {
   const company = source.company;
   const [firstName, ...lastParts] = String(company.contact_name || "InfraFlow Operator").trim().split(/\s+/);
   const lastName = lastParts.join(" ") || "Operator";
-  return `<Header><AuditFileVersion>${x(version)}</AuditFileVersion><AuditFileCountry>RO</AuditFileCountry><AuditFileDateCreated>${today()}</AuditFileDateCreated><SoftwareCompanyName>InfraFlow</SoftwareCompanyName><SoftwareID>InfraFlow ERP</SoftwareID><SoftwareVersion>${x(require("../../../package.json").version)}</SoftwareVersion><Company><RegistrationNumber>${required(company.cui)}</RegistrationNumber><Name>${required(company.name)}</Name>${addressXml(company)}<Contact><ContactPerson><FirstName>${required(firstName)}</FirstName><LastName>${required(lastName)}</LastName></ContactPerson><Telephone>${required(company.phone)}</Telephone>${company.email ? `<Email>${x(company.email)}</Email>` : ""}</Contact><TaxRegistration><TaxRegistrationNumber>${required(company.cui)}</TaxRegistrationNumber><TaxType>VAT</TaxType><TaxNumber>${required(company.cui)}</TaxNumber><TaxAuthority>ANAF</TaxAuthority></TaxRegistration><BankAccount><IBANNumber>${required(company.iban)}</IBANNumber></BankAccount></Company><DefaultCurrencyCode>RON</DefaultCurrencyCode><SelectionCriteria><SelectionStartDate>${source.start}</SelectionStartDate><SelectionEndDate>${source.end}</SelectionEndDate><DocumentType>SAF-T D406</DocumentType></SelectionCriteria><HeaderComment>Generat de InfraFlow ERP pentru validare D406.</HeaderComment><SegmentIndex>1</SegmentIndex><TotalSegmentsInsequence>1</TotalSegmentsInsequence><TaxAccountingBasis>A</TaxAccountingBasis></Header>`;
+  return `<Header><AuditFileVersion>${x(version)}</AuditFileVersion><AuditFileCountry>RO</AuditFileCountry><AuditFileDateCreated>${today()}</AuditFileDateCreated><SoftwareCompanyName>InfraFlow</SoftwareCompanyName><SoftwareID>InfraFlow ERP</SoftwareID><SoftwareVersion>${x(require("../../../package.json").version)}</SoftwareVersion><Company><RegistrationNumber>${required(company.cui)}</RegistrationNumber><Name>${required(company.name)}</Name>${addressXml(company)}<Contact><ContactPerson><FirstName>${required(firstName)}</FirstName><LastName>${required(lastName)}</LastName></ContactPerson><Telephone>${required(company.phone)}</Telephone>${company.email ? `<Email>${x(company.email)}</Email>` : ""}</Contact><TaxRegistration><TaxRegistrationNumber>${required(company.cui)}</TaxRegistrationNumber><TaxType>100010</TaxType><TaxNumber>${required(company.cui)}</TaxNumber><TaxAuthority>ANAF</TaxAuthority></TaxRegistration><BankAccount><IBANNumber>${required(company.iban)}</IBANNumber></BankAccount></Company><DefaultCurrencyCode>RON</DefaultCurrencyCode><SelectionCriteria><SelectionStartDate>${source.start}</SelectionStartDate><SelectionEndDate>${source.end}</SelectionEndDate><DocumentType>SAF-T D406</DocumentType></SelectionCriteria><HeaderComment>${x(company.declaration_type || "L")}</HeaderComment><SegmentIndex>1</SegmentIndex><TotalSegmentsInsequence>1</TotalSegmentsInsequence><TaxAccountingBasis>A</TaxAccountingBasis></Header>`;
 }
 
 function masterFilesXml(source) {
   const accounts = source.accounts.map((item) => accountXml(source, item)).join("");
-  const customers = source.customers.map((item) => partyXml("Customer", item, item.cont_analitic_client || "4111")).join("");
-  const suppliers = source.suppliers.map((item) => partyXml("Supplier", item, item.cont_analitic_furnizor || "401")).join("");
+  const customers = source.customers.map((item) => partyXml("Customer", item, partyAccount(item.cont_analitic_client, "4111"))).join("");
+  const suppliers = source.suppliers.map((item) => partyXml("Supplier", item, partyAccount(item.cont_analitic_furnizor, "401"))).join("");
   const products = source.products.map(productXml).join("");
   const units = [...new Set(source.products.map((item) => unitCode(item)).filter(Boolean))].map((unit) => `<UOMTableEntry><UnitOfMeasure>${x(unit)}</UnitOfMeasure><Description>${x(unit)}</Description></UOMTableEntry>`).join("");
   const movementTypes = [...new Map(source.stockMovements.map((item) => {
@@ -27,18 +27,19 @@ function masterFilesXml(source) {
 
 function accountXml(source, item) {
   const balances = accountBalances(source, item.simbol);
-  return `<Account><AccountID>${required(item.simbol)}</AccountID><AccountDescription>${required(item.denumire)}</AccountDescription><StandardAccountID>${required(item.simbol)}</StandardAccountID><AccountType>${accountType(item)}</AccountType>${balanceChoice("Opening", balances.opening)}${balanceChoice("Closing", balances.closing)}</Account>`;
+  const account = sourceHelpers.normalizeAccount(item.simbol);
+  return `<Account><AccountID>${required(account)}</AccountID><AccountDescription>${required(item.denumire)}</AccountDescription><StandardAccountID>${required(account)}</StandardAccountID><AccountType>${accountType(item)}</AccountType>${balanceChoice("Opening", balances.opening)}${balanceChoice("Closing", balances.closing)}</Account>`;
 }
 
 function partyXml(tag, item, account) {
-  const id = sourceHelpers.normalizeCui(item.cui || item.cif) || item.cod || item.id;
+  const id = sourceHelpers.partyIdentifier(item);
   return `<${tag}>${companyStructureXml(item)}<${tag}ID>${required(id)}</${tag}ID><SelfBillingIndicator>0</SelfBillingIndicator><AccountID>${required(account)}</AccountID><OpeningDebitBalance>0.00</OpeningDebitBalance><ClosingDebitBalance>0.00</ClosingDebitBalance></${tag}>`;
 }
 
 function companyStructureXml(item) {
   const name = item.denumire || item.nume || "";
   if (!name) return "";
-  return `<CompanyStructure><RegistrationNumber>${required(sourceHelpers.normalizeCui(item.cui || item.cif) || item.cod || item.id)}</RegistrationNumber><Name>${required(name)}</Name>${addressXml({ address: item.adresa, city: item.localitate, country: item.tara || "RO" })}${item.telefon ? `<Contact><ContactPerson><FirstName>NotUsed</FirstName><LastName>${x(name)}</LastName></ContactPerson><Telephone>${x(item.telefon)}</Telephone>${item.email ? `<Email>${x(item.email)}</Email>` : ""}</Contact>` : ""}${item.iban ? `<BankAccount><IBANNumber>${x(String(item.iban).replace(/\s/g, "").toUpperCase())}</IBANNumber></BankAccount>` : ""}</CompanyStructure>`;
+  return `<CompanyStructure><RegistrationNumber>${required(sourceHelpers.partyIdentifier(item))}</RegistrationNumber><Name>${required(name)}</Name>${addressXml({ address: item.adresa, city: item.localitate, country: item.tara || "RO" })}${item.telefon ? `<Contact><ContactPerson><FirstName>NotUsed</FirstName><LastName>${x(name)}</LastName></ContactPerson><Telephone>${x(item.telefon)}</Telephone>${item.email ? `<Email>${x(item.email)}</Email>` : ""}</Contact>` : ""}<BankAccount><IBANNumber>${required(String(item.iban || "").replace(/\s/g, "").toUpperCase())}</IBANNumber></BankAccount></CompanyStructure>`;
 }
 
 function productXml(item) {
@@ -73,13 +74,24 @@ function sourceDocumentsXml(source) {
   const movements = source.stockMovements.map((item, index) => stockMovementXml(source, item, index)).join("");
   const salesTotals = invoiceControlTotals(source.sales);
   const purchaseTotals = invoiceControlTotals(source.purchases);
-  return `<SourceDocuments><SalesInvoices><NumberOfEntries>${source.sales.length}</NumberOfEntries><TotalDebit>${n(salesTotals.debit)}</TotalDebit><TotalCredit>${n(salesTotals.credit)}</TotalCredit>${sales}</SalesInvoices><PurchaseInvoices><NumberOfEntries>${source.purchases.length}</NumberOfEntries><TotalDebit>${n(purchaseTotals.debit)}</TotalDebit><TotalCredit>${n(purchaseTotals.credit)}</TotalCredit>${purchases}</PurchaseInvoices><Payments><NumberOfEntries>${source.payments.length}</NumberOfEntries>${payments}</Payments><MovementOfGoods><NumberOfMovementLines>${source.stockMovements.length}</NumberOfMovementLines><TotalQuantityReceived>${n(source.stockMovements.filter((item) => number(item.amount) > 0).reduce((sum, item) => sum + number(item.amount), 0), 6)}</TotalQuantityReceived><TotalQuantityIssued>${n(Math.abs(source.stockMovements.filter((item) => number(item.amount) < 0).reduce((sum, item) => sum + number(item.amount), 0)), 6)}</TotalQuantityIssued>${movements}</MovementOfGoods></SourceDocuments>`;
+  const paymentTotals = source.payments.reduce((totals, item) => {
+    const key = paymentIndicator(item) === "D" ? "debit" : "credit";
+    totals[key] += Math.abs(number(item.suma || item.amount));
+    return totals;
+  }, { debit: 0, credit: 0 });
+  const movementSection = source.company.declaration_type === "C"
+    ? `<MovementOfGoods><NumberOfMovementLines>${source.stockMovements.length}</NumberOfMovementLines><TotalQuantityReceived>${n(source.stockMovements.filter((item) => number(item.amount) > 0).reduce((sum, item) => sum + number(item.amount), 0), 6)}</TotalQuantityReceived><TotalQuantityIssued>${n(Math.abs(source.stockMovements.filter((item) => number(item.amount) < 0).reduce((sum, item) => sum + number(item.amount), 0)), 6)}</TotalQuantityIssued>${movements}</MovementOfGoods>`
+    : "<MovementOfGoods></MovementOfGoods>";
+  const salesSection = source.sales.length ? `<SalesInvoices><NumberOfEntries>${source.sales.length}</NumberOfEntries><TotalDebit>${n(salesTotals.debit)}</TotalDebit><TotalCredit>${n(salesTotals.credit)}</TotalCredit>${sales}</SalesInvoices>` : "";
+  const purchaseSection = source.purchases.length ? `<PurchaseInvoices><NumberOfEntries>${source.purchases.length}</NumberOfEntries><TotalDebit>${n(purchaseTotals.debit)}</TotalDebit><TotalCredit>${n(purchaseTotals.credit)}</TotalCredit>${purchases}</PurchaseInvoices>` : "";
+  const paymentsSection = source.payments.length ? `<Payments><NumberOfEntries>${source.payments.length}</NumberOfEntries><TotalDebit>${n(paymentTotals.debit)}</TotalDebit><TotalCredit>${n(paymentTotals.credit)}</TotalCredit>${payments}</Payments>` : "";
+  return `<SourceDocuments>${salesSection}${purchaseSection}${paymentsSection}${movementSection}</SourceDocuments>`;
 }
 
 function invoiceXml(source, item, partyType) {
   const party = findParty(source, partyType === "Customer" ? item.client_id || item.tert_id : item.furnizor_id || item.tert_id);
-  const partyId = sourceHelpers.normalizeCui(party?.cui || party?.cif) || party?.cod || party?.id || "NECOMPLETAT";
-  const account = partyType === "Customer" ? party?.cont_analitic_client || "4111" : party?.cont_analitic_furnizor || "401";
+  const partyId = sourceHelpers.partyIdentifier(party || { id: "NECOMPLETAT" });
+  const account = partyType === "Customer" ? partyAccount(party?.cont_analitic_client, "4111") : partyAccount(party?.cont_analitic_furnizor, "401");
   const invoiceLines = Array.isArray(item.lines) && item.lines.length ? item.lines : [{ denumire: item.explicatie || sourceHelpers.documentNo(item), cantitate: 1, valoare: item.valoare, tva: item.tva, tva_procent: item.tva_procent }];
   const lines = invoiceLines.map((line, index) => invoiceLineXml(item, line, index, partyType)).join("");
   const dateValue = date(item.data, source.end);
@@ -94,17 +106,19 @@ function invoiceLineXml(invoice, line, index, partyType) {
   const account = line.cont || line.account || (partyType === "Customer" ? "704" : "628");
   const dateValue = date(invoice.data, today());
   const taxContext = partyType === "Customer" ? "sales" : "purchases";
-  return `<InvoiceLine><LineNumber>${index + 1}</LineNumber><AccountID>${required(account)}</AccountID><GoodsServicesID>01</GoodsServicesID><ProductCode>${required(line.material_id || line.product_id || line.cod || `LINIE-${index + 1}`)}</ProductCode><ProductDescription>${required(line.denumire || line.name || invoice.explicatie || "Linie factura")}</ProductDescription><Quantity>${n(quantity, 6)}</Quantity><InvoiceUOM>${x(line.um || line.unit || "BUC")}</InvoiceUOM><UnitPrice>${n(net / quantity, 6)}</UnitPrice><TaxPointDate>${dateValue}</TaxPointDate><Description>${required(line.denumire || line.name || invoice.explicatie || "Linie factura")}</Description><InvoiceLineAmount>${amountXml(net)}</InvoiceLineAmount><DebitCreditIndicator>${debitCredit}</DebitCreditIndicator>${taxInformationXml(line.tva_procent ?? invoice.tva_procent, line.tva ?? invoice.tva, net, "TaxInformation", taxContext)}</InvoiceLine>`;
+  return `<InvoiceLine><LineNumber>${index + 1}</LineNumber><AccountID>${required(account)}</AccountID><GoodsServicesID>01</GoodsServicesID><ProductCode>${required(line.material_id || line.product_id || line.cod || `LINIE-${index + 1}`)}</ProductCode><ProductDescription>${required(line.denumire || line.name || invoice.explicatie || "Linie factura")}</ProductDescription><Quantity>${n(quantity, 6)}</Quantity><InvoiceUOM>${x(unitCode(line))}</InvoiceUOM><UnitPrice>${n(net / quantity)}</UnitPrice><TaxPointDate>${dateValue}</TaxPointDate><Description>${required(line.denumire || line.name || invoice.explicatie || "Linie factura")}</Description><InvoiceLineAmount>${amountXml(net)}</InvoiceLineAmount><DebitCreditIndicator>${debitCredit}</DebitCreditIndicator>${taxInformationXml(line.tva_procent ?? invoice.tva_procent, line.tva ?? invoice.tva, net, "TaxInformation", taxContext)}</InvoiceLine>`;
 }
 
 function paymentXml(source, item, index) {
   const party = findParty(source, item.tert_id || item.client_id || item.furnizor_id);
-  const partyId = sourceHelpers.normalizeCui(party?.cui || party?.cif) || party?.cod || party?.id || "0";
+  const partyId = sourceHelpers.partyIdentifier(party || { id: "NECOMPLETAT" });
   const amount = Math.abs(number(item.suma || item.amount));
-  const indicator = String(item.tip_operatie || "").toLowerCase() === "incasare" ? "D" : "C";
+  const indicator = paymentIndicator(item);
   const account = item.cont_trezorerie || (item.tip === "casa" ? "5311" : "5121");
   const dateValue = date(item.data, source.end);
-  return `<Payment><PaymentRefNo>${required(item.nr_document || item.uuid || item.id)}</PaymentRefNo><Period>${source.luna}</Period><PeriodYear>${source.an}</PeriodYear><TransactionID>${required(item.journal_id || item.uuid || item.id)}</TransactionID><TransactionDate>${dateValue}</TransactionDate><PaymentMethod>${required(item.tip || "Banca")}</PaymentMethod><Description>${required(item.explicatie || "Operatiune trezorerie")}</Description><SystemID>${required(item.uuid || item.id)}</SystemID><SourceID>INFRAFLOW</SourceID><PaymentLine><LineNumber>${index + 1}</LineNumber><SourceDocumentID>${required(item.nr_document || item.id)}</SourceDocumentID><AccountID>${required(account)}</AccountID><CustomerID>${required(partyId)}</CustomerID><SupplierID>${required(partyId)}</SupplierID><TaxPointDate>${dateValue}</TaxPointDate><Description>${required(item.explicatie || "Operatiune trezorerie")}</Description><DebitCreditIndicator>${indicator}</DebitCreditIndicator><PaymentLineAmount>${amountXml(amount)}</PaymentLineAmount>${taxInformationXml(0, 0, amount)}</PaymentLine><PaymentDocumentTotals><NetTotal>${n(amount)}</NetTotal><GrossTotal>${n(amount)}</GrossTotal></PaymentDocumentTotals></Payment>`;
+  const customerId = indicator === "D" ? partyId : "0";
+  const supplierId = indicator === "C" ? partyId : "0";
+  return `<Payment><PaymentRefNo>${required(item.nr_document || item.uuid || item.id)}</PaymentRefNo><Period>${source.luna}</Period><PeriodYear>${source.an}</PeriodYear><TransactionID>${required(item.journal_id || item.uuid || item.id)}</TransactionID><TransactionDate>${dateValue}</TransactionDate><PaymentMethod>${paymentMethod(item)}</PaymentMethod><Description>${required(item.explicatie || "Operatiune trezorerie")}</Description><SystemID>${required(item.uuid || item.id)}</SystemID><SourceID>INFRAFLOW</SourceID><PaymentLine><LineNumber>${index + 1}</LineNumber><SourceDocumentID>${required(item.nr_document || item.id)}</SourceDocumentID><AccountID>${required(account)}</AccountID><CustomerID>${required(customerId)}</CustomerID><SupplierID>${required(supplierId)}</SupplierID><TaxPointDate>${dateValue}</TaxPointDate><Description>${required(item.explicatie || "Operatiune trezorerie")}</Description><DebitCreditIndicator>${indicator}</DebitCreditIndicator><PaymentLineAmount>${amountXml(amount)}</PaymentLineAmount>${taxInformationXml(0, 0, amount)}</PaymentLine><PaymentDocumentTotals><NetTotal>${n(amount)}</NetTotal><GrossTotal>${n(amount)}</GrossTotal></PaymentDocumentTotals></Payment>`;
 }
 
 function stockMovementXml(source, item, index) {
@@ -135,10 +149,36 @@ function accountBalances(source, symbol) {
 }
 function balanceChoice(prefix, value) { return value >= 0 ? `<${prefix}DebitBalance>${n(value)}</${prefix}DebitBalance>` : `<${prefix}CreditBalance>${n(Math.abs(value))}</${prefix}CreditBalance>`; }
 function accountType(item) { const value = String(item.tip || item.tip_cont || "").toUpperCase(); return value === "P" || value === "PASIV" ? "Pasiv" : value === "B" || value.includes("BIF") ? "Bifunctional" : "Activ"; }
-function relatedPartyId(source, journal, lines, kind) { const id = journal[`${kind}_id`] || journal.tert_id || lines.find((item) => item[`${kind}_id`] || item.tert_id)?.[`${kind}_id`] || lines.find((item) => item.tert_id)?.tert_id; const party = findParty(source, id); return sourceHelpers.normalizeCui(party?.cui || party?.cif) || party?.cod || party?.id || "0"; }
+function relatedPartyId(source, journal, lines, kind) {
+  const id = journal[`${kind}_id`] || journal.tert_id || lines.find((item) => item[`${kind}_id`] || item.tert_id)?.[`${kind}_id`] || lines.find((item) => item.tert_id)?.tert_id;
+  let party = findParty(source, id);
+  if (!party) {
+    const numberValue = String(journal.nr_document || "").trim();
+    const documents = kind === "customer" ? source.sales : source.purchases;
+    const document = documents.find((item) => String(sourceHelpers.documentNo(item)).trim() === numberValue);
+    party = findParty(source, kind === "customer" ? document?.client_id || document?.tert_id : document?.furnizor_id || document?.tert_id);
+  }
+  return party ? sourceHelpers.partyIdentifier(party) : "0";
+}
 function findParty(source, id) { return [...source.customers, ...source.suppliers].find((item) => String(item.id) === String(id)); }
+function paymentIndicator(item) { return String(item.tip_operatie || "").toLowerCase() === "incasare" ? "D" : "C"; }
+function paymentMethod(item) {
+  const type = String(item.tip || "").toLowerCase();
+  const value = `${type} ${item.explicatie || ""}`.toLowerCase();
+  if (/numerar|\bcasa\b|cash/.test(value)) return "01";
+  if (/compens/.test(value)) return "02";
+  if (/banca|bank|card|cec|ordin|transfer|internet/.test(value)) return "03";
+  return "99";
+}
+function partyAccount(value, fallback) {
+  const account = sourceHelpers.normalizeAccount(value || fallback);
+  return account.split(/[.\-]/)[0].replace(/\D/g, "") || fallback;
+}
 function invoiceControlTotals(items) { return { debit: items.reduce((sum, item) => sum + number(item.total), 0), credit: 0 }; }
-function unitCode(item) { return String(item?.um || item?.unit || "BUC").trim().toUpperCase().slice(0, 9) || "BUC"; }
+function unitCode(item) {
+  const value = String(item?.um || item?.unit || "BUC").trim().toUpperCase();
+  return ({ BUC: "H87", BUCATA: "H87", BUCATI: "H87", KG: "KGM", KILOGRAM: "KGM", L: "LTR", LT: "LTR", LITRU: "LTR", ORA: "HUR", ORE: "HUR", M: "MTR", M2: "MTK", M3: "MTQ", T: "TNE", TONA: "TNE" })[value] || value.slice(0, 9) || "H87";
+}
 function required(value) { const text = String(value ?? "").trim(); return x(text || "NECOMPLETAT"); }
 function date(value, fallback) { const text = String(value || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : String(fallback || today()).slice(0, 10); }
 function today() { return new Date().toISOString().slice(0, 10); }

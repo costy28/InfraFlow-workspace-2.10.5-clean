@@ -4,7 +4,7 @@ const renderer = require("./saft-renderer");
 
 function generate(db, period, profile = null) {
   const source = buildSource(db, period);
-  const namespace = profile?.target_namespace || "urn:StandardAuditFile-Taxation-Financial:RO";
+  const namespace = profile?.filing_namespace || profile?.target_namespace || "urn:StandardAuditFile-Taxation-Financial:RO";
   const schemaVersion = profile?.schema_version || "";
   const auditFileVersion = profile?.audit_file_version || "2.00";
   const content = renderer.render(source, namespace, auditFileVersion);

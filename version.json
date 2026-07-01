@@ -1,5 +1,5 @@
 {
-  "version": "2.12.180",
-  "date": "2026-06-30",
-  "changelog": "## v2.12.180 - 2026-06-30\n### Nomenclatoare SAF-T si integrare DUK\n- Facturile, taxele TVA si miscarile de stoc folosesc codurile oficiale ANAF.\n- Detectorul DUK recunoaste FreeTab prin cai standard sau configurabile.\n- Comanda D406 primeste automat anul si luna raportarii.\n- Build complet Server si Client pentru livrare curata."
+  "version": "2.12.181",
+  "date": "2026-07-01",
+  "changelog": "## v2.12.181 - 2026-07-01\n### Validare DUK SAF-T\n- Identificatorii tertilor, conturile, unitatile si platile sunt normalizate pentru DUK.\n- Sectiunile D406 respecta tipul declaratiei.\n- Raportul real al validatorului este afisat in Audit fiscal."
 }

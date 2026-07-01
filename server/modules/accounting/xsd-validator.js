@@ -10,9 +10,11 @@ function validate(buffer, schema) {
   if (!fs.existsSync(script)) return unavailable("Scriptul local de validare XSD lipseste.");
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), "infraflow-xsd-"));
   const xmlPath = path.join(folder, "candidate.xml");
+  const runtimeSchemaPath = path.join(folder, "schema.xsd");
   try {
     fs.writeFileSync(xmlPath, buffer);
-    const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-XmlPath", xmlPath, "-XsdPath", schemaPath], {
+    const effectiveSchemaPath = prepareSchema(schemaPath, buffer, runtimeSchemaPath);
+    const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-XmlPath", xmlPath, "-XsdPath", effectiveSchemaPath], {
       encoding: "utf8", windowsHide: true, timeout: 120000, maxBuffer: 5 * 1024 * 1024
     });
     const parsed = parseResult(result.stdout);
@@ -25,6 +27,24 @@ function validate(buffer, schema) {
       stderr: String(result.stderr || result.error?.message || "").trim()
     };
   } finally { fs.rmSync(folder, { recursive: true, force: true }); }
+}
+
+function prepareSchema(schemaPath, buffer, runtimePath) {
+  const xml = Buffer.isBuffer(buffer) ? buffer.toString("utf8") : String(buffer || "");
+  const isD406Filing = xml.includes('xmlns="mfp:anaf:dgti:d406:declaratie:v1"');
+  if (!isD406Filing) return schemaPath;
+  let schemaText = fs.readFileSync(schemaPath, "utf8");
+  schemaText = schemaText.replaceAll("mfp:anaf:dgti:d406t:declaratie:v1", "mfp:anaf:dgti:d406:declaratie:v1");
+  const declarationType = xml.match(/<HeaderComment>([^<]+)<\/HeaderComment>/i)?.[1]?.toUpperCase();
+  if (declarationType !== "C") {
+    // Schema generica cere sectiunea de stoc, dar DUK o interzice pentru raportarile L/T/A.
+    schemaText = schemaText.replace(/<xs:element\s+name="MovementOfGoods"\s*>/, '<xs:element name="MovementOfGoods" minOccurs="0">');
+  }
+  for (const section of ["SalesInvoices", "PurchaseInvoices", "Payments"]) {
+    schemaText = schemaText.replace(new RegExp(`<xs:element\\s+name="${section}"\\s*>`), `<xs:element name="${section}" minOccurs="0">`);
+  }
+  fs.writeFileSync(runtimePath, schemaText, "utf8");
+  return runtimePath;
 }
 
 function resolveSchemaPath(schema) {

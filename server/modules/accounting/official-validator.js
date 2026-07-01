@@ -58,11 +58,6 @@ function diagnostic(db, code) {
 
 function discover(db, code) {
   const config = getConfig(db, code);
-  const javaCandidates = [
-    process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", "java.exe") : "",
-    findOnPath("java.exe"),
-    findOnPath("java")
-  ].filter(Boolean).filter((item, index, all) => all.indexOf(item) === index);
   const roots = [
     config.path,
     process.env.ANAF_DUK_PATH,
@@ -72,6 +67,12 @@ function discover(db, code) {
     "C:\\SAGA C.3.0",
     "C:\\TEMP"
   ].filter(Boolean);
+  const javaCandidates = [
+    process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", "java.exe") : "",
+    ...roots.flatMap((root) => [path.join(root, "jre8", "bin", "java.exe"), path.join(root, "jre", "bin", "java.exe")]),
+    findOnPath("java.exe"),
+    findOnPath("java")
+  ].filter(Boolean).filter((item, index, all) => all.indexOf(item) === index);
   const validatorFiles = roots.flatMap((root) => findValidatorFiles(root)).filter((item, index, all) => all.indexOf(item) === index);
   const java = javaCandidates.find((item) => executableExists(item)) || "";
   const jar = validatorFiles.find((item) => /DUKIntegrator_AnLunaUI\.jar$/i.test(path.basename(item)))
@@ -130,16 +131,29 @@ function validate(db, code, buffer, originalName) {
     });
     const stdout = String(result.stdout || "").trim();
     const stderr = String(result.stderr || "").trim();
+    const reportPath = `${file}.err.txt`;
+    const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, "utf8").trim() : "";
     const exitCode = Number.isInteger(result.status) ? result.status : -1;
     return {
-      code: info.code, accepted: exitCode === 0 && !/\b(error|eroare|fatal)\b/i.test(`${stdout}\n${stderr}`),
+      code: info.code, accepted: exitCode === 0 && !report && !/\b(error|eroare|erori|fatal)\b/i.test(`${stdout}\n${stderr}`),
       exit_code: exitCode, stdout, stderr: result.error ? `${stderr}\n${result.error.message}`.trim() : stderr,
+      report, issues: parseValidationReport(report),
       sha256: crypto.createHash("sha256").update(buffer).digest("hex"), validator_path: info.path,
       schema_version: info.schema_version, validated_at: new Date().toISOString()
     };
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
   }
+}
+
+function parseValidationReport(value) {
+  const issues = [];
+  for (const raw of String(value || "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (/^[EF]:/i.test(line)) issues.push(line.replace(/^[EF]:\s*/, ""));
+    else if (issues.length && /^(eroare|avertizare)\b/i.test(line)) issues[issues.length - 1] += ` - ${line}`;
+  }
+  return issues;
 }
 
 function extractPeriod(buffer) {
