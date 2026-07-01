@@ -18,6 +18,7 @@ const registerAccountingControlRoutes = require("./accounting-control-routes");
 const registerSettlementRoutes = require("./settlement-routes");
 const registerFinancialStatementRoutes = require("./financial-statement-routes");
 const registerFiscalWorkspaceRoutes = require("./fiscal-workspace-routes");
+const fiscalSubmission = require("./fiscal-submission");
 
 const router = Router();
 const importUpload = multer({
@@ -1681,9 +1682,8 @@ router.post("/accounting/periods/:an/:luna/mark-submitted", requireAccountingClo
     }
     if (period.status === "depusa") throwHttp(409, "Perioada are deja declaratii depuse.");
     if (period.status !== "inchisa") throwHttp(409, "Luna trebuie inchisa inainte de marcarea declaratiilor depuse.");
-    const requiredCodes = ["D300", "D394", "D112"];
-    const missingReceipts = requiredCodes.filter((code) => !accounting.declarationRuns.some((run) => Number(run.an) === an && Number(run.luna) === luna && run.code === code && run.receipt_status === "acceptata"));
-    if (missingReceipts.length) throwHttp(409, `Lipsesc recipise acceptate pentru: ${missingReceipts.join(", ")}.`);
+    const submission = fiscalSubmission.submissionCheck(accounting, an, luna);
+    if (!submission.ready) throwHttp(409, `Lipsesc recipise acceptate pentru: ${submission.missing.join(", ")}.`);
     period.status = "depusa";
     period.depusa_de = req.auth.user.id;
     period.depusa_la = new Date().toISOString();
@@ -1691,7 +1691,7 @@ router.post("/accounting/periods/:an/:luna/mark-submitted", requireAccountingClo
     periodSnapshots.addPeriodEvent(req.auth.db, req.auth.user, an, luna, "depunere", { referinta: period.depunere_ref, snapshot_id: period.snapshot_id || null });
     addAudit(req.auth.db, req.auth.user, "accounting_period_submitted", `${luna}/${an}`);
     writeDb(req.auth.db);
-    sendJson(res, 200, { period });
+    sendJson(res, 200, { period, submission });
   } catch (error) { next(error); }
 });
 
@@ -3548,6 +3548,7 @@ function periodCheck(db, an, luna) {
   const bankReconciliationOk = bankUnclassified.length === 0 && unfinishedBankImports.length === 0;
   const fiscalMonth = registerDeclarationRoutes.buildFiscalMonthCheck(db, { perioada: `${an}-${String(luna).padStart(2, "0")}` });
   const fiscalBlockers = fiscalMonth.checks.filter((item) => item.severity === "error" && !item.ok);
+  const submission = fiscalSubmission.submissionCheck(accounting, an, luna);
   const history = periodSnapshots.periodHistory(db, an, luna);
   return {
     period,
@@ -3570,8 +3571,9 @@ function periodCheck(db, an, luna) {
       fiscal_blockers: fiscalBlockers,
       can_close: period.status === "deschisa" && draftDocuments.length === 0 && unbalanced.length === 0 && journalsWithoutLines.length === 0 && orphanJournalLines.length === 0 && balanceOk && tvaChecked && vatCurrent && bankReconciliationOk && fiscalBlockers.length === 0,
       can_reopen: ["inchisa", "depusa"].includes(period.status),
-      can_mark_submitted: period.status === "inchisa"
+      can_mark_submitted: period.status === "inchisa" && submission.ready
     },
+    submission,
     drafts: draftDocuments.slice(0, 25).map((item) => ({
       id: item.id,
       uuid: item.uuid,

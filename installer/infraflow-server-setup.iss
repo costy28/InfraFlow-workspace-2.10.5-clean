@@ -6,13 +6,13 @@
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
 AppName=InfraFlow ERP Server
-AppVersion=2.12.180
+AppVersion=2.12.190
 AppPublisher=InfraSuite
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow
 DefaultGroupName=InfraFlow
 OutputDir=output
-OutputBaseFilename=InfraFlow-Server-Setup-v2.12.180
+OutputBaseFilename=InfraFlow-Server-Setup-v2.12.190
 PrivilegesRequired=admin
 WizardStyle=modern
 Compression=lzma2/ultra64
@@ -121,7 +121,7 @@ Root: HKLM; \
 Root: HKLM; \
   Subkey: "SOFTWARE\InfraSuite\InfraFlow"; \
   ValueType: string; ValueName: "Version"; \
-  ValueData: "2.12.180"; \
+  ValueData: "2.12.190"; \
   Flags: uninsdeletevalue
 
 [Run]
@@ -162,7 +162,7 @@ Filename: "powershell.exe"; \
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'InfraFlow ERP Server v2.12.180' + #13#10#13#10 +
+    'InfraFlow ERP Server v2.12.190' + #13#10#13#10 +
     'Acest installer va configura:' + #13#10 +
     '  - Aplicatia server Node.js (Express)' + #13#10 +
     '  - Frontend React (servit de server)' + #13#10 +
@@ -195,6 +195,7 @@ begin
       Result := False;
   end;
 end;
+
 
 
 

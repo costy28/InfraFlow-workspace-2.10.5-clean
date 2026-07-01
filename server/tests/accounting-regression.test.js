@@ -24,6 +24,10 @@ const saftGenerator = require("../modules/accounting/saft-generator");
 const xsdValidator = require("../modules/accounting/xsd-validator");
 const saftGuidance = require("../modules/accounting/saft-guidance");
 const fiscalWorkspace = require("../modules/accounting/fiscal-workspace-routes");
+const saftIntegrity = require("../modules/accounting/saft-integrity");
+const fiscalDossier = require("../modules/accounting/fiscal-dossier");
+const AdmZip = require("adm-zip");
+const fiscalSubmission = require("../modules/accounting/fiscal-submission");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -887,4 +891,51 @@ test("acceptanta fiscala ofera pas urmator pentru fiecare blocaj", () => {
   const report = fiscalWorkspace.buildAcceptance(db, "2026-06");
   assert.equal(report.perioada, "2026-06");
   assert.ok(report.checks.some((item) => !item.ok && item.next_action && item.to));
+});
+
+test("integritatea SAF-T detecteaza factura fara nota si trezoreria necorelata", () => {
+  const { db, accounting } = fixture();
+  db.settings.general = { companyName: "Companie Test", cif: "RO9126534", address: "Strada Test 1", city: "Piatra Neamt", phone: "0233000000", iban: "RO49AAAA1B31007593840000" };
+  accounting.thirdParties[0] = { ...accounting.thirdParties[0], tip: "client", cui: "RO9126534", iban: "RO49AAAA1B31007593840000", cont_analitic_client: "4111.00001" };
+  accounting.invoicesOut.push({ id: 10, an: 2026, luna: 6, status: "validat", client_id: 1, nr_document: "FV-10", data: "2026-06-10", valoare: 100, tva: 21, total: 121, lines: [{ denumire: "Servicii", cont: "704", valoare: 100 }] });
+  accounting.treasury.push({ id: 20, an: 2026, luna: 6, status: "validat", tert_id: 1, nr_document: "EX-20", data: "2026-06-20", suma: 121 });
+  const result = saftIntegrity.inspect(db, "2026-06");
+  assert.equal(result.ready, false);
+  assert.ok(result.issues.some((item) => item.entity_type === "invoice_iesire"));
+  assert.ok(result.issues.some((item) => item.entity_type === "treasury"));
+});
+
+test("fluxul contabil corelat trece controlul de integritate SAF-T", () => {
+  const { db, accounting, user } = fixture();
+  db.settings.general = { companyName: "Companie Test", cif: "RO9126534", address: "Strada Test 1", city: "Piatra Neamt", phone: "0233000000", iban: "RO49AAAA1B31007593840000" };
+  accounting.thirdParties[0] = { ...accounting.thirdParties[0], tip: "client", cui: "RO9126534", iban: "RO49AAAA1B31007593840000", cont_analitic_client: "4111.00001" };
+  const invoiceJournal = engine.createJournal(db, user, { an: 2026, luna: 6, data: "2026-06-10", nr_document: "FV-11", lines: [{ cont_simbol: "4111", debit: 121 }, { cont_simbol: "704", credit: 100 }, { cont_simbol: "4427", credit: 21 }] });
+  accounting.invoicesOut.push({ id: 11, an: 2026, luna: 6, status: "validat", client_id: 1, journal_id: invoiceJournal.id, nr_document: "FV-11", data: "2026-06-10", valoare: 100, tva: 21, total: 121, lines: [{ denumire: "Servicii", cont: "704", valoare: 100 }] });
+  const paymentJournal = engine.createJournal(db, user, { an: 2026, luna: 6, data: "2026-06-20", nr_document: "EX-21", lines: [{ cont_simbol: "5121", debit: 121 }, { cont_simbol: "4111", credit: 121 }] });
+  accounting.treasury.push({ id: 21, an: 2026, luna: 6, status: "validat", tert_id: 1, journal_id: paymentJournal.id, nr_document: "EX-21", data: "2026-06-20", suma: 121, tip_operatie: "incasare" });
+  const result = saftIntegrity.inspect(db, "2026-06");
+  assert.equal(result.ready, true, result.issues.map((item) => item.message).join("\n"));
+});
+
+test("dosarul fiscal contine sumar acceptanta diagnostic si instructiuni", () => {
+  const report = { perioada: "2026-06", summary: { total: 1, ok: 1 }, checks: [{ label: "Balanta", ok: true, severity: "error", message: "OK", next_action: "-" }] };
+  const buffer = fiscalDossier.build({ period: "2026-06", acceptance: report, integrity: { ready: true, issues: [] }, runs: [] });
+  const names = new AdmZip(buffer).getEntries().map((entry) => entry.entryName);
+  assert.deepEqual(names.sort(), ["00_SUMAR.json", "01_ACCEPTANTA.xlsx", "02_DIAGNOSTIC_SAFT.json", "03_INSTRUCTIUNI.txt"].sort());
+});
+
+test("depunerea fiscala cere recipise acceptate pentru toate declaratiile", () => {
+  const { accounting } = fixture();
+  accounting.declarationRuns.push(
+    { id: 1, code: "D300", an: 2026, luna: 6, status: "acceptat", receipt_status: "acceptata", recipisa: "R300" },
+    { id: 2, code: "D394", an: 2026, luna: 6, status: "acceptat", receipt_status: "acceptata", recipisa: "R394" },
+    { id: 3, code: "D112", an: 2026, luna: 6, status: "acceptat", receipt_status: "acceptata", recipisa: "R112" }
+  );
+  let check = fiscalSubmission.submissionCheck(accounting, 2026, 6);
+  assert.equal(check.ready, false);
+  assert.deepEqual(check.missing, ["D406"]);
+  accounting.saftRuns.push({ id: 4, perioada: "2026-06", status: "acceptat_validator", receipt_status: "acceptata", recipisa: "R406" });
+  check = fiscalSubmission.submissionCheck(accounting, 2026, 6);
+  assert.equal(check.ready, true);
+  assert.deepEqual(check.missing, []);
 });

@@ -94,6 +94,7 @@ export function InchidereLuna() {
 
   const checks = data?.checks || {}
   const status = data?.period?.status || 'deschisa'
+  const submission = data?.submission || { declarations: [], missing: [] }
   const blockers = [
     checks.draft_count ? `${checks.draft_count} documente draft` : '',
     checks.unbalanced_journals ? `${checks.unbalanced_journals} note dezechilibrate` : '',
@@ -124,6 +125,7 @@ export function InchidereLuna() {
     { label: 'TVA', ok: checks.tva_checked && checks.tva_current !== false, detail: checks.tva_checked ? checks.tva_current === false ? 'Documente modificate, reverifică' : 'TVA verificat și actual' : 'TVA necesită verificare', to: `/contabilitate/tva-d300?luna=${month}` },
     { label: 'Balanță', ok: checks.balance_ok && checks.journal_structure_ok, detail: checks.balance_ok ? 'Balanță echilibrată' : 'Există diferențe', to: `/contabilitate/balanta?luna=${month}` },
     { label: 'Închidere', ok: checks.can_close || ['inchisa', 'depusa'].includes(status), detail: ['inchisa', 'depusa'].includes(status) ? `Luna este ${status}` : checks.can_close ? 'Pregătită pentru închidere' : 'Așteaptă pașii anteriori', to: `/contabilitate/inchidere-luna?luna=${month}` }
+    ,{ label: 'Declarații', ok: submission.ready, detail: submission.ready ? 'Toate recipisele obligatorii sunt acceptate' : `Lipsesc: ${(submission.missing || []).join(', ') || '-'}`, to: `/contabilitate/audit-fiscal?luna=${month}` }
   ]
 
   return (
@@ -180,6 +182,7 @@ export function InchidereLuna() {
             <Info label="Bancă neclasificat" value={checks.bank_unclassified || 0} />
             <Info label="Importuri deschise" value={checks.bank_imports_unfinished || 0} />
           </div>
+          {status === 'inchisa' && !submission.ready ? <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Luna nu poate fi marcata depusa. Lipsesc recipise acceptate pentru: {(submission.missing || []).join(', ')}. <Link className="font-semibold underline" to={`/contabilitate/audit-fiscal?luna=${month}`}>Deschide Audit fiscal</Link></div> : null}
           {checks.outstanding_advances ? (
             <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
               Avansurile nestinse nu blocheaza inchiderea, dar trebuie urmarite in lunile urmatoare. <Link className="font-semibold underline" to={`/contabilitate/trezorerie?luna=${month}&corelare=avans_nestins`}>Vezi avansurile</Link>

@@ -1,5 +1,20 @@
 # Changelog
 
+# v2.12.190 - 2026-07-01
+
+- Recipisele D406 sunt legate de rularea SAF-T si arhivate cu hash.
+- Inchiderea fiscala cere recipise acceptate D300, D394, D112 si D406.
+- Ecranul de inchidere arata exact declaratiile care lipsesc.
+- Manifestele si instalerele complete sunt sincronizate la 2.12.190.
+
+# v2.12.187 - 2026-07-01
+
+- DUK are diagnostic asistat pentru Java, validator si configurarea locala.
+- SAF-T verifica legaturile dintre facturi, note, plati si conturi.
+- Erorile pot fi corectate din zona sursa, apoi rularea poate fi reverificata.
+- Dosarul fiscal lunar se descarca ZIP cu acceptanta, diagnostic si D406.
+- Fluxul contabil end-to-end este acoperit de teste automate.
+
 # v2.12.182 - 2026-07-01
 
 - Configurare automata DUK direct din Audit fiscal.

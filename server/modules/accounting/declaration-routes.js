@@ -56,6 +56,11 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
     catch (error) { next(error); }
   });
 
+  router.get("/accounting/declarations/validators/:code/requirements", requireAccountingReports, (req, res, next) => {
+    try { res.json(officialValidator.requirements(req.auth.db, req.params.code)); }
+    catch (error) { next(error); }
+  });
+
   router.post("/accounting/declarations/validators/:code/auto-configure", requireAccountingPost, (req, res, next) => {
     try {
       const code = String(req.params.code || "").toUpperCase();

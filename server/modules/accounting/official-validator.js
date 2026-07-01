@@ -97,6 +97,23 @@ function discover(db, code) {
   };
 }
 
+function requirements(db, code) {
+  const discovery = discover(db, code);
+  const configured = diagnostic(db, code);
+  return {
+    code: discovery.code,
+    ready: configured.execution_enabled && discovery.java.some((item) => item.available) && configured.available,
+    java: { available: discovery.java.some((item) => item.available), candidates: discovery.java },
+    validator: { available: discovery.validators.length > 0 || configured.available, configured: configured.execution_enabled, path: configured.path || discovery.validators[0]?.path || "", candidates: discovery.validators },
+    steps: [
+      { key: "java", ok: discovery.java.some((item) => item.available), label: "Java runtime", action: "Instaleaza un runtime Java compatibil sau configureaza JAVA_HOME." },
+      { key: "duk", ok: discovery.validators.length > 0 || configured.available, label: "Validator DUK", action: "Copiaza kitul DUK ANAF intr-un folder local accesibil serverului." },
+      { key: "config", ok: configured.execution_enabled, label: "Configurare InfraFlow", action: "Ruleaza configurarea automata dupa ce Java si DUK sunt disponibile." }
+    ],
+    message: discovery.message
+  };
+}
+
 function testEnvironment(db, code) {
   const info = diagnostic(db, code);
   if (!info.command) throwHttp(409, "Configureaza mai intai comanda validatorului.");
@@ -222,4 +239,4 @@ function findValidatorFiles(root) {
 }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
-module.exports = { getConfig, saveConfig, diagnostic, discover, testEnvironment, validate };
+module.exports = { getConfig, saveConfig, diagnostic, discover, requirements, testEnvironment, validate };

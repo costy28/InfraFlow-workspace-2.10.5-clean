@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.12.182**
-**Versiune în lucru: v2.12.182**
+**Versiune curentă sursă: v2.12.190**
+**Versiune în lucru: v2.12.190**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -541,8 +541,8 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.180
-BUILD EXE EXISTENT: 2.12.180 ✅
+VERSIUNE CURENTĂ SURSĂ: 2.12.190
+BUILD EXE EXISTENT: 2.12.190 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -587,6 +587,14 @@ UPDATES ÎN LUCRU:
   2.12.176 → UPDATE 196 Dosar fiscal lunar ✅
   2.12.177 → UPDATE 197 Audit fiscal ghidat ✅
   2.12.178 → UPDATE 198 Schema oficială SAF-T + validare XSD ✅
+  2.12.183 → UPDATE 203 DUK operațional ✅
+  2.12.184 → UPDATE 204 Corelare completă SAF-T ✅
+  2.12.185 → UPDATE 205 Remediere și reverificare SAF-T ✅
+  2.12.186 → UPDATE 206 Dosar fiscal lunar ✅
+  2.12.187 → UPDATE 207 Test contabil end-to-end ✅
+  2.12.188 → UPDATE 208 Recipise ANAF D406 ✅
+  2.12.189 → UPDATE 209 Închidere fiscală controlată ✅
+  2.12.190 → UPDATE 210 Build complet ✅
   2.12.179 → UPDATE 199 Generator SAF-T complet + XSD ✅
   2.12.180 → UPDATE 200 Nomenclatoare SAF-T + integrare DUK ✅
   2.12.181 → UPDATE 201 Validare DUK SAF-T ✅
@@ -594,9 +602,9 @@ UPDATES ÎN LUCRU:
   2.12.179 → UPDATE 199 Generator SAF-T conform structural XSD ✅
   2.12.180 → UPDATE 200 Nomenclatoare SAF-T + integrare DUK ✅
 
-NEXT BUILD: v2.12.190
-  → InfraFlow-Server-Setup-v2.12.190.exe
-  → InfraFlow-Client-Setup-v2.12.190.exe
+NEXT BUILD: v2.12.200
+  → InfraFlow-Server-Setup-v2.12.200.exe
+  → InfraFlow-Client-Setup-v2.12.200.exe
   → Versiunea citită automat din package.json
   → Script: scripts/build-installer.ps1
 

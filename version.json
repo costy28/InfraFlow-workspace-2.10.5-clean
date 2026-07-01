@@ -1,5 +1,5 @@
 {
-  "version": "2.12.182",
+  "version": "2.12.190",
   "date": "2026-07-01",
-  "changelog": "## v2.12.182 - 2026-07-01\n### DUK asistat si remediere SAF-T\n- Configurare automata DUK din Audit fiscal.\n- Problemele SAF-T au actiuni si legaturi directe de remediere.\n- Tertul indicat de diagnostic se deschide automat pentru editare."
+  "changelog": "## v2.12.190 - 2026-07-01\n### Recipise si inchidere fiscala\n- Recipisa D406 arhivata cu rularea SAF-T.\n- Luna depusa numai cu recipise acceptate.\n- Build complet Server si Client."
 }

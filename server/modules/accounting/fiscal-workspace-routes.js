@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const xlsx = require("xlsx");
+const multer = require("multer");
 const engine = require("./accounting-engine");
 const declarations = require("./declaration-routes");
 const auditRoutes = require("./end-to-end-audit-routes");
@@ -10,12 +11,16 @@ const schemaProfiles = require("./schema-profiles");
 const officialValidator = require("./official-validator");
 const saftGenerator = require("./saft-generator");
 const saftGuidance = require("./saft-guidance");
+const saftIntegrity = require("./saft-integrity");
+const fiscalDossier = require("./fiscal-dossier");
+const fiscalRegister = require("./fiscal-register");
 const xsdValidator = require("./xsd-validator");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
 function registerFiscalWorkspaceRoutes(router, middleware) {
   const { requireAccountingReports, requireAccountingPost } = middleware;
+  const receiptUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
   router.get("/accounting/fiscal/acceptance", requireAccountingReports, (req, res, next) => {
     try { res.json(buildAcceptance(req.auth.db, req.query.perioada || req.query.luna)); } catch (error) { next(error); }
@@ -71,9 +76,10 @@ function registerFiscalWorkspaceRoutes(router, middleware) {
     try {
       const period = normalizePeriod(req.query.perioada || req.query.luna);
       const source = saftGenerator.buildSource(req.auth.db, period);
+      const integrity = saftIntegrity.inspect(req.auth.db, period);
       const readiness = declarations.buildSaftReadiness(req.auth.db, { perioada: period });
-      const issueDetails = saftGuidance.guideMany([...(source.issueDetails || []), ...readiness.issues.map((item) => ({ message: item.message, area: item.area, action: item.action }))]);
-      res.json({ perioada: period, summary: source.summary, issues: issueDetails.map((item) => item.message), issue_details: issueDetails, readiness });
+      const issueDetails = saftGuidance.guideMany([...(integrity.issues || []), ...readiness.issues.map((item) => ({ message: item.message, area: item.area, action: item.action }))]);
+      res.json({ perioada: period, summary: source.summary, issues: issueDetails.map((item) => item.message), issue_details: issueDetails, readiness, integrity });
     } catch (error) { next(error); }
   });
 
@@ -88,30 +94,33 @@ function registerFiscalWorkspaceRoutes(router, middleware) {
   router.post("/accounting/saft/generate", requireAccountingPost, (req, res, next) => {
     try {
       const period = normalizePeriod(req.body?.perioada || req.body?.luna);
-      const accounting = engine.ensureAccounting(req.auth.db);
-       const schema = schemaProfiles.select(accounting, "SAF-T", period);
-      if (!schema) throwHttp(409, "Incarca mai intai schema SAF-T aplicabila perioadei.");
-      const generated = saftGenerator.generate(req.auth.db, period, schemaProfiles.profile(schema));
-      const folder = path.join(process.cwd(), "storage", "accounting-declarations", period, "D406", "candidates");
-      fs.mkdirSync(folder, { recursive: true });
-      const fileName = `D406_candidat_${period.replace("-", "_")}_${Date.now()}.xml`;
-       const fullPath = path.join(folder, fileName); fs.writeFileSync(fullPath, generated.content, "utf8");
-       const xsdValidation = xsdValidator.validate(Buffer.from(generated.content), schema);
-       const diagnostic = officialValidator.diagnostic(req.auth.db, "D406");
-       const sourceComplete = generated.issues.length === 0;
-       const validation = xsdValidation.accepted && sourceComplete && diagnostic.execution_enabled ? officialValidator.validate(req.auth.db, "D406", Buffer.from(generated.content), fileName) : null;
-      const run = {
-        id: engine.nextNumericId(accounting.saftRuns), uuid: crypto.randomUUID(), code: "D406", perioada: period,
-         schema_profile: generated.profile, source_summary: generated.source_summary, issues: [...generated.issues, ...xsdValidation.errors],
-         sha256: generated.sha256, stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
-         status: !xsdValidation.accepted ? "respins_xsd" : !sourceComplete ? "date_incomplete" : validation?.accepted ? "acceptat_validator" : validation ? "respins_validator" : "valid_xsd_nevalidat_duk",
-         xsd_validation: xsdValidation, validation,
-         guidance: saftGuidance.guideMany([...(generated.issue_details || []), ...xsdValidation.errors, ...(validation?.issues || [])]),
-         created_at: generated.generated_at, created_by: req.auth.user?.id || ""
-      };
-      accounting.saftRuns.push(run);
+      const run = createSaftRun(req.auth.db, period, req.auth.user);
       addAudit(req.auth.db, req.auth.user, "accounting_saft_generate", `${period} / ${run.status}`);
       writeDb(req.auth.db); res.status(201).json({ run });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/accounting/saft/runs/:id/recheck", requireAccountingPost, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const previous = accounting.saftRuns.find((item) => String(item.id) === String(req.params.id));
+      if (!previous) throwHttp(404, "Generarea SAF-T nu a fost gasita.");
+      const run = createSaftRun(req.auth.db, previous.perioada, req.auth.user, previous.id);
+      addAudit(req.auth.db, req.auth.user, "accounting_saft_recheck", `${previous.id} -> ${run.id} / ${run.status}`);
+      writeDb(req.auth.db); res.status(201).json({ run, previous_run_id: previous.id });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/fiscal/dossier", requireAccountingReports, (req, res, next) => {
+    try {
+      const period = normalizePeriod(req.query.perioada || req.query.luna);
+      const acceptance = buildAcceptance(req.auth.db, period);
+      const integrity = saftIntegrity.inspect(req.auth.db, period);
+      const runs = engine.ensureAccounting(req.auth.db).saftRuns.filter((item) => item.perioada === period).slice().reverse();
+      const buffer = fiscalDossier.build({ period, acceptance, integrity, runs });
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="Dosar_fiscal_${period.replace("-", "_")}.zip"`);
+      res.end(buffer);
     } catch (error) { next(error); }
   });
 
@@ -125,6 +134,70 @@ function registerFiscalWorkspaceRoutes(router, middleware) {
       res.download(fullPath, `D406_${run.perioada.replace("-", "_")}.xml`);
     } catch (error) { next(error); }
   });
+
+  router.post("/accounting/saft/runs/:id/receipt", requireAccountingPost, receiptUpload.single("file"), (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const run = accounting.saftRuns.find((item) => String(item.id) === String(req.params.id));
+      if (!run) throwHttp(404, "Generarea SAF-T nu a fost gasita.");
+      if (run.status !== "acceptat_validator") throwHttp(409, "Recipisa poate fi asociata numai unui D406 acceptat de validator.");
+      const status = fiscalRegister.receiptStatus(req.body?.status);
+      if (!status) throwHttp(400, "Status recipisa invalid.");
+      const receipt = String(req.body?.recipisa || "").trim();
+      if (!receipt) throwHttp(400, "Completeaza numarul recipisei ANAF.");
+      if (!req.file?.buffer) throwHttp(400, "Ataseaza fisierul recipisei ANAF.");
+      const storedName = fiscalRegister.safeStoredName(req.file.originalname, `D406_${run.perioada}_${Date.now()}_recipisa`);
+      if (!storedName) throwHttp(400, "Recipisa trebuie sa fie PDF, XML, ZIP sau TXT.");
+      const folder = path.join(process.cwd(), "storage", "accounting-declarations", run.perioada, "D406", "receipts");
+      fs.mkdirSync(folder, { recursive: true });
+      const fullPath = path.join(folder, storedName); fs.writeFileSync(fullPath, req.file.buffer);
+      run.recipisa = receipt; run.receipt_status = status;
+      run.receipt_message = String(req.body?.message || "").trim().slice(0, 1000);
+      run.receipt_file = path.relative(process.cwd(), fullPath).replace(/\\/g, "/");
+      run.receipt_original_name = req.file.originalname;
+      run.receipt_sha256 = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
+      run.received_at = new Date().toISOString(); run.received_by = req.auth.user?.id || "";
+      addAudit(req.auth.db, req.auth.user, "accounting_saft_receipt", `D406 ${run.perioada} / ${receipt} / ${status}`);
+      writeDb(req.auth.db); res.json({ run });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/accounting/saft/runs/:id/receipt", requireAccountingReports, (req, res, next) => {
+    try {
+      const run = engine.ensureAccounting(req.auth.db).saftRuns.find((item) => String(item.id) === String(req.params.id));
+      if (!run?.receipt_file) throwHttp(404, "Rularea D406 nu are recipisa atasata.");
+      const fullPath = path.resolve(process.cwd(), run.receipt_file); const root = path.resolve(process.cwd(), "storage", "accounting-declarations");
+      if (!fullPath.startsWith(`${root}${path.sep}`) || !fs.existsSync(fullPath)) throwHttp(404, "Fisierul recipisei nu a fost gasit.");
+      res.download(fullPath, run.receipt_original_name || path.basename(fullPath));
+    } catch (error) { next(error); }
+  });
+}
+
+function createSaftRun(db, period, user, previousRunId = null) {
+  const accounting = engine.ensureAccounting(db);
+  const schema = schemaProfiles.select(accounting, "SAF-T", period);
+  if (!schema) throwHttp(409, "Incarca mai intai schema SAF-T aplicabila perioadei.");
+  const generated = saftGenerator.generate(db, period, schemaProfiles.profile(schema));
+  const integrity = saftIntegrity.inspect(db, period);
+  const folder = path.join(process.cwd(), "storage", "accounting-declarations", period, "D406", "candidates");
+  fs.mkdirSync(folder, { recursive: true });
+  const fileName = `D406_candidat_${period.replace("-", "_")}_${Date.now()}.xml`;
+  const fullPath = path.join(folder, fileName); fs.writeFileSync(fullPath, generated.content, "utf8");
+  const xsdValidation = xsdValidator.validate(Buffer.from(generated.content), schema);
+  const diagnostic = officialValidator.diagnostic(db, "D406");
+  const sourceComplete = integrity.ready;
+  const validation = xsdValidation.accepted && sourceComplete && diagnostic.execution_enabled ? officialValidator.validate(db, "D406", Buffer.from(generated.content), fileName) : null;
+  const run = {
+    id: engine.nextNumericId(accounting.saftRuns), uuid: crypto.randomUUID(), code: "D406", perioada: period, previous_run_id: previousRunId,
+    schema_profile: generated.profile, source_summary: generated.source_summary, issues: [...integrity.issues.map((item) => item.message), ...xsdValidation.errors],
+    sha256: generated.sha256, stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
+    status: !xsdValidation.accepted ? "respins_xsd" : !sourceComplete ? "date_incomplete" : validation?.accepted ? "acceptat_validator" : validation ? "respins_validator" : "valid_xsd_nevalidat_duk",
+    xsd_validation: xsdValidation, validation,
+    guidance: saftGuidance.guideMany([...(integrity.issues || []), ...xsdValidation.errors, ...(validation?.issues || [])]),
+    created_at: generated.generated_at, created_by: user?.id || ""
+  };
+  accounting.saftRuns.push(run);
+  return run;
 }
 
 function buildAcceptance(db, value) {
@@ -162,4 +235,5 @@ function sendWorkbook(res, workbook, name) { const buffer = xlsx.write(workbook,
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
 registerFiscalWorkspaceRoutes.buildAcceptance = buildAcceptance;
+registerFiscalWorkspaceRoutes.createSaftRun = createSaftRun;
 module.exports = registerFiscalWorkspaceRoutes;
