@@ -1,5 +1,5 @@
 {
-  "version": "2.12.178",
+  "version": "2.12.180",
   "date": "2026-06-30",
-  "changelog": "## v2.12.178 - 2026-06-30\n### Schema oficiala SAF-T\n- Schema ANAF v2.4.9 este inclusa si verificata prin SHA-256.\n- Candidatii D406 sunt verificati structural cu XSD inainte de validatorul DUK.\n- Erorile XSD sunt pastrate si afisate in Audit fiscal.\n- Configurarea validatorului D406 este disponibila in backend."
+  "changelog": "## v2.12.180 - 2026-06-30\n### Nomenclatoare SAF-T si integrare DUK\n- Facturile, taxele TVA si miscarile de stoc folosesc codurile oficiale ANAF.\n- Detectorul DUK recunoaste FreeTab prin cai standard sau configurabile.\n- Comanda D406 primeste automat anul si luna raportarii.\n- Build complet Server si Client pentru livrare curata."
 }

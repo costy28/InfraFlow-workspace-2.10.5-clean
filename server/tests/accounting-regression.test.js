@@ -21,6 +21,7 @@ const schemaProfiles = require("../modules/accounting/schema-profiles");
 const financialStatements = require("../modules/accounting/financial-statement-routes");
 const declarationAdapters = require("../modules/accounting/declaration-adapters");
 const saftGenerator = require("../modules/accounting/saft-generator");
+const xsdValidator = require("../modules/accounting/xsd-validator");
 const fiscalWorkspace = require("../modules/accounting/fiscal-workspace-routes");
 
 function fixture() {
@@ -821,6 +822,8 @@ test("generatorul SAF-T include fisiere master registru si documente sursa", () 
   assert.match(result.content, /<MasterFiles>/);
   assert.match(result.content, /<GeneralLedgerEntries>/);
   assert.match(result.content, /<SourceDocuments>/);
+  assert.match(result.content, /<InvoiceType>380<\/InvoiceType>/);
+  assert.match(result.content, /<TaxCode>310344<\/TaxCode>/);
 });
 
 test("generatorul SAF-T separa versiunea XSD de versiunea AuditFile", () => {
@@ -829,6 +832,25 @@ test("generatorul SAF-T separa versiunea XSD de versiunea AuditFile", () => {
   assert.equal(result.schema_version, "2.4.9");
   assert.equal(result.audit_file_version, "2.00");
   assert.match(result.content, /<AuditFileVersion>2\.00<\/AuditFileVersion>/);
+});
+
+test("candidatul SAF-T complet respecta structural schema XSD ANAF", { skip: process.platform !== "win32" }, () => {
+  const { db, accounting, user } = fixture();
+  db.settings.general = { companyName: "Companie Test", cif: "RO9126534", address: "Strada Test 1", city: "Piatra Neamt", phone: "0233000000", iban: "RO49AAAA1B31007593840000" };
+  db.materials = [{ id: "mat-1", cod: "MAT1", name: "Bitum", unit: "KG", nc_code: "27132000", active: true }];
+  db.stockMovements = [{ id: "mov-1", type: "consumption", materialId: "mat-1", date: "2026-06-11", amount: -2, unit: "KG", note: "Consum" }];
+  accounting.thirdParties[0].tip = "client";
+  accounting.thirdParties[0].cont_analitic_client = "4111.00001";
+  accounting.invoicesOut.push({ id: 1, uuid: "fv-1", an: 2026, luna: 6, status: "validat", client_id: 1, nr_document: "FV-1", data: "2026-06-10", valoare: 100, tva: 21, total: 121, tva_procent: 21, lines: [{ denumire: "Servicii", cantitate: 1, valoare: 100, tva: 21, tva_procent: 21, cont: "704", um: "BUC" }] });
+  engine.createJournal(db, user, { an: 2026, luna: 6, data: "2026-06-10", nr_document: "FV-1", lines: [{ cont_simbol: "4111", debit: 121 }, { cont_simbol: "704", credit: 100 }, { cont_simbol: "4427", credit: 21 }] });
+  accounting.treasury.push({ id: 1, uuid: "pay-1", an: 2026, luna: 6, status: "validat", tert_id: 1, data: "2026-06-20", suma: 121, tip: "banca", tip_operatie: "incasare", nr_document: "EX-1" });
+  const schema = schemaProfiles.select(accounting, "D406", "2026-06");
+  const generated = saftGenerator.generate(db, "2026-06", schemaProfiles.profile(schema));
+  const validation = xsdValidator.validate(Buffer.from(generated.content), schema);
+  assert.equal(validation.accepted, true, validation.errors.join("\n"));
+  assert.equal(validation.error_count, 0);
+  assert.match(generated.content, /<MovementType>70<\/MovementType>/);
+  assert.doesNotMatch(generated.content, /<InvoiceType>FT<\/InvoiceType>/);
 });
 
 test("profilurile financiare izoleaza maparile pe formular", () => {

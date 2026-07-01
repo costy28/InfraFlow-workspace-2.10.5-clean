@@ -65,6 +65,8 @@ function discover(db, code) {
   ].filter(Boolean).filter((item, index, all) => all.indexOf(item) === index);
   const roots = [
     config.path,
+    process.env.ANAF_DUK_PATH,
+    process.env.SAGA_FREETAB_PATH,
     path.join(process.cwd(), "storage", "validators", config.code),
     "C:\\SAGA C.3.0\\FreeTab\\dist",
     "C:\\SAGA C.3.0",
@@ -72,12 +74,18 @@ function discover(db, code) {
   ].filter(Boolean);
   const validatorFiles = roots.flatMap((root) => findValidatorFiles(root)).filter((item, index, all) => all.indexOf(item) === index);
   const java = javaCandidates.find((item) => executableExists(item)) || "";
-  const jar = validatorFiles.find((item) => /duk.*\.jar$/i.test(path.basename(item))) || validatorFiles.find((item) => /\.jar$/i.test(item)) || "";
+  const jar = validatorFiles.find((item) => /DUKIntegrator_AnLunaUI\.jar$/i.test(path.basename(item)))
+    || validatorFiles.find((item) => /DUKIntegrator\.jar$/i.test(path.basename(item)))
+    || validatorFiles.find((item) => /duk.*\.jar$/i.test(path.basename(item)))
+    || validatorFiles.find((item) => /\.jar$/i.test(item)) || "";
+  const suggestionArgs = config.code === "D406"
+    ? ["-jar", jar, "-v", "D406", "{file}", "$", "$", "an={year}", "luna={month}"]
+    : ["-jar", jar, "{file}"];
   return {
     code: config.code,
     java: javaCandidates.map((item) => ({ path: item, available: executableExists(item) })),
     validators: validatorFiles.map((item) => ({ path: item, type: path.extname(item).slice(1).toLowerCase() })),
-    suggestion: java && jar ? { path: path.dirname(jar), command: java, args: ["-jar", jar, "{file}"] } : null,
+    suggestion: java && jar ? { path: path.dirname(jar), command: java, args: suggestionArgs } : null,
     message: java && jar
       ? "Java si un validator candidat au fost detectate. Confirma versiunea schemei inainte de salvare."
       : !java ? "Java nu a fost detectat. Instaleaza sau configureaza Java, apoi repeta detectia."
@@ -112,7 +120,11 @@ function validate(db, code, buffer, originalName) {
   const file = path.join(folder, safeName);
   try {
     fs.writeFileSync(file, buffer);
-    const result = spawnSync(info.command, info.args.map((item) => item.replaceAll("{file}", file)), {
+    const period = extractPeriod(buffer);
+    const result = spawnSync(info.command, info.args.map((item) => item
+      .replaceAll("{file}", file)
+      .replaceAll("{year}", period.year)
+      .replaceAll("{month}", period.month)), {
       cwd: info.available && fs.statSync(info.path).isDirectory() ? info.path : process.cwd(),
       encoding: "utf8", windowsHide: true, timeout: 120000, maxBuffer: 5 * 1024 * 1024
     });
@@ -128,6 +140,14 @@ function validate(db, code, buffer, originalName) {
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
   }
+}
+
+function extractPeriod(buffer) {
+  const xml = Buffer.isBuffer(buffer) ? buffer.toString("utf8") : String(buffer || "");
+  const match = xml.match(/<SelectionStartDate>(\d{4})-(\d{2})-\d{2}<\/SelectionStartDate>/i);
+  const now = new Date();
+  return match ? { year: match[1], month: String(Number(match[2])) }
+    : { year: String(now.getFullYear()), month: String(now.getMonth() + 1) };
 }
 
 function parseArgs(value) {

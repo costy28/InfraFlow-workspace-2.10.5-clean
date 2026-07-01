@@ -132,7 +132,8 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       const fullPath = path.join(folder, fileName);
       fs.writeFileSync(fullPath, candidate.content, "utf8");
       const xsdValidation = code === "D406" ? xsdValidator.validate(Buffer.from(candidate.content), activeSchema) : null;
-      const result = (!xsdValidation || xsdValidation.accepted) && validator.execution_enabled
+      const sourceComplete = candidate.issues?.length === 0;
+      const result = (!xsdValidation || xsdValidation.accepted) && sourceComplete && validator.execution_enabled
         ? officialValidator.validate(req.auth.db, code, Buffer.from(candidate.content), fileName) : null;
       const item = {
         id: engine.nextNumericId(accounting.declarationCandidates), ...candidate,
@@ -143,7 +144,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       };
       delete item.content;
       accounting.declarationCandidates.push(item);
-      const validationStatus = xsdValidation && !xsdValidation.accepted ? "erori_xsd" : result ? result.accepted ? "acceptat" : "erori_validator" : "nevalidat";
+      const validationStatus = xsdValidation && !xsdValidation.accepted ? "erori_xsd" : !sourceComplete ? "date_incomplete" : result ? result.accepted ? "acceptat" : "erori_validator" : "nevalidat";
       addAudit(req.auth.db, req.auth.user, "accounting_declaration_candidate", `${code} ${period.value} / ${validationStatus}`);
       writeDb(req.auth.db);
       res.status(201).json({ candidate: item });

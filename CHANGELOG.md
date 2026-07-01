@@ -1,5 +1,21 @@
 # Changelog
 
+# v2.12.180 - 2026-06-30
+
+- Coduri SAF-T oficiale pentru tipurile de factura, TVA si miscarile de stoc.
+- Mapari distincte TVA pentru vanzari, achizitii si registrul contabil.
+- Detectare DUK din FreeTab prin caile standard, `SAGA_FREETAB_PATH` sau `ANAF_DUK_PATH`.
+- Comanda D406 DUK completeaza automat anul si luna din XML.
+- Build complet Server EXE, Client EXE si update ZIP.
+
+# v2.12.179 - 2026-06-30
+
+- Generator SAF-T modular pentru Header, MasterFiles, GeneralLedgerEntries si SourceDocuments.
+- Facturi de vanzare/cumparare, plati/incasari si miscari de stoc in candidatul D406.
+- Solduri contabile de deschidere/inchidere si tipuri de cont conforme structural.
+- Verificari explicite pentru datele companiei si codurile NC ale produselor.
+- Fixture-ul complet trece schema XSD ANAF v2.4.9 cu zero erori.
+
 # v2.12.178 - 2026-06-30
 
 - Schema oficiala ANAF SAF-T v2.4.9 este inclusa si verificata prin SHA-256.

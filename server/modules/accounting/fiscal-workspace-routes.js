@@ -96,12 +96,13 @@ function registerFiscalWorkspaceRoutes(router, middleware) {
        const fullPath = path.join(folder, fileName); fs.writeFileSync(fullPath, generated.content, "utf8");
        const xsdValidation = xsdValidator.validate(Buffer.from(generated.content), schema);
        const diagnostic = officialValidator.diagnostic(req.auth.db, "D406");
-       const validation = xsdValidation.accepted && diagnostic.execution_enabled ? officialValidator.validate(req.auth.db, "D406", Buffer.from(generated.content), fileName) : null;
+       const sourceComplete = generated.issues.length === 0;
+       const validation = xsdValidation.accepted && sourceComplete && diagnostic.execution_enabled ? officialValidator.validate(req.auth.db, "D406", Buffer.from(generated.content), fileName) : null;
       const run = {
         id: engine.nextNumericId(accounting.saftRuns), uuid: crypto.randomUUID(), code: "D406", perioada: period,
          schema_profile: generated.profile, source_summary: generated.source_summary, issues: [...generated.issues, ...xsdValidation.errors],
          sha256: generated.sha256, stored_file: path.relative(process.cwd(), fullPath).replace(/\\/g, "/"),
-         status: !xsdValidation.accepted ? "respins_xsd" : validation?.accepted ? "acceptat_validator" : validation ? "respins_validator" : "valid_xsd_nevalidat_duk",
+         status: !xsdValidation.accepted ? "respins_xsd" : !sourceComplete ? "date_incomplete" : validation?.accepted ? "acceptat_validator" : validation ? "respins_validator" : "valid_xsd_nevalidat_duk",
          xsd_validation: xsdValidation, validation, created_at: generated.generated_at, created_by: req.auth.user?.id || ""
       };
       accounting.saftRuns.push(run);
