@@ -457,7 +457,10 @@ function startPiusiScheduler() {
   if (schedulerStarted) return
   schedulerStarted = true
   schedulerTimer = setInterval(() => {
-    syncPiusi().catch(error => console.warn('[PIUSI] Sync eșuat:', error.message))
+    const db = readDb()
+    const configuredPath = String(db.settings?.piusi_mdb_path || configValue(db, 'piusi_mdb_path') || configValue(db, 'mdb_path') || '').trim()
+    if (!configuredPath || !fs.existsSync(configuredPath)) return
+    syncPiusi({ db }).catch(error => console.warn('[PIUSI] Sync eșuat:', error.message))
   }, 30 * 60 * 1000)
 }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+# v2.12.211 - 2026-07-07
+
+- Health MSSQL arata transportul conexiunii, ultima migrare si starea D205/Intrastat.
+- Schedulerul PIUSI porneste sincronizarea numai pentru un fisier MDB configurat si existent.
+
 # v2.12.210 - 2026-07-06
 
 - D205 genereaza structura ANAF si este verificata local cu XSD-ul oficial.

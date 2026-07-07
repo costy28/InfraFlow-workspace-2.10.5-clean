@@ -1,5 +1,5 @@
 {
-  "version": "2.12.210",
-  "date": "2026-07-06",
-  "changelog": "## v2.12.210 - 2026-07-06\n### Inchidere controlata contabilitate\n- D205 validata cu schema oficiala ANAF si persistenta MSSQL extinsa.\n- Intrastat completat, situatii financiare semnabile si pregatire OAuth SPV.\n- Acceptanta automata pentru health, backup, regresii si build complet."
+  "version": "2.12.211",
+  "date": "2026-07-07",
+  "changelog": "## v2.12.211 - 2026-07-07\n### Diagnostic MSSQL si PIUSI\n- Health confirma ultima migrare si campurile fiscale D205/Intrastat.\n- Diagnosticul afiseaza transportul SQL real.\n- PIUSI nu mai genereaza erori periodice pana la configurarea fisierului MDB."
 }

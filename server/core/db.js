@@ -985,16 +985,20 @@ function databaseHealth() {
   if (!["mssql", "sqlserver"].includes(DB_MODE)) {
     return { ok: true, mode: DB_MODE, server: null, database: path.basename(DB_FILE), pool: null };
   }
-  runMssqlScalar("select 1;", { timeoutMs: 5000 });
+  const diagnostic = String(runMssqlScalar(`
+    select concat(
+      coalesce((select max(filename) from dbo.schema_migrations), N''), N'|',
+      case when col_length('dbo.accounting_withholding_tax_entries', 'tip_plata') is not null then N'1' else N'0' end, N'|',
+      case when col_length('dbo.accounting_intrastat_entries', 'valoare_statistica') is not null then N'1' else N'0' end
+    );
+  `, { timeoutMs: 10000 })).split("|");
   return {
     ok: true,
     mode: DB_MODE,
     server: process.env.DB_SERVER || getConnectionStringValue(configuredMssqlConnectionString(), "Server") || ".\\SQLEXPRESS",
     database: mssqlDatabaseName(),
-    pool: {
-      connected: Boolean(mssqlPool?.connected),
-      connecting: Boolean(mssqlPool?.connecting)
-    }
+    connection: { ok: true, transport: mssqlPool?.connected ? "pool" : "powershell" },
+    migrations: { latest: diagnostic[0] || "", d205_ready: diagnostic[1] === "1", intrastat_ready: diagnostic[2] === "1" }
   };
 }
 
