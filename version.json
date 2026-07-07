@@ -1,5 +1,5 @@
 {
-  "version": "2.12.211",
+  "version": "2.12.214",
   "date": "2026-07-07",
-  "changelog": "## v2.12.211 - 2026-07-07\n### Diagnostic MSSQL si PIUSI\n- Health confirma ultima migrare si campurile fiscale D205/Intrastat.\n- Diagnosticul afiseaza transportul SQL real.\n- PIUSI nu mai genereaza erori periodice pana la configurarea fisierului MDB."
+  "changelog": "## v2.12.214 - 2026-07-07\n### Pontaj, banca de ore si ture\n- Export Excel reorganizat si completat cu totaluri.\n- Orele peste norma turei intra automat in banca de ore.\n- Sold initial, timp liber in avans si scadenta legala la 90 zile.\n- Plata orelor genereaza ajustare salariala cu spor minimum 75%.\n- Ture editabile si dezactivabile."
 }

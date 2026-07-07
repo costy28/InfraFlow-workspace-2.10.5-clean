@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { sanitizeEmployee } = require("../modules/hr/data-policy");
 const { assertTimesheetOpen, findTimesheetLock } = require("../modules/hr/timesheet-locks");
 const { buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
+const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime-policy");
 
 test("datele personale si medicale sunt ascunse fara permisiuni", () => {
   const value = sanitizeEmployee({ id: 1, nume: "Popescu", cnp: "123", iban: "RO00", email: "a@b.ro", apt_medical_expira: "2026-01-01", salariu_baza: 5000 });
@@ -33,4 +34,16 @@ test("exportul REGES este marcat explicit ca fisier intern", () => {
   assert.match(xml, /official="false"/);
   assert.match(xml, /Nu este fisier oficial/);
   assert.doesNotMatch(xml, /<ReviSal/);
+});
+
+test("12 ore lucrate la norma de 8 genereaza 4 ore suplimentare", () => {
+  assert.equal(dailyOvertime(12, 8), 4);
+  assert.equal(dailyOvertime(12, 12), 0);
+  assert.equal(dailyOvertime(8, 8, 2, 0), 2);
+});
+
+test("orele necompensate devin scadente dupa 90 de zile", () => {
+  const status = overtimePaymentStatus("2026-01-01", 4, new Date("2026-04-15T12:00:00"));
+  assert.equal(status.overdue, true);
+  assert.equal(status.minimumBonusPercent, 75);
 });

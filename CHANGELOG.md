@@ -1,5 +1,26 @@
 # Changelog
 
+# v2.12.214 - 2026-07-07
+
+## Pontaj, banca de ore si ture
+
+- Export Excel reorganizat si completat cu totaluri.
+- Orele peste norma turei intra automat in banca de ore.
+- Sold initial, timp liber in avans si evidenta scadentei la 90 zile.
+- Plata orelor genereaza ajustare salariala cu spor de minimum 75%.
+- Ture editabile si dezactivabile, cu istoric pastrat.
+
+# v2.12.213 - 2026-07-07
+
+## HR si pontaj departamente
+
+- Pontaj lunar editabil pe fiecare angajat si zi.
+- Completare automata a zilelor lucratoare pentru departamentul selectat, fara suprascrierea exceptiilor.
+- Dosar electronic per angajat si fluturasi validati in Kiosk.
+- Inchidere/deblocare controlata a lunii de pontaj.
+- Protectie distincta pentru date personale, medicale si salariale.
+- Registru de lucru pentru REGES-ONLINE, marcat explicit ca export intern.
+
 # v2.12.211 - 2026-07-07
 
 - Health MSSQL arata transportul conexiunii, ultima migrare si starea D205/Intrastat.

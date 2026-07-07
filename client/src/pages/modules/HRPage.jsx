@@ -263,6 +263,7 @@ export default function HRPage() {
   const [importResult, setImportResult] = useState(null)
   const [deadlineDate, setDeadlineDate] = useState('')
   const [timesheetLock, setTimesheetLock] = useState(null)
+  const [timesheetEdit, setTimesheetEdit] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [photoFile, setPhotoFile] = useState(null)
   const [coBalance, setCoBalance] = useState(null)
@@ -273,7 +274,7 @@ export default function HRPage() {
   const [raportEmployee, setRaportEmployee] = useState('')
   const [overtimeBank, setOvertimeBank] = useState(null)
   const [compensateModal, setCompensateModal] = useState(false)
-  const [compensateForm, setCompensateForm] = useState({ tip: 'timp_liber', ore: '', data: new Date().toISOString().slice(0, 10) })
+  const [compensateForm, setCompensateForm] = useState({ tip: 'timp_liber', ore: '', data: new Date().toISOString().slice(0, 10), spor_procent: 75 })
   // Ture & Program
   const [tures, setTures] = useState([])
   const [scheduleEmployees, setScheduleEmployees] = useState([])
@@ -281,6 +282,7 @@ export default function HRPage() {
   const [scheduleMonth, setScheduleMonth] = useState(currentMonth())
   const [scheduleDept, setScheduleDept] = useState('')
   const [shiftModal, setShiftModal] = useState(false)
+  const [shiftEditing, setShiftEditing] = useState(null)
   const [shiftForm, setShiftForm] = useState({ nume: '', ora_start: '08:00', ora_sfarsit: '16:00', ore_normale: 8, culoare: '#3B82F6' })
   // Tichete masă
   const [mealMonth, setMealMonth] = useState(currentMonth())
@@ -355,6 +357,10 @@ export default function HRPage() {
   }, [activeTab, canUsePontaj])
 
   useEffect(() => {
+    if (activeTab === 'Pontaj' || activeTab === 'Pontaj Avansat') loadTimesheetLock().catch(() => {})
+  }, [activeTab, filters.luna])
+
+  useEffect(() => {
     if (activeTab === 'Training & Evaluări') loadTrainingData()
   }, [activeTab])
 
@@ -427,8 +433,10 @@ export default function HRPage() {
   async function createShift(event) {
     event.preventDefault()
     try {
-      await api.post('/hr/tures', shiftForm)
+      if (shiftEditing) await api.put(`/hr/tures/${shiftEditing.id}`, shiftForm)
+      else await api.post('/hr/tures', shiftForm)
       setShiftModal(false)
+      setShiftEditing(null)
       setShiftForm({ nume: '', ora_start: '08:00', ora_sfarsit: '16:00', ore_normale: 8, culoare: '#3B82F6' })
       await loadScheduleData()
     } catch (err) {
@@ -480,6 +488,18 @@ export default function HRPage() {
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
+  }
+
+  function editShift(tura) {
+    setShiftEditing(tura)
+    setShiftForm({ nume: tura.nume, ora_start: tura.ora_start, ora_sfarsit: tura.ora_sfarsit, ore_normale: tura.ore_normale || 8, culoare: tura.culoare || '#3B82F6' })
+    setShiftModal(true)
+  }
+
+  async function deactivateShift(tura) {
+    if (!window.confirm(`Dezactivezi tura ${tura.nume}? Programarile istorice raman pastrate.`)) return
+    try { await api.delete(`/hr/tures/${tura.id}`); await loadScheduleData() }
+    catch (err) { setError(err.response?.data?.error || 'Tura nu a putut fi dezactivata.') }
   }
 
   async function exportNexusTimesheet(event) {
@@ -583,9 +603,10 @@ export default function HRPage() {
     event.preventDefault()
     if (!raportEmployee) return
     try {
-      await api.post('/hr/overtime-bank/compensate', { ...compensateForm, employee_id: raportEmployee })
+      const adjustment = ['sold_initial', 'avans_timp_liber'].includes(compensateForm.tip)
+      await api.post(adjustment ? '/hr/overtime-bank/adjustment' : '/hr/overtime-bank/compensate', { ...compensateForm, employee_id: raportEmployee })
       setCompensateModal(false)
-      setCompensateForm({ tip: 'timp_liber', ore: '', data: new Date().toISOString().slice(0, 10) })
+      setCompensateForm({ tip: 'timp_liber', ore: '', data: new Date().toISOString().slice(0, 10), spor_procent: 75 })
       const response = await api.get('/hr/overtime-bank', { params: { employee_id: raportEmployee } })
       setOvertimeBank(response.data)
     } catch (err) {
@@ -1182,6 +1203,30 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
     } catch (err) { setError(err.response?.data?.error || 'Pontajul nu a putut fi validat.') }
   }
 
+  function openTimesheetCell(row, day) {
+    const current = row.zile?.[day]
+    setTimesheetEdit({ employee_id: row.employee_id || row.id, employee_name: fullName(row), data: day, tip: typeof current === 'object' ? (current.tip || 'lucru') : 'lucru', ore_lucrate: typeof current === 'object' ? (current.ore_lucrate ?? 0) : (current ?? 0), observatii: '' })
+  }
+
+  async function saveTimesheetCell(event) {
+    event.preventDefault()
+    try {
+      await api.post('/hr/timesheets', timesheetEdit)
+      setTimesheetEdit(null)
+      await load()
+    } catch (err) { setError(err.response?.data?.error || 'Pontajul nu a putut fi salvat.') }
+  }
+
+  async function fillWorkingDays() {
+    const departmentId = (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || ''
+    if (!departmentId && !window.confirm('Nu este selectat un departament. Completezi toate departamentele cu 8 ore in zilele lucratoare?')) return
+    try {
+      const response = await api.post('/hr/timesheets/fill-month', { luna: filters.luna, dept_id: departmentId, ore_lucrate: 8 })
+      await load()
+      setError(response.data?.inserted ? '' : 'Nu au fost adaugate zile: pontajele existau deja sau departamentul nu are angajati activi.')
+    } catch (err) { setError(err.response?.data?.error || 'Completarea automata nu a reusit.') }
+  }
+
   async function loadTimesheetLock() {
     const response = await api.get('/hr/timesheets/lock', { params: { luna: filters.luna } })
     setTimesheetLock(response.data)
@@ -1538,15 +1583,19 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 <div>Termen limită: {deadlineDate || 'nesetat'}</div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" disabled={timesheetLock?.locked} onClick={fillWorkingDays}>Completeaza zilele lucratoare</Button>
                 <Button size="sm" onClick={submitDepartmentTimesheet}>✅ Marchează ca Finalizat</Button>
                 <Button size="sm" variant="secondary" onClick={validateMonth}>Validează luna</Button>
                 <Button size="sm" variant="secondary" onClick={() => {
                   const rows = scopedMonthlySheet.map(row => {
-                    const obj = { 'Angajat': fullName(row) }
+                    const obj = { 'Angajat': fullName(row), 'Departament': row.department_name || '' }
                     monthDays.forEach(day => {
                       const val = row.zile?.[day]
-                      obj[day.slice(-2)] = typeof val === 'object' ? (val?.tip || val?.ore_lucrate || '') : (val ?? '')
+                      obj[`Zi ${day.slice(-2)}`] = typeof val === 'object' ? (val?.tip && val.tip !== 'lucru' ? val.tip : val?.ore_lucrate ?? '') : (val ?? '')
                     })
+                    const values = monthDays.map(day => row.zile?.[day]).map(value => typeof value === 'object' ? Number(value.ore_lucrate || 0) : Number(value || 0))
+                    obj['Total ore'] = values.reduce((sum, value) => sum + value, 0)
+                    obj['Zile lucrate'] = values.filter(value => value > 0).length
                     return obj
                   })
                   exportExcel(rows, `Pontaj_${filters.luna}${filters.dept_id ? '_' + filters.dept_id : ''}`, `Pontaj ${filters.luna}`)
@@ -1567,9 +1616,9 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 {scopedMonthlySheet.length ? scopedMonthlySheet.map(row => (
                   <tr key={row.employee_id || row.id}>
                     <td className="sticky left-0 bg-white px-3 py-2 font-medium">{fullName(row)}</td>
-                    {monthDays.map(day => <td key={day} className="p-1 text-center"><span className={`inline-flex min-w-7 justify-center rounded px-1 py-1 ${timesheetTone(row.zile?.[day])}`}>{timesheetLabel(row.zile?.[day])}</span></td>)}
+                    {monthDays.map(day => <td key={day} className="p-1 text-center"><button type="button" title={`Editeaza ${fullName(row)} - ${day}`} disabled={timesheetLock?.locked} onClick={() => openTimesheetCell(row, day)} className={`inline-flex min-w-8 justify-center rounded px-1 py-1 transition hover:ring-2 hover:ring-primary-300 disabled:cursor-not-allowed disabled:opacity-60 ${timesheetTone(row.zile?.[day])}`}>{timesheetLabel(row.zile?.[day])}</button></td>)}
                   </tr>
-                )) : <tr><td className="px-3 py-8 text-sm text-slate-500" colSpan={monthDays.length + 1}>{loading ? 'Se incarca...' : 'Nu exista pontaj.'}</td></tr>}
+                )) : <tr><td className="px-3 py-8 text-sm text-slate-500" colSpan={monthDays.length + 1}>{loading ? 'Se incarca...' : 'Nu exista angajati activi in departamentul selectat. Verifica fisa HR si asocierea utilizatorului cu angajatul.'}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -1768,6 +1817,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                   <div className="text-sm font-semibold text-slate-700">🏦 Bancă de ore — {fullName(raportLunar.employee)}</div>
                   <div className="mt-1 text-2xl font-bold text-slate-900">{overtimeBank.sold_curent ?? 0} ore</div>
                   <div className="text-xs text-slate-500">Acumulate: {overtimeBank.ore_acumulate_total ?? 0} · Compensate: {overtimeBank.ore_compensate_total ?? 0}</div>
+                  {Number(overtimeBank.ore_scadente_plata || 0) > 0 ? <div className="mt-2 text-sm font-semibold text-rose-700">{overtimeBank.ore_scadente_plata} ore au depasit termenul de 90 zile si trebuie analizate pentru plata (spor minim 75%).</div> : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {Number(overtimeBank.sold_curent || 0) > 40 ? <Badge tone="warning">⚠️ Ore expiră în curând</Badge> : null}
@@ -1802,7 +1852,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
           <Card>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm font-semibold text-slate-700">Ture definite</div>
-              <Button size="sm" onClick={() => setShiftModal(true)}>+ Tură nouă</Button>
+              <Button size="sm" onClick={() => { setShiftEditing(null); setShiftForm({ nume: '', ora_start: '08:00', ora_sfarsit: '16:00', ore_normale: 8, culoare: '#3B82F6' }); setShiftModal(true) }}>+ Tură nouă</Button>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {tures.map(tura => (
@@ -1810,6 +1860,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                   <div className="font-semibold text-slate-900">{tura.nume}</div>
                   <div className="text-sm text-slate-500">{tura.ora_start}–{tura.ora_sfarsit}</div>
                   <div className="text-xs text-slate-400">{tura.ore_normale || 8} ore normale</div>
+                  <div className="mt-3 flex gap-2"><Button size="sm" variant="secondary" onClick={() => editShift(tura)}>Editeaza</Button><Button size="sm" variant="secondary" onClick={() => deactivateShift(tura)}>Dezactiveaza</Button></div>
                 </div>
               ))}
             </div>
@@ -1998,6 +2049,16 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
           </Card>
         </div>
       ) : null}
+
+      <Modal open={Boolean(timesheetEdit)} title={timesheetEdit ? `Pontaj - ${timesheetEdit.employee_name}` : 'Pontaj'} onClose={() => setTimesheetEdit(null)}>
+        {timesheetEdit ? <form className="grid gap-3" onSubmit={saveTimesheetCell}>
+          <Input label="Data" type="date" value={timesheetEdit.data} disabled />
+          <Select label="Tip zi" value={timesheetEdit.tip} onChange={event => setTimesheetEdit({ ...timesheetEdit, tip: event.target.value, ore_lucrate: event.target.value === 'lucru' ? (timesheetEdit.ore_lucrate || 8) : 0 })} options={[{value:'lucru',label:'Lucru'}, {value:'co',label:'Concediu de odihna'}, {value:'cm',label:'Concediu medical'}, {value:'delegatie',label:'Delegatie'}, {value:'liber',label:'Zi libera'}, {value:'nemotivat',label:'Absent nemotivat'}]} />
+          <Input label="Ore lucrate" type="number" min="0" max="24" step="0.5" value={timesheetEdit.ore_lucrate} onChange={event => setTimesheetEdit({ ...timesheetEdit, ore_lucrate: event.target.value })} disabled={timesheetEdit.tip !== 'lucru' && timesheetEdit.tip !== 'delegatie'} />
+          <Input label="Observatii" value={timesheetEdit.observatii} onChange={event => setTimesheetEdit({ ...timesheetEdit, observatii: event.target.value })} />
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setTimesheetEdit(null)}>Renunta</Button><Button type="submit">Salveaza pontaj</Button></div>
+        </form> : null}
+      </Modal>
 
       {/* ─── ECHIPAMENTE PROTECȚIE ───────────────────────── */}
       {activeTab === '🦺 Echipamente' ? (
@@ -2482,7 +2543,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       </Modal>
 
       {/* ─── MODAL TURĂ NOUĂ ─────────────────────────────── */}
-      <Modal open={shiftModal} title="Tură nouă" onClose={() => setShiftModal(false)} size="md">
+      <Modal open={shiftModal} title={shiftEditing ? 'Editeaza tura' : 'Tura noua'} onClose={() => { setShiftModal(false); setShiftEditing(null) }} size="md">
         <form className="grid gap-3" onSubmit={createShift}>
           <Input label="Nume tură" value={shiftForm.nume} onChange={e => setShiftForm({ ...shiftForm, nume: e.target.value })} required />
           <div className="grid gap-3 sm:grid-cols-2">
@@ -2504,8 +2565,11 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
           <Select label="Tip compensare" value={compensateForm.tip} onChange={e => setCompensateForm({ ...compensateForm, tip: e.target.value })} options={[
             { value: 'timp_liber', label: 'Timp liber' },
             { value: 'plata', label: 'Plată' },
+            { value: 'sold_initial', label: 'Sold initial - ore lucrate anterior' },
+            { value: 'avans_timp_liber', label: 'Timp liber acordat in avans' },
           ]} />
           <Input label="Ore de compensat" type="number" value={compensateForm.ore} onChange={e => setCompensateForm({ ...compensateForm, ore: e.target.value })} required />
+          {compensateForm.tip === 'plata' ? <Input label="Spor plata (%) - minimum legal 75%" type="number" min="75" value={compensateForm.spor_procent} onChange={e => setCompensateForm({ ...compensateForm, spor_procent: e.target.value })} required /> : null}
           <Input label="Data" type="date" value={compensateForm.data} onChange={e => setCompensateForm({ ...compensateForm, data: e.target.value })} required />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setCompensateModal(false)}>Renunță</Button>

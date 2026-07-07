@@ -26,6 +26,9 @@ export function exportExcel(rows, filename, sheetName = 'Date') {
     }
   }
   ws['!cols'] = Object.values(colWidths).map(w => ({ wch: Math.min(w + 2, 50) }))
+  if (ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] }
+  ws['!freeze'] = { xSplit: 1, ySplit: 1, topLeftCell: 'B2', activePane: 'bottomRight', state: 'frozen' }
+  ws['!rows'] = [{ hpt: 24 }]
 
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
   XLSX.writeFile(wb, `${filename}.xlsx`)
