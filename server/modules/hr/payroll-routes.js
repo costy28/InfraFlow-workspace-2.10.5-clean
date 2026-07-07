@@ -4,6 +4,7 @@ const { requireAuth } = require("../../core/auth");
 const { requirePermission } = require("../../core/permissions");
 const { readDb, writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
+const { hydratePayrollInputs } = require("./payroll-data-source");
 
 const router = Router();
 
@@ -48,7 +49,7 @@ function ensurePayroll(db) {
       system: true
     });
   }
-  return db.hr;
+  return hydratePayrollInputs(db.hr);
 }
 
 function requireSalaryView(req, res, next) {

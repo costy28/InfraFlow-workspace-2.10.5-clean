@@ -989,8 +989,8 @@ export default function KioskPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Card>
                 <div className="text-sm font-semibold text-slate-700">⏱️ Pontaj luna curentă</div>
-                <div className="mt-2 text-2xl font-bold text-primary-700">{kioskSummary?.pontaj_luna?.ore_total || 0} ore</div>
-                <div className="text-xs text-slate-500">{kioskSummary?.pontaj_luna?.zile_lucrate || 0} zile lucrate</div>
+              <div className="mt-2 text-2xl font-bold text-primary-700">{kioskSummary?.pontaj_luna?.ore_total || 0} ore</div>
+              <div className="text-xs text-slate-500">{kioskSummary?.pontaj_luna?.zile_lucrate || 0} zile lucrate</div>
               </Card>
               <Card>
                 <div className="text-sm font-semibold text-slate-700">📋 Cereri în așteptare</div>
@@ -998,6 +998,15 @@ export default function KioskPage() {
                 <div className="text-xs text-slate-500">cereri personale nesoluționate</div>
               </Card>
             </div>
+
+            {!kioskToken && kioskSummary?.fluturasi?.length ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <div className="mb-3 font-semibold">Fluturasi de salariu</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {kioskSummary.fluturasi.map(item => <button type="button" key={`${item.run_id}-${item.id}`} onClick={async () => { const response = await api.get(item.url, { responseType: 'blob' }); const url = URL.createObjectURL(response.data); window.open(url, '_blank', 'noopener,noreferrer'); setTimeout(() => URL.revokeObjectURL(url), 60000) }} className="rounded-md border border-slate-200 px-3 py-2 text-left text-sm hover:bg-slate-50"><strong>{item.luna}</strong><span className="float-right">{Number(item.net || 0).toFixed(2)} RON</span></button>)}
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => document.getElementById('kiosk-leave-request')?.scrollIntoView({ behavior: 'smooth' })}>📝 Cerere concediu</Button>

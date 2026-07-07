@@ -116,6 +116,19 @@ router.get("/hr/payroll/:runId/payslips", salaryView, (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/hr/kiosk/payslips/:runId/:lineId", kioskAuth, (req, res, next) => {
+  try {
+    const hr = payrollRoutes.ensurePayroll(req.auth.db);
+    const employee = hr.employees.find((item) => String(item.user_id || "") === String(req.auth.user.id) || String(item.id) === String(req.auth.user.employee_id || req.auth.user.employeeId || ""));
+    if (!employee) throwHttp(404, "Angajatul asociat utilizatorului nu a fost gasit.");
+    const run = payrollRoutes.findRun(hr, req.params.runId);
+    if (run.status !== "validat") throwHttp(403, "Fluturasul este disponibil numai dupa validarea statului salarial.");
+    const line = hr.payrollLines.find((item) => String(item.id) === String(req.params.lineId) && item.run_id === run.id && String(item.employee_id) === String(employee.id) && !item.cancelled_at);
+    if (!line) throwHttp(404, "Fluturasul nu a fost gasit pentru utilizatorul curent.");
+    res.type("html").send(payslipHtml(req.auth.db, run, line));
+  } catch (error) { next(error); }
+});
+
 router.get("/hr/payroll/:runId/payment-register", salaryView, (req, res, next) => {
   try {
     const hr = payrollRoutes.ensurePayroll(req.auth.db);
@@ -260,6 +273,8 @@ function validDate(value) { const date = String(value || ""); if (!/^\d{4}-\d{2}
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])); }
 function salaryView(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:salary_view")) return; req.auth = auth; next(); }
 function salaryManage(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:manage")) return; req.auth = auth; next(); }
+function kioskAuth(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; req.auth = auth; next(); }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
+router.payslipHtml = payslipHtml;
 module.exports = router;

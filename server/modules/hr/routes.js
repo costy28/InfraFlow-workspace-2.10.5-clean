@@ -14,6 +14,10 @@ const { valideazaCNP, infoCNP } = require('../../shared/cnp-validator')
 const { registerPontaj } = require('../controlling/auto-register')
 const { notifyUser, createDepartmentChannel } = require('../messaging/routes')
 const { sendEmail } = require('../messaging/email')
+const { sanitizeEmployee } = require('./data-policy')
+const payrollRoutes = require('./payroll-routes')
+const { assertTimesheetOpen } = require('./timesheet-locks')
+const { buildRegesWorkRow, buildRegesWorkbook, buildInternalXml } = require('./reges-work-register')
 
 const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
@@ -90,6 +94,7 @@ function ensureHrDb(db) {
   db.hr.overtimeCompensations = Array.isArray(db.hr.overtimeCompensations) ? db.hr.overtimeCompensations : []
   db.hr.kioskUsers = Array.isArray(db.hr.kioskUsers) ? db.hr.kioskUsers : []
   db.hr.kioskResetCodes = Array.isArray(db.hr.kioskResetCodes) ? db.hr.kioskResetCodes : []
+  db.hr.timesheetLocks = Array.isArray(db.hr.timesheetLocks) ? db.hr.timesheetLocks : []
   return db.hr
 }
 
@@ -220,14 +225,17 @@ function identityText(employee = {}) {
 }
 
 function publicEmployee(employee, auth, db) {
-  const result = {
+  const result = sanitizeEmployee({
     ...employee,
     department_name: employee.department_name || departmentName(db, employee.department_id),
     zile_vechime: daysBetween(employee.data_angajare)
-  }
-  if (!authHasPermission(auth, 'hr:salary_view')) {
-    delete result.salariu_baza
-  }
+  }, {
+    own: String(employee.user_id || '') === String(auth?.user?.id || ''),
+    personal: authHasPermission(auth, 'hr:personal_sensitive'),
+    medical: authHasPermission(auth, 'hr:medical_view'),
+    contact: authHasPermission(auth, 'hr:view') && !authHasPermission(auth, 'echipamente:gestionar') || authHasPermission(auth, 'hr:employees_manage'),
+    salary: authHasPermission(auth, 'hr:salary_view')
+  })
   return result
 }
 
@@ -632,6 +640,7 @@ function kioskEquipmentResponsibility(db, employeeId) {
 
 function kioskDataFor(db, auth) {
   const hr = ensureHrDb(db)
+  payrollRoutes.ensurePayroll(db)
   const month = todayIso().slice(0, 7)
   const year = todayIso().slice(0, 4)
   const linkedEmployeeId = auth.user.employee_id || auth.user.employeeId || ''
@@ -715,7 +724,13 @@ FOR JSON PATH;`, { employeeId: employee.id, month })
     cereri_asteptare: leaves.filter((item) => ['cerut', 'asteptare', 'in_asteptare', 'pending'].includes(String(item.status || '').toLowerCase())),
     autorizatii: authorizations.map(authorizationView),
     program: schedules,
-    fluturasi: [],
+    fluturasi: hr.payrollLines
+      .filter((line) => String(line.employee_id) === String(employee.id) && !line.cancelled_at)
+      .map((line) => ({ line, run: hr.payrollRuns.find((run) => run.id === line.run_id && run.status === 'validat' && !run.cancelled_at) }))
+      .filter((entry) => entry.run)
+      .sort((a, b) => String(b.run.luna).localeCompare(String(a.run.luna)))
+      .slice(0, 12)
+      .map(({ line, run }) => ({ id: line.id, run_id: run.id, luna: run.luna, net: line.net, status: run.status, url: `/api/hr/kiosk/payslips/${run.id}/${line.id}` })),
     notificari: personalNotifications(db, auth.user.id),
     echipamente: kioskEquipmentResponsibility(db, employee.id),
   }
@@ -733,20 +748,7 @@ router.get('/kiosk/data', (req, res, next) => {
 
 function regesXml(db, employee, contract) {
   const company = companySettings(db)
-  return `<?xml version="1.0" encoding="utf-8"?>
-<ReviSal versiune="6">
-  <angajator cui="${escapeXml(company.cui || company.company_cui || '')}" denumire="${escapeXml(company.denumire || company.company_name || '')}">
-    <salariat>
-      <cnp>${escapeXml(employee.cnp)}</cnp>
-      <nume>${escapeXml(employee.nume)}</nume>
-      <prenume>${escapeXml(employee.prenume)}</prenume>
-      <functie>${escapeXml(employee.functia)}</functie>
-      <dataAngajare>${escapeXml(employee.data_angajare)}</dataAngajare>
-      <tipContract>${escapeXml(contract.tip)}</tipContract>
-      <salariu>${escapeXml(contract.salariu_baza)}</salariu>
-    </salariat>
-  </angajator>
-</ReviSal>`
+  return buildInternalXml(buildRegesWorkRow(employee, contract, company))
 }
 
 function saveRegesFile(uuid, xml) {
@@ -2033,6 +2035,7 @@ router.post('/hr/timesheets', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:timesheet')) return
     const body = req.body || {}
     const db = readDb()
+    assertTimesheetOpen(db, String(body.data || '').slice(0, 7))
 
     if (isMssqlMode()) {
       const item = mssqlObject(`
@@ -2120,6 +2123,7 @@ router.post('/hr/timesheets/submit-department', (req, res, next) => {
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:timesheet')) return
     const db = readDb()
+    assertTimesheetOpen(db, String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7))
     if (isMssqlMode()) {
       const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
       const department = String(req.body.department_cod || auth.user.department_cod || auth.user.department_id || '').toLowerCase()
@@ -2246,6 +2250,7 @@ router.post('/hr/timesheets/validate', async (req, res, next) => {
     const employeeIds = (req.body.employee_ids || []).map(String)
     const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
     const db = readDb()
+    assertTimesheetOpen(db, luna)
 
     if (isMssqlMode()) {
       const rows = mssqlArray(`
@@ -2646,7 +2651,8 @@ SELECT TOP 1 * FROM hr.reges_exports WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR J
     addAudit(db, auth.user, 'hr_reges_export', `${body.tip}/${employee.id}`)
     writeDb(db)
     res.setHeader('Content-Type', 'application/xml; charset=utf-8')
-    res.setHeader('Content-Disposition', `attachment; filename=reges-${uuid}.xml`)
+    res.setHeader('X-InfraFlow-Official-Submission', 'false')
+    res.setHeader('Content-Disposition', `attachment; filename=registru-lucru-reges-${uuid}.xml`)
     res.send(xml)
   } catch (error) {
     next(error)
@@ -3344,6 +3350,24 @@ router.get('/hr/kiosk/my-trips', (req, res, next) => {
     })
     return sendJson(res, 200, { trips: enriched })
   } catch (err) { next(err) }
+})
+
+router.get('/hr/reges/work-register.xlsx', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:reges_export')) return
+    const db = readDb()
+    const hr = ensureHrDb(db)
+    const employees = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.employees WHERE activ=1 FOR JSON PATH;`) : hr.employees.filter((item) => item.activ !== false)
+    const contracts = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.contracts WHERE status=N'activ' FOR JSON PATH;`) : hr.contracts.filter((item) => item.status === 'activ')
+    const rows = employees.map((employee) => buildRegesWorkRow(employee, contracts.find((contract) => String(contract.employee_id) === String(employee.id)) || {}, companySettings(db)))
+    const buffer = xlsx.write(buildRegesWorkbook(rows), { type: 'buffer', bookType: 'xlsx' })
+    addAudit(db, auth.user, 'hr_reges_work_register_export', `${rows.length} angajati`)
+    writeDb(db)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', 'attachment; filename="Registru_lucru_REGES_ONLINE.xlsx"')
+    res.end(buffer)
+  } catch (error) { next(error) }
 })
 
 router.get('/hr/kiosk/me', (req, res, next) => {

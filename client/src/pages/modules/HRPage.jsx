@@ -204,6 +204,33 @@ function OrgChart({ employees, departments, onClickEmployee }) {
   )
 }
 
+function EmployeeFilesPanel({ employeeId, canManage, onError }) {
+  const [items, setItems] = useState([])
+  const [file, setFile] = useState(null)
+  const [type, setType] = useState('contract')
+  const [busy, setBusy] = useState(false)
+  async function loadFiles() {
+    try { const response = await api.get(`/hr/employees/${employeeId}/files`); setItems(response.data?.items || []) } catch (error) { onError(error.response?.data?.error || 'Dosarul electronic nu a putut fi incarcat.') }
+  }
+  useEffect(() => { if (employeeId) loadFiles() }, [employeeId])
+  async function uploadFile() {
+    if (!file) return
+    try {
+      setBusy(true)
+      const form = new FormData(); form.append('file', file); form.append('tip', type); form.append('denumire', file.name)
+      await api.post(`/hr/employees/${employeeId}/files`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setFile(null); await loadFiles()
+    } catch (error) { onError(error.response?.data?.error || 'Documentul nu a putut fi incarcat.') } finally { setBusy(false) }
+  }
+  async function downloadFile(item) {
+    try {
+      const response = await api.get(`/hr/employees/${employeeId}/files/${item.id}/download`, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data); const anchor = document.createElement('a'); anchor.href = url; anchor.download = item.file_name; anchor.click(); URL.revokeObjectURL(url)
+    } catch (error) { onError(error.response?.data?.error || 'Documentul nu a putut fi descarcat.') }
+  }
+  return <div className="rounded-lg border border-slate-200 p-3"><div className="mb-3 flex items-center justify-between"><div><div className="font-semibold">Dosar electronic</div><div className="text-xs text-slate-500">Contracte, acte, diplome si documente medicale.</div></div><Button size="sm" variant="secondary" onClick={loadFiles}>Reincarca</Button></div>{canManage ? <div className="mb-3 grid gap-2 sm:grid-cols-[180px_1fr_auto]"><Select value={type} onChange={event => setType(event.target.value)} options={[{value:'contract',label:'Contract'}, {value:'act_aditional',label:'Act aditional'}, {value:'identitate',label:'Act identitate'}, {value:'medical',label:'Medical'}, {value:'diploma',label:'Diploma'}, {value:'altul',label:'Altul'}]} /><Input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" onChange={event => setFile(event.target.files?.[0] || null)} /><Button onClick={uploadFile} disabled={!file || busy}>{busy ? 'Se incarca...' : 'Incarca'}</Button></div> : null}<div className="grid gap-2">{items.map(item => <div key={item.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-3 py-2 text-sm"><div><strong>{item.denumire}</strong><div className="text-xs text-slate-500">{item.tip} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB</div></div><Button size="sm" variant="secondary" onClick={() => downloadFile(item)}>Descarca</Button></div>)}{!items.length ? <div className="text-sm text-slate-500">Nu exista documente incarcate.</div> : null}</div></div>
+}
+
 export default function HRPage() {
   const { user } = useAuth()
 
@@ -235,6 +262,7 @@ export default function HRPage() {
   const [importFile, setImportFile] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [deadlineDate, setDeadlineDate] = useState('')
+  const [timesheetLock, setTimesheetLock] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [photoFile, setPhotoFile] = useState(null)
   const [coBalance, setCoBalance] = useState(null)
@@ -1147,9 +1175,26 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
   }
 
   async function validateMonth() {
-    const employeeIds = scopedMonthlySheet.map(row => row.employee_id || row.id).filter(Boolean)
-    await api.post('/hr/timesheets/validate', { employee_ids: employeeIds, luna: filters.luna })
-    await load()
+    try {
+      const employeeIds = scopedMonthlySheet.map(row => row.employee_id || row.id).filter(Boolean)
+      await api.post('/hr/timesheets/validate', { employee_ids: employeeIds, luna: filters.luna })
+      await load()
+    } catch (err) { setError(err.response?.data?.error || 'Pontajul nu a putut fi validat.') }
+  }
+
+  async function loadTimesheetLock() {
+    const response = await api.get('/hr/timesheets/lock', { params: { luna: filters.luna } })
+    setTimesheetLock(response.data)
+  }
+
+  async function toggleTimesheetLock() {
+    try {
+      const locked = timesheetLock?.locked
+      const motiv = window.prompt(locked ? 'Motivul deblocarii pontajului:' : 'Motivul inchiderii pontajului:', locked ? '' : 'Pontaj lunar verificat si inchis')
+      if (!motiv) return
+      await api.post(locked ? '/hr/timesheets/unlock' : '/hr/timesheets/lock', { luna: filters.luna, motiv })
+      await loadTimesheetLock()
+    } catch (err) { setError(err.response?.data?.error || 'Starea pontajului nu a putut fi schimbata.') }
   }
 
   async function createEmployee(event) {
@@ -1628,6 +1673,12 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       {activeTab === 'Pontaj Avansat' ? (
         <div className="grid gap-4">
           <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><div className="font-semibold">Inchidere pontaj {filters.luna}</div><div className="text-sm text-slate-500">{timesheetLock?.locked ? 'Luna este inchisa. Modificarile sunt blocate.' : 'Luna este deschisa pentru completare si validare.'}</div></div>
+              <div className="flex gap-2"><Button variant="secondary" onClick={loadTimesheetLock}>Verifica stare</Button>{hasPerm('hr:timesheets_validate') ? <Button variant={timesheetLock?.locked ? 'secondary' : 'primary'} onClick={toggleTimesheetLock}>{timesheetLock?.locked ? 'Deblocheaza luna' : 'Inchide luna'}</Button> : null}</div>
+            </div>
+          </Card>
+          <Card>
             <div className="grid gap-3 md:grid-cols-3">
               <Select label="Angajat" value={raportEmployee} onChange={e => setRaportEmployee(e.target.value)}
                 options={[{ value: '', label: 'Alege angajat…' }, ...filteredEmployees.map(emp => ({ value: String(emp.id), label: fullName(emp) }))]} />
@@ -2079,6 +2130,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       <Modal open={Boolean(selectedEmployee)} title={selectedEmployee ? `Fișa — ${fullName(selectedEmployee)}` : ''} onClose={() => setSelectedEmployee(null)} size="lg">
         {employeeDetails ? (
           <div className="grid gap-4">
+            <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} />
             {/* Photo + basic info */}
             <div className="flex items-start gap-4">
               <div className="relative flex-shrink-0">
