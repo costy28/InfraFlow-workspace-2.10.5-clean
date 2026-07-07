@@ -9,7 +9,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { useAuth } from '../../hooks/useAuth'
 
-const tabs = ['🔍 Căutare CIF', '📄 Facturi e-Factura', '📦 Parteneri']
+const tabs = ['🔍 Căutare CIF', '📄 Facturi e-Factura', '📦 Parteneri', '🔐 Conectare SPV']
 
 const STATUS_LABEL = {
   draft: { label: 'Draft', tone: 'neutral' },
@@ -77,6 +77,10 @@ export default function AnafPage() {
   // ── Parteneri ──
   const [partners, setPartners] = useState([])
   const [partLoading, setPartLoading] = useState(false)
+  const [spv, setSpv] = useState({})
+  const [spvForm, setSpvForm] = useState({ client_id: '', client_secret: '', redirect_uri: '' })
+  const [spvCode, setSpvCode] = useState('')
+  const [spvState, setSpvState] = useState('')
   const isAdmin = ['admin', 'superadmin'].includes(user?.role)
   const invoiceReadOnly = Boolean(editingInvoice && editingInvoice.status !== 'draft' && !(editingInvoice.status === 'validata' && validatedEditUnlocked && isAdmin))
 
@@ -138,10 +142,15 @@ export default function AnafPage() {
     } catch { setPartners([]) } finally { setPartLoading(false) }
   }
 
+  async function loadSpv() {
+    try { const res = await api.get('/anaf/spv/diagnostic'); setSpv(res.data); setSpvForm(form => ({ ...form, client_id: res.data.client_id || '', redirect_uri: res.data.redirect_uri || '' })) } catch (err) { setError(err.response?.data?.error || 'Diagnosticul SPV nu a putut fi incarcat.') }
+  }
+
   useEffect(() => {
     Promise.resolve().then(() => {
       if (activeTab === tabs[1]) loadInvoices()
       if (activeTab === tabs[2]) loadPartners()
+      if (activeTab === tabs[3]) loadSpv()
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, filterStatus, filterYear])
@@ -151,6 +160,19 @@ export default function AnafPage() {
       .then(response => setImplicitVat(Number(response.data.tva_implicit ?? 21)))
       .catch(() => setImplicitVat(21))
   }, [])
+
+  async function saveSpv(e) {
+    e.preventDefault(); setError('')
+    try { const res = await api.put('/anaf/spv/config', spvForm); setSpv(res.data); setSpvForm(form => ({ ...form, client_secret: '' })) } catch (err) { setError(err.response?.data?.error || 'Configurarea SPV nu a putut fi salvata.') }
+  }
+
+  async function authorizeSpv() {
+    try { const res = await api.post('/anaf/spv/authorization-url'); setSpvState(res.data.state); window.open(res.data.url, '_blank', 'noopener,noreferrer') } catch (err) { setError(err.response?.data?.error || 'Autorizarea SPV nu a putut fi pornita.') }
+  }
+
+  async function exchangeSpvCode() {
+    try { const res = await api.post('/anaf/spv/exchange-code', { code: spvCode, state: spvState }); setSpv(res.data); setSpvCode('') } catch (err) { setError(err.response?.data?.error || 'Codul ANAF nu a putut fi schimbat cu token.') }
+  }
 
   // ── Lookup CIF ──
   async function lookupCif(e) {
@@ -375,6 +397,27 @@ export default function AnafPage() {
                 </ol>
               </div>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === tabs[3] && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <h3 className="mb-2 text-base font-semibold">Conectare OAuth ANAF</h3>
+            <p className="mb-4 text-sm text-slate-500">Completeaza datele aplicatiei inregistrate la ANAF. Secretul si tokenurile sunt criptate local.</p>
+            <form className="grid gap-3" onSubmit={saveSpv}>
+              <Input label="Client ID" value={spvForm.client_id} onChange={e => setSpvForm({ ...spvForm, client_id: e.target.value })} />
+              <Input label="Secret client" type="password" value={spvForm.client_secret} onChange={e => setSpvForm({ ...spvForm, client_secret: e.target.value })} placeholder={spv.configured ? 'Salvat - completeaza doar pentru schimbare' : ''} />
+              <Input label="URL redirectare" value={spvForm.redirect_uri} onChange={e => setSpvForm({ ...spvForm, redirect_uri: e.target.value })} />
+              <div className="flex flex-wrap gap-2"><Button type="submit">Salveaza</Button><Button type="button" variant="secondary" disabled={!spv.configured} onClick={authorizeSpv}>Deschide autorizarea ANAF</Button></div>
+            </form>
+            {spvState && <div className="mt-4 grid gap-2"><Input label="Codul returnat de ANAF" value={spvCode} onChange={e => setSpvCode(e.target.value)} /><Button disabled={!spvCode} onClick={exchangeSpvCode}>Finalizeaza conectarea</Button></div>}
+          </Card>
+          <Card>
+            <h3 className="mb-3 text-base font-semibold">Stare conexiune</h3>
+            <div className="grid gap-2 text-sm"><div className="flex justify-between"><span>Configurare</span><Badge tone={spv.configured ? 'success' : 'warning'}>{spv.configured ? 'completa' : 'incompleta'}</Badge></div><div className="flex justify-between"><span>Autorizare</span><Badge tone={spv.authorized ? 'success' : 'neutral'}>{spv.authorized ? 'activa' : 'neautorizata'}</Badge></div>{spv.token_expires_at && <div>Token valabil pana la: {new Date(spv.token_expires_at).toLocaleString('ro-RO')}</div>}</div>
+            <p className="mt-4 text-sm text-slate-500">Pana la autorizarea completa, XML-ul poate fi descarcat si incarcat manual in SPV, iar recipisa poate fi atasata facturii.</p>
           </Card>
         </div>
       )}

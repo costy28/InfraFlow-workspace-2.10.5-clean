@@ -1,5 +1,5 @@
 {
-  "version": "2.12.190",
-  "date": "2026-07-01",
-  "changelog": "## v2.12.190 - 2026-07-01\n### Recipise si inchidere fiscala\n- Recipisa D406 arhivata cu rularea SAF-T.\n- Luna depusa numai cu recipise acceptate.\n- Build complet Server si Client."
+  "version": "2.12.210",
+  "date": "2026-07-06",
+  "changelog": "## v2.12.210 - 2026-07-06\n### Inchidere controlata contabilitate\n- D205 validata cu schema oficiala ANAF si persistenta MSSQL extinsa.\n- Intrastat completat, situatii financiare semnabile si pregatire OAuth SPV.\n- Acceptanta automata pentru health, backup, regresii si build complet."
 }

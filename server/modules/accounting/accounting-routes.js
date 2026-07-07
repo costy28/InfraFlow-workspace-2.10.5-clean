@@ -18,6 +18,7 @@ const registerAccountingControlRoutes = require("./accounting-control-routes");
 const registerSettlementRoutes = require("./settlement-routes");
 const registerFinancialStatementRoutes = require("./financial-statement-routes");
 const registerFiscalWorkspaceRoutes = require("./fiscal-workspace-routes");
+const registerFiscalExtraRoutes = require("./fiscal-extra-routes");
 const fiscalSubmission = require("./fiscal-submission");
 
 const router = Router();
@@ -4141,6 +4142,7 @@ registerAccountingControlRoutes(router, { requireAccountingView, requireAccounti
 registerSettlementRoutes(router, { requireAccountingView, requireAccountingPost, requireAccountingReports });
 registerFinancialStatementRoutes(router, { requireAccountingReports, requireAccountingManage });
 registerFiscalWorkspaceRoutes(router, { requireAccountingReports, requireAccountingPost });
+registerFiscalExtraRoutes(router, { requireAccountingReports, requireAccountingPost });
 
 router.periodCheck = periodCheck;
 router.buildClassicJournalsData = buildClassicJournalsData;

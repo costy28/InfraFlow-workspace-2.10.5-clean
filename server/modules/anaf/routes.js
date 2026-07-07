@@ -16,6 +16,7 @@ const crypto = require('crypto')
 const multer = require('multer')
 const router = Router()
 const responseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
+const spvClient = require('./spv-client')
 
 function sendJson(res, status, data) {
   res.status(status).json(data)
@@ -256,6 +257,54 @@ router.get('/anaf/settings', (req, res) => {
   if (!auth) return
   if (!requirePermission(auth, res, 'anaf:view')) return
   sendJson(res, 200, { tva_implicit: implicitVat(auth.db) })
+})
+
+router.get('/anaf/spv/diagnostic', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth || !requirePermission(auth, res, 'anaf:view')) return
+  sendJson(res, 200, spvClient.publicConfig(auth.db))
+})
+
+router.put('/anaf/spv/config', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'anaf:manage')) return
+    const config = spvClient.saveConfig(auth.db, req.body || {})
+    addAudit(auth.db, auth.user, 'anaf_spv_config', config.client_id || 'neconfigurat')
+    writeDb(auth.db)
+    sendJson(res, 200, config)
+  } catch (err) { next(err) }
+})
+
+router.post('/anaf/spv/authorization-url', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'anaf:manage')) return
+    const result = spvClient.authorizationUrl(auth.db)
+    writeDb(auth.db)
+    sendJson(res, 200, result)
+  } catch (err) { next(err) }
+})
+
+router.post('/anaf/spv/exchange-code', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'anaf:manage')) return
+    const config = await spvClient.exchangeCode(auth.db, String(req.body?.code || ''), String(req.body?.state || ''))
+    addAudit(auth.db, auth.user, 'anaf_spv_authorized', config.client_id)
+    writeDb(auth.db)
+    sendJson(res, 200, config)
+  } catch (err) { next(err) }
+})
+
+router.post('/anaf/spv/refresh', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'anaf:manage')) return
+    const config = await spvClient.refresh(auth.db)
+    writeDb(auth.db)
+    sendJson(res, 200, config)
+  } catch (err) { next(err) }
 })
 
 router.get('/anaf/invoices', (req, res, next) => {

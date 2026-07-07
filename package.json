@@ -5,10 +5,12 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build": "cd client && npm run build",
     "start": "node server/src/server.js",
-    "test:accounting": "node --test server/tests/accounting-regression.test.js"
+    "test:accounting": "node --test server/tests/accounting-regression.test.js",
+    "test:release": "node scripts/release-accounting-acceptance.js",
+    "test:backup": "node scripts/verify-backup-roundtrip.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
-  "version": "2.12.190"
+  "version": "2.12.210"
 }

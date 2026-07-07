@@ -99,7 +99,9 @@ function registerFinancialStatementRoutes(router, middleware) {
         [report.title, `La ${report.period_end}`, `Comparativ ${report.previous_period_end}`], [],
         ["Cod", "Indicator", "Prefixe conturi", "An curent", "An precedent", "Diferenta", "Variatie %"],
         ...report.rows.map((row) => [row.code, row.label, row.prefixes.join(", "), row.current, row.previous, row.difference, row.variation_percent]),
-        [], ["Control", report.control.message, "", report.control.current, report.control.previous]
+        [], ["Control", report.control.message, "", report.control.current, report.control.previous], [],
+        ["Intocmit", report.signatures.prepared_by, "Verificat", report.signatures.reviewed_by],
+        ["Aprobat", report.signatures.approved_by, "Data raport", report.generated_at.slice(0, 10)]
       ]);
       sheet["!cols"] = [{ wch: 12 }, { wch: 48 }, { wch: 30 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 14 }];
       sheet["!autofilter"] = { ref: `A3:G${Math.max(3, report.rows.length + 3)}` };
@@ -147,6 +149,7 @@ function buildReport(db, query = {}) {
   return {
     statement_type: statementType, title: statementType === "BILANT" ? "Situatia pozitiei financiare" : "Contul de profit si pierdere",
     an, luna, profile, period_end: endDate(an, luna), previous_period_end: endDate(an - 1, luna), rows, control,
+    generated_at: new Date().toISOString(), signatures: reportSignatures(db, query),
     note: "Raport configurabil. Depunerea oficiala necesita formularul si programul de asistenta aplicabile entitatii."
   };
 }
@@ -185,7 +188,12 @@ function profitControl(rows) {
 function renderHtml(db, report) {
   const company = db.company || db.settings?.company || db.settings?.general || {};
   const rows = report.rows.map((row) => `<tr><td>${escapeHtml(row.code)}</td><td>${escapeHtml(row.label)}</td><td class="num">${format(row.current)}</td><td class="num">${format(row.previous)}</td><td class="num">${format(row.difference)}</td></tr>`).join("");
-  return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>@page{size:A4 landscape;margin:14mm}body{font-family:Arial;color:#172033}h1{color:#075b49}.meta{padding:10px;background:#f2f7f5}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccd5df;padding:7px}th{background:#e7f1ee}.num{text-align:right}.warn{padding:10px;background:#fff4d6}.no-print{margin-bottom:10px}@media print{.no-print{display:none}}</style></head><body><button class="no-print" onclick="window.print()">Tipareste / Salveaza PDF</button><h1>${escapeHtml(report.title)}</h1><div class="meta"><strong>${escapeHtml(company.name || company.companyName || company.denumire || "Societate")}</strong><br>Perioada ${report.period_end} · comparativ ${report.previous_period_end}</div><table><thead><tr><th>Cod</th><th>Indicator</th><th>An curent</th><th>An precedent</th><th>Diferenta</th></tr></thead><tbody>${rows}</tbody></table><p class="${report.control.ok ? "meta" : "warn"}">${escapeHtml(report.control.message)} Diferenta curenta: ${format(report.control.current)} RON.</p><p>${escapeHtml(report.note)}</p></body></html>`;
+  return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>@page{size:A4 landscape;margin:14mm}body{font-family:Arial;color:#172033}h1{color:#075b49}.meta{padding:10px;background:#f2f7f5}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccd5df;padding:7px}th{background:#e7f1ee}.num{text-align:right}.warn{padding:10px;background:#fff4d6}.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:30px}.sign div{border-top:1px solid #778;padding-top:8px}.no-print{margin-bottom:10px}@media print{.no-print{display:none}}</style></head><body><button class="no-print" onclick="window.print()">Tipareste / Salveaza PDF</button><h1>${escapeHtml(report.title)}</h1><div class="meta"><strong>${escapeHtml(company.name || company.companyName || company.denumire || "Societate")}</strong><br>Perioada ${report.period_end} · comparativ ${report.previous_period_end}</div><table><thead><tr><th>Cod</th><th>Indicator</th><th>An curent</th><th>An precedent</th><th>Diferenta</th></tr></thead><tbody>${rows}</tbody></table><p class="${report.control.ok ? "meta" : "warn"}">${escapeHtml(report.control.message)} Diferenta curenta: ${format(report.control.current)} RON.</p><p>${escapeHtml(report.note)}</p><div class="sign"><div>Intocmit<br><strong>${escapeHtml(report.signatures.prepared_by)}</strong></div><div>Verificat<br><strong>${escapeHtml(report.signatures.reviewed_by)}</strong></div><div>Aprobat<br><strong>${escapeHtml(report.signatures.approved_by)}</strong></div></div></body></html>`;
+}
+
+function reportSignatures(db, query) {
+  const configured = db.settings?.accounting_signatures || {};
+  return { prepared_by: String(query.prepared_by || configured.prepared_by || ""), reviewed_by: String(query.reviewed_by || configured.reviewed_by || ""), approved_by: String(query.approved_by || configured.approved_by || "") };
 }
 
 function normalizePrefixes(value) { const items = Array.isArray(value) ? value : String(value || "").split(/[,;\s]+/); return [...new Set(items.map((item) => String(item).trim()).filter((item) => /^\d[\d.]*$/.test(item)))]; }

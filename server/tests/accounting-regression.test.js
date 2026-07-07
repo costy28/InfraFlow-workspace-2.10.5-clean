@@ -22,12 +22,15 @@ const financialStatements = require("../modules/accounting/financial-statement-r
 const declarationAdapters = require("../modules/accounting/declaration-adapters");
 const saftGenerator = require("../modules/accounting/saft-generator");
 const xsdValidator = require("../modules/accounting/xsd-validator");
+const d205Validator = require("../modules/accounting/d205-validator");
+const spvClient = require("../modules/anaf/spv-client");
 const saftGuidance = require("../modules/accounting/saft-guidance");
 const fiscalWorkspace = require("../modules/accounting/fiscal-workspace-routes");
 const saftIntegrity = require("../modules/accounting/saft-integrity");
 const fiscalDossier = require("../modules/accounting/fiscal-dossier");
 const AdmZip = require("adm-zip");
 const fiscalSubmission = require("../modules/accounting/fiscal-submission");
+const fiscalExtras = require("../modules/accounting/fiscal-extras");
 
 function fixture() {
   const db = { settings: { general: { cif: "RO9126534", companyName: "Companie Test" } } };
@@ -938,4 +941,47 @@ test("depunerea fiscala cere recipise acceptate pentru toate declaratiile", () =
   check = fiscalSubmission.submissionCheck(accounting, 2026, 6);
   assert.equal(check.ready, true);
   assert.deepEqual(check.missing, []);
+});
+
+test("D205 centralizeaza venitul si impozitul retinut", () => {
+  const { db, accounting } = fixture();
+  accounting.withholdingTaxEntries.push({ id: 1, an: 2026, cnp_cui: "1234567890123", nume: "Beneficiar Test", tip_venit: "dividende", venit_brut: 1000, impozit_retinut: 100 });
+  const report = fiscalExtras.d205Report(db, 2026);
+  assert.equal(report.ready, true);
+  assert.equal(report.totals.venit_brut, 1000);
+  assert.equal(report.totals.impozit_retinut, 100);
+  const d205Xml = fiscalExtras.d205CandidateXml(report, { cif: "RO9126534", companyName: "Companie Test", address: "Piatra Neamt" });
+  assert.match(d205Xml, /<declaratie205 xmlns="mfp:anaf:dgti:d205:declaratie:v2"/);
+  const d205Validation = d205Validator.validate(d205Xml);
+  assert.equal(d205Validation.accepted, true, d205Validation.errors?.join(" "));
+});
+
+test("Intrastat verifica tara si codul NC", () => {
+  const { db, accounting } = fixture();
+  accounting.intrastatEntries.push({ id: 1, an: 2026, luna: 6, flux: "introduceri", tara_partenera: "DE", cod_nc: "27132000", natura_tranzactie: "11", masa_neta: 250.5, valoare_facturata: 5000 });
+  const report = fiscalExtras.intrastatReport(db, "2026-06");
+  assert.equal(report.ready, true);
+  assert.equal(report.totals.masa_neta, 250.5);
+  assert.match(fiscalExtras.intrastatCandidateXml(report, { cif: "RO9126534" }), /codNC="27132000"/);
+});
+
+test("harta fiscala reuneste declaratiile lunare D205 si Intrastat", () => {
+  const { db, accounting } = fixture();
+  accounting.declarationRuns.push({ id: 1, code: "D300", an: 2026, luna: 6, status: "acceptat", receipt_status: "acceptata" });
+  accounting.withholdingTaxEntries.push({ id: 1, an: 2026, cnp_cui: "1234567890123", nume: "Beneficiar", tip_venit: "dividende", venit_brut: 100, impozit_retinut: 10 });
+  const report = fiscalExtras.completionMap(db, "2026-06");
+  assert.equal(report.declarations.find((item) => item.code === "D300").receipt_status, "acceptata");
+  assert.equal(report.d205.ready, true);
+  assert.equal(report.intrastat.ready, false);
+});
+
+test("configurarea SPV nu expune secretul si genereaza stare OAuth", () => {
+  const db = {};
+  const saved = spvClient.saveConfig(db, { client_id: "client-test", client_secret: "secret-test", redirect_uri: "https://erp.test/anaf/callback" });
+  assert.equal(saved.configured, true);
+  assert.equal(saved.client_secret, undefined);
+  assert.notEqual(db.anaf.spv.client_secret_enc, "secret-test");
+  const authorization = spvClient.authorizationUrl(db);
+  assert.match(authorization.url, /client_id=client-test/);
+  assert.equal(authorization.state.length, 48);
 });

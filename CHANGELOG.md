@@ -1,5 +1,22 @@
 # Changelog
 
+# v2.12.210 - 2026-07-06
+
+- D205 genereaza structura ANAF si este verificata local cu XSD-ul oficial.
+- Intrastat include origine, judet, conditie de livrare, transport si valoare statistica.
+- Situatiile financiare includ zonele Intocmit, Verificat si Aprobat.
+- Integrarea SPV are configurare OAuth, autorizare si reinnoire token, cu secrete criptate.
+- Campurile fiscale sunt persistate si in oglinzile relationale MSSQL.
+- Acceptanta de release verifica regresiile contabile, backup-ul si pornirea pe baza curata.
+
+# v2.12.200 - 2026-07-02
+
+- D205: registru anual, controale, export Excel si XML candidat.
+- Intrastat: registru lunar, validari, export Excel si XML candidat.
+- Harta fiscala unica pentru D300, D394, D112, D406, D205 si Intrastat.
+- D112, situatiile financiare, trezoreria si e-Factura consolidate prin acceptanta si regresii.
+- Persistenta JSON/MSSQL si build comercial complet Server, Client si ZIP update.
+
 # v2.12.190 - 2026-07-01
 
 - Recipisele D406 sunt legate de rularea SAF-T si arhivate cu hash.

@@ -44,7 +44,9 @@ function syncAccountingToMssql(db, user = {}) {
     annualClosings: syncTable("accounting_annual_closings", prepared.annualClosings, sqlAnnualClosings()),
     declarationRuns: syncTable("accounting_declaration_runs", prepared.declarationRuns, sqlDeclarationRuns()),
     anafSchemas: syncTable("accounting_anaf_schemas", prepared.anafSchemas, sqlAnafSchemas()),
-    carryforwardRuns: syncTable("accounting_carryforward_runs", prepared.carryforwardRuns, sqlCarryforwardRuns())
+    carryforwardRuns: syncTable("accounting_carryforward_runs", prepared.carryforwardRuns, sqlCarryforwardRuns()),
+    withholdingTaxEntries: syncTable("accounting_withholding_tax_entries", prepared.withholdingTaxEntries, sqlWithholdingTaxEntries()),
+    intrastatEntries: syncTable("accounting_intrastat_entries", prepared.intrastatEntries, sqlIntrastatEntries())
   };
 
   writeSyncLog(counts, user);
@@ -99,7 +101,9 @@ function preparePayload(accounting) {
     annualClosings: withIds(accounting.annualClosings),
     declarationRuns: withIds(accounting.declarationRuns),
     anafSchemas: withIds(accounting.anafSchemas),
-    carryforwardRuns: withIds(accounting.carryforwardRuns)
+    carryforwardRuns: withIds(accounting.carryforwardRuns),
+    withholdingTaxEntries: withIds(accounting.withholdingTaxEntries),
+    intrastatEntries: withIds(accounting.intrastatEntries)
   };
 }
 
@@ -207,7 +211,9 @@ function readAccountingTableCounts() {
       (select count(1) from dbo.accounting_depreciation_runs), N'|',
       (select count(1) from dbo.accounting_annual_closings), N'|',
       (select count(1) from dbo.accounting_declaration_runs), N'|',
-      (select count(1) from dbo.accounting_carryforward_runs)
+      (select count(1) from dbo.accounting_carryforward_runs), N'|',
+      (select count(1) from dbo.accounting_withholding_tax_entries), N'|',
+      (select count(1) from dbo.accounting_intrastat_entries)
     );
   `, { timeoutMs: 30000, commandTimeoutSeconds: 30 });
   const [
@@ -233,7 +239,9 @@ function readAccountingTableCounts() {
     depreciationRuns,
     annualClosings,
     declarationRuns,
-    carryforwardRuns
+    carryforwardRuns,
+    withholdingTaxEntries,
+    intrastatEntries
   ] = String(text || "").split("|").map((value) => Number(value || 0));
   return {
     chart,
@@ -258,7 +266,9 @@ function readAccountingTableCounts() {
     depreciationRuns,
     annualClosings,
     declarationRuns,
-    carryforwardRuns
+    carryforwardRuns,
+    withholdingTaxEntries,
+    intrastatEntries
   };
 }
 
@@ -468,6 +478,20 @@ function sqlCarryforwardRuns() {
   return identityMirrorSql("accounting_carryforward_runs",
     ["id", "an", "next_year", "entries", "checksum", "status", "created_by", "created_at"],
     [sqlValue("id", "int", "1"), sqlValue("an", "int", "year(getdate())"), sqlValue("next_year", "int", "year(getdate()) + 1"), sqlValue("entries", "int", "0"), sqlValue("checksum"), sqlValue("status"), sqlValue("created_by", "int"), `try_convert(datetime2, ${sqlValue("created_at")})`]
+  );
+}
+
+function sqlWithholdingTaxEntries() {
+  return identityMirrorSql("accounting_withholding_tax_entries",
+    ["id", "uuid", "an", "cnp_cui", "nume", "tip_venit", "tip_plata", "rezidenta", "stat_rezidenta", "venit_brut", "impozit_retinut", "dividende_distribuite", "dividende_platite", "observatii", "cancelled_at", "cancelled_by", "cancelled_reason", "updated_at", "updated_by"],
+    [sqlValue("id", "int", "1"), sqlValue("uuid"), sqlValue("an", "int", "year(getdate())"), sqlValue("cnp_cui"), sqlValue("nume"), sqlValue("tip_venit"), sqlValue("tip_plata", "int", "2"), sqlValue("rezidenta", "int", "1"), sqlValue("stat_rezidenta"), sqlValue("venit_brut", "decimal"), sqlValue("impozit_retinut", "decimal"), sqlValue("dividende_distribuite", "decimal"), sqlValue("dividende_platite", "decimal"), sqlValue("observatii"), `try_convert(datetime2, ${sqlValue("cancelled_at")})`, sqlValue("cancelled_by"), sqlValue("cancelled_reason"), `try_convert(datetime2, ${sqlValue("updated_at")})`, sqlValue("updated_by")]
+  );
+}
+
+function sqlIntrastatEntries() {
+  return identityMirrorSql("accounting_intrastat_entries",
+    ["id", "uuid", "an", "luna", "flux", "tara_partenera", "tara_origine", "judet_destinatie", "cod_nc", "natura_tranzactie", "conditie_livrare", "mod_transport", "masa_neta", "valoare_facturata", "valoare_statistica", "descriere", "cancelled_at", "cancelled_by", "cancelled_reason", "updated_at", "updated_by"],
+    [sqlValue("id", "int", "1"), sqlValue("uuid"), sqlValue("an", "int", "year(getdate())"), sqlValue("luna", "int", "month(getdate())"), sqlValue("flux"), sqlValue("tara_partenera"), sqlValue("tara_origine"), sqlValue("judet_destinatie"), sqlValue("cod_nc"), sqlValue("natura_tranzactie"), sqlValue("conditie_livrare"), sqlValue("mod_transport"), sqlValue("masa_neta", "decimal3"), sqlValue("valoare_facturata", "decimal"), sqlValue("valoare_statistica", "decimal"), sqlValue("descriere"), `try_convert(datetime2, ${sqlValue("cancelled_at")})`, sqlValue("cancelled_by"), sqlValue("cancelled_reason"), `try_convert(datetime2, ${sqlValue("updated_at")})`, sqlValue("updated_by")]
   );
 }
 
