@@ -1,5 +1,5 @@
 {
-  "version": "2.12.221",
+  "version": "2.12.222",
   "date": "2026-07-08",
-  "changelog": "## v2.12.221 - 2026-07-08\n### Registru CM si integrare salarizare\n- Registru lunar cu episoade, procente si suportatori.\n- Regula temporara 2026 pentru ziua neindemnizata si impartirea angajator/FNUASS.\n- Export Excel si trimitere controlata in salarizare.\n- Baza zilnica este confirmata explicit de operator."
+  "changelog": "## v2.12.222 - 2026-07-08\n### Baza CM si pontaj automat\n- Modal explicit pentru baza zilnica a indemnizatiei medicale.\n- Concediile aprobate actualizeaza pontajul.\n- Timpul liber din banca de ore actualizeaza automat orele compensate.\n- Lunile inchise si zilele validate raman protejate."
 }

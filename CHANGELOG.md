@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.222 - 2026-07-08
+
+## Baza CM si actualizare automata pontaj
+
+- Introducerea bazei zilnice foloseste un modal compatibil Electron, nu `window.prompt`.
+- Modalul afiseaza estimarea indemnizatiei inainte de confirmare.
+- Concediile aprobate completeaza automat pontajul pe zilele lucratoare.
+- Compensarea cu timp liber reduce automat orele lucrate si salveaza orele compensate.
+- O zi compensata integral este marcata `liber`.
+- Pontajele validate si lunile inchise nu pot fi modificate automat.
+
 # v2.12.221 - 2026-07-08
 
 ## Registru concedii medicale si salarizare

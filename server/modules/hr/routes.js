@@ -22,6 +22,7 @@ const { dailyOvertime } = require('./overtime-policy')
 const { weeklyControls } = require('./working-time-policy')
 const { calendarDays, missingMedicalField } = require('./medical-leave-policy')
 const { buildMedicalRegister } = require('./medical-leave-register')
+const { applyCompensatedHours } = require('./timesheet-compensation')
 
 const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
@@ -541,6 +542,7 @@ function buildNexusTimesheetWorkbook(db, user, luna, deptId) {
       totals.supl1 += numberValue(timesheet?.ore_suplimentare_s1)
       totals.supl2 += numberValue(timesheet?.ore_suplimentare_s2)
       totals.noapte += numberValue(timesheet?.ore_noapte)
+      totals.compensate += numberValue(timesheet?.ore_compensate)
       if (weekend) totals.weekend += hours
       if (holiday) totals.sl += hours
     })
@@ -1320,16 +1322,35 @@ router.post('/hr/overtime-bank/compensate', (req, res, next) => {
     const body = req.body || {}
     if (!body.employee_id || !numberValue(body.ore)) return sendJson(res, 422, { error: 'Angajatul si orele sunt obligatorii.' })
     const db = readDb()
+    const data = body.data || todayIso()
+    const tip = body.tip || 'timp_liber'
+    const updatesTimesheet = tip === 'timp_liber'
+    if (updatesTimesheet) assertTimesheetOpen(db, data.slice(0, 7))
     if (isMssqlMode()) {
+      if (updatesTimesheet) {
+        const validated = mssqlObject(`SELECT TOP 1 id FROM hr.time_sheets WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND data=TRY_CONVERT(date,JSON_VALUE(@p,'$.data')) AND validat=1 FOR JSON PATH;`, { employee_id: body.employee_id, data })
+        if (validated) return sendJson(res, 409, { error: 'Pontajul zilei de recuperare este validat. Devalideaza-l inainte de compensare.', code: 'HR_TIMESHEET_VALIDATED' })
+      }
       const item = mssqlObject(`
+DECLARE @compId bigint;
 INSERT INTO hr.overtime_compensations (uuid,employee_id,ore,tip,data,created_by)
 VALUES (JSON_VALUE(@p,'$.uuid'),TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')),TRY_CONVERT(decimal(6,2),JSON_VALUE(@p,'$.ore')),JSON_VALUE(@p,'$.tip'),TRY_CONVERT(date,JSON_VALUE(@p,'$.data')),JSON_VALUE(@p,'$.created_by'));
-SELECT TOP 1 * FROM hr.overtime_compensations WHERE id=SCOPE_IDENTITY() FOR JSON PATH;`, { ...body, uuid: crypto.randomUUID(), data: body.data || todayIso(), tip: body.tip || 'timp_liber', created_by: auth.user.id })
+SET @compId=SCOPE_IDENTITY();
+IF JSON_VALUE(@p,'$.tip')=N'timp_liber'
+BEGIN
+  DECLARE @norma decimal(5,2)=COALESCE((SELECT TOP 1 t.ore_normale FROM hr.schedules s JOIN hr.tures t ON t.id=s.tura_id WHERE s.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND s.data=TRY_CONVERT(date,JSON_VALUE(@p,'$.data'))),8);
+  DECLARE @tsId int=(SELECT TOP 1 id FROM hr.time_sheets WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND data=TRY_CONVERT(date,JSON_VALUE(@p,'$.data')));
+  IF @tsId IS NULL INSERT INTO hr.time_sheets(employee_id,data,ore_lucrate,ore_compensate,tip,observatii) VALUES(TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')),TRY_CONVERT(date,JSON_VALUE(@p,'$.data')),CASE WHEN @norma>TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore')) THEN @norma-TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore')) ELSE 0 END,TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore')),CASE WHEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore'))>=@norma THEN N'liber' ELSE N'lucru' END,N'Actualizat automat din banca de ore');
+  ELSE UPDATE hr.time_sheets SET ore_compensate=COALESCE(ore_compensate,0)+TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore')),ore_lucrate=CASE WHEN COALESCE(ore_lucrate,@norma)>TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore')) THEN COALESCE(ore_lucrate,@norma)-TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore')) ELSE 0 END,tip=CASE WHEN COALESCE(ore_lucrate,@norma)<=TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore')) THEN N'liber' ELSE tip END,observatii=N'Actualizat automat din banca de ore',updated_at=SYSDATETIME() WHERE id=@tsId;
+END;
+SELECT TOP 1 * FROM hr.overtime_compensations WHERE id=@compId FOR JSON PATH;`, { ...body, uuid: crypto.randomUUID(), data, tip, created_by: auth.user.id })
       addAudit(db, auth.user, 'hr_overtime_compensated', `${body.employee_id}/${body.ore}`)
       writeDb(db)
       return sendJson(res, 201, item)
     }
     const hr = ensureHrDb(db)
+    const existingTimesheet = updatesTimesheet ? hr.timeSheets.find((entry) => String(entry.employee_id) === String(body.employee_id) && entry.data === data) : null
+    if (existingTimesheet?.validat) return sendJson(res, 409, { error: 'Pontajul zilei de recuperare este validat. Devalideaza-l inainte de compensare.', code: 'HR_TIMESHEET_VALIDATED' })
     const item = {
       id: nextId(hr.overtimeCompensations),
       uuid: crypto.randomUUID(),
@@ -1341,6 +1362,12 @@ SELECT TOP 1 * FROM hr.overtime_compensations WHERE id=SCOPE_IDENTITY() FOR JSON
       created_at: nowIso(),
     }
     hr.overtimeCompensations.push(item)
+    if (updatesTimesheet) {
+      const timesheet = existingTimesheet || { id: nextId(hr.timeSheets), employee_id: body.employee_id, data, ore_lucrate: 8, ore_compensate: 0, tip: 'lucru', created_at: nowIso() }
+      if (!existingTimesheet) hr.timeSheets.push(timesheet)
+      applyCompensatedHours(timesheet, body.ore, 8)
+      timesheet.updated_at = nowIso()
+    }
     addAudit(db, auth.user, 'hr_overtime_compensated', `${body.employee_id}/${item.ore}`)
     writeDb(db)
     sendJson(res, 201, item)

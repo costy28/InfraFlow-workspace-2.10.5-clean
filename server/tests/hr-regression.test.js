@@ -7,6 +7,7 @@ const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime
 const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy");
 const { calendarDays, missingMedicalField } = require("../modules/hr/medical-leave-policy");
 const { indemnityPercent, payerSplit, buildMedicalRegister } = require("../modules/hr/medical-leave-register");
+const { applyCompensatedHours } = require("../modules/hr/timesheet-compensation");
 
 test("datele personale si medicale sunt ascunse fara permisiuni", () => {
   const value = sanitizeEmployee({ id: 1, nume: "Popescu", cnp: "123", iban: "RO00", email: "a@b.ro", apt_medical_expira: "2026-01-01", salariu_baza: 5000 });
@@ -93,4 +94,13 @@ test("certificatul in continuare pastreaza episodul initial", () => {
   assert.equal(rows[1].episode_start, "2026-07-01");
   assert.equal(rows[1].episode_days, 14);
   assert.equal(rows[1].indemnity_percent, 65);
+});
+
+test("timpul liber compensatoriu actualizeaza automat pontajul", () => {
+  const partial = applyCompensatedHours({ ore_lucrate: 8, ore_compensate: 0, tip: "lucru" }, 2);
+  assert.equal(partial.ore_lucrate, 6);
+  assert.equal(partial.ore_compensate, 2);
+  const full = applyCompensatedHours({ ore_lucrate: 8, tip: "lucru" }, 8);
+  assert.equal(full.ore_lucrate, 0);
+  assert.equal(full.tip, "liber");
 });
