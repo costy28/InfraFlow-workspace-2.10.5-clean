@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.219 - 2026-07-08
+
+## Asociere cont Kiosk cu angajat HR
+
+- Selectorul din Superadmin salveaza acum `employee_id` la editarea utilizatorului.
+- Asocierea este sincronizata in `hr.employees.user_id` pentru MSSQL si JSON.
+- Asocierea facuta din fisa HR actualizeaza si contul aplicatiei.
+- Un angajat nu poate fi asociat simultan mai multor conturi.
+- Kiosk poate incarca pontajul, concediile, autorizatiile si datele personale ale angajatului asociat.
+
 # v2.12.218 - 2026-07-08
 
 ## Hotfix devalidare pontaj MSSQL

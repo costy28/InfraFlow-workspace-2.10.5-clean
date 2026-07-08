@@ -1,5 +1,5 @@
 {
-  "version": "2.12.218",
+  "version": "2.12.219",
   "date": "2026-07-08",
-  "changelog": "## v2.12.218 - 2026-07-08\n### Hotfix devalidare pontaj MSSQL\n- Devalidarea pontajului si reversarea costurilor sunt atomice.\n- Numarul de pontaje devalidate este raportat din actualizarea efectiva.\n- Cererile de concediu pot fi aprobate dupa devalidare."
+  "changelog": "## v2.12.219 - 2026-07-08\n### Asociere cont Kiosk cu angajat HR\n- Asocierea din Superadmin este salvata persistent.\n- Asocierea din HR este sincronizata cu utilizatorul.\n- Kiosk identifica angajatul prin aceeasi legatura in MSSQL si JSON."
 }

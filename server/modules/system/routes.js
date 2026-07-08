@@ -24,6 +24,7 @@ const {
 const {
   readDb,
   writeDb,
+  MSSQL_RELATIONAL_MODE,
   runMssqlScalar: coreRunMssqlScalar,
   closeMssqlPool: coreCloseMssqlPool,
   databaseHealth: coreDatabaseHealth,
@@ -3827,6 +3828,7 @@ function createUser(db, actor, body) {
     user.employee_id = employee_id;
     user.verified_from_hr = Boolean(body.verified_from_hr);
   }
+  if (employee_id) syncUserEmployeeLink(db, user, employee_id);
   db.users.push(user);
   // Auto-înscriere în canalele de mesagerie
   try {
@@ -3865,6 +3867,10 @@ function updateUser(db, actor, userId, body) {
   if (body.department !== undefined) {
     user.department = String(body.department || "").trim();
   }
+  if (body.employee_id !== undefined) {
+    syncUserEmployeeLink(db, user, String(body.employee_id || "").trim() || null);
+    user.verified_from_hr = Boolean(body.verified_from_hr);
+  }
   if (body.password) {
     const password = String(body.password);
     if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
@@ -3894,6 +3900,42 @@ function updateUser(db, actor, userId, body) {
     ensureUserInGeneralChannel(db, user.id);
   } catch (e) { console.warn('[messaging] Update canal user:', e.message) }
   return user;
+}
+
+function syncUserEmployeeLink(db, user, employeeId) {
+  const normalizedEmployeeId = employeeId ? String(employeeId) : null;
+  if (normalizedEmployeeId) {
+    const alreadyLinked = (db.users || []).find((item) => item.id !== user.id && item.active !== false && String(item.employee_id || '') === normalizedEmployeeId);
+    if (alreadyLinked) throwHttp(409, `Angajatul este deja asociat contului "${alreadyLinked.username}".`);
+  }
+
+  if (MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')) {
+    const raw = coreRunMssqlScalar(`
+DECLARE @userId uniqueidentifier=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@json,'$.userId'));
+DECLARE @employeeId int=TRY_CONVERT(int,NULLIF(JSON_VALUE(@json,'$.employeeId'),''));
+IF @userId IS NULL THROW 50001,N'Identificatorul contului nu este valid.',1;
+IF @employeeId IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hr.employees WHERE id=@employeeId)
+  THROW 50002,N'Angajatul selectat nu exista.',1;
+IF @employeeId IS NOT NULL AND EXISTS(SELECT 1 FROM hr.employees WHERE id=@employeeId AND user_id IS NOT NULL AND user_id<>@userId)
+  THROW 50003,N'Angajatul selectat este deja asociat altui cont.',1;
+UPDATE hr.employees SET user_id=NULL,updated_at=SYSDATETIME() WHERE user_id=@userId AND (@employeeId IS NULL OR id<>@employeeId);
+IF @employeeId IS NOT NULL UPDATE hr.employees SET user_id=@userId,updated_at=SYSDATETIME() WHERE id=@employeeId;
+SELECT @employeeId AS employee_id FOR JSON PATH;`, { jsonInput: JSON.stringify({ userId: String(user.id), employeeId: normalizedEmployeeId || '' }) });
+    const result = JSON.parse(raw || '[]')[0];
+    if (normalizedEmployeeId && !result?.employee_id) throwHttp(422, 'Asocierea cu angajatul nu a putut fi salvata.');
+  } else {
+    const employees = db.hr?.employees || [];
+    const employee = normalizedEmployeeId ? employees.find((item) => String(item.id) === normalizedEmployeeId) : null;
+    if (normalizedEmployeeId && !employee) throwHttp(404, 'Angajatul selectat nu exista.');
+    if (employee?.user_id && String(employee.user_id) !== String(user.id)) throwHttp(409, 'Angajatul selectat este deja asociat altui cont.');
+    employees.forEach((item) => {
+      if (String(item.user_id || '') === String(user.id)) item.user_id = null;
+    });
+    if (employee) employee.user_id = user.id;
+  }
+
+  if (normalizedEmployeeId) user.employee_id = normalizedEmployeeId;
+  else delete user.employee_id;
 }
 
 function resetUserPassword(db, actor, userId, body) {

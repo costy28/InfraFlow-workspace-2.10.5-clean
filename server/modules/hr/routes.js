@@ -1779,6 +1779,7 @@ router.patch('/hr/employees/:id', (req, res, next) => {
         updated_at=sysdatetime()
         WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, { ...body, id: req.params.id })
       const updated = mssqlObject(`SELECT TOP 1 * FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, req.params)
+      if (body.user_id !== undefined) syncAppUserEmployeeLink(db, body.user_id, req.params.id)
       addAudit(db, auth.user, 'hr_employee_updated', req.params.id)
       writeDb(db)
       return sendJson(res, 200, publicEmployee(updated, auth, db))
@@ -1801,6 +1802,7 @@ router.patch('/hr/employees/:id', (req, res, next) => {
       else employee[key] = body[key]
     })
     employee.updated_at = nowIso()
+    if (body.user_id !== undefined) syncAppUserEmployeeLink(db, body.user_id, employee.id)
     addAudit(db, auth.user, 'hr_employee_updated', `${employee.nume} ${employee.prenume}`)
     writeDb(db)
     sendJson(res, 200, publicEmployee(employeeWithSalary(hr, employee), auth, db))
@@ -1808,6 +1810,21 @@ router.patch('/hr/employees/:id', (req, res, next) => {
     next(error)
   }
 })
+
+function syncAppUserEmployeeLink(db, userId, employeeId) {
+  const normalizedUserId = String(userId || '').trim()
+  const normalizedEmployeeId = String(employeeId || '').trim()
+  for (const user of db.users || []) {
+    if (String(user.employee_id || '') === normalizedEmployeeId || (normalizedUserId && String(user.id) === normalizedUserId)) delete user.employee_id
+  }
+  if (!normalizedUserId) return
+  const user = (db.users || []).find((item) => String(item.id) === normalizedUserId)
+  if (user) {
+    user.employee_id = normalizedEmployeeId
+    user.verified_from_hr = true
+    user.updatedAt = nowIso()
+  }
+}
 
 const photoUpload = multer({
   dest: path.join(__dirname, '../../../storage/temp/'),
