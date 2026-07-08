@@ -1,5 +1,36 @@
 # Changelog
 
+# v2.12.217 - 2026-07-08
+
+## Devalidare pontaj si sesiune Kiosk
+
+- Pontajul validat poate fi devalidat cu motiv obligatoriu.
+- Devalidarea este auditata si respecta inchiderea lunii.
+- Costurile de manopera din Controlling sunt reversate prin inregistrare compensatoare.
+- Erorile Kiosk nu mai sterg tokenul sesiunii ERP.
+- Intoarcerea din Kiosk in clientul desktop pastreaza utilizatorul autentificat.
+
+# v2.12.216 - 2026-07-08
+
+## Concedii si asociere Kiosk
+
+- Formular administrativ pentru crearea cererilor de concediu.
+- Lista cererilor afiseaza numele angajatului.
+- Contul aplicatiei poate fi asociat explicit din fisa angajatului.
+- Un cont nu poate fi asociat simultan mai multor angajati.
+- Verificarea suprapunerilor se aplica si cererilor trimise din Kiosk.
+
+# v2.12.215 - 2026-07-07
+
+## Control timp de munca si concedii
+
+- Flux propus, aprobat sau respins pentru orele suplimentare.
+- Banca de ore include numai ore aprobate si istoricul anterior.
+- Control operational saptamanal pentru depasiri.
+- Concediile aprobate completeaza automat pontajul.
+- Suprapunerile si pontajele validate sunt blocate explicit.
+- Reparat raspunsul la crearea cererilor de concediu.
+
 # v2.12.214 - 2026-07-07
 
 ## Pontaj, banca de ore si ture

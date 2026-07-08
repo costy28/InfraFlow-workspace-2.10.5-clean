@@ -4,6 +4,7 @@ const { sanitizeEmployee } = require("../modules/hr/data-policy");
 const { assertTimesheetOpen, findTimesheetLock } = require("../modules/hr/timesheet-locks");
 const { buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
 const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime-policy");
+const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy");
 
 test("datele personale si medicale sunt ascunse fara permisiuni", () => {
   const value = sanitizeEmployee({ id: 1, nume: "Popescu", cnp: "123", iban: "RO00", email: "a@b.ro", apt_medical_expira: "2026-01-01", salariu_baza: 5000 });
@@ -46,4 +47,17 @@ test("orele necompensate devin scadente dupa 90 de zile", () => {
   const status = overtimePaymentStatus("2026-01-01", 4, new Date("2026-04-15T12:00:00"));
   assert.equal(status.overdue, true);
   assert.equal(status.minimumBonusPercent, 75);
+});
+
+test("controlul saptamanal semnaleaza depasirea pragului operational", () => {
+  const rows = weeklyControls([
+    { employee_id: 1, data: "2026-07-06", ore_lucrate: 10 },
+    { employee_id: 1, data: "2026-07-07", ore_lucrate: 10 },
+    { employee_id: 1, data: "2026-07-08", ore_lucrate: 10 },
+    { employee_id: 1, data: "2026-07-09", ore_lucrate: 10 },
+    { employee_id: 1, data: "2026-07-10", ore_lucrate: 10 },
+  ]);
+  assert.equal(mondayOf("2026-07-08"), "2026-07-06");
+  assert.equal(rows[0].total_hours, 50);
+  assert.equal(rows[0].status, "warning");
 });

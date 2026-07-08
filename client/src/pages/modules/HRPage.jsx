@@ -244,8 +244,11 @@ export default function HRPage() {
   const [activeTab, setActiveTab] = useState(() => tabs[0] || 'Dashboard HR')
   const [employees, setEmployees] = useState([])
   const [configuredDepartments, setConfiguredDepartments] = useState([])
+  const [linkableUsers, setLinkableUsers] = useState([])
   const [monthlySheet, setMonthlySheet] = useState([])
   const [leaves, setLeaves] = useState([])
+  const [leaveModal, setLeaveModal] = useState(false)
+  const [leaveForm, setLeaveForm] = useState({ employee_id: '', tip: 'CO', data_start: '', data_sfarsit: '', motiv: '' })
   const [authorizations, setAuthorizations] = useState([])
   const [timesheetOverview, setTimesheetOverview] = useState([])
   const [stats, setStats] = useState(null)
@@ -273,6 +276,8 @@ export default function HRPage() {
   const [raportLunar, setRaportLunar] = useState(null)
   const [raportEmployee, setRaportEmployee] = useState('')
   const [overtimeBank, setOvertimeBank] = useState(null)
+  const [pendingOvertime, setPendingOvertime] = useState([])
+  const [weeklyControls, setWeeklyControls] = useState([])
   const [compensateModal, setCompensateModal] = useState(false)
   const [compensateForm, setCompensateForm] = useState({ tip: 'timp_liber', ore: '', data: new Date().toISOString().slice(0, 10), spor_procent: 75 })
   // Ture & Program
@@ -325,13 +330,14 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
         api.get('/hr/leave-requests').catch(() => ({ data: [] })),
         api.get('/hr/authorizations').catch(() => ({ data: [] })),
         api.get('/hr/stats').catch(() => ({ data: {} })),
+        api.get('/hr/linkable-users').catch(() => ({ data: [] })),
       ])
       setEmployees(arrayFrom(employeesRes.data, ['employees', 'items']))
       setConfiguredDepartments(arrayFrom(departmentsRes.data, ['departments', 'items']))
@@ -339,6 +345,7 @@ export default function HRPage() {
       setLeaves(arrayFrom(leavesRes.data, ['leave_requests', 'requests', 'items']))
       setAuthorizations(arrayFrom(authRes.data, ['authorizations', 'items']))
       setStats(statsRes.data || {})
+      setLinkableUsers(arrayFrom(usersRes.data, ['users', 'items']))
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
       setTimesheetOverview(arrayFrom(overviewRes.data, ['overview', 'items']))
     } catch (err) {
@@ -359,6 +366,10 @@ export default function HRPage() {
   useEffect(() => {
     if (activeTab === 'Pontaj' || activeTab === 'Pontaj Avansat') loadTimesheetLock().catch(() => {})
   }, [activeTab, filters.luna])
+
+  useEffect(() => {
+    if (activeTab === 'Pontaj Avansat') loadWorkTimeControls().catch(() => {})
+  }, [activeTab, filters.luna, filters.dept_id])
 
   useEffect(() => {
     if (activeTab === 'Training & Evaluări') loadTrainingData()
@@ -414,6 +425,26 @@ export default function HRPage() {
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la încărcarea raportului.')
     }
+  }
+
+  async function loadWorkTimeControls() {
+    const params = { luna: filters.luna, dept_id: filters.dept_id || undefined }
+    const [pendingRes, weeklyRes] = await Promise.all([
+      api.get('/hr/overtime/pending', { params }).catch(() => ({ data: [] })),
+      api.get('/hr/timesheets/weekly-controls', { params }).catch(() => ({ data: [] })),
+    ])
+    setPendingOvertime(arrayFrom(pendingRes.data, ['items']))
+    setWeeklyControls(arrayFrom(weeklyRes.data, ['items']))
+  }
+
+  async function decideOvertime(item, status) {
+    const reason = status === 'reject' ? window.prompt('Motivul respingerii (minimum 5 caractere):') : ''
+    if (status === 'reject' && (!reason || reason.trim().length < 5)) return
+    try {
+      await api.post(`/hr/overtime/${item.id}/${status}`, { reason })
+      await loadWorkTimeControls()
+      if (raportEmployee) await loadRaportLunar(raportEmployee, filters.luna)
+    } catch (err) { setError(err.response?.data?.error || 'Decizia nu a putut fi salvata.') }
   }
 
   async function loadScheduleData() {
@@ -1203,6 +1234,17 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
     } catch (err) { setError(err.response?.data?.error || 'Pontajul nu a putut fi validat.') }
   }
 
+  async function invalidateMonth() {
+    const reason = window.prompt('Motivul devalidarii pontajului (minimum 5 caractere):')
+    if (!reason || reason.trim().length < 5) return
+    try {
+      const employeeIds = scopedMonthlySheet.map(row => row.employee_id || row.id).filter(Boolean)
+      const response = await api.post('/hr/timesheets/invalidate', { employee_ids: employeeIds, luna: filters.luna, reason })
+      window.alert(response.data?.invalidated ? `${response.data.invalidated} inregistrari de pontaj au fost devalidate.` : 'Nu existau pontaje validate in selectia curenta.')
+      await load()
+    } catch (err) { setError(err.response?.data?.error || 'Pontajul nu a putut fi devalidat.') }
+  }
+
   function openTimesheetCell(row, day) {
     const current = row.zile?.[day]
     setTimesheetEdit({ employee_id: row.employee_id || row.id, employee_name: fullName(row), data: day, tip: typeof current === 'object' ? (current.tip || 'lucru') : 'lucru', ore_lucrate: typeof current === 'object' ? (current.ore_lucrate ?? 0) : (current ?? 0), observatii: '' })
@@ -1302,6 +1344,16 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la aprobare.')
     }
+  }
+
+  async function createLeave(event) {
+    event.preventDefault()
+    try {
+      await api.post('/hr/leave-requests', leaveForm)
+      setLeaveModal(false)
+      setLeaveForm({ employee_id: '', tip: 'CO', data_start: '', data_sfarsit: '', motiv: '' })
+      await load()
+    } catch (err) { setError(err.response?.data?.error || 'Cererea nu a putut fi salvata.') }
   }
 
   async function rejectLeave(uuid) {
@@ -1586,6 +1638,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 <Button size="sm" variant="secondary" disabled={timesheetLock?.locked} onClick={fillWorkingDays}>Completeaza zilele lucratoare</Button>
                 <Button size="sm" onClick={submitDepartmentTimesheet}>✅ Marchează ca Finalizat</Button>
                 <Button size="sm" variant="secondary" onClick={validateMonth}>Validează luna</Button>
+                <Button size="sm" variant="secondary" onClick={invalidateMonth}>Devalideaza</Button>
                 <Button size="sm" variant="secondary" onClick={() => {
                   const rows = scopedMonthlySheet.map(row => {
                     const obj = { 'Angajat': fullName(row), 'Departament': row.department_name || '' }
@@ -1658,12 +1711,14 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-700">Cereri de concediu</span>
+            <Button size="sm" onClick={() => setLeaveModal(true)}>+ Cerere noua</Button>
           </div>
           <div className="grid gap-2">
             {leaves.length ? leaves.map(item => (
               <div key={item.uuid || item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm">
                 <div>
-                  <span className="font-medium">{item.tip}</span>
+                  <span className="font-medium">{employees.find(employee => String(employee.id) === String(item.employee_id)) ? fullName(employees.find(employee => String(employee.id) === String(item.employee_id))) : `Angajat ${item.employee_id}`}</span>
+                  <span className="ml-2">{item.tip}</span>
                   <span className="ml-2 text-slate-500">{item.data_start} — {item.data_sfarsit}</span>
                   {item.zile ? <span className="ml-2 text-xs text-slate-400">({item.zile} zile)</span> : null}
                 </div>
@@ -1727,6 +1782,22 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               <div className="flex gap-2"><Button variant="secondary" onClick={loadTimesheetLock}>Verifica stare</Button>{hasPerm('hr:timesheets_validate') ? <Button variant={timesheetLock?.locked ? 'secondary' : 'primary'} onClick={toggleTimesheetLock}>{timesheetLock?.locked ? 'Deblocheaza luna' : 'Inchide luna'}</Button> : null}</div>
             </div>
           </Card>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card>
+              <div className="mb-3 flex items-center justify-between"><div><div className="font-semibold">Ore suplimentare in asteptare</div><div className="text-sm text-slate-500">Intra in banca de ore numai dupa aprobare.</div></div><Badge tone={pendingOvertime.length ? 'warning' : 'success'}>{pendingOvertime.length}</Badge></div>
+              <div className="grid gap-2">
+                {pendingOvertime.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 p-2 text-sm"><div><strong>{item.employee_name}</strong><div className="text-xs text-slate-500">{String(item.data).slice(0, 10)} · {Number(item.ore_suplimentare_s1 || 0) + Number(item.ore_suplimentare_s2 || 0)} ore</div></div>{hasPerm('hr:timesheet_approve') ? <div className="flex gap-2"><Button size="sm" onClick={() => decideOvertime(item, 'approve')}>Aproba</Button><Button size="sm" variant="secondary" onClick={() => decideOvertime(item, 'reject')}>Respinge</Button></div> : null}</div>)}
+                {!pendingOvertime.length ? <div className="text-sm text-slate-500">Nu exista propuneri in asteptare.</div> : null}
+              </div>
+            </Card>
+            <Card>
+              <div className="mb-3"><div className="font-semibold">Control timp de munca</div><div className="text-sm text-slate-500">Verificare operationala saptamanala; exceptiile necesita analiza HR.</div></div>
+              <div className="grid gap-2">
+                {weeklyControls.filter(item => item.status !== 'ok').map(item => <div key={`${item.employee_id}-${item.week_start}`} className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><strong>{item.employee_name}</strong> · saptamana {item.week_start}<div>{item.total_hours} ore · {item.warnings.join('; ')}</div></div>)}
+                {!weeklyControls.some(item => item.status !== 'ok') ? <div className="text-sm text-slate-500">Nu sunt depasiri operationale pentru luna selectata.</div> : null}
+              </div>
+            </Card>
+          </div>
           <Card>
             <div className="grid gap-3 md:grid-cols-3">
               <Select label="Angajat" value={raportEmployee} onChange={e => setRaportEmployee(e.target.value)}
@@ -2290,6 +2361,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                     <Input label="Funcția" value={editForm.functia || ''} onChange={e => setEditForm({...editForm, functia: e.target.value})} />
                     <Input label="Cod COR" value={editForm.functie_cor || ''} onChange={e => setEditForm({...editForm, functie_cor: e.target.value})} />
                     <Select label="Departament" value={String(editForm.department_id || '')} onChange={e => setEditForm({...editForm, department_id: e.target.value})} options={[{ value: '', label: 'Alege departament' }, ...departments]} />
+                    <Select label="Cont aplicatie / Kiosk" value={String(editForm.user_id || '')} onChange={e => setEditForm({...editForm, user_id: e.target.value})} options={[{ value: '', label: 'Fara cont asociat' }, ...linkableUsers.map(account => ({ value: String(account.id), label: `${account.name || account.username} (${account.username})` }))]} />
                     <Select label="Nivel studii" value={editForm.nivel_studii || ''} onChange={e => setEditForm({...editForm, nivel_studii: e.target.value})} options={[
                       { value: '', label: 'Alege nivel' },
                       { value: 'primar', label: 'Primar' },
@@ -2435,6 +2507,16 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
             </div>
           </div>
         ) : <p className="text-sm text-slate-500">Se incarca fișa...</p>}
+      </Modal>
+
+      <Modal open={leaveModal} title="Cerere de concediu" onClose={() => setLeaveModal(false)} size="md">
+        <form className="grid gap-3" onSubmit={createLeave}>
+          <Select label="Angajat" value={leaveForm.employee_id} onChange={event => setLeaveForm({ ...leaveForm, employee_id: event.target.value })} options={[{ value: '', label: 'Alege angajat' }, ...employees.filter(item => item.activ !== false).map(item => ({ value: String(item.id), label: fullName(item) }))]} required />
+          <Select label="Tip" value={leaveForm.tip} onChange={event => setLeaveForm({ ...leaveForm, tip: event.target.value })} options={[{ value: 'CO', label: 'Concediu de odihna' }, { value: 'CM', label: 'Concediu medical' }, { value: 'delegatie', label: 'Delegatie' }, { value: 'nemotivat', label: 'Absenta nemotivata' }, { value: 'alt', label: 'Alt tip / fara plata' }]} />
+          <div className="grid gap-3 sm:grid-cols-2"><Input label="Data inceput" type="date" value={leaveForm.data_start} onChange={event => setLeaveForm({ ...leaveForm, data_start: event.target.value })} required /><Input label="Data sfarsit" type="date" value={leaveForm.data_sfarsit} onChange={event => setLeaveForm({ ...leaveForm, data_sfarsit: event.target.value })} required /></div>
+          <Input label="Motiv / observatii" value={leaveForm.motiv} onChange={event => setLeaveForm({ ...leaveForm, motiv: event.target.value })} />
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setLeaveModal(false)}>Renunta</Button><Button type="submit" disabled={!leaveForm.employee_id || !leaveForm.data_start || !leaveForm.data_sfarsit}>Salveaza cererea</Button></div>
+        </form>
       </Modal>
 
       {/* ─── MODAL ANGAJAT NOU ────────────────────────────── */}

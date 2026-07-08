@@ -235,6 +235,29 @@ async function registerPontaj(pontaj, angajat, db) {
   }, db)
 }
 
+async function reversePontajRegistration(timesheetId, userId, db) {
+  if (isMssqlMode()) {
+    runMssqlScalar(`
+DECLARE @ref nvarchar(64)=JSON_VALUE(@json,'$.timesheetId');
+DECLARE @net decimal(15,2)=(SELECT COALESCE(SUM(valoare),0) FROM controlling.cost_entries WHERE sursa=N'pontaj' AND sursa_ref_id=@ref);
+DECLARE @netTva decimal(15,2)=(SELECT COALESCE(SUM(tva),0) FROM controlling.cost_entries WHERE sursa=N'pontaj' AND sursa_ref_id=@ref);
+IF @net<>0 OR @netTva<>0
+BEGIN
+  INSERT INTO controlling.cost_entries(uuid,company_id,cost_center_id,subcentru_id,santier_id,data,luna,categorie,subcategorie,descriere,valoare,tva,moneda,sursa,sursa_ref_id,nr_document,furnizor,inregistrat_de,observatii)
+  SELECT TOP 1 CONVERT(char(36),NEWID()),company_id,cost_center_id,subcentru_id,santier_id,data,luna,categorie,subcategorie,N'Reversare devalidare - '+COALESCE(descriere,N'pontaj'),-@net,-@netTva,moneda,N'pontaj',@ref,nr_document,furnizor,TRY_CONVERT(uniqueidentifier,JSON_VALUE(@json,'$.userId')),N'Generata automat la devalidarea pontajului'
+  FROM controlling.cost_entries WHERE sursa=N'pontaj' AND sursa_ref_id=@ref ORDER BY id DESC;
+END;
+SELECT 1;`, { jsonInput: JSON.stringify({ timesheetId: String(timesheetId), userId: String(userId || '') }) })
+    return
+  }
+  const controlling = ensureControllingDb(db)
+  const entries = controlling.costEntries.filter((item) => item.sursa === 'pontaj' && String(item.sursa_ref_id) === String(timesheetId))
+  const net = entries.reduce((sum, item) => sum + numberValue(item.valoare), 0)
+  if (!entries.length || Math.abs(net) < 0.005) return
+  const source = entries[entries.length - 1]
+  controlling.costEntries.push({ ...source, id: nextId(controlling.costEntries), uuid: crypto.randomUUID(), valoare: -net, tva: -entries.reduce((sum, item) => sum + numberValue(item.tva), 0), descriere: `Reversare devalidare - ${source.descriere || 'pontaj'}`, observatii: 'Generata automat la devalidarea pontajului', inregistrat_de: userId, created_at: new Date().toISOString() })
+}
+
 async function registerRaportUtilaj(raport, utilaj, db) {
   const subcentru = isMssqlMode()
     ? await findAssetSubcenterMssql(utilaj)
@@ -358,6 +381,7 @@ module.exports = {
   insertCostEntry,
   registerBonConsum,
   registerPontaj,
+  reversePontajRegistration,
   registerRaportUtilaj,
   registerNexusImport,
   registerSnowStandby

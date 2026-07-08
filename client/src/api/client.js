@@ -20,8 +20,12 @@ api.interceptors.response.use(
     const isKioskPage = typeof window !== 'undefined' && window.location?.pathname?.startsWith('/kiosk')
     const isPublicAuthRequest = requestUrl === '/login' || requestUrl === '/session' || requestUrl.startsWith('/setup/')
     if (err.response?.status === 401 && !isPublicAuthRequest) {
-      localStorage.removeItem('infraflow_token')
-      if (!isKioskPage) window.location.href = '/login'
+      // Kiosk poate folosi o sesiune separata. Un 401 al unui endpoint Kiosk
+      // nu trebuie sa distruga sesiunea ERP din aceeasi fereastra Electron.
+      if (!isKioskPage) {
+        localStorage.removeItem('infraflow_token')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   }

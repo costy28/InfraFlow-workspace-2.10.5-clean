@@ -11,7 +11,7 @@ const kioskSessions = require('../../core/kiosk-sessions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { valideazaCNP, infoCNP } = require('../../shared/cnp-validator')
-const { registerPontaj } = require('../controlling/auto-register')
+const { registerPontaj, reversePontajRegistration } = require('../controlling/auto-register')
 const { notifyUser, createDepartmentChannel } = require('../messaging/routes')
 const { sendEmail } = require('../messaging/email')
 const { sanitizeEmployee } = require('./data-policy')
@@ -19,6 +19,7 @@ const payrollRoutes = require('./payroll-routes')
 const { assertTimesheetOpen } = require('./timesheet-locks')
 const { buildRegesWorkRow, buildRegesWorkbook, buildInternalXml } = require('./reges-work-register')
 const { dailyOvertime } = require('./overtime-policy')
+const { weeklyControls } = require('./working-time-policy')
 
 const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
@@ -288,6 +289,22 @@ function businessDays(start, end) {
     if (day !== 0 && day !== 6 && !legalHolidays(date.getFullYear()).has(iso)) count += 1
   }
   return count
+}
+
+function businessDateRange(start, end) {
+  return dateRange(start, end).filter((iso) => {
+    const date = new Date(`${iso}T12:00:00`)
+    return date.getDay() !== 0 && date.getDay() !== 6 && !legalHolidays(date.getFullYear()).has(iso)
+  })
+}
+
+function leaveTimesheetType(value) {
+  const type = String(value || '').toLowerCase()
+  if (['co', 'concediu', 'concediu_odihna'].includes(type)) return 'concediu_odihna'
+  if (['cm', 'medical', 'concediu_medical'].includes(type)) return 'concediu_medical'
+  if (type === 'delegatie') return 'delegatie'
+  if (type === 'nemotivat') return 'nemotivat'
+  return 'liber'
 }
 
 function cloneStyle(style) {
@@ -1199,7 +1216,7 @@ function overtimeBankFor(db, employeeId) {
   const hr = ensureHrDb(db)
   const byMonth = new Map()
   hr.timeSheets
-    .filter((item) => String(item.employee_id) === String(employeeId))
+    .filter((item) => String(item.employee_id) === String(employeeId) && (!item.overtime_status || item.overtime_status === 'aprobat'))
     .forEach((item) => {
       const luna = String(item.data || '').slice(0, 7)
       if (!luna) return
@@ -1227,7 +1244,7 @@ function overtimeBankFor(db, employeeId) {
   const ore_acumulate_total = istoric.reduce((sum, item) => sum + numberValue(item.ore_suplimentare), 0)
   const ore_compensate_total = istoric.reduce((sum, item) => sum + numberValue(item.ore_compensate), 0)
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90)
-  const accumulatedExpired = hr.timeSheets.filter((item) => String(item.employee_id) === String(employeeId) && new Date(`${item.data}T12:00:00`) < cutoff).reduce((sum, item) => {
+  const accumulatedExpired = hr.timeSheets.filter((item) => String(item.employee_id) === String(employeeId) && (!item.overtime_status || item.overtime_status === 'aprobat') && new Date(`${item.data}T12:00:00`) < cutoff).reduce((sum, item) => {
     const assignedShift = hr.schedules.find((schedule) => String(schedule.employee_id) === String(employeeId) && schedule.data === item.data)
     const shift = assignedShift ? hr.tures.find((entry) => String(entry.id) === String(assignedShift.tura_id)) : null
     const explicit = numberValue(item.ore_suplimentare_s1) + numberValue(item.ore_suplimentare_s2) + numberValue(item.ore_suplimentare)
@@ -1259,7 +1276,7 @@ SELECT FORMAT(ts.data,'yyyy-MM') AS luna,
 FROM hr.time_sheets ts
 LEFT JOIN hr.schedules s ON s.employee_id=ts.employee_id AND s.data=ts.data
 LEFT JOIN hr.tures t ON t.id=s.tura_id
-WHERE ts.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id'))
+WHERE ts.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND (ts.overtime_status=N'aprobat' OR ts.overtime_status IS NULL)
 GROUP BY FORMAT(ts.data,'yyyy-MM')
 ORDER BY luna
 FOR JSON PATH;`, req.query)
@@ -1282,7 +1299,7 @@ FOR JSON PATH;`, req.query)
       }).reverse()
       const ore_acumulate_total = rows.reduce((sum, row) => sum + numberValue(row.ore_suplimentare), 0)
       const ore_compensate_total = rows.reduce((sum, row) => sum + numberValue(row.ore_compensate), 0)
-      const expired = mssqlObject(`SELECT COALESCE(SUM(CASE WHEN ts.ore_suplimentare_s1+ts.ore_suplimentare_s2>0 THEN ts.ore_suplimentare_s1+ts.ore_suplimentare_s2 ELSE CASE WHEN ts.ore_lucrate>COALESCE(t.ore_normale,8) THEN ts.ore_lucrate-COALESCE(t.ore_normale,8) ELSE 0 END END),0) AS ore FROM hr.time_sheets ts LEFT JOIN hr.schedules s ON s.employee_id=ts.employee_id AND s.data=ts.data LEFT JOIN hr.tures t ON t.id=s.tura_id WHERE ts.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND ts.data<DATEADD(day,-90,CAST(GETDATE() AS date)) FOR JSON PATH;`, req.query)
+      const expired = mssqlObject(`SELECT COALESCE(SUM(CASE WHEN ts.ore_suplimentare_s1+ts.ore_suplimentare_s2>0 THEN ts.ore_suplimentare_s1+ts.ore_suplimentare_s2 ELSE CASE WHEN ts.ore_lucrate>COALESCE(t.ore_normale,8) THEN ts.ore_lucrate-COALESCE(t.ore_normale,8) ELSE 0 END END),0) AS ore FROM hr.time_sheets ts LEFT JOIN hr.schedules s ON s.employee_id=ts.employee_id AND s.data=ts.data LEFT JOIN hr.tures t ON t.id=s.tura_id WHERE ts.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND (ts.overtime_status=N'aprobat' OR ts.overtime_status IS NULL) AND ts.data<DATEADD(day,-90,CAST(GETDATE() AS date)) FOR JSON PATH;`, req.query)
       return sendJson(res, 200, { ore_acumulate_total, ore_compensate_total, sold_curent: ore_acumulate_total - ore_compensate_total, ore_scadente_plata: Math.max(0, numberValue(expired?.ore) - Math.max(0, ore_compensate_total)), termen_compensare_zile: 90, spor_minim_plata_procent: 75, istoric })
     }
     sendJson(res, 200, overtimeBankFor(db, req.query.employee_id))
@@ -1321,6 +1338,16 @@ SELECT TOP 1 * FROM hr.overtime_compensations WHERE id=SCOPE_IDENTITY() FOR JSON
     addAudit(db, auth.user, 'hr_overtime_compensated', `${body.employee_id}/${item.ore}`)
     writeDb(db)
     sendJson(res, 201, item)
+  } catch (error) { next(error) }
+})
+
+router.get('/hr/linkable-users', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:manage')) return
+    const db = readDb()
+    const users = (db.users || []).filter((item) => item.active !== false).map((item) => ({ id: item.id, username: item.username, name: item.name || item.fullName || item.username, role: item.role }))
+    sendJson(res, 200, users)
   } catch (error) { next(error) }
 })
 
@@ -1705,11 +1732,18 @@ router.patch('/hr/employees/:id', (req, res, next) => {
     const body = req.body || {}
     if (body.iban !== undefined && !isValidRomanianIban(body.iban)) return sendJson(res, 422, { error: 'IBAN invalid. Folosește formatul RO urmat de 22 caractere.' })
     const db = readDb()
+    if (body.user_id) {
+      const linked = isMssqlMode()
+        ? mssqlObject(`SELECT TOP 1 id,nume,prenume FROM hr.employees WHERE user_id=JSON_VALUE(@p,'$.user_id') AND id<>TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, { user_id: body.user_id, id: req.params.id })
+        : ensureHrDb(db).employees.find((item) => String(item.user_id || '') === String(body.user_id) && String(item.id) !== String(req.params.id))
+      if (linked) return sendJson(res, 409, { error: 'Contul selectat este deja asociat altui angajat.', code: 'HR_USER_ALREADY_LINKED' })
+    }
 
     if (isMssqlMode()) {
       const emp = mssqlObject(`SELECT TOP 1 * FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, req.params)
       if (!emp) return sendJson(res, 404, { error: 'Angajatul nu a fost gasit.' })
       mssqlObject(`UPDATE hr.employees SET
+        user_id=CASE WHEN JSON_VALUE(@p,'$.user_id') IS NULL THEN user_id ELSE NULLIF(JSON_VALUE(@p,'$.user_id'),'') END,
         nume=COALESCE(NULLIF(JSON_VALUE(@p,'$.nume'),''),nume),
         prenume=COALESCE(NULLIF(JSON_VALUE(@p,'$.prenume'),''),prenume),
         functia=COALESCE(NULLIF(JSON_VALUE(@p,'$.functia'),''),functia),
@@ -1758,7 +1792,7 @@ router.patch('/hr/employees/:id', (req, res, next) => {
       'functie_cor','nivel_studii','norma_ore_zi','iban','deducere_personala',
       'data_expirare_contract','data_expirare_permis','data_expirare_iscir','permis_conducere_categorii','permis_conducere_expira',
       'apt_medical_expira','adeverinta_medicala','acord_gdpr','data_acord_gdpr',
-      'zile_co_drept','activ','department_id','tip_contract','data_angajare','data_plecare']
+      'zile_co_drept','activ','department_id','tip_contract','data_angajare','data_plecare','user_id']
     if (authHasPermission(auth, 'hr:salary_view')) allowed.push('salariu_baza')
     allowed.forEach((key) => {
       if (body[key] === undefined) return
@@ -2065,7 +2099,7 @@ WHERE employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.employee_id'))
 AND data = TRY_CONVERT(date, JSON_VALUE(@p, '$.data'));
 IF @id IS NULL
 BEGIN
-  INSERT INTO hr.time_sheets (employee_id, data, ore_lucrate, tip, santier_id, cost_center_id, observatii, ore_suplimentare_s1, ore_suplimentare_s2, ore_noapte)
+  INSERT INTO hr.time_sheets (employee_id, data, ore_lucrate, tip, santier_id, cost_center_id, observatii, ore_suplimentare_s1, ore_suplimentare_s2, ore_noapte, overtime_status)
   VALUES (
     TRY_CONVERT(int, JSON_VALUE(@p, '$.employee_id')),
     TRY_CONVERT(date, JSON_VALUE(@p, '$.data')),
@@ -2076,7 +2110,8 @@ BEGIN
     NULLIF(JSON_VALUE(@p, '$.observatii'), ''),
     CASE WHEN JSON_VALUE(@p,'$.ore_suplimentare_s1') IS NOT NULL THEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_suplimentare_s1')) ELSE CASE WHEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_lucrate'))>@norma THEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_lucrate'))-@norma ELSE 0 END END,
     COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_suplimentare_s2')),0),
-    COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_noapte')),0)
+    COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_noapte')),0),
+    CASE WHEN COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_suplimentare_s1')),CASE WHEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_lucrate'))>@norma THEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_lucrate'))-@norma ELSE 0 END)+COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_suplimentare_s2')),0)>0 THEN N'propus' ELSE NULL END
   );
   SET @id = SCOPE_IDENTITY();
 END
@@ -2091,6 +2126,8 @@ BEGIN
       ore_suplimentare_s1 = CASE WHEN JSON_VALUE(@p,'$.ore_suplimentare_s1') IS NOT NULL THEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_suplimentare_s1')) ELSE CASE WHEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_lucrate'))>@norma THEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_lucrate'))-@norma ELSE 0 END END,
       ore_suplimentare_s2 = COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_suplimentare_s2')),ore_suplimentare_s2),
       ore_noapte = COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_noapte')),ore_noapte),
+      overtime_status = CASE WHEN COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_suplimentare_s1')),CASE WHEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_lucrate'))>@norma THEN TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_lucrate'))-@norma ELSE 0 END)+COALESCE(TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.ore_suplimentare_s2')),ore_suplimentare_s2)>0 THEN N'propus' ELSE NULL END,
+      overtime_approved_by = NULL, overtime_approved_at = NULL, overtime_rejection_reason = NULL,
       updated_at = sysdatetime()
   WHERE id = @id;
 END;
@@ -2118,12 +2155,77 @@ SELECT TOP 1 * FROM hr.time_sheets WHERE id = @id FOR JSON PATH;
       observatii: body.observatii || null,
       updated_at: nowIso()
     })
+    item.overtime_status = numberValue(item.ore_suplimentare_s1) + numberValue(item.ore_suplimentare_s2) > 0 ? 'propus' : null
+    item.overtime_approved_by = null
+    item.overtime_approved_at = null
+    item.overtime_rejection_reason = null
     addAudit(db, auth.user, 'hr_timesheet_upserted', `${body.employee_id}/${body.data}`)
     writeDb(db)
     sendJson(res, 200, item)
   } catch (error) {
     next(error)
   }
+})
+
+router.get('/hr/overtime/pending', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:timesheet')) return
+    if (isMssqlMode()) return sendJson(res, 200, mssqlArray(`
+SELECT ts.id,ts.employee_id,ts.data,ts.ore_lucrate,ts.ore_suplimentare_s1,ts.ore_suplimentare_s2,ts.overtime_status,
+  LTRIM(RTRIM(COALESCE(e.prenume,N'')+N' '+COALESCE(e.nume,N''))) AS employee_name,e.department_id
+FROM hr.time_sheets ts JOIN hr.employees e ON e.id=ts.employee_id
+WHERE ts.overtime_status=N'propus'
+  AND (NULLIF(JSON_VALUE(@p,'$.luna'),'') IS NULL OR CONVERT(char(7),ts.data,126)=JSON_VALUE(@p,'$.luna'))
+  AND (NULLIF(JSON_VALUE(@p,'$.dept_id'),'') IS NULL OR CONVERT(nvarchar(100),e.department_id)=JSON_VALUE(@p,'$.dept_id'))
+ORDER BY ts.data,e.nume,e.prenume FOR JSON PATH;`, req.query))
+    const db = readDb(); const hr = ensureHrDb(db)
+    const rows = hr.timeSheets.filter((item) => item.overtime_status === 'propus' && (!req.query.luna || String(item.data).startsWith(req.query.luna))).map((item) => {
+      const employee = hr.employees.find((entry) => String(entry.id) === String(item.employee_id)) || {}
+      return { ...item, employee_name: `${employee.prenume || ''} ${employee.nume || ''}`.trim(), department_id: employee.department_id }
+    }).filter((item) => !req.query.dept_id || String(item.department_id) === String(req.query.dept_id))
+    sendJson(res, 200, rows)
+  } catch (error) { next(error) }
+})
+
+router.post('/hr/overtime/:timesheetId/approve', (req, res, next) => updateOvertimeApproval(req, res, next, 'aprobat'))
+router.post('/hr/overtime/:timesheetId/reject', (req, res, next) => updateOvertimeApproval(req, res, next, 'respins'))
+
+function updateOvertimeApproval(req, res, next, status) {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:timesheet_approve')) return
+    const reason = String(req.body?.reason || '').trim()
+    if (status === 'respins' && reason.length < 5) return sendJson(res, 422, { error: 'Motivul respingerii trebuie sa aiba minimum 5 caractere.' })
+    const db = readDb()
+    if (isMssqlMode()) {
+      const item = mssqlObject(`UPDATE hr.time_sheets SET overtime_status=JSON_VALUE(@p,'$.status'),overtime_approved_by=JSON_VALUE(@p,'$.userId'),overtime_approved_at=SYSDATETIME(),overtime_rejection_reason=NULLIF(JSON_VALUE(@p,'$.reason'),'') WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) AND overtime_status=N'propus'; SELECT TOP 1 * FROM hr.time_sheets WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, { id: req.params.timesheetId, status, userId: auth.user.id, reason })
+      if (!item) return sendJson(res, 404, { error: 'Propunerea de ore suplimentare nu a fost gasita.' })
+      addAudit(db, auth.user, `hr_overtime_${status}`, item.id); writeDb(db); return sendJson(res, 200, item)
+    }
+    const hr = ensureHrDb(db); const item = hr.timeSheets.find((entry) => String(entry.id) === String(req.params.timesheetId) && entry.overtime_status === 'propus')
+    if (!item) return sendJson(res, 404, { error: 'Propunerea de ore suplimentare nu a fost gasita.' })
+    item.overtime_status = status; item.overtime_approved_by = auth.user.id; item.overtime_approved_at = nowIso(); item.overtime_rejection_reason = reason || null
+    addAudit(db, auth.user, `hr_overtime_${status}`, item.id); writeDb(db); sendJson(res, 200, item)
+  } catch (error) { next(error) }
+}
+
+router.get('/hr/timesheets/weekly-controls', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:timesheet')) return
+    const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
+    if (isMssqlMode()) {
+      const entries = mssqlArray(`SELECT ts.*,LTRIM(RTRIM(COALESCE(e.prenume,N'')+N' '+COALESCE(e.nume,N''))) AS employee_name FROM hr.time_sheets ts JOIN hr.employees e ON e.id=ts.employee_id WHERE CONVERT(char(7),ts.data,126)=JSON_VALUE(@p,'$.luna') AND (NULLIF(JSON_VALUE(@p,'$.dept_id'),'') IS NULL OR CONVERT(nvarchar(100),e.department_id)=JSON_VALUE(@p,'$.dept_id')) ORDER BY ts.data FOR JSON PATH;`, { ...req.query, luna })
+      return sendJson(res, 200, weeklyControls(entries))
+    }
+    const db = readDb(); const hr = ensureHrDb(db)
+    const entries = hr.timeSheets.filter((item) => String(item.data).startsWith(luna)).map((item) => {
+      const employee = hr.employees.find((entry) => String(entry.id) === String(item.employee_id)) || {}
+      return { ...item, employee_name: `${employee.prenume || ''} ${employee.nume || ''}`.trim(), department_id: employee.department_id }
+    }).filter((item) => !req.query.dept_id || String(item.department_id) === String(req.query.dept_id))
+    sendJson(res, 200, weeklyControls(entries))
+  } catch (error) { next(error) }
 })
 
 router.get('/hr/timesheets/my-department', (req, res, next) => {
@@ -2327,6 +2429,35 @@ FOR JSON PATH;
   } catch (error) {
     next(error)
   }
+})
+
+router.post('/hr/timesheets/invalidate', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:timesheet_approve')) return
+    const employeeIds = (req.body.employee_ids || []).map(String)
+    const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
+    const reason = String(req.body.reason || '').trim()
+    if (!employeeIds.length) return sendJson(res, 422, { error: 'Nu exista angajati selectati pentru devalidare.' })
+    if (reason.length < 5) return sendJson(res, 422, { error: 'Motivul devalidarii trebuie sa aiba minimum 5 caractere.' })
+    const db = readDb()
+    assertTimesheetOpen(db, luna)
+    if (isMssqlMode()) {
+      const rows = mssqlArray(`SELECT id FROM hr.time_sheets WHERE validat=1 AND CONVERT(char(7),data,126)=JSON_VALUE(@p,'$.luna') AND employee_id IN (SELECT TRY_CONVERT(int,value) FROM OPENJSON(JSON_QUERY(@p,'$.employeeIds'))) FOR JSON PATH;`, { employeeIds, luna })
+      for (const row of rows) await reversePontajRegistration(row.id, auth.user.id, db)
+      mssqlObject(`UPDATE hr.time_sheets SET validat=0,validat_de=NULL,validat_la=NULL,updated_at=SYSDATETIME() WHERE validat=1 AND CONVERT(char(7),data,126)=JSON_VALUE(@p,'$.luna') AND employee_id IN (SELECT TRY_CONVERT(int,value) FROM OPENJSON(JSON_QUERY(@p,'$.employeeIds'))); SELECT @@ROWCOUNT AS invalidated FOR JSON PATH;`, { employeeIds, luna })
+      addAudit(db, auth.user, 'hr_timesheets_invalidated', `${luna}: ${reason}`); writeDb(db)
+      return sendJson(res, 200, { invalidated: rows.length })
+    }
+    const hr = ensureHrDb(db)
+    const rows = hr.timeSheets.filter((entry) => entry.validat && employeeIds.includes(String(entry.employee_id)) && String(entry.data).startsWith(luna))
+    for (const row of rows) {
+      await reversePontajRegistration(row.id, auth.user.id, db)
+      row.validat = false; row.validat_de = null; row.validat_la = null; row.updated_at = nowIso()
+    }
+    addAudit(db, auth.user, 'hr_timesheets_invalidated', `${luna}: ${reason}`); writeDb(db)
+    sendJson(res, 200, { invalidated: rows.length })
+  } catch (error) { next(error) }
 })
 
 router.get('/hr/timesheets/monthly-sheet', (req, res, next) => {
@@ -2548,6 +2679,8 @@ FOR JSON PATH;
             synced.push({ id: operationId, uuid: existing.uuid, duplicate: true })
             continue
           }
+          const overlap = mssqlObject(`SELECT TOP 1 uuid,data_start,data_sfarsit FROM hr.leave_requests WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND status IN (N'cerut',N'aprobat',N'aprobata') AND data_start<=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_sfarsit')) AND data_sfarsit>=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_start')) FOR JSON PATH;`, leave)
+          if (overlap) { failed.push({ id: operationId, error: `Exista deja o cerere activa in perioada ${overlap.data_start} - ${overlap.data_sfarsit}.` }); continue }
           const item = mssqlObject(`
 INSERT INTO hr.leave_requests (uuid, employee_id, tip, data_start, data_sfarsit, zile, motiv)
 VALUES (
@@ -2574,6 +2707,8 @@ FOR JSON PATH;
           synced.push({ id: operationId, uuid: existing.uuid, duplicate: true })
           continue
         }
+        const overlap = hr.leaveRequests.find((item) => String(item.employee_id) === String(leave.employee_id) && ['cerut', 'aprobat', 'aprobata'].includes(item.status) && item.data_start <= leave.data_sfarsit && item.data_sfarsit >= leave.data_start)
+        if (overlap) { failed.push({ id: operationId, error: `Exista deja o cerere activa in perioada ${overlap.data_start} - ${overlap.data_sfarsit}.` }); continue }
         const item = { id: nextId(hr.leaveRequests), ...leave }
         hr.leaveRequests.push(item)
         createdCount += 1
@@ -2601,6 +2736,8 @@ router.post('/hr/leave-requests', (req, res, next) => {
     const db = readDb()
 
     if (isMssqlMode()) {
+      const overlap = mssqlObject(`SELECT TOP 1 uuid,data_start,data_sfarsit FROM hr.leave_requests WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND status IN (N'cerut',N'aprobat',N'aprobata') AND data_start<=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_sfarsit')) AND data_sfarsit>=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_start')) FOR JSON PATH;`, body)
+      if (overlap) return sendJson(res, 409, { error: `Exista deja o cerere activa care se suprapune (${overlap.data_start} - ${overlap.data_sfarsit}).`, code: 'HR_LEAVE_OVERLAP' })
       const item = mssqlObject(`
 INSERT INTO hr.leave_requests (uuid, employee_id, tip, data_start, data_sfarsit, zile, motiv)
 VALUES (
@@ -2616,15 +2753,17 @@ SELECT TOP 1 * FROM hr.leave_requests WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR 
 `, { ...body, uuid: crypto.randomUUID(), zile })
       addAudit(db, auth.user, 'hr_leave_created', item?.uuid)
       writeDb(db)
-      return sendJson(res, 201, { item, payment_adjustment: paymentAdjustment })
+      return sendJson(res, 201, item)
     }
 
     const hr = ensureHrDb(db)
+    const overlap = hr.leaveRequests.find((entry) => String(entry.employee_id) === String(body.employee_id) && ['cerut', 'aprobat', 'aprobata'].includes(entry.status) && entry.data_start <= body.data_sfarsit && entry.data_sfarsit >= body.data_start)
+    if (overlap) return sendJson(res, 409, { error: `Exista deja o cerere activa care se suprapune (${overlap.data_start} - ${overlap.data_sfarsit}).`, code: 'HR_LEAVE_OVERLAP' })
     const item = { id: nextId(hr.leaveRequests), uuid: crypto.randomUUID(), ...body, zile, status: 'cerut', created_at: nowIso(), updated_at: null }
     hr.leaveRequests.push(item)
     addAudit(db, auth.user, 'hr_leave_created', item.uuid)
     writeDb(db)
-    sendJson(res, 201, { item, payment_adjustment: paymentAdjustment })
+    sendJson(res, 201, item)
   } catch (error) {
     next(error)
   }
@@ -2637,12 +2776,26 @@ router.post('/hr/leave-requests/:uuid/approve', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:leave_manage')) return
     const db = readDb()
     if (isMssqlMode()) {
+      const leave = mssqlObject(`SELECT TOP 1 * FROM hr.leave_requests WHERE uuid=JSON_VALUE(@p,'$.uuid') FOR JSON PATH;`, { uuid: req.params.uuid })
+      if (!leave) return sendJson(res, 404, { error: 'Cererea nu a fost gasita.' })
+      const dates = businessDateRange(leave.data_start, leave.data_sfarsit)
+      for (const month of new Set(dates.map((date) => date.slice(0, 7)))) assertTimesheetOpen(db, month)
+      const locked = mssqlObject(`SELECT TOP 1 ts.data FROM hr.time_sheets ts WHERE ts.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND ts.data BETWEEN TRY_CONVERT(date,JSON_VALUE(@p,'$.start')) AND TRY_CONVERT(date,JSON_VALUE(@p,'$.end')) AND ts.validat=1 FOR JSON PATH;`, { employee_id: leave.employee_id, start: leave.data_start, end: leave.data_sfarsit })
+      if (locked) return sendJson(res, 409, { error: `Pontajul din ${locked.data} este deja validat. Devalideaza pontajul inainte de aprobarea concediului.`, code: 'HR_TIMESHEET_VALIDATED' })
       const item = mssqlObject(`
 UPDATE hr.leave_requests
 SET status = N'aprobata', aprobat_de = JSON_VALUE(@p, '$.userId'), aprobat_la = sysdatetime(), updated_at = sysdatetime()
 WHERE uuid = JSON_VALUE(@p, '$.uuid');
+DECLARE @start date=TRY_CONVERT(date,JSON_VALUE(@p,'$.start')), @finish date=TRY_CONVERT(date,JSON_VALUE(@p,'$.end'));
+;WITH dates AS (SELECT @start AS data UNION ALL SELECT DATEADD(day,1,data) FROM dates WHERE data<@finish), workdays AS (SELECT data FROM dates WHERE DATEDIFF(day,0,data)%7 BETWEEN 0 AND 4)
+UPDATE ts SET tip=JSON_VALUE(@p,'$.timesheetType'),ore_lucrate=0,ore_suplimentare_s1=0,ore_suplimentare_s2=0,overtime_status=NULL,observatii=N'Completat automat din cererea de concediu',updated_at=SYSDATETIME()
+FROM hr.time_sheets ts JOIN workdays d ON d.data=ts.data WHERE ts.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id'));
+;WITH dates AS (SELECT @start AS data UNION ALL SELECT DATEADD(day,1,data) FROM dates WHERE data<@finish), workdays AS (SELECT data FROM dates WHERE DATEDIFF(day,0,data)%7 BETWEEN 0 AND 4)
+INSERT INTO hr.time_sheets(employee_id,data,ore_lucrate,tip,observatii)
+SELECT TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')),d.data,0,JSON_VALUE(@p,'$.timesheetType'),N'Completat automat din cererea de concediu'
+FROM workdays d WHERE NOT EXISTS(SELECT 1 FROM hr.time_sheets ts WHERE ts.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND ts.data=d.data) OPTION(MAXRECURSION 370);
 SELECT TOP 1 * FROM hr.leave_requests WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR JSON PATH;
-`, { uuid: req.params.uuid, userId: auth.user.id })
+`, { uuid: req.params.uuid, userId: auth.user.id, employee_id: leave.employee_id, start: leave.data_start, end: leave.data_sfarsit, timesheetType: leaveTimesheetType(leave.tip) })
       addAudit(db, auth.user, 'hr_leave_approved', req.params.uuid)
       writeDb(db)
       return sendJson(res, 200, item)
@@ -2650,10 +2803,19 @@ SELECT TOP 1 * FROM hr.leave_requests WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR 
     const hr = ensureHrDb(db)
     const item = hr.leaveRequests.find((leave) => leave.uuid === req.params.uuid)
     if (!item) return sendJson(res, 404, { error: 'Cererea nu a fost gasita.' })
+    const dates = businessDateRange(item.data_start, item.data_sfarsit)
+    for (const month of new Set(dates.map((date) => date.slice(0, 7)))) assertTimesheetOpen(db, month)
+    const locked = hr.timeSheets.find((entry) => String(entry.employee_id) === String(item.employee_id) && dates.includes(entry.data) && entry.validat)
+    if (locked) return sendJson(res, 409, { error: `Pontajul din ${locked.data} este deja validat. Devalideaza pontajul inainte de aprobarea concediului.`, code: 'HR_TIMESHEET_VALIDATED' })
     item.status = 'aprobata'
     item.aprobat_de = auth.user.id
     item.aprobat_la = nowIso()
     item.updated_at = nowIso()
+    for (const data of dates) {
+      let entry = hr.timeSheets.find((row) => String(row.employee_id) === String(item.employee_id) && row.data === data)
+      if (!entry) { entry = { id: nextId(hr.timeSheets), employee_id: item.employee_id, data, created_at: nowIso() }; hr.timeSheets.push(entry) }
+      Object.assign(entry, { tip: leaveTimesheetType(item.tip), ore_lucrate: 0, ore_suplimentare_s1: 0, ore_suplimentare_s2: 0, overtime_status: null, observatii: 'Completat automat din cererea de concediu', updated_at: nowIso() })
+    }
     // Track CO efectuate on employee
     const coTypes = ['co', 'concediu_odihna', 'concediu']
     if (coTypes.includes(String(item.tip || '').toLowerCase())) {
@@ -3135,7 +3297,7 @@ router.get('/hr/timesheets/raport-lunar/:employeeId', (req, res, next) => {
     )
     const totals = {
       ore_lucru: 0, ore_suplimentare_s1: 0, ore_suplimentare_s2: 0,
-      ore_noapte: 0, zile_co: 0, zile_cm: 0, zile_absente: 0,
+      ore_noapte: 0, zile_co: 0, zile_cm: 0, zile_absente: 0, ore_suplimentare_propuse: 0, ore_suplimentare_aprobate: 0,
     }
     const zileleLunii = dates.map(date => {
       const ts = pontaje.find(p => p.data === date) || {}
@@ -3153,8 +3315,10 @@ router.get('/hr/timesheets/raport-lunar/:employeeId', (req, res, next) => {
       if (tip === 'nemotivat' || tip === 'absent') totals.zile_absente += 1
       totals.ore_suplimentare_s1 += s1
       totals.ore_suplimentare_s2 += s2
+      if (ts.overtime_status === 'propus') totals.ore_suplimentare_propuse += s1 + s2
+      if (!ts.overtime_status || ts.overtime_status === 'aprobat') totals.ore_suplimentare_aprobate += s1 + s2
       totals.ore_noapte += noapte
-      return { date, tip: ts.tip || (ore > 0 ? 'lucru' : '-'), ore_lucrate: ore, ore_suplimentare_s1: s1, ore_suplimentare_s2: s2, ore_noapte: noapte, observatii: ts.observatii || null }
+      return { id: ts.id, date, tip: ts.tip || (ore > 0 ? 'lucru' : '-'), ore_lucrate: ore, ore_suplimentare_s1: s1, ore_suplimentare_s2: s2, ore_noapte: noapte, overtime_status: ts.overtime_status || null, observatii: ts.observatii || null }
     })
     const contract = activeContractFor(hr, req.params.employeeId)
     const salariu = numberValue(contract?.salariu_baza || employee.salariu_baza)
