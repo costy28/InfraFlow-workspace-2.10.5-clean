@@ -20,6 +20,7 @@ const { assertTimesheetOpen } = require('./timesheet-locks')
 const { buildRegesWorkRow, buildRegesWorkbook, buildInternalXml } = require('./reges-work-register')
 const { dailyOvertime } = require('./overtime-policy')
 const { weeklyControls } = require('./working-time-policy')
+const { calendarDays, missingMedicalField } = require('./medical-leave-policy')
 
 const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
@@ -84,6 +85,7 @@ function ensureHrDb(db) {
   db.hr.contracts = Array.isArray(db.hr.contracts) ? db.hr.contracts : []
   db.hr.timeSheets = Array.isArray(db.hr.timeSheets) ? db.hr.timeSheets : []
   db.hr.leaveRequests = Array.isArray(db.hr.leaveRequests) ? db.hr.leaveRequests : []
+  db.hr.medicalLeaveCertificates = Array.isArray(db.hr.medicalLeaveCertificates) ? db.hr.medicalLeaveCertificates : []
   db.hr.authorizations = Array.isArray(db.hr.authorizations) ? db.hr.authorizations : []
   db.hr.regesExports = Array.isArray(db.hr.regesExports) ? db.hr.regesExports : []
   db.hr.training = Array.isArray(db.hr.training) ? db.hr.training : []
@@ -681,7 +683,7 @@ ORDER BY CASE WHEN e.user_id=JSON_VALUE(@p,'$.userId') THEN 0 ELSE 1 END
 FOR JSON PATH;`, { userId: String(auth.user.id), employeeId: String(linkedEmployeeId) })
     if (!employee) return { angajat: null, pontaj_luna: { luna: month, zile_lucrate: 0, ore_total: 0 }, concedii: { co_ramase: 0, cm_zile: 0 }, autorizatii: [], cereri_asteptare: [], program: [], fluturasi: [], notificari: personalNotifications(db, auth.user.id) }
     timesheets = mssqlArray(`SELECT * FROM hr.time_sheets WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) AND FORMAT(data,'yyyy-MM')=JSON_VALUE(@p,'$.month') FOR JSON PATH;`, { employeeId: employee.id, month })
-    leaves = mssqlArray(`SELECT * FROM hr.leave_requests WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) ORDER BY created_at DESC FOR JSON PATH;`, { employeeId: employee.id })
+    leaves = mssqlArray(`SELECT lr.*,mc.uuid AS medical_certificate_uuid,mc.status_verificare,mc.motiv_respingere AS medical_rejection_reason FROM hr.leave_requests lr LEFT JOIN hr.medical_leave_certificates mc ON mc.leave_request_uuid=lr.uuid WHERE lr.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) ORDER BY lr.created_at DESC FOR JSON PATH;`, { employeeId: employee.id })
     authorizations = mssqlArray(`SELECT * FROM hr.authorizations WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) ORDER BY data_expirare FOR JSON PATH;`, { employeeId: employee.id })
     schedules = mssqlArray(`
 SELECT s.*, t.nume AS tura_nume, t.ora_start, t.ora_sfarsit
@@ -698,7 +700,10 @@ FOR JSON PATH;`, { employeeId: employee.id, month })
     ))
     if (!employee) return { angajat: null, pontaj_luna: { luna: month, zile_lucrate: 0, ore_total: 0 }, concedii: { co_ramase: 0, cm_zile: 0 }, autorizatii: [], cereri_asteptare: [], program: [], fluturasi: [], notificari: personalNotifications(db, auth.user.id) }
     timesheets = hr.timeSheets.filter((item) => String(item.employee_id) === String(employee.id) && String(item.data || '').startsWith(month))
-    leaves = hr.leaveRequests.filter((item) => String(item.employee_id) === String(employee.id))
+    leaves = hr.leaveRequests.filter((item) => String(item.employee_id) === String(employee.id)).map((leave) => {
+      const certificate = hr.medicalLeaveCertificates.find((item) => String(item.leave_request_uuid) === String(leave.uuid))
+      return certificate ? { ...leave, medical_certificate_uuid: certificate.uuid, status_verificare: certificate.status_verificare, medical_rejection_reason: certificate.motiv_respingere } : leave
+    })
     authorizations = hr.authorizations.filter((item) => String(item.employee_id) === String(employee.id))
     schedules = hr.schedules
       .filter((item) => String(item.employee_id) === String(employee.id) && String(item.data || '').startsWith(month))
@@ -2666,6 +2671,119 @@ router.get('/hr/timesheets/export-nexus', (req, res, next) => {
   }
 })
 
+const medicalLeaveRoot = path.join(__dirname, '../../../storage/hr-medical-leaves')
+const medicalLeaveUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
+const medicalLeaveMime = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+fs.mkdirSync(medicalLeaveRoot, { recursive: true })
+
+function kioskOrAppAuth(req, res) {
+  const session = kioskSessions.getSession(kioskSessions.tokenFromRequest(req))
+  if (!session) return requireAuth(req, res)
+  return { db: readDb(), user: { id: `kiosk-${session.employee_id}`, username: session.username, role: 'kiosk', employee_id: session.employee_id, permissions: ['hr:view_own', 'hr:leave_own', 'kiosk:leave_request'] } }
+}
+
+function safeMedicalFile(value) { return String(value || '').replace(/[^a-zA-Z0-9._-]/g, '_') }
+
+router.post('/hr/kiosk/medical-leave', medicalLeaveUpload.single('file'), (req, res, next) => {
+  let storedPath = ''
+  try {
+    const auth = kioskOrAppAuth(req, res)
+    if (!auth) return
+    if (!canUseKioskSync(auth)) return requirePermission(auth, res, 'hr:view_own')
+    if (!req.file || !medicalLeaveMime.has(req.file.mimetype)) return sendJson(res, 422, { error: 'Pentru concediul medical este obligatoriu un fisier PDF, JPG sau PNG de maximum 10 MB.', code: 'HR_MEDICAL_FILE_REQUIRED' })
+    const db = readDb()
+    const hr = ensureHrDb(db)
+    const employeeId = String(auth.user.employee_id || auth.user.employeeId || '').trim()
+    const body = req.body || {}
+    const missing = missingMedicalField(body)
+    if (!employeeId) return sendJson(res, 422, { error: 'Contul Kiosk nu este asociat unui angajat.', code: 'HR_EMPLOYEE_LINK_REQUIRED' })
+    if (missing) return sendJson(res, 422, { error: `Camp obligatoriu lipsa: ${missing}.`, code: 'HR_MEDICAL_FIELD_REQUIRED' })
+    const zileCalendaristice = calendarDays(body.data_start, body.data_sfarsit)
+    if (!zileCalendaristice) return sendJson(res, 422, { error: 'Perioada certificatului medical nu este valida.', code: 'HR_MEDICAL_DATES_INVALID' })
+    const leaveUuid = crypto.randomUUID()
+    const certificateUuid = crypto.randomUUID()
+    const extension = req.file.mimetype === 'application/pdf' ? '.pdf' : req.file.mimetype === 'image/png' ? '.png' : '.jpg'
+    const folder = path.join(medicalLeaveRoot, `employee_${safeMedicalFile(employeeId)}`)
+    fs.mkdirSync(folder, { recursive: true })
+    const storedName = `${certificateUuid}${extension}`
+    storedPath = path.join(folder, storedName)
+    fs.writeFileSync(storedPath, req.file.buffer)
+    const payload = { ...body, employee_id: employeeId, leave_uuid: leaveUuid, certificate_uuid: certificateUuid, zile_lucratoare: businessDays(body.data_start, body.data_sfarsit), zile_calendaristice: zileCalendaristice, file_name: String(req.file.originalname || `certificat${extension}`).slice(0, 255), stored_name: storedName, mime_type: req.file.mimetype, file_size: req.file.size, created_by: auth.user.id }
+
+    if (isMssqlMode()) {
+      const overlap = mssqlObject(`SELECT TOP 1 uuid,data_start,data_sfarsit FROM hr.leave_requests WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND status IN (N'cerut',N'aprobat',N'aprobata') AND data_start<=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_sfarsit')) AND data_sfarsit>=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_start')) FOR JSON PATH;`, payload)
+      if (overlap) { fs.unlinkSync(storedPath); storedPath = ''; return sendJson(res, 409, { error: `Exista deja o cerere activa care se suprapune (${overlap.data_start} - ${overlap.data_sfarsit}).`, code: 'HR_LEAVE_OVERLAP' }) }
+      const item = mssqlObject(`
+SET XACT_ABORT ON; BEGIN TRANSACTION;
+INSERT INTO hr.leave_requests(uuid,employee_id,tip,data_start,data_sfarsit,zile,motiv,status)
+VALUES(TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.leave_uuid')),TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')),N'CM',TRY_CONVERT(date,JSON_VALUE(@p,'$.data_start')),TRY_CONVERT(date,JSON_VALUE(@p,'$.data_sfarsit')),TRY_CONVERT(decimal(6,2),JSON_VALUE(@p,'$.zile_lucratoare')),NULLIF(JSON_VALUE(@p,'$.motiv'),''),N'cerut');
+INSERT INTO hr.medical_leave_certificates(uuid,leave_request_uuid,employee_id,serie,numar,tip_certificat,data_acordarii,data_start,data_sfarsit,zile_calendaristice,cod_indemnizatie,cod_diagnostic,medic_nume,cod_parafa,unitate_emitenta,file_name,stored_name,mime_type,file_size,created_by)
+VALUES(TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.certificate_uuid')),JSON_VALUE(@p,'$.leave_uuid'),TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')),JSON_VALUE(@p,'$.serie'),JSON_VALUE(@p,'$.numar'),COALESCE(NULLIF(JSON_VALUE(@p,'$.tip_certificat'),''),N'initial'),TRY_CONVERT(date,JSON_VALUE(@p,'$.data_acordarii')),TRY_CONVERT(date,JSON_VALUE(@p,'$.data_start')),TRY_CONVERT(date,JSON_VALUE(@p,'$.data_sfarsit')),TRY_CONVERT(int,JSON_VALUE(@p,'$.zile_calendaristice')),JSON_VALUE(@p,'$.cod_indemnizatie'),NULLIF(JSON_VALUE(@p,'$.cod_diagnostic'),''),JSON_VALUE(@p,'$.medic_nume'),JSON_VALUE(@p,'$.cod_parafa'),JSON_VALUE(@p,'$.unitate_emitenta'),JSON_VALUE(@p,'$.file_name'),JSON_VALUE(@p,'$.stored_name'),JSON_VALUE(@p,'$.mime_type'),TRY_CONVERT(bigint,JSON_VALUE(@p,'$.file_size')),TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.created_by')));
+COMMIT TRANSACTION;
+SELECT TOP 1 lr.*,mc.status_verificare,mc.uuid AS medical_certificate_uuid,mc.zile_calendaristice FROM hr.leave_requests lr JOIN hr.medical_leave_certificates mc ON mc.leave_request_uuid=lr.uuid WHERE lr.uuid=JSON_VALUE(@p,'$.leave_uuid') FOR JSON PATH;`, payload)
+      addAudit(db, auth.user, 'hr_medical_leave_submitted', `${leaveUuid} / ${employeeId}`); writeDb(db)
+      return sendJson(res, 201, item)
+    }
+
+    const overlap = hr.leaveRequests.find((entry) => String(entry.employee_id) === employeeId && ['cerut','aprobat','aprobata'].includes(entry.status) && entry.data_start <= body.data_sfarsit && entry.data_sfarsit >= body.data_start)
+    if (overlap) { fs.unlinkSync(storedPath); storedPath = ''; return sendJson(res, 409, { error: `Exista deja o cerere activa care se suprapune (${overlap.data_start} - ${overlap.data_sfarsit}).`, code: 'HR_LEAVE_OVERLAP' }) }
+    const leave = { id: nextId(hr.leaveRequests), uuid: leaveUuid, employee_id: employeeId, tip: 'CM', data_start: body.data_start, data_sfarsit: body.data_sfarsit, zile: payload.zile_lucratoare, motiv: body.motiv || '', status: 'cerut', created_at: nowIso() }
+    const certificate = { id: nextId(hr.medicalLeaveCertificates), uuid: certificateUuid, leave_request_uuid: leaveUuid, employee_id: employeeId, serie: body.serie, numar: body.numar, tip_certificat: body.tip_certificat || 'initial', data_acordarii: body.data_acordarii, data_start: body.data_start, data_sfarsit: body.data_sfarsit, zile_calendaristice: zileCalendaristice, cod_indemnizatie: body.cod_indemnizatie, cod_diagnostic: body.cod_diagnostic || '', medic_nume: body.medic_nume, cod_parafa: body.cod_parafa, unitate_emitenta: body.unitate_emitenta, file_name: payload.file_name, stored_name: storedName, mime_type: req.file.mimetype, file_size: req.file.size, status_verificare: 'in_verificare', created_by: auth.user.id, created_at: nowIso() }
+    hr.leaveRequests.push(leave); hr.medicalLeaveCertificates.push(certificate)
+    addAudit(db, auth.user, 'hr_medical_leave_submitted', `${leaveUuid} / ${employeeId}`); writeDb(db)
+    sendJson(res, 201, { ...leave, status_verificare: certificate.status_verificare, medical_certificate_uuid: certificate.uuid, zile_calendaristice: zileCalendaristice })
+  } catch (error) {
+    if (storedPath && fs.existsSync(storedPath)) fs.unlinkSync(storedPath)
+    next(error)
+  }
+})
+
+router.get('/hr/medical-leaves/:uuid/document', (req, res, next) => {
+  try {
+    const auth = kioskOrAppAuth(req, res)
+    if (!auth) return
+    const db = readDb()
+    const ownEmployeeId = String(auth.user.employee_id || auth.user.employeeId || '')
+    const fullAccess = authHasPermission(auth, 'hr:leave_manage') || authHasPermission(auth, 'hr:manage')
+    const item = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, req.params)
+      : ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid))
+    if (!item) return sendJson(res, 404, { error: 'Certificatul medical nu a fost gasit.', code: 'HR_MEDICAL_NOT_FOUND' })
+    if (!fullAccess && String(item.employee_id) !== ownEmployeeId) return sendJson(res, 403, { error: 'Nu ai acces la acest document medical.' })
+    const filePath = path.join(medicalLeaveRoot, `employee_${safeMedicalFile(item.employee_id)}`, safeMedicalFile(item.stored_name))
+    if (!fs.existsSync(filePath)) return sendJson(res, 404, { error: 'Fisierul certificatului nu exista in storage.', code: 'HR_MEDICAL_STORAGE_MISSING' })
+    addAudit(db, auth.user, 'hr_medical_leave_document_viewed', String(item.uuid)); writeDb(db)
+    res.download(filePath, item.file_name)
+  } catch (error) { next(error) }
+})
+
+router.post('/hr/medical-leaves/:uuid/verify', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:leave_manage')) return
+    const db = readDb()
+    let item
+    if (isMssqlMode()) item = mssqlObject(`UPDATE hr.medical_leave_certificates SET status_verificare=N'verificat',verificat_de=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.userId')),verificat_la=SYSDATETIME(),motiv_respingere=NULL,updated_at=SYSDATETIME() WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')); SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, { uuid: req.params.uuid, userId: auth.user.id })
+    else { item = ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid)); if (item) Object.assign(item, { status_verificare: 'verificat', verificat_de: auth.user.id, verificat_la: nowIso(), motiv_respingere: null, updated_at: nowIso() }) }
+    if (!item) return sendJson(res, 404, { error: 'Certificatul medical nu a fost gasit.' })
+    addAudit(db, auth.user, 'hr_medical_leave_verified', req.params.uuid); writeDb(db); sendJson(res, 200, item)
+  } catch (error) { next(error) }
+})
+
+router.post('/hr/medical-leaves/:uuid/reject', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:leave_manage')) return
+    const reason = String(req.body?.motiv || '').trim()
+    if (reason.length < 5) return sendJson(res, 422, { error: 'Motivul respingerii trebuie sa aiba minimum 5 caractere.' })
+    const db = readDb(); let item
+    if (isMssqlMode()) item = mssqlObject(`UPDATE hr.medical_leave_certificates SET status_verificare=N'respinsa',verificat_de=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.userId')),verificat_la=SYSDATETIME(),motiv_respingere=JSON_VALUE(@p,'$.motiv'),updated_at=SYSDATETIME() WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')); SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, { uuid: req.params.uuid, userId: auth.user.id, motiv: reason })
+    else { item = ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid)); if (item) Object.assign(item, { status_verificare: 'respinsa', verificat_de: auth.user.id, verificat_la: nowIso(), motiv_respingere: reason, updated_at: nowIso() }) }
+    if (!item) return sendJson(res, 404, { error: 'Certificatul medical nu a fost gasit.' })
+    addAudit(db, auth.user, 'hr_medical_leave_rejected', `${req.params.uuid} / ${reason}`); writeDb(db); sendJson(res, 200, item)
+  } catch (error) { next(error) }
+})
+
 router.get('/hr/leave-requests', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
@@ -2678,9 +2796,9 @@ router.get('/hr/leave-requests', (req, res, next) => {
       if (!hasFullView) {
         const ownEmpRow = mssqlObject(`SELECT TOP 1 id FROM hr.employees WHERE user_id = JSON_VALUE(@p, '$.userId') FOR JSON PATH;`, { userId: String(auth.user.id) })
         const ownEmpId = ownEmpRow ? ownEmpRow.id : -1
-        rows = mssqlArray(`SELECT * FROM hr.leave_requests WHERE employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.empId')) ORDER BY created_at DESC FOR JSON PATH;`, { empId: ownEmpId })
+        rows = mssqlArray(`SELECT lr.*,mc.uuid AS medical_certificate_uuid,mc.status_verificare,mc.serie AS certificat_serie,mc.numar AS certificat_numar,mc.zile_calendaristice,mc.cod_indemnizatie,mc.medic_nume,mc.unitate_emitenta,mc.motiv_respingere AS medical_rejection_reason FROM hr.leave_requests lr LEFT JOIN hr.medical_leave_certificates mc ON mc.leave_request_uuid=lr.uuid WHERE lr.employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.empId')) ORDER BY lr.created_at DESC FOR JSON PATH;`, { empId: ownEmpId })
       } else {
-        rows = mssqlArray(`SELECT * FROM hr.leave_requests ORDER BY created_at DESC FOR JSON PATH;`)
+        rows = mssqlArray(`SELECT lr.*,mc.uuid AS medical_certificate_uuid,mc.status_verificare,mc.serie AS certificat_serie,mc.numar AS certificat_numar,mc.zile_calendaristice,mc.cod_indemnizatie,mc.medic_nume,mc.unitate_emitenta,mc.motiv_respingere AS medical_rejection_reason FROM hr.leave_requests lr LEFT JOIN hr.medical_leave_certificates mc ON mc.leave_request_uuid=lr.uuid ORDER BY lr.created_at DESC FOR JSON PATH;`)
       }
       return sendJson(res, 200, rows)
     }
@@ -2692,7 +2810,10 @@ router.get('/hr/leave-requests', (req, res, next) => {
       if (ownEmp) leaves = leaves.filter((lr) => String(lr.employee_id) === String(ownEmp.id))
       else leaves = []
     }
-    sendJson(res, 200, leaves)
+    sendJson(res, 200, leaves.map((leave) => {
+      const certificate = hr.medicalLeaveCertificates.find((item) => String(item.leave_request_uuid) === String(leave.uuid))
+      return certificate ? { ...leave, medical_certificate_uuid: certificate.uuid, status_verificare: certificate.status_verificare, certificat_serie: certificate.serie, certificat_numar: certificate.numar, zile_calendaristice: certificate.zile_calendaristice, cod_indemnizatie: certificate.cod_indemnizatie, medic_nume: certificate.medic_nume, unitate_emitenta: certificate.unitate_emitenta, medical_rejection_reason: certificate.motiv_respingere } : leave
+    }))
   } catch (error) {
     next(error)
   }
@@ -2852,6 +2973,10 @@ router.post('/hr/leave-requests/:uuid/approve', (req, res, next) => {
     if (isMssqlMode()) {
       const leave = mssqlObject(`SELECT TOP 1 * FROM hr.leave_requests WHERE uuid=JSON_VALUE(@p,'$.uuid') FOR JSON PATH;`, { uuid: req.params.uuid })
       if (!leave) return sendJson(res, 404, { error: 'Cererea nu a fost gasita.' })
+      if (String(leave.tip).toUpperCase() === 'CM') {
+        const certificate = mssqlObject(`SELECT TOP 1 status_verificare FROM hr.medical_leave_certificates WHERE leave_request_uuid=JSON_VALUE(@p,'$.uuid') FOR JSON PATH;`, { uuid: req.params.uuid })
+        if (certificate?.status_verificare !== 'verificat') return sendJson(res, 409, { error: 'Certificatul medical trebuie verificat de HR inaintea aprobarii concediului.', code: 'HR_MEDICAL_VERIFICATION_REQUIRED' })
+      }
       const dates = businessDateRange(leave.data_start, leave.data_sfarsit)
       for (const month of new Set(dates.map((date) => date.slice(0, 7)))) assertTimesheetOpen(db, month)
       const locked = mssqlObject(`SELECT TOP 1 ts.data FROM hr.time_sheets ts WHERE ts.employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND ts.data BETWEEN TRY_CONVERT(date,JSON_VALUE(@p,'$.start')) AND TRY_CONVERT(date,JSON_VALUE(@p,'$.end')) AND ts.validat=1 FOR JSON PATH;`, { employee_id: leave.employee_id, start: leave.data_start, end: leave.data_sfarsit })
@@ -2877,6 +3002,10 @@ SELECT TOP 1 * FROM hr.leave_requests WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR 
     const hr = ensureHrDb(db)
     const item = hr.leaveRequests.find((leave) => leave.uuid === req.params.uuid)
     if (!item) return sendJson(res, 404, { error: 'Cererea nu a fost gasita.' })
+    if (String(item.tip).toUpperCase() === 'CM') {
+      const certificate = hr.medicalLeaveCertificates.find((row) => String(row.leave_request_uuid) === String(item.uuid))
+      if (certificate?.status_verificare !== 'verificat') return sendJson(res, 409, { error: 'Certificatul medical trebuie verificat de HR inaintea aprobarii concediului.', code: 'HR_MEDICAL_VERIFICATION_REQUIRED' })
+    }
     const dates = businessDateRange(item.data_start, item.data_sfarsit)
     for (const month of new Set(dates.map((date) => date.slice(0, 7)))) assertTimesheetOpen(db, month)
     const locked = hr.timeSheets.find((entry) => String(entry.employee_id) === String(item.employee_id) && dates.includes(entry.data) && entry.validat)

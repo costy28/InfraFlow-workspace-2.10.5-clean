@@ -50,6 +50,12 @@ function businessDaysEstimate(start, end) {
   }
   return count
 }
+function calendarDaysEstimate(start, end) {
+  if (!start || !end) return 0
+  const first = new Date(`${start}T12:00:00Z`)
+  const last = new Date(`${end}T12:00:00Z`)
+  return last >= first ? Math.floor((last - first) / 86400000) + 1 : 0
+}
 function localId() {
   return (typeof crypto !== 'undefined' && crypto.randomUUID)
     ? crypto.randomUUID()
@@ -238,7 +244,9 @@ export default function KioskPage() {
   const [syncStatus, setSyncStatus] = useState('')
 
   // Leave form
-  const [leaveForm, setLeaveForm] = useState({ tip: 'CO', data_start: '', data_sfarsit: '', motiv: '' })
+  const emptyLeaveForm = { tip: 'CO', data_start: '', data_sfarsit: '', motiv: '', serie: '', numar: '', tip_certificat: 'initial', data_acordarii: '', cod_indemnizatie: '', cod_diagnostic: '', medic_nume: '', cod_parafa: '', unitate_emitenta: '' }
+  const [leaveForm, setLeaveForm] = useState(emptyLeaveForm)
+  const [medicalFile, setMedicalFile] = useState(null)
   const [leaveSubmitting, setLeaveSubmitting] = useState(false)
   const [leaveSuccess, setLeaveSuccess] = useState(false)
 
@@ -512,6 +520,21 @@ export default function KioskPage() {
     event.preventDefault()
     setLeaveSubmitting(true)
     setError('')
+    if (leaveForm.tip === 'CM') {
+      try {
+        if (!medicalFile) throw new Error('Incarca certificatul medical in format PDF, JPG sau PNG.')
+        const form = new FormData()
+        Object.entries(leaveForm).forEach(([key, value]) => form.append(key, value ?? ''))
+        form.append('file', medicalFile)
+        const syncApi = kioskToken ? kioskApi(kioskToken) : api
+        await syncApi.post('/hr/kiosk/medical-leave', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000 })
+        setOnline(true); setLeaveSuccess(true); setLeaveForm(emptyLeaveForm); setMedicalFile(null)
+        await loadKiosk(); setTimeout(() => setLeaveSuccess(false), 3000)
+      } catch (err) {
+        setError(err.response?.data?.error || err.message || 'Certificatul medical nu a putut fi transmis.')
+      } finally { setLeaveSubmitting(false) }
+      return
+    }
     const clientId = localId()
     const payload = { ...leaveForm, employee_id: employee.id, uuid: clientId }
     const operation = { id: clientId, type: 'leave_request', created_at: new Date().toISOString(), data: payload }
@@ -520,7 +543,7 @@ export default function KioskPage() {
       const response = await syncApi.post('/hr/kiosk/sync', { operations: [operation] })
       if (response.data?.failed?.length) throw new Error(response.data.failed[0]?.error || 'Eroare.')
       setOnline(true); setLeaveSuccess(true)
-      setLeaveForm({ tip: 'CO', data_start: '', data_sfarsit: '', motiv: '' })
+      setLeaveForm(emptyLeaveForm)
       await loadKiosk()
       setTimeout(() => setLeaveSuccess(false), 3000)
     } catch (err) {
@@ -529,7 +552,7 @@ export default function KioskPage() {
       setOfflineQueue(nextQueue)
       setOnline(false)
       setLeaveSuccess(true)
-      setLeaveForm({ tip: 'CO', data_start: '', data_sfarsit: '', motiv: '' })
+      setLeaveForm(emptyLeaveForm)
       setSyncStatus('Cererea a fost salvată pe dispozitiv și se va sincroniza automat.')
       const pendingLeave = { ...payload, id: clientId, zile: businessDaysEstimate(payload.data_start, payload.data_sfarsit), status: 'în așteptare sync', created_at: operation.created_at }
       setMyLeaves(ls => [...ls, pendingLeave])
@@ -611,6 +634,7 @@ export default function KioskPage() {
 
   // ── Render helpers ────────────────────────────────────────────────────────
   const zile_estimate = businessDaysEstimate(leaveForm.data_start, leaveForm.data_sfarsit)
+  const zile_calendaristice = calendarDaysEstimate(leaveForm.data_start, leaveForm.data_sfarsit)
   const pendingCount = offlineQueue.length
 
   const activeTrip = myTrips.find(t => t.status === 'deschisa')
@@ -1214,6 +1238,28 @@ export default function KioskPage() {
                       <Input label="Data start" type="date" value={leaveForm.data_start} onChange={e => setLeaveForm({ ...leaveForm, data_start: e.target.value })} required />
                       <Input label="Data sfârșit" type="date" value={leaveForm.data_sfarsit} onChange={e => setLeaveForm({ ...leaveForm, data_sfarsit: e.target.value })} required />
                     </div>
+                    {leaveForm.tip === 'CM' ? (
+                      <div className="grid gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3">
+                        <div><div className="font-semibold text-rose-900">Certificat de concediu medical</div><div className="text-xs text-rose-700">Datele vor fi comparate de HR cu documentul incarcat.</div></div>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <Input label="Serie certificat" value={leaveForm.serie} onChange={e => setLeaveForm({ ...leaveForm, serie: e.target.value })} required />
+                          <Input label="Numar certificat" value={leaveForm.numar} onChange={e => setLeaveForm({ ...leaveForm, numar: e.target.value })} required />
+                          <Select label="Tip certificat" value={leaveForm.tip_certificat} onChange={e => setLeaveForm({ ...leaveForm, tip_certificat: e.target.value })} options={[{ value: 'initial', label: 'Initial' }, { value: 'continuare', label: 'In continuare' }]} />
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <Input label="Data acordarii" type="date" value={leaveForm.data_acordarii} onChange={e => setLeaveForm({ ...leaveForm, data_acordarii: e.target.value })} required />
+                          <Input label="Cod indemnizatie" value={leaveForm.cod_indemnizatie} onChange={e => setLeaveForm({ ...leaveForm, cod_indemnizatie: e.target.value })} placeholder="ex. 01" required />
+                          <Input label="Cod diagnostic / boala" value={leaveForm.cod_diagnostic} onChange={e => setLeaveForm({ ...leaveForm, cod_diagnostic: e.target.value })} />
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <Input label="Nume medic" value={leaveForm.medic_nume} onChange={e => setLeaveForm({ ...leaveForm, medic_nume: e.target.value })} required />
+                          <Input label="Cod parafa" value={leaveForm.cod_parafa} onChange={e => setLeaveForm({ ...leaveForm, cod_parafa: e.target.value })} required />
+                          <Input label="Unitate medicala emitenta" value={leaveForm.unitate_emitenta} onChange={e => setLeaveForm({ ...leaveForm, unitate_emitenta: e.target.value })} required />
+                        </div>
+                        <div className="rounded-md bg-white px-3 py-2 text-sm text-rose-900">Perioada certificatului: <strong>{zile_calendaristice}</strong> zile calendaristice.</div>
+                        <Input label="Document justificativ (PDF, JPG sau PNG, max. 10 MB)" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e => setMedicalFile(e.target.files?.[0] || null)} required />
+                      </div>
+                    ) : null}
                     {zile_estimate > 0 && (
                       <div className="rounded-md bg-primary-50 px-3 py-2 text-sm text-primary-800">
                         Estimat: <strong>{zile_estimate}</strong> zile lucrătoare
@@ -1221,8 +1267,8 @@ export default function KioskPage() {
                       </div>
                     )}
                     <Input label="Motiv (opțional)" value={leaveForm.motiv} onChange={e => setLeaveForm({ ...leaveForm, motiv: e.target.value })} />
-                    <Button type="submit" disabled={leaveSubmitting || !leaveForm.data_start || !leaveForm.data_sfarsit}>
-                      {leaveSubmitting ? 'Se salvează...' : online ? '📨 Trimite cererea' : '💾 Salvează offline'}
+                    <Button type="submit" disabled={leaveSubmitting || !leaveForm.data_start || !leaveForm.data_sfarsit || (leaveForm.tip === 'CM' && (!medicalFile || !leaveForm.serie || !leaveForm.numar || !leaveForm.data_acordarii || !leaveForm.cod_indemnizatie || !leaveForm.medic_nume || !leaveForm.cod_parafa || !leaveForm.unitate_emitenta))}>
+                      {leaveSubmitting ? 'Se salvează...' : leaveForm.tip === 'CM' ? '📎 Trimite certificatul catre HR' : online ? '📨 Trimite cererea' : '💾 Salvează offline'}
                     </Button>
                   </form>
                 )}

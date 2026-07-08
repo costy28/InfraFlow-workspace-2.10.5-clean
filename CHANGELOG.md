@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.220 - 2026-07-08
+
+## Certificate de concediu medical in Kiosk
+
+- Formular dedicat CM cu serie, numar, tip certificat, data acordarii, perioada, cod indemnizatie si date emitent.
+- Numarul de zile calendaristice este calculat automat, separat de zilele lucratoare din pontaj.
+- Document PDF, JPG sau PNG obligatoriu, maximum 10 MB.
+- Flux de verificare HR: in verificare, verificat sau respins cu motiv.
+- Aprobarea concediului medical este permisa numai dupa verificarea documentului.
+- Vizualizarea documentelor medicale este restrictionata si auditata.
+
 # v2.12.219 - 2026-07-08
 
 ## Asociere cont Kiosk cu angajat HR

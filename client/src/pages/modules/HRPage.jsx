@@ -1346,6 +1346,24 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
     }
   }
 
+  async function reviewMedicalLeave(item, decision) {
+    try {
+      const motiv = decision === 'reject' ? window.prompt('Motivul respingerii certificatului (minimum 5 caractere):') : ''
+      if (decision === 'reject' && (!motiv || motiv.trim().length < 5)) return
+      await api.post(`/hr/medical-leaves/${item.medical_certificate_uuid}/${decision}`, { motiv })
+      await load()
+    } catch (err) { setError(err.response?.data?.error || 'Verificarea certificatului medical a esuat.') }
+  }
+
+  async function downloadMedicalLeave(item) {
+    try {
+      const response = await api.get(`/hr/medical-leaves/${item.medical_certificate_uuid}/document`, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      window.open(url, '_blank', 'noopener,noreferrer')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err) { setError(err.response?.data?.error || 'Documentul medical nu a putut fi deschis.') }
+  }
+
   async function createLeave(event) {
     event.preventDefault()
     try {
@@ -1721,12 +1739,15 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                   <span className="ml-2">{item.tip}</span>
                   <span className="ml-2 text-slate-500">{item.data_start} — {item.data_sfarsit}</span>
                   {item.zile ? <span className="ml-2 text-xs text-slate-400">({item.zile} zile)</span> : null}
+                  {item.medical_certificate_uuid ? <div className="mt-1 text-xs text-slate-500">Certificat {item.certificat_serie}/{item.certificat_numar} · {item.zile_calendaristice} zile calendaristice · cod indemnizatie {item.cod_indemnizatie} · {item.medic_nume} · {item.unitate_emitenta}</div> : null}
+                  {item.medical_rejection_reason ? <div className="mt-1 text-xs font-medium text-rose-700">Respins: {item.medical_rejection_reason}</div> : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge tone={item.status === 'aprobata' ? 'success' : item.status === 'respinsa' ? 'danger' : 'warning'}>{item.status || 'cerut'}</Badge>
+                  {item.medical_certificate_uuid ? <><Badge tone={item.status_verificare === 'verificat' ? 'success' : item.status_verificare === 'respinsa' ? 'danger' : 'warning'}>{item.status_verificare || 'in_verificare'}</Badge><Button size="sm" variant="secondary" onClick={() => downloadMedicalLeave(item)}>📎 Document</Button>{item.status_verificare === 'in_verificare' ? <><Button size="sm" onClick={() => reviewMedicalLeave(item, 'verify')}>Verifica</Button><Button size="sm" variant="secondary" onClick={() => reviewMedicalLeave(item, 'reject')}>Respinge document</Button></> : null}</> : null}
                   {(item.status === 'cerut' || item.status === 'pending') ? (
                     <>
-                      <Button size="sm" onClick={() => approveLeave(item.uuid || item.id)}>✅ Aprobă</Button>
+                      <Button size="sm" disabled={item.tip === 'CM' && item.status_verificare !== 'verificat'} onClick={() => approveLeave(item.uuid || item.id)}>✅ Aprobă</Button>
                       <Button size="sm" variant="secondary" onClick={() => rejectLeave(item.uuid || item.id)}>❌ Respinge</Button>
                     </>
                   ) : null}

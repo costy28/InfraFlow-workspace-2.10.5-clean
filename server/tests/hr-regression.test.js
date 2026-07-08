@@ -5,6 +5,7 @@ const { assertTimesheetOpen, findTimesheetLock } = require("../modules/hr/timesh
 const { buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
 const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime-policy");
 const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy");
+const { calendarDays, missingMedicalField } = require("../modules/hr/medical-leave-policy");
 
 test("datele personale si medicale sunt ascunse fara permisiuni", () => {
   const value = sanitizeEmployee({ id: 1, nume: "Popescu", cnp: "123", iban: "RO00", email: "a@b.ro", apt_medical_expira: "2026-01-01", salariu_baza: 5000 });
@@ -60,4 +61,15 @@ test("controlul saptamanal semnaleaza depasirea pragului operational", () => {
   assert.equal(mondayOf("2026-07-08"), "2026-07-06");
   assert.equal(rows[0].total_hours, 50);
   assert.equal(rows[0].status, "warning");
+});
+
+test("certificatul medical calculeaza inclusiv zilele calendaristice", () => {
+  assert.equal(calendarDays("2026-07-08", "2026-07-10"), 3);
+  assert.equal(calendarDays("2026-07-10", "2026-07-08"), 0);
+});
+
+test("certificatul medical cere datele de identificare si emitent", () => {
+  const complete = { serie: "CCMAA", numar: "123", data_acordarii: "2026-07-08", data_start: "2026-07-08", data_sfarsit: "2026-07-10", cod_indemnizatie: "01", medic_nume: "Dr. Test", cod_parafa: "P123", unitate_emitenta: "CMI Test" };
+  assert.equal(missingMedicalField(complete), null);
+  assert.equal(missingMedicalField({ ...complete, cod_parafa: "" }), "cod_parafa");
 });

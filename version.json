@@ -1,5 +1,5 @@
 {
-  "version": "2.12.219",
+  "version": "2.12.220",
   "date": "2026-07-08",
-  "changelog": "## v2.12.219 - 2026-07-08\n### Asociere cont Kiosk cu angajat HR\n- Asocierea din Superadmin este salvata persistent.\n- Asocierea din HR este sincronizata cu utilizatorul.\n- Kiosk identifica angajatul prin aceeasi legatura in MSSQL si JSON."
+  "changelog": "## v2.12.220 - 2026-07-08\n### Certificate de concediu medical in Kiosk\n- Angajatul completeaza datele certificatului si incarca PDF sau fotografie.\n- Zilele calendaristice sunt calculate automat.\n- HR verifica documentul inaintea aprobarii concediului.\n- Accesul si descarcarea documentului medical sunt auditate."
 }
