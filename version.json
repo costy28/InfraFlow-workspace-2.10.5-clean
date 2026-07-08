@@ -1,5 +1,5 @@
 {
-  "version": "2.12.220",
+  "version": "2.12.221",
   "date": "2026-07-08",
-  "changelog": "## v2.12.220 - 2026-07-08\n### Certificate de concediu medical in Kiosk\n- Angajatul completeaza datele certificatului si incarca PDF sau fotografie.\n- Zilele calendaristice sunt calculate automat.\n- HR verifica documentul inaintea aprobarii concediului.\n- Accesul si descarcarea documentului medical sunt auditate."
+  "changelog": "## v2.12.221 - 2026-07-08\n### Registru CM si integrare salarizare\n- Registru lunar cu episoade, procente si suportatori.\n- Regula temporara 2026 pentru ziua neindemnizata si impartirea angajator/FNUASS.\n- Export Excel si trimitere controlata in salarizare.\n- Baza zilnica este confirmata explicit de operator."
 }

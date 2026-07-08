@@ -21,6 +21,7 @@ const { buildRegesWorkRow, buildRegesWorkbook, buildInternalXml } = require('./r
 const { dailyOvertime } = require('./overtime-policy')
 const { weeklyControls } = require('./working-time-policy')
 const { calendarDays, missingMedicalField } = require('./medical-leave-policy')
+const { buildMedicalRegister } = require('./medical-leave-register')
 
 const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
@@ -2781,6 +2782,66 @@ router.post('/hr/medical-leaves/:uuid/reject', (req, res, next) => {
     else { item = ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid)); if (item) Object.assign(item, { status_verificare: 'respinsa', verificat_de: auth.user.id, verificat_la: nowIso(), motiv_respingere: reason, updated_at: nowIso() }) }
     if (!item) return sendJson(res, 404, { error: 'Certificatul medical nu a fost gasit.' })
     addAudit(db, auth.user, 'hr_medical_leave_rejected', `${req.params.uuid} / ${reason}`); writeDb(db); sendJson(res, 200, item)
+  } catch (error) { next(error) }
+})
+
+function medicalRegisterRows(db, luna) {
+  if (isMssqlMode()) return mssqlArray(`SELECT mc.*,e.nume,e.prenume,e.marca FROM hr.medical_leave_certificates mc JOIN hr.employees e ON e.id=mc.employee_id WHERE mc.data_start<=EOMONTH(TRY_CONVERT(date,JSON_VALUE(@p,'$.luna')+'-01')) AND mc.data_sfarsit>=DATEADD(day,-370,TRY_CONVERT(date,JSON_VALUE(@p,'$.luna')+'-01')) ORDER BY e.nume,e.prenume,mc.data_start FOR JSON PATH;`, { luna })
+  const hr = ensureHrDb(db)
+  const first = `${luna}-01`; const last = new Date(Date.UTC(Number(luna.slice(0, 4)), Number(luna.slice(5, 7)), 0)).toISOString().slice(0, 10)
+  const cutoffDate = new Date(`${first}T12:00:00Z`); cutoffDate.setUTCDate(cutoffDate.getUTCDate() - 370); const cutoff = cutoffDate.toISOString().slice(0, 10)
+  return hr.medicalLeaveCertificates.filter((item) => item.data_start <= last && item.data_sfarsit >= cutoff).map((item) => { const employee = hr.employees.find((row) => String(row.id) === String(item.employee_id)) || {}; return { ...item, nume: employee.nume, prenume: employee.prenume, marca: employee.marca } })
+}
+
+function monthlyMedicalRegister(db, luna) {
+  const first = `${luna}-01`; const last = new Date(Date.UTC(Number(luna.slice(0, 4)), Number(luna.slice(5, 7)), 0)).toISOString().slice(0, 10)
+  return buildMedicalRegister(medicalRegisterRows(db, luna)).filter((item) => String(item.data_start).slice(0, 10) <= last && String(item.data_sfarsit).slice(0, 10) >= first)
+}
+
+router.get('/hr/medical-leaves/register', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:leave_manage')) return
+    const luna = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.luna || '')) ? String(req.query.luna) : todayIso().slice(0, 7)
+    const rows = monthlyMedicalRegister(readDb(), luna)
+    sendJson(res, 200, { luna, rows, totals: rows.reduce((sum, row) => ({ certificates: sum.certificates + 1, calendar_days: sum.calendar_days + numberValue(row.zile_calendaristice), workdays: sum.workdays + row.workdays, employer_days: sum.employer_days + row.employer_days, fund_days: sum.fund_days + row.fund_days, unpaid_days: sum.unpaid_days + row.unpaid_days, employer_amount: sum.employer_amount + row.employer_amount, fund_amount: sum.fund_amount + row.fund_amount }), { certificates: 0, calendar_days: 0, workdays: 0, employer_days: 0, fund_days: 0, unpaid_days: 0, employer_amount: 0, fund_amount: 0 }) })
+  } catch (error) { next(error) }
+})
+
+router.post('/hr/medical-leaves/:uuid/payroll', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:manage')) return
+    const dailyBase = numberValue(req.body?.baza_calcul_zilnica)
+    if (!(dailyBase > 0)) return sendJson(res, 422, { error: 'Baza de calcul zilnica din media ultimelor 6 luni este obligatorie.' })
+    const db = readDb(); const raw = isMssqlMode() ? mssqlObject(`SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, req.params) : ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid))
+    if (!raw) return sendJson(res, 404, { error: 'Certificatul medical nu a fost gasit.' })
+    if (raw.status_verificare !== 'verificat') return sendJson(res, 409, { error: 'Certificatul trebuie verificat de HR inaintea trimiterii in salarizare.' })
+    const calculationSource = medicalRegisterRows(db, String(raw.data_start).slice(0, 7))
+      .filter((item) => String(item.employee_id) === String(raw.employee_id))
+      .map((item) => String(item.uuid) === String(raw.uuid) ? { ...item, baza_calcul_zilnica: dailyBase } : item)
+    const row = buildMedicalRegister(calculationSource).find((item) => String(item.uuid) === String(raw.uuid))
+    if (!row) return sendJson(res, 422, { error: 'Episodul medical nu a putut fi calculat.' })
+    const hr = payrollRoutes.ensurePayroll(db)
+    const certificateCode = `${raw.serie}/${raw.numar}`
+    const existing = hr.payrollAdjustments.find((item) => item.tip === 'indemnizatie_medicala' && !item.cancelled_at && (String(item.medical_certificate_uuid || '') === String(raw.uuid) || item.certificate_code === certificateCode))
+    if (existing) return sendJson(res, 409, { error: 'Certificatul a fost deja trimis in salarizare.', code: 'HR_MEDICAL_ALREADY_SYNCED' })
+    const adjustment = { id: payrollRoutes.nextId(hr.payrollAdjustments), uuid: crypto.randomUUID(), employee_id: raw.employee_id, tip: 'indemnizatie_medicala', cod: `CM-${raw.cod_indemnizatie}`, descriere: `Concediu medical ${certificateCode}`, amount: row.total_amount, quantity: row.workdays, unit_value: dailyBase, certificate_code: certificateCode, medical_certificate_uuid: String(raw.uuid), medical_employer_amount: row.employer_amount, medical_fund_amount: row.fund_amount, medical_diagnostic_code: raw.cod_diagnostic || '', operator_confirmed: true, data_start: raw.data_start, data_sfarsit: raw.data_sfarsit, recurent: false, active: true, created_by: auth.user.id, created_at: nowIso() }
+    hr.payrollAdjustments.push(adjustment)
+    if (isMssqlMode()) mssqlObject(`UPDATE hr.medical_leave_certificates SET baza_calcul_zilnica=TRY_CONVERT(decimal(15,4),JSON_VALUE(@p,'$.dailyBase')),procent_indemnizatie=TRY_CONVERT(decimal(6,2),JSON_VALUE(@p,'$.percent')),zile_angajator=TRY_CONVERT(int,JSON_VALUE(@p,'$.employerDays')),zile_fnuass=TRY_CONVERT(int,JSON_VALUE(@p,'$.fundDays')),zile_neindemnizate=TRY_CONVERT(int,JSON_VALUE(@p,'$.unpaidDays')),suma_angajator=TRY_CONVERT(decimal(15,2),JSON_VALUE(@p,'$.employerAmount')),suma_fnuass=TRY_CONVERT(decimal(15,2),JSON_VALUE(@p,'$.fundAmount')),payroll_synced_at=SYSDATETIME(),payroll_synced_by=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.userId')),updated_at=SYSDATETIME() WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')); SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, { uuid: req.params.uuid, dailyBase, percent: row.indemnity_percent, employerDays: row.employer_days, fundDays: row.fund_days, unpaidDays: row.unpaid_days, employerAmount: row.employer_amount, fundAmount: row.fund_amount, userId: auth.user.id })
+    else Object.assign(raw, { baza_calcul_zilnica: dailyBase, procent_indemnizatie: row.indemnity_percent, zile_angajator: row.employer_days, zile_fnuass: row.fund_days, zile_neindemnizate: row.unpaid_days, suma_angajator: row.employer_amount, suma_fnuass: row.fund_amount, payroll_synced_at: nowIso(), payroll_synced_by: auth.user.id, updated_at: nowIso() })
+    addAudit(db, auth.user, 'hr_medical_leave_payroll_synced', `${req.params.uuid} / ${row.total_amount}`); writeDb(db); sendJson(res, 201, { adjustment, calculation: row })
+  } catch (error) { next(error) }
+})
+
+router.get('/hr/medical-leaves/register.xlsx', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:leave_manage')) return
+    const luna = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.luna || '')) ? String(req.query.luna) : todayIso().slice(0, 7)
+    const rows = monthlyMedicalRegister(readDb(), luna).map((row) => ({ 'Marca': row.marca || '', 'Angajat': `${row.nume || ''} ${row.prenume || ''}`.trim(), 'Serie': row.serie, 'Numar': row.numar, 'Initial/Continuare': row.tip_certificat, 'Data acordarii': row.data_acordarii, 'De la': row.data_start, 'Pana la': row.data_sfarsit, 'Zile calendaristice': row.zile_calendaristice, 'Cod indemnizatie': row.cod_indemnizatie, 'Procent': row.indemnity_percent, 'Zile lucratoare': row.workdays, 'Zi neindemnizata': row.unpaid_days, 'Zile angajator': row.employer_days, 'Zile FNUASS': row.fund_days, 'Baza zilnica': row.baza_calcul_zilnica || '', 'Suma angajator': row.employer_amount, 'Suma FNUASS': row.fund_amount, 'Status verificare': row.status_verificare, 'Trimis salarizare': row.payroll_synced_at || '' }))
+    const sheet = xlsx.utils.json_to_sheet(rows); const workbook = xlsx.utils.book_new(); xlsx.utils.book_append_sheet(workbook, sheet, 'Registru CM')
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.setHeader('Content-Disposition', `attachment; filename=Registru_CM_${luna}.xlsx`); res.end(xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' }))
   } catch (error) { next(error) }
 })
 

@@ -6,6 +6,7 @@ const { buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-wor
 const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime-policy");
 const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy");
 const { calendarDays, missingMedicalField } = require("../modules/hr/medical-leave-policy");
+const { indemnityPercent, payerSplit, buildMedicalRegister } = require("../modules/hr/medical-leave-register");
 
 test("datele personale si medicale sunt ascunse fara permisiuni", () => {
   const value = sanitizeEmployee({ id: 1, nume: "Popescu", cnp: "123", iban: "RO00", email: "a@b.ro", apt_medical_expira: "2026-01-01", salariu_baza: 5000 });
@@ -72,4 +73,24 @@ test("certificatul medical cere datele de identificare si emitent", () => {
   const complete = { serie: "CCMAA", numar: "123", data_acordarii: "2026-07-08", data_start: "2026-07-08", data_sfarsit: "2026-07-10", cod_indemnizatie: "01", medic_nume: "Dr. Test", cod_parafa: "P123", unitate_emitenta: "CMI Test" };
   assert.equal(missingMedicalField(complete), null);
   assert.equal(missingMedicalField({ ...complete, cod_parafa: "" }), "cod_parafa");
+});
+
+test("codul 01 foloseste procentele episodului aplicabile din august 2025", () => {
+  assert.equal(indemnityPercent("01", 7), 55);
+  assert.equal(indemnityPercent("01", 10), 65);
+  assert.equal(indemnityPercent("01", 16), 75);
+});
+
+test("regula temporara 2026 separa prima zi angajatorul si FNUASS", () => {
+  assert.deepEqual(payerSplit("2026-07-06", "2026-07-14", "01"), { workdays: 7, unpaid_days: 1, employer_days: 4, fund_days: 2 });
+});
+
+test("certificatul in continuare pastreaza episodul initial", () => {
+  const rows = buildMedicalRegister([
+    { employee_id: 1, data_start: "2026-07-01", data_sfarsit: "2026-07-07", tip_certificat: "initial", cod_indemnizatie: "01" },
+    { employee_id: 1, data_start: "2026-07-08", data_sfarsit: "2026-07-14", tip_certificat: "continuare", cod_indemnizatie: "01" },
+  ]);
+  assert.equal(rows[1].episode_start, "2026-07-01");
+  assert.equal(rows[1].episode_days, 14);
+  assert.equal(rows[1].indemnity_percent, 65);
 });

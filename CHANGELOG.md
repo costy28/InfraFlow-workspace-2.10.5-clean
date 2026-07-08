@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.221 - 2026-07-08
+
+## Registru concedii medicale si salarizare
+
+- Registru CM lunar cu episoade initiale si in continuare.
+- Procente propuse pentru codul 01: 55%, 65% sau 75% dupa durata episodului.
+- Regula temporara 2026: prima zi neindemnizata, zilele 2-6 angajator, apoi FNUASS.
+- Separare zile lucratoare, zile angajator, zile FNUASS si zile neindemnizate.
+- Baza zilnica din media ultimelor sase luni este confirmata de operator.
+- Trimitere fara duplicare in ajustarile statului salarial si export Excel.
+
 # v2.12.220 - 2026-07-08
 
 ## Certificate de concediu medical in Kiosk

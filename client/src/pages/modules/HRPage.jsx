@@ -204,6 +204,12 @@ function OrgChart({ employees, departments, onClickEmployee }) {
   )
 }
 
+function MedicalRegisterCard({ month, register, onExport, onPayroll }) {
+  const totals = register?.totals || {}
+  const rows = register?.rows || []
+  return <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="font-semibold">Registru concedii medicale · {month}</div><div className="text-xs text-slate-500">Calcul propus; baza zilnica se confirma din media ultimelor 6 luni.</div></div><Button size="sm" variant="secondary" onClick={onExport}>📊 Export Excel</Button></div><div className="mb-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Certificate', totals.certificates || 0], ['Zile calendaristice', totals.calendar_days || 0], ['Zile lucratoare', totals.workdays || 0], ['Angajator', totals.employer_days || 0], ['FNUASS', totals.fund_days || 0], ['Neindemnizate', totals.unpaid_days || 0]].map(([label, value]) => <div key={label} className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">{label}</div><strong>{value}</strong></div>)}</div><div className="overflow-auto"><table className="min-w-full text-sm"><thead><tr className="border-b text-left text-xs text-slate-500"><th className="p-2">Angajat</th><th className="p-2">Certificat</th><th className="p-2">Perioada</th><th className="p-2">Cod / %</th><th className="p-2">Zile</th><th className="p-2">Sume</th><th className="p-2">Stare</th><th className="p-2">Actiuni</th></tr></thead><tbody>{rows.map(row => <tr key={row.uuid} className="border-b border-slate-100"><td className="p-2">{row.nume} {row.prenume}</td><td className="p-2">{row.serie}/{row.numar}<div className="text-xs text-slate-400">{row.tip_certificat}</div></td><td className="p-2">{String(row.data_start).slice(0, 10)} — {String(row.data_sfarsit).slice(0, 10)}<div className="text-xs text-slate-400">episod {row.episode_days} zile</div></td><td className="p-2">{row.cod_indemnizatie} / {row.indemnity_percent}%</td><td className="p-2">{row.workdays} lucr.<div className="text-xs text-slate-400">A:{row.employer_days} · F:{row.fund_days} · N:{row.unpaid_days}</div></td><td className="p-2">{row.calculation_status === 'calculat' ? `${Number(row.total_amount).toFixed(2)} lei` : 'Baza lipsa'}<div className="text-xs text-slate-400">A:{Number(row.employer_amount).toFixed(2)} · F:{Number(row.fund_amount).toFixed(2)}</div></td><td className="p-2"><Badge tone={row.status_verificare === 'verificat' ? 'success' : 'warning'}>{row.status_verificare}</Badge>{row.payroll_synced_at ? <div className="mt-1 text-xs text-emerald-700">Trimis salarizare</div> : null}</td><td className="p-2">{row.status_verificare === 'verificat' && !row.payroll_synced_at ? <Button size="sm" onClick={() => onPayroll(row)}>Trimite salarizare</Button> : null}</td></tr>)}{!rows.length ? <tr><td colSpan="8" className="p-6 text-center text-slate-400">Nu exista certificate in luna selectata.</td></tr> : null}</tbody></table></div></Card>
+}
+
 function EmployeeFilesPanel({ employeeId, canManage, onError }) {
   const [items, setItems] = useState([])
   const [file, setFile] = useState(null)
@@ -247,6 +253,7 @@ export default function HRPage() {
   const [linkableUsers, setLinkableUsers] = useState([])
   const [monthlySheet, setMonthlySheet] = useState([])
   const [leaves, setLeaves] = useState([])
+  const [medicalRegister, setMedicalRegister] = useState({ rows: [], totals: {} })
   const [leaveModal, setLeaveModal] = useState(false)
   const [leaveForm, setLeaveForm] = useState({ employee_id: '', tip: 'CO', data_start: '', data_sfarsit: '', motiv: '' })
   const [authorizations, setAuthorizations] = useState([])
@@ -374,6 +381,10 @@ export default function HRPage() {
   useEffect(() => {
     if (activeTab === 'Training & Evaluări') loadTrainingData()
   }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'Concedii') loadMedicalRegister().catch(() => {})
+  }, [activeTab, filters.luna])
 
   useEffect(() => {
     if (activeTab === 'Ture & Program') loadScheduleData()
@@ -1355,6 +1366,26 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
     } catch (err) { setError(err.response?.data?.error || 'Verificarea certificatului medical a esuat.') }
   }
 
+  async function loadMedicalRegister() {
+    const response = await api.get('/hr/medical-leaves/register', { params: { luna: filters.luna } })
+    setMedicalRegister(response.data || { rows: [], totals: {} })
+  }
+
+  async function sendMedicalToPayroll(item) {
+    const value = window.prompt('Baza de calcul zilnica din media veniturilor brute ale ultimelor 6 luni:')
+    if (!value || !(Number(value) > 0)) return
+    try {
+      await api.post(`/hr/medical-leaves/${item.uuid}/payroll`, { baza_calcul_zilnica: Number(value) })
+      await loadMedicalRegister()
+      window.alert('Indemnizatia a fost trimisa in salarizare ca ajustare confirmata.')
+    } catch (err) { setError(err.response?.data?.error || 'Indemnizatia nu a putut fi trimisa in salarizare.') }
+  }
+
+  async function exportMedicalRegister() {
+    const response = await api.get('/hr/medical-leaves/register.xlsx', { params: { luna: filters.luna }, responseType: 'blob' })
+    const url = URL.createObjectURL(response.data); const link = document.createElement('a'); link.href = url; link.download = `Registru_CM_${filters.luna}.xlsx`; link.click(); URL.revokeObjectURL(url)
+  }
+
   async function downloadMedicalLeave(item) {
     try {
       const response = await api.get(`/hr/medical-leaves/${item.medical_certificate_uuid}/document`, { responseType: 'blob' })
@@ -1726,7 +1757,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
       {/* ─── CONCEDII ─────────────────────────────────────── */}
       {activeTab === 'Concedii' ? (
-        <Card>
+        <div className="grid gap-4"><Card>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-700">Cereri de concediu</span>
             <Button size="sm" onClick={() => setLeaveModal(true)}>+ Cerere noua</Button>
@@ -1756,6 +1787,8 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
             )) : <p className="text-sm text-slate-500">{loading ? 'Se incarca...' : 'Nu exista cereri de concediu.'}</p>}
           </div>
         </Card>
+        <MedicalRegisterCard month={filters.luna} register={medicalRegister} onExport={exportMedicalRegister} onPayroll={sendMedicalToPayroll} />
+        </div>
       ) : null}
 
       {/* ─── AUTORIZAȚII ──────────────────────────────────── */}
