@@ -2443,11 +2443,68 @@ router.post('/hr/timesheets/invalidate', async (req, res, next) => {
     const db = readDb()
     assertTimesheetOpen(db, luna)
     if (isMssqlMode()) {
-      const rows = mssqlArray(`SELECT id FROM hr.time_sheets WHERE validat=1 AND CONVERT(char(7),data,126)=JSON_VALUE(@p,'$.luna') AND employee_id IN (SELECT TRY_CONVERT(int,value) FROM OPENJSON(JSON_QUERY(@p,'$.employeeIds'))) FOR JSON PATH;`, { employeeIds, luna })
-      for (const row of rows) await reversePontajRegistration(row.id, auth.user.id, db)
-      mssqlObject(`UPDATE hr.time_sheets SET validat=0,validat_de=NULL,validat_la=NULL,updated_at=SYSDATETIME() WHERE validat=1 AND CONVERT(char(7),data,126)=JSON_VALUE(@p,'$.luna') AND employee_id IN (SELECT TRY_CONVERT(int,value) FROM OPENJSON(JSON_QUERY(@p,'$.employeeIds'))); SELECT @@ROWCOUNT AS invalidated FOR JSON PATH;`, { employeeIds, luna })
+      const result = mssqlObject(`
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+DECLARE @targets TABLE (id bigint NOT NULL PRIMARY KEY);
+INSERT INTO @targets(id)
+SELECT ts.id
+FROM hr.time_sheets ts
+WHERE ts.validat = 1
+  AND CONVERT(char(7), ts.data, 126) = JSON_VALUE(@p, '$.luna')
+  AND ts.employee_id IN (
+    SELECT TRY_CONVERT(int, value)
+    FROM OPENJSON(JSON_QUERY(@p, '$.employeeIds'))
+    WHERE TRY_CONVERT(int, value) IS NOT NULL
+  );
+
+;WITH totals AS (
+  SELECT ce.sursa_ref_id,
+         SUM(ce.valoare) AS valoare,
+         SUM(ce.tva) AS tva
+  FROM controlling.cost_entries ce
+  JOIN @targets t ON CONVERT(nvarchar(64), t.id) = ce.sursa_ref_id
+  WHERE ce.sursa = N'pontaj'
+  GROUP BY ce.sursa_ref_id
+), latest AS (
+  SELECT ce.*,
+         ROW_NUMBER() OVER (PARTITION BY ce.sursa_ref_id ORDER BY ce.id DESC) AS rn
+  FROM controlling.cost_entries ce
+  JOIN @targets t ON CONVERT(nvarchar(64), t.id) = ce.sursa_ref_id
+  WHERE ce.sursa = N'pontaj'
+)
+INSERT INTO controlling.cost_entries(
+  uuid, company_id, cost_center_id, subcentru_id, santier_id, data, luna,
+  categorie, subcategorie, descriere, valoare, tva, moneda, sursa,
+  sursa_ref_id, nr_document, furnizor, inregistrat_de, observatii
+)
+SELECT CONVERT(char(36), NEWID()), l.company_id, l.cost_center_id,
+       l.subcentru_id, l.santier_id, l.data, l.luna, l.categorie,
+       l.subcategorie, N'Reversare devalidare - ' + COALESCE(l.descriere, N'pontaj'),
+       -t.valoare, -t.tva, l.moneda, N'pontaj', l.sursa_ref_id,
+       l.nr_document, l.furnizor,
+       TRY_CONVERT(uniqueidentifier, JSON_VALUE(@p, '$.userId')),
+       N'Generata automat la devalidarea pontajului'
+FROM totals t
+JOIN latest l ON l.sursa_ref_id = t.sursa_ref_id AND l.rn = 1
+WHERE ABS(COALESCE(t.valoare, 0)) >= 0.005
+   OR ABS(COALESCE(t.tva, 0)) >= 0.005;
+
+UPDATE ts
+SET validat = 0,
+    validat_de = NULL,
+    validat_la = NULL,
+    updated_at = SYSDATETIME()
+FROM hr.time_sheets ts
+JOIN @targets t ON t.id = ts.id;
+
+DECLARE @invalidated int = @@ROWCOUNT;
+COMMIT TRANSACTION;
+SELECT @invalidated AS invalidated FOR JSON PATH;
+`, { employeeIds, luna, userId: auth.user.id })
       addAudit(db, auth.user, 'hr_timesheets_invalidated', `${luna}: ${reason}`); writeDb(db)
-      return sendJson(res, 200, { invalidated: rows.length })
+      return sendJson(res, 200, { invalidated: Number(result?.invalidated || 0) })
     }
     const hr = ensureHrDb(db)
     const rows = hr.timeSheets.filter((entry) => entry.validat && employeeIds.includes(String(entry.employee_id)) && String(entry.data).startsWith(luna))

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.217",
-  "date": "2026-07-07",
-  "changelog": "## v2.12.217 - 2026-07-08\n### Devalidare pontaj si sesiune Kiosk\n- Devalidare controlata cu motiv si audit.\n- Reversarea costurilor de manopera in Controlling.\n- Sesiunea ERP nu mai este stearsa de erorile Kiosk.\n- Intoarcerea din Kiosk pastreaza autentificarea."
+  "version": "2.12.218",
+  "date": "2026-07-08",
+  "changelog": "## v2.12.218 - 2026-07-08\n### Hotfix devalidare pontaj MSSQL\n- Devalidarea pontajului si reversarea costurilor sunt atomice.\n- Numarul de pontaje devalidate este raportat din actualizarea efectiva.\n- Cererile de concediu pot fi aprobate dupa devalidare."
 }

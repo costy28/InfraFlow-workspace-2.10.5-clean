@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.218 - 2026-07-08
+
+## Hotfix devalidare pontaj MSSQL
+
+- Devalidarea si reversarea costurilor de manopera se executa in aceeasi tranzactie SQL.
+- Un esec nu mai poate lasa reversarea si starea pontajului necorelate.
+- API-ul raporteaza numarul real de inregistrari devalidate.
+- Cererile de concediu pot fi aprobate imediat dupa devalidarea pontajului afectat.
+
 # v2.12.217 - 2026-07-08
 
 ## Devalidare pontaj si sesiune Kiosk
