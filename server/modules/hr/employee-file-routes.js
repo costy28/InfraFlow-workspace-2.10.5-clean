@@ -5,7 +5,8 @@ const crypto = require("crypto");
 const multer = require("multer");
 const { requireAuth } = require("../../core/auth");
 const { requirePermission } = require("../../core/permissions");
-const { writeDb } = require("../../core/db");
+const kioskSessions = require("../../core/kiosk-sessions");
+const { readDb, writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 
 const router = Router();
@@ -19,6 +20,16 @@ router.get("/hr/employees/:id/files", authorize("hr:view"), (req, res) => {
   res.json({ items: files });
 });
 
+router.get("/hr/kiosk/my-documents", (req, res) => {
+  const auth = ownDocumentAuth(req, res);
+  if (!auth) return;
+  const files = ensureFiles(auth.db)
+    .filter((item) => String(item.employee_id) === String(auth.employee.id) && !item.cancelled_at && (item.requires_ack || item.generated || item.kiosk_visible))
+    .sort((a, b) => String(b.data_document || b.created_at || "").localeCompare(String(a.data_document || a.created_at || "")))
+    .map(publicFileForKiosk);
+  res.json({ documents: files });
+});
+
 router.post("/hr/employees/:id/files", authorize("hr:manage"), upload.single("file"), (req, res, next) => {
   try {
     if (!req.file || !allowed.has(req.file.mimetype)) return res.status(422).json({ error: "Acceptam PDF, JPG, PNG, DOCX sau XLSX, maximum 10 MB.", code: "HR_FILE_TYPE_INVALID" });
@@ -30,7 +41,7 @@ router.post("/hr/employees/:id/files", authorize("hr:manage"), upload.single("fi
     const storedName = `${uuid}${extension}`;
     fs.writeFileSync(path.join(folder, storedName), req.file.buffer);
     const files = ensureFiles(req.auth.db);
-    const item = { id: nextId(files), uuid, employee_id: employeeId, tip: String(req.body.tip || "altul").slice(0, 50), denumire: String(req.body.denumire || req.file.originalname).slice(0, 200), file_name: req.file.originalname.slice(0, 200), stored_name: storedName, mime_type: req.file.mimetype, file_size: req.file.size, data_document: req.body.data_document || null, data_expirare: req.body.data_expirare || null, uploaded_by: req.auth.user.id, created_at: new Date().toISOString() };
+    const item = { id: nextId(files), uuid, employee_id: employeeId, tip: String(req.body.tip || "altul").slice(0, 50), denumire: String(req.body.denumire || req.file.originalname).slice(0, 200), file_name: req.file.originalname.slice(0, 200), stored_name: storedName, mime_type: req.file.mimetype, file_size: req.file.size, data_document: req.body.data_document || null, data_expirare: req.body.data_expirare || null, requires_ack: req.body.requires_ack === "true" || req.body.requires_ack === true, kiosk_visible: req.body.kiosk_visible === "true" || req.body.kiosk_visible === true, uploaded_by: req.auth.user.id, created_at: new Date().toISOString() };
     files.push(item);
     addAudit(req.auth.db, req.auth.user, "hr_employee_file_upload", `${employeeId} / ${item.tip} / ${item.file_name}`);
     writeDb(req.auth.db);
@@ -65,6 +76,8 @@ router.post("/hr/employees/:id/files/generated", authorize("hr:manage"), (req, r
       data_expirare: req.body?.data_expirare || null,
       generated: true,
       generated_source: String(req.body?.source || "").slice(0, 80),
+      requires_ack: req.body?.requires_ack !== false,
+      kiosk_visible: true,
       uploaded_by: req.auth.user.id,
       created_at: new Date().toISOString()
     };
@@ -84,6 +97,33 @@ router.get("/hr/employees/:id/files/:fileId/download", authorize("hr:view"), (re
   res.download(filePath, item.file_name);
 });
 
+router.get("/hr/kiosk/my-documents/:fileId/download", (req, res) => {
+  const auth = ownDocumentAuth(req, res);
+  if (!auth) return;
+  const item = ensureFiles(auth.db).find((file) => String(file.id) === String(req.params.fileId) && String(file.employee_id) === String(auth.employee.id) && !file.cancelled_at && (file.requires_ack || file.generated || file.kiosk_visible));
+  if (!item) return res.status(404).json({ error: "Documentul nu a fost gasit.", code: "HR_FILE_NOT_FOUND" });
+  sendFileDownload(res, item);
+});
+
+router.post("/hr/kiosk/my-documents/:fileId/ack", (req, res) => {
+  const auth = ownDocumentAuth(req, res);
+  if (!auth) return;
+  const files = ensureFiles(auth.db);
+  const item = files.find((file) => String(file.id) === String(req.params.fileId) && String(file.employee_id) === String(auth.employee.id) && !file.cancelled_at && (file.requires_ack || file.generated || file.kiosk_visible));
+  if (!item) return res.status(404).json({ error: "Documentul nu a fost gasit.", code: "HR_FILE_NOT_FOUND" });
+  const now = new Date().toISOString();
+  item.requires_ack = true;
+  item.kiosk_visible = true;
+  item.acknowledged_at = item.acknowledged_at || now;
+  item.acknowledged_by = item.acknowledged_by || auth.user.id;
+  item.acknowledged_by_name = item.acknowledged_by_name || auth.user.name || auth.user.username || auth.employeeName;
+  item.acknowledged_note = String(req.body?.note || "Am luat la cunostinta.").slice(0, 300);
+  item.acknowledged_ip = clientIp(req);
+  addAudit(auth.db, auth.user, "hr_employee_file_ack", `${auth.employee.id} / ${item.id} / ${item.denumire}`);
+  writeDb(auth.db);
+  res.json({ item: publicFileForKiosk(item) });
+});
+
 router.patch("/hr/employees/:id/files/:fileId", authorize("hr:manage"), (req, res) => {
   const item = ensureFiles(req.auth.db).find((file) => String(file.id) === String(req.params.fileId) && String(file.employee_id) === String(req.params.id) && !file.cancelled_at);
   if (!item) return res.status(404).json({ error: "Documentul nu a fost gasit.", code: "HR_FILE_NOT_FOUND" });
@@ -91,6 +131,8 @@ router.patch("/hr/employees/:id/files/:fileId", authorize("hr:manage"), (req, re
   if (req.body.denumire !== undefined) item.denumire = String(req.body.denumire || item.file_name || "Document").slice(0, 200);
   if (req.body.data_document !== undefined) item.data_document = req.body.data_document || null;
   if (req.body.data_expirare !== undefined) item.data_expirare = req.body.data_expirare || null;
+  if (req.body.requires_ack !== undefined) item.requires_ack = Boolean(req.body.requires_ack);
+  if (req.body.kiosk_visible !== undefined) item.kiosk_visible = Boolean(req.body.kiosk_visible);
   item.updated_at = new Date().toISOString();
   item.updated_by = req.auth.user.id;
   addAudit(req.auth.db, req.auth.user, "hr_employee_file_update", `${item.employee_id} / ${item.id} / ${item.tip}`);
@@ -112,5 +154,54 @@ function ensureFiles(db) { db.hr = db.hr || {}; db.hr.employeeFiles = Array.isAr
 function authorize(permission) { return (req, res, next) => { const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, permission)) return; req.auth = auth; next(); }; }
 function safeSegment(value) { return String(value).replace(/[^a-zA-Z0-9_-]/g, "_"); }
 function nextId(items) { return items.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1; }
+function clientIp(req) { return kioskSessions.clientIp ? kioskSessions.clientIp(req) : String(req.socket?.remoteAddress || ""); }
+function sendFileDownload(res, item) {
+  const filePath = path.join(root, `employee_${safeSegment(item.employee_id)}`, item.stored_name);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Fisierul nu mai exista in storage.", code: "HR_FILE_STORAGE_MISSING" });
+  if (item.mime_type) res.type(item.mime_type);
+  return res.download(filePath, item.file_name);
+}
+function publicFileForKiosk(item) {
+  return {
+    id: item.id,
+    uuid: item.uuid,
+    tip: item.tip,
+    denumire: item.denumire,
+    file_name: item.file_name,
+    mime_type: item.mime_type,
+    file_size: item.file_size,
+    data_document: item.data_document,
+    data_expirare: item.data_expirare,
+    generated: Boolean(item.generated),
+    requires_ack: Boolean(item.requires_ack || item.generated || item.kiosk_visible),
+    acknowledged_at: item.acknowledged_at || null,
+    acknowledged_by_name: item.acknowledged_by_name || "",
+    created_at: item.created_at
+  };
+}
+function ownDocumentAuth(req, res) {
+  const session = kioskSessions.getSession(kioskSessions.tokenFromRequest(req));
+  const db = session ? readDb() : null;
+  if (session) {
+    const employee = findEmployee(db, session.employee_id);
+    if (!employee) { res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" }); return null; }
+    return { db, employee, employeeName: employeeName(employee), user: { id: `kiosk-${session.employee_id}`, username: session.username, name: session.username, role: "kiosk" } };
+  }
+  const appAuth = requireAuth(req, res);
+  if (!appAuth) return null;
+  const employee = findLinkedEmployee(appAuth.db, appAuth.user);
+  if (!employee) { res.status(404).json({ error: "Contul nu este asociat unui angajat.", code: "HR_EMPLOYEE_LINK_MISSING" }); return null; }
+  return { db: appAuth.db, employee, employeeName: employeeName(employee), user: appAuth.user };
+}
+function findEmployee(db, employeeId) {
+  const employees = Array.isArray(db.hr?.employees) ? db.hr.employees : [];
+  return employees.find((item) => String(item.id) === String(employeeId) && item.activ !== false && item.activ !== 0);
+}
+function findLinkedEmployee(db, user) {
+  const employees = Array.isArray(db.hr?.employees) ? db.hr.employees : [];
+  const linkedEmployeeId = user.employee_id || user.employeeId || "";
+  return employees.find((item) => item.activ !== false && item.activ !== 0 && (String(item.user_id || "") === String(user.id) || (linkedEmployeeId && String(item.id) === String(linkedEmployeeId))));
+}
+function employeeName(employee) { return [employee.prenume, employee.nume].filter(Boolean).join(" ") || employee.nume_complet || employee.name || "Angajat"; }
 
 module.exports = router;

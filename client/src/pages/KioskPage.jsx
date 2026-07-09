@@ -236,6 +236,7 @@ export default function KioskPage() {
   const [myLeaves, setMyLeaves] = useState([])
   const [myAuth, setMyAuth] = useState([])
   const [myTrips, setMyTrips] = useState([])
+  const [myDocuments, setMyDocuments] = useState([])
   const [kioskSummary, setKioskSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -277,9 +278,10 @@ export default function KioskPage() {
       if (kioskToken) {
         // Kiosk user: use dedicated endpoints
         const kApi = kioskApi(kioskToken)
-        const [tripsRes, profileRes] = await Promise.allSettled([
+        const [tripsRes, profileRes, documentsRes] = await Promise.allSettled([
           kApi.get('/hr/kiosk/my-trips'),
-          kApi.get('/hr/kiosk/me').catch(() => null)
+          kApi.get('/hr/kiosk/me').catch(() => null),
+          kApi.get('/hr/kiosk/my-documents').catch(() => ({ data: { documents: [] } }))
         ])
         if (tripsRes.status === 'fulfilled') {
           setMyTrips(tripsRes.value.data?.trips || [])
@@ -296,7 +298,9 @@ export default function KioskPage() {
           } : null)
           setMyLeaves(profile.cereri || [])
           setMyAuth(profile.autorizatii || [])
-          saveCache({ kioskEmpId, employee: profile.angajat, coBalance: profile.concedii, myLeaves: profile.cereri, myAuth: profile.autorizatii, kioskSummary: profile })
+          const docs = documentsRes.status === 'fulfilled' ? (documentsRes.value?.data?.documents || []) : []
+          setMyDocuments(docs)
+          saveCache({ kioskEmpId, employee: profile.angajat, coBalance: profile.concedii, myLeaves: profile.cereri, myAuth: profile.autorizatii, myDocuments: docs, kioskSummary: profile })
         }
       } else if (user) {
         // Regular app user
@@ -314,14 +318,17 @@ export default function KioskPage() {
         })
         setMyLeaves(summary.cereri || summary.cereri_asteptare || [])
         setMyAuth(summary.autorizatii || [])
-        const [tripsRes] = await Promise.allSettled([
+        const [tripsRes, documentsRes] = await Promise.allSettled([
           api.get(`/fleet/trip-logs?sofer_id=${emp.id}`).catch(() => null),
+          api.get('/hr/kiosk/my-documents').catch(() => ({ data: { documents: [] } })),
         ])
         if (tripsRes.status === 'fulfilled' && tripsRes.value) {
           const all = tripsRes.value.data?.trip_logs || []
           setMyTrips(all.slice(0, 60))
         }
-        saveCache({ userId: user?.id, employee: emp, coBalance: summary.concedii, myLeaves: summary.cereri_asteptare, myAuth: summary.autorizatii })
+        const docs = documentsRes.status === 'fulfilled' ? (documentsRes.value?.data?.documents || []) : []
+        setMyDocuments(docs)
+        saveCache({ userId: user?.id, employee: emp, coBalance: summary.concedii, myLeaves: summary.cereri_asteptare, myAuth: summary.autorizatii, myDocuments: docs })
       }
       setOnline(true)
       setError('')
@@ -333,6 +340,7 @@ export default function KioskPage() {
         setCoBalance(cached.coBalance || null)
         setMyLeaves(cached.myLeaves || [])
         setMyAuth(cached.myAuth || [])
+        setMyDocuments(cached.myDocuments || [])
         setError('Offline — se afișează ultimele date salvate.')
       } else {
         setError('Nu s-au putut încărca datele. Conectează dispozitivul la rețeaua locală.')
@@ -385,6 +393,30 @@ export default function KioskPage() {
       await loadKiosk()
     }
   }, [kioskToken, loadKiosk])
+
+  async function openKioskDocument(item) {
+    try {
+      const client = getApi()
+      const response = await client.get(`/hr/kiosk/my-documents/${item.id}/download`, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      window.open(url, '_blank', 'noopener,noreferrer')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul nu a putut fi deschis.')
+    }
+  }
+
+  async function acknowledgeKioskDocument(item) {
+    try {
+      const client = getApi()
+      const response = await client.post(`/hr/kiosk/my-documents/${item.id}/ack`, { note: 'Am luat la cunostinta.' })
+      const updated = response.data?.item || item
+      setMyDocuments(current => current.map(doc => String(doc.id) === String(item.id) ? updated : doc))
+      setError('')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Confirmarea documentului nu a putut fi salvata.')
+    }
+  }
 
   useEffect(() => {
     if (isAuthenticated) loadKiosk()
@@ -1039,6 +1071,35 @@ export default function KioskPage() {
                 if (employee && token) window.open(`/api/hr/employees/${employee.id}/adeverinta?tip=salariat&token=${encodeURIComponent(token)}`, '_blank')
               }}>📄 Solicită adeverință</Button>
             </div>
+
+            {myDocuments.length > 0 && (
+              <Card>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-700">📁 Documentele mele HR</div>
+                    <div className="text-xs text-slate-500">Documente transmise de HR pentru consultare și confirmare.</div>
+                  </div>
+                  {myDocuments.some(item => !item.acknowledged_at) ? <Badge tone="warning">{myDocuments.filter(item => !item.acknowledged_at).length} neconfirmate</Badge> : <Badge tone="success">toate confirmate</Badge>}
+                </div>
+                <div className="grid gap-2">
+                  {myDocuments.map(item => (
+                    <div key={item.id} className={`rounded-lg border px-3 py-2 text-sm ${item.acknowledged_at ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <div className="font-semibold text-slate-800">{item.denumire || item.file_name}</div>
+                          <div className="text-xs text-slate-500">{item.tip || 'document'} · {item.data_document || String(item.created_at || '').slice(0, 10) || '—'}</div>
+                          {item.acknowledged_at ? <div className="mt-1 text-xs text-emerald-700">Confirmat la {String(item.acknowledged_at).replace('T', ' ').slice(0, 16)}</div> : <div className="mt-1 text-xs text-amber-700">Necesită confirmare de luare la cunoștință.</div>}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="secondary" onClick={() => openKioskDocument(item)}>Deschide</Button>
+                          {!item.acknowledged_at ? <Button size="sm" onClick={() => acknowledgeKioskDocument(item)}>Am luat la cunoștință</Button> : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {kioskSummary?.echipamente && (
               <Card>

@@ -346,7 +346,7 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
           <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-100 px-3 py-2 text-sm">
             <div>
               <strong>{item.denumire}</strong>
-              <div className="text-xs text-slate-500">{item.tip}{item.generated ? ' · generat electronic' : ' · incarcat'} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB · {item.data_document || item.created_at?.slice?.(0, 10) || '-'}</div>
+              <div className="text-xs text-slate-500">{item.tip}{item.generated ? ' · generat electronic' : ' · incarcat'}{item.requires_ack ? ' · cere confirmare Kiosk' : ''}{item.acknowledged_at ? ` · confirmat ${String(item.acknowledged_at).slice(0, 10)}` : ''} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB · {item.data_document || item.created_at?.slice?.(0, 10) || '-'}</div>
             </div>
             <div className="flex gap-2">
               {canManage ? <Button size="sm" variant="secondary" onClick={() => setEditing({ ...item })}>Editeaza</Button> : null}
@@ -366,6 +366,11 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
             <Input label="Data document" type="date" value={editing?.data_document || ''} onChange={event => setEditing(current => ({ ...current, data_document: event.target.value }))} />
             <Input label="Expira la" type="date" value={editing?.data_expirare || ''} onChange={event => setEditing(current => ({ ...current, data_expirare: event.target.value }))} />
           </div>
+          <label className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <input type="checkbox" checked={Boolean(editing?.requires_ack)} onChange={event => setEditing(current => ({ ...current, requires_ack: event.target.checked, kiosk_visible: event.target.checked || current.kiosk_visible }))} />
+            Necesită confirmare în Kiosk / luare la cunoștință
+          </label>
+          {editing?.acknowledged_at ? <div className="rounded bg-emerald-50 px-3 py-2 text-xs text-emerald-800">Confirmat de {editing.acknowledged_by_name || 'angajat'} la {String(editing.acknowledged_at).replace('T', ' ').slice(0, 16)}.</div> : null}
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Renunta</Button><Button type="submit">Salveaza</Button></div>
         </form>
       </Modal>

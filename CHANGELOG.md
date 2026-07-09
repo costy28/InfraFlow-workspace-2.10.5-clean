@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.231 - 2026-07-09
+
+## Confirmare documente HR in Kiosk
+
+- Documentele generate sau marcate de HR pot fi afisate angajatului in Kiosk.
+- Angajatul poate deschide documentul si confirma luarea la cunostinta.
+- Confirmarea salveaza data, utilizatorul, IP-ul si auditul operatiunii.
+- Dosarul electronic afiseaza daca un document necesita confirmare si cand a fost confirmat.
+
 # v2.12.230 - 2026-07-09
 
 ## Sabloane HR editabile
