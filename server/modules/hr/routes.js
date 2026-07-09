@@ -86,6 +86,7 @@ function ensureHrDb(db) {
   db.hr.employees = Array.isArray(db.hr.employees) ? db.hr.employees : []
   db.hr.contracts = Array.isArray(db.hr.contracts) ? db.hr.contracts : []
   db.hr.contractAmendments = Array.isArray(db.hr.contractAmendments) ? db.hr.contractAmendments : []
+  db.hr.documentTemplates = Array.isArray(db.hr.documentTemplates) ? db.hr.documentTemplates : []
   db.hr.timeSheets = Array.isArray(db.hr.timeSheets) ? db.hr.timeSheets : []
   db.hr.leaveRequests = Array.isArray(db.hr.leaveRequests) ? db.hr.leaveRequests : []
   db.hr.medicalLeaveCertificates = Array.isArray(db.hr.medicalLeaveCertificates) ? db.hr.medicalLeaveCertificates : []
@@ -104,6 +105,45 @@ function ensureHrDb(db) {
   db.hr.timesheetLocks = Array.isArray(db.hr.timesheetLocks) ? db.hr.timesheetLocks : []
   return db.hr
 }
+
+const DEFAULT_HR_DOCUMENT_TEMPLATES = [
+  {
+    id: 'cim',
+    denumire: 'Contract individual de munca',
+    tip: 'contract',
+    descriere: 'Sablon CIM folosit la generarea contractului din fisa angajatului.',
+    template_html: `<h2 style="text-align:center">CONTRACT INDIVIDUAL DE MUNCĂ</h2>
+<p style="text-align:center">Nr. <strong>{{nr_cim}}</strong> / data <strong>{{data_generare}}</strong></p>
+<h3>I. Angajator</h3>
+<p><strong>{{company.denumire}}</strong>, CUI {{company.cui}}, sediul {{company.adresa}}, reprezentată de {{company.reprezentant}}.</p>
+<h3>II. Salariat</h3>
+<p>{{angajat.prenume}} {{angajat.nume}}, CNP {{angajat.cnp}}, marca {{angajat.marca}}, domiciliu {{angajat.adresa}}.</p>
+<h3>III. Obiectul contractului</h3>
+<p>Salariatul este angajat în funcția de <strong>{{contract.functia}}</strong>, în cadrul departamentului <strong>{{angajat.department_name}}</strong>.</p>
+<h3>IV. Durata și locul muncii</h3>
+<p>Data începerii activității: <strong>{{contract.data_start}}</strong>. Tip contract: <strong>{{contract.tip}}</strong>.</p>
+<h3>V. Durata muncii</h3>
+<p>Program de lucru: <strong>{{contract.norma_ore}}</strong> ore/zi.</p>
+<h3>VI. Salariul</h3>
+<p>Salariu de bază brut lunar: <strong>{{contract.salariu_baza}}</strong> RON.</p>
+<h3>VII. Concediu</h3>
+<p>Durata concediului anual de odihnă: <strong>{{angajat.zile_co_drept}}</strong> zile lucrătoare.</p>
+<div style="margin-top:60px;display:flex;justify-content:space-between"><div><strong>ANGAJATOR</strong><br>{{company.reprezentant}}<br><br>Semnătură: ____________</div><div><strong>SALARIAT</strong><br>{{angajat.prenume}} {{angajat.nume}}<br><br>Semnătură: ____________</div></div>`
+  },
+  {
+    id: 'act_aditional',
+    denumire: 'Act aditional CIM',
+    tip: 'act_aditional',
+    descriere: 'Sablon pentru acte aditionale generate din contractele HR.',
+    template_html: `<h2 style="text-align:center">{{titlu}}</h2>
+<h3 style="text-align:center">la Contractul Individual de Muncă</h3>
+<p style="text-align:center">Nr. <strong>{{amendment.numar_act}}</strong> / data <strong>{{amendment.data_act}}</strong></p>
+<p>Angajatorul <strong>{{company.denumire}}</strong> și salariatul <strong>{{angajat.prenume}} {{angajat.nume}}</strong>, CNP {{angajat.cnp}}, convin următoarea modificare cu efect de la <strong>{{amendment.data_efect}}</strong>:</p>
+<div>{{modificare_html}}</div>
+<p>Celelalte clauze ale contractului individual de muncă rămân neschimbate.</p>
+<div style="margin-top:60px;display:flex;justify-content:space-between"><div><strong>ANGAJATOR</strong><br>{{company.reprezentant}}<br><br>Semnătură: ____________</div><div><strong>SALARIAT</strong><br>{{angajat.prenume}} {{angajat.nume}}<br><br>Semnătură: ____________</div></div>`
+  }
+]
 
 const DEFAULT_TURES = [
   { nume: 'Tura I', ora_start: '06:00', ora_sfarsit: '14:00', ore_normale: 8, culoare: '#F59E0B' },
@@ -2749,6 +2789,95 @@ SELECT TOP 1 * FROM hr.contracts WHERE id = TRY_CONVERT(int, JSON_VALUE(@p, '$.c
   }
 })
 
+router.get('/hr/document-templates', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:view')) return
+    if (isMssqlMode()) {
+      const rows = mssqlArray(`
+IF OBJECT_ID(N'hr.document_templates', N'U') IS NULL
+BEGIN
+  SELECT CAST(NULL AS nvarchar(50)) AS id WHERE 1=0 FOR JSON PATH;
+  RETURN;
+END;
+SELECT id, denumire, tip, descriere, template_html, activ, updated_at, updated_by, created_at, created_by
+FROM hr.document_templates
+WHERE ISNULL(activ, 1) = 1
+ORDER BY denumire
+FOR JSON PATH;
+`)
+      return sendJson(res, 200, { templates: ensureDefaultHrDocumentTemplates(rows) })
+    }
+    const db = readDb()
+    const hr = ensureHrDb(db)
+    sendJson(res, 200, { templates: ensureDefaultHrDocumentTemplates(hr.documentTemplates).filter((item) => item.activ !== false) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.put('/hr/document-templates/:id', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:manage')) return
+    const db = readDb()
+    const id = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
+    const body = normalizeHrDocumentTemplate({ ...req.body, id })
+    if (!body.id) return sendJson(res, 400, { error: 'ID-ul sablonului este obligatoriu.' })
+    if (!body.denumire) return sendJson(res, 400, { error: 'Denumirea sablonului este obligatorie.' })
+    if (!body.template_html) return sendJson(res, 400, { error: 'Continutul HTML al sablonului este obligatoriu.' })
+
+    if (isMssqlMode()) {
+      const template = mssqlObject(`
+DECLARE @id nvarchar(50), @denumire nvarchar(200), @tip nvarchar(50), @descriere nvarchar(500), @templateHtml nvarchar(max), @activ nvarchar(10), @userId nvarchar(80);
+SELECT @id = id, @denumire = denumire, @tip = tip, @descriere = descriere, @templateHtml = template_html, @activ = activ, @userId = userId
+FROM OPENJSON(@p) WITH (
+  id nvarchar(50) '$.id',
+  denumire nvarchar(200) '$.denumire',
+  tip nvarchar(50) '$.tip',
+  descriere nvarchar(500) '$.descriere',
+  template_html nvarchar(max) '$.template_html',
+  activ nvarchar(10) '$.activ',
+  userId nvarchar(80) '$.userId'
+);
+MERGE hr.document_templates AS target
+USING (SELECT @id AS id) AS source
+ON target.id = source.id
+WHEN MATCHED THEN UPDATE SET
+  denumire = @denumire,
+  tip = @tip,
+  descriere = @descriere,
+  template_html = @templateHtml,
+  activ = CASE WHEN @activ = N'false' THEN 0 ELSE 1 END,
+  updated_at = SYSDATETIME(),
+  updated_by = TRY_CONVERT(uniqueidentifier, NULLIF(@userId, ''))
+WHEN NOT MATCHED THEN INSERT (id, denumire, tip, descriere, template_html, activ, created_by, updated_by)
+  VALUES (@id, @denumire, @tip, @descriere, @templateHtml, CASE WHEN @activ = N'false' THEN 0 ELSE 1 END, TRY_CONVERT(uniqueidentifier, NULLIF(@userId, '')), TRY_CONVERT(uniqueidentifier, NULLIF(@userId, '')));
+SELECT TOP 1 id, denumire, tip, descriere, template_html, activ, updated_at, updated_by, created_at, created_by
+FROM hr.document_templates WHERE id = @id FOR JSON PATH;
+`, { ...body, userId: auth.user.id })
+      addAudit(db, auth.user, 'hr_document_template_save', template?.id || body.id)
+      writeDb(db)
+      return sendJson(res, 200, { template })
+    }
+
+    const hr = ensureHrDb(db)
+    let template = hr.documentTemplates.find((item) => item.id === id)
+    if (!template) {
+      template = { id, created_at: nowIso(), created_by: auth.user.id }
+      hr.documentTemplates.push(template)
+    }
+    Object.assign(template, body, { updated_at: nowIso(), updated_by: auth.user.id })
+    addAudit(db, auth.user, 'hr_document_template_save', id)
+    writeDb(db)
+    sendJson(res, 200, { template })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/hr/employees/:id/contract-amendments', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
@@ -2877,6 +3006,42 @@ function normalizeContractAmendment(body) {
     department_id: String(body.department_id || '').trim(),
     status_contract: String(body.status_contract || '').trim(),
     observatii: String(body.observatii || '').trim().slice(0, 1000)
+  }
+}
+
+function normalizeHrDocumentTemplate(body) {
+  return {
+    id: String(body.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50),
+    denumire: String(body.denumire || '').trim().slice(0, 200),
+    tip: String(body.tip || 'altul').trim().slice(0, 50),
+    descriere: String(body.descriere || '').trim().slice(0, 500),
+    template_html: String(body.template_html || '').trim().slice(0, 50000),
+    activ: body.activ !== false
+  }
+}
+
+function ensureDefaultHrDocumentTemplates(templates = []) {
+  const rows = Array.isArray(templates) ? templates.map((item) => normalizeTemplatePublic(item)) : []
+  const byId = new Map(rows.map((item) => [String(item.id), item]))
+  DEFAULT_HR_DOCUMENT_TEMPLATES.forEach((template) => {
+    if (!byId.has(template.id)) {
+      rows.push(normalizeTemplatePublic({ ...template, activ: true, system_default: true }))
+    }
+  })
+  return rows
+}
+
+function normalizeTemplatePublic(template = {}) {
+  return {
+    id: String(template.id || '').trim(),
+    denumire: String(template.denumire || '').trim(),
+    tip: String(template.tip || 'altul').trim(),
+    descriere: String(template.descriere || '').trim(),
+    template_html: String(template.template_html || '').trim(),
+    activ: template.activ !== false,
+    system_default: Boolean(template.system_default),
+    created_at: template.created_at || null,
+    updated_at: template.updated_at || null
   }
 }
 

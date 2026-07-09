@@ -51,6 +51,34 @@ const ALL_HR_TABS = [
   { id: 'Documente HR',       perm: 'hr:contracts_manage' },
 ]
 
+const HR_TEMPLATE_VARIABLES = [
+  'nr_cim',
+  'data_generare',
+  'company.denumire',
+  'company.cui',
+  'company.adresa',
+  'company.reprezentant',
+  'angajat.nume',
+  'angajat.prenume',
+  'angajat.cnp',
+  'angajat.marca',
+  'angajat.adresa',
+  'angajat.department_name',
+  'angajat.zile_co_drept',
+  'contract.numar_contract',
+  'contract.data_contract',
+  'contract.data_start',
+  'contract.tip',
+  'contract.functia',
+  'contract.norma_ore',
+  'contract.salariu_baza',
+  'amendment.numar_act',
+  'amendment.data_act',
+  'amendment.data_efect',
+  'titlu',
+  'modificare_html',
+]
+
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
 }
@@ -241,6 +269,14 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
     try { const response = await api.get(`/hr/employees/${employeeId}/files`); setItems(response.data?.items || []) } catch (error) { onError(error.response?.data?.error || 'Dosarul electronic nu a putut fi incarcat.') }
   }
   useEffect(() => { if (employeeId) loadFiles() }, [employeeId])
+  useEffect(() => {
+    function onGeneratedFile(event) {
+      if (!employeeId || String(event.detail?.employeeId) !== String(employeeId)) return
+      loadFiles()
+    }
+    window.addEventListener('hr-files-refresh', onGeneratedFile)
+    return () => window.removeEventListener('hr-files-refresh', onGeneratedFile)
+  }, [employeeId])
   async function uploadFile() {
     if (!file) return
     try {
@@ -255,6 +291,23 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
       const response = await api.get(`/hr/employees/${employeeId}/files/${item.id}/download`, { responseType: 'blob' })
       const url = URL.createObjectURL(response.data); const anchor = document.createElement('a'); anchor.href = url; anchor.download = item.file_name; anchor.click(); URL.revokeObjectURL(url)
     } catch (error) { onError(error.response?.data?.error || 'Documentul nu a putut fi descarcat.') }
+  }
+  async function previewFile(item) {
+    try {
+      const response = await api.get(`/hr/employees/${employeeId}/files/${item.id}/download`, { responseType: 'blob' })
+      const mimeType = item.mime_type || response.data?.type || 'text/html'
+      const blob = response.data?.type ? response.data : new Blob([response.data], { type: mimeType })
+      const url = URL.createObjectURL(blob)
+      const opened = window.open(url, '_blank', 'noopener,noreferrer')
+      if (!opened) {
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.target = '_blank'
+        anchor.rel = 'noopener noreferrer'
+        anchor.click()
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (error) { onError(error.response?.data?.error || 'Documentul nu a putut fi previzualizat.') }
   }
   async function saveFileMeta(event) {
     event.preventDefault()
@@ -293,10 +346,11 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
           <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-100 px-3 py-2 text-sm">
             <div>
               <strong>{item.denumire}</strong>
-              <div className="text-xs text-slate-500">{item.tip}{item.generated ? ' · generat electronic' : ''} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB · {item.data_document || item.created_at?.slice?.(0, 10) || '-'}</div>
+              <div className="text-xs text-slate-500">{item.tip}{item.generated ? ' · generat electronic' : ' · incarcat'} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB · {item.data_document || item.created_at?.slice?.(0, 10) || '-'}</div>
             </div>
             <div className="flex gap-2">
               {canManage ? <Button size="sm" variant="secondary" onClick={() => setEditing({ ...item })}>Editeaza</Button> : null}
+              {item.generated || item.mime_type === 'text/html' ? <Button size="sm" variant="secondary" onClick={() => previewFile(item)}>Deschide</Button> : null}
               <Button size="sm" variant="secondary" onClick={() => downloadFile(item)}>Descarca</Button>
               {canManage ? <Button size="sm" variant="secondary" onClick={() => cancelFile(item)}>Anuleaza</Button> : null}
             </div>
@@ -488,6 +542,8 @@ export default function HRPage() {
   const [employeeDetails, setEmployeeDetails] = useState(null)
   const [employeeContracts, setEmployeeContracts] = useState([])
   const [employeeAmendments, setEmployeeAmendments] = useState([])
+  const [hrDocumentTemplates, setHrDocumentTemplates] = useState([])
+  const [templateEditing, setTemplateEditing] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [transferHistory, setTransferHistory] = useState([])
@@ -564,7 +620,7 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -572,6 +628,7 @@ export default function HRPage() {
         api.get('/hr/authorizations').catch(() => ({ data: [] })),
         api.get('/hr/stats').catch(() => ({ data: {} })),
         api.get('/hr/linkable-users').catch(() => ({ data: [] })),
+        api.get('/hr/document-templates').catch(() => ({ data: { templates: [] } })),
       ])
       setEmployees(arrayFrom(employeesRes.data, ['employees', 'items']))
       setConfiguredDepartments(arrayFrom(departmentsRes.data, ['departments', 'items']))
@@ -580,6 +637,7 @@ export default function HRPage() {
       setAuthorizations(arrayFrom(authRes.data, ['authorizations', 'items']))
       setStats(statsRes.data || {})
       setLinkableUsers(arrayFrom(usersRes.data, ['users', 'items']))
+      setHrDocumentTemplates(arrayFrom(templatesRes.data, ['templates', 'items']))
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
       setTimesheetOverview(arrayFrom(overviewRes.data, ['overview', 'items']))
     } catch (err) {
@@ -654,6 +712,31 @@ export default function HRPage() {
     } catch {
       setEmployeeDetails(employee)
       setEditForm({ ...employee })
+    }
+  }
+
+  async function loadHrDocumentTemplates() {
+    try {
+      const response = await api.get('/hr/document-templates')
+      setHrDocumentTemplates(arrayFrom(response.data, ['templates', 'items']))
+    } catch {
+      setError('Șabloanele HR nu au putut fi încărcate.')
+    }
+  }
+
+  async function saveHrDocumentTemplate(event) {
+    event.preventDefault()
+    try {
+      const payload = { ...templateEditing, activ: true }
+      const response = await api.put(`/hr/document-templates/${payload.id}`, payload)
+      const saved = response.data?.template || payload
+      setHrDocumentTemplates(current => {
+        const others = current.filter(item => item.id !== saved.id)
+        return [...others, saved].sort((a, b) => String(a.denumire || '').localeCompare(String(b.denumire || '')))
+      })
+      setTemplateEditing(null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Șablonul HR nu a putut fi salvat.')
     }
   }
 
@@ -958,11 +1041,59 @@ export default function HRPage() {
     setTimeout(() => win.print(), 400)
   }
 
+  function getHrTemplate(id) {
+    return hrDocumentTemplates.find(item => item.id === id && item.activ !== false)
+  }
+
+  function valueAtPath(source, path) {
+    return String(path || '').split('.').reduce((current, key) => current?.[key], source)
+  }
+
+  function renderHrTemplate(templateId, data = {}, fallbackBody = '') {
+    const template = getHrTemplate(templateId)
+    const body = template?.template_html || fallbackBody
+    if (!body) return ''
+    const rendered = String(body).replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_, key) => {
+      const value = valueAtPath(data, key)
+      if (value === undefined || value === null || value === '') return '—'
+      return String(value)
+    })
+    return `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>${template?.denumire || data.titlu || 'Document HR'}</title>
+<style>
+  body{font-family:Times New Roman,serif;font-size:11pt;margin:2cm;color:#000}
+  h1,h2{text-align:center;font-size:14pt;margin:8px 0}
+  h3{font-size:12pt;margin:12px 0 4px}
+  p,li{margin:4px 0;line-height:1.7}
+  table{width:100%;border-collapse:collapse;margin:8px 0}
+  td,th{border:1px solid #555;padding:4px 8px;font-size:10pt}
+  @media print{body{margin:1.5cm 2cm}}
+</style></head><body>${rendered}</body></html>`
+  }
+
   function printCIM(data) {
     if (!data) return
     const emp = data.angajat || {}
     const co = data.company || {}
     const contract = data.contract || {}
+    const template = getHrTemplate('cim')
+    if (template?.template_html) {
+      const htmlFromTemplate = renderHrTemplate('cim', {
+        ...data,
+        angajat: emp,
+        company: co,
+        contract: {
+          ...contract,
+          functia: contract.functia || emp.functia || '',
+          data_start: String(contract.data_start || contract.data_incepere || emp.data_angajare || '').slice(0, 10),
+          data_contract: String(contract.data_contract || data.data_generare || '').slice(0, 10),
+          tip: contract.tip || 'CIM',
+          norma_ore: contract.norma_ore || emp.norma_ore || 8,
+          salariu_baza: contract.salariu_baza || emp.salariu_baza || ''
+        }
+      })
+      printGeneratedHtml(htmlFromTemplate, data)
+      return htmlFromTemplate
+    }
     const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>CIM</title>
 <style>
   body{font-family:Times New Roman,serif;font-size:11pt;margin:2cm;color:#000}
@@ -1037,6 +1168,32 @@ ${contract.data_sfarsit || emp.data_expirare_contract ? `<p>Data încetării (de
       const co = data.company || {}
       const changeText = amendmentText(amendment)
       const title = amendment.tip === 'incetare' ? 'DECIZIE / ACT DE ÎNCETARE' : amendment.tip === 'suspendare' ? 'ACT ADIȚIONAL DE SUSPENDARE' : 'ACT ADIȚIONAL'
+      const template = getHrTemplate('act_aditional')
+      if (template?.template_html) {
+        const htmlFromTemplate = renderHrTemplate('act_aditional', {
+          ...data,
+          titlu: title,
+          modificare_html: changeText,
+          angajat: emp,
+          company: co,
+          contract: contract || {},
+          amendment: {
+            ...amendment,
+            numar_act: amendment.numar_act || `AA-${amendment.id || '____'}`,
+            data_act: String(amendment.data_act || data.data || '').slice(0, 10),
+            data_efect: String(amendment.data_efect || '').slice(0, 10)
+          }
+        })
+        printGeneratedHtml(htmlFromTemplate, data)
+        await archiveGeneratedHtml({
+          html: htmlFromTemplate,
+          tip: amendment.tip === 'incetare' ? 'decizie_incetare' : 'act_aditional',
+          denumire: `${title} ${amendment.numar_act || amendment.id || ''}`.trim(),
+          data_document: String(amendment.data_act || data.data).slice(0, 10),
+          source: `contract-amendment:${amendment.id || amendment.uuid || ''}`
+        })
+        return
+      }
       const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>${title}</title>
 <style>
   body{font-family:Times New Roman,serif;font-size:11pt;margin:2cm;color:#000}
@@ -1088,7 +1245,8 @@ ${amendment.observatii ? `<h3>IV. Observații / temei</h3><p>${amendment.observa
 
   async function archiveGeneratedHtml({ html, tip, denumire, data_document, source }) {
     if (!employeeDetails?.id || !html) return
-    await api.post(`/hr/employees/${employeeDetails.id}/files/generated`, { html, tip, denumire, data_document, source })
+    const response = await api.post(`/hr/employees/${employeeDetails.id}/files/generated`, { html, tip, denumire, data_document, source })
+    window.dispatchEvent(new CustomEvent('hr-files-refresh', { detail: { employeeId: employeeDetails.id, item: response.data?.item } }))
   }
 
   function amendmentText(amendment) {
@@ -2558,6 +2716,30 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
             <p className="text-xs text-slate-400">Selectează angajatul și documentul dorit. Documentele se deschid în tab nou pentru print / salvare PDF.</p>
           </Card>
 
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold text-slate-800">🧩 Șabloane HR editabile</div>
+                <div className="text-xs text-slate-500">CIM-ul și actele adiționale pot folosi texte proprii Publiserv, cu variabile inserabile.</div>
+              </div>
+              <Button size="sm" variant="secondary" onClick={loadHrDocumentTemplates}>Reîncarcă șabloane</Button>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {hrDocumentTemplates.map(template => (
+                <div key={template.id} className="rounded border border-slate-200 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-semibold">{template.denumire}</div>
+                      <div className="text-xs text-slate-500">{template.tip} · {template.system_default ? 'implicit sistem' : 'personalizat'}</div>
+                    </div>
+                    {hasPermission('hr:manage') ? <Button size="sm" variant="secondary" onClick={() => setTemplateEditing({ ...template })}>Editează</Button> : null}
+                  </div>
+                  {template.descriere ? <div className="mt-2 text-xs text-slate-500">{template.descriere}</div> : null}
+                </div>
+              ))}
+            </div>
+          </Card>
+
           <div className="grid gap-4">
             {filteredEmployees.map(emp => (
               <Card key={emp.id} className="overflow-hidden">
@@ -2654,6 +2836,53 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
           </div>
         </div>
       ) : null}
+
+      <Modal open={Boolean(templateEditing)} title={templateEditing ? `Șablon HR — ${templateEditing.denumire}` : 'Șablon HR'} onClose={() => setTemplateEditing(null)} size="lg">
+        {templateEditing ? (
+          <form className="grid gap-3" onSubmit={saveHrDocumentTemplate}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input label="Denumire" value={templateEditing.denumire || ''} onChange={event => setTemplateEditing(current => ({ ...current, denumire: event.target.value }))} required />
+              <Select label="Tip" value={templateEditing.tip || 'altul'} onChange={event => setTemplateEditing(current => ({ ...current, tip: event.target.value }))} options={[
+                { value: 'contract', label: 'Contract' },
+                { value: 'act_aditional', label: 'Act adițional' },
+                { value: 'decizie', label: 'Decizie' },
+                { value: 'adeverinta', label: 'Adeverință' },
+                { value: 'altul', label: 'Altul' },
+              ]} />
+            </div>
+            <Input label="Descriere" value={templateEditing.descriere || ''} onChange={event => setTemplateEditing(current => ({ ...current, descriere: event.target.value }))} />
+            <div>
+              <div className="mb-1 text-xs font-semibold uppercase text-slate-500">Variabile</div>
+              <div className="flex max-h-24 flex-wrap gap-1 overflow-auto rounded border border-slate-200 bg-slate-50 p-2">
+                {HR_TEMPLATE_VARIABLES.map(variable => (
+                  <button
+                    key={variable}
+                    type="button"
+                    className="rounded bg-white px-2 py-1 text-xs text-slate-700 shadow-sm hover:bg-primary-50 hover:text-primary-700"
+                    onClick={() => setTemplateEditing(current => ({ ...current, template_html: `${current.template_html || ''}{{${variable}}}` }))}
+                  >{`{{${variable}}}`}</button>
+                ))}
+              </div>
+            </div>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Conținut HTML șablon
+              <textarea
+                className="min-h-[360px] rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={templateEditing.template_html || ''}
+                onChange={event => setTemplateEditing(current => ({ ...current, template_html: event.target.value }))}
+                required
+              />
+            </label>
+            <div className="rounded bg-amber-50 p-2 text-xs text-amber-800">
+              Poți folosi HTML simplu: &lt;h2&gt;, &lt;p&gt;, &lt;table&gt;, &lt;strong&gt;. Variabilele necunoscute apar ca „—”.
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setTemplateEditing(null)}>Renunță</Button>
+              <Button type="submit">Salvează șablon</Button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
 
       {/* ─── MODAL FIȘA ANGAJAT ───────────────────────────── */}
       <Modal open={Boolean(selectedEmployee)} title={selectedEmployee ? `Fișa — ${fullName(selectedEmployee)}` : ''} onClose={() => setSelectedEmployee(null)} size="lg">

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.228",
+  "version": "2.12.230",
   "date": "2026-07-09",
-  "changelog": "## v2.12.228 - 2026-07-09\n### Arhivare automata documente HR generate\n- CIM-urile si actele aditionale generate sunt salvate automat in dosarul electronic al angajatului.\n- Documentele generate sunt pastrate ca HTML printabil, marcate ca generate electronic.\n- Dosarul electronic poate descarca si documente text/html.\n- Fluxul HR nu mai necesita salvare manuala si reincarcare pentru documentele generate."
+  "changelog": "## v2.12.230 - 2026-07-09\n### Sablone HR editabile\n- HR poate edita sabloanele pentru CIM si acte aditionale direct din tabul Documente HR.\n- Sablonele accepta variabile de tip {{angajat.nume}}, {{contract.salariu_baza}} si {{company.denumire}}.\n- Generarea CIM si a actelor aditionale foloseste sablonul salvat, cu fallback la documentul intern existent.\n- MSSQL primeste tabelul hr.document_templates, compatibil cu texte HTML lungi."
 }

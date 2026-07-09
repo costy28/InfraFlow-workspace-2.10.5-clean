@@ -1,5 +1,23 @@
 # Changelog
 
+# v2.12.230 - 2026-07-09
+
+## Sabloane HR editabile
+
+- HR poate edita sabloanele pentru CIM si acte aditionale direct din tabul Documente HR.
+- Sabloanele accepta variabile de tip `{{angajat.nume}}`, `{{contract.salariu_baza}}` si `{{company.denumire}}`.
+- Generarea CIM si a actelor aditionale foloseste sablonul salvat, cu fallback la documentul intern existent.
+- MSSQL primeste tabelul `hr.document_templates`, compatibil cu texte HTML lungi.
+
+# v2.12.229 - 2026-07-09
+
+## Dosar HR live si previzualizare documente generate
+
+- Dosarul electronic se reincarca automat dupa generarea si arhivarea unui CIM sau act aditional.
+- Documentele generate HTML au buton Deschide pentru previzualizare in browser.
+- Documentele din dosar sunt etichetate clar ca generate electronic sau incarcate manual.
+- Fluxul HR nu mai necesita apasarea manuala a butonului Reincarca dupa generare.
+
 # v2.12.228 - 2026-07-09
 
 ## Arhivare automata documente HR generate
