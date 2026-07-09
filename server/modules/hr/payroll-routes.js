@@ -110,10 +110,11 @@ router.get("/hr/payroll", requireSalaryView, (req, res) => {
   const hr = ensurePayroll(req.auth.db);
   const month = validMonth(req.query.luna || monthNow());
   const run = [...hr.payrollRuns].reverse().find((item) => item.luna === month && !item.cancelled_at) || null;
-  const lines = run ? hr.payrollLines.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
+  const rawLines = run ? hr.payrollLines.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
+  const lines = rawLines.map((line) => decoratePayrollLine(hr, line, month, run?.profile || currentProfile(hr, month), run));
   const payments = run ? hr.payrollPayments.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
   const paymentOrders = run ? hr.payrollPaymentOrders.filter((item) => item.run_id === run.id && !item.cancelled_at) : [];
-  res.json({ luna: month, run, lines, payments, paymentOrders, profile: run?.profile || currentProfile(hr, month) });
+  res.json({ luna: month, run: run ? { ...run, source_status: payrollSourceStatus(hr, month, run, rawLines) } : null, lines, payments, paymentOrders, profile: run?.profile || currentProfile(hr, month) });
 });
 
 router.post("/hr/payroll/generate", requireSalaryManage, (req, res, next) => {
@@ -326,10 +327,11 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
   if (medicalDays > 0 && medicalIndemnity <= 0) errors.push("Concediul medical necesita indemnizatie aprobata");
   const medicalAdjustments = adjustments.filter((item) => item.tip === "indemnizatie_medicala");
   if (medicalDays > 0 && medicalAdjustments.some((item) => !item.operator_confirmed)) errors.push("Confirma certificatul si indemnizatia de concediu medical");
-  if (medicalIndemnity > 0 && medicalEmployerAmount + medicalFundAmount > 0 && Math.abs(medicalIndemnity - medicalEmployerAmount - medicalFundAmount) > 0.01) errors.push("Impartirea indemnizatiei medicale nu corespunde sumei totale");
+  if (medicalAdjustments.some(hasInvalidMedicalSplit)) errors.push("Impartirea indemnizatiei medicale nu corespunde sumei certificatului");
+  if (medicalAdjustments.length > 1) warnings.push("Exista mai multe indemnizatii medicale active; verificati sa nu fie introdus acelasi certificat de doua ori");
   if (mealTickets > 0 && !profile.meal_tickets_taxable && !profile.meal_tickets_cass) warnings.push("Regimul fiscal al tichetelor este neactivat in profil; verificati configurarea aplicabila perioadei");
   if (personalDeduction === 0) warnings.push("Deducerea personala este zero; verificati daca angajatul are dreptul la deducere");
-  return {
+  const line = {
     employee_id: employee.id,
     marca: employee.marca || "",
     employee_name: `${employee.nume || ""} ${employee.prenume || ""}`.trim(),
@@ -368,6 +370,125 @@ function calculatePayrollLine(hr, employee, month, profile, override = {}) {
     employer_cost: money(gross + cam),
     errors,
     warnings
+  };
+  return { ...line, source_diagnostics: buildPayrollSourceDiagnostics(hr, employee, month, contract, sheets, adjustments, profile, line) };
+}
+
+function decoratePayrollLine(hr, line, month, profile, run = null) {
+  const employee = hr.employees.find((item) => String(item.id) === String(line.employee_id)) || {};
+  const contract = activeContract(hr, line.employee_id, month);
+  const sheets = hr.timeSheets.filter((item) => String(item.employee_id) === String(line.employee_id) && String(item.data || "").startsWith(month));
+  const adjustments = hr.payrollAdjustments.filter((item) => adjustmentApplies(item, line.employee_id, month));
+  const diagnostics = buildPayrollSourceDiagnostics(hr, employee, month, contract, sheets, adjustments, profile, line, run);
+  return { ...line, source_diagnostics: diagnostics };
+}
+
+function buildPayrollSourceDiagnostics(hr, employee, month, contract, sheets, adjustments, profile, line = {}, run = null) {
+  const workdays = workdaysInMonth(month);
+  const contractCandidates = hr.contracts
+    .filter((item) => String(item.employee_id) === String(employee.id || line.employee_id))
+    .sort((a, b) => String(b.data_start || b.created_at || "").localeCompare(String(a.data_start || a.created_at || "")));
+  const validSheets = sheets.filter((item) => item.validat === true || item.validat === 1);
+  const invalidSheets = sheets.length - validSheets.length;
+  const typeCounts = sheets.reduce((acc, item) => {
+    const key = String(item.tip || "lucru").toLowerCase();
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const medicalAdjustments = adjustments.filter((item) => item.tip === "indemnizatie_medicala");
+  const latestSourceUpdate = maxIso([
+    employee.updated_at, employee.created_at,
+    ...contractCandidates.flatMap((item) => [item.updated_at, item.created_at]),
+    ...sheets.flatMap((item) => [item.updated_at, item.created_at, item.validat_la]),
+    ...adjustments.flatMap((item) => [item.updated_at, item.created_at, item.cancelled_at])
+  ]);
+  const lineGeneratedAt = maxIso([line.updated_at, line.created_at, run?.updated_at, run?.created_at]);
+  const sourceChangedAfterRun = Boolean(latestSourceUpdate && lineGeneratedAt && latestSourceUpdate > lineGeneratedAt);
+  const warnings = [];
+  if (!contract) warnings.push(contractCandidates.length ? "Exista contracte pe angajat, dar niciunul nu este eligibil pentru luna selectata." : "Nu exista contract inregistrat pe angajat.");
+  if (!sheets.length) warnings.push("Nu exista pontaj pentru luna selectata.");
+  if (invalidSheets > 0) warnings.push(`${invalidSheets} zile de pontaj sunt nevalidate.`);
+  if (medicalAdjustments.length > 1) warnings.push("Exista mai multe indemnizatii medicale active in luna selectata.");
+  if (sourceChangedAfterRun) warnings.push("Sursele HR s-au modificat dupa calculul statului; regenereaza statul pentru recalcul.");
+  return {
+    generated_at: lineGeneratedAt || null,
+    latest_source_update: latestSourceUpdate || null,
+    source_changed_after_run: sourceChangedAfterRun,
+    employee: {
+      id: employee.id || line.employee_id,
+      marca: employee.marca || line.marca || "",
+      name: `${employee.nume || ""} ${employee.prenume || ""}`.trim() || line.employee_name || "",
+      department: employee.department_name || employee.department || employee.department_cod || "",
+      active: employee.activ !== false && employee.status !== "incetat",
+      salary_base: money(employee.salariu_baza || 0)
+    },
+    contract: contract ? {
+      found: true,
+      id: contract.id,
+      number: contract.numar_contract || contract.numar || "",
+      status: contract.status || "activ",
+      start: String(contract.data_start || "").slice(0, 10),
+      end: String(contract.data_sfarsit || contract.data_end || "").slice(0, 10),
+      norm_hours_per_day: Number(contract.norma_ore || 8),
+      salary_base: money(contract.salariu_baza || 0)
+    } : {
+      found: false,
+      candidates: contractCandidates.slice(0, 5).map((item) => ({
+        id: item.id,
+        number: item.numar_contract || item.numar || "",
+        status: item.status || "nesetat",
+        start: String(item.data_start || "").slice(0, 10),
+        end: String(item.data_sfarsit || item.data_end || "").slice(0, 10)
+      }))
+    },
+    timesheet: {
+      found: sheets.length > 0,
+      entries: sheets.length,
+      expected_workdays: workdays,
+      validated_entries: validSheets.length,
+      invalid_entries: invalidSheets,
+      worked_hours: money(sum(sheets, "ore_lucrate")),
+      paid_hours: money(line.paid_hours || 0),
+      norm_hours: money(line.norm_hours || workdays * Number(contract?.norma_ore || 8)),
+      types: typeCounts
+    },
+    payroll_sources: {
+      adjustments: adjustments.length,
+      medical_adjustments: medicalAdjustments.length,
+      medical_indemnity: money(line.medical_indemnity || 0),
+      medical_employer_amount: money(line.medical_employer_amount || 0),
+      medical_fund_amount: money(line.medical_fund_amount || 0),
+      leave_days: Number(line.leave_days || 0),
+      medical_days: Number(line.medical_days || 0),
+      unpaid_leave_days: Number(line.unpaid_leave_days || 0)
+    },
+    profile: {
+      id: profile?.id || "",
+      name: profile?.name || "",
+      effective_from: profile?.effective_from || ""
+    },
+    links: {
+      hr: `/hr?tab=Angajati&employee=${employee.id || line.employee_id}`,
+      timesheet: `/hr?tab=Pontaj&luna=${month}`,
+      payroll: `/contabilitate/salarizare?luna=${month}`
+    },
+    warnings
+  };
+}
+
+function payrollSourceStatus(hr, month, run, lines = []) {
+  const employeeIds = new Set(lines.map((line) => String(line.employee_id)));
+  const latestSourceUpdate = maxIso([
+    ...hr.employees.filter((item) => employeeIds.has(String(item.id))).flatMap((item) => [item.updated_at, item.created_at]),
+    ...hr.contracts.filter((item) => employeeIds.has(String(item.employee_id))).flatMap((item) => [item.updated_at, item.created_at]),
+    ...hr.timeSheets.filter((item) => employeeIds.has(String(item.employee_id)) && String(item.data || "").startsWith(month)).flatMap((item) => [item.updated_at, item.created_at, item.validat_la]),
+    ...hr.payrollAdjustments.filter((item) => employeeIds.has(String(item.employee_id)) && adjustmentApplies(item, item.employee_id, month)).flatMap((item) => [item.updated_at, item.created_at, item.cancelled_at])
+  ]);
+  const runGeneratedAt = maxIso([run.updated_at, run.created_at]);
+  return {
+    latest_source_update: latestSourceUpdate || null,
+    generated_at: runGeneratedAt || null,
+    changed_after_run: Boolean(latestSourceUpdate && runGeneratedAt && latestSourceUpdate > runGeneratedAt)
   };
 }
 
@@ -439,11 +560,16 @@ function validMonth(value) {
 }
 
 function monthNow() { return new Date().toISOString().slice(0, 7); }
+function hasInvalidMedicalSplit(item) {
+  const split = num(item.medical_employer_amount) + num(item.medical_fund_amount);
+  return split > 0 && Math.abs(num(item.amount) - split) > 0.01;
+}
 function nextId(items) { return items.reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1; }
 function rate(value, label) { const number = Number(value); if (!Number.isFinite(number) || number < 0 || number > 100) throwHttp(400, `Cota ${label} este invalida.`); return number; }
 function sum(items, key) { return items.reduce((total, item) => total + num(item[key]), 0); }
 function num(value) { return Number(value || 0); }
 function money(value) { return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100; }
+function maxIso(values) { return values.filter(Boolean).map((value) => String(value)).sort().pop() || ""; }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
 router.ensurePayroll = ensurePayroll;
@@ -454,5 +580,9 @@ router.summarizeRun = summarizeRun;
 router.money = money;
 router.validMonth = validMonth;
 router.nextId = nextId;
+router.hasInvalidMedicalSplit = hasInvalidMedicalSplit;
+router.buildPayrollSourceDiagnostics = buildPayrollSourceDiagnostics;
+router.decoratePayrollLine = decoratePayrollLine;
+router.payrollSourceStatus = payrollSourceStatus;
 
 module.exports = router;

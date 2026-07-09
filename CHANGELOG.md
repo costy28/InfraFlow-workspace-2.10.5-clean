@@ -1,5 +1,59 @@
 # Changelog
 
+# v2.12.228 - 2026-07-09
+
+## Arhivare automata documente HR generate
+
+- CIM-urile generate din contracte sunt salvate automat in dosarul electronic al angajatului.
+- Actele aditionale generate din istoric sunt salvate automat in dosarul electronic.
+- Documentele generate sunt arhivate ca HTML printabil si marcate „generat electronic”.
+- Dosarul electronic poate descarca fisiere `text/html` generate intern.
+
+# v2.12.227 - 2026-07-09
+
+## Documente HR din contracte si acte aditionale
+
+- Contractele salariale au buton de generare document CIM printabil.
+- Actele adiționale din istoricul contractului au buton de generare document printabil.
+- Șablonul CIM folosește contractul operațional selectat pentru data de început, normă și salariu.
+- Actul adițional generat completează automat tipul modificării, data efectului și valorile salvate.
+
+# v2.12.226 - 2026-07-09
+
+## Acte aditionale HR aplicate pe contract
+
+- Contractele salariale au istoric de acte adiționale legate de contract.
+- Se pot aplica acte pentru modificare salariu, funcție, normă, departament, suspendare și încetare.
+- Aplicarea actului actualizează automat contractul operațional și, unde este cazul, fișa angajatului.
+- Schema MSSQL primește tabelul `hr.contract_amendments`.
+
+# v2.12.225 - 2026-07-09
+
+## Editare contracte si dosar personal HR
+
+- Fișa angajatului separă contractele operaționale folosite de salarizare de fișierele CIM încărcate în dosarul electronic.
+- Contractele HR pot fi create și editate direct din fișa angajatului: număr, date, normă, salariu, status și observații.
+- Documentele din dosarul electronic pot fi redenumite, reclasificate, datate sau anulate controlat.
+- Contractele cu status nesetat sunt tratate ca active și în fișa HR, nu doar în salarizare.
+
+# v2.12.224 - 2026-07-09
+
+## Diagnostic surse HR in salarizare
+
+- Liniile salariale primesc diagnostic detaliat pentru contract, pontaj, concedii si ajustari active.
+- Contabilitatea vede daca sursele HR s-au modificat dupa calculul statului si trebuie regenerat.
+- Modalul „Detalii surse” explica de ce lipseste contractul/pontajul si afiseaza contractele neeligibile.
+- Operatorul are actiuni rapide spre HR, Pontaj si regenerarea statului.
+
+# v2.12.223 - 2026-07-08
+
+## Salarizare sincronizata cu HR
+
+- Contractele si pontajele MSSQL sunt recitite la fiecare regenerare a statului salarial.
+- Contractele fara status explicit sunt tratate ca active.
+- Impartirea indemnizatiei medicale este verificata individual pentru fiecare certificat.
+- Ajustarile medicale multiple produc avertizare de verificare, fara cumularea eronata a impartirilor.
+
 # v2.12.222 - 2026-07-08
 
 ## Baza CM si actualizare automata pontaj

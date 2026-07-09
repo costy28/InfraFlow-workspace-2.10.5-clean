@@ -8,6 +8,7 @@ const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy"
 const { calendarDays, missingMedicalField } = require("../modules/hr/medical-leave-policy");
 const { indemnityPercent, payerSplit, buildMedicalRegister } = require("../modules/hr/medical-leave-register");
 const { applyCompensatedHours } = require("../modules/hr/timesheet-compensation");
+const payrollRouter = require("../modules/hr/payroll-routes");
 
 test("datele personale si medicale sunt ascunse fara permisiuni", () => {
   const value = sanitizeEmployee({ id: 1, nume: "Popescu", cnp: "123", iban: "RO00", email: "a@b.ro", apt_medical_expira: "2026-01-01", salariu_baza: 5000 });
@@ -94,6 +95,27 @@ test("certificatul in continuare pastreaza episodul initial", () => {
   assert.equal(rows[1].episode_start, "2026-07-01");
   assert.equal(rows[1].episode_days, 14);
   assert.equal(rows[1].indemnity_percent, 65);
+});
+
+test("validarea impartirii CM se face pe fiecare indemnizatie, fara a amesteca ajustarile vechi", () => {
+  assert.equal(payrollRouter.hasInvalidMedicalSplit({ amount: 564 }), false);
+  assert.equal(payrollRouter.hasInvalidMedicalSplit({ amount: 107.25, medical_employer_amount: 107.25, medical_fund_amount: 0 }), false);
+  assert.equal(payrollRouter.hasInvalidMedicalSplit({ amount: 107.25, medical_employer_amount: 50, medical_fund_amount: 10 }), true);
+});
+
+test("diagnosticul salarizarii explica lipsa contractului si pontajul nevalidat", () => {
+  const hr = {
+    contracts: [{ id: 7, employee_id: 1, status: "incetat", data_start: "2026-01-01", created_at: "2026-01-01T00:00:00.000Z" }],
+    timeSheets: [{ id: 11, employee_id: 1, data: "2026-07-06", ore_lucrate: 8, tip: "lucru", validat: false, updated_at: "2026-07-08T10:00:00.000Z" }],
+    payrollAdjustments: []
+  };
+  const details = payrollRouter.buildPayrollSourceDiagnostics(hr, { id: 1, nume: "Giza", prenume: "Nadia", marca: "356" }, "2026-07", null, hr.timeSheets, [], { name: "Profil" }, { created_at: "2026-07-07T10:00:00.000Z" });
+  assert.equal(details.contract.found, false);
+  assert.equal(details.contract.candidates.length, 1);
+  assert.equal(details.timesheet.found, true);
+  assert.equal(details.timesheet.invalid_entries, 1);
+  assert.equal(details.source_changed_after_run, true);
+  assert.ok(details.warnings.some((item) => item.includes("niciunul nu este eligibil")));
 });
 
 test("timpul liber compensatoriu actualizeaza automat pontajul", () => {

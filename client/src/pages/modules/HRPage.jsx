@@ -137,6 +137,19 @@ const emptyEmployeeForm = {
   zile_co_drept: 21,
 }
 
+const emptyContractForm = {
+  tip: 'CIM',
+  numar_contract: '',
+  data_contract: '',
+  data_start: '',
+  data_sfarsit: '',
+  norma_ore: 8,
+  salariu_baza: '',
+  cost_ora: '',
+  status: 'activ',
+  observatii: ''
+}
+
 function AlertRow({ label, date, icon }) {
   const days = daysUntil(date)
   const tone = alertTone(days)
@@ -214,7 +227,16 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
   const [items, setItems] = useState([])
   const [file, setFile] = useState(null)
   const [type, setType] = useState('contract')
+  const [editing, setEditing] = useState(null)
   const [busy, setBusy] = useState(false)
+  const fileTypes = [
+    {value:'contract',label:'Contract'},
+    {value:'act_aditional',label:'Act aditional'},
+    {value:'identitate',label:'Act identitate'},
+    {value:'medical',label:'Medical'},
+    {value:'diploma',label:'Diploma'},
+    {value:'altul',label:'Altul'}
+  ]
   async function loadFiles() {
     try { const response = await api.get(`/hr/employees/${employeeId}/files`); setItems(response.data?.items || []) } catch (error) { onError(error.response?.data?.error || 'Dosarul electronic nu a putut fi incarcat.') }
   }
@@ -234,7 +256,208 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
       const url = URL.createObjectURL(response.data); const anchor = document.createElement('a'); anchor.href = url; anchor.download = item.file_name; anchor.click(); URL.revokeObjectURL(url)
     } catch (error) { onError(error.response?.data?.error || 'Documentul nu a putut fi descarcat.') }
   }
-  return <div className="rounded-lg border border-slate-200 p-3"><div className="mb-3 flex items-center justify-between"><div><div className="font-semibold">Dosar electronic</div><div className="text-xs text-slate-500">Contracte, acte, diplome si documente medicale.</div></div><Button size="sm" variant="secondary" onClick={loadFiles}>Reincarca</Button></div>{canManage ? <div className="mb-3 grid gap-2 sm:grid-cols-[180px_1fr_auto]"><Select value={type} onChange={event => setType(event.target.value)} options={[{value:'contract',label:'Contract'}, {value:'act_aditional',label:'Act aditional'}, {value:'identitate',label:'Act identitate'}, {value:'medical',label:'Medical'}, {value:'diploma',label:'Diploma'}, {value:'altul',label:'Altul'}]} /><Input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" onChange={event => setFile(event.target.files?.[0] || null)} /><Button onClick={uploadFile} disabled={!file || busy}>{busy ? 'Se incarca...' : 'Incarca'}</Button></div> : null}<div className="grid gap-2">{items.map(item => <div key={item.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-3 py-2 text-sm"><div><strong>{item.denumire}</strong><div className="text-xs text-slate-500">{item.tip} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB</div></div><Button size="sm" variant="secondary" onClick={() => downloadFile(item)}>Descarca</Button></div>)}{!items.length ? <div className="text-sm text-slate-500">Nu exista documente incarcate.</div> : null}</div></div>
+  async function saveFileMeta(event) {
+    event.preventDefault()
+    try {
+      await api.patch(`/hr/employees/${employeeId}/files/${editing.id}`, editing)
+      setEditing(null)
+      await loadFiles()
+    } catch (error) { onError(error.response?.data?.error || 'Documentul nu a putut fi actualizat.') }
+  }
+  async function cancelFile(item) {
+    const motiv = window.prompt('Motiv anulare document:', 'Inlocuit / incarcat gresit')
+    if (!motiv) return
+    try {
+      await api.delete(`/hr/employees/${employeeId}/files/${item.id}`, { data: { motiv } })
+      await loadFiles()
+    } catch (error) { onError(error.response?.data?.error || 'Documentul nu a putut fi anulat.') }
+  }
+  return (
+    <div className="rounded-lg border border-slate-200 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="font-semibold">Dosar electronic</div>
+          <div className="text-xs text-slate-500">Fișierele reale: CIM scanat/PDF, acte adiționale, diplome, medicale.</div>
+        </div>
+        <Button size="sm" variant="secondary" onClick={loadFiles}>Reincarca</Button>
+      </div>
+      {canManage ? (
+        <div className="mb-3 grid gap-2 sm:grid-cols-[180px_1fr_auto]">
+          <Select value={type} onChange={event => setType(event.target.value)} options={fileTypes} />
+          <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" onChange={event => setFile(event.target.files?.[0] || null)} />
+          <Button onClick={uploadFile} disabled={!file || busy}>{busy ? 'Se incarca...' : 'Incarca'}</Button>
+        </div>
+      ) : null}
+      <div className="grid gap-2">
+        {items.map(item => (
+          <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-100 px-3 py-2 text-sm">
+            <div>
+              <strong>{item.denumire}</strong>
+              <div className="text-xs text-slate-500">{item.tip}{item.generated ? ' · generat electronic' : ''} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB · {item.data_document || item.created_at?.slice?.(0, 10) || '-'}</div>
+            </div>
+            <div className="flex gap-2">
+              {canManage ? <Button size="sm" variant="secondary" onClick={() => setEditing({ ...item })}>Editeaza</Button> : null}
+              <Button size="sm" variant="secondary" onClick={() => downloadFile(item)}>Descarca</Button>
+              {canManage ? <Button size="sm" variant="secondary" onClick={() => cancelFile(item)}>Anuleaza</Button> : null}
+            </div>
+          </div>
+        ))}
+        {!items.length ? <div className="text-sm text-slate-500">Nu exista documente incarcate.</div> : null}
+      </div>
+      <Modal open={Boolean(editing)} title="Editeaza document dosar" onClose={() => setEditing(null)} size="md">
+        <form className="grid gap-3" onSubmit={saveFileMeta}>
+          <Input label="Denumire" value={editing?.denumire || ''} onChange={event => setEditing(current => ({ ...current, denumire: event.target.value }))} required />
+          <Select label="Tip document" value={editing?.tip || 'altul'} onChange={event => setEditing(current => ({ ...current, tip: event.target.value }))} options={fileTypes} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="Data document" type="date" value={editing?.data_document || ''} onChange={event => setEditing(current => ({ ...current, data_document: event.target.value }))} />
+            <Input label="Expira la" type="date" value={editing?.data_expirare || ''} onChange={event => setEditing(current => ({ ...current, data_expirare: event.target.value }))} />
+          </div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Renunta</Button><Button type="submit">Salveaza</Button></div>
+        </form>
+      </Modal>
+    </div>
+  )
+}
+
+function EmployeeContractsPanel({ employeeId, contracts, amendments, departments, canManage, onReload, onError, onPrintContract, onPrintAmendment }) {
+  const [editing, setEditing] = useState(null)
+  const [amendment, setAmendment] = useState(null)
+  function openNew() {
+    setEditing({ ...emptyContractForm, data_contract: new Date().toISOString().slice(0, 10), data_start: new Date().toISOString().slice(0, 10) })
+  }
+  function openEdit(contract) {
+    const validType = ['CIM', 'PFA', 'zilier', 'detasat'].includes(contract.tip) ? contract.tip : 'CIM'
+    setEditing({
+      ...emptyContractForm,
+      ...contract,
+      tip: validType,
+      data_contract: String(contract.data_contract || '').slice(0, 10),
+      data_start: String(contract.data_start || contract.data_incepere || '').slice(0, 10),
+      data_sfarsit: String(contract.data_sfarsit || contract.data_end || '').slice(0, 10),
+      norma_ore: contract.norma_ore || 8,
+      status: contract.status || 'activ'
+    })
+  }
+  function openAmendment(contract, type = 'salariu') {
+    setAmendment({
+      contract_id: contract.id,
+      contract_number: contract.numar_contract || `Contract #${contract.id}`,
+      tip: type,
+      numar_act: '',
+      data_act: new Date().toISOString().slice(0, 10),
+      data_efect: new Date().toISOString().slice(0, 10),
+      salariu_baza: contract.salariu_baza || '',
+      norma_ore: contract.norma_ore || 8,
+      functia: '',
+      functie_cor: '',
+      department_id: '',
+      status_contract: '',
+      observatii: ''
+    })
+  }
+  async function saveContract(event) {
+    event.preventDefault()
+    try {
+      const body = { ...editing, norma_ore: Number(editing.norma_ore || 8), salariu_baza: editing.salariu_baza === '' ? '' : Number(editing.salariu_baza), cost_ora: editing.cost_ora === '' ? '' : Number(editing.cost_ora) }
+      if (editing.id) await api.patch(`/hr/employees/${employeeId}/contracts/${editing.id}`, body)
+      else await api.post(`/hr/employees/${employeeId}/contracts`, body)
+      setEditing(null)
+      await onReload()
+    } catch (error) { onError(error.response?.data?.error || 'Contractul nu a putut fi salvat.') }
+  }
+  async function saveAmendment(event) {
+    event.preventDefault()
+    try {
+      const body = { ...amendment }
+      if (!['salariu'].includes(body.tip)) body.salariu_baza = ''
+      if (!['norma'].includes(body.tip)) body.norma_ore = ''
+      if (!['functie'].includes(body.tip)) { body.functia = ''; body.functie_cor = '' }
+      if (body.tip !== 'departament') body.department_id = ''
+      if (body.tip === 'suspendare') body.status_contract = 'suspendat'
+      if (body.tip === 'incetare') body.status_contract = 'incetat'
+      if (!['suspendare', 'incetare'].includes(body.tip) && !body.status_contract) body.status_contract = ''
+      await api.post(`/hr/employees/${employeeId}/contracts/${amendment.contract_id}/amendments`, body)
+      setAmendment(null)
+      await onReload()
+    } catch (error) { onError(error.response?.data?.error || 'Actul aditional nu a putut fi salvat.') }
+  }
+  const active = contracts.filter(item => String(item.status || 'activ') !== 'incetat')
+  const byContract = (contractId) => amendments.filter(item => String(item.contract_id) === String(contractId))
+  return (
+    <div className="rounded-lg border border-slate-200 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="font-semibold">Contracte salarizare</div>
+          <div className="text-xs text-slate-500">Datele operative folosite de pontaj, salarizare si D112. Separat de PDF-ul CIM din dosar.</div>
+        </div>
+        {canManage ? <Button size="sm" onClick={openNew}>+ Contract nou</Button> : null}
+      </div>
+      <div className="grid gap-2">
+        {contracts.map(contract => (
+          <div key={contract.id} className={`rounded border px-3 py-2 text-sm ${String(contract.status || 'activ') === 'incetat' ? 'border-slate-100 bg-slate-50 text-slate-500' : 'border-primary-100 bg-primary-50/40'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><strong>{contract.numar_contract || `Contract #${contract.id}`}</strong> · {contract.tip || 'CIM'} · <Badge tone={String(contract.status || 'activ') === 'activ' ? 'success' : 'warning'}>{contract.status || 'activ'}</Badge></div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => onPrintContract?.(contract)}>Genereaza</Button>
+                {canManage ? <><Button size="sm" variant="secondary" onClick={() => openAmendment(contract)}>Act aditional</Button><Button size="sm" variant="secondary" onClick={() => openEdit(contract)}>Editeaza</Button></> : null}
+              </div>
+            </div>
+            <div className="mt-1 grid gap-1 text-xs text-slate-600 sm:grid-cols-4">
+              <div>Data contract: {String(contract.data_contract || '').slice(0, 10) || '-'}</div>
+              <div>Start: {String(contract.data_start || contract.data_incepere || '').slice(0, 10) || '-'}</div>
+              <div>Norma: {contract.norma_ore || 8} ore/zi</div>
+              <div>Salariu: {contract.salariu_baza ? `${Number(contract.salariu_baza).toLocaleString('ro-RO')} RON` : '-'}</div>
+            </div>
+            {byContract(contract.id).length ? <div className="mt-2 rounded bg-white/70 p-2 text-xs"><div className="mb-1 font-semibold text-slate-600">Istoric acte adiționale</div>{byContract(contract.id).map(item => <div key={item.id || item.uuid} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-1"><span>{item.numar_act || `Act #${item.id}`} · {item.tip} · efect {String(item.data_efect || '').slice(0, 10)}</span><span className="text-slate-500">{item.salariu_baza ? `salariu ${Number(item.salariu_baza).toLocaleString('ro-RO')} RON` : ''}{item.norma_ore ? ` norma ${item.norma_ore}h` : ''}{item.functia ? ` ${item.functia}` : ''}{item.status_contract ? ` ${item.status_contract}` : ''}</span><Button size="sm" variant="secondary" onClick={() => onPrintAmendment?.(item, contract)}>Genereaza act</Button></div>)}</div> : null}
+          </div>
+        ))}
+        {!contracts.length ? <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Nu exista contract operational. Incarcarea PDF-ului in dosar nu creeaza automat contract salarial.</div> : null}
+        {contracts.length && !active.length ? <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Exista contracte, dar niciunul nu este activ pentru salarizare.</div> : null}
+      </div>
+      <Modal open={Boolean(editing)} title={editing?.id ? 'Editeaza contract salarial' : 'Contract salarial nou'} onClose={() => setEditing(null)} size="md">
+        <form className="grid gap-3" onSubmit={saveContract}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="Numar contract" value={editing?.numar_contract || ''} onChange={event => setEditing(current => ({ ...current, numar_contract: event.target.value }))} placeholder="se genereaza la contract nou" />
+            <Select label="Tip" value={editing?.tip || 'CIM'} onChange={event => setEditing(current => ({ ...current, tip: event.target.value }))} options={[{ value: 'CIM', label: 'CIM' }, { value: 'PFA', label: 'PFA' }, { value: 'zilier', label: 'Zilier' }, { value: 'detasat', label: 'Detasat' }]} />
+            <Input label="Data contract" type="date" value={editing?.data_contract || ''} onChange={event => setEditing(current => ({ ...current, data_contract: event.target.value }))} />
+            <Input label="Data inceperii activitatii" type="date" value={editing?.data_start || ''} onChange={event => setEditing(current => ({ ...current, data_start: event.target.value }))} required />
+            <Input label="Data sfarsit" type="date" value={editing?.data_sfarsit || ''} onChange={event => setEditing(current => ({ ...current, data_sfarsit: event.target.value }))} />
+            <Select label="Status" value={editing?.status || 'activ'} onChange={event => setEditing(current => ({ ...current, status: event.target.value }))} options={[{ value: 'activ', label: 'Activ' }, { value: 'suspendat', label: 'Suspendat' }, { value: 'incetat', label: 'Incetat' }]} />
+            <Input label="Norma ore/zi" type="number" step="0.01" value={editing?.norma_ore || ''} onChange={event => setEditing(current => ({ ...current, norma_ore: event.target.value }))} required />
+            <Input label="Salariu baza brut" type="number" step="0.01" value={editing?.salariu_baza || ''} onChange={event => setEditing(current => ({ ...current, salariu_baza: event.target.value }))} />
+            <Input label="Cost ora" type="number" step="0.01" value={editing?.cost_ora || ''} onChange={event => setEditing(current => ({ ...current, cost_ora: event.target.value }))} />
+          </div>
+          <Input label="Observatii" value={editing?.observatii || ''} onChange={event => setEditing(current => ({ ...current, observatii: event.target.value }))} />
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Renunta</Button><Button type="submit">Salveaza contract</Button></div>
+        </form>
+      </Modal>
+      <Modal open={Boolean(amendment)} title={`Act aditional - ${amendment?.contract_number || ''}`} onClose={() => setAmendment(null)} size="md">
+        <form className="grid gap-3" onSubmit={saveAmendment}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Select label="Tip act" value={amendment?.tip || 'salariu'} onChange={event => setAmendment(current => ({ ...current, tip: event.target.value }))} options={[
+              { value: 'salariu', label: 'Modificare salariu' },
+              { value: 'functie', label: 'Modificare functie' },
+              { value: 'norma', label: 'Modificare norma' },
+              { value: 'departament', label: 'Schimbare departament' },
+              { value: 'suspendare', label: 'Suspendare' },
+              { value: 'incetare', label: 'Incetare' },
+              { value: 'altul', label: 'Alt act' }
+            ]} />
+            <Input label="Numar act" value={amendment?.numar_act || ''} onChange={event => setAmendment(current => ({ ...current, numar_act: event.target.value }))} placeholder="AA-2026-001" />
+            <Input label="Data actului" type="date" value={amendment?.data_act || ''} onChange={event => setAmendment(current => ({ ...current, data_act: event.target.value }))} />
+            <Input label="Data efect" type="date" value={amendment?.data_efect || ''} onChange={event => setAmendment(current => ({ ...current, data_efect: event.target.value }))} required />
+          </div>
+          {amendment?.tip === 'salariu' ? <Input label="Salariu baza brut nou" type="number" step="0.01" value={amendment?.salariu_baza || ''} onChange={event => setAmendment(current => ({ ...current, salariu_baza: event.target.value }))} required /> : null}
+          {amendment?.tip === 'norma' ? <Input label="Norma noua ore/zi" type="number" step="0.01" value={amendment?.norma_ore || ''} onChange={event => setAmendment(current => ({ ...current, norma_ore: event.target.value }))} required /> : null}
+          {amendment?.tip === 'functie' ? <div className="grid gap-3 sm:grid-cols-2"><Input label="Functie noua" value={amendment?.functia || ''} onChange={event => setAmendment(current => ({ ...current, functia: event.target.value }))} required /><Input label="Cod COR nou" value={amendment?.functie_cor || ''} onChange={event => setAmendment(current => ({ ...current, functie_cor: event.target.value }))} /></div> : null}
+          {amendment?.tip === 'departament' ? <Select label="Departament nou" value={amendment?.department_id || ''} onChange={event => setAmendment(current => ({ ...current, department_id: event.target.value }))} options={[{ value: '', label: 'Alege departament' }, ...departments]} required /> : null}
+          {['suspendare', 'incetare'].includes(amendment?.tip) ? <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{amendment.tip === 'incetare' ? 'Contractul va fi marcat incetat, iar angajatul inactiv de la data efectului.' : 'Contractul va fi marcat suspendat.'}</div> : null}
+          <Input label="Observatii / temei" value={amendment?.observatii || ''} onChange={event => setAmendment(current => ({ ...current, observatii: event.target.value }))} />
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setAmendment(null)}>Renunta</Button><Button type="submit">Salveaza si aplica</Button></div>
+        </form>
+      </Modal>
+    </div>
+  )
 }
 
 export default function HRPage() {
@@ -263,6 +486,8 @@ export default function HRPage() {
   const [stats, setStats] = useState(null)
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [employeeDetails, setEmployeeDetails] = useState(null)
+  const [employeeContracts, setEmployeeContracts] = useState([])
+  const [employeeAmendments, setEmployeeAmendments] = useState([])
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [transferHistory, setTransferHistory] = useState([])
@@ -408,22 +633,38 @@ export default function HRPage() {
     setPhotoPreview(null)
     setPhotoFile(null)
     setEmployeeEquipment(null)
+    setEmployeeContracts([])
+    setEmployeeAmendments([])
     try {
-      const [detailsRes, coRes, equipmentRes, transfersRes] = await Promise.all([
+      const [detailsRes, coRes, equipmentRes, transfersRes, contractsRes, amendmentsRes] = await Promise.all([
         api.get(`/hr/employees/${employee.id}`),
         api.get(`/hr/employees/${employee.id}/co-balance`).catch(() => ({ data: null })),
         api.get(`/hr/echipamente/angajat/${employee.id}`).catch(() => ({ data: null })),
         api.get(`/hr/employees/${employee.id}/transfers`).catch(() => ({ data: [] })),
+        api.get(`/hr/employees/${employee.id}/contracts`).catch(() => ({ data: [] })),
+        api.get(`/hr/employees/${employee.id}/contract-amendments`).catch(() => ({ data: [] })),
       ])
       setEmployeeDetails(detailsRes.data)
       setEditForm({ ...detailsRes.data, department_transfer_date: new Date().toISOString().slice(0, 10), department_transfer_reason: '' })
       setCoBalance(coRes.data)
       setEmployeeEquipment(equipmentRes.data)
       setTransferHistory(arrayFrom(transfersRes.data, ['transfers', 'items']))
+      setEmployeeContracts(arrayFrom(contractsRes.data, ['contracts', 'items']))
+      setEmployeeAmendments(arrayFrom(amendmentsRes.data, ['amendments', 'items']))
     } catch {
       setEmployeeDetails(employee)
       setEditForm({ ...employee })
     }
+  }
+
+  async function reloadEmployeeContracts(employeeId = employeeDetails?.id || selectedEmployee?.id) {
+    if (!employeeId) return
+    const response = await api.get(`/hr/employees/${employeeId}/contracts`)
+    setEmployeeContracts(arrayFrom(response.data, ['contracts', 'items']))
+    const amendments = await api.get(`/hr/employees/${employeeId}/contract-amendments`).catch(() => ({ data: [] }))
+    setEmployeeAmendments(arrayFrom(amendments.data, ['amendments', 'items']))
+    const details = await api.get(`/hr/employees/${employeeId}`).catch(() => null)
+    if (details?.data) setEmployeeDetails(details.data)
   }
 
   async function loadRaportLunar(employeeId, luna) {
@@ -749,15 +990,15 @@ export default function HRPage() {
 <h3>III. OBIECTUL CONTRACTULUI</h3>
 <p>Angajatorul angajează salariatul în funcția de <span class="bold">${emp.functia || '—'}</span>, în cadrul departamentului <span class="bold">${emp.department_name || '—'}</span>.</p>
 <h3>IV. DURATA CONTRACTULUI</h3>
-<p>Tip contract: <span class="bold">${emp.tip_contract || contract.tip || '—'}</span></p>
-<p>Data începerii activității: <span class="bold">${emp.data_angajare || '—'}</span></p>
-${emp.data_expirare_contract ? `<p>Data încetării (determinat): <span class="bold">${emp.data_expirare_contract}</span></p>` : ''}
+<p>Tip contract: <span class="bold">${contract.tip || emp.tip_contract || '—'}</span></p>
+<p>Data începerii activității: <span class="bold">${String(contract.data_start || emp.data_angajare || '').slice(0, 10) || '—'}</span></p>
+${contract.data_sfarsit || emp.data_expirare_contract ? `<p>Data încetării (determinat): <span class="bold">${String(contract.data_sfarsit || emp.data_expirare_contract).slice(0, 10)}</span></p>` : ''}
 <h3>V. LOCUL DE MUNCĂ</h3>
 <p>Loc de muncă: sediu angajator / teren — conform specificului activității.</p>
 <h3>VI. DURATA MUNCII</h3>
-<p>Program de lucru: <span class="bold">8 ore/zi, 40 ore/săptămână</span></p>
+<p>Program de lucru: <span class="bold">${contract.norma_ore || emp.norma_ore_zi || 8} ore/zi</span></p>
 <h3>VII. SALARIUL</h3>
-<p>Salariu de bază brut lunar: <span class="bold">${emp.salariu_baza ? emp.salariu_baza + ' RON' : '_____ RON'}</span></p>
+<p>Salariu de bază brut lunar: <span class="bold">${contract.salariu_baza || emp.salariu_baza ? Number(contract.salariu_baza || emp.salariu_baza).toLocaleString('ro-RO') + ' RON' : '_____ RON'}</span></p>
 <h3>VIII. CONCEDIU</h3>
 <p>Durata concediului anual de odihnă: <span class="bold">${emp.zile_co_drept ?? 21} zile lucrătoare</span></p>
 <h3>IX. ALTE CLAUZE</h3>
@@ -768,6 +1009,99 @@ ${emp.data_expirare_contract ? `<p>Data încetării (determinat): <span class="b
 </div>
 </body></html>`
     printGeneratedHtml(html, data)
+    return html
+  }
+
+  async function printOperationalContract(contract) {
+    try {
+      const response = await api.get(`/hr/employees/${employeeDetails.id}/cim`)
+      const data = { ...response.data, contract, nr_cim: contract.numar_contract || response.data?.nr_cim, data_generare: new Date().toISOString().slice(0, 10) }
+      const html = printCIM(data)
+      await archiveGeneratedHtml({
+        html,
+        tip: 'contract',
+        denumire: `CIM ${contract.numar_contract || employeeDetails.marca || employeeDetails.id}`,
+        data_document: String(contract.data_contract || data.data_generare).slice(0, 10),
+        source: `contract:${contract.id || ''}`
+      })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Contractul nu a putut fi generat.')
+    }
+  }
+
+  async function printOperationalAmendment(amendment, contract) {
+    try {
+      const response = await api.get(`/hr/employees/${employeeDetails.id}/cim`)
+      const data = { ...response.data, amendment, contract, numar: amendment.numar_act || `AA-${amendment.id || '____'}`, data: String(amendment.data_act || new Date().toISOString()).slice(0, 10) }
+      const emp = data.angajat || employeeDetails || {}
+      const co = data.company || {}
+      const changeText = amendmentText(amendment)
+      const title = amendment.tip === 'incetare' ? 'DECIZIE / ACT DE ÎNCETARE' : amendment.tip === 'suspendare' ? 'ACT ADIȚIONAL DE SUSPENDARE' : 'ACT ADIȚIONAL'
+      const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>${title}</title>
+<style>
+  body{font-family:Times New Roman,serif;font-size:11pt;margin:2cm;color:#000}
+  h2{text-align:center;font-size:14pt;margin:8px 0}
+  h3{font-size:12pt;margin:14px 0 5px}
+  p,li{margin:5px 0;line-height:1.75}
+  table{width:100%;border-collapse:collapse;margin:10px 0}
+  td,th{border:1px solid #555;padding:5px 8px;font-size:10pt}
+  .bold{font-weight:bold}
+  .sig{margin-top:48px;display:flex;justify-content:space-between}
+  .sig div{text-align:center;min-width:180px}
+  @media print{body{margin:1.5cm 2cm}}
+</style></head><body>
+<h2>${title}</h2>
+<h2>la Contractul Individual de Muncă</h2>
+<p style="text-align:center">Nr. <span class="bold">${amendment.numar_act || '____'}</span> / data <span class="bold">${String(amendment.data_act || '').slice(0, 10) || data.data}</span></p>
+<hr>
+<h3>I. Părțile</h3>
+<p><span class="bold">${co.denumire || '______________________'}</span>, CUI ${co.cui || '____________'}, cu sediul în ${co.adresa || '______________________'}, reprezentată de <span class="bold">${co.reprezentant || '______________________'}</span>, în calitate de ${co.functie_reprezentant || 'Director General'}, denumită în continuare <strong>Angajator</strong>,</p>
+<p>și salariatul/salariata <span class="bold">${emp.prenume || ''} ${emp.nume || ''}</span>, CNP <span class="bold">${emp.cnp || '_______________'}</span>, marca <span class="bold">${emp.marca || '—'}</span>, denumit(ă) în continuare <strong>Salariat</strong>.</p>
+<h3>II. Contract de referință</h3>
+<table>
+  <tr><td><strong>Contract</strong></td><td>${contract?.numar_contract || '—'}</td><td><strong>Data contract</strong></td><td>${String(contract?.data_contract || '').slice(0, 10) || '—'}</td></tr>
+  <tr><td><strong>Data început</strong></td><td>${String(contract?.data_start || contract?.data_incepere || '').slice(0, 10) || '—'}</td><td><strong>Status curent</strong></td><td>${contract?.status || 'activ'}</td></tr>
+</table>
+<h3>III. Obiectul actului</h3>
+<p>Începând cu data de <span class="bold">${String(amendment.data_efect || '').slice(0, 10)}</span>, părțile convin următoarea modificare:</p>
+${changeText}
+<p>Celelalte clauze ale contractului individual de muncă rămân neschimbate.</p>
+<p>Prezentul act adițional face parte integrantă din contractul individual de muncă și produce efecte de la data menționată mai sus.</p>
+${amendment.observatii ? `<h3>IV. Observații / temei</h3><p>${amendment.observatii}</p>` : ''}
+<div class="sig">
+  <div><p><strong>ANGAJATOR</strong></p><p>${co.reprezentant || '______________________'}</p><p>${co.functie_reprezentant || 'Director General'}</p><br><p>Semnătură: ________________</p></div>
+  <div><p><strong>SALARIAT</strong></p><p>${emp.prenume || ''} ${emp.nume || ''}</p><br><p>Semnătură: ________________</p></div>
+</div>
+</body></html>`
+      printGeneratedHtml(html, data)
+      await archiveGeneratedHtml({
+        html,
+        tip: amendment.tip === 'incetare' ? 'decizie_incetare' : 'act_aditional',
+        denumire: `${title} ${amendment.numar_act || amendment.id || ''}`.trim(),
+        data_document: String(amendment.data_act || data.data).slice(0, 10),
+        source: `contract-amendment:${amendment.id || amendment.uuid || ''}`
+      })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Actul adițional nu a putut fi generat.')
+    }
+  }
+
+  async function archiveGeneratedHtml({ html, tip, denumire, data_document, source }) {
+    if (!employeeDetails?.id || !html) return
+    await api.post(`/hr/employees/${employeeDetails.id}/files/generated`, { html, tip, denumire, data_document, source })
+  }
+
+  function amendmentText(amendment) {
+    const amount = amendment.salariu_baza ? Number(amendment.salariu_baza).toLocaleString('ro-RO') : ''
+    const rows = []
+    if (amendment.tip === 'salariu') rows.push(`<li>Salariul de bază brut lunar se modifică la <span class="bold">${amount} RON</span>.</li>`)
+    if (amendment.tip === 'norma') rows.push(`<li>Norma de lucru se modifică la <span class="bold">${amendment.norma_ore} ore/zi</span>.</li>`)
+    if (amendment.tip === 'functie') rows.push(`<li>Funcția se modifică în <span class="bold">${amendment.functia || '____________________'}</span>${amendment.functie_cor ? `, cod COR ${amendment.functie_cor}` : ''}.</li>`)
+    if (amendment.tip === 'departament') rows.push(`<li>Locul organizatoric / departamentul se modifică conform deciziei interne și evidenței HR.</li>`)
+    if (amendment.tip === 'suspendare') rows.push(`<li>Contractul se suspendă începând cu data indicată, conform temeiului menționat la observații.</li>`)
+    if (amendment.tip === 'incetare') rows.push(`<li>Contractul individual de muncă încetează începând cu data indicată, conform temeiului menționat la observații.</li>`)
+    if (!rows.length) rows.push(`<li>${amendment.observatii || 'Se completează prevederile contractului conform acordului părților.'}</li>`)
+    return `<ol>${rows.join('')}</ol>`
   }
 
   async function loadAdeverinta(employeeId) {
@@ -2326,6 +2660,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         {employeeDetails ? (
           <div className="grid gap-4">
             <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} />
+            <EmployeeContractsPanel employeeId={employeeDetails.id} contracts={employeeContracts} amendments={employeeAmendments} departments={departments} canManage={hasPerm('hr:manage')} onReload={() => reloadEmployeeContracts(employeeDetails.id)} onError={setError} onPrintContract={printOperationalContract} onPrintAmendment={printOperationalAmendment} />
             {/* Photo + basic info */}
             <div className="flex items-start gap-4">
               <div className="relative flex-shrink-0">

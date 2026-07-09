@@ -31,6 +31,7 @@ export default function Salarizare() {
   const [selectedBankId, setSelectedBankId] = useState('')
   const [bankOpen, setBankOpen] = useState(false)
   const [bankProfile, setBankProfile] = useState(emptyBankProfile)
+  const [sourceDetails, setSourceDetails] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -295,6 +296,7 @@ export default function Salarizare() {
       </Card>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      {run?.source_status?.changed_after_run ? <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Sursele HR s-au modificat după calculul acestui stat. Regenerează din pontaj pentru valori actualizate.</div> : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Info label="Status" value={run ? <Badge tone={statusTone(run.status)}>{run.status}</Badge> : 'Negenerat'} />
         <Info label="Angajati" value={run?.employee_count || 0} />
@@ -321,9 +323,11 @@ export default function Salarizare() {
             <td className="max-w-xs px-3 py-2 text-xs">
               {(line.errors || []).map(item => <div key={item} className="text-red-700">{item}</div>)}
               {(line.warnings || []).map(item => <div key={item} className="text-amber-700">{item}</div>)}
+              {line.source_diagnostics?.source_changed_after_run ? <div className="text-amber-700">Surse HR modificate după calcul</div> : null}
               {!line.errors?.length && !line.warnings?.length ? <span className="text-emerald-700">OK</span> : null}
             </td>
             <td className="px-3 py-2"><DropdownMenu label="Actiuni" items={[
+              { label: 'Detalii surse', onClick: () => setSourceDetails(line) },
               { label: 'Fluturas', onClick: () => openPayslip(line) },
               run?.status === 'draft' ? { label: 'Corecteaza', onClick: () => editLine(line) } : null
             ].filter(Boolean)} /></td>
@@ -373,6 +377,10 @@ export default function Salarizare() {
         </form>
       </Modal>
 
+      <Modal open={Boolean(sourceDetails)} title={`Detalii surse HR - ${sourceDetails?.employee_name || ''}`} onClose={() => setSourceDetails(null)} size="lg">
+        <SourceDiagnostics line={sourceDetails} month={month} onRegenerate={generate} />
+      </Modal>
+
       <Modal open={settingsOpen} title="Profil fiscal salarizare" onClose={() => setSettingsOpen(false)} size="md">
         <form className="grid gap-3" onSubmit={saveProfile}>
           <Input label="Denumire profil" value={profile.name || ''} onChange={event => setProfile(current => ({ ...current, name: event.target.value }))} required />
@@ -388,6 +396,75 @@ export default function Salarizare() {
       </Modal>
     </AccountingShell>
   )
+}
+
+function SourceDiagnostics({ line, month, onRegenerate }) {
+  const details = line?.source_diagnostics || {}
+  const contract = details.contract || {}
+  const timesheet = details.timesheet || {}
+  const sources = details.payroll_sources || {}
+  const links = details.links || {}
+  if (!line) return null
+  return (
+    <div className="grid gap-4 text-sm">
+      {details.source_changed_after_run ? <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">Date HR actualizate după calculul statului. Pentru recalcul, folosește „Regenerează din pontaj”.</div> : null}
+      {details.warnings?.length ? <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">{details.warnings.map(item => <div key={item}>⚠️ {item}</div>)}</div> : null}
+      <div className="grid gap-3 md:grid-cols-3">
+        <DiagnosticBox title="Angajat" rows={[
+          ['Marca', details.employee?.marca || line.marca || '-'],
+          ['Departament', details.employee?.department || '-'],
+          ['Salariu HR', formatMoney(details.employee?.salary_base || 0)]
+        ]} />
+        <DiagnosticBox title="Contract" rows={contract.found ? [
+          ['Status', contract.status || 'activ'],
+          ['Perioada', `${contract.start || '-'} — ${contract.end || 'prezent'}`],
+          ['Norma/zi', `${contract.norm_hours_per_day || 8} ore`],
+          ['Baza contract', formatMoney(contract.salary_base || 0)]
+        ] : [
+          ['Status', 'Lipsă pentru lună'],
+          ['Contracte găsite', contract.candidates?.length || 0],
+          ['Motiv probabil', contract.candidates?.length ? 'status / dată început' : 'nu există contract']
+        ]} tone={contract.found ? 'success' : 'danger'} />
+        <DiagnosticBox title="Pontaj" rows={[
+          ['Zile pontate', `${timesheet.entries || 0} / ${timesheet.expected_workdays || 0}`],
+          ['Validate', `${timesheet.validated_entries || 0}`],
+          ['Ore lucrate', timesheet.worked_hours || 0],
+          ['Ore platite/norma', `${timesheet.paid_hours || line.paid_hours || 0} / ${timesheet.norm_hours || line.norm_hours || 0}`]
+        ]} tone={timesheet.found && !timesheet.invalid_entries ? 'success' : 'warning'} />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <DiagnosticBox title="Concedii și CM" rows={[
+          ['CO zile', sources.leave_days || 0],
+          ['CM zile', sources.medical_days || 0],
+          ['Indemnizație CM', formatMoney(sources.medical_indemnity || 0)],
+          ['Angajator / FNUASS', `${formatMoney(sources.medical_employer_amount || 0)} / ${formatMoney(sources.medical_fund_amount || 0)}`]
+        ]} />
+        <DiagnosticBox title="Ajustări salariale" rows={[
+          ['Ajustări active', sources.adjustments || 0],
+          ['Indemnizații medicale active', sources.medical_adjustments || 0],
+          ['CFP zile', sources.unpaid_leave_days || 0],
+          ['Profil fiscal', details.profile?.name || '-']
+        ]} />
+      </div>
+      {contract.candidates?.length ? <div className="rounded-md border border-slate-200 p-3"><div className="mb-2 font-semibold">Contracte existente, dar neeligibile</div>{contract.candidates.map(item => <div key={item.id} className="text-xs text-slate-600">#{item.id} · {item.number || '-'} · {item.status || 'nesetat'} · {item.start || '-'} — {item.end || 'prezent'}</div>)}</div> : null}
+      {timesheet.types ? <div className="rounded-md border border-slate-200 p-3"><div className="mb-2 font-semibold">Tipuri pontaj {month}</div><div className="flex flex-wrap gap-2">{Object.entries(timesheet.types).map(([key, value]) => <Badge key={key} tone="neutral">{key}: {value}</Badge>)}</div></div> : null}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={() => window.location.assign(links.hr || '/hr')}>Deschide HR</Button>
+        <Button type="button" variant="secondary" onClick={() => window.location.assign(links.timesheet || '/hr')}>Deschide pontaj</Button>
+        <Button type="button" onClick={onRegenerate}>Regenerează statul</Button>
+      </div>
+    </div>
+  )
+}
+
+function DiagnosticBox({ title, rows, tone = 'neutral' }) {
+  const classes = {
+    success: 'border-emerald-200 bg-emerald-50',
+    warning: 'border-amber-200 bg-amber-50',
+    danger: 'border-red-200 bg-red-50',
+    neutral: 'border-slate-200 bg-white'
+  }
+  return <div className={`rounded-md border p-3 ${classes[tone] || classes.neutral}`}><div className="mb-2 font-semibold">{title}</div><div className="space-y-1">{rows.map(([label, value]) => <div key={label} className="flex justify-between gap-3"><span className="text-slate-500">{label}</span><strong className="text-right">{value}</strong></div>)}</div></div>
 }
 
 function downloadBlob(blob, filename) {

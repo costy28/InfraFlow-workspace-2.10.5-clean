@@ -1,5 +1,5 @@
 {
-  "version": "2.12.222",
-  "date": "2026-07-08",
-  "changelog": "## v2.12.222 - 2026-07-08\n### Baza CM si pontaj automat\n- Modal explicit pentru baza zilnica a indemnizatiei medicale.\n- Concediile aprobate actualizeaza pontajul.\n- Timpul liber din banca de ore actualizeaza automat orele compensate.\n- Lunile inchise si zilele validate raman protejate."
+  "version": "2.12.228",
+  "date": "2026-07-09",
+  "changelog": "## v2.12.228 - 2026-07-09\n### Arhivare automata documente HR generate\n- CIM-urile si actele aditionale generate sunt salvate automat in dosarul electronic al angajatului.\n- Documentele generate sunt pastrate ca HTML printabil, marcate ca generate electronic.\n- Dosarul electronic poate descarca si documente text/html.\n- Fluxul HR nu mai necesita salvare manuala si reincarcare pentru documentele generate."
 }

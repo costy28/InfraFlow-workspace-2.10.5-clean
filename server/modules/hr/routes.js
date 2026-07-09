@@ -85,6 +85,7 @@ function ensureHrDb(db) {
   db.hr = db.hr || {}
   db.hr.employees = Array.isArray(db.hr.employees) ? db.hr.employees : []
   db.hr.contracts = Array.isArray(db.hr.contracts) ? db.hr.contracts : []
+  db.hr.contractAmendments = Array.isArray(db.hr.contractAmendments) ? db.hr.contractAmendments : []
   db.hr.timeSheets = Array.isArray(db.hr.timeSheets) ? db.hr.timeSheets : []
   db.hr.leaveRequests = Array.isArray(db.hr.leaveRequests) ? db.hr.leaveRequests : []
   db.hr.medicalLeaveCertificates = Array.isArray(db.hr.medicalLeaveCertificates) ? db.hr.medicalLeaveCertificates : []
@@ -1723,7 +1724,7 @@ router.get('/hr/employees/:id', (req, res, next) => {
     if (isMssqlMode()) {
       const employee = mssqlObject(`SELECT TOP 1 * FROM hr.employees WHERE id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id')) FOR JSON PATH;`, req.params)
       if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost gasit.' })
-      const contracts = mssqlArray(`SELECT * FROM hr.contracts WHERE employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id')) AND status <> N'incetat' ORDER BY data_start DESC FOR JSON PATH;`, req.params)
+      const contracts = mssqlArray(`SELECT * FROM hr.contracts WHERE employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id')) AND ISNULL(status,N'activ') <> N'incetat' ORDER BY data_start DESC FOR JSON PATH;`, req.params)
       const authorizations = mssqlArray(`SELECT * FROM hr.authorizations WHERE employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id')) ORDER BY data_expirare FOR JSON PATH;`, req.params)
       const stats = mssqlObject(`
 SELECT
@@ -2698,6 +2699,202 @@ router.get('/hr/timesheets/export-nexus', (req, res, next) => {
     next(error)
   }
 })
+
+router.patch('/hr/employees/:id/contracts/:contractId', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:manage')) return
+    const db = readDb()
+    const body = req.body || {}
+
+    if (isMssqlMode()) {
+      const updated = mssqlObject(`
+UPDATE hr.contracts
+SET
+  tip = COALESCE(NULLIF(JSON_VALUE(@p, '$.tip'), ''), tip),
+  numar_contract = COALESCE(NULLIF(JSON_VALUE(@p, '$.numar_contract'), ''), numar_contract),
+  data_contract = COALESCE(TRY_CONVERT(date, NULLIF(JSON_VALUE(@p, '$.data_contract'), '')), data_contract),
+  data_start = COALESCE(TRY_CONVERT(date, NULLIF(JSON_VALUE(@p, '$.data_start'), '')), data_start),
+  data_sfarsit = TRY_CONVERT(date, NULLIF(JSON_VALUE(@p, '$.data_sfarsit'), '')),
+  norma_ore = COALESCE(TRY_CONVERT(decimal(5,2), NULLIF(JSON_VALUE(@p, '$.norma_ore'), '')), norma_ore),
+  salariu_baza = COALESCE(TRY_CONVERT(decimal(15,2), NULLIF(JSON_VALUE(@p, '$.salariu_baza'), '')), salariu_baza),
+  cost_ora = TRY_CONVERT(decimal(12,2), NULLIF(JSON_VALUE(@p, '$.cost_ora'), '')),
+  status = COALESCE(NULLIF(JSON_VALUE(@p, '$.status'), ''), status, N'activ'),
+  observatii = NULLIF(JSON_VALUE(@p, '$.observatii'), ''),
+  updated_at = SYSDATETIME()
+WHERE id = TRY_CONVERT(int, JSON_VALUE(@p, '$.contractId'))
+  AND employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.employeeId'));
+SELECT TOP 1 * FROM hr.contracts WHERE id = TRY_CONVERT(int, JSON_VALUE(@p, '$.contractId')) AND employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.employeeId')) FOR JSON PATH;
+`, { ...body, employeeId: req.params.id, contractId: req.params.contractId })
+      if (!updated) return sendJson(res, 404, { error: 'Contractul nu a fost gasit.' })
+      addAudit(db, auth.user, 'hr_contract_updated', `${updated.numar_contract || updated.id}`)
+      writeDb(db)
+      return sendJson(res, 200, updated)
+    }
+
+    const hr = ensureHrDb(db)
+    const item = hr.contracts.find((row) => String(row.id) === String(req.params.contractId) && String(row.employee_id) === String(req.params.id))
+    if (!item) return sendJson(res, 404, { error: 'Contractul nu a fost gasit.' })
+    ;['tip', 'numar_contract', 'data_contract', 'data_start', 'data_sfarsit', 'norma_ore', 'salariu_baza', 'cost_ora', 'status', 'observatii'].forEach((key) => {
+      if (body[key] !== undefined) item[key] = body[key] === '' ? null : body[key]
+    })
+    item.updated_at = nowIso()
+    item.updated_by = auth.user.id
+    addAudit(db, auth.user, 'hr_contract_updated', `${item.numar_contract || item.id}`)
+    writeDb(db)
+    sendJson(res, 200, item)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/hr/employees/:id/contract-amendments', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:view')) return
+    if (isMssqlMode()) {
+      return sendJson(res, 200, mssqlArray(`
+SELECT a.*, c.numar_contract
+FROM hr.contract_amendments a
+JOIN hr.contracts c ON c.id = a.contract_id
+WHERE a.employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id'))
+  AND a.cancelled_at IS NULL
+ORDER BY a.data_efect DESC, a.created_at DESC
+FOR JSON PATH;
+`, req.params))
+    }
+    const hr = ensureHrDb(readDb())
+    const rows = hr.contractAmendments
+      .filter((item) => String(item.employee_id) === String(req.params.id) && !item.cancelled_at)
+      .sort((a, b) => String(b.data_efect || b.created_at || '').localeCompare(String(a.data_efect || a.created_at || '')))
+    sendJson(res, 200, rows)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/hr/employees/:id/contracts/:contractId/amendments', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:manage')) return
+    const db = readDb()
+    const body = normalizeContractAmendment(req.body || {})
+    if (!body.data_efect) return sendJson(res, 400, { error: 'Data de efect a actului aditional este obligatorie.' })
+
+    if (isMssqlMode()) {
+      const created = mssqlObject(`
+DECLARE @employeeId int = TRY_CONVERT(int, JSON_VALUE(@p, '$.employeeId'));
+DECLARE @contractId int = TRY_CONVERT(int, JSON_VALUE(@p, '$.contractId'));
+DECLARE @tip nvarchar(40) = COALESCE(NULLIF(JSON_VALUE(@p, '$.tip'), ''), N'altul');
+DECLARE @dataEfect date = TRY_CONVERT(date, JSON_VALUE(@p, '$.data_efect'));
+IF NOT EXISTS (SELECT 1 FROM hr.contracts WHERE id=@contractId AND employee_id=@employeeId)
+BEGIN
+  SELECT CAST(NULL AS int) AS id WHERE 1=0 FOR JSON PATH;
+  RETURN;
+END;
+INSERT INTO hr.contract_amendments (
+  employee_id, contract_id, tip, numar_act, data_act, data_efect,
+  salariu_baza, norma_ore, functia, functie_cor, department_id, status_contract,
+  observatii, created_by
+)
+VALUES (
+  @employeeId, @contractId, @tip, NULLIF(JSON_VALUE(@p, '$.numar_act'), ''),
+  TRY_CONVERT(date, NULLIF(JSON_VALUE(@p, '$.data_act'), '')), @dataEfect,
+  TRY_CONVERT(decimal(15,2), NULLIF(JSON_VALUE(@p, '$.salariu_baza'), '')),
+  TRY_CONVERT(decimal(5,2), NULLIF(JSON_VALUE(@p, '$.norma_ore'), '')),
+  NULLIF(JSON_VALUE(@p, '$.functia'), ''),
+  NULLIF(JSON_VALUE(@p, '$.functie_cor'), ''),
+  TRY_CONVERT(uniqueidentifier, NULLIF(JSON_VALUE(@p, '$.department_id'), '')),
+  NULLIF(JSON_VALUE(@p, '$.status_contract'), ''),
+  NULLIF(JSON_VALUE(@p, '$.observatii'), ''),
+  TRY_CONVERT(uniqueidentifier, NULLIF(JSON_VALUE(@p, '$.userId'), ''))
+);
+DECLARE @id int = SCOPE_IDENTITY();
+UPDATE hr.contracts
+SET
+  salariu_baza = COALESCE(TRY_CONVERT(decimal(15,2), NULLIF(JSON_VALUE(@p, '$.salariu_baza'), '')), salariu_baza),
+  norma_ore = COALESCE(TRY_CONVERT(decimal(5,2), NULLIF(JSON_VALUE(@p, '$.norma_ore'), '')), norma_ore),
+  status = COALESCE(NULLIF(JSON_VALUE(@p, '$.status_contract'), ''), status),
+  data_sfarsit = CASE WHEN NULLIF(JSON_VALUE(@p, '$.status_contract'), '') = N'incetat' THEN @dataEfect ELSE data_sfarsit END,
+  observatii = COALESCE(NULLIF(JSON_VALUE(@p, '$.observatii'), ''), observatii),
+  updated_at = SYSDATETIME()
+WHERE id=@contractId;
+UPDATE hr.employees
+SET
+  functia = COALESCE(NULLIF(JSON_VALUE(@p, '$.functia'), ''), functia),
+  functie_cor = COALESCE(NULLIF(JSON_VALUE(@p, '$.functie_cor'), ''), functie_cor),
+  department_id = COALESCE(TRY_CONVERT(uniqueidentifier, NULLIF(JSON_VALUE(@p, '$.department_id'), '')), department_id),
+  data_plecare = CASE WHEN NULLIF(JSON_VALUE(@p, '$.status_contract'), '') = N'incetat' THEN @dataEfect ELSE data_plecare END,
+  activ = CASE WHEN NULLIF(JSON_VALUE(@p, '$.status_contract'), '') = N'incetat' THEN 0 ELSE activ END,
+  updated_at = SYSDATETIME()
+WHERE id=@employeeId;
+SELECT TOP 1 * FROM hr.contract_amendments WHERE id=@id FOR JSON PATH;
+`, { ...body, employeeId: req.params.id, contractId: req.params.contractId, userId: auth.user.id })
+      if (!created) return sendJson(res, 404, { error: 'Contractul nu a fost gasit.' })
+      addAudit(db, auth.user, 'hr_contract_amendment_create', `${created.tip} / ${created.numar_act || created.id}`)
+      writeDb(db)
+      return sendJson(res, 201, created)
+    }
+
+    const hr = ensureHrDb(db)
+    const employee = hr.employees.find((item) => String(item.id) === String(req.params.id))
+    const contract = hr.contracts.find((item) => String(item.id) === String(req.params.contractId) && String(item.employee_id) === String(req.params.id))
+    if (!employee || !contract) return sendJson(res, 404, { error: 'Angajatul sau contractul nu a fost gasit.' })
+    const amendment = {
+      id: nextId(hr.contractAmendments),
+      uuid: crypto.randomUUID(),
+      employee_id: Number(req.params.id),
+      contract_id: Number(req.params.contractId),
+      ...body,
+      created_by: auth.user.id,
+      created_at: nowIso()
+    }
+    hr.contractAmendments.push(amendment)
+    applyContractAmendmentJson(employee, contract, amendment)
+    addAudit(db, auth.user, 'hr_contract_amendment_create', `${amendment.tip} / ${amendment.numar_act || amendment.id}`)
+    writeDb(db)
+    sendJson(res, 201, amendment)
+  } catch (error) {
+    next(error)
+  }
+})
+
+function normalizeContractAmendment(body) {
+  const tip = String(body.tip || 'altul').trim()
+  const allowed = new Set(['salariu', 'functie', 'norma', 'departament', 'suspendare', 'incetare', 'altul'])
+  return {
+    tip: allowed.has(tip) ? tip : 'altul',
+    numar_act: String(body.numar_act || '').trim().slice(0, 100),
+    data_act: String(body.data_act || todayIso()).slice(0, 10),
+    data_efect: String(body.data_efect || '').slice(0, 10),
+    salariu_baza: body.salariu_baza === '' || body.salariu_baza == null ? '' : numberValue(body.salariu_baza),
+    norma_ore: body.norma_ore === '' || body.norma_ore == null ? '' : numberValue(body.norma_ore),
+    functia: String(body.functia || '').trim().slice(0, 150),
+    functie_cor: String(body.functie_cor || '').trim().slice(0, 20),
+    department_id: String(body.department_id || '').trim(),
+    status_contract: String(body.status_contract || '').trim(),
+    observatii: String(body.observatii || '').trim().slice(0, 1000)
+  }
+}
+
+function applyContractAmendmentJson(employee, contract, amendment) {
+  if (amendment.salariu_baza !== '') contract.salariu_baza = amendment.salariu_baza
+  if (amendment.norma_ore !== '') contract.norma_ore = amendment.norma_ore
+  if (amendment.status_contract) contract.status = amendment.status_contract
+  if (amendment.status_contract === 'incetat') {
+    contract.data_sfarsit = amendment.data_efect
+    employee.data_plecare = amendment.data_efect
+    employee.activ = false
+  }
+  if (amendment.functia) employee.functia = amendment.functia
+  if (amendment.functie_cor) employee.functie_cor = amendment.functie_cor
+  if (amendment.department_id) employee.department_id = amendment.department_id
+  contract.updated_at = nowIso()
+  employee.updated_at = nowIso()
+}
 
 const medicalLeaveRoot = path.join(__dirname, '../../../storage/hr-medical-leaves')
 const medicalLeaveUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
