@@ -2710,7 +2710,23 @@ function buildNotifications(db, user) {
     });
   });
 
-  const visible = notifications.filter((item) => notificationVisibleForRole(item, user.role));
+  persistedNotificationsForUser(db, user).forEach((notification) => {
+    notifications.push({
+      id: notification.id || notification.key || crypto.randomUUID(),
+      type: notification.event || notification.type || "notification",
+      severity: notification.severity || (notification.type === "urgent" ? "bad" : notification.type === "warning" ? "warn" : "info"),
+      title: notification.title || "Notificare",
+      detail: notification.detail || notification.message || notification.mesaj || "",
+      targetView: notification.targetView || notification.target_view || null,
+      targetLabel: notification.targetLabel || notification.target_label || "Vezi detalii",
+      roles: notification.roles,
+      createdAt: notification.createdAt || notification.created_at || notification.data || null,
+      userId: notification.user_id || notification.userId || null,
+      entityKey: notification.entity_key || notification.key || null
+    });
+  });
+
+  const visible = notifications.filter((item) => notificationVisibleForUser(item, user));
   const bad = visible.filter((item) => item.severity === "bad").length;
   const warn = visible.filter((item) => item.severity === "warn").length;
   return {
@@ -2729,6 +2745,21 @@ function buildNotifications(db, user) {
 function notificationVisibleForRole(notification, role) {
   if (role === "superadmin" || role === "admin") return true;
   return !Array.isArray(notification.roles) || notification.roles.includes(role);
+}
+
+function notificationVisibleForUser(notification, user) {
+  const targetUser = notification.user_id || notification.userId;
+  if (targetUser && String(targetUser) === String(user.id)) return true;
+  if (targetUser) return false;
+  return notificationVisibleForRole(notification, user.role);
+}
+
+function persistedNotificationsForUser(db, user) {
+  return (Array.isArray(db.notifications) ? db.notifications : [])
+    .filter((notification) => notification && notification.read !== true && !notification.read_at)
+    .filter((notification) => notificationVisibleForUser(notification, user))
+    .sort((a, b) => String(b.createdAt || b.created_at || "").localeCompare(String(a.createdAt || a.created_at || "")))
+    .slice(0, 25);
 }
 
 function buildStockAlerts(db) {

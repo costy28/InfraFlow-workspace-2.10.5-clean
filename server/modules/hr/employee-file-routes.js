@@ -4,7 +4,7 @@ const path = require("path");
 const crypto = require("crypto");
 const multer = require("multer");
 const { requireAuth } = require("../../core/auth");
-const { requirePermission } = require("../../core/permissions");
+const { requirePermission, authHasPermission } = require("../../core/permissions");
 const kioskSessions = require("../../core/kiosk-sessions");
 const { readDb, writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
@@ -31,35 +31,53 @@ router.get("/hr/dossier-checklist", authorize("hr:view"), (req, res) => {
 });
 
 router.get("/hr/advanced-expirations", authorize("hr:view"), (req, res) => {
-  const hr = req.auth.db.hr || {};
-  const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
-  const files = ensureFiles(req.auth.db).filter((item) => !item.cancelled_at);
-  const contracts = Array.isArray(hr.contracts) ? hr.contracts : [];
-  const amendments = Array.isArray(hr.contractAmendments) ? hr.contractAmendments : [];
-  const authorizations = Array.isArray(hr.authorizations) ? hr.authorizations : [];
-  const rows = [];
-  employees.forEach((employee) => {
-    const name = employeeName(employee);
-    addExpiration(rows, employee, "contract_angajat", "Contract angajat", employee.data_expirare_contract, "📄", name, "Date angajat");
-    addExpiration(rows, employee, "permis", "Permis conducere", employee.permis_conducere_expira || employee.data_expirare_permis, "🪪", name, "Date angajat");
-    addExpiration(rows, employee, "iscir", "ISCIR", employee.data_expirare_iscir, "⚙️", name, "Date angajat");
-    addExpiration(rows, employee, "apt_medical", "Apt medical", employee.apt_medical_expira || employee.adeverinta_medicala, "🏥", name, "Date angajat");
-    addExpiration(rows, employee, "act_identitate", "Act identitate", employee.act_identitate_valabil_pana, "🪪", name, "Date angajat");
-    contracts
-      .filter((contract) => String(contract.employee_id) === String(employee.id) && String(contract.status || "activ") !== "incetat")
-      .forEach((contract) => addExpiration(rows, employee, "contract_operational", `Contract ${contract.numar_contract || contract.id}`, contract.data_sfarsit, "📑", name, "Contracte HR"));
-    amendments
-      .filter((item) => String(item.employee_id) === String(employee.id) && item.tip === "suspendare")
-      .forEach((item) => addExpiration(rows, employee, "suspendare", `Suspendare ${item.numar_act || item.id}`, item.data_efect, "⏸️", name, "Acte adiționale"));
-    authorizations
-      .filter((item) => String(item.employee_id) === String(employee.id))
-      .forEach((item) => addExpiration(rows, employee, "autorizatie", item.tip || item.tip_autorizatie || "Autorizație", item.data_expirare, "🛂", name, "Autorizații"));
-    files
-      .filter((item) => String(item.employee_id) === String(employee.id) && item.data_expirare)
-      .forEach((item) => addExpiration(rows, employee, "document_dosar", item.denumire || item.file_name || item.tip || "Document dosar", item.data_expirare, "📁", name, "Dosar electronic"));
-  });
-  const relevant = rows.filter((item) => item.days !== null && item.days <= 90).sort((a, b) => a.days - b.days || String(a.employee_name).localeCompare(String(b.employee_name)));
+  const relevant = collectAdvancedExpirations(req.auth.db);
   res.json({ rows: relevant, summary: summarizeExpirations(relevant) });
+});
+
+router.post("/hr/advanced-expirations/notify", authorize("hr:manage"), (req, res) => {
+  const rows = collectAdvancedExpirations(req.auth.db);
+  const urgentRows = rows.filter((item) => item.severity === "expired" || item.severity === "critical");
+  const users = hrNotificationUsers(req.auth.db, req.auth.user);
+  req.auth.db.notifications = Array.isArray(req.auth.db.notifications) ? req.auth.db.notifications : [];
+  let created = 0;
+  let skipped = 0;
+  const now = new Date().toISOString();
+  urgentRows.forEach((item) => {
+    users.forEach((user) => {
+      const key = `hr-scadenta-${user.id}-${item.id}`;
+      if (req.auth.db.notifications.some((notification) => notification.key === key)) {
+        skipped += 1;
+        return;
+      }
+      const expired = item.days < 0;
+      req.auth.db.notifications.push({
+        id: `notification-${crypto.randomUUID()}`,
+        key,
+        user_id: user.id,
+        type: expired ? "bad" : "warning",
+        event: "hr_expiration",
+        severity: expired ? "bad" : "warn",
+        title: expired ? "Scadență HR depășită" : "Scadență HR critică",
+        message: `${item.employee_name}: ${item.label} ${expired ? `a expirat de ${Math.abs(item.days)} zile` : `expiră în ${item.days} zile`} (${item.date}).`,
+        detail: `${item.source} · marca ${item.marca || "-"} · ${item.functia || "-"}`,
+        targetView: "hr",
+        targetLabel: "Vezi HR",
+        roles: ["hr", "manager", "admin", "superadmin"],
+        entity_key: item.id,
+        employee_id: item.employee_id,
+        createdAt: now,
+        created_at: now,
+        read: false
+      });
+      created += 1;
+    });
+  });
+  if (created) {
+    addAudit(req.auth.db, req.auth.user, "hr_scadente_notificari_generate", `${created} notificări pentru ${urgentRows.length} scadențe critice`);
+    writeDb(req.auth.db);
+  }
+  res.json({ created, skipped, targets: users.length, rows: urgentRows.length });
 });
 
 router.get("/hr/kiosk/my-documents", (req, res) => {
@@ -245,6 +263,52 @@ function findLinkedEmployee(db, user) {
   return employees.find((item) => item.activ !== false && item.activ !== 0 && (String(item.user_id || "") === String(user.id) || (linkedEmployeeId && String(item.id) === String(linkedEmployeeId))));
 }
 function employeeName(employee) { return [employee.prenume, employee.nume].filter(Boolean).join(" ") || employee.nume_complet || employee.name || "Angajat"; }
+function collectAdvancedExpirations(db) {
+  const hr = db.hr || {};
+  const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
+  const files = ensureFiles(db).filter((item) => !item.cancelled_at);
+  const contracts = Array.isArray(hr.contracts) ? hr.contracts : [];
+  const amendments = Array.isArray(hr.contractAmendments) ? hr.contractAmendments : [];
+  const authorizations = Array.isArray(hr.authorizations) ? hr.authorizations : [];
+  const rows = [];
+  employees.forEach((employee) => {
+    const name = employeeName(employee);
+    addExpiration(rows, employee, "contract_angajat", "Contract angajat", employee.data_expirare_contract, "📄", name, "Date angajat");
+    addExpiration(rows, employee, "permis", "Permis conducere", employee.permis_conducere_expira || employee.data_expirare_permis, "🪪", name, "Date angajat");
+    addExpiration(rows, employee, "iscir", "ISCIR", employee.data_expirare_iscir, "⚙️", name, "Date angajat");
+    addExpiration(rows, employee, "apt_medical", "Apt medical", employee.apt_medical_expira || employee.adeverinta_medicala, "🏥", name, "Date angajat");
+    addExpiration(rows, employee, "act_identitate", "Act identitate", employee.act_identitate_valabil_pana, "🪪", name, "Date angajat");
+    contracts
+      .filter((contract) => String(contract.employee_id) === String(employee.id) && String(contract.status || "activ") !== "incetat")
+      .forEach((contract) => addExpiration(rows, employee, "contract_operational", `Contract ${contract.numar_contract || contract.id}`, contract.data_sfarsit, "📑", name, "Contracte HR"));
+    amendments
+      .filter((item) => String(item.employee_id) === String(employee.id) && item.tip === "suspendare")
+      .forEach((item) => addExpiration(rows, employee, "suspendare", `Suspendare ${item.numar_act || item.id}`, item.data_efect, "⏸️", name, "Acte adiționale"));
+    authorizations
+      .filter((item) => String(item.employee_id) === String(employee.id))
+      .forEach((item) => addExpiration(rows, employee, "autorizatie", item.tip || item.tip_autorizatie || "Autorizație", item.data_expirare, "🛂", name, "Autorizații"));
+    files
+      .filter((item) => String(item.employee_id) === String(employee.id) && item.data_expirare)
+      .forEach((item) => addExpiration(rows, employee, "document_dosar", item.denumire || item.file_name || item.tip || "Document dosar", item.data_expirare, "📁", name, "Dosar electronic"));
+  });
+  return rows.filter((item) => item.days !== null && item.days <= 90).sort((a, b) => a.days - b.days || String(a.employee_name).localeCompare(String(b.employee_name)));
+}
+function hrNotificationUsers(db, fallbackUser) {
+  const users = (Array.isArray(db.users) ? db.users : []).filter((user) => user && user.active !== false && user.activ !== false && user.disabled !== true);
+  const targets = users.filter((user) => (
+    authHasPermission({ db, user }, "hr:manage")
+    || authHasPermission({ db, user }, "hr:authorizations_manage")
+    || authHasPermission({ db, user }, "hr:contracts_manage")
+  ));
+  const unique = [];
+  const seen = new Set();
+  [...targets, fallbackUser].filter(Boolean).forEach((user) => {
+    if (seen.has(String(user.id))) return;
+    seen.add(String(user.id));
+    unique.push(user);
+  });
+  return unique;
+}
 function dossierChecklistFor(employee, files) {
   const checks = [
     { key: "contract", label: "CIM / contract", required: true, aliases: ["contract", "cim"] },

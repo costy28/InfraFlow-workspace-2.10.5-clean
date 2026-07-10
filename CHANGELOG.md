@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.234 - 2026-07-10
+
+## Notificari HR pentru scadente critice
+
+- Dashboard HR poate genera notificari pentru scadente expirate sau in maximum 30 de zile.
+- Notificarile sunt deduplicate pe utilizator si scadenta, cu audit la generare.
+- Endpointul general de notificari include acum si notificarile persistente salvate in DB.
+- Nu sunt necesare modificari de schema; se foloseste structura existenta `notifications`.
+
 # v2.12.233 - 2026-07-10
 
 ## Scadente HR avansate

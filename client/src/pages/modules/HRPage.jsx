@@ -554,6 +554,7 @@ export default function HRPage() {
   const [templateEditing, setTemplateEditing] = useState(null)
   const [dossierChecklist, setDossierChecklist] = useState({ rows: [], summary: {} })
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
+  const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [transferHistory, setTransferHistory] = useState([])
@@ -744,6 +745,16 @@ export default function HRPage() {
       setAdvancedExpirations({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
     } catch {
       setError('Scadențarul HR avansat nu a putut fi încărcat.')
+    }
+  }
+
+  async function notifyAdvancedExpirations() {
+    try {
+      const response = await api.post('/hr/advanced-expirations/notify')
+      setExpirationNoticeResult(response.data || {})
+      await loadAdvancedExpirations()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Notificările pentru scadențe HR nu au putut fi generate.')
     }
   }
 
@@ -2111,8 +2122,19 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 <div className="text-sm font-semibold text-slate-700">🔔 Scadențe HR avansate ({advancedExpirations.rows?.length || dashboardAlerts.length})</div>
                 <div className="text-xs text-slate-500">CI, apt medical, autorizații, contracte determinate, suspendări și documente din dosar.</div>
               </div>
-              <Button size="sm" variant="secondary" onClick={loadAdvancedExpirations}>Reîncarcă scadențe</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={loadAdvancedExpirations}>Reîncarcă scadențe</Button>
+                <Button size="sm" onClick={notifyAdvancedExpirations}>🔔 Notifică HR critic</Button>
+              </div>
             </div>
+            {expirationNoticeResult ? (
+              <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                Notificări generate: <strong>{expirationNoticeResult.created || 0}</strong>
+                {' '}· deja existente: <strong>{expirationNoticeResult.skipped || 0}</strong>
+                {' '}· scadențe critice: <strong>{expirationNoticeResult.rows || 0}</strong>
+                {' '}· destinatari: <strong>{expirationNoticeResult.targets || 0}</strong>
+              </div>
+            ) : null}
             <div className="mb-3 grid gap-2 sm:grid-cols-4">
               <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Expirate</div><strong>{advancedExpirations.summary?.expired || 0}</strong></div>
               <div className="rounded border border-red-200 bg-red-50 p-2 text-sm"><div className="text-xs text-red-700">≤ 30 zile</div><strong>{advancedExpirations.summary?.critical || 0}</strong></div>

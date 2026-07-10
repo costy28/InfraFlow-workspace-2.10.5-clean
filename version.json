@@ -1,5 +1,5 @@
 {
-  "version": "2.12.233",
+  "version": "2.12.234",
   "date": "2026-07-10",
-  "changelog": "## v2.12.233 - 2026-07-10\n### Scadente HR avansate\n- Dashboard HR are scadentar centralizat pentru expirari pe urmatoarele 90 de zile.\n- Sunt incluse CI, apt medical, permis, ISCIR, contracte, suspendari, autorizatii si documente din dosar.\n- Scadentele sunt grupate pe expirat, 30, 60 si 90 de zile.\n- Endpoint nou GET /api/hr/advanced-expirations, calculat din datele HR existente."
+  "changelog": "## v2.12.234 - 2026-07-10\n### Notificari HR pentru scadente critice\n- Dashboard HR poate genera notificari pentru scadente expirate sau in maximum 30 de zile.\n- Notificarile sunt deduplicate pe utilizator si scadenta, cu audit la generare.\n- Endpointul general de notificari include acum si notificarile persistente salvate in DB.\n- Nu sunt necesare modificari de schema."
 }
