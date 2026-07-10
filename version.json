@@ -1,5 +1,5 @@
 {
-  "version": "2.12.234",
+  "version": "2.12.236",
   "date": "2026-07-10",
-  "changelog": "## v2.12.234 - 2026-07-10\n### Notificari HR pentru scadente critice\n- Dashboard HR poate genera notificari pentru scadente expirate sau in maximum 30 de zile.\n- Notificarile sunt deduplicate pe utilizator si scadenta, cu audit la generare.\n- Endpointul general de notificari include acum si notificarile persistente salvate in DB.\n- Nu sunt necesare modificari de schema."
+  "changelog": "## v2.12.236 - 2026-07-10\n### Editor vizual pentru sabloane HR\n- Editarea sabloanelor HR se face implicit intr-un editor vizual tip document.\n- Codul HTML este ascuns in mod avansat, pentru interventii tehnice rare.\n- Variabilele se pot insera direct in documentul vizual.\n- Editorul permite lipire de continut din Word si formatare de baza."
 }

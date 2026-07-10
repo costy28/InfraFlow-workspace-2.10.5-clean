@@ -552,9 +552,11 @@ export default function HRPage() {
   const [employeeAmendments, setEmployeeAmendments] = useState([])
   const [hrDocumentTemplates, setHrDocumentTemplates] = useState([])
   const [templateEditing, setTemplateEditing] = useState(null)
+  const [templateAdvancedMode, setTemplateAdvancedMode] = useState(false)
   const [dossierChecklist, setDossierChecklist] = useState({ rows: [], summary: {} })
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
+  const [expirationNotifications, setExpirationNotifications] = useState({ notifications: [], summary: {} })
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [transferHistory, setTransferHistory] = useState([])
@@ -617,6 +619,7 @@ export default function HRPage() {
   const [error, setError] = useState('')
   const [filters, setFilters] = useState({ dept_id: '', activ: '', luna: currentMonth(), tip: '', alert: '' })
   const photoInputRef = useRef()
+  const templateEditorRef = useRef()
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : []
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
@@ -631,7 +634,7 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, expirationsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -642,6 +645,7 @@ export default function HRPage() {
         api.get('/hr/document-templates').catch(() => ({ data: { templates: [] } })),
         api.get('/hr/dossier-checklist').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
+        api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })),
       ])
       setEmployees(arrayFrom(employeesRes.data, ['employees', 'items']))
       setConfiguredDepartments(arrayFrom(departmentsRes.data, ['departments', 'items']))
@@ -653,6 +657,7 @@ export default function HRPage() {
       setHrDocumentTemplates(arrayFrom(templatesRes.data, ['templates', 'items']))
       setDossierChecklist({ rows: arrayFrom(checklistRes.data, ['rows', 'items']), summary: checklistRes.data?.summary || {} })
       setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
+      setExpirationNotifications({ notifications: arrayFrom(expirationNotificationsRes.data, ['notifications', 'items']), summary: expirationNotificationsRes.data?.summary || {} })
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
       setTimesheetOverview(arrayFrom(overviewRes.data, ['overview', 'items']))
     } catch (err) {
@@ -748,14 +753,39 @@ export default function HRPage() {
     }
   }
 
+  async function loadExpirationNotifications() {
+    try {
+      const response = await api.get('/hr/advanced-expirations/notifications')
+      setExpirationNotifications({ notifications: arrayFrom(response.data, ['notifications', 'items']), summary: response.data?.summary || {} })
+    } catch {
+      setExpirationNotifications({ notifications: [], summary: {} })
+    }
+  }
+
   async function notifyAdvancedExpirations() {
     try {
       const response = await api.post('/hr/advanced-expirations/notify')
       setExpirationNoticeResult(response.data || {})
       await loadAdvancedExpirations()
+      await loadExpirationNotifications()
     } catch (err) {
       setError(err.response?.data?.error || 'Notificările pentru scadențe HR nu au putut fi generate.')
     }
+  }
+
+  async function resolveExpirationNotification(id) {
+    try {
+      await api.post(`/hr/advanced-expirations/notifications/${id}/resolve`)
+      await loadExpirationNotifications()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Notificarea HR nu a putut fi marcată ca rezolvată.')
+    }
+  }
+
+  async function openExpirationEmployee(item) {
+    const employee = employees.find(emp => String(emp.id) === String(item.employee_id))
+    if (employee) await openEmployee(employee)
+    else setError('Angajatul asociat scadenței nu a fost găsit în lista curentă.')
   }
 
   async function loadHrDocumentTemplates() {
@@ -770,7 +800,8 @@ export default function HRPage() {
   async function saveHrDocumentTemplate(event) {
     event.preventDefault()
     try {
-      const payload = { ...templateEditing, activ: true }
+      const visualHtml = templateAdvancedMode ? templateEditing.template_html : (templateEditorRef.current?.innerHTML || templateEditing.template_html)
+      const payload = { ...templateEditing, template_html: visualHtml, activ: true }
       const response = await api.put(`/hr/document-templates/${payload.id}`, payload)
       const saved = response.data?.template || payload
       setHrDocumentTemplates(current => {
@@ -781,6 +812,28 @@ export default function HRPage() {
     } catch (err) {
       setError(err.response?.data?.error || 'Șablonul HR nu a putut fi salvat.')
     }
+  }
+
+  function syncTemplateVisualEditor() {
+    const html = templateEditorRef.current?.innerHTML
+    if (html !== undefined) setTemplateEditing(current => ({ ...current, template_html: html }))
+  }
+
+  function applyTemplateCommand(command, value = null) {
+    templateEditorRef.current?.focus()
+    document.execCommand(command, false, value)
+    syncTemplateVisualEditor()
+  }
+
+  function insertTemplateSnippet(snippet) {
+    templateEditorRef.current?.focus()
+    document.execCommand('insertHTML', false, snippet)
+    syncTemplateVisualEditor()
+  }
+
+  function startTemplateEditing(template) {
+    setTemplateAdvancedMode(false)
+    setTemplateEditing({ ...template })
   }
 
   async function reloadEmployeeContracts(employeeId = employeeDetails?.id || selectedEmployee?.id) {
@@ -2154,12 +2207,49 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                     <div className="text-right">
                       <div className="font-semibold">{item.date}</div>
                       <div className={`text-xs ${item.days < 0 ? 'text-rose-700' : item.days <= 30 ? 'text-red-700' : item.days <= 60 ? 'text-amber-700' : 'text-blue-700'}`}>{item.days < 0 ? `expirat de ${Math.abs(item.days)} zile` : `${item.days} zile rămase`}</div>
+                      <Button size="sm" variant="secondary" className="mt-1" onClick={() => openExpirationEmployee(item)}>Deschide fișa</Button>
                     </div>
                   </div>
                 )) : dashboardAlerts.map(a => (
                   <AlertRow key={a.key} label={a.label} date={a.date} icon={a.icon} />
                 ))}
               </div>
+            )}
+          </Card>
+
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-700">📬 Istoric notificări scadențe HR</div>
+                <div className="text-xs text-slate-500">Notificări generate pentru scadențele expirate sau critice, cu status de rezolvare.</div>
+              </div>
+              <Button size="sm" variant="secondary" onClick={loadExpirationNotifications}>Reîncarcă istoric</Button>
+            </div>
+            <div className="mb-3 grid gap-2 sm:grid-cols-3">
+              <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Total notificări</div><strong>{expirationNotifications.summary?.total || 0}</strong></div>
+              <div className="rounded border border-red-200 bg-red-50 p-2 text-sm"><div className="text-xs text-red-700">Deschise</div><strong>{expirationNotifications.summary?.open || 0}</strong></div>
+              <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm"><div className="text-xs text-emerald-700">Rezolvate</div><strong>{expirationNotifications.summary?.resolved || 0}</strong></div>
+            </div>
+            {(expirationNotifications.notifications || []).length ? (
+              <div className="grid gap-2">
+                {(expirationNotifications.notifications || []).slice(0, 12).map(item => (
+                  <div key={item.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${item.status === 'rezolvată' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
+                    <div>
+                      <div className="font-medium text-slate-800">{item.title} · {item.user_name || 'HR'}</div>
+                      <div className="text-xs text-slate-600">{item.message}</div>
+                      {item.detail ? <div className="text-xs text-slate-400">{item.detail}</div> : null}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-right">
+                      <span className={`rounded-full px-2 py-1 text-xs ${item.status === 'rezolvată' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{item.status}</span>
+                      {item.created_at ? <span className="text-xs text-slate-400">{String(item.created_at).slice(0, 16).replace('T', ' ')}</span> : null}
+                      {item.employee_id ? <Button size="sm" variant="secondary" onClick={() => openExpirationEmployee(item)}>Deschide fișa</Button> : null}
+                      {item.status !== 'rezolvată' ? <Button size="sm" onClick={() => resolveExpirationNotification(item.id)}>Marchează rezolvat</Button> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">Nu există notificări HR generate pentru scadențe.</p>
             )}
           </Card>
         </div>
@@ -2807,7 +2897,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                       <div className="font-semibold">{template.denumire}</div>
                       <div className="text-xs text-slate-500">{template.tip} · {template.system_default ? 'implicit sistem' : 'personalizat'}</div>
                     </div>
-                    {hasPermission('hr:manage') ? <Button size="sm" variant="secondary" onClick={() => setTemplateEditing({ ...template })}>Editează</Button> : null}
+                    {hasPermission('hr:manage') ? <Button size="sm" variant="secondary" onClick={() => startTemplateEditing(template)}>Editează</Button> : null}
                   </div>
                   {template.descriere ? <div className="mt-2 text-xs text-slate-500">{template.descriere}</div> : null}
                 </div>
@@ -2974,22 +3064,47 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                     key={variable}
                     type="button"
                     className="rounded bg-white px-2 py-1 text-xs text-slate-700 shadow-sm hover:bg-primary-50 hover:text-primary-700"
-                    onClick={() => setTemplateEditing(current => ({ ...current, template_html: `${current.template_html || ''}{{${variable}}}` }))}
+                    onMouseDown={event => { event.preventDefault(); insertTemplateSnippet(`{{${variable}}}`) }}
                   >{`{{${variable}}}`}</button>
                 ))}
               </div>
             </div>
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Conținut HTML șablon
-              <textarea
-                className="min-h-[360px] rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                value={templateEditing.template_html || ''}
-                onChange={event => setTemplateEditing(current => ({ ...current, template_html: event.target.value }))}
-                required
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-700">Conținut șablon — editor vizual</div>
+                  <div className="text-xs text-slate-500">Editează ca într-un document. Variabilele se păstrează între acolade și se completează automat la generare.</div>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <Button type="button" size="sm" variant="secondary" onMouseDown={event => { event.preventDefault(); applyTemplateCommand('bold') }}>Bold</Button>
+                  <Button type="button" size="sm" variant="secondary" onMouseDown={event => { event.preventDefault(); applyTemplateCommand('formatBlock', 'h2') }}>Titlu</Button>
+                  <Button type="button" size="sm" variant="secondary" onMouseDown={event => { event.preventDefault(); applyTemplateCommand('insertUnorderedList') }}>Listă</Button>
+                  <Button type="button" size="sm" variant="secondary" onMouseDown={event => { event.preventDefault(); insertTemplateSnippet('<table style="width:100%;border-collapse:collapse" border="1"><tbody><tr><td>Semnătură angajator</td><td>Semnătură salariat</td></tr><tr><td><br><br></td><td><br><br></td></tr></tbody></table><p></p>') }}>Tabel semnături</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setTemplateAdvancedMode(value => !value)}>{templateAdvancedMode ? 'Ascunde HTML' : 'HTML avansat'}</Button>
+                </div>
+              </div>
+              <div
+                ref={templateEditorRef}
+                className="min-h-[420px] rounded bg-white px-8 py-6 text-sm leading-7 text-slate-900 shadow-inner ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-primary-200 [&_h2]:mb-3 [&_h2]:text-center [&_h2]:text-xl [&_h2]:font-bold [&_h3]:mt-4 [&_h3]:font-bold [&_p]:mb-2 [&_table]:my-3 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2"
+                contentEditable
+                suppressContentEditableWarning
+                onBlur={syncTemplateVisualEditor}
+                dangerouslySetInnerHTML={{ __html: templateEditing.template_html || '<p>Scrie aici conținutul documentului...</p>' }}
               />
-            </label>
-            <div className="rounded bg-amber-50 p-2 text-xs text-amber-800">
-              Poți folosi HTML simplu: &lt;h2&gt;, &lt;p&gt;, &lt;table&gt;, &lt;strong&gt;. Variabilele necunoscute apar ca „—”.
+            </div>
+            {templateAdvancedMode ? (
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Cod HTML șablon — mod avansat
+                <textarea
+                  className="min-h-[260px] rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  value={templateEditing.template_html || ''}
+                  onChange={event => setTemplateEditing(current => ({ ...current, template_html: event.target.value }))}
+                  required
+                />
+              </label>
+            ) : null}
+            <div className="rounded bg-emerald-50 p-2 text-xs text-emerald-800">
+              Pentru HR nu mai este necesară editarea HTML. Dacă documentul vine din Word, copiază textul din Word și lipește-l în editorul vizual, apoi inserează variabilele unde trebuie.
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="secondary" onClick={() => setTemplateEditing(null)}>Renunță</Button>

@@ -80,6 +80,34 @@ router.post("/hr/advanced-expirations/notify", authorize("hr:manage"), (req, res
   res.json({ created, skipped, targets: users.length, rows: urgentRows.length });
 });
 
+router.get("/hr/advanced-expirations/notifications", authorize("hr:manage"), (req, res) => {
+  const notifications = hrExpirationNotifications(req.auth.db);
+  const open = notifications.filter((item) => item.read !== true && !item.read_at && !item.resolved_at).length;
+  res.json({
+    notifications,
+    summary: {
+      total: notifications.length,
+      open,
+      resolved: notifications.length - open
+    }
+  });
+});
+
+router.post("/hr/advanced-expirations/notifications/:id/resolve", authorize("hr:manage"), (req, res) => {
+  req.auth.db.notifications = Array.isArray(req.auth.db.notifications) ? req.auth.db.notifications : [];
+  const notification = req.auth.db.notifications.find((item) => String(item.id) === String(req.params.id));
+  if (!notification || notification.event !== "hr_expiration") return res.status(404).json({ error: "Notificarea HR nu a fost gasita.", code: "HR_NOTIFICATION_NOT_FOUND" });
+  const now = new Date().toISOString();
+  notification.read = true;
+  notification.read_at = now;
+  notification.resolved_at = now;
+  notification.resolved_by = req.auth.user.id;
+  notification.resolved_by_name = req.auth.user.name || req.auth.user.username || "";
+  addAudit(req.auth.db, req.auth.user, "hr_scadenta_notificare_rezolvata", notification.message || notification.key || notification.id);
+  writeDb(req.auth.db);
+  res.json({ notification });
+});
+
 router.get("/hr/kiosk/my-documents", (req, res) => {
   const auth = ownDocumentAuth(req, res);
   if (!auth) return;
@@ -308,6 +336,32 @@ function hrNotificationUsers(db, fallbackUser) {
     unique.push(user);
   });
   return unique;
+}
+function hrExpirationNotifications(db) {
+  const users = Array.isArray(db.users) ? db.users : [];
+  return (Array.isArray(db.notifications) ? db.notifications : [])
+    .filter((item) => item && item.event === "hr_expiration")
+    .map((item) => {
+      const user = users.find((row) => String(row.id) === String(item.user_id || item.userId || ""));
+      return {
+        id: item.id,
+        key: item.key,
+        title: item.title || "Scadență HR",
+        message: item.message || "",
+        detail: item.detail || "",
+        employee_id: item.employee_id || null,
+        entity_key: item.entity_key || "",
+        user_id: item.user_id || item.userId || null,
+        user_name: user ? (user.name || user.username || `Utilizator ${user.id}`) : (item.user_name || ""),
+        severity: item.severity || item.type || "warn",
+        created_at: item.created_at || item.createdAt || null,
+        resolved_at: item.resolved_at || item.read_at || null,
+        resolved_by: item.resolved_by || null,
+        resolved_by_name: item.resolved_by_name || "",
+        status: item.read === true || item.read_at || item.resolved_at ? "rezolvată" : "deschisă"
+      };
+    })
+    .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
 }
 function dossierChecklistFor(employee, files) {
   const checks = [

@@ -1,5 +1,23 @@
 # Changelog
 
+# v2.12.236 - 2026-07-10
+
+## Editor vizual pentru sabloane HR
+
+- Editarea sabloanelor HR se face implicit intr-un editor vizual tip document.
+- Codul HTML este ascuns in mod avansat, pentru interventii tehnice rare.
+- Variabilele se pot insera direct in documentul vizual.
+- Editorul permite lipire de continut din Word si formatare de baza.
+
+# v2.12.235 - 2026-07-10
+
+## Istoric notificari HR si actiuni directe
+
+- Dashboard HR afiseaza istoricul notificarilor generate pentru scadente.
+- Notificarile HR pot fi marcate ca rezolvate, cu audit.
+- Scadentele si istoricul au actiune directa catre fisa angajatului.
+- Endpointuri noi pentru lista si rezolvarea notificarilor HR.
+
 # v2.12.234 - 2026-07-10
 
 ## Notificari HR pentru scadente critice
