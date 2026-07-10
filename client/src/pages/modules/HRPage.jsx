@@ -261,8 +261,11 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
     {value:'contract',label:'Contract'},
     {value:'act_aditional',label:'Act aditional'},
     {value:'identitate',label:'Act identitate'},
+    {value:'fisa_post',label:'Fisa postului'},
+    {value:'ssm',label:'SSM / PSI'},
     {value:'medical',label:'Medical'},
     {value:'diploma',label:'Diploma'},
+    {value:'gdpr',label:'GDPR'},
     {value:'altul',label:'Altul'}
   ]
   async function loadFiles() {
@@ -549,6 +552,8 @@ export default function HRPage() {
   const [employeeAmendments, setEmployeeAmendments] = useState([])
   const [hrDocumentTemplates, setHrDocumentTemplates] = useState([])
   const [templateEditing, setTemplateEditing] = useState(null)
+  const [dossierChecklist, setDossierChecklist] = useState({ rows: [], summary: {} })
+  const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [transferHistory, setTransferHistory] = useState([])
@@ -625,7 +630,7 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, expirationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -634,6 +639,8 @@ export default function HRPage() {
         api.get('/hr/stats').catch(() => ({ data: {} })),
         api.get('/hr/linkable-users').catch(() => ({ data: [] })),
         api.get('/hr/document-templates').catch(() => ({ data: { templates: [] } })),
+        api.get('/hr/dossier-checklist').catch(() => ({ data: { rows: [], summary: {} } })),
+        api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
       ])
       setEmployees(arrayFrom(employeesRes.data, ['employees', 'items']))
       setConfiguredDepartments(arrayFrom(departmentsRes.data, ['departments', 'items']))
@@ -643,6 +650,8 @@ export default function HRPage() {
       setStats(statsRes.data || {})
       setLinkableUsers(arrayFrom(usersRes.data, ['users', 'items']))
       setHrDocumentTemplates(arrayFrom(templatesRes.data, ['templates', 'items']))
+      setDossierChecklist({ rows: arrayFrom(checklistRes.data, ['rows', 'items']), summary: checklistRes.data?.summary || {} })
+      setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
       setTimesheetOverview(arrayFrom(overviewRes.data, ['overview', 'items']))
     } catch (err) {
@@ -717,6 +726,24 @@ export default function HRPage() {
     } catch {
       setEmployeeDetails(employee)
       setEditForm({ ...employee })
+    }
+  }
+
+  async function loadDossierChecklist() {
+    try {
+      const response = await api.get('/hr/dossier-checklist')
+      setDossierChecklist({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
+    } catch {
+      setError('Checklistul dosarului personal nu a putut fi încărcat.')
+    }
+  }
+
+  async function loadAdvancedExpirations() {
+    try {
+      const response = await api.get('/hr/advanced-expirations')
+      setAdvancedExpirations({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
+    } catch {
+      setError('Scadențarul HR avansat nu a putut fi încărcat.')
     }
   }
 
@@ -2079,14 +2106,35 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
           {/* Alerte documente / expirari */}
           <Card>
-            <div className="mb-3 text-sm font-semibold text-slate-700">
-              🔔 Alerte expirări ({dashboardAlerts.length})
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-700">🔔 Scadențe HR avansate ({advancedExpirations.rows?.length || dashboardAlerts.length})</div>
+                <div className="text-xs text-slate-500">CI, apt medical, autorizații, contracte determinate, suspendări și documente din dosar.</div>
+              </div>
+              <Button size="sm" variant="secondary" onClick={loadAdvancedExpirations}>Reîncarcă scadențe</Button>
             </div>
-            {dashboardAlerts.length === 0 ? (
+            <div className="mb-3 grid gap-2 sm:grid-cols-4">
+              <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Expirate</div><strong>{advancedExpirations.summary?.expired || 0}</strong></div>
+              <div className="rounded border border-red-200 bg-red-50 p-2 text-sm"><div className="text-xs text-red-700">≤ 30 zile</div><strong>{advancedExpirations.summary?.critical || 0}</strong></div>
+              <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">31–60 zile</div><strong>{advancedExpirations.summary?.warning || 0}</strong></div>
+              <div className="rounded border border-blue-200 bg-blue-50 p-2 text-sm"><div className="text-xs text-blue-700">61–90 zile</div><strong>{advancedExpirations.summary?.info || 0}</strong></div>
+            </div>
+            {(advancedExpirations.rows || []).length === 0 && dashboardAlerts.length === 0 ? (
               <p className="text-sm text-slate-400">Nu există expirări iminente. Toate documentele sunt la zi.</p>
             ) : (
               <div className="grid gap-2">
-                {dashboardAlerts.map(a => (
+                {(advancedExpirations.rows || []).length ? (advancedExpirations.rows || []).slice(0, 20).map(item => (
+                  <div key={item.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${item.severity === 'expired' ? 'border-rose-200 bg-rose-50' : item.severity === 'critical' ? 'border-red-200 bg-red-50' : item.severity === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-blue-200 bg-blue-50'}`}>
+                    <div>
+                      <div className="font-medium text-slate-800">{item.icon} {item.employee_name} — {item.label}</div>
+                      <div className="text-xs text-slate-500">{item.source} · {item.functia || '-'} · marca {item.marca || '-'}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">{item.date}</div>
+                      <div className={`text-xs ${item.days < 0 ? 'text-rose-700' : item.days <= 30 ? 'text-red-700' : item.days <= 60 ? 'text-amber-700' : 'text-blue-700'}`}>{item.days < 0 ? `expirat de ${Math.abs(item.days)} zile` : `${item.days} zile rămase`}</div>
+                    </div>
+                  </div>
+                )) : dashboardAlerts.map(a => (
                   <AlertRow key={a.key} label={a.label} date={a.date} icon={a.icon} />
                 ))}
               </div>
@@ -2742,6 +2790,46 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                   {template.descriere ? <div className="mt-2 text-xs text-slate-500">{template.descriere}</div> : null}
                 </div>
               ))}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold text-slate-800">✅ Checklist dosar personal</div>
+                <div className="text-xs text-slate-500">Verificare rapidă pentru documentele obligatorii din dosarul fiecărui angajat.</div>
+              </div>
+              <Button size="sm" variant="secondary" onClick={loadDossierChecklist}>Reîncarcă checklist</Button>
+            </div>
+            <div className="mb-3 grid gap-2 sm:grid-cols-4">
+              <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Angajați</div><strong>{dossierChecklist.summary?.total || 0}</strong></div>
+              <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm"><div className="text-xs text-emerald-700">Complete</div><strong>{dossierChecklist.summary?.complete || 0}</strong></div>
+              <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">Incomplete</div><strong>{dossierChecklist.summary?.incomplete || 0}</strong></div>
+              <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Cu lipsuri obligatorii</div><strong>{dossierChecklist.summary?.critical_missing || 0}</strong></div>
+            </div>
+            <div className="overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Angajat</th><th className="px-3 py-2">Complet</th><th className="px-3 py-2">Lipsesc</th><th className="px-3 py-2">Status documente</th><th className="px-3 py-2"></th></tr></thead>
+                <tbody>
+                  {(dossierChecklist.rows || []).slice().sort((a, b) => a.percent - b.percent || String(a.nume_complet).localeCompare(String(b.nume_complet))).map(row => (
+                    <tr key={row.employee_id} className="border-t border-slate-100">
+                      <td className="px-3 py-2"><div className="font-medium">{row.nume_complet}</div><div className="text-xs text-slate-400">{row.functia || '-'} · Marca {row.marca || '-'}</div></td>
+                      <td className="px-3 py-2">
+                        <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-200"><div className={`h-2 ${row.percent === 100 ? 'bg-emerald-500' : row.percent >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${row.percent || 0}%` }} /></div>
+                        <div className="mt-1 text-xs text-slate-500">{row.required_done}/{row.required_total} · {row.percent}%</div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-600">{row.missing_required?.length ? row.missing_required.join(', ') : <span className="text-emerald-700">Nimic obligatoriu</span>}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex max-w-md flex-wrap gap-1">
+                          {(row.items || []).map(item => <span key={item.key} className={`rounded px-2 py-1 text-xs ${item.ok ? 'bg-emerald-50 text-emerald-700' : item.required ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>{item.ok ? '✓' : '×'} {item.label}</span>)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right">{(() => { const emp = employees.find(item => String(item.id) === String(row.employee_id)); return emp ? <Button size="sm" variant="secondary" onClick={() => openEmployee(emp)}>Dosar</Button> : null })()}</td>
+                    </tr>
+                  ))}
+                  {!(dossierChecklist.rows || []).length ? <tr><td colSpan="5" className="px-3 py-6 text-center text-slate-400">Nu există date pentru checklist.</td></tr> : null}
+                </tbody>
+              </table>
             </div>
           </Card>
 

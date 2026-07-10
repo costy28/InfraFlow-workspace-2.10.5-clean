@@ -1,5 +1,23 @@
 # Changelog
 
+# v2.12.233 - 2026-07-10
+
+## Scadente HR avansate
+
+- Dashboard HR are scadentar centralizat pentru expirari pe urmatoarele 90 de zile.
+- Sunt incluse CI, apt medical, permis, ISCIR, contracte, suspendari, autorizatii si documente din dosar.
+- Scadentele sunt grupate pe expirat, 30, 60 si 90 de zile.
+- Endpoint nou `GET /api/hr/advanced-expirations`, calculat din datele HR existente.
+
+# v2.12.232 - 2026-07-10
+
+## Checklist dosar personal HR
+
+- HR are checklist centralizat pentru completitudinea dosarului personal pe fiecare angajat.
+- Checklistul verifica CIM, act identitate, fisa postului, apt medical si SSM/PSI ca documente obligatorii.
+- Documentele optionale GDPR, diplomele si actele aditionale sunt afisate ca status separat.
+- Dosarul electronic are tipuri noi de document pentru fisa postului, SSM/PSI si GDPR.
+
 # v2.12.231 - 2026-07-09
 
 ## Confirmare documente HR in Kiosk

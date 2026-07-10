@@ -1,5 +1,5 @@
 {
-  "version": "2.12.231",
-  "date": "2026-07-09",
-  "changelog": "## v2.12.231 - 2026-07-09\n### Confirmare documente HR in Kiosk\n- Documentele generate sau marcate de HR pot fi afisate angajatului in Kiosk.\n- Angajatul poate deschide documentul si confirma luarea la cunostinta.\n- Confirmarea salveaza data, utilizatorul, IP-ul si auditul operatiunii.\n- Dosarul electronic afiseaza daca un document necesita confirmare si cand a fost confirmat."
+  "version": "2.12.233",
+  "date": "2026-07-10",
+  "changelog": "## v2.12.233 - 2026-07-10\n### Scadente HR avansate\n- Dashboard HR are scadentar centralizat pentru expirari pe urmatoarele 90 de zile.\n- Sunt incluse CI, apt medical, permis, ISCIR, contracte, suspendari, autorizatii si documente din dosar.\n- Scadentele sunt grupate pe expirat, 30, 60 si 90 de zile.\n- Endpoint nou GET /api/hr/advanced-expirations, calculat din datele HR existente."
 }

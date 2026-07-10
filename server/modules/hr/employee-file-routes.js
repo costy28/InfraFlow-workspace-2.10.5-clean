@@ -20,6 +20,48 @@ router.get("/hr/employees/:id/files", authorize("hr:view"), (req, res) => {
   res.json({ items: files });
 });
 
+router.get("/hr/dossier-checklist", authorize("hr:view"), (req, res) => {
+  const hr = req.auth.db.hr || {};
+  const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
+  const files = ensureFiles(req.auth.db).filter((item) => !item.cancelled_at);
+  const rows = employees.map((employee) => dossierChecklistFor(employee, files.filter((item) => String(item.employee_id) === String(employee.id))));
+  const complete = rows.filter((row) => row.percent === 100).length;
+  const criticalMissing = rows.filter((row) => row.items.some((item) => item.required && !item.ok)).length;
+  res.json({ rows, summary: { total: rows.length, complete, incomplete: rows.length - complete, critical_missing: criticalMissing } });
+});
+
+router.get("/hr/advanced-expirations", authorize("hr:view"), (req, res) => {
+  const hr = req.auth.db.hr || {};
+  const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
+  const files = ensureFiles(req.auth.db).filter((item) => !item.cancelled_at);
+  const contracts = Array.isArray(hr.contracts) ? hr.contracts : [];
+  const amendments = Array.isArray(hr.contractAmendments) ? hr.contractAmendments : [];
+  const authorizations = Array.isArray(hr.authorizations) ? hr.authorizations : [];
+  const rows = [];
+  employees.forEach((employee) => {
+    const name = employeeName(employee);
+    addExpiration(rows, employee, "contract_angajat", "Contract angajat", employee.data_expirare_contract, "📄", name, "Date angajat");
+    addExpiration(rows, employee, "permis", "Permis conducere", employee.permis_conducere_expira || employee.data_expirare_permis, "🪪", name, "Date angajat");
+    addExpiration(rows, employee, "iscir", "ISCIR", employee.data_expirare_iscir, "⚙️", name, "Date angajat");
+    addExpiration(rows, employee, "apt_medical", "Apt medical", employee.apt_medical_expira || employee.adeverinta_medicala, "🏥", name, "Date angajat");
+    addExpiration(rows, employee, "act_identitate", "Act identitate", employee.act_identitate_valabil_pana, "🪪", name, "Date angajat");
+    contracts
+      .filter((contract) => String(contract.employee_id) === String(employee.id) && String(contract.status || "activ") !== "incetat")
+      .forEach((contract) => addExpiration(rows, employee, "contract_operational", `Contract ${contract.numar_contract || contract.id}`, contract.data_sfarsit, "📑", name, "Contracte HR"));
+    amendments
+      .filter((item) => String(item.employee_id) === String(employee.id) && item.tip === "suspendare")
+      .forEach((item) => addExpiration(rows, employee, "suspendare", `Suspendare ${item.numar_act || item.id}`, item.data_efect, "⏸️", name, "Acte adiționale"));
+    authorizations
+      .filter((item) => String(item.employee_id) === String(employee.id))
+      .forEach((item) => addExpiration(rows, employee, "autorizatie", item.tip || item.tip_autorizatie || "Autorizație", item.data_expirare, "🛂", name, "Autorizații"));
+    files
+      .filter((item) => String(item.employee_id) === String(employee.id) && item.data_expirare)
+      .forEach((item) => addExpiration(rows, employee, "document_dosar", item.denumire || item.file_name || item.tip || "Document dosar", item.data_expirare, "📁", name, "Dosar electronic"));
+  });
+  const relevant = rows.filter((item) => item.days !== null && item.days <= 90).sort((a, b) => a.days - b.days || String(a.employee_name).localeCompare(String(b.employee_name)));
+  res.json({ rows: relevant, summary: summarizeExpirations(relevant) });
+});
+
 router.get("/hr/kiosk/my-documents", (req, res) => {
   const auth = ownDocumentAuth(req, res);
   if (!auth) return;
@@ -203,5 +245,91 @@ function findLinkedEmployee(db, user) {
   return employees.find((item) => item.activ !== false && item.activ !== 0 && (String(item.user_id || "") === String(user.id) || (linkedEmployeeId && String(item.id) === String(linkedEmployeeId))));
 }
 function employeeName(employee) { return [employee.prenume, employee.nume].filter(Boolean).join(" ") || employee.nume_complet || employee.name || "Angajat"; }
+function dossierChecklistFor(employee, files) {
+  const checks = [
+    { key: "contract", label: "CIM / contract", required: true, aliases: ["contract", "cim"] },
+    { key: "identitate", label: "Act identitate", required: true, aliases: ["identitate", "ci", "act_identitate"] },
+    { key: "fisa_post", label: "Fișa postului", required: true, aliases: ["fisa_post", "fisa post", "post"] },
+    { key: "medical", label: "Apt medical", required: true, aliases: ["medical", "apt_medical", "medicina_muncii"] },
+    { key: "ssm", label: "SSM / PSI", required: true, aliases: ["ssm", "psi", "protectia_muncii"] },
+    { key: "gdpr", label: "GDPR", required: false, aliases: ["gdpr", "date_personale"] },
+    { key: "diploma", label: "Diplome / calificări", required: false, aliases: ["diploma", "calificare", "studii"] },
+    { key: "act_aditional", label: "Acte adiționale", required: false, aliases: ["act_aditional", "act aditional", "decizie_incetare"] }
+  ];
+  const normalized = files.map((file) => ({
+    ...file,
+    haystack: `${file.tip || ""} ${file.denumire || ""} ${file.file_name || ""} ${file.generated_source || ""}`.toLowerCase()
+  }));
+  const items = checks.map((check) => {
+    const match = normalized.find((file) => check.aliases.some((alias) => file.haystack.includes(alias.toLowerCase())));
+    const date = match?.data_document || match?.created_at || null;
+    const expires = match?.data_expirare || (check.key === "medical" ? (employee.apt_medical_expira || employee.adeverinta_medicala || null) : null);
+    return {
+      key: check.key,
+      label: check.label,
+      required: check.required,
+      ok: Boolean(match) || (check.key === "medical" && Boolean(employee.apt_medical_expira || employee.adeverinta_medicala)),
+      file_id: match?.id || null,
+      file_name: match?.file_name || "",
+      date: date ? String(date).slice(0, 10) : null,
+      expires: expires ? String(expires).slice(0, 10) : null,
+      acknowledged_at: match?.acknowledged_at || null
+    };
+  });
+  const required = items.filter((item) => item.required);
+  const done = required.filter((item) => item.ok).length;
+  const percent = required.length ? Math.round(done / required.length * 100) : 100;
+  return {
+    employee_id: employee.id,
+    nume: employee.nume || "",
+    prenume: employee.prenume || "",
+    nume_complet: employeeName(employee),
+    marca: employee.marca || "",
+    functia: employee.functia || employee.functie || "",
+    department_id: employee.department_id || "",
+    percent,
+    required_done: done,
+    required_total: required.length,
+    missing_required: required.filter((item) => !item.ok).map((item) => item.label),
+    items
+  };
+}
+function addExpiration(rows, employee, type, label, date, icon, employeeNameValue, source) {
+  const days = daysUntil(date);
+  if (days === null) return;
+  rows.push({
+    id: `${employee.id}-${type}-${String(label).replace(/\W+/g, "_")}-${String(date).slice(0, 10)}`,
+    employee_id: employee.id,
+    employee_name: employeeNameValue,
+    marca: employee.marca || "",
+    functia: employee.functia || employee.functie || "",
+    department_id: employee.department_id || "",
+    type,
+    label,
+    source,
+    icon,
+    date: String(date).slice(0, 10),
+    days,
+    severity: days < 0 ? "expired" : days <= 30 ? "critical" : days <= 60 ? "warning" : "info"
+  });
+}
+function daysUntil(date) {
+  if (!date) return null;
+  const raw = String(date).slice(0, 10);
+  const parsed = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  return Math.ceil((parsed.getTime() - today.getTime()) / 86400000);
+}
+function summarizeExpirations(rows) {
+  return {
+    total: rows.length,
+    expired: rows.filter((item) => item.severity === "expired").length,
+    critical: rows.filter((item) => item.severity === "critical").length,
+    warning: rows.filter((item) => item.severity === "warning").length,
+    info: rows.filter((item) => item.severity === "info").length
+  };
+}
 
 module.exports = router;
