@@ -1,5 +1,5 @@
 {
-  "version": "2.12.236",
+  "version": "2.12.237",
   "date": "2026-07-10",
-  "changelog": "## v2.12.236 - 2026-07-10\n### Editor vizual pentru sabloane HR\n- Editarea sabloanelor HR se face implicit intr-un editor vizual tip document.\n- Codul HTML este ascuns in mod avansat, pentru interventii tehnice rare.\n- Variabilele se pot insera direct in documentul vizual.\n- Editorul permite lipire de continut din Word si formatare de baza."
+  "changelog": "## v2.12.237 - 2026-07-10\n### Sablon Word pentru documente HR\n- Sabloanele HR pot avea atasat fisier Word .docx original.\n- HR poate incarca, inlocui si descarca sablonul Word din lista sau modal.\n- Metadata fisierului Word este salvata in sablon si in MSSQL prin migrare noua.\n- Editorul vizual ramane fallback pentru generarea interna HTML."
 }

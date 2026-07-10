@@ -26,13 +26,14 @@ const { applyCompensatedHours } = require('./timesheet-compensation')
 
 const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
+const HR_TEMPLATE_ROOT = path.join(__dirname, '../../../storage/hr-templates')
 const upload = multer({
   dest: path.join(__dirname, '../../../storage/temp/'),
   limits: { fileSize: 10 * 1024 * 1024 }
 })
 
 // Asigură existența directoarelor de storage la pornire
-;['storage/angajati', 'storage/temp', 'storage/documente'].forEach(dir => {
+;['storage/angajati', 'storage/temp', 'storage/documente', 'storage/hr-templates'].forEach(dir => {
   const p = path.join(__dirname, '../../../', dir)
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true })
 })
@@ -2801,7 +2802,9 @@ BEGIN
   SELECT CAST(NULL AS nvarchar(50)) AS id WHERE 1=0 FOR JSON PATH;
   RETURN;
 END;
-SELECT id, denumire, tip, descriere, template_html, activ, updated_at, updated_by, created_at, created_by
+SELECT id, denumire, tip, descriere, template_html, activ,
+       word_template_file, word_template_original_name, word_template_size, word_template_uploaded_at, word_template_uploaded_by,
+       updated_at, updated_by, created_at, created_by
 FROM hr.document_templates
 WHERE ISNULL(activ, 1) = 1
 ORDER BY denumire
@@ -2855,7 +2858,9 @@ WHEN MATCHED THEN UPDATE SET
   updated_by = TRY_CONVERT(uniqueidentifier, NULLIF(@userId, ''))
 WHEN NOT MATCHED THEN INSERT (id, denumire, tip, descriere, template_html, activ, created_by, updated_by)
   VALUES (@id, @denumire, @tip, @descriere, @templateHtml, CASE WHEN @activ = N'false' THEN 0 ELSE 1 END, TRY_CONVERT(uniqueidentifier, NULLIF(@userId, '')), TRY_CONVERT(uniqueidentifier, NULLIF(@userId, '')));
-SELECT TOP 1 id, denumire, tip, descriere, template_html, activ, updated_at, updated_by, created_at, created_by
+SELECT TOP 1 id, denumire, tip, descriere, template_html, activ,
+       word_template_file, word_template_original_name, word_template_size, word_template_uploaded_at, word_template_uploaded_by,
+       updated_at, updated_by, created_at, created_by
 FROM hr.document_templates WHERE id = @id FOR JSON PATH;
 `, { ...body, userId: auth.user.id })
       addAudit(db, auth.user, 'hr_document_template_save', template?.id || body.id)
@@ -2873,6 +2878,109 @@ FROM hr.document_templates WHERE id = @id FOR JSON PATH;
     addAudit(db, auth.user, 'hr_document_template_save', id)
     writeDb(db)
     sendJson(res, 200, { template })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/hr/document-templates/:id/word-template', upload.single('file'), (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:manage')) return
+    const id = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
+    if (!id) return sendJson(res, 400, { error: 'ID-ul sablonului este obligatoriu.' })
+    if (!req.file) return sendJson(res, 422, { error: 'Incarca un fisier Word .docx.', code: 'HR_TEMPLATE_WORD_MISSING' })
+    if (!String(req.file.originalname || '').toLowerCase().endsWith('.docx')) {
+      fs.unlinkSync(req.file.path)
+      return sendJson(res, 422, { error: 'Sunt acceptate doar fisiere Word .docx.', code: 'HR_TEMPLATE_WORD_INVALID' })
+    }
+    const storedName = `${id}-${crypto.randomUUID()}.docx`
+    const storedPath = path.join(HR_TEMPLATE_ROOT, storedName)
+    fs.renameSync(req.file.path, storedPath)
+    const relativePath = path.join('storage', 'hr-templates', storedName).replace(/\\/g, '/')
+    const originalName = String(req.file.originalname || `${id}.docx`).slice(0, 255)
+    const size = Number(req.file.size || 0)
+    const db = readDb()
+    const fallbackTemplate = DEFAULT_HR_DOCUMENT_TEMPLATES.find((item) => item.id === id) || { id, denumire: id, tip: 'altul', descriere: '', template_html: '<p></p>' }
+
+    if (isMssqlMode()) {
+      const current = mssqlObject(`SELECT TOP 1 word_template_file FROM hr.document_templates WHERE id=JSON_VALUE(@p,'$.id') FOR JSON PATH;`, { id })
+      const template = mssqlObject(`
+DECLARE @id nvarchar(50), @file nvarchar(500), @original nvarchar(255), @size bigint, @userId nvarchar(80), @denumire nvarchar(200), @tip nvarchar(50), @descriere nvarchar(500), @templateHtml nvarchar(max);
+SELECT @id=id, @file=filePath, @original=originalName, @size=TRY_CONVERT(bigint, fileSize), @userId=userId, @denumire=denumire, @tip=tip, @descriere=descriere, @templateHtml=templateHtml
+FROM OPENJSON(@p) WITH (
+  id nvarchar(50) '$.id',
+  filePath nvarchar(500) '$.filePath',
+  originalName nvarchar(255) '$.originalName',
+  fileSize nvarchar(50) '$.fileSize',
+  userId nvarchar(80) '$.userId',
+  denumire nvarchar(200) '$.denumire',
+  tip nvarchar(50) '$.tip',
+  descriere nvarchar(500) '$.descriere',
+  templateHtml nvarchar(max) '$.template_html'
+);
+IF NOT EXISTS (SELECT 1 FROM hr.document_templates WHERE id=@id)
+  INSERT INTO hr.document_templates (id, denumire, tip, descriere, template_html, activ, created_by, updated_by)
+  VALUES (@id, @denumire, @tip, @descriere, @templateHtml, 1, TRY_CONVERT(uniqueidentifier, NULLIF(@userId, '')), TRY_CONVERT(uniqueidentifier, NULLIF(@userId, '')));
+UPDATE hr.document_templates
+SET word_template_file=@file,
+    word_template_original_name=@original,
+    word_template_size=@size,
+    word_template_uploaded_at=SYSDATETIME(),
+    word_template_uploaded_by=TRY_CONVERT(uniqueidentifier, NULLIF(@userId, '')),
+    updated_at=SYSDATETIME(),
+    updated_by=TRY_CONVERT(uniqueidentifier, NULLIF(@userId, ''))
+WHERE id=@id;
+SELECT TOP 1 id, denumire, tip, descriere, template_html, activ,
+       word_template_file, word_template_original_name, word_template_size, word_template_uploaded_at, word_template_uploaded_by,
+       updated_at, updated_by, created_at, created_by
+FROM hr.document_templates WHERE id=@id FOR JSON PATH;
+`, { ...fallbackTemplate, id, filePath: relativePath, originalName, fileSize: size, userId: auth.user.id })
+      removeStoredHrTemplateFile(current?.word_template_file)
+      addAudit(db, auth.user, 'hr_document_template_word_upload', `${id} / ${originalName}`)
+      writeDb(db)
+      return sendJson(res, 200, { template })
+    }
+
+    const hr = ensureHrDb(db)
+    let template = hr.documentTemplates.find((item) => item.id === id)
+    if (!template) {
+      template = normalizeTemplatePublic({ ...fallbackTemplate, created_at: nowIso(), created_by: auth.user.id })
+      hr.documentTemplates.push(template)
+    }
+    removeStoredHrTemplateFile(template.word_template_file)
+    Object.assign(template, {
+      word_template_file: relativePath,
+      word_template_original_name: originalName,
+      word_template_size: size,
+      word_template_uploaded_at: nowIso(),
+      word_template_uploaded_by: auth.user.id,
+      updated_at: nowIso(),
+      updated_by: auth.user.id
+    })
+    addAudit(db, auth.user, 'hr_document_template_word_upload', `${id} / ${originalName}`)
+    writeDb(db)
+    sendJson(res, 200, { template })
+  } catch (error) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path)
+    next(error)
+  }
+})
+
+router.get('/hr/document-templates/:id/word-template', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:view')) return
+    const id = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
+    const template = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 word_template_file, word_template_original_name FROM hr.document_templates WHERE id=JSON_VALUE(@p,'$.id') FOR JSON PATH;`, { id })
+      : (ensureHrDb(readDb()).documentTemplates || []).find((item) => item.id === id)
+    if (!template?.word_template_file) return sendJson(res, 404, { error: 'Sablonul Word nu exista pentru acest document.', code: 'HR_TEMPLATE_WORD_NOT_FOUND' })
+    const absolute = resolveStoredHrTemplateFile(template.word_template_file)
+    if (!absolute || !fs.existsSync(absolute)) return sendJson(res, 404, { error: 'Fisierul Word nu a fost gasit in storage.', code: 'HR_TEMPLATE_WORD_FILE_MISSING' })
+    res.download(absolute, template.word_template_original_name || `${id}.docx`)
   } catch (error) {
     next(error)
   }
@@ -3038,11 +3146,29 @@ function normalizeTemplatePublic(template = {}) {
     tip: String(template.tip || 'altul').trim(),
     descriere: String(template.descriere || '').trim(),
     template_html: String(template.template_html || '').trim(),
+    word_template_file: String(template.word_template_file || '').trim(),
+    word_template_original_name: String(template.word_template_original_name || '').trim(),
+    word_template_size: Number(template.word_template_size || 0),
+    word_template_uploaded_at: template.word_template_uploaded_at || null,
+    word_template_uploaded_by: template.word_template_uploaded_by || null,
     activ: template.activ !== false,
     system_default: Boolean(template.system_default),
     created_at: template.created_at || null,
     updated_at: template.updated_at || null
   }
+}
+
+function resolveStoredHrTemplateFile(relativePath) {
+  if (!relativePath) return null
+  const normalized = String(relativePath).replace(/\\/g, '/').replace(/^\/+/, '')
+  const absolute = path.resolve(__dirname, '../../../', normalized)
+  const root = path.resolve(HR_TEMPLATE_ROOT)
+  return absolute.startsWith(root + path.sep) || absolute === root ? absolute : null
+}
+
+function removeStoredHrTemplateFile(relativePath) {
+  const absolute = resolveStoredHrTemplateFile(relativePath)
+  if (absolute && fs.existsSync(absolute)) fs.unlinkSync(absolute)
 }
 
 function applyContractAmendmentJson(employee, contract, amendment) {

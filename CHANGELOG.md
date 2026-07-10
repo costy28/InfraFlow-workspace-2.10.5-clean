@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.237 - 2026-07-10
+
+## Sablon Word pentru documente HR
+
+- Sabloanele HR pot avea atasat fisier Word `.docx` original.
+- HR poate incarca, inlocui si descarca sablonul Word din lista sau modal.
+- Metadata fisierului Word este salvata in sablon si in MSSQL prin migrare noua.
+- Editorul vizual ramane fallback pentru generarea interna HTML.
+
 # v2.12.236 - 2026-07-10
 
 ## Editor vizual pentru sabloane HR

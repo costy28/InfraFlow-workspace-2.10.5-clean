@@ -553,6 +553,7 @@ export default function HRPage() {
   const [hrDocumentTemplates, setHrDocumentTemplates] = useState([])
   const [templateEditing, setTemplateEditing] = useState(null)
   const [templateAdvancedMode, setTemplateAdvancedMode] = useState(false)
+  const [templateWordUploading, setTemplateWordUploading] = useState('')
   const [dossierChecklist, setDossierChecklist] = useState({ rows: [], summary: {} })
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
@@ -834,6 +835,51 @@ export default function HRPage() {
   function startTemplateEditing(template) {
     setTemplateAdvancedMode(false)
     setTemplateEditing({ ...template })
+  }
+
+  function chooseTemplateWordFile(template) {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    input.onchange = event => {
+      const file = event.target.files?.[0]
+      if (file) uploadTemplateWordFile(template, file)
+    }
+    input.click()
+  }
+
+  async function uploadTemplateWordFile(template, file) {
+    try {
+      setTemplateWordUploading(template.id)
+      const form = new FormData()
+      form.append('file', file)
+      const response = await api.post(`/hr/document-templates/${template.id}/word-template`, form)
+      const saved = response.data?.template
+      if (saved) {
+        setHrDocumentTemplates(current => current.map(item => item.id === saved.id ? saved : item))
+        if (templateEditing?.id === saved.id) setTemplateEditing(current => ({ ...current, ...saved }))
+      } else {
+        await loadHrDocumentTemplates()
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Șablonul Word nu a putut fi încărcat.')
+    } finally {
+      setTemplateWordUploading('')
+    }
+  }
+
+  async function downloadTemplateWordFile(template) {
+    try {
+      const response = await api.get(`/hr/document-templates/${template.id}/word-template`, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = template.word_template_original_name || `${template.id}.docx`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Șablonul Word nu a putut fi descărcat.')
+    }
   }
 
   async function reloadEmployeeContracts(employeeId = employeeDetails?.id || selectedEmployee?.id) {
@@ -2896,10 +2942,18 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                     <div>
                       <div className="font-semibold">{template.denumire}</div>
                       <div className="text-xs text-slate-500">{template.tip} · {template.system_default ? 'implicit sistem' : 'personalizat'}</div>
+                      <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs ${template.word_template_file ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-50 text-slate-500 ring-1 ring-slate-200'}`}>
+                        {template.word_template_file ? `Word: ${template.word_template_original_name || 'șablon încărcat'}` : 'Fără șablon Word'}
+                      </div>
                     </div>
-                    {hasPermission('hr:manage') ? <Button size="sm" variant="secondary" onClick={() => startTemplateEditing(template)}>Editează</Button> : null}
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {template.word_template_file ? <Button size="sm" variant="secondary" onClick={() => downloadTemplateWordFile(template)}>Descarcă Word</Button> : null}
+                      {hasPermission('hr:manage') ? <Button size="sm" variant="secondary" loading={templateWordUploading === template.id} onClick={() => chooseTemplateWordFile(template)}>{template.word_template_file ? 'Înlocuiește Word' : 'Încarcă Word'}</Button> : null}
+                      {hasPermission('hr:manage') ? <Button size="sm" variant="secondary" onClick={() => startTemplateEditing(template)}>Editează text</Button> : null}
+                    </div>
                   </div>
                   {template.descriere ? <div className="mt-2 text-xs text-slate-500">{template.descriere}</div> : null}
+                  {template.word_template_uploaded_at ? <div className="mt-1 text-xs text-slate-400">Încărcat: {String(template.word_template_uploaded_at).slice(0, 16).replace('T', ' ')}</div> : null}
                 </div>
               ))}
             </div>
@@ -3056,6 +3110,18 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               ]} />
             </div>
             <Input label="Descriere" value={templateEditing.descriere || ''} onChange={event => setTemplateEditing(current => ({ ...current, descriere: event.target.value }))} />
+            <div className={`rounded-lg border px-3 py-2 text-sm ${templateEditing.word_template_file ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <strong>{templateEditing.word_template_file ? 'Șablon Word atașat' : 'Nu există șablon Word atașat'}</strong>
+                  <div className="text-xs">{templateEditing.word_template_file ? (templateEditing.word_template_original_name || 'document .docx') : 'Poți încărca CIM-ul/actul real din Word și păstra editorul vizual ca fallback.'}</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {templateEditing.word_template_file ? <Button type="button" size="sm" variant="secondary" onClick={() => downloadTemplateWordFile(templateEditing)}>Descarcă Word</Button> : null}
+                  <Button type="button" size="sm" variant="secondary" loading={templateWordUploading === templateEditing.id} onClick={() => chooseTemplateWordFile(templateEditing)}>{templateEditing.word_template_file ? 'Înlocuiește Word' : 'Încarcă Word'}</Button>
+                </div>
+              </div>
+            </div>
             <div>
               <div className="mb-1 text-xs font-semibold uppercase text-slate-500">Variabile</div>
               <div className="flex max-h-24 flex-wrap gap-1 overflow-auto rounded border border-slate-200 bg-slate-50 p-2">
