@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.238 - 2026-07-11
+
+## Generare Word din sabloane HR
+
+- Endpoint nou pentru randarea sabloanelor Word `.docx` cu variabile completate.
+- Contractele si actele aditionale pot fi descarcate ca Word cand exista sablon atasat.
+- Generatorul valideaza ca documentul contine variabile detectabile si evita rezultate corupte.
+- HTML-ul ramane fallback pentru generarea si arhivarea interna.
+
 # v2.12.237 - 2026-07-10
 
 ## Sablon Word pentru documente HR

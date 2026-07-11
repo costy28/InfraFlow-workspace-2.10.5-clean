@@ -381,9 +381,11 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
   )
 }
 
-function EmployeeContractsPanel({ employeeId, contracts, amendments, departments, canManage, onReload, onError, onPrintContract, onPrintAmendment }) {
+function EmployeeContractsPanel({ employeeId, contracts, amendments, departments, canManage, onReload, onError, onPrintContract, onPrintAmendment, onGenerateContractWord, onGenerateAmendmentWord, documentTemplates = [] }) {
   const [editing, setEditing] = useState(null)
   const [amendment, setAmendment] = useState(null)
+  const hasCimWordTemplate = documentTemplates.some(item => item.id === 'cim' && item.word_template_file)
+  const hasActWordTemplate = documentTemplates.some(item => item.id === 'act_aditional' && item.word_template_file)
   function openNew() {
     setEditing({ ...emptyContractForm, data_contract: new Date().toISOString().slice(0, 10), data_start: new Date().toISOString().slice(0, 10) })
   }
@@ -461,6 +463,7 @@ function EmployeeContractsPanel({ employeeId, contracts, amendments, departments
               <div><strong>{contract.numar_contract || `Contract #${contract.id}`}</strong> · {contract.tip || 'CIM'} · <Badge tone={String(contract.status || 'activ') === 'activ' ? 'success' : 'warning'}>{contract.status || 'activ'}</Badge></div>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => onPrintContract?.(contract)}>Genereaza</Button>
+                {hasCimWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onGenerateContractWord?.(contract)}>Word</Button> : null}
                 {canManage ? <><Button size="sm" variant="secondary" onClick={() => openAmendment(contract)}>Act aditional</Button><Button size="sm" variant="secondary" onClick={() => openEdit(contract)}>Editeaza</Button></> : null}
               </div>
             </div>
@@ -470,7 +473,7 @@ function EmployeeContractsPanel({ employeeId, contracts, amendments, departments
               <div>Norma: {contract.norma_ore || 8} ore/zi</div>
               <div>Salariu: {contract.salariu_baza ? `${Number(contract.salariu_baza).toLocaleString('ro-RO')} RON` : '-'}</div>
             </div>
-            {byContract(contract.id).length ? <div className="mt-2 rounded bg-white/70 p-2 text-xs"><div className="mb-1 font-semibold text-slate-600">Istoric acte adiționale</div>{byContract(contract.id).map(item => <div key={item.id || item.uuid} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-1"><span>{item.numar_act || `Act #${item.id}`} · {item.tip} · efect {String(item.data_efect || '').slice(0, 10)}</span><span className="text-slate-500">{item.salariu_baza ? `salariu ${Number(item.salariu_baza).toLocaleString('ro-RO')} RON` : ''}{item.norma_ore ? ` norma ${item.norma_ore}h` : ''}{item.functia ? ` ${item.functia}` : ''}{item.status_contract ? ` ${item.status_contract}` : ''}</span><Button size="sm" variant="secondary" onClick={() => onPrintAmendment?.(item, contract)}>Genereaza act</Button></div>)}</div> : null}
+            {byContract(contract.id).length ? <div className="mt-2 rounded bg-white/70 p-2 text-xs"><div className="mb-1 font-semibold text-slate-600">Istoric acte adiționale</div>{byContract(contract.id).map(item => <div key={item.id || item.uuid} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-1"><span>{item.numar_act || `Act #${item.id}`} · {item.tip} · efect {String(item.data_efect || '').slice(0, 10)}</span><span className="text-slate-500">{item.salariu_baza ? `salariu ${Number(item.salariu_baza).toLocaleString('ro-RO')} RON` : ''}{item.norma_ore ? ` norma ${item.norma_ore}h` : ''}{item.functia ? ` ${item.functia}` : ''}{item.status_contract ? ` ${item.status_contract}` : ''}</span><div className="flex gap-1"><Button size="sm" variant="secondary" onClick={() => onPrintAmendment?.(item, contract)}>Genereaza act</Button>{hasActWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onGenerateAmendmentWord?.(item, contract)}>Word</Button> : null}</div></div>)}</div> : null}
           </div>
         ))}
         {!contracts.length ? <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Nu exista contract operational. Incarcarea PDF-ului in dosar nu creeaza automat contract salarial.</div> : null}
@@ -1300,6 +1303,41 @@ ${contract.data_sfarsit || emp.data_expirare_contract ? `<p>Data încetării (de
     } catch (err) {
       setError(err.response?.data?.error || 'Contractul nu a putut fi generat.')
     }
+  }
+
+  async function generateContractWord(contract) {
+    try {
+      await downloadRenderedHrWord('cim', {
+        employee_id: employeeDetails.id,
+        contract_id: contract.id
+      }, `CIM_${contract.numar_contract || employeeDetails.marca || employeeDetails.id}.docx`)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul Word pentru contract nu a putut fi generat.')
+    }
+  }
+
+  async function generateAmendmentWord(amendment, contract) {
+    try {
+      await downloadRenderedHrWord('act_aditional', {
+        employee_id: employeeDetails.id,
+        contract_id: contract?.id || amendment.contract_id,
+        amendment_id: amendment.id
+      }, `Act_aditional_${amendment.numar_act || amendment.id || employeeDetails.marca}.docx`)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul Word pentru actul adițional nu a putut fi generat.')
+    }
+  }
+
+  async function downloadRenderedHrWord(templateId, params, fallbackName) {
+    const response = await api.get(`/hr/document-templates/${templateId}/render-word`, { params, responseType: 'blob' })
+    const url = URL.createObjectURL(response.data)
+    const link = document.createElement('a')
+    const disposition = response.headers?.['content-disposition'] || ''
+    const match = disposition.match(/filename="?([^";]+)"?/i)
+    link.href = url
+    link.download = match?.[1] || fallbackName || `${templateId}.docx`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   async function printOperationalAmendment(amendment, contract) {
@@ -3185,7 +3223,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         {employeeDetails ? (
           <div className="grid gap-4">
             <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} />
-            <EmployeeContractsPanel employeeId={employeeDetails.id} contracts={employeeContracts} amendments={employeeAmendments} departments={departments} canManage={hasPerm('hr:manage')} onReload={() => reloadEmployeeContracts(employeeDetails.id)} onError={setError} onPrintContract={printOperationalContract} onPrintAmendment={printOperationalAmendment} />
+            <EmployeeContractsPanel employeeId={employeeDetails.id} contracts={employeeContracts} amendments={employeeAmendments} departments={departments} canManage={hasPerm('hr:manage')} onReload={() => reloadEmployeeContracts(employeeDetails.id)} onError={setError} onPrintContract={printOperationalContract} onPrintAmendment={printOperationalAmendment} onGenerateContractWord={generateContractWord} onGenerateAmendmentWord={generateAmendmentWord} documentTemplates={hrDocumentTemplates} />
             {/* Photo + basic info */}
             <div className="flex items-start gap-4">
               <div className="relative flex-shrink-0">

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.237",
-  "date": "2026-07-10",
-  "changelog": "## v2.12.237 - 2026-07-10\n### Sablon Word pentru documente HR\n- Sabloanele HR pot avea atasat fisier Word .docx original.\n- HR poate incarca, inlocui si descarca sablonul Word din lista sau modal.\n- Metadata fisierului Word este salvata in sablon si in MSSQL prin migrare noua.\n- Editorul vizual ramane fallback pentru generarea interna HTML."
+  "version": "2.12.238",
+  "date": "2026-07-11",
+  "changelog": "## v2.12.238 - 2026-07-11\n### Generare Word din sabloane HR\n- Endpoint nou pentru randarea sabloanelor Word .docx cu variabile completate.\n- Contractele si actele aditionale pot fi descarcate ca Word cand exista sablon atasat.\n- Generatorul valideaza ca documentul contine variabile detectabile si evita rezultate corupte.\n- HTML-ul ramane fallback pentru generarea si arhivarea interna."
 }
