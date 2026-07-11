@@ -1,7 +1,7 @@
 # AGENTS.md — InfraFlow ERP
 > Citește acest fișier INTEGRAL înainte de orice acțiune.
 > Toate deciziile respectă convențiile de aici.
-> Ultima actualizare: 31 Mai 2026
+> Ultima actualizare: 11 Iulie 2026
 
 ---
 
@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.12.228**
-**Versiune în lucru: v2.12.228**
+**Versiune curentă sursă: v2.12.251**
+**Versiune în lucru: v2.12.251**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -31,7 +31,7 @@ Frontend web + PWA + Electron desktop client.
 | Auth | Sesiuni în memorie (Map) |
 | Export Excel | xlsx (npm) |
 | PDF/Print | HTML generat server-side, print din browser |
-| Frontend | Vanilla JS (app.js), HTML, CSS |
+| Frontend | React + Vite (`client/src`), HTML/CSS, componente legacy unde există |
 | Desktop | Electron (launcher Windows) |
 | Tunnel | Cloudflare Tunnel → acasa.appnode.ro |
 | GPS | urmariregps.ro (PHPSESSID auth, XML parser) |
@@ -71,7 +71,7 @@ infraflow/
 │       ├── utils.js
 │       ├── excel.js
 │       └── validators.js
-├── public/                    ← frontend (app.js, index.html, styles.css)
+├── client/                    ← frontend React + Vite (src/, public/, dist/)
 ├── db/
 │   ├── mssql-schema.sql       ← schema existentă
 │   ├── migrations/            ← migrări versionate
@@ -541,8 +541,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.228
+VERSIUNE CURENTĂ SURSĂ: 2.12.251
 BUILD EXE EXISTENT: 2.12.210 ✅
+UPDATE ZIP CURENT: 2.12.251 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -601,10 +602,11 @@ UPDATES ÎN LUCRU:
   2.12.182 → UPDATE 202 DUK asistat + remediere SAF-T ✅
   2.12.179 → UPDATE 199 Generator SAF-T conform structural XSD ✅
   2.12.180 → UPDATE 200 Nomenclatoare SAF-T + integrare DUK ✅
+  2.12.251 → UPDATE 271 Adevăr proiect + audit local ✅
 
-NEXT BUILD: după seria următoare de update-uri
-  → InfraFlow-Server-Setup-v2.12.210.exe
-  → InfraFlow-Client-Setup-v2.12.210.exe
+NEXT BUILD: la cerere sau după o serie majoră de update-uri
+  → InfraFlow-Server-Setup-v[package.version].exe
+  → InfraFlow-Client-Setup-v[package.version].exe
   → Versiunea citită automat din package.json
   → Script: scripts/build-installer.ps1
 
@@ -1090,5 +1092,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 7 Iulie 2026 | InfraFlow sursă v2.12.211*
+*AGENTS.md actualizat: 11 Iulie 2026 | InfraFlow sursă v2.12.251*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

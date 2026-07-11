@@ -1,5 +1,5 @@
 {
-  "version": "2.12.250",
+  "version": "2.12.251",
   "date": "2026-07-11",
-  "changelog": "## v2.12.250 - 2026-07-11\n### Notificari automate HR\n- Endpoint nou POST /api/hr/notifications/generate pentru notificari HR din Inbox.\n- Generatorul acopera sarcini critice, avertizari, dosare, Kiosk, medicale si offboarding.\n- Deduplicare pe zi, utilizator si sarcina pentru protectie anti-spam.\n- Dashboard HR are buton Genereaza notificari HR si sumar cu create/existente/destinatari."
+  "changelog": "## v2.12.251 - 2026-07-11\n### Adevar proiect si audit local\n- Documentatia de lucru este sincronizata cu versiunea reala si stack-ul curent React/Vite.\n- Script nou npm run audit:local pentru verificari repetabile de release.\n- Script nou npm run audit:advisory pentru lint si audit securitate non-blocant.\n- Auditul de mentenanta este documentat in docs/AUDIT_MENTENANTA_2026-07-11.md."
 }

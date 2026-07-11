@@ -4,7 +4,7 @@ import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
 // Citește versiunea din version.json (sursă unică de adevăr)
-let APP_VERSION = '2.10.1'
+let APP_VERSION = 'dev'
 try {
   const versionFile = resolve(__dirname, '../version.json')
   APP_VERSION = JSON.parse(readFileSync(versionFile, 'utf8')).version

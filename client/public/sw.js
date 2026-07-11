@@ -16,7 +16,7 @@ self.addEventListener('activate', event => {
 
 // Push event — sosit de la server (dacă este configurat VAPID)
 self.addEventListener('push', event => {
-  let data = {}
+  let data
   try {
     data = event.data ? event.data.json() : {}
   } catch {

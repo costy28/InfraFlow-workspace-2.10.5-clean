@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.251 - 2026-07-11
+
+## Adevar proiect si audit local
+
+- Documentatia de lucru este sincronizata cu versiunea reala si stack-ul curent React/Vite.
+- Script nou `npm run audit:local` pentru verificari repetabile de release.
+- Script nou `npm run audit:advisory` pentru lint si audit securitate non-blocant.
+- Auditul de mentenanta este documentat in `docs/AUDIT_MENTENANTA_2026-07-11.md`.
+
 # v2.12.250 - 2026-07-11
 
 ## Notificari automate HR

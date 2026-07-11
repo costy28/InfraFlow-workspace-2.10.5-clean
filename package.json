@@ -5,6 +5,8 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build": "cd client && npm run build",
     "start": "node server/src/server.js",
+    "audit:local": "node scripts/audit-local.js",
+    "audit:advisory": "node scripts/audit-local.js --advisory",
     "test:accounting": "node --test server/tests/accounting-regression.test.js",
     "test:hr": "node --test server/tests/hr-regression.test.js",
     "test:release": "node scripts/release-accounting-acceptance.js",
@@ -13,5 +15,5 @@
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
-  "version": "2.12.250"
+  "version": "2.12.251"
 }
