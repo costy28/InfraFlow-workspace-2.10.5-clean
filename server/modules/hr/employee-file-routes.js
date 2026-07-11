@@ -21,6 +21,94 @@ router.get("/hr/employees/:id/files", authorize("hr:view"), (req, res) => {
   res.json({ items: files });
 });
 
+router.get("/hr/employees/:id/workflow", authorize("hr:view"), (req, res) => {
+  const employee = findEmployeeForWorkflow(req.auth.db, req.params.id);
+  if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
+  const workflow = currentEmployeeWorkflow(req.auth.db, employee.id);
+  res.json({ workflow: workflow ? enrichEmployeeWorkflow(req.auth.db, employee, workflow) : null, suggestions: workflowSuggestions(req.auth.db, employee) });
+});
+
+router.post("/hr/employees/:id/workflow/start", authorize("hr:manage"), (req, res) => {
+  const employee = findEmployeeForWorkflow(req.auth.db, req.params.id);
+  if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
+  const type = String(req.body?.type || "").toLowerCase();
+  if (!["onboarding", "offboarding"].includes(type)) return res.status(422).json({ error: "Tipul fluxului trebuie sa fie onboarding sau offboarding.", code: "HR_WORKFLOW_TYPE_INVALID" });
+  const workflows = ensureEmployeeWorkflows(req.auth.db);
+  const existing = workflows.find((item) => String(item.employee_id) === String(employee.id) && item.type === type && !["completed", "cancelled"].includes(item.status));
+  const now = new Date().toISOString();
+  const workflow = existing || {
+    id: nextId(workflows),
+    uuid: crypto.randomUUID(),
+    employee_id: employee.id,
+    type,
+    status: type === "onboarding" ? "in_onboarding" : "in_offboarding",
+    steps: buildWorkflowSteps(req.auth.db, employee, type),
+    started_at: now,
+    started_by: req.auth.user.id,
+    created_at: now
+  };
+  if (!existing) workflows.push(workflow);
+  workflow.updated_at = now;
+  workflow.updated_by = req.auth.user.id;
+  workflow.progress = workflowProgress(workflow);
+  addAudit(req.auth.db, req.auth.user, "hr_employee_workflow_started", `${employeeName(employee)} / ${type}`);
+  writeDb(req.auth.db);
+  res.status(existing ? 200 : 201).json({ workflow: enrichEmployeeWorkflow(req.auth.db, employee, workflow) });
+});
+
+router.patch("/hr/employees/:id/workflow/steps/:stepKey", authorize("hr:manage"), (req, res) => {
+  const employee = findEmployeeForWorkflow(req.auth.db, req.params.id);
+  if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
+  const workflow = currentEmployeeWorkflow(req.auth.db, employee.id);
+  if (!workflow) return res.status(404).json({ error: "Nu exista flux HR activ pentru acest angajat.", code: "HR_WORKFLOW_NOT_FOUND" });
+  const step = (workflow.steps || []).find((item) => item.key === req.params.stepKey);
+  if (!step) return res.status(404).json({ error: "Pasul din flux nu a fost gasit.", code: "HR_WORKFLOW_STEP_NOT_FOUND" });
+  const now = new Date().toISOString();
+  if (req.body?.done !== undefined) {
+    step.done = Boolean(req.body.done);
+    step.completed_at = step.done ? now : null;
+    step.completed_by = step.done ? req.auth.user.id : null;
+  }
+  if (req.body?.note !== undefined) step.note = String(req.body.note || "").slice(0, 500);
+  step.updated_at = now;
+  workflow.updated_at = now;
+  workflow.updated_by = req.auth.user.id;
+  workflow.progress = workflowProgress(workflow);
+  const required = (workflow.steps || []).filter((item) => item.required !== false);
+  if (required.length && required.every((item) => item.done)) {
+    workflow.status = "completed";
+    workflow.completed_at = workflow.completed_at || now;
+    workflow.completed_by = workflow.completed_by || req.auth.user.id;
+  } else if (workflow.status === "completed") {
+    workflow.status = workflow.type === "offboarding" ? "in_offboarding" : "in_onboarding";
+    workflow.completed_at = null;
+    workflow.completed_by = null;
+  }
+  addAudit(req.auth.db, req.auth.user, "hr_employee_workflow_step_updated", `${employeeName(employee)} / ${workflow.type} / ${step.label}`);
+  writeDb(req.auth.db);
+  res.json({ workflow: enrichEmployeeWorkflow(req.auth.db, employee, workflow) });
+});
+
+router.post("/hr/employees/:id/workflow/close", authorize("hr:manage"), (req, res) => {
+  const employee = findEmployeeForWorkflow(req.auth.db, req.params.id);
+  if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
+  const workflow = currentEmployeeWorkflow(req.auth.db, employee.id);
+  if (!workflow) return res.status(404).json({ error: "Nu exista flux HR activ pentru acest angajat.", code: "HR_WORKFLOW_NOT_FOUND" });
+  const now = new Date().toISOString();
+  workflow.status = req.body?.cancel ? "cancelled" : "completed";
+  workflow.closed_at = now;
+  workflow.closed_by = req.auth.user.id;
+  workflow.close_note = String(req.body?.note || "").slice(0, 500);
+  if (workflow.status === "completed") {
+    workflow.completed_at = workflow.completed_at || now;
+    workflow.completed_by = workflow.completed_by || req.auth.user.id;
+  }
+  workflow.progress = workflowProgress(workflow);
+  addAudit(req.auth.db, req.auth.user, "hr_employee_workflow_closed", `${employeeName(employee)} / ${workflow.type} / ${workflow.status}`);
+  writeDb(req.auth.db);
+  res.json({ workflow: enrichEmployeeWorkflow(req.auth.db, employee, workflow) });
+});
+
 router.get("/hr/dossier-checklist", authorize("hr:view"), (req, res) => {
   const hr = req.auth.db.hr || {};
   const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
@@ -354,6 +442,7 @@ router.delete("/hr/employees/:id/files/:fileId", authorize("hr:manage"), (req, r
 });
 
 function ensureFiles(db) { db.hr = db.hr || {}; db.hr.employeeFiles = Array.isArray(db.hr.employeeFiles) ? db.hr.employeeFiles : []; return db.hr.employeeFiles; }
+function ensureEmployeeWorkflows(db) { db.hr = db.hr || {}; db.hr.employeeWorkflows = Array.isArray(db.hr.employeeWorkflows) ? db.hr.employeeWorkflows : []; return db.hr.employeeWorkflows; }
 function authorize(permission) { return (req, res, next) => { const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, permission)) return; req.auth = auth; next(); }; }
 function safeSegment(value) { return String(value).replace(/[^a-zA-Z0-9_-]/g, "_"); }
 function nextId(items) { return items.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1; }
@@ -400,12 +489,87 @@ function findEmployee(db, employeeId) {
   const employees = Array.isArray(db.hr?.employees) ? db.hr.employees : [];
   return employees.find((item) => String(item.id) === String(employeeId) && item.activ !== false && item.activ !== 0);
 }
+function findEmployeeForWorkflow(db, employeeId) {
+  const employees = Array.isArray(db.hr?.employees) ? db.hr.employees : [];
+  return employees.find((item) => String(item.id) === String(employeeId));
+}
 function findLinkedEmployee(db, user) {
   const employees = Array.isArray(db.hr?.employees) ? db.hr.employees : [];
   const linkedEmployeeId = user.employee_id || user.employeeId || "";
   return employees.find((item) => item.activ !== false && item.activ !== 0 && (String(item.user_id || "") === String(user.id) || (linkedEmployeeId && String(item.id) === String(linkedEmployeeId))));
 }
 function employeeName(employee) { return [employee.prenume, employee.nume].filter(Boolean).join(" ") || employee.nume_complet || employee.name || "Angajat"; }
+function currentEmployeeWorkflow(db, employeeId) {
+  const workflows = ensureEmployeeWorkflows(db).filter((item) => String(item.employee_id) === String(employeeId));
+  return workflows
+    .filter((item) => !["completed", "cancelled"].includes(item.status))
+    .sort((a, b) => String(b.started_at || b.created_at || "").localeCompare(String(a.started_at || a.created_at || "")))[0] || null;
+}
+function workflowSuggestions(db, employee) {
+  const active = currentEmployeeWorkflow(db, employee.id);
+  return {
+    active_type: active?.type || null,
+    recommended: employee.activ === false || employee.activ === 0 || employee.data_plecare ? "offboarding" : "onboarding",
+    has_active_workflow: Boolean(active)
+  };
+}
+function buildWorkflowSteps(db, employee, type) {
+  const files = ensureFiles(db).filter((item) => String(item.employee_id) === String(employee.id) && !item.cancelled_at);
+  const contracts = Array.isArray(db.hr?.contracts) ? db.hr.contracts.filter((item) => String(item.employee_id) === String(employee.id) && String(item.status || "activ") !== "incetat") : [];
+  const checklist = dossierChecklistFor(employee, files);
+  const hasFile = (...terms) => files.some((file) => {
+    const haystack = `${file.tip || ""} ${file.denumire || ""} ${file.file_name || ""} ${file.generated_source || ""}`.toLowerCase();
+    return terms.some((term) => haystack.includes(String(term).toLowerCase()));
+  });
+  const hasKioskUser = (Array.isArray(db.hr?.kioskUsers) ? db.hr.kioskUsers : []).some((item) => String(item.employee_id) === String(employee.id) && item.activ !== false);
+  const hasLinkedUser = Boolean(employee.user_id || (Array.isArray(db.users) ? db.users : []).some((user) => String(user.employee_id || user.employeeId || "") === String(employee.id) && user.active !== false && user.activ !== false));
+  const hasPendingAck = files.some((item) => (item.requires_ack || item.generated || item.kiosk_visible) && !item.acknowledged_at);
+  const equipment = db.hr?.angajatEchipamente || db.hr?.angajat_echipamente || db.hr?.echipamenteDotari || db.hr?.echipamente_dotari || [];
+  const hasEquipment = Array.isArray(equipment) && equipment.some((item) => String(item.angajat_id || item.employee_id) === String(employee.id) && !item.predat_la_lichidare);
+  const common = type === "onboarding" ? [
+    ["date_personale", "Completează date personale", Boolean(employee.cnp && employee.marca && employee.nume && employee.prenume), true, "CNP, marcă, nume, prenume și date de contact."],
+    ["cont_kiosk", "Asociază cont ERP/Kiosk", hasLinkedUser || hasKioskUser, true, "Necesare pentru cereri și confirmări documente."],
+    ["contract", "Generează/arhivează CIM", contracts.length > 0 || checklist.items?.find((item) => item.key === "contract")?.ok, true, "Contract activ sau document CIM în dosar."],
+    ["act_identitate", "Încarcă act identitate", checklist.items?.find((item) => item.key === "identitate")?.ok, true, "CI/BI scanat în dosarul electronic."],
+    ["fisa_post", "Fișa postului", checklist.items?.find((item) => item.key === "fisa_post")?.ok, true, "Document generat/semnat/arhivat."],
+    ["ssm_psi", "SSM / PSI", checklist.items?.find((item) => item.key === "ssm")?.ok, true, "Instruire sau document SSM/PSI."],
+    ["apt_medical", "Apt medical", checklist.items?.find((item) => item.key === "medical")?.ok, true, "Apt medical valabil sau document medical."],
+    ["gdpr", "GDPR", Boolean(employee.acord_gdpr || checklist.items?.find((item) => item.key === "gdpr")?.ok), false, "Acord GDPR și nota de informare."],
+    ["echipamente", "Echipamente inițiale", hasEquipment, false, "Dotări/inventar în răspundere."],
+    ["confirmari_kiosk", "Confirmări Kiosk finalizate", !hasPendingAck, false, "Documentele vizibile în Kiosk au fost confirmate."]
+  ] : [
+    ["decizie_incetare", "Decizie încetare / document final", hasFile("decizie", "incetare", "încetare"), true, "Decizia de încetare este generată/arhivată."],
+    ["nota_lichidare", "Notă de lichidare", hasFile("lichidare"), true, "Nota de lichidare este pregătită pentru dosar."],
+    ["predare_echipamente", "Predare echipamente/inventar", !hasEquipment, true, "Toate obiectele din răspundere sunt predate."],
+    ["co_final", "Verificare CO rămas", true, true, "Soldul CO este verificat înainte de închidere."],
+    ["cont_kiosk_dezactivat", "Dezactivare cont Kiosk", !hasKioskUser, true, "Contul Kiosk este dezactivat sau inexistent."],
+    ["documente_finale", "Documente finale arhivate", hasFile("adeverinta", "vechime") || hasFile("decizie"), false, "Adeverință vechime, decizie și documente finale."],
+    ["dosar_inchis", "Dosar HR închis", false, false, "Ultima verificare înainte de arhivare."]
+  ];
+  return common.map(([key, label, done, required, description]) => ({ key, label, done: Boolean(done), required: Boolean(required), description, auto_checked: Boolean(done), created_at: new Date().toISOString() }));
+}
+function workflowProgress(workflow) {
+  const steps = Array.isArray(workflow.steps) ? workflow.steps : [];
+  const required = steps.filter((item) => item.required !== false);
+  const allDone = steps.filter((item) => item.done).length;
+  const requiredDone = required.filter((item) => item.done).length;
+  return {
+    steps_total: steps.length,
+    steps_done: allDone,
+    required_total: required.length,
+    required_done: requiredDone,
+    percent: steps.length ? Math.round(allDone / steps.length * 100) : 0,
+    required_percent: required.length ? Math.round(requiredDone / required.length * 100) : 100
+  };
+}
+function enrichEmployeeWorkflow(db, employee, workflow) {
+  workflow.progress = workflowProgress(workflow);
+  return {
+    ...workflow,
+    employee_name: employeeName(employee),
+    suggested_steps: buildWorkflowSteps(db, employee, workflow.type).map((step) => ({ key: step.key, auto_done: step.done }))
+  };
+}
 function buildDossierDashboard(db) {
   const hr = db.hr || {};
   const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.244 - 2026-07-11
+
+## Flux onboarding si offboarding HR
+
+- Endpointuri noi pentru pornire, consultare, bifare pasi si inchidere flux HR per angajat.
+- Fisa angajat are tab nou `Onboarding / Offboarding` cu progres si checklist ghidat.
+- Pasii sunt precompletati automat din date existente: contracte, dosar, Kiosk, GDPR, apt medical si echipamente.
+- Fluxurile sunt auditate si pot fi finalizate sau anulate controlat.
+
 # v2.12.243 - 2026-07-11
 
 ## Fisa unica angajat HR

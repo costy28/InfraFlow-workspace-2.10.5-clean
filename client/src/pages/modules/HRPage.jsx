@@ -553,6 +553,8 @@ export default function HRPage() {
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [employeeDetails, setEmployeeDetails] = useState(null)
   const [employeeProfileTab, setEmployeeProfileTab] = useState('date')
+  const [employeeWorkflow, setEmployeeWorkflow] = useState(null)
+  const [employeeWorkflowBusy, setEmployeeWorkflowBusy] = useState(false)
   const [employeeContracts, setEmployeeContracts] = useState([])
   const [employeeAmendments, setEmployeeAmendments] = useState([])
   const [hrDocumentTemplates, setHrDocumentTemplates] = useState([])
@@ -721,6 +723,7 @@ export default function HRPage() {
     setSelectedEmployee(employee)
     setEmployeeDetails(null)
     setEmployeeProfileTab('date')
+    setEmployeeWorkflow(null)
     setCoBalance(null)
     setEditMode(false)
     setPhotoPreview(null)
@@ -729,13 +732,14 @@ export default function HRPage() {
     setEmployeeContracts([])
     setEmployeeAmendments([])
     try {
-      const [detailsRes, coRes, equipmentRes, transfersRes, contractsRes, amendmentsRes] = await Promise.all([
+      const [detailsRes, coRes, equipmentRes, transfersRes, contractsRes, amendmentsRes, workflowRes] = await Promise.all([
         api.get(`/hr/employees/${employee.id}`),
         api.get(`/hr/employees/${employee.id}/co-balance`).catch(() => ({ data: null })),
         api.get(`/hr/echipamente/angajat/${employee.id}`).catch(() => ({ data: null })),
         api.get(`/hr/employees/${employee.id}/transfers`).catch(() => ({ data: [] })),
         api.get(`/hr/employees/${employee.id}/contracts`).catch(() => ({ data: [] })),
         api.get(`/hr/employees/${employee.id}/contract-amendments`).catch(() => ({ data: [] })),
+        api.get(`/hr/employees/${employee.id}/workflow`).catch(() => ({ data: { workflow: null } })),
       ])
       setEmployeeDetails(detailsRes.data)
       setEditForm({ ...detailsRes.data, department_transfer_date: new Date().toISOString().slice(0, 10), department_transfer_reason: '' })
@@ -744,6 +748,7 @@ export default function HRPage() {
       setTransferHistory(arrayFrom(transfersRes.data, ['transfers', 'items']))
       setEmployeeContracts(arrayFrom(contractsRes.data, ['contracts', 'items']))
       setEmployeeAmendments(arrayFrom(amendmentsRes.data, ['amendments', 'items']))
+      setEmployeeWorkflow(workflowRes.data?.workflow || null)
     } catch {
       setEmployeeDetails(employee)
       setEditForm({ ...employee })
@@ -779,6 +784,52 @@ export default function HRPage() {
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Reminderul Kiosk nu a putut fi trimis.')
+    }
+  }
+
+  async function loadEmployeeWorkflow(employeeId = employeeDetails?.id) {
+    if (!employeeId) return
+    try {
+      const response = await api.get(`/hr/employees/${employeeId}/workflow`)
+      setEmployeeWorkflow(response.data?.workflow || null)
+    } catch {
+      setError('Fluxul HR al angajatului nu a putut fi încărcat.')
+    }
+  }
+
+  async function startEmployeeWorkflow(type) {
+    if (!employeeDetails?.id) return
+    try {
+      setEmployeeWorkflowBusy(true)
+      const response = await api.post(`/hr/employees/${employeeDetails.id}/workflow/start`, { type })
+      setEmployeeWorkflow(response.data?.workflow || null)
+      setEmployeeProfileTab('flux')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Fluxul HR nu a putut fi pornit.')
+    } finally {
+      setEmployeeWorkflowBusy(false)
+    }
+  }
+
+  async function toggleEmployeeWorkflowStep(step, done) {
+    if (!employeeDetails?.id || !employeeWorkflow?.uuid) return
+    try {
+      const response = await api.patch(`/hr/employees/${employeeDetails.id}/workflow/steps/${step.key}`, { done })
+      setEmployeeWorkflow(response.data?.workflow || null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Pasul din flux nu a putut fi actualizat.')
+    }
+  }
+
+  async function closeEmployeeWorkflow(cancel = false) {
+    if (!employeeDetails?.id || !employeeWorkflow?.uuid) return
+    const note = cancel ? window.prompt('Motiv anulare flux:', 'Anulat de HR') : ''
+    if (cancel && !note) return
+    try {
+      const response = await api.post(`/hr/employees/${employeeDetails.id}/workflow/close`, { cancel, note })
+      setEmployeeWorkflow(response.data?.workflow || null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Fluxul HR nu a putut fi închis.')
     }
   }
 
@@ -3612,7 +3663,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm"><div className="text-xs text-primary-700">Dosar HR</div><strong>{selectedDossierSummary?.percent ?? 0}%</strong><div className="text-xs text-primary-600">{selectedDossierSummary?.required_done ?? 0}/{selectedDossierSummary?.required_total ?? 0} obligatorii</div></div>
               <div className={`rounded-lg border p-3 text-sm ${selectedDossierSummary?.pending_ack ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="text-xs">Confirmări Kiosk</div><strong>{selectedDossierSummary?.pending_ack ?? 0}</strong><div className="text-xs">neconfirmate</div></div>
               <div className={`rounded-lg border p-3 text-sm ${selectedEmployeeExpirations[0]?.severity === 'expired' ? 'border-rose-200 bg-rose-50' : selectedEmployeeExpirations[0] ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="text-xs">Următoarea scadență</div><strong>{selectedEmployeeExpirations[0]?.date || '—'}</strong><div className="text-xs">{selectedEmployeeExpirations[0]?.label || 'fără scadențe apropiate'}</div></div>
-              <div className="rounded-lg border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">CO {new Date().getFullYear()}</div><strong>{coBalance ? `${coBalance.zile_ramase} zile` : `${employeeDetails.zile_co_drept ?? 21} / an`}</strong><div className="text-xs text-slate-400">{selectedEmployeeLeaves.length} cereri în istoric</div></div>
+              <div className={`rounded-lg border p-3 text-sm ${employeeWorkflow && !['completed','cancelled'].includes(employeeWorkflow.status) ? 'border-violet-200 bg-violet-50' : 'border-slate-200'}`}><div className="text-xs text-slate-500">Flux HR</div><strong>{employeeWorkflow ? `${employeeWorkflow.progress?.percent || 0}%` : 'nepornit'}</strong><div className="text-xs text-slate-400">{employeeWorkflow?.type || `CO: ${coBalance ? `${coBalance.zile_ramase} zile` : `${employeeDetails.zile_co_drept ?? 21} / an`}`}</div></div>
             </div>
 
             <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
@@ -3622,6 +3673,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 ['pontaj', 'Pontaj & concedii'],
                 ['dosar', 'Dosar documente'],
                 ['kiosk', 'Scadențe & Kiosk'],
+                ['flux', 'Onboarding / Offboarding'],
                 ['echipamente', 'Echipamente'],
               ].map(([value, label]) => (
                 <button key={value} type="button" onClick={() => setEmployeeProfileTab(value)} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${employeeProfileTab === value ? 'bg-primary-700 text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>{label}</button>
@@ -3860,6 +3912,61 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                     {selectedEmployeeExpirations.map(item => <div key={item.id} className={`flex flex-wrap items-center justify-between gap-2 rounded px-3 py-2 text-sm ${item.severity === 'expired' ? 'bg-rose-50 text-rose-800' : item.severity === 'critical' ? 'bg-red-50 text-red-800' : item.severity === 'warning' ? 'bg-amber-50 text-amber-800' : 'bg-blue-50 text-blue-800'}`}><span>{item.icon} {item.label}</span><span>{item.date} · {item.days < 0 ? `expirat de ${Math.abs(item.days)} zile` : `${item.days} zile rămase`}</span></div>)}
                     {!selectedEmployeeExpirations.length ? <div className="text-sm text-slate-400">Nu există scadențe apropiate.</div> : null}
                   </div>
+                </div>
+              </div>
+            ) : null}
+
+            {employeeProfileTab === 'flux' ? (
+              <div className="grid gap-4">
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-slate-800">🚦 Onboarding / Offboarding HR</div>
+                      <div className="text-xs text-slate-500">Checklist ghidat pentru angajare sau plecare, legat de dosar, contracte, Kiosk și echipamente.</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => loadEmployeeWorkflow()}>Reîncarcă</Button>
+                      <Button size="sm" loading={employeeWorkflowBusy} onClick={() => startEmployeeWorkflow('onboarding')}>Pornește onboarding</Button>
+                      <Button size="sm" variant="secondary" loading={employeeWorkflowBusy} onClick={() => startEmployeeWorkflow('offboarding')}>Pornește offboarding</Button>
+                    </div>
+                  </div>
+                  {employeeWorkflow ? (
+                    <>
+                      <div className="mb-3 grid gap-2 sm:grid-cols-4">
+                        <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Tip flux</div><strong>{employeeWorkflow.type === 'offboarding' ? 'Offboarding' : 'Onboarding'}</strong></div>
+                        <div className="rounded border border-violet-200 bg-violet-50 p-2 text-sm"><div className="text-xs text-violet-700">Status</div><strong>{employeeWorkflow.status}</strong></div>
+                        <div className="rounded border border-primary-200 bg-primary-50 p-2 text-sm"><div className="text-xs text-primary-700">Progres total</div><strong>{employeeWorkflow.progress?.steps_done || 0}/{employeeWorkflow.progress?.steps_total || 0}</strong></div>
+                        <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">Obligatorii</div><strong>{employeeWorkflow.progress?.required_done || 0}/{employeeWorkflow.progress?.required_total || 0}</strong></div>
+                      </div>
+                      <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-2 rounded-full bg-violet-600" style={{ width: `${employeeWorkflow.progress?.percent || 0}%` }} />
+                      </div>
+                      <div className="grid gap-2">
+                        {(employeeWorkflow.steps || []).map(step => (
+                          <div key={step.key} className={`flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm ${step.done ? 'border-emerald-200 bg-emerald-50' : step.required ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                            <label className="flex min-w-0 flex-1 items-start gap-2">
+                              <input type="checkbox" className="mt-1" checked={Boolean(step.done)} onChange={event => toggleEmployeeWorkflowStep(step, event.target.checked)} />
+                              <span>
+                                <span className="font-semibold text-slate-800">{step.done ? '✅' : step.required ? '⬜' : '▫️'} {step.label}</span>
+                                {step.required ? <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">obligatoriu</span> : <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">opțional</span>}
+                                {step.auto_checked ? <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">detectat automat</span> : null}
+                                <div className="text-xs text-slate-500">{step.description}</div>
+                                {step.completed_at ? <div className="text-xs text-emerald-700">bifat la {String(step.completed_at).slice(0, 16).replace('T', ' ')}</div> : null}
+                              </span>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        {employeeWorkflow.status !== 'completed' ? <Button size="sm" onClick={() => closeEmployeeWorkflow(false)}>Închide ca finalizat</Button> : null}
+                        {!['completed','cancelled'].includes(employeeWorkflow.status) ? <Button size="sm" variant="secondary" onClick={() => closeEmployeeWorkflow(true)}>Anulează flux</Button> : null}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                      Nu există flux activ pentru acest angajat. Pornește onboarding pentru angajare sau offboarding pentru plecare.
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}

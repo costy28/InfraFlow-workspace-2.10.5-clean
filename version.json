@@ -1,5 +1,5 @@
 {
-  "version": "2.12.243",
+  "version": "2.12.244",
   "date": "2026-07-11",
-  "changelog": "## v2.12.243 - 2026-07-11\n### Fisa unica angajat HR\n- Modalul angajatului a fost reorganizat ca profil unic cu taburi interne.\n- Sumarul afiseaza status contract, procent dosar HR, confirmari Kiosk, scadenta urmatoare si CO ramas.\n- Taburi noi pentru date personale, contracte, pontaj si concedii, dosar documente, scadente Kiosk si echipamente.\n- Buton nou de print pentru Fisa angajat HR, utila la audit sau dosar."
+  "changelog": "## v2.12.244 - 2026-07-11\n### Flux onboarding si offboarding HR\n- Endpointuri noi pentru pornire, consultare, bifare pasi si inchidere flux HR per angajat.\n- Fisa angajat are tab nou Onboarding / Offboarding cu progres si checklist ghidat.\n- Pasii sunt precompletati automat din date existente: contracte, dosar, Kiosk, GDPR, apt medical si echipamente.\n- Fluxurile sunt auditate si pot fi finalizate sau anulate controlat."
 }
