@@ -273,6 +273,15 @@ router.post("/hr/advanced-expirations/notify", authorize("hr:manage"), (req, res
   res.json({ created, skipped, targets: users.length, rows: urgentRows.length });
 });
 
+router.post("/hr/notifications/generate", authorize("hr:manage"), (req, res) => {
+  const result = generateHrInboxNotifications(req.auth.db, req.auth.user);
+  if (result.created) {
+    addAudit(req.auth.db, req.auth.user, "hr_notificari_automate_generate", `${result.created} create / ${result.skipped} existente / ${result.tasks} sarcini`);
+    writeDb(req.auth.db);
+  }
+  res.json(result);
+});
+
 router.get("/hr/advanced-expirations/notifications", authorize("hr:manage"), (req, res) => {
   const notifications = hrExpirationNotifications(req.auth.db);
   const open = notifications.filter((item) => item.read !== true && !item.read_at && !item.resolved_at).length;
@@ -1103,6 +1112,61 @@ function hrNotificationUsers(db, fallbackUser) {
     unique.push(user);
   });
   return unique;
+}
+function generateHrInboxNotifications(db, user) {
+  db.notifications = Array.isArray(db.notifications) ? db.notifications : [];
+  const inbox = buildHrInbox(db);
+  const targets = hrNotificationUsers(db, user);
+  const now = new Date().toISOString();
+  const day = now.slice(0, 10);
+  const actionable = inbox.rows.filter((task) => {
+    if (task.severity === "info" && !["kiosk", "dosar"].includes(task.category)) return false;
+    return ["critical", "warning"].includes(task.severity) || ["kiosk", "dosar", "medical", "offboarding"].includes(task.category);
+  }).slice(0, 80);
+  let created = 0;
+  let skipped = 0;
+  const byCategory = {};
+  actionable.forEach((task) => {
+    byCategory[task.category] = (byCategory[task.category] || 0) + 1;
+    targets.forEach((target) => {
+      const key = `hr-auto-${day}-${target.id}-${task.id}`;
+      const stillOpen = db.notifications.some((notification) => notification.key === key && notification.read !== true && !notification.read_at && !notification.resolved_at);
+      if (stillOpen) {
+        skipped += 1;
+        return;
+      }
+      db.notifications.push({
+        id: `notification-${crypto.randomUUID()}`,
+        key,
+        user_id: target.id,
+        type: task.severity === "critical" ? "bad" : "warning",
+        event: "hr_auto_inbox",
+        severity: task.severity === "critical" ? "bad" : "warn",
+        title: task.severity === "critical" ? "Sarcină HR critică" : "Sarcină HR de urmărit",
+        message: `${task.employee_name || "HR"}: ${task.title}`,
+        detail: task.detail || task.category,
+        targetView: "hr",
+        targetLabel: "Deschide HR",
+        roles: ["hr", "manager", "admin", "superadmin"],
+        entity_key: task.id,
+        employee_id: task.employee_id || null,
+        category: task.category,
+        source_action: task.action || "",
+        createdAt: now,
+        created_at: now,
+        read: false
+      });
+      created += 1;
+    });
+  });
+  return {
+    created,
+    skipped,
+    targets: targets.length,
+    tasks: actionable.length,
+    by_category: byCategory,
+    generated_at: now
+  };
 }
 function hrExpirationNotifications(db) {
   const users = Array.isArray(db.users) ? db.users : [];

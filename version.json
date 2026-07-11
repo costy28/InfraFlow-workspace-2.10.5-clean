@@ -1,5 +1,5 @@
 {
-  "version": "2.12.249",
+  "version": "2.12.250",
   "date": "2026-07-11",
-  "changelog": "## v2.12.249 - 2026-07-11\n### Rapoarte management HR\n- Endpoint nou GET /api/hr/management-report pentru sinteza manageriala HR.\n- Export Excel pentru raportul de management HR.\n- Dashboard HR include KPI-uri pentru Inbox, dosare, scadente, concedii, medicale si activitate.\n- Raportul include top lipsuri dosar si activitate pe utilizator HR."
+  "changelog": "## v2.12.250 - 2026-07-11\n### Notificari automate HR\n- Endpoint nou POST /api/hr/notifications/generate pentru notificari HR din Inbox.\n- Generatorul acopera sarcini critice, avertizari, dosare, Kiosk, medicale si offboarding.\n- Deduplicare pe zi, utilizator si sarcina pentru protectie anti-spam.\n- Dashboard HR are buton Genereaza notificari HR si sumar cu create/existente/destinatari."
 }

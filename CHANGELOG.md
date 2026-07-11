@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.250 - 2026-07-11
+
+## Notificari automate HR
+
+- Endpoint nou `POST /api/hr/notifications/generate` pentru notificari HR din Inbox.
+- Generatorul acopera sarcini critice, avertizari, dosare, Kiosk, medicale si offboarding.
+- Deduplicare pe zi, utilizator si sarcina pentru protectie anti-spam.
+- Dashboard HR are buton `Genereaza notificari HR` si sumar cu create/existente/destinatari.
+
 # v2.12.249 - 2026-07-11
 
 ## Rapoarte management HR

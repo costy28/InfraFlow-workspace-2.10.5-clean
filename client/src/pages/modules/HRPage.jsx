@@ -594,6 +594,7 @@ export default function HRPage() {
   })
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
+  const [hrNotificationResult, setHrNotificationResult] = useState(null)
   const [expirationNotifications, setExpirationNotifications] = useState({ notifications: [], summary: {} })
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({})
@@ -1043,6 +1044,18 @@ export default function HRPage() {
       await loadExpirationNotifications()
     } catch (err) {
       setError(err.response?.data?.error || 'Notificările pentru scadențe HR nu au putut fi generate.')
+    }
+  }
+
+  async function generateHrNotifications() {
+    try {
+      const response = await api.post('/hr/notifications/generate')
+      setHrNotificationResult(response.data || {})
+      await loadHrInbox()
+      await loadExpirationNotifications()
+      await loadHrActivity()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Notificările automate HR nu au putut fi generate.')
     }
   }
 
@@ -2707,8 +2720,17 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 <Input type="date" value={hrManagementPeriod.to} onChange={event => setHrManagementPeriod(current => ({ ...current, to: event.target.value }))} />
                 <Button size="sm" variant="secondary" onClick={loadHrManagementReport}>Recalculează</Button>
                 <Button size="sm" onClick={downloadHrManagementReport}>📊 Export Excel</Button>
+                <Button size="sm" onClick={generateHrNotifications}>🔔 Generează notificări HR</Button>
               </div>
             </div>
+            {hrNotificationResult ? (
+              <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                Notificări HR create: <strong>{hrNotificationResult.created || 0}</strong>
+                {' '}· deja existente: <strong>{hrNotificationResult.skipped || 0}</strong>
+                {' '}· sarcini acoperite: <strong>{hrNotificationResult.tasks || 0}</strong>
+                {' '}· destinatari: <strong>{hrNotificationResult.targets || 0}</strong>
+              </div>
+            ) : null}
             {hrManagementReport ? (
               <div className="grid gap-4">
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
