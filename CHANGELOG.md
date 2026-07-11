@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.247 - 2026-07-11
+
+## Rezolvare ghidata Inbox HR
+
+- Sarcinile din Inbox HR transmit tipul de document sugerat si pasul urmator din flux.
+- Dosarul electronic preselecteaza automat tipul documentului lipsa cand se pleaca din Inbox HR.
+- Scadentele si lipsurile de dosar au buton rapid pentru incarcarea documentului corect.
+- Fluxurile HR deschise din Inbox evidentiaza pasul urmator recomandat.
+
 # v2.12.246 - 2026-07-11
 
 ## Inbox HR centralizat

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.246",
+  "version": "2.12.247",
   "date": "2026-07-11",
-  "changelog": "## v2.12.246 - 2026-07-11\n### Inbox HR centralizat\n- Tab nou Inbox HR cu sarcini operative din concedii, concedii medicale, workflow-uri HR, dosar, Kiosk si scadente.\n- Endpoint nou GET /api/hr/inbox pentru agregarea prioritatilor HR.\n- Sarcinile sunt prioritizate pe critic, atentie si info, cu filtre rapide pe categorie.\n- Fiecare sarcina are actiune directa spre concedii, dosar, flux, scadente sau reminder Kiosk."
+  "changelog": "## v2.12.247 - 2026-07-11\n### Rezolvare ghidata Inbox HR\n- Sarcinile din Inbox HR transmit tipul de document sugerat si pasul urmator din flux.\n- Dosarul electronic preselecteaza automat tipul documentului lipsa cand se pleaca din Inbox HR.\n- Scadentele si lipsurile de dosar au buton rapid pentru incarcarea documentului corect.\n- Fluxurile HR deschise din Inbox evidentiaza pasul urmator recomandat."
 }

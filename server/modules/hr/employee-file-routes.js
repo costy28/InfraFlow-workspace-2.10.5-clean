@@ -666,6 +666,8 @@ function buildHrInbox(db) {
       due_date: task.due_date || null,
       action: task.action || "open_employee",
       action_label: task.action_label || "Deschide",
+      suggested_type: task.suggested_type || "",
+      next_step_key: task.next_step_key || "",
       source_id: task.source_id || "",
       created_at: task.created_at || null,
       sort_score: Number(task.sort_score || severityScore(task.severity || "info"))
@@ -718,27 +720,32 @@ function buildHrInbox(db) {
       due_date: workflow.updated_at || workflow.started_at || workflow.created_at || null,
       action: "open_workflow",
       action_label: "Deschide flux",
+      next_step_key: nextRequired?.key || "",
       source_id: workflow.uuid || workflow.id,
       created_at: workflow.created_at,
       sort_score: workflow.type === "offboarding" ? 90 : 65
     });
   });
 
-  dossier.rows.filter((row) => Number(row.missing_required_count || 0) > 0).forEach((row) => pushTask({
-    id: `dossier-missing-${row.employee_id}`,
-    severity: "critical",
-    category: "dosar",
-    title: "Dosar personal incomplet",
-    detail: `Lipsesc: ${(row.missing_required || []).slice(0, 4).join(", ")}`,
-    employee_id: row.employee_id,
-    employee_name: row.nume_complet,
-    marca: row.marca,
-    department_id: row.department_id,
-    department_name: row.department_name,
-    action: "open_dossier",
-    action_label: "Deschide dosar",
-    sort_score: 82 + Number(row.missing_required_count || 0)
-  }));
+  dossier.rows.filter((row) => Number(row.missing_required_count || 0) > 0).forEach((row) => {
+    const firstMissing = (row.missing_required || [])[0] || "Document";
+    pushTask({
+      id: `dossier-missing-${row.employee_id}`,
+      severity: "critical",
+      category: "dosar",
+      title: "Dosar personal incomplet",
+      detail: `Lipsesc: ${(row.missing_required || []).slice(0, 4).join(", ")}`,
+      employee_id: row.employee_id,
+      employee_name: row.nume_complet,
+      marca: row.marca,
+      department_id: row.department_id,
+      department_name: row.department_name,
+      action: "open_dossier",
+      action_label: "Încarcă document",
+      suggested_type: documentTypeFromLabel(firstMissing),
+      sort_score: 82 + Number(row.missing_required_count || 0)
+    });
+  });
 
   dossier.rows.filter((row) => Number(row.pending_ack || 0) > 0).forEach((row) => pushTask({
     id: `dossier-ack-${row.employee_id}`,
@@ -770,6 +777,7 @@ function buildHrInbox(db) {
     due_date: item.date,
     action: "open_expiration",
     action_label: "Deschide fișa",
+    suggested_type: documentTypeFromExpiration(item),
     source_id: item.id,
     sort_score: item.days < 0 ? 88 : item.days <= 30 ? 78 : item.days <= 60 ? 48 : 28
   }));
@@ -813,6 +821,26 @@ function severityScore(severity) {
   if (severity === "critical") return 80;
   if (severity === "warning") return 50;
   return 20;
+}
+function documentTypeFromLabel(label) {
+  const raw = String(label || "").toLowerCase();
+  if (raw.includes("contract") || raw.includes("cim")) return "contract";
+  if (raw.includes("identitate") || raw.includes("ci") || raw.includes("bi")) return "identitate";
+  if (raw.includes("post")) return "fisa_post";
+  if (raw.includes("ssm") || raw.includes("psi")) return "ssm";
+  if (raw.includes("medical") || raw.includes("apt")) return "medical";
+  if (raw.includes("gdpr")) return "gdpr";
+  if (raw.includes("diplom") || raw.includes("calific")) return "diploma";
+  if (raw.includes("aditional") || raw.includes("adițional")) return "act_aditional";
+  return "altul";
+}
+function documentTypeFromExpiration(item) {
+  if (!item) return "altul";
+  if (item.type === "apt_medical") return "medical";
+  if (item.type === "act_identitate" || item.type === "permis") return "identitate";
+  if (String(item.type || "").includes("contract")) return "contract";
+  if (item.type === "document_dosar") return documentTypeFromLabel(item.label);
+  return "altul";
 }
 function collectAdvancedExpirations(db) {
   const hr = db.hr || {};

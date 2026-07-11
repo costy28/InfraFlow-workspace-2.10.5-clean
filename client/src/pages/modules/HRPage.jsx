@@ -252,7 +252,7 @@ function MedicalRegisterCard({ month, register, onExport, onPayroll }) {
   return <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="font-semibold">Registru concedii medicale · {month}</div><div className="text-xs text-slate-500">Calcul propus; baza zilnica se confirma din media ultimelor 6 luni.</div></div><Button size="sm" variant="secondary" onClick={onExport}>📊 Export Excel</Button></div><div className="mb-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Certificate', totals.certificates || 0], ['Zile calendaristice', totals.calendar_days || 0], ['Zile lucratoare', totals.workdays || 0], ['Angajator', totals.employer_days || 0], ['FNUASS', totals.fund_days || 0], ['Neindemnizate', totals.unpaid_days || 0]].map(([label, value]) => <div key={label} className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">{label}</div><strong>{value}</strong></div>)}</div><div className="overflow-auto"><table className="min-w-full text-sm"><thead><tr className="border-b text-left text-xs text-slate-500"><th className="p-2">Angajat</th><th className="p-2">Certificat</th><th className="p-2">Perioada</th><th className="p-2">Cod / %</th><th className="p-2">Zile</th><th className="p-2">Sume</th><th className="p-2">Stare</th><th className="p-2">Actiuni</th></tr></thead><tbody>{rows.map(row => <tr key={row.uuid} className="border-b border-slate-100"><td className="p-2">{row.nume} {row.prenume}</td><td className="p-2">{row.serie}/{row.numar}<div className="text-xs text-slate-400">{row.tip_certificat}</div></td><td className="p-2">{String(row.data_start).slice(0, 10)} — {String(row.data_sfarsit).slice(0, 10)}<div className="text-xs text-slate-400">episod {row.episode_days} zile</div></td><td className="p-2">{row.cod_indemnizatie} / {row.indemnity_percent}%</td><td className="p-2">{row.workdays} lucr.<div className="text-xs text-slate-400">A:{row.employer_days} · F:{row.fund_days} · N:{row.unpaid_days}</div></td><td className="p-2">{row.calculation_status === 'calculat' ? `${Number(row.total_amount).toFixed(2)} lei` : 'Baza lipsa'}<div className="text-xs text-slate-400">A:{Number(row.employer_amount).toFixed(2)} · F:{Number(row.fund_amount).toFixed(2)}</div></td><td className="p-2"><Badge tone={row.status_verificare === 'verificat' ? 'success' : 'warning'}>{row.status_verificare}</Badge>{row.payroll_synced_at ? <div className="mt-1 text-xs text-emerald-700">Trimis salarizare</div> : null}</td><td className="p-2">{row.status_verificare === 'verificat' && !row.payroll_synced_at ? <Button size="sm" onClick={() => onPayroll(row)}>Trimite salarizare</Button> : null}</td></tr>)}{!rows.length ? <tr><td colSpan="8" className="p-6 text-center text-slate-400">Nu exista certificate in luna selectata.</td></tr> : null}</tbody></table></div></Card>
 }
 
-function EmployeeFilesPanel({ employeeId, canManage, onError }) {
+function EmployeeFilesPanel({ employeeId, canManage, onError, suggestedUpload = null, onSuggestionUsed = () => {} }) {
   const [items, setItems] = useState([])
   const [file, setFile] = useState(null)
   const [type, setType] = useState('contract')
@@ -273,6 +273,10 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
     try { const response = await api.get(`/hr/employees/${employeeId}/files`); setItems(response.data?.items || []) } catch (error) { onError(error.response?.data?.error || 'Dosarul electronic nu a putut fi incarcat.') }
   }
   useEffect(() => { if (employeeId) loadFiles() }, [employeeId])
+  useEffect(() => {
+    if (!suggestedUpload?.type) return
+    setType(suggestedUpload.type)
+  }, [suggestedUpload?.type])
   useEffect(() => {
     function onGeneratedFile(event) {
       if (!employeeId || String(event.detail?.employeeId) !== String(employeeId)) return
@@ -339,11 +343,19 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
         <Button size="sm" variant="secondary" onClick={loadFiles}>Reincarca</Button>
       </div>
       {canManage ? (
-        <div className="mb-3 grid gap-2 sm:grid-cols-[180px_1fr_auto]">
-          <Select value={type} onChange={event => setType(event.target.value)} options={fileTypes} />
-          <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" onChange={event => setFile(event.target.files?.[0] || null)} />
-          <Button onClick={uploadFile} disabled={!file || busy}>{busy ? 'Se incarca...' : 'Incarca'}</Button>
-        </div>
+        <>
+          {suggestedUpload ? (
+            <div className="mb-3 rounded border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-800">
+              <div className="font-semibold">Rezolvare ghidată din Inbox HR</div>
+              <div className="text-xs">{suggestedUpload.title || 'Încarcă documentul cerut'}{suggestedUpload.detail ? ` · ${suggestedUpload.detail}` : ''}</div>
+            </div>
+          ) : null}
+          <div className="mb-3 grid gap-2 sm:grid-cols-[180px_1fr_auto]">
+            <Select value={type} onChange={event => setType(event.target.value)} options={fileTypes} />
+            <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" onChange={event => setFile(event.target.files?.[0] || null)} />
+            <Button onClick={async () => { await uploadFile(); onSuggestionUsed() }} disabled={!file || busy}>{busy ? 'Se incarca...' : 'Incarca'}</Button>
+          </div>
+        </>
       ) : null}
       <div className="grid gap-2">
         {items.map(item => (
@@ -571,6 +583,8 @@ export default function HRPage() {
   const [dossierReminderResult, setDossierReminderResult] = useState(null)
   const [hrInbox, setHrInbox] = useState({ rows: [], summary: {} })
   const [hrInboxFilter, setHrInboxFilter] = useState('toate')
+  const [guidedDossierUpload, setGuidedDossierUpload] = useState(null)
+  const [guidedWorkflowStep, setGuidedWorkflowStep] = useState('')
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
   const [expirationNotifications, setExpirationNotifications] = useState({ notifications: [], summary: {} })
@@ -740,6 +754,8 @@ export default function HRPage() {
     setEmployeeEquipment(null)
     setEmployeeContracts([])
     setEmployeeAmendments([])
+    setGuidedDossierUpload(null)
+    setGuidedWorkflowStep('')
     try {
       const [detailsRes, coRes, equipmentRes, transfersRes, contractsRes, amendmentsRes, workflowRes] = await Promise.all([
         api.get(`/hr/employees/${employee.id}`),
@@ -835,6 +851,10 @@ export default function HRPage() {
     try {
       const response = await api.patch(`/hr/employees/${employeeDetails.id}/workflow/steps/${step.key}`, { done })
       setEmployeeWorkflow(response.data?.workflow || null)
+      if (done && guidedWorkflowStep === step.key) {
+        setGuidedWorkflowStep('')
+        loadHrInbox()
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Pasul din flux nu a putut fi actualizat.')
     }
@@ -990,8 +1010,18 @@ export default function HRPage() {
       return
     }
     await openEmployee(employee)
-    if (item.action === 'open_workflow') setEmployeeProfileTab('flux')
-    else if (item.action === 'open_dossier') setEmployeeProfileTab('dosar')
+    if (item.action === 'open_workflow') {
+      setEmployeeProfileTab('flux')
+      setGuidedWorkflowStep(item.next_step_key || '')
+    } else if (item.action === 'open_dossier' || item.action === 'guided_upload') {
+      setEmployeeProfileTab('dosar')
+      setGuidedDossierUpload({
+        type: item.suggested_type || 'altul',
+        title: item.title,
+        detail: item.detail,
+        task_id: item.id
+      })
+    }
     else if (item.action === 'open_expiration') setEmployeeProfileTab('kiosk')
     else setEmployeeProfileTab('date')
   }
@@ -2764,6 +2794,9 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {item.due_date ? <div className="text-right text-xs text-slate-500"><div>Termen/sursă</div><strong>{String(item.due_date).slice(0, 10)}</strong></div> : null}
+                      {['dosar', 'scadente'].includes(item.category) && item.employee_id ? (
+                        <Button size="sm" variant="secondary" onClick={() => openHrInboxTask({ ...item, action: 'guided_upload', action_label: 'Încarcă document' })}>Încarcă document</Button>
+                      ) : null}
                       <Button size="sm" onClick={() => openHrInboxTask(item)}>{item.action_label || 'Deschide'}</Button>
                     </div>
                   </div>
@@ -4093,7 +4126,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               </div>
             ) : null}
 
-            {employeeProfileTab === 'dosar' ? <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} /> : null}
+            {employeeProfileTab === 'dosar' ? <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} suggestedUpload={guidedDossierUpload} onSuggestionUsed={() => { setGuidedDossierUpload(null); loadHrInbox() }} /> : null}
 
             {employeeProfileTab === 'kiosk' ? (
               <div className="grid gap-4">
@@ -4141,7 +4174,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                       </div>
                       <div className="grid gap-2">
                         {(employeeWorkflow.steps || []).map(step => (
-                          <div key={step.key} className={`flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm ${step.done ? 'border-emerald-200 bg-emerald-50' : step.required ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                          <div key={step.key} className={`flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm ${guidedWorkflowStep && guidedWorkflowStep === step.key ? 'ring-2 ring-primary-300' : ''} ${step.done ? 'border-emerald-200 bg-emerald-50' : step.required ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
                             <label className="flex min-w-0 flex-1 items-start gap-2">
                               <input type="checkbox" className="mt-1" checked={Boolean(step.done)} onChange={event => toggleEmployeeWorkflowStep(step, event.target.checked)} />
                               <span>
@@ -4150,6 +4183,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                                 {step.auto_checked ? <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">detectat automat</span> : null}
                                 <div className="text-xs text-slate-500">{step.description}</div>
                                 {step.completed_at ? <div className="text-xs text-emerald-700">bifat la {String(step.completed_at).slice(0, 16).replace('T', ' ')}</div> : null}
+                                {guidedWorkflowStep && guidedWorkflowStep === step.key ? <div className="mt-1 text-xs font-semibold text-primary-700">Pas sugerat din Inbox HR — continuă de aici.</div> : null}
                                 {workflowStepActions(step).length ? (
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     {workflowStepActions(step).map(action => (
