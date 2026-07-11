@@ -127,6 +127,29 @@ router.get("/hr/inbox", authorize("hr:view"), (req, res) => {
   res.json(buildHrInbox(req.auth.db));
 });
 
+router.get("/hr/activity", authorize("hr:view"), (req, res) => {
+  res.json(buildHrActivity(req.auth.db, req.query || {}));
+});
+
+router.get("/hr/activity.xlsx", authorize("hr:view"), (req, res) => {
+  const data = buildHrActivity(req.auth.db, req.query || {});
+  const workbook = xlsx.utils.book_new();
+  appendSheet(workbook, "Jurnal HR", data.rows.map((item) => ({
+    "Data": item.at ? String(item.at).slice(0, 19).replace("T", " ") : "",
+    "Categorie": item.category_label,
+    "Actiune": item.label,
+    "Angajat": item.employee_name || "",
+    "Marca": item.marca || "",
+    "Utilizator": item.user_name || "",
+    "Rol": item.role || "",
+    "Detalii": item.details || ""
+  })));
+  const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename=Jurnal_operational_HR_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  res.end(buffer);
+});
+
 router.get("/hr/advanced-expirations", authorize("hr:view"), (req, res) => {
   const relevant = collectAdvancedExpirations(req.auth.db);
   res.json({ rows: relevant, summary: summarizeExpirations(relevant) });
@@ -816,6 +839,113 @@ function buildHrInbox(db) {
     }, {})
   };
   return { rows: rows.slice(0, 250), summary, generated_at: new Date().toISOString() };
+}
+function buildHrActivity(db, query = {}) {
+  const rows = (Array.isArray(db.audit) ? db.audit : [])
+    .filter((item) => item && String(item.action || "").startsWith("hr_"))
+    .map((item) => normalizeHrAuditEvent(db, item))
+    .filter(Boolean);
+  let filtered = rows;
+  if (query.employee_id) filtered = filtered.filter((item) => String(item.employee_id || "") === String(query.employee_id));
+  if (query.category) filtered = filtered.filter((item) => item.category === String(query.category));
+  if (query.user_id) filtered = filtered.filter((item) => String(item.user_id || "") === String(query.user_id));
+  if (query.from) filtered = filtered.filter((item) => String(item.at || "") >= String(query.from));
+  if (query.to) filtered = filtered.filter((item) => String(item.at || "").slice(0, 10) <= String(query.to).slice(0, 10));
+  filtered = filtered.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const limit = Math.max(1, Math.min(1000, Number(query.limit || 250)));
+  const summary = filtered.reduce((acc, item) => {
+    acc.total += 1;
+    acc.by_category[item.category] = (acc.by_category[item.category] || 0) + 1;
+    acc.by_user[item.user_name || ""] = (acc.by_user[item.user_name || ""] || 0) + 1;
+    return acc;
+  }, { total: 0, by_category: {}, by_user: {} });
+  return { rows: filtered.slice(0, limit), summary, generated_at: new Date().toISOString() };
+}
+function normalizeHrAuditEvent(db, audit) {
+  const action = String(audit.action || "");
+  const details = String(audit.details || "");
+  const meta = hrAuditMeta(action);
+  if (!meta) return null;
+  const employee = findEmployeeFromAudit(db, details);
+  return {
+    id: audit.id || `${action}-${audit.at}-${details}`,
+    at: audit.at || audit.created_at || "",
+    action,
+    label: meta.label,
+    category: meta.category,
+    category_label: meta.categoryLabel,
+    details,
+    user_id: audit.userId || audit.user_id || "",
+    user_name: audit.userName || audit.user_name || "Sistem",
+    role: audit.role || "",
+    employee_id: employee?.id || extractedEmployeeId(details) || null,
+    employee_name: employee ? employeeName(employee) : "",
+    marca: employee?.marca || "",
+    department_id: employee?.department_id || "",
+    department_name: employee?.department_name || employee?.department || ""
+  };
+}
+function hrAuditMeta(action) {
+  const exact = {
+    hr_employee_file_upload: ["dosar", "Dosar", "Document încărcat în dosar"],
+    hr_employee_file_generated: ["dosar", "Dosar", "Document generat în dosar"],
+    hr_employee_file_word_generated: ["dosar", "Dosar", "Document Word generat/arhivat"],
+    hr_employee_file_update: ["dosar", "Dosar", "Document dosar actualizat"],
+    hr_employee_file_cancel: ["dosar", "Dosar", "Document dosar anulat"],
+    hr_employee_file_ack: ["kiosk", "Kiosk", "Document confirmat în Kiosk"],
+    hr_dosar_kiosk_reminder: ["kiosk", "Kiosk", "Reminder Kiosk trimis"],
+    hr_employee_workflow_started: ["workflow", "Workflow", "Flux HR pornit"],
+    hr_employee_workflow_step_updated: ["workflow", "Workflow", "Pas workflow actualizat"],
+    hr_employee_workflow_closed: ["workflow", "Workflow", "Flux HR închis"],
+    hr_leave_created: ["concedii", "Concedii", "Cerere concediu creată"],
+    hr_leave_approved: ["concedii", "Concedii", "Cerere concediu aprobată"],
+    hr_leave_rejected: ["concedii", "Concedii", "Cerere concediu respinsă"],
+    hr_medical_leave_submitted: ["medical", "Medical", "Concediu medical depus"],
+    hr_medical_leave_verified: ["medical", "Medical", "Concediu medical verificat"],
+    hr_medical_leave_rejected: ["medical", "Medical", "Concediu medical respins"],
+    hr_medical_leave_payroll_synced: ["medical", "Medical", "Concediu medical trimis în salarizare"],
+    hr_scadente_notificari_generate: ["scadente", "Scadențe", "Notificări scadențe generate"],
+    hr_scadenta_notificare_rezolvata: ["scadente", "Scadențe", "Scadență marcată rezolvată"],
+    hr_employee_created: ["angajati", "Angajați", "Angajat creat"],
+    hr_employee_updated: ["angajati", "Angajați", "Angajat actualizat"],
+    hr_employee_transferred: ["angajati", "Angajați", "Transfer departament"],
+    hr_contract_created: ["contracte", "Contracte", "Contract creat"],
+    hr_contract_updated: ["contracte", "Contracte", "Contract actualizat"],
+    hr_contract_amendment_create: ["contracte", "Contracte", "Act adițional creat"],
+    hr_timesheets_validated: ["pontaj", "Pontaj", "Pontaj validat"],
+    hr_timesheets_invalidated: ["pontaj", "Pontaj", "Pontaj devalidat"],
+    hr_timesheet_upserted: ["pontaj", "Pontaj", "Pontaj actualizat"],
+    hr_overtime_compensated: ["pontaj", "Pontaj", "Ore suplimentare compensate"],
+    hr_overtime_adjustment: ["pontaj", "Pontaj", "Ajustare bancă de ore"],
+    hr_echipamente_dotare_adaugata: ["echipamente", "Echipamente", "Dotare echipament/inventar"],
+    hr_echipamente_predare_lichidare: ["echipamente", "Echipamente", "Predare echipament la lichidare"],
+    hr_echipamente_marimi_actualizate: ["echipamente", "Echipamente", "Mărimi echipamente actualizate"]
+  };
+  const found = exact[action];
+  if (found) return { category: found[0], categoryLabel: found[1], label: found[2] };
+  if (action.includes("payroll")) return { category: "salarizare", categoryLabel: "Salarizare", label: humanizeHrAction(action) };
+  if (action.includes("training") || action.includes("evaluation")) return { category: "training", categoryLabel: "Training", label: humanizeHrAction(action) };
+  return { category: "alte", categoryLabel: "Alte acțiuni", label: humanizeHrAction(action) };
+}
+function humanizeHrAction(action) {
+  return String(action || "hr").replace(/^hr_/, "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+function findEmployeeFromAudit(db, details) {
+  const employees = Array.isArray(db.hr?.employees) ? db.hr.employees : [];
+  const id = extractedEmployeeId(details);
+  if (id) {
+    const byId = employees.find((employee) => String(employee.id) === String(id));
+    if (byId) return byId;
+  }
+  const normalized = String(details || "").toLowerCase();
+  return employees.find((employee) => {
+    const name = employeeName(employee).toLowerCase();
+    return name && normalized.includes(name);
+  }) || null;
+}
+function extractedEmployeeId(details) {
+  const match = String(details || "").match(/^\s*(\d+)\s*(?:\/|:|$)/);
+  return match ? match[1] : null;
 }
 function severityScore(severity) {
   if (severity === "critical") return 80;

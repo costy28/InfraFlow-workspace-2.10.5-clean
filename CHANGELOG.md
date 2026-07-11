@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.248 - 2026-07-11
+
+## Jurnal operational HR
+
+- Endpoint nou `GET /api/hr/activity` pentru evenimente HR normalizate din audit.
+- Export Excel pentru jurnalul operational HR.
+- Inbox HR include sectiune `Istoric rezolvari` cu filtre pe categorie, angajat si perioada.
+- Fisa angajatului afiseaza un mini timeline cu activitatea HR recenta.
+
 # v2.12.247 - 2026-07-11
 
 ## Rezolvare ghidata Inbox HR

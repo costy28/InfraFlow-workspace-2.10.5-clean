@@ -585,6 +585,8 @@ export default function HRPage() {
   const [hrInboxFilter, setHrInboxFilter] = useState('toate')
   const [guidedDossierUpload, setGuidedDossierUpload] = useState(null)
   const [guidedWorkflowStep, setGuidedWorkflowStep] = useState('')
+  const [hrActivity, setHrActivity] = useState({ rows: [], summary: {} })
+  const [hrActivityFilter, setHrActivityFilter] = useState({ category: '', employee_id: '', from: '', to: '' })
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
   const [expirationNotifications, setExpirationNotifications] = useState({ notifications: [], summary: {} })
@@ -665,7 +667,7 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -677,6 +679,7 @@ export default function HRPage() {
         api.get('/hr/dossier-checklist').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/dossier-dashboard').catch(() => ({ data: { rows: [], summary: {}, expirations_summary: {} } })),
         api.get('/hr/inbox').catch(() => ({ data: { rows: [], summary: {} } })),
+        api.get('/hr/activity').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })),
       ])
@@ -691,6 +694,7 @@ export default function HRPage() {
       setDossierChecklist({ rows: arrayFrom(checklistRes.data, ['rows', 'items']), summary: checklistRes.data?.summary || {} })
       setDossierDashboard({ rows: arrayFrom(dossierDashboardRes.data, ['rows', 'items']), summary: dossierDashboardRes.data?.summary || {}, expirations_summary: dossierDashboardRes.data?.expirations_summary || {} })
       setHrInbox({ rows: arrayFrom(inboxRes.data, ['rows', 'items']), summary: inboxRes.data?.summary || {} })
+      setHrActivity({ rows: arrayFrom(activityRes.data, ['rows', 'items']), summary: activityRes.data?.summary || {} })
       setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
       setExpirationNotifications({ notifications: arrayFrom(expirationNotificationsRes.data, ['notifications', 'items']), summary: expirationNotificationsRes.data?.summary || {} })
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
@@ -739,7 +743,10 @@ export default function HRPage() {
   }, [activeTab])
 
   useEffect(() => {
-    if (activeTab === 'Inbox HR') loadHrInbox()
+    if (activeTab === 'Inbox HR') {
+      loadHrInbox()
+      loadHrActivity()
+    }
   }, [activeTab])
 
   async function openEmployee(employee) {
@@ -807,6 +814,33 @@ export default function HRPage() {
     }
   }
 
+  async function loadHrActivity(extra = {}) {
+    try {
+      const params = { ...hrActivityFilter, ...extra }
+      Object.keys(params).forEach(key => { if (!params[key]) delete params[key] })
+      const response = await api.get('/hr/activity', { params })
+      setHrActivity({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
+    } catch {
+      setError('Jurnalul operațional HR nu a putut fi încărcat.')
+    }
+  }
+
+  async function downloadHrActivity() {
+    try {
+      const params = { ...hrActivityFilter }
+      Object.keys(params).forEach(key => { if (!params[key]) delete params[key] })
+      const response = await api.get('/hr/activity.xlsx', { params, responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Jurnal_operational_HR_${new Date().toISOString().slice(0, 10)}.xlsx`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Exportul jurnalului HR nu a putut fi descărcat.')
+    }
+  }
+
   async function sendDossierReminder(employeeId) {
     try {
       const response = await api.post(`/hr/dossier-dashboard/${employeeId}/reminder`)
@@ -817,6 +851,7 @@ export default function HRPage() {
         await loadDossierDashboard()
       }
       await loadHrInbox()
+      await loadHrActivity()
     } catch (err) {
       setError(err.response?.data?.error || 'Reminderul Kiosk nu a putut fi trimis.')
     }
@@ -854,6 +889,7 @@ export default function HRPage() {
       if (done && guidedWorkflowStep === step.key) {
         setGuidedWorkflowStep('')
         loadHrInbox()
+        loadHrActivity()
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Pasul din flux nu a putut fi actualizat.')
@@ -2543,6 +2579,19 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
     return (advancedExpirations.rows || []).filter(item => String(item.employee_id) === String(employeeDetails.id)).slice().sort((a, b) => Number(a.days || 999) - Number(b.days || 999))
   }, [advancedExpirations.rows, employeeDetails?.id])
 
+  const selectedEmployeeActivity = useMemo(() => {
+    if (!employeeDetails?.id) return []
+    return (hrActivity.rows || []).filter(item => String(item.employee_id || '') === String(employeeDetails.id)).slice(0, 6)
+  }, [hrActivity.rows, employeeDetails?.id])
+
+  const hrActivityCategories = useMemo(() => {
+    const map = new Map()
+    ;(hrActivity.rows || []).forEach(item => {
+      if (item.category) map.set(item.category, item.category_label || item.category)
+    })
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+  }, [hrActivity.rows])
+
   if (tabs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-500">
@@ -2807,6 +2856,47 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                   Inbox HR curat. Nu sunt sarcini pentru filtrul selectat.
                 </div>
               ) : null}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">🧾 Istoric rezolvări / jurnal operațional HR</div>
+                <div className="text-xs text-slate-500">Evenimente HR normalizate pentru audit: documente, Kiosk, concedii, fluxuri, pontaj, contracte și echipamente.</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => loadHrActivity()}>Reîncarcă jurnal</Button>
+                <Button size="sm" onClick={downloadHrActivity}>📊 Export Excel</Button>
+              </div>
+            </div>
+            <div className="mb-3 grid gap-2 md:grid-cols-4">
+              <Select label="Categorie" value={hrActivityFilter.category} onChange={event => setHrActivityFilter(current => ({ ...current, category: event.target.value }))} options={[{ value: '', label: 'Toate categoriile' }, ...hrActivityCategories]} />
+              <Select label="Angajat" value={hrActivityFilter.employee_id} onChange={event => setHrActivityFilter(current => ({ ...current, employee_id: event.target.value }))} options={[{ value: '', label: 'Toți angajații' }, ...employees.map(emp => ({ value: String(emp.id), label: fullName(emp) }))]} />
+              <Input label="De la" type="date" value={hrActivityFilter.from} onChange={event => setHrActivityFilter(current => ({ ...current, from: event.target.value }))} />
+              <Input label="Până la" type="date" value={hrActivityFilter.to} onChange={event => setHrActivityFilter(current => ({ ...current, to: event.target.value }))} />
+            </div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs text-slate-500">Total filtrat: <strong>{hrActivity.summary?.total || 0}</strong></div>
+              <Button size="sm" variant="secondary" onClick={() => loadHrActivity()}>Aplică filtre</Button>
+            </div>
+            <div className="grid gap-2">
+              {(hrActivity.rows || []).slice(0, 40).map(item => (
+                <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{item.category_label || item.category}</span>
+                      <span className="font-semibold text-slate-800">{item.label}</span>
+                    </div>
+                    <div className="text-xs text-slate-500">{item.employee_name || '—'}{item.marca ? ` · marca ${item.marca}` : ''}{item.details ? ` · ${item.details}` : ''}</div>
+                  </div>
+                  <div className="text-right text-xs text-slate-500">
+                    <div>{item.user_name || 'Sistem'}</div>
+                    <strong>{String(item.at || '').slice(0, 16).replace('T', ' ')}</strong>
+                  </div>
+                </div>
+              ))}
+              {!(hrActivity.rows || []).length ? <div className="rounded border border-slate-200 px-3 py-6 text-center text-sm text-slate-400">Nu există evenimente HR pentru filtrele selectate.</div> : null}
             </div>
           </Card>
         </div>
@@ -3895,6 +3985,32 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               <div className={`rounded-lg border p-3 text-sm ${selectedDossierSummary?.pending_ack ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="text-xs">Confirmări Kiosk</div><strong>{selectedDossierSummary?.pending_ack ?? 0}</strong><div className="text-xs">neconfirmate</div></div>
               <div className={`rounded-lg border p-3 text-sm ${selectedEmployeeExpirations[0]?.severity === 'expired' ? 'border-rose-200 bg-rose-50' : selectedEmployeeExpirations[0] ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="text-xs">Următoarea scadență</div><strong>{selectedEmployeeExpirations[0]?.date || '—'}</strong><div className="text-xs">{selectedEmployeeExpirations[0]?.label || 'fără scadențe apropiate'}</div></div>
               <div className={`rounded-lg border p-3 text-sm ${employeeWorkflow && !['completed','cancelled'].includes(employeeWorkflow.status) ? 'border-violet-200 bg-violet-50' : 'border-slate-200'}`}><div className="text-xs text-slate-500">Flux HR</div><strong>{employeeWorkflow ? `${employeeWorkflow.progress?.percent || 0}%` : 'nepornit'}</strong><div className="text-xs text-slate-400">{employeeWorkflow?.type || `CO: ${coBalance ? `${coBalance.zile_ramase} zile` : `${employeeDetails.zile_co_drept ?? 21} / an`}`}</div></div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-800">🕘 Activitate HR recentă</div>
+                  <div className="text-xs text-slate-500">Ultimele acțiuni operaționale legate de acest angajat.</div>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => loadHrActivity({ employee_id: employeeDetails.id })}>Reîncarcă</Button>
+              </div>
+              <div className="grid gap-2">
+                {selectedEmployeeActivity.map(item => (
+                  <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-100 px-3 py-2 text-xs">
+                    <div>
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600">{item.category_label || item.category}</span>
+                      <span className="ml-2 font-semibold text-slate-800">{item.label}</span>
+                      {item.details ? <div className="mt-1 text-slate-500">{item.details}</div> : null}
+                    </div>
+                    <div className="text-right text-slate-500">
+                      <div>{item.user_name || 'Sistem'}</div>
+                      <strong>{String(item.at || '').slice(0, 16).replace('T', ' ')}</strong>
+                    </div>
+                  </div>
+                ))}
+                {!selectedEmployeeActivity.length ? <div className="text-sm text-slate-400">Nu există activitate HR recentă în jurnal pentru acest angajat.</div> : null}
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.247",
+  "version": "2.12.248",
   "date": "2026-07-11",
-  "changelog": "## v2.12.247 - 2026-07-11\n### Rezolvare ghidata Inbox HR\n- Sarcinile din Inbox HR transmit tipul de document sugerat si pasul urmator din flux.\n- Dosarul electronic preselecteaza automat tipul documentului lipsa cand se pleaca din Inbox HR.\n- Scadentele si lipsurile de dosar au buton rapid pentru incarcarea documentului corect.\n- Fluxurile HR deschise din Inbox evidentiaza pasul urmator recomandat."
+  "changelog": "## v2.12.248 - 2026-07-11\n### Jurnal operational HR\n- Endpoint nou GET /api/hr/activity pentru evenimente HR normalizate din audit.\n- Export Excel pentru jurnalul operational HR.\n- Inbox HR include sectiune Istoric rezolvari cu filtre pe categorie, angajat si perioada.\n- Fisa angajatului afiseaza un mini timeline cu activitatea HR recenta."
 }
