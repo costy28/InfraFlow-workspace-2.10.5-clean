@@ -1,5 +1,5 @@
 {
-  "version": "2.12.238",
+  "version": "2.12.240",
   "date": "2026-07-11",
-  "changelog": "## v2.12.238 - 2026-07-11\n### Generare Word din sabloane HR\n- Endpoint nou pentru randarea sabloanelor Word .docx cu variabile completate.\n- Contractele si actele aditionale pot fi descarcate ca Word cand exista sablon atasat.\n- Generatorul valideaza ca documentul contine variabile detectabile si evita rezultate corupte.\n- HTML-ul ramane fallback pentru generarea si arhivarea interna."
+  "changelog": "## v2.12.240 - 2026-07-11\n### Testare sabloane Word HR\n- Endpoint nou pentru validarea sabloanelor Word fara arhivare.\n- Lista de sabloane HR are buton Testeaza Word pentru fisierele .docx atasate.\n- Testul raporteaza variabile detectate, recunoscute, necunoscute si fara valoare.\n- UI-ul permite alegerea unui angajat, contract si act aditional pentru test realist."
 }

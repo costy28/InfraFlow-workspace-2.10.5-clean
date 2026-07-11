@@ -27,13 +27,14 @@ const { applyCompensatedHours } = require('./timesheet-compensation')
 const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
 const HR_TEMPLATE_ROOT = path.join(__dirname, '../../../storage/hr-templates')
+const HR_FILE_ROOT = path.join(__dirname, '../../../storage/hr-files')
 const upload = multer({
   dest: path.join(__dirname, '../../../storage/temp/'),
   limits: { fileSize: 10 * 1024 * 1024 }
 })
 
 // Asigură existența directoarelor de storage la pornire
-;['storage/angajati', 'storage/temp', 'storage/documente', 'storage/hr-templates'].forEach(dir => {
+;['storage/angajati', 'storage/temp', 'storage/documente', 'storage/hr-templates', 'storage/hr-files'].forEach(dir => {
   const p = path.join(__dirname, '../../../', dir)
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true })
 })
@@ -2991,46 +2992,83 @@ router.get('/hr/document-templates/:id/render-word', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:view')) return
-    const db = readDb()
-    const hr = ensureHrDb(db)
     const templateId = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
+    const rendered = renderHrWordDocument(auth, templateId, req.query)
+    addAudit(rendered.db, auth.user, 'hr_document_template_word_render', `${templateId} / ${rendered.employee.id}`)
+    writeDb(rendered.db)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.setHeader('Content-Disposition', `attachment; filename="${rendered.baseName}.docx"`)
+    res.end(rendered.buffer)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/hr/document-templates/:id/render-word/archive', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:manage')) return
+    const templateId = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
+    const rendered = renderHrWordDocument(auth, templateId, req.body || {})
+    const files = ensureEmployeeFiles(rendered.db)
+    const folder = path.join(HR_FILE_ROOT, `employee_${safeSegment(rendered.employee.id)}`)
+    fs.mkdirSync(folder, { recursive: true })
+    const uuid = crypto.randomUUID()
+    const storedName = `${uuid}.docx`
+    fs.writeFileSync(path.join(folder, storedName), rendered.buffer)
+    const tip = String(req.body?.tip || (templateId === 'act_aditional' ? 'act_aditional' : 'contract')).slice(0, 50)
+    const denumire = String(req.body?.denumire || rendered.displayName || 'Document HR Word generat').slice(0, 200)
+    const item = {
+      id: nextId(files),
+      uuid,
+      employee_id: String(rendered.employee.id),
+      tip,
+      denumire,
+      file_name: `${safeDocxName(denumire)}.docx`,
+      stored_name: storedName,
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      file_size: rendered.buffer.length,
+      data_document: req.body?.data_document || todayIso(),
+      data_expirare: req.body?.data_expirare || null,
+      generated: true,
+      generated_source: String(req.body?.source || `word-template:${templateId}`).slice(0, 80),
+      requires_ack: req.body?.requires_ack !== false,
+      kiosk_visible: req.body?.kiosk_visible !== false,
+      uploaded_by: auth.user.id,
+      created_at: new Date().toISOString()
+    }
+    files.push(item)
+    addAudit(rendered.db, auth.user, 'hr_employee_file_word_generated', `${rendered.employee.id} / ${item.tip} / ${item.denumire}`)
+    writeDb(rendered.db)
+    res.status(201).json({ item })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/hr/document-templates/:id/validate-word', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:view')) return
+    const templateId = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
+    const db = readDb()
     const template = findHrDocumentTemplateForRender(db, templateId)
     if (!template?.word_template_file) return sendJson(res, 404, { error: 'Nu există șablon Word încărcat pentru acest document.', code: 'HR_TEMPLATE_WORD_NOT_FOUND' })
     const absolute = resolveStoredHrTemplateFile(template.word_template_file)
     if (!absolute || !fs.existsSync(absolute)) return sendJson(res, 404, { error: 'Fișierul Word nu a fost găsit în storage.', code: 'HR_TEMPLATE_WORD_FILE_MISSING' })
-
-    const employeeId = req.query.employee_id || req.query.employeeId || req.query.angajat_id || req.query.angajatId
-    let employee = null
-    let contract = null
-    let amendment = null
-    if (isMssqlMode()) {
-      employee = employeeId ? mssqlObject(`SELECT TOP 1 * FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) FOR JSON PATH;`, { employeeId }) : null
-      contract = req.query.contract_id ? mssqlObject(`SELECT TOP 1 * FROM hr.contracts WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.contractId')) FOR JSON PATH;`, { contractId: req.query.contract_id }) : null
-      amendment = req.query.amendment_id ? mssqlObject(`SELECT TOP 1 * FROM hr.contract_amendments WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.amendmentId')) FOR JSON PATH;`, { amendmentId: req.query.amendment_id }) : null
-    } else {
-      employee = employeeId ? hr.employees.find((item) => String(item.id) === String(employeeId)) : null
-      contract = req.query.contract_id ? hr.contracts.find((item) => String(item.id) === String(req.query.contract_id)) : null
-      amendment = req.query.amendment_id ? hr.contractAmendments.find((item) => String(item.id) === String(req.query.amendment_id)) : null
-    }
-    if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost găsit pentru generarea Word.', code: 'HR_EMPLOYEE_NOT_FOUND' })
-    if (req.query.contract_id && !contract) return sendJson(res, 404, { error: 'Contractul nu a fost găsit pentru generarea Word.', code: 'HR_CONTRACT_NOT_FOUND' })
-    if (req.query.amendment_id && !amendment) return sendJson(res, 404, { error: 'Actul adițional nu a fost găsit pentru generarea Word.', code: 'HR_AMENDMENT_NOT_FOUND' })
-    if (contract && String(contract.employee_id || '') !== String(employee.id)) return sendJson(res, 409, { error: 'Contractul selectat nu aparține angajatului.', code: 'HR_CONTRACT_EMPLOYEE_MISMATCH' })
-    if (amendment && contract && String(amendment.contract_id || '') !== String(contract.id)) return sendJson(res, 409, { error: 'Actul adițional nu aparține contractului selectat.', code: 'HR_AMENDMENT_CONTRACT_MISMATCH' })
-    if (!contract) {
-      contract = isMssqlMode()
-        ? mssqlObject(`SELECT TOP 1 * FROM hr.contracts WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) AND ISNULL(status,N'activ')<>N'incetat' ORDER BY data_start DESC FOR JSON PATH;`, { employeeId: employee.id })
-        : activeContractFor(hr, employee.id)
-    }
-
-    const data = buildHrWordTemplateData(db, auth, employee, contract, amendment, templateId)
-    const rendered = renderDocxTemplate(absolute, data)
-    const baseName = safeDocxName(`${template.denumire || templateId}-${employee.prenume || ''}-${employee.nume || ''}-${todayIso()}`)
-    addAudit(db, auth.user, 'hr_document_template_word_render', `${templateId} / ${employee.id}`)
-    writeDb(db)
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-    res.setHeader('Content-Disposition', `attachment; filename="${baseName}.docx"`)
-    res.end(rendered)
+    const sample = renderHrWordDocument(auth, templateId, req.query || {}, { dryRun: true })
+    const analysis = analyzeDocxTemplate(absolute, sample.data)
+    const status = analysis.detected_count > 0 && analysis.unknown.length === 0 ? 'ok' : 'warning'
+    sendJson(res, 200, {
+      status,
+      template: { id: template.id, denumire: template.denumire, word_template_original_name: template.word_template_original_name },
+      employee: sample.employee ? { id: sample.employee.id, nume: sample.employee.nume, prenume: sample.employee.prenume, marca: sample.employee.marca } : null,
+      contract: sample.contract ? { id: sample.contract.id, numar_contract: sample.contract.numar_contract } : null,
+      amendment: sample.amendment ? { id: sample.amendment.id, numar_act: sample.amendment.numar_act } : null,
+      ...analysis
+    })
   } catch (error) {
     next(error)
   }
@@ -3235,6 +3273,89 @@ FROM hr.document_templates WHERE id=JSON_VALUE(@p,'$.id') FOR JSON PATH;`, { id 
   return fallback ? normalizeTemplatePublic({ ...fallback, system_default: true }) : null
 }
 
+function renderHrWordDocument(auth, templateId, params = {}, options = {}) {
+  const db = readDb()
+  const hr = ensureHrDb(db)
+  const template = findHrDocumentTemplateForRender(db, templateId)
+  if (!template?.word_template_file) {
+    const error = new Error('Nu există șablon Word încărcat pentru acest document.')
+    error.status = 404
+    error.code = 'HR_TEMPLATE_WORD_NOT_FOUND'
+    throw error
+  }
+  const absolute = resolveStoredHrTemplateFile(template.word_template_file)
+  if (!absolute || !fs.existsSync(absolute)) {
+    const error = new Error('Fișierul Word nu a fost găsit în storage.')
+    error.status = 404
+    error.code = 'HR_TEMPLATE_WORD_FILE_MISSING'
+    throw error
+  }
+  const employeeId = params.employee_id || params.employeeId || params.angajat_id || params.angajatId
+  let employee = null
+  let contract = null
+  let amendment = null
+  if (isMssqlMode()) {
+    employee = employeeId ? mssqlObject(`SELECT TOP 1 * FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) FOR JSON PATH;`, { employeeId }) : null
+    contract = params.contract_id ? mssqlObject(`SELECT TOP 1 * FROM hr.contracts WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.contractId')) FOR JSON PATH;`, { contractId: params.contract_id }) : null
+    amendment = params.amendment_id ? mssqlObject(`SELECT TOP 1 * FROM hr.contract_amendments WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.amendmentId')) FOR JSON PATH;`, { amendmentId: params.amendment_id }) : null
+  } else {
+    employee = employeeId ? hr.employees.find((item) => String(item.id) === String(employeeId)) : null
+    contract = params.contract_id ? hr.contracts.find((item) => String(item.id) === String(params.contract_id)) : null
+    amendment = params.amendment_id ? hr.contractAmendments.find((item) => String(item.id) === String(params.amendment_id)) : null
+  }
+  if (!employee) {
+    const error = new Error('Angajatul nu a fost găsit pentru generarea Word.')
+    error.status = 404
+    error.code = 'HR_EMPLOYEE_NOT_FOUND'
+    throw error
+  }
+  if (params.contract_id && !contract) {
+    const error = new Error('Contractul nu a fost găsit pentru generarea Word.')
+    error.status = 404
+    error.code = 'HR_CONTRACT_NOT_FOUND'
+    throw error
+  }
+  if (params.amendment_id && !amendment) {
+    const error = new Error('Actul adițional nu a fost găsit pentru generarea Word.')
+    error.status = 404
+    error.code = 'HR_AMENDMENT_NOT_FOUND'
+    throw error
+  }
+  if (contract && String(contract.employee_id || '') !== String(employee.id)) {
+    const error = new Error('Contractul selectat nu aparține angajatului.')
+    error.status = 409
+    error.code = 'HR_CONTRACT_EMPLOYEE_MISMATCH'
+    throw error
+  }
+  if (amendment && contract && String(amendment.contract_id || '') !== String(contract.id)) {
+    const error = new Error('Actul adițional nu aparține contractului selectat.')
+    error.status = 409
+    error.code = 'HR_AMENDMENT_CONTRACT_MISMATCH'
+    throw error
+  }
+  if (!contract) {
+    contract = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 * FROM hr.contracts WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) AND ISNULL(status,N'activ')<>N'incetat' ORDER BY data_start DESC FOR JSON PATH;`, { employeeId: employee.id })
+      : activeContractFor(hr, employee.id)
+  }
+  const data = buildHrWordTemplateData(db, auth, employee, contract, amendment, templateId)
+  if (options.dryRun) {
+    return { db, template, employee, contract, amendment, data, displayName: `${template.denumire || templateId} ${employee.prenume || ''} ${employee.nume || ''}`.trim() }
+  }
+  const buffer = renderDocxTemplate(absolute, data)
+  const displayName = params.denumire || `${template.denumire || templateId} ${employee.prenume || ''} ${employee.nume || ''}`.trim()
+  return {
+    db,
+    template,
+    employee,
+    contract,
+    amendment,
+    buffer,
+    displayName,
+    baseName: safeDocxName(`${displayName}-${todayIso()}`)
+  }
+}
+
 function buildHrWordTemplateData(db, auth, employee, contract = {}, amendment = null, templateId = '') {
   const company = publicCompanySettings(companySettings(db))
   const today = todayIso()
@@ -3314,6 +3435,46 @@ function renderDocxTemplate(filePath, data) {
   return zip.toBuffer()
 }
 
+function analyzeDocxTemplate(filePath, data) {
+  const zip = new AdmZip(filePath)
+  if (!zip.getEntry('word/document.xml')) {
+    const error = new Error('Fișierul încărcat nu pare să fie un document Word .docx valid.')
+    error.status = 422
+    error.code = 'HR_TEMPLATE_WORD_INVALID'
+    throw error
+  }
+  const replacements = flattenTemplateData(data)
+  const knownKeys = new Set(Object.keys(replacements))
+  const detected = []
+  zip.getEntries().forEach((entry) => {
+    if (entry.isDirectory || !/^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i.test(entry.entryName)) return
+    const xml = entry.getData().toString('utf8')
+    for (const match of xml.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)) {
+      detected.push(match[1])
+    }
+  })
+  const unique = Array.from(new Set(detected)).sort()
+  const unknown = unique.filter((key) => !knownKeys.has(key))
+  const resolved = unique.filter((key) => knownKeys.has(key))
+  const missing_values = resolved.filter((key) => {
+    const value = replacements[key]
+    return value === undefined || value === null || value === ''
+  })
+  const warnings = []
+  if (!unique.length) warnings.push('Nu am găsit variabile detectabile. Verifică să fie scrise continuu, de exemplu {{angajat.nume}}, fără formatare aplicată pe bucăți.')
+  if (unknown.length) warnings.push(`Variabile necunoscute: ${unknown.join(', ')}`)
+  if (missing_values.length) warnings.push(`Variabile fără valoare pentru exemplul ales: ${missing_values.join(', ')}`)
+  return {
+    detected_variables: unique,
+    detected_count: unique.length,
+    resolved,
+    unknown,
+    missing_values,
+    warnings,
+    available_count: knownKeys.size
+  }
+}
+
 function flattenTemplateData(data, prefix = '', out = {}) {
   Object.entries(data || {}).forEach(([key, value]) => {
     const pathKey = prefix ? `${prefix}.${key}` : key
@@ -3351,6 +3512,12 @@ function safeDocxName(value) {
     .replace(/[^a-zA-Z0-9_.-]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 120) || 'document-hr'
+}
+
+function ensureEmployeeFiles(db) {
+  db.hr = db.hr || {}
+  db.hr.employeeFiles = Array.isArray(db.hr.employeeFiles) ? db.hr.employeeFiles : []
+  return db.hr.employeeFiles
 }
 
 function applyContractAmendmentJson(employee, contract, amendment) {

@@ -381,7 +381,7 @@ function EmployeeFilesPanel({ employeeId, canManage, onError }) {
   )
 }
 
-function EmployeeContractsPanel({ employeeId, contracts, amendments, departments, canManage, onReload, onError, onPrintContract, onPrintAmendment, onGenerateContractWord, onGenerateAmendmentWord, documentTemplates = [] }) {
+function EmployeeContractsPanel({ employeeId, contracts, amendments, departments, canManage, onReload, onError, onPrintContract, onPrintAmendment, onGenerateContractWord, onGenerateAmendmentWord, onArchiveContractWord, onArchiveAmendmentWord, documentTemplates = [] }) {
   const [editing, setEditing] = useState(null)
   const [amendment, setAmendment] = useState(null)
   const hasCimWordTemplate = documentTemplates.some(item => item.id === 'cim' && item.word_template_file)
@@ -464,6 +464,7 @@ function EmployeeContractsPanel({ employeeId, contracts, amendments, departments
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => onPrintContract?.(contract)}>Genereaza</Button>
                 {hasCimWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onGenerateContractWord?.(contract)}>Word</Button> : null}
+                {hasCimWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onArchiveContractWord?.(contract)}>Arhivează Word</Button> : null}
                 {canManage ? <><Button size="sm" variant="secondary" onClick={() => openAmendment(contract)}>Act aditional</Button><Button size="sm" variant="secondary" onClick={() => openEdit(contract)}>Editeaza</Button></> : null}
               </div>
             </div>
@@ -473,7 +474,7 @@ function EmployeeContractsPanel({ employeeId, contracts, amendments, departments
               <div>Norma: {contract.norma_ore || 8} ore/zi</div>
               <div>Salariu: {contract.salariu_baza ? `${Number(contract.salariu_baza).toLocaleString('ro-RO')} RON` : '-'}</div>
             </div>
-            {byContract(contract.id).length ? <div className="mt-2 rounded bg-white/70 p-2 text-xs"><div className="mb-1 font-semibold text-slate-600">Istoric acte adiționale</div>{byContract(contract.id).map(item => <div key={item.id || item.uuid} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-1"><span>{item.numar_act || `Act #${item.id}`} · {item.tip} · efect {String(item.data_efect || '').slice(0, 10)}</span><span className="text-slate-500">{item.salariu_baza ? `salariu ${Number(item.salariu_baza).toLocaleString('ro-RO')} RON` : ''}{item.norma_ore ? ` norma ${item.norma_ore}h` : ''}{item.functia ? ` ${item.functia}` : ''}{item.status_contract ? ` ${item.status_contract}` : ''}</span><div className="flex gap-1"><Button size="sm" variant="secondary" onClick={() => onPrintAmendment?.(item, contract)}>Genereaza act</Button>{hasActWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onGenerateAmendmentWord?.(item, contract)}>Word</Button> : null}</div></div>)}</div> : null}
+            {byContract(contract.id).length ? <div className="mt-2 rounded bg-white/70 p-2 text-xs"><div className="mb-1 font-semibold text-slate-600">Istoric acte adiționale</div>{byContract(contract.id).map(item => <div key={item.id || item.uuid} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-1"><span>{item.numar_act || `Act #${item.id}`} · {item.tip} · efect {String(item.data_efect || '').slice(0, 10)}</span><span className="text-slate-500">{item.salariu_baza ? `salariu ${Number(item.salariu_baza).toLocaleString('ro-RO')} RON` : ''}{item.norma_ore ? ` norma ${item.norma_ore}h` : ''}{item.functia ? ` ${item.functia}` : ''}{item.status_contract ? ` ${item.status_contract}` : ''}</span><div className="flex gap-1"><Button size="sm" variant="secondary" onClick={() => onPrintAmendment?.(item, contract)}>Genereaza act</Button>{hasActWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onGenerateAmendmentWord?.(item, contract)}>Word</Button> : null}{hasActWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onArchiveAmendmentWord?.(item, contract)}>Arhivează</Button> : null}</div></div>)}</div> : null}
           </div>
         ))}
         {!contracts.length ? <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Nu exista contract operational. Incarcarea PDF-ului in dosar nu creeaza automat contract salarial.</div> : null}
@@ -557,6 +558,9 @@ export default function HRPage() {
   const [templateEditing, setTemplateEditing] = useState(null)
   const [templateAdvancedMode, setTemplateAdvancedMode] = useState(false)
   const [templateWordUploading, setTemplateWordUploading] = useState('')
+  const [templateTesting, setTemplateTesting] = useState(null)
+  const [templateTestForm, setTemplateTestForm] = useState({ employee_id: '', contract_id: '', amendment_id: '' })
+  const [templateTestResult, setTemplateTestResult] = useState(null)
   const [dossierChecklist, setDossierChecklist] = useState({ rows: [], summary: {} })
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
@@ -882,6 +886,40 @@ export default function HRPage() {
       URL.revokeObjectURL(url)
     } catch (err) {
       setError(err.response?.data?.error || 'Șablonul Word nu a putut fi descărcat.')
+    }
+  }
+
+  function openTemplateWordTest(template) {
+    const firstEmployee = employees[0]
+    const employeeContracts = firstEmployee ? employeeContractsFor(firstEmployee.id) : []
+    setTemplateTesting(template)
+    setTemplateTestForm({
+      employee_id: firstEmployee?.id || '',
+      contract_id: employeeContracts[0]?.id || '',
+      amendment_id: ''
+    })
+    setTemplateTestResult(null)
+  }
+
+  function employeeContractsFor(employeeId) {
+    return (employees.find(emp => String(emp.id) === String(employeeId))?.contracte_active || [])
+      .concat(employeeContracts.filter(contract => String(contract.employee_id) === String(employeeId)))
+      .filter((item, index, arr) => arr.findIndex(other => String(other.id) === String(item.id)) === index)
+  }
+
+  function employeeAmendmentsFor(contractId) {
+    return employeeAmendments.filter(item => String(item.contract_id) === String(contractId))
+  }
+
+  async function runTemplateWordTest(event) {
+    event.preventDefault()
+    if (!templateTesting) return
+    try {
+      const response = await api.get(`/hr/document-templates/${templateTesting.id}/validate-word`, { params: templateTestForm })
+      setTemplateTestResult(response.data)
+    } catch (err) {
+      setTemplateTestResult(null)
+      setError(err.response?.data?.error || 'Șablonul Word nu a putut fi testat.')
     }
   }
 
@@ -1325,6 +1363,44 @@ ${contract.data_sfarsit || emp.data_expirare_contract ? `<p>Data încetării (de
       }, `Act_aditional_${amendment.numar_act || amendment.id || employeeDetails.marca}.docx`)
     } catch (err) {
       setError(err.response?.data?.error || 'Documentul Word pentru actul adițional nu a putut fi generat.')
+    }
+  }
+
+  async function archiveContractWord(contract) {
+    try {
+      await api.post('/hr/document-templates/cim/render-word/archive', {
+        employee_id: employeeDetails.id,
+        contract_id: contract.id,
+        tip: 'contract',
+        denumire: `CIM ${contract.numar_contract || employeeDetails.marca || employeeDetails.id}`,
+        data_document: String(contract.data_contract || new Date().toISOString()).slice(0, 10),
+        source: `word-contract:${contract.id || ''}`,
+        requires_ack: true,
+        kiosk_visible: true
+      })
+      await openEmployee(employeeDetails)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul Word nu a putut fi arhivat în dosar.')
+    }
+  }
+
+  async function archiveAmendmentWord(amendment, contract) {
+    try {
+      const title = amendment.tip === 'incetare' ? 'Decizie încetare' : amendment.tip === 'suspendare' ? 'Act suspendare' : 'Act adițional'
+      await api.post('/hr/document-templates/act_aditional/render-word/archive', {
+        employee_id: employeeDetails.id,
+        contract_id: contract?.id || amendment.contract_id,
+        amendment_id: amendment.id,
+        tip: amendment.tip === 'incetare' ? 'decizie_incetare' : 'act_aditional',
+        denumire: `${title} ${amendment.numar_act || amendment.id || ''}`.trim(),
+        data_document: String(amendment.data_act || new Date().toISOString()).slice(0, 10),
+        source: `word-contract-amendment:${amendment.id || amendment.uuid || ''}`,
+        requires_ack: true,
+        kiosk_visible: true
+      })
+      await openEmployee(employeeDetails)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Actul adițional Word nu a putut fi arhivat în dosar.')
     }
   }
 
@@ -2986,6 +3062,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                     </div>
                     <div className="flex flex-wrap justify-end gap-1">
                       {template.word_template_file ? <Button size="sm" variant="secondary" onClick={() => downloadTemplateWordFile(template)}>Descarcă Word</Button> : null}
+                      {template.word_template_file ? <Button size="sm" variant="secondary" onClick={() => openTemplateWordTest(template)}>Testează Word</Button> : null}
                       {hasPermission('hr:manage') ? <Button size="sm" variant="secondary" loading={templateWordUploading === template.id} onClick={() => chooseTemplateWordFile(template)}>{template.word_template_file ? 'Înlocuiește Word' : 'Încarcă Word'}</Button> : null}
                       {hasPermission('hr:manage') ? <Button size="sm" variant="secondary" onClick={() => startTemplateEditing(template)}>Editează text</Button> : null}
                     </div>
@@ -3218,12 +3295,61 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         ) : null}
       </Modal>
 
+      <Modal open={Boolean(templateTesting)} title={templateTesting ? `Testează Word — ${templateTesting.denumire}` : 'Testează șablon Word'} onClose={() => setTemplateTesting(null)} size="md">
+        {templateTesting ? (
+          <form className="grid gap-3" onSubmit={runTemplateWordTest}>
+            <div className="rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+              Testul nu arhivează nimic. Verifică dacă variabilele din documentul Word pot fi detectate și completate pentru un exemplu real.
+            </div>
+            <Select
+              label="Angajat test"
+              value={templateTestForm.employee_id}
+              onChange={event => {
+                const employeeId = event.target.value
+                const contracts = employeeContractsFor(employeeId)
+                setTemplateTestForm({ employee_id: employeeId, contract_id: contracts[0]?.id || '', amendment_id: '' })
+                setTemplateTestResult(null)
+              }}
+              options={employees.map(emp => ({ value: emp.id, label: `${fullName(emp)}${emp.marca ? ` · ${emp.marca}` : ''}` }))}
+            />
+            <Select
+              label="Contract test"
+              value={templateTestForm.contract_id}
+              onChange={event => setTemplateTestForm(current => ({ ...current, contract_id: event.target.value, amendment_id: '' }))}
+              options={[{ value: '', label: 'Contract activ automat' }, ...employeeContractsFor(templateTestForm.employee_id).map(contract => ({ value: contract.id, label: `${contract.numar_contract || `Contract #${contract.id}`} · ${String(contract.data_start || contract.data_contract || '').slice(0, 10) || '-'}` }))]}
+            />
+            {templateTesting.id === 'act_aditional' ? (
+              <Select
+                label="Act adițional test"
+                value={templateTestForm.amendment_id}
+                onChange={event => setTemplateTestForm(current => ({ ...current, amendment_id: event.target.value }))}
+                options={[{ value: '', label: 'Fără act specific' }, ...employeeAmendmentsFor(templateTestForm.contract_id).map(item => ({ value: item.id, label: `${item.numar_act || `Act #${item.id}`} · ${item.tip} · ${String(item.data_efect || '').slice(0, 10)}` }))]}
+              />
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setTemplateTesting(null)}>Închide</Button>
+              <Button type="submit">Rulează test</Button>
+            </div>
+            {templateTestResult ? (
+              <div className={`rounded-lg border p-3 text-sm ${templateTestResult.status === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                <div className="mb-2 font-semibold">{templateTestResult.status === 'ok' ? 'OK — șablonul poate fi folosit' : 'Atenție — verifică șablonul Word'}</div>
+                <div>Variabile detectate: <strong>{templateTestResult.detected_count || 0}</strong></div>
+                {templateTestResult.resolved?.length ? <div className="mt-2 text-xs">Recunoscute: {templateTestResult.resolved.join(', ')}</div> : null}
+                {templateTestResult.unknown?.length ? <div className="mt-2 text-xs text-rose-700">Necunoscute: {templateTestResult.unknown.join(', ')}</div> : null}
+                {templateTestResult.missing_values?.length ? <div className="mt-2 text-xs text-amber-700">Fără valoare în exemplu: {templateTestResult.missing_values.join(', ')}</div> : null}
+                {templateTestResult.warnings?.length ? <ul className="mt-2 list-disc pl-5 text-xs">{templateTestResult.warnings.map((item, index) => <li key={index}>{item}</li>)}</ul> : null}
+              </div>
+            ) : null}
+          </form>
+        ) : null}
+      </Modal>
+
       {/* ─── MODAL FIȘA ANGAJAT ───────────────────────────── */}
       <Modal open={Boolean(selectedEmployee)} title={selectedEmployee ? `Fișa — ${fullName(selectedEmployee)}` : ''} onClose={() => setSelectedEmployee(null)} size="lg">
         {employeeDetails ? (
           <div className="grid gap-4">
             <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} />
-            <EmployeeContractsPanel employeeId={employeeDetails.id} contracts={employeeContracts} amendments={employeeAmendments} departments={departments} canManage={hasPerm('hr:manage')} onReload={() => reloadEmployeeContracts(employeeDetails.id)} onError={setError} onPrintContract={printOperationalContract} onPrintAmendment={printOperationalAmendment} onGenerateContractWord={generateContractWord} onGenerateAmendmentWord={generateAmendmentWord} documentTemplates={hrDocumentTemplates} />
+            <EmployeeContractsPanel employeeId={employeeDetails.id} contracts={employeeContracts} amendments={employeeAmendments} departments={departments} canManage={hasPerm('hr:manage')} onReload={() => reloadEmployeeContracts(employeeDetails.id)} onError={setError} onPrintContract={printOperationalContract} onPrintAmendment={printOperationalAmendment} onGenerateContractWord={generateContractWord} onGenerateAmendmentWord={generateAmendmentWord} onArchiveContractWord={archiveContractWord} onArchiveAmendmentWord={archiveAmendmentWord} documentTemplates={hrDocumentTemplates} />
             {/* Photo + basic info */}
             <div className="flex items-start gap-4">
               <div className="relative flex-shrink-0">

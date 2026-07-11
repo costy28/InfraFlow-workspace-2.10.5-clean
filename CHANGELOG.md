@@ -1,5 +1,23 @@
 # Changelog
 
+# v2.12.240 - 2026-07-11
+
+## Testare sabloane Word HR
+
+- Endpoint nou pentru validarea sabloanelor Word fara arhivare.
+- Lista de sabloane HR are buton `Testeaza Word` pentru fisierele `.docx` atasate.
+- Testul raporteaza variabile detectate, recunoscute, necunoscute si fara valoare.
+- UI-ul permite alegerea unui angajat, contract si act aditional pentru test realist.
+
+# v2.12.239 - 2026-07-11
+
+## Arhivare Word generat in dosar HR
+
+- Endpoint nou pentru generare si arhivare Word in dosarul electronic al angajatului.
+- CIM-urile si actele aditionale Word pot fi arhivate direct din panoul de contracte.
+- Documentele arhivate sunt vizibile in dosar si in Kiosk pentru confirmare.
+- Download-ul Word si arhivarea folosesc acelasi motor de randare.
+
 # v2.12.238 - 2026-07-11
 
 ## Generare Word din sabloane HR
