@@ -833,6 +833,71 @@ export default function HRPage() {
     }
   }
 
+  function openEquipmentAction() {
+    setEmployeeProfileTab('echipamente')
+    if (!canManageEquipment || !employeeDetails?.id) return
+    const first = employeeEquipment?.marimi?.[0]
+    setDotareForm({
+      angajat_id: employeeDetails.id,
+      tip_id: first?.id || '',
+      marime: first?.marime || '',
+      numar_serie: '',
+      valoare_inventar: first?.valoare_inventar || '',
+      data_dotare: new Date().toISOString().slice(0, 10),
+      cantitate: 1,
+      stare: 'nou',
+      observatii: ''
+    })
+    setDotareModal(true)
+  }
+
+  async function generateWorkflowHrDocument(kind) {
+    if (!employeeDetails?.id) return
+    try {
+      const response = await api.get(`/hr/employees/${employeeDetails.id}/adeverinta`, { params: { tip: kind === 'vechime' ? 'vechime' : 'salariat' } })
+      if (kind === 'fisa_post') printFisaPost(response.data)
+      else if (kind === 'gdpr') printNotaGDPR(response.data)
+      else if (kind === 'nota_lichidare') {
+        const equipment = await api.get(`/hr/echipamente/angajat/${employeeDetails.id}`).catch(() => ({ data: {} }))
+        printNotaLichidare({ ...response.data, inventar: equipment.data?.inventar || {} })
+      } else if (kind === 'vechime') {
+        printAdeverinta(response.data)
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul HR nu a putut fi generat.')
+    }
+  }
+
+  function workflowStepActions(step) {
+    const firstContract = employeeContracts[0]
+    const actions = {
+      date_personale: [{ label: 'Editează date', run: () => { setEmployeeProfileTab('date'); setEditMode(true) } }],
+      cont_kiosk: [{ label: 'Asociază cont', run: () => { setEmployeeProfileTab('date'); setEditMode(true) } }],
+      contract: [
+        { label: 'Contracte', run: () => setEmployeeProfileTab('contracte') },
+        ...(firstContract ? [
+          { label: 'Generează Word', run: () => generateContractWord(firstContract) },
+          { label: 'Arhivează Word', run: () => archiveContractWord(firstContract) },
+        ] : []),
+      ],
+      act_identitate: [{ label: 'Încarcă document', run: () => setEmployeeProfileTab('dosar') }],
+      fisa_post: [{ label: 'Generează fișa', run: () => generateWorkflowHrDocument('fisa_post') }, { label: 'Dosar', run: () => setEmployeeProfileTab('dosar') }],
+      ssm_psi: [{ label: 'Încarcă SSM/PSI', run: () => setEmployeeProfileTab('dosar') }],
+      apt_medical: [{ label: 'Încarcă apt medical', run: () => setEmployeeProfileTab('dosar') }, { label: 'Setează expirare', run: () => { setEmployeeProfileTab('date'); setEditMode(true) } }],
+      gdpr: [{ label: 'Generează GDPR', run: () => generateWorkflowHrDocument('gdpr') }, { label: 'Marchează acord', run: () => { setEmployeeProfileTab('date'); setEditMode(true) } }],
+      echipamente: [{ label: 'Înregistrează dotare', run: openEquipmentAction }],
+      confirmari_kiosk: [{ label: 'Reminder Kiosk', run: () => sendDossierReminder(employeeDetails.id) }],
+      decizie_incetare: [{ label: 'Contracte/acte', run: () => setEmployeeProfileTab('contracte') }, { label: 'Dosar', run: () => setEmployeeProfileTab('dosar') }],
+      nota_lichidare: [{ label: 'Generează nota', run: () => generateWorkflowHrDocument('nota_lichidare') }],
+      predare_echipamente: [{ label: 'Predare echipamente', run: () => setEmployeeProfileTab('echipamente') }],
+      co_final: [{ label: 'Verifică CO', run: () => setEmployeeProfileTab('pontaj') }],
+      cont_kiosk_dezactivat: [{ label: 'Cont asociat', run: () => { setEmployeeProfileTab('date'); setEditMode(true) } }],
+      documente_finale: [{ label: 'Adeverință vechime', run: () => generateWorkflowHrDocument('vechime') }, { label: 'Dosar', run: () => setEmployeeProfileTab('dosar') }],
+      dosar_inchis: [{ label: 'Print fișă', run: printEmployeeProfile }, { label: 'Dosar', run: () => setEmployeeProfileTab('dosar') }],
+    }
+    return actions[step.key] || []
+  }
+
   async function downloadDossierReport() {
     try {
       const response = await api.get('/hr/dossier-report.xlsx', { responseType: 'blob' })
@@ -3952,6 +4017,20 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                                 {step.auto_checked ? <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">detectat automat</span> : null}
                                 <div className="text-xs text-slate-500">{step.description}</div>
                                 {step.completed_at ? <div className="text-xs text-emerald-700">bifat la {String(step.completed_at).slice(0, 16).replace('T', ' ')}</div> : null}
+                                {workflowStepActions(step).length ? (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {workflowStepActions(step).map(action => (
+                                      <button
+                                        key={action.label}
+                                        type="button"
+                                        className="rounded bg-white px-2 py-1 text-xs font-semibold text-primary-700 ring-1 ring-primary-100 hover:bg-primary-50"
+                                        onClick={(event) => { event.preventDefault(); action.run() }}
+                                      >
+                                        {action.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : null}
                               </span>
                             </label>
                           </div>

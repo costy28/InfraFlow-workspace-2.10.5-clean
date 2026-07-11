@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.245 - 2026-07-11
+
+## Actiuni rapide in fluxurile HR
+
+- Pasii din onboarding si offboarding au actiuni rapide contextuale.
+- HR poate sari direct la date personale, contracte, dosar documente, Kiosk, pontaj sau echipamente.
+- Din flux se pot genera documente utile: fisa postului, GDPR, nota de lichidare si adeverinta de vechime.
+- Pasii critici pot declansa reminder Kiosk, generare/arhivare CIM Word sau inregistrare dotare.
+
 # v2.12.244 - 2026-07-11
 
 ## Flux onboarding si offboarding HR

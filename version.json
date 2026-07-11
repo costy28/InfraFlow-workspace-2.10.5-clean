@@ -1,5 +1,5 @@
 {
-  "version": "2.12.244",
+  "version": "2.12.245",
   "date": "2026-07-11",
-  "changelog": "## v2.12.244 - 2026-07-11\n### Flux onboarding si offboarding HR\n- Endpointuri noi pentru pornire, consultare, bifare pasi si inchidere flux HR per angajat.\n- Fisa angajat are tab nou Onboarding / Offboarding cu progres si checklist ghidat.\n- Pasii sunt precompletati automat din date existente: contracte, dosar, Kiosk, GDPR, apt medical si echipamente.\n- Fluxurile sunt auditate si pot fi finalizate sau anulate controlat."
+  "changelog": "## v2.12.245 - 2026-07-11\n### Actiuni rapide in fluxurile HR\n- Pasii din onboarding si offboarding au actiuni rapide contextuale.\n- HR poate sari direct la date personale, contracte, dosar documente, Kiosk, pontaj sau echipamente.\n- Din flux se pot genera documente utile: fisa postului, GDPR, nota de lichidare si adeverinta de vechime.\n- Pasii critici pot declansa reminder Kiosk, generare/arhivare CIM Word sau inregistrare dotare."
 }
