@@ -1,5 +1,5 @@
 {
-  "version": "2.12.245",
+  "version": "2.12.246",
   "date": "2026-07-11",
-  "changelog": "## v2.12.245 - 2026-07-11\n### Actiuni rapide in fluxurile HR\n- Pasii din onboarding si offboarding au actiuni rapide contextuale.\n- HR poate sari direct la date personale, contracte, dosar documente, Kiosk, pontaj sau echipamente.\n- Din flux se pot genera documente utile: fisa postului, GDPR, nota de lichidare si adeverinta de vechime.\n- Pasii critici pot declansa reminder Kiosk, generare/arhivare CIM Word sau inregistrare dotare."
+  "changelog": "## v2.12.246 - 2026-07-11\n### Inbox HR centralizat\n- Tab nou Inbox HR cu sarcini operative din concedii, concedii medicale, workflow-uri HR, dosar, Kiosk si scadente.\n- Endpoint nou GET /api/hr/inbox pentru agregarea prioritatilor HR.\n- Sarcinile sunt prioritizate pe critic, atentie si info, cu filtre rapide pe categorie.\n- Fiecare sarcina are actiune directa spre concedii, dosar, flux, scadente sau reminder Kiosk."
 }

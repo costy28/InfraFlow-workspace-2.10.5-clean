@@ -37,6 +37,7 @@ function SursaBadge({ sursa }) {
 
 const ALL_HR_TABS = [
   { id: 'Dashboard HR',       perm: 'hr:view' },
+  { id: 'Inbox HR',           perm: 'hr:view' },
   { id: 'Angajați',           perm: 'hr:employees_manage' },
   { id: 'Pontaj',             perm: 'hr:timesheets_view' },
   { id: 'Pontaj Avansat',     perm: 'hr:timesheets_view' },
@@ -568,6 +569,8 @@ export default function HRPage() {
   const [dossierDashboard, setDossierDashboard] = useState({ rows: [], summary: {}, expirations_summary: {} })
   const [dossierDashboardFilter, setDossierDashboardFilter] = useState('probleme')
   const [dossierReminderResult, setDossierReminderResult] = useState(null)
+  const [hrInbox, setHrInbox] = useState({ rows: [], summary: {} })
+  const [hrInboxFilter, setHrInboxFilter] = useState('toate')
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
   const [expirationNotifications, setExpirationNotifications] = useState({ notifications: [], summary: {} })
@@ -648,7 +651,7 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -659,6 +662,7 @@ export default function HRPage() {
         api.get('/hr/document-templates').catch(() => ({ data: { templates: [] } })),
         api.get('/hr/dossier-checklist').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/dossier-dashboard').catch(() => ({ data: { rows: [], summary: {}, expirations_summary: {} } })),
+        api.get('/hr/inbox').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })),
       ])
@@ -672,6 +676,7 @@ export default function HRPage() {
       setHrDocumentTemplates(arrayFrom(templatesRes.data, ['templates', 'items']))
       setDossierChecklist({ rows: arrayFrom(checklistRes.data, ['rows', 'items']), summary: checklistRes.data?.summary || {} })
       setDossierDashboard({ rows: arrayFrom(dossierDashboardRes.data, ['rows', 'items']), summary: dossierDashboardRes.data?.summary || {}, expirations_summary: dossierDashboardRes.data?.expirations_summary || {} })
+      setHrInbox({ rows: arrayFrom(inboxRes.data, ['rows', 'items']), summary: inboxRes.data?.summary || {} })
       setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
       setExpirationNotifications({ notifications: arrayFrom(expirationNotificationsRes.data, ['notifications', 'items']), summary: expirationNotificationsRes.data?.summary || {} })
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
@@ -717,6 +722,10 @@ export default function HRPage() {
 
   useEffect(() => {
     if (activeTab === '🦺 Echipamente') loadEquipmentData()
+  }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'Inbox HR') loadHrInbox()
   }, [activeTab])
 
   async function openEmployee(employee) {
@@ -773,6 +782,15 @@ export default function HRPage() {
     }
   }
 
+  async function loadHrInbox() {
+    try {
+      const response = await api.get('/hr/inbox')
+      setHrInbox({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
+    } catch {
+      setError('Inbox-ul HR nu a putut fi încărcat.')
+    }
+  }
+
   async function sendDossierReminder(employeeId) {
     try {
       const response = await api.post(`/hr/dossier-dashboard/${employeeId}/reminder`)
@@ -782,6 +800,7 @@ export default function HRPage() {
       } else {
         await loadDossierDashboard()
       }
+      await loadHrInbox()
     } catch (err) {
       setError(err.response?.data?.error || 'Reminderul Kiosk nu a putut fi trimis.')
     }
@@ -954,6 +973,27 @@ export default function HRPage() {
     const employee = employees.find(emp => String(emp.id) === String(item.employee_id))
     if (employee) await openEmployee(employee)
     else setError('Angajatul asociat scadenței nu a fost găsit în lista curentă.')
+  }
+
+  async function openHrInboxTask(item) {
+    if (item.action === 'open_leave') {
+      setActiveTab('Concedii')
+      return
+    }
+    if (item.action === 'send_kiosk_reminder' && item.employee_id) {
+      await sendDossierReminder(item.employee_id)
+      return
+    }
+    const employee = employees.find(emp => String(emp.id) === String(item.employee_id))
+    if (!employee) {
+      setError('Angajatul asociat sarcinii nu a fost găsit în lista curentă.')
+      return
+    }
+    await openEmployee(employee)
+    if (item.action === 'open_workflow') setEmployeeProfileTab('flux')
+    else if (item.action === 'open_dossier') setEmployeeProfileTab('dosar')
+    else if (item.action === 'open_expiration') setEmployeeProfileTab('kiosk')
+    else setEmployeeProfileTab('date')
   }
 
   async function loadHrDocumentTemplates() {
@@ -2439,6 +2479,15 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
   const pendingLeaves = useMemo(() => leaves.filter(l => l.status === 'cerut' || l.status === 'pending'), [leaves])
 
+  const hrInboxRows = useMemo(() => {
+    const rows = Array.isArray(hrInbox.rows) ? hrInbox.rows : []
+    if (hrInboxFilter === 'critice') return rows.filter(row => row.severity === 'critical')
+    if (hrInboxFilter === 'avertizari') return rows.filter(row => row.severity === 'warning')
+    if (hrInboxFilter === 'info') return rows.filter(row => row.severity === 'info')
+    if (hrInboxFilter && hrInboxFilter !== 'toate') return rows.filter(row => row.category === hrInboxFilter)
+    return rows
+  }, [hrInbox.rows, hrInboxFilter])
+
   const dossierDashboardRows = useMemo(() => {
     const rows = Array.isArray(dossierDashboard.rows) ? dossierDashboard.rows : []
     if (dossierDashboardFilter === 'lipsuri') return rows.filter(row => Number(row.missing_required_count || 0) > 0)
@@ -2494,6 +2543,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
           {visibleTabs.map(tab => (
             <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>
               {tab === 'Dashboard HR' && dashboardAlerts.length > 0 ? `${tab} 🔴` : tab}
+              {tab === 'Inbox HR' && Number(hrInbox.summary?.total || 0) > 0 ? ` (${hrInbox.summary.total})` : ''}
             </Button>
           ))}
         </div>
@@ -2642,6 +2692,89 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
             ) : (
               <p className="text-sm text-slate-400">Nu există notificări HR generate pentru scadențe.</p>
             )}
+          </Card>
+        </div>
+      ) : null}
+
+      {/* ─── INBOX HR ─────────────────────────────────────── */}
+      {activeTab === 'Inbox HR' ? (
+        <div className="grid gap-4">
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">📥 Inbox HR — sarcini care cer acțiune</div>
+                <div className="text-xs text-slate-500">Concedii, medicale, fluxuri, dosare incomplete, confirmări Kiosk și scadențe într-un singur panou.</div>
+              </div>
+              <Button size="sm" variant="secondary" onClick={loadHrInbox}>Reîncarcă inbox</Button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-4">
+              <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Total sarcini</div><strong>{hrInbox.summary?.total || 0}</strong></div>
+              <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Critice</div><strong>{hrInbox.summary?.critical || 0}</strong></div>
+              <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">Avertizări</div><strong>{hrInbox.summary?.warning || 0}</strong></div>
+              <div className="rounded border border-blue-200 bg-blue-50 p-2 text-sm"><div className="text-xs text-blue-700">Informative</div><strong>{hrInbox.summary?.info || 0}</strong></div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                { value: 'toate', label: `Toate (${hrInbox.summary?.total || 0})` },
+                { value: 'critice', label: `Critice (${hrInbox.summary?.critical || 0})` },
+                { value: 'avertizari', label: `Avertizări (${hrInbox.summary?.warning || 0})` },
+                { value: 'concedii', label: `Concedii (${hrInbox.summary?.by_category?.concedii || 0})` },
+                { value: 'medical', label: `Medicale (${hrInbox.summary?.by_category?.medical || 0})` },
+                { value: 'onboarding', label: `Onboarding (${hrInbox.summary?.by_category?.onboarding || 0})` },
+                { value: 'offboarding', label: `Offboarding (${hrInbox.summary?.by_category?.offboarding || 0})` },
+                { value: 'dosar', label: `Dosar (${hrInbox.summary?.by_category?.dosar || 0})` },
+                { value: 'kiosk', label: `Kiosk (${hrInbox.summary?.by_category?.kiosk || 0})` },
+                { value: 'scadente', label: `Scadențe (${hrInbox.summary?.by_category?.scadente || 0})` },
+              ].map(filter => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setHrInboxFilter(filter.value)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${hrInboxFilter === filter.value ? 'bg-primary-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-700">{hrInboxRows.length} sarcini afișate</div>
+              {dossierReminderResult ? <div className="text-xs text-emerald-700">Ultimul reminder Kiosk: {dossierReminderResult.pending || 0} documente · {String(dossierReminderResult.sent_at || '').slice(0, 16).replace('T', ' ')}</div> : null}
+            </div>
+            <div className="grid gap-2">
+              {hrInboxRows.slice(0, 80).map(item => {
+                const severityClass = item.severity === 'critical'
+                  ? 'border-rose-200 bg-rose-50'
+                  : item.severity === 'warning'
+                    ? 'border-amber-200 bg-amber-50'
+                    : 'border-blue-200 bg-blue-50'
+                const severityLabel = item.severity === 'critical' ? 'critic' : item.severity === 'warning' ? 'atenție' : 'info'
+                return (
+                  <div key={item.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${severityClass}`}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.severity === 'critical' ? 'bg-rose-100 text-rose-700' : item.severity === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{severityLabel}</span>
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold uppercase text-slate-500">{item.category}</span>
+                        <span className="font-semibold text-slate-800">{item.title}</span>
+                      </div>
+                      <div className="mt-1 text-slate-700">{item.employee_name || '—'}{item.marca ? ` · marca ${item.marca}` : ''}{item.department_name ? ` · ${item.department_name}` : ''}</div>
+                      {item.detail ? <div className="text-xs text-slate-500">{item.detail}</div> : null}
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {item.due_date ? <div className="text-right text-xs text-slate-500"><div>Termen/sursă</div><strong>{String(item.due_date).slice(0, 10)}</strong></div> : null}
+                      <Button size="sm" onClick={() => openHrInboxTask(item)}>{item.action_label || 'Deschide'}</Button>
+                    </div>
+                  </div>
+                )
+              })}
+              {!hrInboxRows.length ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-6 text-center text-sm text-emerald-700">
+                  Inbox HR curat. Nu sunt sarcini pentru filtrul selectat.
+                </div>
+              ) : null}
+            </div>
           </Card>
         </div>
       ) : null}

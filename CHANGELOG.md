@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.246 - 2026-07-11
+
+## Inbox HR centralizat
+
+- Tab nou Inbox HR cu sarcini operative din concedii, concedii medicale, workflow-uri HR, dosar, Kiosk si scadente.
+- Endpoint nou `GET /api/hr/inbox` pentru agregarea prioritatilor HR.
+- Sarcinile sunt prioritizate pe critic, atentie si info, cu filtre rapide pe categorie.
+- Fiecare sarcina are actiune directa spre concedii, dosar, flux, scadente sau reminder Kiosk.
+
 # v2.12.245 - 2026-07-11
 
 ## Actiuni rapide in fluxurile HR

@@ -123,6 +123,10 @@ router.get("/hr/dossier-dashboard", authorize("hr:view"), (req, res) => {
   res.json(buildDossierDashboard(req.auth.db));
 });
 
+router.get("/hr/inbox", authorize("hr:view"), (req, res) => {
+  res.json(buildHrInbox(req.auth.db));
+});
+
 router.get("/hr/advanced-expirations", authorize("hr:view"), (req, res) => {
   const relevant = collectAdvancedExpirations(req.auth.db);
   res.json({ rows: relevant, summary: summarizeExpirations(relevant) });
@@ -632,6 +636,183 @@ function buildDossierDashboard(db) {
     problem_employees: rows.filter((row) => row.issue_score > 0).length
   };
   return { rows, summary, expirations_summary: summarizeExpirations(expirations), generated_at: new Date().toISOString() };
+}
+function buildHrInbox(db) {
+  const hr = db.hr || {};
+  const employees = Array.isArray(hr.employees) ? hr.employees : [];
+  const activeEmployees = employees.filter((employee) => employee.activ !== false && employee.activ !== 0);
+  const employeesById = new Map(employees.map((employee) => [String(employee.id), employee]));
+  const users = Array.isArray(db.users) ? db.users : [];
+  const kioskUsers = Array.isArray(hr.kioskUsers) ? hr.kioskUsers : [];
+  const leaveRequests = Array.isArray(hr.leaveRequests) ? hr.leaveRequests : [];
+  const medicalCertificates = Array.isArray(hr.medicalLeaveCertificates) ? hr.medicalLeaveCertificates : [];
+  const workflows = ensureEmployeeWorkflows(db).filter((workflow) => !["completed", "cancelled"].includes(String(workflow.status || "")));
+  const dossier = buildDossierDashboard(db);
+  const expirations = collectAdvancedExpirations(db);
+  const rows = [];
+  const pushTask = (task) => {
+    if (!task) return;
+    rows.push({
+      id: task.id,
+      severity: task.severity || "info",
+      category: task.category || "general",
+      title: task.title || "Sarcină HR",
+      detail: task.detail || "",
+      employee_id: task.employee_id || null,
+      employee_name: task.employee_name || "",
+      marca: task.marca || "",
+      department_id: task.department_id || "",
+      department_name: task.department_name || "",
+      due_date: task.due_date || null,
+      action: task.action || "open_employee",
+      action_label: task.action_label || "Deschide",
+      source_id: task.source_id || "",
+      created_at: task.created_at || null,
+      sort_score: Number(task.sort_score || severityScore(task.severity || "info"))
+    });
+  };
+
+  leaveRequests
+    .filter((leave) => ["cerut", "pending"].includes(String(leave.status || "").toLowerCase()))
+    .forEach((leave) => {
+      const employee = employeesById.get(String(leave.employee_id));
+      const cert = medicalCertificates.find((item) => String(item.leave_request_uuid) === String(leave.uuid));
+      const isMedical = String(leave.tip || "").toUpperCase() === "CM";
+      const medicalNeedsCheck = isMedical && (!cert || !["verificat", "verified"].includes(String(cert.status_verificare || "").toLowerCase()));
+      pushTask({
+        id: `leave-${leave.uuid || leave.id}`,
+        severity: medicalNeedsCheck ? "critical" : "warning",
+        category: isMedical ? "medical" : "concedii",
+        title: `${isMedical ? "Concediu medical" : "Cerere concediu"} în așteptare`,
+        detail: `${leave.tip || "-"} · ${leave.data_start || "-"} — ${leave.data_sfarsit || "-"}${medicalNeedsCheck ? " · certificatul trebuie verificat" : ""}`,
+        employee_id: leave.employee_id,
+        employee_name: employee ? employeeName(employee) : "",
+        marca: employee?.marca || "",
+        department_id: employee?.department_id || "",
+        department_name: employee?.department_name || employee?.department || "",
+        due_date: leave.data_start || leave.created_at || null,
+        action: "open_leave",
+        action_label: "Vezi concedii",
+        source_id: leave.uuid || leave.id,
+        created_at: leave.created_at,
+        sort_score: medicalNeedsCheck ? 95 : 70
+      });
+    });
+
+  workflows.forEach((workflow) => {
+    const employee = employeesById.get(String(workflow.employee_id));
+    const steps = Array.isArray(workflow.steps) ? workflow.steps : [];
+    const nextRequired = steps.find((step) => step.required !== false && !step.done) || steps.find((step) => !step.done);
+    const progress = workflowProgress(workflow);
+    pushTask({
+      id: `workflow-${workflow.uuid || workflow.id}`,
+      severity: workflow.type === "offboarding" ? "critical" : "warning",
+      category: workflow.type === "offboarding" ? "offboarding" : "onboarding",
+      title: `${workflow.type === "offboarding" ? "Offboarding" : "Onboarding"} în lucru`,
+      detail: nextRequired ? `${nextRequired.label} · ${progress.required_percent}% pași obligatorii` : `${progress.percent}% completat`,
+      employee_id: workflow.employee_id,
+      employee_name: employee ? employeeName(employee) : workflow.employee_name || "",
+      marca: employee?.marca || "",
+      department_id: employee?.department_id || "",
+      department_name: employee?.department_name || employee?.department || "",
+      due_date: workflow.updated_at || workflow.started_at || workflow.created_at || null,
+      action: "open_workflow",
+      action_label: "Deschide flux",
+      source_id: workflow.uuid || workflow.id,
+      created_at: workflow.created_at,
+      sort_score: workflow.type === "offboarding" ? 90 : 65
+    });
+  });
+
+  dossier.rows.filter((row) => Number(row.missing_required_count || 0) > 0).forEach((row) => pushTask({
+    id: `dossier-missing-${row.employee_id}`,
+    severity: "critical",
+    category: "dosar",
+    title: "Dosar personal incomplet",
+    detail: `Lipsesc: ${(row.missing_required || []).slice(0, 4).join(", ")}`,
+    employee_id: row.employee_id,
+    employee_name: row.nume_complet,
+    marca: row.marca,
+    department_id: row.department_id,
+    department_name: row.department_name,
+    action: "open_dossier",
+    action_label: "Deschide dosar",
+    sort_score: 82 + Number(row.missing_required_count || 0)
+  }));
+
+  dossier.rows.filter((row) => Number(row.pending_ack || 0) > 0).forEach((row) => pushTask({
+    id: `dossier-ack-${row.employee_id}`,
+    severity: "warning",
+    category: "kiosk",
+    title: "Documente Kiosk neconfirmate",
+    detail: `${row.pending_ack} documente așteaptă confirmare${row.last_reminder_at ? ` · ultim reminder ${String(row.last_reminder_at).slice(0, 10)}` : ""}`,
+    employee_id: row.employee_id,
+    employee_name: row.nume_complet,
+    marca: row.marca,
+    department_id: row.department_id,
+    department_name: row.department_name,
+    action: "send_kiosk_reminder",
+    action_label: "Reminder Kiosk",
+    sort_score: 62 + Number(row.pending_ack || 0)
+  }));
+
+  expirations.slice(0, 80).forEach((item) => pushTask({
+    id: `expiration-${item.id}`,
+    severity: item.severity === "expired" ? "critical" : item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : "info",
+    category: "scadente",
+    title: `${item.icon || "⏰"} ${item.label}`,
+    detail: `${item.source || "HR"} · ${item.days < 0 ? `expirat de ${Math.abs(item.days)} zile` : `expiră în ${item.days} zile`} · ${item.date}`,
+    employee_id: item.employee_id,
+    employee_name: item.employee_name,
+    marca: item.marca,
+    department_id: item.department_id,
+    department_name: item.department_name || "",
+    due_date: item.date,
+    action: "open_expiration",
+    action_label: "Deschide fișa",
+    source_id: item.id,
+    sort_score: item.days < 0 ? 88 : item.days <= 30 ? 78 : item.days <= 60 ? 48 : 28
+  }));
+
+  activeEmployees.forEach((employee) => {
+    const hasLinkedUser = Boolean(employee.user_id || users.some((user) => String(user.employee_id || user.employeeId || "") === String(employee.id) && user.active !== false && user.activ !== false));
+    const hasKioskUser = kioskUsers.some((item) => String(item.employee_id) === String(employee.id) && item.activ !== false);
+    if (!hasLinkedUser && !hasKioskUser) {
+      pushTask({
+        id: `kiosk-link-${employee.id}`,
+        severity: "info",
+        category: "kiosk",
+        title: "Cont Kiosk/ERP neasociat",
+        detail: "Angajatul nu poate vedea documente, cereri și confirmări personale.",
+        employee_id: employee.id,
+        employee_name: employeeName(employee),
+        marca: employee.marca || "",
+        department_id: employee.department_id || "",
+        department_name: employee.department_name || employee.department || "",
+        action: "open_employee",
+        action_label: "Asociază cont",
+        sort_score: 36
+      });
+    }
+  });
+
+  rows.sort((a, b) => b.sort_score - a.sort_score || String(a.due_date || "").localeCompare(String(b.due_date || "")) || String(a.employee_name).localeCompare(String(b.employee_name)));
+  const summary = {
+    total: rows.length,
+    critical: rows.filter((item) => item.severity === "critical").length,
+    warning: rows.filter((item) => item.severity === "warning").length,
+    info: rows.filter((item) => item.severity === "info").length,
+    by_category: rows.reduce((acc, item) => {
+      acc[item.category] = (acc[item.category] || 0) + 1;
+      return acc;
+    }, {})
+  };
+  return { rows: rows.slice(0, 250), summary, generated_at: new Date().toISOString() };
+}
+function severityScore(severity) {
+  if (severity === "critical") return 80;
+  if (severity === "warning") return 50;
+  return 20;
 }
 function collectAdvancedExpirations(db) {
   const hr = db.hr || {};
