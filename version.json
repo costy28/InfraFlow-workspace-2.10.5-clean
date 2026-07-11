@@ -1,5 +1,5 @@
 {
-  "version": "2.12.241",
+  "version": "2.12.243",
   "date": "2026-07-11",
-  "changelog": "## v2.12.241 - 2026-07-11\n### Raport dosar HR si confirmari Kiosk\n- Export Excel nou pentru checklist dosar personal, scadente si confirmari Kiosk.\n- Raportul centralizeaza lipsurile obligatorii per angajat si statusul documentelor critice.\n- Foaia de scadente reuneste alertele avansate HR intr-un format usor de filtrat.\n- Documentele generate sau vizibile in Kiosk includ statusul confirmarii angajatului."
+  "changelog": "## v2.12.243 - 2026-07-11\n### Fisa unica angajat HR\n- Modalul angajatului a fost reorganizat ca profil unic cu taburi interne.\n- Sumarul afiseaza status contract, procent dosar HR, confirmari Kiosk, scadenta urmatoare si CO ramas.\n- Taburi noi pentru date personale, contracte, pontaj si concedii, dosar documente, scadente Kiosk si echipamente.\n- Buton nou de print pentru Fisa angajat HR, utila la audit sau dosar."
 }

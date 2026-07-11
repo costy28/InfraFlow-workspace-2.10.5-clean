@@ -1,5 +1,23 @@
 # Changelog
 
+# v2.12.243 - 2026-07-11
+
+## Fisa unica angajat HR
+
+- Modalul angajatului a fost reorganizat ca profil unic cu taburi interne.
+- Sumarul afiseaza status contract, procent dosar HR, confirmari Kiosk, scadenta urmatoare si CO ramas.
+- Taburi noi pentru date personale, contracte, pontaj si concedii, dosar documente, scadente Kiosk si echipamente.
+- Buton nou de print pentru `Fisa angajat HR`, utila la audit sau dosar.
+
+# v2.12.242 - 2026-07-11
+
+## Dashboard conformitate dosar HR
+
+- Panou nou in `Documente HR` pentru lipsuri obligatorii, confirmari Kiosk si scadente.
+- Endpoint nou `GET /api/hr/dossier-dashboard` pentru agregarea conformitatii dosarului per angajat.
+- Filtre rapide: probleme, lipsuri, neconfirmate Kiosk, scadente, fara probleme si toate.
+- HR poate trimite reminder Kiosk pentru documentele neconfirmate, cu audit si notificare interna cand exista user asociat.
+
 # v2.12.241 - 2026-07-11
 
 ## Raport dosar HR si confirmari Kiosk

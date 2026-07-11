@@ -31,9 +31,60 @@ router.get("/hr/dossier-checklist", authorize("hr:view"), (req, res) => {
   res.json({ rows, summary: { total: rows.length, complete, incomplete: rows.length - complete, critical_missing: criticalMissing } });
 });
 
+router.get("/hr/dossier-dashboard", authorize("hr:view"), (req, res) => {
+  res.json(buildDossierDashboard(req.auth.db));
+});
+
 router.get("/hr/advanced-expirations", authorize("hr:view"), (req, res) => {
   const relevant = collectAdvancedExpirations(req.auth.db);
   res.json({ rows: relevant, summary: summarizeExpirations(relevant) });
+});
+
+router.post("/hr/dossier-dashboard/:employeeId/reminder", authorize("hr:manage"), (req, res) => {
+  const files = ensureFiles(req.auth.db);
+  const hr = req.auth.db.hr || {};
+  const employee = (Array.isArray(hr.employees) ? hr.employees : []).find((item) => String(item.id) === String(req.params.employeeId));
+  if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
+  const pending = files.filter((item) =>
+    String(item.employee_id) === String(employee.id) &&
+    !item.cancelled_at &&
+    (item.requires_ack || item.generated || item.kiosk_visible) &&
+    !item.acknowledged_at
+  );
+  if (!pending.length) return res.status(422).json({ error: "Nu exista documente Kiosk neconfirmate pentru acest angajat.", code: "HR_DOSSIER_NO_PENDING_ACK" });
+  const now = new Date().toISOString();
+  pending.forEach((item) => {
+    item.kiosk_visible = true;
+    item.requires_ack = true;
+    item.kiosk_reminder_sent_at = now;
+    item.kiosk_reminder_sent_by = req.auth.user.id;
+    item.kiosk_reminder_count = Number(item.kiosk_reminder_count || 0) + 1;
+  });
+  const users = Array.isArray(req.auth.db.users) ? req.auth.db.users : [];
+  const targetUser = users.find((user) => String(user.employee_id || user.employeeId || "") === String(employee.id) && user.active !== false && user.activ !== false);
+  req.auth.db.notifications = Array.isArray(req.auth.db.notifications) ? req.auth.db.notifications : [];
+  if (targetUser) {
+    req.auth.db.notifications.push({
+      id: `notification-${crypto.randomUUID()}`,
+      key: `hr-dossier-ack-${employee.id}-${Date.now()}`,
+      user_id: targetUser.id,
+      type: "warning",
+      event: "hr_dossier_ack_reminder",
+      severity: "warn",
+      title: "Documente HR de confirmat",
+      message: `Ai ${pending.length} documente HR de confirmat in Kiosk.`,
+      detail: pending.map((item) => item.denumire || item.file_name || "Document").slice(0, 5).join(", "),
+      targetView: "kiosk",
+      targetLabel: "Deschide Kiosk",
+      employee_id: employee.id,
+      createdAt: now,
+      created_at: now,
+      read: false
+    });
+  }
+  addAudit(req.auth.db, req.auth.user, "hr_dosar_kiosk_reminder", `${employeeName(employee)} / ${pending.length} documente`);
+  writeDb(req.auth.db);
+  res.json({ employee_id: employee.id, pending: pending.length, notified_user: targetUser ? targetUser.id : null, sent_at: now, dashboard: buildDossierDashboard(req.auth.db) });
 });
 
 router.post("/hr/advanced-expirations/notify", authorize("hr:manage"), (req, res) => {
@@ -355,6 +406,69 @@ function findLinkedEmployee(db, user) {
   return employees.find((item) => item.activ !== false && item.activ !== 0 && (String(item.user_id || "") === String(user.id) || (linkedEmployeeId && String(item.id) === String(linkedEmployeeId))));
 }
 function employeeName(employee) { return [employee.prenume, employee.nume].filter(Boolean).join(" ") || employee.nume_complet || employee.name || "Angajat"; }
+function buildDossierDashboard(db) {
+  const hr = db.hr || {};
+  const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
+  const files = ensureFiles(db).filter((item) => !item.cancelled_at);
+  const expirations = collectAdvancedExpirations(db);
+  const expirationsByEmployee = new Map();
+  expirations.forEach((item) => {
+    const key = String(item.employee_id);
+    if (!expirationsByEmployee.has(key)) expirationsByEmployee.set(key, []);
+    expirationsByEmployee.get(key).push(item);
+  });
+  const rows = employees.map((employee) => {
+    const employeeFiles = files.filter((item) => String(item.employee_id) === String(employee.id));
+    const checklist = dossierChecklistFor(employee, employeeFiles);
+    const kioskDocuments = employeeFiles.filter((item) => item.requires_ack || item.generated || item.kiosk_visible);
+    const pendingAck = kioskDocuments.filter((item) => !item.acknowledged_at);
+    const employeeExpirations = (expirationsByEmployee.get(String(employee.id)) || []).sort((a, b) => a.days - b.days);
+    const missingRequired = checklist.missing_required || [];
+    const issueScore =
+      missingRequired.length * 10 +
+      pendingAck.length * 4 +
+      employeeExpirations.filter((item) => item.severity === "expired").length * 8 +
+      employeeExpirations.filter((item) => item.severity === "critical").length * 5 +
+      employeeExpirations.filter((item) => item.severity === "warning").length * 2;
+    return {
+      employee_id: employee.id,
+      nume_complet: checklist.nume_complet,
+      marca: checklist.marca,
+      functia: checklist.functia,
+      department_id: employee.department_id || employee.dept_id || "",
+      department_name: employee.department_name || employee.department || "",
+      percent: checklist.percent,
+      required_done: checklist.required_done,
+      required_total: checklist.required_total,
+      missing_required: missingRequired,
+      missing_required_count: missingRequired.length,
+      kiosk_documents: kioskDocuments.length,
+      pending_ack: pendingAck.length,
+      acknowledged: kioskDocuments.length - pendingAck.length,
+      last_reminder_at: pendingAck.map((item) => item.kiosk_reminder_sent_at).filter(Boolean).sort().pop() || null,
+      expiration_count: employeeExpirations.length,
+      expired_count: employeeExpirations.filter((item) => item.severity === "expired").length,
+      critical_count: employeeExpirations.filter((item) => item.severity === "critical").length,
+      warning_count: employeeExpirations.filter((item) => item.severity === "warning").length,
+      next_expiration: employeeExpirations[0] || null,
+      status: issueScore ? "atenție" : "ok",
+      issue_score: issueScore
+    };
+  }).sort((a, b) => b.issue_score - a.issue_score || a.percent - b.percent || String(a.nume_complet).localeCompare(String(b.nume_complet)));
+  const summary = {
+    total: rows.length,
+    complete: rows.filter((row) => row.percent === 100 && row.pending_ack === 0 && row.expiration_count === 0).length,
+    dossier_complete: rows.filter((row) => row.percent === 100).length,
+    missing_required: rows.filter((row) => row.missing_required_count > 0).length,
+    pending_ack: rows.reduce((sum, row) => sum + row.pending_ack, 0),
+    employees_pending_ack: rows.filter((row) => row.pending_ack > 0).length,
+    expiring: rows.filter((row) => row.expiration_count > 0).length,
+    expired: rows.reduce((sum, row) => sum + row.expired_count, 0),
+    critical: rows.reduce((sum, row) => sum + row.critical_count, 0),
+    problem_employees: rows.filter((row) => row.issue_score > 0).length
+  };
+  return { rows, summary, expirations_summary: summarizeExpirations(expirations), generated_at: new Date().toISOString() };
+}
 function collectAdvancedExpirations(db) {
   const hr = db.hr || {};
   const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);

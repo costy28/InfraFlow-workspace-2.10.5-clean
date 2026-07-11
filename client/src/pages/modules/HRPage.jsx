@@ -552,6 +552,7 @@ export default function HRPage() {
   const [stats, setStats] = useState(null)
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [employeeDetails, setEmployeeDetails] = useState(null)
+  const [employeeProfileTab, setEmployeeProfileTab] = useState('date')
   const [employeeContracts, setEmployeeContracts] = useState([])
   const [employeeAmendments, setEmployeeAmendments] = useState([])
   const [hrDocumentTemplates, setHrDocumentTemplates] = useState([])
@@ -562,6 +563,9 @@ export default function HRPage() {
   const [templateTestForm, setTemplateTestForm] = useState({ employee_id: '', contract_id: '', amendment_id: '' })
   const [templateTestResult, setTemplateTestResult] = useState(null)
   const [dossierChecklist, setDossierChecklist] = useState({ rows: [], summary: {} })
+  const [dossierDashboard, setDossierDashboard] = useState({ rows: [], summary: {}, expirations_summary: {} })
+  const [dossierDashboardFilter, setDossierDashboardFilter] = useState('probleme')
+  const [dossierReminderResult, setDossierReminderResult] = useState(null)
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
   const [expirationNotifications, setExpirationNotifications] = useState({ notifications: [], summary: {} })
@@ -642,7 +646,7 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -652,6 +656,7 @@ export default function HRPage() {
         api.get('/hr/linkable-users').catch(() => ({ data: [] })),
         api.get('/hr/document-templates').catch(() => ({ data: { templates: [] } })),
         api.get('/hr/dossier-checklist').catch(() => ({ data: { rows: [], summary: {} } })),
+        api.get('/hr/dossier-dashboard').catch(() => ({ data: { rows: [], summary: {}, expirations_summary: {} } })),
         api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })),
       ])
@@ -664,6 +669,7 @@ export default function HRPage() {
       setLinkableUsers(arrayFrom(usersRes.data, ['users', 'items']))
       setHrDocumentTemplates(arrayFrom(templatesRes.data, ['templates', 'items']))
       setDossierChecklist({ rows: arrayFrom(checklistRes.data, ['rows', 'items']), summary: checklistRes.data?.summary || {} })
+      setDossierDashboard({ rows: arrayFrom(dossierDashboardRes.data, ['rows', 'items']), summary: dossierDashboardRes.data?.summary || {}, expirations_summary: dossierDashboardRes.data?.expirations_summary || {} })
       setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
       setExpirationNotifications({ notifications: arrayFrom(expirationNotificationsRes.data, ['notifications', 'items']), summary: expirationNotificationsRes.data?.summary || {} })
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
@@ -714,6 +720,7 @@ export default function HRPage() {
   async function openEmployee(employee) {
     setSelectedEmployee(employee)
     setEmployeeDetails(null)
+    setEmployeeProfileTab('date')
     setCoBalance(null)
     setEditMode(false)
     setPhotoPreview(null)
@@ -749,6 +756,29 @@ export default function HRPage() {
       setDossierChecklist({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
     } catch {
       setError('Checklistul dosarului personal nu a putut fi încărcat.')
+    }
+  }
+
+  async function loadDossierDashboard() {
+    try {
+      const response = await api.get('/hr/dossier-dashboard')
+      setDossierDashboard({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {}, expirations_summary: response.data?.expirations_summary || {} })
+    } catch {
+      setError('Dashboard-ul dosarului HR nu a putut fi încărcat.')
+    }
+  }
+
+  async function sendDossierReminder(employeeId) {
+    try {
+      const response = await api.post(`/hr/dossier-dashboard/${employeeId}/reminder`)
+      setDossierReminderResult(response.data || {})
+      if (response.data?.dashboard) {
+        setDossierDashboard({ rows: arrayFrom(response.data.dashboard, ['rows', 'items']), summary: response.data.dashboard.summary || {}, expirations_summary: response.data.dashboard.expirations_summary || {} })
+      } else {
+        await loadDossierDashboard()
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Reminderul Kiosk nu a putut fi trimis.')
     }
   }
 
@@ -1236,6 +1266,52 @@ export default function HRPage() {
     win.document.close()
     win.focus()
     setTimeout(() => win.print(), 400)
+  }
+
+  function printEmployeeProfile() {
+    if (!employeeDetails) return
+    const dossier = selectedDossierSummary || {}
+    const expirations = selectedEmployeeExpirations || []
+    const leaveRows = selectedEmployeeLeaves || []
+    const contractRows = employeeContracts || []
+    const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>Fișă angajat</title>
+<style>body{font-family:Arial,sans-serif;font-size:10pt;margin:1.5cm;color:#111}h1{text-align:center;font-size:16pt;margin:0 0 12px}h2{font-size:12pt;margin:16px 0 6px;border-bottom:1px solid #999;padding-bottom:3px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}.box{border:1px solid #ccc;padding:8px;margin:8px 0}table{width:100%;border-collapse:collapse;margin:8px 0}td,th{border:1px solid #ccc;padding:5px;text-align:left}th{background:#f3f4f6}.muted{color:#666}.warn{color:#b45309}.bad{color:#b91c1c}.ok{color:#047857}@media print{body{margin:1.2cm}}</style></head><body>
+<h1>Fișă angajat HR</h1>
+<div class="box grid">
+  <div><strong>Nume:</strong> ${fullName(employeeDetails)}</div>
+  <div><strong>Marcă:</strong> ${employeeDetails.marca || '-'}</div>
+  <div><strong>Funcție:</strong> ${employeeDetails.functia || '-'}</div>
+  <div><strong>Departament:</strong> ${employeeDetails.department_name || '-'}</div>
+  <div><strong>Data angajării:</strong> ${employeeDetails.data_angajare || '-'}</div>
+  <div><strong>Normă:</strong> ${employeeDetails.norma_ore_zi || 8} ore/zi</div>
+</div>
+<h2>Sumar conformitate</h2>
+<table><tbody>
+<tr><th>Dosar HR</th><td>${dossier.percent ?? 0}% · ${dossier.required_done ?? 0}/${dossier.required_total ?? 0} obligatorii</td></tr>
+<tr><th>Lipsuri obligatorii</th><td>${dossier.missing_required?.length ? dossier.missing_required.join(', ') : '<span class="ok">Nu există</span>'}</td></tr>
+<tr><th>Confirmări Kiosk lipsă</th><td>${dossier.pending_ack ?? 0}</td></tr>
+<tr><th>CO rămas</th><td>${coBalance ? `${coBalance.zile_ramase} zile din ${coBalance.zile_drept}` : '-'}</td></tr>
+</tbody></table>
+<h2>Date personale</h2>
+<div class="grid">
+  <div>CNP: ${employeeDetails.cnp || '-'}</div><div>Telefon: ${employeeDetails.telefon || '-'}</div>
+  <div>Email: ${employeeDetails.email || '-'}</div><div>Adresă: ${employeeDetails.adresa || '-'}</div>
+  <div>Act identitate: ${identityText(employeeDetails)}</div><div>Valabil act: ${employeeDetails.act_identitate_valabil_pana || '-'}</div>
+</div>
+<h2>Contracte</h2>
+<table><thead><tr><th>Tip</th><th>Număr</th><th>Dată</th><th>Start</th><th>Status</th><th>Salariu</th></tr></thead><tbody>
+${contractRows.length ? contractRows.map(item => `<tr><td>${item.tip || '-'}</td><td>${item.numar_contract || '-'}</td><td>${item.data_contract || '-'}</td><td>${item.data_start || '-'}</td><td>${item.status || '-'}</td><td>${item.salariu_baza || '-'}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">Nu există contracte înregistrate.</td></tr>'}
+</tbody></table>
+<h2>Concedii recente</h2>
+<table><thead><tr><th>Tip</th><th>Start</th><th>Sfârșit</th><th>Zile</th><th>Status</th></tr></thead><tbody>
+${leaveRows.length ? leaveRows.slice(0, 12).map(item => `<tr><td>${item.tip || '-'}</td><td>${item.data_start || '-'}</td><td>${item.data_sfarsit || '-'}</td><td>${item.zile || '-'}</td><td>${item.status || '-'}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">Nu există cereri de concediu.</td></tr>'}
+</tbody></table>
+<h2>Scadențe apropiate</h2>
+<table><thead><tr><th>Document</th><th>Data</th><th>Zile</th><th>Sursa</th></tr></thead><tbody>
+${expirations.length ? expirations.map(item => `<tr><td>${item.label}</td><td>${item.date}</td><td class="${item.days < 0 ? 'bad' : item.days <= 30 ? 'warn' : ''}">${item.days < 0 ? `expirat de ${Math.abs(item.days)} zile` : `${item.days} zile`}</td><td>${item.source || '-'}</td></tr>`).join('') : '<tr><td colspan="4" class="ok">Nu există scadențe în următoarele 90 zile.</td></tr>'}
+</tbody></table>
+</body></html>`
+    printGeneratedHtml(html, { data_generare: new Date().toISOString().slice(0, 10), numar: employeeDetails.marca || employeeDetails.id })
   }
 
   function getHrTemplate(id) {
@@ -2247,6 +2323,31 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
   const pendingLeaves = useMemo(() => leaves.filter(l => l.status === 'cerut' || l.status === 'pending'), [leaves])
 
+  const dossierDashboardRows = useMemo(() => {
+    const rows = Array.isArray(dossierDashboard.rows) ? dossierDashboard.rows : []
+    if (dossierDashboardFilter === 'lipsuri') return rows.filter(row => Number(row.missing_required_count || 0) > 0)
+    if (dossierDashboardFilter === 'neconfirmate') return rows.filter(row => Number(row.pending_ack || 0) > 0)
+    if (dossierDashboardFilter === 'scadente') return rows.filter(row => Number(row.expiration_count || 0) > 0)
+    if (dossierDashboardFilter === 'ok') return rows.filter(row => Number(row.issue_score || 0) === 0)
+    if (dossierDashboardFilter === 'probleme') return rows.filter(row => Number(row.issue_score || 0) > 0)
+    return rows
+  }, [dossierDashboard.rows, dossierDashboardFilter])
+
+  const selectedDossierSummary = useMemo(() => {
+    if (!employeeDetails?.id) return null
+    return (dossierDashboard.rows || []).find(row => String(row.employee_id) === String(employeeDetails.id)) || null
+  }, [dossierDashboard.rows, employeeDetails?.id])
+
+  const selectedEmployeeLeaves = useMemo(() => {
+    if (!employeeDetails?.id) return []
+    return leaves.filter(item => String(item.employee_id) === String(employeeDetails.id)).slice().sort((a, b) => String(b.data_start || b.created_at || '').localeCompare(String(a.data_start || a.created_at || '')))
+  }, [leaves, employeeDetails?.id])
+
+  const selectedEmployeeExpirations = useMemo(() => {
+    if (!employeeDetails?.id) return []
+    return (advancedExpirations.rows || []).filter(item => String(item.employee_id) === String(employeeDetails.id)).slice().sort((a, b) => Number(a.days || 999) - Number(b.days || 999))
+  }, [advancedExpirations.rows, employeeDetails?.id])
+
   if (tabs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-500">
@@ -3063,6 +3164,100 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
           <Card>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
+                <div className="font-semibold text-slate-800">🧭 Dashboard conformitate dosar HR</div>
+                <div className="text-xs text-slate-500">Panou de lucru: lipsuri obligatorii, documente Kiosk neconfirmate și scadențe apropiate.</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={loadDossierDashboard}>Reîncarcă dashboard</Button>
+                <Button size="sm" variant="secondary" onClick={downloadDossierReport}>Export Excel</Button>
+              </div>
+            </div>
+            {dossierReminderResult ? (
+              <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                Reminder trimis pentru <strong>{dossierReminderResult.pending || 0}</strong> documente neconfirmate
+                {dossierReminderResult.notified_user ? ' · notificare internă creată' : ' · fără utilizator ERP asociat pentru notificare internă'}
+                {dossierReminderResult.sent_at ? ` · ${String(dossierReminderResult.sent_at).slice(0, 16).replace('T', ' ')}` : ''}
+              </div>
+            ) : null}
+            <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Angajați verificați</div><strong>{dossierDashboard.summary?.total || 0}</strong></div>
+              <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm"><div className="text-xs text-emerald-700">Fără probleme</div><strong>{dossierDashboard.summary?.complete || 0}</strong></div>
+              <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Cu lipsuri obligatorii</div><strong>{dossierDashboard.summary?.missing_required || 0}</strong></div>
+              <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">Confirmări Kiosk lipsă</div><strong>{dossierDashboard.summary?.pending_ack || 0}</strong></div>
+              <div className="rounded border border-blue-200 bg-blue-50 p-2 text-sm"><div className="text-xs text-blue-700">Cu scadențe ≤90 zile</div><strong>{dossierDashboard.summary?.expiring || 0}</strong></div>
+            </div>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {[
+                { value: 'probleme', label: `Probleme (${dossierDashboard.summary?.problem_employees || 0})` },
+                { value: 'lipsuri', label: 'Lipsuri obligatorii' },
+                { value: 'neconfirmate', label: 'Neconfirmate Kiosk' },
+                { value: 'scadente', label: 'Scadențe' },
+                { value: 'ok', label: 'Fără probleme' },
+                { value: 'toate', label: 'Toate' },
+              ].map(filter => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setDossierDashboardFilter(filter.value)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${dossierDashboardFilter === filter.value ? 'bg-primary-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+            <div className="overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                  <tr><th className="px-3 py-2">Angajat</th><th className="px-3 py-2">Dosar</th><th className="px-3 py-2">Lipsuri</th><th className="px-3 py-2">Kiosk</th><th className="px-3 py-2">Scadență</th><th className="px-3 py-2 text-right">Acțiuni</th></tr>
+                </thead>
+                <tbody>
+                  {dossierDashboardRows.slice(0, 40).map(row => {
+                    const emp = employees.find(item => String(item.id) === String(row.employee_id))
+                    const severityClass = row.expired_count ? 'text-rose-700' : row.critical_count ? 'text-red-700' : row.warning_count ? 'text-amber-700' : 'text-blue-700'
+                    return (
+                      <tr key={row.employee_id} className="border-t border-slate-100">
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-slate-800">{row.nume_complet}</div>
+                          <div className="text-xs text-slate-400">{row.functia || '-'} · {row.department_name || 'fără departament'} · marca {row.marca || '-'}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-200"><div className={`h-2 ${row.percent === 100 ? 'bg-emerald-500' : row.percent >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${row.percent || 0}%` }} /></div>
+                          <div className="mt-1 text-xs text-slate-500">{row.required_done}/{row.required_total} · {row.percent}%</div>
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          {row.missing_required?.length ? <span className="text-rose-700">{row.missing_required.join(', ')}</span> : <span className="text-emerald-700">Complet obligatoriu</span>}
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          <div className={row.pending_ack ? 'font-semibold text-amber-700' : 'text-emerald-700'}>{row.pending_ack || 0} neconfirmate</div>
+                          <div className="text-slate-400">{row.acknowledged || 0}/{row.kiosk_documents || 0} confirmate</div>
+                          {row.last_reminder_at ? <div className="text-slate-400">reminder {String(row.last_reminder_at).slice(0, 10)}</div> : null}
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          {row.next_expiration ? (
+                            <div>
+                              <div className={`font-semibold ${severityClass}`}>{row.next_expiration.label}</div>
+                              <div className="text-slate-500">{row.next_expiration.date} · {row.next_expiration.days < 0 ? `expirat de ${Math.abs(row.next_expiration.days)} zile` : `${row.next_expiration.days} zile`}</div>
+                            </div>
+                          ) : <span className="text-emerald-700">Fără scadențe apropiate</span>}
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {emp ? <Button size="sm" variant="secondary" onClick={() => openEmployee(emp)}>Dosar</Button> : null}
+                            {row.pending_ack ? <Button size="sm" onClick={() => sendDossierReminder(row.employee_id)}>Reminder Kiosk</Button> : null}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {!dossierDashboardRows.length ? <tr><td colSpan="6" className="px-3 py-6 text-center text-slate-400">Nu există angajați pentru filtrul selectat.</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
                 <div className="font-semibold text-slate-800">🧩 Șabloane HR editabile</div>
                 <div className="text-xs text-slate-500">CIM-ul și actele adiționale pot folosi texte proprii Publiserv, cu variabile inserabile.</div>
               </div>
@@ -3367,8 +3562,6 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       <Modal open={Boolean(selectedEmployee)} title={selectedEmployee ? `Fișa — ${fullName(selectedEmployee)}` : ''} onClose={() => setSelectedEmployee(null)} size="lg">
         {employeeDetails ? (
           <div className="grid gap-4">
-            <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} />
-            <EmployeeContractsPanel employeeId={employeeDetails.id} contracts={employeeContracts} amendments={employeeAmendments} departments={departments} canManage={hasPerm('hr:manage')} onReload={() => reloadEmployeeContracts(employeeDetails.id)} onError={setError} onPrintContract={printOperationalContract} onPrintAmendment={printOperationalAmendment} onGenerateContractWord={generateContractWord} onGenerateAmendmentWord={generateAmendmentWord} onArchiveContractWord={archiveContractWord} onArchiveAmendmentWord={archiveAmendmentWord} documentTemplates={hrDocumentTemplates} />
             {/* Photo + basic info */}
             <div className="flex items-start gap-4">
               <div className="relative flex-shrink-0">
@@ -3402,18 +3595,40 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 <div className="text-sm text-slate-500">{employeeDetails.functia || '-'} · {employeeDetails.department_name || '-'}</div>
                 <div className="mt-1 text-xs text-slate-400">Marcă: {employeeDetails.marca || '-'} · Vechime: {employeeDetails.zile_vechime ?? '-'} zile</div>
                 <div className="mt-2 flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={printEmployeeProfile}>🖨️ Fișă angajat</Button>
                   {editMode
                     ? <>
                         <Button size="sm" onClick={saveEmployeeEdit}>💾 Salvează</Button>
                         <Button size="sm" variant="secondary" onClick={() => { setEditMode(false); setPhotoPreview(null); setPhotoFile(null) }}>Renunță</Button>
                       </>
-                    : <Button size="sm" variant="secondary" onClick={() => setEditMode(true)}>✏️ Editează</Button>
+                    : <Button size="sm" variant="secondary" onClick={() => { setEmployeeProfileTab('date'); setEditMode(true) }}>✏️ Editează</Button>
                   }
                 </div>
               </div>
             </div>
 
-            {editMode ? (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded-lg border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">Status contract</div><strong>{employeeDetails.tip_contract || employeeContracts[0]?.tip || 'activ'}</strong><div className="text-xs text-slate-400">{employeeDetails.data_angajare || employeeContracts[0]?.data_start || '-'}</div></div>
+              <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm"><div className="text-xs text-primary-700">Dosar HR</div><strong>{selectedDossierSummary?.percent ?? 0}%</strong><div className="text-xs text-primary-600">{selectedDossierSummary?.required_done ?? 0}/{selectedDossierSummary?.required_total ?? 0} obligatorii</div></div>
+              <div className={`rounded-lg border p-3 text-sm ${selectedDossierSummary?.pending_ack ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="text-xs">Confirmări Kiosk</div><strong>{selectedDossierSummary?.pending_ack ?? 0}</strong><div className="text-xs">neconfirmate</div></div>
+              <div className={`rounded-lg border p-3 text-sm ${selectedEmployeeExpirations[0]?.severity === 'expired' ? 'border-rose-200 bg-rose-50' : selectedEmployeeExpirations[0] ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="text-xs">Următoarea scadență</div><strong>{selectedEmployeeExpirations[0]?.date || '—'}</strong><div className="text-xs">{selectedEmployeeExpirations[0]?.label || 'fără scadențe apropiate'}</div></div>
+              <div className="rounded-lg border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">CO {new Date().getFullYear()}</div><strong>{coBalance ? `${coBalance.zile_ramase} zile` : `${employeeDetails.zile_co_drept ?? 21} / an`}</strong><div className="text-xs text-slate-400">{selectedEmployeeLeaves.length} cereri în istoric</div></div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+              {[
+                ['date', 'Date personale'],
+                ['contracte', 'Contracte'],
+                ['pontaj', 'Pontaj & concedii'],
+                ['dosar', 'Dosar documente'],
+                ['kiosk', 'Scadențe & Kiosk'],
+                ['echipamente', 'Echipamente'],
+              ].map(([value, label]) => (
+                <button key={value} type="button" onClick={() => setEmployeeProfileTab(value)} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${employeeProfileTab === value ? 'bg-primary-700 text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>{label}</button>
+              ))}
+            </div>
+
+            {employeeProfileTab === 'date' ? (editMode ? (
               <div className="grid gap-4">
                 {/* Banner avertizare angajat importat din Autominder cu date HR incomplete */}
                 {(employeeDetails.sursa === 'autominder' || employeeDetails.sursa_autominder) && !employeeDetails.cnp && (
@@ -3594,23 +3809,69 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                   <div>Contracte active: {(employeeDetails.contracte_active || []).length}</div>
                 </div>
               </div>
-            )}
-            {transferHistory.length ? (
+            )) : null}
+
+            {employeeProfileTab === 'contracte' ? (
+              <>
+                <EmployeeContractsPanel employeeId={employeeDetails.id} contracts={employeeContracts} amendments={employeeAmendments} departments={departments} canManage={hasPerm('hr:manage')} onReload={() => reloadEmployeeContracts(employeeDetails.id)} onError={setError} onPrintContract={printOperationalContract} onPrintAmendment={printOperationalAmendment} onGenerateContractWord={generateContractWord} onGenerateAmendmentWord={generateAmendmentWord} onArchiveContractWord={archiveContractWord} onArchiveAmendmentWord={archiveAmendmentWord} documentTemplates={hrDocumentTemplates} />
+                {transferHistory.length ? (
               <div className="rounded-lg border border-slate-200 p-3">
                 <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Istoric departamente</div>
                 <div className="grid gap-2">
                   {transferHistory.map(item => <div key={item.uuid || item.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span><strong>{item.departament_vechi_nume || item.dept_vechi || 'Fara departament'}</strong> → <strong>{item.departament_nou_nume || item.dept_nou}</strong></span><span className="text-xs text-slate-500">{item.data_transfer} · {item.motiv || 'fara motiv'}</span></div>)}
                 </div>
               </div>
+                ) : null}
+              </>
             ) : null}
-            <div className="rounded-lg border border-primary-100 bg-primary-50/40 p-3">
+
+            {employeeProfileTab === 'pontaj' ? (
+              <div className="grid gap-4">
+                <div className="grid gap-2 sm:grid-cols-4">
+                  <div className="rounded border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">Zile pontate</div><strong>{employeeDetails.statistici_pontaj?.zile_pontate ?? 0}</strong></div>
+                  <div className="rounded border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">Ore total</div><strong>{employeeDetails.statistici_pontaj?.ore_total ?? 0}</strong></div>
+                  <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm"><div className="text-xs text-emerald-700">CO rămas</div><strong>{coBalance?.zile_ramase ?? '-'}</strong></div>
+                  <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm"><div className="text-xs text-amber-700">Cereri concediu</div><strong>{selectedEmployeeLeaves.length}</strong></div>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Istoric concedii</div>
+                  <div className="grid gap-2">
+                    {selectedEmployeeLeaves.slice(0, 12).map(item => <div key={item.uuid || item.id} className="flex flex-wrap items-center justify-between gap-2 rounded bg-slate-50 px-3 py-2 text-sm"><span><strong>{item.tip}</strong> · {item.data_start} — {item.data_sfarsit} · {item.zile || '-'} zile</span><Badge tone={['aprobat','aprobata'].includes(item.status) ? 'success' : item.status === 'respins' ? 'danger' : 'warning'}>{item.status || 'cerut'}</Badge></div>)}
+                    {!selectedEmployeeLeaves.length ? <div className="text-sm text-slate-400">Nu există cereri de concediu înregistrate.</div> : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {employeeProfileTab === 'dosar' ? <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} /> : null}
+
+            {employeeProfileTab === 'kiosk' ? (
+              <div className="grid gap-4">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">Documente Kiosk</div><strong>{selectedDossierSummary?.kiosk_documents ?? 0}</strong></div>
+                  <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm"><div className="text-xs text-amber-700">Neconfirmate</div><strong>{selectedDossierSummary?.pending_ack ?? 0}</strong></div>
+                  <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm"><div className="text-xs text-blue-700">Scadențe ≤90 zile</div><strong>{selectedEmployeeExpirations.length}</strong></div>
+                </div>
+                {selectedDossierSummary?.pending_ack ? <Button size="sm" onClick={() => sendDossierReminder(employeeDetails.id)}>Trimite reminder Kiosk</Button> : null}
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Lipsuri obligatorii & scadențe</div>
+                  {selectedDossierSummary?.missing_required?.length ? <div className="mb-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">Lipsesc: {selectedDossierSummary.missing_required.join(', ')}</div> : <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Documentele obligatorii sunt complete.</div>}
+                  <div className="grid gap-2">
+                    {selectedEmployeeExpirations.map(item => <div key={item.id} className={`flex flex-wrap items-center justify-between gap-2 rounded px-3 py-2 text-sm ${item.severity === 'expired' ? 'bg-rose-50 text-rose-800' : item.severity === 'critical' ? 'bg-red-50 text-red-800' : item.severity === 'warning' ? 'bg-amber-50 text-amber-800' : 'bg-blue-50 text-blue-800'}`}><span>{item.icon} {item.label}</span><span>{item.date} · {item.days < 0 ? `expirat de ${Math.abs(item.days)} zile` : `${item.days} zile rămase`}</span></div>)}
+                    {!selectedEmployeeExpirations.length ? <div className="text-sm text-slate-400">Nu există scadențe apropiate.</div> : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {employeeProfileTab === 'echipamente' ? <div className="rounded-lg border border-primary-100 bg-primary-50/40 p-3">
               <div className="mb-3 flex items-center justify-between"><div className="text-xs font-semibold uppercase text-primary-700">🦺 Echipamente și inventar în răspundere</div>{canManageEquipment ? <Button size="sm" onClick={() => { const first = employeeEquipment?.marimi?.[0]; setDotareForm({ angajat_id: employeeDetails.id, tip_id: first?.id || '', marime: first?.marime || '', numar_serie: '', valoare_inventar: first?.valoare_inventar || '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'nou', observatii: '' }); setDotareModal(true) }}>+ Înregistrează dotare nouă</Button> : null}</div>
               {employeeEquipment ? <>
                 <div className="grid gap-2 sm:grid-cols-3">{employeeEquipment.marimi.filter(tip => tip.are_marime).map(tip => <Select key={tip.id} label={tip.denumire} value={tip.marime || ''} onChange={event => saveEmployeeSizes(tip.id, event.target.value)} options={[{ value: '', label: 'Alege mărimea' }, ...tip.marimi_disponibile.map(marime => ({ value: marime, label: marime }))]} />)}</div>
                 {[['Echipamente protecție', employeeEquipment.inventar?.echipamente_protectie], ['Scule și unelte', employeeEquipment.inventar?.scule_unelte], ['Alte obiecte inventar', employeeEquipment.inventar?.alte_obiecte]].map(([title, rows]) => <div key={title} className="mt-4"><div className="mb-1 text-xs font-semibold uppercase text-slate-600">{title}</div><div className="overflow-auto"><table className="min-w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1">Obiect</th><th>Mărime</th><th>Nr. serie</th><th>Data dotare</th><th>Expiră</th><th>Cant.</th><th>Stare</th><th className="text-right">Valoare</th><th>Predat</th></tr></thead><tbody>{(rows || []).map(row => <tr key={row.id} className="border-t"><td className="py-1">{row.tip_denumire}</td><td>{row.marime || '-'}</td><td>{row.numar_serie || '-'}</td><td>{row.data_dotare}</td><td>{row.data_expirare || '-'}</td><td>{row.cantitate}</td><td>{row.stare}</td><td className="text-right">{Number(row.valoare_inventar || 0).toFixed(2)} lei</td><td>{canManageEquipment ? <input type="checkbox" checked={!!row.predat_la_lichidare} onChange={event => setReturnedEquipment(row, event.target.checked)} /> : row.predat_la_lichidare ? 'Da' : 'Nu'}</td></tr>)}</tbody></table>{!(rows || []).length ? <div className="py-2 text-xs text-slate-400">Nu există obiecte active.</div> : null}</div></div>)}
                 <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">Total valoare în răspundere: {Number(employeeEquipment.inventar?.total_valoare || 0).toFixed(2)} lei</div>
               </> : <p className="text-sm text-slate-500">Se încarcă echipamentele...</p>}
-            </div>
+            </div> : null}
           </div>
         ) : <p className="text-sm text-slate-500">Se incarca fișa...</p>}
       </Modal>
