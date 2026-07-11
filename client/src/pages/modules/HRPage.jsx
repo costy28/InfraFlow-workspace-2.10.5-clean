@@ -587,6 +587,11 @@ export default function HRPage() {
   const [guidedWorkflowStep, setGuidedWorkflowStep] = useState('')
   const [hrActivity, setHrActivity] = useState({ rows: [], summary: {} })
   const [hrActivityFilter, setHrActivityFilter] = useState({ category: '', employee_id: '', from: '', to: '' })
+  const [hrManagementReport, setHrManagementReport] = useState(null)
+  const [hrManagementPeriod, setHrManagementPeriod] = useState(() => {
+    const now = new Date()
+    return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) }
+  })
   const [advancedExpirations, setAdvancedExpirations] = useState({ rows: [], summary: {} })
   const [expirationNoticeResult, setExpirationNoticeResult] = useState(null)
   const [expirationNotifications, setExpirationNotifications] = useState({ notifications: [], summary: {} })
@@ -667,7 +672,7 @@ export default function HRPage() {
     setLoading(true)
     setError('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, managementRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -680,6 +685,7 @@ export default function HRPage() {
         api.get('/hr/dossier-dashboard').catch(() => ({ data: { rows: [], summary: {}, expirations_summary: {} } })),
         api.get('/hr/inbox').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/activity').catch(() => ({ data: { rows: [], summary: {} } })),
+        api.get('/hr/management-report', { params: hrManagementPeriod }).catch(() => ({ data: null })),
         api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })),
       ])
@@ -695,6 +701,7 @@ export default function HRPage() {
       setDossierDashboard({ rows: arrayFrom(dossierDashboardRes.data, ['rows', 'items']), summary: dossierDashboardRes.data?.summary || {}, expirations_summary: dossierDashboardRes.data?.expirations_summary || {} })
       setHrInbox({ rows: arrayFrom(inboxRes.data, ['rows', 'items']), summary: inboxRes.data?.summary || {} })
       setHrActivity({ rows: arrayFrom(activityRes.data, ['rows', 'items']), summary: activityRes.data?.summary || {} })
+      setHrManagementReport(managementRes.data || null)
       setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
       setExpirationNotifications({ notifications: arrayFrom(expirationNotificationsRes.data, ['notifications', 'items']), summary: expirationNotificationsRes.data?.summary || {} })
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
@@ -838,6 +845,29 @@ export default function HRPage() {
       URL.revokeObjectURL(url)
     } catch (err) {
       setError(err.response?.data?.error || 'Exportul jurnalului HR nu a putut fi descărcat.')
+    }
+  }
+
+  async function loadHrManagementReport() {
+    try {
+      const response = await api.get('/hr/management-report', { params: hrManagementPeriod })
+      setHrManagementReport(response.data || null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Raportul de management HR nu a putut fi încărcat.')
+    }
+  }
+
+  async function downloadHrManagementReport() {
+    try {
+      const response = await api.get('/hr/management-report.xlsx', { params: hrManagementPeriod, responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Raport_management_HR_${hrManagementPeriod.from}_${hrManagementPeriod.to}.xlsx`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Exportul raportului de management HR nu a putut fi descărcat.')
     }
   }
 
@@ -2665,6 +2695,70 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               ))}
             </div>
           ) : null}
+
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">📈 Raport management HR</div>
+                <div className="text-xs text-slate-500">Sinteză pentru conducere: activitate, dosare, scadențe, concedii și sarcini deschise.</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Input type="date" value={hrManagementPeriod.from} onChange={event => setHrManagementPeriod(current => ({ ...current, from: event.target.value }))} />
+                <Input type="date" value={hrManagementPeriod.to} onChange={event => setHrManagementPeriod(current => ({ ...current, to: event.target.value }))} />
+                <Button size="sm" variant="secondary" onClick={loadHrManagementReport}>Recalculează</Button>
+                <Button size="sm" onClick={downloadHrManagementReport}>📊 Export Excel</Button>
+              </div>
+            </div>
+            {hrManagementReport ? (
+              <div className="grid gap-4">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+                  {[
+                    ['Sarcini Inbox', hrManagementReport.kpi?.inbox_total || 0, 'slate'],
+                    ['Critice', hrManagementReport.kpi?.inbox_critical || 0, 'rose'],
+                    ['Dosare complete', hrManagementReport.kpi?.dossier_complete || 0, 'emerald'],
+                    ['Lipsuri dosar', hrManagementReport.kpi?.dossier_missing_required || 0, 'amber'],
+                    ['Scadențe ≤30 zile', hrManagementReport.kpi?.expiring_30 || 0, 'red'],
+                    ['Activități HR', hrManagementReport.kpi?.activity_total || 0, 'blue'],
+                  ].map(([label, value, tone]) => (
+                    <div key={label} className={`rounded border p-2 text-sm ${tone === 'rose' ? 'border-rose-200 bg-rose-50' : tone === 'emerald' ? 'border-emerald-200 bg-emerald-50' : tone === 'amber' ? 'border-amber-200 bg-amber-50' : tone === 'red' ? 'border-red-200 bg-red-50' : tone === 'blue' ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
+                      <div className="text-xs text-slate-500">{label}</div>
+                      <strong>{value}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <div className="rounded border border-slate-200 p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Activitate pe categorii</div>
+                    {Object.entries(hrManagementReport.activity_by_category || {}).slice(0, 8).map(([label, count]) => (
+                      <div key={label} className="flex justify-between border-b border-slate-100 py-1 text-sm"><span>{label}</span><strong>{count}</strong></div>
+                    ))}
+                    {!Object.keys(hrManagementReport.activity_by_category || {}).length ? <div className="text-sm text-slate-400">Fără activitate în perioadă.</div> : null}
+                  </div>
+                  <div className="rounded border border-slate-200 p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Top lipsuri dosar</div>
+                    {(hrManagementReport.top_missing || []).slice(0, 8).map(item => (
+                      <div key={item.label} className="flex justify-between border-b border-slate-100 py-1 text-sm"><span>{item.label}</span><strong>{item.count}</strong></div>
+                    ))}
+                    {!(hrManagementReport.top_missing || []).length ? <div className="text-sm text-emerald-600">Nu sunt lipsuri obligatorii.</div> : null}
+                  </div>
+                  <div className="rounded border border-slate-200 p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Activitate pe utilizator HR</div>
+                    {(hrManagementReport.activity_by_user || []).slice(0, 8).map(item => (
+                      <div key={item.user_name} className="flex justify-between border-b border-slate-100 py-1 text-sm"><span>{item.user_name || 'Sistem'}</span><strong>{item.count}</strong></div>
+                    ))}
+                    {!(hrManagementReport.activity_by_user || []).length ? <div className="text-sm text-slate-400">Fără activitate în perioadă.</div> : null}
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-5">
+                  <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Concedii create</div><strong>{hrManagementReport.kpi?.leaves_created || 0}</strong></div>
+                  <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm"><div className="text-xs text-emerald-700">Concedii aprobate</div><strong>{hrManagementReport.kpi?.leaves_approved || 0}</strong></div>
+                  <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Concedii respinse</div><strong>{hrManagementReport.kpi?.leaves_rejected || 0}</strong></div>
+                  <div className="rounded border border-blue-200 bg-blue-50 p-2 text-sm"><div className="text-xs text-blue-700">CM depuse</div><strong>{hrManagementReport.kpi?.medical_submitted || 0}</strong></div>
+                  <div className="rounded border border-primary-200 bg-primary-50 p-2 text-sm"><div className="text-xs text-primary-700">CM verificate</div><strong>{hrManagementReport.kpi?.medical_verified || 0}</strong></div>
+                </div>
+              </div>
+            ) : <div className="text-sm text-slate-400">Raportul de management HR nu este încărcat.</div>}
+          </Card>
 
           {/* Cereri concediu în așteptare */}
           {pendingLeaves.length > 0 ? (

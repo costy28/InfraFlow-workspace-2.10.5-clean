@@ -150,6 +150,32 @@ router.get("/hr/activity.xlsx", authorize("hr:view"), (req, res) => {
   res.end(buffer);
 });
 
+router.get("/hr/management-report", authorize("hr:view"), (req, res) => {
+  res.json(buildHrManagementReport(req.auth.db, req.query || {}));
+});
+
+router.get("/hr/management-report.xlsx", authorize("hr:view"), (req, res) => {
+  const report = buildHrManagementReport(req.auth.db, req.query || {});
+  const workbook = xlsx.utils.book_new();
+  appendSheet(workbook, "KPI", [
+    { Indicator: "Sarcini Inbox", Valoare: report.kpi.inbox_total },
+    { Indicator: "Sarcini critice", Valoare: report.kpi.inbox_critical },
+    { Indicator: "Dosare complete", Valoare: report.kpi.dossier_complete },
+    { Indicator: "Angajati cu lipsuri obligatorii", Valoare: report.kpi.dossier_missing_required },
+    { Indicator: "Confirmari Kiosk lipsa", Valoare: report.kpi.pending_ack },
+    { Indicator: "Scadente 30 zile", Valoare: report.kpi.expiring_30 },
+    { Indicator: "Activitati HR perioada", Valoare: report.kpi.activity_total }
+  ]);
+  appendSheet(workbook, "Activitate categorii", Object.entries(report.activity_by_category || {}).map(([Categorie, Valoare]) => ({ Categorie, Valoare })));
+  appendSheet(workbook, "Top lipsuri dosar", (report.top_missing || []).map((item) => ({ Document: item.label, Aparitii: item.count })));
+  appendSheet(workbook, "Utilizatori HR", (report.activity_by_user || []).map((item) => ({ Utilizator: item.user_name, Actiuni: item.count })));
+  appendSheet(workbook, "Scadente", (report.expirations || []).map((item) => ({ Angajat: item.employee_name, Marca: item.marca, Tip: item.label, Sursa: item.source, Data: item.date, Zile: item.days, Severitate: item.severity })));
+  const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename=Raport_management_HR_${report.period.from}_${report.period.to}.xlsx`);
+  res.end(buffer);
+});
+
 router.get("/hr/advanced-expirations", authorize("hr:view"), (req, res) => {
   const relevant = collectAdvancedExpirations(req.auth.db);
   res.json({ rows: relevant, summary: summarizeExpirations(relevant) });
@@ -860,6 +886,66 @@ function buildHrActivity(db, query = {}) {
     return acc;
   }, { total: 0, by_category: {}, by_user: {} });
   return { rows: filtered.slice(0, limit), summary, generated_at: new Date().toISOString() };
+}
+function buildHrManagementReport(db, query = {}) {
+  const today = new Date();
+  const defaultFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const defaultTo = today.toISOString().slice(0, 10);
+  const from = String(query.from || defaultFrom).slice(0, 10);
+  const to = String(query.to || defaultTo).slice(0, 10);
+  const activity = buildHrActivity(db, { from, to, limit: 1000 });
+  const dossier = buildDossierDashboard(db);
+  const inbox = buildHrInbox(db);
+  const expirations = collectAdvancedExpirations(db);
+  const hr = db.hr || {};
+  const leaves = Array.isArray(hr.leaveRequests) ? hr.leaveRequests : [];
+  const medical = Array.isArray(hr.medicalLeaveCertificates) ? hr.medicalLeaveCertificates : [];
+  const inPeriod = (date) => {
+    const raw = String(date || "").slice(0, 10);
+    return raw && raw >= from && raw <= to;
+  };
+  const leaveInPeriod = leaves.filter((item) => inPeriod(item.created_at || item.data_start));
+  const medicalInPeriod = medical.filter((item) => inPeriod(item.created_at || item.data_start));
+  const topMissingMap = new Map();
+  dossier.rows.forEach((row) => (row.missing_required || []).forEach((label) => topMissingMap.set(label, (topMissingMap.get(label) || 0) + 1)));
+  const activityByCategory = {};
+  activity.rows.forEach((row) => {
+    const label = row.category_label || row.category || "Alte";
+    activityByCategory[label] = (activityByCategory[label] || 0) + 1;
+  });
+  const userMap = new Map();
+  activity.rows.forEach((row) => {
+    const key = row.user_name || "Sistem";
+    userMap.set(key, (userMap.get(key) || 0) + 1);
+  });
+  const openWorkflows = ensureEmployeeWorkflows(db).filter((workflow) => !["completed", "cancelled"].includes(String(workflow.status || "")));
+  const expiring30 = expirations.filter((item) => Number(item.days) <= 30).length;
+  return {
+    period: { from, to },
+    kpi: {
+      inbox_total: inbox.summary.total || 0,
+      inbox_critical: inbox.summary.critical || 0,
+      inbox_warning: inbox.summary.warning || 0,
+      dossier_complete: dossier.summary.dossier_complete || 0,
+      dossier_missing_required: dossier.summary.missing_required || 0,
+      pending_ack: dossier.summary.pending_ack || 0,
+      expiring_30: expiring30,
+      expiring_90: expirations.length,
+      open_workflows: openWorkflows.length,
+      activity_total: activity.summary.total || 0,
+      leaves_created: leaveInPeriod.length,
+      leaves_approved: leaveInPeriod.filter((item) => ["aprobat", "aprobata"].includes(String(item.status || "").toLowerCase())).length,
+      leaves_rejected: leaveInPeriod.filter((item) => ["respins", "respinsa"].includes(String(item.status || "").toLowerCase())).length,
+      medical_submitted: medicalInPeriod.length,
+      medical_verified: medicalInPeriod.filter((item) => String(item.status_verificare || "").toLowerCase() === "verificat").length
+    },
+    activity_by_category: activityByCategory,
+    activity_by_user: Array.from(userMap.entries()).map(([user_name, count]) => ({ user_name, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+    top_missing: Array.from(topMissingMap.entries()).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+    inbox_by_category: inbox.summary.by_category || {},
+    expirations: expirations.slice(0, 50),
+    generated_at: new Date().toISOString()
+  };
 }
 function normalizeHrAuditEvent(db, audit) {
   const action = String(audit.action || "");

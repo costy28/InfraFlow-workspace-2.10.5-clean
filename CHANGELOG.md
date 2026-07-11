@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.249 - 2026-07-11
+
+## Rapoarte management HR
+
+- Endpoint nou `GET /api/hr/management-report` pentru sinteza manageriala HR.
+- Export Excel pentru raportul de management HR.
+- Dashboard HR include KPI-uri pentru Inbox, dosare, scadente, concedii, medicale si activitate.
+- Raportul include top lipsuri dosar si activitate pe utilizator HR.
+
 # v2.12.248 - 2026-07-11
 
 ## Jurnal operational HR

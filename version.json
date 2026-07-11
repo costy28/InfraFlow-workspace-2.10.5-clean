@@ -1,5 +1,5 @@
 {
-  "version": "2.12.248",
+  "version": "2.12.249",
   "date": "2026-07-11",
-  "changelog": "## v2.12.248 - 2026-07-11\n### Jurnal operational HR\n- Endpoint nou GET /api/hr/activity pentru evenimente HR normalizate din audit.\n- Export Excel pentru jurnalul operational HR.\n- Inbox HR include sectiune Istoric rezolvari cu filtre pe categorie, angajat si perioada.\n- Fisa angajatului afiseaza un mini timeline cu activitatea HR recenta."
+  "changelog": "## v2.12.249 - 2026-07-11\n### Rapoarte management HR\n- Endpoint nou GET /api/hr/management-report pentru sinteza manageriala HR.\n- Export Excel pentru raportul de management HR.\n- Dashboard HR include KPI-uri pentru Inbox, dosare, scadente, concedii, medicale si activitate.\n- Raportul include top lipsuri dosar si activitate pe utilizator HR."
 }
