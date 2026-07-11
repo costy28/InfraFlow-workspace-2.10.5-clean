@@ -752,6 +752,20 @@ export default function HRPage() {
     }
   }
 
+  async function downloadDossierReport() {
+    try {
+      const response = await api.get('/hr/dossier-report.xlsx', { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Raport_dosar_HR_${new Date().toISOString().slice(0, 10)}.xlsx`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Raportul dosarului HR nu a putut fi descărcat.')
+    }
+  }
+
   async function loadAdvancedExpirations() {
     try {
       const response = await api.get('/hr/advanced-expirations')
@@ -3037,8 +3051,13 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       {activeTab === 'Documente HR' ? (
         <div className="grid gap-4">
           <Card>
-            <div className="mb-1 text-sm font-semibold text-slate-700">📂 Dosar personal — generare documente HR</div>
-            <p className="text-xs text-slate-400">Selectează angajatul și documentul dorit. Documentele se deschid în tab nou pentru print / salvare PDF.</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="mb-1 text-sm font-semibold text-slate-700">📂 Dosar personal — generare documente HR</div>
+                <p className="text-xs text-slate-400">Selectează angajatul și documentul dorit. Documentele se deschid în tab nou pentru print / salvare PDF.</p>
+              </div>
+              <Button size="sm" variant="secondary" onClick={downloadDossierReport}>📊 Export raport dosar HR</Button>
+            </div>
           </Card>
 
           <Card>

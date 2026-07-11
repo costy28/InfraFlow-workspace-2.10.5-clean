@@ -1,5 +1,5 @@
 {
-  "version": "2.12.240",
+  "version": "2.12.241",
   "date": "2026-07-11",
-  "changelog": "## v2.12.240 - 2026-07-11\n### Testare sabloane Word HR\n- Endpoint nou pentru validarea sabloanelor Word fara arhivare.\n- Lista de sabloane HR are buton Testeaza Word pentru fisierele .docx atasate.\n- Testul raporteaza variabile detectate, recunoscute, necunoscute si fara valoare.\n- UI-ul permite alegerea unui angajat, contract si act aditional pentru test realist."
+  "changelog": "## v2.12.241 - 2026-07-11\n### Raport dosar HR si confirmari Kiosk\n- Export Excel nou pentru checklist dosar personal, scadente si confirmari Kiosk.\n- Raportul centralizeaza lipsurile obligatorii per angajat si statusul documentelor critice.\n- Foaia de scadente reuneste alertele avansate HR intr-un format usor de filtrat.\n- Documentele generate sau vizibile in Kiosk includ statusul confirmarii angajatului."
 }

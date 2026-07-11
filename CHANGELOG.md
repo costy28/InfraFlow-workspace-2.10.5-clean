@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.241 - 2026-07-11
+
+## Raport dosar HR si confirmari Kiosk
+
+- Export Excel nou pentru checklist dosar personal, scadente si confirmari Kiosk.
+- Raportul centralizeaza lipsurile obligatorii per angajat si statusul documentelor critice.
+- Foaia de scadente reuneste alertele avansate HR intr-un format usor de filtrat.
+- Documentele generate sau vizibile in Kiosk includ statusul confirmarii angajatului.
+
 # v2.12.240 - 2026-07-11
 
 ## Testare sabloane Word HR

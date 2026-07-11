@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const multer = require("multer");
+const xlsx = require("xlsx");
 const { requireAuth } = require("../../core/auth");
 const { requirePermission, authHasPermission } = require("../../core/permissions");
 const kioskSessions = require("../../core/kiosk-sessions");
@@ -106,6 +107,69 @@ router.post("/hr/advanced-expirations/notifications/:id/resolve", authorize("hr:
   addAudit(req.auth.db, req.auth.user, "hr_scadenta_notificare_rezolvata", notification.message || notification.key || notification.id);
   writeDb(req.auth.db);
   res.json({ notification });
+});
+
+router.get("/hr/dossier-report.xlsx", authorize("hr:view"), (req, res) => {
+  const hr = req.auth.db.hr || {};
+  const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
+  const files = ensureFiles(req.auth.db).filter((item) => !item.cancelled_at);
+  const checklistRows = employees.map((employee) => dossierChecklistFor(employee, files.filter((item) => String(item.employee_id) === String(employee.id))));
+  const expirationRows = collectAdvancedExpirations(req.auth.db);
+  const employeeById = new Map(employees.map((employee) => [String(employee.id), employee]));
+  const ackRows = files
+    .filter((item) => item.requires_ack || item.generated || item.kiosk_visible)
+    .map((item) => {
+      const employee = employeeById.get(String(item.employee_id)) || {};
+      return {
+        "Angajat": employeeName(employee) || item.employee_id,
+        "Marca": employee.marca || "",
+        "Functie": employee.functia || employee.functie || "",
+        "Document": item.denumire || item.file_name || "",
+        "Tip": item.tip || "",
+        "Fisier": item.file_name || "",
+        "Necesita confirmare": item.requires_ack || item.generated || item.kiosk_visible ? "Da" : "Nu",
+        "Vizibil Kiosk": item.kiosk_visible || item.generated ? "Da" : "Nu",
+        "Confirmat la": item.acknowledged_at ? String(item.acknowledged_at).slice(0, 19).replace("T", " ") : "",
+        "Confirmat de": item.acknowledged_by_name || item.acknowledged_by || "",
+        "Status": item.acknowledged_at ? "confirmat" : "neconfirmat",
+        "Creat la": item.created_at ? String(item.created_at).slice(0, 19).replace("T", " ") : ""
+      };
+    });
+  const wb = xlsx.utils.book_new();
+  const checklistSheetRows = checklistRows.map((row) => ({
+    "Angajat": row.nume_complet,
+    "Marca": row.marca,
+    "Functie": row.functia,
+    "Procent completare": `${row.percent}%`,
+    "Obligatorii completate": `${row.required_done}/${row.required_total}`,
+    "Lipsuri obligatorii": row.missing_required.join(", "),
+    "CIM / contract": statusForChecklist(row, "contract"),
+    "Act identitate": statusForChecklist(row, "identitate"),
+    "Fisa postului": statusForChecklist(row, "fisa_post"),
+    "Apt medical": statusForChecklist(row, "medical"),
+    "SSM / PSI": statusForChecklist(row, "ssm"),
+    "GDPR": statusForChecklist(row, "gdpr"),
+    "Diplome": statusForChecklist(row, "diploma"),
+    "Acte aditionale": statusForChecklist(row, "act_aditional")
+  }));
+  const expirationSheetRows = expirationRows.map((item) => ({
+    "Angajat": item.employee_name,
+    "Marca": item.marca,
+    "Functie": item.functia,
+    "Sursa": item.source,
+    "Document / alerta": item.label,
+    "Tip": item.type,
+    "Data expirare": item.date,
+    "Zile ramase": item.days,
+    "Severitate": item.severity
+  }));
+  appendSheet(wb, "Checklist dosar", checklistSheetRows);
+  appendSheet(wb, "Scadente", expirationSheetRows);
+  appendSheet(wb, "Confirmari Kiosk", ackRows);
+  const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename=Raport_dosar_HR_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  res.end(buffer);
 });
 
 router.get("/hr/kiosk/my-documents", (req, res) => {
@@ -362,6 +426,25 @@ function hrExpirationNotifications(db) {
       };
     })
     .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+}
+function appendSheet(workbook, name, rows) {
+  const safeRows = rows.length ? rows : [{ "Info": "Nu exista date pentru acest raport." }];
+  const sheet = xlsx.utils.json_to_sheet(safeRows);
+  const headers = Object.keys(safeRows[0] || {});
+  sheet["!cols"] = headers.map((header) => ({
+    width: Math.min(48, Math.max(12, header.length + 4, ...safeRows.slice(0, 100).map((row) => String(row[header] || "").length + 2)))
+  }));
+  xlsx.utils.book_append_sheet(workbook, sheet, name);
+}
+function statusForChecklist(row, key) {
+  const item = (row.items || []).find((entry) => entry.key === key);
+  if (!item) return "";
+  if (!item.ok) return item.required ? "lipsa" : "optional lipsa";
+  const bits = ["ok"];
+  if (item.date) bits.push(`doc ${item.date}`);
+  if (item.expires) bits.push(`expira ${item.expires}`);
+  if (item.acknowledged_at) bits.push(`confirmat ${String(item.acknowledged_at).slice(0, 10)}`);
+  return bits.join(" · ");
 }
 function dossierChecklistFor(employee, files) {
   const checks = [
