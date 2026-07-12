@@ -9,6 +9,7 @@ import Modal from '../../components/ui/Modal'
 import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
 import HRDashboardPanel from './hr/HRDashboardPanel'
+import HRInboxPanel from './hr/HRInboxPanel'
 import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
 import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
 
@@ -2668,129 +2669,22 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
       {/* ─── INBOX HR ─────────────────────────────────────── */}
       {activeTab === 'Inbox HR' ? (
-        <div className="grid gap-4">
-          <Card>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-800">📥 Inbox HR — sarcini care cer acțiune</div>
-                <div className="text-xs text-slate-500">Concedii, medicale, fluxuri, dosare incomplete, confirmări Kiosk și scadențe într-un singur panou.</div>
-              </div>
-              <Button size="sm" variant="secondary" onClick={loadHrInbox}>Reîncarcă inbox</Button>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-4">
-              <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Total sarcini</div><strong>{hrInbox.summary?.total || 0}</strong></div>
-              <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Critice</div><strong>{hrInbox.summary?.critical || 0}</strong></div>
-              <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">Avertizări</div><strong>{hrInbox.summary?.warning || 0}</strong></div>
-              <div className="rounded border border-blue-200 bg-blue-50 p-2 text-sm"><div className="text-xs text-blue-700">Informative</div><strong>{hrInbox.summary?.info || 0}</strong></div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {[
-                { value: 'toate', label: `Toate (${hrInbox.summary?.total || 0})` },
-                { value: 'critice', label: `Critice (${hrInbox.summary?.critical || 0})` },
-                { value: 'avertizari', label: `Avertizări (${hrInbox.summary?.warning || 0})` },
-                { value: 'concedii', label: `Concedii (${hrInbox.summary?.by_category?.concedii || 0})` },
-                { value: 'medical', label: `Medicale (${hrInbox.summary?.by_category?.medical || 0})` },
-                { value: 'onboarding', label: `Onboarding (${hrInbox.summary?.by_category?.onboarding || 0})` },
-                { value: 'offboarding', label: `Offboarding (${hrInbox.summary?.by_category?.offboarding || 0})` },
-                { value: 'dosar', label: `Dosar (${hrInbox.summary?.by_category?.dosar || 0})` },
-                { value: 'kiosk', label: `Kiosk (${hrInbox.summary?.by_category?.kiosk || 0})` },
-                { value: 'scadente', label: `Scadențe (${hrInbox.summary?.by_category?.scadente || 0})` },
-              ].map(filter => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setHrInboxFilter(filter.value)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${hrInboxFilter === filter.value ? 'bg-primary-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-slate-700">{hrInboxRows.length} sarcini afișate</div>
-              {dossierReminderResult ? <div className="text-xs text-emerald-700">Ultimul reminder Kiosk: {dossierReminderResult.pending || 0} documente · {String(dossierReminderResult.sent_at || '').slice(0, 16).replace('T', ' ')}</div> : null}
-            </div>
-            <div className="grid gap-2">
-              {hrInboxRows.slice(0, 80).map(item => {
-                const severityClass = item.severity === 'critical'
-                  ? 'border-rose-200 bg-rose-50'
-                  : item.severity === 'warning'
-                    ? 'border-amber-200 bg-amber-50'
-                    : 'border-blue-200 bg-blue-50'
-                const severityLabel = item.severity === 'critical' ? 'critic' : item.severity === 'warning' ? 'atenție' : 'info'
-                return (
-                  <div key={item.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${severityClass}`}>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.severity === 'critical' ? 'bg-rose-100 text-rose-700' : item.severity === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{severityLabel}</span>
-                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold uppercase text-slate-500">{item.category}</span>
-                        <span className="font-semibold text-slate-800">{item.title}</span>
-                      </div>
-                      <div className="mt-1 text-slate-700">{item.employee_name || '—'}{item.marca ? ` · marca ${item.marca}` : ''}{item.department_name ? ` · ${item.department_name}` : ''}</div>
-                      {item.detail ? <div className="text-xs text-slate-500">{item.detail}</div> : null}
-                    </div>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      {item.due_date ? <div className="text-right text-xs text-slate-500"><div>Termen/sursă</div><strong>{String(item.due_date).slice(0, 10)}</strong></div> : null}
-                      {['dosar', 'scadente'].includes(item.category) && item.employee_id ? (
-                        <Button size="sm" variant="secondary" onClick={() => openHrInboxTask({ ...item, action: 'guided_upload', action_label: 'Încarcă document' })}>Încarcă document</Button>
-                      ) : null}
-                      <Button size="sm" onClick={() => openHrInboxTask(item)}>{item.action_label || 'Deschide'}</Button>
-                    </div>
-                  </div>
-                )
-              })}
-              {!hrInboxRows.length ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-6 text-center text-sm text-emerald-700">
-                  Inbox HR curat. Nu sunt sarcini pentru filtrul selectat.
-                </div>
-              ) : null}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-800">🧾 Istoric rezolvări / jurnal operațional HR</div>
-                <div className="text-xs text-slate-500">Evenimente HR normalizate pentru audit: documente, Kiosk, concedii, fluxuri, pontaj, contracte și echipamente.</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={() => loadHrActivity()}>Reîncarcă jurnal</Button>
-                <Button size="sm" onClick={downloadHrActivity}>📊 Export Excel</Button>
-              </div>
-            </div>
-            <div className="mb-3 grid gap-2 md:grid-cols-4">
-              <Select label="Categorie" value={hrActivityFilter.category} onChange={event => setHrActivityFilter(current => ({ ...current, category: event.target.value }))} options={[{ value: '', label: 'Toate categoriile' }, ...hrActivityCategories]} />
-              <Select label="Angajat" value={hrActivityFilter.employee_id} onChange={event => setHrActivityFilter(current => ({ ...current, employee_id: event.target.value }))} options={[{ value: '', label: 'Toți angajații' }, ...employees.map(emp => ({ value: String(emp.id), label: fullName(emp) }))]} />
-              <Input label="De la" type="date" value={hrActivityFilter.from} onChange={event => setHrActivityFilter(current => ({ ...current, from: event.target.value }))} />
-              <Input label="Până la" type="date" value={hrActivityFilter.to} onChange={event => setHrActivityFilter(current => ({ ...current, to: event.target.value }))} />
-            </div>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs text-slate-500">Total filtrat: <strong>{hrActivity.summary?.total || 0}</strong></div>
-              <Button size="sm" variant="secondary" onClick={() => loadHrActivity()}>Aplică filtre</Button>
-            </div>
-            <div className="grid gap-2">
-              {(hrActivity.rows || []).slice(0, 40).map(item => (
-                <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{item.category_label || item.category}</span>
-                      <span className="font-semibold text-slate-800">{item.label}</span>
-                    </div>
-                    <div className="text-xs text-slate-500">{item.employee_name || '—'}{item.marca ? ` · marca ${item.marca}` : ''}{item.details ? ` · ${item.details}` : ''}</div>
-                  </div>
-                  <div className="text-right text-xs text-slate-500">
-                    <div>{item.user_name || 'Sistem'}</div>
-                    <strong>{String(item.at || '').slice(0, 16).replace('T', ' ')}</strong>
-                  </div>
-                </div>
-              ))}
-              {!(hrActivity.rows || []).length ? <div className="rounded border border-slate-200 px-3 py-6 text-center text-sm text-slate-400">Nu există evenimente HR pentru filtrele selectate.</div> : null}
-            </div>
-          </Card>
-        </div>
+        <HRInboxPanel
+          hrInbox={hrInbox}
+          hrInboxFilter={hrInboxFilter}
+          onInboxFilterChange={setHrInboxFilter}
+          onLoadHrInbox={loadHrInbox}
+          hrInboxRows={hrInboxRows}
+          dossierReminderResult={dossierReminderResult}
+          onOpenHrInboxTask={openHrInboxTask}
+          hrActivity={hrActivity}
+          hrActivityFilter={hrActivityFilter}
+          onHrActivityFilterChange={setHrActivityFilter}
+          hrActivityCategories={hrActivityCategories}
+          employeeOptions={employees.map(emp => ({ value: String(emp.id), label: fullName(emp) }))}
+          onLoadHrActivity={() => loadHrActivity()}
+          onDownloadHrActivity={downloadHrActivity}
+        />
       ) : null}
 
       {/* ─── ANGAJAȚI ─────────────────────────────────────── */}

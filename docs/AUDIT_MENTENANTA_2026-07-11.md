@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.261`
-Următorul pas de stabilizare: `2.12.262`
+Versiune analizată: `2.12.262`
+Următorul pas de stabilizare: `2.12.263`
 
 ## Rezultat verificări
 
@@ -105,8 +105,9 @@ Următorul pas de stabilizare: `2.12.262`
 
 ### UPDATE 282 — Split inbox HR frontend
 
-- extragere Inbox HR și jurnal operațional în componentă dedicată;
-- păstrare comportament HTTP și UX identic.
+- `client/src/pages/modules/hr/HRInboxPanel.jsx` — ✅ extras în `2.12.262`;
+- Inbox HR, sarcinile ghidate și jurnalul operațional HR sunt mutate în componentă dedicată;
+- comportament HTTP și UX identic.
 
 ### UPDATE 283 — Documente Word-first
 

@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.262 - 2026-07-12
+
+## Split inbox HR frontend
+
+- Panoul `Inbox HR` și jurnalul operațional HR au fost extrase în `client/src/pages/modules/hr/HRInboxPanel.jsx`.
+- Filtrele inbox, sarcinile ghidate, filtrele jurnalului și exportul jurnalului rămân conectate la handler-ele existente din `HRPage.jsx`.
+- Comportamentul HTTP și UX-ul existent rămân neschimbate.
+
 # v2.12.261 - 2026-07-12
 
 ## Split dashboard HR frontend
