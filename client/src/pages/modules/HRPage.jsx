@@ -9,6 +9,7 @@ import Modal from '../../components/ui/Modal'
 import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
 import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
+import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
 
 const SURSA_BADGE = {
   'autominder':    { label: 'AM',     color: 'blue',   title: 'Import Autominder' },
@@ -2631,16 +2632,10 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">HR</h2>
-          <p className="text-sm text-slate-500">Angajați, pontaj, concedii și autorizații.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => setImportModal(true)}>📥 Import din CSV/Excel</Button>
-          <Button onClick={() => setEmployeeModal(true)}>+ Angajat nou</Button>
-        </div>
-      </div>
+      <HRPageHeader
+        onImport={() => setImportModal(true)}
+        onNewEmployee={() => setEmployeeModal(true)}
+      />
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
 
@@ -2652,19 +2647,13 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
           dashboardAlertsCount={dashboardAlerts.length}
           inboxTotal={hrInbox.summary?.total || 0}
         />
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <Select label="Departament" value={filters.dept_id} onChange={event => setFilters({ ...filters, dept_id: event.target.value })} options={[{ value: '', label: 'Toate departamentele' }, ...departments]} />
-          {activeTab === 'Angajați' ? (
-            <Select label="Activ" value={filters.activ} onChange={event => setFilters({ ...filters, activ: event.target.value })} options={[{ value: '', label: 'Toți' }, { value: '1', label: 'Activi' }, { value: '0', label: 'Inactivi' }]} />
-          ) : null}
-          {activeTab === 'Pontaj' ? <Input label="Luna" type="month" value={filters.luna} onChange={event => setFilters({ ...filters, luna: event.target.value })} /> : null}
-          {activeTab === 'Autorizații' ? (
-            <>
-              <Select label="Tip" value={filters.tip} onChange={event => setFilters({ ...filters, tip: event.target.value })} options={[{ value: '', label: 'Toate tipurile' }, ...authTypes.map(type => ({ value: type, label: type }))]} />
-              <Select label="Status alertă" value={filters.alert} onChange={event => setFilters({ ...filters, alert: event.target.value })} options={[{ value: '', label: 'Toate' }, { value: 'alert', label: 'Alertă 30 zile' }, { value: 'expirat', label: 'Expirat' }]} />
-            </>
-          ) : null}
-        </div>
+        <HRFilters
+          activeTab={activeTab}
+          filters={filters}
+          onFiltersChange={setFilters}
+          departments={departments}
+          authTypes={authTypes}
+        />
       </Card>
 
       {/* ─── DASHBOARD HR ─────────────────────────────────── */}

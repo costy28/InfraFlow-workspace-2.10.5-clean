@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.259`
-Următorul pas de stabilizare: `2.12.260`
+Versiune analizată: `2.12.260`
+Următorul pas de stabilizare: `2.12.261`
 
 ## Rezultat verificări
 
@@ -91,18 +91,24 @@ Următorul pas de stabilizare: `2.12.260`
 - lista taburilor și permisiunile aferente sunt centralizate lângă componentă;
 - comportament HTTP și UX identic.
 
-### UPDATE 280 — Split filtre HR frontend
+### UPDATE 280 — Split header si filtre HR frontend
 
-- extragere header/acțiuni și filtre HR în componente mici;
+- `client/src/pages/modules/hr/HRPageChrome.jsx` — ✅ extras în `2.12.260`;
+- header-ul/acțiunile și filtrele generale HR sunt mutate în componente mici;
+- comportament HTTP și UX identic.
+
+### UPDATE 281 — Split dashboard HR frontend
+
+- extragere KPI-uri, raport management și inbox în componente mici;
 - păstrare comportament HTTP și UX identic.
 
-### UPDATE 281 — Documente Word-first
+### UPDATE 282 — Documente Word-first
 
 - Word template ca format principal;
 - HTML doar compatibilitate/preview;
 - preview controlat și validare variabile.
 
-### UPDATE 282 — Smoke suite module
+### UPDATE 283 — Smoke suite module
 
 - login local read-only;
 - verificare endpointuri critice pe module;

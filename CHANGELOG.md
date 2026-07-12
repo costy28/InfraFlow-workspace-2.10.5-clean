@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.260 - 2026-07-12
+
+## Split header si filtre HR frontend
+
+- Header-ul paginii HR și filtrele generale au fost extrase în `client/src/pages/modules/hr/HRPageChrome.jsx`.
+- `HRPage.jsx` folosește acum componente dedicate pentru header, filtre și navigația taburilor.
+- UX-ul și fluxurile existente din HR rămân neschimbate.
+
 # v2.12.259 - 2026-07-12
 
 ## Split navigatie HR frontend
