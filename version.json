@@ -1,5 +1,5 @@
 {
-  "version": "2.12.257",
+  "version": "2.12.259",
   "date": "2026-07-12",
-  "changelog": "## v2.12.257 - 2026-07-12\n### Split rute departamente sistem\n- Rutele Express pentru departamente au fost extrase in server/modules/system/departments-routes.js.\n- Endpointurile existente /api/departments raman neschimbate.\n- Handlerul legacy /api/departments ramane in routes.js pentru compatibilitate."
+  "changelog": "## v2.12.259 - 2026-07-12\n### Split navigatie HR frontend\n- Navigatia taburilor HR a fost extrasa in client/src/pages/modules/hr/HRNavigationTabs.jsx.\n- Lista permisiunilor pentru taburi este centralizata langa componenta de navigatie.\n- UX-ul si fluxurile HR existente raman neschimbate."
 }

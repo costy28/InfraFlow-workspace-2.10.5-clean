@@ -1,5 +1,21 @@
 # Changelog
 
+# v2.12.259 - 2026-07-12
+
+## Split navigatie HR frontend
+
+- Navigația taburilor HR a fost extrasă în `client/src/pages/modules/hr/HRNavigationTabs.jsx`.
+- Lista taburilor și permisiunile aferente au fost mutate lângă componenta de navigație.
+- UX-ul și fluxurile existente din HR rămân neschimbate.
+
+# v2.12.258 - 2026-07-12
+
+## Split rute database sistem
+
+- Rutele Express pentru configurare SQL Server, test conexiune și schema relațională au fost extrase în `server/modules/system/database-routes.js`.
+- Endpointurile existente `/api/system/database-config` și `/api/system/database-schema` rămân neschimbate.
+- Helper-ele de configurare și handlerul legacy rămân în `routes.js` pentru compatibilitate.
+
 # v2.12.257 - 2026-07-12
 
 ## Split rute departamente sistem

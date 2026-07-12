@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
+import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
 
 const SURSA_BADGE = {
   'autominder':    { label: 'AM',     color: 'blue',   title: 'Import Autominder' },
@@ -34,23 +35,6 @@ function SursaBadge({ sursa }) {
     </span>
   )
 }
-
-const ALL_HR_TABS = [
-  { id: 'Dashboard HR',       perm: 'hr:view' },
-  { id: 'Inbox HR',           perm: 'hr:view' },
-  { id: 'Angajați',           perm: 'hr:employees_manage' },
-  { id: 'Pontaj',             perm: 'hr:timesheets_view' },
-  { id: 'Pontaj Avansat',     perm: 'hr:timesheets_view' },
-  { id: 'Ture & Program',     perm: 'hr:timesheets_view' },
-  { id: 'Tichete masă',       perm: 'hr:manage' },
-  { id: 'Overview pontaje',   perm: 'hr:timesheets_manage' },
-  { id: 'Concedii',           perm: 'hr:leave_manage' },
-  { id: 'Autorizații',        perm: 'hr:authorizations_manage' },
-  { id: '🦺 Echipamente',      perm: 'echipamente:gestionar', fallbackPerm: 'hr:view' },
-  { id: 'Training & Evaluări',perm: 'hr:training' },
-  { id: 'Organigramă',        perm: 'hr:view' },
-  { id: 'Documente HR',       perm: 'hr:contracts_manage' },
-]
 
 const HR_TEMPLATE_VARIABLES = [
   'nr_cim',
@@ -547,7 +531,7 @@ export default function HRPage() {
     ['superadmin', 'admin'].includes(user?.role) ||
     (Array.isArray(user?.permissions) && user.permissions.includes(perm))
 
-  const tabs = ALL_HR_TABS.filter(t => hasPerm(t.perm) || (t.fallbackPerm && hasPerm(t.fallbackPerm))).map(t => t.id)
+  const tabs = getVisibleHrTabs(hasPerm)
 
   const [activeTab, setActiveTab] = useState(() => tabs[0] || 'Dashboard HR')
   const [employees, setEmployees] = useState([])
@@ -2661,14 +2645,13 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
 
       <Card>
-        <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-          {visibleTabs.map(tab => (
-            <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>
-              {tab === 'Dashboard HR' && dashboardAlerts.length > 0 ? `${tab} 🔴` : tab}
-              {tab === 'Inbox HR' && Number(hrInbox.summary?.total || 0) > 0 ? ` (${hrInbox.summary.total})` : ''}
-            </Button>
-          ))}
-        </div>
+        <HRNavigationTabs
+          tabs={visibleTabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          dashboardAlertsCount={dashboardAlerts.length}
+          inboxTotal={hrInbox.summary?.total || 0}
+        />
         <div className="mt-4 grid gap-3 md:grid-cols-4">
           <Select label="Departament" value={filters.dept_id} onChange={event => setFilters({ ...filters, dept_id: event.target.value })} options={[{ value: '', label: 'Toate departamentele' }, ...departments]} />
           {activeTab === 'Angajați' ? (
