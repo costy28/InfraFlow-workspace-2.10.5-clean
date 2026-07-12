@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.256`
-Următorul pas de stabilizare: `2.12.257`
+Versiune analizată: `2.12.257`
+Următorul pas de stabilizare: `2.12.258`
 
 ## Rezultat verificări
 
@@ -75,7 +75,12 @@ Următorul pas de stabilizare: `2.12.257`
 
 ### UPDATE 277 — Continuare split backend sistem
 
-- `system/departments-routes.js`;
+- `system/departments-routes.js` — ✅ extras în `2.12.257`;
+- rute păstrate compatibil: `/api/departments`;
+- handlerul legacy `/api/departments` rămâne în `routes.js`.
+
+### UPDATE 278 — Continuare split backend sistem
+
 - `system/database-routes.js`;
 - comportament HTTP identic.
 

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.256",
+  "version": "2.12.257",
   "date": "2026-07-12",
-  "changelog": "## v2.12.256 - 2026-07-12\n### Split rute licenta sistem\n- Rutele Express pentru status si import licenta au fost extrase in server/modules/system/license-routes.js.\n- Endpointurile existente /api/license/status si /api/license/import raman neschimbate.\n- Ruta legacy /api/license/import ramane in routes.js pentru compatibilitate."
+  "changelog": "## v2.12.257 - 2026-07-12\n### Split rute departamente sistem\n- Rutele Express pentru departamente au fost extrase in server/modules/system/departments-routes.js.\n- Endpointurile existente /api/departments raman neschimbate.\n- Handlerul legacy /api/departments ramane in routes.js pentru compatibilitate."
 }

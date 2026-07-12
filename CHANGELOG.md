@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.257 - 2026-07-12
+
+## Split rute departamente sistem
+
+- Rutele Express pentru listare, creare, editare și ștergere departamente au fost extrase în `server/modules/system/departments-routes.js`.
+- Endpointurile existente `/api/departments` rămân neschimbate.
+- Handlerul legacy `/api/departments` rămâne în `routes.js` pentru compatibilitate.
+
 # v2.12.256 - 2026-07-12
 
 ## Split rute licenta sistem
