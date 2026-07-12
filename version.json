@@ -1,5 +1,5 @@
 {
-  "version": "2.12.255",
+  "version": "2.12.256",
   "date": "2026-07-12",
-  "changelog": "## v2.12.255 - 2026-07-12\n### Split rute setari sistem\n- Rutele Express pentru setari generale, module, email test, branding, logo, GPS test si devices au fost extrase in server/modules/system/settings-routes.js.\n- Endpointurile existente /api/settings, /api/admin/branding, /api/integration/gps/test si /api/devices raman neschimbate.\n- Configurarea MSSQL si licenta raman in routes.js pentru pasi separati, cu risc mai mic."
+  "changelog": "## v2.12.256 - 2026-07-12\n### Split rute licenta sistem\n- Rutele Express pentru status si import licenta au fost extrase in server/modules/system/license-routes.js.\n- Endpointurile existente /api/license/status si /api/license/import raman neschimbate.\n- Ruta legacy /api/license/import ramane in routes.js pentru compatibilitate."
 }

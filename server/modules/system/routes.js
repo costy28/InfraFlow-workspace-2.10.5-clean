@@ -4,7 +4,6 @@ const path = require('path')
 const crypto = require('crypto')
 const childProcess = require('child_process')
 const os = require('os')
-const multer = require('multer')
 const AdmZip = require('adm-zip')
 const { requireAuth, hashPassword } = require('../../core/auth')
 const {
@@ -33,7 +32,6 @@ const {
 } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { syncAccountingToMssql } = require('../accounting/relational-sync')
-const { verificaLicenta, incarcaLicenta } = require('../../core/license')
 const {
   createDepartmentChannel,
   ensureUserInGeneralChannel,
@@ -54,11 +52,8 @@ const { createSystemUpdateRouter } = require('./update-routes')
 const { createSystemBackupRouter } = require('./backup-routes')
 const { createSystemUsersRouter } = require('./users-routes')
 const { createSystemSettingsRouter } = require('./settings-routes')
+const { createSystemLicenseRouter } = require('./license-routes')
 const router = Router()
-const licenseUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }
-})
 
 const ROOT = path.resolve(__dirname, '../../..')
 const PORT = Number(process.env.INFRAFLOW_PORT || process.env.PORT || 4180)
@@ -128,35 +123,6 @@ const configurableModuleKeys = new Set([
   "secretariat",
   "ai"
 ])
-
-function publicLicenseStatus(status) {
-  const license = status.licenta || {}
-  return {
-    valida: !!status.valida,
-    demo: !!status.demo,
-    in_gratie: !!status.in_gratie,
-    expirata: !!status.expirata,
-    eroare: status.eroare || null,
-    licenseId: license.licenseId || null,
-    client: {
-      nume: license.client?.nume || '',
-      localitate: license.client?.localitate || ''
-    },
-    pachet: license.pachet || null,
-    tip: license.valabilitate?.tip || null,
-    module_active: [...(license.module || []), ...(license.addons || [])],
-    module: license.module || [],
-    addons: license.addons || [],
-    limite: license.limite || {},
-    valabilitate: {
-      emis_la: license.valabilitate?.emis_la || null,
-      expira_la: license.valabilitate?.expira_la || null,
-      tip: license.valabilitate?.tip || null
-    },
-    zile_pana_expirare: status.zile_pana_expirare ?? null,
-    zile_gratie: status.zile_gratie ?? null
-  }
-}
 
 function makeUrl(req) {
   return new URL(req.originalUrl || req.url, `http://${req.headers.host || 'localhost'}`)
@@ -574,48 +540,12 @@ router.post('/system/database-schema/sync-accounting', (req, res, next) => {
   }
 })
 
-router.get('/license/status', (req, res, next) => {
-  try {
-    const auth = requireAuth(req, res);
-    if (!auth) return;
-    const status = incarcaLicenta();
-    sendJson(res, 200, { license: publicLicenseStatus(status) });
-  } catch (error) {
-    next(error);
-  }
-})
-
-router.post('/license/import', licenseUpload.single('file'), async (req, res, next) => {
-  try {
-    const auth = requireAuth(req, res);
-    if (!auth) return;
-    if (!requirePermission(auth, res, "settings:manage")) return;
-    const body = await readJsonBody(req, 5_000_000);
-    let licenseText = null;
-    if (req.file) {
-      if (!String(req.file.originalname || '').toLowerCase().endsWith('.iflic')) {
-        throwHttp(400, "Fișierul trebuie să aibă extensia .iflic.");
-      }
-      licenseText = req.file.buffer.toString('utf8');
-    } else {
-      licenseText = typeof body.licenseText === 'string'
-        ? body.licenseText
-        : typeof body.license === 'string'
-          ? body.license
-          : JSON.stringify(body.license || body);
-    }
-    const status = verificaLicenta(licenseText);
-    if (!status.valida) throwHttp(400, status.eroare || "Licența nu este validă.");
-    const target = path.join(ROOT, 'licenta.iflic');
-    fs.writeFileSync(target, licenseText, 'utf8');
-    global.LICENTA = status.licenta;
-    addAudit(auth.db, auth.user, "licenta_importata", `${status.licenta.client?.nume || "-"} / ${status.licenta.pachet || "-"}`);
-    writeDb(auth.db);
-    sendJson(res, 200, { license: publicLicenseStatus(status) });
-  } catch (error) {
-    next(error);
-  }
-})
+router.use(createSystemLicenseRouter({
+  ROOT,
+  readJsonBody,
+  sendJson,
+  throwHttp
+}))
 
 function startMssqlKeepAlive() {
   if (DB_MODE !== "mssql" && DB_MODE !== "sqlserver") return;

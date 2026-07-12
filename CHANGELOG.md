@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.256 - 2026-07-12
+
+## Split rute licenta sistem
+
+- Rutele Express pentru status și import licență au fost extrase în `server/modules/system/license-routes.js`.
+- Endpointurile existente `/api/license/status` și `/api/license/import` rămân neschimbate.
+- Ruta legacy `/api/license/import` rămâne în `routes.js` pentru compatibilitate.
+
 # v2.12.255 - 2026-07-12
 
 ## Split rute setari sistem
