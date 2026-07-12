@@ -1,7 +1,7 @@
 # AGENTS.md — InfraFlow ERP
 > Citește acest fișier INTEGRAL înainte de orice acțiune.
 > Toate deciziile respectă convențiile de aici.
-> Ultima actualizare: 11 Iulie 2026
+> Ultima actualizare: 12 Iulie 2026
 
 ---
 
@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
 
-**Versiune curentă sursă: v2.12.251**
-**Versiune în lucru: v2.12.251**
+**Versiune curentă sursă: v2.12.253**
+**Versiune în lucru: v2.12.253**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
@@ -541,9 +541,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.251
+VERSIUNE CURENTĂ SURSĂ: 2.12.253
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.251 ✅
+UPDATE ZIP CURENT: 2.12.253 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -603,6 +603,8 @@ UPDATES ÎN LUCRU:
   2.12.179 → UPDATE 199 Generator SAF-T conform structural XSD ✅
   2.12.180 → UPDATE 200 Nomenclatoare SAF-T + integrare DUK ✅
   2.12.251 → UPDATE 271 Adevăr proiect + audit local ✅
+  2.12.252 → UPDATE 272 Split rute update sistem ✅
+  2.12.253 → UPDATE 273 Split rute backup sistem ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1075,9 +1077,9 @@ Persoane cheie:
 ## 13. NOTĂ ARHITECTURALĂ — VIITOR
 
 ```
-ACUM (Monolitic funcțional):
-  server.js → toate rutele
-  app.js → frontend vanilla
+ACUM (Monolit funcțional modularizat gradual):
+  server/app.js → montează rute Express pe module
+  client/src → frontend React + Vite
 
 DIRECȚIE (fără să strici ce merge):
   1. Extragere module → server/modules/*/routes.js
@@ -1092,5 +1094,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 11 Iulie 2026 | InfraFlow sursă v2.12.251*
+*AGENTS.md actualizat: 12 Iulie 2026 | InfraFlow sursă v2.12.253*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

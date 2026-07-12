@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.250`  
-Următorul pas de stabilizare: `2.12.251`
+Versiune analizată: `2.12.253`
+Următorul pas de stabilizare: `2.12.254`
 
 ## Rezultat verificări
 
@@ -45,28 +45,36 @@ Următorul pas de stabilizare: `2.12.251`
 - mod advisory pentru lint și audit securitate;
 - documentarea datoriei tehnice.
 
-### UPDATE 272 — Split backend sistem
+### UPDATE 272 — Split rute update sistem
+
+- `system/update-routes.js` — ✅ început în `2.12.252`;
+
+### UPDATE 273 — Split rute backup sistem
+
+- `system/backup-routes.js` — ✅ extras în `2.12.253`;
+- rute păstrate compatibil: `/api/system/backups`, `/api/backup`, `/api/restore`;
+- handlerul legacy `/api` a rămas neatins pentru risc minim.
+
+### UPDATE 274 — Continuare split backend sistem
 
 - `system/users-routes.js`;
 - `system/settings-routes.js`;
-- `system/backup-routes.js`;
-- `system/update-routes.js`;
 - `system/license-routes.js`;
 - comportament HTTP identic.
 
-### UPDATE 273 — Split HR frontend
+### UPDATE 275 — Split HR frontend
 
 - extragere taburi HR în componente mici;
 - hooks pentru date HR;
 - păstrare UX identic.
 
-### UPDATE 274 — Documente Word-first
+### UPDATE 276 — Documente Word-first
 
 - Word template ca format principal;
 - HTML doar compatibilitate/preview;
 - preview controlat și validare variabile.
 
-### UPDATE 275 — Smoke suite module
+### UPDATE 277 — Smoke suite module
 
 - login local read-only;
 - verificare endpointuri critice pe module;

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.251",
-  "date": "2026-07-11",
-  "changelog": "## v2.12.251 - 2026-07-11\n### Adevar proiect si audit local\n- Documentatia de lucru este sincronizata cu versiunea reala si stack-ul curent React/Vite.\n- Script nou npm run audit:local pentru verificari repetabile de release.\n- Script nou npm run audit:advisory pentru lint si audit securitate non-blocant.\n- Auditul de mentenanta este documentat in docs/AUDIT_MENTENANTA_2026-07-11.md."
+  "version": "2.12.253",
+  "date": "2026-07-12",
+  "changelog": "## v2.12.253 - 2026-07-12\n### Split rute backup sistem\n- Rutele Express pentru backup si restaurare au fost extrase din server/modules/system/routes.js in server/modules/system/backup-routes.js.\n- Endpointurile existente /api/system/backups, /api/backup si /api/restore raman neschimbate.\n- Handlerul legacy /api ramane neatins pentru compatibilitate si va fi extras separat intr-un pas ulterior."
 }

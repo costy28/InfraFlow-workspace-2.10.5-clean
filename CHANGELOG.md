@@ -1,5 +1,21 @@
 # Changelog
 
+# v2.12.253 - 2026-07-12
+
+## Split rute backup sistem
+
+- Rutele Express pentru backup și restaurare au fost extrase din `server/modules/system/routes.js` în `server/modules/system/backup-routes.js`.
+- Endpointurile existente `/api/system/backups`, `/api/backup` și `/api/restore` rămân neschimbate.
+- Handlerul legacy `/api` rămâne neatins pentru compatibilitate și va fi extras separat într-un pas ulterior.
+
+# v2.12.252 - 2026-07-11
+
+## Split system update routes
+
+- Endpointurile de update sistem au fost extrase din `server/modules/system/routes.js` în `server/modules/system/update-routes.js`.
+- Rutele existente `/api/system/update-*` și `/api/system/update-package` rămân neschimbate.
+- Refactorul păstrează helper-ele legacy prin injectare controlată și reduce dimensiunea fișierului principal `system/routes.js`.
+
 # v2.12.251 - 2026-07-11
 
 ## Adevar proiect si audit local
