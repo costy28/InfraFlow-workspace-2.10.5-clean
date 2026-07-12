@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.265 - 2026-07-12
+
+## Split pontaj avansat HR frontend
+
+- Tabul `Pontaj Avansat` a fost extras în `client/src/pages/modules/hr/HRAdvancedTimesheetPanel.jsx`.
+- Închiderea lunii, aprobarile de ore suplimentare, controlul săptămânal, raportul lunar și banca de ore sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează încărcarea datelor, filtrarea, permisiunile și handler-ele existente; comportamentul HTTP și UX-ul rămân neschimbate.
+
 # v2.12.264 - 2026-07-12
 
 ## Split pontaj HR frontend

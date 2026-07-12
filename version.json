@@ -1,5 +1,5 @@
 {
-  "version": "2.12.264",
+  "version": "2.12.265",
   "date": "2026-07-12",
-  "changelog": "## v2.12.264 - 2026-07-12\n### Split pontaj HR frontend\n- Tabul Pontaj a fost extras in client/src/pages/modules/hr/HRTimesheetPanel.jsx.\n- Tabelul de pontaj, exportul Excel si actiunile de finalizare/validare/devalidare raman conectate la handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
+  "changelog": "## v2.12.265 - 2026-07-12\n### Split pontaj avansat HR frontend\n- Tabul Pontaj Avansat a fost extras in client/src/pages/modules/hr/HRAdvancedTimesheetPanel.jsx.\n- Inchiderea lunii, aprobarile de ore suplimentare, controlul saptamanal, raportul lunar si banca de ore raman conectate la handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
 }
