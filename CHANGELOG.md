@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.255 - 2026-07-12
+
+## Split rute setari sistem
+
+- Rutele Express pentru setări generale, module, email test, branding, logo, GPS test și devices au fost extrase în `server/modules/system/settings-routes.js`.
+- Endpointurile existente `/api/settings`, `/api/admin/branding`, `/api/integration/gps/test` și `/api/devices` rămân neschimbate.
+- Configurarea MSSQL și licența rămân în `routes.js` pentru pași separați, cu risc mai mic.
+
 # v2.12.254 - 2026-07-12
 
 ## Split rute utilizatori si roluri

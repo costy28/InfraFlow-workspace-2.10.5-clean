@@ -1,5 +1,5 @@
 {
-  "version": "2.12.254",
+  "version": "2.12.255",
   "date": "2026-07-12",
-  "changelog": "## v2.12.254 - 2026-07-12\n### Split rute utilizatori si roluri\n- Rutele Express pentru utilizatori, roluri si permisiuni au fost extrase din server/modules/system/routes.js in server/modules/system/users-routes.js.\n- Endpointurile existente /api/users si /api/roles raman neschimbate.\n- Helperii de creare/editare utilizatori raman in routes.js pentru compatibilitatea handlerului legacy /api."
+  "changelog": "## v2.12.255 - 2026-07-12\n### Split rute setari sistem\n- Rutele Express pentru setari generale, module, email test, branding, logo, GPS test si devices au fost extrase in server/modules/system/settings-routes.js.\n- Endpointurile existente /api/settings, /api/admin/branding, /api/integration/gps/test si /api/devices raman neschimbate.\n- Configurarea MSSQL si licenta raman in routes.js pentru pasi separati, cu risc mai mic."
 }
