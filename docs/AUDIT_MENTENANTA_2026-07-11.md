@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.266`
-Următorul pas de stabilizare: `2.12.267`
+Versiune analizată: `2.12.267`
+Următorul pas de stabilizare: `2.12.268`
 
 ## Rezultat verificări
 
@@ -133,13 +133,19 @@ Următorul pas de stabilizare: `2.12.267`
 - lista de ture, filtrele lună/departament și matricea zilnică de programare sunt mutate în componentă dedicată;
 - comportament HTTP și UX identic.
 
-### UPDATE 287 — Documente Word-first
+### UPDATE 287 — Split modal tura HR frontend
+
+- `client/src/pages/modules/hr/HRShiftModal.jsx` — ✅ extras în `2.12.267`;
+- formularul `Tură nouă / Editează tura` este mutat în componentă dedicată;
+- comportament HTTP și UX identic.
+
+### UPDATE 288 — Documente Word-first
 
 - Word template ca format principal;
 - HTML doar compatibilitate/preview;
 - preview controlat și validare variabile.
 
-### UPDATE 288 — Smoke suite module
+### UPDATE 289 — Smoke suite module
 
 - login local read-only;
 - verificare endpointuri critice pe module;

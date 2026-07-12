@@ -14,6 +14,7 @@ import HREmployeesPanel from './hr/HREmployeesPanel'
 import HRInboxPanel from './hr/HRInboxPanel'
 import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
 import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
+import HRShiftModal from './hr/HRShiftModal'
 import HRShiftsSchedulePanel from './hr/HRShiftsSchedulePanel'
 import HRTimesheetPanel from './hr/HRTimesheetPanel'
 
@@ -3935,22 +3936,14 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         </form>
       </Modal>
 
-      {/* ─── MODAL TURĂ NOUĂ ─────────────────────────────── */}
-      <Modal open={shiftModal} title={shiftEditing ? 'Editeaza tura' : 'Tura noua'} onClose={() => { setShiftModal(false); setShiftEditing(null) }} size="md">
-        <form className="grid gap-3" onSubmit={createShift}>
-          <Input label="Nume tură" value={shiftForm.nume} onChange={e => setShiftForm({ ...shiftForm, nume: e.target.value })} required />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input label="Ora start" type="time" value={shiftForm.ora_start} onChange={e => setShiftForm({ ...shiftForm, ora_start: e.target.value })} />
-            <Input label="Ora sfârșit" type="time" value={shiftForm.ora_sfarsit} onChange={e => setShiftForm({ ...shiftForm, ora_sfarsit: e.target.value })} />
-            <Input label="Ore normale" type="number" value={shiftForm.ore_normale} onChange={e => setShiftForm({ ...shiftForm, ore_normale: Number(e.target.value) })} />
-            <Input label="Culoare" type="color" value={shiftForm.culoare} onChange={e => setShiftForm({ ...shiftForm, culoare: e.target.value })} />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setShiftModal(false)}>Renunță</Button>
-            <Button type="submit">Salvează</Button>
-          </div>
-        </form>
-      </Modal>
+      <HRShiftModal
+        open={shiftModal}
+        editing={shiftEditing}
+        form={shiftForm}
+        onChange={setShiftForm}
+        onSubmit={createShift}
+        onClose={() => { setShiftModal(false); setShiftEditing(null) }}
+      />
 
       {/* ─── MODAL COMPENSARE BANCĂ DE ORE ───────────────── */}
       <Modal open={compensateModal} title="Compensare bancă de ore" onClose={() => setCompensateModal(false)} size="md">

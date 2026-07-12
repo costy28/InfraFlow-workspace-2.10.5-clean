@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.267 - 2026-07-12
+
+## Split modal tura HR frontend
+
+- Modalul `Tură nouă / Editează tura` a fost extras în `client/src/pages/modules/hr/HRShiftModal.jsx`.
+- Formularul de tură este randat din componenta dedicată, dar state-ul și handler-ele de salvare rămân în `HRPage.jsx`.
+- Comportamentul HTTP și UX-ul existent rămân neschimbate.
+
 # v2.12.266 - 2026-07-12
 
 ## Split ture si program HR frontend

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.266",
+  "version": "2.12.267",
   "date": "2026-07-12",
-  "changelog": "## v2.12.266 - 2026-07-12\n### Split ture si program HR frontend\n- Tabul Ture & Program a fost extras in client/src/pages/modules/hr/HRShiftsSchedulePanel.jsx.\n- Lista de ture, filtrele luna/departament si matricea zilnica de programare raman conectate la handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
+  "changelog": "## v2.12.267 - 2026-07-12\n### Split modal tura HR frontend\n- Modalul Tura noua / Editeaza tura a fost extras in client/src/pages/modules/hr/HRShiftModal.jsx.\n- Formularul de tura ramane conectat la state-ul si handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
 }
