@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.260`
-Următorul pas de stabilizare: `2.12.261`
+Versiune analizată: `2.12.261`
+Următorul pas de stabilizare: `2.12.262`
 
 ## Rezultat verificări
 
@@ -99,16 +99,22 @@ Următorul pas de stabilizare: `2.12.261`
 
 ### UPDATE 281 — Split dashboard HR frontend
 
-- extragere KPI-uri, raport management și inbox în componente mici;
+- `client/src/pages/modules/hr/HRDashboardPanel.jsx` — ✅ extras în `2.12.261`;
+- KPI-urile, raportul de management, cererile în așteptare, scadențele și istoricul notificărilor sunt mutate în componentă dedicată;
+- comportament HTTP și UX identic.
+
+### UPDATE 282 — Split inbox HR frontend
+
+- extragere Inbox HR și jurnal operațional în componentă dedicată;
 - păstrare comportament HTTP și UX identic.
 
-### UPDATE 282 — Documente Word-first
+### UPDATE 283 — Documente Word-first
 
 - Word template ca format principal;
 - HTML doar compatibilitate/preview;
 - preview controlat și validare variabile.
 
-### UPDATE 283 — Smoke suite module
+### UPDATE 284 — Smoke suite module
 
 - login local read-only;
 - verificare endpointuri critice pe module;

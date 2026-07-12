@@ -1,5 +1,5 @@
 {
-  "version": "2.12.260",
+  "version": "2.12.261",
   "date": "2026-07-12",
-  "changelog": "## v2.12.260 - 2026-07-12\n### Split header si filtre HR frontend\n- Header-ul paginii HR si filtrele generale au fost extrase in client/src/pages/modules/hr/HRPageChrome.jsx.\n- Navigatia HR ramane in componenta dedicata HRNavigationTabs.\n- UX-ul si fluxurile HR existente raman neschimbate."
+  "changelog": "## v2.12.261 - 2026-07-12\n### Split dashboard HR frontend\n- Panoul Dashboard HR a fost extras in client/src/pages/modules/hr/HRDashboardPanel.jsx.\n- KPI-urile, raportul de management, cererile in asteptare, scadentele si istoricul notificarilor raman in acelasi flux UI.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
 }

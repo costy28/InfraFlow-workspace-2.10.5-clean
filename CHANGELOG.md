@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.261 - 2026-07-12
+
+## Split dashboard HR frontend
+
+- Panoul `Dashboard HR` a fost extras în `client/src/pages/modules/hr/HRDashboardPanel.jsx`.
+- KPI-urile, raportul de management, cererile în așteptare, scadențele și istoricul notificărilor HR sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează încărcarea datelor și handler-ele existente; comportamentul HTTP și UX-ul rămân neschimbate.
+
 # v2.12.260 - 2026-07-12
 
 ## Split header si filtre HR frontend

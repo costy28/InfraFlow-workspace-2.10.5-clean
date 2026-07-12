@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
+import HRDashboardPanel from './hr/HRDashboardPanel'
 import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
 import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
 
@@ -162,23 +163,6 @@ const emptyContractForm = {
   cost_ora: '',
   status: 'activ',
   observatii: ''
-}
-
-function AlertRow({ label, date, icon }) {
-  const days = daysUntil(date)
-  const tone = alertTone(days)
-  if (!tone) return null
-  return (
-    <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${tone === 'danger' ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'}`}>
-      <span className="text-xl">{icon}</span>
-      <div className="flex-1 text-sm">
-        <div className={`font-semibold ${tone === 'danger' ? 'text-rose-800' : 'text-amber-800'}`}>{label}</div>
-        <div className={tone === 'danger' ? 'text-rose-600' : 'text-amber-600'}>
-          {days < 0 ? `Expirat de ${Math.abs(days)} zile` : `Expiră în ${days} zile (${date})`}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 function OrgChart({ employees, departments, onClickEmployee }) {
@@ -2658,209 +2642,28 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
       {/* ─── DASHBOARD HR ─────────────────────────────────── */}
       {activeTab === 'Dashboard HR' ? (
-        <div className="grid gap-4">
-          {/* KPI cards */}
-          {stats ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { label: 'Total angajați activi', value: stats.total_angajati ?? '-', icon: '👥' },
-                { label: 'Prezenți azi', value: stats.prezenti_azi ?? '-', icon: '✅' },
-                { label: 'În concediu', value: stats.in_concediu ?? '-', icon: '🏖️' },
-                { label: 'Autorizații expiră 30 zile', value: stats.autorizatii_expira_30_zile ?? '-', icon: '⚠️' },
-              ].map(kpi => (
-                <Card key={kpi.label}>
-                  <div className="flex items-center gap-3">
-                    <span className="text-3xl">{kpi.icon}</span>
-                    <div>
-                      <div className="text-2xl font-bold text-slate-900">{kpi.value}</div>
-                      <div className="text-xs text-slate-500">{kpi.label}</div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : null}
-
-          <Card>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-800">📈 Raport management HR</div>
-                <div className="text-xs text-slate-500">Sinteză pentru conducere: activitate, dosare, scadențe, concedii și sarcini deschise.</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Input type="date" value={hrManagementPeriod.from} onChange={event => setHrManagementPeriod(current => ({ ...current, from: event.target.value }))} />
-                <Input type="date" value={hrManagementPeriod.to} onChange={event => setHrManagementPeriod(current => ({ ...current, to: event.target.value }))} />
-                <Button size="sm" variant="secondary" onClick={loadHrManagementReport}>Recalculează</Button>
-                <Button size="sm" onClick={downloadHrManagementReport}>📊 Export Excel</Button>
-                <Button size="sm" onClick={generateHrNotifications}>🔔 Generează notificări HR</Button>
-              </div>
-            </div>
-            {hrNotificationResult ? (
-              <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                Notificări HR create: <strong>{hrNotificationResult.created || 0}</strong>
-                {' '}· deja existente: <strong>{hrNotificationResult.skipped || 0}</strong>
-                {' '}· sarcini acoperite: <strong>{hrNotificationResult.tasks || 0}</strong>
-                {' '}· destinatari: <strong>{hrNotificationResult.targets || 0}</strong>
-              </div>
-            ) : null}
-            {hrManagementReport ? (
-              <div className="grid gap-4">
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-                  {[
-                    ['Sarcini Inbox', hrManagementReport.kpi?.inbox_total || 0, 'slate'],
-                    ['Critice', hrManagementReport.kpi?.inbox_critical || 0, 'rose'],
-                    ['Dosare complete', hrManagementReport.kpi?.dossier_complete || 0, 'emerald'],
-                    ['Lipsuri dosar', hrManagementReport.kpi?.dossier_missing_required || 0, 'amber'],
-                    ['Scadențe ≤30 zile', hrManagementReport.kpi?.expiring_30 || 0, 'red'],
-                    ['Activități HR', hrManagementReport.kpi?.activity_total || 0, 'blue'],
-                  ].map(([label, value, tone]) => (
-                    <div key={label} className={`rounded border p-2 text-sm ${tone === 'rose' ? 'border-rose-200 bg-rose-50' : tone === 'emerald' ? 'border-emerald-200 bg-emerald-50' : tone === 'amber' ? 'border-amber-200 bg-amber-50' : tone === 'red' ? 'border-red-200 bg-red-50' : tone === 'blue' ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
-                      <div className="text-xs text-slate-500">{label}</div>
-                      <strong>{value}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid gap-3 lg:grid-cols-3">
-                  <div className="rounded border border-slate-200 p-3">
-                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Activitate pe categorii</div>
-                    {Object.entries(hrManagementReport.activity_by_category || {}).slice(0, 8).map(([label, count]) => (
-                      <div key={label} className="flex justify-between border-b border-slate-100 py-1 text-sm"><span>{label}</span><strong>{count}</strong></div>
-                    ))}
-                    {!Object.keys(hrManagementReport.activity_by_category || {}).length ? <div className="text-sm text-slate-400">Fără activitate în perioadă.</div> : null}
-                  </div>
-                  <div className="rounded border border-slate-200 p-3">
-                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Top lipsuri dosar</div>
-                    {(hrManagementReport.top_missing || []).slice(0, 8).map(item => (
-                      <div key={item.label} className="flex justify-between border-b border-slate-100 py-1 text-sm"><span>{item.label}</span><strong>{item.count}</strong></div>
-                    ))}
-                    {!(hrManagementReport.top_missing || []).length ? <div className="text-sm text-emerald-600">Nu sunt lipsuri obligatorii.</div> : null}
-                  </div>
-                  <div className="rounded border border-slate-200 p-3">
-                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Activitate pe utilizator HR</div>
-                    {(hrManagementReport.activity_by_user || []).slice(0, 8).map(item => (
-                      <div key={item.user_name} className="flex justify-between border-b border-slate-100 py-1 text-sm"><span>{item.user_name || 'Sistem'}</span><strong>{item.count}</strong></div>
-                    ))}
-                    {!(hrManagementReport.activity_by_user || []).length ? <div className="text-sm text-slate-400">Fără activitate în perioadă.</div> : null}
-                  </div>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-5">
-                  <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Concedii create</div><strong>{hrManagementReport.kpi?.leaves_created || 0}</strong></div>
-                  <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm"><div className="text-xs text-emerald-700">Concedii aprobate</div><strong>{hrManagementReport.kpi?.leaves_approved || 0}</strong></div>
-                  <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Concedii respinse</div><strong>{hrManagementReport.kpi?.leaves_rejected || 0}</strong></div>
-                  <div className="rounded border border-blue-200 bg-blue-50 p-2 text-sm"><div className="text-xs text-blue-700">CM depuse</div><strong>{hrManagementReport.kpi?.medical_submitted || 0}</strong></div>
-                  <div className="rounded border border-primary-200 bg-primary-50 p-2 text-sm"><div className="text-xs text-primary-700">CM verificate</div><strong>{hrManagementReport.kpi?.medical_verified || 0}</strong></div>
-                </div>
-              </div>
-            ) : <div className="text-sm text-slate-400">Raportul de management HR nu este încărcat.</div>}
-          </Card>
-
-          {/* Cereri concediu în așteptare */}
-          {pendingLeaves.length > 0 ? (
-            <Card>
-              <div className="mb-3 text-sm font-semibold text-slate-700">⏳ Cereri de concediu în așteptare ({pendingLeaves.length})</div>
-              <div className="grid gap-2">
-                {pendingLeaves.map(item => (
-                  <div key={item.uuid || item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                    <div className="text-sm">
-                      <span className="font-medium text-slate-800">{item.tip}</span>
-                      <span className="ml-2 text-slate-600">{item.data_start} → {item.data_sfarsit}</span>
-                      {item.zile ? <span className="ml-2 text-slate-500">({item.zile} zile lucr.)</span> : null}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => approveLeave(item.uuid || item.id)}>✅ Aprobă</Button>
-                      <Button size="sm" variant="secondary" onClick={() => rejectLeave(item.uuid || item.id)}>❌ Respinge</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ) : null}
-
-          {/* Alerte documente / expirari */}
-          <Card>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-700">🔔 Scadențe HR avansate ({advancedExpirations.rows?.length || dashboardAlerts.length})</div>
-                <div className="text-xs text-slate-500">CI, apt medical, autorizații, contracte determinate, suspendări și documente din dosar.</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={loadAdvancedExpirations}>Reîncarcă scadențe</Button>
-                <Button size="sm" onClick={notifyAdvancedExpirations}>🔔 Notifică HR critic</Button>
-              </div>
-            </div>
-            {expirationNoticeResult ? (
-              <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                Notificări generate: <strong>{expirationNoticeResult.created || 0}</strong>
-                {' '}· deja existente: <strong>{expirationNoticeResult.skipped || 0}</strong>
-                {' '}· scadențe critice: <strong>{expirationNoticeResult.rows || 0}</strong>
-                {' '}· destinatari: <strong>{expirationNoticeResult.targets || 0}</strong>
-              </div>
-            ) : null}
-            <div className="mb-3 grid gap-2 sm:grid-cols-4">
-              <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Expirate</div><strong>{advancedExpirations.summary?.expired || 0}</strong></div>
-              <div className="rounded border border-red-200 bg-red-50 p-2 text-sm"><div className="text-xs text-red-700">≤ 30 zile</div><strong>{advancedExpirations.summary?.critical || 0}</strong></div>
-              <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">31–60 zile</div><strong>{advancedExpirations.summary?.warning || 0}</strong></div>
-              <div className="rounded border border-blue-200 bg-blue-50 p-2 text-sm"><div className="text-xs text-blue-700">61–90 zile</div><strong>{advancedExpirations.summary?.info || 0}</strong></div>
-            </div>
-            {(advancedExpirations.rows || []).length === 0 && dashboardAlerts.length === 0 ? (
-              <p className="text-sm text-slate-400">Nu există expirări iminente. Toate documentele sunt la zi.</p>
-            ) : (
-              <div className="grid gap-2">
-                {(advancedExpirations.rows || []).length ? (advancedExpirations.rows || []).slice(0, 20).map(item => (
-                  <div key={item.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${item.severity === 'expired' ? 'border-rose-200 bg-rose-50' : item.severity === 'critical' ? 'border-red-200 bg-red-50' : item.severity === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-blue-200 bg-blue-50'}`}>
-                    <div>
-                      <div className="font-medium text-slate-800">{item.icon} {item.employee_name} — {item.label}</div>
-                      <div className="text-xs text-slate-500">{item.source} · {item.functia || '-'} · marca {item.marca || '-'}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold">{item.date}</div>
-                      <div className={`text-xs ${item.days < 0 ? 'text-rose-700' : item.days <= 30 ? 'text-red-700' : item.days <= 60 ? 'text-amber-700' : 'text-blue-700'}`}>{item.days < 0 ? `expirat de ${Math.abs(item.days)} zile` : `${item.days} zile rămase`}</div>
-                      <Button size="sm" variant="secondary" className="mt-1" onClick={() => openExpirationEmployee(item)}>Deschide fișa</Button>
-                    </div>
-                  </div>
-                )) : dashboardAlerts.map(a => (
-                  <AlertRow key={a.key} label={a.label} date={a.date} icon={a.icon} />
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-700">📬 Istoric notificări scadențe HR</div>
-                <div className="text-xs text-slate-500">Notificări generate pentru scadențele expirate sau critice, cu status de rezolvare.</div>
-              </div>
-              <Button size="sm" variant="secondary" onClick={loadExpirationNotifications}>Reîncarcă istoric</Button>
-            </div>
-            <div className="mb-3 grid gap-2 sm:grid-cols-3">
-              <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Total notificări</div><strong>{expirationNotifications.summary?.total || 0}</strong></div>
-              <div className="rounded border border-red-200 bg-red-50 p-2 text-sm"><div className="text-xs text-red-700">Deschise</div><strong>{expirationNotifications.summary?.open || 0}</strong></div>
-              <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm"><div className="text-xs text-emerald-700">Rezolvate</div><strong>{expirationNotifications.summary?.resolved || 0}</strong></div>
-            </div>
-            {(expirationNotifications.notifications || []).length ? (
-              <div className="grid gap-2">
-                {(expirationNotifications.notifications || []).slice(0, 12).map(item => (
-                  <div key={item.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${item.status === 'rezolvată' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
-                    <div>
-                      <div className="font-medium text-slate-800">{item.title} · {item.user_name || 'HR'}</div>
-                      <div className="text-xs text-slate-600">{item.message}</div>
-                      {item.detail ? <div className="text-xs text-slate-400">{item.detail}</div> : null}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-right">
-                      <span className={`rounded-full px-2 py-1 text-xs ${item.status === 'rezolvată' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{item.status}</span>
-                      {item.created_at ? <span className="text-xs text-slate-400">{String(item.created_at).slice(0, 16).replace('T', ' ')}</span> : null}
-                      {item.employee_id ? <Button size="sm" variant="secondary" onClick={() => openExpirationEmployee(item)}>Deschide fișa</Button> : null}
-                      {item.status !== 'rezolvată' ? <Button size="sm" onClick={() => resolveExpirationNotification(item.id)}>Marchează rezolvat</Button> : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400">Nu există notificări HR generate pentru scadențe.</p>
-            )}
-          </Card>
-        </div>
+        <HRDashboardPanel
+          stats={stats}
+          hrManagementPeriod={hrManagementPeriod}
+          onHrManagementPeriodChange={setHrManagementPeriod}
+          onLoadHrManagementReport={loadHrManagementReport}
+          onDownloadHrManagementReport={downloadHrManagementReport}
+          onGenerateHrNotifications={generateHrNotifications}
+          hrNotificationResult={hrNotificationResult}
+          hrManagementReport={hrManagementReport}
+          pendingLeaves={pendingLeaves}
+          onApproveLeave={approveLeave}
+          onRejectLeave={rejectLeave}
+          advancedExpirations={advancedExpirations}
+          dashboardAlerts={dashboardAlerts}
+          onLoadAdvancedExpirations={loadAdvancedExpirations}
+          onNotifyAdvancedExpirations={notifyAdvancedExpirations}
+          expirationNoticeResult={expirationNoticeResult}
+          onOpenExpirationEmployee={openExpirationEmployee}
+          expirationNotifications={expirationNotifications}
+          onLoadExpirationNotifications={loadExpirationNotifications}
+          onResolveExpirationNotification={resolveExpirationNotification}
+        />
       ) : null}
 
       {/* ─── INBOX HR ─────────────────────────────────────── */}
