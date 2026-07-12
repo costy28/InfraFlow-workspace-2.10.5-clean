@@ -1,5 +1,5 @@
 {
-  "version": "2.12.263",
+  "version": "2.12.264",
   "date": "2026-07-12",
-  "changelog": "## v2.12.263 - 2026-07-12\n### Split lista angajati HR frontend\n- Tabul Angajati a fost extras in client/src/pages/modules/hr/HREmployeesPanel.jsx.\n- Lista angajatilor, exporturile Excel/PDF, badge-ul de sursa si alertele vizuale raman in acelasi flux UI.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
+  "changelog": "## v2.12.264 - 2026-07-12\n### Split pontaj HR frontend\n- Tabul Pontaj a fost extras in client/src/pages/modules/hr/HRTimesheetPanel.jsx.\n- Tabelul de pontaj, exportul Excel si actiunile de finalizare/validare/devalidare raman conectate la handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
 }

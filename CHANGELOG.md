@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.264 - 2026-07-12
+
+## Split pontaj HR frontend
+
+- Tabul `Pontaj` a fost extras în `client/src/pages/modules/hr/HRTimesheetPanel.jsx`.
+- Tabelul de pontaj, exportul Excel, exportul Nexus și acțiunile de finalizare/validare/devalidare sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează datele, calculul de filtrare și handler-ele existente; comportamentul HTTP și UX-ul rămân neschimbate.
+
 # v2.12.263 - 2026-07-12
 
 ## Split lista angajati HR frontend

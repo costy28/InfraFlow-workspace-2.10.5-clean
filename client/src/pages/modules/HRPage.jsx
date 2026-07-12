@@ -13,6 +13,7 @@ import HREmployeesPanel from './hr/HREmployeesPanel'
 import HRInboxPanel from './hr/HRInboxPanel'
 import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
 import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
+import HRTimesheetPanel from './hr/HRTimesheetPanel'
 
 const HR_TEMPLATE_VARIABLES = [
   'nr_cim',
@@ -2673,55 +2674,23 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 
       {/* ─── PONTAJ ───────────────────────────────────────── */}
       {activeTab === 'Pontaj' && canUsePontaj ? (
-        <Card>
-          <div className="mb-3 rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm text-primary-800">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="font-semibold">Pontaj {filters.luna} {filters.dept_id ? `— ${filters.dept_id}` : ''}</div>
-                <div>Termen limită: {deadlineDate || 'nesetat'}</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" disabled={timesheetLock?.locked} onClick={fillWorkingDays}>Completeaza zilele lucratoare</Button>
-                <Button size="sm" onClick={submitDepartmentTimesheet}>✅ Marchează ca Finalizat</Button>
-                <Button size="sm" variant="secondary" onClick={validateMonth}>Validează luna</Button>
-                <Button size="sm" variant="secondary" onClick={invalidateMonth}>Devalideaza</Button>
-                <Button size="sm" variant="secondary" onClick={() => {
-                  const rows = scopedMonthlySheet.map(row => {
-                    const obj = { 'Angajat': fullName(row), 'Departament': row.department_name || '' }
-                    monthDays.forEach(day => {
-                      const val = row.zile?.[day]
-                      obj[`Zi ${day.slice(-2)}`] = typeof val === 'object' ? (val?.tip && val.tip !== 'lucru' ? val.tip : val?.ore_lucrate ?? '') : (val ?? '')
-                    })
-                    const values = monthDays.map(day => row.zile?.[day]).map(value => typeof value === 'object' ? Number(value.ore_lucrate || 0) : Number(value || 0))
-                    obj['Total ore'] = values.reduce((sum, value) => sum + value, 0)
-                    obj['Zile lucrate'] = values.filter(value => value > 0).length
-                    return obj
-                  })
-                  exportExcel(rows, `Pontaj_${filters.luna}${filters.dept_id ? '_' + filters.dept_id : ''}`, `Pontaj ${filters.luna}`)
-                }}>📊 Excel</Button>
-                <Button size="sm" variant="secondary" onClick={() => {
-                  setNexusExportForm({ luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || '' })
-                  setNexusExportModal(true)
-                }}>📥 Export Nexus</Button>
-              </div>
-            </div>
-          </div>
-          <div className="overflow-auto rounded-lg border border-slate-200">
-            <table className="min-w-full text-xs">
-              <thead className="bg-slate-50 text-left uppercase text-slate-500">
-                <tr><th className="sticky left-0 bg-slate-50 px-3 py-2">Angajat</th>{monthDays.map(day => <th key={day} className="px-2 py-2 text-center">{day.slice(-2)}</th>)}</tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {scopedMonthlySheet.length ? scopedMonthlySheet.map(row => (
-                  <tr key={row.employee_id || row.id}>
-                    <td className="sticky left-0 bg-white px-3 py-2 font-medium">{fullName(row)}</td>
-                    {monthDays.map(day => <td key={day} className="p-1 text-center"><button type="button" title={`Editeaza ${fullName(row)} - ${day}`} disabled={timesheetLock?.locked} onClick={() => openTimesheetCell(row, day)} className={`inline-flex min-w-8 justify-center rounded px-1 py-1 transition hover:ring-2 hover:ring-primary-300 disabled:cursor-not-allowed disabled:opacity-60 ${timesheetTone(row.zile?.[day])}`}>{timesheetLabel(row.zile?.[day])}</button></td>)}
-                  </tr>
-                )) : <tr><td className="px-3 py-8 text-sm text-slate-500" colSpan={monthDays.length + 1}>{loading ? 'Se incarca...' : 'Nu exista angajati activi in departamentul selectat. Verifica fisa HR si asocierea utilizatorului cu angajatul.'}</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <HRTimesheetPanel
+          filters={filters}
+          deadlineDate={deadlineDate}
+          timesheetLock={timesheetLock}
+          rows={scopedMonthlySheet}
+          monthDays={monthDays}
+          loading={loading}
+          onFillWorkingDays={fillWorkingDays}
+          onSubmitDepartmentTimesheet={submitDepartmentTimesheet}
+          onValidateMonth={validateMonth}
+          onInvalidateMonth={invalidateMonth}
+          onOpenTimesheetCell={openTimesheetCell}
+          onOpenNexusExport={() => {
+            setNexusExportForm({ luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || '' })
+            setNexusExportModal(true)
+          }}
+        />
       ) : null}
 
       {/* ─── OVERVIEW PONTAJE ─────────────────────────────── */}
