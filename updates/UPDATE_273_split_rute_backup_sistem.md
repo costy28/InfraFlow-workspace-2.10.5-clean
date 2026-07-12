@@ -1,6 +1,6 @@
 # UPDATE 273 — Split rute backup sistem
 
-Versiune: `2.12.253`  
+Versiune: `2.12.253`
 Data: 2026-07-12
 
 ## Ce s-a schimbat

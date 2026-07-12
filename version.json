@@ -1,5 +1,5 @@
 {
-  "version": "2.12.253",
+  "version": "2.12.254",
   "date": "2026-07-12",
-  "changelog": "## v2.12.253 - 2026-07-12\n### Split rute backup sistem\n- Rutele Express pentru backup si restaurare au fost extrase din server/modules/system/routes.js in server/modules/system/backup-routes.js.\n- Endpointurile existente /api/system/backups, /api/backup si /api/restore raman neschimbate.\n- Handlerul legacy /api ramane neatins pentru compatibilitate si va fi extras separat intr-un pas ulterior."
+  "changelog": "## v2.12.254 - 2026-07-12\n### Split rute utilizatori si roluri\n- Rutele Express pentru utilizatori, roluri si permisiuni au fost extrase din server/modules/system/routes.js in server/modules/system/users-routes.js.\n- Endpointurile existente /api/users si /api/roles raman neschimbate.\n- Helperii de creare/editare utilizatori raman in routes.js pentru compatibilitatea handlerului legacy /api."
 }

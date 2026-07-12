@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.254 - 2026-07-12
+
+## Split rute utilizatori si roluri
+
+- Rutele Express pentru utilizatori, roluri și permisiuni au fost extrase din `server/modules/system/routes.js` în `server/modules/system/users-routes.js`.
+- Endpointurile existente `/api/users` și `/api/roles` rămân neschimbate.
+- Helperii de creare/editare utilizatori rămân în `routes.js` pentru compatibilitatea handlerului legacy `/api`.
+
 # v2.12.253 - 2026-07-12
 
 ## Split rute backup sistem
