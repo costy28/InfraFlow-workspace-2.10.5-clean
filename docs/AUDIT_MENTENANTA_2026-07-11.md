@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.262`
-Următorul pas de stabilizare: `2.12.263`
+Versiune analizată: `2.12.263`
+Următorul pas de stabilizare: `2.12.264`
 
 ## Rezultat verificări
 
@@ -109,13 +109,19 @@ Următorul pas de stabilizare: `2.12.263`
 - Inbox HR, sarcinile ghidate și jurnalul operațional HR sunt mutate în componentă dedicată;
 - comportament HTTP și UX identic.
 
-### UPDATE 283 — Documente Word-first
+### UPDATE 283 — Split lista angajati HR frontend
+
+- `client/src/pages/modules/hr/HREmployeesPanel.jsx` — ✅ extras în `2.12.263`;
+- lista angajaților, exporturile Excel/PDF, badge-ul de sursă și alertele vizuale sunt mutate în componentă dedicată;
+- comportament HTTP și UX identic.
+
+### UPDATE 284 — Documente Word-first
 
 - Word template ca format principal;
 - HTML doar compatibilitate/preview;
 - preview controlat și validare variabile.
 
-### UPDATE 284 — Smoke suite module
+### UPDATE 285 — Smoke suite module
 
 - login local read-only;
 - verificare endpointuri critice pe module;

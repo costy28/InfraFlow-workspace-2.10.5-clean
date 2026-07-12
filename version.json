@@ -1,5 +1,5 @@
 {
-  "version": "2.12.262",
+  "version": "2.12.263",
   "date": "2026-07-12",
-  "changelog": "## v2.12.262 - 2026-07-12\n### Split inbox HR frontend\n- Panoul Inbox HR si jurnalul operational HR au fost extrase in client/src/pages/modules/hr/HRInboxPanel.jsx.\n- Filtrele, sarcinile ghidate si exportul jurnalului raman conectate la handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
+  "changelog": "## v2.12.263 - 2026-07-12\n### Split lista angajati HR frontend\n- Tabul Angajati a fost extras in client/src/pages/modules/hr/HREmployeesPanel.jsx.\n- Lista angajatilor, exporturile Excel/PDF, badge-ul de sursa si alertele vizuale raman in acelasi flux UI.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
 }

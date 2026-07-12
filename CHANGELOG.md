@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.263 - 2026-07-12
+
+## Split lista angajati HR frontend
+
+- Tabul `Angajați` a fost extras în `client/src/pages/modules/hr/HREmployeesPanel.jsx`.
+- Lista angajaților, exporturile Excel/PDF, badge-ul de sursă și alertele vizuale sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează filtrarea, încărcarea datelor și handlerul de deschidere fișă; comportamentul HTTP și UX-ul rămân neschimbate.
+
 # v2.12.262 - 2026-07-12
 
 ## Split inbox HR frontend
