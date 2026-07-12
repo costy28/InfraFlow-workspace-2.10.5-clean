@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.265`
-Următorul pas de stabilizare: `2.12.266`
+Versiune analizată: `2.12.266`
+Următorul pas de stabilizare: `2.12.267`
 
 ## Rezultat verificări
 
@@ -127,13 +127,19 @@ Următorul pas de stabilizare: `2.12.266`
 - închiderea lunii, aprobările de ore suplimentare, controlul săptămânal, raportul lunar și banca de ore sunt mutate în componentă dedicată;
 - comportament HTTP și UX identic.
 
-### UPDATE 286 — Documente Word-first
+### UPDATE 286 — Split ture si program HR frontend
+
+- `client/src/pages/modules/hr/HRShiftsSchedulePanel.jsx` — ✅ extras în `2.12.266`;
+- lista de ture, filtrele lună/departament și matricea zilnică de programare sunt mutate în componentă dedicată;
+- comportament HTTP și UX identic.
+
+### UPDATE 287 — Documente Word-first
 
 - Word template ca format principal;
 - HTML doar compatibilitate/preview;
 - preview controlat și validare variabile.
 
-### UPDATE 287 — Smoke suite module
+### UPDATE 288 — Smoke suite module
 
 - login local read-only;
 - verificare endpointuri critice pe module;

@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.266 - 2026-07-12
+
+## Split ture si program HR frontend
+
+- Tabul `Ture & Program` a fost extras în `client/src/pages/modules/hr/HRShiftsSchedulePanel.jsx`.
+- Lista de ture, filtrarea pe lună/departament și matricea zilnică de programare sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează încărcarea datelor, modalul de editare tură și handler-ele existente; comportamentul HTTP și UX-ul rămân neschimbate.
+
 # v2.12.265 - 2026-07-12
 
 ## Split pontaj avansat HR frontend
