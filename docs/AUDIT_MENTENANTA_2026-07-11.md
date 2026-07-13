@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.280`
-Următorul pas de stabilizare: `2.12.281`
+Versiune analizată: `2.12.281`
+Următorul pas de stabilizare: `2.12.282`
 
 ## Rezultat verificări
 
@@ -231,6 +231,13 @@ Următorul pas de stabilizare: `2.12.281`
 
 ### UPDATE 301 — Split dosar angajat HR
 
-- următorul bloc rămas: `EmployeeFilesPanel` pentru dosarul angajatului;
-- extragere listă documente, upload, editare metadata și anulare document în componentă dedicată;
+- `client/src/pages/modules/hr/HREmployeeFilesTab.jsx` — ✅ extras în `2.12.281`;
+- lista documentelor, upload-ul, previzualizarea, descărcarea, editarea metadata și anularea sunt mutate în componentă dedicată;
+- integrarea cu Inbox HR și refresh-ul pentru documentele generate electronic rămân identice;
 - păstrare endpointuri și comportament Kiosk/confirmări, fără schimbare HTTP/UX.
+
+### UPDATE 302 — Split modal angajat HR
+
+- următorul bloc rămas: modalul `Angajat nou / Editare angajat`;
+- extragere formular identitate, date personale, date serviciu, date financiare și scadențe într-o componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

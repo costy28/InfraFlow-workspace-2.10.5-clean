@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.281 - 2026-07-13
+
+## Split dosar angajat HR
+
+- Tabul `Dosar` din fișa angajatului a fost extras în `client/src/pages/modules/hr/HREmployeeFilesTab.jsx`.
+- Upload-ul, lista documentelor, previzualizarea, descărcarea, editarea metadatelor și anularea documentelor sunt randate din componenta dedicată.
+- Integrarea cu Inbox HR și refresh-ul pentru documentele generate electronic rămân identice; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.280 - 2026-07-13
 
 ## Split contracte și transferuri fișă angajat HR

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.280",
+  "version": "2.12.281",
   "date": "2026-07-13",
-  "changelog": "## v2.12.280 - 2026-07-13\n### Split contracte si transferuri fisa angajat HR\n- Tabul Contracte & acte din fisa angajatului a fost extras in HREmployeeContractsTab.\n- Panoul contractelor, actele aditionale si istoricul departamentelor sunt randate din componenta dedicata.\n- Handler-ele de contracte, acte si generare Word raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.281 - 2026-07-13\n### Split dosar angajat HR\n- Tabul Dosar din fisa angajatului a fost extras in HREmployeeFilesTab.\n- Upload-ul, lista documentelor, previzualizarea, descarcarea, editarea metadata si anularea documentelor sunt randate din componenta dedicata.\n- Integrarea cu Inbox HR si refresh-ul documentelor generate raman identice, fara schimbari de API, DB sau UX."
 }
