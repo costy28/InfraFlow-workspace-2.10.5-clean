@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.279 - 2026-07-13
+
+## Split flux onboarding/offboarding fișă angajat HR
+
+- Tabul `Onboarding / Offboarding` din fișa angajatului a fost extras în `client/src/pages/modules/hr/HREmployeeWorkflowTab.jsx`.
+- Sumarul fluxului, bara de progres, lista de pași, acțiunile ghidate și închiderea/anularea fluxului sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul, încărcarea fluxului și handler-ele de pornire, bifare, finalizare și anulare; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.278 - 2026-07-13
 
 ## Split scadențe și Kiosk fișă angajat HR

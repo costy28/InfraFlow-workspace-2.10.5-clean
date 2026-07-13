@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.278`
-Următorul pas de stabilizare: `2.12.279`
+Versiune analizată: `2.12.279`
+Următorul pas de stabilizare: `2.12.280`
 
 ## Rezultat verificări
 
@@ -217,6 +217,13 @@ Următorul pas de stabilizare: `2.12.279`
 
 ### UPDATE 299 — Split flux onboarding/offboarding fișă angajat HR
 
-- următorul bloc rămas: tabul `Onboarding / Offboarding`;
-- extragere sumar flux, progres, listă pași și acțiuni ghidate în componentă dedicată;
-- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+- `client/src/pages/modules/hr/HREmployeeWorkflowTab.jsx` — ✅ extras în `2.12.279`;
+- sumarul fluxului, progresul, lista de pași, acțiunile ghidate și acțiunile de finalizare/anulare sunt mutate în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX;
+- reduce în continuare blocul modalului de fișă angajat.
+
+### UPDATE 300 — Split contracte și transferuri fișă angajat HR
+
+- următorul bloc rămas: tabul `Contracte & acte`;
+- extragere randare `EmployeeContractsPanel` + istoric departamente într-un container dedicat;
+- păstrare apeluri contracte/acte/Word și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

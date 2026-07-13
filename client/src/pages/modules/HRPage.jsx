@@ -14,6 +14,7 @@ import HREmployeeAttendanceTab from './hr/HREmployeeAttendanceTab'
 import HREmployeeEquipmentSection from './hr/HREmployeeEquipmentSection'
 import HREmployeeKioskTab from './hr/HREmployeeKioskTab'
 import HREmployeePersonalTab from './hr/HREmployeePersonalTab'
+import HREmployeeWorkflowTab from './hr/HREmployeeWorkflowTab'
 import {
   HREmployeeProfileActivity,
   HREmployeeProfileHeader,
@@ -3410,73 +3411,16 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
             ) : null}
 
             {employeeProfileTab === 'flux' ? (
-              <div className="grid gap-4">
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-slate-800">🚦 Onboarding / Offboarding HR</div>
-                      <div className="text-xs text-slate-500">Checklist ghidat pentru angajare sau plecare, legat de dosar, contracte, Kiosk și echipamente.</div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="secondary" onClick={() => loadEmployeeWorkflow()}>Reîncarcă</Button>
-                      <Button size="sm" loading={employeeWorkflowBusy} onClick={() => startEmployeeWorkflow('onboarding')}>Pornește onboarding</Button>
-                      <Button size="sm" variant="secondary" loading={employeeWorkflowBusy} onClick={() => startEmployeeWorkflow('offboarding')}>Pornește offboarding</Button>
-                    </div>
-                  </div>
-                  {employeeWorkflow ? (
-                    <>
-                      <div className="mb-3 grid gap-2 sm:grid-cols-4">
-                        <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Tip flux</div><strong>{employeeWorkflow.type === 'offboarding' ? 'Offboarding' : 'Onboarding'}</strong></div>
-                        <div className="rounded border border-violet-200 bg-violet-50 p-2 text-sm"><div className="text-xs text-violet-700">Status</div><strong>{employeeWorkflow.status}</strong></div>
-                        <div className="rounded border border-primary-200 bg-primary-50 p-2 text-sm"><div className="text-xs text-primary-700">Progres total</div><strong>{employeeWorkflow.progress?.steps_done || 0}/{employeeWorkflow.progress?.steps_total || 0}</strong></div>
-                        <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">Obligatorii</div><strong>{employeeWorkflow.progress?.required_done || 0}/{employeeWorkflow.progress?.required_total || 0}</strong></div>
-                      </div>
-                      <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-2 rounded-full bg-violet-600" style={{ width: `${employeeWorkflow.progress?.percent || 0}%` }} />
-                      </div>
-                      <div className="grid gap-2">
-                        {(employeeWorkflow.steps || []).map(step => (
-                          <div key={step.key} className={`flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm ${guidedWorkflowStep && guidedWorkflowStep === step.key ? 'ring-2 ring-primary-300' : ''} ${step.done ? 'border-emerald-200 bg-emerald-50' : step.required ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
-                            <label className="flex min-w-0 flex-1 items-start gap-2">
-                              <input type="checkbox" className="mt-1" checked={Boolean(step.done)} onChange={event => toggleEmployeeWorkflowStep(step, event.target.checked)} />
-                              <span>
-                                <span className="font-semibold text-slate-800">{step.done ? '✅' : step.required ? '⬜' : '▫️'} {step.label}</span>
-                                {step.required ? <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">obligatoriu</span> : <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">opțional</span>}
-                                {step.auto_checked ? <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">detectat automat</span> : null}
-                                <div className="text-xs text-slate-500">{step.description}</div>
-                                {step.completed_at ? <div className="text-xs text-emerald-700">bifat la {String(step.completed_at).slice(0, 16).replace('T', ' ')}</div> : null}
-                                {guidedWorkflowStep && guidedWorkflowStep === step.key ? <div className="mt-1 text-xs font-semibold text-primary-700">Pas sugerat din Inbox HR — continuă de aici.</div> : null}
-                                {workflowStepActions(step).length ? (
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {workflowStepActions(step).map(action => (
-                                      <button
-                                        key={action.label}
-                                        type="button"
-                                        className="rounded bg-white px-2 py-1 text-xs font-semibold text-primary-700 ring-1 ring-primary-100 hover:bg-primary-50"
-                                        onClick={(event) => { event.preventDefault(); action.run() }}
-                                      >
-                                        {action.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </span>
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex flex-wrap justify-end gap-2">
-                        {employeeWorkflow.status !== 'completed' ? <Button size="sm" onClick={() => closeEmployeeWorkflow(false)}>Închide ca finalizat</Button> : null}
-                        {!['completed','cancelled'].includes(employeeWorkflow.status) ? <Button size="sm" variant="secondary" onClick={() => closeEmployeeWorkflow(true)}>Anulează flux</Button> : null}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-                      Nu există flux activ pentru acest angajat. Pornește onboarding pentru angajare sau offboarding pentru plecare.
-                    </div>
-                  )}
-                </div>
-              </div>
+              <HREmployeeWorkflowTab
+                workflow={employeeWorkflow}
+                busy={employeeWorkflowBusy}
+                guidedStep={guidedWorkflowStep}
+                onReload={() => loadEmployeeWorkflow()}
+                onStartWorkflow={startEmployeeWorkflow}
+                onToggleStep={toggleEmployeeWorkflowStep}
+                onCloseWorkflow={closeEmployeeWorkflow}
+                getStepActions={workflowStepActions}
+              />
             ) : null}
 
             {employeeProfileTab === 'echipamente' ? (
