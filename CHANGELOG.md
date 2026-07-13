@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.278 - 2026-07-13
+
+## Split scadențe și Kiosk fișă angajat HR
+
+- Tabul `Scadențe & Kiosk` din fișa angajatului a fost extras în `client/src/pages/modules/hr/HREmployeeKioskTab.jsx`.
+- Sumarul documentelor Kiosk, reminderul, lipsurile obligatorii și lista de scadențe sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul, selecția angajatului și handler-ul de reminder; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.277 - 2026-07-13
 
 ## Split pontaj și concedii fișă angajat HR

@@ -12,6 +12,7 @@ import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
 import HRDashboardPanel from './hr/HRDashboardPanel'
 import HREmployeeAttendanceTab from './hr/HREmployeeAttendanceTab'
 import HREmployeeEquipmentSection from './hr/HREmployeeEquipmentSection'
+import HREmployeeKioskTab from './hr/HREmployeeKioskTab'
 import HREmployeePersonalTab from './hr/HREmployeePersonalTab'
 import {
   HREmployeeProfileActivity,
@@ -3401,22 +3402,11 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
             {employeeProfileTab === 'dosar' ? <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} suggestedUpload={guidedDossierUpload} onSuggestionUsed={() => { setGuidedDossierUpload(null); loadHrInbox() }} /> : null}
 
             {employeeProfileTab === 'kiosk' ? (
-              <div className="grid gap-4">
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="rounded border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">Documente Kiosk</div><strong>{selectedDossierSummary?.kiosk_documents ?? 0}</strong></div>
-                  <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm"><div className="text-xs text-amber-700">Neconfirmate</div><strong>{selectedDossierSummary?.pending_ack ?? 0}</strong></div>
-                  <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm"><div className="text-xs text-blue-700">Scadențe ≤90 zile</div><strong>{selectedEmployeeExpirations.length}</strong></div>
-                </div>
-                {selectedDossierSummary?.pending_ack ? <Button size="sm" onClick={() => sendDossierReminder(employeeDetails.id)}>Trimite reminder Kiosk</Button> : null}
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Lipsuri obligatorii & scadențe</div>
-                  {selectedDossierSummary?.missing_required?.length ? <div className="mb-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">Lipsesc: {selectedDossierSummary.missing_required.join(', ')}</div> : <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Documentele obligatorii sunt complete.</div>}
-                  <div className="grid gap-2">
-                    {selectedEmployeeExpirations.map(item => <div key={item.id} className={`flex flex-wrap items-center justify-between gap-2 rounded px-3 py-2 text-sm ${item.severity === 'expired' ? 'bg-rose-50 text-rose-800' : item.severity === 'critical' ? 'bg-red-50 text-red-800' : item.severity === 'warning' ? 'bg-amber-50 text-amber-800' : 'bg-blue-50 text-blue-800'}`}><span>{item.icon} {item.label}</span><span>{item.date} · {item.days < 0 ? `expirat de ${Math.abs(item.days)} zile` : `${item.days} zile rămase`}</span></div>)}
-                    {!selectedEmployeeExpirations.length ? <div className="text-sm text-slate-400">Nu există scadențe apropiate.</div> : null}
-                  </div>
-                </div>
-              </div>
+              <HREmployeeKioskTab
+                dossierSummary={selectedDossierSummary}
+                expirations={selectedEmployeeExpirations}
+                onSendReminder={() => sendDossierReminder(employeeDetails.id)}
+              />
             ) : null}
 
             {employeeProfileTab === 'flux' ? (

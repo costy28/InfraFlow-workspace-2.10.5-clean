@@ -1,5 +1,5 @@
 {
-  "version": "2.12.277",
+  "version": "2.12.278",
   "date": "2026-07-13",
-  "changelog": "## v2.12.277 - 2026-07-13\n### Split pontaj si concedii fisa angajat HR\n- Tabul Pontaj & concedii din fisa angajatului a fost extras in HREmployeeAttendanceTab.\n- KPI-urile de pontaj si istoricul concediilor sunt randate din componenta dedicata.\n- State-ul si handler-ele raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.278 - 2026-07-13\n### Split scadente si Kiosk fisa angajat HR\n- Tabul Scadente & Kiosk din fisa angajatului a fost extras in HREmployeeKioskTab.\n- Sumarul Kiosk, reminderul, lipsurile obligatorii si scadentele sunt randate din componenta dedicata.\n- State-ul si handler-ele raman in HRPage, fara schimbari de API, DB sau UX."
 }
