@@ -1,5 +1,5 @@
 {
-  "version": "2.12.281",
+  "version": "2.12.282",
   "date": "2026-07-13",
-  "changelog": "## v2.12.281 - 2026-07-13\n### Split dosar angajat HR\n- Tabul Dosar din fisa angajatului a fost extras in HREmployeeFilesTab.\n- Upload-ul, lista documentelor, previzualizarea, descarcarea, editarea metadata si anularea documentelor sunt randate din componenta dedicata.\n- Integrarea cu Inbox HR si refresh-ul documentelor generate raman identice, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.282 - 2026-07-13\n### Split modal angajat HR\n- Modalul Angajat nou a fost extras in HREmployeeModal.\n- Formularul de identitate, date personale, angajare, financiare, documente si GDPR este randat din componenta dedicata.\n- State-ul formularului si submit-ul raman in HRPage, fara schimbari de API, DB sau UX."
 }

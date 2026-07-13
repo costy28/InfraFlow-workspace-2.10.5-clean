@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.281`
-Următorul pas de stabilizare: `2.12.282`
+Versiune analizată: `2.12.282`
+Următorul pas de stabilizare: `2.12.283`
 
 ## Rezultat verificări
 
@@ -238,6 +238,13 @@ Următorul pas de stabilizare: `2.12.282`
 
 ### UPDATE 302 — Split modal angajat HR
 
-- următorul bloc rămas: modalul `Angajat nou / Editare angajat`;
-- extragere formular identitate, date personale, date serviciu, date financiare și scadențe într-o componentă dedicată;
+- `client/src/pages/modules/hr/HREmployeeModal.jsx` — ✅ extras în `2.12.282`;
+- formularul de identitate, date personale, date serviciu, date financiare, scadențe și GDPR este mutat în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX;
+- reduce blocul de modaluri operaționale din `HRPage.jsx`.
+
+### UPDATE 303 — Split modaluri concedii și salarizare medicală HR
+
+- următorul bloc rămas: modalurile `Cerere de concediu` și `Trimite concediul medical în salarizare`;
+- extragere formulare concediu și confirmare bază calcul CM în componente dedicate;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.282 - 2026-07-13
+
+## Split modal angajat HR
+
+- Modalul `Angajat nou` din HR a fost extras în `client/src/pages/modules/hr/HREmployeeModal.jsx`.
+- Formularul de identitate, date personale, date de angajare, date financiare, documente/scadențe și GDPR este randat din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul formularului, deschiderea/închiderea modalului și handler-ul de submit; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.281 - 2026-07-13
 
 ## Split dosar angajat HR
