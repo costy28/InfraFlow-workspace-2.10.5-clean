@@ -29,7 +29,9 @@ import HREquipmentDotareModal from './hr/HREquipmentDotareModal'
 import HREquipmentPanel from './hr/HREquipmentPanel'
 import HREmployeesPanel from './hr/HREmployeesPanel'
 import HRInboxPanel from './hr/HRInboxPanel'
+import HRLeaveRequestModal from './hr/HRLeaveRequestModal'
 import HRMealTicketsPanel from './hr/HRMealTicketsPanel'
+import HRMedicalPayrollModal from './hr/HRMedicalPayrollModal'
 import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
 import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
 import HRShiftModal from './hr/HRShiftModal'
@@ -3129,25 +3131,23 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         ) : <p className="text-sm text-slate-500">Se incarca fișa...</p>}
       </Modal>
 
-      <Modal open={leaveModal} title="Cerere de concediu" onClose={() => setLeaveModal(false)} size="md">
-        <form className="grid gap-3" onSubmit={createLeave}>
-          <Select label="Angajat" value={leaveForm.employee_id} onChange={event => setLeaveForm({ ...leaveForm, employee_id: event.target.value })} options={[{ value: '', label: 'Alege angajat' }, ...employees.filter(item => item.activ !== false).map(item => ({ value: String(item.id), label: fullName(item) }))]} required />
-          <Select label="Tip" value={leaveForm.tip} onChange={event => setLeaveForm({ ...leaveForm, tip: event.target.value })} options={[{ value: 'CO', label: 'Concediu de odihna' }, { value: 'CM', label: 'Concediu medical' }, { value: 'delegatie', label: 'Delegatie' }, { value: 'nemotivat', label: 'Absenta nemotivata' }, { value: 'alt', label: 'Alt tip / fara plata' }]} />
-          <div className="grid gap-3 sm:grid-cols-2"><Input label="Data inceput" type="date" value={leaveForm.data_start} onChange={event => setLeaveForm({ ...leaveForm, data_start: event.target.value })} required /><Input label="Data sfarsit" type="date" value={leaveForm.data_sfarsit} onChange={event => setLeaveForm({ ...leaveForm, data_sfarsit: event.target.value })} required /></div>
-          <Input label="Motiv / observatii" value={leaveForm.motiv} onChange={event => setLeaveForm({ ...leaveForm, motiv: event.target.value })} />
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setLeaveModal(false)}>Renunta</Button><Button type="submit" disabled={!leaveForm.employee_id || !leaveForm.data_start || !leaveForm.data_sfarsit}>Salveaza cererea</Button></div>
-        </form>
-      </Modal>
+      <HRLeaveRequestModal
+        open={leaveModal}
+        form={leaveForm}
+        employees={employees}
+        getEmployeeName={fullName}
+        onClose={() => setLeaveModal(false)}
+        onSubmit={createLeave}
+        onChange={setLeaveForm}
+      />
 
-      <Modal open={Boolean(medicalPayrollItem)} title="Trimite concediul medical in salarizare" onClose={() => setMedicalPayrollItem(null)} size="md">
-        <form className="grid gap-3" onSubmit={confirmMedicalPayroll}>
-          <div className="rounded-md bg-slate-50 p-3 text-sm"><strong>{medicalPayrollItem?.nume} {medicalPayrollItem?.prenume}</strong><div>{medicalPayrollItem?.serie}/{medicalPayrollItem?.numar} · {medicalPayrollItem?.indemnity_percent}% · {medicalPayrollItem?.workdays} zile lucratoare</div></div>
-          <Input label="Baza de calcul zilnica (lei)" type="number" min="0.01" step="0.0001" value={medicalDailyBase} onChange={event => setMedicalDailyBase(event.target.value)} required />
-          <p className="text-xs text-slate-500">Introdu media zilnica rezultata din veniturile brute ale ultimelor 6 luni. Aplicatia calculeaza indemnizatia si impartirea angajator/FNUASS.</p>
-          {Number(medicalDailyBase) > 0 ? <div className="rounded-md bg-primary-50 p-3 text-sm text-primary-800">Estimare: <strong>{(Number(medicalDailyBase) * Number(medicalPayrollItem?.indemnity_percent || 0) / 100 * (Number(medicalPayrollItem?.employer_days || 0) + Number(medicalPayrollItem?.fund_days || 0))).toFixed(2)} lei</strong></div> : null}
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setMedicalPayrollItem(null)}>Renunta</Button><Button type="submit" disabled={!(Number(medicalDailyBase) > 0)}>Confirma si trimite</Button></div>
-        </form>
-      </Modal>
+      <HRMedicalPayrollModal
+        item={medicalPayrollItem}
+        dailyBase={medicalDailyBase}
+        onDailyBaseChange={setMedicalDailyBase}
+        onClose={() => setMedicalPayrollItem(null)}
+        onSubmit={confirmMedicalPayroll}
+      />
 
       <HREmployeeModal
         open={employeeModal}

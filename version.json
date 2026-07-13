@@ -1,5 +1,5 @@
 {
-  "version": "2.12.282",
+  "version": "2.12.283",
   "date": "2026-07-13",
-  "changelog": "## v2.12.282 - 2026-07-13\n### Split modal angajat HR\n- Modalul Angajat nou a fost extras in HREmployeeModal.\n- Formularul de identitate, date personale, angajare, financiare, documente si GDPR este randat din componenta dedicata.\n- State-ul formularului si submit-ul raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.283 - 2026-07-13\n### Split modaluri concedii si salarizare medicala HR\n- Modalul Cerere de concediu a fost extras in HRLeaveRequestModal.\n- Modalul Trimite concediul medical in salarizare a fost extras in HRMedicalPayrollModal.\n- State-ul, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
 }

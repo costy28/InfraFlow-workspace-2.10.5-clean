@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.283 - 2026-07-13
+
+## Split modaluri concedii și salarizare medicală HR
+
+- Modalul `Cerere de concediu` din HR a fost extras în `client/src/pages/modules/hr/HRLeaveRequestModal.jsx`.
+- Modalul `Trimite concediul medical în salarizare` a fost extras în `client/src/pages/modules/hr/HRMedicalPayrollModal.jsx`.
+- `HRPage.jsx` păstrează state-ul formularelor, handler-ele de submit și apelurile API; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.282 - 2026-07-13
 
 ## Split modal angajat HR

@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.282`
-Următorul pas de stabilizare: `2.12.283`
+Versiune analizată: `2.12.283`
+Următorul pas de stabilizare: `2.12.284`
 
 ## Rezultat verificări
 
@@ -245,6 +245,13 @@ Următorul pas de stabilizare: `2.12.283`
 
 ### UPDATE 303 — Split modaluri concedii și salarizare medicală HR
 
-- următorul bloc rămas: modalurile `Cerere de concediu` și `Trimite concediul medical în salarizare`;
-- extragere formulare concediu și confirmare bază calcul CM în componente dedicate;
+- `client/src/pages/modules/hr/HRLeaveRequestModal.jsx` — ✅ extras în `2.12.283`;
+- `client/src/pages/modules/hr/HRMedicalPayrollModal.jsx` — ✅ extras în `2.12.283`;
+- formularul de cerere concediu și confirmarea bazei de calcul pentru CM sunt mutate în componente dedicate;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+
+### UPDATE 304 — Split modal compensare bancă de ore HR
+
+- următorul bloc rămas: modalul `Compensare bancă de ore`;
+- extragere formular compensare timp liber/plată/sold inițial/avans în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
