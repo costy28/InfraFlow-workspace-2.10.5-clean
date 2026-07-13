@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.269 - 2026-07-13
+
+## Split training si evaluari HR frontend
+
+- Tabul `Training & Evaluări` a fost extras în `client/src/pages/modules/hr/HRTrainingPanel.jsx`.
+- Scadențarul cursurilor obligatorii și lista de evaluări sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează încărcarea datelor, modalul de evaluare și handler-ele existente; comportamentul HTTP și UX-ul rămân neschimbate.
+
 # v2.12.268 - 2026-07-13
 
 ## Split tichete masa HR frontend

@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.268`
-Următorul pas de stabilizare: `2.12.269`
+Versiune analizată: `2.12.269`
+Următorul pas de stabilizare: `2.12.270`
 
 ## Rezultat verificări
 
@@ -145,13 +145,19 @@ Următorul pas de stabilizare: `2.12.269`
 - configurația tichetului, filtrele lună/departament, exportul CSV și tabelul de totaluri sunt mutate în componentă dedicată;
 - comportament HTTP și UX identic.
 
-### UPDATE 289 — Documente Word-first
+### UPDATE 289 — Split training si evaluari HR frontend
+
+- `client/src/pages/modules/hr/HRTrainingPanel.jsx` — ✅ extras în `2.12.269`;
+- scadențarul cursurilor obligatorii și lista de evaluări sunt mutate în componentă dedicată;
+- comportament HTTP și UX identic.
+
+### UPDATE 290 — Documente Word-first
 
 - Word template ca format principal;
 - HTML doar compatibilitate/preview;
 - preview controlat și validare variabile.
 
-### UPDATE 290 — Smoke suite module
+### UPDATE 291 — Smoke suite module
 
 - login local read-only;
 - verificare endpointuri critice pe module;

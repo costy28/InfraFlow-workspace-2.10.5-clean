@@ -1,5 +1,5 @@
 {
-  "version": "2.12.268",
+  "version": "2.12.269",
   "date": "2026-07-13",
-  "changelog": "## v2.12.268 - 2026-07-13\n### Split tichete masa HR frontend\n- Tabul Tichete masa a fost extras in client/src/pages/modules/hr/HRMealTicketsPanel.jsx.\n- Configuratia tichetului, filtrele luna/departament, exportul CSV si tabelul de totaluri raman conectate la handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
+  "changelog": "## v2.12.269 - 2026-07-13\n### Split training si evaluari HR frontend\n- Tabul Training & Evaluari a fost extras in client/src/pages/modules/hr/HRTrainingPanel.jsx.\n- Scadentarul cursurilor obligatorii si lista de evaluari sunt randate din componenta dedicata.\n- State-ul, modalul de evaluare si handler-ele existente raman in HRPage.jsx, cu comportament HTTP si UX neschimbat."
 }
