@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.273`
-Următorul pas de stabilizare: `2.12.274`
+Versiune analizată: `2.12.274`
+Următorul pas de stabilizare: `2.12.275`
 
 ## Rezultat verificări
 
@@ -181,6 +181,14 @@ Următorul pas de stabilizare: `2.12.274`
 
 ### UPDATE 294 — Split modaluri echipamente HR
 
-- următoarele blocuri dense rămase: modalul de catalog și modalul de dotare;
-- extragere formulare dedicate fără schimbare HTTP/UX;
+- `client/src/pages/modules/hr/HREquipmentCatalogModal.jsx` — ✅ extras în `2.12.274`;
+- `client/src/pages/modules/hr/HREquipmentDotareModal.jsx` — ✅ extras în `2.12.274`;
+- modalul de catalog și modalul de dotare sunt mutate în componente dedicate;
+- comportament HTTP și UX identic;
 - pregătește `HRPage.jsx` pentru separarea completă a fișei angajatului.
+
+### UPDATE 295 — Split profil angajat HR
+
+- următorul bloc mare rămas: modalul/profilul angajatului;
+- extragere structură taburi profil, antet și secțiuni deja izolate;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

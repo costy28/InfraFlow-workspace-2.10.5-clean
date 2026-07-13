@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.274 - 2026-07-13
+
+## Split modaluri echipamente HR
+
+- Modalul de catalog echipamente a fost extras în `client/src/pages/modules/hr/HREquipmentCatalogModal.jsx`.
+- Modalul de dotare echipament/inventar a fost extras în `client/src/pages/modules/hr/HREquipmentDotareModal.jsx`.
+- `HRPage.jsx` păstrează state-ul și handler-ele existente; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.273 - 2026-07-13
 
 ## Split echipamente din fișa angajat HR

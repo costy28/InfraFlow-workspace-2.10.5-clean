@@ -11,6 +11,8 @@ import { useAuth } from '../../hooks/useAuth'
 import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
 import HRDashboardPanel from './hr/HRDashboardPanel'
 import HREmployeeEquipmentSection from './hr/HREmployeeEquipmentSection'
+import HREquipmentCatalogModal from './hr/HREquipmentCatalogModal'
+import HREquipmentDotareModal from './hr/HREquipmentDotareModal'
 import HREquipmentPanel from './hr/HREquipmentPanel'
 import HREmployeesPanel from './hr/HREmployeesPanel'
 import HRInboxPanel from './hr/HRInboxPanel'
@@ -3996,37 +3998,24 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         </form>
       </Modal>
 
-      <Modal open={catalogModal} title={catalogEditing ? 'Editează obiect catalog' : 'Adaugă obiect în catalog'} onClose={() => setCatalogModal(false)}>
-        <form className="grid gap-3" onSubmit={saveCatalogItem}>
-          <Input label="Denumire*" value={catalogForm.denumire} onChange={event => setCatalogForm({ ...catalogForm, denumire: event.target.value })} required />
-          <Select label="Categorie*" value={catalogForm.categorie} onChange={event => setCatalogForm({ ...catalogForm, categorie: event.target.value })} options={[{ value: 'protectie', label: 'Echipamente protecție' }, { value: 'scule', label: 'Scule' }, { value: 'unelte', label: 'Unelte' }, { value: 'inventar', label: 'Inventar' }, { value: 'SSM', label: 'SSM' }, { value: 'altele', label: 'Altele' }]} />
-          <div className="grid gap-2 sm:grid-cols-3">
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={catalogForm.are_marime} onChange={event => setCatalogForm({ ...catalogForm, are_marime: event.target.checked })} /> Are mărime?</label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={catalogForm.are_serie} onChange={event => setCatalogForm({ ...catalogForm, are_serie: event.target.checked })} /> Are nr. serie?</label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={catalogForm.are_expirare} onChange={event => setCatalogForm({ ...catalogForm, are_expirare: event.target.checked })} /> Are expirare?</label>
-          </div>
-          {catalogForm.are_marime ? <Input label="Mărimi disponibile (separate prin virgulă)" value={catalogForm.marimi} onChange={event => setCatalogForm({ ...catalogForm, marimi: event.target.value })} placeholder="S, M, L, XL" /> : null}
-          {catalogForm.are_expirare ? <Input label="Durată (luni)" type="number" min="0" value={catalogForm.durata_luni} onChange={event => setCatalogForm({ ...catalogForm, durata_luni: event.target.value })} /> : null}
-          <Input label="Valoare inventar" type="number" min="0" step="0.01" value={catalogForm.valoare_inventar} onChange={event => setCatalogForm({ ...catalogForm, valoare_inventar: event.target.value })} />
-          <Input label="Cod articol (opțional)" value={catalogForm.cod_articol} onChange={event => setCatalogForm({ ...catalogForm, cod_articol: event.target.value })} />
-          <Select label="Furnizor" value={catalogForm.furnizor_id || ''} onChange={event => setCatalogForm({ ...catalogForm, furnizor_id: event.target.value })} options={[{ value: '', label: '- selectează -' }, ...equipmentSuppliers.map(item => ({ value: item.id, label: item.denumire }))]} />
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={catalogForm.activ} onChange={event => setCatalogForm({ ...catalogForm, activ: event.target.checked })} /> Activ</label>
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCatalogModal(false)}>Anulează</Button><Button type="submit">💾 Salvează</Button></div>
-        </form>
-      </Modal>
+      <HREquipmentCatalogModal
+        open={catalogModal}
+        editing={catalogEditing}
+        catalogForm={catalogForm}
+        suppliers={equipmentSuppliers}
+        onCatalogFormChange={setCatalogForm}
+        onSubmit={saveCatalogItem}
+        onClose={() => setCatalogModal(false)}
+      />
 
-      <Modal open={dotareModal} title="Înregistrează dotare echipament / inventar" onClose={() => setDotareModal(false)}>
-        <form className="grid gap-3" onSubmit={saveDotare}>
-          <Select label="Obiect" value={dotareForm.tip_id} onChange={event => { const tip_id = event.target.value; const tip = employeeEquipment?.marimi?.find(item => String(item.id) === String(tip_id)); setDotareForm({ ...dotareForm, tip_id, marime: tip?.marime || '', numar_serie: '', valoare_inventar: tip?.valoare_inventar || '' }) }} options={(employeeEquipment?.marimi || []).map(item => ({ value: item.id, label: `${item.denumire} (${item.categorie})` }))} />
-          {employeeEquipment?.marimi?.find(item => String(item.id) === String(dotareForm.tip_id))?.are_marime ? <Input label="Mărime" value={dotareForm.marime} onChange={event => setDotareForm({ ...dotareForm, marime: event.target.value })} /> : null}
-          {employeeEquipment?.marimi?.find(item => String(item.id) === String(dotareForm.tip_id))?.are_serie ? <Input label="Număr serie*" value={dotareForm.numar_serie} onChange={event => setDotareForm({ ...dotareForm, numar_serie: event.target.value })} required /> : null}
-          <Input label="Valoare inventar (lei)" type="number" min="0" step="0.01" value={dotareForm.valoare_inventar} onChange={event => setDotareForm({ ...dotareForm, valoare_inventar: event.target.value })} />
-          <Input label="Data dotării" type="date" value={dotareForm.data_dotare} onChange={event => setDotareForm({ ...dotareForm, data_dotare: event.target.value })} required />
-          <Input label="Cantitate" type="number" min="1" step="1" value={dotareForm.cantitate} onChange={event => setDotareForm({ ...dotareForm, cantitate: Number(event.target.value) })} />
-          <Input label="Observații" value={dotareForm.observatii} onChange={event => setDotareForm({ ...dotareForm, observatii: event.target.value })} />
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setDotareModal(false)}>Renunță</Button><Button type="submit">Salvează dotarea</Button></div>
-        </form>
-      </Modal>
+      <HREquipmentDotareModal
+        open={dotareModal}
+        dotareForm={dotareForm}
+        employeeEquipment={employeeEquipment}
+        onDotareFormChange={setDotareForm}
+        onSubmit={saveDotare}
+        onClose={() => setDotareModal(false)}
+      />
     </div>
   )
 }

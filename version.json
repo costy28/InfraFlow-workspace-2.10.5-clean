@@ -1,5 +1,5 @@
 {
-  "version": "2.12.273",
+  "version": "2.12.274",
   "date": "2026-07-13",
-  "changelog": "## v2.12.273 - 2026-07-13\n### Split echipamente din fisa angajat HR\n- Sectiunea de echipamente si inventar din fisa angajatului a fost extrasa in HREmployeeEquipmentSection.\n- Marimile, inventarul pe categorii, predarea la lichidare si totalul in raspundere raman afisate identic.\n- State-ul, modalul de dotare si handler-ele raman in HRPage, fara schimbari de API sau UX."
+  "changelog": "## v2.12.274 - 2026-07-13\n### Split modaluri echipamente HR\n- Modalul de catalog echipamente a fost extras in HREquipmentCatalogModal.\n- Modalul de dotare echipament/inventar a fost extras in HREquipmentDotareModal.\n- State-ul si handler-ele raman in HRPage, fara schimbari de API, DB sau UX."
 }
