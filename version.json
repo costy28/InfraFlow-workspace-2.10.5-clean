@@ -1,5 +1,5 @@
 {
-  "version": "2.12.279",
+  "version": "2.12.280",
   "date": "2026-07-13",
-  "changelog": "## v2.12.279 - 2026-07-13\n### Split flux onboarding/offboarding fisa angajat HR\n- Tabul Onboarding / Offboarding din fisa angajatului a fost extras in HREmployeeWorkflowTab.\n- Sumarul fluxului, progresul, lista de pasi si actiunile ghidate sunt randate din componenta dedicata.\n- State-ul si handler-ele raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.280 - 2026-07-13\n### Split contracte si transferuri fisa angajat HR\n- Tabul Contracte & acte din fisa angajatului a fost extras in HREmployeeContractsTab.\n- Panoul contractelor, actele aditionale si istoricul departamentelor sunt randate din componenta dedicata.\n- Handler-ele de contracte, acte si generare Word raman in HRPage, fara schimbari de API, DB sau UX."
 }

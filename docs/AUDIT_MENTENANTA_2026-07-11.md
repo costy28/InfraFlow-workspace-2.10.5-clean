@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.279`
-Următorul pas de stabilizare: `2.12.280`
+Versiune analizată: `2.12.280`
+Următorul pas de stabilizare: `2.12.281`
 
 ## Rezultat verificări
 
@@ -224,6 +224,13 @@ Următorul pas de stabilizare: `2.12.280`
 
 ### UPDATE 300 — Split contracte și transferuri fișă angajat HR
 
-- următorul bloc rămas: tabul `Contracte & acte`;
-- extragere randare `EmployeeContractsPanel` + istoric departamente într-un container dedicat;
-- păstrare apeluri contracte/acte/Word și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+- `client/src/pages/modules/hr/HREmployeeContractsTab.jsx` — ✅ extras în `2.12.280`;
+- panoul contractelor, actele adiționale și istoricul departamentelor sunt mutate în componentă dedicată;
+- păstrare apeluri contracte/acte/Word și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX;
+- reduce blocul modalului de fișă angajat și lasă `HRPage.jsx` mai aproape de rolul de orchestrator.
+
+### UPDATE 301 — Split dosar angajat HR
+
+- următorul bloc rămas: `EmployeeFilesPanel` pentru dosarul angajatului;
+- extragere listă documente, upload, editare metadata și anulare document în componentă dedicată;
+- păstrare endpointuri și comportament Kiosk/confirmări, fără schimbare HTTP/UX.

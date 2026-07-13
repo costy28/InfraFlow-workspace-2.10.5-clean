@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.280 - 2026-07-13
+
+## Split contracte și transferuri fișă angajat HR
+
+- Tabul `Contracte & acte` din fișa angajatului a fost extras în `client/src/pages/modules/hr/HREmployeeContractsTab.jsx`.
+- Panoul de contracte salarizare, actele adiționale și istoricul de departamente sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul, încărcarea contractelor, handler-ele de print/generare Word/arhivare Word și mesajele de eroare; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.279 - 2026-07-13
 
 ## Split flux onboarding/offboarding fișă angajat HR
