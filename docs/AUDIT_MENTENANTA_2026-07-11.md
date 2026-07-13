@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.276`
-Următorul pas de stabilizare: `2.12.277`
+Versiune analizată: `2.12.277`
+Următorul pas de stabilizare: `2.12.278`
 
 ## Rezultat verificări
 
@@ -203,6 +203,13 @@ Următorul pas de stabilizare: `2.12.277`
 
 ### UPDATE 297 — Split pontaj și concedii fișă angajat HR
 
-- următorul bloc rămas: tabul `Pontaj & concedii`;
-- extragere KPI pontaj și istoric concedii în componentă dedicată;
+- `client/src/pages/modules/hr/HREmployeeAttendanceTab.jsx` — ✅ extras în `2.12.277`;
+- KPI-urile de pontaj, soldul CO și istoricul concediilor sunt mutate în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX;
+- reduce în continuare blocul modalului de fișă angajat.
+
+### UPDATE 298 — Split scadențe și Kiosk fișă angajat HR
+
+- următorul bloc rămas: tabul `Scadențe & Kiosk`;
+- extragere sumar documente Kiosk, reminder, lipsuri obligatorii și scadențe în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

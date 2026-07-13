@@ -10,6 +10,7 @@ import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
 import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
 import HRDashboardPanel from './hr/HRDashboardPanel'
+import HREmployeeAttendanceTab from './hr/HREmployeeAttendanceTab'
 import HREmployeeEquipmentSection from './hr/HREmployeeEquipmentSection'
 import HREmployeePersonalTab from './hr/HREmployeePersonalTab'
 import {
@@ -3394,21 +3395,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
             ) : null}
 
             {employeeProfileTab === 'pontaj' ? (
-              <div className="grid gap-4">
-                <div className="grid gap-2 sm:grid-cols-4">
-                  <div className="rounded border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">Zile pontate</div><strong>{employeeDetails.statistici_pontaj?.zile_pontate ?? 0}</strong></div>
-                  <div className="rounded border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">Ore total</div><strong>{employeeDetails.statistici_pontaj?.ore_total ?? 0}</strong></div>
-                  <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm"><div className="text-xs text-emerald-700">CO rămas</div><strong>{coBalance?.zile_ramase ?? '-'}</strong></div>
-                  <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm"><div className="text-xs text-amber-700">Cereri concediu</div><strong>{selectedEmployeeLeaves.length}</strong></div>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Istoric concedii</div>
-                  <div className="grid gap-2">
-                    {selectedEmployeeLeaves.slice(0, 12).map(item => <div key={item.uuid || item.id} className="flex flex-wrap items-center justify-between gap-2 rounded bg-slate-50 px-3 py-2 text-sm"><span><strong>{item.tip}</strong> · {item.data_start} — {item.data_sfarsit} · {item.zile || '-'} zile</span><Badge tone={['aprobat','aprobata'].includes(item.status) ? 'success' : item.status === 'respins' ? 'danger' : 'warning'}>{item.status || 'cerut'}</Badge></div>)}
-                    {!selectedEmployeeLeaves.length ? <div className="text-sm text-slate-400">Nu există cereri de concediu înregistrate.</div> : null}
-                  </div>
-                </div>
-              </div>
+              <HREmployeeAttendanceTab employee={employeeDetails} coBalance={coBalance} leaves={selectedEmployeeLeaves} />
             ) : null}
 
             {employeeProfileTab === 'dosar' ? <EmployeeFilesPanel employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} suggestedUpload={guidedDossierUpload} onSuggestionUsed={() => { setGuidedDossierUpload(null); loadHrInbox() }} /> : null}

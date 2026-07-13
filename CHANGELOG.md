@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.277 - 2026-07-13
+
+## Split pontaj și concedii fișă angajat HR
+
+- Tabul `Pontaj & concedii` din fișa angajatului a fost extras în `client/src/pages/modules/hr/HREmployeeAttendanceTab.jsx`.
+- KPI-urile de pontaj, soldul CO și istoricul concediilor sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul și selecția angajatului; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.276 - 2026-07-13
 
 ## Split date personale fișă angajat HR
