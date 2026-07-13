@@ -1,5 +1,5 @@
 {
-  "version": "2.12.267",
-  "date": "2026-07-12",
-  "changelog": "## v2.12.267 - 2026-07-12\n### Split modal tura HR frontend\n- Modalul Tura noua / Editeaza tura a fost extras in client/src/pages/modules/hr/HRShiftModal.jsx.\n- Formularul de tura ramane conectat la state-ul si handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
+  "version": "2.12.268",
+  "date": "2026-07-13",
+  "changelog": "## v2.12.268 - 2026-07-13\n### Split tichete masa HR frontend\n- Tabul Tichete masa a fost extras in client/src/pages/modules/hr/HRMealTicketsPanel.jsx.\n- Configuratia tichetului, filtrele luna/departament, exportul CSV si tabelul de totaluri raman conectate la handler-ele existente din HRPage.jsx.\n- Comportamentul HTTP si UX-ul existent raman neschimbate."
 }

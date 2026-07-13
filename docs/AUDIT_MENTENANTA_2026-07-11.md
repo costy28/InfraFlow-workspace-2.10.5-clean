@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.267`
-Următorul pas de stabilizare: `2.12.268`
+Versiune analizată: `2.12.268`
+Următorul pas de stabilizare: `2.12.269`
 
 ## Rezultat verificări
 
@@ -139,13 +139,19 @@ Următorul pas de stabilizare: `2.12.268`
 - formularul `Tură nouă / Editează tura` este mutat în componentă dedicată;
 - comportament HTTP și UX identic.
 
-### UPDATE 288 — Documente Word-first
+### UPDATE 288 — Split tichete masa HR frontend
+
+- `client/src/pages/modules/hr/HRMealTicketsPanel.jsx` — ✅ extras în `2.12.268`;
+- configurația tichetului, filtrele lună/departament, exportul CSV și tabelul de totaluri sunt mutate în componentă dedicată;
+- comportament HTTP și UX identic.
+
+### UPDATE 289 — Documente Word-first
 
 - Word template ca format principal;
 - HTML doar compatibilitate/preview;
 - preview controlat și validare variabile.
 
-### UPDATE 289 — Smoke suite module
+### UPDATE 290 — Smoke suite module
 
 - login local read-only;
 - verificare endpointuri critice pe module;

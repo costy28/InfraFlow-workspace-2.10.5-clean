@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.268 - 2026-07-13
+
+## Split tichete masa HR frontend
+
+- Tabul `Tichete masă` a fost extras în `client/src/pages/modules/hr/HRMealTicketsPanel.jsx`.
+- Configurația valorii tichetului, filtrele lună/departament, exportul CSV și tabelul de totaluri sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează încărcarea datelor și handler-ele existente; comportamentul HTTP și UX-ul rămân neschimbate.
+
 # v2.12.267 - 2026-07-12
 
 ## Split modal tura HR frontend
