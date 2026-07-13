@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.284 - 2026-07-13
+
+## Split modal compensare bancă de ore HR
+
+- Modalul `Compensare bancă de ore` din HR a fost extras în `client/src/pages/modules/hr/HROvertimeCompensationModal.jsx`.
+- Formularul pentru timp liber, plată, sold inițial și avans timp liber este randat din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul formularului, handler-ul de submit și apelurile API; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.283 - 2026-07-13
 
 ## Split modaluri concedii și salarizare medicală HR

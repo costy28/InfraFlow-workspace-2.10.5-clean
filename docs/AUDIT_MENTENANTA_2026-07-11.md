@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.283`
-Următorul pas de stabilizare: `2.12.284`
+Versiune analizată: `2.12.284`
+Următorul pas de stabilizare: `2.12.285`
 
 ## Rezultat verificări
 
@@ -252,6 +252,12 @@ Următorul pas de stabilizare: `2.12.284`
 
 ### UPDATE 304 — Split modal compensare bancă de ore HR
 
-- următorul bloc rămas: modalul `Compensare bancă de ore`;
-- extragere formular compensare timp liber/plată/sold inițial/avans în componentă dedicată;
+- `client/src/pages/modules/hr/HROvertimeCompensationModal.jsx` — ✅ extras în `2.12.284`;
+- formularul pentru timp liber, plată, sold inițial și avans timp liber este mutat în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+
+### UPDATE 305 — Split modal evaluări HR
+
+- următorul bloc rămas: modalul `Evaluare nouă` / `Editează evaluare`;
+- extragere formular evaluare angajat, calificativ, scoruri și obiective în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

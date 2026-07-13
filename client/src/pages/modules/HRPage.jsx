@@ -33,6 +33,7 @@ import HRLeaveRequestModal from './hr/HRLeaveRequestModal'
 import HRMealTicketsPanel from './hr/HRMealTicketsPanel'
 import HRMedicalPayrollModal from './hr/HRMedicalPayrollModal'
 import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
+import HROvertimeCompensationModal from './hr/HROvertimeCompensationModal'
 import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
 import HRShiftModal from './hr/HRShiftModal'
 import HRShiftsSchedulePanel from './hr/HRShiftsSchedulePanel'
@@ -3167,24 +3168,13 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         onClose={() => { setShiftModal(false); setShiftEditing(null) }}
       />
 
-      {/* ─── MODAL COMPENSARE BANCĂ DE ORE ───────────────── */}
-      <Modal open={compensateModal} title="Compensare bancă de ore" onClose={() => setCompensateModal(false)} size="md">
-        <form className="grid gap-3" onSubmit={compensateOvertime}>
-          <Select label="Tip compensare" value={compensateForm.tip} onChange={e => setCompensateForm({ ...compensateForm, tip: e.target.value })} options={[
-            { value: 'timp_liber', label: 'Timp liber' },
-            { value: 'plata', label: 'Plată' },
-            { value: 'sold_initial', label: 'Sold initial - ore lucrate anterior' },
-            { value: 'avans_timp_liber', label: 'Timp liber acordat in avans' },
-          ]} />
-          <Input label="Ore de compensat" type="number" value={compensateForm.ore} onChange={e => setCompensateForm({ ...compensateForm, ore: e.target.value })} required />
-          {compensateForm.tip === 'plata' ? <Input label="Spor plata (%) - minimum legal 75%" type="number" min="75" value={compensateForm.spor_procent} onChange={e => setCompensateForm({ ...compensateForm, spor_procent: e.target.value })} required /> : null}
-          <Input label="Data" type="date" value={compensateForm.data} onChange={e => setCompensateForm({ ...compensateForm, data: e.target.value })} required />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setCompensateModal(false)}>Renunță</Button>
-            <Button type="submit">Confirmă</Button>
-          </div>
-        </form>
-      </Modal>
+      <HROvertimeCompensationModal
+        open={compensateModal}
+        form={compensateForm}
+        onChange={setCompensateForm}
+        onClose={() => setCompensateModal(false)}
+        onSubmit={compensateOvertime}
+      />
 
       {/* ─── MODAL EVALUARE ───────────────────────────────── */}
       <Modal open={evalModal} title={evalEditing ? 'Editează evaluare' : 'Evaluare nouă'} onClose={() => { setEvalModal(false); setEvalEditing(null) }} size="lg">
