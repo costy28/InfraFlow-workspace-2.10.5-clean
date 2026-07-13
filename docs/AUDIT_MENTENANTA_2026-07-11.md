@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.274`
-Următorul pas de stabilizare: `2.12.275`
+Versiune analizată: `2.12.275`
+Următorul pas de stabilizare: `2.12.276`
 
 ## Rezultat verificări
 
@@ -189,6 +189,13 @@ Următorul pas de stabilizare: `2.12.275`
 
 ### UPDATE 295 — Split profil angajat HR
 
-- următorul bloc mare rămas: modalul/profilul angajatului;
-- extragere structură taburi profil, antet și secțiuni deja izolate;
+- `client/src/pages/modules/hr/HREmployeeProfileChrome.jsx` — ✅ extras în `2.12.275`;
+- antetul profilului, cardurile de status, activitatea recentă și taburile profilului sunt mutate în componente dedicate;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX;
+- pregătește extragerea taburilor interne ale fișei angajatului.
+
+### UPDATE 296 — Split date personale fișă angajat HR
+
+- următorul bloc mare rămas: tabul `Date personale`;
+- separare formular editare și sumar read-only în componente dedicate;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

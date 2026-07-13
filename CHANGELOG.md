@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.275 - 2026-07-13
+
+## Split profil angajat HR
+
+- Antetul fișei angajatului, fotografia și acțiunile rapide au fost extrase în `client/src/pages/modules/hr/HREmployeeProfileChrome.jsx`.
+- Cardurile de status, activitatea HR recentă și navigația taburilor profilului sunt acum randate din componente dedicate.
+- `HRPage.jsx` păstrează state-ul, handler-ele și conținutul taburilor existente; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.274 - 2026-07-13
 
 ## Split modaluri echipamente HR

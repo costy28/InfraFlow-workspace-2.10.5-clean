@@ -1,5 +1,5 @@
 {
-  "version": "2.12.274",
+  "version": "2.12.275",
   "date": "2026-07-13",
-  "changelog": "## v2.12.274 - 2026-07-13\n### Split modaluri echipamente HR\n- Modalul de catalog echipamente a fost extras in HREquipmentCatalogModal.\n- Modalul de dotare echipament/inventar a fost extras in HREquipmentDotareModal.\n- State-ul si handler-ele raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.275 - 2026-07-13\n### Split profil angajat HR\n- Antetul fisei angajatului a fost extras in HREmployeeProfileChrome.\n- Cardurile de status, activitatea recenta si navigatia taburilor de profil au fost mutate in componente dedicate.\n- State-ul si handler-ele raman in HRPage, fara schimbari de API, DB sau UX."
 }

@@ -11,6 +11,12 @@ import { useAuth } from '../../hooks/useAuth'
 import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
 import HRDashboardPanel from './hr/HRDashboardPanel'
 import HREmployeeEquipmentSection from './hr/HREmployeeEquipmentSection'
+import {
+  HREmployeeProfileActivity,
+  HREmployeeProfileHeader,
+  HREmployeeProfileStatusCards,
+  HREmployeeProfileTabs,
+} from './hr/HREmployeeProfileChrome'
 import HREquipmentCatalogModal from './hr/HREquipmentCatalogModal'
 import HREquipmentDotareModal from './hr/HREquipmentDotareModal'
 import HREquipmentPanel from './hr/HREquipmentPanel'
@@ -3317,98 +3323,40 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       <Modal open={Boolean(selectedEmployee)} title={selectedEmployee ? `Fișa — ${fullName(selectedEmployee)}` : ''} onClose={() => setSelectedEmployee(null)} size="lg">
         {employeeDetails ? (
           <div className="grid gap-4">
-            {/* Photo + basic info */}
-            <div className="flex items-start gap-4">
-              <div className="relative flex-shrink-0">
-                {photoPreview || employeeDetails.photo_url
-                  ? <img src={photoPreview || employeeDetails.photo_url} alt="Fotografie" className="h-20 w-20 rounded-xl object-cover ring-2 ring-primary-200" onError={e => { e.target.style.display='none' }} />
-                  : <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-100 text-4xl">👤</div>
-                }
-                {editMode ? (
-                  <button
-                    type="button"
-                    className="absolute -bottom-1 -right-1 rounded-full bg-primary-600 p-1 text-white shadow hover:bg-primary-700"
-                    onClick={() => photoInputRef.current?.click()}
-                    title="Schimbă fotografia"
-                  >📷</button>
-                ) : null}
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    setPhotoFile(file)
-                    setPhotoPreview(URL.createObjectURL(file))
-                  }}
-                />
-              </div>
-              <div className="flex-1">
-                <div className="text-lg font-bold text-slate-900">{fullName(employeeDetails)}</div>
-                <div className="text-sm text-slate-500">{employeeDetails.functia || '-'} · {employeeDetails.department_name || '-'}</div>
-                <div className="mt-1 text-xs text-slate-400">Marcă: {employeeDetails.marca || '-'} · Vechime: {employeeDetails.zile_vechime ?? '-'} zile</div>
-                <div className="mt-2 flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={printEmployeeProfile}>🖨️ Fișă angajat</Button>
-                  {editMode
-                    ? <>
-                        <Button size="sm" onClick={saveEmployeeEdit}>💾 Salvează</Button>
-                        <Button size="sm" variant="secondary" onClick={() => { setEditMode(false); setPhotoPreview(null); setPhotoFile(null) }}>Renunță</Button>
-                      </>
-                    : <Button size="sm" variant="secondary" onClick={() => { setEmployeeProfileTab('date'); setEditMode(true) }}>✏️ Editează</Button>
-                  }
-                </div>
-              </div>
-            </div>
+            <HREmployeeProfileHeader
+              employee={employeeDetails}
+              displayName={fullName(employeeDetails)}
+              editMode={editMode}
+              photoInputRef={photoInputRef}
+              photoPreview={photoPreview}
+              onCancelEdit={() => { setEditMode(false); setPhotoPreview(null); setPhotoFile(null) }}
+              onPhotoSelected={file => {
+                setPhotoFile(file)
+                setPhotoPreview(URL.createObjectURL(file))
+              }}
+              onPrint={printEmployeeProfile}
+              onSave={saveEmployeeEdit}
+              onStartEdit={() => { setEmployeeProfileTab('date'); setEditMode(true) }}
+            />
 
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              <div className="rounded-lg border border-slate-200 p-3 text-sm"><div className="text-xs text-slate-500">Status contract</div><strong>{employeeDetails.tip_contract || employeeContracts[0]?.tip || 'activ'}</strong><div className="text-xs text-slate-400">{employeeDetails.data_angajare || employeeContracts[0]?.data_start || '-'}</div></div>
-              <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm"><div className="text-xs text-primary-700">Dosar HR</div><strong>{selectedDossierSummary?.percent ?? 0}%</strong><div className="text-xs text-primary-600">{selectedDossierSummary?.required_done ?? 0}/{selectedDossierSummary?.required_total ?? 0} obligatorii</div></div>
-              <div className={`rounded-lg border p-3 text-sm ${selectedDossierSummary?.pending_ack ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="text-xs">Confirmări Kiosk</div><strong>{selectedDossierSummary?.pending_ack ?? 0}</strong><div className="text-xs">neconfirmate</div></div>
-              <div className={`rounded-lg border p-3 text-sm ${selectedEmployeeExpirations[0]?.severity === 'expired' ? 'border-rose-200 bg-rose-50' : selectedEmployeeExpirations[0] ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><div className="text-xs">Următoarea scadență</div><strong>{selectedEmployeeExpirations[0]?.date || '—'}</strong><div className="text-xs">{selectedEmployeeExpirations[0]?.label || 'fără scadențe apropiate'}</div></div>
-              <div className={`rounded-lg border p-3 text-sm ${employeeWorkflow && !['completed','cancelled'].includes(employeeWorkflow.status) ? 'border-violet-200 bg-violet-50' : 'border-slate-200'}`}><div className="text-xs text-slate-500">Flux HR</div><strong>{employeeWorkflow ? `${employeeWorkflow.progress?.percent || 0}%` : 'nepornit'}</strong><div className="text-xs text-slate-400">{employeeWorkflow?.type || `CO: ${coBalance ? `${coBalance.zile_ramase} zile` : `${employeeDetails.zile_co_drept ?? 21} / an`}`}</div></div>
-            </div>
+            <HREmployeeProfileStatusCards
+              employee={employeeDetails}
+              contracts={employeeContracts}
+              dossierSummary={selectedDossierSummary}
+              expirations={selectedEmployeeExpirations}
+              workflow={employeeWorkflow}
+              coBalance={coBalance}
+            />
 
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold text-slate-800">🕘 Activitate HR recentă</div>
-                  <div className="text-xs text-slate-500">Ultimele acțiuni operaționale legate de acest angajat.</div>
-                </div>
-                <Button size="sm" variant="secondary" onClick={() => loadHrActivity({ employee_id: employeeDetails.id })}>Reîncarcă</Button>
-              </div>
-              <div className="grid gap-2">
-                {selectedEmployeeActivity.map(item => (
-                  <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-100 px-3 py-2 text-xs">
-                    <div>
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600">{item.category_label || item.category}</span>
-                      <span className="ml-2 font-semibold text-slate-800">{item.label}</span>
-                      {item.details ? <div className="mt-1 text-slate-500">{item.details}</div> : null}
-                    </div>
-                    <div className="text-right text-slate-500">
-                      <div>{item.user_name || 'Sistem'}</div>
-                      <strong>{String(item.at || '').slice(0, 16).replace('T', ' ')}</strong>
-                    </div>
-                  </div>
-                ))}
-                {!selectedEmployeeActivity.length ? <div className="text-sm text-slate-400">Nu există activitate HR recentă în jurnal pentru acest angajat.</div> : null}
-              </div>
-            </div>
+            <HREmployeeProfileActivity
+              items={selectedEmployeeActivity}
+              onReload={() => loadHrActivity({ employee_id: employeeDetails.id })}
+            />
 
-            <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
-              {[
-                ['date', 'Date personale'],
-                ['contracte', 'Contracte'],
-                ['pontaj', 'Pontaj & concedii'],
-                ['dosar', 'Dosar documente'],
-                ['kiosk', 'Scadențe & Kiosk'],
-                ['flux', 'Onboarding / Offboarding'],
-                ['echipamente', 'Echipamente'],
-              ].map(([value, label]) => (
-                <button key={value} type="button" onClick={() => setEmployeeProfileTab(value)} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${employeeProfileTab === value ? 'bg-primary-700 text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>{label}</button>
-              ))}
-            </div>
+            <HREmployeeProfileTabs
+              activeTab={employeeProfileTab}
+              onTabChange={setEmployeeProfileTab}
+            />
 
             {employeeProfileTab === 'date' ? (editMode ? (
               <div className="grid gap-4">
