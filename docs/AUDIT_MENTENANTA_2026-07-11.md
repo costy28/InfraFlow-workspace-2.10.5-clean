@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.271`
-Următorul pas de stabilizare: `2.12.272`
+Versiune analizată: `2.12.272`
+Următorul pas de stabilizare: `2.12.273`
 
 ## Rezultat verificări
 
@@ -168,6 +168,13 @@ Următorul pas de stabilizare: `2.12.272`
 
 ### UPDATE 292 — Split echipamente HR frontend
 
-- următorul bloc mare rămas în `HRPage.jsx`;
-- extragere într-un panou dedicat fără schimbare HTTP/UX;
+- `client/src/pages/modules/hr/HREquipmentPanel.jsx` — ✅ extras în `2.12.272`;
+- necesarul pe departament, expirările, comanda furnizor și catalogul sunt mutate în componentă dedicată;
+- comportament HTTP și UX identic;
 - reduce riscul la intervențiile viitoare pe HR.
+
+### UPDATE 293 — Split echipamente din fișa angajat HR
+
+- următorul bloc legat de echipamente rămas în modalul/profilul angajatului;
+- extragere secțiune inventar, mărimi și predare într-o componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

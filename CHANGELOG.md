@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.272 - 2026-07-13
+
+## Split echipamente HR frontend
+
+- Tabul `🦺 Echipamente` a fost extras în `client/src/pages/modules/hr/HREquipmentPanel.jsx`.
+- Necesarul pe departament, expirările, comanda furnizor și catalogul sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează încărcarea datelor, permisiunile și handler-ele existente; comportamentul HTTP și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.271 - 2026-07-13
 
 ## Smoke suite module read-only
