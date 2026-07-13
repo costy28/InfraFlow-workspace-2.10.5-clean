@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.270`
-Următorul pas de stabilizare: `2.12.271`
+Versiune analizată: `2.12.271`
+Următorul pas de stabilizare: `2.12.272`
 
 ## Rezultat verificări
 
@@ -160,6 +160,14 @@ Următorul pas de stabilizare: `2.12.271`
 
 ### UPDATE 291 — Smoke suite module
 
-- login local read-only;
-- verificare endpointuri critice pe module;
-- raport clar pentru release.
+- `scripts/smoke-modules-readonly.js` — ✅ adăugat în `2.12.271`;
+- login local read-only pe bază JSON temporară;
+- verificare 48 endpointuri critice pe module;
+- raport clar pentru release;
+- integrat în `npm run audit:local`.
+
+### UPDATE 292 — Split echipamente HR frontend
+
+- următorul bloc mare rămas în `HRPage.jsx`;
+- extragere într-un panou dedicat fără schimbare HTTP/UX;
+- reduce riscul la intervențiile viitoare pe HR.

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.271 - 2026-07-13
+
+## Smoke suite module read-only
+
+- A fost adăugat `scripts/smoke-modules-readonly.js`, un test smoke care pornește serverul în `DB_MODE=json` pe o bază temporară.
+- Smoke suite-ul verifică read-only 48 endpointuri critice din Core, HR, Documente, Contabilitate, Achiziții, Referate, Gestiune, Mecanizare, Producție, Tehnic, Controlling, ANAF și Servicii.
+- `npm run audit:local` rulează acum și `npm run test:smoke`, astfel încât release-ul local prinde rapid rute rupte după refactorizări.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.270 - 2026-07-13
 
 ## Documente Word-first

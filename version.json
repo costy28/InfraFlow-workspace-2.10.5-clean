@@ -1,5 +1,5 @@
 {
-  "version": "2.12.270",
+  "version": "2.12.271",
   "date": "2026-07-13",
-  "changelog": "## v2.12.270 - 2026-07-13\n### Documente Word-first\n- Modalul de template document pune modelul Word DOCX ca flux principal pentru utilizatori.\n- Variabilele uzuale pot fi copiate direct pentru lipire in Word cu sintaxa {{variabila}}.\n- Editorul vizual/HTML ramane disponibil doar ca zona avansata de compatibilitate si previzualizare."
+  "changelog": "## v2.12.271 - 2026-07-13\n### Smoke suite module read-only\n- Adaugat test smoke read-only pentru 48 endpointuri critice din modulele ERP.\n- Auditul local ruleaza automat smoke suite-ul pe baza JSON temporara, fara sa atinga datele reale.\n- Raportul CLI afiseaza statusul fiecarei rute si opreste release-ul daca un endpoint critic pica."
 }
