@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.273 - 2026-07-13
+
+## Split echipamente din fișa angajat HR
+
+- Secțiunea `Echipamente și inventar în răspundere` din fișa angajatului a fost extrasă în `client/src/pages/modules/hr/HREmployeeEquipmentSection.jsx`.
+- Mărimile, inventarul pe categorii, predarea la lichidare și totalul valoric sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul, modalul de dotare și handler-ele existente; comportamentul HTTP și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.272 - 2026-07-13
 
 ## Split echipamente HR frontend

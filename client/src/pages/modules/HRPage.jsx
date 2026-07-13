@@ -10,6 +10,7 @@ import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
 import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
 import HRDashboardPanel from './hr/HRDashboardPanel'
+import HREmployeeEquipmentSection from './hr/HREmployeeEquipmentSection'
 import HREquipmentPanel from './hr/HREquipmentPanel'
 import HREmployeesPanel from './hr/HREmployeesPanel'
 import HRInboxPanel from './hr/HRInboxPanel'
@@ -3713,14 +3714,15 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               </div>
             ) : null}
 
-            {employeeProfileTab === 'echipamente' ? <div className="rounded-lg border border-primary-100 bg-primary-50/40 p-3">
-              <div className="mb-3 flex items-center justify-between"><div className="text-xs font-semibold uppercase text-primary-700">🦺 Echipamente și inventar în răspundere</div>{canManageEquipment ? <Button size="sm" onClick={() => { const first = employeeEquipment?.marimi?.[0]; setDotareForm({ angajat_id: employeeDetails.id, tip_id: first?.id || '', marime: first?.marime || '', numar_serie: '', valoare_inventar: first?.valoare_inventar || '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'nou', observatii: '' }); setDotareModal(true) }}>+ Înregistrează dotare nouă</Button> : null}</div>
-              {employeeEquipment ? <>
-                <div className="grid gap-2 sm:grid-cols-3">{employeeEquipment.marimi.filter(tip => tip.are_marime).map(tip => <Select key={tip.id} label={tip.denumire} value={tip.marime || ''} onChange={event => saveEmployeeSizes(tip.id, event.target.value)} options={[{ value: '', label: 'Alege mărimea' }, ...tip.marimi_disponibile.map(marime => ({ value: marime, label: marime }))]} />)}</div>
-                {[['Echipamente protecție', employeeEquipment.inventar?.echipamente_protectie], ['Scule și unelte', employeeEquipment.inventar?.scule_unelte], ['Alte obiecte inventar', employeeEquipment.inventar?.alte_obiecte]].map(([title, rows]) => <div key={title} className="mt-4"><div className="mb-1 text-xs font-semibold uppercase text-slate-600">{title}</div><div className="overflow-auto"><table className="min-w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1">Obiect</th><th>Mărime</th><th>Nr. serie</th><th>Data dotare</th><th>Expiră</th><th>Cant.</th><th>Stare</th><th className="text-right">Valoare</th><th>Predat</th></tr></thead><tbody>{(rows || []).map(row => <tr key={row.id} className="border-t"><td className="py-1">{row.tip_denumire}</td><td>{row.marime || '-'}</td><td>{row.numar_serie || '-'}</td><td>{row.data_dotare}</td><td>{row.data_expirare || '-'}</td><td>{row.cantitate}</td><td>{row.stare}</td><td className="text-right">{Number(row.valoare_inventar || 0).toFixed(2)} lei</td><td>{canManageEquipment ? <input type="checkbox" checked={!!row.predat_la_lichidare} onChange={event => setReturnedEquipment(row, event.target.checked)} /> : row.predat_la_lichidare ? 'Da' : 'Nu'}</td></tr>)}</tbody></table>{!(rows || []).length ? <div className="py-2 text-xs text-slate-400">Nu există obiecte active.</div> : null}</div></div>)}
-                <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">Total valoare în răspundere: {Number(employeeEquipment.inventar?.total_valoare || 0).toFixed(2)} lei</div>
-              </> : <p className="text-sm text-slate-500">Se încarcă echipamentele...</p>}
-            </div> : null}
+            {employeeProfileTab === 'echipamente' ? (
+              <HREmployeeEquipmentSection
+                employeeEquipment={employeeEquipment}
+                canManageEquipment={canManageEquipment}
+                onOpenDotare={openEquipmentAction}
+                onSaveEmployeeSizes={saveEmployeeSizes}
+                onSetReturnedEquipment={setReturnedEquipment}
+              />
+            ) : null}
           </div>
         ) : <p className="text-sm text-slate-500">Se incarca fișa...</p>}
       </Modal>

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.272",
+  "version": "2.12.273",
   "date": "2026-07-13",
-  "changelog": "## v2.12.272 - 2026-07-13\n### Split echipamente HR frontend\n- Tabul Echipamente din HRPage a fost extras in HREquipmentPanel.\n- State-ul si handler-ele raman in HRPage, iar UX-ul si endpointurile raman neschimbate.\n- Refactorizarea reduce dimensiunea paginii HR si face zona de echipamente mai usor de intretinut."
+  "changelog": "## v2.12.273 - 2026-07-13\n### Split echipamente din fisa angajat HR\n- Sectiunea de echipamente si inventar din fisa angajatului a fost extrasa in HREmployeeEquipmentSection.\n- Marimile, inventarul pe categorii, predarea la lichidare si totalul in raspundere raman afisate identic.\n- State-ul, modalul de dotare si handler-ele raman in HRPage, fara schimbari de API sau UX."
 }
