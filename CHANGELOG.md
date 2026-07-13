@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.270 - 2026-07-13
+
+## Documente Word-first
+
+- Modalul de template document pune modelul Word `.docx` ca flux principal pentru utilizatori.
+- Variabilele uzuale sunt afișate ca badge-uri copiabile pentru lipire directă în Word cu sintaxa `{{variabila}}`.
+- Editorul vizual/HTML rămâne disponibil doar în zona avansată de compatibilitate și previzualizare.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.269 - 2026-07-13
 
 ## Split training si evaluari HR frontend

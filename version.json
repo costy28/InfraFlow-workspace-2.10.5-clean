@@ -1,5 +1,5 @@
 {
-  "version": "2.12.269",
+  "version": "2.12.270",
   "date": "2026-07-13",
-  "changelog": "## v2.12.269 - 2026-07-13\n### Split training si evaluari HR frontend\n- Tabul Training & Evaluari a fost extras in client/src/pages/modules/hr/HRTrainingPanel.jsx.\n- Scadentarul cursurilor obligatorii si lista de evaluari sunt randate din componenta dedicata.\n- State-ul, modalul de evaluare si handler-ele existente raman in HRPage.jsx, cu comportament HTTP si UX neschimbat."
+  "changelog": "## v2.12.270 - 2026-07-13\n### Documente Word-first\n- Modalul de template document pune modelul Word DOCX ca flux principal pentru utilizatori.\n- Variabilele uzuale pot fi copiate direct pentru lipire in Word cu sintaxa {{variabila}}.\n- Editorul vizual/HTML ramane disponibil doar ca zona avansata de compatibilitate si previzualizare."
 }

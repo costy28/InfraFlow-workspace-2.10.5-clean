@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.269`
-Următorul pas de stabilizare: `2.12.270`
+Versiune analizată: `2.12.270`
+Următorul pas de stabilizare: `2.12.271`
 
 ## Rezultat verificări
 
@@ -153,9 +153,10 @@ Următorul pas de stabilizare: `2.12.270`
 
 ### UPDATE 290 — Documente Word-first
 
-- Word template ca format principal;
-- HTML doar compatibilitate/preview;
-- preview controlat și validare variabile.
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ actualizat în `2.12.270`;
+- modelul Word `.docx` este prezentat ca flux principal pentru utilizatori;
+- variabilele uzuale pot fi copiate pentru lipire în Word;
+- editorul vizual/HTML este mutat în zona avansată de compatibilitate/preview.
 
 ### UPDATE 291 — Smoke suite module
 

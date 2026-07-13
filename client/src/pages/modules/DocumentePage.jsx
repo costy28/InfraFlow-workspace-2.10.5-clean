@@ -134,6 +134,21 @@ const templateTypes = [
   ['foaie_parcurs', 'Foaie parcurs'],
 ]
 
+const wordTemplateVariables = [
+  ['document.numar', 'Număr document'],
+  ['document.data', 'Data documentului'],
+  ['document.titlu', 'Titlu document'],
+  ['societate.nume', 'Denumire societate'],
+  ['societate.cui', 'CUI societate'],
+  ['societate.adresa', 'Adresă societate'],
+  ['continut', 'Conținut liber'],
+  ['intocmit_de', 'Întocmit de'],
+  ['angajat_nume', 'Angajat'],
+  ['angajat_marca', 'Marcă angajat'],
+  ['angajat_functie', 'Funcție angajat'],
+  ['angajat_departament', 'Departament angajat'],
+]
+
 export default function DocumentePage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('Inbox')
@@ -151,6 +166,7 @@ export default function DocumentePage() {
   const [templateEditing, setTemplateEditing] = useState(null)
   const [templateForm, setTemplateForm] = useState(emptyTemplateForm)
   const [templateUploadFile, setTemplateUploadFile] = useState(null)
+  const [templateAdvancedOpen, setTemplateAdvancedOpen] = useState(false)
   const [templatePreview, setTemplatePreview] = useState(null)
   const [documentModal, setDocumentModal] = useState(false)
   const [documentEditing, setDocumentEditing] = useState(null)
@@ -255,6 +271,7 @@ export default function DocumentePage() {
       activ: template.activ !== false,
     } : emptyTemplateForm)
     setTemplateUploadFile(null)
+    setTemplateAdvancedOpen(Boolean(template?.template_html && !template?.fisier_model_name))
     setTemplateModal(true)
   }
 
@@ -474,7 +491,7 @@ export default function DocumentePage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Template-uri documente</h2>
-              <p className="text-xs text-slate-500">Editor vizual cu variabile pentru firmă, angajat, document și semnături.</p>
+              <p className="text-xs text-slate-500">Modele Word ca sursă principală; editorul aplicației rămâne pentru previzualizare și compatibilitate.</p>
             </div>
             {isAdmin ? <Button className="w-full sm:w-auto" onClick={() => openTemplateModal()}>+ Template nou</Button> : null}
           </div>
@@ -796,7 +813,7 @@ export default function DocumentePage() {
         </div>
       </Modal>
 
-      <Modal open={templateModal} title={templateEditing ? 'Editare template' : 'Template nou'} onClose={() => setTemplateModal(false)} size="lg">
+      <Modal open={templateModal} title={templateEditing ? 'Editare template document' : 'Template document nou'} onClose={() => setTemplateModal(false)} size="xl">
         <form className="grid gap-3" onSubmit={saveTemplate}>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             Denumire template
@@ -825,21 +842,78 @@ export default function DocumentePage() {
             Descriere
             <input className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100" value={templateForm.descriere} onChange={event => setTemplateForm(form => ({ ...form, descriere: event.target.value }))} />
           </label>
-          <label className="grid gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-medium text-slate-700 md:p-4">
-            <span className="flex items-center gap-2"><UploadCloud size={18} /> Model client Word/XML/HTML</span>
-            <input
-              type="file"
-              accept=".docx,.xml,.html,.htm"
-              className="w-full min-w-0 text-sm"
-              onChange={event => setTemplateUploadFile(event.target.files?.[0] || null)}
-            />
-            <span className="text-xs font-normal text-slate-500">
-              {templateUploadFile ? `Selectat: ${templateUploadFile.name}` : templateEditing?.fisier_model_name ? `Model curent: ${templateEditing.fisier_model_name}` : 'Opțional. Editorul HTML rămâne disponibil pentru documente generate direct în aplicație.'}
-            </span>
-          </label>
-          <div className="grid gap-1 text-sm font-medium text-slate-700">
-            Conținut
-            <DocumentTemplateEditor value={templateForm.template_html} onChange={template_html => setTemplateForm(form => ({ ...form, template_html }))} />
+          <div className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 md:p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-950">
+                  <UploadCloud size={18} /> Model Word pentru utilizatori
+                </div>
+                <p className="mt-1 text-xs text-emerald-800">
+                  Recomandat: pregătești documentul în Word, introduci variabilele cu acolade duble, apoi încarci fișierul `.docx`.
+                  InfraFlow păstrează modelul original pentru descărcare și dosar.
+                </p>
+              </div>
+              {templateEditing?.fisier_model_path ? (
+                <Button type="button" size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => downloadTemplate(templateEditing)}>
+                  <Download size={14} /> Descarcă modelul curent
+                </Button>
+              ) : null}
+            </div>
+            <label className="grid gap-2 rounded-lg border border-dashed border-emerald-300 bg-white/70 p-3 text-sm font-medium text-slate-700">
+              <span>Încarcă / înlocuiește modelul</span>
+              <input
+                type="file"
+                accept=".docx,.xml,.html,.htm"
+                className="w-full min-w-0 text-sm"
+                onChange={event => {
+                  const file = event.target.files?.[0] || null
+                  setTemplateUploadFile(file)
+                  if (file && !/\.docx$/i.test(file.name)) setTemplateAdvancedOpen(true)
+                }}
+              />
+              <span className="text-xs font-normal text-slate-500">
+                {templateUploadFile ? `Selectat: ${templateUploadFile.name}` : templateEditing?.fisier_model_name ? `Model curent: ${templateEditing.fisier_model_name}` : 'Alege preferabil un fișier .docx. XML/HTML rămân acceptate pentru compatibilitate.'}
+              </span>
+            </label>
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase text-emerald-900">Variabile uzuale pentru Word</div>
+              <div className="flex flex-wrap gap-2">
+                {wordTemplateVariables.map(([key, description]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    title={description}
+                    className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-medium text-emerald-900 hover:border-emerald-400"
+                    onClick={() => navigator.clipboard?.writeText(`{{${key}}}`)}
+                  >
+                    {`{{${key}}}`}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-emerald-800">
+                Click pe o variabilă o copiază în clipboard, dacă browserul permite. În Word o lipești exact ca text: <code className="rounded bg-white px-1">{'{{document.numar}}'}</code>.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">Compatibilitate aplicație / previzualizare</div>
+                <p className="text-xs text-slate-500">
+                  Zona aceasta este pentru administratori sau template-uri vechi. Utilizatorii normali lucrează cu fișierul Word de mai sus.
+                </p>
+              </div>
+              <Button type="button" size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => setTemplateAdvancedOpen(open => !open)}>
+                {templateAdvancedOpen ? 'Ascunde editorul tehnic' : 'Arată editorul tehnic'}
+              </Button>
+            </div>
+            {templateAdvancedOpen ? (
+              <div className="mt-3 grid gap-1 text-sm font-medium text-slate-700">
+                Conținut pentru previzualizare / fallback
+                <DocumentTemplateEditor value={templateForm.template_html} onChange={template_html => setTemplateForm(form => ({ ...form, template_html }))} />
+              </div>
+            ) : null}
           </div>
           <label className="flex items-center justify-between rounded-md border border-slate-200 p-3 text-sm font-medium text-slate-700">
             Activ
