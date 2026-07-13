@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth'
 import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
 import HRDashboardPanel from './hr/HRDashboardPanel'
 import HREmployeeEquipmentSection from './hr/HREmployeeEquipmentSection'
+import HREmployeePersonalTab from './hr/HREmployeePersonalTab'
 import {
   HREmployeeProfileActivity,
   HREmployeeProfileHeader,
@@ -3358,188 +3359,25 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
               onTabChange={setEmployeeProfileTab}
             />
 
-            {employeeProfileTab === 'date' ? (editMode ? (
-              <div className="grid gap-4">
-                {/* Banner avertizare angajat importat din Autominder cu date HR incomplete */}
-                {(employeeDetails.sursa === 'autominder' || employeeDetails.sursa_autominder) && !employeeDetails.cnp && (
-                  <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
-                    ⚠️ Angajat importat din <strong>Autominder</strong>. Completează datele HR lipsă (CNP, IBAN, contract etc.) pentru a activa toate funcționalitățile.
-                  </div>
-                )}
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-3 text-xs font-semibold uppercase text-slate-500">📋 Date personale</div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Input label="Nume" value={editForm.nume || ''} onChange={e => setEditForm({...editForm, nume: e.target.value})} />
-                    <Input label="Prenume" value={editForm.prenume || ''} onChange={e => setEditForm({...editForm, prenume: e.target.value})} />
-                    <Input label="CNP *" maxLength={13} value={editForm.cnp || ''} onChange={e => setEditForm({...editForm, cnp: e.target.value})}
-                      className={!editForm.cnp ? 'border-yellow-400 bg-yellow-50' : ''}
-                      placeholder={!editForm.cnp ? 'Completează CNP (obligatoriu)' : ''} />
-                    <Input label="Nr. marcă" value={editForm.marca || ''} onChange={e => setEditForm({...editForm, marca: e.target.value})} />
-                    <Input label="Email" type="email" value={editForm.email || ''} onChange={e => setEditForm({...editForm, email: e.target.value})}
-                      className={!editForm.email ? 'border-yellow-300 bg-yellow-50' : ''} placeholder={!editForm.email ? 'Completează email' : ''} />
-                    <Input label="Telefon" value={editForm.telefon || ''} onChange={e => setEditForm({...editForm, telefon: e.target.value})}
-                      className={!editForm.telefon ? 'border-yellow-300 bg-yellow-50' : ''} placeholder={!editForm.telefon ? 'Completează telefon' : ''} />
-                    <Input label="Adresă" value={editForm.adresa || ''} onChange={e => setEditForm({...editForm, adresa: e.target.value})} />
-                    <Select label="Stare civilă" value={editForm.stare_civila || ''} onChange={e => setEditForm({...editForm, stare_civila: e.target.value})} options={[
-                      { value: '', label: 'Necunoscută' },
-                      { value: 'necasatorit', label: 'Necăsătorit(ă)' },
-                      { value: 'casatorit', label: 'Căsătorit(ă)' },
-                      { value: 'divortat', label: 'Divorțat(ă)' },
-                      { value: 'vaduv', label: 'Văduv(ă)' },
-                    ]} />
-                    <Input label="Copii în întreținere" type="number" value={editForm.nr_copii_intretinere ?? 0} onChange={e => setEditForm({...editForm, nr_copii_intretinere: Number(e.target.value)})} />
-                    <Input label="Casa de sănătate" value={editForm.casa_sanatate || ''} onChange={e => setEditForm({...editForm, casa_sanatate: e.target.value})} />
-                  </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <Select label="Tip act" value={editForm.act_identitate_tip || 'CI'} onChange={e => setEditForm({...editForm, act_identitate_tip: e.target.value})} options={[
-                      { value: 'CI', label: 'CI' },
-                      { value: 'BI', label: 'BI' },
-                      { value: 'pasaport', label: 'Pașaport' },
-                      { value: 'permis_sedere', label: 'Permis ședere' },
-                    ]} />
-                    <Input label="Serie" maxLength={5} placeholder="NT" value={editForm.act_identitate_serie || ''} onChange={e => setEditForm({...editForm, act_identitate_serie: e.target.value.toUpperCase().slice(0, 5)})} />
-                    <Input label="Număr" maxLength={10} placeholder="123456" value={editForm.act_identitate_numar || ''} onChange={e => setEditForm({...editForm, act_identitate_numar: e.target.value.slice(0, 10)})} />
-                  </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <Input label="Eliberat de" value={editForm.act_identitate_eliberat_de || ''} onChange={e => setEditForm({...editForm, act_identitate_eliberat_de: e.target.value})} />
-                    <Input label="Data eliberării" type="date" value={editForm.act_identitate_data_eliberare || ''} onChange={e => setEditForm({...editForm, act_identitate_data_eliberare: e.target.value})} />
-                  </div>
-                  <Input className="mt-3" label="Valabil până" type="date" value={editForm.act_identitate_valabil_pana || ''} onChange={e => setEditForm({...editForm, act_identitate_valabil_pana: e.target.value})} />
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-3 text-xs font-semibold uppercase text-slate-500">💼 Date angajare</div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Input label="Funcția" value={editForm.functia || ''} onChange={e => setEditForm({...editForm, functia: e.target.value})} />
-                    <Input label="Cod COR" value={editForm.functie_cor || ''} onChange={e => setEditForm({...editForm, functie_cor: e.target.value})} />
-                    <Select label="Departament" value={String(editForm.department_id || '')} onChange={e => setEditForm({...editForm, department_id: e.target.value})} options={[{ value: '', label: 'Alege departament' }, ...departments]} />
-                    <Select label="Cont aplicatie / Kiosk" value={String(editForm.user_id || '')} onChange={e => setEditForm({...editForm, user_id: e.target.value})} options={[{ value: '', label: 'Fara cont asociat' }, ...linkableUsers.map(account => ({ value: String(account.id), label: `${account.name || account.username} (${account.username})` }))]} />
-                    <Select label="Nivel studii" value={editForm.nivel_studii || ''} onChange={e => setEditForm({...editForm, nivel_studii: e.target.value})} options={[
-                      { value: '', label: 'Alege nivel' },
-                      { value: 'primar', label: 'Primar' },
-                      { value: 'gimnazial', label: 'Gimnazial' },
-                      { value: 'liceal', label: 'Liceal' },
-                      { value: 'postliceal', label: 'Postliceal' },
-                      { value: 'superior', label: 'Superior' },
-                    ]} />
-                    <Input label="Normă ore/zi" type="number" value={editForm.norma_ore_zi ?? 8} onChange={e => setEditForm({...editForm, norma_ore_zi: Number(e.target.value)})} />
-                    <Input label="Zile CO / an" type="number" value={editForm.zile_co_drept ?? 21} onChange={e => setEditForm({...editForm, zile_co_drept: Number(e.target.value)})} />
-                    <Input label="Expiră contract" type="date" value={editForm.data_expirare_contract || ''} onChange={e => setEditForm({...editForm, data_expirare_contract: e.target.value})} />
-                  </div>
-                  {String(editForm.department_id || '') !== String(employeeDetails.department_id || '') ? (
-                    <div className="mt-3 grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 sm:grid-cols-2">
-                      <Input label="Data transferului" type="date" value={editForm.department_transfer_date || ''} onChange={e => setEditForm({...editForm, department_transfer_date: e.target.value})} required />
-                      <Input label="Motiv transfer" value={editForm.department_transfer_reason || ''} onChange={e => setEditForm({...editForm, department_transfer_reason: e.target.value})} placeholder="Transfer intern, reorganizare..." required />
-                    </div>
-                  ) : null}
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">💰 Date financiare <Badge tone="warning" size="sm">Confidențial</Badge></div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Input label="IBAN" value={editForm.iban || ''} onChange={e => setEditForm({...editForm, iban: e.target.value})}
-                      className={!editForm.iban ? 'border-yellow-300 bg-yellow-50' : ''}
-                      placeholder={!editForm.iban ? 'RO49AAAA1B31007593840000' : ''} />
-                    <Input label="Salariu bază (RON)" type="number" value={editForm.salariu_baza || ''} onChange={e => setEditForm({...editForm, salariu_baza: e.target.value})} />
-                    <Input label="Deducere personală" type="number" value={editForm.deducere_personala || ''} onChange={e => setEditForm({...editForm, deducere_personala: e.target.value})} />
-                  </div>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-3 text-xs font-semibold uppercase text-slate-500">📄 Documente & Expirări</div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Input label="Categorii permis" value={editForm.permis_conducere_categorii || ''} onChange={e => setEditForm({...editForm, permis_conducere_categorii: e.target.value})} />
-                    <Input label="Permis expiră" type="date" value={editForm.permis_conducere_expira || editForm.data_expirare_permis || ''} onChange={e => setEditForm({...editForm, permis_conducere_expira: e.target.value, data_expirare_permis: e.target.value})} />
-                    <Input label="Expiră ISCIR" type="date" value={editForm.data_expirare_iscir || ''} onChange={e => setEditForm({...editForm, data_expirare_iscir: e.target.value})} />
-                    <Input label="Apt medical expiră" type="date" value={editForm.apt_medical_expira || editForm.adeverinta_medicala || ''} onChange={e => setEditForm({...editForm, apt_medical_expira: e.target.value, adeverinta_medicala: e.target.value})} />
-                  </div>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-3 text-xs font-semibold uppercase text-slate-500">✅ GDPR</div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={Boolean(editForm.acord_gdpr)} onChange={e => setEditForm({...editForm, acord_gdpr: e.target.checked, data_acord_gdpr: e.target.checked ? (editForm.data_acord_gdpr || new Date().toISOString().slice(0,10)) : ''})} />
-                      Acord GDPR
-                    </label>
-                    <Input label="Data acord GDPR" type="date" value={editForm.data_acord_gdpr || ''} onChange={e => setEditForm({...editForm, data_acord_gdpr: e.target.value})} />
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={editForm.activ !== false} onChange={e => setEditForm({...editForm, activ: e.target.checked})} />
-                      Angajat activ
-                    </label>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid gap-2 text-sm sm:grid-cols-2">
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="mb-1 text-xs font-semibold uppercase text-slate-400">Date personale</div>
-                  <div>Data nașterii: {employeeDetails.data_nasterii || '-'}</div>
-                  <div>Sex: {employeeDetails.sex || '-'}</div>
-                  <div>Stare civilă: {employeeDetails.stare_civila || '-'}</div>
-                  <div>Copii întreținere: {employeeDetails.nr_copii_intretinere ?? 0}</div>
-                  <div>Casa sănătate: {employeeDetails.casa_sanatate || '-'}</div>
-                  <div>Act identitate: {identityText(employeeDetails)}</div>
-                  <div>Valabil act: {employeeDetails.act_identitate_valabil_pana || '-'}</div>
-                  <div>Adresă: {employeeDetails.adresa || '-'}</div>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="mb-1 text-xs font-semibold uppercase text-slate-400">Contract &amp; CO</div>
-                  <div>Tip: {employeeDetails.tip_contract || '-'}</div>
-                  <div>Data angajare: {employeeDetails.data_angajare || '-'}</div>
-                  <div>Cod COR: {employeeDetails.functie_cor || '-'}</div>
-                  <div>Normă: {employeeDetails.norma_ore_zi || 8} ore/zi</div>
-                  <div>Expiră contract: {employeeDetails.data_expirare_contract || '—'}</div>
-                  <div className="mt-2 font-semibold text-primary-700">
-                    CO {new Date().getFullYear()}: {coBalance ? `${coBalance.zile_ramase} zile rămase` : `${employeeDetails.zile_co_drept ?? 21} / an`}
-                  </div>
-                  {coBalance ? (
-                    <div className="mt-1">
-                      <div className="mb-1 text-xs text-slate-500">{coBalance.zile_efectuate} efectuate din {coBalance.zile_drept} totale</div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-2 rounded-full bg-primary-500 transition-all" style={{ width: `${Math.min(100, Math.round(coBalance.zile_efectuate / Math.max(1, coBalance.zile_drept) * 100))}%` }} />
-                      </div>
-                    </div>
-                  ) : null}
-                  <div className="mt-2 flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => loadAdeverinta(employeeDetails.id)}>📄 Generează adeverință</Button>
-                  </div>
-                  {adeverintaData && String(adeverintaData.angajat?.id) === String(employeeDetails.id) ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Select label="" value={adeverintaTip} onChange={e => setAdeverintaTip(e.target.value)} options={[
-                        { value: 'salariat', label: 'Adeverință salariat' },
-                        { value: 'venit', label: 'Adeverință venit' },
-                        { value: 'vechime', label: 'Adeverință vechime' },
-                        { value: 'casa_sanatate', label: 'Adeverință casă sănătate' },
-                        { value: 'concediu_medical', label: 'Adeverință concediu medical' },
-                        { value: 'functie', label: 'Adeverință funcție' },
-                      ]} />
-                      <Button size="sm" onClick={() => printAdeverinta(adeverintaData)}>🖨️ Print</Button>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="mb-1 text-xs font-semibold uppercase text-slate-400">Documente obligatorii</div>
-                  {[
-                    { label: 'Permis conducere', date: employeeDetails.permis_conducere_expira || employeeDetails.data_expirare_permis },
-                    { label: 'ISCIR', date: employeeDetails.data_expirare_iscir },
-                    { label: 'Apt medical', date: employeeDetails.apt_medical_expira || employeeDetails.adeverinta_medicala },
-                  ].map(d => {
-                    const days = daysUntil(d.date)
-                    const tone = alertTone(days)
-                    return (
-                      <div key={d.label} className={`flex items-center justify-between ${tone === 'danger' ? 'text-rose-700' : tone === 'warning' ? 'text-amber-700' : ''}`}>
-                        <span>{d.label}:</span>
-                        <span>{d.date || '—'}{tone ? (days < 0 ? ' ⛔' : ' ⚠️') : ''}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="mb-1 text-xs font-semibold uppercase text-slate-400">Statistici pontaj</div>
-                  <div>Zile pontate: {employeeDetails.statistici_pontaj?.zile_pontate ?? 0}</div>
-                  <div>Ore total: {employeeDetails.statistici_pontaj?.ore_total ?? 0}</div>
-                  <div>Autorizații: {(employeeDetails.autorizatii || []).length}</div>
-                  <div>Contracte active: {(employeeDetails.contracte_active || []).length}</div>
-                </div>
-              </div>
-            )) : null}
+            {employeeProfileTab === 'date' ? (
+              <HREmployeePersonalTab
+                employee={employeeDetails}
+                editMode={editMode}
+                editForm={editForm}
+                departments={departments}
+                linkableUsers={linkableUsers}
+                coBalance={coBalance}
+                adeverintaData={adeverintaData}
+                adeverintaTip={adeverintaTip}
+                identityText={identityText}
+                daysUntil={daysUntil}
+                alertTone={alertTone}
+                onEditFormChange={setEditForm}
+                onLoadAdeverinta={loadAdeverinta}
+                onAdeverintaTipChange={setAdeverintaTip}
+                onPrintAdeverinta={printAdeverinta}
+              />
+            ) : null}
 
             {employeeProfileTab === 'contracte' ? (
               <>

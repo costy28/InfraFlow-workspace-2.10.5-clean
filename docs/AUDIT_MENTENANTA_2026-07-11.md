@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.275`
-Următorul pas de stabilizare: `2.12.276`
+Versiune analizată: `2.12.276`
+Următorul pas de stabilizare: `2.12.277`
 
 ## Rezultat verificări
 
@@ -196,6 +196,13 @@ Următorul pas de stabilizare: `2.12.276`
 
 ### UPDATE 296 — Split date personale fișă angajat HR
 
-- următorul bloc mare rămas: tabul `Date personale`;
-- separare formular editare și sumar read-only în componente dedicate;
+- `client/src/pages/modules/hr/HREmployeePersonalTab.jsx` — ✅ extras în `2.12.276`;
+- formularul de editare și sumarul read-only pentru tabul `Date personale` sunt mutate în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX;
+- reduce blocul modalului de fișă angajat și pregătește split pe celelalte taburi interne.
+
+### UPDATE 297 — Split pontaj și concedii fișă angajat HR
+
+- următorul bloc rămas: tabul `Pontaj & concedii`;
+- extragere KPI pontaj și istoric concedii în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

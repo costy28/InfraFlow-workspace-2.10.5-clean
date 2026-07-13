@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.276 - 2026-07-13
+
+## Split date personale fișă angajat HR
+
+- Tabul `Date personale` din fișa angajatului a fost extras în `client/src/pages/modules/hr/HREmployeePersonalTab.jsx`.
+- Formularul de editare și sumarul read-only sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul, handler-ele de salvare, adeverințele și funcțiile de calcul existente; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.275 - 2026-07-13
 
 ## Split profil angajat HR
