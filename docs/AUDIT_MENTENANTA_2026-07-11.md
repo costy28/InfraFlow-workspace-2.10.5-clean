@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.285`
-Următorul pas de stabilizare: `2.12.286`
+Versiune analizată: `2.12.286`
+Următorul pas de stabilizare: `2.12.287`
 
 ## Rezultat verificări
 
@@ -264,6 +264,12 @@ Următorul pas de stabilizare: `2.12.286`
 
 ### UPDATE 306 — Split modal import angajați HR
 
-- următorul bloc rămas: modalul `Import angajați`;
-- extragere formular descărcare template, selectare fișier și sumar rezultat import în componentă dedicată;
+- `client/src/pages/modules/hr/HRImportEmployeesModal.jsx` — ✅ extras în `2.12.286`;
+- formularul pentru descărcare template, selectare fișier CSV/Excel și sumar rezultat import este mutat în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+
+### UPDATE 307 — Split modal export pontaj Nexus HR
+
+- următorul bloc rămas: modalul `Export Pontaj Nexus`;
+- extragere formular lună/departament și acțiune export în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

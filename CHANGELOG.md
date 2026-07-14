@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.286 - 2026-07-14
+
+## Split modal import angajați HR
+
+- Modalul `Import angajați` din HR a fost extras în `client/src/pages/modules/hr/HRImportEmployeesModal.jsx`.
+- Formularul pentru descărcare template, selectare fișier CSV/Excel și sumarul rezultatului de import este randat din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul formularului, handler-ul de submit și apelurile API; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.285 - 2026-07-13
 
 ## Split modal evaluări HR

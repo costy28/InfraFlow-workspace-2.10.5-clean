@@ -30,6 +30,7 @@ import HREquipmentDotareModal from './hr/HREquipmentDotareModal'
 import HREquipmentPanel from './hr/HREquipmentPanel'
 import HREmployeesPanel from './hr/HREmployeesPanel'
 import HRInboxPanel from './hr/HRInboxPanel'
+import HRImportEmployeesModal from './hr/HRImportEmployeesModal'
 import HRLeaveRequestModal from './hr/HRLeaveRequestModal'
 import HRMealTicketsPanel from './hr/HRMealTicketsPanel'
 import HRMedicalPayrollModal from './hr/HRMedicalPayrollModal'
@@ -3188,24 +3189,15 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         onSubmit={saveEvaluation}
       />
 
-      {/* ─── MODAL IMPORT ─────────────────────────────────── */}
-      <Modal open={importModal} title="Import angajați" onClose={() => setImportModal(false)} size="lg">
-        <form className="grid gap-4" onSubmit={importEmployees}>
-          <Button type="button" variant="secondary" onClick={downloadTemplate}>Descarcă Template.xlsx</Button>
-          <Input label="Fișier CSV/Excel" type="file" accept=".xlsx,.xls,.csv" onChange={event => setImportFile(event.target.files?.[0] || null)} />
-          {importFile ? <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">Pregătit pentru import: {importFile.name}</div> : null}
-          {importResult ? (
-            <div className="rounded-md bg-primary-50 p-3 text-sm text-primary-800">
-              Importați: {importResult.importati || 0}. Erori: {(importResult.erori || []).length}
-              {(importResult.erori || []).slice(0, 5).map(err => <div key={`${err.rand}-${err.motiv}`}>Rând {err.rand}: {err.motiv}</div>)}
-            </div>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setImportModal(false)}>Închide</Button>
-            <Button type="submit" disabled={!importFile}>Importă angajați</Button>
-          </div>
-        </form>
-      </Modal>
+      <HRImportEmployeesModal
+        open={importModal}
+        file={importFile}
+        result={importResult}
+        onFileChange={setImportFile}
+        onDownloadTemplate={downloadTemplate}
+        onClose={() => setImportModal(false)}
+        onSubmit={importEmployees}
+      />
 
       <Modal open={nexusExportModal} title="Export Pontaj Nexus" onClose={() => setNexusExportModal(false)}>
         <form className="grid gap-4" onSubmit={exportNexusTimesheet}>
