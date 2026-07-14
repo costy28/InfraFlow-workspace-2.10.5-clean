@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.290`
-Următorul pas de stabilizare: `2.12.291`
+Versiune analizată: `2.12.291`
+Următorul pas de stabilizare: `2.12.292`
 
 ## Rezultat verificări
 
@@ -294,6 +294,12 @@ Următorul pas de stabilizare: `2.12.291`
 
 ### UPDATE 311 — Split carcasă modal fișă angajat HR
 
-- următorul bloc rămas: modalul `Fișa — [angajat]`;
-- extragere carcasă modal, header, carduri status, activitate și switch taburi într-o componentă dedicată;
+- `client/src/pages/modules/hr/HREmployeeProfileModal.jsx` — ✅ extras în `2.12.291`;
+- carcasa modalului, headerul, cardurile de status, activitatea și switch-ul de taburi sunt mutate în componentă dedicată;
+- păstrare conținut taburi, state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+
+### UPDATE 312 — Split router taburi fișă angajat HR
+
+- următorul bloc rămas: randarea condițională a taburilor din fișa angajatului;
+- extragere rutare taburi `date/contracte/pontaj/dosar/kiosk/flux/echipamente` într-o componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

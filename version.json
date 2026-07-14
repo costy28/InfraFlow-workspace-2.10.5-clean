@@ -1,5 +1,5 @@
 {
-  "version": "2.12.290",
+  "version": "2.12.291",
   "date": "2026-07-14",
-  "changelog": "## v2.12.290 - 2026-07-14\n### Split modal testare sablon Word HR\n- Modalul Testeaza Word a fost extras in HRDocumentTemplateTestModal.\n- Formularul pentru angajat, contract, act aditional si rezultatul validarii este randat din componenta dedicata.\n- State-ul, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.291 - 2026-07-14\n### Split carcasa modal fisa angajat HR\n- Carcasa modalului Fisa angajat a fost extrasa in HREmployeeProfileModal.\n- Headerul, cardurile de status, activitatea si taburile profilului sunt randate din componenta dedicata.\n- Continutul taburilor, state-ul si handler-ele raman in HRPage, fara schimbari de API, DB sau UX."
 }

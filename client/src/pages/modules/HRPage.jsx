@@ -19,12 +19,7 @@ import HREmployeeModal from './hr/HREmployeeModal'
 import HREmployeePersonalTab from './hr/HREmployeePersonalTab'
 import HREmployeeWorkflowTab from './hr/HREmployeeWorkflowTab'
 import HREvaluationModal from './hr/HREvaluationModal'
-import {
-  HREmployeeProfileActivity,
-  HREmployeeProfileHeader,
-  HREmployeeProfileStatusCards,
-  HREmployeeProfileTabs,
-} from './hr/HREmployeeProfileChrome'
+import HREmployeeProfileModal from './hr/HREmployeeProfileModal'
 import HREquipmentCatalogModal from './hr/HREquipmentCatalogModal'
 import HREquipmentDotareModal from './hr/HREquipmentDotareModal'
 import HREquipmentPanel from './hr/HREquipmentPanel'
@@ -2915,44 +2910,35 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
       />
 
       {/* ─── MODAL FIȘA ANGAJAT ───────────────────────────── */}
-      <Modal open={Boolean(selectedEmployee)} title={selectedEmployee ? `Fișa — ${fullName(selectedEmployee)}` : ''} onClose={() => setSelectedEmployee(null)} size="lg">
+      <HREmployeeProfileModal
+        open={Boolean(selectedEmployee)}
+        title={selectedEmployee ? `Fișa — ${fullName(selectedEmployee)}` : ''}
+        employee={employeeDetails}
+        displayName={employeeDetails ? fullName(employeeDetails) : ''}
+        editMode={editMode}
+        photoInputRef={photoInputRef}
+        photoPreview={photoPreview}
+        contracts={employeeContracts}
+        dossierSummary={selectedDossierSummary}
+        expirations={selectedEmployeeExpirations}
+        workflow={employeeWorkflow}
+        coBalance={coBalance}
+        activityItems={selectedEmployeeActivity}
+        activeTab={employeeProfileTab}
+        onClose={() => setSelectedEmployee(null)}
+        onCancelEdit={() => { setEditMode(false); setPhotoPreview(null); setPhotoFile(null) }}
+        onPhotoSelected={file => {
+          setPhotoFile(file)
+          setPhotoPreview(URL.createObjectURL(file))
+        }}
+        onPrint={printEmployeeProfile}
+        onSave={saveEmployeeEdit}
+        onStartEdit={() => { setEmployeeProfileTab('date'); setEditMode(true) }}
+        onReloadActivity={() => employeeDetails ? loadHrActivity({ employee_id: employeeDetails.id }) : null}
+        onTabChange={setEmployeeProfileTab}
+      >
         {employeeDetails ? (
-          <div className="grid gap-4">
-            <HREmployeeProfileHeader
-              employee={employeeDetails}
-              displayName={fullName(employeeDetails)}
-              editMode={editMode}
-              photoInputRef={photoInputRef}
-              photoPreview={photoPreview}
-              onCancelEdit={() => { setEditMode(false); setPhotoPreview(null); setPhotoFile(null) }}
-              onPhotoSelected={file => {
-                setPhotoFile(file)
-                setPhotoPreview(URL.createObjectURL(file))
-              }}
-              onPrint={printEmployeeProfile}
-              onSave={saveEmployeeEdit}
-              onStartEdit={() => { setEmployeeProfileTab('date'); setEditMode(true) }}
-            />
-
-            <HREmployeeProfileStatusCards
-              employee={employeeDetails}
-              contracts={employeeContracts}
-              dossierSummary={selectedDossierSummary}
-              expirations={selectedEmployeeExpirations}
-              workflow={employeeWorkflow}
-              coBalance={coBalance}
-            />
-
-            <HREmployeeProfileActivity
-              items={selectedEmployeeActivity}
-              onReload={() => loadHrActivity({ employee_id: employeeDetails.id })}
-            />
-
-            <HREmployeeProfileTabs
-              activeTab={employeeProfileTab}
-              onTabChange={setEmployeeProfileTab}
-            />
-
+          <>
             {employeeProfileTab === 'date' ? (
               <HREmployeePersonalTab
                 employee={employeeDetails}
@@ -3029,9 +3015,9 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
                 onSetReturnedEquipment={setReturnedEquipment}
               />
             ) : null}
-          </div>
-        ) : <p className="text-sm text-slate-500">Se incarca fișa...</p>}
-      </Modal>
+          </>
+        ) : null}
+      </HREmployeeProfileModal>
 
       <HRLeaveRequestModal
         open={leaveModal}

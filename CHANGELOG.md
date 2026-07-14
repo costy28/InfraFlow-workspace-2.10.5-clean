@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.291 - 2026-07-14
+
+## Split carcasă modal fișă angajat HR
+
+- Carcasa modalului `Fișa — [angajat]` din HR a fost extrasă în `client/src/pages/modules/hr/HREmployeeProfileModal.jsx`.
+- Headerul profilului, cardurile de status, activitatea recentă și taburile fișei sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează conținutul taburilor, state-ul și handler-ele operaționale; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.290 - 2026-07-14
 
 ## Split modal testare șablon Word HR
