@@ -1,5 +1,5 @@
 {
-  "version": "2.12.291",
+  "version": "2.12.292",
   "date": "2026-07-14",
-  "changelog": "## v2.12.291 - 2026-07-14\n### Split carcasa modal fisa angajat HR\n- Carcasa modalului Fisa angajat a fost extrasa in HREmployeeProfileModal.\n- Headerul, cardurile de status, activitatea si taburile profilului sunt randate din componenta dedicata.\n- Continutul taburilor, state-ul si handler-ele raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.292 - 2026-07-14\n### Split router taburi fisa angajat HR\n- Randarea taburilor din fisa angajatului a fost extrasa in HREmployeeProfileTabsRouter.\n- Taburile date, contracte, pontaj, dosar, kiosk, flux si echipamente sunt selectate din componenta dedicata.\n- State-ul, handler-ele si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
 }

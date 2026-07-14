@@ -10,16 +10,10 @@ import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
 import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
 import HRDashboardPanel from './hr/HRDashboardPanel'
-import HREmployeeAttendanceTab from './hr/HREmployeeAttendanceTab'
-import HREmployeeContractsTab from './hr/HREmployeeContractsTab'
-import HREmployeeEquipmentSection from './hr/HREmployeeEquipmentSection'
-import HREmployeeFilesTab from './hr/HREmployeeFilesTab'
-import HREmployeeKioskTab from './hr/HREmployeeKioskTab'
 import HREmployeeModal from './hr/HREmployeeModal'
-import HREmployeePersonalTab from './hr/HREmployeePersonalTab'
-import HREmployeeWorkflowTab from './hr/HREmployeeWorkflowTab'
 import HREvaluationModal from './hr/HREvaluationModal'
 import HREmployeeProfileModal from './hr/HREmployeeProfileModal'
+import HREmployeeProfileTabsRouter from './hr/HREmployeeProfileTabsRouter'
 import HREquipmentCatalogModal from './hr/HREquipmentCatalogModal'
 import HREquipmentDotareModal from './hr/HREquipmentDotareModal'
 import HREquipmentPanel from './hr/HREquipmentPanel'
@@ -2938,84 +2932,56 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         onTabChange={setEmployeeProfileTab}
       >
         {employeeDetails ? (
-          <>
-            {employeeProfileTab === 'date' ? (
-              <HREmployeePersonalTab
-                employee={employeeDetails}
-                editMode={editMode}
-                editForm={editForm}
-                departments={departments}
-                linkableUsers={linkableUsers}
-                coBalance={coBalance}
-                adeverintaData={adeverintaData}
-                adeverintaTip={adeverintaTip}
-                identityText={identityText}
-                daysUntil={daysUntil}
-                alertTone={alertTone}
-                onEditFormChange={setEditForm}
-                onLoadAdeverinta={loadAdeverinta}
-                onAdeverintaTipChange={setAdeverintaTip}
-                onPrintAdeverinta={printAdeverinta}
-              />
-            ) : null}
-
-            {employeeProfileTab === 'contracte' ? (
-              <HREmployeeContractsTab
-                employeeId={employeeDetails.id}
-                contracts={employeeContracts}
-                amendments={employeeAmendments}
-                transferHistory={transferHistory}
-                departments={departments}
-                canManage={hasPerm('hr:manage')}
-                onReload={() => reloadEmployeeContracts(employeeDetails.id)}
-                onError={setError}
-                onPrintContract={printOperationalContract}
-                onPrintAmendment={printOperationalAmendment}
-                onGenerateContractWord={generateContractWord}
-                onGenerateAmendmentWord={generateAmendmentWord}
-                onArchiveContractWord={archiveContractWord}
-                onArchiveAmendmentWord={archiveAmendmentWord}
-                documentTemplates={hrDocumentTemplates}
-              />
-            ) : null}
-
-            {employeeProfileTab === 'pontaj' ? (
-              <HREmployeeAttendanceTab employee={employeeDetails} coBalance={coBalance} leaves={selectedEmployeeLeaves} />
-            ) : null}
-
-            {employeeProfileTab === 'dosar' ? <HREmployeeFilesTab employeeId={employeeDetails.id} canManage={hasPerm('hr:manage')} onError={setError} suggestedUpload={guidedDossierUpload} onSuggestionUsed={() => { setGuidedDossierUpload(null); loadHrInbox() }} /> : null}
-
-            {employeeProfileTab === 'kiosk' ? (
-              <HREmployeeKioskTab
-                dossierSummary={selectedDossierSummary}
-                expirations={selectedEmployeeExpirations}
-                onSendReminder={() => sendDossierReminder(employeeDetails.id)}
-              />
-            ) : null}
-
-            {employeeProfileTab === 'flux' ? (
-              <HREmployeeWorkflowTab
-                workflow={employeeWorkflow}
-                busy={employeeWorkflowBusy}
-                guidedStep={guidedWorkflowStep}
-                onReload={() => loadEmployeeWorkflow()}
-                onStartWorkflow={startEmployeeWorkflow}
-                onToggleStep={toggleEmployeeWorkflowStep}
-                onCloseWorkflow={closeEmployeeWorkflow}
-                getStepActions={workflowStepActions}
-              />
-            ) : null}
-
-            {employeeProfileTab === 'echipamente' ? (
-              <HREmployeeEquipmentSection
-                employeeEquipment={employeeEquipment}
-                canManageEquipment={canManageEquipment}
-                onOpenDotare={openEquipmentAction}
-                onSaveEmployeeSizes={saveEmployeeSizes}
-                onSetReturnedEquipment={setReturnedEquipment}
-              />
-            ) : null}
-          </>
+          <HREmployeeProfileTabsRouter
+            activeTab={employeeProfileTab}
+            employee={employeeDetails}
+            editMode={editMode}
+            editForm={editForm}
+            departments={departments}
+            linkableUsers={linkableUsers}
+            coBalance={coBalance}
+            adeverintaData={adeverintaData}
+            adeverintaTip={adeverintaTip}
+            identityText={identityText}
+            daysUntil={daysUntil}
+            alertTone={alertTone}
+            contracts={employeeContracts}
+            amendments={employeeAmendments}
+            transferHistory={transferHistory}
+            canManageHr={hasPerm('hr:manage')}
+            documentTemplates={hrDocumentTemplates}
+            leaves={selectedEmployeeLeaves}
+            dossierSummary={selectedDossierSummary}
+            expirations={selectedEmployeeExpirations}
+            suggestedUpload={guidedDossierUpload}
+            workflow={employeeWorkflow}
+            workflowBusy={employeeWorkflowBusy}
+            guidedWorkflowStep={guidedWorkflowStep}
+            employeeEquipment={employeeEquipment}
+            canManageEquipment={canManageEquipment}
+            onEditFormChange={setEditForm}
+            onLoadAdeverinta={loadAdeverinta}
+            onAdeverintaTipChange={setAdeverintaTip}
+            onPrintAdeverinta={printAdeverinta}
+            onReloadContracts={() => reloadEmployeeContracts(employeeDetails.id)}
+            onError={setError}
+            onPrintContract={printOperationalContract}
+            onPrintAmendment={printOperationalAmendment}
+            onGenerateContractWord={generateContractWord}
+            onGenerateAmendmentWord={generateAmendmentWord}
+            onArchiveContractWord={archiveContractWord}
+            onArchiveAmendmentWord={archiveAmendmentWord}
+            onSuggestionUsed={() => { setGuidedDossierUpload(null); loadHrInbox() }}
+            onSendDossierReminder={() => sendDossierReminder(employeeDetails.id)}
+            onReloadWorkflow={() => loadEmployeeWorkflow()}
+            onStartWorkflow={startEmployeeWorkflow}
+            onToggleWorkflowStep={toggleEmployeeWorkflowStep}
+            onCloseWorkflow={closeEmployeeWorkflow}
+            getStepActions={workflowStepActions}
+            onOpenDotare={openEquipmentAction}
+            onSaveEmployeeSizes={saveEmployeeSizes}
+            onSetReturnedEquipment={setReturnedEquipment}
+          />
         ) : null}
       </HREmployeeProfileModal>
 

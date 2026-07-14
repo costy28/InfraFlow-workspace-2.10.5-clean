@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.292 - 2026-07-14
+
+## Split router taburi fișă angajat HR
+
+- Randarea condițională a taburilor din modalul `Fișa — [angajat]` a fost extrasă în `client/src/pages/modules/hr/HREmployeeProfileTabsRouter.jsx`.
+- Taburile `date`, `contracte`, `pontaj`, `dosar`, `kiosk`, `flux` și `echipamente` sunt selectate din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul, handler-ele și apelurile API; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.291 - 2026-07-14
 
 ## Split carcasă modal fișă angajat HR
