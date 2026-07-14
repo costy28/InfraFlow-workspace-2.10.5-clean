@@ -1,5 +1,5 @@
 {
-  "version": "2.12.301",
+  "version": "2.12.302",
   "date": "2026-07-14",
-  "changelog": "## v2.12.301 - 2026-07-14\n### Registry reguli pe tara\n- Catalogul de tari a fost extras intr-un modul shared reutilizabil.\n- A fost adaugat endpointul read-only pentru reguli HR, fiscale si documente pe tara.\n- Setarile afiseaza profilul de reguli activ pentru tara selectata."
+  "changelog": "## v2.12.302 - 2026-07-14\n### Defaulturi fiscale din registry tara\n- Registry-ul de reguli expune helperi pentru TVA, declaratii fiscale si profil HR.\n- Setarile si normalizarea DB folosesc TVA-ul implicit din profilul tarii.\n- Modulul ANAF pastreaza comportamentul RO, dar fallback-ul TVA vine din registry."
 }

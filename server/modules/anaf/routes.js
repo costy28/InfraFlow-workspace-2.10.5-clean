@@ -17,6 +17,7 @@ const multer = require('multer')
 const router = Router()
 const responseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 const spvClient = require('./spv-client')
+const { getDefaultVatRate } = require('../../shared/countryRules')
 
 function sendJson(res, status, data) {
   res.status(status).json(data)
@@ -110,7 +111,8 @@ function syncAccountingInvoiceStatus(db, invoice) {
 }
 
 function implicitVat(db) {
-  return Number(db.settings?.tva_implicit ?? db.settings?.cota_tva_standard ?? 21)
+  const defaultVatRate = getDefaultVatRate(db.settings?.country, 21)
+  return Number(db.settings?.tva_implicit ?? db.settings?.cota_tva_standard ?? defaultVatRate)
 }
 
 function normalizeInvoiceLines(db, lines) {

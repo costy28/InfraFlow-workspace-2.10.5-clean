@@ -49,6 +49,7 @@ const { createSystemSettingsRouter } = require('./settings-routes')
 const { createSystemLicenseRouter } = require('./license-routes')
 const { createSystemDepartmentsRouter } = require('./departments-routes')
 const { createSystemDatabaseRouter } = require('./database-routes')
+const { getDefaultVatRate } = require('../../shared/countryRules')
 const router = Router()
 
 const ROOT = path.resolve(__dirname, '../../..')
@@ -4355,6 +4356,8 @@ function normalizeUpperSetting(value, fallback = "") {
 
 function updateSettings(current = {}, body = {}) {
   const license = current.license || {};
+  const country = normalizeUpperSetting(body.country ?? current.country, "RO");
+  const defaultVatRate = getDefaultVatRate(country, 21);
   const plan = String(body.licensePlan || license.plan || "internal-preview").trim();
   const trialDays = Math.max(1, Number(body.trialDays || license.trialDays || 30));
   const trialStartedAt = plan === "trial"
@@ -4370,7 +4373,7 @@ function updateSettings(current = {}, body = {}) {
     email: String(body.email ?? current.email ?? "").trim(),
     locale: normalizeSettingText(body.locale ?? body.language ?? current.locale ?? current.language, "ro-RO"),
     language: normalizeSettingText(body.locale ?? body.language ?? current.locale ?? current.language, "ro-RO"),
-    country: normalizeUpperSetting(body.country ?? current.country, "RO"),
+    country,
     currency: normalizeUpperSetting(body.currency ?? current.currency, "RON"),
     timezone: normalizeSettingText(body.timezone ?? current.timezone, "Europe/Bucharest"),
     jurisdiction_profile: normalizeUpperSetting(body.jurisdiction_profile ?? body.jurisdictionProfile ?? current.jurisdiction_profile ?? current.jurisdictionProfile ?? body.country ?? current.country, "RO"),
@@ -4417,8 +4420,8 @@ function updateSettings(current = {}, body = {}) {
       ? encryptSettingSecret(body.smtp_password)
       : (body.smtp_password_encrypted || current.smtp_password_encrypted || ""),
     smtp_name: String(body.smtp_name ?? current.smtp_name ?? current.companyName ?? "InfraFlow").trim(),
-    tva_implicit: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? 21),
-    cota_tva_standard: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? 21),
+    tva_implicit: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
+    cota_tva_standard: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_redusa: Number(body.cota_tva_redusa ?? current.cota_tva_redusa ?? 9),
     cota_tva_super_redusa: Number(body.cota_tva_super_redusa ?? current.cota_tva_super_redusa ?? 5),
     rolePermissionOverrides: current.rolePermissionOverrides || {},

@@ -5,6 +5,7 @@ const childProcess = require("child_process");
 const os = require("os");
 const sql = require("mssql");
 const { splitSqlBatches, ensureMigrationTable, runTrackedMigrations } = require("./migrations");
+const { getDefaultVatRate } = require("../shared/countryRules");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 loadPreferredDatabaseEnv(ROOT);
@@ -1197,12 +1198,14 @@ function normalizeDb(db) {
   db.settings.currency = String(db.settings.currency || "RON").trim().toUpperCase();
   db.settings.timezone = String(db.settings.timezone || "Europe/Bucharest").trim();
   db.settings.jurisdiction_profile = String(db.settings.jurisdiction_profile || db.settings.jurisdictionProfile || db.settings.country || "RO").trim().toUpperCase();
+  const defaultVatRate = getDefaultVatRate(db.settings.country, 21);
   if (db.settings.ai_enabled === undefined) db.settings.ai_enabled = 0;
   if (db.settings.ai_model_default === undefined) db.settings.ai_model_default = "claude-haiku-4-5";
   if (db.settings.ai_monthly_budget === undefined) db.settings.ai_monthly_budget = 200;
   if (db.settings.ai_limit_per_user === undefined) db.settings.ai_limit_per_user = 30;
   if (db.settings.ai_limit_per_company === undefined) db.settings.ai_limit_per_company = 500;
-  if (db.settings.tva_implicit === undefined) db.settings.tva_implicit = Number(db.settings.cota_tva_standard ?? 21);
+  if (db.settings.tva_implicit === undefined) db.settings.tva_implicit = Number(db.settings.cota_tva_standard ?? defaultVatRate);
+  if (db.settings.cota_tva_standard === undefined) db.settings.cota_tva_standard = Number(db.settings.tva_implicit ?? defaultVatRate);
   db.settings.license = normalizeLicense(db.settings.license || {});
   db.settings.networkAccessMode = normalizeNetworkAccessMode(db.settings.networkAccessMode);
   db.settings.scaleDbPath = String(db.settings.scaleDbPath || "").trim();

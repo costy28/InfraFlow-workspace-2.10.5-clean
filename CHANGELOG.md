@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.302 - 2026-07-14
+
+## Defaulturi fiscale din registry țară
+
+- `server/shared/countryRules.js` expune helperi reutilizabili pentru TVA implicit, cote TVA, declarații fiscale și profil HR.
+- Normalizarea setărilor folosește TVA-ul implicit din profilul de țară.
+- Normalizarea DB JSON folosește același fallback fiscal din registry.
+- Modulul ANAF păstrează comportamentul existent pentru România, dar fallback-ul TVA vine din registry.
+- Nu au fost schimbate calculele existente; pentru România valoarea implicită rămâne 21%.
+
 # v2.12.301 - 2026-07-14
 
 ## Registry reguli pe țară

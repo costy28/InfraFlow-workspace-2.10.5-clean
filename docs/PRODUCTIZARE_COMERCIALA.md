@@ -72,7 +72,7 @@ Etape recomandate:
 
 1. `locale`, `country`, `currency`, `timezone` și `jurisdiction_profile` în profilul organizației. ✅ Fundație tehnică în v2.12.300.
 2. Catalog intern de țări: RO, EN/global demo, apoi țări țintă. ✅ Endpoint inițial în v2.12.300.
-3. Separare traduceri UI de reguli legislative. ✅ Registry inițial reguli pe țară în v2.12.301.
+3. Separare traduceri UI de reguli legislative. ✅ Registry inițial reguli pe țară în v2.12.301; primele defaulturi fiscale consumate din registry în v2.12.302.
 4. Separare template-uri documente pe țară și limbă.
 5. Validatoare locale pentru fiscal/HR doar când profilul țării este activ.
 

@@ -1,6 +1,6 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.301`
+Versiune analizată: `2.12.302`
 Următorul pas de stabilizare: `2.12.300`
 
 ## Rezultat verificări
@@ -365,3 +365,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/system/settings-routes.js` — ✅ endpoint read-only `/settings/country-rules`;
 - `client/src/pages/SetariPage.jsx` — ✅ sumar reguli active în profilul internațional;
 - `scripts/smoke-modules-readonly.js` — ✅ verifică endpointul nou.
+
+### UPDATE 322 — Defaulturi fiscale din registry țară
+
+- `server/shared/countryRules.js` — ✅ helperi pentru TVA, cote, declarații fiscale și profil HR;
+- `server/modules/system/routes.js` — ✅ TVA implicit din profilul țării la salvarea setărilor;
+- `server/core/db.js` — ✅ fallback DB JSON pentru TVA din registry;
+- `server/modules/anaf/routes.js` — ✅ fallback TVA ANAF din registry, cu același rezultat pentru RO.

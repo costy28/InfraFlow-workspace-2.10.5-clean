@@ -115,9 +115,42 @@ function getAllCountryRules() {
   return countryProfiles.map(profile => getCountryRules(profile.code))
 }
 
+function getAccountingRules(countryCode = 'RO') {
+  return getCountryRules(countryCode).rules.modules.accounting || genericRules.modules.accounting
+}
+
+function getHrRules(countryCode = 'RO') {
+  return getCountryRules(countryCode).rules.modules.hr || genericRules.modules.hr
+}
+
+function getDefaultVatRate(countryCode = 'RO', fallback = 21) {
+  const rate = Number(getAccountingRules(countryCode).default_vat_rate)
+  return Number.isFinite(rate) ? rate : fallback
+}
+
+function getVatRates(countryCode = 'RO') {
+  const rates = getAccountingRules(countryCode).vat_rates
+  return Array.isArray(rates) ? rates.slice() : []
+}
+
+function getFiscalDeclarations(countryCode = 'RO') {
+  const declarations = getAccountingRules(countryCode).declarations
+  return Array.isArray(declarations) ? declarations.slice() : []
+}
+
+function getPayrollProfile(countryCode = 'RO') {
+  return String(getHrRules(countryCode).payroll_profile || 'generic')
+}
+
 module.exports = {
   getAllCountryRules,
+  getAccountingRules,
   getCountryProfiles,
   getCountryRules,
+  getDefaultVatRate,
+  getFiscalDeclarations,
+  getHrRules,
+  getPayrollProfile,
+  getVatRates,
   normalizeCountryCode,
 }
