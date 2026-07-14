@@ -6,6 +6,97 @@ const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { sendEmail } = require('../messaging/email')
 
+const moduleCatalogGroups = [
+  {
+    title: 'PRINCIPALE',
+    locked: true,
+    modules: [
+      { key: 'core', label: 'Core', description: 'Autentificare, roluri, audit, backup și update.' },
+      { key: 'production', label: 'Producție', description: 'Rețete, consumuri și planificare producție.' },
+      { key: 'inventory', label: 'Stocuri', description: 'Materiale, intrări, ieșiri și gestiune.' },
+      { key: 'reports', label: 'Rapoarte', description: 'Rapoarte standard și exporturi.' },
+    ],
+  },
+  {
+    title: 'OPERAȚIONALE',
+    modules: [
+      { key: 'fleet', label: 'Flotă / Mecanizare', description: 'Vehicule, utilaje, foi parcurs, FAZ și GPS.' },
+      { key: 'technical', label: 'Tehnic', description: 'Lucrări, teren, vânzări asfalt și raport tehnic.' },
+      { key: 'procurement', label: 'Achiziții', description: 'Comenzi, recepții, referate, PAAP și CPV.' },
+      { key: 'hr', label: 'HR', description: 'Angajați, pontaj, concedii, dosar personal și Kiosk.' },
+      { key: 'controlling', label: 'Controlling', description: 'Centre cost/profit și costuri operaționale.' },
+      { key: 'accounting', label: 'Contabilitate', description: 'Plan conturi, facturi, jurnale, declarații și SAF-T.' },
+    ],
+  },
+  {
+    title: 'SERVICII',
+    modules: [
+      { key: 'sanitation', label: 'Salubrizare', description: 'Rute, colectări și rapoarte.' },
+      { key: 'traffic_safety', label: 'Siguranța Circulației', description: 'Indicatoare, marcaje și intervenții.' },
+      { key: 'environment', label: 'Protecția Mediului', description: 'Autorizații, deșeuri, emisii și incidente.' },
+      { key: 'snow_removal', label: 'Deszăpezire', description: 'Planuri, intervenții și consumuri sezoniere.' },
+    ],
+  },
+  {
+    title: 'SUPORT',
+    modules: [
+      { key: 'documents', label: 'Documente și aprobare', description: 'Șabloane, circuit documente și arhivare.' },
+      { key: 'messaging', label: 'Mesaje interne', description: 'Canale, notificări și comunicare internă.' },
+      { key: 'tickets', label: 'Sesizări', description: 'Tichete, comentarii și urmărire rezolvare.' },
+      { key: 'field', label: 'Teren / Șantiere', description: 'Lucrări mobile, rapoarte și activitate teren.' },
+      { key: 'legal', label: 'Juridic', description: 'Dosare, termene și documente juridice.' },
+      { key: 'archive', label: 'Arhivă', description: 'Arhivare și regăsire documente.' },
+      { key: 'secretariat', label: 'Secretariat', description: 'Intrări/ieșiri documente și registre.' },
+    ],
+  },
+  {
+    title: 'OPȚIONAL',
+    modules: [
+      { key: 'ai', label: 'AI Assistant', description: 'Asistent contextual peste datele organizației.' },
+    ],
+  },
+]
+
+const commercialPackages = [
+  { key: 'core', label: 'Core', modules: ['documents', 'messaging', 'tickets'], description: 'Baza pentru documente, notificări, utilizatori și audit.' },
+  { key: 'hr', label: 'HR', modules: ['hr', 'documents', 'messaging'], description: 'Angajați, pontaj, dosar personal, concedii și Kiosk.' },
+  { key: 'operational', label: 'Operațional', modules: ['fleet', 'technical', 'field', 'controlling', 'documents'], description: 'Flotă, lucrări, teren și controlling operațional.' },
+  { key: 'gestiune_achizitii', label: 'Gestiune + Achiziții', modules: ['procurement', 'documents', 'tickets'], description: 'Stocuri, referate, comenzi, recepții, PAAP și furnizori.' },
+  { key: 'accounting', label: 'Contabilitate', modules: ['accounting', 'controlling', 'documents'], description: 'Contabilitate, declarații, dosar fiscal și costuri.' },
+  { key: 'city_services', label: 'City Services', modules: ['sanitation', 'traffic_safety', 'snow_removal', 'environment', 'field', 'fleet', 'tickets'], description: 'Servicii publice locale într-un pachet operațional.' },
+  { key: 'enterprise', label: 'Enterprise', modules: ['fleet', 'technical', 'procurement', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'], description: 'Toate modulele pentru organizații mari.' },
+]
+
+function buildModulesCatalog(settings = {}, license = {}, allowedModulesForLicense) {
+  const allowed = new Set(allowedModulesForLicense(license))
+  const configurableKeys = moduleCatalogGroups
+    .flatMap(group => group.modules)
+    .filter(module => module.key && !['core', 'inventory', 'production', 'reports'].includes(module.key))
+    .map(module => module.key)
+  const enabled = Array.isArray(settings.modules_enabled)
+    ? settings.modules_enabled.map(item => String(item || '').trim().toLowerCase()).filter(Boolean)
+    : configurableKeys.filter(key => allowed.has(key))
+  const enabledSet = new Set(enabled)
+
+  return {
+    groups: moduleCatalogGroups.map(group => ({
+      ...group,
+      modules: group.modules.map(module => ({
+        ...module,
+        locked: group.locked || ['core', 'inventory', 'production', 'reports'].includes(module.key),
+        allowed: allowed.has(module.key),
+        enabled: group.locked || enabledSet.has(module.key),
+        features_configurable: module.key && module.key !== 'core',
+      })),
+    })),
+    packages: commercialPackages,
+    allowed_modules: Array.from(allowed),
+    enabled_modules: enabled,
+    updated_at: settings.modules_enabled_updated_at || null,
+    updated_by: settings.modules_enabled_updated_by || null,
+  }
+}
+
 const settingsUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
@@ -32,6 +123,16 @@ function createSystemSettingsRouter(context) {
     if (!auth) return
     if (!requirePermission(auth, res, 'settings:manage')) return
     sendJson(res, 200, { settings: publicSettings(auth.db.settings) })
+  })
+
+  router.get('/settings/modules/catalog', (req, res) => {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'settings:manage')) return
+    const license = global.LICENTA || auth.db.settings?.license || {}
+    sendJson(res, 200, {
+      catalog: buildModulesCatalog(auth.db.settings || {}, license, allowedModulesForLicense)
+    })
   })
 
   router.patch('/settings', async (req, res, next) => {

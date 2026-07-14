@@ -1,5 +1,5 @@
 {
-  "version": "2.12.294",
+  "version": "2.12.296",
   "date": "2026-07-14",
-  "changelog": "## v2.12.294 - 2026-07-14\n### Productizare comerciala modulara\n- Directia produsului a fost actualizata: InfraFlow este ERP modular general, fara dependenta de client pilot.\n- Au fost neutralizate fallback-uri si texte vizibile care trimiteau la un client specific.\n- A fost adaugat ghidul docs/PRODUCTIZARE_COMERCIALA.md pentru modularizare, onboarding si helper-e comerciale."
+  "changelog": "## v2.12.296 - 2026-07-14\n### Split functii print documente HR\n- Functiile mari de print/generare HTML HR au fost mutate din HRPage.jsx in hrDocumentPrint.js.\n- HRPage.jsx ramane orchestrator pentru state, API si randare panouri.\n- Comportamentul UI, payload-urile, ferestrele de print si endpointurile raman neschimbate."
 }

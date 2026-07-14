@@ -1,5 +1,24 @@
 # Changelog
 
+# v2.12.296 - 2026-07-14
+
+## Split funcții print documente HR
+
+- Funcțiile mari de print/generare HTML pentru documente HR au fost mutate din `HRPage.jsx` în `client/src/pages/modules/hr/hrDocumentPrint.js`.
+- `HRPage.jsx` rămâne orchestrator pentru state, API și randarea panourilor, iar helperul nou gestionează documentele printabile, template-urile HR, arhivarea HTML și generarea Word.
+- Au fost păstrate aceleași payload-uri, aceleași acțiuni din UI și aceleași ferestre de print.
+- Nu au fost schimbate endpointuri, tabele, migrări DB sau dependențe.
+
+# v2.12.295 - 2026-07-14
+
+## Catalog module active și onboarding organizație
+
+- Tabul `Setări > Module` a primit un panou de onboarding organizație cu progres, checklist și următorul pas recomandat.
+- Au fost adăugate pachete comerciale rapide: Core, HR, Operațional, Gestiune + Achiziții, Contabilitate, City Services și Enterprise.
+- A fost adăugat endpointul read-only `/settings/modules/catalog` pentru catalog server-side de module, pachete, module permise și module active.
+- Smoke-ul local verifică endpointul nou.
+- Nu au fost schimbate tabele, migrări DB sau dependențe.
+
 # v2.12.294 - 2026-07-14
 
 ## Productizare comercială modulară

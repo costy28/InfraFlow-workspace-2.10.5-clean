@@ -137,6 +137,7 @@ async function checkEndpoint(token, item) {
 const endpointChecks = [
   { name: 'core /api/session', path: '/api/session', validate: data => data?.user?.username === username },
   { name: 'core /api/settings', path: '/api/settings', validate: data => Boolean(data?.settings || data?.companyName || data?.company) },
+  { name: 'core /api/settings/modules/catalog', path: '/api/settings/modules/catalog', validate: data => Array.isArray(data?.catalog?.groups) && Array.isArray(data?.catalog?.packages) },
   { name: 'core /api/system/version', path: '/api/system/version', validate: data => Boolean(data?.version || data?.appVersion) },
   { name: 'core /api/departments', path: '/api/departments', countKeys: ['departments'] },
   { name: 'core /api/users', path: '/api/users', countKeys: ['users'] },

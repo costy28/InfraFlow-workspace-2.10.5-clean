@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.294`
-Următorul pas de stabilizare: `2.12.295`
+Versiune analizată: `2.12.296`
+Următorul pas de stabilizare: `2.12.297`
 
 ## Rezultat verificări
 
@@ -319,12 +319,19 @@ Următorul pas de stabilizare: `2.12.295`
 
 ### UPDATE 315 — Catalog module active și onboarding organizație
 
-- următorul pas comercial: listă module/pachete și stări active/inactive în UI;
-- checklist de configurare inițială pe organizație;
+- `GET /settings/modules/catalog` — ✅ adăugat în `2.12.295`;
+- `Setări > Module` are onboarding organizație, pachete comerciale, checklist și următorul pas recomandat;
+- smoke-ul local verifică endpointul nou;
 - bază pentru licențiere modulară fără a bloca încă modulele existente.
 
 ### UPDATE 316 — Split funcții print documente HR
 
-- următorul bloc rămas: funcțiile mari de print/generare HTML din `HRPage.jsx`;
-- extragere într-un helper dedicat pentru documente HR printabile;
+- `client/src/pages/modules/hr/hrDocumentPrint.js` — ✅ extras în `2.12.296`;
+- funcțiile mari de print/generare HTML din `HRPage.jsx` au fost mutate într-un helper dedicat;
 - păstrare payload-uri, template-uri și ferestre de print fără schimbare HTTP/UX.
+
+### UPDATE 317 — Helper contextual reutilizabil în UI
+
+- componentă comună pentru ajutor contextual, tips și „următorul pas” în paginile complexe;
+- integrare inițială în `Setări > Module`, HR și Documente;
+- scop: interfață mai comercială și mai ușor de înțeles fără documentație separată.

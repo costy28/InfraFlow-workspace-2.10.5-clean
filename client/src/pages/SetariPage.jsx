@@ -25,6 +25,8 @@ const allModules = [
   'environment', 'legal', 'archive', 'secretariat', 'ai_assistant'
 ]
 
+const alwaysOnModuleKeys = ['core', 'production', 'inventory', 'reports']
+
 const roleDescriptions = {
   superadmin: 'Control complet — licență, backup, sistem.',
   admin: 'Administrare utilizatori și operare completă.',
@@ -115,6 +117,58 @@ const moduleGroups = [
     modules: [
       { key: 'ai', icon: '🤖', label: 'AI Assistant', badge: 'Necesită cheie Anthropic' },
     ],
+  },
+]
+
+const commercialModulePackages = [
+  {
+    key: 'core',
+    label: 'Core',
+    icon: '🧭',
+    modules: ['documents', 'messaging', 'tickets'],
+    description: 'Baza comercială: documente, comunicare, tichete, audit și administrare.',
+  },
+  {
+    key: 'hr',
+    label: 'HR',
+    icon: '👥',
+    modules: ['hr', 'documents', 'messaging'],
+    description: 'Angajați, pontaj, concedii, dosar personal, Kiosk și documente HR.',
+  },
+  {
+    key: 'operational',
+    label: 'Operațional',
+    icon: '🚜',
+    modules: ['fleet', 'technical', 'field', 'controlling', 'documents'],
+    description: 'Flotă, utilaje, lucrări, teren și controlling operațional.',
+  },
+  {
+    key: 'gestiune_achizitii',
+    label: 'Gestiune + Achiziții',
+    icon: '🛒',
+    modules: ['procurement', 'documents', 'tickets'],
+    description: 'Stocuri, comenzi, recepții, referate, PAAP și furnizori.',
+  },
+  {
+    key: 'accounting',
+    label: 'Contabilitate',
+    icon: '🏛️',
+    modules: ['accounting', 'controlling', 'documents'],
+    description: 'Contabilitate, declarații, dosar fiscal, SAF-T și costuri.',
+  },
+  {
+    key: 'city_services',
+    label: 'City Services',
+    icon: '🏙️',
+    modules: ['sanitation', 'traffic_safety', 'snow_removal', 'environment', 'field', 'fleet', 'tickets'],
+    description: 'Salubrizare, deszăpezire, circulație, mediu și teren.',
+  },
+  {
+    key: 'enterprise',
+    label: 'Enterprise',
+    icon: '🚀',
+    modules: ['fleet', 'technical', 'procurement', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'],
+    description: 'Toate modulele, pentru organizații mari și fluxuri complete.',
   },
 ]
 
@@ -257,6 +311,7 @@ export default function SetariPage() {
   const [settings, setSettings] = useState({})
   const [moduleConfig, setModuleConfig] = useState(null)
   const [moduleFeatureDraft, setModuleFeatureDraft] = useState({})
+  const [moduleCatalog, setModuleCatalog] = useState(null)
   const [databaseConfig, setDatabaseConfig] = useState({ server: '.\\SQLEXPRESS', database: 'INFRAFLOW', authMode: 'windows', user: 'infraflow', password: '', encrypt: 'false', relational: false })
   const [databaseHealth, setDatabaseHealth] = useState(null)
   const [databaseSchema, setDatabaseSchema] = useState(null)
@@ -340,12 +395,44 @@ export default function SetariPage() {
   }, [license])
   const userLimit = license?.limite?.max_utilizatori || license?.limite?.maxUsers || 0
   const licenseDays = daysUntil(license?.valabilitate?.expira_la)
+  const activeConfigurableModules = useMemo(
+    () => enabledModules.filter(moduleKey => configurableModuleKeys.includes(moduleKey)),
+    [enabledModules, configurableModuleKeys]
+  )
+  const visibleCommercialPackages = useMemo(
+    () => moduleCatalog?.packages?.length ? moduleCatalog.packages : commercialModulePackages,
+    [moduleCatalog]
+  )
+  const moduleByKey = useMemo(
+    () => new Map(moduleGroups.flatMap(group => group.modules).map(mod => [mod.key, mod])),
+    []
+  )
+  const onboardingSteps = useMemo(() => {
+    const enabled = new Set(enabledModules)
+    const hasCompany = Boolean(settings.companyName || settings.company_name || settings.firma || settings.nume_companie)
+      && Boolean(settings.companyCif || settings.company_cif || settings.cui || settings.cif)
+    const hasLicenseSignal = Boolean(license?.valida || license?.demo || license?.pachet || license?.module_active?.length || license?.module?.length)
+    const hasSmtp = Boolean(settings.smtp_host && (settings.smtp_user || settings.smtp_name || settings.email))
+    return [
+      { key: 'company', label: 'Date organizație', done: hasCompany, hint: 'Completează denumirea și CUI/CIF.', tab: 'General' },
+      { key: 'modules', label: 'Module alese', done: activeConfigurableModules.length > 0, hint: 'Alege pachetul comercial sau modulele utile.', tab: 'Module' },
+      { key: 'license', label: 'Licență / trial', done: hasLicenseSignal && !license?.expirata, hint: 'Importă licența sau rulează în demo/trial controlat.', tab: 'Licență' },
+      { key: 'users', label: 'Utilizatori', done: users.filter(user => user.active !== false).length > 1, hint: 'Adaugă utilizatorii cheie.', tab: 'Utilizatori' },
+      { key: 'departments', label: 'Departamente', done: departments.length > 0, hint: 'Definește structura organizației.', tab: 'Departamente' },
+      { key: 'hr', label: 'Angajați HR', done: !enabled.has('hr') || hrEmployees.length > 0, hint: 'Importă sau adaugă primii angajați.', tab: 'Module', optional: !enabled.has('hr') },
+      { key: 'smtp', label: 'Email notificări', done: hasSmtp || !enabled.has('messaging'), hint: 'Configurează SMTP pentru notificări reale.', tab: 'General', optional: !enabled.has('messaging') },
+      { key: 'ai', label: 'AI Assistant', done: !enabled.has('ai') || Boolean(aiStatus?.configured || aiStatus?.hasKey), hint: 'Adaugă cheia API pentru helperul AI.', tab: 'AI Assistant', optional: !enabled.has('ai') },
+    ].filter(step => !step.optional || !step.done)
+  }, [settings, enabledModules, activeConfigurableModules.length, license, users, departments, hrEmployees, aiStatus])
+  const onboardingDone = onboardingSteps.filter(step => step.done).length
+  const onboardingPercent = onboardingSteps.length ? Math.round((onboardingDone / onboardingSteps.length) * 100) : 100
+  const nextOnboardingStep = onboardingSteps.find(step => !step.done)
 
   async function load() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, dbSchemaRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, dbSchemaRes, moduleCatalogRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -359,6 +446,7 @@ export default function SetariPage() {
         api.get('/integration/piusi/mapari'),
         api.get('/system/database-config'),
         api.get('/system/database-schema'),
+        api.get('/settings/modules/catalog'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -392,6 +480,7 @@ export default function SetariPage() {
         setDatabaseHealth(dbConfigRes.value.data.health || null)
       }
       if (dbSchemaRes.status === 'fulfilled') setDatabaseSchema(dbSchemaRes.value.data || null)
+      if (moduleCatalogRes.status === 'fulfilled') setModuleCatalog(moduleCatalogRes.value.data.catalog || null)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -948,6 +1037,14 @@ export default function SetariPage() {
         : [...currentModules, moduleKey]
       return { ...current, modules_enabled: next }
     })
+  }
+
+  function applyCommercialPackage(pkg) {
+    const modules = (pkg.modules || [])
+      .map(item => String(item || '').trim().toLowerCase())
+      .filter(moduleKey => configurableModuleKeys.includes(moduleKey) && isModuleLicensed(moduleKey))
+    setSettings(current => ({ ...current, modules_enabled: Array.from(new Set(modules)) }))
+    notify(`Profilul "${pkg.label}" a fost aplicat local. Apasă „Salvează module” pentru confirmare.`)
   }
 
   function defaultFeatureState(moduleKey) {
@@ -2262,10 +2359,109 @@ export default function SetariPage() {
       {activeTab === 'Module' && (
         <div className="grid gap-4">
           <Card
+            title="Onboarding organizație"
+            subtitle="Transformă configurarea inițială într-un traseu clar: module, utilizatori, departamente, notificări și date companie."
+          >
+            <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="font-semibold text-slate-800">Progres configurare</span>
+                  <span className="text-slate-500">{onboardingDone}/{onboardingSteps.length} pași</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-3 rounded-full bg-primary-600 transition-all" style={{ width: `${onboardingPercent}%` }} />
+                </div>
+                <div className="mt-2 text-xs text-slate-500">{onboardingPercent}% pregătit pentru utilizare operațională.</div>
+                {nextOnboardingStep ? (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div className="font-semibold">Următorul pas recomandat: {nextOnboardingStep.label}</div>
+                    <div className="mt-1">{nextOnboardingStep.hint}</div>
+                    <Button className="mt-3" size="sm" variant="secondary" onClick={() => setActiveTab(nextOnboardingStep.tab)}>Deschide pasul</Button>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                    Configurarea de bază este completă. Poți trece la date reale, importuri sau instruirea utilizatorilor.
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-2">
+                {onboardingSteps.map(step => (
+                  <button
+                    key={step.key}
+                    type="button"
+                    onClick={() => setActiveTab(step.tab)}
+                    className={`flex items-start gap-2 rounded-md border p-2 text-left text-sm transition ${step.done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-primary-200'}`}
+                  >
+                    <span className="mt-0.5">{step.done ? '✓' : '○'}</span>
+                    <span>
+                      <span className="block font-medium">{step.label}</span>
+                      {!step.done ? <span className="text-xs text-slate-500">{step.hint}</span> : null}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            title="Pachete comerciale"
+            subtitle="Alege rapid un profil de produs. Se modifică selecția locală; salvarea se face cu butonul „Salvează module”."
+          >
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {visibleCommercialPackages.map(pkg => {
+                const modules = (pkg.modules || []).filter(moduleKey => configurableModuleKeys.includes(moduleKey))
+                const enabledCount = modules.filter(moduleKey => enabledModules.includes(moduleKey)).length
+                const isCurrent = modules.length > 0 && enabledCount === modules.length && activeConfigurableModules.length === modules.length
+                return (
+                  <div key={pkg.key} className={`rounded-lg border p-4 ${isCurrent ? 'border-primary-200 bg-primary-50/60' : 'border-slate-200 bg-white'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xl">{pkg.icon || '🧩'}</div>
+                        <h3 className="mt-2 font-semibold text-slate-900">{pkg.label}</h3>
+                        <p className="mt-1 text-sm text-slate-500">{pkg.description}</p>
+                      </div>
+                      {isCurrent ? <Badge variant="green" size="sm">selectat</Badge> : null}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {modules.slice(0, 6).map(moduleKey => (
+                        <span key={moduleKey} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                          {moduleByKey.get(moduleKey)?.label || moduleKey}
+                        </span>
+                      ))}
+                      {modules.length > 6 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">+{modules.length - 6}</span> : null}
+                    </div>
+                    <Button className="mt-4" size="sm" variant={isCurrent ? 'secondary' : 'primary'} onClick={() => applyCommercialPackage(pkg)}>
+                      Aplică profil
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+
+          <Card
             title="Module active"
-            subtitle="Modulele dezactivate sunt ascunse din sidebar. Modulele de bază rămân mereu active."
+            subtitle="Modulele dezactivate sunt ascunse din sidebar. Modulele de bază rămân mereu active; licențierea strictă se va lega peste acest catalog."
             actions={[<Button key="save-modules" onClick={saveModules}>Salvează module</Button>]}
           >
+            <div className="mb-4 grid gap-3 md:grid-cols-4">
+              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                <div className="text-xs text-slate-500">Module active</div>
+                <strong className="text-lg text-slate-900">{activeConfigurableModules.length}</strong>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                <div className="text-xs text-slate-500">Module de bază</div>
+                <strong className="text-lg text-slate-900">{alwaysOnModuleKeys.length}</strong>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                <div className="text-xs text-slate-500">Pachete definite</div>
+                <strong className="text-lg text-slate-900">{visibleCommercialPackages.length}</strong>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                <div className="text-xs text-slate-500">Ultima salvare</div>
+                <strong className="text-sm text-slate-900">{moduleCatalog?.updated_at ? formatDate(moduleCatalog.updated_at) : 'nesalvat'}</strong>
+              </div>
+            </div>
             <div className="grid gap-4">
               {moduleGroups.map(group => (
                 <div key={group.title} className="grid gap-3">
