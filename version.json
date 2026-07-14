@@ -1,5 +1,5 @@
 {
-  "version": "2.12.288",
+  "version": "2.12.289",
   "date": "2026-07-14",
-  "changelog": "## v2.12.288 - 2026-07-14\n### Split modal editare zi pontaj HR\n- Modalul Pontaj - angajat a fost extras in HRTimesheetEditModal.\n- Formularul pentru data, tip zi, ore lucrate si observatii este randat din componenta dedicata.\n- State-ul, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.289 - 2026-07-14\n### Split modal editare sablon document HR\n- Modalul Sablon HR a fost extras in HRDocumentTemplateModal.\n- Formularul pentru metadate, atasament Word, variabile si editor vizual este randat din componenta dedicata.\n- State-ul, refs, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
 }

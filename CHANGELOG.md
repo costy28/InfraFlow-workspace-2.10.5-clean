@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.289 - 2026-07-14
+
+## Split modal editare șablon document HR
+
+- Modalul `Șablon HR — [denumire]` din HR a fost extras în `client/src/pages/modules/hr/HRDocumentTemplateModal.jsx`.
+- Formularul pentru denumire, tip, descriere, atașament Word, variabile, editor vizual și modul HTML avansat este randat din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul `templateEditing`, `templateAdvancedMode`, ref-ul editorului, handler-ele Word și submit-ul către `/hr/document-templates`; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.288 - 2026-07-14
 
 ## Split modal editare zi pontaj HR

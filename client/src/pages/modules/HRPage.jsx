@@ -29,6 +29,7 @@ import HREquipmentCatalogModal from './hr/HREquipmentCatalogModal'
 import HREquipmentDotareModal from './hr/HREquipmentDotareModal'
 import HREquipmentPanel from './hr/HREquipmentPanel'
 import HREmployeesPanel from './hr/HREmployeesPanel'
+import HRDocumentTemplateModal from './hr/HRDocumentTemplateModal'
 import HRInboxPanel from './hr/HRInboxPanel'
 import HRImportEmployeesModal from './hr/HRImportEmployeesModal'
 import HRLeaveRequestModal from './hr/HRLeaveRequestModal'
@@ -2881,89 +2882,22 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         </div>
       ) : null}
 
-      <Modal open={Boolean(templateEditing)} title={templateEditing ? `Șablon HR — ${templateEditing.denumire}` : 'Șablon HR'} onClose={() => setTemplateEditing(null)} size="lg">
-        {templateEditing ? (
-          <form className="grid gap-3" onSubmit={saveHrDocumentTemplate}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input label="Denumire" value={templateEditing.denumire || ''} onChange={event => setTemplateEditing(current => ({ ...current, denumire: event.target.value }))} required />
-              <Select label="Tip" value={templateEditing.tip || 'altul'} onChange={event => setTemplateEditing(current => ({ ...current, tip: event.target.value }))} options={[
-                { value: 'contract', label: 'Contract' },
-                { value: 'act_aditional', label: 'Act adițional' },
-                { value: 'decizie', label: 'Decizie' },
-                { value: 'adeverinta', label: 'Adeverință' },
-                { value: 'altul', label: 'Altul' },
-              ]} />
-            </div>
-            <Input label="Descriere" value={templateEditing.descriere || ''} onChange={event => setTemplateEditing(current => ({ ...current, descriere: event.target.value }))} />
-            <div className={`rounded-lg border px-3 py-2 text-sm ${templateEditing.word_template_file ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <strong>{templateEditing.word_template_file ? 'Șablon Word atașat' : 'Nu există șablon Word atașat'}</strong>
-                  <div className="text-xs">{templateEditing.word_template_file ? (templateEditing.word_template_original_name || 'document .docx') : 'Poți încărca CIM-ul/actul real din Word și păstra editorul vizual ca fallback.'}</div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {templateEditing.word_template_file ? <Button type="button" size="sm" variant="secondary" onClick={() => downloadTemplateWordFile(templateEditing)}>Descarcă Word</Button> : null}
-                  <Button type="button" size="sm" variant="secondary" loading={templateWordUploading === templateEditing.id} onClick={() => chooseTemplateWordFile(templateEditing)}>{templateEditing.word_template_file ? 'Înlocuiește Word' : 'Încarcă Word'}</Button>
-                </div>
-              </div>
-            </div>
-            <div>
-              <div className="mb-1 text-xs font-semibold uppercase text-slate-500">Variabile</div>
-              <div className="flex max-h-24 flex-wrap gap-1 overflow-auto rounded border border-slate-200 bg-slate-50 p-2">
-                {HR_TEMPLATE_VARIABLES.map(variable => (
-                  <button
-                    key={variable}
-                    type="button"
-                    className="rounded bg-white px-2 py-1 text-xs text-slate-700 shadow-sm hover:bg-primary-50 hover:text-primary-700"
-                    onMouseDown={event => { event.preventDefault(); insertTemplateSnippet(`{{${variable}}}`) }}
-                  >{`{{${variable}}}`}</button>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold text-slate-700">Conținut șablon — editor vizual</div>
-                  <div className="text-xs text-slate-500">Editează ca într-un document. Variabilele se păstrează între acolade și se completează automat la generare.</div>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <Button type="button" size="sm" variant="secondary" onMouseDown={event => { event.preventDefault(); applyTemplateCommand('bold') }}>Bold</Button>
-                  <Button type="button" size="sm" variant="secondary" onMouseDown={event => { event.preventDefault(); applyTemplateCommand('formatBlock', 'h2') }}>Titlu</Button>
-                  <Button type="button" size="sm" variant="secondary" onMouseDown={event => { event.preventDefault(); applyTemplateCommand('insertUnorderedList') }}>Listă</Button>
-                  <Button type="button" size="sm" variant="secondary" onMouseDown={event => { event.preventDefault(); insertTemplateSnippet('<table style="width:100%;border-collapse:collapse" border="1"><tbody><tr><td>Semnătură angajator</td><td>Semnătură salariat</td></tr><tr><td><br><br></td><td><br><br></td></tr></tbody></table><p></p>') }}>Tabel semnături</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setTemplateAdvancedMode(value => !value)}>{templateAdvancedMode ? 'Ascunde HTML' : 'HTML avansat'}</Button>
-                </div>
-              </div>
-              <div
-                ref={templateEditorRef}
-                className="min-h-[420px] rounded bg-white px-8 py-6 text-sm leading-7 text-slate-900 shadow-inner ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-primary-200 [&_h2]:mb-3 [&_h2]:text-center [&_h2]:text-xl [&_h2]:font-bold [&_h3]:mt-4 [&_h3]:font-bold [&_p]:mb-2 [&_table]:my-3 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2"
-                contentEditable
-                suppressContentEditableWarning
-                onBlur={syncTemplateVisualEditor}
-                dangerouslySetInnerHTML={{ __html: templateEditing.template_html || '<p>Scrie aici conținutul documentului...</p>' }}
-              />
-            </div>
-            {templateAdvancedMode ? (
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
-                Cod HTML șablon — mod avansat
-                <textarea
-                  className="min-h-[260px] rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                  value={templateEditing.template_html || ''}
-                  onChange={event => setTemplateEditing(current => ({ ...current, template_html: event.target.value }))}
-                  required
-                />
-              </label>
-            ) : null}
-            <div className="rounded bg-emerald-50 p-2 text-xs text-emerald-800">
-              Pentru HR nu mai este necesară editarea HTML. Dacă documentul vine din Word, copiază textul din Word și lipește-l în editorul vizual, apoi inserează variabilele unde trebuie.
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setTemplateEditing(null)}>Renunță</Button>
-              <Button type="submit">Salvează șablon</Button>
-            </div>
-          </form>
-        ) : null}
-      </Modal>
+      <HRDocumentTemplateModal
+        template={templateEditing}
+        advancedMode={templateAdvancedMode}
+        editorRef={templateEditorRef}
+        variables={HR_TEMPLATE_VARIABLES}
+        wordUploading={templateWordUploading}
+        onChange={setTemplateEditing}
+        onClose={() => setTemplateEditing(null)}
+        onSubmit={saveHrDocumentTemplate}
+        onDownloadWord={downloadTemplateWordFile}
+        onChooseWord={chooseTemplateWordFile}
+        onInsertSnippet={insertTemplateSnippet}
+        onApplyCommand={applyTemplateCommand}
+        onToggleAdvancedMode={() => setTemplateAdvancedMode(value => !value)}
+        onSyncVisualEditor={syncTemplateVisualEditor}
+      />
 
       <Modal open={Boolean(templateTesting)} title={templateTesting ? `Testează Word — ${templateTesting.denumire}` : 'Testează șablon Word'} onClose={() => setTemplateTesting(null)} size="md">
         {templateTesting ? (
