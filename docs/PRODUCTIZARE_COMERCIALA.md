@@ -70,8 +70,8 @@ Regulă de implementare:
 
 Etape recomandate:
 
-1. `locale` și `country` în profilul organizației.
-2. Catalog intern de țări: RO, EN/global demo, apoi țări țintă.
+1. `locale`, `country`, `currency`, `timezone` și `jurisdiction_profile` în profilul organizației. ✅ Fundație tehnică în v2.12.300.
+2. Catalog intern de țări: RO, EN/global demo, apoi țări țintă. ✅ Endpoint inițial în v2.12.300.
 3. Separare traduceri UI de reguli legislative.
 4. Separare template-uri documente pe țară și limbă.
 5. Validatoare locale pentru fiscal/HR doar când profilul țării este activ.
@@ -103,7 +103,8 @@ Etape recomandate:
 2. Introducere configurare module active / licență.
 3. Checklist onboarding organizație.
 4. Helper contextual reutilizabil în UI.
-5. Profil organizație cu limbă, țară, monedă și jurisdicție.
-6. Demo generic resetabil.
-7. Roadmap module verticale: WMS, Logistics, Ecarisaj/Public Health.
-8. Revenire la splituri tehnice, dar cu componente pregătite pentru modularizare comercială.
+5. Separare traduceri UI de regulile legislative pe profil de țară.
+6. Template-uri documente pe țară și limbă.
+7. Demo generic resetabil.
+8. Roadmap module verticale: WMS, Logistics, Ecarisaj/Public Health.
+9. Revenire la splituri tehnice, dar cu componente pregătite pentru modularizare comercială.

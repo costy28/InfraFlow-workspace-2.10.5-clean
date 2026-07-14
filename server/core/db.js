@@ -102,6 +102,12 @@ const DEFAULT_DB = {
     company_name: "",
     setupCompleted: false,
     initialStockCompleted: false,
+    locale: "ro-RO",
+    language: "ro-RO",
+    country: "RO",
+    currency: "RON",
+    timezone: "Europe/Bucharest",
+    jurisdiction_profile: "RO",
     modules_enabled: [],
     customRoles: [],
     ai_enabled: 0
@@ -1185,6 +1191,12 @@ function normalizeDb(db) {
   if (!Array.isArray(db.inventory.stock_transfers)) db.inventory.stock_transfers = [];
   if (!Array.isArray(db.inventory.department_consumptions)) db.inventory.department_consumptions = [];
   if (!db.settings || typeof db.settings !== "object") db.settings = {};
+  db.settings.locale = String(db.settings.locale || db.settings.language || "ro-RO").trim();
+  db.settings.language = db.settings.locale;
+  db.settings.country = String(db.settings.country || "RO").trim().toUpperCase();
+  db.settings.currency = String(db.settings.currency || "RON").trim().toUpperCase();
+  db.settings.timezone = String(db.settings.timezone || "Europe/Bucharest").trim();
+  db.settings.jurisdiction_profile = String(db.settings.jurisdiction_profile || db.settings.jurisdictionProfile || db.settings.country || "RO").trim().toUpperCase();
   if (db.settings.ai_enabled === undefined) db.settings.ai_enabled = 0;
   if (db.settings.ai_model_default === undefined) db.settings.ai_model_default = "claude-haiku-4-5";
   if (db.settings.ai_monthly_budget === undefined) db.settings.ai_monthly_budget = 200;

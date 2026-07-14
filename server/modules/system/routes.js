@@ -4344,7 +4344,16 @@ function normalizeExternalIntegrations(input) {
     .filter(item => item.name || item.path)
 }
 
-function updateSettings(current, body) {
+function normalizeSettingText(value, fallback = "") {
+  const text = String(value ?? fallback ?? "").trim()
+  return text || String(fallback || "").trim()
+}
+
+function normalizeUpperSetting(value, fallback = "") {
+  return normalizeSettingText(value, fallback).toUpperCase()
+}
+
+function updateSettings(current = {}, body = {}) {
   const license = current.license || {};
   const plan = String(body.licensePlan || license.plan || "internal-preview").trim();
   const trialDays = Math.max(1, Number(body.trialDays || license.trialDays || 30));
@@ -4359,6 +4368,12 @@ function updateSettings(current, body) {
     address: String(body.address ?? current.address ?? "").trim(),
     phone: String(body.phone ?? current.phone ?? "").trim(),
     email: String(body.email ?? current.email ?? "").trim(),
+    locale: normalizeSettingText(body.locale ?? body.language ?? current.locale ?? current.language, "ro-RO"),
+    language: normalizeSettingText(body.locale ?? body.language ?? current.locale ?? current.language, "ro-RO"),
+    country: normalizeUpperSetting(body.country ?? current.country, "RO"),
+    currency: normalizeUpperSetting(body.currency ?? current.currency, "RON"),
+    timezone: normalizeSettingText(body.timezone ?? current.timezone, "Europe/Bucharest"),
+    jurisdiction_profile: normalizeUpperSetting(body.jurisdiction_profile ?? body.jurisdictionProfile ?? current.jurisdiction_profile ?? current.jurisdictionProfile ?? body.country ?? current.country, "RO"),
     stationName: String(body.stationName || "").trim(),
     weatherLat: String(body.weatherLat ?? body.WEATHER_LAT ?? current.weatherLat ?? "").trim(),
     weatherLng: String(body.weatherLng ?? body.WEATHER_LNG ?? current.weatherLng ?? "").trim(),

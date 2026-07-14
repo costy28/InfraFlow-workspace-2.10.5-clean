@@ -1,6 +1,6 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.299`
+Versiune analizată: `2.12.300`
 Următorul pas de stabilizare: `2.12.300`
 
 ## Rezultat verificări
@@ -350,3 +350,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `AGENTS.md` — ✅ actualizat cu direcția multi-country și module comerciale noi;
 - pregătire conceptuală pentru limbă, țară, monedă, reguli legislative și template-uri pe jurisdicție;
 - roadmap extins cu Warehouse/WMS, Logistics și Ecarisaj/Public Health Services.
+
+### UPDATE 320 — Profil internațional organizație
+
+- `server/modules/system/settings-routes.js` — ✅ endpoint read-only pentru profiluri de țară;
+- `server/modules/system/routes.js` și `server/core/db.js` — ✅ normalizare țară, limbă/locale, monedă, fus orar și profil juridic;
+- `client/src/pages/SetariPage.jsx` — ✅ panou `Profil internațional` în setările generale;
+- `db/migrations/065_country_profile_settings.sql` — ✅ coloane MSSQL pentru profilul internațional;
+- `scripts/smoke-modules-readonly.js` — ✅ verifică endpointul nou.

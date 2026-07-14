@@ -271,6 +271,21 @@ const moduleFeatureCatalog = {
   ],
 }
 
+const fallbackCountryProfiles = [
+  { code: 'RO', label: 'România', locale: 'ro-RO', currency: 'RON', timezone: 'Europe/Bucharest', jurisdiction_profile: 'RO', legislation_status: 'activ' },
+  { code: 'GB', label: 'United Kingdom', locale: 'en-GB', currency: 'GBP', timezone: 'Europe/London', jurisdiction_profile: 'GB', legislation_status: 'roadmap' },
+  { code: 'US', label: 'United States', locale: 'en-US', currency: 'USD', timezone: 'America/New_York', jurisdiction_profile: 'US', legislation_status: 'roadmap' },
+  { code: 'DE', label: 'Germany', locale: 'de-DE', currency: 'EUR', timezone: 'Europe/Berlin', jurisdiction_profile: 'DE', legislation_status: 'roadmap' },
+  { code: 'FR', label: 'France', locale: 'fr-FR', currency: 'EUR', timezone: 'Europe/Paris', jurisdiction_profile: 'FR', legislation_status: 'roadmap' },
+  { code: 'IT', label: 'Italy', locale: 'it-IT', currency: 'EUR', timezone: 'Europe/Rome', jurisdiction_profile: 'IT', legislation_status: 'roadmap' },
+  { code: 'ES', label: 'Spain', locale: 'es-ES', currency: 'EUR', timezone: 'Europe/Madrid', jurisdiction_profile: 'ES', legislation_status: 'roadmap' },
+  { code: 'GLOBAL', label: 'Global / demo', locale: 'en', currency: 'EUR', timezone: 'UTC', jurisdiction_profile: 'GLOBAL', legislation_status: 'generic' },
+]
+
+const localeOptions = ['ro-RO', 'en', 'en-GB', 'en-US', 'de-DE', 'fr-FR', 'it-IT', 'es-ES']
+const currencyOptions = ['RON', 'EUR', 'GBP', 'USD']
+const timezoneOptions = ['Europe/Bucharest', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Rome', 'Europe/Madrid', 'America/New_York', 'UTC']
+
 function arrayFrom(data, keys) {
   if (Array.isArray(data)) return data
   for (const key of keys) if (Array.isArray(data?.[key])) return data[key]
@@ -313,6 +328,7 @@ export default function SetariPage() {
   const [moduleConfig, setModuleConfig] = useState(null)
   const [moduleFeatureDraft, setModuleFeatureDraft] = useState({})
   const [moduleCatalog, setModuleCatalog] = useState(null)
+  const [countryProfiles, setCountryProfiles] = useState(fallbackCountryProfiles)
   const [databaseConfig, setDatabaseConfig] = useState({ server: '.\\SQLEXPRESS', database: 'INFRAFLOW', authMode: 'windows', user: 'infraflow', password: '', encrypt: 'false', relational: false })
   const [databaseHealth, setDatabaseHealth] = useState(null)
   const [databaseSchema, setDatabaseSchema] = useState(null)
@@ -408,14 +424,32 @@ export default function SetariPage() {
     () => new Map(moduleGroups.flatMap(group => group.modules).map(mod => [mod.key, mod])),
     []
   )
+  const selectedCountryProfile = useMemo(
+    () => countryProfiles.find(profile => profile.code === (settings.country || 'RO')) || countryProfiles[0] || fallbackCountryProfiles[0],
+    [countryProfiles, settings.country]
+  )
+  const availableLocales = useMemo(
+    () => Array.from(new Set([...localeOptions, ...countryProfiles.map(profile => profile.locale).filter(Boolean)])),
+    [countryProfiles]
+  )
+  const availableCurrencies = useMemo(
+    () => Array.from(new Set([...currencyOptions, ...countryProfiles.map(profile => profile.currency).filter(Boolean)])),
+    [countryProfiles]
+  )
+  const availableTimezones = useMemo(
+    () => Array.from(new Set([...timezoneOptions, ...countryProfiles.map(profile => profile.timezone).filter(Boolean)])),
+    [countryProfiles]
+  )
   const onboardingSteps = useMemo(() => {
     const enabled = new Set(enabledModules)
     const hasCompany = Boolean(settings.companyName || settings.company_name || settings.firma || settings.nume_companie)
       && Boolean(settings.companyCif || settings.company_cif || settings.cui || settings.cif)
+    const hasCountryProfile = Boolean(settings.country && settings.locale && settings.currency && settings.timezone)
     const hasLicenseSignal = Boolean(license?.valida || license?.demo || license?.pachet || license?.module_active?.length || license?.module?.length)
     const hasSmtp = Boolean(settings.smtp_host && (settings.smtp_user || settings.smtp_name || settings.email))
     return [
       { key: 'company', label: 'Date organizație', done: hasCompany, hint: 'Completează denumirea și CUI/CIF.', tab: 'General' },
+      { key: 'country', label: 'Profil țară', done: hasCountryProfile, hint: 'Alege țara, limba, moneda și fusul orar.', tab: 'General' },
       { key: 'modules', label: 'Module alese', done: activeConfigurableModules.length > 0, hint: 'Alege pachetul comercial sau modulele utile.', tab: 'Module' },
       { key: 'license', label: 'Licență / trial', done: hasLicenseSignal && !license?.expirata, hint: 'Importă licența sau rulează în demo/trial controlat.', tab: 'Licență' },
       { key: 'users', label: 'Utilizatori', done: users.filter(user => user.active !== false).length > 1, hint: 'Adaugă utilizatorii cheie.', tab: 'Utilizatori' },
@@ -433,7 +467,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, dbSchemaRes, moduleCatalogRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, dbSchemaRes, moduleCatalogRes, countryProfilesRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -448,6 +482,7 @@ export default function SetariPage() {
         api.get('/system/database-config'),
         api.get('/system/database-schema'),
         api.get('/settings/modules/catalog'),
+        api.get('/settings/country-profiles'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -482,6 +517,10 @@ export default function SetariPage() {
       }
       if (dbSchemaRes.status === 'fulfilled') setDatabaseSchema(dbSchemaRes.value.data || null)
       if (moduleCatalogRes.status === 'fulfilled') setModuleCatalog(moduleCatalogRes.value.data.catalog || null)
+      if (countryProfilesRes.status === 'fulfilled') {
+        const countries = arrayFrom(countryProfilesRes.value.data, ['countries'])
+        if (countries.length) setCountryProfiles(countries)
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -534,6 +573,19 @@ export default function SetariPage() {
   function fail(err, fallback) {
     setError(err.response?.data?.error || err.response?.data?.eroare || fallback)
     setMessage('')
+  }
+
+  function applyCountryProfile(countryCode) {
+    const profile = countryProfiles.find(item => item.code === countryCode) || fallbackCountryProfiles.find(item => item.code === countryCode) || fallbackCountryProfiles[0]
+    setSettings(s => ({
+      ...s,
+      country: profile.code,
+      locale: profile.locale,
+      language: profile.locale,
+      currency: profile.currency,
+      timezone: profile.timezone,
+      jurisdiction_profile: profile.jurisdiction_profile || profile.code,
+    }))
   }
 
   async function saveSettings(event) {
@@ -1443,6 +1495,39 @@ export default function SetariPage() {
             <Input label="Adresă" value={settings.address || ''} onChange={event => setSettings(s => ({ ...s, address: event.target.value }))} />
             <Input label="Telefon" value={settings.phone || ''} onChange={event => setSettings(s => ({ ...s, phone: event.target.value }))} />
             <Input label="Email" value={settings.email || ''} onChange={event => setSettings(s => ({ ...s, email: event.target.value }))} />
+            <div className="md:col-span-2 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Profil internațional</h3>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Baza pentru limbă, monedă, fus orar și reguli locale. România este activă; celelalte țări sunt pregătite pentru adaptări legislative viitoare.
+                  </p>
+                </div>
+                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                  selectedCountryProfile?.legislation_status === 'activ'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {selectedCountryProfile?.legislation_status === 'activ' ? 'Legislație activă' : 'Profil pregătit'}
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-4">
+                <Select label="Țară / jurisdicție" value={settings.country || 'RO'} onChange={event => applyCountryProfile(event.target.value)}>
+                  {countryProfiles.map(profile => (
+                    <option key={profile.code} value={profile.code}>{profile.label}</option>
+                  ))}
+                </Select>
+                <Select label="Limbă interfață" value={settings.locale || settings.language || 'ro-RO'} onChange={event => setSettings(s => ({ ...s, locale: event.target.value, language: event.target.value }))}>
+                  {availableLocales.map(locale => <option key={locale} value={locale}>{locale}</option>)}
+                </Select>
+                <Select label="Monedă" value={settings.currency || 'RON'} onChange={event => setSettings(s => ({ ...s, currency: event.target.value }))}>
+                  {availableCurrencies.map(currency => <option key={currency} value={currency}>{currency}</option>)}
+                </Select>
+                <Select label="Fus orar" value={settings.timezone || 'Europe/Bucharest'} onChange={event => setSettings(s => ({ ...s, timezone: event.target.value }))}>
+                  {availableTimezones.map(timezone => <option key={timezone} value={timezone}>{timezone}</option>)}
+                </Select>
+              </div>
+            </div>
             <Input label="Stație" value={settings.stationName || ''} onChange={event => setSettings(s => ({ ...s, stationName: event.target.value }))} />
             <Input label="GPS lat meteo" value={settings.weatherLat || ''} onChange={event => setSettings(s => ({ ...s, weatherLat: event.target.value }))} />
             <Input label="GPS lng meteo" value={settings.weatherLng || ''} onChange={event => setSettings(s => ({ ...s, weatherLng: event.target.value }))} />

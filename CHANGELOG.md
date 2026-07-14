@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.300 - 2026-07-14
+
+## Profil internațional organizație
+
+- Setările organizației au primit câmpuri pentru țară, limbă/locale, monedă, fus orar și profil juridic.
+- A fost adăugat endpointul read-only `/settings/country-profiles` cu catalog inițial de profiluri de țară.
+- Tabul `Setări > General` are acum panou de profil internațional cu completare automată la alegerea țării.
+- A fost adăugată migrarea `065_country_profile_settings.sql` pentru coloanele MSSQL aferente.
+- Smoke-ul local verifică endpointul nou.
+
 # v2.12.299 - 2026-07-14
 
 ## Direcție internațională și verticale comerciale

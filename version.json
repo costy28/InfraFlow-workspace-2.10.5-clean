@@ -1,5 +1,5 @@
 {
-  "version": "2.12.299",
+  "version": "2.12.300",
   "date": "2026-07-14",
-  "changelog": "## v2.12.299 - 2026-07-14\n### Directie internationala si verticale comerciale\n- Directia de produs a fost extinsa pentru uz international: limba, tara, moneda si legislatie pe profil de tara.\n- Roadmap-ul comercial include Warehouse/WMS, Logistics si Ecarisaj/Public Health Services.\n- Nu au fost schimbate endpointuri, tabele, migrari DB sau dependinte."
+  "changelog": "## v2.12.300 - 2026-07-14\n### Profil international organizatie\n- Setarile organizatiei includ tara, limba/locale, moneda, fus orar si profil juridic.\n- A fost adaugat catalogul initial de tari pentru onboarding international.\n- Smoke suite verifica endpointul read-only pentru profiluri de tara."
 }
