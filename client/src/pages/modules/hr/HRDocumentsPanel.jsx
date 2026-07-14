@@ -147,7 +147,7 @@ function HrTemplatesSection({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="font-semibold text-slate-800">🧩 Șabloane HR editabile</div>
-          <div className="text-xs text-slate-500">CIM-ul și actele adiționale pot folosi texte proprii Publiserv, cu variabile inserabile.</div>
+          <div className="text-xs text-slate-500">CIM-ul și actele adiționale pot folosi textele proprii ale organizației, cu variabile inserabile.</div>
         </div>
         <Button size="sm" variant="secondary" onClick={onLoadTemplates}>Reîncarcă șabloane</Button>
       </div>

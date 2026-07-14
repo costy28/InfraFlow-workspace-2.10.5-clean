@@ -1,5 +1,5 @@
 {
-  "version": "2.12.293",
+  "version": "2.12.294",
   "date": "2026-07-14",
-  "changelog": "## v2.12.293 - 2026-07-14\n### Split zona Documente HR frontend\n- Tabul principal Documente HR a fost extras in HRDocumentsPanel.\n- Dashboard-ul de conformitate dosar, lista de sabloane, checklistul si documentele rapide sunt randate din componenta dedicata.\n- State-ul, handler-ele si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.294 - 2026-07-14\n### Productizare comerciala modulara\n- Directia produsului a fost actualizata: InfraFlow este ERP modular general, fara dependenta de client pilot.\n- Au fost neutralizate fallback-uri si texte vizibile care trimiteau la un client specific.\n- A fost adaugat ghidul docs/PRODUCTIZARE_COMERCIALA.md pentru modularizare, onboarding si helper-e comerciale."
 }

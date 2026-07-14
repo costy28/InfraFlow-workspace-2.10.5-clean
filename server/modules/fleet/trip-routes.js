@@ -430,7 +430,7 @@ function buildTripHtml(db, trip) {
     : ''
   const driverSig = row.semnat_sofer_svg ? `<img src="${htmlEscape(row.semnat_sofer_svg)}" style="max-height:58px">` : ''
   const respSig = row.semnat_resp_svg ? `<img src="${htmlEscape(row.semnat_resp_svg)}" style="max-height:58px">` : sigLegacy
-  const verifyUrl = `${db.settings?.publicUrl || 'https://erp-publiserv.appnode.ro'}/fleet/verify/${row.uuid}`
+  const verifyUrl = `${db.settings?.publicUrl || 'https://infraflow.local'}/fleet/verify/${row.uuid}`
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(verifyUrl)}`
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${htmlEscape(row.nr_foaie)}</title>
@@ -439,7 +439,7 @@ function buildTripHtml(db, trip) {
 </style></head><body>
 <h1>Foaie de parcurs ${htmlEscape(row.nr_foaie)}</h1>
 <div class="grid">
-<div>Societatea: <b>${htmlEscape(db.settings?.companyName || 'SC PUBLISERV SA')}</b></div>
+<div>Societatea: <b>${htmlEscape(db.settings?.companyName || 'Organizație Demo')}</b></div>
 <div>Data: <b>${htmlEscape(row.data)}</b></div>
 <div>Autovehicul: <b>${htmlEscape(assetLabel(asset))}</b></div>
 <div>Șofer: <b>${htmlEscape(row.sofer_nume)}</b></div>

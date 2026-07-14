@@ -25,15 +25,17 @@ Executabilele se reconstruiesc doar cand se schimba:
 
 Schimbarile de API, SQL, CSS, frontend si documentatie nu cer rebuild automat.
 
-## Compatibilitate
+## Compatibilitate istorică
 
-Aplicatia pilot ramane disponibila pana cand:
+Datele istorice si instalările vechi rămân compatibile până când:
 
 - migratorul este testat;
 - schema 1.0 este stabila;
 - rapoartele principale dau aceleasi totaluri;
 - clientul standalone porneste corect pe statie;
 - updateul este verificat pe o copie.
+
+Direcția curentă de produs este comercială și modulară, fără dependență de un client pilot activ.
 
 ## Licentiere
 
@@ -58,4 +60,3 @@ Modulele custom pot exista, dar numai cu sabloane controlate:
 - raport print/PDF;
 - audit;
 - migrare SQL documentata.
-

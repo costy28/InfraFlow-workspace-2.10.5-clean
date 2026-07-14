@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.294 - 2026-07-14
+
+## Productizare comercială modulară
+
+- Direcția produsului a fost actualizată: InfraFlow este ERP modular general, configurabil pe organizație, fără dependență de client pilot.
+- A fost adăugat ghidul [PRODUCTIZARE_COMERCIALA.md](docs/PRODUCTIZARE_COMERCIALA.md) cu pachete comerciale, profiluri de pornire și reguli de decuplare de client.
+- Au fost neutralizate fallback-uri și texte vizibile care trimiteau la un client specific în HR, demo, controlling, mediu, foi parcurs și importer legacy.
+- Nu au fost schimbate endpointuri, tabele sau dependențe.
+
 # v2.12.293 - 2026-07-14
 
 ## Split zona Documente HR frontend

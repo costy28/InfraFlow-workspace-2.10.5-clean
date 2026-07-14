@@ -86,7 +86,7 @@ export default function StartDemoPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="text-xs font-semibold uppercase text-primary-700">InfraFlow ERP demo</div>
-            <h1 className="mt-2 text-3xl font-bold tracking-normal text-slate-950">Publiserv Demo SA</h1>
+            <h1 className="mt-2 text-3xl font-bold tracking-normal text-slate-950">Organizație Demo SRL</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
               Scenariu pregatit pentru prezentare: director, mecanizare, sofer pe mobil si reset rapid al datelor.
             </p>

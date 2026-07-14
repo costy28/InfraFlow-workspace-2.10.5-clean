@@ -72,13 +72,13 @@ const variableGroups = [
 ]
 
 const previewValues = {
-  firma: 'SC PUBLISERV SA',
-  cui: 'RO9126534',
-  adresa: 'Str. Muncii nr. 3, Piatra Neamț, Neamț',
+  firma: 'ORGANIZAȚIE DEMO SRL',
+  cui: 'RO00000000',
+  adresa: 'Str. Exemplu nr. 1, București',
   telefon: '0233 000 000',
-  'societate.nume': 'SC PUBLISERV SA',
-  'societate.cui': 'RO9126534',
-  'societate.adresa': 'Str. Muncii nr. 3, Piatra Neamț, Neamț',
+  'societate.nume': 'ORGANIZAȚIE DEMO SRL',
+  'societate.cui': 'RO00000000',
+  'societate.adresa': 'Str. Exemplu nr. 1, București',
   data_document: '01.06.2026',
   angajat_nume: 'Ion Popescu',
   angajat_marca: '150',

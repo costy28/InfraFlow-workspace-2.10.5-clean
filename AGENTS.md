@@ -7,16 +7,29 @@
 
 ## 1. CE ESTE ACEST PROIECT
 
-InfraFlow este un ERP comercial self-hosted pentru instituții publice și firme private.
+InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru firme private, servicii publice și instituții.
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
-Client pilot activ: **SC PUBLISERV SA** (CIF: RO9126534), Piatra Neamț.
+Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.293**
-**Versiune în lucru: v2.12.293**
+**Versiune curentă sursă: v2.12.294**
+**Versiune în lucru: v2.12.294**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
-Accesat din rețea locală + extern prin **Cloudflare Tunnel** (acasa.appnode.ro).
+Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
 Frontend web + PWA + Electron desktop client.
+
+### Direcție comercială activă
+
+```
+InfraFlow nu mai este orientat către un singur client pilot.
+Produsul trebuie să fie:
+  - modular: clientul activează doar modulele utile;
+  - intuitiv: complexitatea rămâne în spate, interfața arată următorul pas;
+  - configurabil: profil organizație, module, fluxuri, documente și integrări;
+  - comercial: demo, licențiere, onboarding, helpere și update-uri clare.
+
+Ghid de produs: docs/PRODUCTIZARE_COMERCIALA.md
+```
 
 ---
 
@@ -287,7 +300,7 @@ UPDATE 008 — PAAP complet + CPV (v2.10.8) ✅ IMPLEMENTAT ÎN SURSĂ
 
 UPDATE 009 — Export PAAP + Pontaj Nexus (v2.10.9) ✅ IMPLEMENTAT ÎN SURSĂ
   ✅ Export PAAP format oficial SEAP
-     (identic cu sablon.xlsx Publiserv)
+     (identic cu sablon.xlsx de referință)
      Coloane: Obiect, CPV, Tip procedură, Tip contract,
      Responsabil, Val RON fără/cu TVA, Val EUR,
      Date început/sfârșit, Finanțare, Desfășurare
@@ -409,7 +422,7 @@ PRIORITATE 1 — Comercial imediat:
   [ ] Modul SCIM — Control Intern Managerial
       → Proceduri operaționale (Ordinul 600/2018)
       → Registru riscuri
-      → Chestionare autoevaluare (format Publiserv)
+      → Chestionare autoevaluare (format de referință)
       → Raportări semestriale/anuale
       → OBLIGATORIU pentru toate instituțiile publice
       → Referință: Chestionar_autoevaluare_2025.docx
@@ -541,9 +554,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.293
+VERSIUNE CURENTĂ SURSĂ: 2.12.294
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.293 ✅
+UPDATE ZIP CURENT: 2.12.294 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -576,7 +589,7 @@ UPDATES ÎN LUCRU:
   2.12.11 → UPDATE 031 Installer server cu SQL automat ✅
   2.12.12 → UPDATE 032 Hotfix pornire modul Mediu ✅
   2.12.13 → UPDATE 033 Hotfix Dashboard după Kiosk ✅
-  2.12.14 → UPDATE 034 Centre cost/profit Publiserv ✅
+  2.12.14 → UPDATE 034 Centre cost/profit client pilot ✅
   2.12.15 → UPDATE 035 Asigurări + ITP + ISCIR + Taxe ✅
   2.12.16 → UPDATE 036 Integrare PIUSI Self-Service ✅
   2.12.17 → UPDATE 037 Căi surse externe ✅
@@ -645,6 +658,7 @@ UPDATES ÎN LUCRU:
   2.12.291 → UPDATE 311 Split carcasa modal fisa angajat HR ✅
   2.12.292 → UPDATE 312 Split router taburi fisa angajat HR ✅
   2.12.293 → UPDATE 313 Split documente HR frontend ✅
+  2.12.294 → UPDATE 314 Productizare comerciala modulara ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -668,12 +682,12 @@ GPS — urmariregps.ro ✅
   Date: GET vehicule → XML parser
   Re-auth: automată la sesiune expirată
   Polling: 30 secunde
-  Status: FUNCȚIONAL (23 vehicule Publiserv)
+  Status: FUNCȚIONAL ca adaptor configurabil per client
 
 SMTP Email
-  Provider: SMTP2GO (în configurare Publiserv)
-  DNS: TXT records în Cloudflare pentru publiserv.eu
-  Fallback: Gmail App Password
+  Provider: SMTP2GO / Gmail / SMTP client
+  DNS: configurabil per domeniul clientului
+  Fallback: Gmail App Password pentru instalări mici
 
 ANAF / e-Factura
   Status: Export XML manual (utilizatorul urcă în SPV)
@@ -685,8 +699,8 @@ Nexus Salarii
   Viitor: Înlocuire completă cu modul Salarizare intern
 
 Cloudflare Tunnel
-  URL: acasa.appnode.ro
-  Status: FUNCȚIONAL ✅
+  URL: domeniu configurabil per instalare
+  Status: suportat ✅
 
 Anthropic API (viitor)
   Model principal: claude-haiku-4-5 (operațiuni simple)
@@ -711,7 +725,7 @@ HR / Pontaj:
 
 Achiziții / PAAP:
   sablon.xlsx        — Format oficial SEAP pentru PAAP
-                       (14 coloane, date reale Publiserv 2025)
+                       (14 coloane, date istorice de referință 2025)
   lista-coduri-cpv-romana-engleza.xls — 9454 coduri CPV RO+EN
   Anexa-3_7-Model-procedura-operationala-achizitii.docx
 
@@ -720,7 +734,7 @@ Echipamente:
                                    Coduri: Ares 82/83, 4100217
 
 Control Intern:
-  Chestionar_autoevaluare_2025.docx — Format SCIM Publiserv
+  Chestionar_autoevaluare_2025.docx — Format SCIM de referință
   your-scim.herokuapp.com           — Platformă referință SCIM
 ```
 
@@ -915,7 +929,7 @@ Frontend (completează UI existent din Achiziții→Plan anual):
     >668.280 → Licitație deschisă
   Buton [Generează din istoric] cu confirmare
   Buton [Exportă Excel] format oficial SEAP
-    (identic cu sablon.xlsx Publiserv — 14 coloane)
+    (identic cu sablon.xlsx de referință — 14 coloane)
   Footer cu totaluri
 
 Alerte automate:
@@ -937,7 +951,7 @@ Lucrezi pe InfraFlow. Citește AGENTS.md integral.
 
 TASK 1 — Export PAAP format SEAP oficial:
   Butonul [Exportă Excel] din Plan Anual →
-  format EXACT din sablon.xlsx Publiserv.
+  format EXACT din sablon.xlsx de referință.
   
   14 coloane obligatorii:
   1. Obiectul contractului
@@ -998,7 +1012,7 @@ Actualizează package.json → version: "2.10.9"
 Lucrezi pe InfraFlow. Citește AGENTS.md integral.
 
 TASK: Modul gestiune echipamente protecție angajați.
-REFERINȚĂ: tABELE_MARIMI_ECHIPAMENT.xlsx (Publiserv)
+REFERINȚĂ: tABELE_MARIMI_ECHIPAMENT.xlsx (referință istorică)
 
 TABELE NOI (db/migrations/014_echipamente.sql):
   hr.echipamente_tipuri:
@@ -1087,29 +1101,26 @@ Get-Service | Where-Object {$_.DisplayName -like "*Infra*"}
 
 ---
 
-## 12. INFORMAȚII CLIENT PILOT
+## 12. PROFIL COMERCIAL ȘI NOTE ISTORICE
 
 ```
-Societate: SC PUBLISERV SA
-CUI: RO9126534
-Localitate: Piatra Neamț, Neamț
-URL acces: acasa.appnode.ro (Cloudflare Tunnel)
-Email: publiserv.eu (DNS la control panel hosting)
-GPS: urmariregps.ro — 23 vehicule active
-Nexus: salarii (de înlocuit cu modul intern)
-SMTP: în configurare (SMTP2GO + DNS Cloudflare)
-Departamente active: Achiziții, Mecanizare,
-  Gestiune, HR, Producție, Tehnic, Salubrizare,
-  Siguranța Circulației, Deszăpezire
+InfraFlow este produs general, nu implementare dedicată unui client.
 
-Persoane cheie:
-  Administrator: Constantin Constantin
-    (Expert Achiziții Publice, Marcă 150)
-  Director General: Movila Petcu Victor
-  Director Adjunct: Miloiu Cristian Cosmin
-  Contabil Șef: Patrascan Elena
-  Economist: Marzonetti Oana
-  Gestionar: Fodorjean (prenume necunoscut)
+Profiluri comerciale urmărite:
+  - firmă privată generală;
+  - construcții / asfalt;
+  - servicii publice;
+  - instituție publică;
+  - HR + salarizare;
+  - contabilitate;
+  - enterprise complet.
+
+Datele istorice de client pilot pot rămâne în backup-uri, update-uri
+vechi sau documente de migrare, dar nu se folosesc ca fallback vizibil,
+template implicit sau identitate de produs.
+
+Orice dezvoltare nouă trebuie să poată funcționa pe o organizație demo
+generică și pe o organizație reală configurată de utilizator.
 ```
 
 ---
@@ -1134,5 +1145,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 14 Iulie 2026 | InfraFlow sursă v2.12.293*
+*AGENTS.md actualizat: 14 Iulie 2026 | InfraFlow sursă v2.12.294*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

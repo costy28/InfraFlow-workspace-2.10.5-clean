@@ -18,7 +18,7 @@ const nexusAccounts = {
   chirii: '612'
 }
 
-const publiservCostCenters = [
+const defaultCostCenters = [
   { cod: '2018611', denumire: 'SERVICII SALUBRIZARE', tip: 'operational' },
   { cod: '2018612', denumire: 'SERVICII DESZAPEZIRE', tip: 'operational' },
   { cod: '0000005', denumire: 'REPARATII BETOANE', tip: 'operational' },
@@ -38,7 +38,7 @@ const publiservCostCenters = [
   { cod: '2018623', denumire: 'CHELTUIELI INDIRECTE PRODUCTIE', tip: 'indirect' }
 ]
 
-const publiservAssetCostCenterMap = [
+const defaultAssetCostCenterMap = [
   { centerCod: '2018611', assets: ['NT12ZEW', 'NT10SCS', 'NT11SCS'] },
   { centerCod: '2018612', assets: ['B100751', 'NT1292'] },
   { centerCod: '0000053', assets: ['NT1673', 'NT1719', 'NT1348'] },
@@ -147,10 +147,10 @@ function ensureControllingDb(db) {
   return db.controlling
 }
 
-function ensurePubliservCostCenters(db) {
+function ensureDefaultCostCenters(db) {
   const controlling = ensureControllingDb(db)
   let changed = false
-  publiservCostCenters.forEach((seed, index) => {
+  defaultCostCenters.forEach((seed, index) => {
     let center = controlling.costCenters.find(item => String(item.cod || '').toUpperCase() === seed.cod.toUpperCase())
     if (!center) {
       center = {
@@ -180,7 +180,7 @@ function ensurePubliservCostCenters(db) {
   })
 
   const assets = db.fleetAssets || db.fleet?.assets || []
-  publiservAssetCostCenterMap.forEach(mapping => {
+  defaultAssetCostCenterMap.forEach(mapping => {
     const center = controlling.costCenters.find(item => String(item.cod || '').toUpperCase() === mapping.centerCod.toUpperCase())
     if (!center) return
     const assetCodes = new Set(mapping.assets.map(normalizeAssetCode))
@@ -321,7 +321,7 @@ function buildCostCenterDocumentRows(centers, assets) {
       cod: center.cod || '',
       denumire: center.denumire || center.name || '',
       tip: center.tip || '',
-      descriere: center.descriere || `Centru ${center.tip || 'cost/profit'} Publiserv`,
+      descriere: center.descriere || `Centru ${center.tip || 'cost/profit'} organizație`,
       utilaje: assets
         .filter(asset => String(asset.cost_center_id || '') === String(center.id))
         .map(assetDisplay)
@@ -362,7 +362,7 @@ EXEC sp_executesql @sql;
 }
 
 function getJsonCostCenterDocumentRows(db) {
-  ensurePubliservCostCenters(db)
+  ensureDefaultCostCenters(db)
   const controlling = ensureControllingDb(db)
   const assets = db.fleetAssets || db.fleet?.assets || []
   return buildCostCenterDocumentRows(controlling.costCenters, assets)
@@ -432,7 +432,7 @@ function buildCostCenterDocumentHtml(rows, luna) {
     <button onclick="window.print()">Tipărește / PDF</button>
   </div>
   <h1>ACTUALIZARE CENTRE COST/PROFIT - LUNA ${htmlEscape(roMonthLabel(luna))}</h1>
-  <p>Vă aducem spre cunoștința ultima variantă a centrelor de cost/profit utilizate în InfraFlow pentru raportarea lunară a activității Publiserv.</p>
+  <p>Vă aducem spre cunoștința ultima variantă a centrelor de cost/profit utilizate în InfraFlow pentru raportarea lunară a activității organizației.</p>
   <table>
     <thead><tr><th>COD</th><th>DENUMIRE CENTRU COST/PROFIT</th><th>DESCRIERE</th><th>Cod utilaj</th><th>Denumire utilaj</th></tr></thead>
     <tbody>${body}</tbody>
@@ -515,7 +515,7 @@ FOR JSON PATH;
     }
 
     const db = readDb()
-    const changed = ensurePubliservCostCenters(db)
+    const changed = ensureDefaultCostCenters(db)
     const controlling = ensureControllingDb(db)
     const totals = monthlyTotalsByCenter(controlling.costEntries, luna)
     const centers = controlling.costCenters
@@ -1165,7 +1165,7 @@ router.get('/controlling/document-centre-cost', (req, res, next) => {
       rows = getMssqlCostCenterDocumentRows()
     } else {
       const db = readDb()
-      const changed = ensurePubliservCostCenters(db)
+      const changed = ensureDefaultCostCenters(db)
       rows = getJsonCostCenterDocumentRows(db)
       if (changed) writeDb(db)
     }
@@ -1176,7 +1176,7 @@ router.get('/controlling/document-centre-cost', (req, res, next) => {
         200,
         buildCostCenterDocumentWorkbook(rows, luna),
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        `Centre_Cost_Publiserv_${luna}.xlsx`
+        `Centre_Cost_${luna}.xlsx`
       )
     }
     sendHtml(res, 200, buildCostCenterDocumentHtml(rows, luna))
@@ -1214,7 +1214,7 @@ FOR JSON PATH;
     }
 
     const db = readDb()
-    const changed = ensurePubliservCostCenters(db)
+    const changed = ensureDefaultCostCenters(db)
     const controlling = ensureControllingDb(db)
     const centers = controlling.costCenters
     const selectedCenter = centers.find(center =>

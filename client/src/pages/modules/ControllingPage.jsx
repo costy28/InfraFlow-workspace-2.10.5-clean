@@ -441,7 +441,7 @@ export default function ControllingPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">Document centre cost/profit</h3>
-                <p className="mt-1 text-sm text-slate-500">Actualizare lunară cu centrele Publiserv și utilajele/vehiculele alocate.</p>
+                <p className="mt-1 text-sm text-slate-500">Actualizare lunară cu centrele organizației și utilajele/vehiculele alocate.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="secondary" onClick={() => openCostCenterDocument()}>📄 Document Centre Cost</Button>

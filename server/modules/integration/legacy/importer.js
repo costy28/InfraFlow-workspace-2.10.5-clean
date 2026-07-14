@@ -73,7 +73,7 @@ function normalizeUser(user) {
     id: user.id || `user-${username}`,
     name: user.name || user.nume || username,
     username,
-    email: user.email || (username.includes('@') ? username : `${username || user.id}@publiserv.ro`),
+    email: user.email || (username.includes('@') ? username : `${username || user.id}@example.local`),
     role: user.role || 'operator',
     active: user.active !== false,
     extern_id: user.extern_id || user.id,

@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.293`
-Următorul pas de stabilizare: `2.12.294`
+Versiune analizată: `2.12.294`
+Următorul pas de stabilizare: `2.12.295`
 
 ## Rezultat verificări
 
@@ -310,7 +310,20 @@ Următorul pas de stabilizare: `2.12.294`
 - card raport dosar, dashboard conformitate, listă șabloane, acțiuni Word, checklist și documente rapide au fost mutate în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
 
-### UPDATE 314 — Split funcții print documente HR
+### UPDATE 314 — Productizare comercială modulară
+
+- `docs/PRODUCTIZARE_COMERCIALA.md` — ✅ adăugat în `2.12.294`;
+- direcția produsului a fost schimbată spre ERP modular general, fără client pilot activ;
+- fallback-urile și textele vizibile din HR, demo, controlling, mediu, foi parcurs și importer legacy au fost neutralizate;
+- datele istorice reale rămân doar ca backup/migrare/referință, nu ca identitate de produs.
+
+### UPDATE 315 — Catalog module active și onboarding organizație
+
+- următorul pas comercial: listă module/pachete și stări active/inactive în UI;
+- checklist de configurare inițială pe organizație;
+- bază pentru licențiere modulară fără a bloca încă modulele existente.
+
+### UPDATE 316 — Split funcții print documente HR
 
 - următorul bloc rămas: funcțiile mari de print/generare HTML din `HRPage.jsx`;
 - extragere într-un helper dedicat pentru documente HR printabile;

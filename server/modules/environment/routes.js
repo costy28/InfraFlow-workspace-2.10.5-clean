@@ -104,7 +104,7 @@ function ensureDb(db) {
       data_emitere: '2024-08-23',
       data_expirare: '',
       emitent: 'Agentia pentru Protectia Mediului',
-      conditii: 'Autorizatie de mediu Publiserv - monitorizare conform obligatiilor legale.',
+      conditii: 'Autorizație de mediu - monitorizare conform obligațiilor legale.',
       notificare_zile: 60,
       status: 'valida',
       created_at: now(),
@@ -140,9 +140,9 @@ function setting(db, ...keys) {
 
 function companyData(db) {
   return {
-    firma: setting(db, 'company_name', 'companyName', 'firma', 'nume_companie') || 'SC PUBLISERV SA',
-    cui: setting(db, 'company_cif', 'companyCif', 'cui', 'cif') || 'RO9126534',
-    localitate: setting(db, 'company_city', 'companyCity', 'localitate') || 'Piatra Neamt',
+    firma: setting(db, 'company_name', 'companyName', 'firma', 'nume_companie') || 'Organizație Demo',
+    cui: setting(db, 'company_cif', 'companyCif', 'cui', 'cif') || 'RO00000000',
+    localitate: setting(db, 'company_city', 'companyCity', 'localitate') || 'București',
     judet: setting(db, 'company_county', 'companyCounty', 'judet') || 'Neamt',
     adresa: setting(db, 'company_address', 'companyAddress', 'adresa') || ''
   }
