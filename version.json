@@ -1,5 +1,5 @@
 {
-  "version": "2.12.286",
+  "version": "2.12.287",
   "date": "2026-07-14",
-  "changelog": "## v2.12.286 - 2026-07-14\n### Split modal import angajati HR\n- Modalul Import angajati a fost extras in HRImportEmployeesModal.\n- Formularul pentru descarcare template, selectare fisier si sumar rezultat import este randat din componenta dedicata.\n- State-ul, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.287 - 2026-07-14\n### Split modal export pontaj Nexus HR\n- Modalul Export Pontaj Nexus a fost extras in HRNexusExportModal.\n- Formularul pentru luna, departament si actiunea de export este randat din componenta dedicata.\n- State-ul, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.287 - 2026-07-14
+
+## Split modal export pontaj Nexus HR
+
+- Modalul `Export Pontaj Nexus` din HR a fost extras în `client/src/pages/modules/hr/HRNexusExportModal.jsx`.
+- Formularul pentru lună, departament și acțiunea de export este randat din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul formularului, handler-ul de submit și apelurile API; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.286 - 2026-07-14
 
 ## Split modal import angajați HR

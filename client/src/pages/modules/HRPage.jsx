@@ -35,6 +35,7 @@ import HRLeaveRequestModal from './hr/HRLeaveRequestModal'
 import HRMealTicketsPanel from './hr/HRMealTicketsPanel'
 import HRMedicalPayrollModal from './hr/HRMedicalPayrollModal'
 import HRNavigationTabs, { getVisibleHrTabs } from './hr/HRNavigationTabs'
+import HRNexusExportModal from './hr/HRNexusExportModal'
 import HROvertimeCompensationModal from './hr/HROvertimeCompensationModal'
 import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
 import HRShiftModal from './hr/HRShiftModal'
@@ -3199,16 +3200,15 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         onSubmit={importEmployees}
       />
 
-      <Modal open={nexusExportModal} title="Export Pontaj Nexus" onClose={() => setNexusExportModal(false)}>
-        <form className="grid gap-4" onSubmit={exportNexusTimesheet}>
-          <Input label="Luna" type="month" value={nexusExportForm.luna} onChange={event => setNexusExportForm({ ...nexusExportForm, luna: event.target.value })} required />
-          <Select label="Departament" value={nexusExportForm.dept_id} onChange={event => setNexusExportForm({ ...nexusExportForm, dept_id: event.target.value })} disabled={!isHRPontaj && isSefPontaj} options={[{ value: '', label: 'Toate departamentele' }, ...departments]} />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setNexusExportModal(false)}>Renunță</Button>
-            <Button type="submit">📥 Exportă Nexus</Button>
-          </div>
-        </form>
-      </Modal>
+      <HRNexusExportModal
+        open={nexusExportModal}
+        form={nexusExportForm}
+        departments={departments}
+        departmentDisabled={!isHRPontaj && isSefPontaj}
+        onChange={setNexusExportForm}
+        onClose={() => setNexusExportModal(false)}
+        onSubmit={exportNexusTimesheet}
+      />
 
       <HREquipmentCatalogModal
         open={catalogModal}

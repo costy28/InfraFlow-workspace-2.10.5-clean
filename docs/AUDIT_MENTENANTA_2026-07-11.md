@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.286`
-Următorul pas de stabilizare: `2.12.287`
+Versiune analizată: `2.12.287`
+Următorul pas de stabilizare: `2.12.288`
 
 ## Rezultat verificări
 
@@ -270,6 +270,12 @@ Următorul pas de stabilizare: `2.12.287`
 
 ### UPDATE 307 — Split modal export pontaj Nexus HR
 
-- următorul bloc rămas: modalul `Export Pontaj Nexus`;
-- extragere formular lună/departament și acțiune export în componentă dedicată;
+- `client/src/pages/modules/hr/HRNexusExportModal.jsx` — ✅ extras în `2.12.287`;
+- formularul pentru lună, departament și acțiunea de export este mutat în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+
+### UPDATE 308 — Split modal editare zi pontaj HR
+
+- următorul bloc rămas: modalul `Pontaj - [angajat]`;
+- extragere formular tip zi, ore și observații în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
