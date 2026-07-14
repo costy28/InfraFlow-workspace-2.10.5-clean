@@ -286,6 +286,22 @@ const localeOptions = ['ro-RO', 'en', 'en-GB', 'en-US', 'de-DE', 'fr-FR', 'it-IT
 const currencyOptions = ['RON', 'EUR', 'GBP', 'USD']
 const timezoneOptions = ['Europe/Bucharest', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Rome', 'Europe/Madrid', 'America/New_York', 'UTC']
 
+const fallbackCountryRules = {
+  current: {
+    country: 'RO',
+    rules: {
+      status: 'active',
+      modules: {
+        hr: { payroll_profile: 'RO_D112' },
+        accounting: { fiscal_profile: 'RO_ANAF', declarations: ['D300', 'D394', 'D112', 'D205', 'D406_SAF_T'] },
+        documents: { default_language: 'ro' },
+      },
+      warnings: [],
+    },
+  },
+  countries: [],
+}
+
 function arrayFrom(data, keys) {
   if (Array.isArray(data)) return data
   for (const key of keys) if (Array.isArray(data?.[key])) return data[key]
@@ -329,6 +345,7 @@ export default function SetariPage() {
   const [moduleFeatureDraft, setModuleFeatureDraft] = useState({})
   const [moduleCatalog, setModuleCatalog] = useState(null)
   const [countryProfiles, setCountryProfiles] = useState(fallbackCountryProfiles)
+  const [countryRules, setCountryRules] = useState(fallbackCountryRules)
   const [databaseConfig, setDatabaseConfig] = useState({ server: '.\\SQLEXPRESS', database: 'INFRAFLOW', authMode: 'windows', user: 'infraflow', password: '', encrypt: 'false', relational: false })
   const [databaseHealth, setDatabaseHealth] = useState(null)
   const [databaseSchema, setDatabaseSchema] = useState(null)
@@ -428,6 +445,10 @@ export default function SetariPage() {
     () => countryProfiles.find(profile => profile.code === (settings.country || 'RO')) || countryProfiles[0] || fallbackCountryProfiles[0],
     [countryProfiles, settings.country]
   )
+  const selectedCountryRules = useMemo(() => {
+    const code = settings.country || countryRules.current?.country || 'RO'
+    return countryRules.countries?.find(item => item.country === code) || countryRules.current || fallbackCountryRules.current
+  }, [countryRules, settings.country])
   const availableLocales = useMemo(
     () => Array.from(new Set([...localeOptions, ...countryProfiles.map(profile => profile.locale).filter(Boolean)])),
     [countryProfiles]
@@ -467,7 +488,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, dbSchemaRes, moduleCatalogRes, countryProfilesRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, dbSchemaRes, moduleCatalogRes, countryProfilesRes, countryRulesRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -483,6 +504,7 @@ export default function SetariPage() {
         api.get('/system/database-schema'),
         api.get('/settings/modules/catalog'),
         api.get('/settings/country-profiles'),
+        api.get('/settings/country-rules'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -521,6 +543,7 @@ export default function SetariPage() {
         const countries = arrayFrom(countryProfilesRes.value.data, ['countries'])
         if (countries.length) setCountryProfiles(countries)
       }
+      if (countryRulesRes.status === 'fulfilled') setCountryRules(countryRulesRes.value.data || fallbackCountryRules)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -1526,6 +1549,25 @@ export default function SetariPage() {
                 <Select label="Fus orar" value={settings.timezone || 'Europe/Bucharest'} onChange={event => setSettings(s => ({ ...s, timezone: event.target.value }))}>
                   {availableTimezones.map(timezone => <option key={timezone} value={timezone}>{timezone}</option>)}
                 </Select>
+              </div>
+              <div className="mt-3 grid gap-2 rounded-xl border border-white/70 bg-white/70 p-3 text-xs text-slate-600 md:grid-cols-3">
+                <div>
+                  <span className="block font-semibold text-slate-800">HR</span>
+                  Profil: {selectedCountryRules?.rules?.modules?.hr?.payroll_profile || 'generic'}
+                </div>
+                <div>
+                  <span className="block font-semibold text-slate-800">Fiscal / contabil</span>
+                  Profil: {selectedCountryRules?.rules?.modules?.accounting?.fiscal_profile || 'generic'}
+                </div>
+                <div>
+                  <span className="block font-semibold text-slate-800">Documente</span>
+                  Limbă implicită: {selectedCountryRules?.rules?.modules?.documents?.default_language || 'generic'}
+                </div>
+                {selectedCountryRules?.rules?.warnings?.length > 0 && (
+                  <p className="md:col-span-3 rounded-lg bg-amber-50 px-3 py-2 text-amber-700">
+                    {selectedCountryRules.rules.warnings[0]}
+                  </p>
+                )}
               </div>
             </div>
             <Input label="Stație" value={settings.stationName || ''} onChange={event => setSettings(s => ({ ...s, stationName: event.target.value }))} />

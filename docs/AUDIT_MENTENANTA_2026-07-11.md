@@ -1,6 +1,6 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.300`
+Versiune analizată: `2.12.301`
 Următorul pas de stabilizare: `2.12.300`
 
 ## Rezultat verificări
@@ -357,4 +357,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/system/routes.js` și `server/core/db.js` — ✅ normalizare țară, limbă/locale, monedă, fus orar și profil juridic;
 - `client/src/pages/SetariPage.jsx` — ✅ panou `Profil internațional` în setările generale;
 - `db/migrations/065_country_profile_settings.sql` — ✅ coloane MSSQL pentru profilul internațional;
+- `scripts/smoke-modules-readonly.js` — ✅ verifică endpointul nou.
+
+### UPDATE 321 — Registry reguli pe țară
+
+- `server/shared/countryRules.js` — ✅ registry central pentru profiluri și reguli HR/fiscale/documente;
+- `server/modules/system/settings-routes.js` — ✅ endpoint read-only `/settings/country-rules`;
+- `client/src/pages/SetariPage.jsx` — ✅ sumar reguli active în profilul internațional;
 - `scripts/smoke-modules-readonly.js` — ✅ verifică endpointul nou.

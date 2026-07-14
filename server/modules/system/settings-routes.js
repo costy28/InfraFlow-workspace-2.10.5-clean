@@ -5,17 +5,7 @@ const { requirePermission } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { sendEmail } = require('../messaging/email')
-
-const countryProfiles = [
-  { code: 'RO', label: 'România', locale: 'ro-RO', currency: 'RON', timezone: 'Europe/Bucharest', jurisdiction_profile: 'RO', legislation_status: 'activ' },
-  { code: 'GB', label: 'United Kingdom', locale: 'en-GB', currency: 'GBP', timezone: 'Europe/London', jurisdiction_profile: 'GB', legislation_status: 'roadmap' },
-  { code: 'US', label: 'United States', locale: 'en-US', currency: 'USD', timezone: 'America/New_York', jurisdiction_profile: 'US', legislation_status: 'roadmap' },
-  { code: 'DE', label: 'Germany', locale: 'de-DE', currency: 'EUR', timezone: 'Europe/Berlin', jurisdiction_profile: 'DE', legislation_status: 'roadmap' },
-  { code: 'FR', label: 'France', locale: 'fr-FR', currency: 'EUR', timezone: 'Europe/Paris', jurisdiction_profile: 'FR', legislation_status: 'roadmap' },
-  { code: 'IT', label: 'Italy', locale: 'it-IT', currency: 'EUR', timezone: 'Europe/Rome', jurisdiction_profile: 'IT', legislation_status: 'roadmap' },
-  { code: 'ES', label: 'Spain', locale: 'es-ES', currency: 'EUR', timezone: 'Europe/Madrid', jurisdiction_profile: 'ES', legislation_status: 'roadmap' },
-  { code: 'GLOBAL', label: 'Global / demo', locale: 'en', currency: 'EUR', timezone: 'UTC', jurisdiction_profile: 'GLOBAL', legislation_status: 'generic' },
-]
+const { getAllCountryRules, getCountryProfiles, getCountryRules } = require('../../shared/countryRules')
 
 const moduleCatalogGroups = [
   {
@@ -150,7 +140,21 @@ function createSystemSettingsRouter(context) {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'settings:manage')) return
-    sendJson(res, 200, { countries: countryProfiles })
+    sendJson(res, 200, { countries: getCountryProfiles() })
+  })
+
+  router.get('/settings/country-rules', (req, res) => {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'settings:manage')) return
+    const requestedCountry = req.url.includes('?')
+      ? new URL(req.url, 'http://infraflow.local').searchParams.get('country')
+      : ''
+    const country = requestedCountry || auth.db.settings?.country || 'RO'
+    sendJson(res, 200, {
+      current: getCountryRules(country),
+      countries: getAllCountryRules(),
+    })
   })
 
   router.patch('/settings', async (req, res, next) => {

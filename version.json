@@ -1,5 +1,5 @@
 {
-  "version": "2.12.300",
+  "version": "2.12.301",
   "date": "2026-07-14",
-  "changelog": "## v2.12.300 - 2026-07-14\n### Profil international organizatie\n- Setarile organizatiei includ tara, limba/locale, moneda, fus orar si profil juridic.\n- A fost adaugat catalogul initial de tari pentru onboarding international.\n- Smoke suite verifica endpointul read-only pentru profiluri de tara."
+  "changelog": "## v2.12.301 - 2026-07-14\n### Registry reguli pe tara\n- Catalogul de tari a fost extras intr-un modul shared reutilizabil.\n- A fost adaugat endpointul read-only pentru reguli HR, fiscale si documente pe tara.\n- Setarile afiseaza profilul de reguli activ pentru tara selectata."
 }

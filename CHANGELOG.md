@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.301 - 2026-07-14
+
+## Registry reguli pe țară
+
+- Catalogul de țări a fost mutat într-un modul shared reutilizabil: `server/shared/countryRules.js`.
+- A fost adăugat endpointul read-only `/settings/country-rules` pentru profiluri HR, fiscale/contabile și documente pe țară.
+- România are profil activ pentru HR, fiscal/contabil și documente; celelalte țări sunt marcate generic/roadmap.
+- `Setări > General` afișează sumarul regulilor active pentru țara selectată.
+- Smoke-ul local verifică endpointul nou.
+
 # v2.12.300 - 2026-07-14
 
 ## Profil internațional organizație
