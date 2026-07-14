@@ -1,5 +1,5 @@
 {
-  "version": "2.12.302",
+  "version": "2.12.303",
   "date": "2026-07-14",
-  "changelog": "## v2.12.302 - 2026-07-14\n### Defaulturi fiscale din registry tara\n- Registry-ul de reguli expune helperi pentru TVA, declaratii fiscale si profil HR.\n- Setarile si normalizarea DB folosesc TVA-ul implicit din profilul tarii.\n- Modulul ANAF pastreaza comportamentul RO, dar fallback-ul TVA vine din registry."
+  "changelog": "## v2.12.303 - 2026-07-14\n### Declaratii fiscale lunare din registry tara\n- Registry-ul de tara expune declaratiile fiscale lunare normalizate.\n- Registrul declaratiilor si harta de completare fiscala folosesc lista din registry.\n- Pentru profilul RO rezultatul ramane D300, D394, D112 si D406."
 }

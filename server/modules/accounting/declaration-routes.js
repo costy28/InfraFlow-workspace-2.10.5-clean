@@ -247,7 +247,7 @@ function registerDeclarationRoutes(router, { requireAccountingReports, requireAc
       const accounting = engine.ensureAccounting(req.auth.db);
       const period = fiscal.declarationPeriod(req.query.perioada || req.query.luna || currentMonth());
       if (!period) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
-      res.status(200).json(fiscal.buildRegister(accounting.declarationRuns, period));
+      res.status(200).json(fiscal.buildRegister(accounting.declarationRuns, period, req.auth.db.settings?.country));
     } catch (error) { next(error); }
   });
 

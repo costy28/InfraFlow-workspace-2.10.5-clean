@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.303 - 2026-07-14
+
+## Declarații fiscale lunare din registry țară
+
+- `countryRules` expune helperul `getMonthlyFiscalDeclarations()`.
+- Codul normalizează aliasurile `D406_SAF_T` și `SAF-T` la `D406` pentru zonele operaționale existente.
+- Registrul declarațiilor fiscale folosește lista lunară din profilul țării.
+- Harta de completare fiscală folosește aceeași listă din registry.
+- Pentru România rezultatul rămâne identic: `D300`, `D394`, `D112`, `D406`.
+
 # v2.12.302 - 2026-07-14
 
 ## Defaulturi fiscale din registry țară

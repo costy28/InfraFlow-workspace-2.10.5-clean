@@ -138,6 +138,20 @@ function getFiscalDeclarations(countryCode = 'RO') {
   return Array.isArray(declarations) ? declarations.slice() : []
 }
 
+function normalizeFiscalDeclarationCode(code) {
+  const value = String(code || '').trim().toUpperCase()
+  if (value === 'D406_SAF_T' || value === 'SAF-T') return 'D406'
+  return value
+}
+
+function getMonthlyFiscalDeclarations(countryCode = 'RO') {
+  const declarations = getFiscalDeclarations(countryCode)
+    .map(normalizeFiscalDeclarationCode)
+    .filter(code => code && code !== 'D205')
+  const unique = Array.from(new Set(declarations))
+  return unique.length ? unique : ['D300', 'D394', 'D112', 'D406']
+}
+
 function getPayrollProfile(countryCode = 'RO') {
   return String(getHrRules(countryCode).payroll_profile || 'generic')
 }
@@ -150,7 +164,9 @@ module.exports = {
   getDefaultVatRate,
   getFiscalDeclarations,
   getHrRules,
+  getMonthlyFiscalDeclarations,
   getPayrollProfile,
   getVatRates,
+  normalizeFiscalDeclarationCode,
   normalizeCountryCode,
 }

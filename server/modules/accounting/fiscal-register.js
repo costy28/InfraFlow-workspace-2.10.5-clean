@@ -1,4 +1,5 @@
 const path = require("path");
+const { getMonthlyFiscalDeclarations } = require("../../shared/countryRules");
 
 const FINAL_STATUSES = new Set(["acceptat", "respins", "anulat"]);
 
@@ -21,8 +22,8 @@ function latestRun(runs, code, an, luna, statuses = []) {
   );
 }
 
-function buildRegister(runs, period) {
-  const declarations = ["D300", "D394", "D112", "D406"].map((code) => {
+function buildRegister(runs, period, countryCode = "RO") {
+  const declarations = getMonthlyFiscalDeclarations(countryCode).map((code) => {
     const history = (runs || [])
       .filter((item) => item.code === code && Number(item.an) === period.an && Number(item.luna) === period.luna && !item.cancelled_at)
       .sort((a, b) => String(b.updated_at || b.validated_at || "").localeCompare(String(a.updated_at || a.validated_at || "")));

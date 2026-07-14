@@ -1,6 +1,6 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.302`
+Versiune analizată: `2.12.303`
 Următorul pas de stabilizare: `2.12.300`
 
 ## Rezultat verificări
@@ -372,3 +372,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/system/routes.js` — ✅ TVA implicit din profilul țării la salvarea setărilor;
 - `server/core/db.js` — ✅ fallback DB JSON pentru TVA din registry;
 - `server/modules/anaf/routes.js` — ✅ fallback TVA ANAF din registry, cu același rezultat pentru RO.
+
+### UPDATE 323 — Declarații fiscale lunare din registry țară
+
+- `server/shared/countryRules.js` — ✅ helper `getMonthlyFiscalDeclarations()` și normalizare alias SAF-T;
+- `server/modules/accounting/fiscal-register.js` — ✅ registru declarații din profilul țării;
+- `server/modules/accounting/fiscal-extras.js` — ✅ hartă completare fiscală din profilul țării;
+- `server/modules/accounting/declaration-routes.js` — ✅ transmite țara curentă către registru.

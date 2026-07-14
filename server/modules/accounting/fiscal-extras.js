@@ -1,4 +1,5 @@
 const engine = require("./accounting-engine");
+const { getMonthlyFiscalDeclarations } = require("../../shared/countryRules");
 
 function money(value) { return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100; }
 function text(value) { return String(value ?? "").trim(); }
@@ -82,7 +83,7 @@ function completionMap(db, period) {
   const latest = (code) => [...accounting.declarationRuns].reverse().find((row) => row.code === code && Number(row.an) === an && Number(row.luna) === luna && !row.cancelled_at);
   const d205 = d205Report(db, an);
   const intrastat = intrastatReport(db, period);
-  const declarations = ["D300", "D394", "D112", "D406"].map((code) => ({ code, status: latest(code)?.status || "nepregatit", receipt_status: latest(code)?.receipt_status || "" }));
+  const declarations = getMonthlyFiscalDeclarations(db.settings?.country).map((code) => ({ code, status: latest(code)?.status || "nepregatit", receipt_status: latest(code)?.receipt_status || "" }));
   return { perioada: period, declarations, d205: { ready: d205.ready, rows: d205.rows.length, issues: d205.issues }, intrastat: { ready: intrastat.ready, rows: intrastat.rows.length, issues: intrastat.issues } };
 }
 
