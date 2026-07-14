@@ -1,5 +1,5 @@
 {
-  "version": "2.12.284",
+  "version": "2.12.285",
   "date": "2026-07-13",
-  "changelog": "## v2.12.284 - 2026-07-13\n### Split modal compensare banca de ore HR\n- Modalul Compensare banca de ore a fost extras in HROvertimeCompensationModal.\n- Formularul pentru timp liber, plata, sold initial si avans timp liber este randat din componenta dedicata.\n- State-ul, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.285 - 2026-07-13\n### Split modal evaluari HR\n- Modalul Evaluare noua / Editeaza evaluare a fost extras in HREvaluationModal.\n- Formularul pentru angajat, data, tip, calificativ, punctaj, observatii, obiective si recomandari este randat din componenta dedicata.\n- State-ul, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
 }

@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.284`
-Următorul pas de stabilizare: `2.12.285`
+Versiune analizată: `2.12.285`
+Următorul pas de stabilizare: `2.12.286`
 
 ## Rezultat verificări
 
@@ -258,6 +258,12 @@ Următorul pas de stabilizare: `2.12.285`
 
 ### UPDATE 305 — Split modal evaluări HR
 
-- următorul bloc rămas: modalul `Evaluare nouă` / `Editează evaluare`;
-- extragere formular evaluare angajat, calificativ, scoruri și obiective în componentă dedicată;
+- `client/src/pages/modules/hr/HREvaluationModal.jsx` — ✅ extras în `2.12.285`;
+- formularul pentru angajat, data evaluării, tip, calificativ, punctaj, observații, obiective și recomandări este mutat în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+
+### UPDATE 306 — Split modal import angajați HR
+
+- următorul bloc rămas: modalul `Import angajați`;
+- extragere formular descărcare template, selectare fișier și sumar rezultat import în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

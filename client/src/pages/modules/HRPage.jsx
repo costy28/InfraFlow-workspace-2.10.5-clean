@@ -18,6 +18,7 @@ import HREmployeeKioskTab from './hr/HREmployeeKioskTab'
 import HREmployeeModal from './hr/HREmployeeModal'
 import HREmployeePersonalTab from './hr/HREmployeePersonalTab'
 import HREmployeeWorkflowTab from './hr/HREmployeeWorkflowTab'
+import HREvaluationModal from './hr/HREvaluationModal'
 import {
   HREmployeeProfileActivity,
   HREmployeeProfileHeader,
@@ -3176,91 +3177,16 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         onSubmit={compensateOvertime}
       />
 
-      {/* ─── MODAL EVALUARE ───────────────────────────────── */}
-      <Modal open={evalModal} title={evalEditing ? 'Editează evaluare' : 'Evaluare nouă'} onClose={() => { setEvalModal(false); setEvalEditing(null) }} size="lg">
-        <form className="grid gap-3" onSubmit={saveEvaluation}>
-          <Select
-            label="Angajat"
-            value={evalForm.employee_id}
-            onChange={e => setEvalForm({ ...evalForm, employee_id: e.target.value })}
-            options={[{ value: '', label: 'Alege angajat…' }, ...employees.map(emp => ({ value: String(emp.id), label: fullName(emp) }))]}
-            required
-          />
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              label="Data evaluare"
-              type="date"
-              value={evalForm.data_evaluare}
-              onChange={e => setEvalForm({ ...evalForm, data_evaluare: e.target.value })}
-              required
-            />
-            <Select
-              label="Tip evaluare"
-              value={evalForm.tip}
-              onChange={e => setEvalForm({ ...evalForm, tip: e.target.value })}
-              options={[
-                { value: 'periodica', label: 'Periodică' },
-                { value: 'proba', label: 'Perioadă probă' },
-                { value: 'anuala', label: 'Anuală' },
-                { value: 'speciala', label: 'Specială' },
-              ]}
-            />
-            <Select
-              label="Calificativ"
-              value={evalForm.calificativ}
-              onChange={e => setEvalForm({ ...evalForm, calificativ: e.target.value })}
-              options={[
-                { value: 'FB', label: 'Foarte Bine (FB)' },
-                { value: 'B', label: 'Bine (B)' },
-                { value: 'S', label: 'Satisfăcător (S)' },
-                { value: 'NS', label: 'Nesatisfăcător (NS)' },
-              ]}
-            />
-            <Input
-              label="Punctaj (0-100)"
-              type="number"
-              min="0"
-              max="100"
-              value={evalForm.punctaj}
-              onChange={e => setEvalForm({ ...evalForm, punctaj: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Observații</label>
-            <textarea
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              rows={2}
-              value={evalForm.observatii}
-              onChange={e => setEvalForm({ ...evalForm, observatii: e.target.value })}
-              placeholder="Observații generale…"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Obiective stabilite</label>
-            <textarea
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              rows={2}
-              value={evalForm.obiective}
-              onChange={e => setEvalForm({ ...evalForm, obiective: e.target.value })}
-              placeholder="Obiective pentru perioada următoare…"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Recomandări</label>
-            <textarea
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              rows={2}
-              value={evalForm.recomandari}
-              onChange={e => setEvalForm({ ...evalForm, recomandari: e.target.value })}
-              placeholder="Recomandări de îmbunătățire…"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => { setEvalModal(false); setEvalEditing(null) }}>Renunță</Button>
-            <Button type="submit">{evalEditing ? 'Actualizează' : 'Salvează evaluare'}</Button>
-          </div>
-        </form>
-      </Modal>
+      <HREvaluationModal
+        open={evalModal}
+        editing={evalEditing}
+        form={evalForm}
+        employees={employees}
+        getEmployeeName={fullName}
+        onChange={setEvalForm}
+        onClose={() => { setEvalModal(false); setEvalEditing(null) }}
+        onSubmit={saveEvaluation}
+      />
 
       {/* ─── MODAL IMPORT ─────────────────────────────────── */}
       <Modal open={importModal} title="Import angajați" onClose={() => setImportModal(false)} size="lg">

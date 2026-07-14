@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.285 - 2026-07-13
+
+## Split modal evaluări HR
+
+- Modalul `Evaluare nouă / Editează evaluare` din HR a fost extras în `client/src/pages/modules/hr/HREvaluationModal.jsx`.
+- Formularul pentru angajat, data evaluării, tip, calificativ, punctaj, observații, obiective și recomandări este randat din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul formularului, handler-ul de submit și apelurile API; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.284 - 2026-07-13
 
 ## Split modal compensare bancă de ore HR
