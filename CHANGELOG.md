@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.293 - 2026-07-14
+
+## Split zona Documente HR frontend
+
+- Tabul principal `Documente HR` din HR a fost extras în `client/src/pages/modules/hr/HRDocumentsPanel.jsx`.
+- Dashboard-ul de conformitate dosar HR, lista șabloanelor, checklistul dosarului și cardurile cu documente rapide pe angajat sunt randate din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul, handler-ele, funcțiile de print și apelurile API; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.292 - 2026-07-14
 
 ## Split router taburi fișă angajat HR

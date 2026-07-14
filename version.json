@@ -1,5 +1,5 @@
 {
-  "version": "2.12.292",
+  "version": "2.12.293",
   "date": "2026-07-14",
-  "changelog": "## v2.12.292 - 2026-07-14\n### Split router taburi fisa angajat HR\n- Randarea taburilor din fisa angajatului a fost extrasa in HREmployeeProfileTabsRouter.\n- Taburile date, contracte, pontaj, dosar, kiosk, flux si echipamente sunt selectate din componenta dedicata.\n- State-ul, handler-ele si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.293 - 2026-07-14\n### Split zona Documente HR frontend\n- Tabul principal Documente HR a fost extras in HRDocumentsPanel.\n- Dashboard-ul de conformitate dosar, lista de sabloane, checklistul si documentele rapide sunt randate din componenta dedicata.\n- State-ul, handler-ele si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
 }
