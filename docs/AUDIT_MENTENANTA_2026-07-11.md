@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.289`
-Următorul pas de stabilizare: `2.12.290`
+Versiune analizată: `2.12.290`
+Următorul pas de stabilizare: `2.12.291`
 
 ## Rezultat verificări
 
@@ -288,6 +288,12 @@ Următorul pas de stabilizare: `2.12.290`
 
 ### UPDATE 310 — Split modal testare șablon Word HR
 
-- următorul bloc rămas: modalul `Testează Word — [denumire]`;
-- extragere formular test angajat/contract/act adițional și sumar validare într-o componentă dedicată;
+- `client/src/pages/modules/hr/HRDocumentTemplateTestModal.jsx` — ✅ extras în `2.12.290`;
+- formularul pentru test angajat/contract/act adițional și sumarul validării Word este mutat în componentă dedicată;
+- păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+
+### UPDATE 311 — Split carcasă modal fișă angajat HR
+
+- următorul bloc rămas: modalul `Fișa — [angajat]`;
+- extragere carcasă modal, header, carduri status, activitate și switch taburi într-o componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

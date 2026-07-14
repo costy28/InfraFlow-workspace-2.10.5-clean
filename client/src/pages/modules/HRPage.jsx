@@ -30,6 +30,7 @@ import HREquipmentDotareModal from './hr/HREquipmentDotareModal'
 import HREquipmentPanel from './hr/HREquipmentPanel'
 import HREmployeesPanel from './hr/HREmployeesPanel'
 import HRDocumentTemplateModal from './hr/HRDocumentTemplateModal'
+import HRDocumentTemplateTestModal from './hr/HRDocumentTemplateTestModal'
 import HRInboxPanel from './hr/HRInboxPanel'
 import HRImportEmployeesModal from './hr/HRImportEmployeesModal'
 import HRLeaveRequestModal from './hr/HRLeaveRequestModal'
@@ -2899,54 +2900,19 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         onSyncVisualEditor={syncTemplateVisualEditor}
       />
 
-      <Modal open={Boolean(templateTesting)} title={templateTesting ? `Testează Word — ${templateTesting.denumire}` : 'Testează șablon Word'} onClose={() => setTemplateTesting(null)} size="md">
-        {templateTesting ? (
-          <form className="grid gap-3" onSubmit={runTemplateWordTest}>
-            <div className="rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
-              Testul nu arhivează nimic. Verifică dacă variabilele din documentul Word pot fi detectate și completate pentru un exemplu real.
-            </div>
-            <Select
-              label="Angajat test"
-              value={templateTestForm.employee_id}
-              onChange={event => {
-                const employeeId = event.target.value
-                const contracts = employeeContractsFor(employeeId)
-                setTemplateTestForm({ employee_id: employeeId, contract_id: contracts[0]?.id || '', amendment_id: '' })
-                setTemplateTestResult(null)
-              }}
-              options={employees.map(emp => ({ value: emp.id, label: `${fullName(emp)}${emp.marca ? ` · ${emp.marca}` : ''}` }))}
-            />
-            <Select
-              label="Contract test"
-              value={templateTestForm.contract_id}
-              onChange={event => setTemplateTestForm(current => ({ ...current, contract_id: event.target.value, amendment_id: '' }))}
-              options={[{ value: '', label: 'Contract activ automat' }, ...employeeContractsFor(templateTestForm.employee_id).map(contract => ({ value: contract.id, label: `${contract.numar_contract || `Contract #${contract.id}`} · ${String(contract.data_start || contract.data_contract || '').slice(0, 10) || '-'}` }))]}
-            />
-            {templateTesting.id === 'act_aditional' ? (
-              <Select
-                label="Act adițional test"
-                value={templateTestForm.amendment_id}
-                onChange={event => setTemplateTestForm(current => ({ ...current, amendment_id: event.target.value }))}
-                options={[{ value: '', label: 'Fără act specific' }, ...employeeAmendmentsFor(templateTestForm.contract_id).map(item => ({ value: item.id, label: `${item.numar_act || `Act #${item.id}`} · ${item.tip} · ${String(item.data_efect || '').slice(0, 10)}` }))]}
-              />
-            ) : null}
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setTemplateTesting(null)}>Închide</Button>
-              <Button type="submit">Rulează test</Button>
-            </div>
-            {templateTestResult ? (
-              <div className={`rounded-lg border p-3 text-sm ${templateTestResult.status === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                <div className="mb-2 font-semibold">{templateTestResult.status === 'ok' ? 'OK — șablonul poate fi folosit' : 'Atenție — verifică șablonul Word'}</div>
-                <div>Variabile detectate: <strong>{templateTestResult.detected_count || 0}</strong></div>
-                {templateTestResult.resolved?.length ? <div className="mt-2 text-xs">Recunoscute: {templateTestResult.resolved.join(', ')}</div> : null}
-                {templateTestResult.unknown?.length ? <div className="mt-2 text-xs text-rose-700">Necunoscute: {templateTestResult.unknown.join(', ')}</div> : null}
-                {templateTestResult.missing_values?.length ? <div className="mt-2 text-xs text-amber-700">Fără valoare în exemplu: {templateTestResult.missing_values.join(', ')}</div> : null}
-                {templateTestResult.warnings?.length ? <ul className="mt-2 list-disc pl-5 text-xs">{templateTestResult.warnings.map((item, index) => <li key={index}>{item}</li>)}</ul> : null}
-              </div>
-            ) : null}
-          </form>
-        ) : null}
-      </Modal>
+      <HRDocumentTemplateTestModal
+        template={templateTesting}
+        form={templateTestForm}
+        result={templateTestResult}
+        employees={employees}
+        getEmployeeLabel={emp => `${fullName(emp)}${emp.marca ? ` · ${emp.marca}` : ''}`}
+        getContracts={employeeContractsFor}
+        getAmendments={employeeAmendmentsFor}
+        onFormChange={setTemplateTestForm}
+        onResultClear={() => setTemplateTestResult(null)}
+        onClose={() => setTemplateTesting(null)}
+        onSubmit={runTemplateWordTest}
+      />
 
       {/* ─── MODAL FIȘA ANGAJAT ───────────────────────────── */}
       <Modal open={Boolean(selectedEmployee)} title={selectedEmployee ? `Fișa — ${fullName(selectedEmployee)}` : ''} onClose={() => setSelectedEmployee(null)} size="lg">

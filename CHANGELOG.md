@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.290 - 2026-07-14
+
+## Split modal testare șablon Word HR
+
+- Modalul `Testează Word — [denumire]` din HR a fost extras în `client/src/pages/modules/hr/HRDocumentTemplateTestModal.jsx`.
+- Formularul pentru angajat test, contract test, act adițional test și sumarul validării Word este randat din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul `templateTesting`, `templateTestForm`, `templateTestResult`, handler-ul de submit și apelul API `/hr/document-templates/:id/validate-word`; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.289 - 2026-07-14
 
 ## Split modal editare șablon document HR

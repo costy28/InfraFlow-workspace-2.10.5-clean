@@ -1,5 +1,5 @@
 {
-  "version": "2.12.289",
+  "version": "2.12.290",
   "date": "2026-07-14",
-  "changelog": "## v2.12.289 - 2026-07-14\n### Split modal editare sablon document HR\n- Modalul Sablon HR a fost extras in HRDocumentTemplateModal.\n- Formularul pentru metadate, atasament Word, variabile si editor vizual este randat din componenta dedicata.\n- State-ul, refs, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
+  "changelog": "## v2.12.290 - 2026-07-14\n### Split modal testare sablon Word HR\n- Modalul Testeaza Word a fost extras in HRDocumentTemplateTestModal.\n- Formularul pentru angajat, contract, act aditional si rezultatul validarii este randat din componenta dedicata.\n- State-ul, submit-ul si apelurile API raman in HRPage, fara schimbari de API, DB sau UX."
 }
