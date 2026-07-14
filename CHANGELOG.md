@@ -1,5 +1,27 @@
 # Changelog
 
+# v2.12.299 - 2026-07-14
+
+## Direcție internațională și verticale comerciale
+
+- Direcția de produs a fost extinsă explicit către uz internațional.
+- Profilul organizației va trebui să suporte gradual limbă, țară, monedă, formate regionale, template-uri și reguli legislative pe jurisdicție.
+- România rămâne primul profil complet, dar codul nou trebuie proiectat astfel încât legislația să poată deveni profil de țară.
+- Roadmap-ul comercial include module noi: Warehouse/WMS, Logistics și Ecarisaj/Public Health Services.
+- `server/package.json` și `server/package-lock.json` au fost realiniate la versiunea curentă.
+- Nu au fost schimbate endpointuri, tabele, migrări DB sau dependențe.
+
+# v2.12.298 - 2026-07-14
+
+## Helper contextual extins în module operaționale
+
+- Helperul contextual reutilizabil a fost extins în Contabilitate, Achiziții, Referate și Mecanizare.
+- Contabilitatea afișează traseul logic: nomenclatoare → documente sursă → rapoarte/control → închidere lună.
+- Achizițiile recomandă pași pe baza cerințelor, comenzilor deschise, recepțiilor, cântarului și pozițiilor PAAP peste prag.
+- Referatele arată starea drafturilor, fluxurilor în aprobare, aprobărilor și respingerilor.
+- Mecanizarea evidențiază cereri parc, planificări, bonuri deschise, alimentări PIUSI nemapate și scadențe/service.
+- Nu au fost schimbate endpointuri, tabele, migrări DB sau dependențe.
+
 # v2.12.297 - 2026-07-14
 
 ## Helper contextual reutilizabil UI

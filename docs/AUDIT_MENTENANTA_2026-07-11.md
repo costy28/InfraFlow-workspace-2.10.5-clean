@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.297`
-Următorul pas de stabilizare: `2.12.298`
+Versiune analizată: `2.12.299`
+Următorul pas de stabilizare: `2.12.300`
 
 ## Rezultat verificări
 
@@ -12,6 +12,7 @@ Următorul pas de stabilizare: `2.12.298`
 - Backup roundtrip: OK.
 - Build frontend: OK.
 - Smoke API local cu superadmin, doar citire: OK pentru HR, dosar HR, salarizare, contabilitate, CPV, PAAP, referate și GPS live.
+- Build frontend după extinderea helperelor contextuale: OK.
 
 ## Observații importante
 
@@ -339,6 +340,13 @@ Următorul pas de stabilizare: `2.12.298`
 
 ### UPDATE 318 — Extindere ghidaj contextual pe module operaționale
 
-- integrare `ContextHelp` în Contabilitate, Achiziții/Referate și Mecanizare;
-- fiecare modul primește pași operaționali minimi și următorul pas recomandat;
+- integrare `ContextHelp` în Contabilitate, Achiziții/Referate și Mecanizare — ✅ realizat în `2.12.298`;
+- fiecare modul primește pași operaționali minimi, tips și următorul pas recomandat;
 - scop: aceeași experiență ghidată în zonele unde utilizatorii pot rămâne blocați.
+
+### UPDATE 319 — Direcție internațională și verticale comerciale
+
+- `docs/PRODUCTIZARE_COMERCIALA.md` — ✅ actualizat în `2.12.299`;
+- `AGENTS.md` — ✅ actualizat cu direcția multi-country și module comerciale noi;
+- pregătire conceptuală pentru limbă, țară, monedă, reguli legislative și template-uri pe jurisdicție;
+- roadmap extins cu Warehouse/WMS, Logistics și Ecarisaj/Public Health Services.

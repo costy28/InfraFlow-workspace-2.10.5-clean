@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.297**
-**Versiune în lucru: v2.12.297**
+**Versiune curentă sursă: v2.12.299**
+**Versiune în lucru: v2.12.299**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -26,9 +26,26 @@ Produsul trebuie să fie:
   - modular: clientul activează doar modulele utile;
   - intuitiv: complexitatea rămâne în spate, interfața arată următorul pas;
   - configurabil: profil organizație, module, fluxuri, documente și integrări;
+  - internaționalizabil: limbă, țară, monedă, formatări și legislație pe profil de țară;
   - comercial: demo, licențiere, onboarding, helpere și update-uri clare.
 
 Ghid de produs: docs/PRODUCTIZARE_COMERCIALA.md
+```
+
+### Direcție internațională activă
+
+```
+InfraFlow trebuie pregătit pentru uz internațional.
+România rămâne primul profil complet, dar codul nou nu trebuie să presupună
+că toate regulile fiscale, HR, documentare sau operaționale sunt românești.
+
+Profilul organizației trebuie să poată controla în timp:
+  - limba interfeței;
+  - țara/jurisdicția;
+  - moneda și formatele regionale;
+  - legislația aplicabilă pe module;
+  - template-uri documente pe limbă și țară;
+  - nomenclatoare, validări, termene și rapoarte locale.
 ```
 
 ---
@@ -456,6 +473,25 @@ PRIORITATE 2 — Expansiune platformă:
       → Driver 2, 3... (la identificarea furnizorilor)
       → Clientul alege furnizorul din Setări
 
+  [ ] Modul Warehouse / WMS
+      → Gestiune depozite de la mic la mare
+      → Locații, rafturi, zone, loturi, seriale
+      → Picking, packing, transferuri, inventariere mobilă
+      → Recepții avansate, retururi, trasabilitate
+      → Integrare Achiziții, Vânzări/CRM, Contabilitate și Logistică
+
+  [ ] Modul Logistics
+      → Comenzi transport și livrare
+      → Rute, încărcări, descărcări, dovadă livrare (POD)
+      → Cost/km, cost/livrare, integrare Fleet și GPS
+      → Status client/beneficiar în timp real
+
+  [ ] Modul Ecarisaj / Public Health Services
+      → Sesizări, programări intervenții, capturi/transport
+      → Evidență carcase/animale, documente sanitar-veterinare
+      → Rute, echipe, vehicule, costuri și raportări locale
+      → Adaptabil pe legislația țării și cerințele autorității
+
 PRIORITATE 3 — Infrastructură comercială:
   [ ] Licențiere modulară automată
       Pachete: Core + Conta | Core + Tehnic |
@@ -484,9 +520,12 @@ PRIORITATE 3 — Infrastructură comercială:
       → Sonnet 4.6 pentru analize complexe
       → Contor tokens per instalare client
 
-  [ ] Multi-limbă EN/RO
+  [ ] Multi-limbă + profil de țară
       → i18n în frontend
       → Toate labelurile/mesajele traduse
+      → Limbă, țară, monedă și formate regionale în profil organizație
+      → Reguli legislative configurabile pe țară, treptat pe module
+      → Template-uri documente și rapoarte pe limbă/jurisdicție
 
   [ ] Web SaaS + Mobile
       → Același cod Node.js → hosted
@@ -554,9 +593,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.297
+VERSIUNE CURENTĂ SURSĂ: 2.12.299
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.297 ✅
+UPDATE ZIP CURENT: 2.12.299 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -662,6 +701,8 @@ UPDATES ÎN LUCRU:
   2.12.295 → UPDATE 315 Catalog module active si onboarding organizatie ✅
   2.12.296 → UPDATE 316 Split functii print documente HR ✅
   2.12.297 → UPDATE 317 Helper contextual reutilizabil UI ✅
+  2.12.298 → UPDATE 318 Helper contextual module operationale ✅
+  2.12.299 → UPDATE 319 Directie internationala si verticale comerciale ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1116,6 +1157,9 @@ Profiluri comerciale urmărite:
   - instituție publică;
   - HR + salarizare;
   - contabilitate;
+  - depozit / WMS;
+  - logistică;
+  - ecarisaj / servicii sanitar-veterinare;
   - enterprise complet.
 
 Datele istorice de client pilot pot rămâne în backup-uri, update-uri
@@ -1124,6 +1168,9 @@ template implicit sau identitate de produs.
 
 Orice dezvoltare nouă trebuie să poată funcționa pe o organizație demo
 generică și pe o organizație reală configurată de utilizator.
+Pentru funcționalități noi, limba, țara, moneda, template-urile și regulile
+legislative trebuie tratate ca extensibile pe profil de țară, nu hardcodate
+definitiv pentru o singură jurisdicție.
 ```
 
 ---
@@ -1148,5 +1195,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 14 Iulie 2026 | InfraFlow sursă v2.12.297*
+*AGENTS.md actualizat: 14 Iulie 2026 | InfraFlow sursă v2.12.299*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

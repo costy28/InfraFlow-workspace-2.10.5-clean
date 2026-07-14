@@ -8,6 +8,7 @@ import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import DropdownMenu from '../../components/ui/DropdownMenu'
+import ContextHelp from '../../components/ui/ContextHelp'
 import { exportExcel } from '../../utils/export'
 
 const tabGroups = [
@@ -592,6 +593,64 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
 
   // ─────────────────────────────────────────────────────────────────────────────
 
+  const mechanizationHelp = useMemo(() => {
+    const openRequestStatuses = ['new', 'nou', 'deschisa', 'trimisa', 'in_lucru', 'pending']
+    const pendingRequests = requests.filter(request => openRequestStatuses.includes(String(request.status || '').toLowerCase())).length
+    const openWorkOrders = workOrders.filter(order => !['inchis', 'finalizat', 'anulat', 'closed', 'done'].includes(String(order.status || '').toLowerCase())).length
+    const unmappedPiusiRows = piusiFuelRows.filter(row => !row.asset_id && row.procesat !== true).length
+    const serviceAssets = assets.filter(asset => assetStatus[asset.id] === 'service').length
+    const dashboardAlerts = Number(dashboard?.stats?.alerteDocumente || dashboard?.stats?.alerts || dashboard?.alerte || 0)
+    const scadenteAlerts = Array.isArray(scadente?.expirari) ? scadente.expirari.length : 0
+    const alertCount = Math.max(dashboardAlerts, mechanizationAlerts.length, scadenteAlerts, serviceAssets)
+    const steps = [
+      {
+        key: 'requests',
+        label: `Cereri parc · ${pendingRequests}`,
+        hint: 'Aprobă cererile și alocă vehicule/utilaje înainte să pornească lucrul.',
+        done: pendingRequests === 0,
+        onClick: () => setActiveTab('Parc Utilaje'),
+      },
+      {
+        key: 'planning',
+        label: `Planificări · ${plannings.length}`,
+        hint: 'Planificarea leagă utilajul, operatorul și lucrarea zilei.',
+        done: plannings.length > 0,
+        onClick: () => setActiveTab('Planificare'),
+      },
+      {
+        key: 'work-orders',
+        label: openWorkOrders ? `Bonuri deschise · ${openWorkOrders}` : 'Bonuri închise',
+        hint: 'Bonurile închise alimentează FAZ-ul și costurile pe utilaj.',
+        done: workOrders.length > 0 && openWorkOrders === 0,
+        onClick: () => setActiveTab('Bonuri Lucru'),
+      },
+      {
+        key: 'fuel',
+        label: unmappedPiusiRows ? `PIUSI nemapate · ${unmappedPiusiRows}` : 'Alimentări curate',
+        hint: 'Alimentările PIUSI trebuie mapate pe utilaj înainte de rapoarte.',
+        done: unmappedPiusiRows === 0,
+        onClick: () => setActiveTab(unmappedPiusiRows ? 'Alimentări PIUSI' : 'Alimentări'),
+      },
+      {
+        key: 'alerts',
+        label: alertCount ? `Scadențe/service · ${alertCount}` : 'Scadențe curate',
+        hint: 'RCA, ITP, ISCIR și service-ul trebuie ținute la zi înainte de exploatare.',
+        done: alertCount === 0,
+        onClick: () => setActiveTab('Scadențe & Asigurări'),
+      },
+    ]
+    const nextStep = steps.find(step => !step.done) || steps[0]
+    return {
+      steps,
+      nextAction: nextStep ? {
+        label: 'Deschide recomandarea',
+        onClick: nextStep.onClick,
+        variant: 'secondary',
+      } : null,
+      tone: pendingRequests || openWorkOrders || unmappedPiusiRows || alertCount ? 'warning' : 'success',
+    }
+  }, [requests, plannings.length, workOrders, piusiFuelRows, assets, assetStatus, dashboard, mechanizationAlerts.length, scadente])
+
   const demoTrip = tripLogs.find(trip => trip.nr_foaie === 'FP-2026-KIOSK-001')
   const completedDemoTrips = tripLogs.filter(trip => ['completata', 'semnata_sofer', 'semnata_responsabil'].includes(trip.status))
 
@@ -613,6 +672,22 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </div>
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
+
+      <ContextHelp
+        eyebrow="Ghid mecanizare"
+        title="Ține parcul în ordine: cereri → planificare → bonuri → alimentări → scadențe"
+        description="Mecanizarea funcționează bine când utilajele sunt planificate, bonurile se închid lunar, alimentările sunt mapate și scadențele nu ajung urgente."
+        icon="⚙️"
+        tone={mechanizationHelp.tone}
+        steps={mechanizationHelp.steps}
+        tips={[
+          'Bonurile de lucru închise sunt baza pentru FAZ și cost/oră.',
+          'Alimentările nemapate strică raportul de consum și diferențele normate.',
+          'Un utilaj cu scadență critică trebuie verificat înainte de alocare.',
+        ]}
+        nextAction={mechanizationHelp.nextAction}
+        compact
+      />
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">

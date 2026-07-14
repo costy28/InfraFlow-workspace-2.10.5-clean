@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
 import DropdownMenu from '../../components/ui/DropdownMenu'
+import ContextHelp from '../../components/ui/ContextHelp'
 
 export { default as DropdownMenu } from '../../components/ui/DropdownMenu'
 
@@ -216,6 +217,59 @@ export function AccountSelect({ label, value, onChange, accounts = [], recommend
 }
 
 export function AccountingShell({ active, title, subtitle, children, actions }) {
+  const navigate = useNavigate()
+  const accountingHelp = useMemo(() => {
+    const stages = [
+      {
+        key: 'nomenclatoare',
+        label: 'Nomenclatoare',
+        keys: ['plan', 'solduri', 'furnizori', 'clienti'],
+        to: '/contabilitate/plan-conturi',
+        hint: 'Configurează conturile, soldurile și partenerii înainte de documente.',
+      },
+      {
+        key: 'documente',
+        label: 'Documente sursă',
+        keys: ['intrare', 'iesire', 'trezorerie', 'operatiuni', 'salarizare', 'anaf'],
+        to: '/contabilitate/facturi-intrare',
+        hint: 'Introdu facturi, trezorerie, salarii și operațiuni contabile.',
+      },
+      {
+        key: 'rapoarte',
+        label: 'Rapoarte și control',
+        keys: ['jurnale', 'jurnal', 'cartea-mare', 'tva', 'declaratii-diverse', 'balanta', 'profit-pierdere', 'situatii-financiare', 'audit-fiscal', 'controlling', 'alerte'],
+        to: '/contabilitate/balanta',
+        hint: 'Verifică balanța, jurnalele, TVA și dosarul fiscal.',
+      },
+      {
+        key: 'inchidere',
+        label: 'Închidere lună',
+        keys: ['inchidere'],
+        to: '/contabilitate/inchidere-luna',
+        hint: 'Blochează perioada doar după ce controalele sunt curate.',
+      },
+    ]
+    const activeIndex = stages.findIndex(stage => stage.keys.includes(active))
+    const safeIndex = activeIndex >= 0 ? activeIndex : -1
+    const recommended = stages[Math.min(Math.max(safeIndex + 1, 0), stages.length - 1)]
+
+    return {
+      steps: stages.map((stage, index) => ({
+        key: stage.key,
+        label: stage.label,
+        hint: stage.hint,
+        done: safeIndex >= index,
+        onClick: () => navigate(stage.to),
+      })),
+      nextAction: recommended ? {
+        label: safeIndex >= stages.length - 1 ? 'Verifică închiderea' : 'Mergi la pasul următor',
+        onClick: () => navigate(recommended.to),
+        variant: 'secondary',
+      } : null,
+      tone: safeIndex >= stages.length - 1 ? 'success' : 'info',
+    }
+  }, [active, navigate])
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -247,6 +301,21 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
           })}
         </div>
       </Card>
+      <ContextHelp
+        eyebrow="Flux contabil"
+        title="Lucrează în ordinea firească: nomenclatoare → documente → verificări → închidere"
+        description="Contabilitatea devine mai ușor de controlat când fiecare lună pornește cu datele de bază curate, apoi se verifică documentele sursă și rapoartele înainte de închidere."
+        icon="🧭"
+        tone={accountingHelp.tone}
+        steps={accountingHelp.steps}
+        tips={[
+          'Nu închide luna până nu ai verificat balanța, TVA-ul și alertele fiscale.',
+          'Documentele venite din celelalte module trebuie tratate ca surse controlate, nu dublate manual.',
+          'Pentru clienți noi, primul tur trebuie să fie configurarea planului de conturi și a partenerilor.',
+        ]}
+        nextAction={accountingHelp.nextAction}
+        compact
+      />
       {children}
     </div>
   )

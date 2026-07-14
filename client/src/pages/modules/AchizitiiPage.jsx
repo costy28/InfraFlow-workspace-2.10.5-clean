@@ -7,6 +7,7 @@ import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import CPVSelector from '../../components/forms/CPVSelector'
+import ContextHelp from '../../components/ui/ContextHelp'
 
 const tabs = ['Comenzi', 'Recepții', 'Cerințe', 'Cântar', 'Plan anual']
 const pageSize = 10
@@ -371,6 +372,67 @@ export default function AchizitiiPage() {
   }
 
   const scaleConnected = !!(scaleStatus?.connected || scaleStatus?.ok || scaleStatus?.available || scaleStatus?.status === 'connected' || scaleStatus?.readable)
+  const procurementHelp = useMemo(() => {
+    const closedOrderStatuses = ['received', 'livrata', 'finalizata', 'ok', 'receptionata', 'closed', 'canceled', 'anulata', 'respinsa']
+    const closedRequirementStatuses = ['done', 'closed', 'finalizata', 'aprobata', 'respinsa', 'anulata']
+    const openOrders = orders.filter(order => !closedOrderStatuses.includes(String(order.status || '').toLowerCase())).length
+    const pendingRequirements = requirements.filter(item => !closedRequirementStatuses.includes(String(item.status || '').toLowerCase())).length
+    const mappedProducts = productMap.filter(row => row.materialId).length
+    const hasScaleTickets = tickets.length > 0
+    const riskyPaapRows = planRows.filter(row => {
+      const percent = Number(row.procent ?? row.percent ?? row.progress ?? 0)
+      const planned = Number(row.valoare_estimata || row.estimatedValue || 0)
+      const executed = Number(row.valoare_executata || row.executedValue || 0)
+      return percent > 90 || (planned > 0 && executed > planned)
+    }).length
+    const steps = [
+      {
+        key: 'requirements',
+        label: `Cerințe · ${pendingRequirements}`,
+        hint: 'Pornește comenzile din necesarul intern și prioritizează ce e urgent.',
+        done: pendingRequirements === 0,
+        onClick: () => selectTab('Cerințe'),
+      },
+      {
+        key: 'orders',
+        label: `Comenzi deschise · ${openOrders}`,
+        hint: 'Urmărește comenzile până la recepție sau anulare.',
+        done: orders.length > 0 && openOrders === 0,
+        onClick: () => selectTab('Comenzi'),
+      },
+      {
+        key: 'receipts',
+        label: `Recepții · ${receipts.length}`,
+        hint: 'Recepția este pasul care actualizează stocul și documentele de achiziție.',
+        done: receipts.length > 0,
+        onClick: () => selectTab('Recepții'),
+      },
+      {
+        key: 'scale',
+        label: hasScaleTickets ? (scaleConnected ? `Cântar mapat · ${mappedProducts}` : 'Cântar neverificat') : 'Cântar opțional',
+        hint: hasScaleTickets ? 'Mapează produsele de cântar pe materiale ca intrările să fie curate.' : 'Configurează cântarul doar dacă acest flux este folosit de client.',
+        done: !hasScaleTickets || (scaleConnected && mappedProducts > 0),
+        onClick: () => selectTab('Cântar'),
+      },
+      {
+        key: 'paap',
+        label: riskyPaapRows ? `PAAP atenție · ${riskyPaapRows}` : 'PAAP fără depășiri',
+        hint: 'Verifică planul anual când execuția se apropie de plafon.',
+        done: riskyPaapRows === 0,
+        onClick: () => selectTab('Plan anual'),
+      },
+    ]
+    const nextStep = steps.find(step => !step.done) || steps[0]
+    return {
+      steps,
+      nextAction: nextStep ? {
+        label: nextStep.key === 'orders' && !orders.length ? 'Creează comandă' : 'Deschide recomandarea',
+        onClick: nextStep.key === 'orders' && !orders.length ? () => setModalOpen(true) : nextStep.onClick,
+        variant: 'secondary',
+      } : null,
+      tone: pendingRequirements || openOrders || riskyPaapRows || (hasScaleTickets && !scaleConnected) ? 'warning' : 'success',
+    }
+  }, [orders, requirements, receipts.length, productMap, tickets.length, planRows, scaleConnected])
 
   return (
     <div className="space-y-5">
@@ -381,6 +443,22 @@ export default function AchizitiiPage() {
         </div>
         <Button onClick={() => setModalOpen(true)}>Comandă nouă</Button>
       </div>
+
+      <ContextHelp
+        eyebrow="Ghid achiziții"
+        title="Ține firul: necesar intern → comandă → recepție → PAAP"
+        description="Pentru o evidență comercială curată, comenzile trebuie legate de cerințe, recepțiile trebuie confirmate la timp, iar planul anual trebuie verificat înainte de depășiri."
+        icon="🛒"
+        tone={procurementHelp.tone}
+        steps={procurementHelp.steps}
+        tips={[
+          'Recepția este momentul în care stocul devine real în aplicație.',
+          'Pozițiile PAAP peste 90% merită verificate înainte de o comandă nouă.',
+          'Cântarul ajută doar dacă produsele lui sunt mapate corect pe materiale.',
+        ]}
+        nextAction={procurementHelp.nextAction}
+        compact
+      />
 
       <div className="flex flex-wrap gap-2">
         {tabs.map(tab => (

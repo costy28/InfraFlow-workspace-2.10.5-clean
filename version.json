@@ -1,5 +1,5 @@
 {
-  "version": "2.12.297",
+  "version": "2.12.299",
   "date": "2026-07-14",
-  "changelog": "## v2.12.297 - 2026-07-14\n### Helper contextual reutilizabil UI\n- A fost adaugata componenta ContextHelp pentru ghidaj contextual, tips si urmatorul pas.\n- Componenta este integrata initial in Setari > Module, HR si Documente.\n- Nu au fost schimbate endpointuri, tabele, migrari DB sau dependinte."
+  "changelog": "## v2.12.299 - 2026-07-14\n### Directie internationala si verticale comerciale\n- Directia de produs a fost extinsa pentru uz international: limba, tara, moneda si legislatie pe profil de tara.\n- Roadmap-ul comercial include Warehouse/WMS, Logistics si Ecarisaj/Public Health Services.\n- Nu au fost schimbate endpointuri, tabele, migrari DB sau dependinte."
 }

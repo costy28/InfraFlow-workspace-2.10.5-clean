@@ -8,6 +8,7 @@ import Input from '../../components/forms/Input'
 import Modal from '../../components/ui/Modal'
 import Select from '../../components/forms/Select'
 import CPVSelector from '../../components/forms/CPVSelector'
+import ContextHelp from '../../components/ui/ContextHelp'
 
 const tabs = [
   { key: '', label: 'Toate' },
@@ -115,6 +116,60 @@ export default function ReferatePage() {
   }, [activeTab])
 
   const totalForm = useMemo(() => form.items.reduce((sum, item) => sum + Number(item.cantitate || 0) * Number(item.pret_unitar || 0) + Number(item.valoare_tva || 0), 0), [form.items])
+  const referateHelp = useMemo(() => {
+    const total = statFor(stats, '')
+    const draftCount = statFor(stats, 'draft')
+    const approvalCount = statFor(stats, 'in_aprobare')
+    const approvedCount = statFor(stats, 'aprobat')
+    const rejectedCount = statFor(stats, 'respins')
+    const steps = [
+      {
+        key: 'create',
+        label: total ? `Referate înregistrate · ${total}` : 'Primul referat',
+        hint: 'Creează referatul cu poziții, CPV și departament corect.',
+        done: total > 0,
+        onClick: canCreate ? () => setCreateOpen(true) : undefined,
+      },
+      {
+        key: 'draft',
+        label: `Drafturi · ${draftCount}`,
+        hint: 'Drafturile trebuie trimise în flux ca să nu rămână blocate local.',
+        done: draftCount === 0,
+        onClick: () => setActiveTab('draft'),
+      },
+      {
+        key: 'approval',
+        label: `În aprobare · ${approvalCount}`,
+        hint: 'Urmărește referatele aflate pe circuitul de avizare.',
+        done: approvalCount === 0,
+        onClick: () => setActiveTab('in_aprobare'),
+      },
+      {
+        key: 'approved',
+        label: `Aprobate · ${approvedCount}`,
+        hint: 'După aprobare urmează comandă, recepție sau atașarea documentelor justificative.',
+        done: approvedCount > 0,
+        onClick: () => setActiveTab('aprobat'),
+      },
+      {
+        key: 'rejected',
+        label: `Respinse · ${rejectedCount}`,
+        hint: 'Referatele respinse trebuie corectate sau închise ca istoric.',
+        done: rejectedCount === 0,
+        onClick: () => setActiveTab('respins'),
+      },
+    ]
+    const nextStep = steps.find(step => !step.done && step.onClick)
+    return {
+      steps,
+      nextAction: nextStep ? {
+        label: nextStep.key === 'create' ? 'Creează referat' : 'Deschide filtrul',
+        onClick: nextStep.onClick,
+        variant: 'secondary',
+      } : null,
+      tone: draftCount || approvalCount || rejectedCount ? 'warning' : 'success',
+    }
+  }, [stats, canCreate])
 
   function patchLine(index, patch) {
     setForm(current => ({ ...current, items: current.items.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line) }))
@@ -184,6 +239,22 @@ export default function ReferatePage() {
         <div><h1 className="text-2xl font-semibold text-slate-900">Referate</h1><p className="text-sm text-slate-500">Aprovizionare și servicii, cu flux complet de avizare.</p></div>
         {canCreate ? <Button onClick={() => setCreateOpen(true)}>+ Referat nou</Button> : null}
       </div>
+
+      <ContextHelp
+        eyebrow="Ghid referate"
+        title="Referatul trebuie să iasă din draft și să ajungă controlat la recepție"
+        description="Fluxul e sănătos când drafturile sunt puține, avizările nu stau blocate, iar referatele aprobate au documentele justificative completate."
+        icon="📋"
+        tone={referateHelp.tone}
+        steps={referateHelp.steps}
+        tips={[
+          'CPV-ul corect ajută mai târziu în PAAP și raportări.',
+          'Dacă factura depășește referatul, fluxul trebuie retrimis pentru control.',
+          'Referatele aprobate sunt punctul de legătură dintre necesar, achiziție și documente.',
+        ]}
+        nextAction={referateHelp.nextAction}
+        compact
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {tabs.map(tab => <button key={tab.key} className={`rounded-lg border p-3 text-left ${activeTab === tab.key ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white'}`} onClick={() => setActiveTab(tab.key)}><div className="text-xs uppercase text-slate-500">{tab.label}</div><div className="text-xl font-semibold">{statFor(stats, tab.key)}</div></button>)}
