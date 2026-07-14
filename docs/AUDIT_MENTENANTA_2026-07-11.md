@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.287`
-Următorul pas de stabilizare: `2.12.288`
+Versiune analizată: `2.12.288`
+Următorul pas de stabilizare: `2.12.289`
 
 ## Rezultat verificări
 
@@ -276,6 +276,12 @@ Următorul pas de stabilizare: `2.12.288`
 
 ### UPDATE 308 — Split modal editare zi pontaj HR
 
-- următorul bloc rămas: modalul `Pontaj - [angajat]`;
-- extragere formular tip zi, ore și observații în componentă dedicată;
+- `client/src/pages/modules/hr/HRTimesheetEditModal.jsx` — ✅ extras în `2.12.288`;
+- formularul pentru data pontajului, tip zi, ore lucrate și observații este mutat în componentă dedicată;
 - păstrare state și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.
+
+### UPDATE 309 — Split modal editare șablon document HR
+
+- următorul bloc rămas: modalul `Șablon HR — [denumire]`;
+- extragere formular metadate, editor vizual, variabile și acțiuni Word în componentă dedicată;
+- păstrare state, refs și handler-e în `HRPage.jsx`, fără schimbare HTTP/UX.

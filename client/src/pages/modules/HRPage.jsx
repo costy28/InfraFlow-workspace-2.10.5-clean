@@ -40,6 +40,7 @@ import HROvertimeCompensationModal from './hr/HROvertimeCompensationModal'
 import { HRFilters, HRPageHeader } from './hr/HRPageChrome'
 import HRShiftModal from './hr/HRShiftModal'
 import HRShiftsSchedulePanel from './hr/HRShiftsSchedulePanel'
+import HRTimesheetEditModal from './hr/HRTimesheetEditModal'
 import HRTimesheetPanel from './hr/HRTimesheetPanel'
 import HRTrainingPanel from './hr/HRTrainingPanel'
 
@@ -2575,15 +2576,12 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
         />
       ) : null}
 
-      <Modal open={Boolean(timesheetEdit)} title={timesheetEdit ? `Pontaj - ${timesheetEdit.employee_name}` : 'Pontaj'} onClose={() => setTimesheetEdit(null)}>
-        {timesheetEdit ? <form className="grid gap-3" onSubmit={saveTimesheetCell}>
-          <Input label="Data" type="date" value={timesheetEdit.data} disabled />
-          <Select label="Tip zi" value={timesheetEdit.tip} onChange={event => setTimesheetEdit({ ...timesheetEdit, tip: event.target.value, ore_lucrate: event.target.value === 'lucru' ? (timesheetEdit.ore_lucrate || 8) : 0 })} options={[{value:'lucru',label:'Lucru'}, {value:'co',label:'Concediu de odihna'}, {value:'cm',label:'Concediu medical'}, {value:'delegatie',label:'Delegatie'}, {value:'liber',label:'Zi libera'}, {value:'nemotivat',label:'Absent nemotivat'}]} />
-          <Input label="Ore lucrate" type="number" min="0" max="24" step="0.5" value={timesheetEdit.ore_lucrate} onChange={event => setTimesheetEdit({ ...timesheetEdit, ore_lucrate: event.target.value })} disabled={timesheetEdit.tip !== 'lucru' && timesheetEdit.tip !== 'delegatie'} />
-          <Input label="Observatii" value={timesheetEdit.observatii} onChange={event => setTimesheetEdit({ ...timesheetEdit, observatii: event.target.value })} />
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setTimesheetEdit(null)}>Renunta</Button><Button type="submit">Salveaza pontaj</Button></div>
-        </form> : null}
-      </Modal>
+      <HRTimesheetEditModal
+        edit={timesheetEdit}
+        onChange={setTimesheetEdit}
+        onClose={() => setTimesheetEdit(null)}
+        onSubmit={saveTimesheetCell}
+      />
 
       {/* ─── ECHIPAMENTE PROTECȚIE ───────────────────────── */}
       {activeTab === '🦺 Echipamente' ? (

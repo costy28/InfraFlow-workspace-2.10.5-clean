@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.288 - 2026-07-14
+
+## Split modal editare zi pontaj HR
+
+- Modalul `Pontaj - [angajat]` din HR a fost extras în `client/src/pages/modules/hr/HRTimesheetEditModal.jsx`.
+- Formularul pentru data pontajului, tip zi, ore lucrate și observații este randat din componenta dedicată.
+- `HRPage.jsx` păstrează state-ul `timesheetEdit`, handler-ul de submit și apelul API `/hr/timesheets`; comportamentul HTTP, DB și UX-ul rămân neschimbate.
+- Nu s-au modificat endpointuri, tabele sau dependențe.
+
 # v2.12.287 - 2026-07-14
 
 ## Split modal export pontaj Nexus HR
