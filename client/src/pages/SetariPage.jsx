@@ -4,6 +4,7 @@ import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
+import ContextHelp from '../components/ui/ContextHelp'
 import DropdownMenu from '../components/ui/DropdownMenu'
 import Input from '../components/ui/Input'
 import Modal from '../components/ui/Modal'
@@ -2358,6 +2359,33 @@ export default function SetariPage() {
 
       {activeTab === 'Module' && (
         <div className="grid gap-4">
+          <ContextHelp
+            eyebrow="Configurare comercială"
+            icon="🧭"
+            tone="info"
+            title="Alege profilul de lucru, apoi lasă aplicația să-ți arate pașii rămași."
+            description="Pentru o instalare nouă, începe cu pachetul comercial potrivit, salvează modulele și parcurge checklistul de onboarding. Clientul nu trebuie să înțeleagă arhitectura ERP; trebuie doar să vadă ce are de făcut mai departe."
+            steps={onboardingSteps.slice(0, 5).map(step => ({
+              key: step.key,
+              label: step.label,
+              hint: step.done ? 'Configurat' : step.hint,
+              done: step.done,
+              onClick: () => setActiveTab(step.tab),
+            }))}
+            tips={[
+              'Modulele de bază rămân active permanent, iar modulele comerciale pot fi ascunse din interfață.',
+              'Pachetele sunt doar scurtături operaționale; salvarea finală rămâne controlată de administrator.',
+              'Acest ghid devine baza pentru onboarding, trial și licențiere modulară.',
+            ]}
+            nextAction={nextOnboardingStep ? {
+              label: `Deschide: ${nextOnboardingStep.label}`,
+              onClick: () => setActiveTab(nextOnboardingStep.tab),
+            } : {
+              label: 'Configurare completă',
+              disabled: true,
+            }}
+          />
+
           <Card
             title="Onboarding organizație"
             subtitle="Transformă configurarea inițială într-un traseu clar: module, utilizatori, departamente, notificări și date companie."

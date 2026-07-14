@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ContextHelp from '../../components/ui/ContextHelp'
 import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
 import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
@@ -1524,6 +1525,52 @@ export default function HRPage() {
     return (hrActivity.rows || []).filter(item => String(item.employee_id || '') === String(employeeDetails.id)).slice(0, 6)
   }, [hrActivity.rows, employeeDetails?.id])
 
+  const hrContextHelp = useMemo(() => {
+    const inboxTotal = Number(hrInbox.summary?.total || 0)
+    const pendingLeaveCount = pendingLeaves.length
+    const alertCount = dashboardAlerts.length
+    const steps = [
+      {
+        key: 'inbox',
+        label: `Inbox HR${inboxTotal ? ` · ${inboxTotal}` : ''}`,
+        hint: inboxTotal ? 'Rezolvă sarcinile critice și documentele cu termen.' : 'Nu sunt sarcini HR deschise.',
+        done: inboxTotal === 0,
+        onClick: () => setActiveTab('Inbox HR'),
+      },
+      {
+        key: 'leaves',
+        label: `Concedii${pendingLeaveCount ? ` · ${pendingLeaveCount}` : ''}`,
+        hint: pendingLeaveCount ? 'Aprobă/respingi cererile înainte să validezi pontajul.' : 'Nu sunt cereri de concediu în așteptare.',
+        done: pendingLeaveCount === 0,
+        onClick: () => setActiveTab('Concedii'),
+      },
+      {
+        key: 'alerts',
+        label: `Scadențe${alertCount ? ` · ${alertCount}` : ''}`,
+        hint: alertCount ? 'Verifică documentele care expiră curând.' : 'Nu sunt scadențe critice în dashboard.',
+        done: alertCount === 0,
+        onClick: () => setActiveTab('Dashboard HR'),
+      },
+      {
+        key: 'timesheet',
+        label: 'Pontaj',
+        hint: canUsePontaj ? 'Completează și validează luna după concedii.' : 'Pontajul este disponibil doar pentru rolurile autorizate.',
+        done: !canUsePontaj,
+        onClick: canUsePontaj ? () => setActiveTab('Pontaj') : undefined,
+      },
+    ]
+
+    const nextStep = steps.find(step => !step.done && step.onClick)
+    return {
+      steps,
+      nextStep,
+      title: activeTab === 'Dashboard HR'
+        ? 'Începe cu blocajele: sarcini, concedii și scadențe.'
+        : `Ești în ${activeTab}. Următorul pas util rămâne vizibil aici.`,
+      description: 'HR are multe fluxuri paralele. Ghidul scurt îți arată ce merită verificat întâi, fără să cauți prin toate taburile.',
+    }
+  }, [activeTab, hrInbox.summary?.total, pendingLeaves.length, dashboardAlerts.length, canUsePontaj])
+
   const hrActivityCategories = useMemo(() => {
     const map = new Map()
     ;(hrActivity.rows || []).forEach(item => {
@@ -1550,6 +1597,27 @@ export default function HRPage() {
       />
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+
+      <ContextHelp
+        eyebrow="Ghid HR"
+        icon="👥"
+        tone={hrContextHelp.nextStep ? 'warning' : 'success'}
+        title={hrContextHelp.title}
+        description={hrContextHelp.description}
+        compact
+        steps={hrContextHelp.steps}
+        tips={[
+          'Aprobă concediile înainte de validarea pontajului.',
+          'Scadențele și documentele lipsă trebuie rezolvate înainte de închiderea lunii.',
+        ]}
+        nextAction={hrContextHelp.nextStep ? {
+          label: `Deschide: ${hrContextHelp.nextStep.label}`,
+          onClick: hrContextHelp.nextStep.onClick,
+        } : {
+          label: 'HR fără blocaje',
+          disabled: true,
+        }}
+      />
 
       <Card>
         <HRNavigationTabs

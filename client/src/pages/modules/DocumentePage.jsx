@@ -4,6 +4,7 @@ import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import ContextHelp from '../../components/ui/ContextHelp'
 import DropdownMenu from '../../components/ui/DropdownMenu'
 import DocumentTemplateEditor from '../../components/forms/DocumentTemplateEditor'
 import Modal from '../../components/ui/Modal'
@@ -460,6 +461,38 @@ export default function DocumentePage() {
     step.status === 'asteptare' && String(step.user_responsabil) === String(userId(user))
   )
 
+  const documentContextHelp = useMemo(() => {
+    const inboxCount = activeTab === 'Inbox' ? visibleDocuments.length : null
+    const templateCount = activeTab === 'Template-uri' ? templates.length : null
+    const steps = [
+      {
+        key: 'inbox',
+        label: inboxCount === null ? 'Inbox aprobare' : `Inbox aprobare · ${inboxCount}`,
+        hint: inboxCount && inboxCount > 0 ? 'Ai documente care așteaptă acțiune.' : 'Verifică documentele primite spre avizare.',
+        done: inboxCount === 0,
+        onClick: () => setActiveTab('Inbox'),
+      },
+      {
+        key: 'new-document',
+        label: 'Document nou',
+        hint: 'Alege template-ul, completează datele și lansează circuitul.',
+        done: false,
+        onClick: openDocumentModal,
+      },
+      {
+        key: 'templates',
+        label: templateCount === null ? 'Template-uri Word' : `Template-uri Word · ${templateCount}`,
+        hint: 'Modelele Word sunt sursa principală pentru documente comerciale ușor de întreținut.',
+        done: templateCount !== 0,
+        onClick: () => setActiveTab('Template-uri'),
+      },
+    ]
+    const nextStep = activeTab !== 'Inbox'
+      ? steps[0]
+      : (visibleDocuments.length > 0 ? steps[0] : steps[1])
+    return { steps, nextStep }
+  }, [activeTab, visibleDocuments.length, templates.length])
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -477,6 +510,24 @@ export default function DocumentePage() {
       </div>
 
       {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
+
+      <ContextHelp
+        eyebrow="Ghid documente"
+        icon="📄"
+        tone={visibleDocuments.length > 0 && activeTab === 'Inbox' ? 'warning' : 'info'}
+        title="Documentele merg cel mai bine când modelul Word, datele și circuitul sunt clare."
+        description="Pentru utilizator: alege documentul din Inbox sau creează unul nou. Pentru administrator: întreține template-urile Word, iar aplicația le folosește în flux."
+        compact
+        steps={documentContextHelp.steps}
+        tips={[
+          'Template-urile Word sunt fluxul principal; editorul HTML rămâne doar pentru compatibilitate.',
+          'Documentele lansate în circuit păstrează pașii și istoricul de aprobare.',
+        ]}
+        nextAction={documentContextHelp.nextStep ? {
+          label: `Deschide: ${documentContextHelp.nextStep.label}`,
+          onClick: documentContextHelp.nextStep.onClick,
+        } : null}
+      />
 
       <div className="flex flex-wrap gap-2">
         {tabs.map(tab => (

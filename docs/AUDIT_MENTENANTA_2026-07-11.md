@@ -1,7 +1,7 @@
 # Audit mentenanță InfraFlow — 2026-07-11
 
-Versiune analizată: `2.12.296`
-Următorul pas de stabilizare: `2.12.297`
+Versiune analizată: `2.12.297`
+Următorul pas de stabilizare: `2.12.298`
 
 ## Rezultat verificări
 
@@ -332,6 +332,13 @@ Următorul pas de stabilizare: `2.12.297`
 
 ### UPDATE 317 — Helper contextual reutilizabil în UI
 
+- `client/src/components/ui/ContextHelp.jsx` — ✅ adăugat în `2.12.297`;
 - componentă comună pentru ajutor contextual, tips și „următorul pas” în paginile complexe;
 - integrare inițială în `Setări > Module`, HR și Documente;
 - scop: interfață mai comercială și mai ușor de înțeles fără documentație separată.
+
+### UPDATE 318 — Extindere ghidaj contextual pe module operaționale
+
+- integrare `ContextHelp` în Contabilitate, Achiziții/Referate și Mecanizare;
+- fiecare modul primește pași operaționali minimi și următorul pas recomandat;
+- scop: aceeași experiență ghidată în zonele unde utilizatorii pot rămâne blocați.

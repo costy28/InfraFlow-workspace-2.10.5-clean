@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.297 - 2026-07-14
+
+## Helper contextual reutilizabil UI
+
+- A fost adăugată componenta `ContextHelp` pentru ghidaj contextual, pași, tips și următorul pas recomandat.
+- Componenta este integrată inițial în `Setări > Module`, HR și Documente.
+- `Setări > Module` explică profilul comercial, modulele și onboardingul organizației.
+- HR afișează prioritățile operaționale: Inbox, concedii, scadențe și pontaj.
+- Documente explică fluxul recomandat: Inbox, document nou și template-uri Word.
+- Nu au fost schimbate endpointuri, tabele, migrări DB sau dependențe.
+
 # v2.12.296 - 2026-07-14
 
 ## Split funcții print documente HR

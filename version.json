@@ -1,5 +1,5 @@
 {
-  "version": "2.12.296",
+  "version": "2.12.297",
   "date": "2026-07-14",
-  "changelog": "## v2.12.296 - 2026-07-14\n### Split functii print documente HR\n- Functiile mari de print/generare HTML HR au fost mutate din HRPage.jsx in hrDocumentPrint.js.\n- HRPage.jsx ramane orchestrator pentru state, API si randare panouri.\n- Comportamentul UI, payload-urile, ferestrele de print si endpointurile raman neschimbate."
+  "changelog": "## v2.12.297 - 2026-07-14\n### Helper contextual reutilizabil UI\n- A fost adaugata componenta ContextHelp pentru ghidaj contextual, tips si urmatorul pas.\n- Componenta este integrata initial in Setari > Module, HR si Documente.\n- Nu au fost schimbate endpointuri, tabele, migrari DB sau dependinte."
 }
