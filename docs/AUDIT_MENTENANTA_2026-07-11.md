@@ -387,3 +387,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/controlling/routes.js` — ✅ CRUD MSSQL pentru centre cost și asociere obiect;
 - `client/src/pages/modules/ControllingPage.jsx` — ✅ asociere centru cu departament, utilaj/vehicul sau proiect/lucrare;
 - produsul nu mai rehidratează date client-pilot în Controlling.
+
+### UPDATE 325 — Demo comercial generic
+
+- `data/demo-seed.json` și `data/app-db.demo.json` — ✅ identitate demo generică `Construct Demo SRL`;
+- `scripts/seed-demo.js` — ✅ emailuri demo pe `infraflow-demo.ro`;
+- `scripts/smoke-demo.js` — ✅ validare companie demo generică;
+- `db/migrations/015_mediu.sql` — ✅ seed-ul Mediu nu mai include nume de client pilot.

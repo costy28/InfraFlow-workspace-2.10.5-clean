@@ -1,5 +1,5 @@
 {
-  "version": "2.12.304",
+  "version": "2.12.305",
   "date": "2026-07-15",
-  "changelog": "## v2.12.304 - 2026-07-15\n### Centre cost generice si legaturi Controlling\n- Seed-ul istoric Publiserv pentru centre de cost este dezactivat si scos din pachet.\n- Centrele de cost se pot edita/dezactiva real si in MSSQL.\n- Centrele pot fi asociate cu departamente, utilaje/vehicule si proiecte/lucrari."
+  "changelog": "## v2.12.305 - 2026-07-15\n### Demo comercial generic\n- Demo-ul livrat foloseste identitatea Construct Demo SRL si domeniul infraflow-demo.ro.\n- Smoke-ul demo valideaza compania generica, nu un client pilot.\n- Seed-ul Mediu implicit nu mai contine referinta Publiserv."
 }

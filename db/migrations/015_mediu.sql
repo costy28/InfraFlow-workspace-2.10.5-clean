@@ -127,7 +127,7 @@ VALUES (
   '2024-08-23',
   NULL,
   N'Agenția pentru Protecția Mediului',
-  N'Autorizație de mediu Publiserv - monitorizare conform obligațiilor legale.',
+  N'Autorizație de mediu demo - monitorizare conform obligațiilor legale.',
   60,
   N'valida'
 );

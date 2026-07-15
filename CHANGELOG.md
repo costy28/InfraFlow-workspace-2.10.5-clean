@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.305 - 2026-07-15
+
+## Demo comercial generic
+
+- Demo-ul livrat folosește `Construct Demo SRL` în locul identității istorice de client pilot.
+- Domeniile de email demo au fost mutate pe `infraflow-demo.ro`.
+- `scripts/seed-demo.js` generează angajații demo cu emailuri generice.
+- `scripts/smoke-demo.js` validează compania demo generică, nu identitatea veche a clientului pilot.
+- Seed-ul MSSQL pentru modulul Mediu nu mai include text cu numele clientului pilot.
+
 # v2.12.304 - 2026-07-15
 
 ## Centre cost generice și legături Controlling

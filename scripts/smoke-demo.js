@@ -82,7 +82,7 @@ async function main() {
   addCheck('/api/session', session.status === 200 && session.data?.user?.username === USERNAME, `status=${session.status}`)
 
   const settings = await request('GET', '/api/settings', { token })
-  addCheck('/api/settings companie Publiserv Demo', settings.status === 200 && String(settings.data?.settings?.companyName || '').includes('PUBLISERV DEMO'), `company=${settings.data?.settings?.companyName || '-'}`)
+  addCheck('/api/settings companie demo generica', settings.status === 200 && String(settings.data?.settings?.companyName || '').includes('Construct Demo'), `company=${settings.data?.settings?.companyName || '-'}`)
 
   const resetForbidden = await request('POST', '/api/demo-reset', { body: {} })
   addCheck('/api/demo-reset cere autentificare', resetForbidden.status === 401, `status=${resetForbidden.status}`)
