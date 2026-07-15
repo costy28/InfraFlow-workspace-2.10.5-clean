@@ -94,7 +94,7 @@ export default function ControllingPage() {
   const [autoCosts, setAutoCosts] = useState(null)
   const [executionReport, setExecutionReport] = useState(null)
   const [entries, setEntries] = useState([])
-  const [assets, setAssets] = useState([])
+  const [linkOptions, setLinkOptions] = useState({ departments: [], assets: [], projects: [] })
   const [expanded, setExpanded] = useState(new Set())
   const [modalOpen, setModalOpen] = useState(false)
   const [centerModal, setCenterModal] = useState(false)
@@ -102,7 +102,7 @@ export default function ControllingPage() {
   const [centerForm, setCenterForm] = useState({ cod: '', denumire: '', tip: 'general', parinte_id: '', culoare: '#3B82F6', buget_lunar: '' })
   const [assignModal, setAssignModal] = useState(false)
   const [assignCenter, setAssignCenter] = useState(null)
-  const [assignForm, setAssignForm] = useState({ asset_id: '', asset_type: 'equipment' })
+  const [assignForm, setAssignForm] = useState({ object_id: '', object_type: 'equipment' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState({ luna: currentMonth(), centru_id: '', categorie: '', from: '', to: '' })
@@ -123,7 +123,21 @@ export default function ControllingPage() {
       setEntries(arrayFrom(entriesRes.data, ['entries', 'items']))
       if (entriesRes.data?._error) setError('Endpoint-ul GET /api/controlling/entries nu este disponibil încă; cheltuielile pot fi adăugate, dar lista nu se poate încărca.')
       setForm(current => ({ ...current, cost_center_id: current.cost_center_id || flattenCenters(nextCenters)[0]?.id || '' }))
-      api.get('/fleet-assets', { params: { tip: '' } }).then(r => setAssets(r.data?.assets || [])).catch(() => setAssets([]))
+      api.get('/controlling/cost-centers/link-options')
+        .then(r => {
+          const nextOptions = {
+            departments: arrayFrom(r.data?.departments, ['items']),
+            assets: arrayFrom(r.data?.assets, ['items']),
+            projects: arrayFrom(r.data?.projects, ['items']),
+          }
+          setLinkOptions(nextOptions)
+        })
+        .catch(() => {
+          api.get('/fleet-assets', { params: { tip: '' } }).then(r => {
+            const fallbackAssets = r.data?.assets || []
+            setLinkOptions(current => ({ ...current, assets: fallbackAssets }))
+          }).catch(() => setLinkOptions(current => ({ ...current, assets: [] })))
+        })
       api.get('/controlling/reports/automatic-costs', { params: { luna: filters.luna } }).then(r => setAutoCosts(r.data)).catch(() => setAutoCosts(null))
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut incarca datele de controlling.')
@@ -151,6 +165,19 @@ export default function ControllingPage() {
     buget: Number(row.buget || 0),
     real: Number(row.real || 0),
   })), [report])
+
+  const allAssignmentOptions = useMemo(() => [
+    ...linkOptions.departments.map(item => ({ value: String(item.id), label: item.label || item.name || item.denumire || item.id, type: 'department' })),
+    ...linkOptions.assets.map(item => ({ value: String(item.id), label: item.label || [item.name, item.registration].filter(Boolean).join(' / ') || item.cod || item.id, type: item.type || (item.category === 'vehicle' ? 'vehicle' : 'equipment') })),
+    ...linkOptions.projects.map(item => ({ value: String(item.id), label: item.label || item.name || item.denumire || item.titlu || item.id, type: 'project' })),
+  ], [linkOptions])
+
+  function assignmentOptions(type) {
+    if (type === 'department') return allAssignmentOptions.filter(item => item.type === 'department')
+    if (type === 'project') return allAssignmentOptions.filter(item => item.type === 'project')
+    if (type === 'vehicle') return allAssignmentOptions.filter(item => item.type === 'vehicle')
+    return allAssignmentOptions.filter(item => item.type === 'equipment' || !['department', 'project', 'vehicle'].includes(item.type))
+  }
 
   function toggle(id) {
     setExpanded(current => {
@@ -221,7 +248,8 @@ export default function ControllingPage() {
 
   function openAssignModal(center) {
     setAssignCenter(center)
-    setAssignForm({ asset_id: assets[0]?.id ? String(assets[0].id) : '', asset_type: assets[0]?.category === 'vehicle' ? 'vehicle' : 'equipment' })
+    const first = assignmentOptions('equipment')[0] || assignmentOptions('vehicle')[0] || assignmentOptions('department')[0] || assignmentOptions('project')[0]
+    setAssignForm({ object_id: first?.value || '', object_type: first?.type || 'equipment' })
     setAssignModal(true)
   }
 
@@ -229,10 +257,12 @@ export default function ControllingPage() {
     event.preventDefault()
     if (!assignCenter) return
     try {
-      const asset = assets.find(item => String(item.id) === String(assignForm.asset_id))
+      const selected = allAssignmentOptions.find(item => String(item.value) === String(assignForm.object_id) && item.type === assignForm.object_type)
       await api.post(`/controlling/cost-centers/${assignCenter.id}/assign-asset`, {
         ...assignForm,
-        object_name: [asset?.name, asset?.registration].filter(Boolean).join(' / '),
+        asset_id: assignForm.object_id,
+        asset_type: assignForm.object_type,
+        object_name: selected?.label || '',
       })
       setAssignModal(false)
       setAssignCenter(null)
@@ -528,12 +558,23 @@ export default function ControllingPage() {
 
       <Modal open={assignModal} title={`Asociază obiect la ${centerName(assignCenter)}`} onClose={() => setAssignModal(false)}>
         <form className="grid gap-4" onSubmit={submitAssign}>
-          <Select label="Tip obiect" value={assignForm.asset_type} onChange={event => setAssignForm({ ...assignForm, asset_type: event.target.value })} options={[
+          <Select label="Tip obiect" value={assignForm.object_type} onChange={event => {
+            const nextType = event.target.value
+            const first = assignmentOptions(nextType)[0]
+            setAssignForm({ object_type: nextType, object_id: first?.value || '' })
+          }} options={[
+            { value: 'department', label: 'Departament' },
             { value: 'equipment', label: 'Utilaj' },
             { value: 'vehicle', label: 'Vehicul' },
             { value: 'project', label: 'Lucrare / proiect' },
           ]} />
-          <Select label="Utilaj / vehicul" value={assignForm.asset_id} onChange={event => setAssignForm({ ...assignForm, asset_id: event.target.value })} options={assets.map(asset => ({ value: asset.id, label: [asset.name, asset.registration].filter(Boolean).join(' / ') || asset.cod || asset.id }))} required />
+          <Select
+            label="Obiect asociat"
+            value={assignForm.object_id}
+            onChange={event => setAssignForm({ ...assignForm, object_id: event.target.value })}
+            options={assignmentOptions(assignForm.object_type).map(item => ({ value: item.value, label: item.label }))}
+            required
+          />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setAssignModal(false)}>Renunță</Button>
             <Button type="submit">Asociază</Button>

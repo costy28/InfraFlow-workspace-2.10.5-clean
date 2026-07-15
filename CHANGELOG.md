@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.304 - 2026-07-15
+
+## Centre cost generice și legături Controlling
+
+- Seed-ul istoric Publiserv pentru centre de cost a fost scos din pachet.
+- Migrarea `066_controlling_generic_cost_centers.sql` dezactivează centrele vechi și rupe mapările automate pe utilaje.
+- CRUD-ul centrelor de cost funcționează și în MSSQL: creare, editare, dezactivare și asociere obiect.
+- Centrele pot fi asociate din UI cu departamente, utilaje/vehicule și lucrări/proiecte.
+- Lista de centre active nu mai rehidratează date client-pilot la fiecare încărcare.
+
 # v2.12.303 - 2026-07-14
 
 ## Declarații fiscale lunare din registry țară

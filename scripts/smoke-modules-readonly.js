@@ -184,6 +184,8 @@ const endpointChecks = [
   { name: 'Producție /api/recipes', path: '/api/recipes', countKeys: ['recipes'] },
   { name: 'Producție /api/consumptions', path: '/api/consumptions', countKeys: ['consumptions'] },
   { name: 'Tehnic /api/technical/report', path: '/api/technical/report', validate: data => typeof data === 'object' && data !== null },
+  { name: 'Controlling /api/controlling/cost-centers', path: '/api/controlling/cost-centers', validate: data => Array.isArray(data) },
+  { name: 'Controlling /api/controlling/cost-centers/link-options', path: '/api/controlling/cost-centers/link-options', validate: data => typeof data === 'object' && Array.isArray(data.assets) },
   { name: 'Controlling /api/controlling/dashboard', path: '/api/controlling/dashboard', validate: data => typeof data === 'object' && data !== null },
 
   { name: 'ANAF /api/anaf/settings', path: '/api/anaf/settings', validate: data => typeof data === 'object' && data !== null },

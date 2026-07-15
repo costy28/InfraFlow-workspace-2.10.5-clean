@@ -1,5 +1,5 @@
 {
-  "version": "2.12.303",
-  "date": "2026-07-14",
-  "changelog": "## v2.12.303 - 2026-07-14\n### Declaratii fiscale lunare din registry tara\n- Registry-ul de tara expune declaratiile fiscale lunare normalizate.\n- Registrul declaratiilor si harta de completare fiscala folosesc lista din registry.\n- Pentru profilul RO rezultatul ramane D300, D394, D112 si D406."
+  "version": "2.12.304",
+  "date": "2026-07-15",
+  "changelog": "## v2.12.304 - 2026-07-15\n### Centre cost generice si legaturi Controlling\n- Seed-ul istoric Publiserv pentru centre de cost este dezactivat si scos din pachet.\n- Centrele de cost se pot edita/dezactiva real si in MSSQL.\n- Centrele pot fi asociate cu departamente, utilaje/vehicule si proiecte/lucrari."
 }

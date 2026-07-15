@@ -379,3 +379,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/accounting/fiscal-register.js` — ✅ registru declarații din profilul țării;
 - `server/modules/accounting/fiscal-extras.js` — ✅ hartă completare fiscală din profilul țării;
 - `server/modules/accounting/declaration-routes.js` — ✅ transmite țara curentă către registru.
+
+### UPDATE 324 — Centre cost generice și legături Controlling
+
+- `db/migrations/066_controlling_generic_cost_centers.sql` — ✅ dezactivează centrele cost istorice Publiserv și mapările automate pe utilaje;
+- `db/seeds/cost_centers_publiserv.sql` — ✅ scos din pachet;
+- `server/modules/controlling/routes.js` — ✅ CRUD MSSQL pentru centre cost și asociere obiect;
+- `client/src/pages/modules/ControllingPage.jsx` — ✅ asociere centru cu departament, utilaj/vehicul sau proiect/lucrare;
+- produsul nu mai rehidratează date client-pilot în Controlling.

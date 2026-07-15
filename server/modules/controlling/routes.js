@@ -18,7 +18,7 @@ const nexusAccounts = {
   chirii: '612'
 }
 
-const defaultCostCenters = [
+const legacyPubliservCostCenters = [
   { cod: '2018611', denumire: 'SERVICII SALUBRIZARE', tip: 'operational' },
   { cod: '2018612', denumire: 'SERVICII DESZAPEZIRE', tip: 'operational' },
   { cod: '0000005', denumire: 'REPARATII BETOANE', tip: 'operational' },
@@ -38,12 +38,7 @@ const defaultCostCenters = [
   { cod: '2018623', denumire: 'CHELTUIELI INDIRECTE PRODUCTIE', tip: 'indirect' }
 ]
 
-const defaultAssetCostCenterMap = [
-  { centerCod: '2018611', assets: ['NT12ZEW', 'NT10SCS', 'NT11SCS'] },
-  { centerCod: '2018612', assets: ['B100751', 'NT1292'] },
-  { centerCod: '0000053', assets: ['NT1673', 'NT1719', 'NT1348'] },
-  { centerCod: '0000002', assets: ['NT20SPS', 'NT21SPS'] }
-]
+const legacyPubliservCostCenterCodes = new Set(legacyPubliservCostCenters.map(item => item.cod))
 
 function sendJson(res, status, data) {
   res.status(status).json(data)
@@ -114,10 +109,6 @@ function roMonthLabel(value) {
   return date.toLocaleDateString('ro-RO', { month: 'long', year: 'numeric' }).toUpperCase()
 }
 
-function normalizeAssetCode(value) {
-  return String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '')
-}
-
 function nextId(items) {
   return items.reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1
 }
@@ -147,52 +138,41 @@ function ensureControllingDb(db) {
   return db.controlling
 }
 
-function ensureDefaultCostCenters(db) {
+function cleanupLegacyCostCenters(db) {
   const controlling = ensureControllingDb(db)
   let changed = false
-  defaultCostCenters.forEach((seed, index) => {
-    let center = controlling.costCenters.find(item => String(item.cod || '').toUpperCase() === seed.cod.toUpperCase())
-    if (!center) {
-      center = {
-        id: nextId(controlling.costCenters),
-        company_id: 1,
-        cod: seed.cod,
-        denumire: seed.denumire,
-        name: seed.denumire,
-        tip: seed.tip,
-        nivel: 1,
-        activ: true,
-        sort_order: index + 1,
-        created_at: nowIso()
-      }
-      controlling.costCenters.push(center)
-      changed = true
-      return
-    }
-    if (center.denumire !== seed.denumire || center.tip !== seed.tip || center.activ === false || center.activ === 0) {
-      center.denumire = seed.denumire
-      center.name = seed.denumire
-      center.tip = seed.tip
-      center.activ = true
+  const legacyIds = new Set()
+
+  controlling.costCenters.forEach(center => {
+    const code = String(center.cod || '').toUpperCase()
+    if (!legacyPubliservCostCenterCodes.has(code)) return
+    legacyIds.add(String(center.id))
+    if (center.activ !== false || !center.cancelled_at) {
+      center.activ = false
+      center.cancelled_at = center.cancelled_at || nowIso()
+      center.cancelled_reason = center.cancelled_reason || 'Dezactivat automat: seed vechi Publiserv eliminat din produsul comercial.'
       center.updated_at = nowIso()
       changed = true
     }
   })
 
-  const assets = db.fleetAssets || db.fleet?.assets || []
-  defaultAssetCostCenterMap.forEach(mapping => {
-    const center = controlling.costCenters.find(item => String(item.cod || '').toUpperCase() === mapping.centerCod.toUpperCase())
-    if (!center) return
-    const assetCodes = new Set(mapping.assets.map(normalizeAssetCode))
+  if (legacyIds.size) {
+    const assets = db.fleetAssets || db.fleet?.assets || []
     assets.forEach(asset => {
-      const code = normalizeAssetCode(asset.nr_inmatriculare || asset.registration || asset.cod || asset.assetCode || asset.inventoryNo)
-      if (!assetCodes.has(code)) return
-      if (String(asset.cost_center_id || '') !== String(center.id)) {
-        asset.cost_center_id = center.id
+      if (legacyIds.has(String(asset.cost_center_id || ''))) {
+        asset.cost_center_id = null
         changed = true
       }
     })
-  })
+    controlling.costCenterObjects.forEach(object => {
+      if (legacyIds.has(String(object.cost_center_id || '')) && object.activ !== false) {
+        object.activ = false
+        object.cancelled_at = object.cancelled_at || nowIso()
+        object.cancelled_reason = object.cancelled_reason || 'Centrul Publiserv asociat a fost dezactivat.'
+        changed = true
+      }
+    })
+  }
   return changed
 }
 
@@ -230,6 +210,27 @@ function buildCostCenterTree(centers, objects = []) {
     else roots.push(node)
   })
   return roots
+}
+
+function jsonLinkOptions(db) {
+  const departments = db.departments || db.core?.departments || []
+  const assets = db.fleetAssets || db.fleet?.assets || []
+  const projects = db.projects || db.work?.projects || []
+  return {
+    departments: departments
+      .filter(item => item.active !== false && item.activ !== false)
+      .map(item => ({ id: item.id, label: item.name || item.denumire || item.code || item.id, type: 'department' })),
+    assets: assets
+      .filter(item => item.active !== false && item.activ !== false && !item.cancelled_at)
+      .map(item => ({
+        id: item.id,
+        label: [item.name || item.denumire || item.assetName, item.registration || item.nr_inmatriculare || item.cod || item.assetCode].filter(Boolean).join(' / ') || String(item.id),
+        type: ['vehicle', 'autovehicul', 'vehicul'].includes(String(item.category || item.tip_asset || item.tip || '').toLowerCase()) ? 'vehicle' : 'equipment'
+      })),
+    projects: projects
+      .filter(item => item.active !== false && item.activ !== false && !item.cancelled_at)
+      .map(item => ({ id: item.id || item.uuid, label: item.name || item.denumire || item.titlu || item.cod || item.uuid || item.id, type: 'project' }))
+  }
 }
 
 function monthlyTotalsByCenter(entries, luna) {
@@ -362,7 +363,7 @@ EXEC sp_executesql @sql;
 }
 
 function getJsonCostCenterDocumentRows(db) {
-  ensureDefaultCostCenters(db)
+  cleanupLegacyCostCenters(db)
   const controlling = ensureControllingDb(db)
   const assets = db.fleetAssets || db.fleet?.assets || []
   return buildCostCenterDocumentRows(controlling.costCenters, assets)
@@ -475,6 +476,10 @@ function summarizeExecution(entries) {
 }
 
 function objectName(db, objectId, objectType) {
+  if (String(objectType || '').toLowerCase() === 'department') {
+    const dept = (db.departments || db.core?.departments || []).find(item => String(item.id) === String(objectId))
+    return dept?.name || dept?.denumire || dept?.code || String(objectId)
+  }
   if (['vehicle', 'equipment', 'utilaj', 'vehicul'].includes(String(objectType || '').toLowerCase())) {
     const asset = (db.fleetAssets || []).find(item => String(item.id) === String(objectId))
     return [asset?.name, asset?.registration].filter(Boolean).join(' / ') || asset?.cod || String(objectId)
@@ -500,22 +505,49 @@ router.get('/controlling/cost-centers', (req, res, next) => {
     if (isMssqlMode()) {
       const centers = mssqlArray(`
 SELECT
-  cc.*,
+  cc.id,
+  cc.company_id,
+  cc.cod,
+  cc.denumire,
+  cc.tip,
+  cc.dept_id,
+  cc.parinte_id,
+  cc.nivel,
+  cc.tip_resursa,
+  cc.resursa_ref_id,
+  cc.buget_lunar,
+  cc.buget_anual,
+  cc.responsabil_id,
+  cc.activ,
+  cc.sort_order,
+  cc.created_at,
+  cc.updated_at,
+  CASE WHEN COL_LENGTH(N'controlling.cost_centers', N'culoare') IS NULL THEN N'#3B82F6' ELSE ISNULL(cc.culoare, N'#3B82F6') END AS culoare,
   COALESCE(SUM(CASE WHEN ce.luna = TRY_CONVERT(date, JSON_VALUE(@p, '$.luna')) THEN ce.valoare ELSE 0 END), 0) AS total_cheltuieli_luna
 FROM controlling.cost_centers cc
 LEFT JOIN controlling.cost_entries ce ON ce.cost_center_id = cc.id
 WHERE cc.activ = 1
 GROUP BY cc.id, cc.company_id, cc.cod, cc.denumire, cc.tip, cc.dept_id, cc.parinte_id,
   cc.nivel, cc.tip_resursa, cc.resursa_ref_id, cc.buget_lunar, cc.buget_anual,
-  cc.responsabil_id, cc.activ, cc.sort_order, cc.created_at, cc.updated_at
+  cc.responsabil_id, cc.activ, cc.sort_order, cc.created_at, cc.updated_at, cc.culoare
 ORDER BY cc.nivel, cc.sort_order, cc.denumire
 FOR JSON PATH;
 `, { luna })
-      return sendJson(res, 200, buildCostCenterTree(centers))
+      const objects = mssqlArray(`
+IF OBJECT_ID(N'controlling.cost_center_objects', N'U') IS NULL
+  SELECT CAST(N'[]' AS nvarchar(max));
+ELSE
+  SELECT id, cost_center_id, object_id, object_type, object_name, activ, created_at
+  FROM controlling.cost_center_objects
+  WHERE ISNULL(activ, 1) = 1
+  ORDER BY object_type, object_name
+  FOR JSON PATH;
+`)
+      return sendJson(res, 200, buildCostCenterTree(centers, objects))
     }
 
     const db = readDb()
-    const changed = ensureDefaultCostCenters(db)
+    const changed = cleanupLegacyCostCenters(db)
     const controlling = ensureControllingDb(db)
     const totals = monthlyTotalsByCenter(controlling.costEntries, luna)
     const centers = controlling.costCenters
@@ -523,6 +555,74 @@ FOR JSON PATH;
       .map((item) => ({ ...item, total_cheltuieli_luna: numberValue(totals.get(String(item.id))) }))
     if (changed) writeDb(db)
     sendJson(res, 200, buildCostCenterTree(centers, controlling.costCenterObjects))
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/controlling/cost-centers/link-options', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'controlling:view')) return
+
+    if (isMssqlMode()) {
+      const departments = mssqlArray(`
+IF OBJECT_ID(N'core.departments', N'U') IS NULL
+  SELECT CAST(N'[]' AS nvarchar(max));
+ELSE
+  SELECT id, COALESCE(name, code, CONVERT(nvarchar(80), id)) AS label, N'department' AS type
+  FROM core.departments
+  WHERE ISNULL(active, 1) = 1
+  ORDER BY label
+  FOR JSON PATH;
+`)
+      const assets = mssqlArray(`
+IF OBJECT_ID(N'fleet.assets', N'U') IS NULL
+  SELECT CAST(N'[]' AS nvarchar(max));
+ELSE
+BEGIN
+DECLARE @sql nvarchar(max) = N'SELECT id, ';
+SET @sql += CASE
+  WHEN COL_LENGTH(N'fleet.assets', N'name') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'registration') IS NOT NULL THEN N'COALESCE(NULLIF(CONCAT(name, N'' / '', registration), N'' / ''), name, registration, CONVERT(nvarchar(80), id))'
+  WHEN COL_LENGTH(N'fleet.assets', N'denumire') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'nr_inmatriculare') IS NOT NULL THEN N'COALESCE(NULLIF(CONCAT(denumire, N'' / '', nr_inmatriculare), N'' / ''), denumire, nr_inmatriculare, CONVERT(nvarchar(80), id))'
+  WHEN COL_LENGTH(N'fleet.assets', N'name') IS NOT NULL THEN N'COALESCE(name, CONVERT(nvarchar(80), id))'
+  WHEN COL_LENGTH(N'fleet.assets', N'denumire') IS NOT NULL THEN N'COALESCE(denumire, CONVERT(nvarchar(80), id))'
+  ELSE N'CONVERT(nvarchar(80), id)'
+END;
+SET @sql += N' AS label, CASE WHEN ';
+SET @sql += CASE
+  WHEN COL_LENGTH(N'fleet.assets', N'category') IS NOT NULL THEN N'LOWER(ISNULL(category, N'''')) IN (N''vehicle'', N''autovehicul'', N''vehicul'')'
+  WHEN COL_LENGTH(N'fleet.assets', N'tip_asset') IS NOT NULL THEN N'LOWER(ISNULL(tip_asset, N'''')) IN (N''vehicle'', N''autovehicul'', N''vehicul'')'
+  ELSE N'0 = 1'
+END;
+SET @sql += N' THEN N''vehicle'' ELSE N''equipment'' END AS type FROM fleet.assets ORDER BY label FOR JSON PATH;';
+EXEC sp_executesql @sql;
+END;
+`)
+      const projects = mssqlArray(`
+IF OBJECT_ID(N'work.projects', N'U') IS NULL
+  SELECT CAST(N'[]' AS nvarchar(max));
+ELSE
+BEGIN
+DECLARE @sql nvarchar(max) = N'SELECT id, ';
+SET @sql += CASE
+  WHEN COL_LENGTH(N'work.projects', N'name') IS NOT NULL THEN N'COALESCE(name, CONVERT(nvarchar(80), id))'
+  WHEN COL_LENGTH(N'work.projects', N'denumire') IS NOT NULL THEN N'COALESCE(denumire, CONVERT(nvarchar(80), id))'
+  WHEN COL_LENGTH(N'work.projects', N'titlu') IS NOT NULL THEN N'COALESCE(titlu, CONVERT(nvarchar(80), id))'
+  ELSE N'CONVERT(nvarchar(80), id)'
+END;
+SET @sql += N' AS label, N''project'' AS type FROM work.projects ORDER BY label FOR JSON PATH;';
+EXEC sp_executesql @sql;
+END;
+`)
+      return sendJson(res, 200, { departments, assets, projects })
+    }
+
+    const db = readDb()
+    const changed = cleanupLegacyCostCenters(db)
+    if (changed) writeDb(db)
+    sendJson(res, 200, jsonLinkOptions(db))
   } catch (error) {
     next(error)
   }
@@ -619,6 +719,49 @@ router.put('/controlling/cost-centers/:id', (req, res, next) => {
     if (!requirePermission(auth, res, 'controlling:cost_centers')) return
 
     const db = readDb()
+    if (isMssqlMode()) {
+      const body = req.body || {}
+      const updated = mssqlObject(`
+DECLARE @id int = TRY_CONVERT(int, JSON_VALUE(@p, '$.id'));
+DECLARE @parentNivel int = NULL;
+IF NULLIF(JSON_VALUE(@p, '$.parinte_id'), '') IS NOT NULL
+BEGIN
+  SELECT @parentNivel = nivel
+  FROM controlling.cost_centers
+  WHERE id = TRY_CONVERT(int, JSON_VALUE(@p, '$.parinte_id'));
+END;
+
+UPDATE controlling.cost_centers
+SET cod = COALESCE(NULLIF(JSON_VALUE(@p, '$.cod'), ''), cod),
+    denumire = COALESCE(NULLIF(JSON_VALUE(@p, '$.denumire'), ''), NULLIF(JSON_VALUE(@p, '$.name'), ''), denumire),
+    tip = COALESCE(NULLIF(JSON_VALUE(@p, '$.tip'), ''), tip),
+    parinte_id = TRY_CONVERT(int, NULLIF(JSON_VALUE(@p, '$.parinte_id'), '')),
+    nivel = COALESCE(@parentNivel + 1, 1),
+    buget_lunar = TRY_CONVERT(decimal(15,2), NULLIF(JSON_VALUE(@p, '$.buget_lunar'), '')),
+    buget_anual = TRY_CONVERT(decimal(15,2), NULLIF(JSON_VALUE(@p, '$.buget_anual'), '')),
+    responsabil_id = NULLIF(JSON_VALUE(@p, '$.responsabil_id'), ''),
+    updated_at = sysdatetime()
+WHERE id = @id AND activ = 1;
+
+IF COL_LENGTH(N'controlling.cost_centers', N'culoare') IS NOT NULL
+BEGIN
+  UPDATE controlling.cost_centers
+  SET culoare = COALESCE(NULLIF(JSON_VALUE(@p, '$.culoare'), ''), NULLIF(JSON_VALUE(@p, '$.color'), ''), culoare)
+  WHERE id = @id;
+END;
+
+SELECT TOP 1 id, company_id, cod, denumire, tip, dept_id, parinte_id, nivel, tip_resursa,
+  resursa_ref_id, buget_lunar, buget_anual, responsabil_id, activ, sort_order, created_at, updated_at
+FROM controlling.cost_centers
+WHERE id = @id
+FOR JSON PATH;
+`, { ...body, id: req.params.id })
+      if (!updated) return sendJson(res, 404, { error: 'Centrul de cost nu a fost găsit.' })
+      addAudit(db, auth.user, 'controlling_cost_center_updated', updated.denumire)
+      writeDb(db)
+      return sendJson(res, 200, updated)
+    }
+
     const controlling = ensureControllingDb(db)
     const item = controlling.costCenters.find(center => String(center.id) === String(req.params.id))
     if (!item) return sendJson(res, 404, { error: 'Centrul de cost nu a fost găsit.' })
@@ -652,6 +795,46 @@ router.delete('/controlling/cost-centers/:id', (req, res, next) => {
     if (!requirePermission(auth, res, 'controlling:cost_centers')) return
 
     const db = readDb()
+    if (isMssqlMode()) {
+      const result = mssqlObject(`
+DECLARE @id int = TRY_CONVERT(int, JSON_VALUE(@p, '$.id'));
+DECLARE @children int = (
+  SELECT COUNT(1)
+  FROM controlling.cost_centers
+  WHERE parinte_id = @id AND activ = 1
+);
+
+IF @children > 0
+BEGIN
+  SELECT @children AS children FOR JSON PATH;
+  RETURN;
+END;
+
+UPDATE controlling.cost_centers
+SET activ = 0,
+    updated_at = sysdatetime(),
+    cancelled_at = CASE WHEN COL_LENGTH(N'controlling.cost_centers', N'cancelled_at') IS NULL THEN NULL ELSE sysdatetime() END,
+    cancelled_by = CASE WHEN COL_LENGTH(N'controlling.cost_centers', N'cancelled_by') IS NULL THEN NULL ELSE JSON_VALUE(@p, '$.userId') END,
+    cancelled_reason = CASE WHEN COL_LENGTH(N'controlling.cost_centers', N'cancelled_reason') IS NULL THEN NULL ELSE COALESCE(NULLIF(JSON_VALUE(@p, '$.reason'), ''), N'Dezactivat din Controlling') END
+WHERE id = @id AND activ = 1;
+
+IF OBJECT_ID(N'controlling.cost_center_objects', N'U') IS NOT NULL
+  UPDATE controlling.cost_center_objects SET activ = 0 WHERE cost_center_id = @id;
+
+SELECT TOP 1 id, cod, denumire, tip, activ, updated_at
+FROM controlling.cost_centers
+WHERE id = @id
+FOR JSON PATH;
+`, { id: req.params.id, userId: auth.user.id, reason: req.body?.reason || req.query?.reason || '' })
+      if (result?.children) {
+        return sendJson(res, 409, { error: 'Centrul are subcentre active. Dezactivează mai întâi subcentrele.', children: result.children })
+      }
+      if (!result) return sendJson(res, 404, { error: 'Centrul de cost nu a fost găsit.' })
+      addAudit(db, auth.user, 'controlling_cost_center_disabled', result.denumire)
+      writeDb(db)
+      return sendJson(res, 200, result)
+    }
+
     const controlling = ensureControllingDb(db)
     const item = controlling.costCenters.find(center => String(center.id) === String(req.params.id))
     if (!item) return sendJson(res, 404, { error: 'Centrul de cost nu a fost găsit.' })
@@ -680,6 +863,62 @@ router.post('/controlling/cost-centers/:id/assign-asset', (req, res, next) => {
     if (!requirePermission(auth, res, 'controlling:cost_centers')) return
 
     const db = readDb()
+    if (isMssqlMode()) {
+      const body = req.body || {}
+      const objectId = String(body.asset_id || body.object_id || '').trim()
+      const objectType = String(body.asset_type || body.object_type || 'equipment').trim()
+      if (!objectId) return sendJson(res, 400, { error: 'Alege obiectul de asociat.' })
+      const object = mssqlObject(`
+DECLARE @centerId int = TRY_CONVERT(int, JSON_VALUE(@p, '$.centerId'));
+DECLARE @objectId nvarchar(100) = JSON_VALUE(@p, '$.objectId');
+DECLARE @objectType nvarchar(30) = JSON_VALUE(@p, '$.objectType');
+DECLARE @objectName nvarchar(200) = NULLIF(JSON_VALUE(@p, '$.objectName'), '');
+
+IF NOT EXISTS (SELECT 1 FROM controlling.cost_centers WHERE id = @centerId AND activ = 1)
+BEGIN
+  SELECT N'not_found' AS error FOR JSON PATH;
+  RETURN;
+END;
+
+UPDATE controlling.cost_center_objects
+SET activ = 0
+WHERE object_id = @objectId AND object_type = @objectType AND ISNULL(activ, 1) = 1;
+
+IF EXISTS (SELECT 1 FROM controlling.cost_center_objects WHERE cost_center_id = @centerId AND object_id = @objectId AND object_type = @objectType)
+BEGIN
+  UPDATE controlling.cost_center_objects
+  SET activ = 1, object_name = COALESCE(@objectName, object_name), created_by = JSON_VALUE(@p, '$.userId'), created_at = sysdatetime()
+  WHERE cost_center_id = @centerId AND object_id = @objectId AND object_type = @objectType;
+END
+ELSE
+BEGIN
+  INSERT INTO controlling.cost_center_objects(cost_center_id, object_id, object_type, object_name, activ, created_by)
+  VALUES (@centerId, @objectId, @objectType, @objectName, 1, JSON_VALUE(@p, '$.userId'));
+END;
+
+IF @objectType IN (N'vehicle', N'equipment', N'utilaj', N'vehicul') AND OBJECT_ID(N'fleet.assets', N'U') IS NOT NULL AND COL_LENGTH(N'fleet.assets', N'cost_center_id') IS NOT NULL
+  UPDATE fleet.assets SET cost_center_id = @centerId WHERE CONVERT(nvarchar(100), id) = @objectId;
+
+IF @objectType = N'department'
+  UPDATE controlling.cost_centers SET dept_id = TRY_CONVERT(uniqueidentifier, @objectId), updated_at = sysdatetime() WHERE id = @centerId;
+
+SELECT TOP 1 *
+FROM controlling.cost_center_objects
+WHERE cost_center_id = @centerId AND object_id = @objectId AND object_type = @objectType
+FOR JSON PATH;
+`, {
+        centerId: req.params.id,
+        objectId,
+        objectType,
+        objectName: body.object_name || body.label || '',
+        userId: auth.user.id
+      })
+      if (object?.error === 'not_found') return sendJson(res, 404, { error: 'Centrul de cost nu a fost găsit.' })
+      addAudit(db, auth.user, 'controlling_cost_center_object_assigned', `${req.params.id} / ${object?.object_name || objectId}`)
+      writeDb(db)
+      return sendJson(res, 201, object)
+    }
+
     const controlling = ensureControllingDb(db)
     const center = controlling.costCenters.find(item => String(item.id) === String(req.params.id) && item.activ !== false)
     if (!center) return sendJson(res, 404, { error: 'Centrul de cost nu a fost găsit.' })
@@ -707,6 +946,9 @@ router.post('/controlling/cost-centers/:id/assign-asset', (req, res, next) => {
     if (['vehicle', 'equipment', 'utilaj', 'vehicul'].includes(objectType.toLowerCase())) {
       const asset = (db.fleetAssets || []).find(item => String(item.id) === objectId)
       if (asset) asset.cost_center_id = center.id
+    } else if (objectType.toLowerCase() === 'department') {
+      center.dept_id = objectId
+      center.updated_at = nowIso()
     }
 
     addAudit(db, auth.user, 'controlling_cost_center_object_assigned', `${center.denumire} / ${object.object_name}`)
@@ -1165,7 +1407,7 @@ router.get('/controlling/document-centre-cost', (req, res, next) => {
       rows = getMssqlCostCenterDocumentRows()
     } else {
       const db = readDb()
-      const changed = ensureDefaultCostCenters(db)
+      const changed = cleanupLegacyCostCenters(db)
       rows = getJsonCostCenterDocumentRows(db)
       if (changed) writeDb(db)
     }
@@ -1214,7 +1456,7 @@ FOR JSON PATH;
     }
 
     const db = readDb()
-    const changed = ensureDefaultCostCenters(db)
+    const changed = cleanupLegacyCostCenters(db)
     const controlling = ensureControllingDb(db)
     const centers = controlling.costCenters
     const selectedCenter = centers.find(center =>

@@ -96,6 +96,7 @@ Etape recomandate:
 - Datele istorice reale pot rămâne în backup-uri sau documente de migrare, dar nu sunt prezentate ca identitate InfraFlow.
 - Orice modul nou trebuie să funcționeze fără departamente sau fluxuri presupuse de un client anume.
 - Orice integrare externă se prezintă ca adaptor configurabil.
+- Seed-urile sau mapările operaționale de la clienți pilot nu se livrează în pachetele comerciale; dacă există istoric, acesta se dezactivează prin migrare versionată.
 
 ## Direcție imediată
 
