@@ -401,3 +401,17 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/system/service.js` — ✅ jurnalizare `runtime/restart-last.log` și verificare `/api/health` după pornire;
 - `server/modules/system/update-routes.js` — ✅ fereastră de restart raportată realist: `restart_in: 12`;
 - validare dry-run pentru helperul PowerShell generat.
+
+### UPDATE 327 — Health rapid MSSQL
+
+- `server/core/db.js` — ✅ `databaseHealth()` nu mai rulează implicit interogări MSSQL sincron;
+- `server/core/db.js` — ✅ diagnosticul complet rămâne disponibil cu `quick: false`;
+- `client/src/pages/SetariPage.jsx` — ✅ status distinct pentru „Server activ — SQL neverificat rapid”;
+- reduce riscul ca un health check sau o încărcare Setări să blocheze clientul desktop în ecranul de conexiune.
+
+### UPDATE 328 — Setări rapide fără verificare schemă automată
+
+- `client/src/pages/SetariPage.jsx` — ✅ nu mai cere automat `/system/database-schema` la încărcarea paginii;
+- diagnosticul complet SQL rămâne manual prin „Verifică schema”;
+- panoul explică explicit de ce schema nu este verificată automat;
+- reduce încărcarea inițială a Setărilor pe instalări MSSQL lente.

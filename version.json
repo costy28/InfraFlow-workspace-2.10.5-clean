@@ -1,5 +1,5 @@
 {
-  "version": "2.12.306",
-  "date": "2026-07-15",
-  "changelog": "## v2.12.306 - 2026-07-15\n### Restart robust dupa update\n- Restartul post-update prefera start-server.bat cand nu exista serviciu Windows sau task dedicat.\n- Configuratia runtime MSSQL este pastrata la fallback-ul de pornire.\n- Helperul de restart scrie restart-last.log si verifica /api/health dupa pornire."
+  "version": "2.12.308",
+  "date": "2026-07-16",
+  "changelog": "## v2.12.308 - 2026-07-16\n### Setari rapide fara verificare schema automata\n- Pagina Setari nu mai cere automat /system/database-schema la incarcare.\n- Diagnosticul complet SQL ramane disponibil manual prin Verifica schema.\n- Se reduce riscul de blocaj UI/server cand SQL Server raspunde lent."
 }

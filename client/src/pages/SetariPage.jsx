@@ -488,7 +488,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, dbSchemaRes, moduleCatalogRes, countryProfilesRes, countryRulesRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -501,7 +501,6 @@ export default function SetariPage() {
         api.get('/integration/piusi/status'),
         api.get('/integration/piusi/mapari'),
         api.get('/system/database-config'),
-        api.get('/system/database-schema'),
         api.get('/settings/modules/catalog'),
         api.get('/settings/country-profiles'),
         api.get('/settings/country-rules'),
@@ -537,7 +536,6 @@ export default function SetariPage() {
         setDatabaseConfig({ ...cfg, password: '' })
         setDatabaseHealth(dbConfigRes.value.data.health || null)
       }
-      if (dbSchemaRes.status === 'fulfilled') setDatabaseSchema(dbSchemaRes.value.data || null)
       if (moduleCatalogRes.status === 'fulfilled') setModuleCatalog(moduleCatalogRes.value.data.catalog || null)
       if (countryProfilesRes.status === 'fulfilled') {
         const countries = arrayFrom(countryProfilesRes.value.data, ['countries'])
@@ -1760,8 +1758,15 @@ export default function SetariPage() {
             <div className="md:col-span-2 grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
               <div className="font-medium text-slate-800">Status conexiune</div>
               <div className={databaseHealth?.ok ? 'text-emerald-700' : 'text-rose-700'}>
-                {databaseHealth?.ok ? 'Conexiune OK' : (databaseHealth?.error || 'Netrimis / neverificat')}
+                {databaseHealth?.ok
+                  ? (databaseHealth?.quick ? 'Server activ — SQL neverificat rapid' : 'Conexiune OK')
+                  : (databaseHealth?.error || 'Netrimis / neverificat')}
               </div>
+              {databaseHealth?.quick ? (
+                <div className="text-xs text-slate-500">
+                  Folosește „Testează conexiunea” pentru verificarea reală SQL Server.
+                </div>
+              ) : null}
               {databaseConfig.runtimeFile ? (
                 <div className="text-xs text-slate-500">Fișier runtime: {databaseConfig.runtimeFile}</div>
               ) : null}
@@ -1800,10 +1805,15 @@ export default function SetariPage() {
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div className="text-slate-500">Migrare date app_state</div>
                 <div className={databaseSchema?.accountingSyncAvailable ? 'mt-1 font-semibold text-emerald-700' : 'mt-1 font-semibold text-amber-700'}>
-                  {databaseSchema?.accountingSyncAvailable ? 'contabilitate disponibilă' : 'se repară automat la migrare'}
+                {databaseSchema?.accountingSyncAvailable ? 'contabilitate disponibilă' : 'se repară automat la migrare'}
                 </div>
               </div>
             </div>
+            {!databaseSchema ? (
+              <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+                Verificarea schemei SQL nu se mai rulează automat la deschiderea paginii, ca să păstrăm Setările rapide. Apasă „Verifică schema” când ai nevoie de diagnosticul complet.
+              </div>
+            ) : null}
             {databaseSchema?.lastAccountingSync ? (
               <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
                 Ultima migrare contabilitate: {formatDate(databaseSchema.lastAccountingSync.synced_at)} ·

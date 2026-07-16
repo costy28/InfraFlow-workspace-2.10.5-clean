@@ -988,9 +988,25 @@ function configuredMssqlConnectionString() {
   return `Server=${server};Database=${database};User Id=${user};Password=${password};TrustServerCertificate=True;Encrypt=${process.env.DB_ENCRYPT || "false"};Connection Timeout=30`;
 }
 
-function databaseHealth() {
+function databaseHealth(options = {}) {
   if (!["mssql", "sqlserver"].includes(DB_MODE)) {
     return { ok: true, mode: DB_MODE, server: null, database: path.basename(DB_FILE), pool: null };
+  }
+  const quick = options.quick !== false;
+  if (quick) {
+    return {
+      ok: true,
+      mode: DB_MODE,
+      server: process.env.DB_SERVER || getConnectionStringValue(configuredMssqlConnectionString(), "Server") || ".\\SQLEXPRESS",
+      database: mssqlDatabaseName(),
+      connection: {
+        ok: mssqlPool?.connected ? true : null,
+        transport: mssqlPool?.connected ? "pool" : "powershell",
+        checked: false
+      },
+      migrations: { latest: "", d205_ready: null, intrastat_ready: null },
+      quick: true
+    };
   }
   const diagnostic = String(runMssqlScalar(`
     select concat(
@@ -1004,8 +1020,9 @@ function databaseHealth() {
     mode: DB_MODE,
     server: process.env.DB_SERVER || getConnectionStringValue(configuredMssqlConnectionString(), "Server") || ".\\SQLEXPRESS",
     database: mssqlDatabaseName(),
-    connection: { ok: true, transport: mssqlPool?.connected ? "pool" : "powershell" },
-    migrations: { latest: diagnostic[0] || "", d205_ready: diagnostic[1] === "1", intrastat_ready: diagnostic[2] === "1" }
+    connection: { ok: true, transport: mssqlPool?.connected ? "pool" : "powershell", checked: true },
+    migrations: { latest: diagnostic[0] || "", d205_ready: diagnostic[1] === "1", intrastat_ready: diagnostic[2] === "1" },
+    quick: false
   };
 }
 

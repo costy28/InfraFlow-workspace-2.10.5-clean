@@ -1,5 +1,23 @@
 # Changelog
 
+# v2.12.308 - 2026-07-16
+
+## Setări rapide fără verificare schemă automată
+
+- Pagina Setări nu mai apelează automat `/system/database-schema` la încărcare.
+- Diagnosticul complet al schemei MSSQL rămâne disponibil explicit prin butonul „Verifică schema”.
+- Panoul explică de ce verificarea se face manual: Setările trebuie să rămână rapide și sigure.
+- Reducem riscul ca o verificare SQL lentă să țină pagina sau clientul desktop în așteptare.
+
+# v2.12.307 - 2026-07-16
+
+## Health rapid MSSQL
+
+- `databaseHealth()` folosește implicit un răspuns rapid pentru MSSQL, fără interogare PowerShell sincronă.
+- `/api/system/health` și configurarea SQL rămân responsive chiar dacă SQL Server răspunde greu.
+- Panoul Setări afișează distinct „Server activ — SQL neverificat rapid”.
+- Verificarea reală a conexiunii rămâne acțiune explicită prin „Testează conexiunea”.
+
 # v2.12.306 - 2026-07-15
 
 ## Restart robust după update
