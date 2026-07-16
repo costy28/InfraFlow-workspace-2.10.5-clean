@@ -1,5 +1,5 @@
 {
-  "version": "2.12.310",
+  "version": "2.12.311",
   "date": "2026-07-16",
-  "changelog": "## v2.12.310 - 2026-07-16\n### Scheduler PIUSI cu backoff si log rar\n- Scheduler-ul PIUSI retine starea ultimei rulari, succesului si erorilor.\n- Erorile de import primesc backoff progresiv pana la 6 ore.\n- Lipsa MDB-ului nu mai produce log repetitiv si este afisata ca observatie in Setari.\n- Sincronizarea automata persista explicit rezultatele dupa rulare."
+  "changelog": "## v2.12.311 - 2026-07-16\n### Release check pentru pachete update\n- Adauga scriptul npm run release:check pentru validarea coerentei release-ului.\n- Verifica versiuni sincronizate in package-uri si version.json.\n- Verifica CHANGELOG, AGENTS si nota UPDATE curenta.\n- Valideaza ZIP-ul generat, inclusiv fisierele obligatorii si versiunea interna."
 }

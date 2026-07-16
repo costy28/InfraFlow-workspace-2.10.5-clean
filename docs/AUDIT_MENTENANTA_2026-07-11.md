@@ -430,3 +430,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/integration/piusi.js` — ✅ lipsa MDB-ului este jurnalizată rar, fără spam la fiecare interval;
 - `server/modules/integration/piusi.js` — ✅ sync-ul automat persistă explicit rezultatele și timestampul `piusi_last_sync`;
 - `client/src/pages/SetariPage.jsx` — ✅ Setările afișează starea scheduler-ului PIUSI.
+
+### UPDATE 331 — Release check pentru pachete update
+
+- `scripts/release-check.js` — ✅ verifică versiuni sincronizate, documentație release și nota UPDATE curentă;
+- `scripts/release-check.js` — ✅ validează arhiva ZIP generată și normalizează separatorii Windows/Linux din intrările ZIP;
+- `package.json` — ✅ script nou `npm run release:check`;
+- flux recomandat: `npm run release:check -- --no-zip` înainte de pachetare și `npm run release:check` după generarea ZIP-ului.

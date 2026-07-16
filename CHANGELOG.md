@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.311 - 2026-07-16
+
+## Release check pentru pachete update
+
+- Adăugat `npm run release:check` pentru validarea coerentă a unui release înainte/după ZIP.
+- Verifică sincronizarea versiunilor din `package.json`, `server/package.json`, `client/package.json` și `version.json`.
+- Verifică prezența intrărilor curente în `CHANGELOG.md`, `AGENTS.md` și `updates/UPDATE_*.md`.
+- Validează arhiva `installer/output/InfraFlow-update-v[versiune].zip`, inclusiv fișierele obligatorii și `version.json` intern.
+- Suportă `--no-zip` pentru verificare înainte de pachetare.
+
 # v2.12.310 - 2026-07-16
 
 ## Scheduler PIUSI cu backoff și log rar
