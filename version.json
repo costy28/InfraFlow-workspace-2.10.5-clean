@@ -1,5 +1,5 @@
 {
-  "version": "2.12.305",
+  "version": "2.12.306",
   "date": "2026-07-15",
-  "changelog": "## v2.12.305 - 2026-07-15\n### Demo comercial generic\n- Demo-ul livrat foloseste identitatea Construct Demo SRL si domeniul infraflow-demo.ro.\n- Smoke-ul demo valideaza compania generica, nu un client pilot.\n- Seed-ul Mediu implicit nu mai contine referinta Publiserv."
+  "changelog": "## v2.12.306 - 2026-07-15\n### Restart robust dupa update\n- Restartul post-update prefera start-server.bat cand nu exista serviciu Windows sau task dedicat.\n- Configuratia runtime MSSQL este pastrata la fallback-ul de pornire.\n- Helperul de restart scrie restart-last.log si verifica /api/health dupa pornire."
 }

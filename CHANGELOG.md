@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.306 - 2026-07-15
+
+## Restart robust după update
+
+- Fallback-ul de restart post-update pornește `start-server.bat` când instalarea nu are serviciu Windows sau task `InfraFlow ERP`.
+- Configurația runtime MSSQL rămâne aceeași după update, inclusiv variabilele din launcherul instalat.
+- Helperul de restart scrie `runtime/restart-last.log` și verifică `/api/health` după pornire.
+- Răspunsul API pentru aplicarea update-ului anunță o fereastră realistă de restart: 12 secunde.
+
 # v2.12.305 - 2026-07-15
 
 ## Demo comercial generic

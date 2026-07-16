@@ -267,7 +267,7 @@ function createSystemUpdateRouter(context) {
 
       fs.rmSync(tmpDir, { recursive: true, force: true })
       fs.unlinkSync(archivePath)
-      sendJson(res, 200, { ok: true, versiune: versionInfo.version, restart_in: 3 })
+      sendJson(res, 200, { ok: true, versiune: versionInfo.version, restart_in: 12 })
       scheduleApplicationRestart()
     } catch (error) {
       next(error)

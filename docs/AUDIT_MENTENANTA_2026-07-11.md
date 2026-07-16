@@ -394,3 +394,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `scripts/seed-demo.js` — ✅ emailuri demo pe `infraflow-demo.ro`;
 - `scripts/smoke-demo.js` — ✅ validare companie demo generică;
 - `db/migrations/015_mediu.sql` — ✅ seed-ul Mediu nu mai include nume de client pilot.
+
+### UPDATE 326 — Restart robust după update
+
+- `server/modules/system/service.js` — ✅ fallback-ul post-update preferă `start-server.bat`, păstrând configurația MSSQL instalată;
+- `server/modules/system/service.js` — ✅ jurnalizare `runtime/restart-last.log` și verificare `/api/health` după pornire;
+- `server/modules/system/update-routes.js` — ✅ fereastră de restart raportată realist: `restart_in: 12`;
+- validare dry-run pentru helperul PowerShell generat.

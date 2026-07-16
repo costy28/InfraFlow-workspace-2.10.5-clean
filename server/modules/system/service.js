@@ -723,38 +723,67 @@ function scheduleApplicationRestart() {
   const launcherPath = path.join(ROOT, "runtime", `restart-launcher-${timestamp}.ps1`);
   const logPath = path.join(ROOT, "runtime", "restart-last.log");
   const startScriptPath = path.join(ROOT, "scripts", "windows", "start-infraflow.ps1");
+  const startBatPath = path.join(ROOT, "start-server.bat");
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
 
   const script = `
 $ErrorActionPreference = "Stop"
 $logPath = ${powershellSingleQuote(logPath)}
+$rootPath = ${powershellSingleQuote(ROOT)}
+$startBatPath = ${powershellSingleQuote(startBatPath)}
+$startScriptPath = ${powershellSingleQuote(startScriptPath)}
+$port = ${port}
+function Write-RestartLog([string]$Message) {
+  "[$(Get-Date -Format o)] $Message" | Add-Content -LiteralPath $logPath -Encoding UTF8
+}
+function Wait-InfraFlowHealth {
+  for ($i = 1; $i -le 30; $i++) {
+    try {
+      Invoke-RestMethod -Uri "http://127.0.0.1:$port/api/health" -TimeoutSec 2 | Out-Null
+      Write-RestartLog "Health OK pe portul $port dupa $i incercari."
+      return
+    } catch {
+      Start-Sleep -Seconds 2
+    }
+  }
+  Write-RestartLog "AVERTISMENT: serverul nu a raspuns la /api/health dupa restart."
+}
 try {
   "[$(Get-Date -Format o)] Restart helper pornit." | Set-Content -LiteralPath $logPath -Encoding UTF8
   Start-Sleep -Seconds 3
 
   $service = Get-Service -Name "InfraFlow" -ErrorAction SilentlyContinue
   if ($service) {
-    "[$(Get-Date -Format o)] Restart serviciu InfraFlow." | Add-Content -LiteralPath $logPath -Encoding UTF8
+    Write-RestartLog "Restart serviciu InfraFlow."
     Restart-Service -Name "InfraFlow" -Force -ErrorAction Stop
   } else {
     $task = Get-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
     if ($task) {
-      "[$(Get-Date -Format o)] Restart task InfraFlow ERP." | Add-Content -LiteralPath $logPath -Encoding UTF8
+      Write-RestartLog "Restart task InfraFlow ERP."
       Stop-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
       Start-Sleep -Seconds 2
       Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
       Start-Sleep -Seconds 2
       Start-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction Stop
     } else {
-      "[$(Get-Date -Format o)] Restart fallback proces direct." | Add-Content -LiteralPath $logPath -Encoding UTF8
+      Write-RestartLog "Restart fallback proces direct."
       Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
       Start-Sleep -Seconds 2
-      Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ${powershellSingleQuote(startScriptPath)}, "-Port", "${port}") -WindowStyle Hidden
+      if (Test-Path -LiteralPath $startBatPath) {
+        Write-RestartLog "Pornesc start-server.bat pentru pastrarea configuratiei runtime."
+        Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $startBatPath) -WorkingDirectory $rootPath -WindowStyle Hidden
+      } elseif (Test-Path -LiteralPath $startScriptPath) {
+        Write-RestartLog "Pornesc scripts/windows/start-infraflow.ps1."
+        Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $startScriptPath, "-Port", "$port") -WorkingDirectory $rootPath -WindowStyle Hidden
+      } else {
+        throw "Nu exista nici start-server.bat, nici scripts/windows/start-infraflow.ps1."
+      }
     }
   }
-  "[$(Get-Date -Format o)] Comanda de restart executata." | Add-Content -LiteralPath $logPath -Encoding UTF8
+  Write-RestartLog "Comanda de restart executata."
+  Wait-InfraFlowHealth
 } catch {
-  "[$(Get-Date -Format o)] EROARE: $($_.Exception.Message)" | Add-Content -LiteralPath $logPath -Encoding UTF8
+  Write-RestartLog "EROARE: $($_.Exception.Message)"
 } finally {
   Start-Sleep -Seconds 2
   Unregister-ScheduledTask -TaskName ${powershellSingleQuote(taskName)} -Confirm:$false -ErrorAction SilentlyContinue
