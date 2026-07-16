@@ -2858,6 +2858,21 @@ export default function SetariPage() {
               <span>Nemăpate: {piusiStatus?.nemapate ?? 0}</span>
               <span>Neprocesate FAZ: {piusiStatus?.nesincronizate ?? 0}</span>
             </div>
+            {piusiStatus?.scheduler ? (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                <div className="font-medium text-slate-700">
+                  Scheduler automat: {piusiStatus.scheduler.started ? `pornit · la ${piusiStatus.scheduler.interval_min || 30} min` : 'nepornit'}
+                </div>
+                <div className="mt-1 grid gap-1 md:grid-cols-3">
+                  <span>Ultima rulare: {piusiStatus.scheduler.last_run_at ? new Date(piusiStatus.scheduler.last_run_at).toLocaleString('ro-RO') : '—'}</span>
+                  <span>Ultimul succes: {piusiStatus.scheduler.last_success_at ? new Date(piusiStatus.scheduler.last_success_at).toLocaleString('ro-RO') : '—'}</span>
+                  <span>Următoarea reîncercare: {piusiStatus.scheduler.next_retry_at ? new Date(piusiStatus.scheduler.next_retry_at).toLocaleString('ro-RO') : '—'}</span>
+                </div>
+                {piusiStatus.scheduler.last_error ? (
+                  <div className="mt-1 text-amber-700">Ultima observație: {piusiStatus.scheduler.last_error}</div>
+                ) : null}
+              </div>
+            ) : null}
             <div className="mt-2 text-xs text-slate-500">
               {piusiStatus?.mdb_verificat
                 ? (piusiStatus?.mdb_accesibil ? 'MDB verificat: accesibil.' : 'MDB verificat: inaccesibil sau lipsă.')

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.309",
+  "version": "2.12.310",
   "date": "2026-07-16",
-  "changelog": "## v2.12.309 - 2026-07-16\n### PIUSI status rapid in Setari\n- Statusul PIUSI nu mai verifica implicit fisierul MDB la fiecare request.\n- Setarile nu mai incarca automat maparile PIUSI la deschiderea paginii.\n- Verificarea MDB si maparile se incarca manual prin Reincarca status si mapari PIUSI."
+  "changelog": "## v2.12.310 - 2026-07-16\n### Scheduler PIUSI cu backoff si log rar\n- Scheduler-ul PIUSI retine starea ultimei rulari, succesului si erorilor.\n- Erorile de import primesc backoff progresiv pana la 6 ore.\n- Lipsa MDB-ului nu mai produce log repetitiv si este afisata ca observatie in Setari.\n- Sincronizarea automata persista explicit rezultatele dupa rulare."
 }

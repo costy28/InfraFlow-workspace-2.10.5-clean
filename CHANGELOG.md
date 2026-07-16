@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.310 - 2026-07-16
+
+## Scheduler PIUSI cu backoff și log rar
+
+- Scheduler-ul PIUSI expune starea ultimei rulări, ultimului succes, erorilor și următoarei reîncercări.
+- Erorile de sincronizare primesc backoff progresiv, până la 6 ore, ca să nu țină serverul în încercări inutile.
+- Lipsa fișierului MDB este jurnalizată rar, nu la fiecare interval.
+- Setările afișează statusul scheduler-ului PIUSI lângă statusul rapid al importului.
+- Sincronizarea automată persistă explicit rezultatele și `piusi_last_sync` după rulare.
+
 # v2.12.309 - 2026-07-16
 
 ## PIUSI status rapid în Setări

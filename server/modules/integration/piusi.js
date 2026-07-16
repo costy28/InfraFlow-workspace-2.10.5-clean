@@ -10,6 +10,22 @@ const { addAudit } = require('../../core/audit')
 const router = Router()
 let schedulerStarted = false
 let schedulerTimer = null
+let schedulerRunning = false
+const PIUSI_SCHEDULER_INTERVAL_MS = 30 * 60 * 1000
+const PIUSI_MISSING_PATH_LOG_MS = 6 * 60 * 60 * 1000
+const PIUSI_MAX_BACKOFF_MS = 6 * 60 * 60 * 1000
+let piusiSchedulerState = {
+  started: false,
+  interval_min: Math.round(PIUSI_SCHEDULER_INTERVAL_MS / 60000),
+  last_run_at: '',
+  last_success_at: '',
+  last_skip_at: '',
+  last_error_at: '',
+  last_error: '',
+  error_count: 0,
+  next_retry_at: '',
+  last_missing_path_warning_at: ''
+}
 
 function id(prefix) {
   return `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`
@@ -20,6 +36,25 @@ function todayIso() { return new Date().toISOString().slice(0, 10) }
 function num(value) { return Number(value) || 0 }
 function round3(value) { return Math.round(num(value) * 1000) / 1000 }
 function round2(value) { return Math.round(num(value) * 100) / 100 }
+
+function getPiusiSchedulerState() {
+  return { ...piusiSchedulerState }
+}
+
+function updatePiusiSchedulerState(patch = {}) {
+  piusiSchedulerState = { ...piusiSchedulerState, ...patch }
+  return getPiusiSchedulerState()
+}
+
+function piusiSchedulerBackoffMs(errorCount) {
+  const steps = Math.max(1, Number(errorCount) || 1)
+  return Math.min(PIUSI_MAX_BACKOFF_MS, 5 * 60 * 1000 * (2 ** (steps - 1)))
+}
+
+function piusiSchedulerCanWarnMissingPath(nowMs) {
+  const last = Date.parse(piusiSchedulerState.last_missing_path_warning_at || '')
+  return Number.isNaN(last) || nowMs - last >= PIUSI_MISSING_PATH_LOG_MS
+}
 
 function throwHttp(status, message) {
   const err = new Error(message)
@@ -233,7 +268,8 @@ function piusiStatus(db, options = {}) {
     sync_interval_min: Number(db.settings?.piusi_sync_min || configValue(db, 'piusi_sync_interval_min', configValue(db, 'piusi_sync_min', 30)) || 30),
     inregistrari_totale: integration.piusiSync.length,
     nemapate,
-    nesincronizate
+    nesincronizate,
+    scheduler: getPiusiSchedulerState()
   }
 }
 
@@ -459,15 +495,64 @@ router.get('/integration/piusi/raport-comparativ', (req, res) => {
 function startPiusiScheduler() {
   if (schedulerStarted) return
   schedulerStarted = true
-  schedulerTimer = setInterval(() => {
-    const db = readDb()
-    const configuredPath = String(db.settings?.piusi_mdb_path || configValue(db, 'piusi_mdb_path') || configValue(db, 'mdb_path') || '').trim()
-    if (!configuredPath || !fs.existsSync(configuredPath)) return
-    syncPiusi({ db }).catch(error => console.warn('[PIUSI] Sync eșuat:', error.message))
-  }, 30 * 60 * 1000)
+  updatePiusiSchedulerState({ started: true, interval_min: Math.round(PIUSI_SCHEDULER_INTERVAL_MS / 60000) })
+  schedulerTimer = setInterval(async () => {
+    if (schedulerRunning) return
+    const now = Date.now()
+    const nextRetry = Date.parse(piusiSchedulerState.next_retry_at || '')
+    if (!Number.isNaN(nextRetry) && now < nextRetry) return
+
+    schedulerRunning = true
+    try {
+      const db = readDb()
+      const configuredPath = String(db.settings?.piusi_mdb_path || configValue(db, 'piusi_mdb_path') || configValue(db, 'mdb_path') || '').trim()
+      updatePiusiSchedulerState({ last_run_at: new Date(now).toISOString() })
+
+      if (!configuredPath) {
+        updatePiusiSchedulerState({ last_skip_at: nowIso(), last_error: '', next_retry_at: '' })
+        return
+      }
+
+      if (!fs.existsSync(configuredPath)) {
+        const message = `MDB indisponibil: ${configuredPath}`
+        const patch = { last_skip_at: nowIso(), last_error: message, next_retry_at: '' }
+        if (piusiSchedulerCanWarnMissingPath(now)) {
+          patch.last_missing_path_warning_at = nowIso()
+          console.warn(`[PIUSI] ${message}`)
+        }
+        updatePiusiSchedulerState(patch)
+        return
+      }
+
+      const result = await syncPiusi({ db })
+      writeDb(db)
+      updatePiusiSchedulerState({
+        last_success_at: nowIso(),
+        last_error: '',
+        last_error_at: '',
+        error_count: 0,
+        next_retry_at: ''
+      })
+      if ((result.imported || 0) > 0) {
+        console.log(`[PIUSI] Sync automat: ${result.imported} importate, ${result.duplicate || 0} duplicate.`)
+      }
+    } catch (error) {
+      const errorCount = piusiSchedulerState.error_count + 1
+      const retryAt = new Date(Date.now() + piusiSchedulerBackoffMs(errorCount)).toISOString()
+      updatePiusiSchedulerState({
+        last_error_at: nowIso(),
+        last_error: error.message,
+        error_count: errorCount,
+        next_retry_at: retryAt
+      })
+      console.warn(`[PIUSI] Sync eșuat (${errorCount}); reîncercare după ${retryAt}:`, error.message)
+    } finally {
+      schedulerRunning = false
+    }
+  }, PIUSI_SCHEDULER_INTERVAL_MS)
 }
 
 module.exports = router
 module.exports.syncPiusi = syncPiusi
 module.exports.startPiusiScheduler = startPiusiScheduler
-module.exports._private = { ensurePiusiDb, processPiusiRowsToFuelLogs, comparativeReport, piusiStatus }
+module.exports._private = { ensurePiusiDb, processPiusiRowsToFuelLogs, comparativeReport, piusiStatus, getPiusiSchedulerState, piusiSchedulerBackoffMs }

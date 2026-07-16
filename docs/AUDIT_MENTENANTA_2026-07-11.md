@@ -422,3 +422,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/integration/piusi.js` — ✅ verificarea reală a MDB-ului se face explicit cu `?check=1`;
 - `client/src/pages/SetariPage.jsx` — ✅ mapările PIUSI nu mai sunt încărcate automat la deschiderea Setărilor;
 - panoul PIUSI explică verificarea rapidă vs verificarea reală.
+
+### UPDATE 330 — Scheduler PIUSI cu backoff și log rar
+
+- `server/modules/integration/piusi.js` — ✅ stare internă scheduler: ultima rulare, ultimul succes, ultima eroare și următoarea reîncercare;
+- `server/modules/integration/piusi.js` — ✅ backoff progresiv pentru erori PIUSI, până la 6 ore;
+- `server/modules/integration/piusi.js` — ✅ lipsa MDB-ului este jurnalizată rar, fără spam la fiecare interval;
+- `server/modules/integration/piusi.js` — ✅ sync-ul automat persistă explicit rezultatele și timestampul `piusi_last_sync`;
+- `client/src/pages/SetariPage.jsx` — ✅ Setările afișează starea scheduler-ului PIUSI.
