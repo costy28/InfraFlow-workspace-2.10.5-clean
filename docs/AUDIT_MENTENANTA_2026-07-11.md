@@ -415,3 +415,10 @@ Următorul pas de stabilizare: `2.12.300`
 - diagnosticul complet SQL rămâne manual prin „Verifică schema”;
 - panoul explică explicit de ce schema nu este verificată automat;
 - reduce încărcarea inițială a Setărilor pe instalări MSSQL lente.
+
+### UPDATE 329 — PIUSI status rapid în Setări
+
+- `server/modules/integration/piusi.js` — ✅ status PIUSI fără verificare implicită a MDB-ului;
+- `server/modules/integration/piusi.js` — ✅ verificarea reală a MDB-ului se face explicit cu `?check=1`;
+- `client/src/pages/SetariPage.jsx` — ✅ mapările PIUSI nu mai sunt încărcate automat la deschiderea Setărilor;
+- panoul PIUSI explică verificarea rapidă vs verificarea reală.

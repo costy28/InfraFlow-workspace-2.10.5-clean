@@ -217,15 +217,17 @@ function upsertMapare(db, operatorCod, assetId, denumire = '', activ = true) {
   return existing || integration.piusiMapare[integration.piusiMapare.length - 1]
 }
 
-function piusiStatus(db) {
+function piusiStatus(db, options = {}) {
   const integration = ensurePiusiDb(db)
   const pathValue = String(db.settings?.piusi_mdb_path || configValue(db, 'piusi_mdb_path') || configValue(db, 'mdb_path') || 'C:\\Piusi\\SelfService\\Data\\Self.mdb')
+  const checkMdb = options.checkMdb === true
   const nemapate = integration.piusiSync.filter(item => !item.asset_id).length
   const nesincronizate = integration.piusiSync.filter(item => item.asset_id && item.procesat !== true).length
   return {
     configurat: Boolean(pathValue),
     mdb_path: pathValue,
-    mdb_accesibil: pathValue ? fs.existsSync(pathValue) : false,
+    mdb_accesibil: checkMdb && pathValue ? fs.existsSync(pathValue) : null,
+    mdb_verificat: checkMdb,
     ultima_sincronizare: configValue(db, 'piusi_last_sync', ''),
     last_id_prog: Number(configValue(db, 'piusi_last_id_prog', 0) || 0),
     sync_interval_min: Number(db.settings?.piusi_sync_min || configValue(db, 'piusi_sync_interval_min', configValue(db, 'piusi_sync_min', 30)) || 30),
@@ -366,7 +368,8 @@ router.get('/integration/piusi/status', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
   if (!requirePermission(auth, res, 'mechanization:view')) return
-  res.json(piusiStatus(auth.db))
+  const checkMdb = ['1', 'true', 'da', 'yes'].includes(String(req.query.check || '').toLowerCase())
+  res.json(piusiStatus(auth.db, { checkMdb }))
 })
 
 router.post('/integration/piusi/config', (req, res, next) => {
@@ -467,4 +470,4 @@ function startPiusiScheduler() {
 module.exports = router
 module.exports.syncPiusi = syncPiusi
 module.exports.startPiusiScheduler = startPiusiScheduler
-module.exports._private = { ensurePiusiDb, processPiusiRowsToFuelLogs, comparativeReport }
+module.exports._private = { ensurePiusiDb, processPiusiRowsToFuelLogs, comparativeReport, piusiStatus }

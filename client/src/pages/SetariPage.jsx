@@ -488,7 +488,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, piusiMapariRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -499,7 +499,6 @@ export default function SetariPage() {
         api.get('/system/update/history'),
         api.get('/hr/employees?activ=1'),
         api.get('/integration/piusi/status'),
-        api.get('/integration/piusi/mapari'),
         api.get('/system/database-config'),
         api.get('/settings/modules/catalog'),
         api.get('/settings/country-profiles'),
@@ -526,10 +525,6 @@ export default function SetariPage() {
           mdb_path: status.mdb_path || 'C:\\Piusi\\SelfService\\Data\\Self.mdb',
           sync_interval_min: status.sync_interval_min || 30,
         })
-      }
-      if (piusiMapariRes.status === 'fulfilled') {
-        setPiusiMapari(arrayFrom(piusiMapariRes.value.data, ['mapari']))
-        setPiusiAssets(arrayFrom(piusiMapariRes.value.data, ['assets']))
       }
       if (dbConfigRes.status === 'fulfilled') {
         const cfg = dbConfigRes.value.data.config || {}
@@ -1349,7 +1344,7 @@ export default function SetariPage() {
 
   async function reloadPiusi() {
     const [statusRes, mapariRes] = await Promise.allSettled([
-      api.get('/integration/piusi/status'),
+      api.get('/integration/piusi/status?check=1'),
       api.get('/integration/piusi/mapari'),
     ])
     if (statusRes.status === 'fulfilled') {
@@ -2850,7 +2845,7 @@ export default function SetariPage() {
               </section>
 
               <div className="flex flex-wrap justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={reloadPiusi}>Reîncarcă status PIUSI</Button>
+                <Button type="button" variant="ghost" onClick={reloadPiusi}>Reîncarcă status și mapări PIUSI</Button>
                 <Button type="button" onClick={saveExternalPaths}>💾 Salvează toate căile</Button>
               </div>
             </div>
@@ -2863,13 +2858,18 @@ export default function SetariPage() {
               <span>Nemăpate: {piusiStatus?.nemapate ?? 0}</span>
               <span>Neprocesate FAZ: {piusiStatus?.nesincronizate ?? 0}</span>
             </div>
+            <div className="mt-2 text-xs text-slate-500">
+              {piusiStatus?.mdb_verificat
+                ? (piusiStatus?.mdb_accesibil ? 'MDB verificat: accesibil.' : 'MDB verificat: inaccesibil sau lipsă.')
+                : 'MDB neverificat la încărcarea paginii. Folosește „Reîncarcă status și mapări PIUSI” sau testul de cale pentru verificare reală.'}
+            </div>
           </Card>
 
           <Card title="Mapare operatori PIUSI" subtitle="Leagă codurile PIUSI de vehiculele/utilajele InfraFlow.">
             <div className="grid gap-3">
               {!piusiMapari.length ? (
                 <div className="rounded border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-                  Nu există operatori PIUSI importați încă. Rulează o sincronizare sau adaugă alimentări din MDB.
+                  Mapările PIUSI nu sunt încărcate automat la deschiderea Setărilor. Apasă „Reîncarcă status și mapări PIUSI” sau rulează o sincronizare.
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-lg border border-slate-200">

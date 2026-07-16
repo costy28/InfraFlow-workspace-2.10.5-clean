@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.309 - 2026-07-16
+
+## PIUSI status rapid în Setări
+
+- `/integration/piusi/status` nu mai verifică implicit existența fișierului MDB.
+- Verificarea MDB se face explicit cu `?check=1`, folosită de butonul manual din Setări.
+- Pagina Setări nu mai încarcă automat `/integration/piusi/mapari` la deschidere.
+- Panoul PIUSI explică faptul că MDB-ul este neverificat rapid și cere acțiune manuală pentru verificare reală.
+
 # v2.12.308 - 2026-07-16
 
 ## Setări rapide fără verificare schemă automată
