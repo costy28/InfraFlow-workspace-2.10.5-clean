@@ -1,5 +1,8 @@
 const { Router } = require('express')
 const crypto = require('crypto')
+const fs = require('fs')
+const path = require('path')
+const multer = require('multer')
 const xlsx = require('xlsx')
 const { requireAuth } = require('../../core/auth')
 const { requireAnyPermission } = require('../../core/permissions')
@@ -7,6 +10,11 @@ const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 
 const router = Router()
+const ROOT = path.resolve(__dirname, '../../..')
+const CONTRACT_STORAGE_DIR = path.join(ROOT, 'storage', 'contracts')
+const CONTRACT_UPLOAD_BYTES = 20 * 1024 * 1024
+const CONTRACT_ALLOWED_EXT = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp'])
+const contractUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: CONTRACT_UPLOAD_BYTES } })
 
 const VIEW_PERMISSIONS = [
   'legal:contracts',
@@ -63,6 +71,7 @@ function ensureContractsDb(db) {
   cm.consumptions = Array.isArray(cm.consumptions) ? cm.consumptions : []
   cm.alerts = Array.isArray(cm.alerts) ? cm.alerts : []
   cm.tasks = Array.isArray(cm.tasks) ? cm.tasks : []
+  cm.attachments = Array.isArray(cm.attachments) ? cm.attachments : []
   return cm
 }
 
@@ -89,6 +98,15 @@ function todayIso() {
 
 function id(prefix) {
   return `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`
+}
+
+function safeFileName(value) {
+  const name = path.basename(String(value || 'document').replace(/\\/g, '/'))
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'document'
+}
+
+function ensureContractStorageDir() {
+  fs.mkdirSync(CONTRACT_STORAGE_DIR, { recursive: true })
 }
 
 function numberValue(value, fallback = 0) {
@@ -405,6 +423,29 @@ function contractSummary(db, contract) {
   }
 }
 
+function contractAttachments(db, contract) {
+  const cm = ensureContractsDb(db)
+  return cm.attachments
+    .filter(item => !item.cancelled_at && !item.cancelledAt)
+    .filter(item => String(item.contract_id) === String(contract.id))
+    .map(item => ({
+      id: item.id,
+      uuid: item.uuid,
+      contract_id: item.contract_id,
+      file_name: item.file_name,
+      original_name: item.original_name || item.file_name,
+      file_size: Number(item.file_size || 0),
+      mime_type: item.mime_type || 'application/octet-stream',
+      categorie: item.categorie || 'contract',
+      descriere: item.descriere || '',
+      sha256: item.sha256 || '',
+      uploaded_by: item.uploaded_by || null,
+      uploaded_by_name: item.uploaded_by_name || '',
+      uploaded_at: item.uploaded_at || item.created_at || null
+    }))
+    .sort((a, b) => String(b.uploaded_at || '').localeCompare(String(a.uploaded_at || '')))
+}
+
 function decorateContract(db, contract, options = {}) {
   const summary = contractSummary(db, contract)
   const decorated = {
@@ -417,6 +458,7 @@ function decorateContract(db, contract, options = {}) {
   }
   if (options.includeConsumptions) decorated.consumuri = contractConsumptions(db, contract)
   if (options.includeSources) decorated.documente_sursa = contractSourceDocuments(db, contract)
+  if (options.includeAttachments) decorated.atasamente = contractAttachments(db, contract)
   if (options.includeCockpit) decorated.cockpit = contractCockpit(db, contract, decorated)
   return decorated
 }
@@ -454,6 +496,7 @@ function contractCockpit(db, contract, decoratedContract = null) {
       tickets_total: tickets.length,
       tickets_open: openTicketCount,
       documents_total: decorated.documente_sursa?.timeline?.length || 0,
+      attachments_total: decorated.atasamente?.length || 0,
       consumptions_total: decorated.consumuri?.length || 0,
       consum_percent: decorated.procent_consum || 0,
       days_left: decorated.summary?.zile_ramase ?? null
@@ -461,15 +504,17 @@ function contractCockpit(db, contract, decoratedContract = null) {
     tasks,
     tickets,
     alerts: decorated.alerte || [],
-    documents: decorated.documente_sursa || { groups: [], timeline: [], counts: {} }
+    documents: decorated.documente_sursa || { groups: [], timeline: [], counts: {} },
+    attachments: decorated.atasamente || []
   }
 }
 
 function contractPrintHtml(db, contract, user) {
-  const decorated = decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeCockpit: true })
+  const decorated = decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeCockpit: true })
   const summary = decorated.cockpit?.summary || {}
   const consumuri = decorated.consumuri || []
   const documents = decorated.documente_sursa?.timeline || []
+  const attachments = decorated.atasamente || []
   const tasks = decorated.cockpit?.tasks || []
   const tickets = decorated.cockpit?.tickets || []
   const alerts = decorated.alerte || []
@@ -497,6 +542,16 @@ function contractPrintHtml(db, contract, user) {
       <td class="right">${Number(item.valoare || 0) ? formatPrintMoney(item.valoare, item.moneda || decorated.moneda || 'RON') : '-'}</td>
     </tr>
   `).join('') : '<tr><td colspan="5" class="empty">Nu există documente sursă legate.</td></tr>'
+
+  const attachmentRows = attachments.length ? attachments.map(item => `
+    <tr>
+      <td><strong>${escapeHtml(item.original_name || item.file_name || '-')}</strong><div class="muted">${escapeHtml(item.descriere || '')}</div></td>
+      <td>${printBadge(item.categorie || 'contract', 'info')}</td>
+      <td class="right">${Number(item.file_size || 0).toLocaleString('ro-RO')} bytes</td>
+      <td>${formatPrintDate(item.uploaded_at)}</td>
+      <td>${escapeHtml(item.uploaded_by_name || '-')}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" class="empty">Nu există atașamente încărcate.</td></tr>'
 
   const taskRows = tasks.length ? tasks.map(item => `
     <tr>
@@ -602,6 +657,7 @@ function contractPrintHtml(db, contract, user) {
       <div class="card"><div class="label">Task-uri deschise</div><div class="value">${summary.tasks_open || 0} / ${summary.tasks_total || 0}</div></div>
       <div class="card"><div class="label">Tichete deschise</div><div class="value">${summary.tickets_open || 0} / ${summary.tickets_total || 0}</div></div>
       <div class="card"><div class="label">Documente sursă</div><div class="value">${summary.documents_total || 0}</div></div>
+      <div class="card"><div class="label">Atașamente</div><div class="value">${summary.attachments_total || 0}</div></div>
     </section>
 
     <h2>Date contract</h2>
@@ -621,6 +677,9 @@ function contractPrintHtml(db, contract, user) {
 
     <h2>Documente sursă legate</h2>
     <table><thead><tr><th>Tip</th><th>Document</th><th>Partener</th><th>Data</th><th class="right">Valoare</th></tr></thead><tbody>${documentRows}</tbody></table>
+
+    <h2>Atașamente contract</h2>
+    <table><thead><tr><th>Fișier</th><th>Categorie</th><th class="right">Dimensiune</th><th>Încărcat</th><th>Utilizator</th></tr></thead><tbody>${attachmentRows}</tbody></table>
 
     <h2>Task-uri operaționale</h2>
     <table><thead><tr><th>Task</th><th>Status</th><th>Responsabil</th><th>Termen</th><th>Ticket</th></tr></thead><tbody>${taskRows}</tbody></table>
@@ -1326,6 +1385,88 @@ router.get('/contracts/:id/print', (req, res) => {
   res.status(200).send(contractPrintHtml(auth.db, contract, auth.user))
 })
 
+router.post('/contracts/:id/attachments', contractUpload.single('file'), (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!canManage(auth, res)) return
+    const cm = ensureContractsDb(auth.db)
+    const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
+    if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
+    if (!req.file?.buffer) return sendJson(res, 422, { error: 'Fișierul este obligatoriu.' })
+    const ext = path.extname(req.file.originalname || '').toLowerCase()
+    if (!CONTRACT_ALLOWED_EXT.has(ext)) return sendJson(res, 422, { error: 'Sunt acceptate doar PDF, DOC/DOCX, XLS/XLSX și imagini.' })
+    const safeName = safeFileName(req.file.originalname || `contract${ext}`)
+    const storedName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`
+    ensureContractStorageDir()
+    const diskPath = path.join(CONTRACT_STORAGE_DIR, storedName)
+    fs.writeFileSync(diskPath, req.file.buffer)
+    const attachment = {
+      id: id('ctr-file'),
+      uuid: crypto.randomUUID(),
+      contract_id: contract.id,
+      file_path: `storage/contracts/${storedName}`,
+      file_name: safeName,
+      original_name: req.file.originalname || safeName,
+      file_size: req.file.size || req.file.buffer.length,
+      mime_type: req.file.mimetype || 'application/octet-stream',
+      categorie: String(req.body?.categorie || req.body?.category || 'contract').trim() || 'contract',
+      descriere: String(req.body?.descriere || req.body?.description || '').trim(),
+      sha256: crypto.createHash('sha256').update(req.file.buffer).digest('hex'),
+      uploaded_by: auth.user.id,
+      uploaded_by_name: auth.user.name || auth.user.username,
+      uploaded_at: nowIso(),
+      created_at: nowIso()
+    }
+    cm.attachments.push(attachment)
+    addAudit(auth.db, auth.user, 'contract_attachment_uploaded', `${contract.numar || contract.id}: ${attachment.original_name}`)
+    writeDb(auth.db)
+    sendJson(res, 201, { attachment: contractAttachments(auth.db, contract).find(item => String(item.id) === String(attachment.id)), contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeCockpit: true }) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/contracts/:id/attachments/:attachmentId/download', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!canView(auth, res)) return
+    const cm = ensureContractsDb(auth.db)
+    const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
+    if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
+    const attachment = cm.attachments.find(item => String(item.id) === String(req.params.attachmentId) && String(item.contract_id) === String(contract.id) && !item.cancelled_at && !item.cancelledAt)
+    if (!attachment) return sendJson(res, 404, { error: 'Atașamentul nu a fost găsit.' })
+    const diskPath = path.resolve(ROOT, String(attachment.file_path || ''))
+    if (!diskPath.startsWith(path.resolve(CONTRACT_STORAGE_DIR)) || !fs.existsSync(diskPath)) return sendJson(res, 404, { error: 'Fișierul nu mai există pe disc.' })
+    res.download(diskPath, attachment.original_name || attachment.file_name || path.basename(diskPath))
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.delete('/contracts/:id/attachments/:attachmentId', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!canManage(auth, res)) return
+    const cm = ensureContractsDb(auth.db)
+    const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
+    if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
+    const attachment = cm.attachments.find(item => String(item.id) === String(req.params.attachmentId) && String(item.contract_id) === String(contract.id) && !item.cancelled_at && !item.cancelledAt)
+    if (!attachment) return sendJson(res, 404, { error: 'Atașamentul nu a fost găsit.' })
+    attachment.cancelled_at = nowIso()
+    attachment.cancelled_by = auth.user.id
+    attachment.cancelled_by_name = auth.user.name || auth.user.username
+    attachment.cancelled_reason = String(req.body?.reason || req.body?.motiv || 'Anulat din dosarul contractului').trim()
+    addAudit(auth.db, auth.user, 'contract_attachment_cancelled', `${contract.numar || contract.id}: ${attachment.original_name || attachment.file_name}`)
+    writeDb(auth.db)
+    sendJson(res, 200, { ok: true, contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeCockpit: true }) })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/contracts/:id', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
@@ -1333,7 +1474,7 @@ router.get('/contracts/:id', (req, res) => {
   const cm = ensureContractsDb(auth.db)
   const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
   if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
-  sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeCockpit: true }) })
+  sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeCockpit: true }) })
 })
 
 router.post('/contracts', (req, res) => {

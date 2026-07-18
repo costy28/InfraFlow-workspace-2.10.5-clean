@@ -1,5 +1,5 @@
 {
-  "version": "2.12.327",
+  "version": "2.12.328",
   "date": "2026-07-18",
-  "changelog": "## v2.12.327 - 2026-07-18\n### Export Excel portofoliu contracte\n- Contract Management expune export Excel pentru portofoliul de contracte.\n- Exportul include foi separate: Sumar, Contracte, Manageri, Alerte si Taskuri.\n- Endpoint nou GET /api/contracts/portfolio/export.xlsx, protejat prin permisiunile modulului Contracte.\n- Pagina Contract Management are buton Export Excel.\n- Smoke-suite verifica endpointul XLSX al portofoliului."
+  "changelog": "## v2.12.328 - 2026-07-18\n### Atasamente pe contract\n- Contract Management permite incarcarea documentelor reale in dosarul contractului.\n- Atasamente acceptate: PDF, DOC/DOCX, XLS/XLSX si imagini.\n- Endpointuri noi pentru upload, download si anulare soft a atasamentelor.\n- Modalul Dosar contract afiseaza card Atasamente contract cu incarcare si descarcare.\n- Fisa printabila a contractului include lista atasamentelor incarcate."
 }

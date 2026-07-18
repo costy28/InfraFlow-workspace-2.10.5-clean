@@ -41,6 +41,12 @@ const emptySourceForm = {
   source_key: '',
 }
 
+const emptyAttachmentForm = {
+  categorie: 'contract semnat',
+  descriere: '',
+  file: null,
+}
+
 function arrayFrom(data, keys) {
   for (const key of keys) {
     if (Array.isArray(data?.[key])) return data[key]
@@ -97,6 +103,7 @@ export default function ContractePage() {
   const [contractForm, setContractForm] = useState(emptyContractForm)
   const [consumptionForm, setConsumptionForm] = useState(emptyConsumptionForm)
   const [sourceForm, setSourceForm] = useState(emptySourceForm)
+  const [attachmentForm, setAttachmentForm] = useState(emptyAttachmentForm)
   const [linkableSources, setLinkableSources] = useState([])
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -171,6 +178,7 @@ export default function ContractePage() {
   async function openDetails(contract) {
     setSelectedContract(contract)
     setContractDetails(null)
+    setAttachmentForm(emptyAttachmentForm)
     setDetailModalOpen(true)
     setError('')
     setNotice('')
@@ -199,6 +207,62 @@ export default function ContractePage() {
     const token = localStorage.getItem('infraflow_token') || ''
     const query = token ? `?token=${encodeURIComponent(token)}` : ''
     window.open(`/api/contracts/portfolio/export.xlsx${query}`, '_blank', 'noopener,noreferrer')
+  }
+
+  async function uploadAttachment(event) {
+    event.preventDefault()
+    if (!contractDetails?.id || !attachmentForm.file) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    const form = new FormData()
+    form.append('file', attachmentForm.file)
+    form.append('categorie', attachmentForm.categorie || 'contract')
+    form.append('descriere', attachmentForm.descriere || '')
+    try {
+      const response = await api.post(`/contracts/${contractDetails.id}/attachments`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setContractDetails(response.data.contract || contractDetails)
+      setAttachmentForm(emptyAttachmentForm)
+      setNotice('Atașamentul a fost încărcat în dosarul contractului.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Atașamentul nu a putut fi încărcat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function downloadAttachment(item) {
+    if (!contractDetails?.id || !item?.id) return
+    try {
+      const response = await api.get(`/contracts/${contractDetails.id}/attachments/${item.id}/download`, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = item.original_name || item.file_name || 'contract-document'
+      anchor.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Atașamentul nu a putut fi descărcat.')
+    }
+  }
+
+  async function cancelAttachment(item) {
+    if (!contractDetails?.id || !item?.id) return
+    const reason = window.prompt('Motiv anulare atașament:', 'Înlocuit / încărcat greșit')
+    if (reason === null) return
+    setSaving(true)
+    setError('')
+    try {
+      const response = await api.delete(`/contracts/${contractDetails.id}/attachments/${item.id}`, { data: { reason } })
+      setContractDetails(response.data.contract || contractDetails)
+      setNotice('Atașamentul a fost anulat din dosarul contractului.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Atașamentul nu a putut fi anulat.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function saveContract(event) {
@@ -597,6 +661,10 @@ export default function ContractePage() {
                   <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.documents_total || 0}</div>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Atașamente</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.attachments_total || 0}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
                   <div className="text-xs uppercase text-slate-500">Consumuri</div>
                   <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.consumptions_total || 0}</div>
                 </div>
@@ -654,6 +722,48 @@ export default function ContractePage() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </Card>
+
+            <Card title="Atașamente contract" subtitle="Contract semnat, acte adiționale, garanții, corespondență sau alte documente păstrate în dosarul real al contractului.">
+              <form className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[180px_1fr_1fr_auto]" onSubmit={uploadAttachment}>
+                <Select label="Categorie" value={attachmentForm.categorie} onChange={event => setAttachmentForm({ ...attachmentForm, categorie: event.target.value })}>
+                  <option value="contract semnat">Contract semnat</option>
+                  <option value="act aditional">Act adițional</option>
+                  <option value="garantie">Garanție</option>
+                  <option value="corespondenta">Corespondență</option>
+                  <option value="alt document">Alt document</option>
+                </Select>
+                <Input label="Descriere" value={attachmentForm.descriere} onChange={event => setAttachmentForm({ ...attachmentForm, descriere: event.target.value })} />
+                <Input label="Fișier" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onChange={event => setAttachmentForm({ ...attachmentForm, file: event.target.files?.[0] || null })} />
+                <div className="flex items-end">
+                  <Button type="submit" disabled={!attachmentForm.file || saving} loading={saving}>Încarcă</Button>
+                </div>
+              </form>
+
+              <div className="mt-3 grid gap-2">
+                {(contractDetails.atasamente || []).length === 0 ? (
+                  <div className="rounded-lg border border-slate-200 px-3 py-4 text-center text-sm text-slate-500">Nu există atașamente încărcate pe contract.</div>
+                ) : contractDetails.atasamente.map(item => (
+                  <div key={item.id || item.uuid} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="info">{item.categorie || 'contract'}</Badge>
+                        <span className="font-semibold text-slate-900">{item.original_name || item.file_name}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
+                        <span>{item.descriere || 'fără descriere'}</span>
+                        <span>{Number(item.file_size || 0).toLocaleString('ro-RO')} bytes</span>
+                        <span>{formatDate(item.uploaded_at)}</span>
+                        {item.uploaded_by_name ? <span>{item.uploaded_by_name}</span> : null}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => downloadAttachment(item)}>Descarcă</Button>
+                      <Button size="sm" variant="secondary" onClick={() => cancelAttachment(item)} loading={saving}>Anulează</Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </Card>
 

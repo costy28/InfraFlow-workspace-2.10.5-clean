@@ -571,3 +571,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ export bazat pe aceleași agregări ca dashboard-ul și raportul printabil;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Export Excel” în header-ul Contract Management;
 - `scripts/smoke-modules-readonly.js` — ✅ verificare read-only pentru exportul XLSX al portofoliului.
+
+### UPDATE 348 — Atașamente pe contract
+
+- `server/modules/contracts/routes.js` — ✅ atașamente persistate în `contractManagement.attachments`;
+- `server/modules/contracts/routes.js` — ✅ upload/download/anulare soft pentru fișiere contractuale;
+- `server/modules/contracts/routes.js` — ✅ stocare fișiere în `storage/contracts`, extensii controlate și limită 20MB;
+- `server/modules/contracts/routes.js` — ✅ fișa printabilă a contractului include atașamentele;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card „Atașamente contract” în modalul Dosar contract;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ upload cu categorie/descriere, descărcare și anulare.

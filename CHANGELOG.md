@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.328 - 2026-07-18
+
+## Atașamente pe contract
+
+- Contract Management permite încărcarea documentelor reale în dosarul contractului.
+- Atașamente acceptate: PDF, DOC/DOCX, XLS/XLSX și imagini.
+- Endpointuri noi pentru upload, download și anulare soft a atașamentelor.
+- Modalul „Dosar contract” afișează card „Atașamente contract” cu încărcare și descărcare.
+- Fișa printabilă a contractului include lista atașamentelor încărcate.
+
 # v2.12.327 - 2026-07-18
 
 ## Export Excel portofoliu contracte
