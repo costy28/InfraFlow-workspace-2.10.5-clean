@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.320 - 2026-07-18
+
+## Dosar operațional contract
+
+- Detaliile contractului includ consumuri, documente sursă grupate și timeline cronologic.
+- Backend-ul expune referate, comenzi, recepții/NIR-uri și facturi legate la contract.
+- Pagina Contract Management are buton „Detalii” pe fiecare contract.
+- Modalul de detalii afișează valoare, consum, rămas, progres, alerte și documente pe categorii.
+- Consumurile rămân calculate fără dublare între NIR și factura generată din același NIR.
+
 # v2.12.319 - 2026-07-18
 
 ## Contracte în Referate

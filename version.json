@@ -1,5 +1,5 @@
 {
-  "version": "2.12.319",
+  "version": "2.12.320",
   "date": "2026-07-18",
-  "changelog": "## v2.12.319 - 2026-07-18\n### Contracte in Referate\n- Referatele permit alegerea contractului urmarit direct la creare.\n- Listele si detaliile referatelor afiseaza contractul legat.\n- PDF-ul referatului include contractul urmarit pentru dosarul fizic.\n- Comanda generata automat din referat mosteneste contractul si pastreaza sursa referatului."
+  "changelog": "## v2.12.320 - 2026-07-18\n### Dosar operational contract\n- Detaliile contractului includ consumuri, documente sursa grupate si timeline cronologic.\n- Backend-ul expune referate, comenzi, receptii/NIR si facturi legate la contract.\n- UI-ul Contract Management are buton Detalii pentru radiografia contractului.\n- Consumurile raman calculate fara dublare intre NIR si factura generata."
 }

@@ -501,3 +501,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/referate/routes.js` — ✅ comanda generată automat din referat moștenește contractul;
 - `server/modules/referate/routes.js` — ✅ PDF-ul referatului include contractul urmărit;
 - fluxul Contract Management acoperă acum traseul `contract → referat → comandă → recepție/NIR → factură`.
+
+### UPDATE 340 — Dosar operațional contract
+
+- `server/modules/contracts/routes.js` — ✅ detaliile contractului includ documente sursă grupate;
+- `server/modules/contracts/routes.js` — ✅ documentele sursă acoperă referate, comenzi, NIR/recepții și facturi;
+- `server/modules/contracts/routes.js` — ✅ timeline cronologic pentru documentele legate;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Detalii” pe fiecare contract;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ modal dosar contract cu consumuri, documente sursă și timeline;
+- consumurile rămân calculate fără dublare între NIR și factura generată din același NIR.

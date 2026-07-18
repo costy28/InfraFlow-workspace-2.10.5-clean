@@ -73,6 +73,14 @@ function percentWidth(percent) {
   return `${Math.max(0, Math.min(100, Number(percent || 0)))}%`
 }
 
+function sourceTone(type) {
+  if (type === 'factura') return 'success'
+  if (type === 'nir') return 'info'
+  if (type === 'comanda') return 'warning'
+  if (type === 'referat') return 'gray'
+  return 'gray'
+}
+
 export default function ContractePage() {
   const [contracts, setContracts] = useState([])
   const [dashboard, setDashboard] = useState(null)
@@ -82,7 +90,9 @@ export default function ContractePage() {
   const [contractModalOpen, setContractModalOpen] = useState(false)
   const [consumptionModalOpen, setConsumptionModalOpen] = useState(false)
   const [sourceModalOpen, setSourceModalOpen] = useState(false)
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
+  const [contractDetails, setContractDetails] = useState(null)
   const [contractForm, setContractForm] = useState(emptyContractForm)
   const [consumptionForm, setConsumptionForm] = useState(emptyConsumptionForm)
   const [sourceForm, setSourceForm] = useState(emptySourceForm)
@@ -152,6 +162,20 @@ export default function ContractePage() {
       setError(err.response?.data?.error || 'Documentele disponibile nu au putut fi încărcate.')
     } finally {
       setSourcesLoading(false)
+    }
+  }
+
+  async function openDetails(contract) {
+    setSelectedContract(contract)
+    setContractDetails(null)
+    setDetailModalOpen(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.get(`/contracts/${contract.id}`)
+      setContractDetails(response.data.contract || null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Detaliile contractului nu au putut fi încărcate.')
     }
   }
 
@@ -336,6 +360,7 @@ export default function ContractePage() {
                   </td>
                   <td className="px-3 py-3 text-right">
                     <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => openDetails(contract)}>Detalii</Button>
                       <Button size="sm" variant="secondary" onClick={() => openSourceLink(contract)}>Leagă doc.</Button>
                       <Button size="sm" variant="secondary" onClick={() => openConsumption(contract)}>+ Consum</Button>
                     </div>
@@ -346,6 +371,120 @@ export default function ContractePage() {
           </table>
         </div>
       </Card>
+
+      <Modal open={detailModalOpen} title="Dosar contract" size="xl" onClose={() => setDetailModalOpen(false)}>
+        {contractDetails ? (
+          <div className="grid gap-5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold uppercase text-slate-500">{contractDetails.numar}</div>
+                  <h2 className="text-xl font-semibold text-slate-900">{contractDetails.titlu}</h2>
+                  <p className="mt-1 text-sm text-slate-600">{contractDetails.partener || 'Partener nesetat'} · {contractDetails.responsabil_nume || 'Responsabil nesetat'}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={statusTone(contractDetails.status)}>{contractDetails.status}</Badge>
+                  {contractDetails.alerte?.map((alert, index) => <Badge key={`${alert.code}-${index}`} tone={alertTone(alert.level)}>{alert.code}</Badge>)}
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <div className="rounded-lg bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Valoare</div>
+                  <div className="font-semibold text-slate-900">{formatMoney(contractDetails.valoare_contract, contractDetails.moneda || 'RON')}</div>
+                </div>
+                <div className="rounded-lg bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Consum</div>
+                  <div className="font-semibold text-slate-900">{formatMoney(contractDetails.valoare_consumata, contractDetails.moneda || 'RON')}</div>
+                </div>
+                <div className="rounded-lg bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Rămas</div>
+                  <div className="font-semibold text-slate-900">{formatMoney(contractDetails.valoare_ramasa, contractDetails.moneda || 'RON')}</div>
+                </div>
+                <div className="rounded-lg bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Progres</div>
+                  <div className="font-semibold text-slate-900">{formatPercent(contractDetails.procent_consum || 0)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+              <Card title="Consumuri care scad contractul" subtitle="Manual + facturi/NIR-uri legate, fără dublare între NIR și factura generată.">
+                <div className="max-h-80 overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                      <tr><th className="px-3 py-2">Data</th><th className="px-3 py-2">Sursa</th><th className="px-3 py-2">Document</th><th className="px-3 py-2 text-right">Valoare</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(contractDetails.consumuri || []).length === 0 ? (
+                        <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-500">Nu există consumuri pe contract.</td></tr>
+                      ) : contractDetails.consumuri.map(item => (
+                        <tr key={item.id || `${item.sursa}-${item.sursa_id}-${item.document_nr}`}>
+                          <td className="px-3 py-2">{formatDate(item.data)}</td>
+                          <td className="px-3 py-2"><Badge tone={item.generated ? 'info' : 'gray'}>{item.sursa || 'manual'}</Badge></td>
+                          <td className="px-3 py-2"><div className="font-medium text-slate-800">{item.document_nr || '-'}</div><div className="text-xs text-slate-500">{item.descriere || ''}</div></td>
+                          <td className="px-3 py-2 text-right font-medium">{formatMoney(item.valoare, item.moneda || contractDetails.moneda || 'RON')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              <Card title="Documente sursă" subtitle="Referate, comenzi, recepții și facturi legate la contract.">
+                <div className="grid gap-3">
+                  {(contractDetails.documente_sursa?.groups || []).map(group => (
+                    <div key={group.type} className="rounded-lg border border-slate-200">
+                      <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                        <div className="font-medium text-slate-900">{group.label}</div>
+                        <Badge tone={group.count ? 'info' : 'gray'}>{group.count}</Badge>
+                      </div>
+                      <div className="max-h-32 overflow-auto">
+                        {group.items.length === 0 ? (
+                          <div className="px-3 py-3 text-sm text-slate-500">Nimic legat încă.</div>
+                        ) : group.items.map(item => (
+                          <div key={`${group.type}-${item.id}-${item.document_nr}`} className="border-b border-slate-100 px-3 py-2 text-sm last:border-b-0">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-medium text-slate-800">{item.document_nr || item.id}</span>
+                              <span className="text-xs text-slate-500">{formatDate(item.data)}</span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              {item.status ? <Badge tone={sourceTone(item.type)}>{item.status}</Badge> : null}
+                              {item.partener ? <span>{item.partener}</span> : null}
+                              {Number(item.valoare || 0) ? <span>{formatMoney(item.valoare, item.moneda || contractDetails.moneda || 'RON')}</span> : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <Card title="Timeline documente" subtitle="Ordine cronologică descrescătoare pentru traseul contractului.">
+              <div className="grid gap-2">
+                {(contractDetails.documente_sursa?.timeline || []).length === 0 ? (
+                  <div className="rounded-lg border border-slate-200 px-3 py-4 text-center text-sm text-slate-500">Nu există documente legate.</div>
+                ) : contractDetails.documente_sursa.timeline.map(item => (
+                  <div key={`${item.type}-${item.id}-${item.document_nr}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={sourceTone(item.type)}>{item.type_label}</Badge>
+                      <span className="font-medium text-slate-900">{item.document_nr || item.id}</span>
+                      {item.partener ? <span className="text-slate-500">{item.partener}</span> : null}
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-600">
+                      <span>{formatDate(item.data)}</span>
+                      {Number(item.valoare || 0) ? <span>{formatMoney(item.valoare, item.moneda || contractDetails.moneda || 'RON')}</span> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-slate-500">Se încarcă dosarul contractului...</div>
+        )}
+      </Modal>
 
       <Modal open={contractModalOpen} title="Contract nou" size="lg" onClose={() => setContractModalOpen(false)}>
         <form className="grid gap-4" onSubmit={saveContract}>

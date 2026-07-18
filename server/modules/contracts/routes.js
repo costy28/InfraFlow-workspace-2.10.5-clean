@@ -241,6 +241,95 @@ function contractConsumptions(db, contract) {
   return [...manual, ...existingInvoiceConsumptions(db, contract), ...existingReceiptConsumptions(db, contract)]
 }
 
+function linkedSourceRecord(type, label, document, extra = {}) {
+  return {
+    type,
+    type_label: label,
+    id: sourceDocumentId(document),
+    document_nr: sourceDocumentNumber(document),
+    data: sourceDocumentDate(document),
+    partener: sourceDocumentPartner(document),
+    descriere: String(document.titlu || document.obiect || document.materialName || document.descriere || document.note || '').trim(),
+    valoare: sourceDocumentTotal(document),
+    moneda: String(document.moneda || document.currency || 'RON').trim().toUpperCase(),
+    status: document.status || '',
+    ...extra
+  }
+}
+
+function contractSourceDocuments(db, contract) {
+  const contractId = String(contract.id)
+  const referate = (db.referate || [])
+    .filter(item => !item.cancelled_at && !item.cancelledAt)
+    .filter(item => String(item.contract_id || item.contractId || '') === contractId)
+    .map(item => linkedSourceRecord('referat', 'Referat', item, {
+      document_nr: `${item.serie || 'REF'}/${item.numar || sourceDocumentId(item) || '-'}`,
+      data: String(item.data_intocmire || item.created_at || todayIso()).slice(0, 10),
+      partener: item.furnizor_manual || '',
+      descriere: item.observatii || '',
+      valoare: round(item.valoare_referat || 0),
+      source_order_id: item.comanda_id || null
+    }))
+
+  const orders = (db.procurementOrders || [])
+    .filter(item => !item.cancelled_at && !item.cancelledAt && !item.deleted)
+    .filter(item => String(item.contract_id || item.contractId || '') === contractId)
+    .map(item => linkedSourceRecord('comanda', 'Comandă achiziții', item, {
+      partener: item.supplier || item.furnizor || '',
+      descriere: item.materialName || item.note || '',
+      valoare: round(item.value || item.valoare || 0),
+      source_referat_id: item.sourceReferatId || null
+    }))
+
+  const receipts = [
+    ...(db.procurementReceipts || []),
+    ...(db.gestiune?.nir || []),
+    ...(db.inventory?.receipts || [])
+  ]
+    .filter(item => !item.cancelled_at && !item.cancelledAt && !item.canceled && !item.deleted)
+    .filter(item => String(item.contract_id || item.contractId || '') === contractId)
+    .map(item => linkedSourceRecord('nir', 'NIR / recepție', item, {
+      partener: item.supplier || item.furnizor || '',
+      descriere: item.materialName || item.observatii || '',
+      valoare: sourceDocumentTotal(item),
+      source_order_id: item.orderId || item.orderUuid || null
+    }))
+
+  const invoices = [
+    ...(db.accounting?.invoicesIn || []),
+    ...(db.accounting?.invoicesOut || []),
+    ...(db.accountingInvoicesIn || []),
+    ...(db.accountingInvoicesOut || []),
+    ...(db.anafInvoices || []),
+    ...(db.invoices || [])
+  ]
+    .filter(item => !item.cancelled_at && !item.cancelledAt)
+    .filter(item => !['anulat', 'stornat', 'cancelled', 'canceled'].includes(String(item.status || '').toLowerCase()))
+    .filter(item => String(item.contract_id || item.contractId || '') === contractId)
+    .map(item => linkedSourceRecord('factura', 'Factură', item, {
+      partener: item.furnizor || item.client || item.partner || '',
+      descriere: item.explicatie || item.titlu || '',
+      valoare: sourceDocumentTotal(item)
+    }))
+
+  const groups = [
+    { type: 'referate', label: 'Referate', count: referate.length, items: referate },
+    { type: 'comenzi', label: 'Comenzi achiziții', count: orders.length, items: orders },
+    { type: 'nir', label: 'NIR / recepții', count: receipts.length, items: receipts },
+    { type: 'facturi', label: 'Facturi', count: invoices.length, items: invoices }
+  ]
+
+  return {
+    groups,
+    timeline: [...referate, ...orders, ...receipts, ...invoices]
+      .sort((a, b) => String(b.data || '').localeCompare(String(a.data || ''))),
+    counts: groups.reduce((acc, group) => {
+      acc[group.type] = group.count
+      return acc
+    }, {})
+  }
+}
+
 function contractSummary(db, contract) {
   const consumptions = contractConsumptions(db, contract)
   const consumat = round(consumptions.reduce((sum, item) => sum + numberValue(item.valoare || item.amount), 0))
@@ -286,6 +375,7 @@ function decorateContract(db, contract, options = {}) {
     valoare_ramasa: summary.ramas
   }
   if (options.includeConsumptions) decorated.consumuri = contractConsumptions(db, contract)
+  if (options.includeSources) decorated.documente_sursa = contractSourceDocuments(db, contract)
   return decorated
 }
 
@@ -414,7 +504,7 @@ router.get('/contracts/:id', (req, res) => {
   const cm = ensureContractsDb(auth.db)
   const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
   if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
-  sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true }) })
+  sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true }) })
 })
 
 router.post('/contracts', (req, res) => {
@@ -458,7 +548,7 @@ router.patch('/contracts/:id', (req, res) => {
   })
   addAudit(auth.db, auth.user, 'contract_updated', `${contract.numar} / ${contract.titlu}`)
   writeDb(auth.db)
-  sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true }) })
+  sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true }) })
 })
 
 router.post('/contracts/:id/consumptions', (req, res) => {
@@ -482,7 +572,7 @@ router.post('/contracts/:id/consumptions', (req, res) => {
   cm.consumptions.push(consumption)
   addAudit(auth.db, auth.user, 'contract_consumption_added', `${contract.numar} / ${round(consumption.valoare)} ${consumption.moneda}`)
   writeDb(auth.db)
-  sendJson(res, 201, { consumption, contract: decorateContract(auth.db, contract, { includeConsumptions: true }) })
+  sendJson(res, 201, { consumption, contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true }) })
 })
 
 router.post('/contracts/:id/link-source', (req, res) => {
@@ -516,7 +606,7 @@ router.post('/contracts/:id/link-source', (req, res) => {
       label: sourceDocumentLabel(type, document),
       valoare: sourceDocumentTotal(document)
     },
-    contract: decorateContract(auth.db, contract, { includeConsumptions: true })
+    contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true })
   })
 })
 
