@@ -190,6 +190,7 @@ const endpointChecks = [
   { name: 'Controlling /api/controlling/dashboard', path: '/api/controlling/dashboard', validate: data => typeof data === 'object' && data !== null },
   { name: 'Contracte /api/contracts/dashboard', path: '/api/contracts/dashboard', validate: data => typeof data === 'object' && Number.isFinite(Number(data?.contracts_total)) },
   { name: 'Contracte /api/contracts', path: '/api/contracts', countKeys: ['contracts'] },
+  { name: 'Contracte /api/contracts/linkable-sources', path: '/api/contracts/linkable-sources', countKeys: ['sources'] },
 
   { name: 'ANAF /api/anaf/settings', path: '/api/anaf/settings', validate: data => typeof data === 'object' && data !== null },
   { name: 'ANAF /api/anaf/invoices', path: '/api/anaf/invoices', countKeys: ['invoices'] },

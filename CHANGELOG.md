@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.316 - 2026-07-18
+
+## Legare documente sursă la contract
+
+- Contract Management citește automat consumul din NIR-uri/recepții legate prin `contract_id` / `contractId`.
+- Adăugat `GET /api/contracts/linkable-sources` pentru facturi/NIR-uri disponibile la legare.
+- Adăugat `POST /api/contracts/:id/link-source` pentru legarea unui document existent de contract.
+- Pagina `/contracte` are buton „Leagă doc.” pe fiecare contract.
+- Legarea marchează documentul sursă, fără să creeze consum duplicat.
+- Smoke-suite verifică endpointul de documente sursă.
+
 # v2.12.315 - 2026-07-18
 
 ## UI minimal Contract Management

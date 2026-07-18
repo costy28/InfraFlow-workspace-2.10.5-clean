@@ -467,3 +467,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/components/layout/Sidebar.jsx` — ✅ item nou „Contracte” în zona Servicii;
 - `server/modules/system/settings-routes.js` — ✅ `contract_management` în catalog și pachete comerciale;
 - `client/src/pages/SetariPage.jsx` — ✅ preseturi locale actualizate pentru pachete comerciale.
+
+### UPDATE 336 — Legare documente sursă la contract
+
+- `server/modules/contracts/routes.js` — ✅ endpoint documente sursă disponibile și endpoint de legare document la contract;
+- `server/modules/contracts/routes.js` — ✅ NIR-urile/recepțiile legate sunt incluse automat în consumul contractului;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton și modal „Leagă doc.” pentru facturi/NIR-uri existente;
+- `scripts/smoke-modules-readonly.js` — ✅ verificare pentru `/api/contracts/linkable-sources`;
+- legarea marchează documentul sursă cu `contract_id` / `contractId`, evitând dublarea consumului.

@@ -37,6 +37,10 @@ const emptyConsumptionForm = {
   cpv_cod: '',
 }
 
+const emptySourceForm = {
+  source_key: '',
+}
+
 function arrayFrom(data, keys) {
   for (const key of keys) {
     if (Array.isArray(data?.[key])) return data[key]
@@ -77,9 +81,13 @@ export default function ContractePage() {
   const [notice, setNotice] = useState('')
   const [contractModalOpen, setContractModalOpen] = useState(false)
   const [consumptionModalOpen, setConsumptionModalOpen] = useState(false)
+  const [sourceModalOpen, setSourceModalOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
   const [contractForm, setContractForm] = useState(emptyContractForm)
   const [consumptionForm, setConsumptionForm] = useState(emptyConsumptionForm)
+  const [sourceForm, setSourceForm] = useState(emptySourceForm)
+  const [linkableSources, setLinkableSources] = useState([])
+  const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState('toate')
 
@@ -129,6 +137,24 @@ export default function ContractePage() {
     setNotice('')
   }
 
+  async function openSourceLink(contract) {
+    setSelectedContract(contract)
+    setSourceForm(emptySourceForm)
+    setLinkableSources([])
+    setSourceModalOpen(true)
+    setError('')
+    setNotice('')
+    setSourcesLoading(true)
+    try {
+      const response = await api.get('/contracts/linkable-sources')
+      setLinkableSources(arrayFrom(response.data, ['sources']))
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentele disponibile nu au putut fi încărcate.')
+    } finally {
+      setSourcesLoading(false)
+    }
+  }
+
   async function saveContract(event) {
     event.preventDefault()
     setSaving(true)
@@ -160,6 +186,26 @@ export default function ContractePage() {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Consumul nu a putut fi înregistrat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveSourceLink(event) {
+    event.preventDefault()
+    if (!selectedContract || !sourceForm.source_key) return
+    const [source_type, source_id] = sourceForm.source_key.split('::')
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      await api.post(`/contracts/${selectedContract.id}/link-source`, { source_type, source_id })
+      setSourceModalOpen(false)
+      setSelectedContract(null)
+      setNotice('Documentul a fost legat de contract și intră automat în consum.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul nu a putut fi legat de contract.')
     } finally {
       setSaving(false)
     }
@@ -289,7 +335,10 @@ export default function ContractePage() {
                     </div>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <Button size="sm" variant="secondary" onClick={() => openConsumption(contract)}>+ Consum</Button>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => openSourceLink(contract)}>Leagă doc.</Button>
+                      <Button size="sm" variant="secondary" onClick={() => openConsumption(contract)}>+ Consum</Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -337,6 +386,40 @@ export default function ContractePage() {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setContractModalOpen(false)}>Renunță</Button>
             <Button type="submit" loading={saving}>Salvează contractul</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={sourceModalOpen} title="Leagă document existent" onClose={() => setSourceModalOpen(false)}>
+        <form className="grid gap-4" onSubmit={saveSourceLink}>
+          {selectedContract ? (
+            <div className="rounded-lg bg-slate-50 p-3 text-sm">
+              <div className="font-semibold text-slate-900">{selectedContract.numar} — {selectedContract.titlu}</div>
+              <div className="text-slate-500">Alege o factură sau recepție/NIR nelegată. După salvare, valoarea se scade automat din contract.</div>
+            </div>
+          ) : null}
+          <Select
+            label="Document sursă"
+            value={sourceForm.source_key}
+            required
+            disabled={sourcesLoading}
+            onChange={event => setSourceForm({ ...sourceForm, source_key: event.target.value })}
+          >
+            <option value="">{sourcesLoading ? 'Se încarcă documentele...' : 'Alege documentul'}</option>
+            {linkableSources.map(source => (
+              <option key={`${source.type}::${source.id}`} value={`${source.type}::${source.id}`}>
+                {source.type_label} · {source.label}
+              </option>
+            ))}
+          </Select>
+          {!sourcesLoading && linkableSources.length === 0 ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Nu există facturi/NIR-uri nelegate cu valoare. Poți folosi temporar „+ Consum” pentru introducere manuală.
+            </div>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setSourceModalOpen(false)}>Renunță</Button>
+            <Button type="submit" loading={saving} disabled={!sourceForm.source_key || sourcesLoading}>Leagă documentul</Button>
           </div>
         </form>
       </Modal>

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.315",
+  "version": "2.12.316",
   "date": "2026-07-18",
-  "changelog": "## v2.12.315 - 2026-07-18\n### UI minimal Contract Management\n- Adauga pagina /contracte cu dashboard, alerte, lista contracte si progres consum.\n- Adauga formular pentru contract nou si consum manual pe contract.\n- Contract Management apare in sidebar si in catalogul de module comerciale.\n- Preseturile Gestiune + Achizitii, Contabilitate, City Services si Enterprise includ contractele."
+  "changelog": "## v2.12.316 - 2026-07-18\n### Legare documente sursa la contract\n- Contract Management citeste automat consum din NIR-uri/receptii legate la contract.\n- Adauga endpoint pentru documente sursa disponibile si endpoint de legare la contract.\n- Pagina Contracte permite legarea unei facturi sau a unui NIR existent fara dublarea consumului.\n- Smoke-suite verifica /api/contracts/linkable-sources."
 }

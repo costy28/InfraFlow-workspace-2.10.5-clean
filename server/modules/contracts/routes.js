@@ -169,12 +169,64 @@ function existingInvoiceConsumptions(db, contract) {
     .filter(item => item.valoare > 0)
 }
 
+function sourceDocumentId(document) {
+  return document.id || document.uuid || document.nr_nir || document.nr || document.numar || document.number || null
+}
+
+function sourceDocumentNumber(document) {
+  return String(document.nr || document.numar || document.number || document.documentNo || document.nr_nir || document.nrNir || document.document || document.orderNo || '').trim()
+}
+
+function sourceDocumentDate(document) {
+  return String(document.data || document.date || document.issueDate || document.created_at || document.createdAt || todayIso()).slice(0, 10)
+}
+
+function sourceDocumentTotal(document) {
+  if (document.total != null) return round(document.total)
+  if (document.valoare != null) return round(document.valoare)
+  if (document.amount != null) return round(document.amount)
+  if (document.total_cu_tva != null) return round(document.total_cu_tva)
+  if (document.totalCuTva != null) return round(document.totalCuTva)
+  if (Array.isArray(document.lines)) {
+    return round(document.lines.reduce((sum, line) => sum + numberValue(line.total ?? line.valoare_totala ?? line.valoare ?? line.cantitate_receptionata * line.pret_unitar), 0))
+  }
+  if (Array.isArray(document.linii)) {
+    return round(document.linii.reduce((sum, line) => sum + numberValue(line.total ?? line.valoare_totala ?? line.valoare ?? line.cantitate_receptionata * line.pret_unitar), 0))
+  }
+  return 0
+}
+
+function existingReceiptConsumptions(db, contract) {
+  const receipts = [
+    ...(db.procurementReceipts || []),
+    ...(db.gestiune?.nir || []),
+    ...(db.inventory?.receipts || [])
+  ]
+  return receipts
+    .filter(receipt => !receipt.cancelledAt && !receipt.cancelled_at && !receipt.canceled && !receipt.deleted)
+    .filter(receipt => String(receipt.contract_id || receipt.contractId || '') === String(contract.id))
+    .map(receipt => ({
+      id: `receipt-${sourceDocumentId(receipt) || crypto.createHash('sha1').update(JSON.stringify(receipt)).digest('hex').slice(0, 12)}`,
+      contract_id: contract.id,
+      data: sourceDocumentDate(receipt),
+      sursa: 'nir',
+      sursa_id: sourceDocumentId(receipt),
+      document_nr: sourceDocumentNumber(receipt),
+      descriere: String(receipt.supplier || receipt.furnizor || receipt.partner || receipt.materialName || 'NIR legat de contract').trim(),
+      valoare: sourceDocumentTotal(receipt),
+      moneda: String(receipt.moneda || receipt.currency || contract.moneda || 'RON').trim().toUpperCase(),
+      cpv_cod: String(receipt.cpv_cod || receipt.cpv || contract.cpv_cod || '').trim(),
+      generated: true
+    }))
+    .filter(item => item.valoare > 0)
+}
+
 function contractConsumptions(db, contract) {
   const cm = ensureContractsDb(db)
   const manual = cm.consumptions
     .filter(item => !item.cancelled_at && !item.cancelledAt)
     .filter(item => String(item.contract_id || item.contractId) === String(contract.id))
-  return [...manual, ...existingInvoiceConsumptions(db, contract)]
+  return [...manual, ...existingInvoiceConsumptions(db, contract), ...existingReceiptConsumptions(db, contract)]
 }
 
 function contractSummary(db, contract) {
@@ -260,6 +312,57 @@ function canManage(auth, res) {
   return requireAnyPermission(auth, res, MANAGE_PERMISSIONS)
 }
 
+function sourceCollections(db) {
+  return [
+    { type: 'factura_intrare', label: 'Factură intrare', rows: db.accounting?.invoicesIn || [] },
+    { type: 'factura_iesire', label: 'Factură ieșire', rows: db.accounting?.invoicesOut || [] },
+    { type: 'factura_anaf', label: 'Factură ANAF', rows: db.anafInvoices || [] },
+    { type: 'nir', label: 'NIR / recepție', rows: db.procurementReceipts || [] },
+    { type: 'nir_gestiune', label: 'NIR gestiune', rows: db.gestiune?.nir || [] }
+  ]
+}
+
+function sourceDocumentPartner(document) {
+  return String(document.supplier || document.furnizor || document.client || document.partner || document.tert || document.materialName || '').trim()
+}
+
+function sourceDocumentLabel(type, document) {
+  const nr = sourceDocumentNumber(document) || sourceDocumentId(document) || '-'
+  const partner = sourceDocumentPartner(document)
+  const total = sourceDocumentTotal(document)
+  return `${nr}${partner ? ` · ${partner}` : ''}${total ? ` · ${total.toLocaleString('ro-RO')} RON` : ''}`
+}
+
+function linkableSources(db, filters = {}) {
+  const type = String(filters.type || '').trim()
+  const includeLinked = ['1', 'true', 'yes', 'da'].includes(String(filters.includeLinked || '').trim().toLowerCase())
+  return sourceCollections(db)
+    .filter(collection => !type || collection.type === type)
+    .flatMap(collection => collection.rows
+      .filter(document => !document.cancelledAt && !document.cancelled_at && !document.canceled && !document.deleted)
+      .filter(document => includeLinked || !document.contract_id && !document.contractId)
+      .map(document => ({
+        type: collection.type,
+        type_label: collection.label,
+        id: sourceDocumentId(document),
+        label: sourceDocumentLabel(collection.type, document),
+        document_nr: sourceDocumentNumber(document),
+        data: sourceDocumentDate(document),
+        partener: sourceDocumentPartner(document),
+        valoare: sourceDocumentTotal(document),
+        moneda: String(document.moneda || document.currency || 'RON').trim().toUpperCase(),
+        contract_id: document.contract_id || document.contractId || null
+      }))
+      .filter(item => item.id != null && item.valoare > 0))
+    .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
+}
+
+function findSourceDocument(db, type, sourceId) {
+  const collection = sourceCollections(db).find(item => item.type === type)
+  if (!collection) return null
+  return collection.rows.find(document => String(sourceDocumentId(document)) === String(sourceId))
+}
+
 router.get('/contracts/dashboard', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
@@ -283,6 +386,13 @@ router.get('/contracts', (req, res) => {
     .map(item => decorateContract(auth.db, item))
     .sort((a, b) => String(a.data_sfarsit || '9999-12-31').localeCompare(String(b.data_sfarsit || '9999-12-31')))
   sendJson(res, 200, { contracts })
+})
+
+router.get('/contracts/linkable-sources', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canView(auth, res)) return
+  sendJson(res, 200, { sources: linkableSources(auth.db, req.query || {}) })
 })
 
 router.get('/contracts/:id', (req, res) => {
@@ -361,6 +471,41 @@ router.post('/contracts/:id/consumptions', (req, res) => {
   addAudit(auth.db, auth.user, 'contract_consumption_added', `${contract.numar} / ${round(consumption.valoare)} ${consumption.moneda}`)
   writeDb(auth.db)
   sendJson(res, 201, { consumption, contract: decorateContract(auth.db, contract, { includeConsumptions: true }) })
+})
+
+router.post('/contracts/:id/link-source', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const cm = ensureContractsDb(auth.db)
+  const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
+  if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
+  const type = String(req.body?.source_type || req.body?.type || '').trim()
+  const sourceId = req.body?.source_id || req.body?.id
+  if (!type || sourceId == null) return sendJson(res, 400, { error: 'Tipul si ID-ul documentului sunt obligatorii.' })
+  const document = findSourceDocument(auth.db, type, sourceId)
+  if (!document) return sendJson(res, 404, { error: 'Documentul sursa nu a fost gasit.' })
+  if ((document.contract_id || document.contractId) && String(document.contract_id || document.contractId) !== String(contract.id)) {
+    return sendJson(res, 409, { error: 'Documentul este deja legat de alt contract.' })
+  }
+  document.contract_id = contract.id
+  document.contractId = contract.id
+  document.contract_numar = contract.numar
+  document.contract_title = contract.titlu
+  document.contract_linked_at = nowIso()
+  document.contract_linked_by = auth.user.id
+  addAudit(auth.db, auth.user, 'contract_source_linked', `${contract.numar} / ${type} / ${sourceDocumentNumber(document) || sourceId}`)
+  writeDb(auth.db)
+  sendJson(res, 200, {
+    ok: true,
+    source: {
+      type,
+      id: sourceDocumentId(document),
+      label: sourceDocumentLabel(type, document),
+      valoare: sourceDocumentTotal(document)
+    },
+    contract: decorateContract(auth.db, contract, { includeConsumptions: true })
+  })
 })
 
 router.post('/contracts/:id/cancel', (req, res) => {
