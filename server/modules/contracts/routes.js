@@ -39,6 +39,19 @@ function ensureContractsDb(db) {
   return cm
 }
 
+function ensureTicketsDb(db) {
+  db.tickets = db.tickets || {}
+  db.tickets.tickets = Array.isArray(db.tickets.tickets) ? db.tickets.tickets : []
+  db.tickets.comments = Array.isArray(db.tickets.comments) ? db.tickets.comments : []
+  db.tickets.attachments = Array.isArray(db.tickets.attachments) ? db.tickets.attachments : []
+  db.tickets.escalations = Array.isArray(db.tickets.escalations) ? db.tickets.escalations : []
+  return db.tickets
+}
+
+function nextNumericId(items) {
+  return items.reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1
+}
+
 function nowIso() {
   return new Date().toISOString()
 }
@@ -493,7 +506,11 @@ function taskDeadlineForAlert(alert) {
 
 function decorateTask(db, task) {
   const cm = ensureContractsDb(db)
+  const ticketsDb = ensureTicketsDb(db)
   const contract = cm.contracts.find(item => String(item.id) === String(task.contract_id))
+  const linkedTicket = task.ticket_uuid
+    ? ticketsDb.tickets.find(item => String(item.uuid) === String(task.ticket_uuid))
+    : ticketsDb.tickets.find(item => item.entitate_tip === 'contract_task' && String(item.entitate_id) === String(task.id))
   const closed = ['rezolvat', 'inchis', 'anulat'].includes(String(task.status || '').toLowerCase())
   const overdue = Boolean(task.deadline && String(task.deadline).slice(0, 10) < todayIso() && !closed)
   return {
@@ -503,7 +520,9 @@ function decorateTask(db, task) {
     contract_numar: task.contract_numar || contract?.numar || '',
     contract_titlu: task.contract_titlu || contract?.titlu || '',
     responsabil_nume: task.responsabil_nume || contract?.responsabil_nume || '',
-    partener: task.partener || contract?.partener || ''
+    partener: task.partener || contract?.partener || '',
+    ticket_uuid: task.ticket_uuid || linkedTicket?.uuid || null,
+    ticket_status: linkedTicket?.status || null
   }
 }
 
@@ -577,6 +596,63 @@ function resolveContractTask(db, taskId, user, body = {}) {
   task.resolved_at = nowIso()
   task.updated_at = nowIso()
   return decorateTask(db, task)
+}
+
+function createTicketForContractTask(db, taskId, user) {
+  const cm = ensureContractsDb(db)
+  const ticketsDb = ensureTicketsDb(db)
+  const task = cm.tasks.find(item => String(item.id) === String(taskId) && !item.cancelled_at && !item.cancelledAt)
+  if (!task) return null
+  const existing = ticketsDb.tickets.find(item =>
+    String(item.uuid || '') === String(task.ticket_uuid || '') ||
+    (item.entitate_tip === 'contract_task' && String(item.entitate_id) === String(task.id))
+  )
+  if (existing) {
+    task.ticket_uuid = existing.uuid
+    task.ticket_id = existing.id
+    task.updated_at = nowIso()
+    return { task: decorateTask(db, task), ticket: existing, created: false }
+  }
+  const ticket = {
+    id: nextNumericId(ticketsDb.tickets),
+    uuid: crypto.randomUUID(),
+    tip: 'sesizare',
+    prioritate: task.prioritate === 'urgent' ? 'critica' : task.prioritate === 'ridicata' ? 'urgenta' : 'ridicata',
+    status: 'deschis',
+    titlu: task.titlu || `Task contract ${task.contract_numar || ''}`.trim(),
+    descriere: [
+      task.descriere || '',
+      task.contract_numar ? `Contract: ${task.contract_numar} — ${task.contract_titlu || ''}` : '',
+      task.alert_code ? `Alertă contract: ${task.alert_code}` : '',
+      task.deadline ? `Termen task: ${task.deadline}` : ''
+    ].filter(Boolean).join('\n'),
+    dept_sursa_id: user.departmentId || user.department_id || null,
+    dept_responsabil_id: null,
+    asignat_la: task.responsabil_id || null,
+    creat_de: user.id,
+    rezolvat_de: null,
+    rezolvat_la: null,
+    termen_limita: task.deadline || null,
+    entitate_tip: 'contract_task',
+    entitate_id: task.id,
+    created_at: nowIso(),
+    updated_at: nowIso()
+  }
+  ticketsDb.tickets.push(ticket)
+  ticketsDb.comments.push({
+    id: nextNumericId(ticketsDb.comments),
+    ticket_id: ticket.id,
+    user_id: user.id,
+    tip: 'actiune',
+    continut: `Ticket creat automat din task-ul de contract ${task.contract_numar || task.contract_id}.`,
+    vizibil_pentru_autor: true,
+    created_at: nowIso()
+  })
+  task.ticket_uuid = ticket.uuid
+  task.ticket_id = ticket.id
+  task.status = task.status === 'deschis' ? 'in_lucru' : task.status
+  task.updated_at = nowIso()
+  return { task: decorateTask(db, task), ticket, created: true }
 }
 
 function canView(auth, res) {
@@ -685,6 +761,17 @@ router.post('/contracts/tasks/:taskId/resolve', (req, res) => {
   addAudit(auth.db, auth.user, 'contract_task_resolved', `${task.contract_numar} / ${task.alert_code}`)
   writeDb(auth.db)
   sendJson(res, 200, { ok: true, task })
+})
+
+router.post('/contracts/tasks/:taskId/ticket', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const result = createTicketForContractTask(auth.db, req.params.taskId, auth.user)
+  if (!result) return sendJson(res, 404, { error: 'Task-ul de contract nu a fost gasit.' })
+  addAudit(auth.db, auth.user, result.created ? 'contract_task_ticket_created' : 'contract_task_ticket_reused', `${result.task.contract_numar} / ${result.ticket.uuid}`)
+  writeDb(auth.db)
+  sendJson(res, result.created ? 201 : 200, { ok: true, ...result })
 })
 
 router.get('/contracts', (req, res) => {

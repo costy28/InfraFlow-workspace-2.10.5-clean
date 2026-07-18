@@ -289,6 +289,24 @@ export default function ContractePage() {
     }
   }
 
+  async function createTicketFromTask(task) {
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post(`/contracts/tasks/${task.id}/ticket`)
+      const ticket = response.data?.ticket
+      setNotice(response.data?.created
+        ? `Ticketul ${ticket?.uuid || ''} a fost creat din task-ul de contract.`
+        : `Task-ul este deja legat la ticketul ${ticket?.uuid || ''}.`)
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ticketul nu a putut fi creat din task.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <PageHeader
@@ -375,7 +393,18 @@ export default function ContractePage() {
                   {task.overdue ? <span className="font-semibold text-rose-600">restant</span> : null}
                 </div>
               </div>
-              <Button size="sm" variant="secondary" onClick={() => resolveTask(task)} loading={saving}>Rezolvat</Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                {task.ticket_uuid ? (
+                  <Button size="sm" variant="secondary" onClick={() => { window.location.href = '/sesizari' }}>
+                    Ticket legat
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="secondary" onClick={() => createTicketFromTask(task)} loading={saving}>
+                    Creează ticket
+                  </Button>
+                )}
+                <Button size="sm" variant="secondary" onClick={() => resolveTask(task)} loading={saving}>Rezolvat</Button>
+              </div>
             </div>
           ))}
         </div>

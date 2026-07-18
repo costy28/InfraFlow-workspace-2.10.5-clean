@@ -529,3 +529,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ acțiune rapidă „Rezolvat” direct din lista de task-uri;
 - `db/migrations/068_contract_management_tasks.sql` — ✅ tabelă relațională `contract_management.tasks`;
 - `scripts/smoke-modules-readonly.js` — ✅ verificare read-only pentru `/api/contracts/tasks`.
+
+### UPDATE 343 — Ticketing pentru task-uri contract
+
+- `server/modules/contracts/routes.js` — ✅ endpoint pentru creare/reutilizare ticket din task de contract;
+- `server/modules/contracts/routes.js` — ✅ legătură `ticket_uuid` / `ticket_id` păstrată pe task;
+- `server/modules/contracts/routes.js` — ✅ ticket deduplicat prin `entitate_tip=contract_task` și `entitate_id`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Creează ticket” / „Ticket legat” pe task;
+- `client/src/pages/modules/TicketsPage.jsx` — ✅ sursa ticketului este vizibilă în listă și în detalii;
+- task-urile contractuale pot intra acum în fluxul normal de lucru din Sesizări, cu comentarii, atașamente și schimbări de status.

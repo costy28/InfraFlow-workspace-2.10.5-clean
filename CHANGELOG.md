@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.323 - 2026-07-18
+
+## Ticketing pentru task-uri contract
+
+- Task-urile de contract pot crea ticket operațional în modulul Sesizări.
+- Ticketul este deduplicat prin `entitate_tip=contract_task` și `entitate_id=task`.
+- Task-ul păstrează `ticket_uuid` și `ticket_id` pentru trasabilitate.
+- Pagina Contract Management afișează „Creează ticket” sau „Ticket legat”.
+- Pagina Sesizări afișează sursa ticketului când vine din Contract Management.
+- Ticketul moștenește prioritatea, termenul și responsabilul task-ului de contract.
+
 # v2.12.322 - 2026-07-18
 
 ## Task-uri operaționale contract

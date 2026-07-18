@@ -79,6 +79,12 @@ function statusTone(status) {
   return 'neutral'
 }
 
+function entityLabel(ticket) {
+  if (ticket.entitate_tip === 'contract_task') return `Contract task ${ticket.entitate_id || ''}`.trim()
+  if (ticket.entitate_tip === 'contract') return `Contract ${ticket.entitate_id || ''}`.trim()
+  return ticket.entitate_tip ? `${label(ticket.entitate_tip)} ${ticket.entitate_id || ''}`.trim() : ''
+}
+
 function age(value) {
   if (!value) return '-'
   const hours = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 3600000))
@@ -253,6 +259,7 @@ export default function TicketsPage() {
               { key: 'tip', label: 'Tip', render: row => typeBadge(row) },
               { key: 'prioritate', label: 'Prioritate', render: row => <Badge tone={priorityTone(row.prioritate)}>{label(row.prioritate)}</Badge> },
               { key: 'titlu', label: 'Titlu' },
+              { key: 'entitate_tip', label: 'Sursă', render: row => entityLabel(row) ? <Badge tone="neutral">{entityLabel(row)}</Badge> : '-' },
               { key: 'status', label: 'Status', render: row => <Badge tone={statusTone(row.status)}>{label(row.status)}</Badge> },
               { key: 'created_at', label: 'Timp scurs', render: row => <span className="inline-flex items-center gap-1"><Clock size={13} /> {age(row.created_at)}</span> },
               { key: 'actions', label: '', render: row => <Button variant="ghost" onClick={() => openDetails(row)}>Detalii</Button> },
@@ -273,6 +280,11 @@ export default function TicketsPage() {
                   </div>
                   <h2 className="mt-2 text-xl font-semibold text-slate-900">{details.ticket.titlu}</h2>
                   <p className="mt-1 text-sm text-slate-600">{details.ticket.descriere || 'Fără descriere.'}</p>
+                  {entityLabel(details.ticket) ? (
+                    <div className="mt-2">
+                      <Badge tone="neutral">Sursă: {entityLabel(details.ticket)}</Badge>
+                    </div>
+                  ) : null}
                 </div>
                 <Badge tone={statusTone(details.ticket.status)}>{label(details.ticket.status)}</Badge>
               </div>
