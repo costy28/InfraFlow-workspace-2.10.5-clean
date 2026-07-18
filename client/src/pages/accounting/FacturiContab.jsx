@@ -16,6 +16,7 @@ export function FacturiContab({ direction = 'in' }) {
   const [thirdParties, setThirdParties] = useState([])
   const [accounts, setAccounts] = useState([])
   const [costCenters, setCostCenters] = useState([])
+  const [contracts, setContracts] = useState([])
   const [templates, setTemplates] = useState([])
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
   const [status, setStatus] = useState(searchParams.get('status') || '')
@@ -36,22 +37,24 @@ export function FacturiContab({ direction = 'in' }) {
   const [validatedJournal, setValidatedJournal] = useState(null)
   const [actionLoading, setActionLoading] = useState('')
   const emptyLine = () => ({ denumire: '', cont: isIn ? '628' : '704', valoare: '', tva_procent: 21 })
-  const [form, setForm] = useState({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', lines: [emptyLine()] })
+  const [form, setForm] = useState({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', contract_id: '', lines: [emptyLine()] })
   const endpoint = isIn ? '/accounting/invoices-in' : '/accounting/invoices-out'
   async function load() {
     const [an, luna] = month.split('-')
-    const [a, t, c, cc, tpl] = await Promise.all([
+    const [a, t, c, cc, tpl, contractsRes] = await Promise.all([
       api.get(endpoint, { params: { an, luna: Number(luna), status: status || undefined, [isIn ? 'furnizor' : 'client']: tertFilter || undefined } }),
       api.get('/accounting/third-parties', { params: { tip: isIn ? 'furnizor' : 'client' } }),
       api.get('/accounting/chart'),
       api.get('/accounting/cost-centers'),
-      api.get('/accounting/journal-templates', { params: { source: isIn ? 'intrare' : 'iesire' } })
+      api.get('/accounting/journal-templates', { params: { source: isIn ? 'intrare' : 'iesire' } }),
+      api.get('/contracts').catch(() => ({ data: { contracts: [] } }))
     ])
     setRows(a.data.invoices || [])
     setThirdParties(t.data.thirdParties || [])
     setAccounts(c.data.accounts || [])
     setCostCenters(cc.data.costCenters || [])
     setTemplates(tpl.data.templates || [])
+    setContracts(contractsRes.data?.contracts || [])
   }
   useEffect(() => {
     setMonth(searchParams.get('luna') || currentMonth())
@@ -67,7 +70,7 @@ export function FacturiContab({ direction = 'in' }) {
     if (!needle) return rows
     return rows.filter(row => {
       const tert = thirdPartyById.get(String(row.furnizor_id || row.client_id))
-      return `${row.id || ''} ${row.uuid || ''} ${row.data || ''} ${row.nr_document || ''} ${row.serie || ''} ${row.numar || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
+      return `${row.id || ''} ${row.uuid || ''} ${row.data || ''} ${row.nr_document || ''} ${row.serie || ''} ${row.numar || ''} ${row.contract_numar || ''} ${row.contract_title || ''} ${row.explicatie || ''} ${tert?.denumire || ''} ${tert?.cui || ''}`.toLowerCase().includes(needle)
     })
   }, [rows, q, thirdPartyById])
   const visibleTotals = useMemo(() => ({
@@ -84,13 +87,19 @@ export function FacturiContab({ direction = 'in' }) {
   const mainCostCenters = costCenters.filter(center => !center.parinte_id)
   const subcenters = costCenters.filter(center => String(center.parinte_id || '') === String(form.cost_center_id || ''))
   const costCenterName = id => costCenters.find(center => String(center.id) === String(id))?.denumire || costCenters.find(center => String(center.id) === String(id))?.name || ''
+  const contractOptions = useMemo(() => [
+    { value: '', label: 'Fără contract' },
+    ...contracts
+      .filter(contract => !['anulat', 'inchis'].includes(String(contract.status || '').toLowerCase()))
+      .map(contract => ({ value: contract.id, label: `${contract.numar || contract.id} — ${contract.titlu || contract.partener || 'contract'}` }))
+  ], [contracts])
   const selectedTemplate = templates.find(template => template.key === form.template_key)
   function openNew() {
     setEditing(null)
     setError('')
     setMessage('')
     setValidatedJournal(null)
-    setForm({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', template_key: '', cost_center_id: '', subcentru_id: '', lines: [emptyLine()] })
+    setForm({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', template_key: '', cost_center_id: '', subcentru_id: '', contract_id: '', lines: [emptyLine()] })
     setModal(true)
   }
   function openEdit(row) {
@@ -111,6 +120,7 @@ export function FacturiContab({ direction = 'in' }) {
       template_key: row.template_key || '',
       cost_center_id: row.cost_center_id || '',
       subcentru_id: row.subcentru_id || '',
+      contract_id: row.contract_id || row.contractId || '',
       lines: Array.isArray(row.lines) && row.lines.length ? row.lines.map(line => ({
         denumire: line.denumire || '',
         cont: line.cont || (isIn ? row.cont_cheltuiala || '628' : row.cont_venit || '704'),
@@ -185,7 +195,8 @@ export function FacturiContab({ direction = 'in' }) {
           .filter(line => line.valoare > 0)
           .map(line => ({ ...line, denumire: line.denumire || `Linia ${line.nr_crt}` })),
         cost_center_id: form.cost_center_id || null,
-        subcentru_id: form.subcentru_id || null
+        subcentru_id: form.subcentru_id || null,
+        contract_id: form.contract_id || null
       }
       if (editing?.uuid) await api.patch(`${endpoint}/${editing.uuid}`, payload)
       else await api.post(endpoint, payload)
@@ -494,7 +505,7 @@ export function FacturiContab({ direction = 'in' }) {
         <Card density="compact"><div className="text-xs text-slate-500">TVA</div><div className="text-lg font-semibold">{formatMoney(visibleTotals.tva)}</div></Card>
         <Card density="compact"><div className="text-xs text-slate-500">Rest deschis</div><div className="text-lg font-semibold">{formatMoney(visibleTotals.rest)}</div></Card>
       </div>
-      <Table headers={['Data', 'Document', 'Tert', 'Centru cost', 'Valoare', 'TVA', 'Total', isIn ? 'Achitat' : 'Incasat', 'Rest', 'Status', 'Nota', 'Actiuni']}>
+      <Table headers={['Data', 'Document', 'Tert', 'Centru cost', 'Contract', 'Valoare', 'TVA', 'Total', isIn ? 'Achitat' : 'Incasat', 'Rest', 'Status', 'Nota', 'Actiuni']}>
         {visibleRows.map(row => (
           <tr key={row.uuid}>
             <td className="px-3 py-2">{row.data}</td>
@@ -504,6 +515,7 @@ export function FacturiContab({ direction = 'in' }) {
               {thirdPartyById.get(String(row.furnizor_id || row.client_id))?.cui ? <div className="text-xs text-slate-500">{thirdPartyById.get(String(row.furnizor_id || row.client_id))?.cui}</div> : null}
             </td>
             <td className="px-3 py-2">{costCenterName(row.subcentru_id) || costCenterName(row.cost_center_id) || '-'}</td>
+            <td className="px-3 py-2 text-xs">{row.contract_numar ? <Badge tone="info">{row.contract_numar}</Badge> : '-'}</td>
             <td className="px-3 py-2">{formatMoney(row.valoare)}</td>
             <td className="px-3 py-2">{formatMoney(row.tva)}</td>
             <td className="px-3 py-2 font-semibold">{formatMoney(row.total)}</td>
@@ -552,6 +564,7 @@ export function FacturiContab({ direction = 'in' }) {
             <Select label="Centru cost/profit" value={form.cost_center_id || ''} onChange={event => setForm({ ...form, cost_center_id: event.target.value, subcentru_id: '' })} options={[{ value: '', label: 'Fara centru' }, ...mainCostCenters.map(center => ({ value: center.id, label: `${center.cod || center.id} - ${center.denumire || center.name}` }))]} />
             <Select label="Subcentru" value={form.subcentru_id || ''} onChange={event => setForm({ ...form, subcentru_id: event.target.value })} options={[{ value: '', label: subcenters.length ? 'Fara subcentru' : 'Nu sunt subcentre' }, ...subcenters.map(center => ({ value: center.id, label: `${center.cod || center.id} - ${center.denumire || center.name}` }))]} disabled={!form.cost_center_id || !subcenters.length} />
           </div>
+          <Select label="Contract urmărit" value={form.contract_id || ''} onChange={event => setForm({ ...form, contract_id: event.target.value })} options={contractOptions} />
           <AccountSelect label={isIn ? 'Cont cheltuiala' : 'Cont venit'} value={isIn ? form.cont_cheltuiala : form.cont_venit} accounts={accounts} recommendedClasses={isIn ? [6, 3, 2] : [7]} onChange={event => setForm({ ...form, [isIn ? 'cont_cheltuiala' : 'cont_venit']: event.target.value })} required />
           <div className="rounded-md border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">

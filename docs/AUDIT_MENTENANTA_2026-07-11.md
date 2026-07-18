@@ -475,3 +475,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton și modal „Leagă doc.” pentru facturi/NIR-uri existente;
 - `scripts/smoke-modules-readonly.js` — ✅ verificare pentru `/api/contracts/linkable-sources`;
 - legarea marchează documentul sursă cu `contract_id` / `contractId`, evitând dublarea consumului.
+
+### UPDATE 337 — Selector contract în documente sursă
+
+- `client/src/pages/modules/GestiunePage.jsx` — ✅ selector „Contract urmărit” în formularul NIR;
+- `server/modules/gestiune/routes.js` — ✅ NIR-ul salvează legătura contractului și metadatele de afișare;
+- `client/src/pages/accounting/FacturiContab.jsx` — ✅ selector contract în facturi intrare/ieșire și coloană contract în listă;
+- `server/modules/accounting/accounting-routes.js` — ✅ facturile contabile persistă `contract_id` / `contractId`;
+- `server/modules/accounting/accounting-control-routes.js` — ✅ facturile generate din NIR moștenesc contractul când sursele sunt coerente;
+- `server/modules/contracts/routes.js` — ✅ evită dublarea consumului când NIR-ul și factura aferentă sunt legate la același contract.

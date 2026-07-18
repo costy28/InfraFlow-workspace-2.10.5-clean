@@ -2325,6 +2325,7 @@ function normalizeInvoiceIn(db, body, existing = {}) {
     cost_center_id: body.cost_center_id === "" ? null : body.cost_center_id ?? existing.cost_center_id ?? null,
     subcentru_id: body.subcentru_id === "" ? null : body.subcentru_id ?? existing.subcentru_id ?? null,
     santier_id: body.santier_id === "" ? null : body.santier_id ?? existing.santier_id ?? null,
+    ...normalizeContractLinkFields(db, body, existing),
     explicatie: String(body.explicatie ?? existing.explicatie ?? "").trim()
   };
 }
@@ -2360,7 +2361,31 @@ function normalizeInvoiceOut(db, body, existing = {}) {
     cost_center_id: body.cost_center_id === "" ? null : body.cost_center_id ?? existing.cost_center_id ?? null,
     subcentru_id: body.subcentru_id === "" ? null : body.subcentru_id ?? existing.subcentru_id ?? null,
     santier_id: body.santier_id === "" ? null : body.santier_id ?? existing.santier_id ?? null,
+    ...normalizeContractLinkFields(db, body, existing),
     explicatie: String(body.explicatie ?? existing.explicatie ?? "").trim()
+  };
+}
+
+function normalizeContractLinkFields(db, body, existing = {}) {
+  if (body.contract_id === undefined && body.contractId === undefined) {
+    return {
+      contract_id: existing.contract_id ?? existing.contractId ?? null,
+      contractId: existing.contractId ?? existing.contract_id ?? null,
+      contract_numar: existing.contract_numar || "",
+      contract_title: existing.contract_title || ""
+    };
+  }
+  const contractId = body.contract_id ?? body.contractId ?? null;
+  if (!contractId) {
+    return { contract_id: null, contractId: null, contract_numar: "", contract_title: "" };
+  }
+  const contract = (db.contractManagement?.contracts || []).find((item) => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt);
+  if (!contract) throwHttp(404, "Contractul selectat nu exista.");
+  return {
+    contract_id: contract.id,
+    contractId: contract.id,
+    contract_numar: contract.numar || "",
+    contract_title: contract.titlu || ""
   };
 }
 

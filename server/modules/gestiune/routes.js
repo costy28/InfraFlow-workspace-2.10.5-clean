@@ -36,6 +36,30 @@ function matUnit(m) { return m?.unit || m?.um || '' }
 function matStock(m) { return num(m?.stock ?? m?.stoc_curent ?? m?.currentStock ?? 0) }
 function setMatStock(m, v) { m.stock = num(v); m.stoc_curent = num(v); m.currentStock = num(v) }
 
+function findContract(db, contractId) {
+  if (!contractId) return null
+  const contracts = db.contractManagement?.contracts || []
+  return contracts.find(item => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt) || null
+}
+
+function applyContractLink(db, document, body = {}) {
+  const contractId = body.contract_id ?? body.contractId ?? ''
+  if (contractId === undefined) return
+  if (!contractId) {
+    document.contract_id = null
+    document.contractId = null
+    document.contract_numar = ''
+    document.contract_title = ''
+    return
+  }
+  const contract = findContract(db, contractId)
+  if (!contract) throwHttp(404, 'Contractul selectat nu există.')
+  document.contract_id = contract.id
+  document.contractId = contract.id
+  document.contract_numar = contract.numar || ''
+  document.contract_title = contract.titlu || ''
+}
+
 // ─── DB init ─────────────────────────────────────────────────────────────────
 
 function ensureDb(db) {
@@ -313,6 +337,7 @@ router.post('/gestiune/nir', (req, res, next) => {
       created_by: auth.user?.name || '',
       created_at: nowIso(),
     }
+    applyContractLink(auth.db, nir, body)
 
     g.nir.push(nir)
     addAudit(auth.db, auth.user, 'nir_creat', `${nir.numar} / ${nir.furnizor_name} / ${nir.valoare_totala} RON`)
@@ -377,6 +402,7 @@ router.patch('/gestiune/nir/:nirId', (req, res, next) => {
 
     const allowed = ['data','furnizor_id','furnizor_name','nr_factura','data_factura','nr_aviz','observatii','status']
     allowed.forEach(k => { if (body[k] !== undefined) nir[k] = body[k] })
+    if (body.contract_id !== undefined || body.contractId !== undefined) applyContractLink(auth.db, nir, body)
     nir.updated_at = nowIso()
 
     addAudit(auth.db, auth.user, 'nir_modificat', nir.numar)

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.316",
+  "version": "2.12.317",
   "date": "2026-07-18",
-  "changelog": "## v2.12.316 - 2026-07-18\n### Legare documente sursa la contract\n- Contract Management citeste automat consum din NIR-uri/receptii legate la contract.\n- Adauga endpoint pentru documente sursa disponibile si endpoint de legare la contract.\n- Pagina Contracte permite legarea unei facturi sau a unui NIR existent fara dublarea consumului.\n- Smoke-suite verifica /api/contracts/linkable-sources."
+  "changelog": "## v2.12.317 - 2026-07-18\n### Selector contract in documente sursa\n- NIR-ul din Gestiune permite alegerea contractului urmarit direct la creare.\n- Facturile contabile de intrare/iesire permit alegerea contractului urmarit direct din formular.\n- Facturile generate din NIR-uri mostenesc automat contractul cand sursele au acelasi contract.\n- Contract Management evita dublarea consumului intre NIR si factura generata din acelasi NIR."
 }

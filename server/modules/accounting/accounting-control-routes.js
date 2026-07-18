@@ -612,6 +612,8 @@ function createInvoiceFromReceipts(accounting, receipts, party, user, input = {}
   if (input.distribute_difference && declaredTotal > 0 && Math.abs(declaredTotal - calculatedTotal) > 0.01) lines = distributeInvoiceDifference(lines, declaredTotal);
   const base = money(lines.reduce((sum, line) => sum + line.valoare, 0));
   const vat = money(lines.reduce((sum, line) => sum + line.tva, 0));
+  const receiptContractIds = Array.from(new Set(receipts.map((receipt) => receipt.contract_id || receipt.contractId).filter(Boolean).map(String)));
+  const inheritedContract = receiptContractIds.length === 1 ? receipts.find((receipt) => String(receipt.contract_id || receipt.contractId || "") === receiptContractIds[0]) : null;
   return {
     id: engine.nextNumericId(accounting.invoicesIn), uuid: crypto.randomUUID(), an, luna,
     nr_intern: accounting.invoicesIn.filter((item) => Number(item.an) === an).length + 1,
@@ -620,6 +622,10 @@ function createInvoiceFromReceipts(accounting, receipts, party, user, input = {}
     tva: vat, total: money(base + vat), achitat: 0, neachitat: money(base + vat), cont_cheltuiala: "3028",
     explicatie: `Factura din ${receipts.length} receptii: ${receipts.map((receipt) => receipt.nr_nir || receipt.orderNo || receipt.id).join(", ")}`, lines, status: "draft", journal_id: null,
     source: "procurement_receipt", source_receipt_ids: receipts.map((receipt) => receipt.id), receipt_total: receiptTotal,
+    contract_id: inheritedContract?.contract_id || inheritedContract?.contractId || null,
+    contractId: inheritedContract?.contractId || inheritedContract?.contract_id || null,
+    contract_numar: inheritedContract?.contract_numar || "",
+    contract_title: inheritedContract?.contract_title || "",
     declared_total: declaredTotal, receipt_variance: money(declaredTotal - receiptTotal), distribution_applied: Boolean(input.distribute_difference && Math.abs(declaredTotal - calculatedTotal) > 0.01),
     created_by: user?.id || "", created_at: new Date().toISOString()
   };

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.317 - 2026-07-18
+
+## Selector contract în documente sursă
+
+- NIR-ul din Gestiune are câmp „Contract urmărit” direct la creare.
+- Facturile contabile de intrare/ieșire au câmp „Contract urmărit” în formularul de draft.
+- Listele de NIR-uri și facturi afișează contractul legat.
+- Facturile generate din NIR-uri moștenesc automat contractul când sursele au același contract.
+- Contract Management evită dublarea consumului între NIR și factura generată din același NIR.
+
 # v2.12.316 - 2026-07-18
 
 ## Legare documente sursă la contract

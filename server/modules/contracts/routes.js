@@ -152,6 +152,7 @@ function existingInvoiceConsumptions(db, contract) {
   ]
   return invoices
     .filter(invoice => !invoice.cancelledAt && !invoice.cancelled_at)
+    .filter(invoice => !['anulat', 'stornat', 'cancelled', 'canceled'].includes(String(invoice.status || '').toLowerCase()))
     .filter(invoice => String(invoice.contract_id || invoice.contractId || '') === String(contract.id))
     .map(invoice => ({
       id: `invoice-${invoice.id || invoice.uuid || crypto.createHash('sha1').update(JSON.stringify(invoice)).digest('hex').slice(0, 12)}`,
@@ -159,7 +160,7 @@ function existingInvoiceConsumptions(db, contract) {
       data: String(invoice.data || invoice.date || invoice.issueDate || invoice.created_at || todayIso()).slice(0, 10),
       sursa: 'factura',
       sursa_id: invoice.id || invoice.uuid || null,
-      document_nr: String(invoice.nr || invoice.numar || invoice.number || invoice.documentNo || '').trim(),
+      document_nr: String(invoice.nr_document || invoice.nr || invoice.numar || invoice.number || invoice.documentNo || '').trim(),
       descriere: String(invoice.furnizor || invoice.client || invoice.partner || invoice.titlu || 'Factura legata de contract').trim(),
       valoare: round(invoice.total || invoice.valoare || invoice.amount || invoice.total_cu_tva || invoice.totalCuTva || 0),
       moneda: String(invoice.moneda || invoice.currency || contract.moneda || 'RON').trim().toUpperCase(),
@@ -174,7 +175,7 @@ function sourceDocumentId(document) {
 }
 
 function sourceDocumentNumber(document) {
-  return String(document.nr || document.numar || document.number || document.documentNo || document.nr_nir || document.nrNir || document.document || document.orderNo || '').trim()
+  return String(document.nr_document || document.nr || document.numar || document.number || document.documentNo || document.nr_nir || document.nrNir || document.document || document.orderNo || '').trim()
 }
 
 function sourceDocumentDate(document) {
@@ -197,6 +198,12 @@ function sourceDocumentTotal(document) {
 }
 
 function existingReceiptConsumptions(db, contract) {
+  const linkedInvoices = [
+    ...(db.accounting?.invoicesIn || []),
+    ...(db.accounting?.invoicesOut || []),
+    ...(db.accountingInvoicesIn || []),
+    ...(db.accountingInvoicesOut || [])
+  ].filter(invoice => String(invoice.contract_id || invoice.contractId || '') === String(contract.id))
   const receipts = [
     ...(db.procurementReceipts || []),
     ...(db.gestiune?.nir || []),
@@ -205,6 +212,11 @@ function existingReceiptConsumptions(db, contract) {
   return receipts
     .filter(receipt => !receipt.cancelledAt && !receipt.cancelled_at && !receipt.canceled && !receipt.deleted)
     .filter(receipt => String(receipt.contract_id || receipt.contractId || '') === String(contract.id))
+    .filter(receipt => !linkedInvoices.some(invoice =>
+      String(invoice.id || '') === String(receipt.accounting_invoice_id || '') ||
+      String(invoice.uuid || '') === String(receipt.accounting_invoice_uuid || '') ||
+      (Array.isArray(invoice.source_receipt_ids) && invoice.source_receipt_ids.some(id => String(id) === String(sourceDocumentId(receipt))))
+    ))
     .map(receipt => ({
       id: `receipt-${sourceDocumentId(receipt) || crypto.createHash('sha1').update(JSON.stringify(receipt)).digest('hex').slice(0, 12)}`,
       contract_id: contract.id,

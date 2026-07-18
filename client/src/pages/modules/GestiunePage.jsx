@@ -30,7 +30,7 @@ function statusTone(s) {
 
 const emptyMatForm  = { name: '', unit: '', categorie: 'general', cod_intern: '', stoc_minim: '', pret_achizitie: '', locatie_depozit: '', furnizor_preferat: '' }
 const emptyFurForm  = { nume: '', cui: '', nr_reg_com: '', adresa: '', telefon: '', email: '', iban: '', banca: '', pers_contact: '', observatii: '' }
-const emptyNirForm  = { data: today(), furnizor_id: '', furnizor_name: '', nr_factura: '', data_factura: '', nr_aviz: '', observatii: '', linii: [] }
+const emptyNirForm  = { data: today(), furnizor_id: '', furnizor_name: '', nr_factura: '', data_factura: '', nr_aviz: '', contract_id: '', observatii: '', linii: [] }
 const emptyBcForm   = { data: today(), department: '', lucrare: '', observatii: '', linii: [] }
 const emptyLine     = { material_id: '', cantitate: '', pret_unitar: '' }
 
@@ -41,6 +41,7 @@ export default function GestiunePage() {
   const [dashboard, setDashboard] = useState(null)
   const [materials, setMaterials] = useState([])
   const [furnizori, setFurnizori] = useState([])
+  const [contracts, setContracts] = useState([])
   const [nirList, setNirList] = useState([])
   const [bcList, setBcList] = useState([])
   const [inventare, setInventare] = useState([])
@@ -86,14 +87,16 @@ export default function GestiunePage() {
   async function loadBase() {
     setLoading(true); setError('')
     try {
-      const [matsRes, dashRes, furRes] = await Promise.all([
+      const [matsRes, dashRes, furRes, contractsRes] = await Promise.all([
         api.get('/materials'),
         api.get('/gestiune/dashboard'),
         api.get('/gestiune/furnizori'),
+        api.get('/contracts').catch(() => ({ data: { contracts: [] } })),
       ])
       setMaterials(matsRes.data?.materials || [])
       setDashboard(dashRes.data || {})
       setFurnizori(Array.isArray(furRes.data) ? furRes.data : [])
+      setContracts(contractsRes.data?.contracts || [])
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la încărcare.')
     } finally { setLoading(false) }
@@ -144,6 +147,12 @@ export default function GestiunePage() {
   const furOptions = useMemo(() =>
     [{ value: '', label: 'Alege furnizor…' }, ...furnizori.map(f => ({ value: f.id, label: f.nume }))]
   , [furnizori])
+
+  const contractOptions = useMemo(() =>
+    [{ value: '', label: 'Fără contract' }, ...contracts
+      .filter(contract => !['anulat', 'inchis'].includes(String(contract.status || '').toLowerCase()))
+      .map(contract => ({ value: contract.id, label: `${contract.numar || contract.id} — ${contract.titlu || contract.partener || 'contract'}` }))]
+  , [contracts])
 
   const filteredMats = useMemo(() => {
     let list = materials
@@ -603,7 +612,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                 <tr>
                   <th className="px-3 py-2">Nr.</th><th className="px-3 py-2">Data</th>
                   <th className="px-3 py-2">Furnizor</th><th className="px-3 py-2">Factură</th>
-                  <th className="px-3 py-2">Linii</th><th className="px-3 py-2 text-right">Valoare</th>
+                  <th className="px-3 py-2">Contract</th><th className="px-3 py-2">Linii</th><th className="px-3 py-2 text-right">Valoare</th>
                   <th className="px-3 py-2">Status</th><th className="px-3 py-2"></th>
                 </tr>
               </thead>
@@ -614,6 +623,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                     <td className="px-3 py-2">{n.data}</td>
                     <td className="px-3 py-2">{n.furnizor_name || '—'}</td>
                     <td className="px-3 py-2 text-xs">{n.nr_factura || '—'}</td>
+                    <td className="px-3 py-2 text-xs">{n.contract_numar ? <Badge tone="info">{n.contract_numar}</Badge> : '—'}</td>
                     <td className="px-3 py-2">{(n.linii || []).length} pos.</td>
                     <td className="px-3 py-2 text-right font-semibold">{fmt(n.valoare_totala)} RON</td>
                     <td className="px-3 py-2"><Badge tone={statusTone(n.status)}>{n.status}</Badge></td>
@@ -631,7 +641,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan="8" className="px-3 py-8 text-center text-sm text-slate-400">Niciun NIR pentru {nirLuna}.</td></tr>
+                  <tr><td colSpan="9" className="px-3 py-8 text-center text-sm text-slate-400">Niciun NIR pentru {nirLuna}.</td></tr>
                 )}
               </tbody>
             </table>
@@ -974,6 +984,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
             <Input label="Nr. factură" value={nirForm.nr_factura} onChange={e => setNirForm({ ...nirForm, nr_factura: e.target.value })} />
             <Input label="Dată factură" type="date" value={nirForm.data_factura} onChange={e => setNirForm({ ...nirForm, data_factura: e.target.value })} />
             <Input label="Nr. aviz" value={nirForm.nr_aviz} onChange={e => setNirForm({ ...nirForm, nr_aviz: e.target.value })} />
+            <Select label="Contract urmărit" value={nirForm.contract_id || ''} onChange={e => setNirForm({ ...nirForm, contract_id: e.target.value })} options={contractOptions} />
           </div>
 
           {/* Linii */}
