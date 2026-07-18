@@ -1,5 +1,5 @@
 {
-  "version": "2.12.324",
+  "version": "2.12.325",
   "date": "2026-07-18",
-  "changelog": "## v2.12.324 - 2026-07-18\n### Cockpit dosar contract\n- Detaliile contractului includ cockpit operational agregat.\n- Cockpit-ul grupeaza KPI pentru alerte, task-uri, tichete, documente si consumuri.\n- Backend-ul agrega task-urile si tichetele legate la contract in GET /api/contracts/:id.\n- Modalul Dosar contract afiseaza task-uri si tichete legate langa documente si consumuri.\n- Contractul devine pagina de adevar pentru urmarirea operationala."
+  "changelog": "## v2.12.325 - 2026-07-18\n### Fisa printabila contract\n- Contract Management expune fisa HTML printabila pentru fiecare contract.\n- Fisa include sumar financiar, progres, alerte, consumuri, documente sursa, task-uri si tichete conectate.\n- Endpoint nou GET /api/contracts/:id/print, protejat prin aceleasi permisiuni ca dosarul contractului.\n- Modalul Dosar contract are buton Fisa print pentru print sau salvare PDF din browser.\n- Fisa foloseste cockpit-ul contractului ca sursa unica, fara date duplicate."
 }

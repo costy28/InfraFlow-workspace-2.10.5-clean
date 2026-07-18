@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.325 - 2026-07-18
+
+## Fișă printabilă contract
+
+- Contract Management expune fișă HTML printabilă pentru fiecare contract.
+- Fișa include sumar financiar, progres, alerte, consumuri, documente sursă, task-uri și tichete conectate.
+- Endpoint nou `GET /api/contracts/:id/print`, protejat prin aceleași permisiuni ca dosarul contractului.
+- Modalul „Dosar contract” are buton „Fișă print” pentru print sau salvare PDF din browser.
+- Fișa folosește cockpit-ul contractului ca sursă unică, fără date duplicate.
+
 # v2.12.324 - 2026-07-18
 
 ## Cockpit dosar contract

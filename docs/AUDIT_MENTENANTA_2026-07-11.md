@@ -547,3 +547,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ secțiune „Cockpit contract” în modalul Dosar contract;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ liste compacte pentru task-uri și tichete legate;
 - contractul devine pagină de adevăr: financiar, documentar și operațional într-un singur loc.
+
+### UPDATE 345 — Fișă printabilă contract
+
+- `server/modules/contracts/routes.js` — ✅ endpoint HTML `GET /api/contracts/:id/print` pentru fișa contractului;
+- `server/modules/contracts/routes.js` — ✅ fișă A4 cu sumar financiar, progres, alerte, consumuri, documente sursă, task-uri și tichete;
+- `server/modules/contracts/routes.js` — ✅ escapare HTML și protecție prin autentificare/permisiuni existente;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Fișă print” în modalul Dosar contract;
+- fișa folosește cockpit-ul contractului ca sursă unică și poate fi salvată PDF din browser.

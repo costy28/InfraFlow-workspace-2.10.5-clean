@@ -182,6 +182,13 @@ export default function ContractePage() {
     }
   }
 
+  function printContract(contract) {
+    if (!contract?.id) return
+    const token = localStorage.getItem('infraflow_token') || ''
+    const query = token ? `?token=${encodeURIComponent(token)}` : ''
+    window.open(`/api/contracts/${encodeURIComponent(contract.id)}/print${query}`, '_blank', 'noopener,noreferrer')
+  }
+
   async function saveContract(event) {
     event.preventDefault()
     setSaving(true)
@@ -532,6 +539,7 @@ export default function ContractePage() {
                   <p className="mt-1 text-sm text-slate-600">{contractDetails.partener || 'Partener nesetat'} · {contractDetails.responsabil_nume || 'Responsabil nesetat'}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => printContract(contractDetails)}>Fișă print</Button>
                   <Badge tone={statusTone(contractDetails.status)}>{contractDetails.status}</Badge>
                   {contractDetails.alerte?.map((alert, index) => <Badge key={`${alert.code}-${index}`} tone={alertTone(alert.level)}>{alert.code}</Badge>)}
                 </div>
