@@ -235,6 +235,24 @@ export default function ContractePage() {
     }
   }
 
+  async function sendReminders() {
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post('/contracts/reminders')
+      const count = Number(response.data?.reminders_created || 0)
+      setNotice(count
+        ? `Au fost trimise ${count} remindere pentru contractele cu alerte.`
+        : 'Nu există remindere noi de trimis astăzi.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Reminderele nu au putut fi trimise.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <PageHeader
@@ -242,6 +260,7 @@ export default function ContractePage() {
         subtitle="Urmărește valoarea contractată, consumul din facturi/documente și alertele de prag sau termen."
         actions={[
           <Button key="refresh" variant="secondary" onClick={load}>Reîncarcă</Button>,
+          <Button key="reminders" variant="secondary" onClick={sendReminders} loading={saving}>Trimite remindere</Button>,
           <Button key="new" onClick={openNewContract}>+ Contract nou</Button>,
         ]}
       />
@@ -283,6 +302,34 @@ export default function ContractePage() {
                   <span className="ml-2 text-slate-600">{alert.contract_titlu}</span>
                 </div>
                 <div className="text-slate-600">{alert.message}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      {dashboard?.by_manager?.length ? (
+        <Card title="Manageri contract" subtitle="Portofoliu pe responsabil, cu alertele care trebuie urmărite înainte de depășiri.">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {dashboard.by_manager.slice(0, 6).map(manager => (
+              <div key={manager.key} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-slate-900">{manager.responsabil_nume || 'Fără responsabil'}</div>
+                    <div className="mt-1 text-xs text-slate-500">{manager.contracts || 0} contracte în portofoliu</div>
+                  </div>
+                  <Badge tone={manager.alerts ? 'warning' : 'success'}>{manager.alerts || 0} alerte</Badge>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">Contractat</span>
+                    <span className="font-medium text-slate-900">{formatMoney(manager.total_contractat || 0)}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">Consum</span>
+                    <span className="font-medium text-slate-900">{formatMoney(manager.total_consumat || 0)}</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

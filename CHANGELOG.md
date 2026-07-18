@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.321 - 2026-07-18
+
+## Manageri și remindere contracte
+
+- Dashboard-ul Contract Management grupează portofoliul pe manager/responsabil.
+- Alertele de contract includ responsabilul și context suplimentar pentru notificări.
+- Adăugat buton „Trimite remindere” pentru contractele cu praguri sau termene în alertă.
+- Reminderele sunt deduplicate pe zi, contract și tip alertă, ca să nu spamăm utilizatorii.
+- UI-ul afișează contracte, consum și număr de alerte pe fiecare manager.
+
 # v2.12.320 - 2026-07-18
 
 ## Dosar operațional contract

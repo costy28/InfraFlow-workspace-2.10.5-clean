@@ -340,17 +340,17 @@ function contractSummary(db, contract) {
   const alerts = []
 
   if (valoare > 0 && procent >= numberValue(contract.prag_depasire, 100)) {
-    alerts.push({ level: 'danger', code: 'value_exceeded', message: 'Contract depasit sau ajuns la limita valorica.' })
+    alerts.push({ level: 'danger', code: 'value_exceeded', message: 'Contract depasit sau ajuns la limita valorica.', procent })
   } else if (valoare > 0 && procent >= numberValue(contract.prag_critic, 90)) {
-    alerts.push({ level: 'warning', code: 'value_critical', message: 'Contract aproape de limita valorica.' })
+    alerts.push({ level: 'warning', code: 'value_critical', message: 'Contract aproape de limita valorica.', procent })
   } else if (valoare > 0 && procent >= numberValue(contract.prag_avertizare, 80)) {
-    alerts.push({ level: 'info', code: 'value_warning', message: 'Contract peste pragul de avertizare.' })
+    alerts.push({ level: 'info', code: 'value_warning', message: 'Contract peste pragul de avertizare.', procent })
   }
 
   if (zileRamase !== null && zileRamase < 0 && contract.status === 'activ') {
-    alerts.push({ level: 'danger', code: 'expired', message: 'Contract activ expirat calendaristic.' })
+    alerts.push({ level: 'danger', code: 'expired', message: 'Contract activ expirat calendaristic.', zile_ramase: zileRamase })
   } else if (zileRamase !== null && zileRamase <= 30 && contract.status === 'activ') {
-    alerts.push({ level: 'warning', code: 'expires_soon', message: `Contractul expira in ${Math.max(zileRamase, 0)} zile.` })
+    alerts.push({ level: 'warning', code: 'expires_soon', message: `Contractul expira in ${Math.max(zileRamase, 0)} zile.`, zile_ramase: zileRamase })
   }
 
   return {
@@ -389,8 +389,28 @@ function dashboard(db) {
     ...alert,
     contract_id: contract.id,
     contract_numar: contract.numar,
-    contract_titlu: contract.titlu
+    contract_titlu: contract.titlu,
+    responsabil_id: contract.responsabil_id || null,
+    responsabil_nume: contract.responsabil_nume || ''
   })))
+  const byManager = decorated.reduce((acc, contract) => {
+    const key = contract.responsabil_nume || contract.responsabil_id || 'Fără manager'
+    const current = acc[key] || {
+      key,
+      responsabil_id: contract.responsabil_id || null,
+      responsabil_nume: contract.responsabil_nume || 'Fără manager',
+      contracts: 0,
+      alerts: 0,
+      total_contractat: 0,
+      total_consumat: 0
+    }
+    current.contracts += 1
+    current.alerts += contract.summary.alerts.length
+    current.total_contractat = round(current.total_contractat + numberValue(contract.summary.valoare_contract))
+    current.total_consumat = round(current.total_consumat + numberValue(contract.summary.consumat))
+    acc[key] = current
+    return acc
+  }, {})
   return {
     contracts_total: decorated.length,
     contracts_active: decorated.filter(item => item.status === 'activ').length,
@@ -399,11 +419,64 @@ function dashboard(db) {
     total_ramas: round(totalContractat - totalConsumat),
     procent_consum_global: totalContractat > 0 ? round((totalConsumat / totalContractat) * 100) : 0,
     alerts,
+    by_manager: Object.values(byManager).sort((a, b) => Number(b.alerts || 0) - Number(a.alerts || 0) || String(a.responsabil_nume).localeCompare(String(b.responsabil_nume))),
     by_status: decorated.reduce((acc, item) => {
       acc[item.status] = (acc[item.status] || 0) + 1
       return acc
     }, {})
   }
+}
+
+function findContractManager(db, contract) {
+  const managerId = contract.responsabil_id || contract.manager_id
+  if (managerId) {
+    const byId = (db.users || []).find(user => String(user.id) === String(managerId))
+    if (byId) return byId
+  }
+  const managerName = String(contract.responsabil_nume || '').trim().toLowerCase()
+  if (!managerName) return null
+  return (db.users || []).find(user => {
+    const names = [user.name, user.nume, user.username, user.email].filter(Boolean).map(value => String(value).trim().toLowerCase())
+    return names.some(value => value === managerName || value.includes(managerName) || managerName.includes(value))
+  }) || null
+}
+
+function createContractReminders(db, user) {
+  if (!Array.isArray(db.notifications)) db.notifications = []
+  const cm = ensureContractsDb(db)
+  const today = todayIso()
+  const active = cm.contracts.filter(item => !item.cancelled_at && !item.cancelledAt)
+  const created = []
+  for (const contract of active) {
+    const decorated = decorateContract(db, contract)
+    if (!decorated.alerte?.length) continue
+    const manager = findContractManager(db, contract)
+    for (const alert of decorated.alerte) {
+      const reminderKey = `contract:${contract.id}:${alert.code}:${today}`
+      const exists = db.notifications.some(item => item.key === reminderKey)
+      if (exists) continue
+      const notification = {
+        id: id('notif'),
+        key: reminderKey,
+        type: 'contract_alert',
+        severity: alert.level === 'danger' ? 'urgent' : alert.level === 'warning' ? 'warning' : 'info',
+        title: `Contract ${contract.numar}: ${alert.code}`,
+        message: `${alert.message} ${contract.titlu || ''}`.trim(),
+        contract_id: contract.id,
+        contract_numar: contract.numar,
+        contract_titlu: contract.titlu,
+        user_id: manager?.id || null,
+        user_name: manager?.name || manager?.nume || manager?.username || contract.responsabil_nume || '',
+        roles: ['manager', 'procurement', 'accounting', 'legal', 'superadmin', 'admin'],
+        createdBy: user.id,
+        createdAt: nowIso(),
+        read: false
+      }
+      db.notifications.push(notification)
+      created.push(notification)
+    }
+  }
+  return created
 }
 
 function canView(auth, res) {
@@ -470,6 +543,18 @@ router.get('/contracts/dashboard', (req, res) => {
   if (!auth) return
   if (!canView(auth, res)) return
   sendJson(res, 200, dashboard(auth.db))
+})
+
+router.post('/contracts/reminders', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const created = createContractReminders(auth.db, auth.user)
+  if (created.length) {
+    addAudit(auth.db, auth.user, 'contract_reminders_sent', `${created.length} notificari contracte`)
+    writeDb(auth.db)
+  }
+  sendJson(res, 200, { ok: true, reminders_created: created.length, reminders: created })
 })
 
 router.get('/contracts', (req, res) => {

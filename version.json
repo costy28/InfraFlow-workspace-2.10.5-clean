@@ -1,5 +1,5 @@
 {
-  "version": "2.12.320",
+  "version": "2.12.321",
   "date": "2026-07-18",
-  "changelog": "## v2.12.320 - 2026-07-18\n### Dosar operational contract\n- Detaliile contractului includ consumuri, documente sursa grupate si timeline cronologic.\n- Backend-ul expune referate, comenzi, receptii/NIR si facturi legate la contract.\n- UI-ul Contract Management are buton Detalii pentru radiografia contractului.\n- Consumurile raman calculate fara dublare intre NIR si factura generata."
+  "changelog": "## v2.12.321 - 2026-07-18\n### Manageri si remindere contracte\n- Dashboard-ul Contract Management grupeaza portofoliul pe manager/responsabil.\n- Alertele includ context pentru responsabil si valori utile pentru notificari.\n- Butonul Trimite remindere genereaza notificari zilnice deduplicate pentru contractele cu alerte.\n- UI-ul afiseaza portofoliu, consum si numar de alerte pe fiecare manager."
 }

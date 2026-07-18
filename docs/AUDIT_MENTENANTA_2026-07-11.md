@@ -510,3 +510,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Detalii” pe fiecare contract;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ modal dosar contract cu consumuri, documente sursă și timeline;
 - consumurile rămân calculate fără dublare între NIR și factura generată din același NIR.
+
+### UPDATE 341 — Manageri și remindere contracte
+
+- `server/modules/contracts/routes.js` — ✅ dashboard pe manager/responsabil cu portofoliu, consum și alerte;
+- `server/modules/contracts/routes.js` — ✅ endpoint `POST /api/contracts/reminders` pentru notificări din alertele contractelor;
+- `server/modules/contracts/routes.js` — ✅ remindere deduplicate pe zi, contract și cod alertă;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Trimite remindere” în Contract Management;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card „Manageri contract” cu contracte, consum și alerte pe responsabil;
+- fluxul Contract Management începe să devină operațional: contractele nu doar se urmăresc, ci îi cheamă la timp pe responsabili.
