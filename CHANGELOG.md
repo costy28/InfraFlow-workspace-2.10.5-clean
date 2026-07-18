@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.314 - 2026-07-18
+
+## Fundație Contract Management
+
+- Adăugat modul backend `Contract Management` pentru contracte, consumuri valorice și dashboard de alerte.
+- Contractele urmăresc valoare, partener, responsabil/manager, departament, centru de cost, CPV, PAAP și termene.
+- Consumurile pot fi introduse manual și pot fi agregate din facturi existente legate prin `contract_id` / `contractId`.
+- Dashboard-ul calculează valoare contractată, consumată, rămasă, procent global și alerte de prag/expirare.
+- Adăugat schema MSSQL relațională `contract_management` pentru evoluția controlată a modulului.
+- Smoke-suite verifică endpointurile `GET /api/contracts` și `GET /api/contracts/dashboard`.
+
 # v2.12.313 - 2026-07-18
 
 ## Status update și restart în UI

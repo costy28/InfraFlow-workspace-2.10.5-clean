@@ -1,5 +1,5 @@
 {
-  "version": "2.12.313",
+  "version": "2.12.314",
   "date": "2026-07-18",
-  "changelog": "## v2.12.313 - 2026-07-18\n### Status update si restart in UI\n- Adauga endpoint pentru status update/restart si ultimele linii din restart-last.log.\n- Tabul Actualizari afiseaza versiunea runtime, ultimul update aplicat si starea restartului.\n- Adauga buton Verifica server dupa update.\n- Roadmap actualizat cu modul Contract Management."
+  "changelog": "## v2.12.314 - 2026-07-18\n### Fundatie Contract Management\n- Adauga modul backend Contract Management pentru contracte, consumuri valorice si dashboard de alerte.\n- Contractele urmaresc valoare, partener, responsabil, CPV, PAAP, centru de cost si termene.\n- Consumurile pot fi introduse manual si pot fi agregate din facturi legate prin contract_id/contractId.\n- Smoke-suite verifica endpointurile /api/contracts si /api/contracts/dashboard."
 }

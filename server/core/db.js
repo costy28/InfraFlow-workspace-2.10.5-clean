@@ -43,6 +43,7 @@ const DEFAULT_DB = {
   },
   production: { recipes: [], batches: [] },
   controlling: { costCenters: [] },
+  contractManagement: { contracts: [], consumptions: [], alerts: [] },
   messaging: { channels: [], messages: [] },
   documents: {
     documentTypes: [],
@@ -1189,6 +1190,10 @@ function normalizeDb(db) {
   if (!Array.isArray(db.accounting.invoicesOut)) db.accounting.invoicesOut = [];
   if (!Array.isArray(db.accounting.treasury)) db.accounting.treasury = [];
   if (!Array.isArray(db.accounting.lawAlerts)) db.accounting.lawAlerts = [];
+  if (!db.contractManagement || typeof db.contractManagement !== "object") db.contractManagement = {};
+  if (!Array.isArray(db.contractManagement.contracts)) db.contractManagement.contracts = [];
+  if (!Array.isArray(db.contractManagement.consumptions)) db.contractManagement.consumptions = [];
+  if (!Array.isArray(db.contractManagement.alerts)) db.contractManagement.alerts = [];
   if (!Array.isArray(db.costCenters)) db.costCenters = [];
   if (!Array.isArray(db.technicalWorkLogs)) db.technicalWorkLogs = [];
   if (!Array.isArray(db.technicalClients)) db.technicalClients = [];

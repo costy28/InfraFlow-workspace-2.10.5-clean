@@ -451,3 +451,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/SetariPage.jsx` — ✅ panou „Status update / restart” în tabul Actualizări;
 - `client/src/pages/SetariPage.jsx` — ✅ buton „Verifică server după update”;
 - `AGENTS.md` — ✅ roadmap extins cu modul Contract Management: valoare, facturi, CPV, manageri contract și alerte.
+
+### UPDATE 334 — Fundație Contract Management
+
+- `server/modules/contracts/routes.js` — ✅ API pentru contracte, consumuri valorice, anulare și dashboard alerte;
+- `server/core/db.js` — ✅ structură `contractManagement` normalizată pentru JSON/app_state;
+- `db/migrations/067_contract_management.sql` — ✅ schema relațională MSSQL pentru contracte și consumuri;
+- `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/contracts` și `/api/contracts/dashboard`;
+- modulul urmărește valoare contractată, consumată, rămasă, CPV, PAAP, centru cost, manager și termene.
