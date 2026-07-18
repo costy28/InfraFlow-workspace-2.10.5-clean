@@ -386,6 +386,7 @@ export default function SetariPage() {
   const [updateInfo, setUpdateInfo] = useState(null)
   const [manualUpdate, setManualUpdate] = useState(null)
   const [updateHistory, setUpdateHistory] = useState([])
+  const [updateStatus, setUpdateStatus] = useState(null)
   const [changelogModal, setChangelogModal] = useState(false)
   const [changelogText, setChangelogText] = useState('')
   const [uploadingUpdate, setUploadingUpdate] = useState(false)
@@ -488,7 +489,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -497,6 +498,7 @@ export default function SetariPage() {
         api.get('/materials'),
         api.get('/system/update/check'),
         api.get('/system/update/history'),
+        api.get('/system/update/status'),
         api.get('/hr/employees?activ=1'),
         api.get('/integration/piusi/status'),
         api.get('/system/database-config'),
@@ -517,6 +519,7 @@ export default function SetariPage() {
       if (materialsRes.status === 'fulfilled') setMaterials(arrayFrom(materialsRes.value.data, ['materials', 'items', 'data']))
       if (updateRes.status === 'fulfilled') setUpdateInfo(updateRes.value.data)
       if (historyRes.status === 'fulfilled') setUpdateHistory(arrayFrom(historyRes.value.data, ['history', 'items']))
+      if (statusRes.status === 'fulfilled') setUpdateStatus(statusRes.value.data || null)
       if (hrEmpRes.status === 'fulfilled') setHrEmployees(arrayFrom(hrEmpRes.value.data, ['employees', 'items', 'data']))
       if (piusiStatusRes.status === 'fulfilled') {
         const status = piusiStatusRes.value.data || {}
@@ -761,6 +764,16 @@ export default function SetariPage() {
       fail(err, 'Pachetul de update nu a putut fi verificat.')
     } finally {
       setUploadingUpdate(false)
+    }
+  }
+
+  async function refreshUpdateStatus() {
+    try {
+      const response = await api.get('/system/update/status')
+      setUpdateStatus(response.data || null)
+      notify('Statusul update/restart a fost verificat.')
+    } catch (err) {
+      fail(err, 'Nu am putut verifica statusul update/restart.')
     }
   }
 
@@ -2015,8 +2028,38 @@ export default function SetariPage() {
                 <div className="text-xl font-semibold text-slate-900">InfraFlow v{updateInfo?.versiune_curenta || '2.0.9'}</div>
                 <div className="text-sm text-slate-500">Build: {new Date().toLocaleDateString('ro-RO')}</div>
               </div>
-              <Button variant="secondary" onClick={openChangelog}>📋 Vezi CHANGELOG</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={refreshUpdateStatus}>🔎 Verifică server după update</Button>
+                <Button variant="secondary" onClick={openChangelog}>📋 Vezi CHANGELOG</Button>
+              </div>
             </div>
+          </Card>
+
+          <Card title="Status update / restart" subtitle="Confirmă dacă serverul a revenit după aplicarea ultimului pachet.">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs uppercase text-slate-500">Versiune runtime</div>
+                <div className="mt-1 font-semibold text-slate-900">{updateStatus?.version || updateInfo?.versiune_curenta || '-'}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs uppercase text-slate-500">Ultimul update aplicat</div>
+                <div className="mt-1 font-semibold text-slate-900">{updateStatus?.last_update?.version || '-'}</div>
+                <div className="text-xs text-slate-500">{updateStatus?.last_update?.applied_at ? new Date(updateStatus.last_update.applied_at).toLocaleString('ro-RO') : ''}</div>
+              </div>
+              <div className={`rounded-lg border p-3 ${updateStatus?.restart?.status === 'ok' ? 'border-emerald-200 bg-emerald-50' : updateStatus?.restart?.status === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                <div className="text-xs uppercase text-slate-500">Restart</div>
+                <div className="mt-1 font-semibold text-slate-900">{updateStatus?.restart?.status_label || 'Neverificat'}</div>
+                <div className="text-xs text-slate-500">{updateStatus?.restart?.updated_at ? new Date(updateStatus.restart.updated_at).toLocaleString('ro-RO') : 'Fără log de restart.'}</div>
+              </div>
+            </div>
+            {updateStatus?.restart?.lines?.length ? (
+              <details className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                <summary className="cursor-pointer text-sm font-medium text-slate-700">Vezi ultimele linii din restart-last.log</summary>
+                <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-slate-600">{updateStatus.restart.lines.join('\n')}</pre>
+              </details>
+            ) : (
+              <div className="mt-3 rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-500">Nu există încă un log de restart disponibil.</div>
+            )}
           </Card>
 
           <Card title="Actualizare manuală" subtitle="Încarcă pachetul primit de la furnizor: InfraFlow-update-*.zip">

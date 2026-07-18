@@ -141,6 +141,7 @@ const endpointChecks = [
   { name: 'core /api/settings/country-profiles', path: '/api/settings/country-profiles', validate: data => Array.isArray(data?.countries) && data.countries.some(item => item.code === 'RO') },
   { name: 'core /api/settings/country-rules', path: '/api/settings/country-rules', validate: data => data?.current?.country === 'RO' && Boolean(data?.current?.rules?.modules?.accounting) },
   { name: 'core /api/system/version', path: '/api/system/version', validate: data => Boolean(data?.version || data?.appVersion) },
+  { name: 'core /api/system/update/status', path: '/api/system/update/status', validate: data => data?.ok === true && Boolean(data?.version) && typeof data?.restart === 'object' },
   { name: 'core /api/departments', path: '/api/departments', countKeys: ['departments'] },
   { name: 'core /api/users', path: '/api/users', countKeys: ['users'] },
   { name: 'core /api/roles/permissions-catalog', path: '/api/roles/permissions-catalog', validate: data => Array.isArray(data) ? data.length > 0 : Boolean(data?.groups || data?.permissions || data?.catalog) },

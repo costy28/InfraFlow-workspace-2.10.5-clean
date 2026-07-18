@@ -1,5 +1,5 @@
 {
-  "version": "2.12.312",
+  "version": "2.12.313",
   "date": "2026-07-18",
-  "changelog": "## v2.12.312 - 2026-07-18\n### Release check integrat in pachetarea ZIP\n- build-update-zip ruleaza automat release:check inainte de arhivare.\n- Dupa generarea ZIP-ului, scriptul valideaza automat arhiva finala.\n- Exista optiune SkipReleaseCheck pentru diagnostic manual controlat."
+  "changelog": "## v2.12.313 - 2026-07-18\n### Status update si restart in UI\n- Adauga endpoint pentru status update/restart si ultimele linii din restart-last.log.\n- Tabul Actualizari afiseaza versiunea runtime, ultimul update aplicat si starea restartului.\n- Adauga buton Verifica server dupa update.\n- Roadmap actualizat cu modul Contract Management."
 }

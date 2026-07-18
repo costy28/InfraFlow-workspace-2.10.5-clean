@@ -444,3 +444,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `scripts/windows/build-update-zip.ps1` — ✅ validează automat ZIP-ul final după `Compress-Archive`;
 - `scripts/windows/build-update-zip.ps1` — ✅ opțiune `-SkipReleaseCheck` pentru diagnostic manual;
 - pachetarea update-urilor devine self-validating, nu mai depinde de rularea manuală a verificării.
+
+### UPDATE 333 — Status update și restart în UI
+
+- `server/modules/system/update-routes.js` — ✅ endpoint `/system/update/status` pentru versiune runtime, ultim update și log restart;
+- `client/src/pages/SetariPage.jsx` — ✅ panou „Status update / restart” în tabul Actualizări;
+- `client/src/pages/SetariPage.jsx` — ✅ buton „Verifică server după update”;
+- `AGENTS.md` — ✅ roadmap extins cu modul Contract Management: valoare, facturi, CPV, manageri contract și alerte.

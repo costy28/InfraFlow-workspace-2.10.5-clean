@@ -97,6 +97,44 @@ function createSystemUpdateRouter(context) {
     return `# Changelog InfraFlow\n\n${sections.join('\n\n---\n\n')}\n\n---\n\n## Istoric vechi\n\n${legacy.replace(/^# Changelog\s*/i, '').trim()}`
   }
 
+  function readRestartLogStatus() {
+    const logPath = path.join(ROOT, 'runtime', 'restart-last.log')
+    if (!fs.existsSync(logPath)) {
+      return {
+        exists: false,
+        path: logPath,
+        status: 'never_run',
+        status_label: 'Fără restart înregistrat',
+        updated_at: null,
+        lines: []
+      }
+    }
+    const stat = fs.statSync(logPath)
+    const text = fs.readFileSync(logPath, 'utf8')
+    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-40)
+    const lower = lines.join('\n').toLowerCase()
+    let status = 'pending'
+    let statusLabel = 'Restart înregistrat'
+    if (lower.includes('health ok')) {
+      status = 'ok'
+      statusLabel = 'Server revenit după restart'
+    } else if (lower.includes('eroare:') || lower.includes('avertisment: serverul nu a raspuns')) {
+      status = 'warning'
+      statusLabel = 'Restart cu avertisment'
+    } else if (lower.includes('restart helper pornit') || lower.includes('comanda de restart executata')) {
+      status = 'running'
+      statusLabel = 'Restart în curs / verificare în așteptare'
+    }
+    return {
+      exists: true,
+      path: logPath,
+      status,
+      status_label: statusLabel,
+      updated_at: stat.mtime.toISOString(),
+      lines
+    }
+  }
+
   router.post('/system/update-package', express.raw({ type: ['application/zip', 'application/octet-stream'], limit: UPDATE_UPLOAD_MAX_BYTES }), async (req, res, next) => {
     try {
       const auth = requireAuth(req, res)
@@ -281,6 +319,24 @@ function createSystemUpdateRouter(context) {
       if (!requirePermission(auth, res, 'system:view')) return
       const history = Array.isArray(auth.db.settings?.update_history) ? auth.db.settings.update_history : []
       sendJson(res, 200, { history: history.slice(0, 10) })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/system/update/status', (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requirePermission(auth, res, 'system:view')) return
+      const history = Array.isArray(auth.db.settings?.update_history) ? auth.db.settings.update_history : []
+      sendJson(res, 200, {
+        ok: true,
+        version: readRuntimeVersion(),
+        last_update: history[0] || null,
+        restart: readRestartLogStatus(),
+        checked_at: new Date().toISOString()
+      })
     } catch (error) {
       next(error)
     }

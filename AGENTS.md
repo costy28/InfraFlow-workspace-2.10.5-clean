@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.312**
-**Versiune în lucru: v2.12.312**
+**Versiune curentă sursă: v2.12.313**
+**Versiune în lucru: v2.12.313**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -436,6 +436,15 @@ PRIORITATE 1 — Comercial imediat:
       → Integrat cu toate modulele InfraFlow
       → Diferențiator: date vin automat din ERP
 
+  [ ] Modul Contract Management
+      → Contracte pe valoare, durată, furnizor/client și responsabil
+      → Consum automat din facturi, NIR-uri, comenzi și situații de lucrări
+      → Alerte la 80/90/100% valoare consumată sau termen apropiat
+      → Pentru România: urmărire pe coduri CPV, PAAP și praguri achiziții
+      → Manageri de contract cu raportare către Achiziții/Contabilitate
+      → Dashboard contract: valoare contractată, facturată, rămasă, depășiri
+      → Integrări: Achiziții, Contabilitate, Documente, Workflow, Controlling
+
   [ ] Modul SCIM — Control Intern Managerial
       → Proceduri operaționale (Ordinul 600/2018)
       → Registru riscuri
@@ -593,9 +602,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.312
+VERSIUNE CURENTĂ SURSĂ: 2.12.313
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.312 ✅
+UPDATE ZIP CURENT: 2.12.313 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -716,6 +725,7 @@ UPDATES ÎN LUCRU:
   2.12.310 → UPDATE 330 Scheduler PIUSI cu backoff si log rar ✅
   2.12.311 → UPDATE 331 Release check pentru pachete update ✅
   2.12.312 → UPDATE 332 Release check integrat in pachetarea ZIP ✅
+  2.12.313 → UPDATE 333 Status update si restart in UI ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1208,5 +1218,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 18 Iulie 2026 | InfraFlow sursă v2.12.312*
+*AGENTS.md actualizat: 18 Iulie 2026 | InfraFlow sursă v2.12.313*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

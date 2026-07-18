@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.313 - 2026-07-18
+
+## Status update și restart în UI
+
+- Adăugat `GET /system/update/status` pentru versiunea runtime, ultimul update și statusul restartului.
+- Tabul Setări → Actualizări afișează starea restartului și ultimele linii din `runtime/restart-last.log`.
+- Adăugat buton „Verifică server după update”.
+- Roadmap-ul comercial include acum modulul Contract Management: valoare contract, consum din facturi, alerte prag și CPV pentru România.
+
 # v2.12.312 - 2026-07-18
 
 ## Release check integrat în pachetarea ZIP
