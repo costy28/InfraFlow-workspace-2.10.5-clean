@@ -41,6 +41,29 @@ function materialUnit(material) {
   return material?.unit || material?.um || ''
 }
 
+function findContract(db, contractId) {
+  if (!contractId) return null
+  const contracts = db.contractManagement?.contracts || []
+  return contracts.find(item => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt) || null
+}
+
+function applyContractLink(db, document, body = {}, fallback = null) {
+  const contractId = body.contract_id ?? body.contractId ?? fallback?.contract_id ?? fallback?.contractId ?? ''
+  if (!contractId) {
+    document.contract_id = null
+    document.contractId = null
+    document.contract_numar = ''
+    document.contract_title = ''
+    return
+  }
+  const contract = findContract(db, contractId)
+  if (!contract) throwHttp(404, 'Contractul selectat nu există.')
+  document.contract_id = contract.id
+  document.contractId = contract.id
+  document.contract_numar = contract.numar || ''
+  document.contract_title = contract.titlu || ''
+}
+
 function round(value, digits = 2) {
   return Number(Number(value || 0).toFixed(digits))
 }
@@ -159,10 +182,13 @@ function createOrder(db, user, referat) {
     status: 'emisa',
     note: `Generata automat din referatul ${referat.serie}/${referat.numar}`,
     sourceReferatId: referat.id,
+    sourceReferatUuid: referat.uuid,
+    sourceReferatNo: `${referat.serie}/${referat.numar}`,
     createdBy: user.id,
     createdByName: user.name,
     createdAt: new Date().toISOString(),
   }
+  applyContractLink(db, order, {}, referat)
   db.procurementOrders.push(order)
   referat.comanda_id = order.id
   referat.comanda_uuid = order.uuid
@@ -223,6 +249,7 @@ router.post('/referate', (req, res, next) => {
       items,
       created_at: new Date().toISOString(),
     }
+    applyContractLink(auth.db, referat, body)
     auth.db.referate.push(referat)
     addFlux(auth.db, referat, auth.user, 'draft', 'creat', referat.observatii)
     addAudit(auth.db, auth.user, 'referat_creat', `${referat.serie}/${referat.numar} / ${referat.tip}`)
@@ -327,7 +354,8 @@ function buildPdfHtml(db, referat) {
   const view = referatView(db, referat)
   const rows = referat.items.map(item => `<tr><td>${item.nr_crt}</td><td>${html(item.denumire)}</td><td>${html(item.caracteristici)}</td><td>${html(item.um)}</td><td class="num">${item.cantitate}</td><td class="num">${item.stoc_magazie}</td><td class="num">${round(item.cantitate * item.pret_unitar + item.valoare_tva)}</td></tr>`).join('')
   const signatures = ['Intocmit', 'Achizitii', 'Gestionar', 'Economist', 'Contabil Sef', 'Dir. Adj.', 'Dir. General'].map(label => `<td><strong>${label}</strong><br><br><br>Semnatura</td>`).join('')
-  return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Referat ${html(view.serie)}/${view.numar}</title><style>body{font:12px Arial;color:#111;margin:22px}h1{text-align:center;font-size:18px}.meta{display:flex;justify-content:space-between;margin:18px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #222;padding:6px;vertical-align:top}.num{text-align:right}.sign td{height:90px;text-align:center;font-size:10px}.actions{margin-bottom:14px}@media print{.actions{display:none}}</style></head><body><div class="actions"><button onclick="window.print()">Tipareste / Salveaza PDF</button></div><h1>REFERAT DE NECESITATE</h1><div class="meta"><div>Nr. ${html(view.serie)}/${view.numar}<br>Data: ${html(view.data_intocmire)}</div><div>Tip: ${html(view.tip)}<br>Departament: ${html(view.departament || '-')}</div></div><p>${html(view.observatii || '')}</p><table><thead><tr><th>Nr.</th><th>Denumire</th><th>Caracteristici</th><th>UM</th><th>Cantitate</th><th>Stoc magazie</th><th>Valoare RON</th></tr></thead><tbody>${rows}<tr><td colspan="6"><strong>Total</strong></td><td class="num"><strong>${view.valoare_referat}</strong></td></tr></tbody></table><table class="sign" style="margin-top:28px"><tr>${signatures}</tr></table></body></html>`
+  const contractInfo = view.contract_numar ? `<br>Contract urmărit: ${html(view.contract_numar)}${view.contract_title ? ` — ${html(view.contract_title)}` : ''}` : ''
+  return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Referat ${html(view.serie)}/${view.numar}</title><style>body{font:12px Arial;color:#111;margin:22px}h1{text-align:center;font-size:18px}.meta{display:flex;justify-content:space-between;margin:18px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #222;padding:6px;vertical-align:top}.num{text-align:right}.sign td{height:90px;text-align:center;font-size:10px}.actions{margin-bottom:14px}@media print{.actions{display:none}}</style></head><body><div class="actions"><button onclick="window.print()">Tipareste / Salveaza PDF</button></div><h1>REFERAT DE NECESITATE</h1><div class="meta"><div>Nr. ${html(view.serie)}/${view.numar}<br>Data: ${html(view.data_intocmire)}${contractInfo}</div><div>Tip: ${html(view.tip)}<br>Departament: ${html(view.departament || '-')}</div></div><p>${html(view.observatii || '')}</p><table><thead><tr><th>Nr.</th><th>Denumire</th><th>Caracteristici</th><th>UM</th><th>Cantitate</th><th>Stoc magazie</th><th>Valoare RON</th></tr></thead><tbody>${rows}<tr><td colspan="6"><strong>Total</strong></td><td class="num"><strong>${view.valoare_referat}</strong></td></tr></tbody></table><table class="sign" style="margin-top:28px"><tr>${signatures}</tr></table></body></html>`
 }
 
 function localDate(date) {

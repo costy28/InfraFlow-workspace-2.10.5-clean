@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.319 - 2026-07-18
+
+## Contracte în Referate
+
+- Referatele au câmp „Contract urmărit” direct la creare.
+- Lista referatelor și detaliile referatului afișează contractul legat.
+- PDF-ul referatului include contractul urmărit pentru dosarul fizic.
+- Comanda generată automat la aprobarea referatului moștenește contractul.
+- Comanda păstrează și sursa referatului (`sourceReferatId`, `sourceReferatUuid`, `sourceReferatNo`) pentru trasabilitate.
+
 # v2.12.318 - 2026-07-18
 
 ## Contracte în Achiziții și Recepții

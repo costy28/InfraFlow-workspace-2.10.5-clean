@@ -1,5 +1,5 @@
 {
-  "version": "2.12.318",
+  "version": "2.12.319",
   "date": "2026-07-18",
-  "changelog": "## v2.12.318 - 2026-07-18\n### Contracte in Achizitii si Receptii\n- Comenzile de achizitii permit alegerea contractului urmarit direct la creare.\n- Receptiile/NIR-urile din Achizitii mostenesc automat contractul comenzii sau pot fi ajustate la confirmare.\n- Listele de comenzi si receptii afiseaza contractul legat.\n- Contract Management preia automat consumul din receptiile legate si pastreaza firul comanda -> receptie -> factura."
+  "changelog": "## v2.12.319 - 2026-07-18\n### Contracte in Referate\n- Referatele permit alegerea contractului urmarit direct la creare.\n- Listele si detaliile referatelor afiseaza contractul legat.\n- PDF-ul referatului include contractul urmarit pentru dosarul fizic.\n- Comanda generata automat din referat mosteneste contractul si pastreaza sursa referatului."
 }

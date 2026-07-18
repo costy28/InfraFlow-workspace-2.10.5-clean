@@ -64,6 +64,10 @@ function materialName(material) {
   return material?.name || material?.denumire || material?.materialName || ''
 }
 
+function contractLabel(contract) {
+  return [contract.numar, contract.titlu].filter(Boolean).join(' — ') || contract.id
+}
+
 function statFor(stats, key) {
   if (!key) return stats.total ?? 0
   return stats[key] ?? stats[statsKeys[key]] ?? 0
@@ -76,13 +80,14 @@ export default function ReferatePage() {
   const [stats, setStats] = useState({})
   const [materials, setMaterials] = useState([])
   const [departments, setDepartments] = useState([])
+  const [contracts, setContracts] = useState([])
   const [selected, setSelected] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [receiveOpen, setReceiveOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [form, setForm] = useState({ tip: 'aprovizionare', data_intocmire: today(), departament_id: '', furnizor_manual: '', observatii: '', items: [emptyLine()] })
+  const [form, setForm] = useState({ tip: 'aprovizionare', data_intocmire: today(), departament_id: '', furnizor_manual: '', contract_id: '', observatii: '', items: [emptyLine()] })
   const [flowForm, setFlowForm] = useState({ observatii: '', nr_inregistrare: '' })
   const [receiptForm, setReceiptForm] = useState({ valoare_factura: '', observatii: '' })
   const permissions = Array.isArray(user?.permissions) ? user.permissions : []
@@ -92,16 +97,18 @@ export default function ReferatePage() {
     setLoading(true)
     setError('')
     try {
-      const [list, totals, materialRows, departmentRows] = await Promise.all([
+      const [list, totals, materialRows, departmentRows, contractRows] = await Promise.all([
         api.get('/referate', { params: activeTab ? { status: activeTab } : {} }),
         api.get('/referate/stats'),
         api.get('/materials'),
         api.get('/departments'),
+        api.get('/contracts').catch(() => ({ data: { contracts: [] } })),
       ])
       setReferate(list.data.referate || [])
       setStats(totals.data || {})
       setMaterials(materialRows.data.materials || [])
       setDepartments(departmentRows.data.departments || [])
+      setContracts(contractRows.data.contracts || [])
     } catch (err) {
       setError(err.response?.data?.error || 'Referatele nu au putut fi încărcate.')
     } finally {
@@ -116,6 +123,12 @@ export default function ReferatePage() {
   }, [activeTab])
 
   const totalForm = useMemo(() => form.items.reduce((sum, item) => sum + Number(item.cantitate || 0) * Number(item.pret_unitar || 0) + Number(item.valoare_tva || 0), 0), [form.items])
+  const contractOptions = useMemo(() => [
+    { value: '', label: 'Fără contract urmărit' },
+    ...contracts
+      .filter(contract => !contract.cancelled_at && !contract.cancelledAt)
+      .map(contract => ({ value: contract.id, label: contractLabel(contract) })),
+  ], [contracts])
   const referateHelp = useMemo(() => {
     const total = statFor(stats, '')
     const draftCount = statFor(stats, 'draft')
@@ -190,7 +203,7 @@ export default function ReferatePage() {
     try {
       await api.post('/referate', form)
       setCreateOpen(false)
-      setForm({ tip: 'aprovizionare', data_intocmire: today(), departament_id: '', furnizor_manual: '', observatii: '', items: [emptyLine()] })
+      setForm({ tip: 'aprovizionare', data_intocmire: today(), departament_id: '', furnizor_manual: '', contract_id: '', observatii: '', items: [emptyLine()] })
       setMessage('Referatul a fost creat.')
       await load()
     } catch (err) {
@@ -264,13 +277,14 @@ export default function ReferatePage() {
       {message ? <div className="rounded-md border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-700">{message}</div> : null}
 
       <Card title="Lista referatelor" loading={loading}>
-        <div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Nr.</th><th className="px-3 py-2">Data</th><th className="px-3 py-2">Tip</th><th className="px-3 py-2">Departament</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Valoare</th><th /></tr></thead><tbody className="divide-y divide-slate-100">{referate.length ? referate.map(item => <tr key={item.id}><td className="px-3 py-3 font-medium">{item.serie}/{item.numar}</td><td className="px-3 py-3">{item.data_intocmire}</td><td className="px-3 py-3 capitalize">{item.tip}</td><td className="px-3 py-3">{item.departament || '-'}</td><td className="px-3 py-3"><Badge variant={statusTone(item.status)}>{flowLabels[item.status] || item.status}</Badge></td><td className="px-3 py-3 text-right">{money(item.valoare_referat)} RON</td><td className="px-3 py-3 text-right"><Button size="sm" variant="secondary" onClick={() => openDetails(item)}>Detalii</Button></td></tr>) : <tr><td colSpan="7" className="px-3 py-8 text-center text-slate-500">Nu există referate pentru filtrul selectat.</td></tr>}</tbody></table></div>
+        <div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Nr.</th><th className="px-3 py-2">Data</th><th className="px-3 py-2">Tip</th><th className="px-3 py-2">Departament</th><th className="px-3 py-2">Contract</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Valoare</th><th /></tr></thead><tbody className="divide-y divide-slate-100">{referate.length ? referate.map(item => <tr key={item.id}><td className="px-3 py-3 font-medium">{item.serie}/{item.numar}</td><td className="px-3 py-3">{item.data_intocmire}</td><td className="px-3 py-3 capitalize">{item.tip}</td><td className="px-3 py-3">{item.departament || '-'}</td><td className="px-3 py-3 text-xs">{item.contract_numar ? <Badge tone="info">{item.contract_numar}</Badge> : '—'}</td><td className="px-3 py-3"><Badge variant={statusTone(item.status)}>{flowLabels[item.status] || item.status}</Badge></td><td className="px-3 py-3 text-right">{money(item.valoare_referat)} RON</td><td className="px-3 py-3 text-right"><Button size="sm" variant="secondary" onClick={() => openDetails(item)}>Detalii</Button></td></tr>) : <tr><td colSpan="8" className="px-3 py-8 text-center text-slate-500">Nu există referate pentru filtrul selectat.</td></tr>}</tbody></table></div>
       </Card>
 
       <Modal open={createOpen} title="Referat nou" size="xl" onClose={() => setCreateOpen(false)}>
         <form className="grid gap-4" onSubmit={createReferat}>
           <div className="grid gap-3 md:grid-cols-3"><Select label="Tip" value={form.tip} onChange={event => setForm({ ...form, tip: event.target.value })} options={[{ value: 'aprovizionare', label: 'Aprovizionare' }, { value: 'servicii', label: 'Servicii' }]} /><Input label="Data întocmirii" type="date" value={form.data_intocmire} onChange={event => setForm({ ...form, data_intocmire: event.target.value })} /><Select label="Departament" value={form.departament_id} onChange={event => setForm({ ...form, departament_id: event.target.value })}><option value="">Departamentul utilizatorului</option>{departments.map(item => <option key={item.id} value={item.id}>{item.name || item.denumire}</option>)}</Select></div>
           <Input label="Furnizor propus" value={form.furnizor_manual} onChange={event => setForm({ ...form, furnizor_manual: event.target.value })} />
+          <Select label="Contract urmărit" value={form.contract_id || ''} onChange={event => setForm({ ...form, contract_id: event.target.value })} options={contractOptions} />
           <div className="overflow-x-auto"><table className="min-w-[1100px] divide-y divide-slate-200 text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-2 py-2">Material / serviciu</th><th>Caracteristici</th><th>UM</th><th>Cant.</th><th>Preț</th><th>TVA</th><th className="min-w-56">CPV</th><th /></tr></thead><tbody>{form.items.map((line, index) => <tr key={index} className="divide-x divide-slate-100"><td className="p-2"><input list="referate-materials" className="h-9 w-full rounded border border-slate-300 px-2" value={line.denumire} onChange={event => chooseMaterial(index, event.target.value)} required /></td><td className="p-2"><input className="h-9 w-full rounded border border-slate-300 px-2" value={line.caracteristici} onChange={event => patchLine(index, { caracteristici: event.target.value })} /></td><td className="p-2"><input className="h-9 w-16 rounded border border-slate-300 px-2" value={line.um} onChange={event => patchLine(index, { um: event.target.value })} /></td><td className="p-2"><input className="h-9 w-20 rounded border border-slate-300 px-2" type="number" min="0.001" step="0.001" value={line.cantitate} onChange={event => patchLine(index, { cantitate: event.target.value })} /></td><td className="p-2"><input className="h-9 w-24 rounded border border-slate-300 px-2" type="number" min="0" step="0.01" value={line.pret_unitar} onChange={event => patchLine(index, { pret_unitar: event.target.value })} /></td><td className="p-2"><input className="h-9 w-20 rounded border border-slate-300 px-2" type="number" min="0" step="0.01" value={line.valoare_tva} onChange={event => patchLine(index, { valoare_tva: event.target.value })} /></td><td className="p-2"><CPVSelector label="" value={line.cpv_cod} onChange={cpv_cod => patchLine(index, { cpv_cod })} /></td><td className="p-2"><Button type="button" size="sm" variant="danger" disabled={form.items.length === 1} onClick={() => setForm(current => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }))}>Șterge</Button></td></tr>)}</tbody></table><datalist id="referate-materials">{materials.map(item => <option key={item.id} value={materialName(item)} />)}</datalist></div>
           <Button type="button" variant="secondary" onClick={() => setForm(current => ({ ...current, items: [...current.items, emptyLine()] }))}>+ Adaugă poziție</Button>
           <Input label="Observații" value={form.observatii} onChange={event => setForm({ ...form, observatii: event.target.value })} />
@@ -281,7 +295,7 @@ export default function ReferatePage() {
       <Modal open={!!selected} title={selected ? `Referat ${selected.serie}/${selected.numar}` : 'Referat'} size="xl" onClose={() => setSelected(null)}>
         {selected ? <div className="grid gap-4">
           {selected.necesita_reaprobare ? <div className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm font-medium text-rose-700">Factura depășește valoarea referatului cu {selected.diferenta_prc}%. Este necesară reaprobare.</div> : null}
-          <div className="flex flex-wrap gap-2"><Badge variant={statusTone(selected.status)}>{flowLabels[selected.status] || selected.status}</Badge><span className="text-sm text-slate-600">{selected.tip} / {selected.departament || '-'}</span><strong className="ml-auto">{money(selected.valoare_referat)} RON</strong></div>
+          <div className="flex flex-wrap gap-2"><Badge variant={statusTone(selected.status)}>{flowLabels[selected.status] || selected.status}</Badge>{selected.contract_numar ? <Badge tone="info">Contract {selected.contract_numar}</Badge> : null}<span className="text-sm text-slate-600">{selected.tip} / {selected.departament || '-'}</span><strong className="ml-auto">{money(selected.valoare_referat)} RON</strong></div>
           <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-2">Poziție</th><th>UM</th><th>Cant.</th><th>Stoc magazie</th><th>CPV</th></tr></thead><tbody>{selected.items.map(item => <tr key={item.id} className="border-t"><td className="p-2">{item.denumire}</td><td>{item.um}</td><td>{item.cantitate}</td><td>{item.stoc_magazie}</td><td>{item.cpv_cod || '-'}</td></tr>)}</tbody></table></div>
           <div><h3 className="mb-2 font-semibold">Timeline flux</h3><div className="grid gap-2 border-l-2 border-primary-200 pl-4">{selected.flux.map(item => <div key={item.id} className="rounded border border-slate-200 p-2 text-sm"><strong>{flowLabels[item.pas] || item.pas}</strong> · {item.user_name || '-'}<div className="text-xs text-slate-500">{new Date(item.data_actiune).toLocaleString('ro-RO')} · {item.actiune}</div>{item.observatii ? <div>{item.observatii}</div> : null}</div>)}</div></div>
           {!['aprobat', 'respins'].includes(selected.status) ? <div className="grid gap-2"><Input label="Nr. înregistrare / observații flux" value={flowForm.nr_inregistrare} onChange={event => setFlowForm({ ...flowForm, nr_inregistrare: event.target.value })} /><Input label="Observații" value={flowForm.observatii} onChange={event => setFlowForm({ ...flowForm, observatii: event.target.value })} /><div className="flex gap-2"><Button onClick={() => advance()}>Înaintează</Button><Button variant="danger" onClick={() => advance('respinge')}>Respinge</Button></div></div> : null}

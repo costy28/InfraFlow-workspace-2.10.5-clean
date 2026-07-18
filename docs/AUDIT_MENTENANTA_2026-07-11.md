@@ -492,3 +492,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/procurement/routes.js` — ✅ comenzile de achiziții persistă legătura contractului;
 - `server/modules/procurement/routes.js` — ✅ recepțiile moștenesc contractul comenzii sau folosesc selecția explicită;
 - fluxul Contract Management acoperă acum traseul `contract → comandă → recepție/NIR → factură`.
+
+### UPDATE 339 — Contracte în Referate
+
+- `client/src/pages/modules/ReferatePage.jsx` — ✅ selector „Contract urmărit” în formularul de referat nou;
+- `client/src/pages/modules/ReferatePage.jsx` — ✅ lista și detaliile referatelor afișează contractul legat;
+- `server/modules/referate/routes.js` — ✅ referatul persistă legătura contractului;
+- `server/modules/referate/routes.js` — ✅ comanda generată automat din referat moștenește contractul;
+- `server/modules/referate/routes.js` — ✅ PDF-ul referatului include contractul urmărit;
+- fluxul Contract Management acoperă acum traseul `contract → referat → comandă → recepție/NIR → factură`.
