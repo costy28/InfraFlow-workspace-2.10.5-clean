@@ -195,6 +195,12 @@ export default function ContractePage() {
     window.open(`/api/contracts/portfolio/print${query}`, '_blank', 'noopener,noreferrer')
   }
 
+  function exportPortfolioExcel() {
+    const token = localStorage.getItem('infraflow_token') || ''
+    const query = token ? `?token=${encodeURIComponent(token)}` : ''
+    window.open(`/api/contracts/portfolio/export.xlsx${query}`, '_blank', 'noopener,noreferrer')
+  }
+
   async function saveContract(event) {
     event.preventDefault()
     setSaving(true)
@@ -328,6 +334,7 @@ export default function ContractePage() {
         actions={[
           <Button key="refresh" variant="secondary" onClick={load}>Reîncarcă</Button>,
           <Button key="portfolio" variant="secondary" onClick={printPortfolio}>Raport portofoliu</Button>,
+          <Button key="excel" variant="secondary" onClick={exportPortfolioExcel}>Export Excel</Button>,
           <Button key="reminders" variant="secondary" onClick={sendReminders} loading={saving}>Trimite remindere</Button>,
           <Button key="tasks" variant="secondary" onClick={generateTasks} loading={saving}>Generează task-uri</Button>,
           <Button key="new" onClick={openNewContract}>+ Contract nou</Button>,

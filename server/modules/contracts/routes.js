@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const crypto = require('crypto')
+const xlsx = require('xlsx')
 const { requireAuth } = require('../../core/auth')
 const { requireAnyPermission } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
@@ -775,6 +776,120 @@ function contractsPortfolioPrintHtml(db, user) {
 </html>`
 }
 
+function contractsPortfolioWorkbook(db) {
+  const cm = ensureContractsDb(db)
+  const report = dashboard(db)
+  const contracts = cm.contracts
+    .filter(item => !item.cancelled_at && !item.cancelledAt)
+    .map(item => decorateContract(db, item))
+    .sort((a, b) => Number(b.alerte?.length || 0) - Number(a.alerte?.length || 0) ||
+      Number(b.procent_consum || 0) - Number(a.procent_consum || 0) ||
+      String(a.data_sfarsit || '9999-12-31').localeCompare(String(b.data_sfarsit || '9999-12-31')))
+  const openTasks = contractTasks(db, { status: 'deschis' })
+  const workbook = xlsx.utils.book_new()
+
+  const summaryRows = [
+    ['Raport portofoliu contracte', todayIso()],
+    [],
+    ['Indicator', 'Valoare'],
+    ['Contracte totale', Number(report.contracts_total || 0)],
+    ['Contracte active', Number(report.contracts_active || 0)],
+    ['Valoare contractată', Number(report.total_contractat || 0)],
+    ['Valoare consumată', Number(report.total_consumat || 0)],
+    ['Valoare rămasă', Number(report.total_ramas || 0)],
+    ['Procent consum global', Number(report.procent_consum_global || 0)],
+    ['Alerte active', Number(report.alerts?.length || 0)],
+    ['Task-uri deschise', Number(report.tasks_open || 0)],
+    ['Task-uri restante', Number(report.tasks_overdue || 0)]
+  ]
+  const summarySheet = xlsx.utils.aoa_to_sheet(summaryRows)
+  summarySheet['!cols'] = [{ wch: 34 }, { wch: 24 }]
+  xlsx.utils.book_append_sheet(workbook, summarySheet, 'Sumar')
+
+  const contractRows = [
+    ['Nr. contract', 'Titlu', 'Tip', 'Status', 'Partener', 'Responsabil', 'CPV', 'CPV denumire', 'Data start', 'Data sfârșit', 'Monedă', 'Valoare contract', 'Consum', 'Rămas', '% consum', 'Alerte', 'Zile rămase', 'Observații'],
+    ...contracts.map(item => [
+      item.numar || '',
+      item.titlu || '',
+      item.tip || '',
+      item.status || '',
+      item.partener || '',
+      item.responsabil_nume || '',
+      item.cpv_cod || '',
+      item.cpv_denumire || '',
+      item.data_start || '',
+      item.data_sfarsit || '',
+      item.moneda || 'RON',
+      Number(item.valoare_contract || 0),
+      Number(item.valoare_consumata || 0),
+      Number(item.valoare_ramasa || 0),
+      Number(item.procent_consum || 0),
+      Number(item.alerte?.length || 0),
+      item.summary?.zile_ramase ?? '',
+      item.observatii || ''
+    ])
+  ]
+  const contractsSheet = xlsx.utils.aoa_to_sheet(contractRows)
+  contractsSheet['!cols'] = [
+    { wch: 18 }, { wch: 36 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 24 },
+    { wch: 14 }, { wch: 32 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 18 },
+    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 40 }
+  ]
+  xlsx.utils.book_append_sheet(workbook, contractsSheet, 'Contracte')
+
+  const managerRows = [
+    ['Responsabil', 'Contracte', 'Valoare contractată', 'Valoare consumată', 'Valoare rămasă', 'Alerte'],
+    ...(report.by_manager || []).map(item => [
+      item.responsabil_nume || 'Fără responsabil',
+      Number(item.contracts || 0),
+      Number(item.total_contractat || 0),
+      Number(item.total_consumat || 0),
+      round(Number(item.total_contractat || 0) - Number(item.total_consumat || 0)),
+      Number(item.alerts || 0)
+    ])
+  ]
+  const managersSheet = xlsx.utils.aoa_to_sheet(managerRows)
+  managersSheet['!cols'] = [{ wch: 28 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 10 }]
+  xlsx.utils.book_append_sheet(workbook, managersSheet, 'Manageri')
+
+  const alertRows = [
+    ['Nivel', 'Cod', 'Contract', 'Titlu contract', 'Responsabil', 'Mesaj', 'Procent', 'Zile rămase'],
+    ...(report.alerts || []).map(item => [
+      item.level || '',
+      item.code || '',
+      item.contract_numar || '',
+      item.contract_titlu || '',
+      item.responsabil_nume || '',
+      item.message || '',
+      item.procent ?? '',
+      item.zile_ramase ?? ''
+    ])
+  ]
+  const alertsSheet = xlsx.utils.aoa_to_sheet(alertRows)
+  alertsSheet['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 36 }, { wch: 24 }, { wch: 56 }, { wch: 12 }, { wch: 12 }]
+  xlsx.utils.book_append_sheet(workbook, alertsSheet, 'Alerte')
+
+  const taskRows = [
+    ['Contract', 'Titlu contract', 'Task', 'Status', 'Prioritate', 'Responsabil', 'Deadline', 'Restant', 'Ticket'],
+    ...openTasks.map(item => [
+      item.contract_numar || '',
+      item.contract_titlu || '',
+      item.titlu || '',
+      item.status || '',
+      item.prioritate || '',
+      item.responsabil_nume || '',
+      item.deadline || '',
+      item.overdue ? 'DA' : 'NU',
+      item.ticket_uuid || ''
+    ])
+  ]
+  const tasksSheet = xlsx.utils.aoa_to_sheet(taskRows)
+  tasksSheet['!cols'] = [{ wch: 18 }, { wch: 36 }, { wch: 44 }, { wch: 14 }, { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 38 }]
+  xlsx.utils.book_append_sheet(workbook, tasksSheet, 'Taskuri')
+
+  return workbook
+}
+
 function dashboard(db) {
   const cm = ensureContractsDb(db)
   const active = cm.contracts.filter(item => !item.cancelled_at && !item.cancelledAt)
@@ -1187,6 +1302,17 @@ router.get('/contracts/portfolio/print', (req, res) => {
   if (!canView(auth, res)) return
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.status(200).send(contractsPortfolioPrintHtml(auth.db, auth.user))
+})
+
+router.get('/contracts/portfolio/export.xlsx', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canView(auth, res)) return
+  const workbook = contractsPortfolioWorkbook(auth.db)
+  const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  res.setHeader('Content-Disposition', `attachment; filename="Portofoliu_contracte_${todayIso()}.xlsx"`)
+  res.status(200).end(buffer)
 })
 
 router.get('/contracts/:id/print', (req, res) => {

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.327 - 2026-07-18
+
+## Export Excel portofoliu contracte
+
+- Contract Management expune export Excel pentru portofoliul de contracte.
+- Exportul include foi separate: Sumar, Contracte, Manageri, Alerte și Taskuri.
+- Endpoint nou `GET /api/contracts/portfolio/export.xlsx`, protejat prin permisiunile modulului Contracte.
+- Pagina Contract Management are buton „Export Excel”.
+- Smoke-suite verifică endpointul XLSX al portofoliului.
+
 # v2.12.326 - 2026-07-18
 
 ## Raport portofoliu contracte

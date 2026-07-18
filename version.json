@@ -1,5 +1,5 @@
 {
-  "version": "2.12.326",
+  "version": "2.12.327",
   "date": "2026-07-18",
-  "changelog": "## v2.12.326 - 2026-07-18\n### Raport portofoliu contracte\n- Contract Management expune raport HTML printabil pentru intreg portofoliul de contracte.\n- Raportul include totaluri, consum, ramas, alerte, task-uri deschise si portofoliu pe manager/responsabil.\n- Endpoint nou GET /api/contracts/portfolio/print, protejat prin aceleasi permisiuni ca modulul Contracte.\n- Pagina Contract Management are buton Raport portofoliu pentru print sau salvare PDF.\n- Smoke-suite verifica endpointul HTML al raportului de portofoliu."
+  "changelog": "## v2.12.327 - 2026-07-18\n### Export Excel portofoliu contracte\n- Contract Management expune export Excel pentru portofoliul de contracte.\n- Exportul include foi separate: Sumar, Contracte, Manageri, Alerte si Taskuri.\n- Endpoint nou GET /api/contracts/portfolio/export.xlsx, protejat prin permisiunile modulului Contracte.\n- Pagina Contract Management are buton Export Excel.\n- Smoke-suite verifica endpointul XLSX al portofoliului."
 }

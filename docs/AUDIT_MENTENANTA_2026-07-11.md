@@ -563,3 +563,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ contractele sunt ordonate după risc: alerte, procent consum și scadență;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Raport portofoliu” în header-ul modulului Contract Management;
 - `scripts/smoke-modules-readonly.js` — ✅ verificare read-only pentru raportul HTML de portofoliu.
+
+### UPDATE 347 — Export Excel portofoliu contracte
+
+- `server/modules/contracts/routes.js` — ✅ endpoint XLSX `GET /api/contracts/portfolio/export.xlsx`;
+- `server/modules/contracts/routes.js` — ✅ workbook cu foi `Sumar`, `Contracte`, `Manageri`, `Alerte` și `Taskuri`;
+- `server/modules/contracts/routes.js` — ✅ export bazat pe aceleași agregări ca dashboard-ul și raportul printabil;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Export Excel” în header-ul Contract Management;
+- `scripts/smoke-modules-readonly.js` — ✅ verificare read-only pentru exportul XLSX al portofoliului.
