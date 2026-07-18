@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.324 - 2026-07-18
+
+## Cockpit dosar contract
+
+- Detaliile contractului includ cockpit operațional agregat.
+- Cockpit-ul grupează KPI pentru alerte, task-uri, tichete, documente și consumuri.
+- Backend-ul agregă task-urile și tichetele legate la contract în `GET /api/contracts/:id`.
+- Modalul „Dosar contract” afișează task-uri și tichete legate lângă documente și consumuri.
+- Contractul devine pagina de adevăr pentru urmărirea operațională.
+
 # v2.12.323 - 2026-07-18
 
 ## Ticketing pentru task-uri contract

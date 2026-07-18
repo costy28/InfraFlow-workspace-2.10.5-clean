@@ -1,5 +1,5 @@
 {
-  "version": "2.12.323",
+  "version": "2.12.324",
   "date": "2026-07-18",
-  "changelog": "## v2.12.323 - 2026-07-18\n### Ticketing pentru task-uri contract\n- Task-urile de contract pot crea ticket operational in modulul Sesizari.\n- Ticketul este deduplicat prin entitate_tip=contract_task si entitate_id=task.\n- Task-ul pastreaza ticket_uuid si ticket_id pentru trasabilitate.\n- Pagina Contract Management afiseaza buton Creeaza ticket sau Ticket legat.\n- Pagina Sesizari afiseaza sursa ticketului cand provine din Contract Management."
+  "changelog": "## v2.12.324 - 2026-07-18\n### Cockpit dosar contract\n- Detaliile contractului includ cockpit operational agregat.\n- Cockpit-ul grupeaza KPI pentru alerte, task-uri, tichete, documente si consumuri.\n- Backend-ul agrega task-urile si tichetele legate la contract in GET /api/contracts/:id.\n- Modalul Dosar contract afiseaza task-uri si tichete legate langa documente si consumuri.\n- Contractul devine pagina de adevar pentru urmarirea operationala."
 }

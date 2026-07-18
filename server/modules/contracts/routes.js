@@ -390,7 +390,52 @@ function decorateContract(db, contract, options = {}) {
   }
   if (options.includeConsumptions) decorated.consumuri = contractConsumptions(db, contract)
   if (options.includeSources) decorated.documente_sursa = contractSourceDocuments(db, contract)
+  if (options.includeCockpit) decorated.cockpit = contractCockpit(db, contract, decorated)
   return decorated
+}
+
+function contractCockpit(db, contract, decoratedContract = null) {
+  const cm = ensureContractsDb(db)
+  const ticketsDb = ensureTicketsDb(db)
+  const decorated = decoratedContract || decorateContract(db, contract, { includeConsumptions: true, includeSources: true })
+  const tasks = cm.tasks
+    .filter(item => !item.cancelled_at && !item.cancelledAt)
+    .filter(item => String(item.contract_id) === String(contract.id))
+    .map(item => decorateTask(db, item))
+  const tickets = ticketsDb.tickets
+    .filter(item => item.entitate_tip === 'contract' && String(item.entitate_id) === String(contract.id) ||
+      item.entitate_tip === 'contract_task' && tasks.some(task => String(task.id) === String(item.entitate_id)))
+    .map(item => ({
+      id: item.id,
+      uuid: item.uuid,
+      titlu: item.titlu,
+      status: item.status,
+      prioritate: item.prioritate,
+      termen_limita: item.termen_limita,
+      entitate_tip: item.entitate_tip,
+      entitate_id: item.entitate_id,
+      created_at: item.created_at,
+      updated_at: item.updated_at
+    }))
+  const openTaskCount = tasks.filter(item => !['rezolvat', 'inchis', 'anulat'].includes(String(item.status || '').toLowerCase())).length
+  const openTicketCount = tickets.filter(item => !['rezolvat', 'inchis', 'respins'].includes(String(item.status || '').toLowerCase())).length
+  return {
+    summary: {
+      alerts: decorated.alerte?.length || 0,
+      tasks_total: tasks.length,
+      tasks_open: openTaskCount,
+      tickets_total: tickets.length,
+      tickets_open: openTicketCount,
+      documents_total: decorated.documente_sursa?.timeline?.length || 0,
+      consumptions_total: decorated.consumuri?.length || 0,
+      consum_percent: decorated.procent_consum || 0,
+      days_left: decorated.summary?.zile_ramase ?? null
+    },
+    tasks,
+    tickets,
+    alerts: decorated.alerte || [],
+    documents: decorated.documente_sursa || { groups: [], timeline: [], counts: {} }
+  }
 }
 
 function dashboard(db) {
@@ -806,7 +851,7 @@ router.get('/contracts/:id', (req, res) => {
   const cm = ensureContractsDb(auth.db)
   const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
   if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
-  sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true }) })
+  sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeCockpit: true }) })
 })
 
 router.post('/contracts', (req, res) => {

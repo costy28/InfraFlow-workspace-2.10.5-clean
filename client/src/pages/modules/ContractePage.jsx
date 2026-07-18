@@ -556,6 +556,85 @@ export default function ContractePage() {
               </div>
             </div>
 
+            <Card title="Cockpit contract" subtitle="Radiografia rapidă: ce este consumat, ce lipsește și ce acțiuni sunt încă deschise.">
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Alerte</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.alerts || 0}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Task-uri deschise</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.tasks_open || 0}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Tichete deschise</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.tickets_open || 0}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Documente</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.documents_total || 0}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Consumuri</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.consumptions_total || 0}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Zile rămase</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.days_left ?? '-'}</div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                    <div className="font-semibold text-slate-900">Task-uri</div>
+                    <Badge tone={(contractDetails.cockpit?.summary?.tasks_open || 0) ? 'warning' : 'success'}>{contractDetails.cockpit?.summary?.tasks_open || 0} deschise</Badge>
+                  </div>
+                  <div className="max-h-56 overflow-auto">
+                    {(contractDetails.cockpit?.tasks || []).length === 0 ? (
+                      <div className="px-3 py-4 text-sm text-slate-500">Nu există task-uri pentru contract.</div>
+                    ) : contractDetails.cockpit.tasks.map(task => (
+                      <div key={task.id || task.uuid} className="border-b border-slate-100 px-3 py-2 text-sm last:border-b-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium text-slate-900">{task.titlu}</span>
+                          <Badge tone={task.overdue ? 'danger' : task.status === 'rezolvat' ? 'success' : 'warning'}>{task.status}</Badge>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
+                          <span>{task.responsabil_nume || 'responsabil nesetat'}</span>
+                          <span>{formatDate(task.deadline)}</span>
+                          {task.ticket_uuid ? <span>ticket legat</span> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                    <div className="font-semibold text-slate-900">Tichete</div>
+                    <Badge tone={(contractDetails.cockpit?.summary?.tickets_open || 0) ? 'warning' : 'success'}>{contractDetails.cockpit?.summary?.tickets_open || 0} deschise</Badge>
+                  </div>
+                  <div className="max-h-56 overflow-auto">
+                    {(contractDetails.cockpit?.tickets || []).length === 0 ? (
+                      <div className="px-3 py-4 text-sm text-slate-500">Nu există tichete legate.</div>
+                    ) : contractDetails.cockpit.tickets.map(ticket => (
+                      <div key={ticket.uuid || ticket.id} className="border-b border-slate-100 px-3 py-2 text-sm last:border-b-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium text-slate-900">{ticket.titlu}</span>
+                          <Badge tone={ticket.status === 'rezolvat' || ticket.status === 'inchis' ? 'success' : 'warning'}>{ticket.status}</Badge>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
+                          <span>{ticket.prioritate || 'normală'}</span>
+                          <span>{formatDate(ticket.termen_limita)}</span>
+                          <span>{ticket.uuid}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
             <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
               <Card title="Consumuri care scad contractul" subtitle="Manual + facturi/NIR-uri legate, fără dublare între NIR și factura generată.">
                 <div className="max-h-80 overflow-auto">

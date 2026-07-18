@@ -538,3 +538,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Creează ticket” / „Ticket legat” pe task;
 - `client/src/pages/modules/TicketsPage.jsx` — ✅ sursa ticketului este vizibilă în listă și în detalii;
 - task-urile contractuale pot intra acum în fluxul normal de lucru din Sesizări, cu comentarii, atașamente și schimbări de status.
+
+### UPDATE 344 — Cockpit dosar contract
+
+- `server/modules/contracts/routes.js` — ✅ agregare cockpit pentru detaliile contractului;
+- `server/modules/contracts/routes.js` — ✅ task-uri și tichete legate incluse în `GET /api/contracts/:id`;
+- `server/modules/contracts/routes.js` — ✅ KPI-uri pentru alerte, task-uri, tichete, documente, consumuri și zile rămase;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ secțiune „Cockpit contract” în modalul Dosar contract;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ liste compacte pentru task-uri și tichete legate;
+- contractul devine pagină de adevăr: financiar, documentar și operațional într-un singur loc.
