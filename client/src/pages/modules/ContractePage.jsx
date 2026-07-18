@@ -84,6 +84,7 @@ function sourceTone(type) {
 export default function ContractePage() {
   const [contracts, setContracts] = useState([])
   const [dashboard, setDashboard] = useState(null)
+  const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -115,12 +116,14 @@ export default function ContractePage() {
     setLoading(true)
     setError('')
     try {
-      const [contractsRes, dashboardRes] = await Promise.all([
+      const [contractsRes, dashboardRes, tasksRes] = await Promise.all([
         api.get('/contracts'),
         api.get('/contracts/dashboard'),
+        api.get('/contracts/tasks'),
       ])
       setContracts(arrayFrom(contractsRes.data, ['contracts']))
       setDashboard(dashboardRes.data || null)
+      setTasks(arrayFrom(tasksRes.data, ['tasks']))
     } catch (err) {
       setError(err.response?.data?.error || 'Contractele nu au putut fi încărcate.')
     } finally {
@@ -253,6 +256,39 @@ export default function ContractePage() {
     }
   }
 
+  async function generateTasks() {
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post('/contracts/tasks/generate')
+      const count = Number(response.data?.tasks_created || 0)
+      setNotice(count
+        ? `Au fost create ${count} task-uri operaționale din alertele contractelor.`
+        : 'Nu există task-uri noi de creat din alertele curente.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Task-urile nu au putut fi generate.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function resolveTask(task) {
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      await api.post(`/contracts/tasks/${task.id}/resolve`, { note: 'Rezolvat din lista Contract Management.' })
+      setNotice('Task-ul de contract a fost marcat ca rezolvat.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Task-ul nu a putut fi rezolvat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <PageHeader
@@ -261,6 +297,7 @@ export default function ContractePage() {
         actions={[
           <Button key="refresh" variant="secondary" onClick={load}>Reîncarcă</Button>,
           <Button key="reminders" variant="secondary" onClick={sendReminders} loading={saving}>Trimite remindere</Button>,
+          <Button key="tasks" variant="secondary" onClick={generateTasks} loading={saving}>Generează task-uri</Button>,
           <Button key="new" onClick={openNewContract}>+ Contract nou</Button>,
         ]}
       />
@@ -268,7 +305,7 @@ export default function ContractePage() {
       {notice ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div> : null}
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <Card density="compact" loading={loading}>
           <div className="text-xs font-semibold uppercase text-slate-500">Contracte active</div>
           <div className="mt-2 text-2xl font-semibold text-slate-900">{dashboard?.contracts_active || 0}</div>
@@ -289,6 +326,11 @@ export default function ContractePage() {
           <div className="mt-2 text-2xl font-semibold text-slate-900">{dashboard?.alerts?.length || 0}</div>
           <p className="mt-1 text-xs text-slate-500">praguri sau termene</p>
         </Card>
+        <Card density="compact" loading={loading}>
+          <div className="text-xs font-semibold uppercase text-slate-500">Task-uri</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{dashboard?.tasks_open || tasks.length || 0}</div>
+          <p className="mt-1 text-xs text-slate-500">{dashboard?.tasks_overdue || 0} restante</p>
+        </Card>
       </div>
 
       {dashboard?.alerts?.length ? (
@@ -307,6 +349,37 @@ export default function ContractePage() {
           </div>
         </Card>
       ) : null}
+
+      <Card
+        title="Task-uri contract"
+        subtitle="Acțiuni concrete generate din alerte: verificare termen, valoare consumată, depășiri sau documente de clarificat."
+        actions={<Button size="sm" variant="secondary" onClick={generateTasks} loading={saving}>Actualizează task-uri</Button>}
+        loading={loading}
+      >
+        <div className="grid gap-2">
+          {tasks.length === 0 ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">
+              Nu există task-uri deschise. Dacă apar alerte, folosește „Generează task-uri”.
+            </div>
+          ) : tasks.slice(0, 8).map(task => (
+            <div key={task.id || task.uuid} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={task.overdue ? 'danger' : task.alert_level === 'danger' ? 'danger' : task.alert_level === 'warning' ? 'warning' : 'info'}>{task.prioritate || 'normală'}</Badge>
+                  <span className="font-semibold text-slate-900">{task.contract_numar}</span>
+                  <span className="text-slate-600">{task.titlu}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
+                  <span>Responsabil: {task.responsabil_nume || 'nesetat'}</span>
+                  <span>Deadline: {formatDate(task.deadline)}</span>
+                  {task.overdue ? <span className="font-semibold text-rose-600">restant</span> : null}
+                </div>
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => resolveTask(task)} loading={saving}>Rezolvat</Button>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {dashboard?.by_manager?.length ? (
         <Card title="Manageri contract" subtitle="Portofoliu pe responsabil, cu alertele care trebuie urmărite înainte de depășiri.">

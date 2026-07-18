@@ -35,6 +35,7 @@ function ensureContractsDb(db) {
   cm.contracts = Array.isArray(cm.contracts) ? cm.contracts : []
   cm.consumptions = Array.isArray(cm.consumptions) ? cm.consumptions : []
   cm.alerts = Array.isArray(cm.alerts) ? cm.alerts : []
+  cm.tasks = Array.isArray(cm.tasks) ? cm.tasks : []
   return cm
 }
 
@@ -385,6 +386,7 @@ function dashboard(db) {
   const decorated = active.map(contract => decorateContract(db, contract))
   const totalContractat = round(decorated.reduce((sum, item) => sum + numberValue(item.summary.valoare_contract), 0))
   const totalConsumat = round(decorated.reduce((sum, item) => sum + numberValue(item.summary.consumat), 0))
+  const openTasks = cm.tasks.filter(item => !item.cancelled_at && !item.cancelledAt && !['rezolvat', 'inchis', 'anulat'].includes(String(item.status || '').toLowerCase()))
   const alerts = decorated.flatMap(contract => contract.summary.alerts.map(alert => ({
     ...alert,
     contract_id: contract.id,
@@ -419,6 +421,8 @@ function dashboard(db) {
     total_ramas: round(totalContractat - totalConsumat),
     procent_consum_global: totalContractat > 0 ? round((totalConsumat / totalContractat) * 100) : 0,
     alerts,
+    tasks_open: openTasks.length,
+    tasks_overdue: openTasks.filter(item => item.deadline && String(item.deadline).slice(0, 10) < todayIso()).length,
     by_manager: Object.values(byManager).sort((a, b) => Number(b.alerts || 0) - Number(a.alerts || 0) || String(a.responsabil_nume).localeCompare(String(b.responsabil_nume))),
     by_status: decorated.reduce((acc, item) => {
       acc[item.status] = (acc[item.status] || 0) + 1
@@ -477,6 +481,102 @@ function createContractReminders(db, user) {
     }
   }
   return created
+}
+
+function taskDeadlineForAlert(alert) {
+  if (alert.code === 'expired' || alert.code === 'value_exceeded') return todayIso()
+  const days = alert.level === 'danger' ? 1 : alert.level === 'warning' ? 3 : 7
+  const deadline = new Date()
+  deadline.setDate(deadline.getDate() + days)
+  return deadline.toISOString().slice(0, 10)
+}
+
+function decorateTask(db, task) {
+  const cm = ensureContractsDb(db)
+  const contract = cm.contracts.find(item => String(item.id) === String(task.contract_id))
+  const closed = ['rezolvat', 'inchis', 'anulat'].includes(String(task.status || '').toLowerCase())
+  const overdue = Boolean(task.deadline && String(task.deadline).slice(0, 10) < todayIso() && !closed)
+  return {
+    ...task,
+    overdue,
+    tone: overdue ? 'danger' : closed ? 'success' : task.status === 'in_lucru' ? 'warning' : 'info',
+    contract_numar: task.contract_numar || contract?.numar || '',
+    contract_titlu: task.contract_titlu || contract?.titlu || '',
+    responsabil_nume: task.responsabil_nume || contract?.responsabil_nume || '',
+    partener: task.partener || contract?.partener || ''
+  }
+}
+
+function contractTasks(db, filters = {}) {
+  const cm = ensureContractsDb(db)
+  const status = String(filters.status || 'deschise').trim().toLowerCase()
+  const contractId = filters.contract_id || filters.contractId || null
+  return cm.tasks
+    .filter(item => !item.cancelled_at && !item.cancelledAt)
+    .filter(item => {
+      const raw = String(item.status || '').toLowerCase()
+      if (!status || status === 'toate') return true
+      if (status === 'deschise') return !['rezolvat', 'inchis', 'anulat'].includes(raw)
+      return raw === status
+    })
+    .filter(item => !contractId || String(item.contract_id) === String(contractId))
+    .map(item => decorateTask(db, item))
+    .sort((a, b) => String(a.deadline || '9999-12-31').localeCompare(String(b.deadline || '9999-12-31')) || String(b.created_at || '').localeCompare(String(a.created_at || '')))
+}
+
+function createContractTasksFromAlerts(db, user) {
+  const cm = ensureContractsDb(db)
+  const created = []
+  const active = cm.contracts.filter(item => !item.cancelled_at && !item.cancelledAt && String(item.status || 'activ') !== 'anulat')
+  for (const contract of active) {
+    const decorated = decorateContract(db, contract)
+    for (const alert of decorated.alerte || []) {
+      const hasOpen = cm.tasks.some(task =>
+        !task.cancelled_at && !task.cancelledAt &&
+        String(task.contract_id) === String(contract.id) &&
+        String(task.alert_code) === String(alert.code) &&
+        !['rezolvat', 'inchis', 'anulat'].includes(String(task.status || '').toLowerCase())
+      )
+      if (hasOpen) continue
+      const manager = findContractManager(db, contract)
+      const task = {
+        id: id('ctr-task'),
+        uuid: crypto.randomUUID(),
+        contract_id: contract.id,
+        contract_numar: contract.numar,
+        contract_titlu: contract.titlu,
+        alert_code: alert.code,
+        alert_level: alert.level,
+        titlu: `Verifica ${contract.numar}: ${alert.message}`,
+        descriere: `Contract: ${contract.titlu || contract.numar}. ${alert.message}`,
+        status: 'deschis',
+        prioritate: alert.level === 'danger' ? 'urgent' : alert.level === 'warning' ? 'ridicata' : 'normala',
+        deadline: taskDeadlineForAlert(alert),
+        responsabil_id: manager?.id || contract.responsabil_id || null,
+        responsabil_nume: manager?.name || manager?.nume || manager?.username || contract.responsabil_nume || '',
+        created_by: user.id,
+        created_by_name: user.name || user.username,
+        created_at: nowIso(),
+        updated_at: nowIso()
+      }
+      cm.tasks.push(task)
+      created.push(decorateTask(db, task))
+    }
+  }
+  return created
+}
+
+function resolveContractTask(db, taskId, user, body = {}) {
+  const cm = ensureContractsDb(db)
+  const task = cm.tasks.find(item => String(item.id) === String(taskId) && !item.cancelled_at && !item.cancelledAt)
+  if (!task) return null
+  task.status = 'rezolvat'
+  task.resolution_note = String(body.note || body.observatii || body.resolution_note || 'Rezolvat din Contract Management').trim()
+  task.resolved_by = user.id
+  task.resolved_by_name = user.name || user.username
+  task.resolved_at = nowIso()
+  task.updated_at = nowIso()
+  return decorateTask(db, task)
 }
 
 function canView(auth, res) {
@@ -555,6 +655,36 @@ router.post('/contracts/reminders', (req, res) => {
     writeDb(auth.db)
   }
   sendJson(res, 200, { ok: true, reminders_created: created.length, reminders: created })
+})
+
+router.get('/contracts/tasks', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canView(auth, res)) return
+  sendJson(res, 200, { tasks: contractTasks(auth.db, req.query || {}) })
+})
+
+router.post('/contracts/tasks/generate', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const created = createContractTasksFromAlerts(auth.db, auth.user)
+  if (created.length) {
+    addAudit(auth.db, auth.user, 'contract_tasks_generated', `${created.length} task-uri contracte`)
+    writeDb(auth.db)
+  }
+  sendJson(res, 200, { ok: true, tasks_created: created.length, tasks: created })
+})
+
+router.post('/contracts/tasks/:taskId/resolve', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const task = resolveContractTask(auth.db, req.params.taskId, auth.user, req.body || {})
+  if (!task) return sendJson(res, 404, { error: 'Task-ul de contract nu a fost gasit.' })
+  addAudit(auth.db, auth.user, 'contract_task_resolved', `${task.contract_numar} / ${task.alert_code}`)
+  writeDb(auth.db)
+  sendJson(res, 200, { ok: true, task })
 })
 
 router.get('/contracts', (req, res) => {

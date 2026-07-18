@@ -1,5 +1,5 @@
 {
-  "version": "2.12.321",
+  "version": "2.12.322",
   "date": "2026-07-18",
-  "changelog": "## v2.12.321 - 2026-07-18\n### Manageri si remindere contracte\n- Dashboard-ul Contract Management grupeaza portofoliul pe manager/responsabil.\n- Alertele includ context pentru responsabil si valori utile pentru notificari.\n- Butonul Trimite remindere genereaza notificari zilnice deduplicate pentru contractele cu alerte.\n- UI-ul afiseaza portofoliu, consum si numar de alerte pe fiecare manager."
+  "changelog": "## v2.12.322 - 2026-07-18\n### Task-uri operationale contract\n- Alertele de contract pot genera task-uri operationale urmaribile.\n- Task-urile sunt deduplicate pe contract si cod alerta cat timp raman deschise.\n- Contract Management afiseaza task-uri deschise, restante si responsabili.\n- Task-urile pot fi marcate rezolvate direct din pagina Contracte.\n- Schema MSSQL primeste tabela contract_management.tasks."
 }

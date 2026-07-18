@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.322 - 2026-07-18
+
+## Task-uri operaționale contract
+
+- Alertele de contract pot genera task-uri operaționale urmărite în Contract Management.
+- Task-urile sunt deduplicate pe contract și cod alertă cât timp rămân deschise.
+- Dashboard-ul afișează task-uri deschise și restante.
+- Pagina Contracte are card „Task-uri contract” cu responsabil, deadline și acțiune „Rezolvat”.
+- Adăugată migrare MSSQL `contract_management.tasks` pentru evoluția relațională a modulului.
+- Smoke-suite verifică endpointul read-only `GET /api/contracts/tasks`.
+
 # v2.12.321 - 2026-07-18
 
 ## Manageri și remindere contracte

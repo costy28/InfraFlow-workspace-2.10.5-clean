@@ -519,3 +519,13 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Trimite remindere” în Contract Management;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ card „Manageri contract” cu contracte, consum și alerte pe responsabil;
 - fluxul Contract Management începe să devină operațional: contractele nu doar se urmăresc, ci îi cheamă la timp pe responsabili.
+
+### UPDATE 342 — Task-uri operaționale contract
+
+- `server/modules/contracts/routes.js` — ✅ task-uri generate din alertele contractelor;
+- `server/modules/contracts/routes.js` — ✅ deduplicare task deschis pe contract și cod alertă;
+- `server/modules/contracts/routes.js` — ✅ endpointuri pentru listare, generare și rezolvare task-uri contract;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card „Task-uri contract” cu responsabil, deadline și stare restantă;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ acțiune rapidă „Rezolvat” direct din lista de task-uri;
+- `db/migrations/068_contract_management_tasks.sql` — ✅ tabelă relațională `contract_management.tasks`;
+- `scripts/smoke-modules-readonly.js` — ✅ verificare read-only pentru `/api/contracts/tasks`.
