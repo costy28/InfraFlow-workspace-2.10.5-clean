@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.315 - 2026-07-18
+
+## UI minimal Contract Management
+
+- Adăugată pagina `/contracte` cu dashboard, alerte, listă contracte și progres consum valoric.
+- Adăugat formular pentru contract nou cu număr, obiect, partener, manager, valoare, termene, CPV, PAAP și centru cost.
+- Adăugat formular pentru consum manual pe contract.
+- Modulul apare în sidebar ca `Contracte`.
+- Catalogul de module comerciale include `contract_management`.
+- Preseturile Gestiune + Achiziții, Contabilitate, City Services și Enterprise includ Contract Management.
+
 # v2.12.314 - 2026-07-18
 
 ## Fundație Contract Management

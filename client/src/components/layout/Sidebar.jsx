@@ -24,6 +24,7 @@ const groups = [
       { to: '/mecanizare', icon: '⚙️', label: 'Mecanizare', moduleKey: 'mechanization' },
       { to: '/asternere', icon: '🛣️', label: 'Asternere', moduleKey: 'asternere' },
       { to: '/achizitii', icon: '🛒', label: 'Achiziții', moduleKey: 'procurement' },
+      { to: '/contracte', icon: '📑', label: 'Contracte', moduleKey: 'contract_management' },
       { to: '/referate', icon: '📄', label: 'Referate', moduleKey: 'referate' },
       { to: '/teren', icon: '📍', label: 'Teren', moduleKey: 'field' },
       { to: '/salubrizare', icon: '🧹', label: 'Salubrizare', moduleKey: 'sanitation' },
@@ -55,6 +56,7 @@ const modulePermissionPrefixes = {
   inventory: ['inventory', 'gestiune', 'materials', 'stock_operations', 'ledger', 'deliveries'],
   production: ['production', 'consumptions', 'recipes', 'planning', 'daily_report'],
   procurement: ['procurement', 'procurement_orders'],
+  contract_management: ['legal', 'procurement', 'accounting', 'controlling', 'cost_accounting'],
   referate: ['referate'],
   accounting: ['accounting', 'anaf', 'integration', 'cost_accounting', 'controlling'],
   mechanization: ['mechanization', 'fleet', 'technical'],
@@ -67,6 +69,7 @@ const moduleActiveAliases = {
   inventory: ['inventory', 'reports'],
   ai: ['ai', 'ai_assistant'],
   accounting: ['accounting', 'contabilitate', 'anaf', 'controlling'],
+  contract_management: ['contract_management', 'contracts', 'legal', 'procurement', 'accounting'],
   referate: ['referate', 'procurement'],
 }
 

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.314",
+  "version": "2.12.315",
   "date": "2026-07-18",
-  "changelog": "## v2.12.314 - 2026-07-18\n### Fundatie Contract Management\n- Adauga modul backend Contract Management pentru contracte, consumuri valorice si dashboard de alerte.\n- Contractele urmaresc valoare, partener, responsabil, CPV, PAAP, centru de cost si termene.\n- Consumurile pot fi introduse manual si pot fi agregate din facturi legate prin contract_id/contractId.\n- Smoke-suite verifica endpointurile /api/contracts si /api/contracts/dashboard."
+  "changelog": "## v2.12.315 - 2026-07-18\n### UI minimal Contract Management\n- Adauga pagina /contracte cu dashboard, alerte, lista contracte si progres consum.\n- Adauga formular pentru contract nou si consum manual pe contract.\n- Contract Management apare in sidebar si in catalogul de module comerciale.\n- Preseturile Gestiune + Achizitii, Contabilitate, City Services si Enterprise includ contractele."
 }

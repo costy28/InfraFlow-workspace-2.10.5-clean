@@ -459,3 +459,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `db/migrations/067_contract_management.sql` — ✅ schema relațională MSSQL pentru contracte și consumuri;
 - `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/contracts` și `/api/contracts/dashboard`;
 - modulul urmărește valoare contractată, consumată, rămasă, CPV, PAAP, centru cost, manager și termene.
+
+### UPDATE 335 — UI minimal Contract Management
+
+- `client/src/pages/modules/ContractePage.jsx` — ✅ pagină Contract Management cu dashboard, alerte, listă și formulare;
+- `client/src/App.jsx` — ✅ rută `/contracte` cu permisiuni juridic/achiziții/contabilitate/controlling;
+- `client/src/components/layout/Sidebar.jsx` — ✅ item nou „Contracte” în zona Servicii;
+- `server/modules/system/settings-routes.js` — ✅ `contract_management` în catalog și pachete comerciale;
+- `client/src/pages/SetariPage.jsx` — ✅ preseturi locale actualizate pentru pachete comerciale.

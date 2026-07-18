@@ -21,7 +21,7 @@ const tabGroups = [
 ]
 const allModules = [
   'core', 'inventory', 'production', 'reports', 'system', 'fleet', 'hr',
-  'controlling', 'accounting', 'procurement', 'documents', 'field', 'messaging', 'tickets',
+  'controlling', 'accounting', 'procurement', 'contract_management', 'documents', 'field', 'messaging', 'tickets',
   'technical_plus', 'sanitation', 'traffic_safety', 'snow_removal',
   'environment', 'legal', 'archive', 'secretariat', 'ai_assistant'
 ]
@@ -87,6 +87,7 @@ const moduleGroups = [
       { key: 'fleet', icon: '⚙️', label: 'Flotă / Mecanizare' },
       { key: 'technical', icon: '⚙️', label: 'Tehnic' },
       { key: 'procurement', icon: '⚙️', label: 'Achiziții' },
+      { key: 'contract_management', icon: '⚙️', label: 'Contracte' },
       { key: 'hr', icon: '⚙️', label: 'HR' },
       { key: 'controlling', icon: '⚙️', label: 'Controlling' },
       { key: 'accounting', icon: '⚙️', label: 'Contabilitate' },
@@ -147,28 +148,28 @@ const commercialModulePackages = [
     key: 'gestiune_achizitii',
     label: 'Gestiune + Achiziții',
     icon: '🛒',
-    modules: ['procurement', 'documents', 'tickets'],
-    description: 'Stocuri, comenzi, recepții, referate, PAAP și furnizori.',
+    modules: ['procurement', 'contract_management', 'documents', 'tickets'],
+    description: 'Stocuri, comenzi, recepții, referate, PAAP, contracte și furnizori.',
   },
   {
     key: 'accounting',
     label: 'Contabilitate',
     icon: '🏛️',
-    modules: ['accounting', 'controlling', 'documents'],
-    description: 'Contabilitate, declarații, dosar fiscal, SAF-T și costuri.',
+    modules: ['accounting', 'controlling', 'contract_management', 'documents'],
+    description: 'Contabilitate, declarații, dosar fiscal, contracte, SAF-T și costuri.',
   },
   {
     key: 'city_services',
     label: 'City Services',
     icon: '🏙️',
-    modules: ['sanitation', 'traffic_safety', 'snow_removal', 'environment', 'field', 'fleet', 'tickets'],
-    description: 'Salubrizare, deszăpezire, circulație, mediu și teren.',
+    modules: ['sanitation', 'traffic_safety', 'snow_removal', 'environment', 'field', 'fleet', 'contract_management', 'tickets'],
+    description: 'Salubrizare, deszăpezire, circulație, mediu, contracte și teren.',
   },
   {
     key: 'enterprise',
     label: 'Enterprise',
     icon: '🚀',
-    modules: ['fleet', 'technical', 'procurement', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'],
+    modules: ['fleet', 'technical', 'procurement', 'contract_management', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'],
     description: 'Toate modulele, pentru organizații mari și fluxuri complete.',
   },
 ]

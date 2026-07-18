@@ -12,6 +12,7 @@ const StocuriPage = lazy(() => import('./pages/modules/StocuriPage'))
 const HRPage = lazy(() => import('./pages/modules/HRPage'))
 const TehnicPage = lazy(() => import('./pages/modules/TehnicPage'))
 const ControllingPage = lazy(() => import('./pages/modules/ControllingPage'))
+const ContractePage = lazy(() => import('./pages/modules/ContractePage'))
 const ContabilitateDashboard = lazy(() => import('./pages/accounting/ContabilitateDashboard'))
 const PlanConturi = lazy(() => import('./pages/accounting/PlanConturi'))
 const SolduriInitiale = lazy(() => import('./pages/accounting/SolduriInitiale'))
@@ -97,6 +98,7 @@ export default function App() {
         <Route path="/hr/*" element={<WithLayout><PermissionGuard permission={['hr:view', 'echipamente:gestionar']}><HRPage /></PermissionGuard></WithLayout>} />
         <Route path="/tehnic/*" element={<WithLayout><TehnicPage /></WithLayout>} />
         <Route path="/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ControllingPage /></PermissionGuard></WithLayout>} />
+        <Route path="/contracte/*" element={<WithLayout><PermissionGuard permission={['legal:contracts', 'procurement:view', 'accounting:view', 'controlling:view']}><ContractePage /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate" element={<WithLayout><PermissionGuard permission="accounting:view"><ContabilitateDashboard /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/plan-conturi" element={<WithLayout><PermissionGuard permission="accounting:view"><PlanConturi /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/solduri-initiale" element={<WithLayout><PermissionGuard permission="accounting:view"><SolduriInitiale /></PermissionGuard></WithLayout>} />

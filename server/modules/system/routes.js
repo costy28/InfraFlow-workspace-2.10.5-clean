@@ -104,6 +104,7 @@ const configurableModuleKeys = new Set([
   "fleet",
   "technical",
   "procurement",
+  "contract_management",
   "hr",
   "controlling",
   "accounting",
@@ -2723,6 +2724,8 @@ function allowedModulesForLicense(license = {}) {
   const normalizedAliases = new Map([
     ["technical_plus", "technical"],
     ["contabilitate", "accounting"],
+    ["contracts", "contract_management"],
+    ["contracte", "contract_management"],
     ["trafficsafety", "traffic_safety"],
     ["snowremoval", "snow_removal"],
     ["ai_assistant", "ai"]
