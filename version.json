@@ -1,5 +1,5 @@
 {
-  "version": "2.12.325",
+  "version": "2.12.326",
   "date": "2026-07-18",
-  "changelog": "## v2.12.325 - 2026-07-18\n### Fisa printabila contract\n- Contract Management expune fisa HTML printabila pentru fiecare contract.\n- Fisa include sumar financiar, progres, alerte, consumuri, documente sursa, task-uri si tichete conectate.\n- Endpoint nou GET /api/contracts/:id/print, protejat prin aceleasi permisiuni ca dosarul contractului.\n- Modalul Dosar contract are buton Fisa print pentru print sau salvare PDF din browser.\n- Fisa foloseste cockpit-ul contractului ca sursa unica, fara date duplicate."
+  "changelog": "## v2.12.326 - 2026-07-18\n### Raport portofoliu contracte\n- Contract Management expune raport HTML printabil pentru intreg portofoliul de contracte.\n- Raportul include totaluri, consum, ramas, alerte, task-uri deschise si portofoliu pe manager/responsabil.\n- Endpoint nou GET /api/contracts/portfolio/print, protejat prin aceleasi permisiuni ca modulul Contracte.\n- Pagina Contract Management are buton Raport portofoliu pentru print sau salvare PDF.\n- Smoke-suite verifica endpointul HTML al raportului de portofoliu."
 }

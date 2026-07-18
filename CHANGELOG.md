@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.326 - 2026-07-18
+
+## Raport portofoliu contracte
+
+- Contract Management expune raport HTML printabil pentru întreg portofoliul de contracte.
+- Raportul include totaluri, consum, rămas, alerte, task-uri deschise și portofoliu pe manager/responsabil.
+- Endpoint nou `GET /api/contracts/portfolio/print`, protejat prin aceleași permisiuni ca modulul Contracte.
+- Pagina Contract Management are buton „Raport portofoliu” pentru print sau salvare PDF.
+- Smoke-suite verifică endpointul HTML al raportului de portofoliu.
+
 # v2.12.325 - 2026-07-18
 
 ## Fișă printabilă contract

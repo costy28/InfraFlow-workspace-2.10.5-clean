@@ -555,3 +555,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ escapare HTML și protecție prin autentificare/permisiuni existente;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Fișă print” în modalul Dosar contract;
 - fișa folosește cockpit-ul contractului ca sursă unică și poate fi salvată PDF din browser.
+
+### UPDATE 346 — Raport portofoliu contracte
+
+- `server/modules/contracts/routes.js` — ✅ endpoint HTML `GET /api/contracts/portfolio/print`;
+- `server/modules/contracts/routes.js` — ✅ raport de portofoliu cu totaluri, consum, rămas, alerte, task-uri și manageri;
+- `server/modules/contracts/routes.js` — ✅ contractele sunt ordonate după risc: alerte, procent consum și scadență;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Raport portofoliu” în header-ul modulului Contract Management;
+- `scripts/smoke-modules-readonly.js` — ✅ verificare read-only pentru raportul HTML de portofoliu.

@@ -189,6 +189,12 @@ export default function ContractePage() {
     window.open(`/api/contracts/${encodeURIComponent(contract.id)}/print${query}`, '_blank', 'noopener,noreferrer')
   }
 
+  function printPortfolio() {
+    const token = localStorage.getItem('infraflow_token') || ''
+    const query = token ? `?token=${encodeURIComponent(token)}` : ''
+    window.open(`/api/contracts/portfolio/print${query}`, '_blank', 'noopener,noreferrer')
+  }
+
   async function saveContract(event) {
     event.preventDefault()
     setSaving(true)
@@ -321,6 +327,7 @@ export default function ContractePage() {
         subtitle="Urmărește valoarea contractată, consumul din facturi/documente și alertele de prag sau termen."
         actions={[
           <Button key="refresh" variant="secondary" onClick={load}>Reîncarcă</Button>,
+          <Button key="portfolio" variant="secondary" onClick={printPortfolio}>Raport portofoliu</Button>,
           <Button key="reminders" variant="secondary" onClick={sendReminders} loading={saving}>Trimite remindere</Button>,
           <Button key="tasks" variant="secondary" onClick={generateTasks} loading={saving}>Generează task-uri</Button>,
           <Button key="new" onClick={openNewContract}>+ Contract nou</Button>,

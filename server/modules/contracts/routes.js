@@ -636,6 +636,145 @@ function contractPrintHtml(db, contract, user) {
 </html>`
 }
 
+function contractsPortfolioPrintHtml(db, user) {
+  const cm = ensureContractsDb(db)
+  const report = dashboard(db)
+  const contracts = cm.contracts
+    .filter(item => !item.cancelled_at && !item.cancelledAt)
+    .map(item => decorateContract(db, item))
+    .sort((a, b) => Number(b.alerte?.length || 0) - Number(a.alerte?.length || 0) ||
+      Number(b.procent_consum || 0) - Number(a.procent_consum || 0) ||
+      String(a.data_sfarsit || '9999-12-31').localeCompare(String(b.data_sfarsit || '9999-12-31')))
+  const openTasks = contractTasks(db, { status: 'deschis' })
+  const generatedAt = new Date().toLocaleString('ro-RO')
+
+  const managerRows = (report.by_manager || []).length ? report.by_manager.map(item => `
+    <tr>
+      <td><strong>${escapeHtml(item.responsabil_nume || 'Fără responsabil')}</strong></td>
+      <td class="right">${Number(item.contracts || 0)}</td>
+      <td class="right">${formatPrintMoney(item.total_contractat || 0)}</td>
+      <td class="right">${formatPrintMoney(item.total_consumat || 0)}</td>
+      <td class="right">${printBadge(item.alerts || 0, Number(item.alerts || 0) ? 'warning' : 'success')}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" class="empty">Nu există manageri/responsabili în portofoliu.</td></tr>'
+
+  const alertRows = (report.alerts || []).length ? report.alerts.map(item => `
+    <tr>
+      <td>${printBadge(item.level || 'info', item.level || 'info')}</td>
+      <td><strong>${escapeHtml(item.contract_numar || '-')}</strong><div class="muted">${escapeHtml(item.contract_titlu || '')}</div></td>
+      <td>${escapeHtml(item.responsabil_nume || 'Nesetat')}</td>
+      <td>${escapeHtml(item.message || '-')}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="4" class="empty">Nu există alerte active.</td></tr>'
+
+  const taskRows = openTasks.length ? openTasks.map(item => `
+    <tr>
+      <td><strong>${escapeHtml(item.contract_numar || '-')}</strong><div class="muted">${escapeHtml(item.contract_titlu || '')}</div></td>
+      <td>${escapeHtml(item.titlu || '-')}</td>
+      <td>${escapeHtml(item.responsabil_nume || 'Nesetat')}</td>
+      <td>${formatPrintDate(item.deadline)}</td>
+      <td>${printBadge(item.overdue ? 'restant' : item.status || 'deschis', item.overdue ? 'danger' : 'warning')}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" class="empty">Nu există task-uri deschise.</td></tr>'
+
+  const contractRows = contracts.length ? contracts.map(item => {
+    const riskTone = item.alerte?.some(alert => alert.level === 'danger') || Number(item.procent_consum || 0) >= 100
+      ? 'danger'
+      : item.alerte?.length || Number(item.procent_consum || 0) >= 80 ? 'warning' : 'success'
+    return `
+      <tr>
+        <td><strong>${escapeHtml(item.numar || '-')}</strong><div class="muted">${escapeHtml(item.titlu || '')}</div></td>
+        <td>${escapeHtml(item.partener || '-')}</td>
+        <td>${escapeHtml(item.responsabil_nume || 'Nesetat')}</td>
+        <td class="right">${formatPrintMoney(item.valoare_contract || 0, item.moneda || 'RON')}</td>
+        <td class="right">${formatPrintMoney(item.valoare_consumata || 0, item.moneda || 'RON')}</td>
+        <td class="right">${Number(item.procent_consum || 0).toLocaleString('ro-RO')}%</td>
+        <td>${formatPrintDate(item.data_sfarsit)}</td>
+        <td>${printBadge(item.alerte?.length || 0, riskTone)}</td>
+      </tr>
+    `
+  }).join('') : '<tr><td colspan="8" class="empty">Nu există contracte în portofoliu.</td></tr>'
+
+  return `<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <title>Raport portofoliu contracte</title>
+  <style>
+    :root { color-scheme: light; font-family: Arial, sans-serif; color: #0f172a; }
+    body { margin: 0; background: #f8fafc; }
+    .page { max-width: 1180px; margin: 24px auto; background: white; padding: 32px; border: 1px solid #e2e8f0; border-radius: 18px; }
+    .toolbar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 16px; }
+    button { border: 1px solid #cbd5e1; border-radius: 10px; background: #064e3b; color: white; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+    h1 { margin: 0; font-size: 26px; }
+    h2 { margin: 28px 0 10px; font-size: 17px; }
+    .muted { color: #64748b; font-size: 12px; }
+    .header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #0f172a; padding-bottom: 16px; }
+    .meta { text-align: right; font-size: 13px; color: #475569; }
+    .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 18px; }
+    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; background: #f8fafc; }
+    .label { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .value { margin-top: 4px; font-size: 16px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; color: #475569; background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }
+    .right { text-align: right; white-space: nowrap; }
+    .empty { color: #64748b; text-align: center; padding: 18px; }
+    .badge { display: inline-block; border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 700; background: #e2e8f0; color: #334155; }
+    .badge.success { background: #dcfce7; color: #166534; }
+    .badge.warning { background: #fef3c7; color: #92400e; }
+    .badge.danger { background: #fee2e2; color: #991b1b; }
+    .badge.info { background: #dbeafe; color: #1e40af; }
+    @media print {
+      body { background: white; }
+      .page { max-width: none; margin: 0; border: 0; border-radius: 0; padding: 0; }
+      .toolbar { display: none; }
+      h2 { break-after: avoid; }
+      tr { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="toolbar"><button type="button" onclick="window.print()">Tipărește / salvează PDF</button></div>
+    <section class="header">
+      <div>
+        <div class="muted">InfraFlow ERP · Contract Management</div>
+        <h1>Raport portofoliu contracte</h1>
+        <p>Imagine executivă pentru valoare contractată, consum, risc, responsabili și acțiuni deschise.</p>
+      </div>
+      <div class="meta">
+        Generat la ${escapeHtml(generatedAt)}<br>
+        Utilizator: ${escapeHtml(user?.name || user?.username || '-')}<br>
+        Contracte: ${Number(report.contracts_total || 0)}
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card"><div class="label">Contracte active</div><div class="value">${Number(report.contracts_active || 0)} / ${Number(report.contracts_total || 0)}</div></div>
+      <div class="card"><div class="label">Contractat</div><div class="value">${formatPrintMoney(report.total_contractat || 0)}</div></div>
+      <div class="card"><div class="label">Consumat</div><div class="value">${formatPrintMoney(report.total_consumat || 0)}</div></div>
+      <div class="card"><div class="label">Rămas</div><div class="value">${formatPrintMoney(report.total_ramas || 0)}</div></div>
+      <div class="card"><div class="label">Alerte</div><div class="value">${Number(report.alerts?.length || 0)}</div></div>
+      <div class="card"><div class="label">Task-uri deschise</div><div class="value">${Number(report.tasks_open || 0)}</div></div>
+    </section>
+
+    <h2>Portofoliu pe manager / responsabil</h2>
+    <table><thead><tr><th>Responsabil</th><th class="right">Contracte</th><th class="right">Contractat</th><th class="right">Consumat</th><th class="right">Alerte</th></tr></thead><tbody>${managerRows}</tbody></table>
+
+    <h2>Alerte active</h2>
+    <table><thead><tr><th>Nivel</th><th>Contract</th><th>Responsabil</th><th>Mesaj</th></tr></thead><tbody>${alertRows}</tbody></table>
+
+    <h2>Task-uri deschise</h2>
+    <table><thead><tr><th>Contract</th><th>Task</th><th>Responsabil</th><th>Termen</th><th>Status</th></tr></thead><tbody>${taskRows}</tbody></table>
+
+    <h2>Contracte urmărite</h2>
+    <table><thead><tr><th>Contract</th><th>Partener</th><th>Responsabil</th><th class="right">Valoare</th><th class="right">Consum</th><th class="right">%</th><th>Scadență</th><th>Alerte</th></tr></thead><tbody>${contractRows}</tbody></table>
+  </main>
+</body>
+</html>`
+}
+
 function dashboard(db) {
   const cm = ensureContractsDb(db)
   const active = cm.contracts.filter(item => !item.cancelled_at && !item.cancelledAt)
@@ -1040,6 +1179,14 @@ router.get('/contracts/linkable-sources', (req, res) => {
   if (!auth) return
   if (!canView(auth, res)) return
   sendJson(res, 200, { sources: linkableSources(auth.db, req.query || {}) })
+})
+
+router.get('/contracts/portfolio/print', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canView(auth, res)) return
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.status(200).send(contractsPortfolioPrintHtml(auth.db, auth.user))
 })
 
 router.get('/contracts/:id/print', (req, res) => {

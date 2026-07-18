@@ -192,6 +192,7 @@ const endpointChecks = [
   { name: 'Contracte /api/contracts', path: '/api/contracts', countKeys: ['contracts'] },
   { name: 'Contracte /api/contracts/tasks', path: '/api/contracts/tasks', countKeys: ['tasks'] },
   { name: 'Contracte /api/contracts/linkable-sources', path: '/api/contracts/linkable-sources', countKeys: ['sources'] },
+  { name: 'Contracte /api/contracts/portfolio/print', path: '/api/contracts/portfolio/print', validate: (_data, response) => response.contentType.includes('text/html') && response.text.includes('Raport portofoliu contracte') },
 
   { name: 'ANAF /api/anaf/settings', path: '/api/anaf/settings', validate: data => typeof data === 'object' && data !== null },
   { name: 'ANAF /api/anaf/invoices', path: '/api/anaf/invoices', countKeys: ['invoices'] },
