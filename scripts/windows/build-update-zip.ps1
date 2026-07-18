@@ -1,5 +1,9 @@
 #Requires -Version 5.1
-param([string]$Version = "", [switch]$SkipClientBuild = $false)
+param(
+  [string]$Version = "",
+  [switch]$SkipClientBuild = $false,
+  [switch]$SkipReleaseCheck = $false
+)
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -15,7 +19,18 @@ function Copy-Clean([string]$Source, [string]$Destination) {
   if ($LASTEXITCODE -ge 8) { throw "Copiere esuata: $Source" }
 }
 
+function Invoke-ReleaseCheck([string[]]$Arguments) {
+  $script = Join-Path $Root "scripts\release-check.js"
+  if (-not (Test-Path -LiteralPath $script)) { throw "Lipseste scripts\release-check.js." }
+  & npm run release:check -- @Arguments
+  if ($LASTEXITCODE -ne 0) { throw "Release check esuat." }
+}
+
 try {
+  if (-not $SkipReleaseCheck) {
+    Write-Host "`n[release-check] Pre-verificare fara ZIP..." -ForegroundColor Cyan
+    Invoke-ReleaseCheck @("--no-zip")
+  }
   if (-not $SkipClientBuild) {
     Push-Location (Join-Path $Root "client")
     try { npm run build; if ($LASTEXITCODE -ne 0) { throw "Build React esuat." } } finally { Pop-Location }
@@ -43,6 +58,10 @@ try {
   if (Test-Path $Zip) { Remove-Item $Zip -Force }
   Compress-Archive -Path (Join-Path $Temp "*") -DestinationPath $Zip -CompressionLevel Optimal
   if ((Get-Item $Zip).Length -lt 1MB) { throw "Arhiva rezultata este suspect de mica." }
+  if (-not $SkipReleaseCheck) {
+    Write-Host "`n[release-check] Verificare ZIP generat..." -ForegroundColor Cyan
+    Invoke-ReleaseCheck @()
+  }
   Get-Item $Zip | Select-Object Name,Length,LastWriteTime
 } finally {
   Remove-Item $Temp -Recurse -Force -ErrorAction SilentlyContinue

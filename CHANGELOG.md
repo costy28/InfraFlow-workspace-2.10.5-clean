@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.312 - 2026-07-18
+
+## Release check integrat în pachetarea ZIP
+
+- `scripts/windows/build-update-zip.ps1` rulează automat `npm run release:check -- --no-zip` înainte de arhivare.
+- După generarea arhivei, același script rulează automat `npm run release:check` pe ZIP-ul final.
+- A fost adăugată opțiunea `-SkipReleaseCheck` pentru cazuri de diagnostic manual controlat.
+- Pachetarea nu mai poate trece tăcut peste versiuni/documentație/ZIP incoerente.
+
 # v2.12.311 - 2026-07-16
 
 ## Release check pentru pachete update

@@ -437,3 +437,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `scripts/release-check.js` — ✅ validează arhiva ZIP generată și normalizează separatorii Windows/Linux din intrările ZIP;
 - `package.json` — ✅ script nou `npm run release:check`;
 - flux recomandat: `npm run release:check -- --no-zip` înainte de pachetare și `npm run release:check` după generarea ZIP-ului.
+
+### UPDATE 332 — Release check integrat în pachetarea ZIP
+
+- `scripts/windows/build-update-zip.ps1` — ✅ rulează automat release check înainte de arhivare;
+- `scripts/windows/build-update-zip.ps1` — ✅ validează automat ZIP-ul final după `Compress-Archive`;
+- `scripts/windows/build-update-zip.ps1` — ✅ opțiune `-SkipReleaseCheck` pentru diagnostic manual;
+- pachetarea update-urilor devine self-validating, nu mai depinde de rularea manuală a verificării.

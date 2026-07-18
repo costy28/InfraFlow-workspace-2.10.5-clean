@@ -1,5 +1,5 @@
 {
-  "version": "2.12.311",
-  "date": "2026-07-16",
-  "changelog": "## v2.12.311 - 2026-07-16\n### Release check pentru pachete update\n- Adauga scriptul npm run release:check pentru validarea coerentei release-ului.\n- Verifica versiuni sincronizate in package-uri si version.json.\n- Verifica CHANGELOG, AGENTS si nota UPDATE curenta.\n- Valideaza ZIP-ul generat, inclusiv fisierele obligatorii si versiunea interna."
+  "version": "2.12.312",
+  "date": "2026-07-18",
+  "changelog": "## v2.12.312 - 2026-07-18\n### Release check integrat in pachetarea ZIP\n- build-update-zip ruleaza automat release:check inainte de arhivare.\n- Dupa generarea ZIP-ului, scriptul valideaza automat arhiva finala.\n- Exista optiune SkipReleaseCheck pentru diagnostic manual controlat."
 }
