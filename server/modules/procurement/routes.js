@@ -39,6 +39,29 @@ function materialUnit(material) {
   return material?.unit || material?.um || ''
 }
 
+function findContract(db, contractId) {
+  if (!contractId) return null
+  const contracts = db.contractManagement?.contracts || []
+  return contracts.find(item => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt) || null
+}
+
+function applyContractLink(db, document, body = {}, fallback = null) {
+  const contractId = body.contract_id ?? body.contractId ?? fallback?.contract_id ?? fallback?.contractId ?? ''
+  if (!contractId) {
+    document.contract_id = null
+    document.contractId = null
+    document.contract_numar = ''
+    document.contract_title = ''
+    return
+  }
+  const contract = findContract(db, contractId)
+  if (!contract) throwHttp(404, 'Contractul selectat nu există.')
+  document.contract_id = contract.id
+  document.contractId = contract.id
+  document.contract_numar = contract.numar || ''
+  document.contract_title = contract.titlu || ''
+}
+
 function ensureProcurementExtensions(db) {
   db.procurementOrders = Array.isArray(db.procurementOrders) ? db.procurementOrders : []
   db.procurementReceipts = Array.isArray(db.procurementReceipts) ? db.procurementReceipts : []
@@ -103,6 +126,7 @@ function createProcurementOrderV2(db, user, body) {
     createdByName: user.name,
     createdAt: new Date().toISOString()
   }
+  applyContractLink(db, order, body)
   db.procurementOrders.push(order)
   return order
 }
@@ -147,6 +171,7 @@ function receiveProcurementOrderV2(db, user, uuid, body) {
     createdAt: new Date().toISOString(),
     lines: []
   }
+  applyContractLink(db, receipt, body, order)
   const stocuriActualizate = []
   for (const input of receivedLines) {
     const materialId = input.material_id || input.materialId
@@ -4983,6 +5008,7 @@ function createProcurementOrder(db, user, body) {
     createdByName: user.name,
     createdAt: new Date().toISOString()
   };
+  applyContractLink(db, order, body);
   db.procurementOrders.push(order);
   return order;
 }
@@ -5032,6 +5058,7 @@ function receiveProcurementOrder(db, user, orderId, body) {
     createdByName: user.name,
     createdAt: new Date().toISOString()
   };
+  applyContractLink(db, receipt, body, order);
   db.procurementReceipts.push(receipt);
   material.stock = round(Number(material.stock || 0) + amount);
   const delivery = {

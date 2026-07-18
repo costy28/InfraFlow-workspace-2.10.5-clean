@@ -62,6 +62,10 @@ function materialName(material) {
   return material?.name || material?.denumire || material?.materialName || 'Material'
 }
 
+function contractLabel(contract) {
+  return [contract.numar, contract.titlu].filter(Boolean).join(' — ') || contract.id
+}
+
 function procedureFor(value) {
   const amount = Number(value || 0)
   if (amount < 135060) return 'Achizitie directa'
@@ -117,6 +121,7 @@ export default function AchizitiiPage() {
   const [tickets, setTickets] = useState([])
   const [productMap, setProductMap] = useState([])
   const [materials, setMaterials] = useState([])
+  const [contracts, setContracts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -130,7 +135,7 @@ export default function AchizitiiPage() {
   const [paapModal, setPaapModal] = useState(false)
   const [paapEditing, setPaapEditing] = useState(null)
   const [paapForm, setPaapForm] = useState(emptyPaap(new Date().getFullYear() + 1))
-  const [receiveForm, setReceiveForm] = useState({ nr_aviz: '', data_receptie: today(), observatii: '', linii: [] })
+  const [receiveForm, setReceiveForm] = useState({ nr_aviz: '', data_receptie: today(), contract_id: '', observatii: '', linii: [] })
   const [returnForm, setReturnForm] = useState({ data: today(), motiv: '', linii: [] })
   const [materialForm, setMaterialForm] = useState({ cod: '', denumire: '', um: 'kg', categorie: 'materie_prima', stoc_minim: '', pret_unitar: '', cod_cpv: '', furnizor_implicit: '' })
   const [form, setForm] = useState({
@@ -142,6 +147,7 @@ export default function AchizitiiPage() {
     cpv_cod: '',
     orderNo: '',
     expectedDate: '',
+    contract_id: '',
     note: '',
   })
 
@@ -149,13 +155,14 @@ export default function AchizitiiPage() {
     setLoading(true)
     setError('')
     try {
-      const [ordersRes, requirementsRes, scaleRes, ticketsRes, productMapRes, materialsRes] = await Promise.all([
+      const [ordersRes, requirementsRes, scaleRes, ticketsRes, productMapRes, materialsRes, contractsRes] = await Promise.all([
         api.get('/procurement-orders'),
         api.get('/procurement-requirements'),
         api.get('/scale/status'),
         api.get('/scale/tickets').catch(() => ({ data: { tickets: [] } })),
         api.get('/scale/product-map').catch(() => ({ data: { productMap: {} } })),
         api.get('/materials').catch(() => ({ data: {} })),
+        api.get('/contracts').catch(() => ({ data: { contracts: [] } })),
       ])
 
       setOrders(arrayFrom(ordersRes.data, ['orders', 'items', 'data']))
@@ -165,6 +172,7 @@ export default function AchizitiiPage() {
       setTickets(arrayFrom(ticketsRes.data, ['tickets', 'items', 'scaleTickets', 'data']))
       setProductMap(Object.entries(productMapRes.data?.productMap || {}).map(([product, materialId]) => ({ product, materialId })))
       setMaterials(arrayFrom(materialsRes.data, ['materials', 'items', 'data']))
+      setContracts(arrayFrom(contractsRes.data, ['contracts', 'items', 'data']))
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut incarca datele de achizitii.')
     } finally {
@@ -186,6 +194,12 @@ export default function AchizitiiPage() {
   const pagedReceipts = useMemo(() => receipts.slice((page - 1) * pageSize, page * pageSize), [receipts, page])
   const pagedRequirements = useMemo(() => requirements.slice((page - 1) * pageSize, page * pageSize), [requirements, page])
   const pagedTickets = useMemo(() => tickets.slice((page - 1) * pageSize, page * pageSize), [tickets, page])
+  const contractOptions = useMemo(() => [
+    { value: '', label: 'Fără contract urmărit' },
+    ...contracts
+      .filter(contract => !contract.cancelled_at && !contract.cancelledAt)
+      .map(contract => ({ value: contract.id, label: contractLabel(contract) })),
+  ], [contracts])
   const productMapRows = useMemo(() => productMap.map(row => {
     const material = materials.find(item => String(item.id) === String(row.materialId))
     return { ...row, materialName: material?.name || material?.denumire || row.materialId }
@@ -214,12 +228,13 @@ export default function AchizitiiPage() {
         nr_comanda: form.orderNo,
         expectedDate: form.expectedDate || null,
         data_livrare_estimata: form.expectedDate || null,
+        contract_id: form.contract_id || null,
         note: form.note,
         observatii: form.note,
       })
       setMessage('Comanda a fost salvată.')
       setModalOpen(false)
-      setForm({ date: today(), supplier: '', materialId: '', amount: '', unitPrice: '', cpv_cod: '', orderNo: '', expectedDate: '', note: '' })
+      setForm({ date: today(), supplier: '', materialId: '', amount: '', unitPrice: '', cpv_cod: '', orderNo: '', expectedDate: '', contract_id: '', note: '' })
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Comanda nu a putut fi salvată.')
@@ -257,6 +272,7 @@ export default function AchizitiiPage() {
     setReceiveForm({
       nr_aviz: '',
       data_receptie: today(),
+      contract_id: order.contract_id || order.contractId || '',
       observatii: '',
       linii: lines.map(line => ({
         material_id: line.material_id || line.materialId,
@@ -489,13 +505,14 @@ export default function AchizitiiPage() {
                   <th className="px-3 py-2">Dată</th>
                   <th className="px-3 py-2">Furnizor</th>
                   <th className="px-3 py-2">Materiale</th>
+                  <th className="px-3 py-2">Contract</th>
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2 text-right">Valoare</th>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {pagedOrders.length === 0 ? <EmptyRow colSpan={6} loading={loading} /> : pagedOrders.map(order => {
+                {pagedOrders.length === 0 ? <EmptyRow colSpan={7} loading={loading} /> : pagedOrders.map(order => {
                   const status = orderStatusInfo(order.status)
                   const value = order.value || order.valoare || order.total || Number(order.amount || 0) * Number(order.unitPrice || order.pret_unitar || 0)
                   return (
@@ -503,6 +520,7 @@ export default function AchizitiiPage() {
                       <td className="px-3 py-3">{dateValue(order.date || order.data || order.createdAt)}</td>
                       <td className="px-3 py-3 font-medium text-slate-800">{order.supplier || order.supplierName || order.furnizor || '-'}</td>
                       <td className="px-3 py-3">{order.materialName || order.material || order.materiale || order.itemsSummary || '-'}</td>
+                      <td className="px-3 py-3 text-xs">{order.contract_numar ? <Badge tone="info">{order.contract_numar}</Badge> : '—'}</td>
                       <td className="px-3 py-3"><Badge variant={status.variant}>{status.label}</Badge></td>
                       <td className="px-3 py-3 text-right">{money(value)} RON</td>
                       <td className="px-3 py-3 text-right"><div className="flex justify-end gap-1"><Button size="sm" variant="secondary" onClick={() => printOrder(order)}>🖨️ Tipărește</Button>{['emisa', 'partial', 'open'].includes(String(order.status)) ? <Button size="sm" variant="secondary" onClick={() => openReceive(order)}>📦 Recepționează</Button> : null}</div></td>
@@ -521,15 +539,16 @@ export default function AchizitiiPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-                <tr><th className="px-3 py-2">Data</th><th className="px-3 py-2">NIR / Aviz</th><th className="px-3 py-2">Furnizor</th><th className="px-3 py-2 text-right">Valoare</th><th className="px-3 py-2">Contabilitate</th><th className="px-3 py-2">Retur</th><th className="px-3 py-2 text-right">Acțiuni</th></tr>
+                <tr><th className="px-3 py-2">Data</th><th className="px-3 py-2">NIR / Aviz</th><th className="px-3 py-2">Furnizor</th><th className="px-3 py-2">Contract</th><th className="px-3 py-2 text-right">Valoare</th><th className="px-3 py-2">Contabilitate</th><th className="px-3 py-2">Retur</th><th className="px-3 py-2 text-right">Acțiuni</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {pagedReceipts.length === 0 ? <EmptyRow colSpan={7} loading={loading} /> : pagedReceipts.map(receipt => {
+                {pagedReceipts.length === 0 ? <EmptyRow colSpan={8} loading={loading} /> : pagedReceipts.map(receipt => {
                   const hasAvailable = (receipt.lines || []).some(line => Number(line.cantitate_receptionata || line.cantitate || 0) - Number(line.cantitate_returnata || 0) > 0)
                   return <tr key={receipt.id} className="hover:bg-slate-50">
                     <td className="px-3 py-3">{dateValue(receipt.date)}</td>
                     <td className="px-3 py-3 font-medium text-slate-800">{receipt.nr_nir || receipt.document || receipt.nr_aviz || receipt.id}</td>
                     <td className="px-3 py-3">{receipt.supplier || '-'}</td>
+                    <td className="px-3 py-3 text-xs">{receipt.contract_numar ? <Badge tone="info">{receipt.contract_numar}</Badge> : '—'}</td>
                     <td className="px-3 py-3 text-right">{money(receipt.total)} RON</td>
                     <td className="px-3 py-3"><Badge variant={receipt.accounting_invoice_id ? 'green' : 'yellow'}>{receipt.accounting_invoice_id ? 'Factură legată' : 'Factură în așteptare'}</Badge></td>
                     <td className="px-3 py-3"><Badge variant={receipt.return_status ? 'yellow' : 'gray'}>{receipt.return_status === 'returnata_integral' ? 'Integral' : receipt.return_status === 'returnata_partial' ? 'Parțial' : 'Fără retur'}</Badge></td>
@@ -705,6 +724,7 @@ export default function AchizitiiPage() {
             <Input label="Preț unitar estimat (lei)" type="number" min="0" step="0.01" value={form.unitPrice} onChange={event => setForm({ ...form, unitPrice: event.target.value })} />
             <CPVSelector value={form.cpv_cod} onChange={cpv_cod => setForm({ ...form, cpv_cod })} />
             <Input label="Dată estimată livrare" type="date" value={form.expectedDate} onChange={event => setForm({ ...form, expectedDate: event.target.value })} />
+            <Select label="Contract urmărit" value={form.contract_id || ''} onChange={event => setForm({ ...form, contract_id: event.target.value })} options={contractOptions} />
           </div>
           <Input label="Observații" value={form.note} onChange={event => setForm({ ...form, note: event.target.value })} />
           <div className="flex justify-end gap-2">
@@ -719,6 +739,7 @@ export default function AchizitiiPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Nr. aviz" value={receiveForm.nr_aviz} onChange={event => setReceiveForm({ ...receiveForm, nr_aviz: event.target.value })} />
             <Input label="Data recepției" type="date" value={receiveForm.data_receptie} onChange={event => setReceiveForm({ ...receiveForm, data_receptie: event.target.value })} />
+            <Select label="Contract urmărit" value={receiveForm.contract_id || ''} onChange={event => setReceiveForm({ ...receiveForm, contract_id: event.target.value })} options={contractOptions} />
           </div>
           <div className="grid gap-2">
             {receiveForm.linii.map((line, index) => (

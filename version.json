@@ -1,5 +1,5 @@
 {
-  "version": "2.12.317",
+  "version": "2.12.318",
   "date": "2026-07-18",
-  "changelog": "## v2.12.317 - 2026-07-18\n### Selector contract in documente sursa\n- NIR-ul din Gestiune permite alegerea contractului urmarit direct la creare.\n- Facturile contabile de intrare/iesire permit alegerea contractului urmarit direct din formular.\n- Facturile generate din NIR-uri mostenesc automat contractul cand sursele au acelasi contract.\n- Contract Management evita dublarea consumului intre NIR si factura generata din acelasi NIR."
+  "changelog": "## v2.12.318 - 2026-07-18\n### Contracte in Achizitii si Receptii\n- Comenzile de achizitii permit alegerea contractului urmarit direct la creare.\n- Receptiile/NIR-urile din Achizitii mostenesc automat contractul comenzii sau pot fi ajustate la confirmare.\n- Listele de comenzi si receptii afiseaza contractul legat.\n- Contract Management preia automat consumul din receptiile legate si pastreaza firul comanda -> receptie -> factura."
 }

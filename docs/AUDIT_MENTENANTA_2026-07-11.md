@@ -484,3 +484,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/accounting/accounting-routes.js` — ✅ facturile contabile persistă `contract_id` / `contractId`;
 - `server/modules/accounting/accounting-control-routes.js` — ✅ facturile generate din NIR moștenesc contractul când sursele sunt coerente;
 - `server/modules/contracts/routes.js` — ✅ evită dublarea consumului când NIR-ul și factura aferentă sunt legate la același contract.
+
+### UPDATE 338 — Contracte în Achiziții și Recepții
+
+- `client/src/pages/modules/AchizitiiPage.jsx` — ✅ selector „Contract urmărit” în comandă nouă și recepție;
+- `client/src/pages/modules/AchizitiiPage.jsx` — ✅ listele de comenzi și recepții afișează contractul legat;
+- `server/modules/procurement/routes.js` — ✅ comenzile de achiziții persistă legătura contractului;
+- `server/modules/procurement/routes.js` — ✅ recepțiile moștenesc contractul comenzii sau folosesc selecția explicită;
+- fluxul Contract Management acoperă acum traseul `contract → comandă → recepție/NIR → factură`.

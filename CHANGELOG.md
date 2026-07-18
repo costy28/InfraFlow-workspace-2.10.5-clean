@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.318 - 2026-07-18
+
+## Contracte în Achiziții și Recepții
+
+- Comenzile de achiziții au câmp „Contract urmărit” direct la creare.
+- Recepțiile/NIR-urile din Achiziții moștenesc automat contractul comenzii și pot fi ajustate la confirmare.
+- Listele de comenzi și recepții afișează contractul legat.
+- Backend-ul salvează contractul atât pe fluxul modern de recepții, cât și pe fallback-ul legacy.
+- Contract Management poate urmări consumul pe traseul comandă → recepție → factură fără reintroducere manuală.
+
 # v2.12.317 - 2026-07-18
 
 ## Selector contract în documente sursă
