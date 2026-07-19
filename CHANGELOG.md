@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.332 - 2026-07-19
+
+## Timeline dosar contract
+
+- Dosarul contractului primește timeline cronologic unic în cockpit.
+- Timeline-ul reunește contractul, alertele, documentele sursă, consumurile, actele adiționale, atașamentele, task-urile și tichetele.
+- Evenimentele includ data, tip, status, actor, suma și fișier descărcabil unde există.
+- Frontend-ul afișează timeline-ul imediat după cockpit pentru urmărire rapidă.
+- Implementarea este read-only și nu necesită migrare DB.
+
 # v2.12.331 - 2026-07-19
 
 ## Act adițional cu fișier atașat

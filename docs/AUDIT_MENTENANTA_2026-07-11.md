@@ -607,3 +607,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ fișa printabilă afișează fișierul asociat actului adițional;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ formularul de act adițional include câmp „Fișier semnat”;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ istoricul actelor adiționale permite descărcarea directă a fișierului semnat.
+
+### UPDATE 352 — Timeline dosar contract
+
+- `server/modules/contracts/routes.js` — ✅ helper `contractTimeline` care agregă evenimentele dosarului fără tabel nou;
+- `server/modules/contracts/routes.js` — ✅ `cockpit.timeline` include contract, alerte, documente sursă, consumuri, acte adiționale, atașamente, task-uri și tichete;
+- `server/modules/contracts/routes.js` — ✅ sumarul cockpit include `timeline_total`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card „Timeline dosar contract” în modalul Dosar contract;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ evenimentele afișează tip, status, dată, actor, sumă și descărcare fișier unde există.

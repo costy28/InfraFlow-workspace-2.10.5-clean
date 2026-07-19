@@ -1,5 +1,5 @@
 {
-  "version": "2.12.331",
+  "version": "2.12.332",
   "date": "2026-07-19",
-  "changelog": "## v2.12.331 - 2026-07-19\n### Act aditional cu fisier atasat\n- Actele aditionale pot fi salvate impreuna cu fisierul semnat PDF/Word/Excel/imagine.\n- Fisierul este pastrat in dosarul contractului si legat direct de actul aditional.\n- Istoricul actelor aditionale afiseaza badge de fisier si buton de descarcare.\n- Fisa printabila a contractului include fisierul asociat fiecarui act aditional.\n- Upload-ul contractelor foloseste o functie comuna pentru atasamente, reducand dublarea."
+  "changelog": "## v2.12.332 - 2026-07-19\n### Timeline dosar contract\n- Dosarul contractului primeste timeline cronologic unic in cockpit.\n- Timeline-ul reuneste contractul, alertele, documentele sursa, consumurile, actele aditionale, atasamentele, task-urile si tichetele.\n- Evenimentele includ data, tip, status, actor, suma si fisier descarcabil unde exista.\n- Frontend-ul afiseaza timeline-ul imediat dupa cockpit pentru urmarire rapida.\n- Implementarea este read-only si nu necesita migrare DB."
 }

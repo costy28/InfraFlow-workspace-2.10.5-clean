@@ -98,6 +98,14 @@ function sourceTone(type) {
   return 'gray'
 }
 
+function timelineTone(item) {
+  if (['danger', 'warning', 'success', 'info', 'gray'].includes(item?.tone)) return item.tone
+  if (item?.type === 'alert') return alertTone(item.status)
+  if (item?.type?.startsWith('source_')) return sourceTone(item.type.replace('source_', ''))
+  if (item?.type === 'addendum' || item?.type === 'attachment') return 'info'
+  return 'gray'
+}
+
 export default function ContractePage() {
   const [contracts, setContracts] = useState([])
   const [dashboard, setDashboard] = useState(null)
@@ -786,6 +794,38 @@ export default function ContractePage() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </Card>
+
+            <Card title="Timeline dosar contract" subtitle="Istoric cronologic: contract, documente sursă, consumuri, acte adiționale, atașamente, task-uri, tichete și alerte.">
+              <div className="max-h-96 overflow-auto rounded-xl border border-slate-200 bg-white">
+                {(contractDetails.cockpit?.timeline || []).length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-slate-500">Nu există evenimente în dosarul contractului.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {contractDetails.cockpit.timeline.map(item => (
+                      <div key={item.id || `${item.type}-${item.date}-${item.title}`} className="grid gap-3 px-3 py-3 text-sm md:grid-cols-[120px_1fr_auto]">
+                        <div className="text-xs font-medium uppercase text-slate-500">{formatDate(item.date)}</div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge tone={timelineTone(item)}>{item.type_label || item.type || 'Eveniment'}</Badge>
+                            {item.status ? <Badge tone="gray">{item.status}</Badge> : null}
+                            <span className="font-semibold text-slate-900">{item.title}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
+                            {item.subtitle ? <span>{item.subtitle}</span> : null}
+                            {item.actor ? <span>{item.actor}</span> : null}
+                            {item.document_nr ? <span>{item.document_nr}</span> : null}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+                          {Number(item.amount || 0) ? <span className="text-sm font-semibold text-slate-900">{formatMoney(item.amount, item.currency || contractDetails.moneda || 'RON')}</span> : null}
+                          {item.attachment ? <Button size="sm" variant="secondary" onClick={() => downloadAttachment(item.attachment)}>Descarcă</Button> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </Card>
 

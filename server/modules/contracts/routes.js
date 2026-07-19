@@ -565,6 +565,143 @@ function decorateContract(db, contract, options = {}) {
   return decorated
 }
 
+function compactText(parts) {
+  return parts.map(part => String(part || '').trim()).filter(Boolean).join(' · ')
+}
+
+function timelineDate(value, fallback = null) {
+  const raw = String(value || fallback || '').trim()
+  return raw ? raw.slice(0, 10) : null
+}
+
+function contractTimeline(db, contract, decorated, tasks = [], tickets = []) {
+  const items = []
+  const currency = contract.moneda || 'RON'
+
+  items.push({
+    id: `contract-created-${contract.id}`,
+    type: 'contract',
+    type_label: 'Contract',
+    title: `Contract creat: ${contract.numar || contract.id}`,
+    subtitle: compactText([contract.titlu, contract.partener]),
+    date: timelineDate(contract.created_at || contract.data_semnare || contract.data_start),
+    actor: contract.created_by_name || '',
+    tone: 'success',
+    status: contract.status || 'activ'
+  })
+
+  for (const alert of decorated.alerte || []) {
+    items.push({
+      id: `alert-${alert.code}-${contract.id}`,
+      type: 'alert',
+      type_label: 'Alertă',
+      title: alert.message || 'Alertă contract',
+      subtitle: compactText([alert.code, alert.procent ? `${alert.procent}% consum` : '', alert.zile_ramase !== undefined ? `${alert.zile_ramase} zile` : '']),
+      date: todayIso(),
+      tone: alert.level || 'info',
+      status: alert.level || 'info'
+    })
+  }
+
+  for (const item of decorated.documente_sursa?.timeline || []) {
+    items.push({
+      id: `source-${item.type}-${item.id || item.document_nr}`,
+      type: `source_${item.type || 'document'}`,
+      type_label: item.type_label || 'Document sursă',
+      title: `${item.type_label || 'Document'} ${item.document_nr || item.id || ''}`.trim(),
+      subtitle: compactText([item.partener, item.descriere, item.status]),
+      date: timelineDate(item.data),
+      tone: item.type === 'factura' ? 'success' : item.type === 'nir' ? 'info' : item.type === 'comanda' ? 'warning' : 'gray',
+      amount: round(item.valoare || 0),
+      currency: item.moneda || currency,
+      document_nr: item.document_nr || item.id || '',
+      status: item.status || ''
+    })
+  }
+
+  for (const item of decorated.consumuri || []) {
+    items.push({
+      id: `consumption-${item.id || item.sursa_id || item.document_nr}`,
+      type: 'consumption',
+      type_label: 'Consum',
+      title: `Consum ${item.document_nr || item.sursa || 'manual'}`,
+      subtitle: compactText([item.descriere, item.generated ? 'generat automat' : 'manual']),
+      date: timelineDate(item.data),
+      tone: item.generated ? 'info' : 'gray',
+      amount: round(item.valoare || 0),
+      currency: item.moneda || currency,
+      document_nr: item.document_nr || '',
+      status: item.sursa || 'manual'
+    })
+  }
+
+  for (const item of decorated.acte_aditionale || []) {
+    items.push({
+      id: `addendum-${item.id || item.uuid}`,
+      type: 'addendum',
+      type_label: 'Act adițional',
+      title: `Act adițional ${item.numar || ''}`.trim(),
+      subtitle: compactText([item.descriere, item.atasament ? `fișier: ${item.atasament.original_name || item.atasament.file_name}` : '']),
+      date: timelineDate(item.data_semnare || item.created_at),
+      actor: item.created_by_name || '',
+      tone: item.tip === 'majorare' ? 'success' : item.tip === 'diminuare' ? 'warning' : 'info',
+      amount: round(item.valoare_delta || 0),
+      currency,
+      attachment_id: item.atasament_id || null,
+      attachment: item.atasament || null,
+      status: item.tip || 'altul'
+    })
+  }
+
+  for (const item of decorated.atasamente || []) {
+    items.push({
+      id: `attachment-${item.id || item.uuid}`,
+      type: 'attachment',
+      type_label: 'Atașament',
+      title: item.original_name || item.file_name || 'Fișier contract',
+      subtitle: compactText([item.categorie, item.descriere]),
+      date: timelineDate(item.uploaded_at),
+      actor: item.uploaded_by_name || '',
+      tone: 'info',
+      attachment_id: item.id,
+      attachment: item,
+      status: item.categorie || 'contract'
+    })
+  }
+
+  for (const item of tasks || []) {
+    items.push({
+      id: `task-${item.id || item.uuid}`,
+      type: 'task',
+      type_label: 'Task',
+      title: item.titlu || 'Task contract',
+      subtitle: compactText([item.responsabil_nume || 'responsabil nesetat', item.descriere, item.ticket_uuid ? `ticket ${item.ticket_uuid}` : '']),
+      date: timelineDate(item.created_at || item.deadline),
+      actor: item.created_by_name || '',
+      tone: item.overdue ? 'danger' : item.status === 'rezolvat' ? 'success' : 'warning',
+      status: item.status || 'deschis'
+    })
+  }
+
+  for (const item of tickets || []) {
+    items.push({
+      id: `ticket-${item.id || item.uuid}`,
+      type: 'ticket',
+      type_label: 'Ticket',
+      title: item.titlu || `Ticket ${item.uuid || item.id || ''}`.trim(),
+      subtitle: compactText([item.uuid, item.prioritate, item.entitate_tip]),
+      date: timelineDate(item.created_at || item.updated_at || item.termen_limita),
+      tone: ['rezolvat', 'inchis'].includes(String(item.status || '').toLowerCase()) ? 'success' : 'warning',
+      status: item.status || ''
+    })
+  }
+
+  return items
+    .filter(item => item.date || item.title)
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.id || '').localeCompare(String(a.id || '')))
+    .slice(0, 100)
+}
+
 function contractCockpit(db, contract, decoratedContract = null) {
   const cm = ensureContractsDb(db)
   const ticketsDb = ensureTicketsDb(db)
@@ -590,6 +727,7 @@ function contractCockpit(db, contract, decoratedContract = null) {
     }))
   const openTaskCount = tasks.filter(item => !['rezolvat', 'inchis', 'anulat'].includes(String(item.status || '').toLowerCase())).length
   const openTicketCount = tickets.filter(item => !['rezolvat', 'inchis', 'respins'].includes(String(item.status || '').toLowerCase())).length
+  const timeline = contractTimeline(db, contract, decorated, tasks, tickets)
   return {
     summary: {
       alerts: decorated.alerte?.length || 0,
@@ -601,6 +739,7 @@ function contractCockpit(db, contract, decoratedContract = null) {
       attachments_total: decorated.atasamente?.length || 0,
       addenda_total: decorated.acte_aditionale?.length || 0,
       consumptions_total: decorated.consumuri?.length || 0,
+      timeline_total: timeline.length,
       consum_percent: decorated.procent_consum || 0,
       days_left: decorated.summary?.zile_ramase ?? null
     },
@@ -609,7 +748,8 @@ function contractCockpit(db, contract, decoratedContract = null) {
     alerts: decorated.alerte || [],
     documents: decorated.documente_sursa || { groups: [], timeline: [], counts: {} },
     attachments: decorated.atasamente || [],
-    addenda: decorated.acte_aditionale || []
+    addenda: decorated.acte_aditionale || [],
+    timeline
   }
 }
 
