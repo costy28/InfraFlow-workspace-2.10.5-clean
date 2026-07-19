@@ -948,9 +948,22 @@ export default function ContractePage() {
                         </div>
                         <div className="grid gap-2 md:max-w-md md:justify-items-end">
                           {item.action ? <div className="text-xs font-medium text-slate-700 md:text-right">{item.action}</div> : null}
-                          <Button size="sm" variant="secondary" onClick={() => createTaskFromAction(item)} loading={saving}>
-                            Creează task
-                          </Button>
+                          {item.has_open_task ? (
+                            <div className="grid gap-1 text-xs text-slate-600 md:justify-items-end">
+                              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                                <Badge tone={item.linked_task?.overdue ? 'danger' : 'warning'}>task deschis</Badge>
+                                <span className="font-medium text-slate-800">{item.linked_task?.titlu || 'Task operațional'}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-2 md:justify-end">
+                                {item.linked_task?.responsabil_nume ? <span>{item.linked_task.responsabil_nume}</span> : null}
+                                {item.linked_task?.deadline ? <span>termen {formatDate(item.linked_task.deadline)}</span> : null}
+                              </div>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="secondary" onClick={() => createTaskFromAction(item)} loading={saving}>
+                              Creează task
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.337 - 2026-07-19
+
+## Acțiuni contract cu task legat
+
+- Planul rapid de acțiune recunoaște task-urile deschise deja create pentru aceeași recomandare.
+- Sunt corelate și task-urile generate anterior din alerte, nu doar cele create manual din plan.
+- UI-ul afișează badge `task deschis`, responsabil și termenul task-ului.
+- Butonul `Creează task` este ascuns când există deja un task deschis pentru acțiune.
+- Implementarea nu necesită migrare DB.
+
 # v2.12.336 - 2026-07-19
 
 ## Task din acțiune contract

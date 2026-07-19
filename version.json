@@ -1,5 +1,5 @@
 {
-  "version": "2.12.336",
+  "version": "2.12.337",
   "date": "2026-07-19",
-  "changelog": "## v2.12.336 - 2026-07-19\n### Task din actiune contract\n- Planul rapid de actiune permite crearea directa a unui task operational.\n- Endpoint nou POST /api/contracts/:id/tasks, protejat prin permisiuni de management contracte.\n- Task-ul este precompletat cu titlu, descriere, prioritate, termen si responsabilul contractului.\n- Se evita duplicatele pentru aceeasi actiune recomandata deschisa.\n- Operatiunea este auditata si nu necesita migrare DB."
+  "changelog": "## v2.12.337 - 2026-07-19\n### Actiuni contract cu task legat\n- Planul rapid de actiune recunoaste task-urile deschise deja create pentru aceeasi recomandare.\n- Sunt corelate si task-urile generate anterior din alerte, nu doar cele create manual din plan.\n- UI-ul afiseaza badge task deschis, responsabil si termenul task-ului.\n- Butonul Creeaza task este ascuns cand exista deja un task deschis pentru actiune.\n- Implementarea nu necesita migrare DB."
 }

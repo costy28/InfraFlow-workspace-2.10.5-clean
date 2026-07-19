@@ -648,3 +648,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ duplicatele pe aceeași acțiune deschisă sunt reutilizate;
 - `server/modules/contracts/routes.js` — ✅ operațiunea este auditată și persistată;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Creează task” direct în planul rapid de acțiune.
+
+### UPDATE 357 — Acțiuni contract cu task legat
+
+- `server/modules/contracts/routes.js` — ✅ helper `attachOpenTaskToAction` pentru legarea task-urilor existente la acțiunile recomandate;
+- `server/modules/contracts/routes.js` — ✅ corelare prin `action_key` și compatibilitate cu task-urile vechi din alerte prin `alert_code`;
+- `server/modules/contracts/routes.js` — ✅ acțiunea agregată de task-uri restante indică un task restant existent;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ afișare badge „task deschis” cu titlu, responsabil și termen;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ butonul „Creează task” este ascuns când acțiunea are deja task deschis.

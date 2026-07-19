@@ -764,6 +764,29 @@ function contractActionItem(key, priority, title, description, action, source = 
   }
 }
 
+function attachOpenTaskToAction(action, openTasks = []) {
+  const key = String(action.key || '')
+  const alertCode = key.startsWith('alert-') ? key.slice(6) : ''
+  const linkedTask = openTasks.find(task => String(task.action_key || '') === key) ||
+    (alertCode ? openTasks.find(task => String(task.alert_code || '') === alertCode) : null) ||
+    (key === 'overdue-tasks' ? openTasks.find(task => task.overdue) : null)
+  if (!linkedTask) return action
+  return {
+    ...action,
+    has_open_task: true,
+    linked_task: {
+      id: linkedTask.id,
+      uuid: linkedTask.uuid,
+      titlu: linkedTask.titlu,
+      status: linkedTask.status,
+      prioritate: linkedTask.prioritate,
+      deadline: linkedTask.deadline,
+      overdue: linkedTask.overdue,
+      responsabil_nume: linkedTask.responsabil_nume || ''
+    }
+  }
+}
+
 function contractActionPlan(contract, decorated, tasks, tickets, completeness) {
   const items = []
   const openStatuses = ['rezolvat', 'inchis', 'anulat', 'respins']
@@ -839,6 +862,7 @@ function contractActionPlan(contract, decorated, tasks, tickets, completeness) {
   }
 
   return Array.from(unique.values())
+    .map(item => attachOpenTaskToAction(item, openTasks))
     .sort((a, b) => Number(a.priority || 9) - Number(b.priority || 9) || String(a.title || '').localeCompare(String(b.title || ''), 'ro'))
     .slice(0, 12)
 }
