@@ -10,6 +10,10 @@ const { getDefaultVatRate } = require("../shared/countryRules");
 const ROOT = path.resolve(__dirname, "..", "..");
 loadPreferredDatabaseEnv(ROOT);
 const DATA_DIR = path.join(ROOT, "data");
+const DEFAULT_MSSQL_HELPER_TIMEOUT_MS = 180000;
+const DEFAULT_MSSQL_HELPER_RETRIES = 2;
+const DEFAULT_MSSQL_HELPER_RETRY_DELAY_MS = 5000;
+
 function resolveDataFile(envName, fallbackName) {
   const configured = String(process.env[envName] || fallbackName).trim();
   return path.isAbsolute(configured) ? configured : path.join(DATA_DIR, configured);
@@ -901,6 +905,45 @@ function cloneDb(db) {
   return JSON.parse(JSON.stringify(db));
 }
 
+function sleepSync(ms) {
+  if (!ms || ms <= 0) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function mssqlHelperTimeoutMs(options = {}) {
+  const configured = Number(process.env.INFRAFLOW_MSSQL_HELPER_TIMEOUT_MS || process.env.ASFALT_MSSQL_HELPER_TIMEOUT_MS || 0);
+  const requested = Number(options.timeoutMs || 0);
+  return Math.max(DEFAULT_MSSQL_HELPER_TIMEOUT_MS, requested || 0, Number.isFinite(configured) ? configured : 0);
+}
+
+function mssqlHelperRetries(options = {}) {
+  const configured = Number(process.env.INFRAFLOW_MSSQL_HELPER_RETRIES ?? process.env.ASFALT_MSSQL_HELPER_RETRIES ?? DEFAULT_MSSQL_HELPER_RETRIES);
+  const requested = Number(options.retries ?? configured);
+  return Math.max(0, Number.isFinite(requested) ? requested : DEFAULT_MSSQL_HELPER_RETRIES);
+}
+
+function mssqlHelperRetryDelayMs(attempt) {
+  const configured = Number(process.env.INFRAFLOW_MSSQL_HELPER_RETRY_DELAY_MS || process.env.ASFALT_MSSQL_HELPER_RETRY_DELAY_MS || DEFAULT_MSSQL_HELPER_RETRY_DELAY_MS);
+  const base = Math.max(1000, Number.isFinite(configured) ? configured : DEFAULT_MSSQL_HELPER_RETRY_DELAY_MS);
+  return base * Math.max(1, attempt);
+}
+
+function isRetryableMssqlHelperError(error) {
+  const text = [
+    error?.code,
+    error?.signal,
+    error?.message,
+    error?.stderr && String(error.stderr),
+    error?.stdout && String(error.stdout)
+  ].filter(Boolean).join(" ").toLowerCase();
+  return text.includes("etimedout") ||
+    text.includes("timed out") ||
+    text.includes("timeout") ||
+    text.includes("error locating server/instance") ||
+    text.includes("network-related or instance-specific") ||
+    text.includes("server was not found or was not accessible");
+}
+
 // Ruleaza un script SQL Server prin PowerShell si intoarce prima valoare scalara.
 function runMssqlScalar(sql, options = {}) {
   const script = `
@@ -943,19 +986,33 @@ $connection.Open()
     ASFALT_MSSQL_CONNECTION_B64: Buffer.from(options.connectionString || mssqlConnectionString(), "utf8").toString("base64"),
     ASFALT_MSSQL_SQL_B64: Buffer.from(sql, "utf8").toString("base64"),
     ASFALT_MSSQL_JSON_FILE: jsonFile,
-    ASFALT_MSSQL_COMMAND_TIMEOUT_SECONDS: String(options.commandTimeoutSeconds || Math.max(60, Math.ceil((options.timeoutMs || 120000) / 1000) - 5))
+    ASFALT_MSSQL_COMMAND_TIMEOUT_SECONDS: String(options.commandTimeoutSeconds || Math.max(60, Math.ceil(mssqlHelperTimeoutMs(options) / 1000) - 15))
   };
+  const timeoutMs = mssqlHelperTimeoutMs(options);
+  const retries = mssqlHelperRetries(options);
+  let lastError = null;
   try {
-    return childProcess.execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodedCommand], {
-      cwd: ROOT,
-      env,
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "pipe"],
-      maxBuffer: 50 * 1024 * 1024,
-      timeout: options.timeoutMs || 120000
-    });
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        return childProcess.execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodedCommand], {
+          cwd: ROOT,
+          env,
+          encoding: "utf8",
+          stdio: ["pipe", "pipe", "pipe"],
+          maxBuffer: 50 * 1024 * 1024,
+          timeout: timeoutMs
+        });
+      } catch (error) {
+        lastError = error;
+        if (attempt >= retries || !isRetryableMssqlHelperError(error)) throw error;
+        const delayMs = mssqlHelperRetryDelayMs(attempt + 1);
+        console.warn(`[DB] SQL Server helper lent/indisponibil (${attempt + 1}/${retries + 1}). Reincerc in ${Math.round(delayMs / 1000)}s: ${error.message}`);
+        sleepSync(delayMs);
+      }
+    }
+    return "";
   } catch (error) {
-    const details = error.stderr ? String(error.stderr).trim() : error.message;
+    const details = (lastError || error).stderr ? String((lastError || error).stderr).trim() : (lastError || error).message;
     throw new Error(`Eroare SQL Server: ${details}`);
   } finally {
     if (jsonFile) fs.rmSync(jsonFile, { force: true });

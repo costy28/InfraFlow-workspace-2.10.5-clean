@@ -47,6 +47,16 @@ const emptyAttachmentForm = {
   file: null,
 }
 
+const emptyAddendumForm = {
+  numar: '',
+  tip: 'prelungire',
+  data_semnare: new Date().toISOString().slice(0, 10),
+  valoare_delta: '',
+  data_sfarsit_noua: '',
+  responsabil_nume_nou: '',
+  descriere: '',
+}
+
 function arrayFrom(data, keys) {
   for (const key of keys) {
     if (Array.isArray(data?.[key])) return data[key]
@@ -104,6 +114,7 @@ export default function ContractePage() {
   const [consumptionForm, setConsumptionForm] = useState(emptyConsumptionForm)
   const [sourceForm, setSourceForm] = useState(emptySourceForm)
   const [attachmentForm, setAttachmentForm] = useState(emptyAttachmentForm)
+  const [addendumForm, setAddendumForm] = useState(emptyAddendumForm)
   const [linkableSources, setLinkableSources] = useState([])
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -179,6 +190,7 @@ export default function ContractePage() {
     setSelectedContract(contract)
     setContractDetails(null)
     setAttachmentForm(emptyAttachmentForm)
+    setAddendumForm(emptyAddendumForm)
     setDetailModalOpen(true)
     setError('')
     setNotice('')
@@ -227,6 +239,44 @@ export default function ContractePage() {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Atașamentul nu a putut fi încărcat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveAddendum(event) {
+    event.preventDefault()
+    if (!contractDetails?.id) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post(`/contracts/${contractDetails.id}/addenda`, addendumForm)
+      setContractDetails(response.data.contract || contractDetails)
+      setAddendumForm(emptyAddendumForm)
+      setNotice('Actul adițional a fost înregistrat și contractul a fost actualizat.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Actul adițional nu a putut fi salvat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function cancelAddendum(item) {
+    if (!contractDetails?.id || !item?.id) return
+    const reason = window.prompt('Motiv anulare act adițional:', 'Corectat prin act adițional nou')
+    if (reason === null) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.delete(`/contracts/${contractDetails.id}/addenda/${item.id}`, { data: { reason } })
+      setContractDetails(response.data.contract || contractDetails)
+      setNotice(response.data.note || 'Actul adițional a fost anulat din istoric.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Actul adițional nu a putut fi anulat.')
     } finally {
       setSaving(false)
     }
@@ -665,6 +715,10 @@ export default function ContractePage() {
                   <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.attachments_total || 0}</div>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Acte adiționale</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.addenda_total || 0}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
                   <div className="text-xs uppercase text-slate-500">Consumuri</div>
                   <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.consumptions_total || 0}</div>
                 </div>
@@ -722,6 +776,71 @@ export default function ContractePage() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </Card>
+
+            <Card title="Acte adiționale" subtitle="Modificări controlate pentru valoare, termen, responsabil sau condiții contractuale. Istoricul păstrează valorile înainte/după.">
+              <form className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-4" onSubmit={saveAddendum}>
+                <Input label="Număr act" value={addendumForm.numar} onChange={event => setAddendumForm({ ...addendumForm, numar: event.target.value })} required />
+                <Select label="Tip" value={addendumForm.tip} onChange={event => setAddendumForm({ ...addendumForm, tip: event.target.value })}>
+                  <option value="prelungire">Prelungire termen</option>
+                  <option value="majorare">Majorare valoare</option>
+                  <option value="diminuare">Diminuare valoare</option>
+                  <option value="responsabil">Schimbare responsabil</option>
+                  <option value="conditii">Condiții contractuale</option>
+                  <option value="altul">Altul</option>
+                </Select>
+                <Input label="Data semnare" type="date" value={addendumForm.data_semnare} onChange={event => setAddendumForm({ ...addendumForm, data_semnare: event.target.value })} required />
+                <Input label="Delta valoare" type="number" step="0.01" value={addendumForm.valoare_delta} onChange={event => setAddendumForm({ ...addendumForm, valoare_delta: event.target.value })} helperText="La diminuare se aplică automat cu minus." />
+                <Input label="Termen nou" type="date" value={addendumForm.data_sfarsit_noua} onChange={event => setAddendumForm({ ...addendumForm, data_sfarsit_noua: event.target.value })} />
+                <Input label="Responsabil nou" value={addendumForm.responsabil_nume_nou} onChange={event => setAddendumForm({ ...addendumForm, responsabil_nume_nou: event.target.value })} />
+                <label className="lg:col-span-2">
+                  <span className="mb-1 block text-sm font-medium text-slate-700">Descriere / obiect</span>
+                  <textarea
+                    className="min-h-[42px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                    value={addendumForm.descriere}
+                    onChange={event => setAddendumForm({ ...addendumForm, descriere: event.target.value })}
+                    placeholder="Ex: prelungire termen, suplimentare valoare, schimbare manager contract..."
+                  />
+                </label>
+                <div className="flex items-end lg:col-span-4">
+                  <Button type="submit" loading={saving}>Adaugă act adițional</Button>
+                </div>
+              </form>
+
+              <div className="mt-3 grid gap-2">
+                {(contractDetails.acte_aditionale || []).length === 0 ? (
+                  <div className="rounded-lg border border-slate-200 px-3 py-4 text-center text-sm text-slate-500">Nu există acte adiționale înregistrate pe contract.</div>
+                ) : contractDetails.acte_aditionale.map(item => (
+                  <div key={item.id || item.uuid} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone={item.tip === 'majorare' ? 'success' : item.tip === 'diminuare' ? 'warning' : 'info'}>{item.tip || 'altul'}</Badge>
+                          <span className="font-semibold text-slate-900">{item.numar}</span>
+                          <span className="text-xs text-slate-500">{formatDate(item.data_semnare)}</span>
+                        </div>
+                        <div className="mt-1 text-slate-600">{item.descriere || 'fără descriere'}</div>
+                      </div>
+                      <Button size="sm" variant="secondary" onClick={() => cancelAddendum(item)} loading={saving}>Anulează</Button>
+                    </div>
+                    <div className="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+                      <div className="rounded-lg bg-slate-50 p-2">
+                        <div className="uppercase text-slate-500">Valoare</div>
+                        <div>{Number(item.valoare_delta || 0) ? `${formatMoney(item.valoare_contract_inainte, contractDetails.moneda || 'RON')} → ${formatMoney(item.valoare_contract_dupa, contractDetails.moneda || 'RON')}` : 'fără modificare'}</div>
+                        {Number(item.valoare_delta || 0) ? <div className="font-semibold text-slate-800">Delta: {formatMoney(item.valoare_delta, contractDetails.moneda || 'RON')}</div> : null}
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-2">
+                        <div className="uppercase text-slate-500">Termen</div>
+                        <div>{item.data_sfarsit_dupa && item.data_sfarsit_dupa !== item.data_sfarsit_inainte ? `${formatDate(item.data_sfarsit_inainte)} → ${formatDate(item.data_sfarsit_dupa)}` : 'fără modificare'}</div>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-2">
+                        <div className="uppercase text-slate-500">Responsabil</div>
+                        <div>{item.responsabil_nume_dupa && item.responsabil_nume_dupa !== item.responsabil_nume_inainte ? `${item.responsabil_nume_inainte || '-'} → ${item.responsabil_nume_dupa}` : 'fără modificare'}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </Card>
 

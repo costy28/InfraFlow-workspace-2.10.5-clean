@@ -580,3 +580,21 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ fișa printabilă a contractului include atașamentele;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ card „Atașamente contract” în modalul Dosar contract;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ upload cu categorie/descriere, descărcare și anulare.
+
+### UPDATE 349 — Acte adiționale pe contract
+
+- `server/modules/contracts/routes.js` — ✅ acte adiționale persistate în `contractManagement.addenda`;
+- `server/modules/contracts/routes.js` — ✅ endpointuri pentru adăugare și anulare soft a actelor adiționale;
+- `server/modules/contracts/routes.js` — ✅ actele adiționale pot ajusta valoarea, termenul și responsabilul contractului;
+- `server/modules/contracts/routes.js` — ✅ istoricul păstrează valorile înainte/după pentru trasabilitate;
+- `server/modules/contracts/routes.js` — ✅ cockpit-ul și fișa printabilă includ actele adiționale;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card „Acte adiționale” în modalul Dosar contract, cu formular și listă istoric.
+
+### UPDATE 350 — Startup robust după Windows Update
+
+- `server/core/db.js` — ✅ timeout minim 180s pentru helperul MSSQL PowerShell;
+- `server/core/db.js` — ✅ retry/backoff pentru erori tranzitorii PowerShell/SQL după restart Windows;
+- `installer/setup-task.ps1` — ✅ task-ul de autostart setează variabilele de toleranță MSSQL;
+- `scripts/setup-task.ps1` — ✅ script de refacere autostart inclus direct în update ZIP;
+- `scripts/windows/repair-autostart.ps1` — ✅ caută `setup-task.ps1` în locații multiple și așteaptă health mai mult;
+- `scripts/windows/verify-infraflow-startup.ps1` — ✅ timeout implicit extins la 150s.

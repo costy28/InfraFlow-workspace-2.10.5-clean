@@ -1,5 +1,5 @@
 {
-  "version": "2.12.328",
-  "date": "2026-07-18",
-  "changelog": "## v2.12.328 - 2026-07-18\n### Atasamente pe contract\n- Contract Management permite incarcarea documentelor reale in dosarul contractului.\n- Atasamente acceptate: PDF, DOC/DOCX, XLS/XLSX si imagini.\n- Endpointuri noi pentru upload, download si anulare soft a atasamentelor.\n- Modalul Dosar contract afiseaza card Atasamente contract cu incarcare si descarcare.\n- Fisa printabila a contractului include lista atasamentelor incarcate."
+  "version": "2.12.330",
+  "date": "2026-07-19",
+  "changelog": "## v2.12.330 - 2026-07-19\n### Startup robust dupa Windows Update\n- Helperul MSSQL prin PowerShell are timeout minim mai mare si retry/backoff.\n- Task-ul de autostart primeste variabile explicite pentru startup SQL tolerant.\n- Scriptul repair-autostart cauta setup-task in mai multe locatii si asteapta mai mult health-ul.\n- Pachetul update include acum scripts/setup-task.ps1 pentru repararea autostart fara installer complet.\n- Verificarea de startup asteapta implicit 150 secunde, util dupa update-uri Windows lente."
 }

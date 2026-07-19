@@ -75,7 +75,10 @@ $bat = @(
   "set DB_TRUSTED_CONNECTION=$dbTrustedConnection",
   "set MSSQL_RELATIONAL=$mssqlRelational",
   "set SQLSERVER_PROFILE=$sqlProfile",
-  "set SQLSERVER_VERSION_MAJOR=$sqlMajorVersion"
+  "set SQLSERVER_VERSION_MAJOR=$sqlMajorVersion",
+  "set INFRAFLOW_MSSQL_HELPER_TIMEOUT_MS=180000",
+  "set INFRAFLOW_MSSQL_HELPER_RETRIES=2",
+  "set INFRAFLOW_MSSQL_HELPER_RETRY_DELAY_MS=5000"
 )
 if (-not [string]::IsNullOrWhiteSpace($dbUser)) {
   $bat += "set `"DB_USER=$(Escape-BatchValue $dbUser)`""

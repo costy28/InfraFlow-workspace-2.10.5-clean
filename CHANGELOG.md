@@ -1,5 +1,25 @@
 # Changelog
 
+# v2.12.330 - 2026-07-19
+
+## Startup robust după Windows Update
+
+- Helperul MSSQL prin PowerShell are timeout minim mai mare și retry/backoff pentru porniri lente.
+- Task-ul de autostart primește variabile explicite pentru startup SQL tolerant.
+- Scriptul `repair-autostart.ps1` caută `setup-task.ps1` în mai multe locații și așteaptă mai mult răspunsul health.
+- Pachetul update include acum `scripts/setup-task.ps1`, astfel încât autostart-ul poate fi reparat fără installer complet.
+- Verificarea de startup așteaptă implicit 150 secunde, util după update-uri Windows.
+
+# v2.12.329 - 2026-07-18
+
+## Acte adiționale pe contract
+
+- Contract Management permite înregistrarea actelor adiționale direct în dosarul contractului.
+- Actele adiționale pot modifica valoarea contractului, termenul final sau responsabilul.
+- Istoricul păstrează valorile înainte/după pentru trasabilitate.
+- Cockpit-ul contractului și fișa printabilă includ numărul de acte adiționale.
+- Anularea unui act adițional este soft și nu rescrie automat contractul.
+
 # v2.12.328 - 2026-07-18
 
 ## Atașamente pe contract

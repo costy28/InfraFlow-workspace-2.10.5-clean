@@ -2,7 +2,7 @@
 param(
   [string]$AppDir = "C:\Program Files (x86)\InfraFlow",
   [int]$Port = 4180,
-  [int]$TimeoutSeconds = 90
+  [int]$TimeoutSeconds = 150
 )
 
 $ErrorActionPreference = "Stop"

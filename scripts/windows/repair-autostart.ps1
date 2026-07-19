@@ -1,16 +1,21 @@
 #Requires -RunAsAdministrator
 param(
   [string]$AppDir = "C:\Program Files (x86)\InfraFlow",
-  [int]$Port = 4180
+  [int]$Port = 4180,
+  [int]$TimeoutSeconds = 150
 )
 
 $ErrorActionPreference = "Stop"
-$setupTask = Join-Path $AppDir "scripts\setup-task.ps1"
+$setupTaskCandidates = @(
+  (Join-Path $AppDir "scripts\setup-task.ps1"),
+  (Join-Path $AppDir "installer\setup-task.ps1")
+)
+$setupTask = $setupTaskCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 $verify = Join-Path $AppDir "scripts\windows\verify-infraflow-startup.ps1"
 $log = Join-Path $AppDir "logs\infraflow.err.log"
 
-if (-not (Test-Path -LiteralPath $setupTask)) {
-  throw "Lipseste $setupTask. Reinstalati InfraFlow Server."
+if (-not $setupTask) {
+  throw "Lipseste setup-task.ps1 in scripts sau installer. Reinstalati InfraFlow Server sau reaplicati ultimul update."
 }
 
 Write-Host "Reconstruiesc pornirea automata InfraFlow..." -ForegroundColor Cyan
@@ -23,7 +28,7 @@ Start-Sleep -Seconds 2
 if ($LASTEXITCODE -ne 0) { throw "Task-ul InfraFlow ERP nu a putut fi creat." }
 
 if (Test-Path -LiteralPath $verify) {
-  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $verify -AppDir $AppDir -Port $Port -TimeoutSeconds 45
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $verify -AppDir $AppDir -Port $Port -TimeoutSeconds $TimeoutSeconds
   if ($LASTEXITCODE -eq 0) {
     Write-Host "Pornirea automata InfraFlow functioneaza." -ForegroundColor Green
     exit 0
