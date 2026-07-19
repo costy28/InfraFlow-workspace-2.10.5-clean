@@ -55,6 +55,7 @@ const emptyAddendumForm = {
   data_sfarsit_noua: '',
   responsabil_nume_nou: '',
   descriere: '',
+  file: null,
 }
 
 function arrayFrom(data, keys) {
@@ -250,8 +251,17 @@ export default function ContractePage() {
     setSaving(true)
     setError('')
     setNotice('')
+    const form = new FormData()
+    form.append('numar', addendumForm.numar || '')
+    form.append('tip', addendumForm.tip || 'altul')
+    form.append('data_semnare', addendumForm.data_semnare || '')
+    form.append('valoare_delta', addendumForm.valoare_delta || '')
+    form.append('data_sfarsit_noua', addendumForm.data_sfarsit_noua || '')
+    form.append('responsabil_nume_nou', addendumForm.responsabil_nume_nou || '')
+    form.append('descriere', addendumForm.descriere || '')
+    if (addendumForm.file) form.append('file', addendumForm.file)
     try {
-      const response = await api.post(`/contracts/${contractDetails.id}/addenda`, addendumForm)
+      const response = await api.post(`/contracts/${contractDetails.id}/addenda`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
       setContractDetails(response.data.contract || contractDetails)
       setAddendumForm(emptyAddendumForm)
       setNotice('Actul adițional a fost înregistrat și contractul a fost actualizat.')
@@ -794,7 +804,8 @@ export default function ContractePage() {
                 <Input label="Delta valoare" type="number" step="0.01" value={addendumForm.valoare_delta} onChange={event => setAddendumForm({ ...addendumForm, valoare_delta: event.target.value })} helperText="La diminuare se aplică automat cu minus." />
                 <Input label="Termen nou" type="date" value={addendumForm.data_sfarsit_noua} onChange={event => setAddendumForm({ ...addendumForm, data_sfarsit_noua: event.target.value })} />
                 <Input label="Responsabil nou" value={addendumForm.responsabil_nume_nou} onChange={event => setAddendumForm({ ...addendumForm, responsabil_nume_nou: event.target.value })} />
-                <label className="lg:col-span-2">
+                <Input label="Fișier semnat (opțional)" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onChange={event => setAddendumForm({ ...addendumForm, file: event.target.files?.[0] || null })} helperText={addendumForm.file ? addendumForm.file.name : 'PDF, Word, Excel sau imagine scanată.'} />
+                <label className="lg:col-span-3">
                   <span className="mb-1 block text-sm font-medium text-slate-700">Descriere / obiect</span>
                   <textarea
                     className="min-h-[42px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
@@ -819,10 +830,14 @@ export default function ContractePage() {
                           <Badge tone={item.tip === 'majorare' ? 'success' : item.tip === 'diminuare' ? 'warning' : 'info'}>{item.tip || 'altul'}</Badge>
                           <span className="font-semibold text-slate-900">{item.numar}</span>
                           <span className="text-xs text-slate-500">{formatDate(item.data_semnare)}</span>
+                          {item.atasament ? <Badge tone="gray">fișier atașat</Badge> : null}
                         </div>
                         <div className="mt-1 text-slate-600">{item.descriere || 'fără descriere'}</div>
                       </div>
-                      <Button size="sm" variant="secondary" onClick={() => cancelAddendum(item)} loading={saving}>Anulează</Button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {item.atasament ? <Button size="sm" variant="secondary" onClick={() => downloadAttachment(item.atasament)}>Descarcă fișier</Button> : null}
+                        <Button size="sm" variant="secondary" onClick={() => cancelAddendum(item)} loading={saving}>Anulează</Button>
+                      </div>
                     </div>
                     <div className="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
                       <div className="rounded-lg bg-slate-50 p-2">

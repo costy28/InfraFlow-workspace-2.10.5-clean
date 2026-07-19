@@ -1506,50 +1506,67 @@ router.get('/contracts/:id/print', (req, res) => {
   res.status(200).send(contractPrintHtml(auth.db, contract, auth.user))
 })
 
-router.post('/contracts/:id/addenda', (req, res) => {
-  const auth = requireAuth(req, res)
-  if (!auth) return
-  if (!canManage(auth, res)) return
-  const cm = ensureContractsDb(auth.db)
-  const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
-  if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
-  const payload = normalizeAddendumInput(req.body || {}, contract)
-  const error = validateAddendumPayload(payload, contract)
-  if (error) return sendJson(res, 422, { error })
-  const duplicate = cm.addenda.find(item => !item.cancelled_at && !item.cancelledAt && String(item.contract_id) === String(contract.id) && String(item.numar).toLowerCase() === payload.numar.toLowerCase())
-  if (duplicate) return sendJson(res, 409, { error: 'Exista deja un act aditional cu acest numar pe contract.' })
+router.post('/contracts/:id/addenda', contractUpload.single('file'), (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!canManage(auth, res)) return
+    const cm = ensureContractsDb(auth.db)
+    const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
+    if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
+    const payload = normalizeAddendumInput(req.body || {}, contract)
+    const error = validateAddendumPayload(payload, contract)
+    if (error) return sendJson(res, 422, { error })
+    const duplicate = cm.addenda.find(item => !item.cancelled_at && !item.cancelledAt && String(item.contract_id) === String(contract.id) && String(item.numar).toLowerCase() === payload.numar.toLowerCase())
+    if (duplicate) return sendJson(res, 409, { error: 'Exista deja un act aditional cu acest numar pe contract.' })
 
-  const beforeValue = round(contract.valoare_contract || 0)
-  const beforeEndDate = contract.data_sfarsit || null
-  const beforeResponsible = contract.responsabil_nume || ''
-  const afterValue = round(beforeValue + round(payload.valoare_delta || 0))
-  const afterEndDate = payload.data_sfarsit_noua || beforeEndDate
-  const afterResponsible = payload.responsabil_nume_nou || beforeResponsible
+    const beforeValue = round(contract.valoare_contract || 0)
+    const beforeEndDate = contract.data_sfarsit || null
+    const beforeResponsible = contract.responsabil_nume || ''
+    const afterValue = round(beforeValue + round(payload.valoare_delta || 0))
+    const afterEndDate = payload.data_sfarsit_noua || beforeEndDate
+    const afterResponsible = payload.responsabil_nume_nou || beforeResponsible
+    const addendumId = id('ctr-add')
 
-  const addendum = {
-    id: id('ctr-add'),
-    uuid: crypto.randomUUID(),
-    ...payload,
-    valoare_contract_inainte: beforeValue,
-    valoare_contract_dupa: afterValue,
-    data_sfarsit_inainte: beforeEndDate,
-    data_sfarsit_dupa: afterEndDate,
-    responsabil_nume_inainte: beforeResponsible,
-    responsabil_nume_dupa: afterResponsible,
-    created_by: auth.user.id,
-    created_by_name: auth.user.name || auth.user.username,
-    created_at: nowIso()
+    if (req.file?.buffer) {
+      const attachmentResult = createContractAttachmentFromUpload(auth.db, contract, req.file, req.body, auth.user, {
+        categorie: 'act aditional',
+        descriere: `Act adițional ${payload.numar}`,
+        linked_entity_type: 'contract_addendum',
+        linked_entity_id: addendumId
+      })
+      if (attachmentResult.error) return sendJson(res, 422, { error: attachmentResult.error })
+      payload.atasament_id = attachmentResult.attachment.id
+    }
+
+    const addendum = {
+      id: addendumId,
+      uuid: crypto.randomUUID(),
+      ...payload,
+      valoare_contract_inainte: beforeValue,
+      valoare_contract_dupa: afterValue,
+      data_sfarsit_inainte: beforeEndDate,
+      data_sfarsit_dupa: afterEndDate,
+      responsabil_nume_inainte: beforeResponsible,
+      responsabil_nume_dupa: afterResponsible,
+      created_by: auth.user.id,
+      created_by_name: auth.user.name || auth.user.username,
+      created_at: nowIso()
+    }
+
+    if (payload.valoare_delta) contract.valoare_contract = afterValue
+    if (payload.data_sfarsit_noua) contract.data_sfarsit = payload.data_sfarsit_noua
+    if (payload.responsabil_nume_nou) contract.responsabil_nume = payload.responsabil_nume_nou
+    contract.updated_at = nowIso()
+    cm.addenda.push(addendum)
+
+    addAudit(auth.db, auth.user, 'contract_addendum_created', `${contract.numar || contract.id}: ${addendum.numar}`)
+    if (payload.atasament_id) addAudit(auth.db, auth.user, 'contract_addendum_attachment_uploaded', `${contract.numar || contract.id}: ${addendum.numar}`)
+    writeDb(auth.db)
+    sendJson(res, 201, { addendum, contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) })
+  } catch (error) {
+    next(error)
   }
-
-  if (payload.valoare_delta) contract.valoare_contract = afterValue
-  if (payload.data_sfarsit_noua) contract.data_sfarsit = payload.data_sfarsit_noua
-  if (payload.responsabil_nume_nou) contract.responsabil_nume = payload.responsabil_nume_nou
-  contract.updated_at = nowIso()
-  cm.addenda.push(addendum)
-
-  addAudit(auth.db, auth.user, 'contract_addendum_created', `${contract.numar || contract.id}: ${addendum.numar}`)
-  writeDb(auth.db)
-  sendJson(res, 201, { addendum, contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) })
 })
 
 router.delete('/contracts/:id/addenda/:addendumId', (req, res) => {
@@ -1582,32 +1599,9 @@ router.post('/contracts/:id/attachments', contractUpload.single('file'), (req, r
     const cm = ensureContractsDb(auth.db)
     const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
     if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
-    if (!req.file?.buffer) return sendJson(res, 422, { error: 'Fișierul este obligatoriu.' })
-    const ext = path.extname(req.file.originalname || '').toLowerCase()
-    if (!CONTRACT_ALLOWED_EXT.has(ext)) return sendJson(res, 422, { error: 'Sunt acceptate doar PDF, DOC/DOCX, XLS/XLSX și imagini.' })
-    const safeName = safeFileName(req.file.originalname || `contract${ext}`)
-    const storedName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`
-    ensureContractStorageDir()
-    const diskPath = path.join(CONTRACT_STORAGE_DIR, storedName)
-    fs.writeFileSync(diskPath, req.file.buffer)
-    const attachment = {
-      id: id('ctr-file'),
-      uuid: crypto.randomUUID(),
-      contract_id: contract.id,
-      file_path: `storage/contracts/${storedName}`,
-      file_name: safeName,
-      original_name: req.file.originalname || safeName,
-      file_size: req.file.size || req.file.buffer.length,
-      mime_type: req.file.mimetype || 'application/octet-stream',
-      categorie: String(req.body?.categorie || req.body?.category || 'contract').trim() || 'contract',
-      descriere: String(req.body?.descriere || req.body?.description || '').trim(),
-      sha256: crypto.createHash('sha256').update(req.file.buffer).digest('hex'),
-      uploaded_by: auth.user.id,
-      uploaded_by_name: auth.user.name || auth.user.username,
-      uploaded_at: nowIso(),
-      created_at: nowIso()
-    }
-    cm.attachments.push(attachment)
+    const attachmentResult = createContractAttachmentFromUpload(auth.db, contract, req.file, req.body, auth.user)
+    if (attachmentResult.error) return sendJson(res, 422, { error: attachmentResult.error })
+    const attachment = attachmentResult.attachment
     addAudit(auth.db, auth.user, 'contract_attachment_uploaded', `${contract.numar || contract.id}: ${attachment.original_name}`)
     writeDb(auth.db)
     sendJson(res, 201, { attachment: contractAttachments(auth.db, contract).find(item => String(item.id) === String(attachment.id)), contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) })

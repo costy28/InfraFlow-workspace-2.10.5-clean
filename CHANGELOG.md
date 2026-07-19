@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.331 - 2026-07-19
+
+## Act adițional cu fișier atașat
+
+- Actele adiționale pot fi salvate împreună cu fișierul semnat PDF/Word/Excel/imagine.
+- Fișierul este păstrat în dosarul contractului și legat direct de actul adițional.
+- Istoricul actelor adiționale afișează badge de fișier și buton de descărcare.
+- Fișa printabilă a contractului include fișierul asociat fiecărui act adițional.
+- Upload-ul contractelor folosește o funcție comună pentru atașamente, reducând dublarea.
+
 # v2.12.330 - 2026-07-19
 
 ## Startup robust după Windows Update

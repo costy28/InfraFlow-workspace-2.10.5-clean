@@ -598,3 +598,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `scripts/setup-task.ps1` — ✅ script de refacere autostart inclus direct în update ZIP;
 - `scripts/windows/repair-autostart.ps1` — ✅ caută `setup-task.ps1` în locații multiple și așteaptă health mai mult;
 - `scripts/windows/verify-infraflow-startup.ps1` — ✅ timeout implicit extins la 150s.
+
+### UPDATE 351 — Act adițional cu fișier atașat
+
+- `server/modules/contracts/routes.js` — ✅ creare act adițional cu upload opțional prin `multipart/form-data`;
+- `server/modules/contracts/routes.js` — ✅ helper comun pentru atașamente contract, folosit și de upload-ul general și de actele adiționale;
+- `server/modules/contracts/routes.js` — ✅ actele adiționale returnează obiectul `atasament` asociat din dosarul contractului;
+- `server/modules/contracts/routes.js` — ✅ fișa printabilă afișează fișierul asociat actului adițional;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ formularul de act adițional include câmp „Fișier semnat”;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ istoricul actelor adiționale permite descărcarea directă a fișierului semnat.
