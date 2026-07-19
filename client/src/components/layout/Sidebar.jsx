@@ -186,7 +186,7 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
         <div className={`flex items-center border-b border-slate-200 px-5 py-4 ${collapsed ? 'md:justify-center md:px-3' : 'justify-between'}`}>
           <div className={collapsed ? 'md:hidden' : ''}>
             <div className="text-lg font-semibold text-primary-700">InfraFlow</div>
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Statie asfalt</div>
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">ERP modular</div>
           </div>
           <div className={`hidden h-10 w-10 place-items-center rounded-xl bg-primary-700 text-sm font-bold text-white ${collapsed ? 'md:grid' : ''}`}>
             IF

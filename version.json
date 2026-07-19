@@ -1,5 +1,5 @@
 {
-  "version": "2.12.337",
+  "version": "2.12.338",
   "date": "2026-07-19",
-  "changelog": "## v2.12.337 - 2026-07-19\n### Actiuni contract cu task legat\n- Planul rapid de actiune recunoaste task-urile deschise deja create pentru aceeasi recomandare.\n- Sunt corelate si task-urile generate anterior din alerte, nu doar cele create manual din plan.\n- UI-ul afiseaza badge task deschis, responsabil si termenul task-ului.\n- Butonul Creeaza task este ascuns cand exista deja un task deschis pentru actiune.\n- Implementarea nu necesita migrare DB."
+  "changelog": "## v2.12.338 - 2026-07-19\n### Dashboard comercial generic\n- Prima pagina foloseste texte operationale generice, fara pozitionare prioritara pe asfalt.\n- KPI-ul Tone asfalt azi devine Output operational azi.\n- Sectiunea Status santiere devine Proiecte / lucrari active.\n- Graficul de productie devine grafic de output operational.\n- Sidebar-ul afiseaza ERP modular in loc de Statie asfalt."
 }

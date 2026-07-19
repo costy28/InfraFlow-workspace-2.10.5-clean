@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.338 - 2026-07-19
+
+## Dashboard comercial generic
+
+- Prima pagină folosește texte operaționale generice, fără poziționare prioritară pe asfalt.
+- KPI-ul `Tone asfalt azi` devine `Output operațional azi`.
+- Secțiunea `Status șantiere` devine `Proiecte / lucrări active`.
+- Graficul de producție devine grafic de output operațional.
+- Sidebar-ul afișează `ERP modular` în loc de `Stație asfalt`.
+
 # v2.12.337 - 2026-07-19
 
 ## Acțiuni contract cu task legat

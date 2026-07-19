@@ -510,7 +510,7 @@ export default function DashboardPage() {
 
     return {
       criticalStocks,
-      asphaltToday: numberFrom(report.metrics?.asphaltTotal ?? report.asphaltTotal),
+      operationalOutputToday: numberFrom(report.metrics?.asphaltTotal ?? report.asphaltTotal),
       activeAssets: fleetAssets.filter(assetIsActive).length,
       inboxDocuments,
       tickets,
@@ -525,7 +525,7 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Dashboard operational</h2>
-          <p className="text-sm text-slate-500">Indicatori rapizi din productiei, teren, flota si documente.</p>
+          <p className="text-sm text-slate-500">Indicatori rapizi din operațiuni, stocuri, echipe, flotă și documente.</p>
         </div>
         <Badge tone="success">Live API</Badge>
       </div>
@@ -541,8 +541,8 @@ export default function DashboardPage() {
         />
         <KpiCard
           icon="🏭"
-          label="Tone asfalt azi"
-          value={view.asphaltToday.toLocaleString('ro-RO')}
+          label="Output operațional azi"
+          value={view.operationalOutputToday.toLocaleString('ro-RO')}
           loading={loading}
           error={errors.daily}
           onClick={() => navigate(routes.production)}
@@ -580,7 +580,7 @@ export default function DashboardPage() {
 
       <Card className="cursor-pointer" onClick={() => navigate(routes.projects)}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-900">Status șantiere</h3>
+          <h3 className="text-base font-semibold text-slate-900">Proiecte / lucrări active</h3>
           <Badge>{view.projects.length} active</Badge>
         </div>
         <SectionError error={errors.projects} />
@@ -606,14 +606,14 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )
-            }) : <p className="text-sm text-slate-500">Nu exista proiecte active de afisat.</p>}
+            }) : <p className="text-sm text-slate-500">Nu există proiecte sau lucrări active de afișat.</p>}
           </div>
         )}
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="cursor-pointer" onClick={() => navigate(routes.production)}>
-          <h3 className="mb-4 text-base font-semibold text-slate-900">Grafic producție ultimele 7 zile</h3>
+          <h3 className="mb-4 text-base font-semibold text-slate-900">Grafic output operațional ultimele 7 zile</h3>
           <SectionError error={errors.production7} />
           {loading ? <Skeleton className="h-72" /> : (
             <div className="h-72">

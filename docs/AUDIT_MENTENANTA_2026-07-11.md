@@ -656,3 +656,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ acțiunea agregată de task-uri restante indică un task restant existent;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ afișare badge „task deschis” cu titlu, responsabil și termen;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ butonul „Creează task” este ascuns când acțiunea are deja task deschis.
+
+### UPDATE 358 — Dashboard comercial generic
+
+- `client/src/pages/DashboardPage.jsx` — ✅ subtitlu dashboard generalizat pentru operațiuni, stocuri, echipe, flotă și documente;
+- `client/src/pages/DashboardPage.jsx` — ✅ KPI „Tone asfalt azi” redenumit vizibil în „Output operațional azi”;
+- `client/src/pages/DashboardPage.jsx` — ✅ „Status șantiere” redenumit în „Proiecte / lucrări active”;
+- `client/src/pages/DashboardPage.jsx` — ✅ graficul ultimelor 7 zile este prezentat ca output operațional;
+- `client/src/components/layout/Sidebar.jsx` — ✅ subtitlul produsului este „ERP modular”.
