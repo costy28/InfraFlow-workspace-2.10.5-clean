@@ -632,3 +632,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ cockpit-ul expune `completeness`, `completeness_percent` și `missing_required`;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ KPI „Completitudine” în cockpit;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ card „Checklist completitudine contract” cu progres, status și acțiuni recomandate.
+
+### UPDATE 355 — Plan rapid de acțiune contract
+
+- `server/modules/contracts/routes.js` — ✅ helper `contractActionPlan` calculat din alerte, checklist, task-uri și tichete;
+- `server/modules/contracts/routes.js` — ✅ cockpit-ul expune `action_plan`, `actions_total` și `actions_critical`;
+- `server/modules/contracts/routes.js` — ✅ acțiunile sunt prioritizate în urgent, important și recomandat;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ KPI „Acțiuni urgente” în cockpit;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card „Plan rapid de acțiune” cu sursă, prioritate, descriere și pas recomandat.

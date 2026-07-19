@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.335 - 2026-07-19
+
+## Plan rapid de acțiune contract
+
+- Cockpit-ul contractului generează automat un plan de acțiune din alerte, checklist, task-uri și tichete.
+- Acțiunile sunt prioritizate ca urgente, importante sau recomandate.
+- Sumarul cockpit expune numărul total de acțiuni și acțiunile critice.
+- UI-ul afișează card dedicat cu următorii pași recomandați pentru dosarul contractului.
+- Implementarea este calculată din datele existente și nu necesită migrare DB.
+
 # v2.12.334 - 2026-07-19
 
 ## Checklist completitudine contract

@@ -752,6 +752,97 @@ function contractCompleteness(db, contract, decorated) {
   }
 }
 
+function contractActionItem(key, priority, title, description, action, source = 'cockpit') {
+  return {
+    key,
+    priority,
+    tone: priority === 1 ? 'danger' : priority === 2 ? 'warning' : 'info',
+    title,
+    description,
+    action,
+    source
+  }
+}
+
+function contractActionPlan(contract, decorated, tasks, tickets, completeness) {
+  const items = []
+  const openStatuses = ['rezolvat', 'inchis', 'anulat', 'respins']
+  const openTasks = tasks.filter(item => !openStatuses.includes(String(item.status || '').toLowerCase()))
+  const overdueTasks = openTasks.filter(item => item.overdue)
+  const openTickets = tickets.filter(item => !openStatuses.includes(String(item.status || '').toLowerCase()))
+  const missingRequired = (completeness.items || []).filter(item => item.required && item.status !== 'ok')
+  const recommended = (completeness.items || []).filter(item => !item.required && item.status !== 'ok')
+
+  for (const alert of decorated.alerte || []) {
+    const priority = alert.level === 'danger' ? 1 : alert.level === 'warning' ? 2 : 3
+    items.push(contractActionItem(
+      `alert-${alert.code || alert.message}`,
+      priority,
+      alert.level === 'danger' ? 'Rezolvă alerta critică' : 'Verifică alerta contractului',
+      alert.message || 'Contractul are o alertă operațională.',
+      alert.code === 'expired'
+        ? 'Verifică prelungirea/închiderea contractului sau înregistrează un act adițional.'
+        : alert.code === 'value_exceeded'
+          ? 'Verifică documentele sursă și aprobă depășirea doar dacă există act adițional.'
+          : 'Deschide dosarul și decide dacă este necesar un task sau un act adițional.',
+      'alert'
+    ))
+  }
+
+  if (overdueTasks.length) {
+    items.push(contractActionItem(
+      'overdue-tasks',
+      1,
+      'Închide task-urile restante',
+      `${overdueTasks.length} task-uri sunt peste termen.`,
+      'Actualizează statusul task-urilor sau mută termenul cu justificare.',
+      'task'
+    ))
+  }
+
+  if (openTickets.length) {
+    items.push(contractActionItem(
+      'open-tickets',
+      openTickets.some(item => String(item.prioritate || '').toLowerCase() === 'urgent') ? 1 : 2,
+      'Urmărește tichetele deschise',
+      `${openTickets.length} tichete sunt încă deschise pe contract.`,
+      'Rezolvă tichetele legate înainte de închiderea lunii sau a dosarului.',
+      'ticket'
+    ))
+  }
+
+  for (const item of missingRequired) {
+    items.push(contractActionItem(
+      `missing-${item.key}`,
+      1,
+      `Completează: ${item.label}`,
+      item.description,
+      item.action || 'Completează informația obligatorie în dosarul contractului.',
+      'checklist'
+    ))
+  }
+
+  for (const item of recommended) {
+    items.push(contractActionItem(
+      `recommended-${item.key}`,
+      3,
+      `Recomandat: ${item.label}`,
+      item.description,
+      item.action || 'Completează informația recomandată când ai documentele la îndemână.',
+      'checklist'
+    ))
+  }
+
+  const unique = new Map()
+  for (const item of items) {
+    if (!unique.has(item.key)) unique.set(item.key, item)
+  }
+
+  return Array.from(unique.values())
+    .sort((a, b) => Number(a.priority || 9) - Number(b.priority || 9) || String(a.title || '').localeCompare(String(b.title || ''), 'ro'))
+    .slice(0, 12)
+}
+
 function contractCockpit(db, contract, decoratedContract = null) {
   const cm = ensureContractsDb(db)
   const ticketsDb = ensureTicketsDb(db)
@@ -779,6 +870,7 @@ function contractCockpit(db, contract, decoratedContract = null) {
   const openTicketCount = tickets.filter(item => !['rezolvat', 'inchis', 'respins'].includes(String(item.status || '').toLowerCase())).length
   const timeline = contractTimeline(db, contract, decorated, tasks, tickets)
   const completeness = contractCompleteness(db, contract, decorated)
+  const actionPlan = contractActionPlan(contract, decorated, tasks, tickets, completeness)
   return {
     summary: {
       alerts: decorated.alerte?.length || 0,
@@ -793,6 +885,8 @@ function contractCockpit(db, contract, decoratedContract = null) {
       timeline_total: timeline.length,
       completeness_percent: completeness.percent,
       missing_required: completeness.missing_required,
+      actions_total: actionPlan.length,
+      actions_critical: actionPlan.filter(item => item.priority === 1).length,
       consum_percent: decorated.procent_consum || 0,
       days_left: decorated.summary?.zile_ramase ?? null
     },
@@ -803,7 +897,8 @@ function contractCockpit(db, contract, decoratedContract = null) {
     attachments: decorated.atasamente || [],
     addenda: decorated.acte_aditionale || [],
     timeline,
-    completeness
+    completeness,
+    action_plan: actionPlan
   }
 }
 

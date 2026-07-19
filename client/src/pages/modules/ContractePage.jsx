@@ -112,6 +112,13 @@ function completenessTone(status) {
   return 'warning'
 }
 
+function actionTone(action) {
+  if (action?.tone) return action.tone
+  if (Number(action?.priority) === 1) return 'danger'
+  if (Number(action?.priority) === 2) return 'warning'
+  return 'info'
+}
+
 export default function ContractePage() {
   const [contracts, setContracts] = useState([])
   const [dashboard, setDashboard] = useState(null)
@@ -802,6 +809,10 @@ export default function ContractePage() {
                   <div className="text-xs uppercase text-slate-500">Completitudine</div>
                   <div className="mt-1 text-xl font-semibold text-slate-900">{formatPercent(contractDetails.cockpit?.summary?.completeness_percent || 0)}</div>
                 </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Acțiuni urgente</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.actions_critical || 0}</div>
+                </div>
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -887,6 +898,32 @@ export default function ContractePage() {
                   ))}
                 </div>
               </div>
+            </Card>
+
+            <Card title="Plan rapid de acțiune" subtitle="Pașii recomandați automat din alerte, checklist, task-uri și tichete deschise.">
+              {(contractDetails.cockpit?.action_plan || []).length === 0 ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-5 text-sm text-emerald-800">
+                  Contractul nu are acțiuni urgente sau recomandări deschise. Dosarul arată sănătos.
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  {contractDetails.cockpit.action_plan.map((item, index) => (
+                    <div key={item.key || `${item.source}-${index}`} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge tone={actionTone(item)}>{Number(item.priority) === 1 ? 'urgent' : Number(item.priority) === 2 ? 'important' : 'recomandat'}</Badge>
+                            {item.source ? <Badge tone="gray">{item.source}</Badge> : null}
+                            <span className="font-semibold text-slate-900">{item.title}</span>
+                          </div>
+                          {item.description ? <div className="mt-1 text-xs text-slate-500">{item.description}</div> : null}
+                        </div>
+                        {item.action ? <div className="max-w-md text-xs font-medium text-slate-700">{item.action}</div> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             <Card title="Timeline dosar contract" subtitle="Istoric cronologic: contract, documente sursă, consumuri, acte adiționale, atașamente, task-uri, tichete și alerte.">

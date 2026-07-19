@@ -1,5 +1,5 @@
 {
-  "version": "2.12.334",
+  "version": "2.12.335",
   "date": "2026-07-19",
-  "changelog": "## v2.12.334 - 2026-07-19\n### Checklist completitudine contract\n- Dosarul contractului include checklist de completitudine cu pasi obligatorii si recomandati.\n- Checklist-ul verifica numar, obiect, partener, valoare, perioada, manager, contract semnat, CPV, centru cost, documente sursa si acte aditionale documentate.\n- Cockpit-ul expune procentul de completitudine si numarul de obligatorii lipsa.\n- UI-ul afiseaza stare dosar, procent, progres si actiuni recomandate pentru campurile lipsa.\n- Implementarea este calculata din datele existente si nu necesita migrare DB."
+  "changelog": "## v2.12.335 - 2026-07-19\n### Plan rapid de actiune contract\n- Cockpit-ul contractului genereaza automat un plan de actiune din alerte, checklist, task-uri si tichete.\n- Actiunile sunt prioritizate ca urgente, importante sau recomandate.\n- Sumarul cockpit expune numarul total de actiuni si actiunile critice.\n- UI-ul afiseaza card dedicat cu urmatorii pasi recomandati pentru dosarul contractului.\n- Implementarea este calculata din datele existente si nu necesita migrare DB."
 }
