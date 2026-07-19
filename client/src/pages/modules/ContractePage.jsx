@@ -106,6 +106,12 @@ function timelineTone(item) {
   return 'gray'
 }
 
+function completenessTone(status) {
+  if (status === 'ok' || status === 'complet') return 'success'
+  if (status === 'missing' || status === 'incomplet') return 'danger'
+  return 'warning'
+}
+
 export default function ContractePage() {
   const [contracts, setContracts] = useState([])
   const [dashboard, setDashboard] = useState(null)
@@ -792,6 +798,10 @@ export default function ContractePage() {
                   <div className="text-xs uppercase text-slate-500">Zile rămase</div>
                   <div className="mt-1 text-xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.days_left ?? '-'}</div>
                 </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-xs uppercase text-slate-500">Completitudine</div>
+                  <div className="mt-1 text-xl font-semibold text-slate-900">{formatPercent(contractDetails.cockpit?.summary?.completeness_percent || 0)}</div>
+                </div>
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -841,6 +851,40 @@ export default function ContractePage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Checklist completitudine contract" subtitle="Ce este gata și ce mai trebuie completat pentru un dosar contractual coerent.">
+              <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase text-slate-500">Stare dosar</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge tone={completenessTone(contractDetails.cockpit?.completeness?.status)}>{contractDetails.cockpit?.completeness?.status || 'nesetat'}</Badge>
+                    <span className="text-2xl font-semibold text-slate-900">{formatPercent(contractDetails.cockpit?.completeness?.percent || 0)}</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div className={`h-full ${progressClass(contractDetails.cockpit?.completeness?.percent || 0)}`} style={{ width: percentWidth(contractDetails.cockpit?.completeness?.percent || 0) }} />
+                  </div>
+                  <div className="mt-3 grid gap-1 text-xs text-slate-600">
+                    <div>{contractDetails.cockpit?.completeness?.required_ok || 0} / {contractDetails.cockpit?.completeness?.required_total || 0} obligatorii completate</div>
+                    <div>{contractDetails.cockpit?.completeness?.missing_required || 0} obligatorii lipsă</div>
+                    <div>{contractDetails.cockpit?.completeness?.warnings || 0} recomandări de completat</div>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  {(contractDetails.cockpit?.completeness?.items || []).map(item => (
+                    <div key={item.key} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone={completenessTone(item.status)}>{item.status === 'ok' ? 'gata' : item.required ? 'obligatoriu' : 'recomandat'}</Badge>
+                          <span className="font-semibold text-slate-900">{item.label}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">{item.description}</div>
+                      </div>
+                      {item.status !== 'ok' ? <div className="max-w-sm text-xs font-medium text-slate-700">{item.action}</div> : null}
+                    </div>
+                  ))}
                 </div>
               </div>
             </Card>

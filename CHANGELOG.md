@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.334 - 2026-07-19
+
+## Checklist completitudine contract
+
+- Dosarul contractului include checklist de completitudine cu pași obligatorii și recomandați.
+- Checklist-ul verifică număr, obiect, partener, valoare, perioadă, manager, contract semnat, CPV, centru cost, documente sursă și acte adiționale documentate.
+- Cockpit-ul expune procentul de completitudine și numărul de obligatorii lipsă.
+- UI-ul afișează stare dosar, procent, progres și acțiuni recomandate pentru câmpurile lipsă.
+- Implementarea este calculată din datele existente și nu necesită migrare DB.
+
 # v2.12.333 - 2026-07-19
 
 ## Contracte cu risc

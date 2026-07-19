@@ -624,3 +624,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ card sumar „Cu risc” în KPI-urile Contract Management;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ secțiune „Contracte cu risc” cu motive explicite și deschidere dosar;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ filtru nou „Cu risc” în lista principală de contracte.
+
+### UPDATE 354 — Checklist completitudine contract
+
+- `server/modules/contracts/routes.js` — ✅ helper `contractCompleteness` calculat din dosarul existent;
+- `server/modules/contracts/routes.js` — ✅ checklist cu pași obligatorii și recomandați pentru contract;
+- `server/modules/contracts/routes.js` — ✅ cockpit-ul expune `completeness`, `completeness_percent` și `missing_required`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ KPI „Completitudine” în cockpit;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card „Checklist completitudine contract” cu progres, status și acțiuni recomandate.

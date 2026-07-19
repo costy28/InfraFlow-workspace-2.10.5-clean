@@ -1,5 +1,5 @@
 {
-  "version": "2.12.333",
+  "version": "2.12.334",
   "date": "2026-07-19",
-  "changelog": "## v2.12.333 - 2026-07-19\n### Contracte cu risc\n- Dashboard-ul Contract Management calculeaza o lista executiva de contracte cu risc.\n- Riscul combina alerte, task-uri restante, lipsa managerului, lipsa contractului semnat si acte aditionale fara fisier.\n- UI-ul afiseaza card de sumar Cu risc si sectiunea Contracte cu risc cu motive explicite.\n- Lista permite deschiderea directa a dosarului contractului.\n- Filtrul Contracte include optiunea Cu risc."
+  "changelog": "## v2.12.334 - 2026-07-19\n### Checklist completitudine contract\n- Dosarul contractului include checklist de completitudine cu pasi obligatorii si recomandati.\n- Checklist-ul verifica numar, obiect, partener, valoare, perioada, manager, contract semnat, CPV, centru cost, documente sursa si acte aditionale documentate.\n- Cockpit-ul expune procentul de completitudine si numarul de obligatorii lipsa.\n- UI-ul afiseaza stare dosar, procent, progres si actiuni recomandate pentru campurile lipsa.\n- Implementarea este calculata din datele existente si nu necesita migrare DB."
 }

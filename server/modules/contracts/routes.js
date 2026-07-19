@@ -702,6 +702,56 @@ function contractTimeline(db, contract, decorated, tasks = [], tickets = []) {
     .slice(0, 100)
 }
 
+function checklistItem(key, label, ok, required, description, action = '') {
+  return {
+    key,
+    label,
+    status: ok ? 'ok' : required ? 'missing' : 'warning',
+    required: Boolean(required),
+    description,
+    action
+  }
+}
+
+function contractCompleteness(db, contract, decorated) {
+  const attachments = decorated.atasamente || contractAttachments(db, contract)
+  const addenda = decorated.acte_aditionale || contractAddenda(db, contract)
+  const documents = decorated.documente_sursa || contractSourceDocuments(db, contract)
+  const type = String(contract.tip || '').toLowerCase()
+  const active = String(contract.status || 'activ').toLowerCase() === 'activ'
+  const hasSignedContract = attachments.some(item => String(item.categorie || '').toLowerCase().includes('contract semnat'))
+  const hasSourceDocs = (documents.timeline || []).length > 0
+  const hasAddendaWithoutFile = addenda.some(item => !item.atasament_id)
+  const checklist = [
+    checklistItem('number', 'Număr contract', Boolean(String(contract.numar || '').trim()), true, 'Identificatorul contractului este necesar pentru căutare, rapoarte și audit.', 'Completează numărul contractului.'),
+    checklistItem('title', 'Obiect / titlu', Boolean(String(contract.titlu || '').trim()), true, 'Obiectul contractului explică rapid ce acoperă dosarul.', 'Completează titlul/obiectul contractului.'),
+    checklistItem('partner', 'Partener', Boolean(String(contract.partener || '').trim()), true, 'Partenerul este necesar pentru achiziții, facturi și rapoarte.', 'Completează furnizorul/clientul.'),
+    checklistItem('value', 'Valoare contract', numberValue(contract.valoare_contract || contract.valoareContract || contract.value) > 0, true, 'Valoarea permite urmărirea consumului și depășirilor.', 'Completează valoarea contractului.'),
+    checklistItem('period', 'Perioadă contract', Boolean(contract.data_start && contract.data_sfarsit), true, 'Perioada permite calculul termenelor și alertelor de expirare.', 'Completează data de început și data de sfârșit.'),
+    checklistItem('manager', 'Manager / responsabil', Boolean(String(contract.responsabil_nume || contract.responsabil_id || '').trim()), active, 'Responsabilul primește remindere și urmărește acțiunile din dosar.', 'Setează managerul contractului.'),
+    checklistItem('signed_file', 'Contract semnat', hasSignedContract, active, 'Fișierul semnat confirmă autenticitatea dosarului contractual.', 'Încarcă PDF/Word/imagine la categoria Contract semnat.'),
+    checklistItem('cpv', 'Cod CPV', type !== 'achizitie' || Boolean(String(contract.cpv_cod || '').trim()), type === 'achizitie', 'Pentru achiziții, CPV-ul ajută PAAP, raportarea și controlul pragurilor.', 'Completează codul CPV pentru contractele de achiziție.'),
+    checklistItem('cost_center', 'Centru cost', Boolean(String(contract.centru_cost_id || '').trim()), false, 'Centrul de cost ajută controlling-ul și repartizarea cheltuielilor.', 'Leagă un centru de cost dacă urmărești bugetul pe activități.'),
+    checklistItem('source_docs', 'Documente sursă', hasSourceDocs, false, 'Referatele, comenzile, NIR-urile și facturile legate explică de unde vine consumul.', 'Leagă documentele sursă relevante.'),
+    checklistItem('addenda_files', 'Acte adiționale documentate', !hasAddendaWithoutFile, false, 'Actele adiționale cu fișier atașat sunt mai ușor de verificat la audit.', 'Atașează fișierul semnat pentru actele adiționale fără document.')
+  ]
+  const required = checklist.filter(item => item.required)
+  const missingRequired = required.filter(item => item.status !== 'ok')
+  const warnings = checklist.filter(item => item.status === 'warning')
+  const okCount = checklist.filter(item => item.status === 'ok').length
+  return {
+    items: checklist,
+    total: checklist.length,
+    ok: okCount,
+    required_total: required.length,
+    required_ok: required.length - missingRequired.length,
+    missing_required: missingRequired.length,
+    warnings: warnings.length,
+    percent: checklist.length ? round((okCount / checklist.length) * 100) : 100,
+    status: missingRequired.length ? 'incomplet' : warnings.length ? 'de_completat' : 'complet'
+  }
+}
+
 function contractCockpit(db, contract, decoratedContract = null) {
   const cm = ensureContractsDb(db)
   const ticketsDb = ensureTicketsDb(db)
@@ -728,6 +778,7 @@ function contractCockpit(db, contract, decoratedContract = null) {
   const openTaskCount = tasks.filter(item => !['rezolvat', 'inchis', 'anulat'].includes(String(item.status || '').toLowerCase())).length
   const openTicketCount = tickets.filter(item => !['rezolvat', 'inchis', 'respins'].includes(String(item.status || '').toLowerCase())).length
   const timeline = contractTimeline(db, contract, decorated, tasks, tickets)
+  const completeness = contractCompleteness(db, contract, decorated)
   return {
     summary: {
       alerts: decorated.alerte?.length || 0,
@@ -740,6 +791,8 @@ function contractCockpit(db, contract, decoratedContract = null) {
       addenda_total: decorated.acte_aditionale?.length || 0,
       consumptions_total: decorated.consumuri?.length || 0,
       timeline_total: timeline.length,
+      completeness_percent: completeness.percent,
+      missing_required: completeness.missing_required,
       consum_percent: decorated.procent_consum || 0,
       days_left: decorated.summary?.zile_ramase ?? null
     },
@@ -749,7 +802,8 @@ function contractCockpit(db, contract, decoratedContract = null) {
     documents: decorated.documente_sursa || { groups: [], timeline: [], counts: {} },
     attachments: decorated.atasamente || [],
     addenda: decorated.acte_aditionale || [],
-    timeline
+    timeline,
+    completeness
   }
 }
 
