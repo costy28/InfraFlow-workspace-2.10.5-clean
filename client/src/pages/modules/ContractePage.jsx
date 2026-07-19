@@ -480,6 +480,34 @@ export default function ContractePage() {
     }
   }
 
+  async function createTaskFromAction(action) {
+    if (!contractDetails?.id || !action) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post(`/contracts/${contractDetails.id}/tasks`, {
+        action_key: action.key,
+        title: action.title,
+        description: action.description,
+        action: action.action,
+        priority: action.priority,
+        source: action.source,
+      })
+      const task = response.data?.task
+      setNotice(response.data?.created
+        ? `Task creat: ${task?.titlu || action.title}`
+        : `Există deja un task deschis pentru această acțiune: ${task?.titlu || action.title}`)
+      const details = await api.get(`/contracts/${contractDetails.id}`)
+      setContractDetails(details.data.contract || contractDetails)
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Task-ul nu a putut fi creat din acțiunea recomandată.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <PageHeader
@@ -918,7 +946,12 @@ export default function ContractePage() {
                           </div>
                           {item.description ? <div className="mt-1 text-xs text-slate-500">{item.description}</div> : null}
                         </div>
-                        {item.action ? <div className="max-w-md text-xs font-medium text-slate-700">{item.action}</div> : null}
+                        <div className="grid gap-2 md:max-w-md md:justify-items-end">
+                          {item.action ? <div className="text-xs font-medium text-slate-700 md:text-right">{item.action}</div> : null}
+                          <Button size="sm" variant="secondary" onClick={() => createTaskFromAction(item)} loading={saving}>
+                            Creează task
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

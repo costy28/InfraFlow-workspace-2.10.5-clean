@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.336 - 2026-07-19
+
+## Task din acțiune contract
+
+- Planul rapid de acțiune permite crearea directă a unui task operațional.
+- Endpoint nou `POST /api/contracts/:id/tasks`, protejat prin permisiuni de management contracte.
+- Task-ul este precompletat cu titlu, descriere, prioritate, termen și responsabilul contractului.
+- Se evită duplicatele pentru aceeași acțiune recomandată deschisă.
+- Operațiunea este auditată și nu necesită migrare DB.
+
 # v2.12.335 - 2026-07-19
 
 ## Plan rapid de acțiune contract

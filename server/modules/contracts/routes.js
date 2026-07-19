@@ -1626,6 +1626,61 @@ function createContractTasksFromAlerts(db, user) {
   return created
 }
 
+function taskDeadlineForPriority(priority) {
+  const days = Number(priority) === 1 ? 1 : Number(priority) === 2 ? 3 : 7
+  const deadline = new Date()
+  deadline.setDate(deadline.getDate() + days)
+  return deadline.toISOString().slice(0, 10)
+}
+
+function createContractTaskFromAction(db, contractId, body = {}, user = {}) {
+  const cm = ensureContractsDb(db)
+  const contract = cm.contracts.find(item => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt)
+  if (!contract) return { error: 'Contract inexistent.', status: 404 }
+
+  const actionKey = String(body.action_key || body.key || '').trim()
+  const title = String(body.title || '').trim()
+  const description = String(body.description || body.descriere || '').trim()
+  const action = String(body.action || '').trim()
+  const source = String(body.source || 'action_plan').trim()
+  const priority = numberValue(body.priority, 3)
+  if (!title) return { error: 'Titlul task-ului este obligatoriu.', status: 422 }
+
+  const existing = actionKey ? cm.tasks.find(task =>
+    !task.cancelled_at && !task.cancelledAt &&
+    String(task.contract_id) === String(contract.id) &&
+    String(task.action_key || '') === actionKey &&
+    !['rezolvat', 'inchis', 'anulat'].includes(String(task.status || '').toLowerCase())
+  ) : null
+  if (existing) return { task: decorateTask(db, existing), created: false }
+
+  const manager = findContractManager(db, contract)
+  const task = {
+    id: id('ctr-task'),
+    uuid: crypto.randomUUID(),
+    contract_id: contract.id,
+    contract_numar: contract.numar,
+    contract_titlu: contract.titlu,
+    action_key: actionKey || null,
+    action_source: source,
+    alert_code: source === 'alert' ? actionKey.replace(/^alert-/, '') : null,
+    alert_level: priority === 1 ? 'danger' : priority === 2 ? 'warning' : 'info',
+    titlu: title,
+    descriere: [description, action ? `Pas recomandat: ${action}` : ''].filter(Boolean).join('\n'),
+    status: 'deschis',
+    prioritate: priority === 1 ? 'urgent' : priority === 2 ? 'ridicata' : 'normala',
+    deadline: taskDeadlineForPriority(priority),
+    responsabil_id: manager?.id || contract.responsabil_id || null,
+    responsabil_nume: manager?.name || manager?.nume || manager?.username || contract.responsabil_nume || '',
+    created_by: user.id,
+    created_by_name: user.name || user.username,
+    created_at: nowIso(),
+    updated_at: nowIso()
+  }
+  cm.tasks.push(task)
+  return { task: decorateTask(db, task), created: true }
+}
+
 function resolveContractTask(db, taskId, user, body = {}) {
   const cm = ensureContractsDb(db)
   const task = cm.tasks.find(item => String(item.id) === String(taskId) && !item.cancelled_at && !item.cancelledAt)
@@ -1868,6 +1923,17 @@ router.get('/contracts/:id/print', (req, res) => {
   if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.status(200).send(contractPrintHtml(auth.db, contract, auth.user))
+})
+
+router.post('/contracts/:id/tasks', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const result = createContractTaskFromAction(auth.db, req.params.id, req.body || {}, auth.user)
+  if (result.error) return sendJson(res, result.status || 422, { error: result.error })
+  addAudit(auth.db, auth.user, result.created ? 'contract_action_task_created' : 'contract_action_task_reused', `${result.task.contract_numar || req.params.id}: ${result.task.titlu}`)
+  writeDb(auth.db)
+  sendJson(res, result.created ? 201 : 200, { ok: true, ...result })
 })
 
 router.post('/contracts/:id/addenda', contractUpload.single('file'), (req, res, next) => {

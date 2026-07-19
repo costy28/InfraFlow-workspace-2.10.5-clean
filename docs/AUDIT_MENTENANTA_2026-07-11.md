@@ -640,3 +640,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ acțiunile sunt prioritizate în urgent, important și recomandat;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ KPI „Acțiuni urgente” în cockpit;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ card „Plan rapid de acțiune” cu sursă, prioritate, descriere și pas recomandat.
+
+### UPDATE 356 — Task din acțiune contract
+
+- `server/modules/contracts/routes.js` — ✅ endpoint `POST /api/contracts/:id/tasks` pentru creare task din acțiune recomandată;
+- `server/modules/contracts/routes.js` — ✅ task precompletat cu prioritate, termen, responsabil și descriere;
+- `server/modules/contracts/routes.js` — ✅ duplicatele pe aceeași acțiune deschisă sunt reutilizate;
+- `server/modules/contracts/routes.js` — ✅ operațiunea este auditată și persistată;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Creează task” direct în planul rapid de acțiune.

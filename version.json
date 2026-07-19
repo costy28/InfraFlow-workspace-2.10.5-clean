@@ -1,5 +1,5 @@
 {
-  "version": "2.12.335",
+  "version": "2.12.336",
   "date": "2026-07-19",
-  "changelog": "## v2.12.335 - 2026-07-19\n### Plan rapid de actiune contract\n- Cockpit-ul contractului genereaza automat un plan de actiune din alerte, checklist, task-uri si tichete.\n- Actiunile sunt prioritizate ca urgente, importante sau recomandate.\n- Sumarul cockpit expune numarul total de actiuni si actiunile critice.\n- UI-ul afiseaza card dedicat cu urmatorii pasi recomandati pentru dosarul contractului.\n- Implementarea este calculata din datele existente si nu necesita migrare DB."
+  "changelog": "## v2.12.336 - 2026-07-19\n### Task din actiune contract\n- Planul rapid de actiune permite crearea directa a unui task operational.\n- Endpoint nou POST /api/contracts/:id/tasks, protejat prin permisiuni de management contracte.\n- Task-ul este precompletat cu titlu, descriere, prioritate, termen si responsabilul contractului.\n- Se evita duplicatele pentru aceeasi actiune recomandata deschisa.\n- Operatiunea este auditata si nu necesita migrare DB."
 }
