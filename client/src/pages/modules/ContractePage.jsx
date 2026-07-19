@@ -132,8 +132,12 @@ export default function ContractePage() {
   const filteredContracts = useMemo(() => {
     if (filter === 'toate') return contracts
     if (filter === 'alerte') return contracts.filter(contract => contract.alerte?.length)
+    if (filter === 'risc') {
+      const riskIds = new Set((dashboard?.risk_contracts || []).map(item => String(item.contract_id)))
+      return contracts.filter(contract => riskIds.has(String(contract.id)))
+    }
     return contracts.filter(contract => contract.status === filter)
-  }, [contracts, filter])
+  }, [contracts, dashboard?.risk_contracts, filter])
 
   useEffect(() => {
     load()
@@ -209,6 +213,11 @@ export default function ContractePage() {
     } catch (err) {
       setError(err.response?.data?.error || 'Detaliile contractului nu au putut fi încărcate.')
     }
+  }
+
+  function openRiskContract(risk) {
+    const contract = contracts.find(item => String(item.id) === String(risk?.contract_id))
+    if (contract) openDetails(contract)
   }
 
   function printContract(contract) {
@@ -476,7 +485,7 @@ export default function ContractePage() {
       {notice ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div> : null}
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Card density="compact" loading={loading}>
           <div className="text-xs font-semibold uppercase text-slate-500">Contracte active</div>
           <div className="mt-2 text-2xl font-semibold text-slate-900">{dashboard?.contracts_active || 0}</div>
@@ -502,7 +511,45 @@ export default function ContractePage() {
           <div className="mt-2 text-2xl font-semibold text-slate-900">{dashboard?.tasks_open || tasks.length || 0}</div>
           <p className="mt-1 text-xs text-slate-500">{dashboard?.tasks_overdue || 0} restante</p>
         </Card>
+        <Card density="compact" loading={loading}>
+          <div className="text-xs font-semibold uppercase text-slate-500">Cu risc</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{dashboard?.risk_summary?.total || 0}</div>
+          <p className="mt-1 text-xs text-slate-500">{dashboard?.risk_summary?.danger || 0} critice</p>
+        </Card>
       </div>
+
+      {dashboard?.risk_contracts?.length ? (
+        <Card title="Contracte cu risc" subtitle="Radar operațional: contracte depășite, aproape de termen, fără manager, fără fișier semnat sau cu task-uri restante.">
+          <div className="grid gap-2">
+            {dashboard.risk_contracts.slice(0, 8).map(item => (
+              <div key={item.contract_id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={item.level === 'danger' ? 'danger' : item.level === 'warning' ? 'warning' : 'info'}>{item.level === 'danger' ? 'critic' : item.level === 'warning' ? 'atenție' : 'info'}</Badge>
+                    <span className="font-semibold text-slate-900">{item.contract_numar}</span>
+                    <span className="text-slate-600">{item.contract_titlu}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
+                    {item.partener ? <span>{item.partener}</span> : null}
+                    <span>Responsabil: {item.responsabil_nume || 'nesetat'}</span>
+                    <span>Consum: {formatPercent(item.procent_consum || 0)}</span>
+                    <span>Termen: {formatDate(item.data_sfarsit)}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {(item.reasons || []).slice(0, 4).map(reason => (
+                      <Badge key={`${item.contract_id}-${reason.code}`} tone={reason.level === 'danger' ? 'danger' : reason.level === 'warning' ? 'warning' : 'info'}>{reason.message}</Badge>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {item.tasks_overdue ? <Badge tone="danger">{item.tasks_overdue} task-uri restante</Badge> : null}
+                  <Button size="sm" variant="secondary" onClick={() => openRiskContract(item)}>Deschide dosar</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {dashboard?.alerts?.length ? (
         <Card title="Alerte contracte" subtitle="Contractele care cer atenție înainte să devină o problemă contabilă sau operațională.">
@@ -601,6 +648,7 @@ export default function ContractePage() {
             <option value="draft">Draft</option>
             <option value="inchis">Închise</option>
             <option value="alerte">Cu alerte</option>
+            <option value="risc">Cu risc</option>
           </Select>
         )}
         loading={loading}

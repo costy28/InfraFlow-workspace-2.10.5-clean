@@ -615,3 +615,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ sumarul cockpit include `timeline_total`;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ card „Timeline dosar contract” în modalul Dosar contract;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ evenimentele afișează tip, status, dată, actor, sumă și descărcare fișier unde există.
+
+### UPDATE 353 — Contracte cu risc
+
+- `server/modules/contracts/routes.js` — ✅ helper `contractRiskItem` pentru clasificarea contractelor cu risc;
+- `server/modules/contracts/routes.js` — ✅ dashboard-ul expune `risk_contracts` și `risk_summary`;
+- `server/modules/contracts/routes.js` — ✅ riscul combină alerte, task-uri restante, lipsă manager, lipsă fișier semnat și acte adiționale fără fișier;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card sumar „Cu risc” în KPI-urile Contract Management;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ secțiune „Contracte cu risc” cu motive explicite și deschidere dosar;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ filtru nou „Cu risc” în lista principală de contracte.

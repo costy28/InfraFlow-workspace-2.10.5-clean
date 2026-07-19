@@ -1,5 +1,5 @@
 {
-  "version": "2.12.332",
+  "version": "2.12.333",
   "date": "2026-07-19",
-  "changelog": "## v2.12.332 - 2026-07-19\n### Timeline dosar contract\n- Dosarul contractului primeste timeline cronologic unic in cockpit.\n- Timeline-ul reuneste contractul, alertele, documentele sursa, consumurile, actele aditionale, atasamentele, task-urile si tichetele.\n- Evenimentele includ data, tip, status, actor, suma si fisier descarcabil unde exista.\n- Frontend-ul afiseaza timeline-ul imediat dupa cockpit pentru urmarire rapida.\n- Implementarea este read-only si nu necesita migrare DB."
+  "changelog": "## v2.12.333 - 2026-07-19\n### Contracte cu risc\n- Dashboard-ul Contract Management calculeaza o lista executiva de contracte cu risc.\n- Riscul combina alerte, task-uri restante, lipsa managerului, lipsa contractului semnat si acte aditionale fara fisier.\n- UI-ul afiseaza card de sumar Cu risc si sectiunea Contracte cu risc cu motive explicite.\n- Lista permite deschiderea directa a dosarului contractului.\n- Filtrul Contracte include optiunea Cu risc."
 }

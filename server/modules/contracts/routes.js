@@ -1216,7 +1216,7 @@ function dashboard(db) {
   const decorated = active.map(contract => decorateContract(db, contract))
   const totalContractat = round(decorated.reduce((sum, item) => sum + numberValue(item.summary.valoare_contract), 0))
   const totalConsumat = round(decorated.reduce((sum, item) => sum + numberValue(item.summary.consumat), 0))
-  const openTasks = cm.tasks.filter(item => !item.cancelled_at && !item.cancelledAt && !['rezolvat', 'inchis', 'anulat'].includes(String(item.status || '').toLowerCase()))
+  const openTasks = contractTasks(db, { status: 'deschise' })
   const alerts = decorated.flatMap(contract => contract.summary.alerts.map(alert => ({
     ...alert,
     contract_id: contract.id,
@@ -1243,6 +1243,18 @@ function dashboard(db) {
     acc[key] = current
     return acc
   }, {})
+  const riskContracts = decorated
+    .map(contract => contractRiskItem(db, contract, contract, openTasks))
+    .filter(Boolean)
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0) ||
+      Number(b.procent_consum || 0) - Number(a.procent_consum || 0) ||
+      String(a.data_sfarsit || '9999-12-31').localeCompare(String(b.data_sfarsit || '9999-12-31')))
+  const riskSummary = riskContracts.reduce((acc, item) => {
+    acc.total += 1
+    acc[item.level] = (acc[item.level] || 0) + 1
+    acc.reasons += item.reasons?.length || 0
+    return acc
+  }, { total: 0, danger: 0, warning: 0, info: 0, reasons: 0 })
   return {
     contracts_total: decorated.length,
     contracts_active: decorated.filter(item => item.status === 'activ').length,
@@ -1252,7 +1264,9 @@ function dashboard(db) {
     procent_consum_global: totalContractat > 0 ? round((totalConsumat / totalContractat) * 100) : 0,
     alerts,
     tasks_open: openTasks.length,
-    tasks_overdue: openTasks.filter(item => item.deadline && String(item.deadline).slice(0, 10) < todayIso()).length,
+    tasks_overdue: openTasks.filter(item => item.overdue || item.deadline && String(item.deadline).slice(0, 10) < todayIso()).length,
+    risk_contracts: riskContracts,
+    risk_summary: riskSummary,
     by_manager: Object.values(byManager).sort((a, b) => Number(b.alerts || 0) - Number(a.alerts || 0) || String(a.responsabil_nume).localeCompare(String(b.responsabil_nume))),
     by_status: decorated.reduce((acc, item) => {
       acc[item.status] = (acc[item.status] || 0) + 1
@@ -1358,6 +1372,67 @@ function contractTasks(db, filters = {}) {
     .filter(item => !contractId || String(item.contract_id) === String(contractId))
     .map(item => decorateTask(db, item))
     .sort((a, b) => String(a.deadline || '9999-12-31').localeCompare(String(b.deadline || '9999-12-31')) || String(b.created_at || '').localeCompare(String(a.created_at || '')))
+}
+
+function contractRiskItem(db, contract, decorated, tasks = []) {
+  const reasons = []
+  const attachments = contractAttachments(db, contract)
+  const addenda = contractAddenda(db, contract)
+  const status = String(contract.status || 'activ').toLowerCase()
+
+  for (const alert of decorated.alerte || []) {
+    reasons.push({
+      code: alert.code || 'alert',
+      level: alert.level || 'info',
+      message: alert.message || 'Alertă contract'
+    })
+  }
+
+  if (status === 'activ' && !String(contract.responsabil_nume || contract.responsabil_id || '').trim()) {
+    reasons.push({ code: 'missing_manager', level: 'warning', message: 'Contract activ fără manager/responsabil setat.' })
+  }
+
+  const hasSignedContract = attachments.some(item => String(item.categorie || '').toLowerCase().includes('contract semnat'))
+  if (status === 'activ' && !hasSignedContract) {
+    reasons.push({ code: 'missing_signed_file', level: 'warning', message: 'Contract activ fără fișier semnat în dosar.' })
+  }
+
+  const addendaWithoutFile = addenda.filter(item => !item.atasament_id).length
+  if (addendaWithoutFile > 0) {
+    reasons.push({ code: 'addenda_without_file', level: 'info', message: `${addendaWithoutFile} acte adiționale fără fișier atașat.` })
+  }
+
+  const contractTasksForRisk = tasks.filter(item => String(item.contract_id) === String(contract.id))
+  const overdueTasks = contractTasksForRisk.filter(item => item.overdue).length
+  if (overdueTasks > 0) {
+    reasons.push({ code: 'overdue_tasks', level: 'danger', message: `${overdueTasks} task-uri restante pe contract.` })
+  }
+
+  if (!reasons.length) return null
+  const score = reasons.reduce((sum, item) => sum + (item.level === 'danger' ? 100 : item.level === 'warning' ? 50 : 20), 0)
+  const level = reasons.some(item => item.level === 'danger') ? 'danger' : reasons.some(item => item.level === 'warning') ? 'warning' : 'info'
+  return {
+    contract_id: contract.id,
+    contract_numar: contract.numar,
+    contract_titlu: contract.titlu,
+    partener: contract.partener || '',
+    responsabil_nume: contract.responsabil_nume || '',
+    status: contract.status || 'activ',
+    level,
+    score,
+    reasons,
+    procent_consum: decorated.procent_consum || 0,
+    valoare_contract: decorated.valoare_contract || decorated.summary?.valoare_contract || 0,
+    valoare_consumata: decorated.valoare_consumata || decorated.summary?.consumat || 0,
+    valoare_ramasa: decorated.valoare_ramasa || decorated.summary?.ramas || 0,
+    moneda: contract.moneda || 'RON',
+    data_sfarsit: contract.data_sfarsit || null,
+    zile_ramase: decorated.summary?.zile_ramase ?? null,
+    tasks_open: contractTasksForRisk.filter(item => !['rezolvat', 'inchis', 'anulat'].includes(String(item.status || '').toLowerCase())).length,
+    tasks_overdue: overdueTasks,
+    attachments_total: attachments.length,
+    addenda_total: addenda.length
+  }
 }
 
 function createContractTasksFromAlerts(db, user) {

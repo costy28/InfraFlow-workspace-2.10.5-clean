@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.333 - 2026-07-19
+
+## Contracte cu risc
+
+- Dashboard-ul Contract Management calculează o listă executivă de contracte cu risc.
+- Riscul combină alerte, task-uri restante, lipsa managerului, lipsa contractului semnat și acte adiționale fără fișier.
+- UI-ul afișează card de sumar „Cu risc” și secțiunea „Contracte cu risc” cu motive explicite.
+- Lista permite deschiderea directă a dosarului contractului.
+- Filtrul Contracte include opțiunea „Cu risc”.
+
 # v2.12.332 - 2026-07-19
 
 ## Timeline dosar contract
