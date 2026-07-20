@@ -696,3 +696,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ revenire la statusul anterior anulării sau la `activ`;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Reactivează” în dosarul contractului anulat și în banner;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ jurnalul ciclului de viață afișează evenimentul „Reactivat”.
+
+### UPDATE 363 — Audit portofoliu contracte
+
+- `server/modules/contracts/routes.js` — ✅ helper `contractLifecycleSummary`;
+- `server/modules/contracts/routes.js` — ✅ raportul printabil portofoliu include contractele anulate pentru trasabilitate;
+- `server/modules/contracts/routes.js` — ✅ raport printabil cu secțiune `Audit ciclu de viață`;
+- `server/modules/contracts/routes.js` — ✅ export Excel cu coloane lifecycle în sheet-ul `Contracte`;
+- `server/modules/contracts/routes.js` — ✅ export Excel cu sheet dedicat `Audit ciclu viata`.

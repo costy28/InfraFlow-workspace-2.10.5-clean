@@ -1,5 +1,5 @@
 {
-  "version": "2.12.342",
+  "version": "2.12.343",
   "date": "2026-07-20",
-  "changelog": "## v2.12.342 - 2026-07-20\n### Reactivare controlata contract anulat\n- Endpoint nou POST /api/contracts/:id/reactivate pentru revenirea auditata a contractelor anulate.\n- Reactivarea cere motiv explicit si blocheaza duplicatele active pe acelasi numar de contract.\n- Contractul revine la statusul anterior anularii sau la activ si reintra in fluxurile operationale.\n- UI-ul afiseaza buton Reactiveaza in dosarul contractului anulat si in bannerul de anulare.\n- Jurnalul ciclului de viata afiseaza evenimentul Reactivat."
+  "changelog": "## v2.12.343 - 2026-07-20\n### Audit portofoliu contracte\n- Raportul printabil de portofoliu include contractele anulate pentru trasabilitate.\n- Portofoliul printabil afiseaza statusul curent, ultimul eveniment, motivul si utilizatorul.\n- Exportul Excel include coloane de lifecycle in sheet-ul Contracte.\n- Exportul Excel adauga sheet dedicat Audit ciclu viata.\n- KPI-urile financiare raman calculate pe portofoliul activ, fara a include contractele anulate."
 }

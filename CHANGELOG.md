@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.343 - 2026-07-20
+
+## Audit portofoliu contracte
+
+- Raportul printabil de portofoliu include contractele anulate, pentru trasabilitate completă.
+- Tabelul de portofoliu afișează statusul curent și ultimul eveniment de viață.
+- Raportul printabil are secțiune nouă `Audit ciclu de viață`, cu eveniment, dată, utilizator și motiv.
+- Exportul Excel include coloane de lifecycle în sheet-ul `Contracte`.
+- Exportul Excel adaugă sheet dedicat `Audit ciclu viata`.
+- KPI-urile financiare rămân calculate pe portofoliul activ, fără contractele anulate.
+
 # v2.12.342 - 2026-07-20
 
 ## Reactivare controlată contract anulat

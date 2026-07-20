@@ -62,6 +62,15 @@ function printBadge(value, tone = 'gray') {
   return `<span class="badge ${escapeHtml(tone)}">${escapeHtml(value || '-')}</span>`
 }
 
+function statusToneForPrint(status) {
+  const raw = String(status || '').trim().toLowerCase()
+  if (raw === 'activ') return 'success'
+  if (raw === 'inchis') return 'gray'
+  if (raw === 'anulat') return 'danger'
+  if (raw === 'suspendat' || raw === 'draft') return 'warning'
+  return 'info'
+}
+
 function ensureContractsDb(db) {
   if (!db.contractManagement || typeof db.contractManagement !== 'object') {
     db.contractManagement = {}
@@ -563,6 +572,41 @@ function decorateContract(db, contract, options = {}) {
   if (options.includeAddenda) decorated.acte_aditionale = contractAddenda(db, contract)
   if (options.includeCockpit) decorated.cockpit = contractCockpit(db, contract, decorated)
   return decorated
+}
+
+function contractLifecycleSummary(contract) {
+  const closureHistory = Array.isArray(contract.closure_history) ? contract.closure_history : []
+  const lifecycleHistory = Array.isArray(contract.lifecycle_history) ? contract.lifecycle_history : []
+  const events = [
+    ...closureHistory.map(item => ({ ...item, source: 'inchidere' })),
+    ...lifecycleHistory.map(item => ({ ...item, source: 'ciclu_viata' }))
+  ].sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))
+  const latest = events[0] || null
+  const actionLabels = {
+    closed: 'Închis',
+    closed_forced: 'Închis forțat',
+    reopened: 'Redeschis',
+    cancelled: 'Anulat',
+    reactivated: 'Reactivat'
+  }
+  return {
+    status: contract.status || 'activ',
+    latest_action: latest ? (actionLabels[latest.action] || latest.action || 'Eveniment') : '',
+    latest_at: latest?.at || '',
+    latest_by: latest?.by_name || '',
+    latest_reason: latest?.reason || '',
+    closed_at: contract.closed_at || '',
+    closed_by: contract.closed_by_name || '',
+    closed_reason: contract.closed_reason || '',
+    close_forced: Boolean(contract.close_forced),
+    cancelled_at: contract.cancelled_at || contract.cancelledAt || contract.last_cancelled_at || '',
+    cancelled_by: contract.cancelled_by_name || contract.last_cancelled_by_name || '',
+    cancelled_reason: contract.cancelled_reason || contract.cancelledReason || contract.last_cancelled_reason || '',
+    reactivated_at: contract.reactivated_at || '',
+    reactivated_by: contract.reactivated_by_name || '',
+    reactivated_reason: contract.reactivated_reason || '',
+    events
+  }
 }
 
 function compactText(parts) {
@@ -1168,7 +1212,6 @@ function contractsPortfolioPrintHtml(db, user) {
   const cm = ensureContractsDb(db)
   const report = dashboard(db)
   const contracts = cm.contracts
-    .filter(item => !item.cancelled_at && !item.cancelledAt)
     .map(item => decorateContract(db, item))
     .sort((a, b) => Number(b.alerte?.length || 0) - Number(a.alerte?.length || 0) ||
       Number(b.procent_consum || 0) - Number(a.procent_consum || 0) ||
@@ -1206,12 +1249,15 @@ function contractsPortfolioPrintHtml(db, user) {
   `).join('') : '<tr><td colspan="5" class="empty">Nu există task-uri deschise.</td></tr>'
 
   const contractRows = contracts.length ? contracts.map(item => {
+    const lifecycle = contractLifecycleSummary(item)
     const riskTone = item.alerte?.some(alert => alert.level === 'danger') || Number(item.procent_consum || 0) >= 100
       ? 'danger'
+      : String(item.status || '').toLowerCase() === 'anulat' ? 'danger'
       : item.alerte?.length || Number(item.procent_consum || 0) >= 80 ? 'warning' : 'success'
     return `
       <tr>
         <td><strong>${escapeHtml(item.numar || '-')}</strong><div class="muted">${escapeHtml(item.titlu || '')}</div></td>
+        <td>${printBadge(item.status || 'activ', statusToneForPrint(item.status))}<div class="muted">${escapeHtml(lifecycle.latest_action || '-')}</div></td>
         <td>${escapeHtml(item.partener || '-')}</td>
         <td>${escapeHtml(item.responsabil_nume || 'Nesetat')}</td>
         <td class="right">${formatPrintMoney(item.valoare_contract || 0, item.moneda || 'RON')}</td>
@@ -1221,7 +1267,21 @@ function contractsPortfolioPrintHtml(db, user) {
         <td>${printBadge(item.alerte?.length || 0, riskTone)}</td>
       </tr>
     `
-  }).join('') : '<tr><td colspan="8" class="empty">Nu există contracte în portofoliu.</td></tr>'
+  }).join('') : '<tr><td colspan="9" class="empty">Nu există contracte în portofoliu.</td></tr>'
+
+  const lifecycleRows = contracts.length ? contracts.map(item => {
+    const lifecycle = contractLifecycleSummary(item)
+    return `
+      <tr>
+        <td><strong>${escapeHtml(item.numar || '-')}</strong><div class="muted">${escapeHtml(item.titlu || '')}</div></td>
+        <td>${printBadge(lifecycle.status || 'activ', statusToneForPrint(lifecycle.status))}</td>
+        <td>${escapeHtml(lifecycle.latest_action || '-')}</td>
+        <td>${formatPrintDate(lifecycle.latest_at)}</td>
+        <td>${escapeHtml(lifecycle.latest_by || '-')}</td>
+        <td>${escapeHtml(lifecycle.latest_reason || '-')}</td>
+      </tr>
+    `
+  }).join('') : '<tr><td colspan="6" class="empty">Nu există evenimente de ciclu de viață.</td></tr>'
 
   return `<!doctype html>
 <html lang="ro">
@@ -1274,7 +1334,8 @@ function contractsPortfolioPrintHtml(db, user) {
       <div class="meta">
         Generat la ${escapeHtml(generatedAt)}<br>
         Utilizator: ${escapeHtml(user?.name || user?.username || '-')}<br>
-        Contracte: ${Number(report.contracts_total || 0)}
+        Contracte active: ${Number(report.contracts_total || 0)}<br>
+        Contracte afișate: ${Number(contracts.length || 0)}
       </div>
     </section>
 
@@ -1297,7 +1358,10 @@ function contractsPortfolioPrintHtml(db, user) {
     <table><thead><tr><th>Contract</th><th>Task</th><th>Responsabil</th><th>Termen</th><th>Status</th></tr></thead><tbody>${taskRows}</tbody></table>
 
     <h2>Contracte urmărite</h2>
-    <table><thead><tr><th>Contract</th><th>Partener</th><th>Responsabil</th><th class="right">Valoare</th><th class="right">Consum</th><th class="right">%</th><th>Scadență</th><th>Alerte</th></tr></thead><tbody>${contractRows}</tbody></table>
+    <table><thead><tr><th>Contract</th><th>Status</th><th>Partener</th><th>Responsabil</th><th class="right">Valoare</th><th class="right">Consum</th><th class="right">%</th><th>Scadență</th><th>Alerte</th></tr></thead><tbody>${contractRows}</tbody></table>
+
+    <h2>Audit ciclu de viață</h2>
+    <table><thead><tr><th>Contract</th><th>Status curent</th><th>Ultim eveniment</th><th>Data</th><th>Utilizator</th><th>Motiv</th></tr></thead><tbody>${lifecycleRows}</tbody></table>
   </main>
 </body>
 </html>`
@@ -1307,7 +1371,6 @@ function contractsPortfolioWorkbook(db) {
   const cm = ensureContractsDb(db)
   const report = dashboard(db)
   const contracts = cm.contracts
-    .filter(item => !item.cancelled_at && !item.cancelledAt)
     .map(item => decorateContract(db, item))
     .sort((a, b) => Number(b.alerte?.length || 0) - Number(a.alerte?.length || 0) ||
       Number(b.procent_consum || 0) - Number(a.procent_consum || 0) ||
@@ -1321,6 +1384,9 @@ function contractsPortfolioWorkbook(db) {
     ['Indicator', 'Valoare'],
     ['Contracte totale', Number(report.contracts_total || 0)],
     ['Contracte active', Number(report.contracts_active || 0)],
+    ['Contracte afișate în raport', Number(contracts.length || 0)],
+    ['Contracte anulate în raport', contracts.filter(item => String(item.status || '').toLowerCase() === 'anulat').length],
+    ['Contracte închise în raport', contracts.filter(item => String(item.status || '').toLowerCase() === 'inchis').length],
     ['Valoare contractată', Number(report.total_contractat || 0)],
     ['Valoare consumată', Number(report.total_consumat || 0)],
     ['Valoare rămasă', Number(report.total_ramas || 0)],
@@ -1334,12 +1400,17 @@ function contractsPortfolioWorkbook(db) {
   xlsx.utils.book_append_sheet(workbook, summarySheet, 'Sumar')
 
   const contractRows = [
-    ['Nr. contract', 'Titlu', 'Tip', 'Status', 'Partener', 'Responsabil', 'CPV', 'CPV denumire', 'Data start', 'Data sfârșit', 'Monedă', 'Valoare contract', 'Consum', 'Rămas', '% consum', 'Alerte', 'Zile rămase', 'Observații'],
-    ...contracts.map(item => [
+    ['Nr. contract', 'Titlu', 'Tip', 'Status', 'Ultim eveniment', 'Data ultim eveniment', 'Motiv ultim eveniment', 'Partener', 'Responsabil', 'CPV', 'CPV denumire', 'Data start', 'Data sfârșit', 'Monedă', 'Valoare contract', 'Consum', 'Rămas', '% consum', 'Alerte', 'Zile rămase', 'Observații'],
+    ...contracts.map(item => {
+      const lifecycle = contractLifecycleSummary(item)
+      return [
       item.numar || '',
       item.titlu || '',
       item.tip || '',
       item.status || '',
+      lifecycle.latest_action || '',
+      lifecycle.latest_at || '',
+      lifecycle.latest_reason || '',
       item.partener || '',
       item.responsabil_nume || '',
       item.cpv_cod || '',
@@ -1354,15 +1425,46 @@ function contractsPortfolioWorkbook(db) {
       Number(item.alerte?.length || 0),
       item.summary?.zile_ramase ?? '',
       item.observatii || ''
-    ])
+    ]
+    })
   ]
   const contractsSheet = xlsx.utils.aoa_to_sheet(contractRows)
   contractsSheet['!cols'] = [
-    { wch: 18 }, { wch: 36 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 24 },
-    { wch: 14 }, { wch: 32 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 18 },
-    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 40 }
+    { wch: 18 }, { wch: 36 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 18 },
+    { wch: 42 }, { wch: 28 }, { wch: 24 }, { wch: 14 }, { wch: 32 }, { wch: 14 },
+    { wch: 14 }, { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 12 },
+    { wch: 10 }, { wch: 12 }, { wch: 40 }
   ]
   xlsx.utils.book_append_sheet(workbook, contractsSheet, 'Contracte')
+
+  const lifecycleRows = [
+    ['Nr. contract', 'Titlu', 'Status curent', 'Eveniment', 'Data', 'Utilizator', 'Motiv', 'Sursa', 'Status restaurat'],
+    ...contracts.flatMap(item => {
+      const lifecycle = contractLifecycleSummary(item)
+      const events = lifecycle.events.length ? lifecycle.events : [{
+        action: '',
+        at: '',
+        by_name: '',
+        reason: '',
+        source: '',
+        restored_status: ''
+      }]
+      return events.map(event => [
+        item.numar || '',
+        item.titlu || '',
+        item.status || '',
+        event.action || '',
+        event.at || '',
+        event.by_name || '',
+        event.reason || '',
+        event.source || '',
+        event.restored_status || ''
+      ])
+    })
+  ]
+  const lifecycleSheet = xlsx.utils.aoa_to_sheet(lifecycleRows)
+  lifecycleSheet['!cols'] = [{ wch: 18 }, { wch: 36 }, { wch: 14 }, { wch: 18 }, { wch: 20 }, { wch: 24 }, { wch: 48 }, { wch: 16 }, { wch: 16 }]
+  xlsx.utils.book_append_sheet(workbook, lifecycleSheet, 'Audit ciclu viata')
 
   const managerRows = [
     ['Responsabil', 'Contracte', 'Valoare contractată', 'Valoare consumată', 'Valoare rămasă', 'Alerte'],
