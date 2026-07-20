@@ -58,6 +58,15 @@ const emptyAddendumForm = {
   file: null,
 }
 
+const emptyPortfolioFilters = {
+  status: 'toate',
+  q: '',
+  risk: 'toate',
+  consum: 'toate',
+  termen: 'toate',
+  lifecycle: 'toate',
+}
+
 function arrayFrom(data, keys) {
   for (const key of keys) {
     if (Array.isArray(data?.[key])) return data[key]
@@ -119,6 +128,13 @@ function actionTone(action) {
   return 'info'
 }
 
+function contractLifecycleActions(contract) {
+  return new Set([
+    ...(contract.closure_history || []),
+    ...(contract.lifecycle_history || []),
+  ].map(item => String(item.action || '').toLowerCase()).filter(Boolean))
+}
+
 export default function ContractePage() {
   const [contracts, setContracts] = useState([])
   const [dashboard, setDashboard] = useState(null)
@@ -140,17 +156,134 @@ export default function ContractePage() {
   const [linkableSources, setLinkableSources] = useState([])
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [filter, setFilter] = useState('toate')
+  const [portfolioFilters, setPortfolioFilters] = useState(emptyPortfolioFilters)
+
+  const riskByContractId = useMemo(() => {
+    const map = new Map()
+    for (const item of dashboard?.risk_contracts || []) {
+      map.set(String(item.contract_id), item)
+    }
+    return map
+  }, [dashboard?.risk_contracts])
 
   const filteredContracts = useMemo(() => {
-    if (filter === 'toate') return contracts
-    if (filter === 'alerte') return contracts.filter(contract => contract.alerte?.length)
-    if (filter === 'risc') {
-      const riskIds = new Set((dashboard?.risk_contracts || []).map(item => String(item.contract_id)))
-      return contracts.filter(contract => riskIds.has(String(contract.id)))
-    }
-    return contracts.filter(contract => contract.status === filter)
-  }, [contracts, dashboard?.risk_contracts, filter])
+    const q = portfolioFilters.q.trim().toLowerCase()
+    return contracts.filter(contract => {
+      const status = String(contract.status || 'activ')
+      const risk = riskByContractId.get(String(contract.id))
+      const riskCodes = new Set((risk?.reasons || []).map(item => String(item.code || '').toLowerCase()))
+      const percent = Number(contract.procent_consum || 0)
+      const daysLeft = contract.summary?.zile_ramase
+      const lifecycleActions = contractLifecycleActions(contract)
+      const haystack = [
+        contract.numar,
+        contract.titlu,
+        contract.partener,
+        contract.responsabil_nume,
+        contract.cpv_cod,
+        contract.cpv_denumire,
+        contract.tip,
+      ].join(' ').toLowerCase()
+
+      if (portfolioFilters.status !== 'toate' && status !== portfolioFilters.status) return false
+      if (q && !haystack.includes(q)) return false
+      if (portfolioFilters.risk === 'alerte' && !(contract.alerte || []).length) return false
+      if (portfolioFilters.risk === 'risc' && !risk) return false
+      if (portfolioFilters.risk === 'critic' && risk?.level !== 'danger') return false
+      if (portfolioFilters.risk === 'fara_manager' && (contract.responsabil_nume || '').trim() && !riskCodes.has('missing_manager')) return false
+      if (portfolioFilters.risk === 'fara_document_semnat' && !riskCodes.has('missing_signed_file')) return false
+      if (portfolioFilters.risk === 'taskuri_restante' && !riskCodes.has('overdue_tasks')) return false
+      if (portfolioFilters.consum === 'fara_consum' && percent > 0) return false
+      if (portfolioFilters.consum === 'peste_80' && percent < 80) return false
+      if (portfolioFilters.consum === 'peste_90' && percent < 90) return false
+      if (portfolioFilters.consum === 'peste_100' && percent < 100) return false
+      if (portfolioFilters.termen === 'expirat' && !(Number(daysLeft) < 0)) return false
+      if (['7', '30', '90'].includes(portfolioFilters.termen) && !(Number(daysLeft) >= 0 && Number(daysLeft) <= Number(portfolioFilters.termen))) return false
+      if (portfolioFilters.lifecycle === 'closed_forced' && !contract.close_forced) return false
+      if (portfolioFilters.lifecycle !== 'toate' && portfolioFilters.lifecycle !== 'closed_forced' && !lifecycleActions.has(portfolioFilters.lifecycle) && status !== portfolioFilters.lifecycle) return false
+      return true
+    })
+  }, [contracts, portfolioFilters, riskByContractId])
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (portfolioFilters.status !== 'toate') count += 1
+    if (portfolioFilters.q.trim()) count += 1
+    if (portfolioFilters.risk !== 'toate') count += 1
+    if (portfolioFilters.consum !== 'toate') count += 1
+    if (portfolioFilters.termen !== 'toate') count += 1
+    if (portfolioFilters.lifecycle !== 'toate') count += 1
+    return count
+  }, [portfolioFilters])
+
+  function updatePortfolioFilter(key, value) {
+    setPortfolioFilters(current => ({
+      ...current,
+      [key]: value,
+    }))
+  }
+
+  function resetPortfolioFilters() {
+    setPortfolioFilters(emptyPortfolioFilters)
+  }
+
+  const filterSummary = useMemo(() => {
+    const parts = []
+    if (portfolioFilters.status !== 'toate') parts.push(`status: ${portfolioFilters.status}`)
+    if (portfolioFilters.risk !== 'toate') parts.push(`risc: ${portfolioFilters.risk.replaceAll('_', ' ')}`)
+    if (portfolioFilters.consum !== 'toate') parts.push(`consum: ${portfolioFilters.consum.replaceAll('_', ' ')}`)
+    if (portfolioFilters.termen !== 'toate') parts.push(`termen: ${portfolioFilters.termen === 'expirat' ? 'expirat' : `${portfolioFilters.termen} zile`}`)
+    if (portfolioFilters.lifecycle !== 'toate') parts.push(`ciclu: ${portfolioFilters.lifecycle.replaceAll('_', ' ')}`)
+    if (portfolioFilters.q.trim()) parts.push(`căutare: “${portfolioFilters.q.trim()}”`)
+    return parts.join(' · ')
+  }, [portfolioFilters])
+
+  const quickContractFilters = [
+    { key: 'toate', label: 'Toate', patch: { status: 'toate', risk: 'toate' } },
+    { key: 'activ', label: 'Active', patch: { status: 'activ' } },
+    { key: 'alerte', label: 'Cu alerte', patch: { status: 'toate', risk: 'alerte' } },
+    { key: 'risc', label: 'Cu risc', patch: { status: 'toate', risk: 'risc' } },
+    { key: 'anulat', label: 'Anulate', patch: { status: 'anulat' } },
+  ]
+
+  function applyQuickContractFilter(patch) {
+    setPortfolioFilters(current => ({
+      ...current,
+      ...patch,
+    }))
+  }
+
+  function quickFilterActive(patch) {
+    return Object.entries(patch).every(([key, value]) => portfolioFilters[key] === value)
+  }
+
+  const filterInfo = activeFilterCount
+    ? `${filteredContracts.length} din ${contracts.length} contracte · ${filterSummary}`
+    : `${contracts.length} contracte în portofoliu`
+
+  const hasFilteredOutContracts = filteredContracts.length !== contracts.length
+
+  const filterResetDisabled = activeFilterCount === 0
+
+  function handleSearchFilter(value) {
+    updatePortfolioFilter('q', value)
+  }
+
+  function filterTableEmptyText() {
+    if (loading) return 'Se încarcă...'
+    if (hasFilteredOutContracts) return 'Nu există contracte pentru filtrele selectate.'
+    return 'Nu există contracte în portofoliu.'
+  }
+
+  function filterBadgeTone() {
+    if (!activeFilterCount) return 'gray'
+    if (filteredContracts.length === 0) return 'warning'
+    return 'info'
+  }
+
+  function filterButtonVariant(patch) {
+    return quickFilterActive(patch) ? 'primary' : 'secondary'
+  }
 
   useEffect(() => {
     load()
@@ -768,20 +901,75 @@ export default function ContractePage() {
 
       <Card
         title="Contracte"
-        subtitle="Prima evidență operațională. Legarea automată din facturi/NIR-uri se va extinde peste această fundație."
+        subtitle="Portofoliu filtrabil pe status, risc, consum, termen și evenimente de ciclu de viață."
         actions={(
-          <Select value={filter} onChange={event => setFilter(event.target.value)} aria-label="Filtru contracte">
-            <option value="toate">Toate</option>
-            <option value="activ">Active</option>
-            <option value="draft">Draft</option>
-            <option value="inchis">Închise</option>
-            <option value="anulat">Anulate</option>
-            <option value="alerte">Cu alerte</option>
-            <option value="risc">Cu risc</option>
-          </Select>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Badge tone={filterBadgeTone()}>{filterInfo}</Badge>
+            <Button size="sm" variant="secondary" onClick={resetPortfolioFilters} disabled={filterResetDisabled}>Resetează filtre</Button>
+          </div>
         )}
         loading={loading}
       >
+        <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap gap-2">
+            {quickContractFilters.map(item => (
+              <Button
+                key={item.key}
+                size="sm"
+                variant={filterButtonVariant(item.patch)}
+                onClick={() => applyQuickContractFilter(item.patch)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <Input
+              label="Caută"
+              value={portfolioFilters.q}
+              onChange={event => handleSearchFilter(event.target.value)}
+              placeholder="număr, partener, CPV, manager..."
+            />
+            <Select label="Status" value={portfolioFilters.status} onChange={event => updatePortfolioFilter('status', event.target.value)}>
+              <option value="toate">Toate statusurile</option>
+              <option value="activ">Active</option>
+              <option value="draft">Draft</option>
+              <option value="inchis">Închise</option>
+              <option value="anulat">Anulate</option>
+            </Select>
+            <Select label="Risc" value={portfolioFilters.risk} onChange={event => updatePortfolioFilter('risk', event.target.value)}>
+              <option value="toate">Toate riscurile</option>
+              <option value="alerte">Cu alerte</option>
+              <option value="risc">Orice risc</option>
+              <option value="critic">Critice</option>
+              <option value="fara_manager">Fără manager</option>
+              <option value="fara_document_semnat">Fără document semnat</option>
+              <option value="taskuri_restante">Task-uri restante</option>
+            </Select>
+            <Select label="Consum" value={portfolioFilters.consum} onChange={event => updatePortfolioFilter('consum', event.target.value)}>
+              <option value="toate">Orice consum</option>
+              <option value="fara_consum">Fără consum</option>
+              <option value="peste_80">Peste 80%</option>
+              <option value="peste_90">Peste 90%</option>
+              <option value="peste_100">Depășite</option>
+            </Select>
+            <Select label="Termen" value={portfolioFilters.termen} onChange={event => updatePortfolioFilter('termen', event.target.value)}>
+              <option value="toate">Orice termen</option>
+              <option value="7">Scad în 7 zile</option>
+              <option value="30">Scad în 30 zile</option>
+              <option value="90">Scad în 90 zile</option>
+              <option value="expirat">Expirate</option>
+            </Select>
+            <Select label="Ciclu viață" value={portfolioFilters.lifecycle} onChange={event => updatePortfolioFilter('lifecycle', event.target.value)}>
+              <option value="toate">Orice eveniment</option>
+              <option value="closed">Închise controlat</option>
+              <option value="closed_forced">Închise forțat</option>
+              <option value="reopened">Redeschise</option>
+              <option value="cancelled">Anulate</option>
+              <option value="reactivated">Reactivate</option>
+            </Select>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
@@ -801,7 +989,7 @@ export default function ContractePage() {
               {filteredContracts.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-3 py-8 text-center text-slate-500">
-                    {loading ? 'Se încarcă...' : 'Nu există contracte în filtrul selectat.'}
+                    {filterTableEmptyText()}
                   </td>
                 </tr>
               ) : filteredContracts.map(contract => (

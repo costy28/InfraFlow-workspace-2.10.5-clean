@@ -704,3 +704,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ raport printabil cu secțiune `Audit ciclu de viață`;
 - `server/modules/contracts/routes.js` — ✅ export Excel cu coloane lifecycle în sheet-ul `Contracte`;
 - `server/modules/contracts/routes.js` — ✅ export Excel cu sheet dedicat `Audit ciclu viata`.
+
+### UPDATE 364 — Filtre avansate portofoliu contracte
+
+- `server/modules/contracts/routes.js` — ✅ endpoint-ul `GET /api/contracts` acceptă filtre avansate pentru status, căutare, partener, CPV, manager, risc, consum, termen și ciclu de viață;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ panou de filtre rapide pentru toate, active, cu alerte, cu risc și anulate;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ filtre detaliate pentru căutare liberă, status, risc, consum, termen și evenimente lifecycle;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ sumar vizibil al filtrelor active și reset rapid.

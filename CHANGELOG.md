@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.344 - 2026-07-20
+
+## Filtre avansate portofoliu contracte
+
+- Pagina `Contracte` are filtre rapide pentru toate, active, cu alerte, cu risc și anulate.
+- Portofoliul poate fi filtrat după căutare liberă, status, risc, consum, termen și ciclu de viață.
+- Endpoint-ul `GET /api/contracts` acceptă filtre avansate pentru rapoarte și integrări viitoare.
+- Lista afișează sumarul filtrelor active și mesaj distinct când filtrarea nu întoarce rezultate.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.343 - 2026-07-20
 
 ## Audit portofoliu contracte

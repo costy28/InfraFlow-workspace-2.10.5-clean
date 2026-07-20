@@ -1744,6 +1744,74 @@ function contractRiskItem(db, contract, decorated, tasks = []) {
   }
 }
 
+function normalizeContractFilter(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function isTruthyFilter(value) {
+  return ['1', 'true', 'da', 'yes', 'on'].includes(normalizeContractFilter(value))
+}
+
+function contractMatchesPortfolioFilters(db, contract, filters = {}) {
+  const q = normalizeContractFilter(filters.q || filters.search)
+  const status = normalizeContractFilter(filters.status)
+  const partner = normalizeContractFilter(filters.partner || filters.partener)
+  const cpv = normalizeContractFilter(filters.cpv)
+  const manager = normalizeContractFilter(filters.manager || filters.responsabil)
+  const risk = normalizeContractFilter(filters.risk || filters.risc)
+  const lifecycle = normalizeContractFilter(filters.lifecycle || filters.ciclu_viata)
+  const consumMin = Number(filters.consum_min || filters.min_consum_percent || filters.procent_min || NaN)
+  const consumMax = Number(filters.consum_max || filters.max_consum_percent || filters.procent_max || NaN)
+  const dueDays = Number(filters.term_days || filters.due_days || filters.zile_termen || NaN)
+  const expiredOnly = isTruthyFilter(filters.expired || filters.expirat)
+  const alertsOnly = isTruthyFilter(filters.alerts || filters.alerte)
+  const missingManagerOnly = isTruthyFilter(filters.missing_manager || filters.fara_manager)
+  const missingSignedOnly = isTruthyFilter(filters.missing_signed || filters.fara_semnat)
+  const statusValue = normalizeContractFilter(contract.status || 'activ')
+  const riskItem = contractRiskItem(db, contract, contract, listContractTasks(db, { status: 'deschise', contract_id: contract.id }))
+  const riskCodes = new Set((riskItem?.reasons || []).map(item => normalizeContractFilter(item.code)))
+  const searchable = [
+    contract.numar,
+    contract.titlu,
+    contract.partener,
+    contract.responsabil_nume,
+    contract.cpv_cod,
+    contract.cpv_denumire,
+    contract.tip
+  ].map(item => normalizeContractFilter(item)).join(' ')
+  const lifecycleSummary = contractLifecycleSummary(contract)
+  const lifecycleActions = new Set((lifecycleSummary.events || []).map(item => normalizeContractFilter(item.action)))
+  const percent = Number(contract.procent_consum || contract.summary?.procent || 0)
+  const daysLeft = contract.summary?.zile_ramase
+  const hasSignedContract = contractAttachments(db, contract).some(item => String(item.categorie || '').toLowerCase().includes('contract semnat'))
+
+  if (status && status !== 'toate' && statusValue !== status) return false
+  if (q && !searchable.includes(q)) return false
+  if (partner && !normalizeContractFilter(contract.partener).includes(partner)) return false
+  if (cpv && !`${normalizeContractFilter(contract.cpv_cod)} ${normalizeContractFilter(contract.cpv_denumire)}`.includes(cpv)) return false
+  if (manager && !normalizeContractFilter(contract.responsabil_nume || contract.responsabil_id).includes(manager)) return false
+  if (alertsOnly && !(contract.alerte || []).length) return false
+  if (missingManagerOnly && String(contract.responsabil_nume || contract.responsabil_id || '').trim()) return false
+  if (missingSignedOnly && hasSignedContract) return false
+  if (Number.isFinite(consumMin) && percent < consumMin) return false
+  if (Number.isFinite(consumMax) && percent > consumMax) return false
+  if (expiredOnly && !(Number.isFinite(Number(daysLeft)) && Number(daysLeft) < 0)) return false
+  if (Number.isFinite(dueDays) && !(Number.isFinite(Number(daysLeft)) && Number(daysLeft) >= 0 && Number(daysLeft) <= dueDays)) return false
+  if (risk && risk !== 'toate') {
+    if (risk === 'oricare' && !riskItem) return false
+    if (['danger', 'warning', 'info'].includes(risk) && riskItem?.level !== risk) return false
+    if (risk === 'missing_manager' && !riskCodes.has('missing_manager')) return false
+    if (risk === 'missing_signed_file' && !riskCodes.has('missing_signed_file')) return false
+    if (risk === 'overdue_tasks' && !riskCodes.has('overdue_tasks')) return false
+    if (risk === 'over_budget' && percent < 100) return false
+  }
+  if (lifecycle && lifecycle !== 'toate') {
+    if (lifecycle === 'closed_forced' && !contract.close_forced) return false
+    else if (!lifecycleActions.has(lifecycle) && statusValue !== lifecycle) return false
+  }
+  return true
+}
+
 function createContractTasksFromAlerts(db, user) {
   const cm = ensureContractsDb(db)
   const created = []
@@ -2188,16 +2256,11 @@ router.get('/contracts', (req, res) => {
   if (!auth) return
   if (!canView(auth, res)) return
   const cm = ensureContractsDb(auth.db)
-  const status = String(req.query.status || '').trim()
-  const partner = String(req.query.partner || '').trim().toLowerCase()
-  const cpv = String(req.query.cpv || '').trim().toLowerCase()
   const contracts = cm.contracts
-    .filter(item => !status || String(item.status) === status)
-    .filter(item => !partner || String(item.partener || '').toLowerCase().includes(partner))
-    .filter(item => !cpv || String(item.cpv_cod || '').toLowerCase().includes(cpv))
     .map(item => decorateContract(auth.db, item))
+    .filter(item => contractMatchesPortfolioFilters(auth.db, item, req.query || {}))
     .sort((a, b) => String(a.data_sfarsit || '9999-12-31').localeCompare(String(b.data_sfarsit || '9999-12-31')))
-  sendJson(res, 200, { contracts })
+  sendJson(res, 200, { contracts, filters_applied: req.query || {} })
 })
 
 router.get('/contracts/linkable-sources', (req, res) => {

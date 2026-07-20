@@ -1,5 +1,5 @@
 {
-  "version": "2.12.343",
+  "version": "2.12.344",
   "date": "2026-07-20",
-  "changelog": "## v2.12.343 - 2026-07-20\n### Audit portofoliu contracte\n- Raportul printabil de portofoliu include contractele anulate pentru trasabilitate.\n- Portofoliul printabil afiseaza statusul curent, ultimul eveniment, motivul si utilizatorul.\n- Exportul Excel include coloane de lifecycle in sheet-ul Contracte.\n- Exportul Excel adauga sheet dedicat Audit ciclu viata.\n- KPI-urile financiare raman calculate pe portofoliul activ, fara a include contractele anulate."
+  "changelog": "## v2.12.344 - 2026-07-20\n### Filtre avansate portofoliu contracte\n- Pagina Contracte are filtre rapide pentru toate, active, cu alerte, cu risc si anulate.\n- Portofoliul poate fi filtrat dupa cautare libera, status, risc, consum, termen si ciclu de viata.\n- Endpoint-ul /api/contracts accepta filtre avansate pentru rapoarte si integrari viitoare.\n- Lista afiseaza sumarul filtrelor active si mesaj diferentiat cand filtrarea nu intoarce rezultate."
 }
