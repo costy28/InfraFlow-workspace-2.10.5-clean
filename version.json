@@ -1,5 +1,5 @@
 {
-  "version": "2.12.338",
-  "date": "2026-07-19",
-  "changelog": "## v2.12.338 - 2026-07-19\n### Dashboard comercial generic\n- Prima pagina foloseste texte operationale generice, fara pozitionare prioritara pe asfalt.\n- KPI-ul Tone asfalt azi devine Output operational azi.\n- Sectiunea Status santiere devine Proiecte / lucrari active.\n- Graficul de productie devine grafic de output operational.\n- Sidebar-ul afiseaza ERP modular in loc de Statie asfalt."
+  "version": "2.12.340",
+  "date": "2026-07-20",
+  "changelog": "## v2.12.340 - 2026-07-20\n### Redeschidere controlata contract\n- Endpoint nou POST /api/contracts/:id/reopen pentru redeschiderea auditata a contractelor inchise.\n- Redeschiderea cere motiv explicit si reface statusul operational anterior sau activ.\n- Inchiderea pastreaza jurnal closure_history cu blocaje, atentionari si utilizator.\n- UI-ul afiseaza buton Redeschide pentru contractele inchise si jurnalul inchidere/redeschidere in dosar.\n- Compatibil DB_MODE=json si MSSQL fara migrari noi."
 }

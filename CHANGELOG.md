@@ -1,5 +1,26 @@
 # Changelog
 
+# v2.12.340 - 2026-07-20
+
+## Redeschidere controlată contract
+
+- Am adăugat redeschidere controlată pentru contractele închise.
+- Backend: endpoint nou `POST /api/contracts/:id/reopen`, cu motiv obligatoriu și audit.
+- Contractul revine la statusul operațional anterior sau la `activ` dacă statusul anterior nu este sigur.
+- Închiderea contractului păstrează acum `closure_history`, cu motiv, utilizator, blocaje și atenționări.
+- UI: contractele închise afișează buton `Redeschide`, motivul ultimei închideri și jurnalul închidere/redeschidere.
+- Nu necesită migrări; câmpurile sunt compatibile cu JSON și MSSQL prin modelul existent.
+
+# v2.12.339 - 2026-07-19
+
+## Închidere controlată contract
+
+- Cockpit-ul contractului include readiness pentru închidere, cu blocaje și atenționări.
+- Endpoint nou `POST /api/contracts/:id/close` pentru închidere controlată.
+- Contractul nu se închide implicit dacă există câmpuri obligatorii lipsă, task-uri deschise, tichete deschise sau alerte critice.
+- Închiderea forțată cere motiv explicit și rămâne auditată.
+- UI-ul afișează card dedicat de închidere contract și buton în dosar.
+
 # v2.12.338 - 2026-07-19
 
 ## Dashboard comercial generic

@@ -508,6 +508,53 @@ export default function ContractePage() {
     }
   }
 
+  async function closeContract(force = false, previousReason = '') {
+    if (!contractDetails?.id) return
+    const defaultReason = previousReason || 'Contract finalizat și verificat operațional'
+    const reason = window.prompt(force ? 'Motiv închidere forțată contract:' : 'Motiv închidere contract:', defaultReason)
+    if (reason === null) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post(`/contracts/${contractDetails.id}/close`, { reason, force })
+      setContractDetails(response.data.contract || contractDetails)
+      setNotice(response.data?.forced ? 'Contractul a fost închis forțat, cu blocajele păstrate în audit.' : 'Contractul a fost închis controlat.')
+      await load()
+    } catch (err) {
+      const readiness = err.response?.data?.readiness
+      if (err.response?.status === 409 && readiness?.blockers?.length) {
+        const message = `Există blocaje:\n- ${readiness.blockers.join('\n- ')}\n\nVrei să forțezi închiderea cu motiv auditat?`
+        if (window.confirm(message)) {
+          await closeContract(true, reason)
+          return
+        }
+      }
+      setError(err.response?.data?.error || 'Contractul nu a putut fi închis.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function reopenContract() {
+    if (!contractDetails?.id) return
+    const reason = window.prompt('Motiv redeschidere contract:', 'Contract redeschis pentru documente sau corecții ulterioare')
+    if (reason === null) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post(`/contracts/${contractDetails.id}/reopen`, { reason })
+      setContractDetails(response.data.contract || contractDetails)
+      setNotice('Contractul a fost redeschis controlat.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Contractul nu a putut fi redeschis.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <PageHeader
@@ -775,6 +822,15 @@ export default function ContractePage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="secondary" onClick={() => printContract(contractDetails)}>Fișă print</Button>
+                  {contractDetails.status !== 'inchis' && contractDetails.status !== 'anulat' ? (
+                    <Button size="sm" variant={contractDetails.cockpit?.close_readiness?.can_close ? 'primary' : 'secondary'} onClick={() => closeContract(false)} loading={saving}>
+                      Închide contract
+                    </Button>
+                  ) : contractDetails.status === 'inchis' ? (
+                    <Button size="sm" variant="secondary" onClick={reopenContract} loading={saving}>
+                      Redeschide
+                    </Button>
+                  ) : null}
                   <Badge tone={statusTone(contractDetails.status)}>{contractDetails.status}</Badge>
                   {contractDetails.alerte?.map((alert, index) => <Badge key={`${alert.code}-${index}`} tone={alertTone(alert.level)}>{alert.code}</Badge>)}
                 </div>
@@ -890,6 +946,81 @@ export default function ContractePage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Închidere contract" subtitle="Control final înainte de trecerea contractului în status închis. Blocajele se pot forța doar cu motiv auditat.">
+              <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+                <div className={`rounded-xl border p-4 ${contractDetails.cockpit?.close_readiness?.can_close ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                  <div className="text-xs font-semibold uppercase text-slate-500">Stare închidere</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge tone={contractDetails.cockpit?.close_readiness?.can_close ? 'success' : 'warning'}>
+                      {contractDetails.cockpit?.close_readiness?.can_close ? 'poate fi închis' : 'are blocaje'}
+                    </Badge>
+                    <span className="text-2xl font-semibold text-slate-900">{contractDetails.cockpit?.summary?.close_blockers || 0}</span>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-600">blocaje la controlul final</div>
+                  {contractDetails.status !== 'inchis' && contractDetails.status !== 'anulat' ? (
+                    <Button className="mt-4" size="sm" variant={contractDetails.cockpit?.close_readiness?.can_close ? 'primary' : 'secondary'} onClick={() => closeContract(false)} loading={saving}>
+                      Închide contract
+                    </Button>
+                  ) : contractDetails.status === 'inchis' ? (
+                    <div className="mt-4 grid gap-2">
+                      <div className="text-sm font-medium text-slate-700">Contractul este închis.</div>
+                      <Button size="sm" variant="secondary" onClick={reopenContract} loading={saving}>
+                        Redeschide contract
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-4 text-sm font-medium text-slate-700">Contractul este {contractDetails.status}.</div>
+                  )}
+                </div>
+                <div className="grid gap-3">
+                  {contractDetails.status === 'inchis' ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                      <div className="font-semibold text-slate-900">Ultima închidere</div>
+                      <div className="mt-1">Motiv: {contractDetails.closed_reason || 'nesetat'}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {contractDetails.closed_by_name || 'utilizator necunoscut'} · {formatDate(contractDetails.closed_at)}
+                        {contractDetails.close_forced ? ' · închidere forțată' : ''}
+                      </div>
+                    </div>
+                  ) : null}
+                  {(contractDetails.cockpit?.close_readiness?.blockers || []).length ? (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                      <div className="mb-2 text-sm font-semibold text-rose-900">Blocaje obligatorii</div>
+                      <ul className="grid gap-1 text-sm text-rose-800">
+                        {contractDetails.cockpit.close_readiness.blockers.map((item, index) => <li key={`${item}-${index}`}>• {item}</li>)}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Nu există blocaje obligatorii pentru închidere.</div>
+                  )}
+                  {(contractDetails.cockpit?.close_readiness?.warnings || []).length ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <div className="mb-2 text-sm font-semibold text-amber-900">Atenționări</div>
+                      <ul className="grid gap-1 text-sm text-amber-800">
+                        {contractDetails.cockpit.close_readiness.warnings.map((item, index) => <li key={`${item}-${index}`}>• {item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {(contractDetails.closure_history || []).length ? (
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="mb-2 text-sm font-semibold text-slate-900">Jurnal închidere/redeschidere</div>
+                      <div className="grid gap-2 text-sm">
+                        {contractDetails.closure_history.slice().reverse().map((item, index) => (
+                          <div key={`${item.action}-${item.at}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="font-medium text-slate-900">
+                              {item.action === 'reopened' ? 'Redeschis' : item.action === 'closed_forced' ? 'Închis forțat' : 'Închis'}
+                            </div>
+                            <div className="text-slate-700">{item.reason || 'fără motiv'}</div>
+                            <div className="text-xs text-slate-500">{item.by_name || 'utilizator necunoscut'} · {formatDate(item.at)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </Card>

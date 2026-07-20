@@ -664,3 +664,19 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/DashboardPage.jsx` — ✅ „Status șantiere” redenumit în „Proiecte / lucrări active”;
 - `client/src/pages/DashboardPage.jsx` — ✅ graficul ultimelor 7 zile este prezentat ca output operațional;
 - `client/src/components/layout/Sidebar.jsx` — ✅ subtitlul produsului este „ERP modular”.
+
+### UPDATE 359 — Închidere controlată contract
+
+- `server/modules/contracts/routes.js` — ✅ helper `contractCloseReadiness` cu blocaje și atenționări;
+- `server/modules/contracts/routes.js` — ✅ cockpit-ul expune `close_readiness`, `can_close` și `close_blockers`;
+- `server/modules/contracts/routes.js` — ✅ endpoint `POST /api/contracts/:id/close`;
+- `server/modules/contracts/routes.js` — ✅ închidere forțată doar cu motiv și audit;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ card și buton „Închide contract” în dosarul contractului.
+
+### UPDATE 360 — Redeschidere controlată contract
+
+- `server/modules/contracts/routes.js` — ✅ endpoint `POST /api/contracts/:id/reopen` pentru contracte închise;
+- `server/modules/contracts/routes.js` — ✅ redeschidere cu motiv obligatoriu și audit `contract_reopened`;
+- `server/modules/contracts/routes.js` — ✅ jurnal `closure_history` pentru închideri, închideri forțate și redeschideri;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Redeschide” pentru contractele închise;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ afișare motiv ultima închidere și jurnal închidere/redeschidere în dosar.

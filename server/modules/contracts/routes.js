@@ -867,6 +867,36 @@ function contractActionPlan(contract, decorated, tasks, tickets, completeness) {
     .slice(0, 12)
 }
 
+function contractCloseReadiness(contract, decorated, tasks, tickets, completeness) {
+  const blockers = []
+  const warnings = []
+  const openTaskCount = tasks.filter(item => !['rezolvat', 'inchis', 'anulat'].includes(String(item.status || '').toLowerCase())).length
+  const openTicketCount = tickets.filter(item => !['rezolvat', 'inchis', 'respins'].includes(String(item.status || '').toLowerCase())).length
+  const missingRequired = Number(completeness.missing_required || 0)
+  const criticalAlerts = (decorated.alerte || []).filter(item => item.level === 'danger').length
+
+  if (String(contract.status || '').toLowerCase() === 'inchis') blockers.push('Contractul este deja închis.')
+  if (String(contract.status || '').toLowerCase() === 'anulat') blockers.push('Contractul este anulat și nu poate fi închis.')
+  if (missingRequired > 0) blockers.push(`${missingRequired} câmpuri obligatorii lipsesc din dosar.`)
+  if (openTaskCount > 0) blockers.push(`${openTaskCount} task-uri sunt încă deschise.`)
+  if (openTicketCount > 0) blockers.push(`${openTicketCount} tichete sunt încă deschise.`)
+  if (criticalAlerts > 0) blockers.push(`${criticalAlerts} alerte critice sunt încă active.`)
+
+  if ((decorated.documente_sursa?.timeline || []).length === 0) warnings.push('Nu există documente sursă legate la contract.')
+  if ((decorated.consumuri || []).length === 0) warnings.push('Nu există consumuri înregistrate pe contract.')
+  if (Number(decorated.valoare_ramasa || 0) < 0) warnings.push('Valoarea consumată depășește valoarea contractată.')
+
+  return {
+    can_close: blockers.length === 0,
+    blockers,
+    warnings,
+    open_tasks: openTaskCount,
+    open_tickets: openTicketCount,
+    missing_required: missingRequired,
+    critical_alerts: criticalAlerts
+  }
+}
+
 function contractCockpit(db, contract, decoratedContract = null) {
   const cm = ensureContractsDb(db)
   const ticketsDb = ensureTicketsDb(db)
@@ -895,6 +925,7 @@ function contractCockpit(db, contract, decoratedContract = null) {
   const timeline = contractTimeline(db, contract, decorated, tasks, tickets)
   const completeness = contractCompleteness(db, contract, decorated)
   const actionPlan = contractActionPlan(contract, decorated, tasks, tickets, completeness)
+  const closeReadiness = contractCloseReadiness(contract, decorated, tasks, tickets, completeness)
   return {
     summary: {
       alerts: decorated.alerte?.length || 0,
@@ -911,6 +942,8 @@ function contractCockpit(db, contract, decoratedContract = null) {
       missing_required: completeness.missing_required,
       actions_total: actionPlan.length,
       actions_critical: actionPlan.filter(item => item.priority === 1).length,
+      can_close: closeReadiness.can_close,
+      close_blockers: closeReadiness.blockers.length,
       consum_percent: decorated.procent_consum || 0,
       days_left: decorated.summary?.zile_ramase ?? null
     },
@@ -922,7 +955,8 @@ function contractCockpit(db, contract, decoratedContract = null) {
     addenda: decorated.acte_aditionale || [],
     timeline,
     completeness,
-    action_plan: actionPlan
+    action_plan: actionPlan,
+    close_readiness: closeReadiness
   }
 }
 
@@ -1775,6 +1809,73 @@ function createTicketForContractTask(db, taskId, user) {
   return { task: decorateTask(db, task), ticket, created: true }
 }
 
+function closeContractControlled(db, contractId, user, body = {}) {
+  const cm = ensureContractsDb(db)
+  const contract = cm.contracts.find(item => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt)
+  if (!contract) return { error: 'Contract inexistent.', status: 404 }
+  const decorated = decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true })
+  const readiness = decorated.cockpit?.close_readiness || { can_close: false, blockers: ['Dosarul nu a putut fi verificat.'], warnings: [] }
+  const force = ['1', 'true', 'yes', 'da'].includes(String(body.force || body.forteaza || '').trim().toLowerCase()) || body.force === true
+  const reason = String(body.reason || body.motiv || body.close_reason || '').trim()
+  if (!reason) return { error: 'Motivul închiderii este obligatoriu.', status: 422, readiness }
+  if (!readiness.can_close && !force) return { error: 'Contractul nu poate fi închis până nu sunt rezolvate blocajele.', status: 409, readiness }
+  if (!readiness.can_close && force && reason.length < 10) return { error: 'Pentru închidere forțată, motivul trebuie să aibă cel puțin 10 caractere.', status: 422, readiness }
+
+  contract.status = 'inchis'
+  contract.closed_at = nowIso()
+  contract.closed_by = user.id
+  contract.closed_by_name = user.name || user.username
+  contract.closed_reason = reason
+  contract.close_forced = Boolean(force && !readiness.can_close)
+  contract.close_blockers = readiness.blockers || []
+  contract.close_warnings = readiness.warnings || []
+  contract.status_before_close = contract.status_before_close || decorated.status || 'activ'
+  contract.closure_history = Array.isArray(contract.closure_history) ? contract.closure_history : []
+  contract.closure_history.push({
+    action: contract.close_forced ? 'closed_forced' : 'closed',
+    at: contract.closed_at,
+    by: user.id,
+    by_name: contract.closed_by_name,
+    reason,
+    blockers: contract.close_blockers,
+    warnings: contract.close_warnings
+  })
+  contract.updated_by = user.id
+  contract.updated_at = nowIso()
+  return { contract: decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }), readiness, forced: contract.close_forced }
+}
+
+function reopenContractControlled(db, contractId, user, body = {}) {
+  const cm = ensureContractsDb(db)
+  const contract = cm.contracts.find(item => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt)
+  if (!contract) return { error: 'Contract inexistent.', status: 404 }
+  if (String(contract.status || '').toLowerCase() !== 'inchis') return { error: 'Doar contractele închise pot fi redeschise.', status: 409 }
+  const reason = String(body.reason || body.motiv || body.reopen_reason || '').trim()
+  if (!reason) return { error: 'Motivul redeschiderii este obligatoriu.', status: 422 }
+  if (reason.length < 10) return { error: 'Motivul redeschiderii trebuie să aibă cel puțin 10 caractere.', status: 422 }
+
+  const previousStatus = String(contract.status_before_close || '').trim()
+  const reopenedStatus = previousStatus && !['inchis', 'anulat'].includes(previousStatus.toLowerCase()) ? previousStatus : 'activ'
+  const reopenedAt = nowIso()
+  contract.status = reopenedStatus
+  contract.reopened_at = reopenedAt
+  contract.reopened_by = user.id
+  contract.reopened_by_name = user.name || user.username
+  contract.reopened_reason = reason
+  contract.closure_history = Array.isArray(contract.closure_history) ? contract.closure_history : []
+  contract.closure_history.push({
+    action: 'reopened',
+    at: reopenedAt,
+    by: user.id,
+    by_name: contract.reopened_by_name,
+    reason,
+    restored_status: reopenedStatus
+  })
+  contract.updated_by = user.id
+  contract.updated_at = reopenedAt
+  return { contract: decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) }
+}
+
 function canView(auth, res) {
   return requireAnyPermission(auth, res, VIEW_PERMISSIONS)
 }
@@ -1958,6 +2059,28 @@ router.post('/contracts/:id/tasks', (req, res) => {
   addAudit(auth.db, auth.user, result.created ? 'contract_action_task_created' : 'contract_action_task_reused', `${result.task.contract_numar || req.params.id}: ${result.task.titlu}`)
   writeDb(auth.db)
   sendJson(res, result.created ? 201 : 200, { ok: true, ...result })
+})
+
+router.post('/contracts/:id/close', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const result = closeContractControlled(auth.db, req.params.id, auth.user, req.body || {})
+  if (result.error) return sendJson(res, result.status || 422, { error: result.error, readiness: result.readiness })
+  addAudit(auth.db, auth.user, result.forced ? 'contract_closed_forced' : 'contract_closed', `${result.contract.numar || req.params.id}: ${result.contract.closed_reason}`)
+  writeDb(auth.db)
+  sendJson(res, 200, { ok: true, ...result })
+})
+
+router.post('/contracts/:id/reopen', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const result = reopenContractControlled(auth.db, req.params.id, auth.user, req.body || {})
+  if (result.error) return sendJson(res, result.status || 422, { error: result.error })
+  addAudit(auth.db, auth.user, 'contract_reopened', `${result.contract.numar || req.params.id}: ${result.contract.reopened_reason}`)
+  writeDb(auth.db)
+  sendJson(res, 200, { ok: true, ...result })
 })
 
 router.post('/contracts/:id/addenda', contractUpload.single('file'), (req, res, next) => {
