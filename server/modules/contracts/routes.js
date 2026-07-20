@@ -1912,6 +1912,56 @@ function cancelContractControlled(db, contractId, user, body = {}) {
   return { contract: decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) }
 }
 
+function reactivateContractControlled(db, contractId, user, body = {}) {
+  const cm = ensureContractsDb(db)
+  const contract = cm.contracts.find(item => String(item.id) === String(contractId))
+  if (!contract) return { error: 'Contract inexistent.', status: 404 }
+  if (String(contract.status || '').toLowerCase() !== 'anulat' && !contract.cancelled_at && !contract.cancelledAt) {
+    return { error: 'Doar contractele anulate pot fi reactivate.', status: 409 }
+  }
+  const duplicate = cm.contracts.find(item =>
+    String(item.id) !== String(contract.id) &&
+    !item.cancelled_at && !item.cancelledAt &&
+    String(item.numar || '').trim().toLowerCase() === String(contract.numar || '').trim().toLowerCase()
+  )
+  if (duplicate) return { error: `Există deja un contract activ cu numărul ${contract.numar}. Reactivarea este blocată pentru a evita duplicatele.`, status: 409 }
+  const reason = String(body.reason || body.motiv || body.reactivate_reason || '').trim()
+  if (!reason) return { error: 'Motivul reactivării este obligatoriu.', status: 422 }
+  if (reason.length < 10) return { error: 'Motivul reactivării trebuie să aibă cel puțin 10 caractere.', status: 422 }
+
+  const reactivatedAt = nowIso()
+  const restoredStatusRaw = String(contract.status_before_cancel || 'activ').trim()
+  const restoredStatus = restoredStatusRaw && !['anulat'].includes(restoredStatusRaw.toLowerCase()) ? restoredStatusRaw : 'activ'
+  contract.last_cancelled_at = contract.cancelled_at || contract.cancelledAt || null
+  contract.last_cancelled_by = contract.cancelled_by || contract.cancelledBy || null
+  contract.last_cancelled_by_name = contract.cancelled_by_name || ''
+  contract.last_cancelled_reason = contract.cancelled_reason || contract.cancelledReason || ''
+  contract.status = restoredStatus
+  contract.cancelled_at = null
+  contract.cancelledAt = null
+  contract.cancelled_by = null
+  contract.cancelledBy = null
+  contract.cancelled_by_name = null
+  contract.cancelled_reason = null
+  contract.cancelledReason = null
+  contract.reactivated_at = reactivatedAt
+  contract.reactivated_by = user.id
+  contract.reactivated_by_name = user.name || user.username
+  contract.reactivated_reason = reason
+  contract.lifecycle_history = Array.isArray(contract.lifecycle_history) ? contract.lifecycle_history : []
+  contract.lifecycle_history.push({
+    action: 'reactivated',
+    at: reactivatedAt,
+    by: user.id,
+    by_name: contract.reactivated_by_name,
+    reason,
+    restored_status: restoredStatus
+  })
+  contract.updated_by = user.id
+  contract.updated_at = reactivatedAt
+  return { contract: decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) }
+}
+
 function canView(auth, res) {
   return requireAnyPermission(auth, res, VIEW_PERMISSIONS)
 }
@@ -2382,6 +2432,17 @@ router.post('/contracts/:id/cancel', (req, res) => {
   const result = cancelContractControlled(auth.db, req.params.id, auth.user, req.body || {})
   if (result.error) return sendJson(res, result.status || 422, { error: result.error })
   addAudit(auth.db, auth.user, 'contract_cancelled', `${result.contract.numar} / ${result.contract.cancelled_reason || result.contract.cancelledReason}`)
+  writeDb(auth.db)
+  sendJson(res, 200, { ok: true, ...result })
+})
+
+router.post('/contracts/:id/reactivate', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const result = reactivateContractControlled(auth.db, req.params.id, auth.user, req.body || {})
+  if (result.error) return sendJson(res, result.status || 422, { error: result.error })
+  addAudit(auth.db, auth.user, 'contract_reactivated', `${result.contract.numar} / ${result.contract.reactivated_reason}`)
   writeDb(auth.db)
   sendJson(res, 200, { ok: true, ...result })
 })

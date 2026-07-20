@@ -688,3 +688,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ dashboard-ul și fluxurile active ignoră în continuare contractele anulate;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Anulează”, confirmare și filtru „Anulate”;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ dosarele anulate devin consultabile/read-only pentru consumuri, acte adiționale și atașamente noi.
+
+### UPDATE 362 — Reactivare controlată contract anulat
+
+- `server/modules/contracts/routes.js` — ✅ endpoint `POST /api/contracts/:id/reactivate` pentru contracte anulate;
+- `server/modules/contracts/routes.js` — ✅ reactivare cu motiv obligatoriu, audit și blocare duplicate active pe același număr;
+- `server/modules/contracts/routes.js` — ✅ revenire la statusul anterior anulării sau la `activ`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Reactivează” în dosarul contractului anulat și în banner;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ jurnalul ciclului de viață afișează evenimentul „Reactivat”.

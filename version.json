@@ -1,5 +1,5 @@
 {
-  "version": "2.12.341",
+  "version": "2.12.342",
   "date": "2026-07-20",
-  "changelog": "## v2.12.341 - 2026-07-20\n### Anulare controlata contract\n- Endpoint-ul POST /api/contracts/:id/cancel cere motiv explicit si pastreaza auditul.\n- Contractele anulate raman vizibile in lista, detalii si fisa printabila pentru trasabilitate.\n- Dashboard-ul si fluxurile active continua sa ignore contractele anulate.\n- UI-ul afiseaza buton Anuleaza, motivul anularii si jurnalul ciclului de viata.\n- Dosarele anulate devin consultabile: nu se mai pot adauga consumuri, acte aditionale sau atasamente noi."
+  "changelog": "## v2.12.342 - 2026-07-20\n### Reactivare controlata contract anulat\n- Endpoint nou POST /api/contracts/:id/reactivate pentru revenirea auditata a contractelor anulate.\n- Reactivarea cere motiv explicit si blocheaza duplicatele active pe acelasi numar de contract.\n- Contractul revine la statusul anterior anularii sau la activ si reintra in fluxurile operationale.\n- UI-ul afiseaza buton Reactiveaza in dosarul contractului anulat si in bannerul de anulare.\n- Jurnalul ciclului de viata afiseaza evenimentul Reactivat."
 }

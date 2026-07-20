@@ -575,6 +575,26 @@ export default function ContractePage() {
     }
   }
 
+  async function reactivateContract() {
+    if (!contractDetails?.id) return
+    const reason = window.prompt('Motiv reactivare contract:', 'Contract reactivat după verificare operațională')
+    if (reason === null) return
+    if (!window.confirm('Confirmi reactivarea contractului? Contractul va reintra în fluxurile active.')) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post(`/contracts/${contractDetails.id}/reactivate`, { reason })
+      setContractDetails(response.data.contract || contractDetails)
+      setNotice('Contractul a fost reactivat controlat.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Contractul nu a putut fi reactivat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <PageHeader
@@ -856,11 +876,15 @@ export default function ContractePage() {
                       Redeschide
                     </Button>
                   ) : null}
-                  {contractDetails.status !== 'anulat' ? (
+                  {contractDetails.status === 'anulat' ? (
+                    <Button size="sm" variant="secondary" onClick={reactivateContract} loading={saving}>
+                      Reactivează
+                    </Button>
+                  ) : (
                     <Button size="sm" variant="danger" onClick={cancelContract} loading={saving}>
                       Anulează
                     </Button>
-                  ) : null}
+                  )}
                   <Badge tone={statusTone(contractDetails.status)}>{contractDetails.status}</Badge>
                   {contractDetails.alerte?.map((alert, index) => <Badge key={`${alert.code}-${index}`} tone={alertTone(alert.level)}>{alert.code}</Badge>)}
                 </div>
@@ -887,10 +911,15 @@ export default function ContractePage() {
 
             {contractDetails.status === 'anulat' ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-                <div className="font-semibold text-rose-950">Contract anulat</div>
-                <div className="mt-1">Motiv: {contractDetails.cancelled_reason || contractDetails.cancelledReason || 'nesetat'}</div>
-                <div className="mt-1 text-xs text-rose-700">
-                  {contractDetails.cancelled_by_name || 'utilizator necunoscut'} · {formatDate(contractDetails.cancelled_at || contractDetails.cancelledAt)}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-rose-950">Contract anulat</div>
+                    <div className="mt-1">Motiv: {contractDetails.cancelled_reason || contractDetails.cancelledReason || 'nesetat'}</div>
+                    <div className="mt-1 text-xs text-rose-700">
+                      {contractDetails.cancelled_by_name || 'utilizator necunoscut'} · {formatDate(contractDetails.cancelled_at || contractDetails.cancelledAt)}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={reactivateContract} loading={saving}>Reactivează contract</Button>
                 </div>
               </div>
             ) : null}
@@ -1068,7 +1097,7 @@ export default function ContractePage() {
                         {contractDetails.lifecycle_history.slice().reverse().map((item, index) => (
                           <div key={`${item.action}-${item.at}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2">
                             <div className="font-medium text-slate-900">
-                              {item.action === 'cancelled' ? 'Anulat' : item.action || 'Eveniment'}
+                              {item.action === 'cancelled' ? 'Anulat' : item.action === 'reactivated' ? 'Reactivat' : item.action || 'Eveniment'}
                             </div>
                             <div className="text-slate-700">{item.reason || 'fără motiv'}</div>
                             <div className="text-xs text-slate-500">{item.by_name || 'utilizator necunoscut'} · {formatDate(item.at)}</div>

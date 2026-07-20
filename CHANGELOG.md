@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.342 - 2026-07-20
+
+## Reactivare controlată contract anulat
+
+- Am adăugat reactivare controlată pentru contractele anulate.
+- Backend: endpoint nou `POST /api/contracts/:id/reactivate`, cu motiv obligatoriu și audit.
+- Reactivarea blochează duplicatele active cu același număr de contract.
+- Contractul revine la statusul anterior anulării sau la `activ` dacă statusul anterior nu este sigur.
+- UI: buton `Reactivează` în dosarul contractului anulat și în bannerul de anulare.
+- Jurnalul ciclului de viață afișează evenimentul `Reactivat`.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.341 - 2026-07-20
 
 ## Anulare controlată contract
