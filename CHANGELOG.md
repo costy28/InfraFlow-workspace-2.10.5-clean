@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.341 - 2026-07-20
+
+## Anulare controlată contract
+
+- Am standardizat anularea contractelor ca operațiune auditată, cu motiv obligatoriu.
+- Backend: `POST /api/contracts/:id/cancel` folosește anulare controlată și păstrează metadate complete.
+- Contractele anulate rămân vizibile în listă, detalii și fișa printabilă, dar nu mai intră în dashboard/fluxuri active.
+- UI: buton `Anulează`, confirmare, motiv anulare și jurnal al ciclului de viață.
+- Dosarele anulate rămân consultabile, dar nu mai permit consumuri, acte adiționale sau atașamente noi.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.340 - 2026-07-20
 
 ## Redeschidere controlată contract

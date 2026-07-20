@@ -680,3 +680,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ jurnal `closure_history` pentru închideri, închideri forțate și redeschideri;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Redeschide” pentru contractele închise;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ afișare motiv ultima închidere și jurnal închidere/redeschidere în dosar.
+
+### UPDATE 361 — Anulare controlată contract
+
+- `server/modules/contracts/routes.js` — ✅ anulare contract cu motiv obligatoriu și audit;
+- `server/modules/contracts/routes.js` — ✅ contractele anulate rămân consultabile în listă, detaliu și fișa printabilă;
+- `server/modules/contracts/routes.js` — ✅ dashboard-ul și fluxurile active ignoră în continuare contractele anulate;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton „Anulează”, confirmare și filtru „Anulate”;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ dosarele anulate devin consultabile/read-only pentru consumuri, acte adiționale și atașamente noi.

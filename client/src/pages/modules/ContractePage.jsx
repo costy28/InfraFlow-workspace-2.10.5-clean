@@ -555,6 +555,26 @@ export default function ContractePage() {
     }
   }
 
+  async function cancelContract() {
+    if (!contractDetails?.id) return
+    const reason = window.prompt('Motiv anulare contract:', 'Contract anulat prin decizie operațională')
+    if (reason === null) return
+    if (!window.confirm('Confirmi anularea contractului? Contractul rămâne în dosar, dar nu mai intră în fluxurile active.')) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post(`/contracts/${contractDetails.id}/cancel`, { reason })
+      setContractDetails(response.data.contract || contractDetails)
+      setNotice('Contractul a fost anulat controlat și rămâne disponibil în dosar.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Contractul nu a putut fi anulat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <PageHeader
@@ -735,6 +755,7 @@ export default function ContractePage() {
             <option value="activ">Active</option>
             <option value="draft">Draft</option>
             <option value="inchis">Închise</option>
+            <option value="anulat">Anulate</option>
             <option value="alerte">Cu alerte</option>
             <option value="risc">Cu risc</option>
           </Select>
@@ -799,8 +820,12 @@ export default function ContractePage() {
                   <td className="px-3 py-3 text-right">
                     <div className="flex justify-end gap-2">
                       <Button size="sm" variant="secondary" onClick={() => openDetails(contract)}>Detalii</Button>
-                      <Button size="sm" variant="secondary" onClick={() => openSourceLink(contract)}>Leagă doc.</Button>
-                      <Button size="sm" variant="secondary" onClick={() => openConsumption(contract)}>+ Consum</Button>
+                      {contract.status !== 'anulat' ? (
+                        <>
+                          <Button size="sm" variant="secondary" onClick={() => openSourceLink(contract)}>Leagă doc.</Button>
+                          <Button size="sm" variant="secondary" onClick={() => openConsumption(contract)}>+ Consum</Button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -831,6 +856,11 @@ export default function ContractePage() {
                       Redeschide
                     </Button>
                   ) : null}
+                  {contractDetails.status !== 'anulat' ? (
+                    <Button size="sm" variant="danger" onClick={cancelContract} loading={saving}>
+                      Anulează
+                    </Button>
+                  ) : null}
                   <Badge tone={statusTone(contractDetails.status)}>{contractDetails.status}</Badge>
                   {contractDetails.alerte?.map((alert, index) => <Badge key={`${alert.code}-${index}`} tone={alertTone(alert.level)}>{alert.code}</Badge>)}
                 </div>
@@ -854,6 +884,16 @@ export default function ContractePage() {
                 </div>
               </div>
             </div>
+
+            {contractDetails.status === 'anulat' ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                <div className="font-semibold text-rose-950">Contract anulat</div>
+                <div className="mt-1">Motiv: {contractDetails.cancelled_reason || contractDetails.cancelledReason || 'nesetat'}</div>
+                <div className="mt-1 text-xs text-rose-700">
+                  {contractDetails.cancelled_by_name || 'utilizator necunoscut'} · {formatDate(contractDetails.cancelled_at || contractDetails.cancelledAt)}
+                </div>
+              </div>
+            ) : null}
 
             <Card title="Cockpit contract" subtitle="Radiografia rapidă: ce este consumat, ce lipsește și ce acțiuni sunt încă deschise.">
               <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -1021,6 +1061,22 @@ export default function ContractePage() {
                       </div>
                     </div>
                   ) : null}
+                  {(contractDetails.lifecycle_history || []).length ? (
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="mb-2 text-sm font-semibold text-slate-900">Jurnal ciclul de viață</div>
+                      <div className="grid gap-2 text-sm">
+                        {contractDetails.lifecycle_history.slice().reverse().map((item, index) => (
+                          <div key={`${item.action}-${item.at}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="font-medium text-slate-900">
+                              {item.action === 'cancelled' ? 'Anulat' : item.action || 'Eveniment'}
+                            </div>
+                            <div className="text-slate-700">{item.reason || 'fără motiv'}</div>
+                            <div className="text-xs text-slate-500">{item.by_name || 'utilizator necunoscut'} · {formatDate(item.at)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </Card>
@@ -1136,34 +1192,38 @@ export default function ContractePage() {
             </Card>
 
             <Card title="Acte adiționale" subtitle="Modificări controlate pentru valoare, termen, responsabil sau condiții contractuale. Istoricul păstrează valorile înainte/după.">
-              <form className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-4" onSubmit={saveAddendum}>
-                <Input label="Număr act" value={addendumForm.numar} onChange={event => setAddendumForm({ ...addendumForm, numar: event.target.value })} required />
-                <Select label="Tip" value={addendumForm.tip} onChange={event => setAddendumForm({ ...addendumForm, tip: event.target.value })}>
-                  <option value="prelungire">Prelungire termen</option>
-                  <option value="majorare">Majorare valoare</option>
-                  <option value="diminuare">Diminuare valoare</option>
-                  <option value="responsabil">Schimbare responsabil</option>
-                  <option value="conditii">Condiții contractuale</option>
-                  <option value="altul">Altul</option>
-                </Select>
-                <Input label="Data semnare" type="date" value={addendumForm.data_semnare} onChange={event => setAddendumForm({ ...addendumForm, data_semnare: event.target.value })} required />
-                <Input label="Delta valoare" type="number" step="0.01" value={addendumForm.valoare_delta} onChange={event => setAddendumForm({ ...addendumForm, valoare_delta: event.target.value })} helperText="La diminuare se aplică automat cu minus." />
-                <Input label="Termen nou" type="date" value={addendumForm.data_sfarsit_noua} onChange={event => setAddendumForm({ ...addendumForm, data_sfarsit_noua: event.target.value })} />
-                <Input label="Responsabil nou" value={addendumForm.responsabil_nume_nou} onChange={event => setAddendumForm({ ...addendumForm, responsabil_nume_nou: event.target.value })} />
-                <Input label="Fișier semnat (opțional)" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onChange={event => setAddendumForm({ ...addendumForm, file: event.target.files?.[0] || null })} helperText={addendumForm.file ? addendumForm.file.name : 'PDF, Word, Excel sau imagine scanată.'} />
-                <label className="lg:col-span-3">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">Descriere / obiect</span>
-                  <textarea
-                    className="min-h-[42px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                    value={addendumForm.descriere}
-                    onChange={event => setAddendumForm({ ...addendumForm, descriere: event.target.value })}
-                    placeholder="Ex: prelungire termen, suplimentare valoare, schimbare manager contract..."
-                  />
-                </label>
-                <div className="flex items-end lg:col-span-4">
-                  <Button type="submit" loading={saving}>Adaugă act adițional</Button>
-                </div>
-              </form>
+              {contractDetails.status !== 'anulat' ? (
+                <form className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-4" onSubmit={saveAddendum}>
+                  <Input label="Număr act" value={addendumForm.numar} onChange={event => setAddendumForm({ ...addendumForm, numar: event.target.value })} required />
+                  <Select label="Tip" value={addendumForm.tip} onChange={event => setAddendumForm({ ...addendumForm, tip: event.target.value })}>
+                    <option value="prelungire">Prelungire termen</option>
+                    <option value="majorare">Majorare valoare</option>
+                    <option value="diminuare">Diminuare valoare</option>
+                    <option value="responsabil">Schimbare responsabil</option>
+                    <option value="conditii">Condiții contractuale</option>
+                    <option value="altul">Altul</option>
+                  </Select>
+                  <Input label="Data semnare" type="date" value={addendumForm.data_semnare} onChange={event => setAddendumForm({ ...addendumForm, data_semnare: event.target.value })} required />
+                  <Input label="Delta valoare" type="number" step="0.01" value={addendumForm.valoare_delta} onChange={event => setAddendumForm({ ...addendumForm, valoare_delta: event.target.value })} helperText="La diminuare se aplică automat cu minus." />
+                  <Input label="Termen nou" type="date" value={addendumForm.data_sfarsit_noua} onChange={event => setAddendumForm({ ...addendumForm, data_sfarsit_noua: event.target.value })} />
+                  <Input label="Responsabil nou" value={addendumForm.responsabil_nume_nou} onChange={event => setAddendumForm({ ...addendumForm, responsabil_nume_nou: event.target.value })} />
+                  <Input label="Fișier semnat (opțional)" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onChange={event => setAddendumForm({ ...addendumForm, file: event.target.files?.[0] || null })} helperText={addendumForm.file ? addendumForm.file.name : 'PDF, Word, Excel sau imagine scanată.'} />
+                  <label className="lg:col-span-3">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">Descriere / obiect</span>
+                    <textarea
+                      className="min-h-[42px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                      value={addendumForm.descriere}
+                      onChange={event => setAddendumForm({ ...addendumForm, descriere: event.target.value })}
+                      placeholder="Ex: prelungire termen, suplimentare valoare, schimbare manager contract..."
+                    />
+                  </label>
+                  <div className="flex items-end lg:col-span-4">
+                    <Button type="submit" loading={saving}>Adaugă act adițional</Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Contract anulat: nu se mai pot adăuga acte adiționale.</div>
+              )}
 
               <div className="mt-3 grid gap-2">
                 {(contractDetails.acte_aditionale || []).length === 0 ? (
@@ -1182,7 +1242,7 @@ export default function ContractePage() {
                       </div>
                       <div className="flex flex-wrap justify-end gap-2">
                         {item.atasament ? <Button size="sm" variant="secondary" onClick={() => downloadAttachment(item.atasament)}>Descarcă fișier</Button> : null}
-                        <Button size="sm" variant="secondary" onClick={() => cancelAddendum(item)} loading={saving}>Anulează</Button>
+                        {contractDetails.status !== 'anulat' ? <Button size="sm" variant="secondary" onClick={() => cancelAddendum(item)} loading={saving}>Anulează</Button> : null}
                       </div>
                     </div>
                     <div className="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
@@ -1206,20 +1266,24 @@ export default function ContractePage() {
             </Card>
 
             <Card title="Atașamente contract" subtitle="Contract semnat, acte adiționale, garanții, corespondență sau alte documente păstrate în dosarul real al contractului.">
-              <form className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[180px_1fr_1fr_auto]" onSubmit={uploadAttachment}>
-                <Select label="Categorie" value={attachmentForm.categorie} onChange={event => setAttachmentForm({ ...attachmentForm, categorie: event.target.value })}>
-                  <option value="contract semnat">Contract semnat</option>
-                  <option value="act aditional">Act adițional</option>
-                  <option value="garantie">Garanție</option>
-                  <option value="corespondenta">Corespondență</option>
-                  <option value="alt document">Alt document</option>
-                </Select>
-                <Input label="Descriere" value={attachmentForm.descriere} onChange={event => setAttachmentForm({ ...attachmentForm, descriere: event.target.value })} />
-                <Input label="Fișier" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onChange={event => setAttachmentForm({ ...attachmentForm, file: event.target.files?.[0] || null })} />
-                <div className="flex items-end">
-                  <Button type="submit" disabled={!attachmentForm.file || saving} loading={saving}>Încarcă</Button>
-                </div>
-              </form>
+              {contractDetails.status !== 'anulat' ? (
+                <form className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[180px_1fr_1fr_auto]" onSubmit={uploadAttachment}>
+                  <Select label="Categorie" value={attachmentForm.categorie} onChange={event => setAttachmentForm({ ...attachmentForm, categorie: event.target.value })}>
+                    <option value="contract semnat">Contract semnat</option>
+                    <option value="act aditional">Act adițional</option>
+                    <option value="garantie">Garanție</option>
+                    <option value="corespondenta">Corespondență</option>
+                    <option value="alt document">Alt document</option>
+                  </Select>
+                  <Input label="Descriere" value={attachmentForm.descriere} onChange={event => setAttachmentForm({ ...attachmentForm, descriere: event.target.value })} />
+                  <Input label="Fișier" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onChange={event => setAttachmentForm({ ...attachmentForm, file: event.target.files?.[0] || null })} />
+                  <div className="flex items-end">
+                    <Button type="submit" disabled={!attachmentForm.file || saving} loading={saving}>Încarcă</Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Contract anulat: atașamentele existente se pot consulta, dar nu se mai pot încărca fișiere noi.</div>
+              )}
 
               <div className="mt-3 grid gap-2">
                 {(contractDetails.atasamente || []).length === 0 ? (
@@ -1240,7 +1304,7 @@ export default function ContractePage() {
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
                       <Button size="sm" variant="secondary" onClick={() => downloadAttachment(item)}>Descarcă</Button>
-                      <Button size="sm" variant="secondary" onClick={() => cancelAttachment(item)} loading={saving}>Anulează</Button>
+                      {contractDetails.status !== 'anulat' ? <Button size="sm" variant="secondary" onClick={() => cancelAttachment(item)} loading={saving}>Anulează</Button> : null}
                     </div>
                   </div>
                 ))}

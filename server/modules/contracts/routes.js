@@ -1876,6 +1876,42 @@ function reopenContractControlled(db, contractId, user, body = {}) {
   return { contract: decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) }
 }
 
+function cancelContractControlled(db, contractId, user, body = {}) {
+  const cm = ensureContractsDb(db)
+  const contract = cm.contracts.find(item => String(item.id) === String(contractId))
+  if (!contract) return { error: 'Contract inexistent.', status: 404 }
+  if (String(contract.status || '').toLowerCase() === 'anulat' || contract.cancelled_at || contract.cancelledAt) {
+    return { error: 'Contractul este deja anulat.', status: 409 }
+  }
+  const reason = String(body.reason || body.motiv || body.cancelled_reason || '').trim()
+  if (!reason) return { error: 'Motivul anulării este obligatoriu.', status: 422 }
+  if (reason.length < 10) return { error: 'Motivul anulării trebuie să aibă cel puțin 10 caractere.', status: 422 }
+
+  const cancelledAt = nowIso()
+  const previousStatus = String(contract.status || 'activ')
+  contract.status_before_cancel = previousStatus
+  contract.status = 'anulat'
+  contract.cancelled_at = cancelledAt
+  contract.cancelledAt = cancelledAt
+  contract.cancelled_by = user.id
+  contract.cancelledBy = user.id
+  contract.cancelled_by_name = user.name || user.username
+  contract.cancelled_reason = reason
+  contract.cancelledReason = reason
+  contract.lifecycle_history = Array.isArray(contract.lifecycle_history) ? contract.lifecycle_history : []
+  contract.lifecycle_history.push({
+    action: 'cancelled',
+    at: cancelledAt,
+    by: user.id,
+    by_name: contract.cancelled_by_name,
+    reason,
+    previous_status: previousStatus
+  })
+  contract.updated_by = user.id
+  contract.updated_at = cancelledAt
+  return { contract: decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) }
+}
+
 function canView(auth, res) {
   return requireAnyPermission(auth, res, VIEW_PERMISSIONS)
 }
@@ -2004,7 +2040,6 @@ router.get('/contracts', (req, res) => {
   const partner = String(req.query.partner || '').trim().toLowerCase()
   const cpv = String(req.query.cpv || '').trim().toLowerCase()
   const contracts = cm.contracts
-    .filter(item => !item.cancelled_at && !item.cancelledAt)
     .filter(item => !status || String(item.status) === status)
     .filter(item => !partner || String(item.partener || '').toLowerCase().includes(partner))
     .filter(item => !cpv || String(item.cpv_cod || '').toLowerCase().includes(cpv))
@@ -2044,7 +2079,7 @@ router.get('/contracts/:id/print', (req, res) => {
   if (!auth) return
   if (!canView(auth, res)) return
   const cm = ensureContractsDb(auth.db)
-  const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
+  const contract = cm.contracts.find(item => String(item.id) === String(req.params.id))
   if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.status(200).send(contractPrintHtml(auth.db, contract, auth.user))
@@ -2232,7 +2267,7 @@ router.get('/contracts/:id', (req, res) => {
   if (!auth) return
   if (!canView(auth, res)) return
   const cm = ensureContractsDb(auth.db)
-  const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
+  const contract = cm.contracts.find(item => String(item.id) === String(req.params.id))
   if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
   sendJson(res, 200, { contract: decorateContract(auth.db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) })
 })
@@ -2344,16 +2379,11 @@ router.post('/contracts/:id/cancel', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
   if (!canManage(auth, res)) return
-  const cm = ensureContractsDb(auth.db)
-  const contract = cm.contracts.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at && !item.cancelledAt)
-  if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
-  contract.status = 'anulat'
-  contract.cancelled_at = nowIso()
-  contract.cancelled_by = auth.user.id
-  contract.cancelled_reason = String(req.body?.reason || req.body?.motiv || 'Anulat din Contract Management').trim()
-  addAudit(auth.db, auth.user, 'contract_cancelled', `${contract.numar} / ${contract.cancelled_reason}`)
+  const result = cancelContractControlled(auth.db, req.params.id, auth.user, req.body || {})
+  if (result.error) return sendJson(res, result.status || 422, { error: result.error })
+  addAudit(auth.db, auth.user, 'contract_cancelled', `${result.contract.numar} / ${result.contract.cancelled_reason || result.contract.cancelledReason}`)
   writeDb(auth.db)
-  sendJson(res, 200, { ok: true, contract })
+  sendJson(res, 200, { ok: true, ...result })
 })
 
 module.exports = router
