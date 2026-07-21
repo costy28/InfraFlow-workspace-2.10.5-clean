@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.348 - 2026-07-21
+
+## Mini-modal asignare manager contract
+
+- Acțiunea rapidă `Setează manager` folosește un mini-modal în loc de prompt browser.
+- Modalul afișează contractul vizat, partenerul și valoarea contractului pentru confirmare vizuală.
+- Managerul poate fi introdus manual sau selectat din sugestiile preluate din utilizatorii activi.
+- Dacă sugestiile de utilizatori nu pot fi încărcate, pagina rămâne funcțională cu introducere manuală.
+- După salvare, lista, dashboard-ul și contoarele vederilor se reîncarcă automat.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.347 - 2026-07-21
 
 ## Acțiuni rapide portofoliu contracte

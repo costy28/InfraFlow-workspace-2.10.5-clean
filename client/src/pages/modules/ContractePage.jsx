@@ -221,6 +221,7 @@ export default function ContractePage() {
   const [contracts, setContracts] = useState([])
   const [dashboard, setDashboard] = useState(null)
   const [tasks, setTasks] = useState([])
+  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -228,6 +229,7 @@ export default function ContractePage() {
   const [consumptionModalOpen, setConsumptionModalOpen] = useState(false)
   const [sourceModalOpen, setSourceModalOpen] = useState(false)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [managerModalOpen, setManagerModalOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
   const [contractDetails, setContractDetails] = useState(null)
   const [contractForm, setContractForm] = useState(emptyContractForm)
@@ -235,6 +237,7 @@ export default function ContractePage() {
   const [sourceForm, setSourceForm] = useState(emptySourceForm)
   const [attachmentForm, setAttachmentForm] = useState(emptyAttachmentForm)
   const [addendumForm, setAddendumForm] = useState(emptyAddendumForm)
+  const [managerForm, setManagerForm] = useState({ responsabil_nume: '' })
   const [linkableSources, setLinkableSources] = useState([])
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -251,6 +254,27 @@ export default function ContractePage() {
   const filteredContracts = useMemo(() => {
     return contracts.filter(contract => contractMatchesPortfolioFilters(contract, portfolioFilters, riskByContractId))
   }, [contracts, portfolioFilters, riskByContractId])
+
+  const managerSuggestions = useMemo(() => {
+    const seen = new Set()
+    return users
+      .filter(user => user && user.active !== false && user.is_active !== false)
+      .map(user => {
+        const name = String(user.name || user.nume || user.full_name || user.username || user.email || '').trim()
+        const role = String(user.role_name || user.role || user.rol || '').trim()
+        const department = String(user.department_name || user.department || user.departament || '').trim()
+        return { id: user.id || name, name, role, department }
+      })
+      .filter(user => {
+        if (!user.name) return false
+        const key = user.name.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'ro'))
+      .slice(0, 12)
+  }, [users])
 
   const savedViewCounts = useMemo(() => {
     const counts = {}
@@ -371,14 +395,17 @@ export default function ContractePage() {
     setLoading(true)
     setError('')
     try {
-      const [contractsRes, dashboardRes, tasksRes] = await Promise.all([
+      const usersRequest = api.get('/users').catch(() => ({ data: { users: [] } }))
+      const [contractsRes, dashboardRes, tasksRes, usersRes] = await Promise.all([
         api.get('/contracts'),
         api.get('/contracts/dashboard'),
         api.get('/contracts/tasks'),
+        usersRequest,
       ])
       setContracts(arrayFrom(contractsRes.data, ['contracts']))
       setDashboard(dashboardRes.data || null)
       setTasks(arrayFrom(tasksRes.data, ['tasks']))
+      setUsers(arrayFrom(usersRes.data, ['users']))
     } catch (err) {
       setError(err.response?.data?.error || 'Contractele nu au putut fi încărcate.')
     } finally {
@@ -451,9 +478,22 @@ export default function ContractePage() {
 
   async function assignManagerQuick(contract) {
     if (!contract?.id) return
-    const manager = window.prompt(`Manager contract pentru ${contract.numar || 'contract'}:`, contract.responsabil_nume || '')
-    if (manager === null) return
-    const responsabil_nume = manager.trim()
+    setSelectedContract(contract)
+    setManagerForm({ responsabil_nume: contract.responsabil_nume || '' })
+    setManagerModalOpen(true)
+    setError('')
+    setNotice('')
+  }
+
+  function closeManagerModal() {
+    setManagerModalOpen(false)
+    setManagerForm({ responsabil_nume: '' })
+  }
+
+  async function saveManagerAssignment(event) {
+    event.preventDefault()
+    if (!selectedContract?.id) return
+    const responsabil_nume = managerForm.responsabil_nume.trim()
     if (!responsabil_nume) {
       setError('Managerul contractului nu poate fi gol.')
       return
@@ -462,12 +502,13 @@ export default function ContractePage() {
     setError('')
     setNotice('')
     try {
-      const response = await api.patch(`/contracts/${contract.id}`, { responsabil_nume })
+      const response = await api.patch(`/contracts/${selectedContract.id}`, { responsabil_nume })
       const updated = response.data.contract || null
-      if (updated && contractDetails?.id && String(contractDetails.id) === String(contract.id)) {
+      if (updated && contractDetails?.id && String(contractDetails.id) === String(selectedContract.id)) {
         setContractDetails(current => ({ ...current, ...updated }))
       }
-      setNotice(`Managerul contractului ${contract.numar || ''} a fost setat: ${responsabil_nume}.`)
+      setNotice(`Managerul contractului ${selectedContract.numar || ''} a fost setat: ${responsabil_nume}.`)
+      closeManagerModal()
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Managerul contractului nu a putut fi salvat.')
@@ -1774,6 +1815,61 @@ export default function ContractePage() {
         ) : (
           <div className="py-8 text-center text-sm text-slate-500">Se încarcă dosarul contractului...</div>
         )}
+      </Modal>
+
+      <Modal open={managerModalOpen} title="Asignare manager contract" onClose={closeManagerModal}>
+        <form className="grid gap-4" onSubmit={saveManagerAssignment}>
+          {selectedContract ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-semibold text-slate-900">{selectedContract.numar || 'Contract'} — {selectedContract.titlu || 'fără titlu'}</div>
+              <div className="text-slate-500">
+                {selectedContract.partener ? `${selectedContract.partener} · ` : ''}
+                {formatMoney(selectedContract.valoare_contract, selectedContract.moneda || 'RON')}
+              </div>
+            </div>
+          ) : null}
+          <Input
+            label="Manager contract / responsabil"
+            value={managerForm.responsabil_nume}
+            required
+            autoFocus
+            placeholder="Ex. Popescu Ion"
+            onChange={event => setManagerForm({ ...managerForm, responsabil_nume: event.target.value })}
+          />
+          {managerSuggestions.length ? (
+            <div className="grid gap-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sugestii din utilizatorii activi</div>
+              <div className="flex flex-wrap gap-2">
+                {managerSuggestions.map(user => (
+                  <button
+                    key={`${user.id}-${user.name}`}
+                    type="button"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-left text-xs text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
+                    onClick={() => setManagerForm({ ...managerForm, responsabil_nume: user.name })}
+                  >
+                    <span className="font-semibold">{user.name}</span>
+                    {user.role || user.department ? (
+                      <span className="ml-1 text-slate-400">
+                        {user.role || user.department}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Nu am putut prelua sugestiile de utilizatori. Poți introduce managerul manual.
+            </div>
+          )}
+          <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            După salvare, contractul iese automat din vederea „Fără manager”, iar contoarele portofoliului se reîmprospătează.
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={closeManagerModal}>Renunță</Button>
+            <Button type="submit" loading={saving}>Salvează manager</Button>
+          </div>
+        </form>
       </Modal>
 
       <Modal open={contractModalOpen} title="Contract nou" size="lg" onClose={() => setContractModalOpen(false)}>

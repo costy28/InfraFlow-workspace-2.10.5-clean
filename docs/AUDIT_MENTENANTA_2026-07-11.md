@@ -732,3 +732,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton `Setează manager` pentru contractele fără responsabil;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton `Încarcă semnat` pentru contractele fără fișier semnat;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ după acțiuni, lista și contoarele vederilor se reîncarcă automat.
+
+### UPDATE 368 — Mini-modal asignare manager contract
+
+- `client/src/pages/modules/ContractePage.jsx` — ✅ prompt-ul browser pentru `Setează manager` a fost înlocuit cu mini-modal dedicat;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ modalul afișează contractul, partenerul și valoarea înainte de salvare;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ sugestii de manager din utilizatorii activi, cu fallback la introducere manuală;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ salvare prin endpoint-ul existent `PATCH /api/contracts/:id`, urmată de refresh listă/dashboard/contoare.

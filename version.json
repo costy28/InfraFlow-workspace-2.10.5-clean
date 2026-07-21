@@ -1,5 +1,5 @@
 {
-  "version": "2.12.347",
+  "version": "2.12.348",
   "date": "2026-07-21",
-  "changelog": "## v2.12.347 - 2026-07-21\n### Actiuni rapide portofoliu contracte\n- Lista Contracte afiseaza actiuni contextuale pentru problemele detectate de vederile salvate.\n- Contractele fara manager pot primi manager direct din tabel.\n- Contractele fara document semnat pot deschide rapid dosarul cu categoria Contract semnat pregatita.\n- Dupa actiuni, lista si contoarele se reincarca automat."
+  "changelog": "## v2.12.348 - 2026-07-21\n### Mini-modal asignare manager contract\n- Actiunea rapida Seteaza manager foloseste un mini-modal in loc de prompt browser.\n- Modalul afiseaza contractul vizat si sugestii din utilizatorii activi.\n- Managerul poate fi introdus manual sau selectat din sugestii.\n- Dupa salvare, lista si contoarele portofoliului se reincarca automat."
 }
