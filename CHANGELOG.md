@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.346 - 2026-07-21
+
+## Vederi salvate portofoliu contracte
+
+- Pagina `Contracte` include vederi salvate predefinite pentru verificări frecvente.
+- Vederile `Critice`, `Scad în 30 zile`, `Fără manager`, `Fără document semnat`, `Depășite` și `Reactivate` aplică filtrele instant.
+- Fiecare vedere afișează numărul de contracte potrivite.
+- Logica de filtrare frontend este reutilizată pentru lista principală și contoarele vederilor.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.345 - 2026-07-21
 
 ## Rapoarte portofoliu contracte filtrate

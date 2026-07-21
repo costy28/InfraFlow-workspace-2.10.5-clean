@@ -67,6 +67,51 @@ const emptyPortfolioFilters = {
   lifecycle: 'toate',
 }
 
+const savedPortfolioViews = [
+  {
+    key: 'critice',
+    label: 'Critice',
+    description: 'Risc major sau task-uri restante',
+    tone: 'danger',
+    filters: { ...emptyPortfolioFilters, risk: 'critic' },
+  },
+  {
+    key: 'scad_30',
+    label: 'Scad în 30 zile',
+    description: 'Contracte active aproape de termen',
+    tone: 'warning',
+    filters: { ...emptyPortfolioFilters, termen: '30' },
+  },
+  {
+    key: 'fara_manager',
+    label: 'Fără manager',
+    description: 'Responsabil lipsă pe dosar',
+    tone: 'warning',
+    filters: { ...emptyPortfolioFilters, risk: 'fara_manager' },
+  },
+  {
+    key: 'fara_semnat',
+    label: 'Fără document semnat',
+    description: 'Contracte fără fișier semnat',
+    tone: 'warning',
+    filters: { ...emptyPortfolioFilters, risk: 'fara_document_semnat' },
+  },
+  {
+    key: 'depasite',
+    label: 'Depășite',
+    description: 'Consum peste valoarea contractată',
+    tone: 'danger',
+    filters: { ...emptyPortfolioFilters, consum: 'peste_100' },
+  },
+  {
+    key: 'reactivate',
+    label: 'Reactivate',
+    description: 'Contracte readuse în lucru',
+    tone: 'info',
+    filters: { ...emptyPortfolioFilters, lifecycle: 'reactivated' },
+  },
+]
+
 function arrayFrom(data, keys) {
   for (const key of keys) {
     if (Array.isArray(data?.[key])) return data[key]
@@ -135,6 +180,43 @@ function contractLifecycleActions(contract) {
   ].map(item => String(item.action || '').toLowerCase()).filter(Boolean))
 }
 
+function contractMatchesPortfolioFilters(contract, filters, riskByContractId) {
+  const q = filters.q.trim().toLowerCase()
+  const status = String(contract.status || 'activ')
+  const risk = riskByContractId.get(String(contract.id))
+  const riskCodes = new Set((risk?.reasons || []).map(item => String(item.code || '').toLowerCase()))
+  const percent = Number(contract.procent_consum || 0)
+  const daysLeft = contract.summary?.zile_ramase
+  const lifecycleActions = contractLifecycleActions(contract)
+  const haystack = [
+    contract.numar,
+    contract.titlu,
+    contract.partener,
+    contract.responsabil_nume,
+    contract.cpv_cod,
+    contract.cpv_denumire,
+    contract.tip,
+  ].join(' ').toLowerCase()
+
+  if (filters.status !== 'toate' && status !== filters.status) return false
+  if (q && !haystack.includes(q)) return false
+  if (filters.risk === 'alerte' && !(contract.alerte || []).length) return false
+  if (filters.risk === 'risc' && !risk) return false
+  if (filters.risk === 'critic' && risk?.level !== 'danger') return false
+  if (filters.risk === 'fara_manager' && (contract.responsabil_nume || '').trim() && !riskCodes.has('missing_manager')) return false
+  if (filters.risk === 'fara_document_semnat' && !riskCodes.has('missing_signed_file')) return false
+  if (filters.risk === 'taskuri_restante' && !riskCodes.has('overdue_tasks')) return false
+  if (filters.consum === 'fara_consum' && percent > 0) return false
+  if (filters.consum === 'peste_80' && percent < 80) return false
+  if (filters.consum === 'peste_90' && percent < 90) return false
+  if (filters.consum === 'peste_100' && percent < 100) return false
+  if (filters.termen === 'expirat' && !(Number(daysLeft) < 0)) return false
+  if (['7', '30', '90'].includes(filters.termen) && !(Number(daysLeft) >= 0 && Number(daysLeft) <= Number(filters.termen))) return false
+  if (filters.lifecycle === 'closed_forced' && !contract.close_forced) return false
+  if (filters.lifecycle !== 'toate' && filters.lifecycle !== 'closed_forced' && !lifecycleActions.has(filters.lifecycle) && status !== filters.lifecycle) return false
+  return true
+}
+
 export default function ContractePage() {
   const [contracts, setContracts] = useState([])
   const [dashboard, setDashboard] = useState(null)
@@ -167,43 +249,16 @@ export default function ContractePage() {
   }, [dashboard?.risk_contracts])
 
   const filteredContracts = useMemo(() => {
-    const q = portfolioFilters.q.trim().toLowerCase()
-    return contracts.filter(contract => {
-      const status = String(contract.status || 'activ')
-      const risk = riskByContractId.get(String(contract.id))
-      const riskCodes = new Set((risk?.reasons || []).map(item => String(item.code || '').toLowerCase()))
-      const percent = Number(contract.procent_consum || 0)
-      const daysLeft = contract.summary?.zile_ramase
-      const lifecycleActions = contractLifecycleActions(contract)
-      const haystack = [
-        contract.numar,
-        contract.titlu,
-        contract.partener,
-        contract.responsabil_nume,
-        contract.cpv_cod,
-        contract.cpv_denumire,
-        contract.tip,
-      ].join(' ').toLowerCase()
-
-      if (portfolioFilters.status !== 'toate' && status !== portfolioFilters.status) return false
-      if (q && !haystack.includes(q)) return false
-      if (portfolioFilters.risk === 'alerte' && !(contract.alerte || []).length) return false
-      if (portfolioFilters.risk === 'risc' && !risk) return false
-      if (portfolioFilters.risk === 'critic' && risk?.level !== 'danger') return false
-      if (portfolioFilters.risk === 'fara_manager' && (contract.responsabil_nume || '').trim() && !riskCodes.has('missing_manager')) return false
-      if (portfolioFilters.risk === 'fara_document_semnat' && !riskCodes.has('missing_signed_file')) return false
-      if (portfolioFilters.risk === 'taskuri_restante' && !riskCodes.has('overdue_tasks')) return false
-      if (portfolioFilters.consum === 'fara_consum' && percent > 0) return false
-      if (portfolioFilters.consum === 'peste_80' && percent < 80) return false
-      if (portfolioFilters.consum === 'peste_90' && percent < 90) return false
-      if (portfolioFilters.consum === 'peste_100' && percent < 100) return false
-      if (portfolioFilters.termen === 'expirat' && !(Number(daysLeft) < 0)) return false
-      if (['7', '30', '90'].includes(portfolioFilters.termen) && !(Number(daysLeft) >= 0 && Number(daysLeft) <= Number(portfolioFilters.termen))) return false
-      if (portfolioFilters.lifecycle === 'closed_forced' && !contract.close_forced) return false
-      if (portfolioFilters.lifecycle !== 'toate' && portfolioFilters.lifecycle !== 'closed_forced' && !lifecycleActions.has(portfolioFilters.lifecycle) && status !== portfolioFilters.lifecycle) return false
-      return true
-    })
+    return contracts.filter(contract => contractMatchesPortfolioFilters(contract, portfolioFilters, riskByContractId))
   }, [contracts, portfolioFilters, riskByContractId])
+
+  const savedViewCounts = useMemo(() => {
+    const counts = {}
+    for (const view of savedPortfolioViews) {
+      counts[view.key] = contracts.filter(contract => contractMatchesPortfolioFilters(contract, view.filters, riskByContractId)).length
+    }
+    return counts
+  }, [contracts, riskByContractId])
 
   const activeFilterCount = useMemo(() => {
     let count = 0
@@ -225,6 +280,17 @@ export default function ContractePage() {
 
   function resetPortfolioFilters() {
     setPortfolioFilters(emptyPortfolioFilters)
+  }
+
+  function applySavedPortfolioView(view) {
+    setPortfolioFilters({
+      ...emptyPortfolioFilters,
+      ...view.filters,
+    })
+  }
+
+  function savedViewActive(view) {
+    return Object.entries(view.filters).every(([key, value]) => portfolioFilters[key] === value)
   }
 
   const filterSummary = useMemo(() => {
@@ -930,6 +996,35 @@ export default function ContractePage() {
         loading={loading}
       >
         <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="grid gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vederi salvate</div>
+                <div className="text-xs text-slate-500">Scurtături pentru verificările care dor: risc, termen, manager, documente și depășiri.</div>
+              </div>
+              <Badge tone="info">{savedPortfolioViews.length} vederi</Badge>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {savedPortfolioViews.map(view => (
+                <button
+                  key={view.key}
+                  type="button"
+                  className={`rounded-xl border p-3 text-left transition hover:border-primary-300 hover:bg-white ${
+                    savedViewActive(view) ? 'border-primary-500 bg-white shadow-sm ring-2 ring-primary-100' : 'border-slate-200 bg-slate-50'
+                  }`}
+                  onClick={() => applySavedPortfolioView(view)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-slate-900">{view.label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{view.description}</div>
+                    </div>
+                    <Badge tone={view.tone}>{savedViewCounts[view.key] || 0}</Badge>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex flex-wrap gap-2">
             {quickContractFilters.map(item => (
               <Button

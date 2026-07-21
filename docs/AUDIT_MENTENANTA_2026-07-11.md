@@ -718,3 +718,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/contracts/routes.js` — ✅ raportul printabil folosește `req.query` și calculează sumarul pe contractele filtrate;
 - `server/modules/contracts/routes.js` — ✅ exportul Excel folosește aceleași filtre și include eticheta filtrelor aplicate în sheet-ul `Sumar`;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ print/export transmit filtrele active din ecran către backend.
+
+### UPDATE 366 — Vederi salvate portofoliu contracte
+
+- `client/src/pages/modules/ContractePage.jsx` — ✅ vederi salvate predefinite pentru verificări contractuale frecvente;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ vederi pentru critice, scadente 30 zile, fără manager, fără document semnat, depășite și reactivate;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ fiecare vedere afișează contorul contractelor potrivite;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ logica de filtrare este reutilizată pentru listă și contoarele vederilor.
