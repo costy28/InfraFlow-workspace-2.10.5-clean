@@ -1208,15 +1208,82 @@ function contractPrintHtml(db, contract, user) {
 </html>`
 }
 
-function contractsPortfolioPrintHtml(db, user) {
+function portfolioFilterLabel(filters = {}) {
+  const parts = []
+  if (filters.q || filters.search) parts.push(`căutare: ${filters.q || filters.search}`)
+  if (filters.status && filters.status !== 'toate') parts.push(`status: ${filters.status}`)
+  if (filters.partner || filters.partener) parts.push(`partener: ${filters.partner || filters.partener}`)
+  if (filters.cpv) parts.push(`CPV: ${filters.cpv}`)
+  if (filters.manager || filters.responsabil) parts.push(`manager: ${filters.manager || filters.responsabil}`)
+  if (filters.risk || filters.risc) parts.push(`risc: ${filters.risk || filters.risc}`)
+  if (isTruthyFilter(filters.alerts || filters.alerte)) parts.push('cu alerte')
+  if (filters.consum_min || filters.min_consum_percent || filters.procent_min) parts.push(`consum min: ${filters.consum_min || filters.min_consum_percent || filters.procent_min}%`)
+  if (filters.consum_max || filters.max_consum_percent || filters.procent_max) parts.push(`consum max: ${filters.consum_max || filters.max_consum_percent || filters.procent_max}%`)
+  if (filters.term_days || filters.due_days || filters.zile_termen) parts.push(`termen: ${filters.term_days || filters.due_days || filters.zile_termen} zile`)
+  if (isTruthyFilter(filters.expired || filters.expirat)) parts.push('expirate')
+  if (isTruthyFilter(filters.missing_manager || filters.fara_manager)) parts.push('fără manager')
+  if (isTruthyFilter(filters.missing_signed || filters.fara_semnat)) parts.push('fără document semnat')
+  if (filters.lifecycle || filters.ciclu_viata) parts.push(`ciclu: ${filters.lifecycle || filters.ciclu_viata}`)
+  return parts.length ? parts.join(' · ') : 'fără filtre'
+}
+
+function contractsPortfolioData(db, filters = {}) {
   const cm = ensureContractsDb(db)
-  const report = dashboard(db)
   const contracts = cm.contracts
     .map(item => decorateContract(db, item))
+    .filter(item => contractMatchesPortfolioFilters(db, item, filters))
     .sort((a, b) => Number(b.alerte?.length || 0) - Number(a.alerte?.length || 0) ||
       Number(b.procent_consum || 0) - Number(a.procent_consum || 0) ||
       String(a.data_sfarsit || '9999-12-31').localeCompare(String(b.data_sfarsit || '9999-12-31')))
-  const openTasks = contractTasks(db, { status: 'deschis' })
+  const contractIds = new Set(contracts.map(item => String(item.id)))
+  const activeContracts = contracts.filter(item => !item.cancelled_at && !item.cancelledAt && String(item.status || '').toLowerCase() !== 'anulat')
+  const totalContractat = round(activeContracts.reduce((sum, item) => sum + numberValue(item.summary?.valoare_contract || item.valoare_contract), 0))
+  const totalConsumat = round(activeContracts.reduce((sum, item) => sum + numberValue(item.summary?.consumat || item.valoare_consumata), 0))
+  const openTasks = contractTasks(db, { status: 'deschise' }).filter(item => contractIds.has(String(item.contract_id)))
+  const alerts = activeContracts.flatMap(contract => (contract.summary?.alerts || []).map(alert => ({
+    ...alert,
+    contract_id: contract.id,
+    contract_numar: contract.numar,
+    contract_titlu: contract.titlu,
+    responsabil_id: contract.responsabil_id || null,
+    responsabil_nume: contract.responsabil_nume || ''
+  })))
+  const byManager = activeContracts.reduce((acc, contract) => {
+    const key = contract.responsabil_nume || contract.responsabil_id || 'Fără manager'
+    const current = acc[key] || {
+      key,
+      responsabil_id: contract.responsabil_id || null,
+      responsabil_nume: contract.responsabil_nume || 'Fără manager',
+      contracts: 0,
+      alerts: 0,
+      total_contractat: 0,
+      total_consumat: 0
+    }
+    current.contracts += 1
+    current.alerts += contract.summary?.alerts?.length || 0
+    current.total_contractat = round(current.total_contractat + numberValue(contract.summary?.valoare_contract || contract.valoare_contract))
+    current.total_consumat = round(current.total_consumat + numberValue(contract.summary?.consumat || contract.valoare_consumata))
+    acc[key] = current
+    return acc
+  }, {})
+  const report = {
+    contracts_total: activeContracts.length,
+    contracts_active: activeContracts.filter(item => item.status === 'activ').length,
+    contracts_displayed: contracts.length,
+    total_contractat: totalContractat,
+    total_consumat: totalConsumat,
+    total_ramas: round(totalContractat - totalConsumat),
+    procent_consum_global: totalContractat > 0 ? round((totalConsumat / totalContractat) * 100) : 0,
+    alerts,
+    tasks_open: openTasks.length,
+    tasks_overdue: openTasks.filter(item => item.overdue || item.deadline && String(item.deadline).slice(0, 10) < todayIso()).length,
+    by_manager: Object.values(byManager).sort((a, b) => Number(b.alerts || 0) - Number(a.alerts || 0) || String(a.responsabil_nume).localeCompare(String(b.responsabil_nume)))
+  }
+  return { contracts, report, openTasks, filterLabel: portfolioFilterLabel(filters) }
+}
+
+function contractsPortfolioPrintHtml(db, user, filters = {}) {
+  const { contracts, report, openTasks, filterLabel } = contractsPortfolioData(db, filters)
   const generatedAt = new Date().toLocaleString('ro-RO')
 
   const managerRows = (report.by_manager || []).length ? report.by_manager.map(item => `
@@ -1334,6 +1401,7 @@ function contractsPortfolioPrintHtml(db, user) {
       <div class="meta">
         Generat la ${escapeHtml(generatedAt)}<br>
         Utilizator: ${escapeHtml(user?.name || user?.username || '-')}<br>
+        Filtre: ${escapeHtml(filterLabel)}<br>
         Contracte active: ${Number(report.contracts_total || 0)}<br>
         Contracte afișate: ${Number(contracts.length || 0)}
       </div>
@@ -1367,19 +1435,13 @@ function contractsPortfolioPrintHtml(db, user) {
 </html>`
 }
 
-function contractsPortfolioWorkbook(db) {
-  const cm = ensureContractsDb(db)
-  const report = dashboard(db)
-  const contracts = cm.contracts
-    .map(item => decorateContract(db, item))
-    .sort((a, b) => Number(b.alerte?.length || 0) - Number(a.alerte?.length || 0) ||
-      Number(b.procent_consum || 0) - Number(a.procent_consum || 0) ||
-      String(a.data_sfarsit || '9999-12-31').localeCompare(String(b.data_sfarsit || '9999-12-31')))
-  const openTasks = contractTasks(db, { status: 'deschis' })
+function contractsPortfolioWorkbook(db, filters = {}) {
+  const { contracts, report, openTasks, filterLabel } = contractsPortfolioData(db, filters)
   const workbook = xlsx.utils.book_new()
 
   const summaryRows = [
     ['Raport portofoliu contracte', todayIso()],
+    ['Filtre aplicate', filterLabel],
     [],
     ['Indicator', 'Valoare'],
     ['Contracte totale', Number(report.contracts_total || 0)],
@@ -2275,14 +2337,14 @@ router.get('/contracts/portfolio/print', (req, res) => {
   if (!auth) return
   if (!canView(auth, res)) return
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
-  res.status(200).send(contractsPortfolioPrintHtml(auth.db, auth.user))
+  res.status(200).send(contractsPortfolioPrintHtml(auth.db, auth.user, req.query || {}))
 })
 
 router.get('/contracts/portfolio/export.xlsx', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
   if (!canView(auth, res)) return
-  const workbook = contractsPortfolioWorkbook(auth.db)
+  const workbook = contractsPortfolioWorkbook(auth.db, req.query || {})
   const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' })
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   res.setHeader('Content-Disposition', `attachment; filename="Portofoliu_contracte_${todayIso()}.xlsx"`)

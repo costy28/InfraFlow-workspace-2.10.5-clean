@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.345 - 2026-07-21
+
+## Rapoarte portofoliu contracte filtrate
+
+- Raportul printabil de portofoliu respectă filtrele active din pagina `Contracte`.
+- Exportul Excel de portofoliu respectă aceleași filtre ca lista vizibilă.
+- Sumarul raportului, managerii, alertele și task-urile sunt calculate pe contractele filtrate.
+- Raportul printabil și sheet-ul `Sumar` includ eticheta filtrelor aplicate.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.344 - 2026-07-20
 
 ## Filtre avansate portofoliu contracte

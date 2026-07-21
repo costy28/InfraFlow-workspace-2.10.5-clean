@@ -711,3 +711,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ panou de filtre rapide pentru toate, active, cu alerte, cu risc și anulate;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ filtre detaliate pentru căutare liberă, status, risc, consum, termen și evenimente lifecycle;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ sumar vizibil al filtrelor active și reset rapid.
+
+### UPDATE 365 — Rapoarte portofoliu contracte filtrate
+
+- `server/modules/contracts/routes.js` — ✅ helper comun `contractsPortfolioData` pentru print și Excel;
+- `server/modules/contracts/routes.js` — ✅ raportul printabil folosește `req.query` și calculează sumarul pe contractele filtrate;
+- `server/modules/contracts/routes.js` — ✅ exportul Excel folosește aceleași filtre și include eticheta filtrelor aplicate în sheet-ul `Sumar`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ print/export transmit filtrele active din ecran către backend.

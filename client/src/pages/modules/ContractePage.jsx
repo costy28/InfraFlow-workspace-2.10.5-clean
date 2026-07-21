@@ -373,16 +373,35 @@ export default function ContractePage() {
     window.open(`/api/contracts/${encodeURIComponent(contract.id)}/print${query}`, '_blank', 'noopener,noreferrer')
   }
 
-  function printPortfolio() {
+  function portfolioQueryString() {
+    const params = new URLSearchParams()
     const token = localStorage.getItem('infraflow_token') || ''
-    const query = token ? `?token=${encodeURIComponent(token)}` : ''
-    window.open(`/api/contracts/portfolio/print${query}`, '_blank', 'noopener,noreferrer')
+    if (token) params.set('token', token)
+    if (portfolioFilters.q.trim()) params.set('q', portfolioFilters.q.trim())
+    if (portfolioFilters.status !== 'toate') params.set('status', portfolioFilters.status)
+    if (portfolioFilters.risk === 'alerte') params.set('alerts', 'true')
+    if (portfolioFilters.risk === 'risc') params.set('risk', 'oricare')
+    if (portfolioFilters.risk === 'critic') params.set('risk', 'danger')
+    if (portfolioFilters.risk === 'fara_manager') params.set('missing_manager', 'true')
+    if (portfolioFilters.risk === 'fara_document_semnat') params.set('missing_signed', 'true')
+    if (portfolioFilters.risk === 'taskuri_restante') params.set('risk', 'overdue_tasks')
+    if (portfolioFilters.consum === 'fara_consum') params.set('consum_max', '0')
+    if (portfolioFilters.consum === 'peste_80') params.set('consum_min', '80')
+    if (portfolioFilters.consum === 'peste_90') params.set('consum_min', '90')
+    if (portfolioFilters.consum === 'peste_100') params.set('consum_min', '100')
+    if (portfolioFilters.termen === 'expirat') params.set('expired', 'true')
+    if (['7', '30', '90'].includes(portfolioFilters.termen)) params.set('term_days', portfolioFilters.termen)
+    if (portfolioFilters.lifecycle !== 'toate') params.set('lifecycle', portfolioFilters.lifecycle)
+    const query = params.toString()
+    return query ? `?${query}` : ''
+  }
+
+  function printPortfolio() {
+    window.open(`/api/contracts/portfolio/print${portfolioQueryString()}`, '_blank', 'noopener,noreferrer')
   }
 
   function exportPortfolioExcel() {
-    const token = localStorage.getItem('infraflow_token') || ''
-    const query = token ? `?token=${encodeURIComponent(token)}` : ''
-    window.open(`/api/contracts/portfolio/export.xlsx${query}`, '_blank', 'noopener,noreferrer')
+    window.open(`/api/contracts/portfolio/export.xlsx${portfolioQueryString()}`, '_blank', 'noopener,noreferrer')
   }
 
   async function uploadAttachment(event) {
