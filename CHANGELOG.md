@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.347 - 2026-07-21
+
+## Acțiuni rapide portofoliu contracte
+
+- Lista `Contracte` afișează acțiuni contextuale pentru problemele detectate de vederile salvate.
+- Contractele fără manager pot primi manager direct din tabel prin `Setează manager`.
+- Contractele fără document semnat pot deschide rapid dosarul cu categoria `Contract semnat` pregătită.
+- După acțiuni, lista, dashboard-ul și contoarele vederilor se reîncarcă automat.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.346 - 2026-07-21
 
 ## Vederi salvate portofoliu contracte

@@ -351,6 +351,18 @@ export default function ContractePage() {
     return quickFilterActive(patch) ? 'primary' : 'secondary'
   }
 
+  function riskCodesForContract(contract) {
+    return new Set((riskByContractId.get(String(contract?.id))?.reasons || []).map(item => String(item.code || '').toLowerCase()))
+  }
+
+  function contractNeedsManager(contract) {
+    return riskCodesForContract(contract).has('missing_manager') || !String(contract?.responsabil_nume || contract?.responsabil_id || '').trim()
+  }
+
+  function contractNeedsSignedFile(contract) {
+    return riskCodesForContract(contract).has('missing_signed_file')
+  }
+
   useEffect(() => {
     load()
   }, [])
@@ -424,6 +436,43 @@ export default function ContractePage() {
       setContractDetails(response.data.contract || null)
     } catch (err) {
       setError(err.response?.data?.error || 'Detaliile contractului nu au putut fi încărcate.')
+    }
+  }
+
+  async function openAttachmentsQuick(contract) {
+    await openDetails(contract)
+    setAttachmentForm({
+      ...emptyAttachmentForm,
+      categorie: 'contract semnat',
+      descriere: 'Contract semnat încărcat din acțiune rapidă',
+    })
+    setNotice('Dosarul este deschis. Încarcă fișierul la secțiunea „Atașamente contract”.')
+  }
+
+  async function assignManagerQuick(contract) {
+    if (!contract?.id) return
+    const manager = window.prompt(`Manager contract pentru ${contract.numar || 'contract'}:`, contract.responsabil_nume || '')
+    if (manager === null) return
+    const responsabil_nume = manager.trim()
+    if (!responsabil_nume) {
+      setError('Managerul contractului nu poate fi gol.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.patch(`/contracts/${contract.id}`, { responsabil_nume })
+      const updated = response.data.contract || null
+      if (updated && contractDetails?.id && String(contractDetails.id) === String(contract.id)) {
+        setContractDetails(current => ({ ...current, ...updated }))
+      }
+      setNotice(`Managerul contractului ${contract.numar || ''} a fost setat: ${responsabil_nume}.`)
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Managerul contractului nu a putut fi salvat.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1140,8 +1189,14 @@ export default function ContractePage() {
                     </div>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <Button size="sm" variant="secondary" onClick={() => openDetails(contract)}>Detalii</Button>
+                      {contract.status !== 'anulat' && contractNeedsManager(contract) ? (
+                        <Button size="sm" variant="secondary" onClick={() => assignManagerQuick(contract)} loading={saving}>Setează manager</Button>
+                      ) : null}
+                      {contract.status !== 'anulat' && contractNeedsSignedFile(contract) ? (
+                        <Button size="sm" variant="secondary" onClick={() => openAttachmentsQuick(contract)}>Încarcă semnat</Button>
+                      ) : null}
                       {contract.status !== 'anulat' ? (
                         <>
                           <Button size="sm" variant="secondary" onClick={() => openSourceLink(contract)}>Leagă doc.</Button>

@@ -725,3 +725,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ vederi pentru critice, scadente 30 zile, fără manager, fără document semnat, depășite și reactivate;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ fiecare vedere afișează contorul contractelor potrivite;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ logica de filtrare este reutilizată pentru listă și contoarele vederilor.
+
+### UPDATE 367 — Acțiuni rapide portofoliu contracte
+
+- `client/src/pages/modules/ContractePage.jsx` — ✅ acțiuni contextuale direct în tabel pentru contractele cu probleme;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton `Setează manager` pentru contractele fără responsabil;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton `Încarcă semnat` pentru contractele fără fișier semnat;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ după acțiuni, lista și contoarele vederilor se reîncarcă automat.
