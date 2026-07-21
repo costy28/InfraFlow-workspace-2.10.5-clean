@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.349 - 2026-07-21
+
+## Upload rapid document semnat contract
+
+- Acțiunea rapidă `Încarcă semnat` deschide un mini-modal dedicat, fără navigare prin dosarul complet.
+- Fișierul este salvat direct în dosarul contractului cu categoria `Contract semnat`.
+- Modalul afișează contractul vizat și confirmă numele/dimensiunea fișierului selectat.
+- După upload, lista, dashboard-ul și contoarele vederilor se reîncarcă automat.
+- Dacă dosarul contractului era deja deschis, detaliile lui se actualizează cu atașamentul nou.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.348 - 2026-07-21
 
 ## Mini-modal asignare manager contract

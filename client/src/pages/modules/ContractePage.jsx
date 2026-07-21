@@ -230,6 +230,7 @@ export default function ContractePage() {
   const [sourceModalOpen, setSourceModalOpen] = useState(false)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [managerModalOpen, setManagerModalOpen] = useState(false)
+  const [signedUploadModalOpen, setSignedUploadModalOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
   const [contractDetails, setContractDetails] = useState(null)
   const [contractForm, setContractForm] = useState(emptyContractForm)
@@ -238,6 +239,10 @@ export default function ContractePage() {
   const [attachmentForm, setAttachmentForm] = useState(emptyAttachmentForm)
   const [addendumForm, setAddendumForm] = useState(emptyAddendumForm)
   const [managerForm, setManagerForm] = useState({ responsabil_nume: '' })
+  const [signedAttachmentForm, setSignedAttachmentForm] = useState({
+    descriere: 'Contract semnat încărcat din acțiune rapidă',
+    file: null,
+  })
   const [linkableSources, setLinkableSources] = useState([])
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -467,13 +472,15 @@ export default function ContractePage() {
   }
 
   async function openAttachmentsQuick(contract) {
-    await openDetails(contract)
-    setAttachmentForm({
-      ...emptyAttachmentForm,
-      categorie: 'contract semnat',
+    if (!contract?.id) return
+    setSelectedContract(contract)
+    setSignedAttachmentForm({
       descriere: 'Contract semnat încărcat din acțiune rapidă',
+      file: null,
     })
-    setNotice('Dosarul este deschis. Încarcă fișierul la secțiunea „Atașamente contract”.')
+    setSignedUploadModalOpen(true)
+    setError('')
+    setNotice('')
   }
 
   async function assignManagerQuick(contract) {
@@ -512,6 +519,40 @@ export default function ContractePage() {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Managerul contractului nu a putut fi salvat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function closeSignedUploadModal() {
+    setSignedUploadModalOpen(false)
+    setSignedAttachmentForm({
+      descriere: 'Contract semnat încărcat din acțiune rapidă',
+      file: null,
+    })
+  }
+
+  async function uploadSignedAttachmentQuick(event) {
+    event.preventDefault()
+    if (!selectedContract?.id || !signedAttachmentForm.file) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    const form = new FormData()
+    form.append('file', signedAttachmentForm.file)
+    form.append('categorie', 'contract semnat')
+    form.append('descriere', signedAttachmentForm.descriere || 'Contract semnat încărcat din acțiune rapidă')
+    try {
+      const response = await api.post(`/contracts/${selectedContract.id}/attachments`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const updated = response.data.contract || null
+      if (updated && contractDetails?.id && String(contractDetails.id) === String(selectedContract.id)) {
+        setContractDetails(updated)
+      }
+      setNotice(`Contractul semnat pentru ${selectedContract.numar || 'contract'} a fost încărcat în dosar.`)
+      closeSignedUploadModal()
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Contractul semnat nu a putut fi încărcat.')
     } finally {
       setSaving(false)
     }
@@ -1868,6 +1909,46 @@ export default function ContractePage() {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={closeManagerModal}>Renunță</Button>
             <Button type="submit" loading={saving}>Salvează manager</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={signedUploadModalOpen} title="Încarcă document semnat" onClose={closeSignedUploadModal}>
+        <form className="grid gap-4" onSubmit={uploadSignedAttachmentQuick}>
+          {selectedContract ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-semibold text-slate-900">{selectedContract.numar || 'Contract'} — {selectedContract.titlu || 'fără titlu'}</div>
+              <div className="text-slate-500">
+                {selectedContract.partener ? `${selectedContract.partener} · ` : ''}
+                Dosarul va primi automat categoria „Contract semnat”.
+              </div>
+            </div>
+          ) : null}
+          <Input
+            label="Fișier semnat"
+            type="file"
+            required
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+            onChange={event => setSignedAttachmentForm({ ...signedAttachmentForm, file: event.target.files?.[0] || null })}
+          />
+          <Input
+            label="Descriere"
+            value={signedAttachmentForm.descriere}
+            onChange={event => setSignedAttachmentForm({ ...signedAttachmentForm, descriere: event.target.value })}
+          />
+          {signedAttachmentForm.file ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              Fișier selectat: <span className="font-semibold">{signedAttachmentForm.file.name}</span>
+              {Number(signedAttachmentForm.file.size || 0) ? ` · ${Number(signedAttachmentForm.file.size).toLocaleString('ro-RO')} bytes` : ''}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Acceptă PDF, Word sau imagine. După încărcare, contractul iese automat din vederea „Fără document semnat”.
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={closeSignedUploadModal}>Renunță</Button>
+            <Button type="submit" disabled={!signedAttachmentForm.file || saving} loading={saving}>Încarcă semnat</Button>
           </div>
         </form>
       </Modal>

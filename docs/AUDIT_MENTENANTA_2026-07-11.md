@@ -739,3 +739,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ modalul afișează contractul, partenerul și valoarea înainte de salvare;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ sugestii de manager din utilizatorii activi, cu fallback la introducere manuală;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ salvare prin endpoint-ul existent `PATCH /api/contracts/:id`, urmată de refresh listă/dashboard/contoare.
+
+### UPDATE 369 — Upload rapid document semnat contract
+
+- `client/src/pages/modules/ContractePage.jsx` — ✅ butonul `Încarcă semnat` deschide mini-modal dedicat, fără navigare prin dosar;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ fișierul este salvat direct ca atașament cu categoria `contract semnat`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ modalul afișează contractul vizat și confirmă fișierul selectat;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ după upload, lista, dashboard-ul și contoarele vederilor se reîncarcă automat.
