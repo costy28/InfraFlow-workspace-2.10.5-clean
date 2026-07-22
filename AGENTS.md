@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.350**
-**Versiune în lucru: v2.12.350**
+**Versiune curentă sursă: v2.12.351**
+**Versiune în lucru: v2.12.351**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -602,9 +602,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.350
+VERSIUNE CURENTĂ SURSĂ: 2.12.351
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.350 ✅
+UPDATE ZIP CURENT: 2.12.351 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -763,6 +763,7 @@ UPDATES ÎN LUCRU:
   2.12.348 → UPDATE 368 Mini-modal asignare manager contract ✅
   2.12.349 → UPDATE 369 Upload rapid document semnat contract ✅
   2.12.350 → UPDATE 370 Acțiuni în masă și radar executiv contracte ✅
+  2.12.351 → UPDATE 371 Asistent operațional contracte ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1255,5 +1256,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 21 Iulie 2026 | InfraFlow sursă v2.12.350*
+*AGENTS.md actualizat: 22 Iulie 2026 | InfraFlow sursă v2.12.351*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

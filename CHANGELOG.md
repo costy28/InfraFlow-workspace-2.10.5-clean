@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.351 - 2026-07-22
+
+## Asistent operațional contracte
+
+- Modulul `Contracte` afișează un panou `Asistent operațional contracte` cu recomandări concrete pe baza riscurilor curente.
+- Recomandările pregătesc automat selecția contractelor și acțiunea potrivită: asignare manager sau creare task-uri în lot.
+- Asistentul propune acțiuni pentru contracte fără manager, fără document semnat, scadente în 30 zile, depășite și contracte cu task-uri/alerte.
+- Panoul include acces rapid la generarea task-urilor lipsă și la trimiterea reminderelor către responsabili.
+- Recomandările folosesc aceleași vederi salvate și filtre ca portofoliul, pentru comportament predictibil.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.350 - 2026-07-21
 
 ## Acțiuni în masă și radar executiv contracte

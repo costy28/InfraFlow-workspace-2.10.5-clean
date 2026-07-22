@@ -311,6 +311,73 @@ export default function ContractePage() {
     return counts
   }, [contracts, riskByContractId])
 
+  const assistantRecommendations = useMemo(() => {
+    const openTasks = Number(dashboard?.tasks_open || tasks.length || 0)
+    const overdueTasks = Number(dashboard?.tasks_overdue || 0)
+    const alertsCount = Number(dashboard?.alerts?.length || 0)
+    const riskCount = Number(dashboard?.risk_summary?.total || 0)
+    const recommendations = []
+
+    if (savedViewCounts.fara_manager) {
+      recommendations.push({
+        key: 'assign-managers',
+        tone: 'warning',
+        title: `${savedViewCounts.fara_manager} contracte fără manager`,
+        description: 'Setează responsabilul în lot ca reminderele, task-urile și urmărirea să aibă proprietar clar.',
+        actionLabel: 'Asignează manageri',
+        viewKey: 'fara_manager',
+        action: 'manager',
+      })
+    }
+    if (savedViewCounts.fara_semnat) {
+      recommendations.push({
+        key: 'signed-files',
+        tone: 'info',
+        title: `${savedViewCounts.fara_semnat} contracte fără document semnat`,
+        description: 'Filtrează lista și pregătește task-uri pentru încărcarea documentelor semnate în dosar.',
+        actionLabel: 'Pregătește task-uri',
+        viewKey: 'fara_semnat',
+        action: 'task',
+      })
+    }
+    if (savedViewCounts.scad_30) {
+      recommendations.push({
+        key: 'expiring-soon',
+        tone: 'warning',
+        title: `${savedViewCounts.scad_30} contracte scad în 30 zile`,
+        description: 'Creează verificări pentru prelungire, închidere controlată sau renegociere înainte de termen.',
+        actionLabel: 'Creează verificări',
+        viewKey: 'scad_30',
+        action: 'task',
+      })
+    }
+    if (savedViewCounts.depasite) {
+      recommendations.push({
+        key: 'over-budget',
+        tone: 'danger',
+        title: `${savedViewCounts.depasite} contracte depășite`,
+        description: 'Ridică task-uri urgente către achiziții/contabilitate pentru clarificarea consumului peste valoare.',
+        actionLabel: 'Task-uri urgente',
+        viewKey: 'depasite',
+        action: 'task',
+        priority: '1',
+      })
+    }
+    if (riskCount || alertsCount || overdueTasks || openTasks) {
+      recommendations.push({
+        key: 'generate-global',
+        tone: overdueTasks ? 'danger' : 'info',
+        title: overdueTasks ? `${overdueTasks} task-uri restante` : `${riskCount} contracte în radar`,
+        description: alertsCount
+          ? `Există ${alertsCount} alerte active. Generează task-urile lipsă și trimite remindere către responsabili.`
+          : 'Sincronizează task-urile și reminderele pentru riscurile contractuale curente.',
+        actionLabel: 'Generează task-uri',
+        action: 'generate',
+      })
+    }
+    return recommendations.slice(0, 5)
+  }, [dashboard, savedViewCounts, tasks.length])
+
   const activeFilterCount = useMemo(() => {
     let count = 0
     if (portfolioFilters.status !== 'toate') count += 1
@@ -633,6 +700,44 @@ export default function ContractePage() {
     setBatchModalOpen(true)
     setError('')
     setNotice('')
+  }
+
+  function openBatchActionForContracts(action, targetContracts, options = {}) {
+    const ids = targetContracts.map(contract => contract.id).filter(Boolean)
+    if (!ids.length) {
+      setError('Nu există contracte pentru recomandarea selectată.')
+      return
+    }
+    const viewLabel = options.label || filterSummary || 'recomandare asistent'
+    setSelectedContractIds(ids)
+    setBatchAction(action)
+    setBatchForm({
+      responsabil_nume: '',
+      task_title: action === 'task' ? `Verificare contracte — ${viewLabel}` : '',
+      task_description: action === 'task'
+        ? `Task creat din asistentul operațional pentru ${ids.length} contracte.`
+        : '',
+      priority: options.priority || '2',
+    })
+    setBatchModalOpen(true)
+    setError('')
+    setNotice('')
+  }
+
+  function runAssistantRecommendation(recommendation) {
+    if (!recommendation) return
+    if (recommendation.action === 'generate') {
+      generateTasks()
+      return
+    }
+    const view = savedPortfolioViews.find(item => item.key === recommendation.viewKey)
+    if (!view) return
+    const targetContracts = contracts.filter(contract => contractMatchesPortfolioFilters(contract, view.filters, riskByContractId))
+    applySavedPortfolioView(view)
+    openBatchActionForContracts(recommendation.action, targetContracts, {
+      label: view.label,
+      priority: recommendation.priority,
+    })
   }
 
   function closeBatchModal() {
@@ -1111,6 +1216,48 @@ export default function ContractePage() {
           <p className="mt-1 text-xs text-slate-500">{dashboard?.risk_summary?.danger || 0} critice</p>
         </Card>
       </div>
+
+      <Card
+        title="Asistent operațional contracte"
+        subtitle="Recomandări concrete pe baza riscurilor curente: ce trebuie făcut acum, nu doar ce trebuie urmărit."
+        actions={assistantRecommendations.length ? <Badge tone="info">{assistantRecommendations.length} recomandări</Badge> : <Badge tone="success">Portofoliu curat</Badge>}
+      >
+        {assistantRecommendations.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {assistantRecommendations.map(item => (
+              <div key={item.key} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={item.tone}>{item.tone === 'danger' ? 'urgent' : item.tone === 'warning' ? 'atenție' : 'recomandat'}</Badge>
+                      <div className="font-semibold text-slate-900">{item.title}</div>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+                  </div>
+                  <Button size="sm" variant={item.tone === 'danger' ? 'primary' : 'secondary'} onClick={() => runAssistantRecommendation(item)} loading={saving}>
+                    {item.actionLabel}
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {dashboard?.alerts?.length ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-emerald-900">Remindere către responsabili</div>
+                    <p className="mt-2 text-sm text-emerald-800">Trimite notificări pentru alertele active fără să schimbi datele contractelor.</p>
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={sendReminders} loading={saving}>Trimite remindere</Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+            Nu am găsit intervenții urgente în portofoliul de contracte. Când apar lipsuri, scadențe sau depășiri, aici vei primi direct acțiunea recomandată.
+          </div>
+        )}
+      </Card>
 
       <Card title="Radar executiv contracte" subtitle="Cele mai importante cozi de lucru din portofoliu, cu scurtături către contractele care cer intervenție.">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">

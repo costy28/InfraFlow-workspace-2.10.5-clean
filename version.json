@@ -1,5 +1,5 @@
 {
-  "version": "2.12.350",
-  "date": "2026-07-21",
-  "changelog": "## v2.12.350 - 2026-07-21\n### Actiuni in masa si radar executiv contracte\n- Portofoliul Contracte permite selectarea contractelor vizibile sau individuale.\n- Contractele selectate pot primi manager in lot sau task-uri operationale in lot.\n- Generatorul de task-uri include acum si riscurile fara manager/fara document semnat.\n- Dashboard-ul Contracte include radar executiv cu scurtaturi catre cozile importante."
+  "version": "2.12.351",
+  "date": "2026-07-22",
+  "changelog": "## v2.12.351 - 2026-07-22\n### Asistent operational contracte\n- Modulul Contracte afiseaza recomandari concrete pe baza riscurilor curente.\n- Recomandarile pot pregati automat selectia si actiunea in masa potrivita.\n- Asistentul propune asignare manageri, task-uri pentru documente semnate, scadente si depasiri.\n- Panoul include acces rapid la generare task-uri si remindere catre responsabili."
 }

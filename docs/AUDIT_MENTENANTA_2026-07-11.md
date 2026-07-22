@@ -753,3 +753,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ acțiuni batch pentru asignare manager și creare task-uri operaționale;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ radar executiv pentru cozi de lucru critice, scadente, fără manager, fără semnat și depășite;
 - `server/modules/contracts/routes.js` — ✅ generatorul global de task-uri include riscurile `missing_manager` și `missing_signed_file`, cu protecție la duplicate.
+
+### UPDATE 371 — Asistent operațional contracte
+
+- `client/src/pages/modules/ContractePage.jsx` — ✅ panou nou cu recomandări concrete din riscurile portofoliului;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ recomandările pregătesc automat selecția contractelor și acțiunea batch potrivită;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ recomandări pentru lipsă manager, lipsă document semnat, scadențe, depășiri și task-uri/alerte;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ acces rapid la generare task-uri și trimitere remindere.
