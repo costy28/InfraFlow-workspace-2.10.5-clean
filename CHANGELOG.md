@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.350 - 2026-07-21
+
+## Acțiuni în masă și radar executiv contracte
+
+- Portofoliul `Contracte` permite selectarea contractelor individuale sau a tuturor contractelor vizibile.
+- Contractele selectate pot primi același manager/responsabil în lot.
+- Contractele selectate pot primi task-uri operaționale în lot, cu titlu, descriere și prioritate.
+- Generatorul global de task-uri include acum și riscurile operaționale `fără manager` și `fără document semnat`, nu doar alertele de termen/valoare.
+- Dashboard-ul Contracte include un `Radar executiv contracte` cu scurtături către critice, scadente, fără manager, fără semnat și depășite.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.349 - 2026-07-21
 
 ## Upload rapid document semnat contract

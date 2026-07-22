@@ -243,6 +243,15 @@ export default function ContractePage() {
     descriere: 'Contract semnat încărcat din acțiune rapidă',
     file: null,
   })
+  const [selectedContractIds, setSelectedContractIds] = useState([])
+  const [batchModalOpen, setBatchModalOpen] = useState(false)
+  const [batchAction, setBatchAction] = useState('manager')
+  const [batchForm, setBatchForm] = useState({
+    responsabil_nume: '',
+    task_title: '',
+    task_description: '',
+    priority: '2',
+  })
   const [linkableSources, setLinkableSources] = useState([])
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -259,6 +268,19 @@ export default function ContractePage() {
   const filteredContracts = useMemo(() => {
     return contracts.filter(contract => contractMatchesPortfolioFilters(contract, portfolioFilters, riskByContractId))
   }, [contracts, portfolioFilters, riskByContractId])
+
+  const selectedContracts = useMemo(() => {
+    const selected = new Set(selectedContractIds.map(String))
+    return contracts.filter(contract => selected.has(String(contract.id)))
+  }, [contracts, selectedContractIds])
+
+  const selectedVisibleContracts = useMemo(() => {
+    const selected = new Set(selectedContractIds.map(String))
+    return filteredContracts.filter(contract => selected.has(String(contract.id)))
+  }, [filteredContracts, selectedContractIds])
+
+  const allVisibleSelected = filteredContracts.length > 0 && filteredContracts.every(contract => selectedContractIds.map(String).includes(String(contract.id)))
+  const selectedActionLabel = selectedContractIds.length === 1 ? '1 contract selectat' : `${selectedContractIds.length} contracte selectate`
 
   const managerSuggestions = useMemo(() => {
     const seen = new Set()
@@ -392,9 +414,44 @@ export default function ContractePage() {
     return riskCodesForContract(contract).has('missing_signed_file')
   }
 
+  function toggleContractSelection(contractId) {
+    setSelectedContractIds(current => {
+      const idValue = String(contractId)
+      return current.map(String).includes(idValue)
+        ? current.filter(item => String(item) !== idValue)
+        : [...current, contractId]
+    })
+  }
+
+  function toggleVisibleSelection() {
+    const visibleIds = filteredContracts.map(contract => contract.id)
+    if (!visibleIds.length) return
+    if (allVisibleSelected) {
+      const visible = new Set(visibleIds.map(String))
+      setSelectedContractIds(current => current.filter(item => !visible.has(String(item))))
+      return
+    }
+    setSelectedContractIds(current => {
+      const selected = new Set(current.map(String))
+      const next = [...current]
+      for (const contractId of visibleIds) {
+        if (!selected.has(String(contractId))) next.push(contractId)
+      }
+      return next
+    })
+  }
+
+  function clearContractSelection() {
+    setSelectedContractIds([])
+  }
+
   useEffect(() => {
     load()
   }, [])
+
+  useEffect(() => {
+    setSelectedContractIds(current => current.filter(contractId => contracts.some(contract => String(contract.id) === String(contractId))))
+  }, [contracts])
 
   async function load() {
     setLoading(true)
@@ -553,6 +610,66 @@ export default function ContractePage() {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Contractul semnat nu a putut fi încărcat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function openBatchAction(action) {
+    if (!selectedContractIds.length) {
+      setError('Selectează cel puțin un contract din portofoliu.')
+      return
+    }
+    const viewLabel = filterSummary || 'selecție portofoliu'
+    setBatchAction(action)
+    setBatchForm({
+      responsabil_nume: '',
+      task_title: action === 'task' ? `Verificare contracte — ${viewLabel}` : '',
+      task_description: action === 'task'
+        ? `Task creat în lot pentru ${selectedContractIds.length} contracte selectate din portofoliu.`
+        : '',
+      priority: '2',
+    })
+    setBatchModalOpen(true)
+    setError('')
+    setNotice('')
+  }
+
+  function closeBatchModal() {
+    setBatchModalOpen(false)
+  }
+
+  async function saveBatchAction(event) {
+    event.preventDefault()
+    if (!selectedContracts.length) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      if (batchAction === 'manager') {
+        const responsabil_nume = batchForm.responsabil_nume.trim()
+        if (!responsabil_nume) throw new Error('Managerul este obligatoriu pentru asignarea în masă.')
+        await Promise.all(selectedContracts.map(contract => api.patch(`/contracts/${contract.id}`, { responsabil_nume })))
+        setNotice(`Managerul ${responsabil_nume} a fost setat pe ${selectedContracts.length} contracte.`)
+      } else if (batchAction === 'task') {
+        const title = batchForm.task_title.trim()
+        if (!title) throw new Error('Titlul task-ului este obligatoriu.')
+        const priority = Number(batchForm.priority || 2)
+        const results = await Promise.all(selectedContracts.map(contract => api.post(`/contracts/${contract.id}/tasks`, {
+          action_key: `batch-${Date.now()}-${contract.id}`,
+          source: 'batch_portfolio',
+          title,
+          description: batchForm.task_description || `Task creat în lot pentru contractul ${contract.numar || contract.id}.`,
+          priority,
+        })))
+        const created = results.filter(response => response.data?.created !== false).length
+        setNotice(`Au fost pregătite ${created} task-uri noi pentru ${selectedContracts.length} contracte selectate.`)
+      }
+      closeBatchModal()
+      clearContractSelection()
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Acțiunea în masă nu a putut fi executată.')
     } finally {
       setSaving(false)
     }
@@ -995,6 +1112,36 @@ export default function ContractePage() {
         </Card>
       </div>
 
+      <Card title="Radar executiv contracte" subtitle="Cele mai importante cozi de lucru din portofoliu, cu scurtături către contractele care cer intervenție.">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {[
+            { key: 'critice', label: 'Critice', note: 'Risc major / restanțe', tone: 'danger' },
+            { key: 'scad_30', label: 'Scad în 30 zile', note: 'Verificare prelungire/închidere', tone: 'warning' },
+            { key: 'fara_manager', label: 'Fără manager', note: 'Asignare responsabil', tone: 'warning' },
+            { key: 'fara_semnat', label: 'Fără semnat', note: 'Încarcă documentul semnat', tone: 'info' },
+            { key: 'depasite', label: 'Depășite', note: 'Consum peste valoare', tone: 'danger' },
+          ].map(item => {
+            const view = savedPortfolioViews.find(saved => saved.key === item.key)
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                onClick={() => view && applySavedPortfolioView(view)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{item.label}</div>
+                    <div className="mt-1 text-xs text-slate-500">{item.note}</div>
+                  </div>
+                  <Badge tone={item.tone}>{savedViewCounts[item.key] || 0}</Badge>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </Card>
+
       {dashboard?.risk_contracts?.length ? (
         <Card title="Contracte cu risc" subtitle="Radar operațional: contracte depășite, aproape de termen, fără manager, fără fișier semnat sau cu task-uri restante.">
           <div className="grid gap-2">
@@ -1214,11 +1361,37 @@ export default function ContractePage() {
               <option value="reactivated">Reactivate</option>
             </Select>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="text-sm text-slate-600">
+              {selectedContractIds.length ? (
+                <>
+                  <span className="font-semibold text-slate-900">{selectedActionLabel}</span>
+                  {selectedVisibleContracts.length !== selectedContractIds.length ? <span className="ml-1 text-slate-400">({selectedVisibleContracts.length} vizibile acum)</span> : null}
+                </>
+              ) : 'Selectează contracte pentru acțiuni în masă.'}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button size="sm" variant="secondary" onClick={toggleVisibleSelection} disabled={!filteredContracts.length}>
+                {allVisibleSelected ? 'Deselectează vizibile' : 'Selectează vizibile'}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => openBatchAction('manager')} disabled={!selectedContractIds.length || saving}>Setează manager în lot</Button>
+              <Button size="sm" variant="secondary" onClick={() => openBatchAction('task')} disabled={!selectedContractIds.length || saving}>Creează task-uri în lot</Button>
+              {selectedContractIds.length ? <Button size="sm" variant="secondary" onClick={clearContractSelection}>Curăță selecția</Button> : null}
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
+                <th className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label="Selectează contractele vizibile"
+                    checked={allVisibleSelected}
+                    onChange={toggleVisibleSelection}
+                  />
+                </th>
                 <th className="px-3 py-2">Contract</th>
                 <th className="px-3 py-2">Partener</th>
                 <th className="px-3 py-2">Responsabil</th>
@@ -1233,12 +1406,20 @@ export default function ContractePage() {
             <tbody className="divide-y divide-slate-100">
               {filteredContracts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-slate-500">
+                  <td colSpan={10} className="px-3 py-8 text-center text-slate-500">
                     {filterTableEmptyText()}
                   </td>
                 </tr>
               ) : filteredContracts.map(contract => (
                 <tr key={contract.id || contract.uuid} className="align-top hover:bg-slate-50">
+                  <td className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`Selectează contractul ${contract.numar || contract.id}`}
+                      checked={selectedContractIds.map(String).includes(String(contract.id))}
+                      onChange={() => toggleContractSelection(contract.id)}
+                    />
+                  </td>
                   <td className="px-3 py-3">
                     <div className="font-semibold text-slate-900">{contract.numar}</div>
                     <div className="max-w-xs text-slate-600">{contract.titlu}</div>
@@ -1949,6 +2130,73 @@ export default function ContractePage() {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={closeSignedUploadModal}>Renunță</Button>
             <Button type="submit" disabled={!signedAttachmentForm.file || saving} loading={saving}>Încarcă semnat</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={batchModalOpen} title="Acțiune în masă contracte" onClose={closeBatchModal}>
+        <form className="grid gap-4" onSubmit={saveBatchAction}>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div className="font-semibold text-slate-900">{selectedActionLabel}</div>
+            <div className="mt-1 text-slate-500">
+              {batchAction === 'manager'
+                ? 'Managerul va fi salvat pe toate contractele selectate.'
+                : 'Se creează câte un task operațional pentru fiecare contract selectat.'}
+            </div>
+          </div>
+          <Select label="Tip acțiune" value={batchAction} onChange={event => setBatchAction(event.target.value)}>
+            <option value="manager">Setează manager</option>
+            <option value="task">Creează task-uri</option>
+          </Select>
+          {batchAction === 'manager' ? (
+            <div className="grid gap-3">
+              <Input
+                label="Manager contract / responsabil"
+                value={batchForm.responsabil_nume}
+                required
+                onChange={event => setBatchForm({ ...batchForm, responsabil_nume: event.target.value })}
+              />
+              {managerSuggestions.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {managerSuggestions.slice(0, 8).map(user => (
+                    <button
+                      key={`batch-${user.id}-${user.name}`}
+                      type="button"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:border-emerald-300 hover:bg-emerald-50"
+                      onClick={() => setBatchForm({ ...batchForm, responsabil_nume: user.name })}
+                    >
+                      {user.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              <Input
+                label="Titlu task"
+                value={batchForm.task_title}
+                required
+                onChange={event => setBatchForm({ ...batchForm, task_title: event.target.value })}
+              />
+              <Input
+                label="Descriere"
+                value={batchForm.task_description}
+                onChange={event => setBatchForm({ ...batchForm, task_description: event.target.value })}
+              />
+              <Select label="Prioritate" value={batchForm.priority} onChange={event => setBatchForm({ ...batchForm, priority: event.target.value })}>
+                <option value="1">Urgentă</option>
+                <option value="2">Ridicată</option>
+                <option value="3">Normală</option>
+              </Select>
+            </div>
+          )}
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Acțiunea se aplică doar contractelor selectate. Pentru siguranță, înregistrările nu se șterg și modificările rămân în audit.
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={closeBatchModal}>Renunță</Button>
+            <Button type="submit" disabled={!selectedContractIds.length || saving} loading={saving}>Execută în lot</Button>
           </div>
         </form>
       </Modal>

@@ -1880,11 +1880,26 @@ function createContractTasksFromAlerts(db, user) {
   const active = cm.contracts.filter(item => !item.cancelled_at && !item.cancelledAt && String(item.status || 'activ') !== 'anulat')
   for (const contract of active) {
     const decorated = decorateContract(db, contract)
-    for (const alert of decorated.alerte || []) {
+    const riskItem = contractRiskItem(db, contract, decorated, contractTasks(db, { status: 'deschise', contract_id: contract.id }))
+    const riskReasons = (riskItem?.reasons || [])
+      .filter(reason => !['overdue_tasks'].includes(String(reason.code || '').toLowerCase()))
+      .map(reason => ({
+        code: reason.code,
+        level: reason.level,
+        message: reason.message,
+        source: 'risk'
+      }))
+    const alerts = (decorated.alerte || []).map(alert => ({ ...alert, source: 'alert' }))
+    const items = [...alerts, ...riskReasons]
+    const seenCodes = new Set()
+    for (const alert of items) {
+      const alertCode = String(alert.code || 'alert').trim()
+      if (!alertCode || seenCodes.has(alertCode)) continue
+      seenCodes.add(alertCode)
       const hasOpen = cm.tasks.some(task =>
         !task.cancelled_at && !task.cancelledAt &&
         String(task.contract_id) === String(contract.id) &&
-        String(task.alert_code) === String(alert.code) &&
+        String(task.alert_code) === alertCode &&
         !['rezolvat', 'inchis', 'anulat'].includes(String(task.status || '').toLowerCase())
       )
       if (hasOpen) continue
@@ -1895,10 +1910,11 @@ function createContractTasksFromAlerts(db, user) {
         contract_id: contract.id,
         contract_numar: contract.numar,
         contract_titlu: contract.titlu,
-        alert_code: alert.code,
+        alert_code: alertCode,
         alert_level: alert.level,
         titlu: `Verifica ${contract.numar}: ${alert.message}`,
         descriere: `Contract: ${contract.titlu || contract.numar}. ${alert.message}`,
+        action_source: alert.source === 'risk' ? 'risk_audit' : 'alert',
         status: 'deschis',
         prioritate: alert.level === 'danger' ? 'urgent' : alert.level === 'warning' ? 'ridicata' : 'normala',
         deadline: taskDeadlineForAlert(alert),

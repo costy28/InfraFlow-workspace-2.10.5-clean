@@ -1,5 +1,5 @@
 {
-  "version": "2.12.349",
+  "version": "2.12.350",
   "date": "2026-07-21",
-  "changelog": "## v2.12.349 - 2026-07-21\n### Upload rapid document semnat contract\n- Actiunea rapida Incarca semnat deschide un mini-modal dedicat.\n- Fisierul este salvat direct in dosarul contractului cu categoria Contract semnat.\n- Modalul afiseaza contractul vizat si confirma fisierul selectat.\n- Dupa incarcare, lista si contoarele portofoliului se reincarca automat."
+  "changelog": "## v2.12.350 - 2026-07-21\n### Actiuni in masa si radar executiv contracte\n- Portofoliul Contracte permite selectarea contractelor vizibile sau individuale.\n- Contractele selectate pot primi manager in lot sau task-uri operationale in lot.\n- Generatorul de task-uri include acum si riscurile fara manager/fara document semnat.\n- Dashboard-ul Contracte include radar executiv cu scurtaturi catre cozile importante."
 }
