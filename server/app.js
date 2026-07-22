@@ -82,6 +82,7 @@ if (process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo') {
   app.use('/api', require('./modules/system/demo-routes'))
 }
 app.use('/api', require('./modules/messaging/routes').router)
+app.use('/api', require('./modules/tasks/routes'))
 app.use('/api', require('./modules/tickets/routes'))
 app.use('/api', require('./modules/documents/routes'))
 app.use('/api', require('./modules/field/routes'))

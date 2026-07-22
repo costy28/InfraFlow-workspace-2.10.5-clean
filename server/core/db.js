@@ -49,6 +49,7 @@ const DEFAULT_DB = {
   controlling: { costCenters: [] },
   contractManagement: { contracts: [], consumptions: [], alerts: [] },
   messaging: { channels: [], messages: [] },
+  taskManagement: { tasks: [], comments: [] },
   documents: {
     documentTypes: [],
     documents: [],

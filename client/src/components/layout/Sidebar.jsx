@@ -34,6 +34,7 @@ const groups = [
       { to: '/contabilitate', icon: '🏦', label: 'Contabilitate', moduleKey: 'accounting' },
       { to: '/documente', icon: '🗂️', label: 'Documente', moduleKey: 'documents' },
       { to: '/mesaje', icon: '💬', label: 'Mesaje', moduleKey: 'messaging' },
+      { to: '/taskuri', icon: '✅', label: 'Task-uri', moduleKey: 'task_management' },
       { to: '/sesizari', icon: '🎫', label: 'Sesizări', moduleKey: 'tickets' },
       { to: '/juridic', icon: '⚖️', label: 'Juridic', moduleKey: 'legal' },
       { to: '/arhiva', icon: '🗄️', label: 'Arhivă', moduleKey: 'archive' },
@@ -59,6 +60,7 @@ const modulePermissionPrefixes = {
   contract_management: ['legal', 'procurement', 'accounting', 'controlling', 'cost_accounting'],
   referate: ['referate'],
   accounting: ['accounting', 'anaf', 'integration', 'cost_accounting', 'controlling'],
+  task_management: ['tasks', 'dashboard'],
   mechanization: ['mechanization', 'fleet', 'technical'],
   asternere: ['technical', 'field'],
   anaf: ['anaf', 'integration'],
@@ -70,6 +72,7 @@ const moduleActiveAliases = {
   ai: ['ai', 'ai_assistant'],
   accounting: ['accounting', 'contabilitate', 'anaf', 'controlling'],
   contract_management: ['contract_management', 'contracts', 'legal', 'procurement', 'accounting'],
+  task_management: ['task_management', 'tasks'],
   referate: ['referate', 'procurement'],
 }
 

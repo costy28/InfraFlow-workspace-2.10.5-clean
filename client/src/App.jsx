@@ -56,6 +56,7 @@ const SecretariatPage = lazy(() => import('./pages/modules/SecretariatPage'))
 const DeszapezirePage = lazy(() => import('./pages/modules/DeszapezirePage'))
 const DocumentePage = lazy(() => import('./pages/modules/DocumentePage'))
 const MessagingPage = lazy(() => import('./pages/modules/MessagingPage'))
+const TasksPage = lazy(() => import('./pages/modules/TasksPage'))
 const TicketsPage = lazy(() => import('./pages/modules/TicketsPage'))
 const AiPage = lazy(() => import('./pages/AiPage'))
 const ImportLegacyPage = lazy(() => import('./pages/ImportLegacyPage'))
@@ -142,6 +143,7 @@ export default function App() {
         <Route path="/deszapezire/*" element={<WithLayout><DeszapezirePage /></WithLayout>} />
         <Route path="/documente/*" element={<WithLayout><DocumentePage /></WithLayout>} />
         <Route path="/mesaje/*" element={<WithLayout><MessagingPage /></WithLayout>} />
+        <Route path="/taskuri/*" element={<WithLayout><TasksPage /></WithLayout>} />
         <Route path="/sesizari/*" element={<WithLayout><TicketsPage /></WithLayout>} />
         <Route path="/setari/*" element={<WithLayout><SetariPage /></WithLayout>} />
         <Route path="/ai" element={<WithLayout><AiPage /></WithLayout>} />

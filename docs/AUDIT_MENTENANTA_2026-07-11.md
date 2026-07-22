@@ -781,3 +781,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/DashboardPage.jsx` — ✅ recomandare `Date operaționale pentru contabilitate`;
 - `docs/PRODUCTIZARE_COMERCIALA.md` — ✅ direcție de produs pentru contabilitate ca hub de date;
 - `docs/PRODUCTIZARE_COMERCIALA.md` — ✅ roadmap pentru Task Management delegat/personal.
+
+### UPDATE 375 — Fundație Task Management
+
+- `server/modules/tasks/routes.js` — ✅ API task-uri personale/delegate, status și comentarii;
+- `server/app.js` — ✅ rută `/api/tasks` montată;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ pagină nouă `/taskuri`;
+- `client/src/components/layout/Sidebar.jsx` — ✅ intrare `Task-uri`;
+- `client/src/pages/DashboardPage.jsx` — ✅ task-urile personale intră în `Ce ai de făcut azi`;
+- `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/tasks/my-open`.

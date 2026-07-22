@@ -27,6 +27,7 @@ const emptyState = {
   commandCenter: null,
   contractsDashboard: null,
   contractsTasks: [],
+  myTasks: [],
   hrStats: null,
   leaveRequests: [],
   accountingSummary: null,
@@ -47,6 +48,7 @@ const routes = {
   snow: '/deszapezire',
   contracts: '/contracte',
   accounting: '/contabilitate',
+  tasks: '/taskuri',
 }
 
 function localDate(date) {
@@ -144,7 +146,7 @@ function dashboardProfile(user) {
     return {
       key: 'executive',
       label: 'Profil executiv',
-      domains: ['contracts', 'documents', 'tickets', 'stocks', 'projects', 'hr', 'accounting'],
+      domains: ['tasks', 'contracts', 'documents', 'tickets', 'stocks', 'projects', 'hr', 'accounting'],
       hint: 'Vezi blocajele care pot opri operațiunea sau decizia.',
     }
   }
@@ -152,7 +154,7 @@ function dashboardProfile(user) {
     return {
       key: 'hr',
       label: 'Profil HR',
-      domains: ['hr', 'documents', 'contracts'],
+      domains: ['tasks', 'hr', 'documents', 'contracts'],
       hint: 'Prioritate pe oameni, cereri, documente și dosare.',
     }
   }
@@ -160,7 +162,7 @@ function dashboardProfile(user) {
     return {
       key: 'accounting',
       label: 'Profil financiar extins',
-      domains: ['accounting', 'documents', 'contracts', 'hr', 'stocks'],
+      domains: ['tasks', 'accounting', 'documents', 'contracts', 'hr', 'stocks'],
       hint: 'Contabilitatea vede semnalele financiare și datele operaționale care ajung în contabilitate.',
     }
   }
@@ -168,7 +170,7 @@ function dashboardProfile(user) {
     return {
       key: 'procurement',
       label: 'Profil achiziții',
-      domains: ['contracts', 'documents', 'stocks'],
+      domains: ['tasks', 'contracts', 'documents', 'stocks'],
       hint: 'Prioritate pe contracte, documente și aprovizionare.',
     }
   }
@@ -176,14 +178,14 @@ function dashboardProfile(user) {
     return {
       key: 'operations',
       label: 'Profil operațional',
-      domains: ['tickets', 'stocks', 'projects'],
+      domains: ['tasks', 'tickets', 'stocks', 'projects'],
       hint: 'Prioritate pe teren, sesizări și resurse operaționale.',
     }
   }
   return {
     key: 'general',
     label: 'Profil general',
-    domains: ['documents', 'tickets', 'contracts', 'stocks', 'projects'],
+    domains: ['tasks', 'documents', 'tickets', 'contracts', 'stocks', 'projects'],
     hint: 'Priorități generale din modulele disponibile.',
   }
 }
@@ -492,7 +494,23 @@ function buildTodayActions(view, profile = dashboardProfile(null)) {
     const due = task.due_date || task.scadenta || task.deadline
     return due && new Date(due) < new Date()
   })
+  const myTasksOpen = view.myTasks.filter(task => !['done', 'cancelled'].includes(String(task.status || 'open')))
+  const myTasksOverdue = myTasksOpen.filter(task => task.due_date && new Date(task.due_date) < new Date())
   const leaveRequestsPending = view.leaveRequests.filter(request => ['cerut', 'pending', 'in_asteptare', 'solicitat'].includes(String(request.status || '').toLowerCase()))
+
+  if (myTasksOpen.length) {
+    actions.push({
+      key: 'my_tasks',
+      domain: 'tasks',
+      icon: '✅',
+      tone: myTasksOverdue.length ? 'danger' : 'warning',
+      weight: myTasksOverdue.length ? 105 : 88,
+      title: myTasksOverdue.length ? `${myTasksOverdue.length} task-uri întârziate` : `${myTasksOpen.length} task-uri deschise`,
+      description: myTasksOverdue.length ? 'Ai task-uri trecute de scadență care merită închise sau replanificate.' : 'Lista ta de lucru pentru azi este disponibilă în Task-uri.',
+      route: routes.tasks,
+      cta: 'Deschide task-uri',
+    })
+  }
 
   if (view.inboxDocuments.length) {
     actions.push({
@@ -740,6 +758,7 @@ export default function DashboardPage() {
         commandCenter: api.get('/dashboard/command-center'),
         contractsDashboard: api.get('/contracts/dashboard'),
         contractsTasks: api.get('/contracts/tasks'),
+        myTasks: api.get('/tasks/my-open'),
         hrStats: api.get('/hr/stats'),
         leaveRequests: api.get('/hr/leave-requests'),
         accountingSummary: api.get('/accounting/summary'),
@@ -796,6 +815,7 @@ export default function DashboardPage() {
     const audit = arrayFrom(data.audit, ['audit', 'items'])
     const stockOperations = arrayFrom(data.stockOperations, ['movements', 'operations', 'items'])
     const contractsTasks = arrayFrom(data.contractsTasks, ['tasks', 'items'])
+    const myTasks = arrayFrom(data.myTasks, ['tasks', 'items'])
     const leaveRequests = arrayFrom(data.leaveRequests, ['requests', 'leaveRequests', 'items'])
     const profile = dashboardProfile(user)
 
@@ -810,6 +830,7 @@ export default function DashboardPage() {
       stockOperations,
       contractsDashboard: data.contractsDashboard || {},
       contractsTasks,
+      myTasks,
       hrStats: data.hrStats || {},
       leaveRequests,
       accountingSummary: data.accountingSummary || {},

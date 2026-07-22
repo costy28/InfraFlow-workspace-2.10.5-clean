@@ -1,5 +1,19 @@
 # Changelog
 
+# v2.12.355 - 2026-07-22
+
+## Fundație Task Management
+
+- Modul nou `Task-uri` pentru task-uri personale și task-uri delegate.
+- API nou `/api/tasks` pentru listare, detaliu, creare, actualizare status și comentarii.
+- Task-urile respectă vizibilitatea de bază: creator, responsabil sau rol de manager/admin/șef.
+- Nu se șterg fizic task-uri; se marchează `cancelled`.
+- Pagina `/taskuri` permite creare task, listare pe tab-uri, schimbare status și comentarii.
+- Sidebar-ul include intrarea `Task-uri`.
+- Dashboard-ul `Ce ai de făcut azi` poate ridica task-urile personale deschise sau întârziate.
+- Smoke test-ul read-only verifică endpoint-ul `/api/tasks/my-open`.
+- Nu necesită migrări; compatibil cu JSON și MSSQL app_state.
+
 # v2.12.354 - 2026-07-22
 
 ## Contabilitate hub și roadmap task-uri

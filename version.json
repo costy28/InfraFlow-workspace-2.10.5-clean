@@ -1,5 +1,5 @@
 {
-  "version": "2.12.354",
+  "version": "2.12.355",
   "date": "2026-07-22",
-  "changelog": "## v2.12.354 - 2026-07-22\n### Contabilitate hub si roadmap task-uri\n- Profilul financiar din dashboard devine profil financiar extins.\n- Contabilitatea poate vedea semnale din HR, gestiune si contracte, fara acces operational implicit total.\n- Dashboard-ul poate afisa sinteza datelor operationale care alimenteaza contabilitatea.\n- Roadmap-ul comercial include directia Task Management cu task-uri delegate si personale."
+  "changelog": "## v2.12.355 - 2026-07-22\n### Fundatie Task Management\n- Modul nou Task-uri pentru task-uri personale si delegate.\n- API pentru listare, creare, actualizare status si comentarii pe task.\n- Pagina Task-uri adaugata in aplicatie si in sidebar.\n- Dashboard-ul poate ridica task-urile personale deschise sau intarziate in Ce ai de facut azi."
 }
