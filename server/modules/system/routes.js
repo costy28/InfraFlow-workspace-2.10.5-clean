@@ -2808,6 +2808,7 @@ function createUser(db, actor, body) {
   enforceUserLimit(db, body.active !== false);
   if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
   const employee_id = String(body.employee_id || "").trim() || null;
+  const manager_id = normalizeUserManagerId(db, body.manager_id || body.managerId || "");
   if (employee_id) {
     const alreadyLinked = (db.users || []).find(u => u.employee_id === employee_id && u.active !== false);
     if (alreadyLinked) throwHttp(409, `Angajatul este deja asociat contului \"${alreadyLinked.username}\".`);
@@ -2822,6 +2823,7 @@ function createUser(db, actor, body) {
     roles,
     departmentId: String(body.departmentId || body.department_id || "").trim(),
     department: String(body.department || "").trim(),
+    manager_id,
     active: body.active !== false,
     createdBy: actor.id,
     createdAt: new Date().toISOString()
@@ -2869,6 +2871,10 @@ function updateUser(db, actor, userId, body) {
   if (body.department !== undefined) {
     user.department = String(body.department || "").trim();
   }
+  if (body.manager_id !== undefined || body.managerId !== undefined) {
+    user.manager_id = normalizeUserManagerId(db, body.manager_id || body.managerId || "", user.id);
+    delete user.managerId;
+  }
   if (body.employee_id !== undefined) {
     syncUserEmployeeLink(db, user, String(body.employee_id || "").trim() || null);
     user.verified_from_hr = Boolean(body.verified_from_hr);
@@ -2902,6 +2908,15 @@ function updateUser(db, actor, userId, body) {
     ensureUserInGeneralChannel(db, user.id);
   } catch (e) { console.warn('[messaging] Update canal user:', e.message) }
   return user;
+}
+
+function normalizeUserManagerId(db, value, selfId = "") {
+  const managerId = String(value || "").trim();
+  if (!managerId) return "";
+  if (selfId && String(managerId) === String(selfId)) throwHttp(400, "Un utilizator nu poate fi propriul manager.");
+  const manager = (db.users || []).find((item) => String(item.id) === managerId && item.active !== false);
+  if (!manager) throwHttp(400, "Managerul selectat nu este un utilizator activ.");
+  return managerId;
 }
 
 function syncUserEmployeeLink(db, user, employeeId) {

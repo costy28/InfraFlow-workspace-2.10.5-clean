@@ -798,3 +798,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/tasks/routes.js` — ✅ șefii de departament pot vedea task-urile create/asignate în departamentul propriu;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ pagina afișează regula curentă de delegare și numărul de responsabili disponibili;
 - `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/tasks/assignees`.
+
+### UPDATE 377 — Manager direct pentru task-uri
+
+- `server/modules/system/routes.js` — ✅ salvare și validare `manager_id` pe utilizator;
+- `server/core/permissions.js` — ✅ răspunsurile public/admin pentru utilizatori includ managerul direct;
+- `server/modules/tasks/routes.js` — ✅ delegare și vizibilitate task-uri pentru subordonați direcți;
+- `client/src/pages/SetariPage.jsx` — ✅ select `Manager direct` și coloană manager în lista utilizatorilor;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ text și etichete pentru delegarea pe ierarhie directă.

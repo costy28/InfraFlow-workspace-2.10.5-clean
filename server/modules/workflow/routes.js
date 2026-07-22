@@ -2277,7 +2277,9 @@ function publicUser(user) {
     name: user.name,
     username: user.username,
     role: user.role,
-    departmentId: user.departmentId || ""
+    departmentId: user.departmentId || "",
+    manager_id: user.manager_id || user.managerId || "",
+    managerId: user.manager_id || user.managerId || ""
   };
 }
 
@@ -2288,6 +2290,8 @@ function adminUser(user) {
     username: user.username,
     role: user.role,
     departmentId: user.departmentId || "",
+    manager_id: user.manager_id || user.managerId || "",
+    managerId: user.manager_id || user.managerId || "",
     active: user.active !== false,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
@@ -2385,6 +2389,7 @@ function createUser(db, actor, body) {
     passwordHash: hashPassword(password),
     role,
     departmentId: String(body.departmentId || "").trim(),
+    manager_id: normalizeUserManagerId(db, body.manager_id || body.managerId || ""),
     active: body.active !== false,
     createdBy: actor.id,
     createdAt: new Date().toISOString()
@@ -2410,6 +2415,10 @@ function updateUser(db, actor, userId, body) {
   if (body.departmentId !== undefined) {
     user.departmentId = String(body.departmentId || "").trim();
   }
+  if (body.manager_id !== undefined || body.managerId !== undefined) {
+    user.manager_id = normalizeUserManagerId(db, body.manager_id || body.managerId || "", user.id);
+    delete user.managerId;
+  }
   if (body.password) {
     const password = String(body.password);
     if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
@@ -2425,6 +2434,15 @@ function updateUser(db, actor, userId, body) {
   user.updatedBy = actor.id;
   user.updatedAt = new Date().toISOString();
   return user;
+}
+
+function normalizeUserManagerId(db, value, selfId = "") {
+  const managerId = String(value || "").trim();
+  if (!managerId) return "";
+  if (selfId && String(managerId) === String(selfId)) throwHttp(400, "Un utilizator nu poate fi propriul manager.");
+  const manager = (db.users || []).find((item) => String(item.id) === managerId && item.active !== false);
+  if (!manager) throwHttp(400, "Managerul selectat nu este un utilizator activ.");
+  return managerId;
 }
 
 function ensureCanAssignRole(actor, role) {

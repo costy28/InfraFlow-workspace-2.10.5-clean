@@ -51,6 +51,7 @@ const emptyUserForm = {
   role: 'angajat',
   department: '',
   departmentId: '',
+  manager_id: '',
   active: true,
   employee_id: '',
   verified_from_hr: false,
@@ -824,6 +825,7 @@ export default function SetariPage() {
       role: user.role || 'operator',
       department: user.department || '',
       departmentId: user.departmentId || '',
+      manager_id: user.manager_id || user.managerId || '',
       active: user.active !== false,
       employee_id: user.employee_id || '',
       verified_from_hr: user.verified_from_hr || false,
@@ -2177,6 +2179,7 @@ export default function SetariPage() {
                 )
               } },
               { key: 'department', label: 'Departament', render: row => row.department || row.departmentId || row.department_id || '-' },
+              { key: 'manager', label: 'Manager', render: row => users.find(u => String(u.id) === String(row.manager_id || row.managerId))?.name || '-' },
               { key: 'kiosk_access', label: 'Acces Kiosk', render: row => (
                 <span
                   className={row.active === false ? 'text-slate-400' : 'font-semibold text-green-700'}
@@ -3007,6 +3010,16 @@ export default function SetariPage() {
                 {dept.icon || ''} {dept.name || dept.nume || dept.denumire || dept}
               </option>
             ))}
+          </Select>
+          <Select label="Manager direct (opțional)" value={userForm.manager_id} onChange={event => setUserForm(u => ({ ...u, manager_id: event.target.value }))}>
+            <option value="">Fără manager direct</option>
+            {users
+              .filter(item => item.active !== false && (!editingUser || String(item.id) !== String(editingUser.id)))
+              .map(item => (
+                <option key={item.id} value={item.id}>
+                  {item.name || item.username}{item.department ? ` — ${item.department}` : ''}
+                </option>
+              ))}
           </Select>
 
           {/* ── Asociere angajat HR ── */}

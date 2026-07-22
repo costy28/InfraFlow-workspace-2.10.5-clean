@@ -1,5 +1,5 @@
 {
-  "version": "2.12.356",
+  "version": "2.12.357",
   "date": "2026-07-22",
-  "changelog": "## v2.12.356 - 2026-07-22\n### Delegare task-uri pe departament\n- Endpoint nou /api/tasks/assignees pentru responsabili disponibili in functie de rol.\n- Utilizatorii simpli pot crea task-uri pentru ei.\n- Sefii de departament pot vedea si delega task-uri in departamentul propriu.\n- Managerii si administratorii pot vedea si delega global.\n- Pagina Task-uri afiseaza regula de delegare si lista filtrata de responsabili."
+  "changelog": "## v2.12.357 - 2026-07-22\n### Manager direct pentru task-uri\n- Utilizatorii pot avea manager direct configurat in Setari.\n- Lista de utilizatori afiseaza managerul direct.\n- Task-urile pot fi delegate catre subordonatii directi, chiar si fara rol global de manager.\n- Endpoint-ul /api/tasks/assignees marcheaza subordonatii directi si raporteaza scope ierarhic.\n- Validare server-side pentru manager activ si pentru evitarea auto-asignarii ca manager."
 }

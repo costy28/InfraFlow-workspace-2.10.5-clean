@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.357 - 2026-07-22
+
+## Manager direct pentru task-uri
+
+- Utilizatorii pot avea `Manager direct` configurat din Setări → Utilizatori.
+- Lista de utilizatori afișează managerul direct pentru audit operațional rapid.
+- Backend-ul validează managerul selectat: trebuie să fie utilizator activ și nu poate fi același cont.
+- Task-urile pot fi delegate către subordonații direcți, chiar dacă managerul nu are rol global de admin/manager.
+- Endpoint-ul `/api/tasks/assignees` marchează subordonații direcți și poate returna scope `hierarchy`.
+- Pagina `Task-uri` afișează regula pentru delegarea ierarhică.
+- Nu necesită migrări; câmpul este opțional și compatibil cu JSON/MSSQL app_state.
+
 # v2.12.356 - 2026-07-22
 
 ## Delegare task-uri pe departament

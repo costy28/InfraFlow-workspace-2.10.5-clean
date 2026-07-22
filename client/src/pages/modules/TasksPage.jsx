@@ -178,7 +178,7 @@ export default function TasksPage() {
 
   const userOptions = users.map(item => ({
     value: String(item.id || item.username),
-    label: `${item.name || item.username || item.id}${item.department ? ` — ${item.department}` : ''}`,
+    label: `${item.name || item.username || item.id}${item.department ? ` — ${item.department}` : ''}${item.direct_report ? ' · subordonat direct' : ''}`,
   }))
 
   return (
@@ -199,7 +199,9 @@ export default function TasksPage() {
               ? 'poți delega către orice utilizator activ.'
               : assigneeScope === 'department'
                 ? 'poți delega către tine și colegii din departamentul tău.'
-                : 'poți crea task-uri pentru tine.'}
+                : assigneeScope === 'hierarchy'
+                  ? 'poți delega către tine și subordonații tăi direcți.'
+                  : 'poți crea task-uri pentru tine.'}
           </div>
           <Badge tone="info">{userOptions.length} responsabili disponibili</Badge>
         </div>

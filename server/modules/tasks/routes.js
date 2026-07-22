@@ -47,6 +47,10 @@ function departmentId(user) {
   return String(user?.departmentId || user?.department_id || user?.department || user?.departament || '').trim()
 }
 
+function managerId(user) {
+  return String(user?.manager_id || user?.managerId || user?.reports_to || user?.reportsTo || '').trim()
+}
+
 function isActiveUser(user) {
   return user && user.active !== false && user.active !== 0
 }
@@ -72,14 +76,22 @@ function sameDepartment(a, b) {
   return Boolean(left && right && left === right)
 }
 
+function isDirectReportOf(manager, candidate) {
+  return Boolean(manager && candidate && managerId(candidate) && managerId(candidate) === userId(manager))
+}
+
+function hasDirectReports(db, user) {
+  return (Array.isArray(db.users) ? db.users : []).some(item => isActiveUser(item) && isDirectReportOf(user, item))
+}
+
 function assignableUsers(db, user, permissions = []) {
   const users = (Array.isArray(db.users) ? db.users : []).filter(isActiveUser)
   if (canManageAllTasks(user, permissions)) return users
   if (canManageDepartmentTasks(user, permissions)) {
     const ownDept = departmentId(user)
-    return users.filter(item => userId(item) === userId(user) || (ownDept && departmentId(item) === ownDept))
+    return users.filter(item => userId(item) === userId(user) || isDirectReportOf(user, item) || (ownDept && departmentId(item) === ownDept))
   }
-  return users.filter(item => userId(item) === userId(user))
+  return users.filter(item => userId(item) === userId(user) || isDirectReportOf(user, item))
 }
 
 function canAssignTo(db, user, permissions, targetUserId) {
@@ -94,9 +106,12 @@ function canSeeTask(db, task, user, permissions = []) {
     const users = userMap(db)
     const creator = users.get(String(task.created_by))
     const assignee = users.get(String(task.assigned_to))
-    return sameDepartment(user, creator) || sameDepartment(user, assignee) || String(task.created_by) === uid || String(task.assigned_to) === uid
+    return sameDepartment(user, creator) || sameDepartment(user, assignee) || isDirectReportOf(user, creator) || isDirectReportOf(user, assignee) || String(task.created_by) === uid || String(task.assigned_to) === uid
   }
-  return String(task.created_by) === uid || String(task.assigned_to) === uid
+  const users = userMap(db)
+  const creator = users.get(String(task.created_by))
+  const assignee = users.get(String(task.assigned_to))
+  return isDirectReportOf(user, creator) || isDirectReportOf(user, assignee) || String(task.created_by) === uid || String(task.assigned_to) === uid
 }
 
 function enrichTask(task, users) {
@@ -189,6 +204,8 @@ router.get('/tasks/assignees', (req, res) => {
       role: user.role || '',
       department: user.department || user.department_name || user.departament || '',
       departmentId: departmentId(user),
+      manager_id: managerId(user),
+      direct_report: isDirectReportOf(auth.user, user),
       self: userId(user) === userId(auth.user),
     }))
     .sort((a, b) => Number(b.self) - Number(a.self) || String(a.name).localeCompare(String(b.name), 'ro'))
@@ -196,7 +213,7 @@ router.get('/tasks/assignees', (req, res) => {
     users: rows,
     scope: canManageAllTasks(auth.user, auth.permissions)
       ? 'all'
-      : (canManageDepartmentTasks(auth.user, auth.permissions) ? 'department' : 'self'),
+      : (canManageDepartmentTasks(auth.user, auth.permissions) ? 'department' : (hasDirectReports(auth.db, auth.user) ? 'hierarchy' : 'self')),
   })
 })
 

@@ -1086,6 +1086,8 @@ function publicUser(user) {
     role: user.role,
     roles: normalizedUserRoles(user),
     departmentId: user.departmentId || "",
+    manager_id: user.manager_id || user.managerId || "",
+    managerId: user.manager_id || user.managerId || "",
     employee_id: user.employee_id || "",
     kiosk_access: user.active !== false && user.active !== 0,
     implicitRoles: user.active !== false && user.active !== 0 ? ["angajat"] : []
@@ -1102,6 +1104,8 @@ function adminUser(user) {
     roles: normalizedUserRoles(user),
     departmentId: user.departmentId || "",
     department: user.department || "",
+    manager_id: user.manager_id || user.managerId || "",
+    managerId: user.manager_id || user.managerId || "",
     active: user.active !== false,
     kiosk_access: user.active !== false && user.active !== 0,
     implicitRoles: user.active !== false && user.active !== 0 ? ["angajat"] : [],
