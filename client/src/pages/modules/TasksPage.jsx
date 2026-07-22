@@ -76,7 +76,7 @@ export default function TasksPage() {
   const [users, setUsers] = useState([])
   const [assigneeScope, setAssigneeScope] = useState('self')
   const [selected, setSelected] = useState(null)
-  const [details, setDetails] = useState({ task: null, comments: [] })
+  const [details, setDetails] = useState({ task: null, comments: [], attachments: [] })
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [comment, setComment] = useState('')
@@ -141,10 +141,11 @@ export default function TasksPage() {
       setDetails({
         task: response.data.task || task,
         comments: arrayFrom(response.data, ['comments']),
+        attachments: arrayFrom(response.data, ['attachments']),
       })
     } catch (err) {
       setMessage(err.response?.data?.error || 'Nu am putut încărca detaliile task-ului.')
-      setDetails({ task, comments: [] })
+      setDetails({ task, comments: [], attachments: [] })
     }
   }
 
@@ -313,7 +314,7 @@ export default function TasksPage() {
         </form>
       </Modal>
 
-      <Modal open={Boolean(selected)} title="Detalii task" onClose={() => { setSelected(null); setDetails({ task: null, comments: [] }) }} size="lg">
+      <Modal open={Boolean(selected)} title="Detalii task" onClose={() => { setSelected(null); setDetails({ task: null, comments: [], attachments: [] }) }} size="lg">
         {details.task ? (
           <div className="grid gap-4">
             <div>
@@ -334,6 +335,19 @@ export default function TasksPage() {
               </Select>
             </div>
             <div>
+              <h4 className="mb-2 text-sm font-semibold text-slate-900">Dovezi atașate</h4>
+              <div className="mb-4 grid gap-2">
+                {details.attachments.length ? details.attachments.map(item => (
+                  <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-white px-3 py-2 text-sm">
+                    <div>
+                      <div className="font-medium text-slate-800">{item.file_name || 'Dovadă task'}</div>
+                      <div className="text-xs text-slate-500">{item.created_by_name || item.created_by} · {String(item.created_at || '').slice(0, 16).replace('T', ' ')} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB</div>
+                      {item.note ? <div className="mt-1 text-xs text-slate-500">{item.note}</div> : null}
+                    </div>
+                    <Button size="sm" variant="secondary" onClick={() => window.open(item.url, '_blank', 'noopener,noreferrer')}>Descarcă</Button>
+                  </div>
+                )) : <p className="text-sm text-slate-500">Nu există dovezi atașate.</p>}
+              </div>
               <h4 className="mb-2 text-sm font-semibold text-slate-900">Comentarii</h4>
               <div className="grid gap-2">
                 {details.comments.length ? details.comments.map(item => (

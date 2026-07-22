@@ -1,10 +1,18 @@
 const { Router } = require('express')
 const crypto = require('crypto')
+const fs = require('fs')
+const path = require('path')
+const multer = require('multer')
 const { requireAuth } = require('../../core/auth')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 
 const router = Router()
+const TASK_EVIDENCE_ROOT = path.join(__dirname, '../../../storage/task-evidence')
+const taskUpload = multer({ dest: path.join(__dirname, '../../../storage/temp/'), limits: { fileSize: 10 * 1024 * 1024 } })
+;[TASK_EVIDENCE_ROOT, path.join(__dirname, '../../../storage/temp/')].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+})
 
 const OPEN_STATUSES = new Set(['open', 'in_progress', 'blocked'])
 const FINAL_STATUSES = new Set(['done', 'cancelled'])
@@ -23,6 +31,7 @@ function ensureTasksDb(db) {
   if (!db.taskManagement || typeof db.taskManagement !== 'object') db.taskManagement = {}
   db.taskManagement.tasks = Array.isArray(db.taskManagement.tasks) ? db.taskManagement.tasks : []
   db.taskManagement.comments = Array.isArray(db.taskManagement.comments) ? db.taskManagement.comments : []
+  db.taskManagement.attachments = Array.isArray(db.taskManagement.attachments) ? db.taskManagement.attachments : []
   return db.taskManagement
 }
 
@@ -122,6 +131,22 @@ function enrichTask(task, users) {
     created_by_name: task.created_by_name || userLabel(creator),
     assigned_to_name: task.assigned_to_name || userLabel(assignee),
   }
+}
+
+function safeTaskFilename(name) {
+  return String(name || 'fisier').replace(/[^\w.\-ăâîșțĂÂÎȘȚ ]+/g, '_').slice(0, 120)
+}
+
+function saveTaskAttachmentFile(file, taskId) {
+  const ext = path.extname(file.originalname || '') || ''
+  const storedName = `${taskId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`
+  const finalPath = path.join(TASK_EVIDENCE_ROOT, storedName)
+  fs.renameSync(file.path, finalPath)
+  return { storedName, finalPath }
+}
+
+function attachmentUrl(attachment) {
+  return `/api/tasks/${encodeURIComponent(String(attachment.task_id))}/attachments/${encodeURIComponent(String(attachment.id))}/download`
 }
 
 function visibleTasks(db, user, permissions, query = {}) {
@@ -249,7 +274,26 @@ router.get('/tasks/:id', (req, res) => {
   const comments = store.comments
     .filter(comment => String(comment.task_id) === String(task.id))
     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
-  res.json({ task: enrichTask(task, users), comments })
+  const attachments = store.attachments
+    .filter(attachment => String(attachment.task_id) === String(task.id) && !attachment.cancelled_at)
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    .map(attachment => ({ ...attachment, url: attachmentUrl(attachment) }))
+  res.json({ task: { ...enrichTask(task, users), attachment_count: attachments.length }, comments, attachments })
+})
+
+router.get('/tasks/:id/attachments/:attachmentId/download', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  const store = ensureTasksDb(auth.db)
+  const task = store.tasks.find(item => String(item.id) === String(req.params.id))
+  if (!task || !canSeeTask(auth.db, task, auth.user, auth.permissions)) return res.status(404).json({ error: 'Task-ul nu a fost găsit.' })
+  const attachment = store.attachments.find(item => String(item.id) === String(req.params.attachmentId) && String(item.task_id) === String(task.id) && !item.cancelled_at)
+  if (!attachment) return res.status(404).json({ error: 'Atașamentul nu a fost găsit.' })
+  const filePath = path.join(TASK_EVIDENCE_ROOT, attachment.stored_name || '')
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Fișierul nu mai există în storage.' })
+  res.setHeader('Content-Type', attachment.mime_type || 'application/octet-stream')
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.file_name || 'dovada')}"`)
+  fs.createReadStream(filePath).pipe(res)
 })
 
 router.post('/tasks', (req, res) => {
@@ -342,6 +386,40 @@ router.post('/tasks/:id/comments', (req, res) => {
   addAudit(auth.db, auth.user, 'tasks:comment', { taskId: task.id, commentId: comment.id })
   writeDb(auth.db)
   res.status(201).json({ comment })
+})
+
+router.post('/tasks/:id/attachments', taskUpload.single('file'), (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path)
+    return
+  }
+  const store = ensureTasksDb(auth.db)
+  const task = store.tasks.find(item => String(item.id) === String(req.params.id))
+  if (!task || !canSeeTask(auth.db, task, auth.user, auth.permissions)) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path)
+    return res.status(404).json({ error: 'Task-ul nu a fost găsit.' })
+  }
+  if (!req.file) return res.status(400).json({ error: 'Fișierul este obligatoriu.' })
+  const saved = saveTaskAttachmentFile(req.file, task.id)
+  const attachment = {
+    id: id('task-file'),
+    task_id: task.id,
+    file_name: safeTaskFilename(req.file.originalname),
+    stored_name: saved.storedName,
+    mime_type: req.file.mimetype,
+    file_size: req.file.size,
+    note: compactText(req.body?.note, 500),
+    created_by: userId(auth.user),
+    created_by_name: userLabel(auth.user),
+    created_at: nowIso(),
+    source: 'erp',
+  }
+  store.attachments.push(attachment)
+  task.updated_at = nowIso()
+  addAudit(auth.db, auth.user, 'tasks:attachment', { taskId: task.id, attachmentId: attachment.id, file: attachment.file_name })
+  writeDb(auth.db)
+  res.status(201).json({ attachment: { ...attachment, url: attachmentUrl(attachment) } })
 })
 
 module.exports = router

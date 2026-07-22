@@ -1,5 +1,5 @@
 {
-  "version": "2.12.361",
+  "version": "2.12.362",
   "date": "2026-07-22",
-  "changelog": "## v2.12.361 - 2026-07-22\n### Actiuni rapide task in Kiosk\n- Angajatul poate marca task-ul ca in lucru, blocat sau finalizat direct din Kiosk.\n- Kiosk-ul permite adaugarea unui comentariu scurt pe task.\n- Endpoint-ul Kiosk modifica doar task-urile utilizatorului ERP asociat angajatului.\n- Actiunile sunt auditate si compatibile cu sesiunea Kiosk separata.\n- Panoul ERP Task-uri ramane disponibil pentru detalii complete."
+  "changelog": "## v2.12.362 - 2026-07-22\n### Dovezi atasate pe task din Kiosk\n- Angajatul poate incarca dovezi pe task direct din Kiosk: poze, PDF sau documente.\n- Dovezile sunt salvate in storage/task-evidence si legate de task.\n- Panoul ERP Task-uri afiseaza dovezile in detaliile task-ului si permite descarcarea lor.\n- Upload-ul Kiosk valideaza asocierea angajat-utilizator ERP si permite doar task-urile proprii.\n- Operatiunile sunt auditate si nu necesita migrare DB."
 }

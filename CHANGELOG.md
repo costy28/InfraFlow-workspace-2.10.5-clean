@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.362 - 2026-07-22
+
+## Dovezi atașate pe task din Kiosk
+
+- Angajatul poate încărca dovezi pe task direct din Kiosk: imagini, PDF sau documente.
+- Dovezile sunt salvate în `storage/task-evidence` și legate de task în `taskManagement.attachments`.
+- Upload-ul Kiosk validează asocierea angajat → utilizator ERP și permite doar task-urile proprii.
+- Panoul ERP `Task-uri` afișează dovezile atașate în detaliile task-ului.
+- Dovezile pot fi descărcate prin endpoint securizat, cu aceleași reguli de vizibilitate ca task-ul.
+- La upload din Kiosk se creează automat și comentariu de tip `Dovadă atașată`.
+- Nu necesită migrare DB; compatibil cu JSON și MSSQL app_state.
+
 # v2.12.361 - 2026-07-22
 
 ## Acțiuni rapide task în Kiosk

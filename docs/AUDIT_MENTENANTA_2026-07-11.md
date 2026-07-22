@@ -836,3 +836,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/KioskPage.jsx` — ✅ butoane `Încep`, `Blochez`, `Finalizez` în cardul task-ului;
 - `client/src/pages/KioskPage.jsx` — ✅ comentarii rapide pe task direct din Kiosk;
 - `server/modules/hr/routes.js` — ✅ audit `tasks:kiosk_update` pentru acțiunile făcute din Kiosk.
+
+### UPDATE 382 — Dovezi atașate pe task din Kiosk
+
+- `server/modules/tasks/routes.js` — ✅ storage `task-evidence`, upload ERP și download securizat pentru atașamente task;
+- `server/modules/hr/routes.js` — ✅ upload dovadă task din sesiune Kiosk, limitat la task-urile proprii ale angajatului asociat;
+- `client/src/pages/KioskPage.jsx` — ✅ selector fișier și buton `Încarcă dovadă` pe cardul task-ului;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ secțiune `Dovezi atașate` în detaliile task-ului;
+- `server/modules/hr/routes.js` — ✅ comentariu automat și audit `tasks:kiosk_attachment` la încărcarea dovezii.

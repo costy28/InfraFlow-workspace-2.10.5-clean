@@ -262,6 +262,7 @@ export default function KioskPage() {
   const [offlineQueue, setOfflineQueue] = useState(() => getQueue())
   const [syncStatus, setSyncStatus] = useState('')
   const [taskNotes, setTaskNotes] = useState({})
+  const [taskFiles, setTaskFiles] = useState({})
   const [taskSaving, setTaskSaving] = useState('')
 
   // Leave form
@@ -460,6 +461,33 @@ export default function KioskPage() {
       await loadKiosk()
     } catch (err) {
       setError(err.response?.data?.error || 'Task-ul nu a putut fi actualizat.')
+    } finally {
+      setTaskSaving('')
+    }
+  }
+
+  async function uploadTaskEvidence(task) {
+    const file = taskFiles[task.id]
+    if (!file) {
+      setError('Alege un fișier dovadă pentru task.')
+      return
+    }
+    setTaskSaving(`${task.id}:evidence`)
+    setError('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('note', String(taskNotes[task.id] || '').trim())
+      if (kioskToken) {
+        await kioskApi(kioskToken).post(`/hr/kiosk/tasks/${task.id}/evidence`, form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000 })
+      } else {
+        await api.post(`/tasks/${task.id}/attachments`, form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000 })
+      }
+      setTaskFiles(current => ({ ...current, [task.id]: null }))
+      setTaskNotes(current => ({ ...current, [task.id]: '' }))
+      await loadKiosk()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Dovada nu a putut fi încărcată.')
     } finally {
       setTaskSaving('')
     }
@@ -1127,6 +1155,7 @@ export default function KioskPage() {
                           <div className="mt-1 text-xs text-slate-400">
                             {task.due_date ? `Termen: ${String(task.due_date).slice(0, 10)}` : 'Fără termen'}
                             {task.created_by_name ? ` · de la ${task.created_by_name}` : ''}
+                            {task.attachment_count ? ` · ${task.attachment_count} dovezi` : ''}
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-wrap justify-end gap-1">
@@ -1151,6 +1180,15 @@ export default function KioskPage() {
                           {(taskNotes[task.id] || '').trim() ? (
                             <Button size="sm" variant="ghost" loading={taskSaving === `${task.id}:comment`} onClick={() => saveTaskAction(task)}>Adaug comentariu</Button>
                           ) : null}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2">
+                          <input
+                            type="file"
+                            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                            className="min-w-0 flex-1 text-xs text-slate-600"
+                            onChange={event => setTaskFiles(current => ({ ...current, [task.id]: event.target.files?.[0] || null }))}
+                          />
+                          <Button size="sm" variant="secondary" loading={taskSaving === `${task.id}:evidence`} onClick={() => uploadTaskEvidence(task)}>Încarcă dovadă</Button>
                         </div>
                       </div>
                     </div>

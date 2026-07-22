@@ -28,13 +28,14 @@ const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
 const HR_TEMPLATE_ROOT = path.join(__dirname, '../../../storage/hr-templates')
 const HR_FILE_ROOT = path.join(__dirname, '../../../storage/hr-files')
+const TASK_EVIDENCE_ROOT = path.join(__dirname, '../../../storage/task-evidence')
 const upload = multer({
   dest: path.join(__dirname, '../../../storage/temp/'),
   limits: { fileSize: 10 * 1024 * 1024 }
 })
 
 // Asigură existența directoarelor de storage la pornire
-;['storage/angajati', 'storage/temp', 'storage/documente', 'storage/hr-templates', 'storage/hr-files'].forEach(dir => {
+;['storage/angajati', 'storage/temp', 'storage/documente', 'storage/hr-templates', 'storage/hr-files', 'storage/task-evidence'].forEach(dir => {
   const p = path.join(__dirname, '../../../', dir)
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true })
 })
@@ -696,6 +697,11 @@ function kioskTasksForUser(db, userId) {
   return (Array.isArray(store.tasks) ? store.tasks : [])
     .filter((task) => String(task.assigned_to || '') === String(userId))
     .filter((task) => openStatuses.has(String(task.status || 'open')))
+    .map((task) => ({
+      ...task,
+      attachment_count: (Array.isArray(store.attachments) ? store.attachments : [])
+        .filter((attachment) => String(attachment.task_id) === String(task.id) && !attachment.cancelled_at).length,
+    }))
     .sort((a, b) => {
       const aDue = a.due_date || '9999-12-31'
       const bDue = b.due_date || '9999-12-31'
@@ -709,6 +715,7 @@ function ensureTaskStore(db) {
   if (!db.taskManagement || typeof db.taskManagement !== 'object') db.taskManagement = {}
   db.taskManagement.tasks = Array.isArray(db.taskManagement.tasks) ? db.taskManagement.tasks : []
   db.taskManagement.comments = Array.isArray(db.taskManagement.comments) ? db.taskManagement.comments : []
+  db.taskManagement.attachments = Array.isArray(db.taskManagement.attachments) ? db.taskManagement.attachments : []
   return db.taskManagement
 }
 
@@ -725,6 +732,14 @@ function kioskTaskActor(employee, user) {
 function kioskTaskStatus(value) {
   const status = String(value || '').trim()
   return ['open', 'in_progress', 'blocked', 'done'].includes(status) ? status : ''
+}
+
+function safeTaskEvidenceName(name) {
+  return String(name || 'dovada').replace(/[^\w.\-ăâîșțĂÂÎȘȚ ]+/g, '_').slice(0, 120)
+}
+
+function taskEvidenceUrl(attachment) {
+  return `/api/tasks/${encodeURIComponent(String(attachment.task_id))}/attachments/${encodeURIComponent(String(attachment.id))}/download`
 }
 
 function kioskEquipmentResponsibility(db, employeeId) {
@@ -4926,6 +4941,63 @@ router.patch('/hr/kiosk/tasks/:id', (req, res, next) => {
     addAudit(db, kioskTaskActor(employee, linkedUser), 'tasks:kiosk_update', { taskId: task.id, status: task.status, note: Boolean(note) })
     writeDb(db)
     return sendJson(res, 200, { task })
+  } catch (err) { next(err) }
+})
+
+// POST /hr/kiosk/tasks/:id/evidence — atașament dovadă pe task din Kiosk
+router.post('/hr/kiosk/tasks/:id/evidence', upload.single('file'), (req, res, next) => {
+  try {
+    const cleanup = () => { if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path) }
+    const session = kioskSessions.requireKioskAuth(req, res)
+    if (!session) { cleanup(); return }
+    const db = readDb()
+    const hr = ensureHrDb(db)
+    const employee = hr.employees.find(e => String(e.id) === String(session.employee_id) && e.activ !== false)
+    if (!employee) { cleanup(); return sendJson(res, 404, { error: 'Angajatul nu a fost găsit.' }) }
+
+    const linkedUser = linkedUserForEmployee(db, employee)
+    const linkedUserId = linkedUser ? userIdValue(linkedUser) : ''
+    if (!linkedUserId) { cleanup(); return sendJson(res, 422, { error: 'Contul Kiosk nu este asociat unui utilizator ERP pentru task-uri.' }) }
+
+    const store = ensureTaskStore(db)
+    const task = store.tasks.find((item) => String(item.id) === String(req.params.id))
+    if (!task || String(task.assigned_to || '') !== String(linkedUserId)) {
+      cleanup()
+      return sendJson(res, 404, { error: 'Task-ul nu a fost găsit pentru acest angajat.' })
+    }
+    if (!req.file) return sendJson(res, 400, { error: 'Fișierul dovadă este obligatoriu.' })
+
+    const ext = path.extname(req.file.originalname || '') || ''
+    const storedName = `${task.id}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`
+    fs.renameSync(req.file.path, path.join(TASK_EVIDENCE_ROOT, storedName))
+    const attachment = {
+      id: `task-file-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
+      task_id: task.id,
+      file_name: safeTaskEvidenceName(req.file.originalname),
+      stored_name: storedName,
+      mime_type: req.file.mimetype,
+      file_size: req.file.size,
+      note: String(req.body?.note || '').trim().slice(0, 500),
+      created_by: linkedUserId,
+      created_by_name: [employee.prenume, employee.nume].filter(Boolean).join(' ') || linkedUser.name || linkedUser.username || 'Kiosk',
+      created_at: nowIso(),
+      source: 'kiosk',
+    }
+    store.attachments.push(attachment)
+    store.comments.push({
+      id: `task-comment-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
+      task_id: task.id,
+      text: `Dovadă atașată: ${attachment.file_name}${attachment.note ? ` — ${attachment.note}` : ''}`,
+      created_by: linkedUserId,
+      created_by_name: attachment.created_by_name,
+      created_at: nowIso(),
+      source: 'kiosk',
+      attachment_id: attachment.id,
+    })
+    task.updated_at = nowIso()
+    addAudit(db, kioskTaskActor(employee, linkedUser), 'tasks:kiosk_attachment', { taskId: task.id, attachmentId: attachment.id, file: attachment.file_name })
+    writeDb(db)
+    return sendJson(res, 201, { attachment: { ...attachment, url: taskEvidenceUrl(attachment) } })
   } catch (err) { next(err) }
 })
 
