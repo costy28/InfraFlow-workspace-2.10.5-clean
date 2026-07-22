@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.358 - 2026-07-22
+
+## Panou organigramă operațională
+
+- Setări → Utilizatori afișează un panou nou `Organigramă operațională`.
+- Panoul calculează local relațiile `manager direct → subordonați`.
+- Sunt afișate contoare pentru utilizatori activi, manageri cu echipă și conturi fără manager direct.
+- Fiecare manager este listat cu subordonații direcți, departament și rol.
+- Utilizatorii fără manager și legăturile invalide sunt evidențiate pentru corecție rapidă.
+- Nu necesită backend nou sau migrări; folosește câmpul `manager_id` introdus în UPDATE 377.
+
 # v2.12.357 - 2026-07-22
 
 ## Manager direct pentru task-uri

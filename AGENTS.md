@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.357**
-**Versiune în lucru: v2.12.357**
+**Versiune curentă sursă: v2.12.358**
+**Versiune în lucru: v2.12.358**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -279,6 +279,7 @@ Task Management
   ✅ Fundație task-uri personale și delegate (v2.12.355)
   ✅ Delegare controlată pe departament (v2.12.356)
   ✅ Manager direct și delegare către subordonați direcți (v2.12.357)
+  ✅ Panou organigramă operațională (v2.12.358)
   ✅ Status, prioritate, scadență și comentarii
   ✅ Integrare în Dashboard „Ce ai de făcut azi”
 
@@ -481,7 +482,8 @@ PRIORITATE 2 — Expansiune platformă:
         scadență și comentarii ✅ UPDATE 375
       → Faza 2: reguli de delegare pe departament ✅ UPDATE 376
       → Faza 3: manager direct și subordonați direcți ✅ UPDATE 377
-      → Faza 4: organigramă completă cu lanț ierarhic și echipe
+      → Faza 4: panou organigramă operațională ✅ UPDATE 378
+      → Faza 5: organigramă completă cu lanț ierarhic și echipe
       → Legare task de documente, contracte, sesizări, HR, gestiune,
         achiziții, contabilitate sau proiecte
       → Dashboard personal „ce am de făcut azi”
@@ -620,9 +622,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.357
+VERSIUNE CURENTĂ SURSĂ: 2.12.358
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.357 ✅
+UPDATE ZIP CURENT: 2.12.358 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -788,6 +790,7 @@ UPDATES ÎN LUCRU:
   2.12.355 → UPDATE 375 Fundație Task Management ✅
   2.12.356 → UPDATE 376 Delegare task-uri pe departament ✅
   2.12.357 → UPDATE 377 Manager direct pentru task-uri ✅
+  2.12.358 → UPDATE 378 Panou organigramă operațională ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1280,5 +1283,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 22 Iulie 2026 | InfraFlow sursă v2.12.357*
+*AGENTS.md actualizat: 22 Iulie 2026 | InfraFlow sursă v2.12.358*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

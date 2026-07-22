@@ -28,6 +28,14 @@ const allModules = [
 
 const alwaysOnModuleKeys = ['core', 'production', 'inventory', 'reports']
 
+function getUserManagerId(user) {
+  return String(user?.manager_id || user?.managerId || '').trim()
+}
+
+function userDisplayName(user) {
+  return user?.name || user?.username || user?.id || '-'
+}
+
 const roleDescriptions = {
   superadmin: 'Control complet — licență, backup, sistem.',
   admin: 'Administrare utilizatori și operare completă.',
@@ -486,6 +494,32 @@ export default function SetariPage() {
   const onboardingDone = onboardingSteps.filter(step => step.done).length
   const onboardingPercent = onboardingSteps.length ? Math.round((onboardingDone / onboardingSteps.length) * 100) : 100
   const nextOnboardingStep = onboardingSteps.find(step => !step.done)
+  const orgChart = useMemo(() => {
+    const activeUsers = users.filter(user => user.active !== false)
+    const byId = new Map(activeUsers.map(user => [String(user.id), user]))
+    const childrenByManager = new Map()
+    const invalidLinks = []
+    activeUsers.forEach(user => {
+      const managerId = getUserManagerId(user)
+      if (!managerId) return
+      const manager = byId.get(managerId)
+      if (!manager) {
+        invalidLinks.push(user)
+        return
+      }
+      const children = childrenByManager.get(managerId) || []
+      children.push(user)
+      childrenByManager.set(managerId, children)
+    })
+    const managers = Array.from(childrenByManager.entries())
+      .map(([managerId, children]) => ({ manager: byId.get(managerId), children: children.sort((a, b) => userDisplayName(a).localeCompare(userDisplayName(b), 'ro')) }))
+      .filter(item => item.manager)
+      .sort((a, b) => userDisplayName(a.manager).localeCompare(userDisplayName(b.manager), 'ro'))
+    const withoutManager = activeUsers
+      .filter(user => !getUserManagerId(user))
+      .sort((a, b) => userDisplayName(a).localeCompare(userDisplayName(b), 'ro'))
+    return { activeUsers, managers, withoutManager, invalidLinks }
+  }, [users])
 
   async function load() {
     setLoading(true)
@@ -2158,6 +2192,76 @@ export default function SetariPage() {
               })}
             </div>
           ) : null}
+
+        <Card
+          title="Organigramă operațională"
+          subtitle="Relația manager direct → subordonați alimentează delegarea task-urilor."
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs uppercase text-slate-500">Utilizatori activi</div>
+              <div className="mt-1 text-2xl font-bold text-slate-900">{orgChart.activeUsers.length}</div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs uppercase text-slate-500">Manageri cu echipă</div>
+              <div className="mt-1 text-2xl font-bold text-primary-700">{orgChart.managers.length}</div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs uppercase text-slate-500">Fără manager direct</div>
+              <div className="mt-1 text-2xl font-bold text-amber-700">{orgChart.withoutManager.length}</div>
+            </div>
+          </div>
+
+          {orgChart.managers.length ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {orgChart.managers.map(({ manager, children }) => (
+                <div key={manager.id} className="rounded-lg border border-primary-100 bg-primary-50/40 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-semibold text-slate-900">{userDisplayName(manager)}</div>
+                      <div className="text-xs text-slate-500">{manager.department || manager.departmentId || 'fără departament'} · {manager.role || 'rol nesetat'}</div>
+                    </div>
+                    <Badge tone="info">{children.length} subordonați</Badge>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {children.map(child => (
+                      <div key={child.id} className="rounded-md border border-white bg-white px-3 py-2 text-sm shadow-sm">
+                        <div className="font-medium text-slate-800">{userDisplayName(child)}</div>
+                        <div className="text-xs text-slate-500">{child.department || child.departmentId || 'fără departament'} · {child.role || 'rol nesetat'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Nu există încă relații manager → subordonați. Editează utilizatorii și setează câmpul „Manager direct”.
+            </div>
+          )}
+
+          {(orgChart.withoutManager.length || orgChart.invalidLinks.length) ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="text-sm font-semibold text-slate-800">Utilizatori fără manager direct</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {orgChart.withoutManager.slice(0, 12).map(user => (
+                    <Badge key={user.id} tone="neutral">{userDisplayName(user)}</Badge>
+                  ))}
+                  {orgChart.withoutManager.length > 12 ? <Badge tone="neutral">+{orgChart.withoutManager.length - 12}</Badge> : null}
+                </div>
+              </div>
+              {orgChart.invalidLinks.length ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+                  <div className="text-sm font-semibold text-rose-800">Legături de verificat</div>
+                  <div className="mt-2 text-sm text-rose-700">
+                    {orgChart.invalidLinks.map(user => userDisplayName(user)).join(', ')}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </Card>
 
         <Card title="Utilizatori" actions={[<Button key="new" onClick={openCreateUser}><Users size={16} /> Utilizator nou</Button>]}>
           <Table

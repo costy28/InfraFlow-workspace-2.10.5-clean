@@ -1,5 +1,5 @@
 {
-  "version": "2.12.357",
+  "version": "2.12.358",
   "date": "2026-07-22",
-  "changelog": "## v2.12.357 - 2026-07-22\n### Manager direct pentru task-uri\n- Utilizatorii pot avea manager direct configurat in Setari.\n- Lista de utilizatori afiseaza managerul direct.\n- Task-urile pot fi delegate catre subordonatii directi, chiar si fara rol global de manager.\n- Endpoint-ul /api/tasks/assignees marcheaza subordonatii directi si raporteaza scope ierarhic.\n- Validare server-side pentru manager activ si pentru evitarea auto-asignarii ca manager."
+  "changelog": "## v2.12.358 - 2026-07-22\n### Panou organigrama operationala\n- Setari > Utilizatori afiseaza un panou de organigrama bazat pe manager direct.\n- Panoul arata utilizatori activi, manageri cu echipa si conturi fara manager.\n- Managerii sunt listati cu subordonatii directi si departamentele aferente.\n- Relatiile invalide sunt semnalate pentru corectie.\n- Nu necesita backend nou sau migrari; foloseste datele existente din lista de utilizatori."
 }

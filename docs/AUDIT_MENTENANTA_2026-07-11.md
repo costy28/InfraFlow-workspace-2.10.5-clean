@@ -806,3 +806,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/tasks/routes.js` — ✅ delegare și vizibilitate task-uri pentru subordonați direcți;
 - `client/src/pages/SetariPage.jsx` — ✅ select `Manager direct` și coloană manager în lista utilizatorilor;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ text și etichete pentru delegarea pe ierarhie directă.
+
+### UPDATE 378 — Panou organigramă operațională
+
+- `client/src/pages/SetariPage.jsx` — ✅ helperi locali pentru calcularea relațiilor manager → subordonați;
+- `client/src/pages/SetariPage.jsx` — ✅ panou `Organigramă operațională` în tab-ul Utilizatori;
+- `client/src/pages/SetariPage.jsx` — ✅ contoare pentru utilizatori activi, manageri cu echipă și conturi fără manager;
+- `client/src/pages/SetariPage.jsx` — ✅ listare subordonați direcți per manager și semnal pentru legături invalide.
