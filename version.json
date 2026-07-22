@@ -1,5 +1,5 @@
 {
-  "version": "2.12.355",
+  "version": "2.12.356",
   "date": "2026-07-22",
-  "changelog": "## v2.12.355 - 2026-07-22\n### Fundatie Task Management\n- Modul nou Task-uri pentru task-uri personale si delegate.\n- API pentru listare, creare, actualizare status si comentarii pe task.\n- Pagina Task-uri adaugata in aplicatie si in sidebar.\n- Dashboard-ul poate ridica task-urile personale deschise sau intarziate in Ce ai de facut azi."
+  "changelog": "## v2.12.356 - 2026-07-22\n### Delegare task-uri pe departament\n- Endpoint nou /api/tasks/assignees pentru responsabili disponibili in functie de rol.\n- Utilizatorii simpli pot crea task-uri pentru ei.\n- Sefii de departament pot vedea si delega task-uri in departamentul propriu.\n- Managerii si administratorii pot vedea si delega global.\n- Pagina Task-uri afiseaza regula de delegare si lista filtrata de responsabili."
 }

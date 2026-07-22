@@ -161,6 +161,7 @@ const endpointChecks = [
   { name: 'Documente /api/documents/stats', path: '/api/documents/stats', validate: data => typeof data === 'object' && data !== null },
   { name: 'Documente /api/documents/inbox', path: '/api/documents/inbox', countKeys: ['documents'] },
   { name: 'Task-uri /api/tasks/my-open', path: '/api/tasks/my-open', countKeys: ['tasks'] },
+  { name: 'Task-uri /api/tasks/assignees', path: '/api/tasks/assignees', countKeys: ['users'] },
 
   { name: 'Contabilitate /api/accounting/summary', path: `/api/accounting/summary?luna=${month}`, validate: data => Boolean(data?.period) },
   { name: 'Contabilitate /api/accounting/health', path: `/api/accounting/health?luna=${month}`, validate: data => Boolean(data?.status && data?.counts) },

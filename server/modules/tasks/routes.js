@@ -43,17 +43,59 @@ function userMap(db) {
   return new Map(users.map(user => [userId(user), user]))
 }
 
-function canManageTasks(user, permissions = []) {
-  const roles = new Set([user?.role, ...(Array.isArray(user?.roles) ? user.roles : [])].filter(Boolean).map(String))
-  return ['superadmin', 'admin', 'manager', 'sef_departament', 'sef-departament'].some(role => roles.has(role)) ||
-    permissions.includes('tasks:manage') ||
-    permissions.includes('users:manage') ||
-    permissions.includes('department:manage')
+function departmentId(user) {
+  return String(user?.departmentId || user?.department_id || user?.department || user?.departament || '').trim()
 }
 
-function canSeeTask(task, user, permissions = []) {
+function isActiveUser(user) {
+  return user && user.active !== false && user.active !== 0
+}
+
+function canManageAllTasks(user, permissions = []) {
+  const roles = new Set([user?.role, ...(Array.isArray(user?.roles) ? user.roles : [])].filter(Boolean).map(String))
+  return ['superadmin', 'admin', 'manager'].some(role => roles.has(role)) ||
+    permissions.includes('tasks:manage') ||
+    permissions.includes('users:manage')
+}
+
+function canManageDepartmentTasks(user, permissions = []) {
+  const roles = new Set([user?.role, ...(Array.isArray(user?.roles) ? user.roles : [])].filter(Boolean).map(String))
+  return canManageAllTasks(user, permissions) ||
+    ['sef_departament', 'sef-departament'].some(role => roles.has(role)) ||
+    permissions.includes('department:manage') ||
+    permissions.includes('tasks:delegate_department')
+}
+
+function sameDepartment(a, b) {
+  const left = departmentId(a)
+  const right = departmentId(b)
+  return Boolean(left && right && left === right)
+}
+
+function assignableUsers(db, user, permissions = []) {
+  const users = (Array.isArray(db.users) ? db.users : []).filter(isActiveUser)
+  if (canManageAllTasks(user, permissions)) return users
+  if (canManageDepartmentTasks(user, permissions)) {
+    const ownDept = departmentId(user)
+    return users.filter(item => userId(item) === userId(user) || (ownDept && departmentId(item) === ownDept))
+  }
+  return users.filter(item => userId(item) === userId(user))
+}
+
+function canAssignTo(db, user, permissions, targetUserId) {
+  const allowed = new Set(assignableUsers(db, user, permissions).map(item => userId(item)))
+  return allowed.has(String(targetUserId))
+}
+
+function canSeeTask(db, task, user, permissions = []) {
   const uid = userId(user)
-  if (canManageTasks(user, permissions)) return true
+  if (canManageAllTasks(user, permissions)) return true
+  if (canManageDepartmentTasks(user, permissions)) {
+    const users = userMap(db)
+    const creator = users.get(String(task.created_by))
+    const assignee = users.get(String(task.assigned_to))
+    return sameDepartment(user, creator) || sameDepartment(user, assignee) || String(task.created_by) === uid || String(task.assigned_to) === uid
+  }
   return String(task.created_by) === uid || String(task.assigned_to) === uid
 }
 
@@ -71,7 +113,7 @@ function visibleTasks(db, user, permissions, query = {}) {
   const store = ensureTasksDb(db)
   const users = userMap(db)
   const uid = userId(user)
-  let rows = store.tasks.filter(task => canSeeTask(task, user, permissions))
+  let rows = store.tasks.filter(task => canSeeTask(db, task, user, permissions))
 
   if (query.scope === 'assigned') rows = rows.filter(task => String(task.assigned_to) === uid)
   if (query.scope === 'created') rows = rows.filter(task => String(task.created_by) === uid)
@@ -136,12 +178,34 @@ router.get('/tasks/my-open', (req, res) => {
   res.json({ tasks: rows })
 })
 
+router.get('/tasks/assignees', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  const rows = assignableUsers(auth.db, auth.user, auth.permissions)
+    .map(user => ({
+      id: userId(user),
+      name: userLabel(user),
+      username: user.username || '',
+      role: user.role || '',
+      department: user.department || user.department_name || user.departament || '',
+      departmentId: departmentId(user),
+      self: userId(user) === userId(auth.user),
+    }))
+    .sort((a, b) => Number(b.self) - Number(a.self) || String(a.name).localeCompare(String(b.name), 'ro'))
+  res.json({
+    users: rows,
+    scope: canManageAllTasks(auth.user, auth.permissions)
+      ? 'all'
+      : (canManageDepartmentTasks(auth.user, auth.permissions) ? 'department' : 'self'),
+  })
+})
+
 router.get('/tasks/:id', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
   const store = ensureTasksDb(auth.db)
   const task = store.tasks.find(item => String(item.id) === String(req.params.id))
-  if (!task || !canSeeTask(task, auth.user, auth.permissions)) return res.status(404).json({ error: 'Task-ul nu a fost găsit.' })
+  if (!task || !canSeeTask(auth.db, task, auth.user, auth.permissions)) return res.status(404).json({ error: 'Task-ul nu a fost găsit.' })
   const users = userMap(auth.db)
   const comments = store.comments
     .filter(comment => String(comment.task_id) === String(task.id))
@@ -155,9 +219,8 @@ router.post('/tasks', (req, res) => {
   const store = ensureTasksDb(auth.db)
   try {
     const payload = taskPayload(req.body || {}, userId(auth.user), auth.user, auth.db)
-    const assignedOther = String(payload.assigned_to) !== userId(auth.user)
-    if (assignedOther && !canManageTasks(auth.user, auth.permissions)) {
-      return res.status(403).json({ error: 'Poți crea task-uri pentru alt utilizator doar cu rol de șef/manager/admin.' })
+    if (!canAssignTo(auth.db, auth.user, auth.permissions, payload.assigned_to)) {
+      return res.status(403).json({ error: 'Nu poți delega task-uri către acest utilizator.' })
     }
     const task = {
       id: id('task'),
@@ -179,9 +242,9 @@ router.patch('/tasks/:id', (req, res) => {
   if (!auth) return
   const store = ensureTasksDb(auth.db)
   const task = store.tasks.find(item => String(item.id) === String(req.params.id))
-  if (!task || !canSeeTask(task, auth.user, auth.permissions)) return res.status(404).json({ error: 'Task-ul nu a fost găsit.' })
+  if (!task || !canSeeTask(auth.db, task, auth.user, auth.permissions)) return res.status(404).json({ error: 'Task-ul nu a fost găsit.' })
   const uid = userId(auth.user)
-  const canEditAll = canManageTasks(auth.user, auth.permissions) || String(task.created_by) === uid
+  const canEditAll = canManageAllTasks(auth.user, auth.permissions) || String(task.created_by) === uid
   const body = req.body || {}
   if (body.status != null) {
     const status = String(body.status)
@@ -203,6 +266,7 @@ router.patch('/tasks/:id', (req, res) => {
       const users = userMap(auth.db)
       const assigned_to = compactText(body.assigned_to, 80)
       if (!users.has(String(assigned_to))) return res.status(400).json({ error: 'Responsabil invalid.' })
+      if (!canAssignTo(auth.db, auth.user, auth.permissions, assigned_to)) return res.status(403).json({ error: 'Nu poți reasigna task-ul către acest utilizator.' })
       task.assigned_to = assigned_to
       task.assigned_to_name = userLabel(users.get(String(assigned_to)))
     }
@@ -218,7 +282,7 @@ router.post('/tasks/:id/comments', (req, res) => {
   if (!auth) return
   const store = ensureTasksDb(auth.db)
   const task = store.tasks.find(item => String(item.id) === String(req.params.id))
-  if (!task || !canSeeTask(task, auth.user, auth.permissions)) return res.status(404).json({ error: 'Task-ul nu a fost găsit.' })
+  if (!task || !canSeeTask(auth.db, task, auth.user, auth.permissions)) return res.status(404).json({ error: 'Task-ul nu a fost găsit.' })
   const text = compactText(req.body?.text || req.body?.comment || req.body?.comentariu, 1500)
   if (!text) return res.status(400).json({ error: 'Comentariul este obligatoriu.' })
   const comment = {

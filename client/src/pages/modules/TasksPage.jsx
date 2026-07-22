@@ -73,6 +73,7 @@ export default function TasksPage() {
   const [activeTab, setActiveTab] = useState('assigned')
   const [tasks, setTasks] = useState([])
   const [users, setUsers] = useState([])
+  const [assigneeScope, setAssigneeScope] = useState('self')
   const [selected, setSelected] = useState(null)
   const [details, setDetails] = useState({ task: null, comments: [] })
   const [formOpen, setFormOpen] = useState(false)
@@ -91,10 +92,11 @@ export default function TasksPage() {
     try {
       const [tasksRes, usersRes] = await Promise.all([
         api.get('/tasks', { params: { scope: activeTab === 'all' ? undefined : activeTab } }),
-        api.get('/users').catch(() => ({ data: { users: [] } })),
+        api.get('/tasks/assignees').catch(() => ({ data: { users: [], scope: 'self' } })),
       ])
       setTasks(arrayFrom(tasksRes.data, ['tasks']))
-      setUsers(arrayFrom(usersRes.data, ['users']).filter(item => item.active !== false && item.active !== 0))
+      setUsers(arrayFrom(usersRes.data, ['users']))
+      setAssigneeScope(usersRes.data?.scope || 'self')
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca task-urile.')
     } finally {
@@ -176,7 +178,7 @@ export default function TasksPage() {
 
   const userOptions = users.map(item => ({
     value: String(item.id || item.username),
-    label: item.name || item.username || item.id,
+    label: `${item.name || item.username || item.id}${item.department ? ` — ${item.department}` : ''}`,
   }))
 
   return (
@@ -188,6 +190,20 @@ export default function TasksPage() {
         </div>
         <Button onClick={() => setFormOpen(true)}>+ Task nou</Button>
       </div>
+
+      <Card className="border-primary-100 bg-primary-50/40">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-700">
+          <div>
+            <strong>Delegare:</strong>{' '}
+            {assigneeScope === 'all'
+              ? 'poți delega către orice utilizator activ.'
+              : assigneeScope === 'department'
+                ? 'poți delega către tine și colegii din departamentul tău.'
+                : 'poți crea task-uri pentru tine.'}
+          </div>
+          <Badge tone="info">{userOptions.length} responsabili disponibili</Badge>
+        </div>
+      </Card>
 
       {message ? <div className="rounded-md border border-primary-100 bg-primary-50 px-3 py-2 text-sm text-primary-700">{message}</div> : null}
       {error ? <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}

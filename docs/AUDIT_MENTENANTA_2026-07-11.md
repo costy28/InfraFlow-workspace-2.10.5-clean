@@ -790,3 +790,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/components/layout/Sidebar.jsx` — ✅ intrare `Task-uri`;
 - `client/src/pages/DashboardPage.jsx` — ✅ task-urile personale intră în `Ce ai de făcut azi`;
 - `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/tasks/my-open`.
+
+### UPDATE 376 — Delegare task-uri pe departament
+
+- `server/modules/tasks/routes.js` — ✅ endpoint `/api/tasks/assignees` cu responsabili filtrați după rol/departament;
+- `server/modules/tasks/routes.js` — ✅ creare și reasignare task validate server-side pe aria permisă;
+- `server/modules/tasks/routes.js` — ✅ șefii de departament pot vedea task-urile create/asignate în departamentul propriu;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ pagina afișează regula curentă de delegare și numărul de responsabili disponibili;
+- `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/tasks/assignees`.

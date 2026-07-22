@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.356 - 2026-07-22
+
+## Delegare task-uri pe departament
+
+- Endpoint nou `/api/tasks/assignees` pentru lista de responsabili disponibili conform rolului curent.
+- Utilizatorii obișnuiți pot crea task-uri doar pentru ei, fără să vadă lista completă de utilizatori.
+- Șefii de departament pot vedea și delega task-uri către colegii din departamentul propriu.
+- Managerii și administratorii păstrează vizibilitate și delegare globală.
+- Pagina `Task-uri` afișează explicit regula de delegare și numărul de responsabili disponibili.
+- Smoke test-ul read-only verifică și endpoint-ul `/api/tasks/assignees`.
+- Nu necesită migrări; compatibil cu JSON și MSSQL app_state.
+
 # v2.12.355 - 2026-07-22
 
 ## Fundație Task Management
