@@ -767,3 +767,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/DashboardPage.jsx` — ✅ recomandări agregate din documente, sesizări, contracte, stocuri și proiecte;
 - `client/src/pages/DashboardPage.jsx` — ✅ sortare după severitate și scurtături către modulele relevante;
 - `client/src/pages/DashboardPage.jsx` — ✅ stare curată când nu există blocaje evidente.
+
+### UPDATE 373 — Priorități dashboard pe profil utilizator
+
+- `client/src/pages/DashboardPage.jsx` — ✅ profil dashboard derivat din rol, departament și username;
+- `client/src/pages/DashboardPage.jsx` — ✅ profiluri executive, HR, financiar, achiziții, operațional și general;
+- `client/src/pages/DashboardPage.jsx` — ✅ recomandările sunt filtrate/reordonate după domeniile profilului;
+- `client/src/pages/DashboardPage.jsx` — ✅ cererile HR în așteptare și semnalele financiare pot intra în prioritățile zilei.

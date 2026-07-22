@@ -27,6 +27,9 @@ const emptyState = {
   commandCenter: null,
   contractsDashboard: null,
   contractsTasks: [],
+  hrStats: null,
+  leaveRequests: [],
+  accountingSummary: null,
 }
 
 const routes = {
@@ -43,6 +46,7 @@ const routes = {
   audit: '/setari',
   snow: '/deszapezire',
   contracts: '/contracte',
+  accounting: '/contabilitate',
 }
 
 function localDate(date) {
@@ -120,6 +124,68 @@ function assetIsActive(asset) {
 
 function projectName(project) {
   return project.denumire || project.name || project.titlu || project.cod || `Proiect #${project.id}`
+}
+
+function compactIdentity(user) {
+  return [
+    user?.role,
+    user?.role_name,
+    user?.rol,
+    user?.department,
+    user?.department_name,
+    user?.departament,
+    user?.username,
+  ].filter(Boolean).join(' ').toLowerCase()
+}
+
+function dashboardProfile(user) {
+  const identity = compactIdentity(user)
+  if (['superadmin', 'admin', 'director', 'manager'].some(token => identity.includes(token))) {
+    return {
+      key: 'executive',
+      label: 'Profil executiv',
+      domains: ['contracts', 'documents', 'tickets', 'stocks', 'projects', 'hr', 'accounting'],
+      hint: 'Vezi blocajele care pot opri operațiunea sau decizia.',
+    }
+  }
+  if (identity.includes('hr') || identity.includes('resurse') || identity.includes('uman')) {
+    return {
+      key: 'hr',
+      label: 'Profil HR',
+      domains: ['hr', 'documents', 'contracts'],
+      hint: 'Prioritate pe oameni, cereri, documente și dosare.',
+    }
+  }
+  if (identity.includes('contab') || identity.includes('financ') || identity.includes('economic')) {
+    return {
+      key: 'accounting',
+      label: 'Profil financiar',
+      domains: ['accounting', 'documents', 'contracts'],
+      hint: 'Prioritate pe documente, contracte și semnale financiare.',
+    }
+  }
+  if (identity.includes('achiz') || identity.includes('procurement') || identity.includes('jurid')) {
+    return {
+      key: 'procurement',
+      label: 'Profil achiziții',
+      domains: ['contracts', 'documents', 'stocks'],
+      hint: 'Prioritate pe contracte, documente și aprovizionare.',
+    }
+  }
+  if (identity.includes('mecan') || identity.includes('flot') || identity.includes('teren') || identity.includes('operat')) {
+    return {
+      key: 'operations',
+      label: 'Profil operațional',
+      domains: ['tickets', 'stocks', 'projects'],
+      hint: 'Prioritate pe teren, sesizări și resurse operaționale.',
+    }
+  }
+  return {
+    key: 'general',
+    label: 'Profil general',
+    domains: ['documents', 'tickets', 'contracts', 'stocks', 'projects'],
+    hint: 'Priorități generale din modulele disponibile.',
+  }
 }
 
 function projectProgress(project) {
@@ -417,7 +483,7 @@ function MiniTable({ columns, rows, empty }) {
   )
 }
 
-function buildTodayActions(view) {
+function buildTodayActions(view, profile = dashboardProfile(null)) {
   const actions = []
   const contractRiskTotal = numberFrom(view.contractsDashboard?.risk_summary?.total)
   const contractAlerts = arrayFrom(view.contractsDashboard, ['alerts'])
@@ -426,10 +492,12 @@ function buildTodayActions(view) {
     const due = task.due_date || task.scadenta || task.deadline
     return due && new Date(due) < new Date()
   })
+  const leaveRequestsPending = view.leaveRequests.filter(request => ['cerut', 'pending', 'in_asteptare', 'solicitat'].includes(String(request.status || '').toLowerCase()))
 
   if (view.inboxDocuments.length) {
     actions.push({
       key: 'documents',
+      domain: 'documents',
       icon: '📋',
       tone: 'warning',
       weight: 90,
@@ -448,6 +516,7 @@ function buildTodayActions(view) {
     ].filter(Boolean).join(' · ')
     actions.push({
       key: 'contracts',
+      domain: 'contracts',
       icon: '📑',
       tone: contractTasksOverdue.length || contractRiskTotal ? 'danger' : 'warning',
       weight: contractTasksOverdue.length || contractRiskTotal ? 100 : 80,
@@ -459,6 +528,7 @@ function buildTodayActions(view) {
   } else if (contractTasksOpen.length) {
     actions.push({
       key: 'contract_tasks',
+      domain: 'contracts',
       icon: '🧭',
       tone: 'info',
       weight: 55,
@@ -473,6 +543,7 @@ function buildTodayActions(view) {
     const urgentTickets = view.tickets.filter(ticket => ['critica', 'critic', 'urgent', 'urgenta'].includes(String(ticket.prioritate || ticket.priority || '').toLowerCase()))
     actions.push({
       key: 'tickets',
+      domain: 'tickets',
       icon: '🎫',
       tone: urgentTickets.length ? 'danger' : 'warning',
       weight: urgentTickets.length ? 95 : 70,
@@ -486,6 +557,7 @@ function buildTodayActions(view) {
   if (view.criticalStocks.length) {
     actions.push({
       key: 'stocks',
+      domain: 'stocks',
       icon: '📦',
       tone: 'warning',
       weight: 65,
@@ -496,9 +568,38 @@ function buildTodayActions(view) {
     })
   }
 
+  if (leaveRequestsPending.length) {
+    actions.push({
+      key: 'hr_leave',
+      domain: 'hr',
+      icon: '🌴',
+      tone: 'warning',
+      weight: 78,
+      title: `${leaveRequestsPending.length} cereri HR în așteptare`,
+      description: 'Cereri de concediu sau absență care au nevoie de verificare/aprobare.',
+      route: routes.hr,
+      cta: 'Deschide HR',
+    })
+  }
+
+  if (view.accountingSummary?.status && String(view.accountingSummary.status).toLowerCase() !== 'ok') {
+    actions.push({
+      key: 'accounting_status',
+      domain: 'accounting',
+      icon: '💰',
+      tone: 'warning',
+      weight: 72,
+      title: 'Contabilitate necesită verificare',
+      description: displayText(view.accountingSummary.message || view.accountingSummary.status, 'Există semnale financiare care merită verificate.'),
+      route: routes.accounting,
+      cta: 'Vezi contabilitate',
+    })
+  }
+
   if (!view.projects.length) {
     actions.push({
       key: 'projects_empty',
+      domain: 'projects',
       icon: '🗺️',
       tone: 'info',
       weight: 20,
@@ -510,11 +611,21 @@ function buildTodayActions(view) {
   }
 
   return actions
+    .map(action => {
+      const focused = profile.domains?.includes(action.domain)
+      const isCritical = action.tone === 'danger'
+      return {
+        ...action,
+        focused,
+        weight: action.weight + (focused ? 25 : isCritical ? 10 : -20),
+      }
+    })
+    .filter(action => profile.key === 'executive' || profile.key === 'general' || action.focused || action.tone === 'danger')
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 6)
 }
 
-function TodayActionsPanel({ actions, loading, error, onNavigate }) {
+function TodayActionsPanel({ actions, profile, loading, error, onNavigate }) {
   return (
     <Card className="border-primary-100 bg-gradient-to-br from-white via-primary-50/40 to-slate-50">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -522,10 +633,13 @@ function TodayActionsPanel({ actions, loading, error, onNavigate }) {
           <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Priorități</div>
           <h3 className="mt-1 text-lg font-bold text-slate-900">Ce ai de făcut azi</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Semnale agregate din modulele active, ca să nu cauți manual prin aplicație.
+            {profile?.hint || 'Semnale agregate din modulele active, ca să nu cauți manual prin aplicație.'}
           </p>
         </div>
-        {!loading && actions.length ? <Badge tone={actions[0].tone}>{actions.length} recomandări</Badge> : null}
+        <div className="flex flex-wrap gap-2">
+          {profile?.label ? <Badge tone="info">{profile.label}</Badge> : null}
+          {!loading && actions.length ? <Badge tone={actions[0].tone}>{actions.length} recomandări</Badge> : null}
+        </div>
       </div>
 
       <SectionError error={error} />
@@ -604,6 +718,9 @@ export default function DashboardPage() {
         commandCenter: api.get('/dashboard/command-center'),
         contractsDashboard: api.get('/contracts/dashboard'),
         contractsTasks: api.get('/contracts/tasks'),
+        hrStats: api.get('/hr/stats'),
+        leaveRequests: api.get('/hr/leave-requests'),
+        accountingSummary: api.get('/accounting/summary'),
       }
 
       const entries = await Promise.all(
@@ -657,6 +774,8 @@ export default function DashboardPage() {
     const audit = arrayFrom(data.audit, ['audit', 'items'])
     const stockOperations = arrayFrom(data.stockOperations, ['movements', 'operations', 'items'])
     const contractsTasks = arrayFrom(data.contractsTasks, ['tasks', 'items'])
+    const leaveRequests = arrayFrom(data.leaveRequests, ['requests', 'leaveRequests', 'items'])
+    const profile = dashboardProfile(user)
 
     const nextView = {
       criticalStocks,
@@ -669,12 +788,16 @@ export default function DashboardPage() {
       stockOperations,
       contractsDashboard: data.contractsDashboard || {},
       contractsTasks,
+      hrStats: data.hrStats || {},
+      leaveRequests,
+      accountingSummary: data.accountingSummary || {},
     }
     return {
       ...nextView,
-      todayActions: buildTodayActions(nextView),
+      profile,
+      todayActions: buildTodayActions(nextView, profile),
     }
-  }, [data])
+  }, [data, user])
 
   return (
     <div className="grid gap-4">
@@ -725,6 +848,7 @@ export default function DashboardPage() {
 
       <TodayActionsPanel
         actions={view.todayActions}
+        profile={view.profile}
         loading={loading}
         onNavigate={navigate}
       />

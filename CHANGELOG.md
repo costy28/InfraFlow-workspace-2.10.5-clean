@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.353 - 2026-07-22
+
+## Priorități dashboard pe profil utilizator
+
+- Panoul `Ce ai de făcut azi` se adaptează la rolul, departamentul și username-ul utilizatorului.
+- Profilurile executive, HR, financiar, achiziții și operațional primesc priorități diferite.
+- Recomandările sunt reordonate după domeniile relevante pentru profilul curent.
+- Pentru HR se includ cererile de concediu/absență în așteptare.
+- Pentru financiar se poate evidenția sumarul contabil când raportează o stare care necesită verificare.
+- Recomandările critice rămân vizibile chiar dacă nu aparțin profilului principal.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.352 - 2026-07-22
 
 ## Priorități azi în dashboard
