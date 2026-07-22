@@ -1,5 +1,5 @@
 {
-  "version": "2.12.351",
+  "version": "2.12.352",
   "date": "2026-07-22",
-  "changelog": "## v2.12.351 - 2026-07-22\n### Asistent operational contracte\n- Modulul Contracte afiseaza recomandari concrete pe baza riscurilor curente.\n- Recomandarile pot pregati automat selectia si actiunea in masa potrivita.\n- Asistentul propune asignare manageri, task-uri pentru documente semnate, scadente si depasiri.\n- Panoul include acces rapid la generare task-uri si remindere catre responsabili."
+  "changelog": "## v2.12.352 - 2026-07-22\n### Prioritati azi in dashboard\n- Dashboard-ul principal include panoul Ce ai de facut azi.\n- Panoul agrega prioritati din documente, sesizari, contracte, stocuri si proiecte.\n- Fiecare recomandare are severitate, descriere si scurtatura catre modulul relevant.\n- Cand nu exista interventii, se afiseaza o stare clara de portofoliu curat."
 }

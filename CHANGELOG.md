@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.352 - 2026-07-22
+
+## Priorități azi în dashboard
+
+- Dashboard-ul principal afișează un panou nou `Ce ai de făcut azi`.
+- Panoul agregă recomandări din documente de aprobat, sesizări, contracte, stocuri critice și proiecte.
+- Recomandările sunt ordonate după severitate și includ scurtătură directă către modulul relevant.
+- Contractele contribuie la priorități prin riscuri, alerte și task-uri operaționale, fără endpoint nou.
+- Dacă nu există blocaje, dashboard-ul afișează explicit o stare curată.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.351 - 2026-07-22
 
 ## Asistent operațional contracte

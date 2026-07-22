@@ -25,6 +25,8 @@ const emptyState = {
   audit: [],
   weather: null,
   commandCenter: null,
+  contractsDashboard: null,
+  contractsTasks: [],
 }
 
 const routes = {
@@ -40,6 +42,7 @@ const routes = {
   projects: '/teren',
   audit: '/setari',
   snow: '/deszapezire',
+  contracts: '/contracte',
 }
 
 function localDate(date) {
@@ -414,6 +417,150 @@ function MiniTable({ columns, rows, empty }) {
   )
 }
 
+function buildTodayActions(view) {
+  const actions = []
+  const contractRiskTotal = numberFrom(view.contractsDashboard?.risk_summary?.total)
+  const contractAlerts = arrayFrom(view.contractsDashboard, ['alerts'])
+  const contractTasksOpen = view.contractsTasks.filter(task => !['done', 'rezolvat', 'closed', 'inchis'].includes(String(task.status || '').toLowerCase()))
+  const contractTasksOverdue = contractTasksOpen.filter(task => {
+    const due = task.due_date || task.scadenta || task.deadline
+    return due && new Date(due) < new Date()
+  })
+
+  if (view.inboxDocuments.length) {
+    actions.push({
+      key: 'documents',
+      icon: '📋',
+      tone: 'warning',
+      weight: 90,
+      title: `${view.inboxDocuments.length} documente de aprobat`,
+      description: 'Ai documente în inbox care pot bloca fluxuri interne dacă rămân acolo.',
+      route: routes.documents,
+      cta: 'Deschide inbox',
+    })
+  }
+
+  if (contractRiskTotal || contractTasksOverdue.length || contractAlerts.length) {
+    const details = [
+      contractRiskTotal ? `${contractRiskTotal} contracte cu risc` : null,
+      contractTasksOverdue.length ? `${contractTasksOverdue.length} task-uri întârziate` : null,
+      contractAlerts.length ? `${contractAlerts.length} alerte` : null,
+    ].filter(Boolean).join(' · ')
+    actions.push({
+      key: 'contracts',
+      icon: '📑',
+      tone: contractTasksOverdue.length || contractRiskTotal ? 'danger' : 'warning',
+      weight: contractTasksOverdue.length || contractRiskTotal ? 100 : 80,
+      title: 'Contracte care cer atenție',
+      description: details || 'Există semnale operaționale pe portofoliul de contracte.',
+      route: routes.contracts,
+      cta: 'Vezi contracte',
+    })
+  } else if (contractTasksOpen.length) {
+    actions.push({
+      key: 'contract_tasks',
+      icon: '🧭',
+      tone: 'info',
+      weight: 55,
+      title: `${contractTasksOpen.length} task-uri contractuale deschise`,
+      description: 'Sunt lucruri de închis în dosarele de contract, chiar dacă nu sunt urgente.',
+      route: routes.contracts,
+      cta: 'Vezi task-uri',
+    })
+  }
+
+  if (view.tickets.length) {
+    const urgentTickets = view.tickets.filter(ticket => ['critica', 'critic', 'urgent', 'urgenta'].includes(String(ticket.prioritate || ticket.priority || '').toLowerCase()))
+    actions.push({
+      key: 'tickets',
+      icon: '🎫',
+      tone: urgentTickets.length ? 'danger' : 'warning',
+      weight: urgentTickets.length ? 95 : 70,
+      title: urgentTickets.length ? `${urgentTickets.length} sesizări urgente` : `${view.tickets.length} sesizări deschise`,
+      description: urgentTickets.length ? 'Prioritățile critice trebuie repartizate sau închise rapid.' : 'Există sesizări active care merită verificate azi.',
+      route: routes.tickets,
+      cta: 'Deschide sesizări',
+    })
+  }
+
+  if (view.criticalStocks.length) {
+    actions.push({
+      key: 'stocks',
+      icon: '📦',
+      tone: 'warning',
+      weight: 65,
+      title: `${view.criticalStocks.length} materiale sub minim`,
+      description: 'Stocurile critice pot genera întârzieri în operațiuni, producție sau servicii.',
+      route: routes.stock,
+      cta: 'Vezi stocuri',
+    })
+  }
+
+  if (!view.projects.length) {
+    actions.push({
+      key: 'projects_empty',
+      icon: '🗺️',
+      tone: 'info',
+      weight: 20,
+      title: 'Nu există proiecte active afișate',
+      description: 'Poți porni sau importa proiecte pentru urmărire de teren, costuri și execuție.',
+      route: routes.projects,
+      cta: 'Vezi teren',
+    })
+  }
+
+  return actions
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 6)
+}
+
+function TodayActionsPanel({ actions, loading, error, onNavigate }) {
+  return (
+    <Card className="border-primary-100 bg-gradient-to-br from-white via-primary-50/40 to-slate-50">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Priorități</div>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">Ce ai de făcut azi</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Semnale agregate din modulele active, ca să nu cauți manual prin aplicație.
+          </p>
+        </div>
+        {!loading && actions.length ? <Badge tone={actions[0].tone}>{actions.length} recomandări</Badge> : null}
+      </div>
+
+      <SectionError error={error} />
+
+      {loading ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3].map(item => <Skeleton key={item} className="h-28" />)}
+        </div>
+      ) : actions.length ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {actions.map(action => (
+            <button
+              key={action.key}
+              className="rounded-[var(--radius-panel)] border border-slate-100 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md"
+              onClick={() => onNavigate(action.route)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-xl">{action.icon}</span>
+                <Badge tone={action.tone} size="sm">{action.tone === 'danger' ? 'urgent' : action.tone === 'warning' ? 'atenție' : 'info'}</Badge>
+              </div>
+              <div className="mt-3 text-sm font-semibold text-slate-900">{action.title}</div>
+              <p className="mt-1 min-h-10 text-xs text-slate-500">{action.description}</p>
+              <div className="mt-3 text-xs font-semibold text-primary-700">{action.cta} →</div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-[var(--radius-panel)] border border-primary-100 bg-white px-4 py-5 text-sm text-primary-800">
+          ✅ Nu apar blocaje evidente azi. Portofoliul arată curat; poți continua cu lucru planificat sau verificări de rutină.
+        </div>
+      )}
+    </Card>
+  )
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -455,6 +602,8 @@ export default function DashboardPage() {
         production7: Promise.allSettled(dates.map(date => api.get(`/daily-report?date=${date}`))),
         weather: snowSeason ? api.get('/snow-removal/weather') : Promise.resolve({ data: null }),
         commandCenter: api.get('/dashboard/command-center'),
+        contractsDashboard: api.get('/contracts/dashboard'),
+        contractsTasks: api.get('/contracts/tasks'),
       }
 
       const entries = await Promise.all(
@@ -507,8 +656,9 @@ export default function DashboardPage() {
     const projects = arrayFrom(data.projects, ['projects', 'items'])
     const audit = arrayFrom(data.audit, ['audit', 'items'])
     const stockOperations = arrayFrom(data.stockOperations, ['movements', 'operations', 'items'])
+    const contractsTasks = arrayFrom(data.contractsTasks, ['tasks', 'items'])
 
-    return {
+    const nextView = {
       criticalStocks,
       operationalOutputToday: numberFrom(report.metrics?.asphaltTotal ?? report.asphaltTotal),
       activeAssets: fleetAssets.filter(assetIsActive).length,
@@ -517,6 +667,12 @@ export default function DashboardPage() {
       projects,
       audit,
       stockOperations,
+      contractsDashboard: data.contractsDashboard || {},
+      contractsTasks,
+    }
+    return {
+      ...nextView,
+      todayActions: buildTodayActions(nextView),
     }
   }, [data])
 
@@ -566,6 +722,12 @@ export default function DashboardPage() {
       </div>
 
       {demoMessage ? <div className="rounded-md border border-primary-100 bg-primary-50 px-3 py-2 text-sm text-primary-700">{demoMessage}</div> : null}
+
+      <TodayActionsPanel
+        actions={view.todayActions}
+        loading={loading}
+        onNavigate={navigate}
+      />
 
       {user?.username === 'director' || user?.username === 'demo' || ['manager', 'superadmin'].includes(user?.role) ? (
         <DirectorDemoPanel user={user} onNavigate={navigate} onResetDemo={resetDemo} resettingDemo={resettingDemo} />

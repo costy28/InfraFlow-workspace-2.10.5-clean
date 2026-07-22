@@ -760,3 +760,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ recomandările pregătesc automat selecția contractelor și acțiunea batch potrivită;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ recomandări pentru lipsă manager, lipsă document semnat, scadențe, depășiri și task-uri/alerte;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ acces rapid la generare task-uri și trimitere remindere.
+
+### UPDATE 372 — Priorități azi în dashboard
+
+- `client/src/pages/DashboardPage.jsx` — ✅ panou nou `Ce ai de făcut azi`;
+- `client/src/pages/DashboardPage.jsx` — ✅ recomandări agregate din documente, sesizări, contracte, stocuri și proiecte;
+- `client/src/pages/DashboardPage.jsx` — ✅ sortare după severitate și scurtături către modulele relevante;
+- `client/src/pages/DashboardPage.jsx` — ✅ stare curată când nu există blocaje evidente.
