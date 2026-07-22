@@ -1,5 +1,5 @@
 {
-  "version": "2.12.360",
+  "version": "2.12.361",
   "date": "2026-07-22",
-  "changelog": "## v2.12.360 - 2026-07-22\n### Task-uri in Kiosk si sidebar\n- Task-uri este acces rapid in meniul principal, langa Dashboard si Kiosk.\n- Kiosk-ul afiseaza task-urile deschise ale utilizatorului ERP asociat angajatului.\n- Task-urile noi sau reasignate creeaza notificari interne pentru responsabil.\n- Notificarile browser pot semnala cresterea task-urilor personale deschise.\n- Compatibil cu cont ERP si cont Kiosk separat."
+  "changelog": "## v2.12.361 - 2026-07-22\n### Actiuni rapide task in Kiosk\n- Angajatul poate marca task-ul ca in lucru, blocat sau finalizat direct din Kiosk.\n- Kiosk-ul permite adaugarea unui comentariu scurt pe task.\n- Endpoint-ul Kiosk modifica doar task-urile utilizatorului ERP asociat angajatului.\n- Actiunile sunt auditate si compatibile cu sesiunea Kiosk separata.\n- Panoul ERP Task-uri ramane disponibil pentru detalii complete."
 }

@@ -828,3 +828,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/hr/routes.js` — ✅ Kiosk-ul poate lista task-urile deschise ale utilizatorului ERP asociat angajatului;
 - `client/src/pages/KioskPage.jsx` — ✅ card `Task-urile mele`, cu priorități, termene, urgente și depășite;
 - `client/src/hooks/useGlobalNotifications.js` — ✅ notificări browser și pentru creșterea numărului de task-uri personale deschise.
+
+### UPDATE 381 — Acțiuni rapide task în Kiosk
+
+- `server/modules/hr/routes.js` — ✅ endpoint Kiosk `PATCH /hr/kiosk/tasks/:id` pentru status și comentarii;
+- `server/modules/hr/routes.js` — ✅ endpoint-ul validează asocierea angajat → utilizator ERP și permite doar task-urile proprii;
+- `client/src/pages/KioskPage.jsx` — ✅ butoane `Încep`, `Blochez`, `Finalizez` în cardul task-ului;
+- `client/src/pages/KioskPage.jsx` — ✅ comentarii rapide pe task direct din Kiosk;
+- `server/modules/hr/routes.js` — ✅ audit `tasks:kiosk_update` pentru acțiunile făcute din Kiosk.

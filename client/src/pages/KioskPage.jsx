@@ -261,6 +261,8 @@ export default function KioskPage() {
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine)
   const [offlineQueue, setOfflineQueue] = useState(() => getQueue())
   const [syncStatus, setSyncStatus] = useState('')
+  const [taskNotes, setTaskNotes] = useState({})
+  const [taskSaving, setTaskSaving] = useState('')
 
   // Leave form
   const emptyLeaveForm = { tip: 'CO', data_start: '', data_sfarsit: '', motiv: '', serie: '', numar: '', tip_certificat: 'initial', data_acordarii: '', cod_indemnizatie: '', cod_diagnostic: '', medic_nume: '', cod_parafa: '', unitate_emitenta: '' }
@@ -436,6 +438,30 @@ export default function KioskPage() {
       setError('')
     } catch (err) {
       setError(err.response?.data?.error || 'Confirmarea documentului nu a putut fi salvata.')
+    }
+  }
+
+  async function saveTaskAction(task, status = '') {
+    const note = String(taskNotes[task.id] || '').trim()
+    if (!status && !note) {
+      setError('Completează un comentariu sau alege o acțiune pentru task.')
+      return
+    }
+    setTaskSaving(`${task.id}:${status || 'comment'}`)
+    setError('')
+    try {
+      if (kioskToken) {
+        await kioskApi(kioskToken).patch(`/hr/kiosk/tasks/${task.id}`, { status, note })
+      } else {
+        if (status) await api.patch(`/tasks/${task.id}`, { status })
+        if (note) await api.post(`/tasks/${task.id}/comments`, { text: note })
+      }
+      setTaskNotes(current => ({ ...current, [task.id]: '' }))
+      await loadKiosk()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Task-ul nu a putut fi actualizat.')
+    } finally {
+      setTaskSaving('')
     }
   }
 
@@ -1106,6 +1132,25 @@ export default function KioskPage() {
                         <div className="flex shrink-0 flex-wrap justify-end gap-1">
                           <Badge size="sm" tone={taskPriorityTone(task.priority)}>{taskPriorityLabel(task.priority)}</Badge>
                           <Badge size="sm" tone={String(task.status || '') === 'blocked' ? 'danger' : 'info'}>{taskStatusLabel(task.status)}</Badge>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        <textarea
+                          value={taskNotes[task.id] || ''}
+                          onChange={event => setTaskNotes(current => ({ ...current, [task.id]: event.target.value }))}
+                          rows={2}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-100"
+                          placeholder="Comentariu scurt: ce ai făcut, de ce e blocat, observații..."
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {String(task.status || 'open') !== 'in_progress' ? (
+                            <Button size="sm" variant="secondary" loading={taskSaving === `${task.id}:in_progress`} onClick={() => saveTaskAction(task, 'in_progress')}>Încep</Button>
+                          ) : null}
+                          <Button size="sm" variant="secondary" loading={taskSaving === `${task.id}:blocked`} onClick={() => saveTaskAction(task, 'blocked')}>Blochez</Button>
+                          <Button size="sm" loading={taskSaving === `${task.id}:done`} onClick={() => saveTaskAction(task, 'done')}>Finalizez</Button>
+                          {(taskNotes[task.id] || '').trim() ? (
+                            <Button size="sm" variant="ghost" loading={taskSaving === `${task.id}:comment`} onClick={() => saveTaskAction(task)}>Adaug comentariu</Button>
+                          ) : null}
                         </div>
                       </div>
                     </div>

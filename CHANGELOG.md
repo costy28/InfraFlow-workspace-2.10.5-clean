@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.361 - 2026-07-22
+
+## Acțiuni rapide task în Kiosk
+
+- Kiosk-ul permite acțiuni rapide pe task: `Încep`, `Blochez`, `Finalizez`.
+- Angajatul poate adăuga un comentariu scurt direct din cardul task-ului.
+- Pentru conturile Kiosk, endpoint-ul dedicat modifică doar task-urile utilizatorului ERP asociat angajatului.
+- Pentru utilizatorii ERP care deschid Kiosk din aplicație, acțiunile folosesc endpoint-urile existente `/tasks`.
+- Finalizarea task-ului îl scoate din lista de task-uri deschise la reîncărcarea Kiosk-ului.
+- Operațiunile Kiosk sunt auditate cu sursa `tasks:kiosk_update`.
+
 # v2.12.360 - 2026-07-22
 
 ## Task-uri în Kiosk și sidebar

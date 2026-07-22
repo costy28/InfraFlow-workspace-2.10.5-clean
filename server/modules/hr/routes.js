@@ -705,6 +705,28 @@ function kioskTasksForUser(db, userId) {
     .slice(0, 20)
 }
 
+function ensureTaskStore(db) {
+  if (!db.taskManagement || typeof db.taskManagement !== 'object') db.taskManagement = {}
+  db.taskManagement.tasks = Array.isArray(db.taskManagement.tasks) ? db.taskManagement.tasks : []
+  db.taskManagement.comments = Array.isArray(db.taskManagement.comments) ? db.taskManagement.comments : []
+  return db.taskManagement
+}
+
+function kioskTaskActor(employee, user) {
+  if (user) return user
+  return {
+    id: `kiosk:${employee?.id || 'unknown'}`,
+    username: [employee?.prenume, employee?.nume].filter(Boolean).join(' ') || 'Kiosk',
+    name: [employee?.prenume, employee?.nume].filter(Boolean).join(' ') || 'Kiosk',
+    role: 'kiosk',
+  }
+}
+
+function kioskTaskStatus(value) {
+  const status = String(value || '').trim()
+  return ['open', 'in_progress', 'blocked', 'done'].includes(status) ? status : ''
+}
+
 function kioskEquipmentResponsibility(db, employeeId) {
   const hr = ensureHrDb(db)
   const types = Array.isArray(hr.echipamenteTipuri) ? hr.echipamenteTipuri : []
@@ -4855,6 +4877,55 @@ router.get('/hr/kiosk/me', (req, res, next) => {
       notificari: personalNotifications(db, linkedUserId || employee.id),
       taskuri: linkedUserId ? kioskTasksForUser(db, linkedUserId) : [],
     })
+  } catch (err) { next(err) }
+})
+
+// PATCH /hr/kiosk/tasks/:id — acțiuni rapide task din contul Kiosk
+router.patch('/hr/kiosk/tasks/:id', (req, res, next) => {
+  try {
+    const session = kioskSessions.requireKioskAuth(req, res)
+    if (!session) return
+    const db = readDb()
+    const hr = ensureHrDb(db)
+    const employee = hr.employees.find(e => String(e.id) === String(session.employee_id) && e.activ !== false)
+    if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost găsit.' })
+
+    const linkedUser = linkedUserForEmployee(db, employee)
+    const linkedUserId = linkedUser ? userIdValue(linkedUser) : ''
+    if (!linkedUserId) return sendJson(res, 422, { error: 'Contul Kiosk nu este asociat unui utilizator ERP pentru task-uri.' })
+
+    const store = ensureTaskStore(db)
+    const task = store.tasks.find((item) => String(item.id) === String(req.params.id))
+    if (!task || String(task.assigned_to || '') !== String(linkedUserId)) {
+      return sendJson(res, 404, { error: 'Task-ul nu a fost găsit pentru acest angajat.' })
+    }
+
+    const status = kioskTaskStatus(req.body?.status)
+    const note = String(req.body?.note || req.body?.comment || '').trim().slice(0, 1500)
+    if (!status && !note) return sendJson(res, 400, { error: 'Alege o acțiune sau completează un comentariu.' })
+
+    if (status) {
+      task.status = status
+      if (status === 'done') task.completed_at = nowIso()
+      if (status !== 'done') delete task.completed_at
+    }
+    task.updated_at = nowIso()
+
+    if (note) {
+      store.comments.push({
+        id: `task-comment-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
+        task_id: task.id,
+        text: note,
+        created_by: linkedUserId,
+        created_by_name: [employee.prenume, employee.nume].filter(Boolean).join(' ') || linkedUser.name || linkedUser.username || 'Kiosk',
+        created_at: nowIso(),
+        source: 'kiosk',
+      })
+    }
+
+    addAudit(db, kioskTaskActor(employee, linkedUser), 'tasks:kiosk_update', { taskId: task.id, status: task.status, note: Boolean(note) })
+    writeDb(db)
+    return sendJson(res, 200, { task })
   } catch (err) { next(err) }
 })
 
