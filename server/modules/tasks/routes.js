@@ -132,6 +132,12 @@ function visibleTasks(db, user, permissions, query = {}) {
 
   if (query.scope === 'assigned') rows = rows.filter(task => String(task.assigned_to) === uid)
   if (query.scope === 'created') rows = rows.filter(task => String(task.created_by) === uid)
+  if (query.scope === 'team') {
+    const teamIds = new Set(assignableUsers(db, user, permissions)
+      .map(item => userId(item))
+      .filter(id => id && id !== uid))
+    rows = rows.filter(task => teamIds.has(String(task.assigned_to)) || teamIds.has(String(task.created_by)))
+  }
   if (query.scope === 'open') rows = rows.filter(task => OPEN_STATUSES.has(String(task.status || 'open')))
   if (query.status) rows = rows.filter(task => String(task.status || 'open') === String(query.status))
 

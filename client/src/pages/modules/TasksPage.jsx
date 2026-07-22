@@ -10,6 +10,7 @@ import Select from '../../components/forms/Select'
 
 const tabs = [
   { id: 'assigned', label: 'Ale mele' },
+  { id: 'team', label: 'Echipa mea' },
   { id: 'created', label: 'Create de mine' },
   { id: 'all', label: 'Toate vizibile' },
 ]
@@ -114,7 +115,17 @@ export default function TasksPage() {
     }
   }, [formOpen, form.assigned_to, user])
 
-  const visibleTabs = tabs.filter(tab => tab.id !== 'all' || isManager)
+  const canSeeTeamTab = isManager || ['all', 'department', 'hierarchy'].includes(assigneeScope) || users.some(item => item.direct_report)
+  const visibleTabs = tabs.filter(tab => {
+    if (tab.id === 'all') return isManager
+    if (tab.id === 'team') return canSeeTeamTab
+    return true
+  })
+
+  useEffect(() => {
+    if (activeTab === 'team' && !canSeeTeamTab) setActiveTab('assigned')
+  }, [activeTab, canSeeTeamTab])
+
   const stats = useMemo(() => {
     const open = tasks.filter(task => !['done', 'cancelled'].includes(task.status)).length
     const overdue = tasks.filter(isOverdue).length

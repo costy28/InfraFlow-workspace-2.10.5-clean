@@ -1,5 +1,5 @@
 {
-  "version": "2.12.358",
+  "version": "2.12.359",
   "date": "2026-07-22",
-  "changelog": "## v2.12.358 - 2026-07-22\n### Panou organigrama operationala\n- Setari > Utilizatori afiseaza un panou de organigrama bazat pe manager direct.\n- Panoul arata utilizatori activi, manageri cu echipa si conturi fara manager.\n- Managerii sunt listati cu subordonatii directi si departamentele aferente.\n- Relatiile invalide sunt semnalate pentru corectie.\n- Nu necesita backend nou sau migrari; foloseste datele existente din lista de utilizatori."
+  "changelog": "## v2.12.359 - 2026-07-22\n### Task-uri Echipa mea\n- Pagina Task-uri primeste tab separat Echipa mea.\n- Backend-ul accepta scope=team si filtreaza task-urile oamenilor din aria delegabila.\n- Managerii directi vad task-urile subordonatilor fara sa amestece lista personala.\n- Sefii de departament si administratorii pot folosi acelasi tab pentru aria lor operationala.\n- Tab-ul apare doar cand utilizatorul are echipa sau drepturi de coordonare."
 }

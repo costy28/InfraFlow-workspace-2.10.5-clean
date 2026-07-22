@@ -813,3 +813,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/SetariPage.jsx` — ✅ panou `Organigramă operațională` în tab-ul Utilizatori;
 - `client/src/pages/SetariPage.jsx` — ✅ contoare pentru utilizatori activi, manageri cu echipă și conturi fără manager;
 - `client/src/pages/SetariPage.jsx` — ✅ listare subordonați direcți per manager și semnal pentru legături invalide.
+
+### UPDATE 379 — Task-uri „Echipa mea”
+
+- `server/modules/tasks/routes.js` — ✅ suport `scope=team` pentru task-urile ariei delegabile;
+- `server/modules/tasks/routes.js` — ✅ filtrare echipă după responsabili/creatori din aria permisă, excluzând utilizatorul curent;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ tab nou `Echipa mea`;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ tab-ul apare doar pentru manageri, șefi de departament sau utilizatori cu subordonați direcți.

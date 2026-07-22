@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.359 - 2026-07-22
+
+## Task-uri „Echipa mea”
+
+- Pagina `Task-uri` primește tab separat `Echipa mea`.
+- Backend-ul acceptă `scope=team` pe `/api/tasks`.
+- `scope=team` filtrează task-urile create sau asignate oamenilor din aria delegabilă a utilizatorului, excluzând task-urile strict personale.
+- Managerii direcți pot urmări task-urile subordonaților fără să amestece lista `Ale mele`.
+- Șefii de departament și administratorii pot folosi aceeași vedere pentru aria lor operațională.
+- Tab-ul apare doar când utilizatorul are echipă, organigramă sau drepturi de coordonare.
+
 # v2.12.358 - 2026-07-22
 
 ## Panou organigramă operațională
