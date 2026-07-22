@@ -820,3 +820,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/tasks/routes.js` — ✅ filtrare echipă după responsabili/creatori din aria permisă, excluzând utilizatorul curent;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ tab nou `Echipa mea`;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ tab-ul apare doar pentru manageri, șefi de departament sau utilizatori cu subordonați direcți.
+
+### UPDATE 380 — Task-uri în Kiosk și sidebar
+
+- `client/src/components/layout/Sidebar.jsx` — ✅ `Task-uri` este acces rapid în meniul principal, fără să depindă de activarea vizibilă a modulului;
+- `server/modules/tasks/routes.js` — ✅ creare notificare internă la task nou și la reasignare;
+- `server/modules/hr/routes.js` — ✅ Kiosk-ul poate lista task-urile deschise ale utilizatorului ERP asociat angajatului;
+- `client/src/pages/KioskPage.jsx` — ✅ card `Task-urile mele`, cu priorități, termene, urgente și depășite;
+- `client/src/hooks/useGlobalNotifications.js` — ✅ notificări browser și pentru creșterea numărului de task-uri personale deschise.

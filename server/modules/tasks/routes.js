@@ -182,6 +182,22 @@ function taskPayload(body, fallbackAssignee, user, db) {
   }
 }
 
+function pushTaskNotification(db, task, actor, event = 'created') {
+  if (!task?.assigned_to) return
+  if (!Array.isArray(db.notifications)) db.notifications = []
+  const actorName = userLabel(actor)
+  const verb = event === 'reassigned' ? 'ți-a reasignat un task' : 'ți-a trimis un task'
+  db.notifications.push({
+    id: id('notification'),
+    type: 'task',
+    user_id: String(task.assigned_to),
+    task_id: task.id,
+    message: `${actorName} ${verb}: ${task.title}${task.due_date ? ` · termen ${task.due_date}` : ''}`,
+    created_at: nowIso(),
+    read: false,
+  })
+}
+
 router.get('/tasks', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
@@ -252,6 +268,7 @@ router.post('/tasks', (req, res) => {
       updated_at: nowIso(),
     }
     store.tasks.push(task)
+    pushTaskNotification(auth.db, task, auth.user, 'created')
     addAudit(auth.db, auth.user, 'tasks:create', { taskId: task.id, assigned_to: task.assigned_to, title: task.title })
     writeDb(auth.db)
     res.status(201).json({ task: enrichTask(task, userMap(auth.db)) })
@@ -269,6 +286,7 @@ router.patch('/tasks/:id', (req, res) => {
   const uid = userId(auth.user)
   const canEditAll = canManageAllTasks(auth.user, auth.permissions) || String(task.created_by) === uid
   const body = req.body || {}
+  const previousAssignee = String(task.assigned_to || '')
   if (body.status != null) {
     const status = String(body.status)
     if (!VALID_STATUSES.has(status)) return res.status(400).json({ error: 'Status task invalid.' })
@@ -295,6 +313,9 @@ router.patch('/tasks/:id', (req, res) => {
     }
   }
   task.updated_at = nowIso()
+  if (String(task.assigned_to || '') !== previousAssignee) {
+    pushTaskNotification(auth.db, task, auth.user, 'reassigned')
+  }
   addAudit(auth.db, auth.user, 'tasks:update', { taskId: task.id, status: task.status })
   writeDb(auth.db)
   res.json({ task: enrichTask(task, userMap(auth.db)) })

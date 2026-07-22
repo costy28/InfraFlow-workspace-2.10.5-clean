@@ -12,6 +12,7 @@ const groups = [
     items: [
       { to: '/dashboard', icon: '📊', label: 'Dashboard' },
       { to: '/kiosk', icon: '🏠', label: 'Kiosk Angajat' },
+      { to: '/taskuri', icon: '✅', label: 'Task-uri' },
       { to: '/my-vehicle', icon: '🚗', label: 'Vehiculul meu', myVehicleOnly: true },
     ],
   },
@@ -34,7 +35,6 @@ const groups = [
       { to: '/contabilitate', icon: '🏦', label: 'Contabilitate', moduleKey: 'accounting' },
       { to: '/documente', icon: '🗂️', label: 'Documente', moduleKey: 'documents' },
       { to: '/mesaje', icon: '💬', label: 'Mesaje', moduleKey: 'messaging' },
-      { to: '/taskuri', icon: '✅', label: 'Task-uri', moduleKey: 'task_management' },
       { to: '/sesizari', icon: '🎫', label: 'Sesizări', moduleKey: 'tickets' },
       { to: '/juridic', icon: '⚖️', label: 'Juridic', moduleKey: 'legal' },
       { to: '/arhiva', icon: '🗄️', label: 'Arhivă', moduleKey: 'archive' },

@@ -83,6 +83,23 @@ function statusBadge(status) {
   if (status === 'in_faz') return { tone: 'success', label: 'FAZ' }
   return { tone: 'default', label: status || '—' }
 }
+function taskPriorityTone(priority) {
+  if (priority === 'urgent') return 'danger'
+  if (priority === 'high') return 'warning'
+  if (priority === 'low') return 'gray'
+  return 'default'
+}
+function taskPriorityLabel(priority) {
+  if (priority === 'urgent') return 'urgent'
+  if (priority === 'high') return 'ridicat'
+  if (priority === 'low') return 'scăzut'
+  return 'normal'
+}
+function taskStatusLabel(status) {
+  if (status === 'in_progress') return 'în lucru'
+  if (status === 'blocked') return 'blocat'
+  return 'nou'
+}
 
 // ─── Signature Canvas Component ───────────────────────────────────────────────
 function SignatureCanvas({ onConfirm }) {
@@ -237,6 +254,7 @@ export default function KioskPage() {
   const [myAuth, setMyAuth] = useState([])
   const [myTrips, setMyTrips] = useState([])
   const [myDocuments, setMyDocuments] = useState([])
+  const [myTasks, setMyTasks] = useState([])
   const [kioskSummary, setKioskSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -298,9 +316,10 @@ export default function KioskPage() {
           } : null)
           setMyLeaves(profile.cereri || [])
           setMyAuth(profile.autorizatii || [])
+          setMyTasks(profile.taskuri || [])
           const docs = documentsRes.status === 'fulfilled' ? (documentsRes.value?.data?.documents || []) : []
           setMyDocuments(docs)
-          saveCache({ kioskEmpId, employee: profile.angajat, coBalance: profile.concedii, myLeaves: profile.cereri, myAuth: profile.autorizatii, myDocuments: docs, kioskSummary: profile })
+          saveCache({ kioskEmpId, employee: profile.angajat, coBalance: profile.concedii, myLeaves: profile.cereri, myAuth: profile.autorizatii, myDocuments: docs, myTasks: profile.taskuri || [], kioskSummary: profile })
         }
       } else if (user) {
         // Regular app user
@@ -318,6 +337,7 @@ export default function KioskPage() {
         })
         setMyLeaves(summary.cereri || summary.cereri_asteptare || [])
         setMyAuth(summary.autorizatii || [])
+        setMyTasks(summary.taskuri || [])
         const [tripsRes, documentsRes] = await Promise.allSettled([
           api.get(`/fleet/trip-logs?sofer_id=${emp.id}`).catch(() => null),
           api.get('/hr/kiosk/my-documents').catch(() => ({ data: { documents: [] } })),
@@ -328,7 +348,7 @@ export default function KioskPage() {
         }
         const docs = documentsRes.status === 'fulfilled' ? (documentsRes.value?.data?.documents || []) : []
         setMyDocuments(docs)
-        saveCache({ userId: user?.id, employee: emp, coBalance: summary.concedii, myLeaves: summary.cereri_asteptare, myAuth: summary.autorizatii, myDocuments: docs })
+        saveCache({ userId: user?.id, employee: emp, coBalance: summary.concedii, myLeaves: summary.cereri_asteptare, myAuth: summary.autorizatii, myDocuments: docs, myTasks: summary.taskuri || [] })
       }
       setOnline(true)
       setError('')
@@ -341,6 +361,7 @@ export default function KioskPage() {
         setMyLeaves(cached.myLeaves || [])
         setMyAuth(cached.myAuth || [])
         setMyDocuments(cached.myDocuments || [])
+        setMyTasks(cached.myTasks || [])
         setError('Offline — se afișează ultimele date salvate.')
       } else {
         setError('Nu s-au putut încărca datele. Conectează dispozitivul la rețeaua locală.')
@@ -545,6 +566,7 @@ export default function KioskPage() {
     setKioskEmpName(null)
     setEmployee(null)
     setMyTrips([])
+    setMyTasks([])
   }
 
   // ── Leave request ─────────────────────────────────────────────────────────
@@ -668,6 +690,8 @@ export default function KioskPage() {
   const zile_estimate = businessDaysEstimate(leaveForm.data_start, leaveForm.data_sfarsit)
   const zile_calendaristice = calendarDaysEstimate(leaveForm.data_start, leaveForm.data_sfarsit)
   const pendingCount = offlineQueue.length
+  const urgentTaskCount = myTasks.filter((task) => ['urgent', 'high'].includes(String(task.priority || '').toLowerCase())).length
+  const overdueTaskCount = myTasks.filter((task) => task.due_date && String(task.due_date).slice(0, 10) < new Date().toISOString().slice(0, 10)).length
 
   const activeTrip = myTrips.find(t => t.status === 'deschisa')
   const completedTrips = myTrips.filter(t => t.status === 'completata')
@@ -1054,6 +1078,45 @@ export default function KioskPage() {
                 <div className="text-xs text-slate-500">cereri personale nesoluționate</div>
               </Card>
             </div>
+
+            {myTasks.length > 0 && (
+              <Card>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-700">✅ Task-urile mele</div>
+                    <div className="text-xs text-slate-500">Sarcini trimise către tine din ERP. Apar aici și pentru contul Kiosk asociat angajatului.</div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge tone={overdueTaskCount ? 'danger' : 'success'}>{overdueTaskCount ? `${overdueTaskCount} depășite` : 'la zi'}</Badge>
+                    {urgentTaskCount > 0 ? <Badge tone="warning">{urgentTaskCount} urgente</Badge> : null}
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  {myTasks.slice(0, 5).map(task => (
+                    <div key={task.id} className={`rounded-lg border px-3 py-2 text-sm ${String(task.status || '') === 'blocked' ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white'}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-800">{task.title}</div>
+                          {task.description ? <div className="mt-1 line-clamp-2 text-xs text-slate-500">{task.description}</div> : null}
+                          <div className="mt-1 text-xs text-slate-400">
+                            {task.due_date ? `Termen: ${String(task.due_date).slice(0, 10)}` : 'Fără termen'}
+                            {task.created_by_name ? ` · de la ${task.created_by_name}` : ''}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                          <Badge size="sm" tone={taskPriorityTone(task.priority)}>{taskPriorityLabel(task.priority)}</Badge>
+                          <Badge size="sm" tone={String(task.status || '') === 'blocked' ? 'danger' : 'info'}>{taskStatusLabel(task.status)}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <span>{myTasks.length > 5 ? `Se afișează primele 5 din ${myTasks.length}.` : `${myTasks.length} task-uri deschise.`}</span>
+                  {!kioskToken ? <Button size="sm" variant="secondary" onClick={() => { window.location.href = '/taskuri' }}>Deschide panoul Task-uri</Button> : null}
+                </div>
+              </Card>
+            )}
 
             {!kioskToken && kioskSummary?.fluturasi?.length ? (
               <div className="rounded-lg border border-slate-200 bg-white p-4">

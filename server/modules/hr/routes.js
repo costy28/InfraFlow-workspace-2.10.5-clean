@@ -675,6 +675,36 @@ function personalNotifications(db, userId) {
     .slice(0, 20)
 }
 
+function userIdValue(user) {
+  return String(user?.id || user?.userId || user?.username || '')
+}
+
+function linkedUserForEmployee(db, employee) {
+  if (!employee) return null
+  const users = Array.isArray(db.users) ? db.users : []
+  const employeeId = String(employee.id || '')
+  const explicitUserId = String(employee.user_id || employee.userId || '')
+  return users.find((user) => user.active !== false && user.active !== 0 && (
+    (explicitUserId && userIdValue(user) === explicitUserId) ||
+    String(user.employee_id || user.employeeId || '') === employeeId
+  )) || null
+}
+
+function kioskTasksForUser(db, userId) {
+  const store = db.taskManagement && typeof db.taskManagement === 'object' ? db.taskManagement : {}
+  const openStatuses = new Set(['open', 'in_progress', 'blocked'])
+  return (Array.isArray(store.tasks) ? store.tasks : [])
+    .filter((task) => String(task.assigned_to || '') === String(userId))
+    .filter((task) => openStatuses.has(String(task.status || 'open')))
+    .sort((a, b) => {
+      const aDue = a.due_date || '9999-12-31'
+      const bDue = b.due_date || '9999-12-31'
+      if (aDue !== bDue) return String(aDue).localeCompare(String(bDue))
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''))
+    })
+    .slice(0, 20)
+}
+
 function kioskEquipmentResponsibility(db, employeeId) {
   const hr = ensureHrDb(db)
   const types = Array.isArray(hr.echipamenteTipuri) ? hr.echipamenteTipuri : []
@@ -801,6 +831,7 @@ FOR JSON PATH;`, { employeeId: employee.id, month })
       .slice(0, 12)
       .map(({ line, run }) => ({ id: line.id, run_id: run.id, luna: run.luna, net: line.net, status: run.status, url: `/api/hr/kiosk/payslips/${run.id}/${line.id}` })),
     notificari: personalNotifications(db, auth.user.id),
+    taskuri: kioskTasksForUser(db, auth.user.id),
     echipamente: kioskEquipmentResponsibility(db, employee.id),
   }
 }
@@ -4803,6 +4834,8 @@ router.get('/hr/kiosk/me', (req, res, next) => {
       .reduce((sum, item) => sum + Number(item.zile || businessDays(item.data_start, item.data_sfarsit) || 0), 0)
     const worked = timeSheets.filter((item) => item.tip === 'lucru' || Number(item.ore_lucrate || 0) > 0)
     const pendingLeaves = leaves.filter((item) => ['cerut', 'pending'].includes(String(item.status || '').toLowerCase()))
+    const linkedUser = linkedUserForEmployee(db, employee)
+    const linkedUserId = linkedUser ? userIdValue(linkedUser) : ''
     sendJson(res, 200, {
       angajat: publicEmployee(employee, { db, user: { role: 'kiosk', permissions: ['hr:view_own'] } }, db),
       concedii: {
@@ -4819,7 +4852,8 @@ router.get('/hr/kiosk/me', (req, res, next) => {
         zile_lucrate: new Set(worked.map((item) => item.data)).size,
       },
       echipamente: kioskEquipmentResponsibility(db, employee.id),
-      notificari: personalNotifications(db, employee.id),
+      notificari: personalNotifications(db, linkedUserId || employee.id),
+      taskuri: linkedUserId ? kioskTasksForUser(db, linkedUserId) : [],
     })
   } catch (err) { next(err) }
 })

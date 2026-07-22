@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.360 - 2026-07-22
+
+## Task-uri în Kiosk și sidebar
+
+- Intrarea `Task-uri` este mutată în meniul principal, lângă `Dashboard` și `Kiosk Angajat`, ca acces rapid permanent.
+- Kiosk-ul afișează cardul `Task-urile mele` pentru task-urile deschise ale utilizatorului ERP asociat angajatului.
+- Cardul Kiosk evidențiază task-urile urgente, depășite, blocate și termenul de rezolvare.
+- Backend-ul creează notificare internă când un task este creat sau reasignat către un responsabil.
+- Hook-ul global de notificări poate afișa notificare browser când apar task-uri personale noi.
+- Conturile Kiosk rămân separate de sesiunile ERP; task-urile sunt citite prin asocierea angajat → utilizator ERP.
+
 # v2.12.359 - 2026-07-22
 
 ## Task-uri „Echipa mea”

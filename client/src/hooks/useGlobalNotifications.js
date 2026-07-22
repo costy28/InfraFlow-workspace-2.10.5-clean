@@ -3,7 +3,7 @@
  * Ascultă SSE de mesaje și polling de sesizări/documente.
  */
 import { useEffect, useRef } from 'react'
-import { notifyDocument, notifyMessage, notifyTicket, permissionGranted } from '../utils/notifications'
+import { notifyDocument, notifyMessage, notifyTask, notifyTicket, permissionGranted } from '../utils/notifications'
 import { useAuth } from './useAuth'
 import api from '../api/client'
 
@@ -13,6 +13,7 @@ export function useGlobalNotifications() {
   const { user } = useAuth()
   const lastTicketCount = useRef(null)
   const lastDocCount = useRef(null)
+  const lastTaskCount = useRef(null)
 
   // ─── SSE mesaje ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -73,6 +74,20 @@ export function useGlobalNotifications() {
             notifyDocument({ subject: `${docs.length} documente de aprobat` })
           }
           lastDocCount.current = docs.length
+        }
+
+        // Task-uri personale deschise
+        const taskRes = await api.get('/tasks/my-open').catch(() => null)
+        if (taskRes) {
+          const tasks = Array.isArray(taskRes.data)
+            ? taskRes.data
+            : (taskRes.data?.tasks || taskRes.data?.items || [])
+          const urgentTask = tasks.find(task => ['urgent', 'high'].includes(String(task.priority || '').toLowerCase()))
+
+          if (lastTaskCount.current !== null && tasks.length > lastTaskCount.current) {
+            notifyTask({ title: urgentTask?.title || `${tasks.length} task-uri deschise`, urgent: Boolean(urgentTask) })
+          }
+          lastTaskCount.current = tasks.length
         }
       } catch { /* ignore */ }
     }

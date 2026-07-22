@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.359**
-**Versiune în lucru: v2.12.359**
+**Versiune curentă sursă: v2.12.360**
+**Versiune în lucru: v2.12.360**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -281,6 +281,7 @@ Task Management
   ✅ Manager direct și delegare către subordonați direcți (v2.12.357)
   ✅ Panou organigramă operațională (v2.12.358)
   ✅ Vedere Task-uri „Echipa mea” (v2.12.359)
+  ✅ Task-uri în Kiosk și acces rapid sidebar (v2.12.360)
   ✅ Status, prioritate, scadență și comentarii
   ✅ Integrare în Dashboard „Ce ai de făcut azi”
 
@@ -485,7 +486,8 @@ PRIORITATE 2 — Expansiune platformă:
       → Faza 3: manager direct și subordonați direcți ✅ UPDATE 377
       → Faza 4: panou organigramă operațională ✅ UPDATE 378
       → Faza 5: vedere task-uri pe echipă ✅ UPDATE 379
-      → Faza 6: organigramă completă cu lanț ierarhic și echipe
+      → Faza 6: task-uri în Kiosk, acces rapid sidebar și notificări ✅ UPDATE 380
+      → Faza 7: organigramă completă cu lanț ierarhic și echipe
       → Legare task de documente, contracte, sesizări, HR, gestiune,
         achiziții, contabilitate sau proiecte
       → Dashboard personal „ce am de făcut azi”
@@ -624,9 +626,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.359
+VERSIUNE CURENTĂ SURSĂ: 2.12.360
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.359 ✅
+UPDATE ZIP CURENT: 2.12.360 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -794,6 +796,7 @@ UPDATES ÎN LUCRU:
   2.12.357 → UPDATE 377 Manager direct pentru task-uri ✅
   2.12.358 → UPDATE 378 Panou organigramă operațională ✅
   2.12.359 → UPDATE 379 Task-uri Echipa mea ✅
+  2.12.360 → UPDATE 380 Task-uri în Kiosk și sidebar ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1286,5 +1289,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 22 Iulie 2026 | InfraFlow sursă v2.12.359*
+*AGENTS.md actualizat: 22 Iulie 2026 | InfraFlow sursă v2.12.360*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

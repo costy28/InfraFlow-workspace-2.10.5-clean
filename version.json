@@ -1,5 +1,5 @@
 {
-  "version": "2.12.359",
+  "version": "2.12.360",
   "date": "2026-07-22",
-  "changelog": "## v2.12.359 - 2026-07-22\n### Task-uri Echipa mea\n- Pagina Task-uri primeste tab separat Echipa mea.\n- Backend-ul accepta scope=team si filtreaza task-urile oamenilor din aria delegabila.\n- Managerii directi vad task-urile subordonatilor fara sa amestece lista personala.\n- Sefii de departament si administratorii pot folosi acelasi tab pentru aria lor operationala.\n- Tab-ul apare doar cand utilizatorul are echipa sau drepturi de coordonare."
+  "changelog": "## v2.12.360 - 2026-07-22\n### Task-uri in Kiosk si sidebar\n- Task-uri este acces rapid in meniul principal, langa Dashboard si Kiosk.\n- Kiosk-ul afiseaza task-urile deschise ale utilizatorului ERP asociat angajatului.\n- Task-urile noi sau reasignate creeaza notificari interne pentru responsabil.\n- Notificarile browser pot semnala cresterea task-urilor personale deschise.\n- Compatibil cu cont ERP si cont Kiosk separat."
 }

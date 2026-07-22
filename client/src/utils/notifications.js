@@ -97,3 +97,13 @@ export function notifyDocument({ subject, action }) {
     tag: 'infraflow-document',
   })
 }
+
+export function notifyTask({ title, urgent }) {
+  notify({
+    title: urgent ? '✅ Task urgent' : '✅ Task nou',
+    body: title || 'Ai un task de rezolvat',
+    url: '/taskuri',
+    tag: 'infraflow-task',
+    requireInteraction: Boolean(urgent),
+  })
+}
