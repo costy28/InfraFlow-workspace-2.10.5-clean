@@ -1,5 +1,5 @@
 {
-  "version": "2.12.353",
+  "version": "2.12.354",
   "date": "2026-07-22",
-  "changelog": "## v2.12.353 - 2026-07-22\n### Prioritati dashboard pe profil utilizator\n- Panoul Ce ai de facut azi se adapteaza la rolul si departamentul utilizatorului.\n- Profilurile executive, HR, financiar, achizitii si operational primesc prioritati diferite.\n- HR include cereri de concediu in asteptare, iar financiar poate evidentia semnale din contabilitate.\n- Recomandarile critice raman vizibile chiar daca nu fac parte din profilul principal."
+  "changelog": "## v2.12.354 - 2026-07-22\n### Contabilitate hub si roadmap task-uri\n- Profilul financiar din dashboard devine profil financiar extins.\n- Contabilitatea poate vedea semnale din HR, gestiune si contracte, fara acces operational implicit total.\n- Dashboard-ul poate afisa sinteza datelor operationale care alimenteaza contabilitatea.\n- Roadmap-ul comercial include directia Task Management cu task-uri delegate si personale."
 }

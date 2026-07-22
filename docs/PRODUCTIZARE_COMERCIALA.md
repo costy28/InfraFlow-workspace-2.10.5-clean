@@ -30,6 +30,7 @@ Regula de aur:
 | Warehouse / WMS | depozite mici-medii-mari | locații, rafturi, loturi, seriale, picking, packing, transferuri, inventariere mobilă |
 | Logistics | distribuție / transport | comenzi transport, rute, încărcări, livrări, POD, cost/km, integrare fleet |
 | Contabilitate | contabil intern | contabilitate, declarații, SAF-T, D112, salarizare, dosar fiscal |
+| Task Management | echipe mixte / management | task-uri personale, task-uri delegate, subordonați, scadențe, status, comentarii, legare la documente/contracte/module |
 | City Services | servicii publice | salubrizare, deszăpezire, siguranță circulație, mediu |
 | Public Health / Ecarisaj | servicii specializate | sesizări, capturi, transport, carcase/animale, documente sanitar-veterinare, trasee |
 | Enterprise | organizații mari | toate modulele + workflow avansat + AI + integrări |
@@ -88,6 +89,27 @@ Etape recomandate:
 8. **Explicații contabile/fiscale pe înțelesul operatorului**, nu doar coduri.
 9. **Kiosk simplu pentru angajați**, fără încărcare administrativă.
 10. **AI helper opțional**, cu răspunsuri pe datele organizației.
+
+## Organizare pe roluri, task-uri și contabilitate ca hub
+
+În multe firme private, contabilitatea nu este doar un modul izolat: primește date din HR, gestiune, achiziții, contracte și documente. InfraFlow trebuie să trateze contabilitatea ca hub de raportare și validare, fără să ofere automat acces operațional complet tuturor contabililor.
+
+Principii:
+
+- contabilitatea vede sinteze și semnale din modulele care o alimentează;
+- accesul operațional rămâne granular: HR, gestiune, achiziții, contracte, documente;
+- o persoană desemnată doar pentru HR nu primește implicit gestiune sau contabilitate completă;
+- o persoană desemnată doar pentru gestiune nu primește implicit HR;
+- rolurile pot grupa module pentru firme mici, dar pot separa atribuții pentru firme mari.
+
+Direcție Task Management:
+
+- directorul/șeful poate crea task-uri pentru subordonați;
+- orice utilizator își poate crea task-uri personale;
+- task-urile pot fi legate de documente, contracte, sesizări, HR, gestiune sau contabilitate;
+- fiecare task are responsabil, scadență, prioritate, status, comentarii și istoric;
+- dashboard-ul afișează task-urile relevante pentru rolul utilizatorului;
+- task-urile delegate trebuie să respecte ierarhia și permisiunile, nu doar departamentul textual.
 
 ## Reguli de decuplare de client
 

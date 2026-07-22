@@ -774,3 +774,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/DashboardPage.jsx` — ✅ profiluri executive, HR, financiar, achiziții, operațional și general;
 - `client/src/pages/DashboardPage.jsx` — ✅ recomandările sunt filtrate/reordonate după domeniile profilului;
 - `client/src/pages/DashboardPage.jsx` — ✅ cererile HR în așteptare și semnalele financiare pot intra în prioritățile zilei.
+
+### UPDATE 374 — Contabilitate hub și roadmap task-uri
+
+- `client/src/pages/DashboardPage.jsx` — ✅ profil financiar extins cu semnale HR, stocuri și contracte;
+- `client/src/pages/DashboardPage.jsx` — ✅ recomandare `Date operaționale pentru contabilitate`;
+- `docs/PRODUCTIZARE_COMERCIALA.md` — ✅ direcție de produs pentru contabilitate ca hub de date;
+- `docs/PRODUCTIZARE_COMERCIALA.md` — ✅ roadmap pentru Task Management delegat/personal.

@@ -159,9 +159,9 @@ function dashboardProfile(user) {
   if (identity.includes('contab') || identity.includes('financ') || identity.includes('economic')) {
     return {
       key: 'accounting',
-      label: 'Profil financiar',
-      domains: ['accounting', 'documents', 'contracts'],
-      hint: 'Prioritate pe documente, contracte și semnale financiare.',
+      label: 'Profil financiar extins',
+      domains: ['accounting', 'documents', 'contracts', 'hr', 'stocks'],
+      hint: 'Contabilitatea vede semnalele financiare și datele operaționale care ajung în contabilitate.',
     }
   }
   if (identity.includes('achiz') || identity.includes('procurement') || identity.includes('jurid')) {
@@ -594,6 +594,28 @@ function buildTodayActions(view, profile = dashboardProfile(null)) {
       route: routes.accounting,
       cta: 'Vezi contabilitate',
     })
+  }
+
+  if (profile.key === 'accounting') {
+    const upstreamSignals = [
+      leaveRequestsPending.length ? `${leaveRequestsPending.length} cereri HR` : null,
+      view.criticalStocks.length ? `${view.criticalStocks.length} stocuri critice` : null,
+      contractRiskTotal ? `${contractRiskTotal} contracte cu risc` : null,
+      contractTasksOpen.length ? `${contractTasksOpen.length} task-uri contracte` : null,
+    ].filter(Boolean)
+    if (upstreamSignals.length) {
+      actions.push({
+        key: 'accounting_upstream',
+        domain: 'accounting',
+        icon: '🧾',
+        tone: 'info',
+        weight: 74,
+        title: 'Date operaționale pentru contabilitate',
+        description: `Semnale din modulele care alimentează contabilitatea: ${upstreamSignals.join(' · ')}.`,
+        route: routes.accounting,
+        cta: 'Vezi sinteză',
+      })
+    }
   }
 
   if (!view.projects.length) {

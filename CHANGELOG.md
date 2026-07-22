@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.354 - 2026-07-22
+
+## Contabilitate hub și roadmap task-uri
+
+- Profilul financiar din dashboard devine `Profil financiar extins`.
+- Contabilitatea poate ridica în priorități semnale venite din HR, gestiune/stocuri și contracte.
+- Dashboard-ul poate afișa o recomandare `Date operaționale pentru contabilitate`, ca sinteză a modulelor care alimentează contabilitatea.
+- Accesul rămâne granular: semnalele pot fi vizibile în sinteză fără să acorde automat acces operațional complet.
+- Documentația de productizare include direcția `Task Management`: task-uri delegate, task-uri personale, scadențe, comentarii și legare la module.
+- Nu necesită migrări; compatibil cu JSON și MSSQL.
+
 # v2.12.353 - 2026-07-22
 
 ## Priorități dashboard pe profil utilizator
