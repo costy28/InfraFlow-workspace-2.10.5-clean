@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.371 - 2026-07-23
+
+## Task din email Inbox ERP
+
+- Catalogul de surse task include acum `Email ERP`.
+- Inbox ERP afișează buton `Creează task` pe fiecare email.
+- Modalul de conversie precompletează titlul, descrierea, prioritatea și sursa task-ului din email.
+- Crearea task-ului folosește endpoint-ul existent `/api/tasks`, păstrând regulile de delegare și auditul task-urilor.
+- După creare, emailul este marcat ca citit când actualizarea este permisă.
+- Smoke suite verifică faptul că sursa `email` există în catalogul task-urilor.
+
 # v2.12.370 - 2026-07-23
 
 ## Fundație Inbox ERP

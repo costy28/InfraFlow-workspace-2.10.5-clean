@@ -88,6 +88,11 @@ export default function MessagingPage() {
   const [emailStats, setEmailStats] = useState({ total: 0, unread: 0, important: 0, with_attachments: 0 })
   const [emailFilters, setEmailFilters] = useState(emailFilterDefaults)
   const [emailLoading, setEmailLoading] = useState(false)
+  const [taskUsers, setTaskUsers] = useState([])
+  const [taskEmail, setTaskEmail] = useState(null)
+  const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', priority: 'normal', due_date: '' })
+  const [taskLoading, setTaskLoading] = useState(false)
+  const [taskError, setTaskError] = useState('')
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -172,6 +177,64 @@ export default function MessagingPage() {
   useEffect(() => {
     if (activeTab === 'email') Promise.resolve().then(() => loadEmailInbox())
   }, [activeTab, loadEmailInbox])
+
+  const loadTaskUsers = useCallback(async () => {
+    try {
+      const response = await api.get('/tasks/assignees')
+      const rows = arrayFrom(response.data, ['users'])
+      setTaskUsers(rows)
+      return rows
+    } catch {
+      setTaskUsers([])
+      return []
+    }
+  }, [])
+
+  function openTaskFromEmail(email) {
+    setTaskEmail(email)
+    setTaskError('')
+    const title = `Răspunde / rezolvă email: ${email.subject || 'fără subiect'}`
+    const description = [
+      `Email primit de la: ${email.from || '-'}`,
+      email.to ? `Către: ${email.to}` : '',
+      email.category_label ? `Categorie: ${email.category_label}` : '',
+      email.preview ? `Conținut: ${email.preview}` : '',
+      email.source_label ? `Legat de: ${email.source_label}` : '',
+    ].filter(Boolean).join('\n')
+    setTaskForm({
+      title,
+      description,
+      assigned_to: currentUserId || '',
+      priority: email.importance === 'urgent' ? 'urgent' : (email.importance === 'high' ? 'high' : 'normal'),
+      due_date: '',
+    })
+    if (!taskUsers.length) loadTaskUsers().then(rows => {
+      if (!currentUserId && rows[0]?.id) setTaskForm(form => ({ ...form, assigned_to: rows[0].id }))
+    })
+  }
+
+  async function createTaskFromEmail(event) {
+    event.preventDefault()
+    if (!taskEmail) return
+    setTaskLoading(true)
+    setTaskError('')
+    try {
+      await api.post('/tasks', {
+        ...taskForm,
+        source_type: 'email',
+        source_id: String(taskEmail.id),
+        source_label: `Email: ${taskEmail.subject || taskEmail.from || taskEmail.id}`,
+        source_url: '/mesaje',
+      })
+      await api.patch(`/messaging/email/inbox/${taskEmail.id}`, { status: 'read' }).catch(() => {})
+      setTaskEmail(null)
+      await loadEmailInbox()
+    } catch (err) {
+      setTaskError(err.response?.data?.error || 'Task-ul nu a putut fi creat din email.')
+    } finally {
+      setTaskLoading(false)
+    }
+  }
 
   // ─── Info panel ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -401,9 +464,12 @@ export default function MessagingPage() {
                         </div>
                       ) : null}
                     </div>
-                    {email.source_url ? (
-                      <Button size="sm" variant="secondary" onClick={() => { window.location.href = email.source_url }}>Deschide sursa</Button>
-                    ) : null}
+                    <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                      <Button size="sm" onClick={() => openTaskFromEmail(email)}>Creează task</Button>
+                      {email.source_url ? (
+                        <Button size="sm" variant="secondary" onClick={() => { window.location.href = email.source_url }}>Deschide sursa</Button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               )
@@ -706,6 +772,61 @@ export default function MessagingPage() {
       </Modal>
         </div>
       )}
+
+      <Modal open={Boolean(taskEmail)} title="Creează task din email" onClose={() => setTaskEmail(null)}>
+        <form className="grid gap-4" onSubmit={createTaskFromEmail}>
+          {taskEmail ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-semibold text-slate-900">{taskEmail.subject || 'Email fără subiect'}</div>
+              <div className="mt-1 text-xs text-slate-500">De la {taskEmail.from || '-'} · {taskEmail.category_label || taskEmail.category || 'General'}</div>
+            </div>
+          ) : null}
+          <Input
+            label="Titlu task"
+            value={taskForm.title}
+            onChange={event => setTaskForm(form => ({ ...form, title: event.target.value }))}
+            required
+          />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Descriere</label>
+            <textarea
+              className="min-h-[120px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+              value={taskForm.description}
+              onChange={event => setTaskForm(form => ({ ...form, description: event.target.value }))}
+            />
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <Select
+              label="Responsabil"
+              value={taskForm.assigned_to}
+              onChange={event => setTaskForm(form => ({ ...form, assigned_to: event.target.value }))}
+              options={taskUsers.map(item => ({ value: item.id, label: item.name || item.username || item.id }))}
+            />
+            <Select
+              label="Prioritate"
+              value={taskForm.priority}
+              onChange={event => setTaskForm(form => ({ ...form, priority: event.target.value }))}
+              options={[
+                { value: 'low', label: 'Scăzută' },
+                { value: 'normal', label: 'Normală' },
+                { value: 'high', label: 'Importantă' },
+                { value: 'urgent', label: 'Urgentă' },
+              ]}
+            />
+            <Input
+              label="Termen"
+              type="date"
+              value={taskForm.due_date}
+              onChange={event => setTaskForm(form => ({ ...form, due_date: event.target.value }))}
+            />
+          </div>
+          {taskError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{taskError}</div> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setTaskEmail(null)}>Renunță</Button>
+            <Button type="submit" loading={taskLoading} disabled={!taskForm.title.trim() || !taskForm.assigned_to}>Creează task</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

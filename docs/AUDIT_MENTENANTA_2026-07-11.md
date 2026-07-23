@@ -912,3 +912,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ tab `Inbox ERP` lângă `Chat intern`;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ filtre UI după text, categorie, importanță și status;
 - `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru Inbox ERP.
+
+### UPDATE 391 — Task din email Inbox ERP
+
+- `server/modules/tasks/routes.js` — ✅ sursă task nouă `email`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiune `Creează task` pe emailurile din Inbox ERP;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ modal de conversie email → task, cu responsabil, prioritate și termen;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ task-ul este creat prin endpoint-ul existent `/api/tasks`;
+- `scripts/smoke-modules-readonly.js` — ✅ verificare sursă `email` în catalogul de surse task.

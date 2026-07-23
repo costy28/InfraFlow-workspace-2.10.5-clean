@@ -28,6 +28,7 @@ const TASK_SOURCE_TYPES = [
   { value: 'procurement', label: 'Achiziții', route: '/achizitii' },
   { value: 'accounting', label: 'Contabilitate', route: '/contabilitate' },
   { value: 'fleet', label: 'Mecanizare', route: '/mecanizare' },
+  { value: 'email', label: 'Email ERP', route: '/mesaje' },
   { value: 'template', label: 'Șablon task', route: '/taskuri' },
 ]
 
