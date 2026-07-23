@@ -1,5 +1,5 @@
 {
-  "version": "2.12.363",
-  "date": "2026-07-22",
-  "changelog": "## v2.12.363 - 2026-07-22\n### Sablone rapide pentru task-uri\n- Pagina Task-uri primeste catalog de sabloane rapide pentru activitati repetitive.\n- Utilizatorul alege responsabilul si creeaza task dintr-un click.\n- Backend-ul expune /api/tasks/templates si /api/tasks/from-template cu aceleasi reguli de delegare.\n- Sablonele sistem includ documente, dovezi, raport zilnic, contracte si gestiune.\n- Operatiunile sunt auditate si nu necesita migrare DB."
+  "version": "2.12.364",
+  "date": "2026-07-23",
+  "changelog": "## v2.12.364 - 2026-07-23\n### Sablone personalizate pentru task-uri\n- Coordonatorii pot crea sabloane proprii de task din pagina Task-uri.\n- Sablonele custom au nume, categorie, titlu, instructiuni, prioritate si termen implicit.\n- Sablonele custom se pot dezactiva logic, fara stergere fizica.\n- Backend-ul adauga POST /api/tasks/templates si PATCH /api/tasks/templates/:id.\n- Operatiunile sunt auditate si nu necesita migrare DB."
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.364 - 2026-07-23
+
+## Șabloane personalizate pentru task-uri
+
+- Coordonatorii pot crea șabloane proprii direct din pagina `Task-uri`.
+- Șablonul custom include nume, categorie, titlu generat, instrucțiuni, prioritate și termen implicit.
+- Șabloanele personalizate apar lângă șabloanele sistem și pot crea task-uri dintr-un click.
+- Șabloanele custom pot fi dezactivate logic, fără ștergere fizică.
+- Backend-ul expune `POST /api/tasks/templates` și `PATCH /api/tasks/templates/:id`.
+- Endpoint-ul `GET /api/tasks/templates` indică explicit dacă utilizatorul poate administra șabloane.
+- Operațiunile sunt auditate și rămân compatibile cu JSON/MSSQL app_state.
+
 # v2.12.363 - 2026-07-22
 
 ## Șabloane rapide pentru task-uri

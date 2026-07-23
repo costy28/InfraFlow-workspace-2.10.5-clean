@@ -853,3 +853,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/TasksPage.jsx` — ✅ secțiune `Șabloane rapide` cu responsabil selectabil;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ creare task dintr-un click pentru documente, dovezi, rapoarte, contracte și gestiune;
 - `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/tasks/templates`.
+
+### UPDATE 384 — Șabloane personalizate pentru task-uri
+
+- `server/modules/tasks/routes.js` — ✅ creare șabloane custom prin `POST /api/tasks/templates`;
+- `server/modules/tasks/routes.js` — ✅ actualizare/dezactivare logică prin `PATCH /api/tasks/templates/:id`;
+- `server/modules/tasks/routes.js` — ✅ audit pentru creare, modificare și dezactivare șablon;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ formular `Șablon task nou`;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ afișare șabloane custom lângă șabloanele sistem și dezactivare custom din UI.

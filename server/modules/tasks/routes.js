@@ -226,6 +226,26 @@ function taskTemplateCatalog(db) {
   ].sort((a, b) => String(a.category || '').localeCompare(String(b.category || ''), 'ro') || String(a.name || '').localeCompare(String(b.name || ''), 'ro'))
 }
 
+function taskTemplatePayload(body) {
+  const name = compactText(body.name || body.nume, 120)
+  const title = compactText(body.title || body.titlu || name, 180)
+  if (!name || !title) {
+    const err = new Error('Numele și titlul șablonului sunt obligatorii.')
+    err.status = 400
+    throw err
+  }
+  const dueDays = Number(body.due_days ?? body.dueDays ?? 0)
+  return {
+    name,
+    title,
+    description: compactText(body.description || body.descriere, 1500),
+    priority: VALID_PRIORITIES.has(String(body.priority || body.prioritate)) ? String(body.priority || body.prioritate) : 'normal',
+    due_days: Number.isFinite(dueDays) ? Math.max(0, Math.min(365, Math.trunc(dueDays))) : 0,
+    source_type: compactText(body.source_type || body.entitate_tip || 'template', 80),
+    category: compactText(body.category || body.categorie || 'Personalizat', 80),
+  }
+}
+
 function attachmentUrl(attachment) {
   return `/api/tasks/${encodeURIComponent(String(attachment.task_id))}/attachments/${encodeURIComponent(String(attachment.id))}/download`
 }
@@ -348,7 +368,30 @@ router.get('/tasks/assignees', (req, res) => {
 router.get('/tasks/templates', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  res.json({ templates: taskTemplateCatalog(auth.db) })
+  res.json({ templates: taskTemplateCatalog(auth.db), can_manage_templates: canManageDepartmentTasks(auth.user, auth.permissions) })
+})
+
+router.post('/tasks/templates', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManageDepartmentTasks(auth.user, auth.permissions)) return res.status(403).json({ error: 'Nu poți administra șabloane de task.' })
+  const store = ensureTasksDb(auth.db)
+  try {
+    const template = {
+      id: id('task-template'),
+      ...taskTemplatePayload(req.body || {}),
+      created_by: userId(auth.user),
+      created_by_name: userLabel(auth.user),
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    }
+    store.templates.push(template)
+    addAudit(auth.db, auth.user, 'tasks:template_create', { templateId: template.id, name: template.name })
+    writeDb(auth.db)
+    res.status(201).json({ template: { ...template, system: false } })
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || 'Șablonul nu a putut fi creat.' })
+  }
 })
 
 router.get('/tasks/:id', (req, res) => {
@@ -441,6 +484,33 @@ router.post('/tasks/from-template', (req, res) => {
   addAudit(auth.db, auth.user, 'tasks:create_from_template', { taskId: task.id, templateId: template.id, assigned_to: task.assigned_to })
   writeDb(auth.db)
   res.status(201).json({ task: enrichTask(task, users) })
+})
+
+router.patch('/tasks/templates/:id', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManageDepartmentTasks(auth.user, auth.permissions)) return res.status(403).json({ error: 'Nu poți administra șabloane de task.' })
+  const store = ensureTasksDb(auth.db)
+  const template = store.templates.find(item => String(item.id) === String(req.params.id))
+  if (!template || template.cancelled_at) return res.status(404).json({ error: 'Șablonul personalizat nu a fost găsit.' })
+  const body = req.body || {}
+  if (body.cancelled || body.active === false || body.status === 'cancelled') {
+    template.cancelled_at = nowIso()
+    template.cancelled_by = userId(auth.user)
+    template.cancelled_reason = compactText(body.reason || body.cancelled_reason || 'Dezactivat din interfața Task-uri.', 500)
+    template.updated_at = nowIso()
+    addAudit(auth.db, auth.user, 'tasks:template_cancel', { templateId: template.id, name: template.name })
+    writeDb(auth.db)
+    return res.json({ ok: true, template })
+  }
+  try {
+    Object.assign(template, taskTemplatePayload(body), { updated_at: nowIso(), updated_by: userId(auth.user) })
+    addAudit(auth.db, auth.user, 'tasks:template_update', { templateId: template.id, name: template.name })
+    writeDb(auth.db)
+    res.json({ template: { ...template, system: false } })
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || 'Șablonul nu a putut fi actualizat.' })
+  }
 })
 
 router.patch('/tasks/:id', (req, res) => {

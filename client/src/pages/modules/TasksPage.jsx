@@ -69,6 +69,15 @@ const emptyForm = {
   priority: 'normal',
 }
 
+const emptyTemplateForm = {
+  name: '',
+  title: '',
+  description: '',
+  category: 'Personalizat',
+  due_days: 1,
+  priority: 'normal',
+}
+
 export default function TasksPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('assigned')
@@ -76,11 +85,14 @@ export default function TasksPage() {
   const [users, setUsers] = useState([])
   const [templates, setTemplates] = useState([])
   const [templateAssignee, setTemplateAssignee] = useState('')
+  const [canManageTemplates, setCanManageTemplates] = useState(false)
   const [assigneeScope, setAssigneeScope] = useState('self')
   const [selected, setSelected] = useState(null)
   const [details, setDetails] = useState({ task: null, comments: [], attachments: [] })
   const [formOpen, setFormOpen] = useState(false)
+  const [templateFormOpen, setTemplateFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [templateForm, setTemplateForm] = useState(emptyTemplateForm)
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -101,6 +113,7 @@ export default function TasksPage() {
       setTasks(arrayFrom(tasksRes.data, ['tasks']))
       setUsers(arrayFrom(usersRes.data, ['users']))
       setTemplates(arrayFrom(templatesRes.data, ['templates']))
+      setCanManageTemplates(Boolean(templatesRes.data?.can_manage_templates))
       setAssigneeScope(usersRes.data?.scope || 'self')
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca task-urile.')
@@ -190,6 +203,32 @@ export default function TasksPage() {
     }
   }
 
+  async function createTemplate(event) {
+    event.preventDefault()
+    setMessage('')
+    try {
+      await api.post('/tasks/templates', templateForm)
+      setTemplateForm(emptyTemplateForm)
+      setTemplateFormOpen(false)
+      setMessage('Șablon de task creat.')
+      await load()
+    } catch (err) {
+      setMessage(err.response?.data?.error || 'Șablonul nu a putut fi creat.')
+    }
+  }
+
+  async function cancelTemplate(template) {
+    if (template.system) return
+    setMessage('')
+    try {
+      await api.patch(`/tasks/templates/${template.id}`, { cancelled: true, reason: 'Dezactivat din pagina Task-uri.' })
+      setMessage(`Șablon dezactivat: ${template.name || template.title}.`)
+      await load()
+    } catch (err) {
+      setMessage(err.response?.data?.error || 'Șablonul nu a putut fi dezactivat.')
+    }
+  }
+
   async function updateTask(task, patch) {
     setMessage('')
     try {
@@ -253,26 +292,32 @@ export default function TasksPage() {
               <h3 className="text-base font-semibold text-slate-900">Șabloane rapide</h3>
               <p className="text-sm text-slate-500">Pornește task-uri repetitive fără să rescrii aceleași instrucțiuni.</p>
             </div>
-            <Select label="Responsabil pentru șablon" value={templateAssignee} onChange={event => setTemplateAssignee(event.target.value)}>
-              {userOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </Select>
+            <div className="flex flex-wrap items-end gap-2">
+              <Select label="Responsabil pentru șablon" value={templateAssignee} onChange={event => setTemplateAssignee(event.target.value)}>
+                {userOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              {canManageTemplates ? <Button variant="secondary" onClick={() => setTemplateFormOpen(true)}>+ Șablon</Button> : null}
+            </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             {templates.map(template => (
-              <button
+              <div
                 key={template.id}
-                type="button"
                 className="rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50"
-                onClick={() => createFromTemplate(template)}
-                disabled={!templateAssignee && !userId(user)}
               >
                 <div className="text-xs font-semibold uppercase text-slate-500">{template.category || 'Task'}</div>
                 <div className="mt-1 font-semibold text-slate-900">{template.name || template.title}</div>
+                {template.description ? <div className="mt-1 line-clamp-2 text-xs text-slate-500">{template.description}</div> : null}
                 <div className="mt-2 flex flex-wrap gap-1">
                   <Badge tone={priorityTone(template.priority)} size="sm">{label(template.priority)}</Badge>
                   <Badge tone="neutral" size="sm">{Number(template.due_days || 0) === 0 ? 'azi' : `+${template.due_days} zile`}</Badge>
+                  {!template.system ? <Badge tone="info" size="sm">custom</Badge> : null}
                 </div>
-              </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => createFromTemplate(template)} disabled={!templateAssignee && !userId(user)}>Creează</Button>
+                  {canManageTemplates && !template.system ? <Button size="sm" variant="secondary" onClick={() => cancelTemplate(template)}>Dezactivează</Button> : null}
+                </div>
+              </div>
             ))}
           </div>
         </Card>
@@ -369,6 +414,38 @@ export default function TasksPage() {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>Renunță</Button>
             <Button type="submit">Salvează task</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={templateFormOpen} title="Șablon task nou" onClose={() => setTemplateFormOpen(false)} size="lg">
+        <form className="grid gap-3" onSubmit={createTemplate}>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="Nume scurt" value={templateForm.name} onChange={event => setTemplateForm(current => ({ ...current, name: event.target.value }))} required />
+            <Input label="Categorie" value={templateForm.category} onChange={event => setTemplateForm(current => ({ ...current, category: event.target.value }))} />
+          </div>
+          <Input label="Titlu task generat" value={templateForm.title} onChange={event => setTemplateForm(current => ({ ...current, title: event.target.value }))} required />
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Instrucțiuni implicite
+            <textarea
+              className="min-h-28 rounded-md border border-slate-200 px-3 py-2 text-sm"
+              value={templateForm.description}
+              onChange={event => setTemplateForm(current => ({ ...current, description: event.target.value }))}
+              placeholder="Ce trebuie să facă responsabilul, ce dovadă trebuie atașată, cum se marchează finalizarea..."
+            />
+          </label>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="Termen implicit, zile" type="number" min="0" max="365" value={templateForm.due_days} onChange={event => setTemplateForm(current => ({ ...current, due_days: event.target.value }))} />
+            <Select label="Prioritate implicită" value={templateForm.priority} onChange={event => setTemplateForm(current => ({ ...current, priority: event.target.value }))}>
+              {priorities.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
+          </div>
+          <div className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Șablonul va fi disponibil în lista rapidă pentru coordonatori. Nu creează task-uri singur; doar standardizează task-urile repetitive.
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setTemplateFormOpen(false)}>Renunță</Button>
+            <Button type="submit">Salvează șablon</Button>
           </div>
         </form>
       </Modal>
