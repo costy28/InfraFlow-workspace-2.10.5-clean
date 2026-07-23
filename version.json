@@ -1,5 +1,5 @@
 {
-  "version": "2.12.366",
+  "version": "2.12.367",
   "date": "2026-07-23",
-  "changelog": "## v2.12.366 - 2026-07-23\n### Task ERP din dosar contract\n- Dosarul contractului poate crea direct un task ERP legat de contract.\n- Task-ul este salvat in Task Management cu source_type=contract, link intern si notificare catre responsabil.\n- Cockpit-ul si lista de task-uri contract includ task-urile ERP alaturi de task-urile interne de alerta.\n- Timeline-ul contractului vede task-ul ERP ca eveniment operational.\n- UI-ul contractului are buton + Task ERP si modal cu responsabil, scadenta si prioritate."
+  "changelog": "## v2.12.367 - 2026-07-23\n### Deep-link dosar contract din task\n- Pagina Contracte citeste parametrul intern ?contract=ID.\n- Linkul Deschide sursa din Task-uri deschide automat dosarul contractului legat.\n- Integrarea Task-uri ↔ Contracte devine bidirectionala: contractul creeaza task, task-ul readuce utilizatorul in dosar.\n- Comportamentul existent al listei de contracte ramane neschimbat cand parametrul lipseste."
 }

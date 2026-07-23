@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.367 - 2026-07-23
+
+## Deep-link dosar contract din task
+
+- Pagina `Contracte` citește parametrul intern `?contract=ID`.
+- Când linkul vine dintr-un task legat de contract, dosarul contractului se deschide automat.
+- Butonul `Deschide sursa` din `Task-uri` devine util end-to-end pentru task-urile create din contract.
+- Integrarea devine bidirecțională: contractul creează task ERP, iar task-ul readuce utilizatorul în dosarul contractului.
+- Lista de contracte rămâne neschimbată când parametrul lipsește.
+
 # v2.12.366 - 2026-07-23
 
 ## Task ERP din dosar contract

@@ -881,3 +881,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ buton `+ Task ERP` în dosarul contractului;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ modal cu responsabil, scadență și prioritate;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ badge `ERP` în lista de task-uri din cockpit.
+
+### UPDATE 387 — Deep-link dosar contract din task
+
+- `client/src/pages/modules/ContractePage.jsx` — ✅ citire parametru intern `?contract=ID`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ deschidere automată dosar contract după încărcarea listei;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ flux complet `Task-uri → Deschide sursa → Dosar contract`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ comportament neschimbat pentru accesul normal fără query-param.

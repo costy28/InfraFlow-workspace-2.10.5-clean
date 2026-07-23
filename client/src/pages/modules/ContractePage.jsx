@@ -248,6 +248,7 @@ export default function ContractePage() {
   const [erpTaskModalOpen, setErpTaskModalOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
   const [contractDetails, setContractDetails] = useState(null)
+  const [deepLinkedContractId, setDeepLinkedContractId] = useState('')
   const [contractForm, setContractForm] = useState(emptyContractForm)
   const [consumptionForm, setConsumptionForm] = useState(emptyConsumptionForm)
   const [sourceForm, setSourceForm] = useState(emptySourceForm)
@@ -547,6 +548,17 @@ export default function ContractePage() {
   useEffect(() => {
     setSelectedContractIds(current => current.filter(contractId => contracts.some(contract => String(contract.id) === String(contractId))))
   }, [contracts])
+
+  useEffect(() => {
+    if (loading || !contracts.length || deepLinkedContractId) return
+    const params = new URLSearchParams(window.location.search || '')
+    const contractId = params.get('contract')
+    if (!contractId) return
+    const contract = contracts.find(item => String(item.id) === String(contractId))
+    if (!contract) return
+    setDeepLinkedContractId(contractId)
+    openDetails(contract)
+  }, [contracts, loading, deepLinkedContractId])
 
   async function load() {
     setLoading(true)

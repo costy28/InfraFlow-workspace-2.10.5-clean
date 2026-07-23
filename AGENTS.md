@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.366**
-**Versiune în lucru: v2.12.366**
+**Versiune curentă sursă: v2.12.367**
+**Versiune în lucru: v2.12.367**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -288,6 +288,7 @@ Task Management
   ✅ Șabloane personalizate pentru task-uri (v2.12.364)
   ✅ Legare generică task de surse ERP (v2.12.365)
   ✅ Task ERP din dosar contract (v2.12.366)
+  ✅ Deep-link dosar contract din task (v2.12.367)
   ✅ Status, prioritate, scadență și comentarii
   ✅ Integrare în Dashboard „Ce ai de făcut azi”
 
@@ -499,7 +500,8 @@ PRIORITATE 2 — Expansiune platformă:
       → Faza 10: șabloane personalizate pentru task-uri repetitive ✅ UPDATE 384
       → Faza 11: legare generică task de surse ERP ✅ UPDATE 385
       → Faza 12: task ERP direct din dosar contract ✅ UPDATE 386
-      → Faza 13: organigramă completă cu lanț ierarhic și echipe
+      → Faza 13: deep-link dosar contract din task ✅ UPDATE 387
+      → Faza 14: organigramă completă cu lanț ierarhic și echipe
       → Legare task de documente, contracte, sesizări, HR, gestiune,
         achiziții, contabilitate sau proiecte
       → Dashboard personal „ce am de făcut azi”
@@ -638,9 +640,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.366
+VERSIUNE CURENTĂ SURSĂ: 2.12.367
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.366 ✅
+UPDATE ZIP CURENT: 2.12.367 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -815,6 +817,7 @@ UPDATES ÎN LUCRU:
   2.12.364 → UPDATE 384 Șabloane personalizate pentru task-uri ✅
   2.12.365 → UPDATE 385 Legare generică task de surse ERP ✅
   2.12.366 → UPDATE 386 Task ERP din dosar contract ✅
+  2.12.367 → UPDATE 387 Deep-link dosar contract din task ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1307,5 +1310,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 23 Iulie 2026 | InfraFlow sursă v2.12.366*
+*AGENTS.md actualizat: 23 Iulie 2026 | InfraFlow sursă v2.12.367*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
