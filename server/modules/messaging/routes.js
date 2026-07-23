@@ -60,7 +60,86 @@ function ensureMessagingDb(db) {
   db.messaging.channelMembers = Array.isArray(db.messaging.channelMembers) ? db.messaging.channelMembers : []
   db.messaging.messages = Array.isArray(db.messaging.messages) ? db.messaging.messages : []
   db.messaging.mentions = Array.isArray(db.messaging.mentions) ? db.messaging.mentions : []
+  db.messaging.emailCategories = Array.isArray(db.messaging.emailCategories) ? db.messaging.emailCategories : []
+  db.messaging.emailMessages = Array.isArray(db.messaging.emailMessages) ? db.messaging.emailMessages : []
   return db.messaging
+}
+
+const DEFAULT_EMAIL_CATEGORIES = [
+  { id: 'general', label: 'General', icon: '📥', color: 'slate', module: 'core', system: true },
+  { id: 'contracte', label: 'Contracte', icon: '📑', color: 'emerald', module: 'contract_management', system: true },
+  { id: 'achizitii', label: 'Achiziții', icon: '🛒', color: 'amber', module: 'procurement', system: true },
+  { id: 'contabilitate', label: 'Contabilitate', icon: '🏦', color: 'blue', module: 'accounting', system: true },
+  { id: 'hr', label: 'HR', icon: '👥', color: 'purple', module: 'hr', system: true },
+  { id: 'documente', label: 'Documente', icon: '🗂️', color: 'indigo', module: 'documents', system: true },
+  { id: 'sesizari', label: 'Sesizări', icon: '🎫', color: 'rose', module: 'tickets', system: true }
+]
+
+const EMAIL_IMPORTANCE = ['low', 'normal', 'high', 'urgent']
+
+function emailCategories(messaging) {
+  const custom = messaging.emailCategories.filter(item => item && item.id)
+  const byId = new Map(DEFAULT_EMAIL_CATEGORIES.concat(custom).map(item => [String(item.id), item]))
+  return Array.from(byId.values())
+}
+
+function publicEmailCategory(category) {
+  return {
+    id: String(category.id),
+    label: category.label || category.name || String(category.id),
+    icon: category.icon || '📥',
+    color: category.color || 'slate',
+    module: category.module || null,
+    system: category.system === true
+  }
+}
+
+function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES) {
+  const category = categories.find(item => String(item.id) === String(message.category || 'general')) || DEFAULT_EMAIL_CATEGORIES[0]
+  return {
+    id: message.id,
+    direction: message.direction || 'inbound',
+    status: message.status || 'unread',
+    from: message.from || '',
+    to: message.to || '',
+    subject: message.subject || '',
+    preview: message.preview || String(message.body || '').replace(/\s+/g, ' ').trim().slice(0, 180),
+    body: message.body || '',
+    category: category.id,
+    category_label: category.label,
+    category_icon: category.icon,
+    importance: EMAIL_IMPORTANCE.includes(message.importance) ? message.importance : 'normal',
+    has_attachments: Boolean(message.has_attachments || (Array.isArray(message.attachments) && message.attachments.length)),
+    attachments_count: Array.isArray(message.attachments) ? message.attachments.length : Number(message.attachments_count || 0),
+    source_type: message.source_type || null,
+    source_id: message.source_id || null,
+    source_label: message.source_label || null,
+    source_url: message.source_url || null,
+    received_at: message.received_at || message.created_at,
+    created_at: message.created_at,
+    created_by: message.created_by || null,
+    updated_at: message.updated_at || null
+  }
+}
+
+function normalizeEmailImportance(value) {
+  const text = String(value || 'normal').trim().toLowerCase()
+  return EMAIL_IMPORTANCE.includes(text) ? text : 'normal'
+}
+
+function safeInternalUrl(value) {
+  const text = String(value || '').trim()
+  if (!text || !text.startsWith('/') || text.startsWith('//')) return null
+  return text
+}
+
+function emailStats(messages) {
+  return {
+    total: messages.length,
+    unread: messages.filter(item => item.status === 'unread').length,
+    important: messages.filter(item => ['high', 'urgent'].includes(item.importance)).length,
+    with_attachments: messages.filter(item => item.has_attachments).length
+  }
 }
 
 async function createDefaultChannels(dbInput) {
@@ -353,6 +432,128 @@ router.post('/messaging/email/send-bulk', async (req, res, next) => {
     addAudit(auth.db, auth.user, 'email_bulk_sent', `${list.length} destinatari`)
     writeDb(auth.db)
     sendJson(res, 200, { ok: true, sent: list.length })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/messaging/email/categories', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:view')) return
+    const messaging = ensureMessagingDb(auth.db)
+    sendJson(res, 200, { categories: emailCategories(messaging).map(publicEmailCategory) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/messaging/email/inbox', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:view')) return
+    const messaging = ensureMessagingDb(auth.db)
+    const categories = emailCategories(messaging)
+    const query = String(req.query.q || '').trim().toLowerCase()
+    const category = String(req.query.category || '').trim()
+    const importance = String(req.query.importance || '').trim().toLowerCase()
+    const status = String(req.query.status || '').trim().toLowerCase()
+    const sourceType = String(req.query.source_type || '').trim()
+    const hasAttachments = String(req.query.has_attachments || '').trim()
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit || 80)))
+
+    let rows = messaging.emailMessages.map(item => publicEmailMessage(item, categories))
+    if (query) {
+      rows = rows.filter(item => [item.from, item.to, item.subject, item.preview, item.source_label].join(' ').toLowerCase().includes(query))
+    }
+    if (category) rows = rows.filter(item => String(item.category) === category)
+    if (importance) rows = rows.filter(item => item.importance === importance)
+    if (status) rows = rows.filter(item => item.status === status)
+    if (sourceType) rows = rows.filter(item => String(item.source_type || '') === sourceType)
+    if (hasAttachments === 'true') rows = rows.filter(item => item.has_attachments)
+    if (hasAttachments === 'false') rows = rows.filter(item => !item.has_attachments)
+
+    rows = rows.sort((a, b) => String(b.received_at || '').localeCompare(String(a.received_at || ''))).slice(0, limit)
+    sendJson(res, 200, {
+      emails: rows,
+      categories: categories.map(publicEmailCategory),
+      stats: emailStats(rows)
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/messaging/email/inbox', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:send')) return
+    const messaging = ensureMessagingDb(auth.db)
+    const body = req.body || {}
+    const subject = String(body.subject || '').trim()
+    const from = String(body.from || '').trim()
+    if (!subject || !from) return sendJson(res, 400, { error: 'Expeditorul si subiectul sunt obligatorii.' })
+    const categories = emailCategories(messaging)
+    const category = categories.some(item => String(item.id) === String(body.category || 'general')) ? String(body.category || 'general') : 'general'
+    const attachments = Array.isArray(body.attachments) ? body.attachments.map(item => ({
+      name: String(item?.name || item?.filename || '').trim(),
+      size: Number(item?.size || 0),
+      type: String(item?.type || '').trim()
+    })).filter(item => item.name) : []
+    const email = {
+      id: nextId(messaging.emailMessages),
+      direction: ['inbound', 'outbound'].includes(body.direction) ? body.direction : 'inbound',
+      status: ['unread', 'read', 'archived'].includes(body.status) ? body.status : 'unread',
+      from,
+      to: String(body.to || '').trim(),
+      subject,
+      preview: String(body.preview || '').trim(),
+      body: String(body.body || '').trim(),
+      category,
+      importance: normalizeEmailImportance(body.importance),
+      attachments,
+      has_attachments: attachments.length > 0 || Boolean(body.has_attachments),
+      source_type: String(body.source_type || '').trim() || null,
+      source_id: String(body.source_id || '').trim() || null,
+      source_label: String(body.source_label || '').trim() || null,
+      source_url: safeInternalUrl(body.source_url),
+      received_at: body.received_at || nowIso(),
+      created_by: auth.user.id,
+      created_at: nowIso()
+    }
+    messaging.emailMessages.push(email)
+    addAudit(auth.db, auth.user, 'messaging_email_inbox_add', `${email.category} / ${email.subject}`)
+    writeDb(auth.db)
+    sendJson(res, 201, { email: publicEmailMessage(email, categories) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.patch('/messaging/email/inbox/:id', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:send')) return
+    const messaging = ensureMessagingDb(auth.db)
+    const email = messaging.emailMessages.find(item => String(item.id) === String(req.params.id))
+    if (!email) throwHttp(404, 'Email inexistent.')
+    const body = req.body || {}
+    const categories = emailCategories(messaging)
+    if (body.category !== undefined && categories.some(item => String(item.id) === String(body.category))) email.category = String(body.category)
+    if (body.importance !== undefined) email.importance = normalizeEmailImportance(body.importance)
+    if (body.status !== undefined && ['unread', 'read', 'archived'].includes(String(body.status))) email.status = String(body.status)
+    if (body.source_type !== undefined) email.source_type = String(body.source_type || '').trim() || null
+    if (body.source_id !== undefined) email.source_id = String(body.source_id || '').trim() || null
+    if (body.source_label !== undefined) email.source_label = String(body.source_label || '').trim() || null
+    if (body.source_url !== undefined) email.source_url = safeInternalUrl(body.source_url)
+    email.updated_at = nowIso()
+    addAudit(auth.db, auth.user, 'messaging_email_inbox_update', `${email.id} / ${email.subject}`)
+    writeDb(auth.db)
+    sendJson(res, 200, { email: publicEmailMessage(email, categories) })
   } catch (error) {
     next(error)
   }

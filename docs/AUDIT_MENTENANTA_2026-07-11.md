@@ -902,3 +902,13 @@ Următorul pas de stabilizare: `2.12.300`
 - `AGENTS.md` — ✅ adăugată direcția `Comunicare / Inbox ERP`;
 - `CHANGELOG.md` — ✅ clarificată strategia: email organizațional per utilizator, fără conturi personale;
 - `updates/UPDATE_389_directie_email_erp_organizational.md` — ✅ notă de update pentru roadmap comunicare.
+
+### UPDATE 390 — Fundație Inbox ERP
+
+- `server/modules/messaging/routes.js` — ✅ categorii email organizaționale implicite;
+- `server/modules/messaging/routes.js` — ✅ endpoint `GET /api/messaging/email/categories`;
+- `server/modules/messaging/routes.js` — ✅ endpoint `GET /api/messaging/email/inbox`, cu filtre și statistici;
+- `server/modules/messaging/routes.js` — ✅ endpoint-uri write pentru înregistrare/reclasificare email intern, cu audit;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ tab `Inbox ERP` lângă `Chat intern`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ filtre UI după text, categorie, importanță și status;
+- `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru Inbox ERP.

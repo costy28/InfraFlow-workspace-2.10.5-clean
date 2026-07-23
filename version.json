@@ -1,5 +1,5 @@
 {
-  "version": "2.12.369",
+  "version": "2.12.370",
   "date": "2026-07-23",
-  "changelog": "## v2.12.369 - 2026-07-23\n### Directie Email ERP organizational\n- Roadmap-ul renunta explicit la email personal in aplicatie.\n- Directia devine email organizational per utilizator si Inbox ERP integrat.\n- Comunicarea va putea fi clasificata pe categorii, importanta, sursa ERP si atasamente.\n- SMTP-ul global ramane fallback pentru instalari mici si notificari de sistem."
+  "changelog": "## v2.12.370 - 2026-07-23\n### Fundatie Inbox ERP\n- Modulul Mesaje primeste tabul Inbox ERP.\n- Backend-ul expune categorii email si inbox intern filtrabil.\n- Emailurile pot avea categorie, importanta, status, atasamente si sursa ERP.\n- Smoke suite verifica endpoint-urile read-only pentru Inbox ERP."
 }

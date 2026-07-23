@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.370 - 2026-07-23
+
+## Fundație Inbox ERP
+
+- Modulul `Mesaje` primește tab nou `Inbox ERP`.
+- Backend-ul expune `GET /api/messaging/email/categories` și `GET /api/messaging/email/inbox`.
+- Backend-ul permite înregistrarea internă a unui email prin `POST /api/messaging/email/inbox`.
+- Emailurile interne pot avea categorie, importanță, status, atașamente și legătură către o sursă ERP.
+- UI-ul oferă filtre după text, categorie, importanță și status.
+- Smoke suite verifică endpoint-urile read-only pentru Inbox ERP.
+
 # v2.12.369 - 2026-07-23
 
 ## Direcție Email ERP organizațional

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Hash, Info, Plus, Send, Trash2, Users, X } from 'lucide-react'
+import { Hash, Info, Mail, Paperclip, Plus, Search, Send, Trash2, Users, X } from 'lucide-react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -68,11 +68,26 @@ function messageText(message) {
 
 const emptyChannelForm = { nume: '', tip: 'departament', descriere: '' }
 
+const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '' }
+
+function importanceBadge(value) {
+  if (value === 'urgent') return { label: 'urgent', tone: 'danger', cls: 'bg-rose-100 text-rose-700' }
+  if (value === 'high') return { label: 'important', tone: 'warning', cls: 'bg-amber-100 text-amber-700' }
+  if (value === 'low') return { label: 'scăzut', tone: 'muted', cls: 'bg-slate-100 text-slate-500' }
+  return { label: 'normal', tone: 'default', cls: 'bg-emerald-100 text-emerald-700' }
+}
+
 export default function MessagingPage() {
   const { user } = useAuth()
+  const [activeTab, setActiveTab] = useState('chat')
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [messages, setMessages] = useState([])
+  const [emailRows, setEmailRows] = useState([])
+  const [emailCategories, setEmailCategories] = useState([])
+  const [emailStats, setEmailStats] = useState({ total: 0, unread: 0, important: 0, with_attachments: 0 })
+  const [emailFilters, setEmailFilters] = useState(emailFilterDefaults)
+  const [emailLoading, setEmailLoading] = useState(false)
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -137,6 +152,26 @@ export default function MessagingPage() {
   useEffect(() => { Promise.resolve().then(() => loadChannels()) }, [loadChannels])
   useEffect(() => { Promise.resolve().then(() => loadMessages(activeChannel)) }, [activeChannel, loadMessages])
   useEffect(() => { if (!listRef.current) return; listRef.current.scrollTop = listRef.current.scrollHeight }, [messages])
+
+  const loadEmailInbox = useCallback(async () => {
+    setEmailLoading(true)
+    setError('')
+    try {
+      const params = Object.fromEntries(Object.entries(emailFilters).filter(([, value]) => String(value || '').trim()))
+      const response = await api.get('/messaging/email/inbox', { params })
+      setEmailRows(arrayFrom(response.data, ['emails']))
+      setEmailCategories(arrayFrom(response.data, ['categories']))
+      setEmailStats(response.data?.stats || { total: 0, unread: 0, important: 0, with_attachments: 0 })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nu am putut încărca Inbox ERP.')
+    } finally {
+      setEmailLoading(false)
+    }
+  }, [emailFilters])
+
+  useEffect(() => {
+    if (activeTab === 'email') Promise.resolve().then(() => loadEmailInbox())
+  }, [activeTab, loadEmailInbox])
 
   // ─── Info panel ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -231,7 +266,152 @@ export default function MessagingPage() {
   const totalUnread = channels.reduce((sum, c) => sum + (c.unread || 0), 0)
 
   return (
-    <div className="grid h-[calc(100vh-8rem)] gap-4 lg:grid-cols-[300px_1fr]">
+    <div className="space-y-4">
+      <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
+        <div>
+          <h1 className="text-lg font-semibold text-slate-900">Comunicare</h1>
+          <p className="text-sm text-slate-500">Chat intern, notificări și fundația Inbox ERP organizațional.</p>
+        </div>
+        <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('chat')}
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === 'chat' ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Hash size={15} /> Chat intern {totalUnread > 0 ? <Badge tone="danger">{totalUnread}</Badge> : null}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('email')}
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === 'email' ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Mail size={15} /> Inbox ERP {emailStats.unread > 0 ? <Badge tone="danger">{emailStats.unread}</Badge> : null}
+          </button>
+        </div>
+      </Card>
+
+      {activeTab === 'email' ? (
+        <Card className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Inbox ERP organizațional</h2>
+              <p className="text-sm text-slate-500">
+                Fundație pentru emailuri clasificate și legate de surse ERP. Integrarea IMAP/OAuth vine într-un update separat.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={loadEmailInbox} loading={emailLoading}>Reîncarcă</Button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs uppercase text-slate-500">Emailuri</div>
+              <div className="text-2xl font-bold text-slate-900">{emailStats.total || 0}</div>
+            </div>
+            <div className="rounded-lg border border-rose-100 bg-rose-50 p-3">
+              <div className="text-xs uppercase text-rose-600">Necitite</div>
+              <div className="text-2xl font-bold text-rose-700">{emailStats.unread || 0}</div>
+            </div>
+            <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
+              <div className="text-xs uppercase text-amber-700">Importante</div>
+              <div className="text-2xl font-bold text-amber-700">{emailStats.important || 0}</div>
+            </div>
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+              <div className="text-xs uppercase text-blue-700">Cu atașamente</div>
+              <div className="text-2xl font-bold text-blue-700">{emailStats.with_attachments || 0}</div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto]">
+            <Input
+              label="Caută"
+              value={emailFilters.q}
+              onChange={event => setEmailFilters(filters => ({ ...filters, q: event.target.value }))}
+              placeholder="subiect, expeditor, sursă ERP..."
+            />
+            <Select
+              label="Categorie"
+              value={emailFilters.category}
+              onChange={event => setEmailFilters(filters => ({ ...filters, category: event.target.value }))}
+              options={[{ value: '', label: 'Toate categoriile' }].concat(emailCategories.map(item => ({ value: item.id, label: `${item.icon || '📥'} ${item.label}` })))}
+            />
+            <Select
+              label="Importanță"
+              value={emailFilters.importance}
+              onChange={event => setEmailFilters(filters => ({ ...filters, importance: event.target.value }))}
+              options={[
+                { value: '', label: 'Toate' },
+                { value: 'urgent', label: 'Urgent' },
+                { value: 'high', label: 'Important' },
+                { value: 'normal', label: 'Normal' },
+                { value: 'low', label: 'Scăzut' },
+              ]}
+            />
+            <Select
+              label="Status"
+              value={emailFilters.status}
+              onChange={event => setEmailFilters(filters => ({ ...filters, status: event.target.value }))}
+              options={[
+                { value: '', label: 'Toate' },
+                { value: 'unread', label: 'Necitite' },
+                { value: 'read', label: 'Citite' },
+                { value: 'archived', label: 'Arhivate' },
+              ]}
+            />
+            <div className="flex items-end gap-2">
+              <Button type="button" onClick={loadEmailInbox} loading={emailLoading}><Search size={15} /></Button>
+              <Button type="button" variant="secondary" onClick={() => setEmailFilters(emailFilterDefaults)}>Reset</Button>
+            </div>
+          </div>
+
+          {error && <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+
+          <div className="overflow-hidden rounded-xl border border-slate-200">
+            {emailLoading ? (
+              <div className="p-6 text-sm text-slate-500">Se încarcă Inbox ERP...</div>
+            ) : emailRows.length === 0 ? (
+              <div className="grid place-items-center p-10 text-center">
+                <div className="mb-2 text-4xl">📬</div>
+                <div className="font-semibold text-slate-800">Inbox ERP pregătit</div>
+                <p className="mt-1 max-w-xl text-sm text-slate-500">
+                  Nu există emailuri interne înregistrate încă. Următorul pas va conecta această cutie poștală la furnizori reali sau la conversia email → task/document.
+                </p>
+              </div>
+            ) : emailRows.map(email => {
+              const badge = importanceBadge(email.importance)
+              return (
+                <div key={email.id} className="border-b border-slate-100 p-4 last:border-b-0 hover:bg-slate-50">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                          {email.category_icon || '📥'} {email.category_label || email.category}
+                        </span>
+                        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
+                        {email.status === 'unread' ? <Badge tone="danger">necitit</Badge> : null}
+                        {email.has_attachments ? <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Paperclip size={13} /> {email.attachments_count || 1}</span> : null}
+                      </div>
+                      <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">{email.subject}</h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        De la <strong>{email.from}</strong>{email.to ? <> către {email.to}</> : null} · {formatDate(email.received_at)}
+                      </p>
+                      {email.preview ? <p className="mt-2 line-clamp-2 text-sm text-slate-600">{email.preview}</p> : null}
+                      {email.source_label ? (
+                        <div className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                          Legat de: {email.source_label}
+                        </div>
+                      ) : null}
+                    </div>
+                    {email.source_url ? (
+                      <Button size="sm" variant="secondary" onClick={() => { window.location.href = email.source_url }}>Deschide sursa</Button>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      ) : (
+        <div className="grid h-[calc(100vh-13rem)] gap-4 lg:grid-cols-[300px_1fr]">
 
       {/* ── SIDEBAR CANALE ── */}
       <Card className="flex min-h-0 flex-col p-0">
@@ -524,6 +704,8 @@ export default function MessagingPage() {
           </Button>
         </div>
       </Modal>
+        </div>
+      )}
     </div>
   )
 }
