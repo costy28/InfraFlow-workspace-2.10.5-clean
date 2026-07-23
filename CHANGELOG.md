@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.366 - 2026-07-23
+
+## Task ERP din dosar contract
+
+- Dosarul contractului primește buton `+ Task ERP`.
+- Modalul nou permite setarea titlului, descrierii, responsabilului, scadenței și priorității.
+- Backend-ul expune `POST /api/contracts/:id/erp-task`.
+- Task-ul creat intră în `taskManagement.tasks` cu `source_type=contract`, `source_id`, `source_label` și `source_url`.
+- Responsabilul primește notificare internă, iar task-ul apare în modulul `Task-uri` și în Kiosk.
+- Cockpit-ul contractului include task-urile ERP lângă task-urile interne generate din alerte.
+- Lista `/api/contracts/tasks` include și task-urile ERP legate de contracte, pentru raportare operațională unificată.
+
 # v2.12.365 - 2026-07-23
 
 ## Legare generică task de surse ERP

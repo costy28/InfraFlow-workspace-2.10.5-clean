@@ -94,6 +94,15 @@ function ensureTicketsDb(db) {
   return db.tickets
 }
 
+function ensureTaskManagementDb(db) {
+  db.taskManagement = db.taskManagement || {}
+  db.taskManagement.tasks = Array.isArray(db.taskManagement.tasks) ? db.taskManagement.tasks : []
+  db.taskManagement.comments = Array.isArray(db.taskManagement.comments) ? db.taskManagement.comments : []
+  db.taskManagement.attachments = Array.isArray(db.taskManagement.attachments) ? db.taskManagement.attachments : []
+  db.taskManagement.templates = Array.isArray(db.taskManagement.templates) ? db.taskManagement.templates : []
+  return db.taskManagement
+}
+
 function nextNumericId(items) {
   return items.reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1
 }
@@ -108,6 +117,32 @@ function todayIso() {
 
 function id(prefix) {
   return `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`
+}
+
+function clipText(value, max = 180) {
+  return String(value ?? '').trim().slice(0, max)
+}
+
+function contractUserId(user) {
+  return String(user?.id || user?.userId || user?.username || '').trim()
+}
+
+function contractUserLabel(user) {
+  return user?.name || user?.fullName || user?.nume || user?.username || contractUserId(user)
+}
+
+function activeContractUsers(db) {
+  return (Array.isArray(db.users) ? db.users : []).filter(user => user && user.active !== false && user.active !== 0 && user.is_active !== false)
+}
+
+function contractUserMap(db) {
+  return new Map(activeContractUsers(db).map(user => [contractUserId(user), user]).filter(([uid]) => uid))
+}
+
+function addDaysIso(days = 3) {
+  const date = new Date()
+  date.setDate(date.getDate() + Number(days || 0))
+  return date.toISOString().slice(0, 10)
 }
 
 function safeFileName(value) {
@@ -949,9 +984,10 @@ function contractCockpit(db, contract, decoratedContract = null) {
     .filter(item => !item.cancelled_at && !item.cancelledAt)
     .filter(item => String(item.contract_id) === String(contract.id))
     .map(item => decorateTask(db, item))
+    .concat(contractErpTasks(db, contract))
   const tickets = ticketsDb.tickets
-    .filter(item => item.entitate_tip === 'contract' && String(item.entitate_id) === String(contract.id) ||
-      item.entitate_tip === 'contract_task' && tasks.some(task => String(task.id) === String(item.entitate_id)))
+    .filter(item => (item.entitate_tip === 'contract' && String(item.entitate_id) === String(contract.id)) ||
+      (item.entitate_tip === 'contract_task' && tasks.some(task => String(task.id) === String(item.entitate_id))))
     .map(item => ({
       id: item.id,
       uuid: item.uuid,
@@ -964,7 +1000,7 @@ function contractCockpit(db, contract, decoratedContract = null) {
       created_at: item.created_at,
       updated_at: item.updated_at
     }))
-  const openTaskCount = tasks.filter(item => !['rezolvat', 'inchis', 'anulat'].includes(String(item.status || '').toLowerCase())).length
+  const openTaskCount = tasks.filter(item => !isContractTaskClosedStatus(item.status)).length
   const openTicketCount = tickets.filter(item => !['rezolvat', 'inchis', 'respins'].includes(String(item.status || '').toLowerCase())).length
   const timeline = contractTimeline(db, contract, decorated, tasks, tickets)
   const completeness = contractCompleteness(db, contract, decorated)
@@ -1728,20 +1764,90 @@ function decorateTask(db, task) {
   }
 }
 
+function contractSourceLabel(contract) {
+  return clipText(`${contract.numar || 'Contract'} — ${contract.titlu || contract.partener || 'fără titlu'}`, 180)
+}
+
+function isContractTaskClosedStatus(status) {
+  return ['rezolvat', 'inchis', 'anulat', 'done', 'cancelled', 'closed'].includes(String(status || '').toLowerCase())
+}
+
+function taskStatusTone(status, overdue = false) {
+  if (overdue) return 'danger'
+  const raw = String(status || '').toLowerCase()
+  if (['rezolvat', 'done', 'inchis', 'closed'].includes(raw)) return 'success'
+  if (['blocked', 'blocat'].includes(raw)) return 'danger'
+  if (['in_lucru', 'in_progress'].includes(raw)) return 'warning'
+  return 'info'
+}
+
+function decorateErpTaskForContract(db, task, contract = null) {
+  const cm = ensureContractsDb(db)
+  const sourceContract = contract || cm.contracts.find(item => String(item.id) === String(task.source_id))
+  const users = contractUserMap(db)
+  const assignee = users.get(String(task.assigned_to || ''))
+  const creator = users.get(String(task.created_by || ''))
+  const closed = isContractTaskClosedStatus(task.status)
+  const deadline = task.due_date || task.deadline || ''
+  const overdue = Boolean(deadline && String(deadline).slice(0, 10) < todayIso() && !closed)
+  return {
+    ...task,
+    id: task.id,
+    erp_task_id: task.id,
+    source_kind: 'erp_task',
+    source_type: 'contract',
+    titlu: task.title || task.titlu || 'Task contract',
+    descriere: task.description || task.descriere || '',
+    status: task.status || 'open',
+    deadline,
+    prioritate: task.priority || task.prioritate || 'normal',
+    responsabil_nume: task.assigned_to_name || contractUserLabel(assignee) || '',
+    created_by_name: task.created_by_name || contractUserLabel(creator) || '',
+    contract_id: sourceContract?.id || task.source_id || '',
+    contract_numar: sourceContract?.numar || '',
+    contract_titlu: sourceContract?.titlu || '',
+    partener: sourceContract?.partener || '',
+    overdue,
+    tone: taskStatusTone(task.status, overdue),
+    ticket_uuid: task.ticket_uuid || null,
+    ticket_status: task.ticket_status || null
+  }
+}
+
+function contractErpTasks(db, contract = null) {
+  const store = ensureTaskManagementDb(db)
+  return store.tasks
+    .filter(item => !item.cancelled_at && !item.cancelledAt)
+    .filter(item => String(item.source_type || '') === 'contract')
+    .filter(item => !contract || String(item.source_id || '') === String(contract.id))
+    .map(item => decorateErpTaskForContract(db, item, contract))
+}
+
 function contractTasks(db, filters = {}) {
   const cm = ensureContractsDb(db)
   const status = String(filters.status || 'deschise').trim().toLowerCase()
   const contractId = filters.contract_id || filters.contractId || null
-  return cm.tasks
+  const internalTasks = cm.tasks
     .filter(item => !item.cancelled_at && !item.cancelledAt)
     .filter(item => {
       const raw = String(item.status || '').toLowerCase()
       if (!status || status === 'toate') return true
-      if (status === 'deschise') return !['rezolvat', 'inchis', 'anulat'].includes(raw)
+      if (status === 'deschise') return !isContractTaskClosedStatus(raw)
       return raw === status
     })
     .filter(item => !contractId || String(item.contract_id) === String(contractId))
     .map(item => decorateTask(db, item))
+
+  const erpTasks = contractErpTasks(db)
+    .filter(item => {
+      const raw = String(item.status || '').toLowerCase()
+      if (!status || status === 'toate') return true
+      if (status === 'deschise') return !isContractTaskClosedStatus(raw)
+      return raw === status
+    })
+    .filter(item => !contractId || String(item.contract_id) === String(contractId))
+
+  return [...internalTasks, ...erpTasks]
     .sort((a, b) => String(a.deadline || '9999-12-31').localeCompare(String(b.deadline || '9999-12-31')) || String(b.created_at || '').localeCompare(String(a.created_at || '')))
 }
 
@@ -1985,6 +2091,65 @@ function createContractTaskFromAction(db, contractId, body = {}, user = {}) {
   }
   cm.tasks.push(task)
   return { task: decorateTask(db, task), created: true }
+}
+
+function normalizeErpTaskPriority(value) {
+  const raw = String(value || '').trim().toLowerCase()
+  if (['low', 'normal', 'high', 'urgent'].includes(raw)) return raw
+  if (raw === '1') return 'urgent'
+  if (raw === '2') return 'high'
+  if (raw === '3') return 'normal'
+  return 'normal'
+}
+
+function createErpTaskForContract(db, contractId, body = {}, user = {}) {
+  const cm = ensureContractsDb(db)
+  const store = ensureTaskManagementDb(db)
+  const contract = cm.contracts.find(item => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt)
+  if (!contract) return { error: 'Contract inexistent.', status: 404 }
+
+  const users = contractUserMap(db)
+  const fallbackAssignee = contractUserId(user)
+  const assignedTo = clipText(body.assigned_to || body.assignee_id || fallbackAssignee, 80)
+  const assignee = users.get(String(assignedTo)) || users.get(String(fallbackAssignee))
+  if (!assignee) return { error: 'Alege un responsabil valid pentru task.', status: 400 }
+
+  const title = clipText(body.title || body.titlu || `Verifică ${contract.numar || 'contractul'}`, 180)
+  if (!title) return { error: 'Titlul task-ului este obligatoriu.', status: 422 }
+
+  const task = {
+    id: id('task'),
+    uuid: crypto.randomUUID(),
+    title,
+    description: clipText(body.description || body.descriere || `Task creat din dosarul contractului ${contractSourceLabel(contract)}.`, 1500),
+    assigned_to: contractUserId(assignee),
+    assigned_to_name: contractUserLabel(assignee),
+    priority: normalizeErpTaskPriority(body.priority || body.prioritate),
+    status: 'open',
+    due_date: clipText(body.due_date || body.scadenta || addDaysIso(3), 20),
+    source_type: 'contract',
+    source_id: String(contract.id),
+    source_label: contractSourceLabel(contract),
+    source_url: `/contracte?contract=${encodeURIComponent(String(contract.id))}`,
+    created_by: contractUserId(user),
+    created_by_name: contractUserLabel(user),
+    created_at: nowIso(),
+    updated_at: nowIso()
+  }
+
+  store.tasks.push(task)
+  if (!Array.isArray(db.notifications)) db.notifications = []
+  db.notifications.push({
+    id: id('notification'),
+    type: 'task',
+    user_id: String(task.assigned_to),
+    task_id: task.id,
+    message: `${contractUserLabel(user)} ți-a trimis un task din contract: ${task.title}${task.due_date ? ` · termen ${task.due_date}` : ''}`,
+    created_at: nowIso(),
+    read: false
+  })
+
+  return { task: decorateErpTaskForContract(db, task, contract), contract }
 }
 
 function resolveContractTask(db, taskId, user, body = {}) {
@@ -2376,6 +2541,21 @@ router.get('/contracts/:id/print', (req, res) => {
   if (!contract) return sendJson(res, 404, { error: 'Contract inexistent.' })
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.status(200).send(contractPrintHtml(auth.db, contract, auth.user))
+})
+
+router.post('/contracts/:id/erp-task', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const result = createErpTaskForContract(auth.db, req.params.id, req.body || {}, auth.user)
+  if (result.error) return sendJson(res, result.status || 422, { error: result.error })
+  addAudit(auth.db, auth.user, 'contract_erp_task_created', `${result.contract.numar || req.params.id}: ${result.task.titlu}`)
+  writeDb(auth.db)
+  sendJson(res, 201, {
+    ok: true,
+    task: result.task,
+    contract: decorateContract(auth.db, result.contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true })
+  })
 })
 
 router.post('/contracts/:id/tasks', (req, res) => {

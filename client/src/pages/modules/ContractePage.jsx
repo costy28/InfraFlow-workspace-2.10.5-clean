@@ -58,6 +58,14 @@ const emptyAddendumForm = {
   file: null,
 }
 
+const emptyErpTaskForm = {
+  title: '',
+  description: '',
+  assigned_to: '',
+  due_date: '',
+  priority: 'normal',
+}
+
 const emptyPortfolioFilters = {
   status: 'toate',
   q: '',
@@ -138,6 +146,12 @@ function progressClass(percent) {
   if (percent >= 90) return 'bg-amber-500'
   if (percent >= 80) return 'bg-sky-500'
   return 'bg-emerald-600'
+}
+
+function dateAfterDays(days = 3) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
 }
 
 function percentWidth(percent) {
@@ -231,6 +245,7 @@ export default function ContractePage() {
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [managerModalOpen, setManagerModalOpen] = useState(false)
   const [signedUploadModalOpen, setSignedUploadModalOpen] = useState(false)
+  const [erpTaskModalOpen, setErpTaskModalOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
   const [contractDetails, setContractDetails] = useState(null)
   const [contractForm, setContractForm] = useState(emptyContractForm)
@@ -238,6 +253,7 @@ export default function ContractePage() {
   const [sourceForm, setSourceForm] = useState(emptySourceForm)
   const [attachmentForm, setAttachmentForm] = useState(emptyAttachmentForm)
   const [addendumForm, setAddendumForm] = useState(emptyAddendumForm)
+  const [erpTaskForm, setErpTaskForm] = useState(emptyErpTaskForm)
   const [managerForm, setManagerForm] = useState({ responsabil_nume: '' })
   const [signedAttachmentForm, setSignedAttachmentForm] = useState({
     descriere: 'Contract semnat încărcat din acțiune rapidă',
@@ -302,6 +318,18 @@ export default function ContractePage() {
       .sort((a, b) => a.name.localeCompare(b.name, 'ro'))
       .slice(0, 12)
   }, [users])
+
+  const taskAssigneeOptions = useMemo(() => users
+    .filter(user => user && user.active !== false && user.is_active !== false)
+    .map(user => {
+      const id = String(user.id || user.userId || user.username || '').trim()
+      const name = String(user.name || user.nume || user.full_name || user.username || user.email || id).trim()
+      const role = String(user.role_name || user.role || user.rol || '').trim()
+      const department = String(user.department_name || user.department || user.departament || '').trim()
+      return { id, name, role, department }
+    })
+    .filter(user => user.id && user.name)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ro')), [users])
 
   const savedViewCounts = useMemo(() => {
     const counts = {}
@@ -616,6 +644,29 @@ export default function ContractePage() {
     setNotice('')
   }
 
+  function openErpTaskModal(contract = contractDetails) {
+    if (!contract?.id) return
+    const suggestedAssignee = taskAssigneeOptions.find(user =>
+      contract.responsabil_nume && user.name.toLowerCase() === String(contract.responsabil_nume).trim().toLowerCase()
+    )
+    setSelectedContract(contract)
+    setErpTaskForm({
+      title: `Verifică ${contract.numar || 'contractul'}`,
+      description: `Task creat din dosarul contractului ${contract.numar || ''}${contract.titlu ? ` — ${contract.titlu}` : ''}.`,
+      assigned_to: suggestedAssignee?.id || taskAssigneeOptions[0]?.id || '',
+      due_date: dateAfterDays(3),
+      priority: 'normal',
+    })
+    setErpTaskModalOpen(true)
+    setError('')
+    setNotice('')
+  }
+
+  function closeErpTaskModal() {
+    setErpTaskModalOpen(false)
+    setErpTaskForm(emptyErpTaskForm)
+  }
+
   function closeManagerModal() {
     setManagerModalOpen(false)
     setManagerForm({ responsabil_nume: '' })
@@ -643,6 +694,30 @@ export default function ContractePage() {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Managerul contractului nu a putut fi salvat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveErpTaskFromContract(event) {
+    event.preventDefault()
+    const contract = selectedContract || contractDetails
+    if (!contract?.id) return
+    if (!erpTaskForm.title.trim()) {
+      setError('Titlul task-ului este obligatoriu.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.post(`/contracts/${contract.id}/erp-task`, erpTaskForm)
+      if (response.data.contract) setContractDetails(response.data.contract)
+      setNotice(`Task-ul ERP a fost creat și legat de contractul ${contract.numar || ''}.`)
+      closeErpTaskModal()
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Task-ul ERP nu a putut fi creat din contract.')
     } finally {
       setSaving(false)
     }
@@ -1634,6 +1709,7 @@ export default function ContractePage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="secondary" onClick={() => printContract(contractDetails)}>Fișă print</Button>
+                  <Button size="sm" variant="secondary" onClick={() => openErpTaskModal(contractDetails)}>+ Task ERP</Button>
                   {contractDetails.status !== 'inchis' && contractDetails.status !== 'anulat' ? (
                     <Button size="sm" variant={contractDetails.cockpit?.close_readiness?.can_close ? 'primary' : 'secondary'} onClick={() => closeContract(false)} loading={saving}>
                       Închide contract
@@ -1748,7 +1824,10 @@ export default function ContractePage() {
                       <div key={task.id || task.uuid} className="border-b border-slate-100 px-3 py-2 text-sm last:border-b-0">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="font-medium text-slate-900">{task.titlu}</span>
-                          <Badge tone={task.overdue ? 'danger' : task.status === 'rezolvat' ? 'success' : 'warning'}>{task.status}</Badge>
+                          <div className="flex flex-wrap gap-1">
+                            {task.source_kind === 'erp_task' ? <Badge tone="info">ERP</Badge> : null}
+                            <Badge tone={task.overdue ? 'danger' : task.status === 'rezolvat' || task.status === 'done' ? 'success' : 'warning'}>{task.status}</Badge>
+                          </div>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
                           <span>{task.responsabil_nume || 'responsabil nesetat'}</span>
@@ -2184,6 +2263,58 @@ export default function ContractePage() {
         ) : (
           <div className="py-8 text-center text-sm text-slate-500">Se încarcă dosarul contractului...</div>
         )}
+      </Modal>
+
+      <Modal open={erpTaskModalOpen} title="Task ERP din contract" onClose={closeErpTaskModal}>
+        <form className="grid gap-4" onSubmit={saveErpTaskFromContract}>
+          {selectedContract ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-semibold text-slate-900">{selectedContract.numar || 'Contract'} — {selectedContract.titlu || 'fără titlu'}</div>
+              <div className="mt-1 text-slate-500">Task-ul va apărea în modulul Task-uri, în Kiosk pentru responsabil și în cockpit-ul contractului.</div>
+            </div>
+          ) : null}
+          <Input
+            label="Titlu task"
+            value={erpTaskForm.title}
+            required
+            onChange={event => setErpTaskForm({ ...erpTaskForm, title: event.target.value })}
+          />
+          <Input
+            label="Descriere"
+            value={erpTaskForm.description}
+            onChange={event => setErpTaskForm({ ...erpTaskForm, description: event.target.value })}
+          />
+          <div className="grid gap-3 md:grid-cols-2">
+            <Select
+              label="Responsabil"
+              value={erpTaskForm.assigned_to}
+              onChange={event => setErpTaskForm({ ...erpTaskForm, assigned_to: event.target.value })}
+            >
+              <option value="">Alege responsabil</option>
+              {taskAssigneeOptions.map(user => (
+                <option key={user.id} value={user.id}>
+                  {user.name}{user.department ? ` · ${user.department}` : ''}{user.role ? ` · ${user.role}` : ''}
+                </option>
+              ))}
+            </Select>
+            <Input
+              label="Scadență"
+              type="date"
+              value={erpTaskForm.due_date}
+              onChange={event => setErpTaskForm({ ...erpTaskForm, due_date: event.target.value })}
+            />
+          </div>
+          <Select label="Prioritate" value={erpTaskForm.priority} onChange={event => setErpTaskForm({ ...erpTaskForm, priority: event.target.value })}>
+            <option value="low">Mică</option>
+            <option value="normal">Normală</option>
+            <option value="high">Ridicată</option>
+            <option value="urgent">Urgentă</option>
+          </Select>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={closeErpTaskModal}>Renunță</Button>
+            <Button type="submit" disabled={!erpTaskForm.title.trim() || !erpTaskForm.assigned_to || saving} loading={saving}>Creează task ERP</Button>
+          </div>
+        </form>
       </Modal>
 
       <Modal open={managerModalOpen} title="Asignare manager contract" onClose={closeManagerModal}>

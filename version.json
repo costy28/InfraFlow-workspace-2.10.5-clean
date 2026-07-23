@@ -1,5 +1,5 @@
 {
-  "version": "2.12.365",
+  "version": "2.12.366",
   "date": "2026-07-23",
-  "changelog": "## v2.12.365 - 2026-07-23\n### Legare generica task de surse ERP\n- Task-urile pot retine tip sursa, ID sursa, eticheta si link intern.\n- Backend-ul expune catalogul /api/tasks/source-types.\n- Task-urile sunt imbogatite cu source_type_label, source_label si source_url.\n- Formularul Task nou permite legare optionala la contract, document, referat, HR, gestiune, achizitii, contabilitate si alte module.\n- Detaliile task-ului afiseaza Legat de si buton Deschide sursa."
+  "changelog": "## v2.12.366 - 2026-07-23\n### Task ERP din dosar contract\n- Dosarul contractului poate crea direct un task ERP legat de contract.\n- Task-ul este salvat in Task Management cu source_type=contract, link intern si notificare catre responsabil.\n- Cockpit-ul si lista de task-uri contract includ task-urile ERP alaturi de task-urile interne de alerta.\n- Timeline-ul contractului vede task-ul ERP ca eveniment operational.\n- UI-ul contractului are buton + Task ERP si modal cu responsabil, scadenta si prioritate."
 }

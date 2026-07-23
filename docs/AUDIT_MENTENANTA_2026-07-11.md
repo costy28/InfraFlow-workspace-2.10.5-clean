@@ -871,3 +871,13 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/TasksPage.jsx` — ✅ câmpuri opționale de legare sursă în formularul `Task nou`;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ afișare `Legat de` în listă și detaliile task-ului;
 - `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/tasks/source-types`.
+
+### UPDATE 386 — Task ERP din dosar contract
+
+- `server/modules/contracts/routes.js` — ✅ endpoint `POST /api/contracts/:id/erp-task`;
+- `server/modules/contracts/routes.js` — ✅ creare task în `taskManagement.tasks` cu sursă `contract`;
+- `server/modules/contracts/routes.js` — ✅ notificare internă și audit pentru task-ul creat din dosar;
+- `server/modules/contracts/routes.js` — ✅ cockpit și `/api/contracts/tasks` includ task-urile ERP legate de contract;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ buton `+ Task ERP` în dosarul contractului;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ modal cu responsabil, scadență și prioritate;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ badge `ERP` în lista de task-uri din cockpit.
