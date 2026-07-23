@@ -100,6 +100,11 @@ function taskStatusLabel(status) {
   if (status === 'blocked') return 'blocat'
   return 'nou'
 }
+function safeInternalUrl(value) {
+  const text = String(value || '').trim()
+  if (!text || !text.startsWith('/') || text.startsWith('//')) return ''
+  return text
+}
 
 // ─── Signature Canvas Component ───────────────────────────────────────────────
 function SignatureCanvas({ onConfirm }) {
@@ -1152,6 +1157,12 @@ export default function KioskPage() {
                         <div className="min-w-0">
                           <div className="font-semibold text-slate-800">{task.title}</div>
                           {task.description ? <div className="mt-1 line-clamp-2 text-xs text-slate-500">{task.description}</div> : null}
+                          {task.source_label || task.source_type_label || task.source_type ? (
+                            <div className="mt-2 rounded-md border border-slate-100 bg-slate-50 px-2 py-1 text-xs text-slate-500">
+                              <span className="font-semibold text-slate-600">Legat de: </span>
+                              {task.source_label || task.source_type_label || String(task.source_type || '').replaceAll('_', ' ')}
+                            </div>
+                          ) : null}
                           <div className="mt-1 text-xs text-slate-400">
                             {task.due_date ? `Termen: ${String(task.due_date).slice(0, 10)}` : 'Fără termen'}
                             {task.created_by_name ? ` · de la ${task.created_by_name}` : ''}
@@ -1177,6 +1188,9 @@ export default function KioskPage() {
                           ) : null}
                           <Button size="sm" variant="secondary" loading={taskSaving === `${task.id}:blocked`} onClick={() => saveTaskAction(task, 'blocked')}>Blochez</Button>
                           <Button size="sm" loading={taskSaving === `${task.id}:done`} onClick={() => saveTaskAction(task, 'done')}>Finalizez</Button>
+                          {!kioskToken && safeInternalUrl(task.source_url) ? (
+                            <Button size="sm" variant="secondary" onClick={() => { window.location.href = safeInternalUrl(task.source_url) }}>Deschide sursa</Button>
+                          ) : null}
                           {(taskNotes[task.id] || '').trim() ? (
                             <Button size="sm" variant="ghost" loading={taskSaving === `${task.id}:comment`} onClick={() => saveTaskAction(task)}>Adaug comentariu</Button>
                           ) : null}

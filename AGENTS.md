@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.367**
-**Versiune în lucru: v2.12.367**
+**Versiune curentă sursă: v2.12.368**
+**Versiune în lucru: v2.12.368**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -289,6 +289,7 @@ Task Management
   ✅ Legare generică task de surse ERP (v2.12.365)
   ✅ Task ERP din dosar contract (v2.12.366)
   ✅ Deep-link dosar contract din task (v2.12.367)
+  ✅ Sursa task-ului în Kiosk (v2.12.368)
   ✅ Status, prioritate, scadență și comentarii
   ✅ Integrare în Dashboard „Ce ai de făcut azi”
 
@@ -501,7 +502,8 @@ PRIORITATE 2 — Expansiune platformă:
       → Faza 11: legare generică task de surse ERP ✅ UPDATE 385
       → Faza 12: task ERP direct din dosar contract ✅ UPDATE 386
       → Faza 13: deep-link dosar contract din task ✅ UPDATE 387
-      → Faza 14: organigramă completă cu lanț ierarhic și echipe
+      → Faza 14: sursa task-ului în Kiosk ✅ UPDATE 388
+      → Faza 15: organigramă completă cu lanț ierarhic și echipe
       → Legare task de documente, contracte, sesizări, HR, gestiune,
         achiziții, contabilitate sau proiecte
       → Dashboard personal „ce am de făcut azi”
@@ -566,6 +568,13 @@ PRIORITATE 3 — Infrastructură comercială:
       → Haiku 4.5 pentru operațiuni simple
       → Sonnet 4.6 pentru analize complexe
       → Contor tokens per instalare client
+
+  [ ] Email per utilizator și consimțământ
+      → Adresă email profesională sau personală per utilizator
+      → Email personal doar cu acord explicit, datat și auditabil
+      → Preferințe notificări pe module și canale
+      → SMTP global ca fallback organizațional
+      → Viitor: alias centralizat, OAuth/SMTP per utilizator și politici pe tenant
 
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
@@ -640,9 +649,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.367
+VERSIUNE CURENTĂ SURSĂ: 2.12.368
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.367 ✅
+UPDATE ZIP CURENT: 2.12.368 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -818,6 +827,7 @@ UPDATES ÎN LUCRU:
   2.12.365 → UPDATE 385 Legare generică task de surse ERP ✅
   2.12.366 → UPDATE 386 Task ERP din dosar contract ✅
   2.12.367 → UPDATE 387 Deep-link dosar contract din task ✅
+  2.12.368 → UPDATE 388 Sursa task-ului în Kiosk ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1310,5 +1320,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 23 Iulie 2026 | InfraFlow sursă v2.12.367*
+*AGENTS.md actualizat: 23 Iulie 2026 | InfraFlow sursă v2.12.368*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

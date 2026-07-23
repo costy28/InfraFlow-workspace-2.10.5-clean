@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.368 - 2026-07-23
+
+## Sursa task-ului în Kiosk
+
+- Kiosk-ul afișează contextul `Legat de` pentru task-urile care vin dintr-o sursă ERP.
+- Pentru utilizatorii intrați în Kiosk din sesiunea normală ERP apare butonul `Deschide sursa`.
+- Pentru conturile Kiosk fără sesiune ERP se afișează doar contextul, fără acces direct către module administrative.
+- Linkurile sunt acceptate doar ca URL-uri interne relative.
+- Roadmap-ul include direcția `Email per utilizator și consimțământ`, cu fallback pe SMTP-ul organizației.
+
 # v2.12.367 - 2026-07-23
 
 ## Deep-link dosar contract din task

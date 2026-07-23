@@ -1,5 +1,5 @@
 {
-  "version": "2.12.367",
+  "version": "2.12.368",
   "date": "2026-07-23",
-  "changelog": "## v2.12.367 - 2026-07-23\n### Deep-link dosar contract din task\n- Pagina Contracte citeste parametrul intern ?contract=ID.\n- Linkul Deschide sursa din Task-uri deschide automat dosarul contractului legat.\n- Integrarea Task-uri ↔ Contracte devine bidirectionala: contractul creeaza task, task-ul readuce utilizatorul in dosar.\n- Comportamentul existent al listei de contracte ramane neschimbat cand parametrul lipseste."
+  "changelog": "## v2.12.368 - 2026-07-23\n### Sursa task-ului in Kiosk\n- Kiosk afiseaza contextul Legat de pentru task-uri cu sursa ERP.\n- Butonul Deschide sursa apare cand utilizatorul este in sesiune ERP si linkul este intern.\n- Conturile Kiosk fara sesiune ERP vad contextul, fara acces direct la module ERP.\n- Linkurile sunt acceptate doar ca URL-uri interne relative."
 }

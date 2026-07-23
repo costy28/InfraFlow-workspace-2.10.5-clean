@@ -888,3 +888,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ deschidere automată dosar contract după încărcarea listei;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ flux complet `Task-uri → Deschide sursa → Dosar contract`;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ comportament neschimbat pentru accesul normal fără query-param.
+
+### UPDATE 388 — Sursa task-ului în Kiosk
+
+- `client/src/pages/KioskPage.jsx` — ✅ afișare context `Legat de` pentru task-urile cu sursă ERP;
+- `client/src/pages/KioskPage.jsx` — ✅ buton `Deschide sursa` doar când Kiosk-ul rulează în sesiune ERP normală;
+- `client/src/pages/KioskPage.jsx` — ✅ conturile Kiosk fără sesiune ERP văd contextul, fără acces direct la module administrative;
+- `AGENTS.md` — ✅ roadmap actualizat cu direcția `Email per utilizator și consimțământ`.
