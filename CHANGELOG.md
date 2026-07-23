@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.369 - 2026-07-23
+
+## Direcție Email ERP organizațional
+
+- Roadmap-ul renunță explicit la folosirea emailului personal în aplicație.
+- Direcția devine `Email organizațional per utilizator + Inbox ERP integrat`.
+- Inbox-ul ERP este planificat cu categorii, importanță, filtre după dată/sursă/modul și atașamente.
+- Emailurile vor putea fi legate ulterior de contracte, task-uri, documente, furnizori, clienți sau facturi.
+- SMTP-ul global rămâne fallback pentru instalări mici și notificări de sistem.
+
 # v2.12.368 - 2026-07-23
 
 ## Sursa task-ului în Kiosk
@@ -8,7 +18,7 @@
 - Pentru utilizatorii intrați în Kiosk din sesiunea normală ERP apare butonul `Deschide sursa`.
 - Pentru conturile Kiosk fără sesiune ERP se afișează doar contextul, fără acces direct către module administrative.
 - Linkurile sunt acceptate doar ca URL-uri interne relative.
-- Roadmap-ul include direcția `Email per utilizator și consimțământ`, cu fallback pe SMTP-ul organizației.
+- Roadmap-ul include direcția `Email organizațional + Inbox ERP`, cu fallback pe SMTP-ul organizației.
 
 # v2.12.367 - 2026-07-23
 

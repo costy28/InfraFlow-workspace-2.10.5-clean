@@ -1,5 +1,5 @@
 {
-  "version": "2.12.368",
+  "version": "2.12.369",
   "date": "2026-07-23",
-  "changelog": "## v2.12.368 - 2026-07-23\n### Sursa task-ului in Kiosk\n- Kiosk afiseaza contextul Legat de pentru task-uri cu sursa ERP.\n- Butonul Deschide sursa apare cand utilizatorul este in sesiune ERP si linkul este intern.\n- Conturile Kiosk fara sesiune ERP vad contextul, fara acces direct la module ERP.\n- Linkurile sunt acceptate doar ca URL-uri interne relative."
+  "changelog": "## v2.12.369 - 2026-07-23\n### Directie Email ERP organizational\n- Roadmap-ul renunta explicit la email personal in aplicatie.\n- Directia devine email organizational per utilizator si Inbox ERP integrat.\n- Comunicarea va putea fi clasificata pe categorii, importanta, sursa ERP si atasamente.\n- SMTP-ul global ramane fallback pentru instalari mici si notificari de sistem."
 }

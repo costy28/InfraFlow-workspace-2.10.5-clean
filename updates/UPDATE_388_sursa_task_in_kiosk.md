@@ -12,11 +12,12 @@ Data: `2026-07-23`
 
 ## Planificat
 
-- Direcția `Email per utilizator și consimțământ` a fost adăugată în backlog-ul comercial:
-  - email profesional/personal per utilizator;
-  - consimțământ explicit pentru email personal;
+- Direcția `Email organizațional + Inbox ERP` a fost adăugată în backlog-ul comercial:
+  - email organizațional per utilizator;
+  - fără email personal în aplicație;
   - fallback pe SMTP-ul organizației;
-  - preferințe notificări pe module/canale.
+  - preferințe notificări pe module/canale;
+  - clasificare ulterioară pe categorii, importanță, sursă ERP și atașamente.
 
 ## Fișiere afectate
 

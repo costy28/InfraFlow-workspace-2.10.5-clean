@@ -894,4 +894,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/KioskPage.jsx` — ✅ afișare context `Legat de` pentru task-urile cu sursă ERP;
 - `client/src/pages/KioskPage.jsx` — ✅ buton `Deschide sursa` doar când Kiosk-ul rulează în sesiune ERP normală;
 - `client/src/pages/KioskPage.jsx` — ✅ conturile Kiosk fără sesiune ERP văd contextul, fără acces direct la module administrative;
-- `AGENTS.md` — ✅ roadmap actualizat cu direcția `Email per utilizator și consimțământ`.
+- `AGENTS.md` — ✅ roadmap actualizat cu direcția `Email organizațional + Inbox ERP`.
+
+### UPDATE 389 — Direcție Email ERP organizațional
+
+- `AGENTS.md` — ✅ eliminată direcția de email personal din backlog;
+- `AGENTS.md` — ✅ adăugată direcția `Comunicare / Inbox ERP`;
+- `CHANGELOG.md` — ✅ clarificată strategia: email organizațional per utilizator, fără conturi personale;
+- `updates/UPDATE_389_directie_email_erp_organizational.md` — ✅ notă de update pentru roadmap comunicare.

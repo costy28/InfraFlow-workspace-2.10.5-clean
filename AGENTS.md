@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.368**
-**Versiune în lucru: v2.12.368**
+**Versiune curentă sursă: v2.12.369**
+**Versiune în lucru: v2.12.369**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -569,11 +569,13 @@ PRIORITATE 3 — Infrastructură comercială:
       → Sonnet 4.6 pentru analize complexe
       → Contor tokens per instalare client
 
-  [ ] Email per utilizator și consimțământ
-      → Adresă email profesională sau personală per utilizator
-      → Email personal doar cu acord explicit, datat și auditabil
-      → Preferințe notificări pe module și canale
-      → SMTP global ca fallback organizațional
+  [ ] Comunicare / Inbox ERP
+      → Email organizațional per utilizator, fără conturi personale
+      → Inbox integrat în aplicație, cu categorii și importanță
+      → Filtre după dată, expeditor, categorie, modul, sursă ERP și atașamente
+      → Legare email de contracte, task-uri, documente, furnizori, clienți și facturi
+      → Conversie email → task sau document intrat
+      → SMTP global ca fallback pentru instalări mici și notificări de sistem
       → Viitor: alias centralizat, OAuth/SMTP per utilizator și politici pe tenant
 
   [ ] Multi-limbă + profil de țară
@@ -649,9 +651,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.368
+VERSIUNE CURENTĂ SURSĂ: 2.12.369
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.368 ✅
+UPDATE ZIP CURENT: 2.12.369 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -828,6 +830,7 @@ UPDATES ÎN LUCRU:
   2.12.366 → UPDATE 386 Task ERP din dosar contract ✅
   2.12.367 → UPDATE 387 Deep-link dosar contract din task ✅
   2.12.368 → UPDATE 388 Sursa task-ului în Kiosk ✅
+  2.12.369 → UPDATE 389 Direcție Email ERP organizațional ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1320,5 +1323,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 23 Iulie 2026 | InfraFlow sursă v2.12.368*
+*AGENTS.md actualizat: 23 Iulie 2026 | InfraFlow sursă v2.12.369*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
