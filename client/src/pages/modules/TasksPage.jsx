@@ -74,6 +74,8 @@ export default function TasksPage() {
   const [activeTab, setActiveTab] = useState('assigned')
   const [tasks, setTasks] = useState([])
   const [users, setUsers] = useState([])
+  const [templates, setTemplates] = useState([])
+  const [templateAssignee, setTemplateAssignee] = useState('')
   const [assigneeScope, setAssigneeScope] = useState('self')
   const [selected, setSelected] = useState(null)
   const [details, setDetails] = useState({ task: null, comments: [], attachments: [] })
@@ -91,12 +93,14 @@ export default function TasksPage() {
     setLoading(true)
     setError('')
     try {
-      const [tasksRes, usersRes] = await Promise.all([
+      const [tasksRes, usersRes, templatesRes] = await Promise.all([
         api.get('/tasks', { params: { scope: activeTab === 'all' ? undefined : activeTab } }),
         api.get('/tasks/assignees').catch(() => ({ data: { users: [], scope: 'self' } })),
+        api.get('/tasks/templates').catch(() => ({ data: { templates: [] } })),
       ])
       setTasks(arrayFrom(tasksRes.data, ['tasks']))
       setUsers(arrayFrom(usersRes.data, ['users']))
+      setTemplates(arrayFrom(templatesRes.data, ['templates']))
       setAssigneeScope(usersRes.data?.scope || 'self')
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca task-urile.')
@@ -114,6 +118,15 @@ export default function TasksPage() {
       setForm(current => ({ ...current, assigned_to: userId(user) }))
     }
   }, [formOpen, form.assigned_to, user])
+
+  useEffect(() => {
+    if (!templateAssignee && users.length) {
+      const ownId = userId(user)
+      const ownUser = users.find(item => String(item.id || item.username) === ownId)
+      const fallback = ownUser || users[0]
+      setTemplateAssignee(String(fallback?.id || fallback?.username || ''))
+    }
+  }, [templateAssignee, users, user])
 
   const canSeeTeamTab = isManager || ['all', 'department', 'hierarchy'].includes(assigneeScope) || users.some(item => item.direct_report)
   const visibleTabs = tabs.filter(tab => {
@@ -160,6 +173,20 @@ export default function TasksPage() {
       await load()
     } catch (err) {
       setMessage(err.response?.data?.error || 'Task-ul nu a putut fi creat.')
+    }
+  }
+
+  async function createFromTemplate(template) {
+    setMessage('')
+    try {
+      await api.post('/tasks/from-template', {
+        template_id: template.id,
+        assigned_to: templateAssignee || userId(user),
+      })
+      setMessage(`Task creat din șablon: ${template.name || template.title}.`)
+      await load()
+    } catch (err) {
+      setMessage(err.response?.data?.error || 'Task-ul din șablon nu a putut fi creat.')
     }
   }
 
@@ -218,6 +245,38 @@ export default function TasksPage() {
           <Badge tone="info">{userOptions.length} responsabili disponibili</Badge>
         </div>
       </Card>
+
+      {templates.length ? (
+        <Card>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">Șabloane rapide</h3>
+              <p className="text-sm text-slate-500">Pornește task-uri repetitive fără să rescrii aceleași instrucțiuni.</p>
+            </div>
+            <Select label="Responsabil pentru șablon" value={templateAssignee} onChange={event => setTemplateAssignee(event.target.value)}>
+              {userOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {templates.map(template => (
+              <button
+                key={template.id}
+                type="button"
+                className="rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50"
+                onClick={() => createFromTemplate(template)}
+                disabled={!templateAssignee && !userId(user)}
+              >
+                <div className="text-xs font-semibold uppercase text-slate-500">{template.category || 'Task'}</div>
+                <div className="mt-1 font-semibold text-slate-900">{template.name || template.title}</div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <Badge tone={priorityTone(template.priority)} size="sm">{label(template.priority)}</Badge>
+                  <Badge tone="neutral" size="sm">{Number(template.due_days || 0) === 0 ? 'azi' : `+${template.due_days} zile`}</Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {message ? <div className="rounded-md border border-primary-100 bg-primary-50 px-3 py-2 text-sm text-primary-700">{message}</div> : null}
       {error ? <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}

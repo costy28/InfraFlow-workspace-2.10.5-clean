@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.363 - 2026-07-22
+
+## Șabloane rapide pentru task-uri
+
+- Pagina `Task-uri` primește secțiune `Șabloane rapide` pentru activități repetitive.
+- Utilizatorul alege responsabilul o singură dată și poate crea task dintr-un click.
+- Backend-ul expune catalogul `/api/tasks/templates` și crearea controlată `/api/tasks/from-template`.
+- Șabloanele sistem acoperă verificare document, încărcare dovadă, raport zilnic, urmărire contract și verificare gestiune.
+- Crearea din șablon respectă aceleași reguli de delegare ca task-ul manual.
+- Task-urile create din șablon trimit notificări, sunt auditate și nu necesită migrare DB.
+
 # v2.12.362 - 2026-07-22
 
 ## Dovezi atașate pe task din Kiosk

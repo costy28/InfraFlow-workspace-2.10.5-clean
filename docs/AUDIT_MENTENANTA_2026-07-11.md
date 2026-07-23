@@ -844,3 +844,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/KioskPage.jsx` — ✅ selector fișier și buton `Încarcă dovadă` pe cardul task-ului;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ secțiune `Dovezi atașate` în detaliile task-ului;
 - `server/modules/hr/routes.js` — ✅ comentariu automat și audit `tasks:kiosk_attachment` la încărcarea dovezii.
+
+### UPDATE 383 — Șabloane rapide pentru task-uri
+
+- `server/modules/tasks/routes.js` — ✅ catalog sistem de șabloane task fără migrare DB;
+- `server/modules/tasks/routes.js` — ✅ endpoint `GET /api/tasks/templates`;
+- `server/modules/tasks/routes.js` — ✅ endpoint `POST /api/tasks/from-template`, cu validare responsabil și audit;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ secțiune `Șabloane rapide` cu responsabil selectabil;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ creare task dintr-un click pentru documente, dovezi, rapoarte, contracte și gestiune;
+- `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/tasks/templates`.

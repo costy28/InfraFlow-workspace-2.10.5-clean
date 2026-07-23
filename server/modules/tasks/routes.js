@@ -19,6 +19,64 @@ const FINAL_STATUSES = new Set(['done', 'cancelled'])
 const VALID_STATUSES = new Set([...OPEN_STATUSES, ...FINAL_STATUSES])
 const VALID_PRIORITIES = new Set(['low', 'normal', 'high', 'urgent'])
 
+const SYSTEM_TASK_TEMPLATES = [
+  {
+    id: 'tpl-verify-document',
+    name: 'Verifică document',
+    title: 'Verifică documentul primit',
+    description: 'Verifică dacă documentul este complet, are atașamentele necesare și notează ce lipsește.',
+    priority: 'normal',
+    due_days: 1,
+    source_type: 'template',
+    category: 'Documente',
+    system: true,
+  },
+  {
+    id: 'tpl-upload-proof',
+    name: 'Încarcă dovadă',
+    title: 'Încarcă dovada pentru activitatea primită',
+    description: 'Încarcă poză/PDF/document ca dovadă și adaugă un comentariu scurt cu ce s-a făcut.',
+    priority: 'normal',
+    due_days: 0,
+    source_type: 'template',
+    category: 'Operațional',
+    system: true,
+  },
+  {
+    id: 'tpl-daily-report',
+    name: 'Raport zilnic',
+    title: 'Completează raportul zilnic',
+    description: 'Completează situația zilei: activități realizate, probleme întâlnite și ce rămâne de făcut.',
+    priority: 'normal',
+    due_days: 0,
+    source_type: 'template',
+    category: 'Raportare',
+    system: true,
+  },
+  {
+    id: 'tpl-contract-followup',
+    name: 'Urmărire contract',
+    title: 'Verifică stadiul contractului',
+    description: 'Verifică valoarea consumată, termenul, documentele lipsă și marchează riscurile sau acțiunile necesare.',
+    priority: 'high',
+    due_days: 2,
+    source_type: 'contract',
+    category: 'Contracte',
+    system: true,
+  },
+  {
+    id: 'tpl-inventory-check',
+    name: 'Verificare gestiune',
+    title: 'Verifică stocul / gestiunea',
+    description: 'Verifică stocul fizic față de evidența din aplicație și atașează dovada sau observațiile.',
+    priority: 'normal',
+    due_days: 3,
+    source_type: 'inventory',
+    category: 'Gestiune',
+    system: true,
+  },
+]
+
 function nowIso() {
   return new Date().toISOString()
 }
@@ -32,6 +90,7 @@ function ensureTasksDb(db) {
   db.taskManagement.tasks = Array.isArray(db.taskManagement.tasks) ? db.taskManagement.tasks : []
   db.taskManagement.comments = Array.isArray(db.taskManagement.comments) ? db.taskManagement.comments : []
   db.taskManagement.attachments = Array.isArray(db.taskManagement.attachments) ? db.taskManagement.attachments : []
+  db.taskManagement.templates = Array.isArray(db.taskManagement.templates) ? db.taskManagement.templates : []
   return db.taskManagement
 }
 
@@ -143,6 +202,28 @@ function saveTaskAttachmentFile(file, taskId) {
   const finalPath = path.join(TASK_EVIDENCE_ROOT, storedName)
   fs.renameSync(file.path, finalPath)
   return { storedName, finalPath }
+}
+
+function dueDateFromTemplate(template, explicitDueDate = '') {
+  const explicit = compactText(explicitDueDate, 20)
+  if (explicit) return explicit
+  const days = Number(template?.due_days ?? template?.dueDays ?? 0)
+  if (!Number.isFinite(days)) return ''
+  const date = new Date()
+  date.setDate(date.getDate() + Math.max(0, Math.trunc(days)))
+  return date.toISOString().slice(0, 10)
+}
+
+function taskTemplateCatalog(db) {
+  const store = ensureTasksDb(db)
+  const customTemplates = store.templates
+    .filter(template => !template.cancelled_at)
+    .map(template => ({ ...template, system: false }))
+  const customIds = new Set(customTemplates.map(template => String(template.id)))
+  return [
+    ...customTemplates,
+    ...SYSTEM_TASK_TEMPLATES.filter(template => !customIds.has(String(template.id))),
+  ].sort((a, b) => String(a.category || '').localeCompare(String(b.category || ''), 'ro') || String(a.name || '').localeCompare(String(b.name || ''), 'ro'))
 }
 
 function attachmentUrl(attachment) {
@@ -264,6 +345,12 @@ router.get('/tasks/assignees', (req, res) => {
   })
 })
 
+router.get('/tasks/templates', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  res.json({ templates: taskTemplateCatalog(auth.db) })
+})
+
 router.get('/tasks/:id', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
@@ -319,6 +406,41 @@ router.post('/tasks', (req, res) => {
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message || 'Task-ul nu a putut fi creat.' })
   }
+})
+
+router.post('/tasks/from-template', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  const body = req.body || {}
+  const template = taskTemplateCatalog(auth.db).find(item => String(item.id) === String(body.template_id || body.templateId))
+  if (!template) return res.status(404).json({ error: 'Șablonul de task nu a fost găsit.' })
+  const users = userMap(auth.db)
+  const assigned_to = compactText(body.assigned_to || body.assignee_id || userId(auth.user), 80)
+  if (!assigned_to || !users.has(String(assigned_to))) return res.status(400).json({ error: 'Alege un responsabil valid pentru task.' })
+  if (!canAssignTo(auth.db, auth.user, auth.permissions, assigned_to)) return res.status(403).json({ error: 'Nu poți delega task-uri către acest utilizator.' })
+  const store = ensureTasksDb(auth.db)
+  const task = {
+    id: id('task'),
+    title: compactText(body.title || template.title || template.name, 180),
+    description: compactText(body.description || template.description, 1500),
+    assigned_to,
+    assigned_to_name: userLabel(users.get(String(assigned_to))),
+    priority: VALID_PRIORITIES.has(String(body.priority || template.priority)) ? String(body.priority || template.priority) : 'normal',
+    status: 'open',
+    due_date: dueDateFromTemplate(template, body.due_date),
+    source_type: compactText(body.source_type || template.source_type || 'template', 80),
+    source_id: compactText(body.source_id || template.id, 120),
+    template_id: template.id,
+    created_by: userId(auth.user),
+    created_by_name: userLabel(auth.user),
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  }
+  store.tasks.push(task)
+  pushTaskNotification(auth.db, task, auth.user, 'created')
+  addAudit(auth.db, auth.user, 'tasks:create_from_template', { taskId: task.id, templateId: template.id, assigned_to: task.assigned_to })
+  writeDb(auth.db)
+  res.status(201).json({ task: enrichTask(task, users) })
 })
 
 router.patch('/tasks/:id', (req, res) => {

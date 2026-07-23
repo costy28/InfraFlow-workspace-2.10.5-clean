@@ -1,5 +1,5 @@
 {
-  "version": "2.12.362",
+  "version": "2.12.363",
   "date": "2026-07-22",
-  "changelog": "## v2.12.362 - 2026-07-22\n### Dovezi atasate pe task din Kiosk\n- Angajatul poate incarca dovezi pe task direct din Kiosk: poze, PDF sau documente.\n- Dovezile sunt salvate in storage/task-evidence si legate de task.\n- Panoul ERP Task-uri afiseaza dovezile in detaliile task-ului si permite descarcarea lor.\n- Upload-ul Kiosk valideaza asocierea angajat-utilizator ERP si permite doar task-urile proprii.\n- Operatiunile sunt auditate si nu necesita migrare DB."
+  "changelog": "## v2.12.363 - 2026-07-22\n### Sablone rapide pentru task-uri\n- Pagina Task-uri primeste catalog de sabloane rapide pentru activitati repetitive.\n- Utilizatorul alege responsabilul si creeaza task dintr-un click.\n- Backend-ul expune /api/tasks/templates si /api/tasks/from-template cu aceleasi reguli de delegare.\n- Sablonele sistem includ documente, dovezi, raport zilnic, contracte si gestiune.\n- Operatiunile sunt auditate si nu necesita migrare DB."
 }
