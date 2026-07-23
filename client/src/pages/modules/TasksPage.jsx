@@ -67,6 +67,10 @@ const emptyForm = {
   assigned_to: '',
   due_date: '',
   priority: 'normal',
+  source_type: '',
+  source_id: '',
+  source_label: '',
+  source_url: '',
 }
 
 const emptyTemplateForm = {
@@ -84,6 +88,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState([])
   const [users, setUsers] = useState([])
   const [templates, setTemplates] = useState([])
+  const [sourceTypes, setSourceTypes] = useState([])
   const [templateAssignee, setTemplateAssignee] = useState('')
   const [canManageTemplates, setCanManageTemplates] = useState(false)
   const [assigneeScope, setAssigneeScope] = useState('self')
@@ -105,14 +110,16 @@ export default function TasksPage() {
     setLoading(true)
     setError('')
     try {
-      const [tasksRes, usersRes, templatesRes] = await Promise.all([
+      const [tasksRes, usersRes, templatesRes, sourceTypesRes] = await Promise.all([
         api.get('/tasks', { params: { scope: activeTab === 'all' ? undefined : activeTab } }),
         api.get('/tasks/assignees').catch(() => ({ data: { users: [], scope: 'self' } })),
         api.get('/tasks/templates').catch(() => ({ data: { templates: [] } })),
+        api.get('/tasks/source-types').catch(() => ({ data: { source_types: [] } })),
       ])
       setTasks(arrayFrom(tasksRes.data, ['tasks']))
       setUsers(arrayFrom(usersRes.data, ['users']))
       setTemplates(arrayFrom(templatesRes.data, ['templates']))
+      setSourceTypes(arrayFrom(sourceTypesRes.data, ['source_types']))
       setCanManageTemplates(Boolean(templatesRes.data?.can_manage_templates))
       setAssigneeScope(usersRes.data?.scope || 'self')
     } catch (err) {
@@ -259,6 +266,8 @@ export default function TasksPage() {
     label: `${item.name || item.username || item.id}${item.department ? ` — ${item.department}` : ''}${item.direct_report ? ' · subordonat direct' : ''}`,
   }))
 
+  const sourceTypeOptions = sourceTypes.map(item => ({ value: item.value, label: item.label }))
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -368,9 +377,10 @@ export default function TasksPage() {
                       </button>
                       <div className="mt-1 flex flex-wrap gap-1">
                         <Badge tone={priorityTone(task.priority)} size="sm">{label(task.priority)}</Badge>
-                        {task.source_type ? <Badge tone="info" size="sm">{label(task.source_type)}</Badge> : null}
+                        {task.source_type ? <Badge tone="info" size="sm">{task.source_type_label || label(task.source_type)}</Badge> : null}
                         {isOverdue(task) ? <Badge tone="danger" size="sm">întârziat</Badge> : null}
                       </div>
+                      {task.source_label ? <div className="mt-1 text-xs text-slate-500">Legat de: {task.source_label}</div> : null}
                     </td>
                     <td className="px-3 py-2 text-slate-600">{task.assigned_to_name || task.assigned_to}</td>
                     <td className="px-3 py-2 text-slate-600">{task.due_date || '-'}</td>
@@ -410,6 +420,19 @@ export default function TasksPage() {
             <Select label="Prioritate" value={form.priority} onChange={event => setForm(current => ({ ...current, priority: event.target.value }))}>
               {priorities.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </Select>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-2 text-sm font-semibold text-slate-800">Legare opțională la o sursă ERP</div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Select label="Tip sursă" value={form.source_type} onChange={event => setForm(current => ({ ...current, source_type: event.target.value }))}>
+                <option value="">Fără legare</option>
+                {sourceTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              <Input label="ID sursă" value={form.source_id} onChange={event => setForm(current => ({ ...current, source_id: event.target.value }))} placeholder="ex: contract-123" />
+              <Input label="Etichetă afișată" value={form.source_label} onChange={event => setForm(current => ({ ...current, source_label: event.target.value }))} placeholder="ex: Contract furnizare motorină" />
+              <Input label="Link intern" value={form.source_url} onChange={event => setForm(current => ({ ...current, source_url: event.target.value }))} placeholder="/contracte?contract=..." />
+            </div>
+            <p className="mt-2 text-xs text-slate-500">Linkul trebuie să fie intern și să înceapă cu `/`. Dacă lipsește, aplicația îl construiește din tip și ID când poate.</p>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>Renunță</Button>
@@ -461,6 +484,20 @@ export default function TasksPage() {
                 <Badge tone={priorityTone(details.task.priority)}>{label(details.task.priority)}</Badge>
                 {details.task.due_date ? <Badge tone={isOverdue(details.task) ? 'danger' : 'neutral'}>{details.task.due_date}</Badge> : null}
               </div>
+              {details.task.source_label || details.task.source_type ? (
+                <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                  <div className="text-xs font-semibold uppercase text-slate-500">Legat de</div>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-semibold text-slate-900">{details.task.source_label || details.task.source_type_label || label(details.task.source_type)}</span>
+                      {details.task.source_id ? <span className="ml-2 text-xs text-slate-500">ID: {details.task.source_id}</span> : null}
+                    </div>
+                    {details.task.source_url ? (
+                      <Button size="sm" variant="secondary" onClick={() => window.location.assign(details.task.source_url)}>Deschide sursa</Button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="grid gap-2 md:grid-cols-2">
               <Select label="Status" value={details.task.status || 'open'} onChange={event => updateTask(details.task, { status: event.target.value })}>

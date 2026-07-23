@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.365 - 2026-07-23
+
+## Legare generică task de surse ERP
+
+- Task-urile pot păstra acum `source_type`, `source_id`, `source_label` și `source_url`.
+- Backend-ul expune catalogul `GET /api/tasks/source-types`.
+- Răspunsurile task sunt îmbogățite cu `source_type_label`, `source_label` și `source_url`.
+- Formularul `Task nou` permite legare opțională la contract, document, referat, angajat HR, sesizare, gestiune, achiziții, contabilitate sau mecanizare.
+- Detaliile task-ului afișează cardul `Legat de` și buton `Deschide sursa`.
+- URL-urile sunt acceptate doar ca linkuri interne relative, pentru a evita redirecturi externe.
+- Smoke suite verifică endpoint-ul nou de tipuri sursă.
+
 # v2.12.364 - 2026-07-23
 
 ## Șabloane personalizate pentru task-uri

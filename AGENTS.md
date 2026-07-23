@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.364**
-**Versiune în lucru: v2.12.364**
+**Versiune curentă sursă: v2.12.365**
+**Versiune în lucru: v2.12.365**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -286,6 +286,7 @@ Task Management
   ✅ Dovezi atașate pe task din Kiosk (v2.12.362)
   ✅ Șabloane rapide pentru task-uri (v2.12.363)
   ✅ Șabloane personalizate pentru task-uri (v2.12.364)
+  ✅ Legare generică task de surse ERP (v2.12.365)
   ✅ Status, prioritate, scadență și comentarii
   ✅ Integrare în Dashboard „Ce ai de făcut azi”
 
@@ -495,7 +496,8 @@ PRIORITATE 2 — Expansiune platformă:
       → Faza 8: dovezi atașate pe task din Kiosk ✅ UPDATE 382
       → Faza 9: șabloane rapide pentru task-uri repetitive ✅ UPDATE 383
       → Faza 10: șabloane personalizate pentru task-uri repetitive ✅ UPDATE 384
-      → Faza 11: organigramă completă cu lanț ierarhic și echipe
+      → Faza 11: legare generică task de surse ERP ✅ UPDATE 385
+      → Faza 12: organigramă completă cu lanț ierarhic și echipe
       → Legare task de documente, contracte, sesizări, HR, gestiune,
         achiziții, contabilitate sau proiecte
       → Dashboard personal „ce am de făcut azi”
@@ -634,9 +636,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.364
+VERSIUNE CURENTĂ SURSĂ: 2.12.365
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.364 ✅
+UPDATE ZIP CURENT: 2.12.365 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -809,6 +811,7 @@ UPDATES ÎN LUCRU:
   2.12.362 → UPDATE 382 Dovezi atașate pe task din Kiosk ✅
   2.12.363 → UPDATE 383 Șabloane rapide pentru task-uri ✅
   2.12.364 → UPDATE 384 Șabloane personalizate pentru task-uri ✅
+  2.12.365 → UPDATE 385 Legare generică task de surse ERP ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1301,5 +1304,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 23 Iulie 2026 | InfraFlow sursă v2.12.364*
+*AGENTS.md actualizat: 23 Iulie 2026 | InfraFlow sursă v2.12.365*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

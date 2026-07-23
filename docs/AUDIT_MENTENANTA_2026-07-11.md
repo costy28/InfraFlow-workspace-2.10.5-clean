@@ -861,3 +861,13 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/tasks/routes.js` — ✅ audit pentru creare, modificare și dezactivare șablon;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ formular `Șablon task nou`;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ afișare șabloane custom lângă șabloanele sistem și dezactivare custom din UI.
+
+### UPDATE 385 — Legare generică task de surse ERP
+
+- `server/modules/tasks/routes.js` — ✅ catalog `TASK_SOURCE_TYPES` pentru surse ERP uzuale;
+- `server/modules/tasks/routes.js` — ✅ endpoint `GET /api/tasks/source-types`;
+- `server/modules/tasks/routes.js` — ✅ îmbogățire task cu `source_type_label`, `source_label` și `source_url`;
+- `server/modules/tasks/routes.js` — ✅ validare link sursă doar ca URL intern relativ;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ câmpuri opționale de legare sursă în formularul `Task nou`;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ afișare `Legat de` în listă și detaliile task-ului;
+- `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru `/api/tasks/source-types`.

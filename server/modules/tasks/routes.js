@@ -18,6 +18,18 @@ const OPEN_STATUSES = new Set(['open', 'in_progress', 'blocked'])
 const FINAL_STATUSES = new Set(['done', 'cancelled'])
 const VALID_STATUSES = new Set([...OPEN_STATUSES, ...FINAL_STATUSES])
 const VALID_PRIORITIES = new Set(['low', 'normal', 'high', 'urgent'])
+const TASK_SOURCE_TYPES = [
+  { value: 'contract', label: 'Contract', route: '/contracte' },
+  { value: 'document', label: 'Document', route: '/documente' },
+  { value: 'referat', label: 'Referat', route: '/referate' },
+  { value: 'hr_employee', label: 'Angajat HR', route: '/hr' },
+  { value: 'ticket', label: 'Sesizare', route: '/sesizari' },
+  { value: 'inventory', label: 'Gestiune', route: '/gestiune' },
+  { value: 'procurement', label: 'Achiziții', route: '/achizitii' },
+  { value: 'accounting', label: 'Contabilitate', route: '/contabilitate' },
+  { value: 'fleet', label: 'Mecanizare', route: '/mecanizare' },
+  { value: 'template', label: 'Șablon task', route: '/taskuri' },
+]
 
 const SYSTEM_TASK_TEMPLATES = [
   {
@@ -106,6 +118,41 @@ function userLabel(user) {
   return user?.name || user?.fullName || user?.username || userId(user)
 }
 
+function sourceTypeInfo(type) {
+  return TASK_SOURCE_TYPES.find(item => item.value === String(type || '')) || null
+}
+
+function safeRelativeUrl(value) {
+  const text = compactText(value, 300)
+  if (!text || !text.startsWith('/') || text.startsWith('//')) return ''
+  return text
+}
+
+function sourceUrl(sourceType, sourceId, explicitUrl = '') {
+  const safe = safeRelativeUrl(explicitUrl)
+  if (safe) return safe
+  const info = sourceTypeInfo(sourceType)
+  if (!info) return ''
+  const idText = compactText(sourceId, 120)
+  if (!idText) return info.route
+  const param = encodeURIComponent(idText)
+  if (sourceType === 'contract') return `${info.route}?contract=${param}`
+  if (sourceType === 'document') return `${info.route}?document=${param}`
+  if (sourceType === 'referat') return `${info.route}?referat=${param}`
+  if (sourceType === 'hr_employee') return `${info.route}?employee=${param}`
+  if (sourceType === 'ticket') return `${info.route}?ticket=${param}`
+  return `${info.route}?source=${param}`
+}
+
+function sourceLabel(sourceType, sourceId, explicitLabel = '') {
+  const label = compactText(explicitLabel, 180)
+  if (label) return label
+  const info = sourceTypeInfo(sourceType)
+  if (!info) return ''
+  const idText = compactText(sourceId, 80)
+  return idText ? `${info.label} #${idText}` : info.label
+}
+
 function userMap(db) {
   const users = Array.isArray(db.users) ? db.users : []
   return new Map(users.map(user => [userId(user), user]))
@@ -189,7 +236,14 @@ function enrichTask(task, users) {
     ...task,
     created_by_name: task.created_by_name || userLabel(creator),
     assigned_to_name: task.assigned_to_name || userLabel(assignee),
+    source_type_label: sourceTypeInfo(task.source_type)?.label || labelSourceFallback(task.source_type),
+    source_label: sourceLabel(task.source_type, task.source_id, task.source_label),
+    source_url: sourceUrl(task.source_type, task.source_id, task.source_url),
   }
+}
+
+function labelSourceFallback(value) {
+  return compactText(value, 80).replace(/_/g, ' ')
 }
 
 function safeTaskFilename(name) {
@@ -303,6 +357,8 @@ function taskPayload(body, fallbackAssignee, user, db) {
     due_date: due || '',
     source_type: compactText(body.source_type || body.entitate_tip, 80),
     source_id: compactText(body.source_id || body.entitate_id, 120),
+    source_label: compactText(body.source_label || body.entitate_label, 180),
+    source_url: safeRelativeUrl(body.source_url || body.entitate_url),
     created_by: userId(user),
     created_by_name: userLabel(user),
   }
@@ -363,6 +419,12 @@ router.get('/tasks/assignees', (req, res) => {
       ? 'all'
       : (canManageDepartmentTasks(auth.user, auth.permissions) ? 'department' : (hasDirectReports(auth.db, auth.user) ? 'hierarchy' : 'self')),
   })
+})
+
+router.get('/tasks/source-types', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  res.json({ source_types: TASK_SOURCE_TYPES })
 })
 
 router.get('/tasks/templates', (req, res) => {
@@ -473,6 +535,8 @@ router.post('/tasks/from-template', (req, res) => {
     due_date: dueDateFromTemplate(template, body.due_date),
     source_type: compactText(body.source_type || template.source_type || 'template', 80),
     source_id: compactText(body.source_id || template.id, 120),
+    source_label: compactText(body.source_label || template.source_label || template.name, 180),
+    source_url: safeRelativeUrl(body.source_url || template.source_url),
     template_id: template.id,
     created_by: userId(auth.user),
     created_by_name: userLabel(auth.user),
@@ -539,6 +603,10 @@ router.patch('/tasks/:id', (req, res) => {
     if (body.description != null) task.description = compactText(body.description, 1500)
     if (body.due_date != null) task.due_date = compactText(body.due_date, 20)
     if (body.priority != null && VALID_PRIORITIES.has(String(body.priority))) task.priority = String(body.priority)
+    if (body.source_type != null) task.source_type = compactText(body.source_type, 80)
+    if (body.source_id != null) task.source_id = compactText(body.source_id, 120)
+    if (body.source_label != null) task.source_label = compactText(body.source_label, 180)
+    if (body.source_url != null) task.source_url = safeRelativeUrl(body.source_url)
     if (body.assigned_to != null) {
       const users = userMap(auth.db)
       const assigned_to = compactText(body.assigned_to, 80)

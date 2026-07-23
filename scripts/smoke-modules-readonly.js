@@ -163,6 +163,7 @@ const endpointChecks = [
   { name: 'Task-uri /api/tasks/my-open', path: '/api/tasks/my-open', countKeys: ['tasks'] },
   { name: 'Task-uri /api/tasks/assignees', path: '/api/tasks/assignees', countKeys: ['users'] },
   { name: 'Task-uri /api/tasks/templates', path: '/api/tasks/templates', validate: data => Array.isArray(data?.templates) && data.templates.length >= 5 },
+  { name: 'Task-uri /api/tasks/source-types', path: '/api/tasks/source-types', validate: data => Array.isArray(data?.source_types) && data.source_types.some(item => item.value === 'contract') },
 
   { name: 'Contabilitate /api/accounting/summary', path: `/api/accounting/summary?luna=${month}`, validate: data => Boolean(data?.period) },
   { name: 'Contabilitate /api/accounting/health', path: `/api/accounting/health?luna=${month}`, validate: data => Boolean(data?.status && data?.counts) },
