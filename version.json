@@ -1,5 +1,5 @@
 {
-  "version": "2.12.371",
+  "version": "2.12.372",
   "date": "2026-07-23",
-  "changelog": "## v2.12.371 - 2026-07-23\n### Task din email Inbox ERP\n- Catalogul surselor de task include Email ERP.\n- Inbox ERP permite crearea unui task direct dintr-un email.\n- Modalul precompleteaza titlul, descrierea, prioritatea si sursa task-ului.\n- Crearea foloseste endpoint-ul existent de task-uri, pastrand regulile de delegare."
+  "changelog": "## v2.12.372 - 2026-07-23\n### Document din email Inbox ERP\n- Inbox ERP permite crearea unui document draft direct dintr-un email.\n- Modalul foloseste catalogul existent de tipuri document.\n- Documentul pastreaza in date_json sursa emailului, expeditorul, subiectul, categoria, importanta si atasamentele.\n- Crearea foloseste endpoint-ul existent /api/documents, pastrand permisiunile modulului Documente."
 }

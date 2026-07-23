@@ -920,3 +920,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ modal de conversie email → task, cu responsabil, prioritate și termen;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ task-ul este creat prin endpoint-ul existent `/api/tasks`;
 - `scripts/smoke-modules-readonly.js` — ✅ verificare sursă `email` în catalogul de surse task.
+
+### UPDATE 392 — Document din email Inbox ERP
+
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiune `Document` pe emailurile din Inbox ERP;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ modal de conversie email → document draft;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ catalogul tipurilor de document este încărcat din `/api/documents/template-catalog`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ documentul este creat prin endpoint-ul existent `/api/documents`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ metadatele emailului sunt păstrate în `date_json`.

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.372 - 2026-07-23
+
+## Document din email Inbox ERP
+
+- Inbox ERP afișează acțiunea `Document` pe fiecare email.
+- Modalul nou permite alegerea tipului de document din catalogul existent al modulului Documente.
+- Documentul se creează ca draft prin endpoint-ul existent `/api/documents`, păstrând permisiunile și auditul modulului Documente.
+- Metadatele emailului sunt salvate în `date_json`: sursă, expeditor, destinatar, subiect, categorie, importanță, preview și atașamente.
+- După creare, emailul este marcat ca citit când actualizarea este permisă.
+
 # v2.12.371 - 2026-07-23
 
 ## Task din email Inbox ERP

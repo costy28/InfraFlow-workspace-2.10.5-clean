@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Hash, Info, Mail, Paperclip, Plus, Search, Send, Trash2, Users, X } from 'lucide-react'
+import { FileText, Hash, Info, Mail, Paperclip, Plus, Search, Send, Trash2, Users, X } from 'lucide-react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -93,6 +93,11 @@ export default function MessagingPage() {
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', priority: 'normal', due_date: '' })
   const [taskLoading, setTaskLoading] = useState(false)
   const [taskError, setTaskError] = useState('')
+  const [documentTemplates, setDocumentTemplates] = useState([])
+  const [documentEmail, setDocumentEmail] = useState(null)
+  const [documentForm, setDocumentForm] = useState({ tip_id: '', titlu: '', prioritate: 'normal', termen_limita: '' })
+  const [documentLoading, setDocumentLoading] = useState(false)
+  const [documentError, setDocumentError] = useState('')
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -233,6 +238,71 @@ export default function MessagingPage() {
       setTaskError(err.response?.data?.error || 'Task-ul nu a putut fi creat din email.')
     } finally {
       setTaskLoading(false)
+    }
+  }
+
+  const loadDocumentTemplates = useCallback(async () => {
+    try {
+      const response = await api.get('/documents/template-catalog')
+      const rows = arrayFrom(response.data, ['templates'])
+      setDocumentTemplates(rows)
+      return rows
+    } catch {
+      setDocumentTemplates([])
+      return []
+    }
+  }, [])
+
+  function documentPriorityFromEmail(email) {
+    if (email?.importance === 'urgent') return 'critic'
+    if (email?.importance === 'high') return 'urgent'
+    return 'normal'
+  }
+
+  async function openDocumentFromEmail(email) {
+    setDocumentEmail(email)
+    setDocumentError('')
+    const rows = documentTemplates.length ? documentTemplates : await loadDocumentTemplates()
+    setDocumentForm({
+      tip_id: rows[0]?.id || '',
+      titlu: `Email: ${email.subject || 'fără subiect'}`,
+      prioritate: documentPriorityFromEmail(email),
+      termen_limita: '',
+    })
+  }
+
+  async function createDocumentFromEmail(event) {
+    event.preventDefault()
+    if (!documentEmail) return
+    setDocumentLoading(true)
+    setDocumentError('')
+    try {
+      await api.post('/documents', {
+        ...documentForm,
+        date: {
+          source_type: 'email',
+          source_id: String(documentEmail.id),
+          source_label: `Email: ${documentEmail.subject || documentEmail.from || documentEmail.id}`,
+          source_url: '/mesaje',
+          email_from: documentEmail.from || '',
+          email_to: documentEmail.to || '',
+          email_subject: documentEmail.subject || '',
+          email_received_at: documentEmail.received_at || '',
+          email_category: documentEmail.category || '',
+          email_category_label: documentEmail.category_label || '',
+          email_importance: documentEmail.importance || 'normal',
+          email_preview: documentEmail.preview || '',
+          email_has_attachments: Boolean(documentEmail.has_attachments),
+          email_attachments_count: Number(documentEmail.attachments_count || 0),
+        },
+      })
+      await api.patch(`/messaging/email/inbox/${documentEmail.id}`, { status: 'read' }).catch(() => {})
+      setDocumentEmail(null)
+      await loadEmailInbox()
+    } catch (err) {
+      setDocumentError(err.response?.data?.error || 'Documentul nu a putut fi creat din email.')
+    } finally {
+      setDocumentLoading(false)
     }
   }
 
@@ -466,6 +536,9 @@ export default function MessagingPage() {
                     </div>
                     <div className="flex shrink-0 flex-wrap justify-end gap-2">
                       <Button size="sm" onClick={() => openTaskFromEmail(email)}>Creează task</Button>
+                      <Button size="sm" variant="secondary" onClick={() => openDocumentFromEmail(email)}>
+                        <FileText size={14} /> Document
+                      </Button>
                       {email.source_url ? (
                         <Button size="sm" variant="secondary" onClick={() => { window.location.href = email.source_url }}>Deschide sursa</Button>
                       ) : null}
@@ -824,6 +897,62 @@ export default function MessagingPage() {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setTaskEmail(null)}>Renunță</Button>
             <Button type="submit" loading={taskLoading} disabled={!taskForm.title.trim() || !taskForm.assigned_to}>Creează task</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(documentEmail)} title="Creează document din email" onClose={() => setDocumentEmail(null)}>
+        <form className="grid gap-4" onSubmit={createDocumentFromEmail}>
+          {documentEmail ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-semibold text-slate-900">{documentEmail.subject || 'Email fără subiect'}</div>
+              <div className="mt-1 text-xs text-slate-500">
+                De la {documentEmail.from || '-'} · {documentEmail.category_label || documentEmail.category || 'General'}
+              </div>
+              {documentEmail.preview ? <p className="mt-2 line-clamp-3 text-xs text-slate-600">{documentEmail.preview}</p> : null}
+            </div>
+          ) : null}
+          <Select
+            label="Tip document"
+            value={documentForm.tip_id}
+            onChange={event => setDocumentForm(form => ({ ...form, tip_id: event.target.value }))}
+            options={documentTemplates.length
+              ? documentTemplates.map(item => ({ value: item.id, label: `${item.denumire || item.id}${item.template_format ? ` · ${String(item.template_format).toUpperCase()}` : ''}` }))
+              : [{ value: '', label: 'Nu există tipuri de document disponibile' }]}
+          />
+          <Input
+            label="Titlu document"
+            value={documentForm.titlu}
+            onChange={event => setDocumentForm(form => ({ ...form, titlu: event.target.value }))}
+            required
+          />
+          <div className="grid gap-3 md:grid-cols-2">
+            <Select
+              label="Prioritate"
+              value={documentForm.prioritate}
+              onChange={event => setDocumentForm(form => ({ ...form, prioritate: event.target.value }))}
+              options={[
+                { value: 'normal', label: 'Normală' },
+                { value: 'urgent', label: 'Urgentă' },
+                { value: 'critic', label: 'Critică' },
+              ]}
+            />
+            <Input
+              label="Termen limită"
+              type="date"
+              value={documentForm.termen_limita}
+              onChange={event => setDocumentForm(form => ({ ...form, termen_limita: event.target.value }))}
+            />
+          </div>
+          <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-700">
+            Documentul se creează ca draft în modulul Documente și păstrează automat sursa emailului, categoria, expeditorul și informația despre atașamente.
+          </div>
+          {documentError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{documentError}</div> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setDocumentEmail(null)}>Renunță</Button>
+            <Button type="submit" loading={documentLoading} disabled={!documentForm.tip_id || !documentForm.titlu.trim()}>
+              Creează document
+            </Button>
           </div>
         </form>
       </Modal>
