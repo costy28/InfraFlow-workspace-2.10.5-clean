@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.373 - 2026-07-23
+
+## Sursa email vizibilă în Documente
+
+- Documentele create din Inbox ERP afișează badge `Email ERP` în lista de documente.
+- Detaliile documentului includ un card de context cu expeditor, destinatar, subiect, categorie, importanță, preview și atașamente.
+- Cardul de context oferă revenire rapidă în Inbox ERP.
+- Nu s-a modificat schema DB; afișarea folosește metadatele existente din `date_json`.
+
 # v2.12.372 - 2026-07-23
 
 ## Document din email Inbox ERP

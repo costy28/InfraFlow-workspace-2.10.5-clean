@@ -928,3 +928,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ catalogul tipurilor de document este încărcat din `/api/documents/template-catalog`;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ documentul este creat prin endpoint-ul existent `/api/documents`;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ metadatele emailului sunt păstrate în `date_json`.
+
+### UPDATE 393 — Sursa email vizibilă în Documente
+
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ helper pentru identificarea documentelor create din email;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ badge `Email ERP` în lista de documente;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ card de context email în detaliile documentului;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ revenire rapidă către Inbox ERP;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ fără modificări DB, doar citire din `date_json`.

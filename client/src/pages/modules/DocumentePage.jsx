@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Download, Eye, FileText, UploadCloud, X } from 'lucide-react'
+import { Check, Download, Eye, FileText, Mail, UploadCloud, X } from 'lucide-react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -121,6 +121,25 @@ function documentDataObject(document) {
           return {}
         }
       })()
+}
+
+function emailSourceForDocument(document) {
+  const data = documentDataObject(document)
+  if (data?.source_type !== 'email') return null
+  return {
+    id: data.source_id || '',
+    label: data.source_label || data.email_subject || 'Email ERP',
+    url: data.source_url || '/mesaje',
+    from: data.email_from || '',
+    to: data.email_to || '',
+    subject: data.email_subject || '',
+    receivedAt: data.email_received_at || '',
+    category: data.email_category_label || data.email_category || '',
+    importance: data.email_importance || '',
+    preview: data.email_preview || '',
+    hasAttachments: Boolean(data.email_has_attachments),
+    attachmentsCount: Number(data.email_attachments_count || 0),
+  }
 }
 
 const templateTypes = [
@@ -460,6 +479,7 @@ export default function DocumentePage() {
   const currentUserStep = details.steps.find(step =>
     step.status === 'asteptare' && String(step.user_responsabil) === String(userId(user))
   )
+  const selectedEmailSource = emailSourceForDocument(details.document)
 
   const documentContextHelp = useMemo(() => {
     const inboxCount = activeTab === 'Inbox' ? visibleDocuments.length : null
@@ -625,6 +645,11 @@ export default function DocumentePage() {
                       <div className="text-xs font-semibold uppercase text-slate-500">{document.tip_id}</div>
                       <div className="break-words text-base font-semibold text-slate-900">{document.nr_document}</div>
                       <div className="mt-1 text-sm text-slate-500">{formatDate(document.updated_at || document.created_at)}</div>
+                      {emailSourceForDocument(document) ? (
+                        <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                          <Mail size={12} /> Email ERP
+                        </div>
+                      ) : null}
                     </div>
                     <Badge tone={toneFor(document.prioritate)}>{label(document.prioritate)}</Badge>
                   </button>
@@ -640,6 +665,14 @@ export default function DocumentePage() {
                 columns={[
                   { key: 'nr_document', label: 'Nr. document' },
                   { key: 'tip_id', label: 'Tip' },
+                  { key: 'source', label: 'Sursă', render: row => {
+                    const emailSource = emailSourceForDocument(row)
+                    return emailSource ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                        <Mail size={12} /> Email ERP
+                      </span>
+                    ) : <span className="text-slate-400">-</span>
+                  } },
                   { key: 'creat_de', label: 'Inițiator' },
                   { key: 'created_at', label: 'Trimis la', render: row => formatDate(row.updated_at || row.created_at) },
                   { key: 'prioritate', label: 'Prioritate', render: row => <Badge tone={toneFor(row.prioritate)}>{label(row.prioritate)}</Badge> },
@@ -679,6 +712,37 @@ export default function DocumentePage() {
                 </div>
 
                 <div className="grid gap-3">
+                  {selectedEmailSource ? (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-blue-800">
+                            <Mail size={16} /> Document creat din email
+                          </div>
+                          <div className="mt-1 break-words text-sm font-medium text-slate-900">
+                            {selectedEmailSource.subject || selectedEmailSource.label}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-600">
+                            De la {selectedEmailSource.from || '-'}
+                            {selectedEmailSource.to ? ` către ${selectedEmailSource.to}` : ''}
+                            {selectedEmailSource.receivedAt ? ` · ${formatDate(selectedEmailSource.receivedAt)}` : ''}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedEmailSource.category ? <Badge tone="neutral">{selectedEmailSource.category}</Badge> : null}
+                            {selectedEmailSource.importance ? <Badge tone={selectedEmailSource.importance === 'urgent' ? 'danger' : 'warning'}>{label(selectedEmailSource.importance)}</Badge> : null}
+                            {selectedEmailSource.hasAttachments ? <Badge tone="info">{selectedEmailSource.attachmentsCount || 1} ataș.</Badge> : null}
+                          </div>
+                          {selectedEmailSource.preview ? (
+                            <p className="mt-2 line-clamp-3 text-xs text-slate-600">{selectedEmailSource.preview}</p>
+                          ) : null}
+                        </div>
+                        <Button type="button" variant="secondary" onClick={() => { window.location.href = selectedEmailSource.url }}>
+                          Deschide Inbox
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <h3 className="text-sm font-semibold text-slate-800">Circuit aprobare</h3>
                   <div className="grid gap-2">
                     {details.steps.length === 0 ? (
