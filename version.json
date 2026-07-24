@@ -1,5 +1,5 @@
 {
-  "version": "2.12.374",
+  "version": "2.12.375",
   "date": "2026-07-24",
-  "changelog": "## v2.12.374 - 2026-07-24\n### Task din document\n- Modulul Documente permite crearea unui task direct din lista sau detaliile documentului.\n- Modalul precompleteaza titlul, descrierea, prioritatea si legatura catre document.\n- Task-ul foloseste source_type=document si source_url=/documente?document=ID.\n- Pagina Documente deschide automat documentul cand primeste parametrul document din URL."
+  "changelog": "## v2.12.375 - 2026-07-24\n### Task-uri legate in dosarul documentului\n- Endpoint-ul /api/tasks accepta filtre optionale source_type si source_id.\n- Detaliile documentului afiseaza card Task-uri legate.\n- Cardul listeaza statusul, prioritatea, responsabilul si termenul task-urilor create din document.\n- Smoke suite verifica filtrarea task-urilor dupa sursa document."
 }

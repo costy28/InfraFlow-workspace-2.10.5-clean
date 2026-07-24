@@ -164,6 +164,7 @@ const endpointChecks = [
   { name: 'Task-uri /api/tasks/assignees', path: '/api/tasks/assignees', countKeys: ['users'] },
   { name: 'Task-uri /api/tasks/templates', path: '/api/tasks/templates', validate: data => Array.isArray(data?.templates) && data.templates.length >= 5 },
   { name: 'Task-uri /api/tasks/source-types', path: '/api/tasks/source-types', validate: data => Array.isArray(data?.source_types) && data.source_types.some(item => item.value === 'contract') && data.source_types.some(item => item.value === 'email') },
+  { name: 'Task-uri /api/tasks filtrat pe document', path: '/api/tasks?source_type=document&source_id=smoke', countKeys: ['tasks'] },
   { name: 'Comunicare /api/messaging/email/categories', path: '/api/messaging/email/categories', validate: data => Array.isArray(data?.categories) && data.categories.some(item => item.id === 'contracte') },
   { name: 'Comunicare /api/messaging/email/inbox', path: '/api/messaging/email/inbox', countKeys: ['emails'], validate: data => Array.isArray(data?.categories) && typeof data?.stats === 'object' },
 

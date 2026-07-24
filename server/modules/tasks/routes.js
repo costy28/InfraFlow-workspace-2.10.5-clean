@@ -321,6 +321,8 @@ function visibleTasks(db, user, permissions, query = {}) {
   }
   if (query.scope === 'open') rows = rows.filter(task => OPEN_STATUSES.has(String(task.status || 'open')))
   if (query.status) rows = rows.filter(task => String(task.status || 'open') === String(query.status))
+  if (query.source_type) rows = rows.filter(task => String(task.source_type || '') === String(query.source_type))
+  if (query.source_id) rows = rows.filter(task => String(task.source_id || '') === String(query.source_id))
 
   return rows
     .map(task => enrichTask(task, users))

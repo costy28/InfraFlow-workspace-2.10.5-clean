@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.375 - 2026-07-24
+
+## Task-uri legate în dosarul documentului
+
+- Endpoint-ul `/api/tasks` acceptă filtre opționale `source_type` și `source_id`.
+- Detaliile documentului afișează card `Task-uri legate`.
+- Cardul arată task-urile create din document, cu status, prioritate, responsabil și termen.
+- După crearea unui task din document, lista de task-uri legate se reîncarcă automat.
+- Smoke suite verifică filtrarea task-urilor după sursa `document`.
+
 # v2.12.374 - 2026-07-24
 
 ## Task din document

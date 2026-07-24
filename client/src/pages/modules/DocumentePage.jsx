@@ -142,6 +142,14 @@ function emailSourceForDocument(document) {
   }
 }
 
+function taskTone(status) {
+  if (status === 'done') return 'success'
+  if (status === 'cancelled') return 'neutral'
+  if (status === 'blocked') return 'danger'
+  if (status === 'in_progress') return 'warning'
+  return 'info'
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -201,6 +209,8 @@ export default function DocumentePage() {
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', priority: 'normal', due_date: '' })
   const [taskSaving, setTaskSaving] = useState(false)
   const [taskError, setTaskError] = useState('')
+  const [relatedTasks, setRelatedTasks] = useState([])
+  const [relatedTasksLoading, setRelatedTasksLoading] = useState(false)
   const [pendingDocumentParam, setPendingDocumentParam] = useState(() => new URLSearchParams(window.location.search).get('document') || '')
   const [templateSaving, setTemplateSaving] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
@@ -259,21 +269,32 @@ export default function DocumentePage() {
     setSelected(document)
     setError('')
     setDocumentHtml('')
+    setRelatedTasks([])
     setDocumentHtmlLoading(true)
+    setRelatedTasksLoading(true)
     try {
       const response = await api.get(`/documents/${document.uuid}`)
+      const currentDocument = response.data.document || document
       setDetails({
-        document: response.data.document || document,
+        document: currentDocument,
         steps: arrayFrom(response.data, ['steps']),
         audit: arrayFrom(response.data, ['audit']),
       })
-      const htmlResponse = await api.get(`/documents/${document.uuid}/pdf`, { responseType: 'text' })
+      const documentId = currentDocument.uuid || currentDocument.id || currentDocument.nr_document
+      const [htmlResponse, tasksResponse] = await Promise.all([
+        api.get(`/documents/${document.uuid}/pdf`, { responseType: 'text' }),
+        documentId
+          ? api.get('/tasks', { params: { source_type: 'document', source_id: String(documentId) } }).catch(() => ({ data: { tasks: [] } }))
+          : Promise.resolve({ data: { tasks: [] } }),
+      ])
       setDocumentHtml(String(htmlResponse.data || ''))
+      setRelatedTasks(arrayFrom(tasksResponse.data, ['tasks']))
     } catch (err) {
       setDetails({ document, steps: [], audit: [] })
       setError(err.response?.data?.error || 'Nu am putut încărca detaliile documentului.')
     } finally {
       setDocumentHtmlLoading(false)
+      setRelatedTasksLoading(false)
     }
   }
 
@@ -332,6 +353,10 @@ export default function DocumentePage() {
         source_url: documentId ? `/documente?document=${encodeURIComponent(String(documentId))}` : '/documente',
       })
       setTaskDocument(null)
+      if (details.document && String(details.document.uuid || details.document.id || details.document.nr_document) === String(documentId || '')) {
+        const tasksResponse = await api.get('/tasks', { params: { source_type: 'document', source_id: String(documentId) } }).catch(() => ({ data: { tasks: [] } }))
+        setRelatedTasks(arrayFrom(tasksResponse.data, ['tasks']))
+      }
     } catch (err) {
       setTaskError(err.response?.data?.error || 'Task-ul nu a putut fi creat din document.')
     } finally {
@@ -820,6 +845,49 @@ export default function DocumentePage() {
                       </div>
                     </div>
                   ) : null}
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-800">Task-uri legate</h3>
+                        <p className="text-xs text-slate-500">Sarcini create direct din acest document.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone={relatedTasks.length ? 'info' : 'neutral'}>{relatedTasks.length} task-uri</Badge>
+                        <Button type="button" size="sm" variant="secondary" onClick={() => openTaskFromDocument(details.document)}>
+                          + Task
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      {relatedTasksLoading ? (
+                        <p className="text-sm text-slate-500">Se încarcă task-urile legate...</p>
+                      ) : relatedTasks.length === 0 ? (
+                        <p className="text-sm text-slate-500">Nu există task-uri legate de acest document.</p>
+                      ) : relatedTasks.slice(0, 5).map(task => (
+                        <div key={task.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-slate-900">{task.title}</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              Responsabil: {task.assigned_to_name || task.assigned_to || '-'}
+                              {task.due_date ? ` · termen ${task.due_date}` : ''}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            <Badge tone={taskTone(task.status)} size="sm">{label(task.status || 'open')}</Badge>
+                            <Badge tone={task.priority === 'urgent' ? 'danger' : task.priority === 'high' ? 'warning' : 'neutral'} size="sm">
+                              {label(task.priority || 'normal')}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                      {relatedTasks.length > 5 ? (
+                        <Button type="button" size="sm" variant="secondary" onClick={() => { window.location.href = '/taskuri' }}>
+                          Vezi toate task-urile
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
 
                   <h3 className="text-sm font-semibold text-slate-800">Circuit aprobare</h3>
                   <div className="grid gap-2">

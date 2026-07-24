@@ -944,3 +944,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ task creat prin endpoint-ul existent `/api/tasks`;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ task-ul păstrează `source_type=document` și link intern către document;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ deep-link `/documente?document=...` deschide automat documentul.
+
+### UPDATE 395 — Task-uri legate în dosarul documentului
+
+- `server/modules/tasks/routes.js` — ✅ filtre opționale `source_type` și `source_id` pe `/api/tasks`;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ încărcare task-uri legate la deschiderea documentului;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ card `Task-uri legate` în detaliile documentului;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ refresh automat al cardului după creare task din document;
+- `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru filtrarea task-urilor după document.
