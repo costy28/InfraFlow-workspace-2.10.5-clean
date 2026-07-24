@@ -44,6 +44,15 @@ function label(value) {
   return String(value || '-').replaceAll('_', ' ')
 }
 
+function urlSourceFilters() {
+  if (typeof window === 'undefined') return { source_type: '', source_id: '' }
+  const params = new URLSearchParams(window.location.search)
+  return {
+    source_type: params.get('source_type') || '',
+    source_id: params.get('source_id') || '',
+  }
+}
+
 function statusTone(status) {
   if (status === 'done') return 'success'
   if (status === 'blocked' || status === 'cancelled') return 'danger'
@@ -89,6 +98,7 @@ export default function TasksPage() {
   const [users, setUsers] = useState([])
   const [templates, setTemplates] = useState([])
   const [sourceTypes, setSourceTypes] = useState([])
+  const [sourceFilters, setSourceFilters] = useState(urlSourceFilters)
   const [templateAssignee, setTemplateAssignee] = useState('')
   const [canManageTemplates, setCanManageTemplates] = useState(false)
   const [assigneeScope, setAssigneeScope] = useState('self')
@@ -111,7 +121,13 @@ export default function TasksPage() {
     setError('')
     try {
       const [tasksRes, usersRes, templatesRes, sourceTypesRes] = await Promise.all([
-        api.get('/tasks', { params: { scope: activeTab === 'all' ? undefined : activeTab } }),
+        api.get('/tasks', {
+          params: {
+            scope: activeTab === 'all' ? undefined : activeTab,
+            source_type: sourceFilters.source_type || undefined,
+            source_id: sourceFilters.source_id || undefined,
+          },
+        }),
         api.get('/tasks/assignees').catch(() => ({ data: { users: [], scope: 'self' } })),
         api.get('/tasks/templates').catch(() => ({ data: { templates: [] } })),
         api.get('/tasks/source-types').catch(() => ({ data: { source_types: [] } })),
@@ -127,7 +143,7 @@ export default function TasksPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeTab])
+  }, [activeTab, sourceFilters.source_id, sourceFilters.source_type])
 
   useEffect(() => {
     Promise.resolve().then(() => load())
@@ -267,6 +283,15 @@ export default function TasksPage() {
   }))
 
   const sourceTypeOptions = sourceTypes.map(item => ({ value: item.value, label: item.label }))
+  const activeSourceType = sourceTypeOptions.find(item => item.value === sourceFilters.source_type)
+  const hasSourceFilter = Boolean(sourceFilters.source_type || sourceFilters.source_id)
+
+  function clearSourceFilters() {
+    setSourceFilters({ source_type: '', source_id: '' })
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }
 
   return (
     <div className="grid gap-4">
@@ -334,6 +359,21 @@ export default function TasksPage() {
 
       {message ? <div className="rounded-md border border-primary-100 bg-primary-50 px-3 py-2 text-sm text-primary-700">{message}</div> : null}
       {error ? <div className="rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+
+      {hasSourceFilter ? (
+        <Card className="border-blue-100 bg-blue-50/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="text-blue-900">
+              <div className="font-semibold">Lista este filtrată după sursa ERP</div>
+              <div className="mt-1 text-blue-700">
+                {activeSourceType?.label || label(sourceFilters.source_type || 'sursă')}
+                {sourceFilters.source_id ? <span> · ID: {sourceFilters.source_id}</span> : null}
+              </div>
+            </div>
+            <Button type="button" variant="secondary" onClick={clearSourceFilters}>Arată toate task-urile</Button>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-3">
         <Card><div className="text-xs uppercase text-slate-500">Deschise</div><div className="mt-1 text-2xl font-bold">{stats.open}</div></Card>

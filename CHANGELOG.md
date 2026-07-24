@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.376 - 2026-07-24
+
+## Task-uri filtrate din dosarul documentului
+
+- Pagina `Task-uri` citește filtrele `source_type` și `source_id` din URL.
+- Dosarul documentului are acțiunea `Vezi în Task-uri`, care deschide lista filtrată pe documentul curent.
+- Lista filtrată afișează contextul sursei ERP și oferă revenire rapidă la toate task-urile.
+- Linkul `Vezi toate task-urile` din dosarul documentului păstrează același filtru de sursă.
+
 # v2.12.375 - 2026-07-24
 
 ## Task-uri legate în dosarul documentului

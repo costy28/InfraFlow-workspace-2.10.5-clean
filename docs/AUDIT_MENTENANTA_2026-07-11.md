@@ -952,3 +952,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ card `Task-uri legate` în detaliile documentului;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ refresh automat al cardului după creare task din document;
 - `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru filtrarea task-urilor după document.
+
+### UPDATE 396 — Task-uri filtrate din dosarul documentului
+
+- `client/src/pages/modules/TasksPage.jsx` — ✅ citește `source_type` și `source_id` din URL;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ trimite filtrele către `/api/tasks` împreună cu scope-ul curent;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ afișează banner de context pentru lista filtrată și revenire la toate task-urile;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ acțiunea `Vezi în Task-uri` deschide panoul filtrat pe document;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ butonul `Vezi toate task-urile` păstrează filtrul documentului.

@@ -42,6 +42,16 @@ function userId(user) {
   return user?.id || user?.userId || user?.username
 }
 
+function documentTaskSourceId(document) {
+  return document?.uuid || document?.id || document?.nr_document || ''
+}
+
+function openDocumentTasksPage(document) {
+  const documentId = documentTaskSourceId(document)
+  const query = documentId ? `?source_type=document&source_id=${encodeURIComponent(String(documentId))}` : ''
+  window.location.href = `/taskuri${query}`
+}
+
 function templateIdFromName(value) {
   return String(value || 'TPL')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -280,7 +290,7 @@ export default function DocumentePage() {
         steps: arrayFrom(response.data, ['steps']),
         audit: arrayFrom(response.data, ['audit']),
       })
-      const documentId = currentDocument.uuid || currentDocument.id || currentDocument.nr_document
+      const documentId = documentTaskSourceId(currentDocument)
       const [htmlResponse, tasksResponse] = await Promise.all([
         api.get(`/documents/${document.uuid}/pdf`, { responseType: 'text' }),
         documentId
@@ -344,7 +354,7 @@ export default function DocumentePage() {
     setTaskSaving(true)
     setTaskError('')
     try {
-      const documentId = taskDocument.uuid || taskDocument.id || taskDocument.nr_document
+      const documentId = documentTaskSourceId(taskDocument)
       await api.post('/tasks', {
         ...taskForm,
         source_type: 'document',
@@ -353,7 +363,7 @@ export default function DocumentePage() {
         source_url: documentId ? `/documente?document=${encodeURIComponent(String(documentId))}` : '/documente',
       })
       setTaskDocument(null)
-      if (details.document && String(details.document.uuid || details.document.id || details.document.nr_document) === String(documentId || '')) {
+      if (details.document && String(documentTaskSourceId(details.document)) === String(documentId || '')) {
         const tasksResponse = await api.get('/tasks', { params: { source_type: 'document', source_id: String(documentId) } }).catch(() => ({ data: { tasks: [] } }))
         setRelatedTasks(arrayFrom(tasksResponse.data, ['tasks']))
       }
@@ -854,6 +864,9 @@ export default function DocumentePage() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge tone={relatedTasks.length ? 'info' : 'neutral'}>{relatedTasks.length} task-uri</Badge>
+                        <Button type="button" size="sm" variant="secondary" onClick={() => openDocumentTasksPage(details.document)}>
+                          Vezi în Task-uri
+                        </Button>
                         <Button type="button" size="sm" variant="secondary" onClick={() => openTaskFromDocument(details.document)}>
                           + Task
                         </Button>
@@ -882,7 +895,7 @@ export default function DocumentePage() {
                         </div>
                       ))}
                       {relatedTasks.length > 5 ? (
-                        <Button type="button" size="sm" variant="secondary" onClick={() => { window.location.href = '/taskuri' }}>
+                        <Button type="button" size="sm" variant="secondary" onClick={() => openDocumentTasksPage(details.document)}>
                           Vezi toate task-urile
                         </Button>
                       ) : null}

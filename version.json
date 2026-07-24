@@ -1,5 +1,5 @@
 {
-  "version": "2.12.375",
+  "version": "2.12.376",
   "date": "2026-07-24",
-  "changelog": "## v2.12.375 - 2026-07-24\n### Task-uri legate in dosarul documentului\n- Endpoint-ul /api/tasks accepta filtre optionale source_type si source_id.\n- Detaliile documentului afiseaza card Task-uri legate.\n- Cardul listeaza statusul, prioritatea, responsabilul si termenul task-urilor create din document.\n- Smoke suite verifica filtrarea task-urilor dupa sursa document."
+  "changelog": "## v2.12.376 - 2026-07-24\n### Task-uri filtrate din dosarul documentului\n- Pagina Task-uri citeste filtrele source_type si source_id din URL.\n- Dosarul documentului deschide panoul Task-uri direct filtrat pe documentul curent.\n- Lista filtrata afiseaza un banner de context si actiune pentru revenire la toate task-urile."
 }
