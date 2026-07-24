@@ -69,7 +69,7 @@ function messageText(message) {
 const emptyChannelForm = { nume: '', tip: 'departament', descriere: '' }
 
 const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '', direction: 'inbound' }
-const emptyEmailComposeForm = { to: '', subject: '', body: '', category: 'general', importance: 'normal' }
+const emptyEmailComposeForm = { to: '', cc: '', bcc: '', subject: '', body: '', category: 'general', importance: 'normal', attachments: [] }
 
 function importanceBadge(value) {
   if (value === 'urgent') return { label: 'urgent', tone: 'danger', cls: 'bg-rose-100 text-rose-700' }
@@ -85,6 +85,27 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+function readFileAsAttachment(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = String(reader.result || '')
+      const content = result.includes(',') ? result.split(',').pop() : result
+      resolve({
+        filename: file.name,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        contentType: file.type,
+        content,
+        encoding: 'base64',
+      })
+    }
+    reader.onerror = () => reject(reader.error || new Error('Fișierul nu a putut fi citit.'))
+    reader.readAsDataURL(file)
+  })
 }
 
 export default function MessagingPage() {
@@ -361,6 +382,40 @@ export default function MessagingPage() {
     }
   }
 
+  async function handleComposeFiles(event) {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    setComposeError('')
+    const maxFileSize = 2 * 1024 * 1024
+    const maxTotalSize = 5 * 1024 * 1024
+    const accepted = files.slice(0, 5)
+    const oversized = accepted.find(file => file.size > maxFileSize)
+    if (oversized) {
+      setComposeError(`Fișierul ${oversized.name} depășește limita de 2 MB.`)
+      event.target.value = ''
+      return
+    }
+    const currentSize = composeForm.attachments.reduce((sum, item) => sum + Number(item.size || 0), 0)
+    const selectedSize = accepted.reduce((sum, file) => sum + Number(file.size || 0), 0)
+    if (currentSize + selectedSize > maxTotalSize) {
+      setComposeError('Atașamentele depășesc limita totală de 5 MB pentru un email.')
+      event.target.value = ''
+      return
+    }
+    try {
+      const attachments = await Promise.all(accepted.map(readFileAsAttachment))
+      setComposeForm(form => ({ ...form, attachments: form.attachments.concat(attachments).slice(0, 5) }))
+    } catch {
+      setComposeError('Un atașament nu a putut fi citit.')
+    } finally {
+      event.target.value = ''
+    }
+  }
+
+  function removeComposeAttachment(index) {
+    setComposeForm(form => ({ ...form, attachments: form.attachments.filter((_, itemIndex) => itemIndex !== index) }))
+  }
+
   // ─── Info panel ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (infoOpen && activeChannel) loadMembers(activeChannel)
@@ -598,7 +653,11 @@ export default function MessagingPage() {
                       <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">{email.subject}</h3>
                       <p className="mt-1 text-xs text-slate-500">
                         {email.direction === 'outbound' ? (
-                          <>Către <strong>{email.to || '-'}</strong>{email.from ? <> · de la {email.from}</> : null}</>
+                          <>
+                            Către <strong>{email.to || '-'}</strong>
+                            {email.cc ? <> · CC {email.cc}</> : null}
+                            {email.from ? <> · de la {email.from}</> : null}
+                          </>
                         ) : (
                           <>De la <strong>{email.from}</strong>{email.to ? <> către {email.to}</> : null}</>
                         )} · {formatDate(email.received_at)}
@@ -929,12 +988,25 @@ export default function MessagingPage() {
           </div>
           <Input
             label="Către"
-            type="email"
             value={composeForm.to}
             onChange={event => setComposeForm(form => ({ ...form, to: event.target.value }))}
-            placeholder="destinatar@firma.ro"
+            placeholder="destinatar@firma.ro sau mai mulți separați prin virgulă"
             required
           />
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input
+              label="CC (opțional)"
+              value={composeForm.cc}
+              onChange={event => setComposeForm(form => ({ ...form, cc: event.target.value }))}
+              placeholder="copie@firma.ro"
+            />
+            <Input
+              label="BCC (opțional)"
+              value={composeForm.bcc}
+              onChange={event => setComposeForm(form => ({ ...form, bcc: event.target.value }))}
+              placeholder="copie-ascunsa@firma.ro"
+            />
+          </div>
           <Input
             label="Subiect"
             value={composeForm.subject}
@@ -974,7 +1046,30 @@ export default function MessagingPage() {
             />
           </div>
           <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs text-amber-800">
-            Atașamentele și CC/BCC le adăugăm etapizat în update-ul următor, ca să păstrăm trimiterea de bază stabilă.
+            Atașamentele se trimit prin SMTP și în registrul ERP se păstrează doar numele, dimensiunea și tipul fișierului.
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="mb-2 block text-sm font-medium text-slate-700">Atașamente</label>
+            <input
+              type="file"
+              multiple
+              onChange={handleComposeFiles}
+              className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-primary-700 hover:file:bg-primary-100"
+            />
+            <p className="mt-2 text-xs text-slate-500">Maximum 5 fișiere, 2 MB/fișier și 5 MB total/email.</p>
+            {composeForm.attachments.length ? (
+              <div className="mt-3 grid gap-2">
+                {composeForm.attachments.map((attachment, index) => (
+                  <div key={`${attachment.name}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <span className="truncate text-slate-700">
+                      <Paperclip size={13} className="mr-1 inline" />
+                      {attachment.name} · {Math.ceil(Number(attachment.size || 0) / 1024)} KB
+                    </span>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => removeComposeAttachment(index)}>Scoate</Button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
           {composeError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{composeError}</div> : null}
           <div className="flex justify-end gap-2">

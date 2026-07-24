@@ -102,6 +102,8 @@ function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES) {
     status: message.status || 'unread',
     from: message.from || '',
     to: message.to || '',
+    cc: message.cc || '',
+    bcc: message.bcc ? '***' : '',
     subject: message.subject || '',
     preview: message.preview || String(message.body || '').replace(/\s+/g, ' ').trim().slice(0, 180),
     body: message.body || '',
@@ -139,6 +141,20 @@ function normalizeEmailAttachments(value) {
     size: Number(item?.size || 0),
     type: String(item?.type || '').trim()
   })).filter(item => item.name) : []
+}
+
+function normalizeOutgoingAttachments(value) {
+  return Array.isArray(value) ? value.map(item => {
+    const filename = String(item?.filename || item?.name || '').trim()
+    const content = String(item?.content || '').trim()
+    if (!filename || !content) return null
+    return {
+      filename,
+      content,
+      encoding: String(item?.encoding || 'base64'),
+      contentType: String(item?.contentType || item?.type || '').trim() || undefined
+    }
+  }).filter(Boolean) : []
 }
 
 function emailStats(messages) {
@@ -415,9 +431,10 @@ router.post('/messaging/email/send', async (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'messaging:send')) return
-    const { to, subject, body, attachments } = req.body || {}
+    const { to, cc, bcc, subject, body, attachments } = req.body || {}
     if (!to || !subject || !body) return sendJson(res, 400, { error: 'Destinatarul, subiectul si continutul sunt obligatorii.' })
-    await sendEmail({ to, subject, body, attachments }, auth.db)
+    const outgoingAttachments = normalizeOutgoingAttachments(attachments)
+    await sendEmail({ to, cc, bcc, subject, body, attachments: outgoingAttachments }, auth.db)
     const messaging = ensureMessagingDb(auth.db)
     const categories = emailCategories(messaging)
     const category = categories.some(item => String(item.id) === String(req.body?.category || 'general')) ? String(req.body?.category || 'general') : 'general'
@@ -429,6 +446,8 @@ router.post('/messaging/email/send', async (req, res, next) => {
       status: 'read',
       from: settings.smtp_user || auth.user.email || '',
       to: String(to || '').trim(),
+      cc: String(cc || '').trim(),
+      bcc: String(bcc || '').trim(),
       subject: String(subject || '').trim(),
       preview: String(req.body?.preview || '').trim(),
       body: String(body || '').trim(),
@@ -502,7 +521,7 @@ router.get('/messaging/email/inbox', (req, res, next) => {
 
     let rows = messaging.emailMessages.map(item => publicEmailMessage(item, categories))
     if (query) {
-      rows = rows.filter(item => [item.from, item.to, item.subject, item.preview, item.source_label].join(' ').toLowerCase().includes(query))
+      rows = rows.filter(item => [item.from, item.to, item.cc, item.subject, item.preview, item.source_label].join(' ').toLowerCase().includes(query))
     }
     if (category) rows = rows.filter(item => String(item.category) === category)
     if (importance) rows = rows.filter(item => item.importance === importance)
@@ -542,6 +561,8 @@ router.post('/messaging/email/inbox', (req, res, next) => {
       status: ['unread', 'read', 'archived'].includes(body.status) ? body.status : 'unread',
       from,
       to: String(body.to || '').trim(),
+      cc: String(body.cc || '').trim(),
+      bcc: String(body.bcc || '').trim(),
       subject,
       preview: String(body.preview || '').trim(),
       body: String(body.body || '').trim(),

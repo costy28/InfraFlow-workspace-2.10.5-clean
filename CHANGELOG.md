@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.378 - 2026-07-24
+
+## CC/BCC și atașamente la email
+
+- Modalul `Email nou` permite completarea câmpurilor `CC` și `BCC`.
+- Trimiterea SMTP primește destinatarii `cc`, `bcc` și atașamentele selectate.
+- UI-ul acceptă până la 5 atașamente mici, cu limită de 2 MB/fișier și 5 MB total/email pentru a rămâne sub limita JSON a serverului.
+- Copia salvată în registrul ERP păstrează doar metadatele atașamentelor: nume, dimensiune și tip.
+- Răspunsurile publice maschează `BCC`, iar căutarea în Inbox ERP include și câmpul `CC`.
+
 # v2.12.377 - 2026-07-24
 
 ## Compunere și trimitere email din Mesaje

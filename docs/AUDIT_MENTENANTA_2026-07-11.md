@@ -969,3 +969,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ modal de compunere cu destinatar, subiect, mesaj, categorie și importanță;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ filtru `Cutie`: Inbox, Trimise, Toate;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ după trimitere reușită, utilizatorul este mutat în `Trimise`.
+
+### UPDATE 398 — CC/BCC și atașamente la email
+
+- `server/modules/messaging/email.js` — ✅ trimiterea SMTP acceptă `cc`, `bcc` și atașamente;
+- `server/modules/messaging/routes.js` — ✅ endpoint-ul `/messaging/email/send` normalizează atașamentele pentru SMTP;
+- `server/modules/messaging/routes.js` — ✅ copia trimisă salvează metadatele atașamentelor și maschează `BCC` în răspunsurile publice;
+- `server/modules/messaging/routes.js` — ✅ căutarea în Inbox ERP include și câmpul `CC`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ modalul `Email nou` are câmpuri `CC` și `BCC`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ atașamente mici din browser, cu limită 2 MB/fișier și 5 MB total/email.

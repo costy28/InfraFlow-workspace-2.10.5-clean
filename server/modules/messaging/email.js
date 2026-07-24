@@ -27,7 +27,7 @@ function getEmailSettings(db = readDb()) {
   }
 }
 
-async function sendEmail({ to, subject, body, attachments }, dbInput) {
+async function sendEmail({ to, cc, bcc, subject, body, attachments }, dbInput) {
   const settings = getEmailSettings(dbInput)
   if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_password_encrypted) {
     throw new Error('Configurarea SMTP este incompleta.')
@@ -44,6 +44,8 @@ async function sendEmail({ to, subject, body, attachments }, dbInput) {
   await transporter.sendMail({
     from: `"${settings.smtp_name}" <${settings.smtp_user}>`,
     to,
+    cc,
+    bcc,
     subject,
     html: body,
     attachments

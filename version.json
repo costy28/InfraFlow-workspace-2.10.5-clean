@@ -1,5 +1,5 @@
 {
-  "version": "2.12.377",
+  "version": "2.12.378",
   "date": "2026-07-24",
-  "changelog": "## v2.12.377 - 2026-07-24\n### Compunere si trimitere email din Mesaje\n- Inbox ERP are buton Email nou si modal de compunere.\n- Emailurile se trimit prin endpoint-ul SMTP existent si se salveaza automat in Trimise.\n- Lista emailurilor poate fi filtrata pe Inbox, Trimise sau Toate."
+  "changelog": "## v2.12.378 - 2026-07-24\n### CC/BCC si atasamente la email\n- Modalul Email nou accepta CC si BCC.\n- Emailurile trimise pot include atasamente mici prin SMTP.\n- Registrul ERP pastreaza metadata atasamentelor si mascheaza BCC in raspunsurile publice."
 }

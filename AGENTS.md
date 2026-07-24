@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.377**
-**Versiune în lucru: v2.12.377**
+**Versiune curentă sursă: v2.12.378**
+**Versiune în lucru: v2.12.378**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -286,6 +286,7 @@ Comunicare
   ✅ Task-uri legate în dosarul documentului (v2.12.375)
   ✅ Task-uri filtrate din dosarul documentului (v2.12.376)
   ✅ Compunere și trimitere email din Mesaje (v2.12.377)
+  ✅ CC/BCC și atașamente la email din Mesaje (v2.12.378)
 
 Task Management
   ✅ Fundație task-uri personale și delegate (v2.12.355)
@@ -590,6 +591,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Faza 3: creare document draft direct din email ✅ UPDATE 392
       → Faza 4: sursa email vizibilă în Documente ✅ UPDATE 393
       → Faza 5: compunere și trimitere email din Mesaje ✅ UPDATE 397
+      → Faza 6: CC/BCC și atașamente la email ✅ UPDATE 398
       → Email organizațional per utilizator, fără conturi personale
       → Inbox integrat în aplicație, cu categorii și importanță
       → Filtre după dată, expeditor, categorie, modul, sursă ERP și atașamente
@@ -671,9 +673,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.377
+VERSIUNE CURENTĂ SURSĂ: 2.12.378
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.377 ✅
+UPDATE ZIP CURENT: 2.12.378 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -859,6 +861,7 @@ UPDATES ÎN LUCRU:
   2.12.375 → UPDATE 395 Task-uri legate în dosarul documentului ✅
   2.12.376 → UPDATE 396 Task-uri filtrate din dosarul documentului ✅
   2.12.377 → UPDATE 397 Compunere și trimitere email din Mesaje ✅
+  2.12.378 → UPDATE 398 CC/BCC și atașamente la email ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -889,7 +892,7 @@ SMTP Email
   DNS: configurabil per domeniul clientului
   Fallback: Gmail App Password pentru instalări mici
   Direcție: Inbox ERP organizațional în aplicație, fără email personal
-  Status Inbox ERP: fundație internă + categorii + filtre + task/document din email + sursă vizibilă în Documente + trimitere email din Mesaje ✅
+  Status Inbox ERP: fundație internă + categorii + filtre + task/document din email + sursă vizibilă în Documente + trimitere email din Mesaje + CC/BCC și atașamente ✅
 
 ANAF / e-Factura
   Status: Export XML manual (utilizatorul urcă în SPV)
@@ -1353,5 +1356,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 24 Iulie 2026 | InfraFlow sursă v2.12.377*
+*AGENTS.md actualizat: 24 Iulie 2026 | InfraFlow sursă v2.12.378*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
