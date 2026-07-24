@@ -1,5 +1,5 @@
 {
-  "version": "2.12.373",
-  "date": "2026-07-23",
-  "changelog": "## v2.12.373 - 2026-07-23\n### Sursa email vizibila in Documente\n- Documentele create din Inbox ERP afiseaza badge Email ERP in lista Documente.\n- Detaliile documentului includ card cu expeditor, destinatar, subiect, categorie, importanta, preview si atasamente.\n- Cardul permite revenirea rapida in Inbox ERP.\n- Nu modifica schema DB; foloseste metadatele existente din date_json."
+  "version": "2.12.374",
+  "date": "2026-07-24",
+  "changelog": "## v2.12.374 - 2026-07-24\n### Task din document\n- Modulul Documente permite crearea unui task direct din lista sau detaliile documentului.\n- Modalul precompleteaza titlul, descrierea, prioritatea si legatura catre document.\n- Task-ul foloseste source_type=document si source_url=/documente?document=ID.\n- Pagina Documente deschide automat documentul cand primeste parametrul document din URL."
 }

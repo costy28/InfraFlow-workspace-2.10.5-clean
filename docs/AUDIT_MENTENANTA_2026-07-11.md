@@ -936,3 +936,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ card de context email în detaliile documentului;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ revenire rapidă către Inbox ERP;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ fără modificări DB, doar citire din `date_json`.
+
+### UPDATE 394 — Task din document
+
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ acțiune `Creează task` în listă, tabel și detaliile documentului;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ modal de creare task din document;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ task creat prin endpoint-ul existent `/api/tasks`;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ task-ul păstrează `source_type=document` și link intern către document;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ deep-link `/documente?document=...` deschide automat documentul.

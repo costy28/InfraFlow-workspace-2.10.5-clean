@@ -196,6 +196,12 @@ export default function DocumentePage() {
   const [documentPreview, setDocumentPreview] = useState(null)
   const [documentPreviewVisible, setDocumentPreviewVisible] = useState(false)
   const [documentSaving, setDocumentSaving] = useState(false)
+  const [taskUsers, setTaskUsers] = useState([])
+  const [taskDocument, setTaskDocument] = useState(null)
+  const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', priority: 'normal', due_date: '' })
+  const [taskSaving, setTaskSaving] = useState(false)
+  const [taskError, setTaskError] = useState('')
+  const [pendingDocumentParam, setPendingDocumentParam] = useState(() => new URLSearchParams(window.location.search).get('document') || '')
   const [templateSaving, setTemplateSaving] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
@@ -234,6 +240,21 @@ export default function DocumentePage() {
     return documents.filter(document => String(document.creat_de) === String(id))
   }, [activeTab, documents, user])
 
+  useEffect(() => {
+    if (!pendingDocumentParam || loading || activeTab === 'Template-uri') return
+    const target = visibleDocuments.find(document =>
+      String(document.uuid || '') === String(pendingDocumentParam) ||
+      String(document.id || '') === String(pendingDocumentParam) ||
+      String(document.nr_document || '') === String(pendingDocumentParam)
+    )
+    if (target) {
+      setPendingDocumentParam('')
+      Promise.resolve().then(() => openDetails(target))
+      return
+    }
+    if (activeTab !== 'Toate') setActiveTab('Toate')
+  }, [pendingDocumentParam, loading, activeTab, visibleDocuments])
+
   async function openDetails(document) {
     setSelected(document)
     setError('')
@@ -262,6 +283,60 @@ export default function DocumentePage() {
     const url = URL.createObjectURL(blob)
     window.open(url, '_blank', 'noopener,noreferrer')
     window.setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const loadTaskUsers = useCallback(async () => {
+    try {
+      const response = await api.get('/tasks/assignees')
+      const rows = arrayFrom(response.data, ['users'])
+      setTaskUsers(rows)
+      return rows
+    } catch {
+      setTaskUsers([])
+      return []
+    }
+  }, [])
+
+  async function openTaskFromDocument(document) {
+    setTaskDocument(document)
+    setTaskError('')
+    const rows = taskUsers.length ? taskUsers : await loadTaskUsers()
+    const documentLabel = document.nr_document || document.titlu || document.uuid || document.id
+    setTaskForm({
+      title: `Verifică documentul ${documentLabel}`,
+      description: [
+        `Document: ${document.nr_document || '-'}`,
+        document.titlu ? `Titlu: ${document.titlu}` : '',
+        document.tip_id ? `Tip: ${document.tip_id}` : '',
+        document.prioritate ? `Prioritate document: ${label(document.prioritate)}` : '',
+        emailSourceForDocument(document) ? 'Sursă inițială: Email ERP' : '',
+      ].filter(Boolean).join('\n'),
+      assigned_to: userId(user) || rows[0]?.id || '',
+      priority: document.prioritate === 'critic' ? 'urgent' : (document.prioritate === 'urgent' ? 'high' : 'normal'),
+      due_date: '',
+    })
+  }
+
+  async function createTaskFromDocument(event) {
+    event.preventDefault()
+    if (!taskDocument) return
+    setTaskSaving(true)
+    setTaskError('')
+    try {
+      const documentId = taskDocument.uuid || taskDocument.id || taskDocument.nr_document
+      await api.post('/tasks', {
+        ...taskForm,
+        source_type: 'document',
+        source_id: String(documentId || ''),
+        source_label: `${taskDocument.nr_document || 'Document'}${taskDocument.titlu ? ` · ${taskDocument.titlu}` : ''}`,
+        source_url: documentId ? `/documente?document=${encodeURIComponent(String(documentId))}` : '/documente',
+      })
+      setTaskDocument(null)
+    } catch (err) {
+      setTaskError(err.response?.data?.error || 'Task-ul nu a putut fi creat din document.')
+    } finally {
+      setTaskSaving(false)
+    }
   }
 
   async function processDocument(action) {
@@ -655,6 +730,7 @@ export default function DocumentePage() {
                   </button>
                   <DropdownMenu label="Actiuni document" items={[
                     { label: 'Detalii', onClick: () => openDetails(document) },
+                    { label: 'Creează task', onClick: () => openTaskFromDocument(document) },
                     canEditDocument(document) ? { label: 'Editeaza', onClick: () => openDocumentEdit(document) } : null,
                   ]} />
                 </div>
@@ -680,6 +756,7 @@ export default function DocumentePage() {
                     <div className="flex justify-end">
                       <DropdownMenu align="right" label="Actiuni" items={[
                         { label: 'Detalii', onClick: () => openDetails(row) },
+                        { label: 'Creează task', onClick: () => openTaskFromDocument(row) },
                         canEditDocument(row) ? { label: 'Editeaza', onClick: () => openDocumentEdit(row) } : null,
                       ]} />
                     </div>
@@ -704,6 +781,7 @@ export default function DocumentePage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <DropdownMenu align="right" label="Actiuni" items={[
+                      { label: 'Creează task', onClick: () => openTaskFromDocument(details.document) },
                       canEditDocument(details.document) ? { label: 'Editeaza', onClick: () => openDocumentEdit(details.document) } : null,
                       { label: 'Deschide documentul', disabled: !documentHtml, onClick: openDocumentHtml },
                     ]} />
@@ -1043,6 +1121,80 @@ export default function DocumentePage() {
 
       <Modal open={Boolean(templatePreview)} title={`Preview ${templatePreview?.template?.denumire || ''}`} onClose={() => setTemplatePreview(null)} size="xl">
         <div className="min-h-96 rounded-md border border-slate-200 bg-white p-8 text-sm leading-6 shadow-inner" dangerouslySetInnerHTML={{ __html: templatePreview?.html || '' }} />
+      </Modal>
+
+      <Modal open={Boolean(taskDocument)} title="Creează task din document" onClose={() => setTaskDocument(null)}>
+        <form className="grid gap-4" onSubmit={createTaskFromDocument}>
+          {taskDocument ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-semibold text-slate-900">{taskDocument.nr_document || 'Document'}</div>
+              <div className="mt-1 text-xs text-slate-500">{taskDocument.titlu || taskDocument.tip_id || '-'}</div>
+            </div>
+          ) : null}
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Titlu task
+            <input
+              className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              value={taskForm.title}
+              onChange={event => setTaskForm(form => ({ ...form, title: event.target.value }))}
+              required
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Descriere
+            <textarea
+              className="min-h-28 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              value={taskForm.description}
+              onChange={event => setTaskForm(form => ({ ...form, description: event.target.value }))}
+            />
+          </label>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Responsabil
+              <select
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={taskForm.assigned_to}
+                onChange={event => setTaskForm(form => ({ ...form, assigned_to: event.target.value }))}
+                required
+              >
+                <option value="">Alege responsabil</option>
+                {taskUsers.map(item => (
+                  <option key={item.id} value={item.id}>{item.name || item.username || item.id}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Prioritate
+              <select
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={taskForm.priority}
+                onChange={event => setTaskForm(form => ({ ...form, priority: event.target.value }))}
+              >
+                <option value="low">Scăzută</option>
+                <option value="normal">Normală</option>
+                <option value="high">Importantă</option>
+                <option value="urgent">Urgentă</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Termen
+              <input
+                type="date"
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={taskForm.due_date}
+                onChange={event => setTaskForm(form => ({ ...form, due_date: event.target.value }))}
+              />
+            </label>
+          </div>
+          <div className="rounded-lg border border-primary-100 bg-primary-50 p-3 text-xs text-primary-700">
+            Task-ul va păstra legătura către document. Din Task-uri, butonul „Deschide sursa” va reveni direct aici.
+          </div>
+          {taskError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{taskError}</div> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setTaskDocument(null)}>Renunță</Button>
+            <Button type="submit" loading={taskSaving} disabled={!taskForm.title.trim() || !taskForm.assigned_to}>Creează task</Button>
+          </div>
+        </form>
       </Modal>
     </div>
   )

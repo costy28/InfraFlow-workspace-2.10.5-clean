@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.374 - 2026-07-24
+
+## Task din document
+
+- Modulul `Documente` permite crearea unui task direct din lista de documente sau din detaliile documentului.
+- Modalul de conversie precompletează titlul, descrierea, prioritatea și responsabilul.
+- Task-ul este creat prin endpoint-ul existent `/api/tasks`, cu `source_type=document`.
+- Linkul sursei este salvat ca `/documente?document=ID`, astfel încât utilizatorul poate reveni din task direct în document.
+- Pagina `Documente` citește parametrul `document` din URL și deschide automat documentul țintă.
+
 # v2.12.373 - 2026-07-23
 
 ## Sursa email vizibilă în Documente
