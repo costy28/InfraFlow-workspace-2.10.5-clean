@@ -960,3 +960,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/TasksPage.jsx` — ✅ afișează banner de context pentru lista filtrată și revenire la toate task-urile;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ acțiunea `Vezi în Task-uri` deschide panoul filtrat pe document;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ butonul `Vezi toate task-urile` păstrează filtrul documentului.
+
+### UPDATE 397 — Compunere și trimitere email din Mesaje
+
+- `server/modules/messaging/routes.js` — ✅ `/messaging/email/send` salvează automat copia trimisă în registrul ERP;
+- `server/modules/messaging/routes.js` — ✅ `/messaging/email/inbox` acceptă filtrul `direction=inbound|outbound`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ buton `Email nou` în Inbox ERP;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ modal de compunere cu destinatar, subiect, mesaj, categorie și importanță;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ filtru `Cutie`: Inbox, Trimise, Toate;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ după trimitere reușită, utilizatorul este mutat în `Trimise`.

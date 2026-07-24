@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.377 - 2026-07-24
+
+## Compunere și trimitere email din Mesaje
+
+- Tabul `Inbox ERP` are acțiunea `Email nou`.
+- Modalul de compunere permite completarea destinatarului, subiectului, corpului, categoriei și importanței.
+- Trimiterea folosește endpoint-ul SMTP existent `/api/messaging/email/send`.
+- După trimitere reușită, copia emailului se salvează automat în registrul ERP cu `direction=outbound`.
+- Lista emailurilor poate fi filtrată pe `Inbox`, `Trimise` sau `Toate`.
+
 # v2.12.376 - 2026-07-24
 
 ## Task-uri filtrate din dosarul documentului

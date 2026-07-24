@@ -1,5 +1,5 @@
 {
-  "version": "2.12.376",
+  "version": "2.12.377",
   "date": "2026-07-24",
-  "changelog": "## v2.12.376 - 2026-07-24\n### Task-uri filtrate din dosarul documentului\n- Pagina Task-uri citeste filtrele source_type si source_id din URL.\n- Dosarul documentului deschide panoul Task-uri direct filtrat pe documentul curent.\n- Lista filtrata afiseaza un banner de context si actiune pentru revenire la toate task-urile."
+  "changelog": "## v2.12.377 - 2026-07-24\n### Compunere si trimitere email din Mesaje\n- Inbox ERP are buton Email nou si modal de compunere.\n- Emailurile se trimit prin endpoint-ul SMTP existent si se salveaza automat in Trimise.\n- Lista emailurilor poate fi filtrata pe Inbox, Trimise sau Toate."
 }

@@ -3,7 +3,7 @@ const { requireAuth } = require('../../core/auth')
 const { requirePermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
-const { sendEmail } = require('./email')
+const { sendEmail, getEmailSettings } = require('./email')
 const router = Router()
 
 const sseClients = new Map()
@@ -131,6 +131,14 @@ function safeInternalUrl(value) {
   const text = String(value || '').trim()
   if (!text || !text.startsWith('/') || text.startsWith('//')) return null
   return text
+}
+
+function normalizeEmailAttachments(value) {
+  return Array.isArray(value) ? value.map(item => ({
+    name: String(item?.name || item?.filename || '').trim(),
+    size: Number(item?.size || 0),
+    type: String(item?.type || '').trim()
+  })).filter(item => item.name) : []
 }
 
 function emailStats(messages) {
@@ -410,9 +418,36 @@ router.post('/messaging/email/send', async (req, res, next) => {
     const { to, subject, body, attachments } = req.body || {}
     if (!to || !subject || !body) return sendJson(res, 400, { error: 'Destinatarul, subiectul si continutul sunt obligatorii.' })
     await sendEmail({ to, subject, body, attachments }, auth.db)
+    const messaging = ensureMessagingDb(auth.db)
+    const categories = emailCategories(messaging)
+    const category = categories.some(item => String(item.id) === String(req.body?.category || 'general')) ? String(req.body?.category || 'general') : 'general'
+    const settings = getEmailSettings(auth.db)
+    const normalizedAttachments = normalizeEmailAttachments(attachments)
+    const sentEmail = {
+      id: nextId(messaging.emailMessages),
+      direction: 'outbound',
+      status: 'read',
+      from: settings.smtp_user || auth.user.email || '',
+      to: String(to || '').trim(),
+      subject: String(subject || '').trim(),
+      preview: String(req.body?.preview || '').trim(),
+      body: String(body || '').trim(),
+      category,
+      importance: normalizeEmailImportance(req.body?.importance),
+      attachments: normalizedAttachments,
+      has_attachments: normalizedAttachments.length > 0,
+      source_type: String(req.body?.source_type || '').trim() || null,
+      source_id: String(req.body?.source_id || '').trim() || null,
+      source_label: String(req.body?.source_label || '').trim() || null,
+      source_url: safeInternalUrl(req.body?.source_url),
+      received_at: nowIso(),
+      created_by: auth.user.id,
+      created_at: nowIso()
+    }
+    messaging.emailMessages.push(sentEmail)
     addAudit(auth.db, auth.user, 'email_sent', subject)
     writeDb(auth.db)
-    sendJson(res, 200, { ok: true })
+    sendJson(res, 200, { ok: true, email: publicEmailMessage(sentEmail, categories) })
   } catch (error) {
     next(error)
   }
@@ -460,6 +495,7 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     const category = String(req.query.category || '').trim()
     const importance = String(req.query.importance || '').trim().toLowerCase()
     const status = String(req.query.status || '').trim().toLowerCase()
+    const direction = String(req.query.direction || '').trim().toLowerCase()
     const sourceType = String(req.query.source_type || '').trim()
     const hasAttachments = String(req.query.has_attachments || '').trim()
     const limit = Math.min(200, Math.max(1, Number(req.query.limit || 80)))
@@ -471,6 +507,7 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     if (category) rows = rows.filter(item => String(item.category) === category)
     if (importance) rows = rows.filter(item => item.importance === importance)
     if (status) rows = rows.filter(item => item.status === status)
+    if (['inbound', 'outbound'].includes(direction)) rows = rows.filter(item => item.direction === direction)
     if (sourceType) rows = rows.filter(item => String(item.source_type || '') === sourceType)
     if (hasAttachments === 'true') rows = rows.filter(item => item.has_attachments)
     if (hasAttachments === 'false') rows = rows.filter(item => !item.has_attachments)
@@ -498,11 +535,7 @@ router.post('/messaging/email/inbox', (req, res, next) => {
     if (!subject || !from) return sendJson(res, 400, { error: 'Expeditorul si subiectul sunt obligatorii.' })
     const categories = emailCategories(messaging)
     const category = categories.some(item => String(item.id) === String(body.category || 'general')) ? String(body.category || 'general') : 'general'
-    const attachments = Array.isArray(body.attachments) ? body.attachments.map(item => ({
-      name: String(item?.name || item?.filename || '').trim(),
-      size: Number(item?.size || 0),
-      type: String(item?.type || '').trim()
-    })).filter(item => item.name) : []
+    const attachments = normalizeEmailAttachments(body.attachments)
     const email = {
       id: nextId(messaging.emailMessages),
       direction: ['inbound', 'outbound'].includes(body.direction) ? body.direction : 'inbound',

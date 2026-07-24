@@ -68,13 +68,23 @@ function messageText(message) {
 
 const emptyChannelForm = { nume: '', tip: 'departament', descriere: '' }
 
-const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '' }
+const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '', direction: 'inbound' }
+const emptyEmailComposeForm = { to: '', subject: '', body: '', category: 'general', importance: 'normal' }
 
 function importanceBadge(value) {
   if (value === 'urgent') return { label: 'urgent', tone: 'danger', cls: 'bg-rose-100 text-rose-700' }
   if (value === 'high') return { label: 'important', tone: 'warning', cls: 'bg-amber-100 text-amber-700' }
   if (value === 'low') return { label: 'scăzut', tone: 'muted', cls: 'bg-slate-100 text-slate-500' }
   return { label: 'normal', tone: 'default', cls: 'bg-emerald-100 text-emerald-700' }
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 export default function MessagingPage() {
@@ -98,6 +108,11 @@ export default function MessagingPage() {
   const [documentForm, setDocumentForm] = useState({ tip_id: '', titlu: '', prioritate: 'normal', termen_limita: '' })
   const [documentLoading, setDocumentLoading] = useState(false)
   const [documentError, setDocumentError] = useState('')
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [composeForm, setComposeForm] = useState(emptyEmailComposeForm)
+  const [composeLoading, setComposeLoading] = useState(false)
+  const [composeError, setComposeError] = useState('')
+  const [composeMessage, setComposeMessage] = useState('')
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -306,6 +321,46 @@ export default function MessagingPage() {
     }
   }
 
+  function openComposeEmail() {
+    setComposeForm(form => ({
+      ...emptyEmailComposeForm,
+      category: form.category || 'general',
+    }))
+    setComposeError('')
+    setComposeMessage('')
+    setComposeOpen(true)
+  }
+
+  function emailBodyHtml(text) {
+    return String(text || '')
+      .trim()
+      .split(/\n{2,}/)
+      .map(paragraph => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
+      .join('')
+  }
+
+  async function sendComposeEmail(event) {
+    event.preventDefault()
+    setComposeLoading(true)
+    setComposeError('')
+    setComposeMessage('')
+    try {
+      await api.post('/messaging/email/send', {
+        ...composeForm,
+        body: emailBodyHtml(composeForm.body),
+        preview: composeForm.body,
+      })
+      setComposeOpen(false)
+      setComposeForm(emptyEmailComposeForm)
+      setComposeMessage('Email trimis și salvat în Trimise.')
+      setEmailFilters(filters => ({ ...filters, direction: 'outbound', status: '' }))
+    } catch (err) {
+      setComposeError(err.response?.data?.error || 'Emailul nu a putut fi trimis. Verifică setările SMTP.')
+    } finally {
+      setComposeLoading(false)
+    }
+  }
+
   // ─── Info panel ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (infoOpen && activeChannel) loadMembers(activeChannel)
@@ -427,12 +482,17 @@ export default function MessagingPage() {
         <Card className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-slate-900">Inbox ERP organizațional</h2>
+              <h2 className="text-base font-semibold text-slate-900">
+                {emailFilters.direction === 'outbound' ? 'Emailuri trimise' : emailFilters.direction === '' ? 'Email ERP organizațional' : 'Inbox ERP organizațional'}
+              </h2>
               <p className="text-sm text-slate-500">
-                Fundație pentru emailuri clasificate și legate de surse ERP. Integrarea IMAP/OAuth vine într-un update separat.
+                Emailuri clasificate, trimise din ERP și legate de task-uri/documente. Integrarea IMAP/OAuth vine într-un update separat.
               </p>
             </div>
-            <Button variant="secondary" onClick={loadEmailInbox} loading={emailLoading}>Reîncarcă</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={openComposeEmail}><Mail size={15} /> Email nou</Button>
+              <Button variant="secondary" onClick={loadEmailInbox} loading={emailLoading}>Reîncarcă</Button>
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-4">
@@ -454,7 +514,9 @@ export default function MessagingPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto]">
+          {composeMessage ? <div className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{composeMessage}</div> : null}
+
+          <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_auto]">
             <Input
               label="Caută"
               value={emailFilters.q}
@@ -466,6 +528,16 @@ export default function MessagingPage() {
               value={emailFilters.category}
               onChange={event => setEmailFilters(filters => ({ ...filters, category: event.target.value }))}
               options={[{ value: '', label: 'Toate categoriile' }].concat(emailCategories.map(item => ({ value: item.id, label: `${item.icon || '📥'} ${item.label}` })))}
+            />
+            <Select
+              label="Cutie"
+              value={emailFilters.direction}
+              onChange={event => setEmailFilters(filters => ({ ...filters, direction: event.target.value }))}
+              options={[
+                { value: 'inbound', label: 'Inbox' },
+                { value: 'outbound', label: 'Trimise' },
+                { value: '', label: 'Toate' },
+              ]}
             />
             <Select
               label="Importanță"
@@ -525,7 +597,11 @@ export default function MessagingPage() {
                       </div>
                       <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">{email.subject}</h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        De la <strong>{email.from}</strong>{email.to ? <> către {email.to}</> : null} · {formatDate(email.received_at)}
+                        {email.direction === 'outbound' ? (
+                          <>Către <strong>{email.to || '-'}</strong>{email.from ? <> · de la {email.from}</> : null}</>
+                        ) : (
+                          <>De la <strong>{email.from}</strong>{email.to ? <> către {email.to}</> : null}</>
+                        )} · {formatDate(email.received_at)}
                       </p>
                       {email.preview ? <p className="mt-2 line-clamp-2 text-sm text-slate-600">{email.preview}</p> : null}
                       {email.source_label ? (
@@ -845,6 +921,70 @@ export default function MessagingPage() {
       </Modal>
         </div>
       )}
+
+      <Modal open={composeOpen} title="Email nou" onClose={() => setComposeOpen(false)} size="lg">
+        <form className="grid gap-4" onSubmit={sendComposeEmail}>
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+            Emailul se trimite prin SMTP-ul configurat în Setări și se salvează automat în `Trimise`.
+          </div>
+          <Input
+            label="Către"
+            type="email"
+            value={composeForm.to}
+            onChange={event => setComposeForm(form => ({ ...form, to: event.target.value }))}
+            placeholder="destinatar@firma.ro"
+            required
+          />
+          <Input
+            label="Subiect"
+            value={composeForm.subject}
+            onChange={event => setComposeForm(form => ({ ...form, subject: event.target.value }))}
+            required
+          />
+          <div className="grid gap-3 md:grid-cols-2">
+            <Select
+              label="Categorie"
+              value={composeForm.category}
+              onChange={event => setComposeForm(form => ({ ...form, category: event.target.value }))}
+              options={(emailCategories.length ? emailCategories : [{ id: 'general', label: 'General', icon: '📥' }]).map(item => ({
+                value: item.id,
+                label: `${item.icon || '📥'} ${item.label || item.id}`,
+              }))}
+            />
+            <Select
+              label="Importanță"
+              value={composeForm.importance}
+              onChange={event => setComposeForm(form => ({ ...form, importance: event.target.value }))}
+              options={[
+                { value: 'low', label: 'Scăzută' },
+                { value: 'normal', label: 'Normală' },
+                { value: 'high', label: 'Importantă' },
+                { value: 'urgent', label: 'Urgentă' },
+              ]}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Mesaj</label>
+            <textarea
+              className="min-h-[180px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+              value={composeForm.body}
+              onChange={event => setComposeForm(form => ({ ...form, body: event.target.value }))}
+              placeholder="Scrie mesajul..."
+              required
+            />
+          </div>
+          <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs text-amber-800">
+            Atașamentele și CC/BCC le adăugăm etapizat în update-ul următor, ca să păstrăm trimiterea de bază stabilă.
+          </div>
+          {composeError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{composeError}</div> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setComposeOpen(false)}>Renunță</Button>
+            <Button type="submit" loading={composeLoading} disabled={!composeForm.to.trim() || !composeForm.subject.trim() || !composeForm.body.trim()}>
+              <Send size={15} /> Trimite email
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={Boolean(taskEmail)} title="Creează task din email" onClose={() => setTaskEmail(null)}>
         <form className="grid gap-4" onSubmit={createTaskFromEmail}>
