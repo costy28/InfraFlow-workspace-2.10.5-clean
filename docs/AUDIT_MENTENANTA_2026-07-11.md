@@ -997,3 +997,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ cutia `Drafturi` în filtrul Inbox ERP;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ redeschidere și editare draft;
 - `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru filtrul `direction=draft`.
+
+### UPDATE 401 — Hotfix configurare SMTP
+
+- `server/modules/messaging/email.js` — ✅ eliminată funcția locală de decriptare SMTP cu derivare greșită a cheii;
+- `server/modules/messaging/email.js` — ✅ folosește `core/settings-crypto`, același helper ca salvarea setărilor;
+- `server/modules/messaging/email.js` — ✅ mesaj clar dacă parola SMTP salvată nu poate fi citită;
+- `updates/UPDATE_401_hotfix_configurare_smtp.md` — ✅ pași post-update pentru reintroducerea parolei SMTP dacă este necesar.

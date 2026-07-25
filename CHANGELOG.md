@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.381 - 2026-07-25
+
+## Hotfix configurare SMTP
+
+- Modulul `messaging/email.js` folosește acum helperul central `core/settings-crypto`.
+- Testarea SMTP nu mai eșuează cu `Invalid key length` când `APP_KEY` lipsește sau este mai scurtă.
+- Parola SMTP este decriptată cu aceeași logică folosită la salvarea setărilor.
+- Dacă parola salvată nu poate fi citită, API-ul returnează mesaj clar: reintrodu parola SMTP în Setări și salvează.
+
 # v2.12.380 - 2026-07-25
 
 ## Drafturi email în Inbox ERP

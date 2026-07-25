@@ -1,5 +1,5 @@
 {
-  "version": "2.12.380",
+  "version": "2.12.381",
   "date": "2026-07-25",
-  "changelog": "## v2.12.380 - 2026-07-25\n### Drafturi email in Inbox ERP\n- Modalul de compunere poate salva emailul ca draft.\n- Inbox ERP are cutia Drafturi si drafturile pot fi redeschise pentru editare.\n- Trimiterea unui draft salveaza copia in Trimise si ascunde draftul original."
+  "changelog": "## v2.12.381 - 2026-07-25\n### Hotfix configurare SMTP\n- Modulul de email foloseste helperul central de criptare pentru parola SMTP.\n- Eroarea Invalid key length la testarea SMTP este eliminata.\n- Daca parola salvata nu poate fi citita, utilizatorul primeste mesaj clar sa o reintroduca."
 }
