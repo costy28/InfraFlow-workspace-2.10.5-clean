@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.382 - 2026-07-25
+
+## Diagnostic SMTP prietenos
+
+- Erorile SMTP brute sunt normalizate în backend în mesaje clare pentru utilizator.
+- Gmail primește indicație explicită pentru App Password și 2-Step Verification.
+- Microsoft 365, SMTP2GO, erorile de conexiune și erorile SSL/TLS au pași recomandați separați.
+- Endpointul `/api/settings/email/test` răspunde cu `code`, `provider`, `details` și `tips` pentru diagnostic.
+- Pagina Setări afișează erorile multiline și un ghid rapid pentru providerii SMTP uzuali.
+
 # v2.12.381 - 2026-07-25
 
 ## Hotfix configurare SMTP

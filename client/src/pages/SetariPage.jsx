@@ -1384,7 +1384,11 @@ export default function SetariPage() {
       await api.post('/settings/email/test', {})
       notify('✅ Email de test trimis.')
     } catch (err) {
-      fail(err, '❌ Verifică serverul SMTP, utilizatorul și parola.')
+      const data = err.response?.data || {}
+      const tips = Array.isArray(data.tips) && data.tips.length
+        ? `\n\nPași recomandați:\n${data.tips.map(item => `• ${item}`).join('\n')}`
+        : ''
+      fail({ response: { data: { error: `${data.error || '❌ Verifică serverul SMTP, utilizatorul și parola.'}${tips}` } } })
     }
   }
 
@@ -1536,7 +1540,7 @@ export default function SetariPage() {
       />
 
       {message && <Card className="border-primary-100 bg-primary-50 text-sm text-primary-700">{message}</Card>}
-      {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
+      {error && <Card className="whitespace-pre-line border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
 
       <div className="flex flex-wrap gap-2">
         {tabGroups.map(group => {
@@ -1714,6 +1718,14 @@ export default function SetariPage() {
             <Input label="Parolă SMTP" type="password" value={settings.smtp_password || ''} onChange={event => setSettings(s => ({ ...s, smtp_password: event.target.value }))} />
             <Input label="Nume expeditor" value={settings.smtp_name || ''} onChange={event => setSettings(s => ({ ...s, smtp_name: event.target.value }))} />
             <div className="flex items-end"><Button type="button" variant="secondary" onClick={testEmail}>Testează configurarea</Button></div>
+            <div className="md:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="font-semibold">Ghid rapid SMTP</div>
+              <div className="mt-2 grid gap-2 md:grid-cols-3">
+                <div><strong>Gmail:</strong> smtp.gmail.com, port 587. Necesită 2-Step Verification și App Password.</div>
+                <div><strong>Microsoft 365:</strong> smtp.office365.com, port 587. SMTP AUTH trebuie permis pe căsuță.</div>
+                <div><strong>SMTP2GO:</strong> mail.smtp2go.com, port 2525 sau 587. Folosește credențialele generate în cont.</div>
+              </div>
+            </div>
             <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
               <h3 className="text-sm font-semibold text-slate-900">Configurare TVA</h3>
               <p className="mt-0.5 text-xs text-slate-500">Cotele TVA sunt folosite implicit în facturare (ANAF / e-Factură). Pot fi suprascrise per linie de factură.</p>

@@ -4,7 +4,7 @@ const { requireAuth } = require('../../core/auth')
 const { requirePermission } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
-const { sendEmail } = require('../messaging/email')
+const { sendEmail, describeSmtpError } = require('../messaging/email')
 const { getAllCountryRules, getCountryProfiles, getCountryRules } = require('../../shared/countryRules')
 
 const moduleCatalogGroups = [
@@ -215,8 +215,9 @@ function createSystemSettingsRouter(context) {
   })
 
   router.post('/settings/email/test', async (req, res, next) => {
+    let auth = null
     try {
-      const auth = requireAuth(req, res)
+      auth = requireAuth(req, res)
       if (!auth) return
       if (!requirePermission(auth, res, 'settings:manage')) return
       const body = await readJsonBody(req)
@@ -229,6 +230,11 @@ function createSystemSettingsRouter(context) {
       }, auth.db)
       sendJson(res, 200, { ok: true, message: 'Email de test trimis.' })
     } catch (error) {
+      if (error?.smtpDiagnostic) {
+        const diagnostic = describeSmtpError(error, auth?.db?.settings || {})
+        sendJson(res, diagnostic.status || 422, diagnostic)
+        return
+      }
       next(error)
     }
   })

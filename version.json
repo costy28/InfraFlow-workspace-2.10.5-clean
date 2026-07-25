@@ -1,5 +1,5 @@
 {
-  "version": "2.12.381",
+  "version": "2.12.382",
   "date": "2026-07-25",
-  "changelog": "## v2.12.381 - 2026-07-25\n### Hotfix configurare SMTP\n- Modulul de email foloseste helperul central de criptare pentru parola SMTP.\n- Eroarea Invalid key length la testarea SMTP este eliminata.\n- Daca parola salvata nu poate fi citita, utilizatorul primeste mesaj clar sa o reintroduca."
+  "changelog": "## v2.12.382 - 2026-07-25\n### Diagnostic SMTP prietenos\n- Erorile Gmail, Microsoft 365, SMTP2GO, conexiune si TLS sunt traduse in mesaje clare.\n- Endpointul de test SMTP returneaza coduri si pasi recomandati pentru remediere.\n- Setarile afiseaza un ghid rapid pentru configurarea providerilor SMTP uzuali."
 }

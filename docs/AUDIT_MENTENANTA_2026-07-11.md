@@ -1004,3 +1004,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/messaging/email.js` — ✅ folosește `core/settings-crypto`, același helper ca salvarea setărilor;
 - `server/modules/messaging/email.js` — ✅ mesaj clar dacă parola SMTP salvată nu poate fi citită;
 - `updates/UPDATE_401_hotfix_configurare_smtp.md` — ✅ pași post-update pentru reintroducerea parolei SMTP dacă este necesar.
+
+### UPDATE 402 — Diagnostic SMTP prietenos
+
+- `server/modules/messaging/email.js` — ✅ diagnostic centralizat pentru Gmail, Microsoft 365, SMTP2GO, conexiune, TLS/SSL și autentificare respinsă;
+- `server/modules/system/settings-routes.js` — ✅ endpointul `/settings/email/test` returnează erori controlate cu `code`, `provider`, `details` și `tips`;
+- `client/src/pages/SetariPage.jsx` — ✅ erori multiline și pași recomandați vizibili în Setări;
+- `client/src/pages/SetariPage.jsx` — ✅ ghid rapid SMTP pentru providerii uzuali;
+- `updates/UPDATE_402_diagnostic_smtp_prietenos.md` — ✅ documentație update și verificări.
