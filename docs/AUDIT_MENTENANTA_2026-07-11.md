@@ -987,3 +987,13 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ citare text a emailului original în corpul mesajului;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ emailurile trimise păstrează sursa ERP `email`;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ emailul original este marcat ca citit după trimitere reușită.
+
+### UPDATE 400 — Drafturi email în Inbox ERP
+
+- `server/modules/messaging/routes.js` — ✅ endpoint `POST /messaging/email/drafts` pentru creare/actualizare draft;
+- `server/modules/messaging/routes.js` — ✅ lista emailurilor acceptă `direction=draft`;
+- `server/modules/messaging/routes.js` — ✅ trimiterea unui draft ascunde draftul original după salvarea copiei în `Trimise`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ buton `Salvează draft` în modalul de compunere;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ cutia `Drafturi` în filtrul Inbox ERP;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ redeschidere și editare draft;
+- `scripts/smoke-modules-readonly.js` — ✅ smoke read-only pentru filtrul `direction=draft`.

@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.380 - 2026-07-25
+
+## Drafturi email în Inbox ERP
+
+- Modalul `Email nou` are acțiunea `Salvează draft`.
+- Drafturile se salvează în registrul Inbox ERP cu `direction=draft` și `status=draft`.
+- Filtrul `Cutie` include acum `Drafturi`.
+- Un draft poate fi redeschis în modal pentru continuare/editare.
+- La trimiterea unui draft, copia trimisă se salvează în `Trimise`, iar draftul original este ascuns ca finalizat.
+- Drafturile păstrează textul, destinatarii, categoria, importanța și sursa ERP; atașamentele se reselectează la trimitere.
+
 # v2.12.379 - 2026-07-24
 
 ## Răspunde și redirecționează email din Inbox ERP

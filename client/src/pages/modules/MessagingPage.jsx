@@ -69,7 +69,7 @@ function messageText(message) {
 const emptyChannelForm = { nume: '', tip: 'departament', descriere: '' }
 
 const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '', direction: 'inbound' }
-const emptyEmailComposeForm = { to: '', cc: '', bcc: '', subject: '', body: '', category: 'general', importance: 'normal', attachments: [] }
+const emptyEmailComposeForm = { draft_id: '', to: '', cc: '', bcc: '', subject: '', body: '', category: 'general', importance: 'normal', attachments: [] }
 
 function importanceBadge(value) {
   if (value === 'urgent') return { label: 'urgent', tone: 'danger', cls: 'bg-rose-100 text-rose-700' }
@@ -169,6 +169,7 @@ export default function MessagingPage() {
   const [composeTitle, setComposeTitle] = useState('Email nou')
   const [composeForm, setComposeForm] = useState(emptyEmailComposeForm)
   const [composeLoading, setComposeLoading] = useState(false)
+  const [draftLoading, setDraftLoading] = useState(false)
   const [composeError, setComposeError] = useState('')
   const [composeMessage, setComposeMessage] = useState('')
   const [draft, setDraft] = useState('')
@@ -390,6 +391,28 @@ export default function MessagingPage() {
     setComposeOpen(true)
   }
 
+  function openDraftEmail(email) {
+    setComposeTitle('Editează draft')
+    setComposeForm({
+      ...emptyEmailComposeForm,
+      draft_id: String(email.id || ''),
+      to: email.to || '',
+      cc: email.cc || '',
+      bcc: email.bcc && email.bcc !== '***' ? email.bcc : '',
+      subject: email.subject === '(fara subiect)' ? '' : (email.subject || ''),
+      body: stripHtml(email.body || email.preview || ''),
+      category: email.category || 'general',
+      importance: email.importance || 'normal',
+      source_type: email.source_type || '',
+      source_id: email.source_id || '',
+      source_label: email.source_label || '',
+      source_url: email.source_url || '',
+    })
+    setComposeError(email.has_attachments ? 'Draftul păstrează doar metadatele atașamentelor; reatașează fișierele înainte de trimitere.' : '')
+    setComposeMessage('')
+    setComposeOpen(true)
+  }
+
   function openReplyEmail(email) {
     setComposeTitle('Răspunde la email')
     setComposeForm({
@@ -443,6 +466,7 @@ export default function MessagingPage() {
     try {
       await api.post('/messaging/email/send', {
         ...composeForm,
+        draft_id: composeForm.draft_id || undefined,
         body: emailBodyHtml(composeForm.body),
         preview: composeForm.body,
       })
@@ -457,6 +481,29 @@ export default function MessagingPage() {
       setComposeError(err.response?.data?.error || 'Emailul nu a putut fi trimis. Verifică setările SMTP.')
     } finally {
       setComposeLoading(false)
+    }
+  }
+
+  async function saveComposeDraft() {
+    setDraftLoading(true)
+    setComposeError('')
+    setComposeMessage('')
+    try {
+      const response = await api.post('/messaging/email/drafts', {
+        ...composeForm,
+        id: composeForm.draft_id || undefined,
+        body: composeForm.body,
+        preview: composeForm.body,
+      })
+      const draft = response.data?.draft
+      setComposeForm(form => ({ ...form, draft_id: String(draft?.id || form.draft_id || '') }))
+      setComposeOpen(false)
+      setComposeMessage('Draft salvat.')
+      setEmailFilters(filters => ({ ...filters, direction: 'draft', status: '' }))
+    } catch (err) {
+      setComposeError(err.response?.data?.error || 'Draftul nu a putut fi salvat.')
+    } finally {
+      setDraftLoading(false)
     }
   }
 
@@ -616,7 +663,7 @@ export default function MessagingPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-slate-900">
-                {emailFilters.direction === 'outbound' ? 'Emailuri trimise' : emailFilters.direction === '' ? 'Email ERP organizațional' : 'Inbox ERP organizațional'}
+                {emailFilters.direction === 'outbound' ? 'Emailuri trimise' : emailFilters.direction === 'draft' ? 'Drafturi email' : emailFilters.direction === '' ? 'Email ERP organizațional' : 'Inbox ERP organizațional'}
               </h2>
               <p className="text-sm text-slate-500">
                 Emailuri clasificate, trimise din ERP și legate de task-uri/documente. Integrarea IMAP/OAuth vine într-un update separat.
@@ -669,6 +716,7 @@ export default function MessagingPage() {
               options={[
                 { value: 'inbound', label: 'Inbox' },
                 { value: 'outbound', label: 'Trimise' },
+                { value: 'draft', label: 'Drafturi' },
                 { value: '', label: 'Toate' },
               ]}
             />
@@ -726,11 +774,14 @@ export default function MessagingPage() {
                         </span>
                         <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
                         {email.status === 'unread' ? <Badge tone="danger">necitit</Badge> : null}
+                        {email.direction === 'draft' ? <Badge tone="warning">draft</Badge> : null}
                         {email.has_attachments ? <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Paperclip size={13} /> {email.attachments_count || 1}</span> : null}
                       </div>
                       <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">{email.subject}</h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        {email.direction === 'outbound' ? (
+                        {email.direction === 'draft' ? (
+                          <>Draft către <strong>{email.to || '-'}</strong>{email.cc ? <> · CC {email.cc}</> : null}</>
+                        ) : email.direction === 'outbound' ? (
                           <>
                             Către <strong>{email.to || '-'}</strong>
                             {email.cc ? <> · CC {email.cc}</> : null}
@@ -748,16 +799,22 @@ export default function MessagingPage() {
                       ) : null}
                     </div>
                     <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                      <Button size="sm" variant="secondary" onClick={() => openReplyEmail(email)}>
-                        <Reply size={14} /> Răspunde
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => openForwardEmail(email)}>
-                        <Forward size={14} /> Forward
-                      </Button>
-                      <Button size="sm" onClick={() => openTaskFromEmail(email)}>Creează task</Button>
-                      <Button size="sm" variant="secondary" onClick={() => openDocumentFromEmail(email)}>
-                        <FileText size={14} /> Document
-                      </Button>
+                      {email.direction === 'draft' ? (
+                        <Button size="sm" onClick={() => openDraftEmail(email)}>Editează draft</Button>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="secondary" onClick={() => openReplyEmail(email)}>
+                            <Reply size={14} /> Răspunde
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => openForwardEmail(email)}>
+                            <Forward size={14} /> Forward
+                          </Button>
+                          <Button size="sm" onClick={() => openTaskFromEmail(email)}>Creează task</Button>
+                          <Button size="sm" variant="secondary" onClick={() => openDocumentFromEmail(email)}>
+                            <FileText size={14} /> Document
+                          </Button>
+                        </>
+                      )}
                       {email.source_url ? (
                         <Button size="sm" variant="secondary" onClick={() => { window.location.href = email.source_url }}>Deschide sursa</Button>
                       ) : null}
@@ -1069,6 +1126,7 @@ export default function MessagingPage() {
         <form className="grid gap-4" onSubmit={sendComposeEmail}>
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
             Emailul se trimite prin SMTP-ul configurat în Setări și se salvează automat în `Trimise`.
+            {composeForm.draft_id ? <span className="ml-1 font-semibold">Editezi draftul #{composeForm.draft_id}.</span> : null}
           </div>
           <Input
             label="Către"
@@ -1158,6 +1216,9 @@ export default function MessagingPage() {
           {composeError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{composeError}</div> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setComposeOpen(false)}>Renunță</Button>
+            <Button type="button" variant="secondary" loading={draftLoading} disabled={composeLoading} onClick={saveComposeDraft}>
+              Salvează draft
+            </Button>
             <Button type="submit" loading={composeLoading} disabled={!composeForm.to.trim() || !composeForm.subject.trim() || !composeForm.body.trim()}>
               <Send size={15} /> Trimite email
             </Button>

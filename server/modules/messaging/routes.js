@@ -76,6 +76,8 @@ const DEFAULT_EMAIL_CATEGORIES = [
 ]
 
 const EMAIL_IMPORTANCE = ['low', 'normal', 'high', 'urgent']
+const EMAIL_DIRECTIONS = ['inbound', 'outbound', 'draft']
+const EMAIL_STATUSES = ['unread', 'read', 'archived', 'draft', 'sent']
 
 function emailCategories(messaging) {
   const custom = messaging.emailCategories.filter(item => item && item.id)
@@ -113,6 +115,7 @@ function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES) {
     importance: EMAIL_IMPORTANCE.includes(message.importance) ? message.importance : 'normal',
     has_attachments: Boolean(message.has_attachments || (Array.isArray(message.attachments) && message.attachments.length)),
     attachments_count: Array.isArray(message.attachments) ? message.attachments.length : Number(message.attachments_count || 0),
+    attachments: normalizeEmailAttachments(message.attachments),
     source_type: message.source_type || null,
     source_id: message.source_id || null,
     source_label: message.source_label || null,
@@ -431,7 +434,7 @@ router.post('/messaging/email/send', async (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'messaging:send')) return
-    const { to, cc, bcc, subject, body, attachments } = req.body || {}
+    const { to, cc, bcc, subject, body, attachments, draft_id } = req.body || {}
     if (!to || !subject || !body) return sendJson(res, 400, { error: 'Destinatarul, subiectul si continutul sunt obligatorii.' })
     const outgoingAttachments = normalizeOutgoingAttachments(attachments)
     await sendEmail({ to, cc, bcc, subject, body, attachments: outgoingAttachments }, auth.db)
@@ -464,9 +467,91 @@ router.post('/messaging/email/send', async (req, res, next) => {
       created_at: nowIso()
     }
     messaging.emailMessages.push(sentEmail)
+    if (draft_id) {
+      const draft = messaging.emailMessages.find(item => String(item.id) === String(draft_id) && item.direction === 'draft' && !item.cancelled_at)
+      if (draft) {
+        draft.status = 'sent'
+        draft.cancelled_at = nowIso()
+        draft.cancelled_by = auth.user.id
+        draft.updated_at = nowIso()
+      }
+    }
     addAudit(auth.db, auth.user, 'email_sent', subject)
     writeDb(auth.db)
     sendJson(res, 200, { ok: true, email: publicEmailMessage(sentEmail, categories) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/messaging/email/drafts', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:send')) return
+    const messaging = ensureMessagingDb(auth.db)
+    const body = req.body || {}
+    const to = String(body.to || '').trim()
+    const cc = String(body.cc || '').trim()
+    const bcc = String(body.bcc || '').trim()
+    const subject = String(body.subject || '').trim()
+    const textBody = String(body.body || '').trim()
+    if (!to && !cc && !bcc && !subject && !textBody) return sendJson(res, 400, { error: 'Completeaza macar un camp pentru a salva draftul.' })
+    const categories = emailCategories(messaging)
+    const category = categories.some(item => String(item.id) === String(body.category || 'general')) ? String(body.category || 'general') : 'general'
+    const settings = getEmailSettings(auth.db)
+    const existing = body.id || body.draft_id
+      ? messaging.emailMessages.find(item => String(item.id) === String(body.id || body.draft_id) && item.direction === 'draft' && !item.cancelled_at)
+      : null
+    if (existing) {
+      existing.status = 'draft'
+      existing.from = settings.smtp_user || auth.user.email || ''
+      existing.to = to
+      existing.cc = cc
+      existing.bcc = bcc
+      existing.subject = subject || '(fara subiect)'
+      existing.preview = String(body.preview || textBody).trim()
+      existing.body = textBody
+      existing.category = category
+      existing.importance = normalizeEmailImportance(body.importance)
+      existing.attachments = normalizeEmailAttachments(body.attachments)
+      existing.has_attachments = existing.attachments.length > 0
+      existing.source_type = String(body.source_type || '').trim() || null
+      existing.source_id = String(body.source_id || '').trim() || null
+      existing.source_label = String(body.source_label || '').trim() || null
+      existing.source_url = safeInternalUrl(body.source_url)
+      existing.updated_at = nowIso()
+      addAudit(auth.db, auth.user, 'messaging_email_draft_update', `${existing.id} / ${existing.subject}`)
+      writeDb(auth.db)
+      return sendJson(res, 200, { draft: publicEmailMessage(existing, categories) })
+    }
+    const draft = {
+      id: nextId(messaging.emailMessages),
+      direction: 'draft',
+      status: 'draft',
+      from: settings.smtp_user || auth.user.email || '',
+      to,
+      cc,
+      bcc,
+      subject: subject || '(fara subiect)',
+      preview: String(body.preview || textBody).trim(),
+      body: textBody,
+      category,
+      importance: normalizeEmailImportance(body.importance),
+      attachments: normalizeEmailAttachments(body.attachments),
+      has_attachments: normalizeEmailAttachments(body.attachments).length > 0,
+      source_type: String(body.source_type || '').trim() || null,
+      source_id: String(body.source_id || '').trim() || null,
+      source_label: String(body.source_label || '').trim() || null,
+      source_url: safeInternalUrl(body.source_url),
+      received_at: nowIso(),
+      created_by: auth.user.id,
+      created_at: nowIso()
+    }
+    messaging.emailMessages.push(draft)
+    addAudit(auth.db, auth.user, 'messaging_email_draft_create', draft.subject)
+    writeDb(auth.db)
+    sendJson(res, 201, { draft: publicEmailMessage(draft, categories) })
   } catch (error) {
     next(error)
   }
@@ -519,14 +604,14 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     const hasAttachments = String(req.query.has_attachments || '').trim()
     const limit = Math.min(200, Math.max(1, Number(req.query.limit || 80)))
 
-    let rows = messaging.emailMessages.map(item => publicEmailMessage(item, categories))
+    let rows = messaging.emailMessages.filter(item => !item.cancelled_at).map(item => publicEmailMessage(item, categories))
     if (query) {
       rows = rows.filter(item => [item.from, item.to, item.cc, item.subject, item.preview, item.source_label].join(' ').toLowerCase().includes(query))
     }
     if (category) rows = rows.filter(item => String(item.category) === category)
     if (importance) rows = rows.filter(item => item.importance === importance)
     if (status) rows = rows.filter(item => item.status === status)
-    if (['inbound', 'outbound'].includes(direction)) rows = rows.filter(item => item.direction === direction)
+    if (EMAIL_DIRECTIONS.includes(direction)) rows = rows.filter(item => item.direction === direction)
     if (sourceType) rows = rows.filter(item => String(item.source_type || '') === sourceType)
     if (hasAttachments === 'true') rows = rows.filter(item => item.has_attachments)
     if (hasAttachments === 'false') rows = rows.filter(item => !item.has_attachments)
@@ -557,8 +642,8 @@ router.post('/messaging/email/inbox', (req, res, next) => {
     const attachments = normalizeEmailAttachments(body.attachments)
     const email = {
       id: nextId(messaging.emailMessages),
-      direction: ['inbound', 'outbound'].includes(body.direction) ? body.direction : 'inbound',
-      status: ['unread', 'read', 'archived'].includes(body.status) ? body.status : 'unread',
+      direction: EMAIL_DIRECTIONS.includes(body.direction) ? body.direction : 'inbound',
+      status: EMAIL_STATUSES.includes(body.status) ? body.status : 'unread',
       from,
       to: String(body.to || '').trim(),
       cc: String(body.cc || '').trim(),
@@ -599,7 +684,7 @@ router.patch('/messaging/email/inbox/:id', (req, res, next) => {
     const categories = emailCategories(messaging)
     if (body.category !== undefined && categories.some(item => String(item.id) === String(body.category))) email.category = String(body.category)
     if (body.importance !== undefined) email.importance = normalizeEmailImportance(body.importance)
-    if (body.status !== undefined && ['unread', 'read', 'archived'].includes(String(body.status))) email.status = String(body.status)
+    if (body.status !== undefined && EMAIL_STATUSES.includes(String(body.status))) email.status = String(body.status)
     if (body.source_type !== undefined) email.source_type = String(body.source_type || '').trim() || null
     if (body.source_id !== undefined) email.source_id = String(body.source_id || '').trim() || null
     if (body.source_label !== undefined) email.source_label = String(body.source_label || '').trim() || null

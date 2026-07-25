@@ -1,5 +1,5 @@
 {
-  "version": "2.12.379",
-  "date": "2026-07-24",
-  "changelog": "## v2.12.379 - 2026-07-24\n### Raspunde si redirectioneaza email din Inbox ERP\n- Emailurile din Inbox ERP au actiuni rapide Raspunde si Forward.\n- Modalul de compunere se precompleteaza cu destinatar, subiect si mesaj original citat.\n- Emailurile trimise ca raspuns sau forward pastreaza legatura cu emailul original."
+  "version": "2.12.380",
+  "date": "2026-07-25",
+  "changelog": "## v2.12.380 - 2026-07-25\n### Drafturi email in Inbox ERP\n- Modalul de compunere poate salva emailul ca draft.\n- Inbox ERP are cutia Drafturi si drafturile pot fi redeschise pentru editare.\n- Trimiterea unui draft salveaza copia in Trimise si ascunde draftul original."
 }
