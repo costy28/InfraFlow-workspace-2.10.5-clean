@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.383 - 2026-07-25
+
+## Acțiuni rapide Inbox ERP
+
+- Emailurile din Inbox ERP pot fi marcate `citit` sau `necitit` direct din listă.
+- Emailurile pot fi arhivate fără să părăsești pagina.
+- Emailurile arhivate pot fi readuse în inbox din filtrul `Arhivate`.
+- UI-ul afișează badge `arhivat` pentru statusul corespunzător.
+- Backend-ul normalizează statusul primit prin PATCH înainte de salvare și păstrează auditul existent.
+
 # v2.12.382 - 2026-07-25
 
 ## Diagnostic SMTP prietenos

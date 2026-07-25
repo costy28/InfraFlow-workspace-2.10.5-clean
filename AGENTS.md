@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.382**
-**Versiune în lucru: v2.12.382**
+**Versiune curentă sursă: v2.12.383**
+**Versiune în lucru: v2.12.383**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -291,6 +291,7 @@ Comunicare
   ✅ Drafturi email în Inbox ERP (v2.12.380)
   ✅ Hotfix configurare SMTP (v2.12.381)
   ✅ Diagnostic SMTP prietenos (v2.12.382)
+  ✅ Acțiuni rapide Inbox ERP (v2.12.383)
 
 Task Management
   ✅ Fundație task-uri personale și delegate (v2.12.355)
@@ -600,6 +601,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Faza 8: drafturi email în Inbox ERP ✅ UPDATE 400
       → Faza 9: hotfix configurare SMTP ✅ UPDATE 401
       → Faza 10: diagnostic SMTP prietenos ✅ UPDATE 402
+      → Faza 11: acțiuni rapide Inbox ERP ✅ UPDATE 403
       → Email organizațional per utilizator, fără conturi personale
       → Inbox integrat în aplicație, cu categorii și importanță
       → Filtre după dată, expeditor, categorie, modul, sursă ERP și atașamente
@@ -681,9 +683,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.382
+VERSIUNE CURENTĂ SURSĂ: 2.12.383
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.382 ✅
+UPDATE ZIP CURENT: 2.12.383 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -874,6 +876,7 @@ UPDATES ÎN LUCRU:
   2.12.380 → UPDATE 400 Drafturi email în Inbox ERP ✅
   2.12.381 → UPDATE 401 Hotfix configurare SMTP ✅
   2.12.382 → UPDATE 402 Diagnostic SMTP prietenos ✅
+  2.12.383 → UPDATE 403 Acțiuni rapide Inbox ERP ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -904,7 +907,7 @@ SMTP Email
   DNS: configurabil per domeniul clientului
   Fallback: Gmail App Password pentru instalări mici
   Direcție: Inbox ERP organizațional în aplicație, fără email personal
-  Status Inbox ERP: fundație internă + categorii + filtre + task/document din email + sursă vizibilă în Documente + trimitere email din Mesaje + CC/BCC și atașamente + răspuns/forward + drafturi + SMTP stabilizat + diagnostic prietenos ✅
+  Status Inbox ERP: fundație internă + categorii + filtre + task/document din email + sursă vizibilă în Documente + trimitere email din Mesaje + CC/BCC și atașamente + răspuns/forward + drafturi + SMTP stabilizat + diagnostic prietenos + acțiuni rapide ✅
 
 ANAF / e-Factura
   Status: Export XML manual (utilizatorul urcă în SPV)
@@ -1368,5 +1371,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 25 Iulie 2026 | InfraFlow sursă v2.12.382*
+*AGENTS.md actualizat: 25 Iulie 2026 | InfraFlow sursă v2.12.383*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

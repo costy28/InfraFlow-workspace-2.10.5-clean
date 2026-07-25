@@ -1,5 +1,5 @@
 {
-  "version": "2.12.382",
+  "version": "2.12.383",
   "date": "2026-07-25",
-  "changelog": "## v2.12.382 - 2026-07-25\n### Diagnostic SMTP prietenos\n- Erorile Gmail, Microsoft 365, SMTP2GO, conexiune si TLS sunt traduse in mesaje clare.\n- Endpointul de test SMTP returneaza coduri si pasi recomandati pentru remediere.\n- Setarile afiseaza un ghid rapid pentru configurarea providerilor SMTP uzuali."
+  "changelog": "## v2.12.383 - 2026-07-25\n### Actiuni rapide Inbox ERP\n- Emailurile pot fi marcate citit/necitit direct din lista.\n- Emailurile pot fi arhivate si readuse in inbox.\n- Statusul emailului este normalizat server-side si pastrat in audit."
 }

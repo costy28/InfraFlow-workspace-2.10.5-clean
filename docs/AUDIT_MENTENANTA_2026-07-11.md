@@ -1012,3 +1012,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/SetariPage.jsx` — ✅ erori multiline și pași recomandați vizibili în Setări;
 - `client/src/pages/SetariPage.jsx` — ✅ ghid rapid SMTP pentru providerii uzuali;
 - `updates/UPDATE_402_diagnostic_smtp_prietenos.md` — ✅ documentație update și verificări.
+
+### UPDATE 403 — Acțiuni rapide Inbox ERP
+
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiuni rapide `Marchează citit`, `Marchează necitit`, `Arhivează` și `Readuce în inbox`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ badge vizibil pentru emailurile arhivate;
+- `server/modules/messaging/routes.js` — ✅ normalizare status email la PATCH înainte de salvare;
+- `updates/UPDATE_403_actiuni_rapide_inbox_erp.md` — ✅ documentație update și verificări.

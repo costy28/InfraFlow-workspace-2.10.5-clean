@@ -684,7 +684,10 @@ router.patch('/messaging/email/inbox/:id', (req, res, next) => {
     const categories = emailCategories(messaging)
     if (body.category !== undefined && categories.some(item => String(item.id) === String(body.category))) email.category = String(body.category)
     if (body.importance !== undefined) email.importance = normalizeEmailImportance(body.importance)
-    if (body.status !== undefined && EMAIL_STATUSES.includes(String(body.status))) email.status = String(body.status)
+    if (body.status !== undefined) {
+      const status = String(body.status).trim().toLowerCase()
+      if (EMAIL_STATUSES.includes(status)) email.status = status
+    }
     if (body.source_type !== undefined) email.source_type = String(body.source_type || '').trim() || null
     if (body.source_id !== undefined) email.source_id = String(body.source_id || '').trim() || null
     if (body.source_label !== undefined) email.source_label = String(body.source_label || '').trim() || null

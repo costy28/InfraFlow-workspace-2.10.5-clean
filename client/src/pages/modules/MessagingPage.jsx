@@ -450,6 +450,15 @@ export default function MessagingPage() {
     setComposeOpen(true)
   }
 
+  async function updateEmailStatus(email, status) {
+    try {
+      await api.patch(`/messaging/email/inbox/${email.id}`, { status })
+      await loadEmailInbox()
+    } catch (err) {
+      setEmailError(err.response?.data?.error || 'Statusul emailului nu a putut fi actualizat.')
+    }
+  }
+
   function emailBodyHtml(text) {
     return String(text || '')
       .trim()
@@ -774,6 +783,7 @@ export default function MessagingPage() {
                         </span>
                         <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
                         {email.status === 'unread' ? <Badge tone="danger">necitit</Badge> : null}
+                        {email.status === 'archived' ? <Badge>arhivat</Badge> : null}
                         {email.direction === 'draft' ? <Badge tone="warning">draft</Badge> : null}
                         {email.has_attachments ? <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Paperclip size={13} /> {email.attachments_count || 1}</span> : null}
                       </div>
@@ -803,6 +813,11 @@ export default function MessagingPage() {
                         <Button size="sm" onClick={() => openDraftEmail(email)}>Editează draft</Button>
                       ) : (
                         <>
+                          {email.status === 'unread' ? (
+                            <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'read')}>Marchează citit</Button>
+                          ) : email.status === 'read' ? (
+                            <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'unread')}>Marchează necitit</Button>
+                          ) : null}
                           <Button size="sm" variant="secondary" onClick={() => openReplyEmail(email)}>
                             <Reply size={14} /> Răspunde
                           </Button>
@@ -813,6 +828,11 @@ export default function MessagingPage() {
                           <Button size="sm" variant="secondary" onClick={() => openDocumentFromEmail(email)}>
                             <FileText size={14} /> Document
                           </Button>
+                          {email.status === 'archived' ? (
+                            <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'read')}>Readuce în inbox</Button>
+                          ) : (
+                            <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'archived')}>Arhivează</Button>
+                          )}
                         </>
                       )}
                       {email.source_url ? (
