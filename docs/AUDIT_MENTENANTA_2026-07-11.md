@@ -978,3 +978,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/messaging/routes.js` — ✅ căutarea în Inbox ERP include și câmpul `CC`;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ modalul `Email nou` are câmpuri `CC` și `BCC`;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ atașamente mici din browser, cu limită 2 MB/fișier și 5 MB total/email.
+
+### UPDATE 399 — Răspunde și redirecționează email din Inbox ERP
+
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiuni rapide `Răspunde` și `Forward` pe emailurile din Inbox ERP;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ precompletare destinatar și subiect `Re:` pentru răspuns;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ precompletare subiect `Fwd:` pentru redirecționare;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ citare text a emailului original în corpul mesajului;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ emailurile trimise păstrează sursa ERP `email`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ emailul original este marcat ca citit după trimitere reușită.

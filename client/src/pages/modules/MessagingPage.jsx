@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileText, Hash, Info, Mail, Paperclip, Plus, Search, Send, Trash2, Users, X } from 'lucide-react'
+import { FileText, Forward, Hash, Info, Mail, Paperclip, Plus, Reply, Search, Send, Trash2, Users, X } from 'lucide-react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -108,6 +108,42 @@ function readFileAsAttachment(file) {
   })
 }
 
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .trim()
+}
+
+function prefixedSubject(prefix, subject) {
+  const clean = String(subject || 'fără subiect').trim()
+  const pattern = prefix === 'Re:' ? /^re:/i : /^(fwd|fw):/i
+  return pattern.test(clean) ? clean : `${prefix} ${clean}`
+}
+
+function quotedEmailText(email) {
+  const originalBody = stripHtml(email?.body || email?.preview || '')
+  return [
+    '',
+    '',
+    '--- Mesaj original ---',
+    `De la: ${email?.from || '-'}`,
+    email?.to ? `Către: ${email.to}` : '',
+    email?.cc ? `CC: ${email.cc}` : '',
+    `Data: ${formatDate(email?.received_at)}`,
+    `Subiect: ${email?.subject || 'fără subiect'}`,
+    '',
+    originalBody,
+  ].filter(line => line !== '').join('\n')
+}
+
 export default function MessagingPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('chat')
@@ -130,6 +166,7 @@ export default function MessagingPage() {
   const [documentLoading, setDocumentLoading] = useState(false)
   const [documentError, setDocumentError] = useState('')
   const [composeOpen, setComposeOpen] = useState(false)
+  const [composeTitle, setComposeTitle] = useState('Email nou')
   const [composeForm, setComposeForm] = useState(emptyEmailComposeForm)
   const [composeLoading, setComposeLoading] = useState(false)
   const [composeError, setComposeError] = useState('')
@@ -343,10 +380,48 @@ export default function MessagingPage() {
   }
 
   function openComposeEmail() {
+    setComposeTitle('Email nou')
     setComposeForm(form => ({
       ...emptyEmailComposeForm,
       category: form.category || 'general',
     }))
+    setComposeError('')
+    setComposeMessage('')
+    setComposeOpen(true)
+  }
+
+  function openReplyEmail(email) {
+    setComposeTitle('Răspunde la email')
+    setComposeForm({
+      ...emptyEmailComposeForm,
+      to: email.from || '',
+      subject: prefixedSubject('Re:', email.subject),
+      body: quotedEmailText(email),
+      category: email.category || 'general',
+      importance: email.importance || 'normal',
+      source_type: 'email',
+      source_id: String(email.id),
+      source_label: `Răspuns la: ${email.subject || email.from || email.id}`,
+      source_url: '/mesaje',
+    })
+    setComposeError('')
+    setComposeMessage('')
+    setComposeOpen(true)
+  }
+
+  function openForwardEmail(email) {
+    setComposeTitle('Redirecționează email')
+    setComposeForm({
+      ...emptyEmailComposeForm,
+      subject: prefixedSubject('Fwd:', email.subject),
+      body: quotedEmailText(email),
+      category: email.category || 'general',
+      importance: email.importance || 'normal',
+      source_type: 'email',
+      source_id: String(email.id),
+      source_label: `Forward din: ${email.subject || email.from || email.id}`,
+      source_url: '/mesaje',
+    })
     setComposeError('')
     setComposeMessage('')
     setComposeOpen(true)
@@ -374,6 +449,9 @@ export default function MessagingPage() {
       setComposeOpen(false)
       setComposeForm(emptyEmailComposeForm)
       setComposeMessage('Email trimis și salvat în Trimise.')
+      if (composeForm.source_type === 'email' && composeForm.source_id) {
+        await api.patch(`/messaging/email/inbox/${composeForm.source_id}`, { status: 'read' }).catch(() => {})
+      }
       setEmailFilters(filters => ({ ...filters, direction: 'outbound', status: '' }))
     } catch (err) {
       setComposeError(err.response?.data?.error || 'Emailul nu a putut fi trimis. Verifică setările SMTP.')
@@ -670,6 +748,12 @@ export default function MessagingPage() {
                       ) : null}
                     </div>
                     <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => openReplyEmail(email)}>
+                        <Reply size={14} /> Răspunde
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => openForwardEmail(email)}>
+                        <Forward size={14} /> Forward
+                      </Button>
                       <Button size="sm" onClick={() => openTaskFromEmail(email)}>Creează task</Button>
                       <Button size="sm" variant="secondary" onClick={() => openDocumentFromEmail(email)}>
                         <FileText size={14} /> Document
@@ -981,7 +1065,7 @@ export default function MessagingPage() {
         </div>
       )}
 
-      <Modal open={composeOpen} title="Email nou" onClose={() => setComposeOpen(false)} size="lg">
+      <Modal open={composeOpen} title={composeTitle} onClose={() => setComposeOpen(false)} size="lg">
         <form className="grid gap-4" onSubmit={sendComposeEmail}>
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
             Emailul se trimite prin SMTP-ul configurat în Setări și se salvează automat în `Trimise`.

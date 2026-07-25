@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.379 - 2026-07-24
+
+## Răspunde și redirecționează email din Inbox ERP
+
+- Emailurile listate în `Inbox ERP` au acțiuni rapide `Răspunde` și `Forward`.
+- `Răspunde` precompletează destinatarul cu expeditorul emailului original și subiectul cu `Re:`.
+- `Forward` deschide același modal de compunere cu subiect `Fwd:` și destinatar liber.
+- Corpul mesajului include antetul și conținutul emailului original ca text citat.
+- Emailul trimis păstrează `source_type=email`, `source_id`, `source_label` și link intern către Mesaje.
+- Emailul original este marcat ca citit după trimiterea unui răspuns/forward reușit.
+
 # v2.12.378 - 2026-07-24
 
 ## CC/BCC și atașamente la email
