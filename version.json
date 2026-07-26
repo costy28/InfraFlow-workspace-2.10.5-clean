@@ -1,5 +1,5 @@
 {
-  "version": "2.12.386",
+  "version": "2.12.387",
   "date": "2026-07-26",
-  "changelog": "## v2.12.386 - 2026-07-26\n### Configurare IMAP explicita\n- Setarile generale au sectiune separata pentru primire email prin IMAP.\n- Parola IMAP se salveaza criptat si nu este afisata in client.\n- A fost adaugat test dedicat IMAP, separat de sincronizarea Inbox ERP."
+  "changelog": "## v2.12.387 - 2026-07-26\n### Sincronizare automata Inbox IMAP\n- Inbox ERP poate sincroniza automat emailurile noi prin IMAP.\n- Setarile includ activare autosync, interval si limita emailuri pe rulare.\n- Schedulerul ruleaza controlat, fara suprapuneri, si pastreaza statusul ultimei sincronizari."
 }

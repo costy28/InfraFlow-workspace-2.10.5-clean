@@ -1,10 +1,13 @@
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('./core/db')
 const { notifyUser } = require('./modules/messaging/routes')
 const { checkTicketAlerts } = require('./modules/tickets/scheduler')
+const { syncIncomingEmails } = require('./modules/messaging/email-sync')
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
+const EMAIL_SYNC_TICK_MS = 5 * 60 * 1000
 const runtimeNotificationKeys = new Set()
+let emailSyncRunning = false
 
 function isMssqlMode() {
   return MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
@@ -666,6 +669,45 @@ async function runDailyChecks() {
   if (!isMssqlMode()) writeDb(db)
 }
 
+function emailAutoSyncConfig(db) {
+  const settings = db?.settings || {}
+  return {
+    enabled: settings.email_sync_enabled === true,
+    intervalMin: Math.max(5, Math.min(1440, Number(settings.email_sync_interval_min || 15))),
+    limit: Math.max(1, Math.min(50, Number(settings.email_sync_limit || 20)))
+  }
+}
+
+function isEmailAutoSyncDue(db) {
+  const config = emailAutoSyncConfig(db)
+  if (!config.enabled) return false
+  const last = db?.messaging?.emailSync?.last_auto_sync_started_at || db?.messaging?.emailSync?.last_auto_sync_at || ''
+  if (!last) return true
+  const elapsedMs = Date.now() - new Date(last).getTime()
+  return Number.isNaN(elapsedMs) || elapsedMs >= config.intervalMin * 60 * 1000
+}
+
+async function runEmailAutoSyncChecks() {
+  if (emailSyncRunning) return { skipped: 'already_running' }
+  const db = readDb()
+  const config = emailAutoSyncConfig(db)
+  if (!config.enabled) return { skipped: 'disabled' }
+  if (!isEmailAutoSyncDue(db)) return { skipped: 'not_due' }
+  emailSyncRunning = true
+  try {
+    const result = await safeRun('syncIncomingEmailAuto', () => syncIncomingEmails(db, {
+      actor: { id: 'system-email-sync', name: 'InfraFlow Email Sync', role: 'system' },
+      limit: config.limit,
+      mode: 'auto',
+      persist: false
+    }), db)
+    writeDb(db)
+    return result || { ok: false }
+  } finally {
+    emailSyncRunning = false
+  }
+}
+
 function millisecondsUntilMidnight() {
   const now = new Date()
   const next = new Date(now)
@@ -675,7 +717,9 @@ function millisecondsUntilMidnight() {
 
 function startScheduler() {
   runHourlyChecks()
+  runEmailAutoSyncChecks()
   setInterval(runHourlyChecks, HOUR_MS)
+  setInterval(runEmailAutoSyncChecks, EMAIL_SYNC_TICK_MS).unref?.()
   setTimeout(() => {
     runDailyChecks()
     setInterval(runDailyChecks, DAY_MS)
@@ -700,5 +744,6 @@ module.exports = {
   closeWorkOrdersMonth,
   runHourlyChecks,
   runDailyChecks,
+  runEmailAutoSyncChecks,
   startScheduler
 }

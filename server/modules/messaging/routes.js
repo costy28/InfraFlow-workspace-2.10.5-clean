@@ -4,7 +4,8 @@ const { requirePermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { sendEmail, getEmailSettings } = require('./email')
-const { fetchIncomingEmails, describeImapError } = require('./imap')
+const { describeImapError } = require('./imap')
+const { syncIncomingEmails } = require('./email-sync')
 const router = Router()
 
 const sseClients = new Map()
@@ -707,64 +708,17 @@ router.post('/messaging/email/sync', async (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requireMessaging(auth, res, 'messaging:send')) return
-    const messaging = ensureMessagingDb(auth.db)
     const body = req.body || {}
-    const result = await fetchIncomingEmails(auth.db, { limit: Number(body.limit || 20) })
+    const result = await syncIncomingEmails(auth.db, { actor: auth.user, limit: Number(body.limit || 20), mode: 'manual' })
+    const messaging = ensureMessagingDb(auth.db)
     const categories = emailCategories(messaging)
-    const existingKeys = new Set(messaging.emailMessages.flatMap(email => [
-      String(email.external_id || '').trim(),
-      String(email.message_id || '').trim(),
-      String(email.source_id || '').trim()
-    ].filter(Boolean)))
-    const imported = []
-    for (const incoming of result.emails) {
-      const externalId = String(incoming.external_id || '').trim()
-      const uidKey = `imap:${result.host}:${result.user}:${incoming.uid}`
-      if ((externalId && existingKeys.has(externalId)) || existingKeys.has(uidKey)) continue
-      const email = {
-        id: nextId(messaging.emailMessages),
-        direction: 'inbound',
-        status: 'unread',
-        from: incoming.from || '',
-        to: incoming.to || result.user || '',
-        cc: incoming.cc || '',
-        bcc: '',
-        subject: incoming.subject || '(fără subiect)',
-        preview: incoming.preview || '',
-        body: incoming.body || incoming.preview || '',
-        category: categories.some(item => String(item.id) === String(incoming.category)) ? incoming.category : 'general',
-        importance: normalizeEmailImportance(incoming.importance),
-        attachments: [],
-        has_attachments: Boolean(incoming.has_attachments),
-        attachments_count: Number(incoming.attachments_count || 0),
-        external_id: externalId || uidKey,
-        message_id: externalId || null,
-        source_type: 'email_imap',
-        source_id: uidKey,
-        source_label: incoming.source_label || `IMAP ${result.user}`,
-        source_url: '/mesaje',
-        received_at: incoming.received_at || nowIso(),
-        created_by: auth.user.id,
-        created_at: nowIso()
-      }
-      messaging.emailMessages.push(email)
-      existingKeys.add(email.external_id)
-      existingKeys.add(email.source_id)
-      imported.push(email)
-    }
-    messaging.emailSync = messaging.emailSync || {}
-    messaging.emailSync.last_manual_sync_at = nowIso()
-    messaging.emailSync.last_manual_sync_by = auth.user.id
-    messaging.emailSync.last_manual_sync_host = result.host
-    addAudit(auth.db, auth.user, 'messaging_email_imap_sync', `${imported.length} emailuri importate din ${result.host}`)
-    writeDb(auth.db)
     sendJson(res, 200, {
       ok: true,
-      imported: imported.length,
-      scanned: result.emails.length,
+      imported: result.imported.length,
+      scanned: result.scanned,
       provider: result.provider,
       host: result.host,
-      emails: imported.map(email => publicEmailMessage(email, categories))
+      emails: result.imported.map(email => publicEmailMessage(email, categories))
     })
   } catch (error) {
     if (error?.imapDiagnostic) {

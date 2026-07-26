@@ -1789,6 +1789,37 @@ export default function SetariPage() {
               </div>
             </div>
             <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900">Sincronizare automată Inbox</h3>
+              <p className="mt-0.5 text-xs text-slate-500">Serverul poate verifica periodic Inboxul IMAP și importa emailurile noi fără apăsarea butonului manual din Mesaje.</p>
+            </div>
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={settings.email_sync_enabled === true}
+                onChange={event => setSettings(s => ({ ...s, email_sync_enabled: event.target.checked }))}
+              />
+              Activează sincronizarea automată
+            </label>
+            <Input
+              label="Interval sincronizare (minute)"
+              type="number"
+              min={5}
+              max={1440}
+              value={settings.email_sync_interval_min || 15}
+              onChange={event => setSettings(s => ({ ...s, email_sync_interval_min: event.target.value }))}
+            />
+            <Input
+              label="Emailuri verificate per rulare"
+              type="number"
+              min={1}
+              max={50}
+              value={settings.email_sync_limit || 20}
+              onChange={event => setSettings(s => ({ ...s, email_sync_limit: event.target.value }))}
+            />
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Recomandat: 15 minute și 20 emailuri/rulare. Pentru Gmail/Microsoft 365, păstrează intervale rezonabile ca să nu declanșezi limitări ale providerului.
+            </div>
+            <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
               <h3 className="text-sm font-semibold text-slate-900">Configurare TVA</h3>
               <p className="mt-0.5 text-xs text-slate-500">Cotele TVA sunt folosite implicit în facturare (ANAF / e-Factură). Pot fi suprascrise per linie de factură.</p>
             </div>

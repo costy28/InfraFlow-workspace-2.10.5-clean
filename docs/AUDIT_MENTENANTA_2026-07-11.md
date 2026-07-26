@@ -1044,3 +1044,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/messaging/imap.js` — ✅ funcție dedicată de test conexiune IMAP, reutilizând clientul existent;
 - `client/src/pages/SetariPage.jsx` — ✅ secțiune separată `Primire email / IMAP`, ghid rapid și buton `Testează IMAP`;
 - `updates/UPDATE_406_configurare_imap_explicita.md` — ✅ documentație update și verificări.
+
+### UPDATE 407 — Sincronizare automată Inbox IMAP
+
+- `server/modules/messaging/email-sync.js` — ✅ serviciu comun de sincronizare IMAP pentru rulări manuale și automate;
+- `server/modules/messaging/routes.js` — ✅ ruta manuală `/messaging/email/sync` folosește serviciul comun de import;
+- `server/scheduler.js` — ✅ autosync IMAP la interval configurabil, cu gardă anti-suprapunere;
+- `server/modules/system/routes.js` — ✅ setări `email_sync_enabled`, `email_sync_interval_min`, `email_sync_limit`;
+- `client/src/pages/SetariPage.jsx` — ✅ controale pentru activare autosync, interval și limită emailuri/rulare;
+- `updates/UPDATE_407_sincronizare_automata_inbox_imap.md` — ✅ documentație update și verificări.

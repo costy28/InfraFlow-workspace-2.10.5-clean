@@ -4451,6 +4451,9 @@ function updateSettings(current = {}, body = {}) {
     imap_password_encrypted: body.imap_password
       ? encryptSettingSecret(body.imap_password)
       : (body.imap_password_encrypted || current.imap_password_encrypted || ""),
+    email_sync_enabled: body.email_sync_enabled !== undefined ? Boolean(body.email_sync_enabled) : Boolean(current.email_sync_enabled),
+    email_sync_interval_min: Math.max(5, Math.min(1440, Number(body.email_sync_interval_min || current.email_sync_interval_min || 15))),
+    email_sync_limit: Math.max(1, Math.min(50, Number(body.email_sync_limit || current.email_sync_limit || 20))),
     tva_implicit: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_standard: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_redusa: Number(body.cota_tva_redusa ?? current.cota_tva_redusa ?? 9),

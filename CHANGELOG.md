@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.387 - 2026-07-26
+
+## Sincronizare automată Inbox IMAP
+
+- A fost adăugat serviciu comun de sincronizare email IMAP, folosit atât manual cât și automat.
+- Schedulerul poate importa automat emailurile noi la interval configurabil.
+- Setările generale includ activare autosync, interval în minute și limită de emailuri verificate per rulare.
+- Autosync-ul este dezactivat implicit și nu rulează suprapus dacă o sincronizare este deja în desfășurare.
+- Rezultatul ultimei sincronizări automate este păstrat în `messaging.emailSync`.
+- Ruta manuală `POST /api/messaging/email/sync` folosește aceeași logică de import ca schedulerul.
+
 # v2.12.386 - 2026-07-26
 
 ## Configurare IMAP explicită
