@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.386 - 2026-07-26
+
+## Configurare IMAP explicită
+
+- Pagina Setări are acum secțiune separată `Primire email / IMAP`.
+- Operatorul poate completa explicit serverul IMAP, portul, utilizatorul, parola și SSL/TLS.
+- Parola IMAP se salvează criptat și nu este afișată în client; UI-ul arată doar că există o parolă salvată.
+- A fost adăugat endpoint dedicat de test IMAP: `POST /api/settings/email/imap/test`.
+- Testul IMAP verifică accesul la Inbox fără să importe emailuri în registrul ERP.
+- Fallback-ul vechi rămâne compatibil: dacă IMAP nu este completat explicit, sincronizarea poate deriva hostul din SMTP pentru Gmail/Microsoft 365/Yahoo.
+
 # v2.12.385 - 2026-07-26
 
 ## Primire email prin IMAP

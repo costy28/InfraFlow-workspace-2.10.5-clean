@@ -1035,3 +1035,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/messaging/routes.js` — ✅ deduplicare după `Message-ID`/UID și audit `messaging_email_imap_sync`;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ buton `Sincronizează inbox` și mesaje de rezultat/diagnostic;
 - `updates/UPDATE_405_primire_email_imap.md` — ✅ note despre Gmail App Password, IMAP activ și limitări Microsoft 365 Basic Auth.
+
+### UPDATE 406 — Configurare IMAP explicită
+
+- `server/modules/system/routes.js` — ✅ salvare câmpuri `imap_host`, `imap_port`, `imap_secure`, `imap_user` și parolă IMAP criptată;
+- `server/modules/system/routes.js` — ✅ `publicSettings()` nu mai expune parolele SMTP/IMAP criptate către client și trimite doar flagurile `*_password_set`;
+- `server/modules/system/settings-routes.js` — ✅ endpoint `POST /settings/email/imap/test` pentru verificarea conexiunii IMAP fără import;
+- `server/modules/messaging/imap.js` — ✅ funcție dedicată de test conexiune IMAP, reutilizând clientul existent;
+- `client/src/pages/SetariPage.jsx` — ✅ secțiune separată `Primire email / IMAP`, ghid rapid și buton `Testează IMAP`;
+- `updates/UPDATE_406_configurare_imap_explicita.md` — ✅ documentație update și verificări.

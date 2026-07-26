@@ -80,6 +80,17 @@ function describeImapError(error) {
   }
 }
 
+async function testIncomingEmailConnection(db) {
+  const result = await fetchIncomingEmails(db, { limit: 1 })
+  return {
+    ok: true,
+    provider: result.provider,
+    host: result.host,
+    user: result.user,
+    scanned: result.emails.length
+  }
+}
+
 class SimpleImapClient {
   constructor({ host, port, secure, user, password, timeoutMs = 25000 }) {
     this.host = host
@@ -356,4 +367,4 @@ async function fetchIncomingEmails(db, { limit = 20 } = {}) {
   }
 }
 
-module.exports = { fetchIncomingEmails, describeImapError, classifyEmail }
+module.exports = { fetchIncomingEmails, testIncomingEmailConnection, describeImapError, classifyEmail }

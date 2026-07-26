@@ -5,6 +5,7 @@ const { requirePermission } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { sendEmail, describeSmtpError } = require('../messaging/email')
+const { testIncomingEmailConnection, describeImapError } = require('../messaging/imap')
 const { getAllCountryRules, getCountryProfiles, getCountryRules } = require('../../shared/countryRules')
 
 const moduleCatalogGroups = [
@@ -233,6 +234,28 @@ function createSystemSettingsRouter(context) {
       if (error?.smtpDiagnostic) {
         const diagnostic = describeSmtpError(error, auth?.db?.settings || {})
         sendJson(res, diagnostic.status || 422, diagnostic)
+        return
+      }
+      next(error)
+    }
+  })
+
+  router.post('/settings/email/imap/test', async (req, res, next) => {
+    let auth = null
+    try {
+      auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requirePermission(auth, res, 'settings:manage')) return
+      const result = await testIncomingEmailConnection(auth.db)
+      sendJson(res, 200, {
+        ...result,
+        message: result.scanned > 0
+          ? `Conexiune IMAP OK. Am citit ${result.scanned} email de probă.`
+          : 'Conexiune IMAP OK. Inboxul este accesibil.'
+      })
+    } catch (error) {
+      if (error?.imapDiagnostic) {
+        sendJson(res, 422, describeImapError(error))
         return
       }
       next(error)

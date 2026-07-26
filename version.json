@@ -1,5 +1,5 @@
 {
-  "version": "2.12.385",
+  "version": "2.12.386",
   "date": "2026-07-26",
-  "changelog": "## v2.12.385 - 2026-07-26\n### Primire email prin IMAP\n- Inbox ERP poate sincroniza manual emailuri reale prin IMAP.\n- Pentru Gmail/Microsoft 365 hostul IMAP este derivat din configurarea SMTP.\n- Emailurile importate sunt deduplicate, clasificate si salvate ca inbound necitite."
+  "changelog": "## v2.12.386 - 2026-07-26\n### Configurare IMAP explicita\n- Setarile generale au sectiune separata pentru primire email prin IMAP.\n- Parola IMAP se salveaza criptat si nu este afisata in client.\n- A fost adaugat test dedicat IMAP, separat de sincronizarea Inbox ERP."
 }

@@ -545,7 +545,7 @@ export default function SetariPage() {
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
         const { logoDataUrl: _logo, ...safeSettings } = nextSettings
-        setSettings({ ...safeSettings, gps_api_key: '', gps_password: '', smtp_password: '' })
+        setSettings({ ...safeSettings, gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
         setScaleRows(mapEntries(nextSettings.scaleProductMap || {}))
       }
       if (licenseRes.status === 'fulfilled') setLicense(licenseRes.value.data.license || licenseRes.value.data)
@@ -647,7 +647,7 @@ export default function SetariPage() {
     event.preventDefault()
     try {
       const response = await api.post('/settings', settings)
-      setSettings({ ...(response.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '' })
+      setSettings({ ...(response.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
       notify('Setările generale au fost salvate.')
     } catch (err) {
       fail(err, 'Setările nu au putut fi salvate.')
@@ -1359,7 +1359,7 @@ export default function SetariPage() {
     try {
       notify('⏳ Testez conexiunea GPS...')
       const saved = await api.post('/settings', settings)
-      setSettings({ ...(saved.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '' })
+      setSettings({ ...(saved.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
       const response = await api.post('/integration/gps/test')
       if (response.data?.ok) {
         const n = response.data.vehicule ?? 0
@@ -1389,6 +1389,21 @@ export default function SetariPage() {
         ? `\n\nPași recomandați:\n${data.tips.map(item => `• ${item}`).join('\n')}`
         : ''
       fail({ response: { data: { error: `${data.error || '❌ Verifică serverul SMTP, utilizatorul și parola.'}${tips}` } } })
+    }
+  }
+
+  async function testImap() {
+    try {
+      const saved = await api.post('/settings', settings)
+      setSettings({ ...(saved.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      const response = await api.post('/settings/email/imap/test', {})
+      notify(`✅ ${response.data?.message || 'Conexiune IMAP OK.'}`)
+    } catch (err) {
+      const data = err.response?.data || {}
+      const tips = Array.isArray(data.tips) && data.tips.length
+        ? `\n\nPași recomandați:\n${data.tips.map(item => `• ${item}`).join('\n')}`
+        : ''
+      fail({ response: { data: { error: `${data.error || '❌ Verifică serverul IMAP, utilizatorul și parola.'}${tips}` } } })
     }
   }
 
@@ -1515,7 +1530,7 @@ export default function SetariPage() {
         autominderDbPath: settings.autominder_db_path || settings.autominderDbPath || '',
       }
       const response = await api.post('/settings', payload)
-      setSettings({ ...(response.data.settings || payload), gps_api_key: '', gps_password: '', smtp_password: '' })
+      setSettings({ ...(response.data.settings || payload), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
       await api.post('/integration/piusi/config', {
         mdb_path: payload.piusi_mdb_path || '',
         sync_interval_min: payload.piusi_sync_min || 30,
@@ -1715,7 +1730,18 @@ export default function SetariPage() {
             <Input label="Server SMTP" placeholder="smtp.office365.com" value={settings.smtp_host || ''} onChange={event => setSettings(s => ({ ...s, smtp_host: event.target.value }))} />
             <Input label="Port SMTP" type="number" value={settings.smtp_port || 587} onChange={event => setSettings(s => ({ ...s, smtp_port: event.target.value }))} />
             <Input label="Utilizator SMTP" value={settings.smtp_user || ''} onChange={event => setSettings(s => ({ ...s, smtp_user: event.target.value }))} />
-            <Input label="Parolă SMTP" type="password" value={settings.smtp_password || ''} onChange={event => setSettings(s => ({ ...s, smtp_password: event.target.value }))} />
+            <div>
+              <Input
+                label="Parolă SMTP"
+                type="password"
+                value={settings.smtp_password || ''}
+                onChange={event => setSettings(s => ({ ...s, smtp_password: event.target.value }))}
+                placeholder={settings.smtp_password_set && !settings.smtp_password ? 'Salvată — completează doar dacă o schimbi' : ''}
+              />
+              {settings.smtp_password_set && !settings.smtp_password && (
+                <p className="mt-1 text-xs text-slate-500">Parola SMTP este salvată criptat și nu este afișată.</p>
+              )}
+            </div>
             <Input label="Nume expeditor" value={settings.smtp_name || ''} onChange={event => setSettings(s => ({ ...s, smtp_name: event.target.value }))} />
             <div className="flex items-end"><Button type="button" variant="secondary" onClick={testEmail}>Testează configurarea</Button></div>
             <div className="md:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -1724,6 +1750,42 @@ export default function SetariPage() {
                 <div><strong>Gmail:</strong> smtp.gmail.com, port 587. Necesită 2-Step Verification și App Password.</div>
                 <div><strong>Microsoft 365:</strong> smtp.office365.com, port 587. SMTP AUTH trebuie permis pe căsuță.</div>
                 <div><strong>SMTP2GO:</strong> mail.smtp2go.com, port 2525 sau 587. Folosește credențialele generate în cont.</div>
+              </div>
+            </div>
+            <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900">Primire email / IMAP</h3>
+              <p className="mt-0.5 text-xs text-slate-500">SMTP trimite emailuri. IMAP citește Inboxul real și îl aduce în Mesaje → Email.</p>
+            </div>
+            <Input label="Server IMAP" placeholder="imap.gmail.com" value={settings.imap_host || ''} onChange={event => setSettings(s => ({ ...s, imap_host: event.target.value }))} />
+            <Input label="Port IMAP" type="number" value={settings.imap_port || 993} onChange={event => setSettings(s => ({ ...s, imap_port: event.target.value }))} />
+            <Input label="Utilizator IMAP" placeholder={settings.smtp_user || 'email@firma.ro'} value={settings.imap_user || ''} onChange={event => setSettings(s => ({ ...s, imap_user: event.target.value }))} />
+            <div>
+              <Input
+                label="Parolă IMAP"
+                type="password"
+                value={settings.imap_password || ''}
+                onChange={event => setSettings(s => ({ ...s, imap_password: event.target.value }))}
+                placeholder={settings.imap_password_set && !settings.imap_password ? 'Salvată — completează doar dacă o schimbi' : 'poate fi aceeași App Password ca SMTP'}
+              />
+              {settings.imap_password_set && !settings.imap_password && (
+                <p className="mt-1 text-xs text-slate-500">Parola IMAP este salvată criptat și nu este afișată.</p>
+              )}
+            </div>
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={settings.imap_secure !== false}
+                onChange={event => setSettings(s => ({ ...s, imap_secure: event.target.checked }))}
+              />
+              SSL/TLS IMAP
+            </label>
+            <div className="flex items-end"><Button type="button" variant="secondary" onClick={testImap}>Testează IMAP</Button></div>
+            <div className="md:col-span-2 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+              <div className="font-semibold">Ghid rapid IMAP</div>
+              <div className="mt-2 grid gap-2 md:grid-cols-3">
+                <div><strong>Gmail:</strong> imap.gmail.com, port 993, SSL/TLS. Activează IMAP și folosește App Password.</div>
+                <div><strong>Microsoft 365:</strong> outlook.office365.com, port 993. Unele tenanturi cer OAuth, nu parolă simplă.</div>
+                <div><strong>Domeniu propriu:</strong> de obicei imap.domeniu.ro, port 993. Dacă SMTP2GO trimite email, IMAP trebuie să fie căsuța reală.</div>
               </div>
             </div>
             <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">

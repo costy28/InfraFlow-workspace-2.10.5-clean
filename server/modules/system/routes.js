@@ -3223,6 +3223,12 @@ function publicSettings(settings = {}) {
   result.gps_password = ""
   result.gps_api_key_set = !!(result.gps_api_key && result.gps_api_key.includes(":"))
   result.gps_api_key = ""
+  result.smtp_password_set = !!(result.smtp_password_encrypted && String(result.smtp_password_encrypted).includes(":"))
+  delete result.smtp_password_encrypted
+  result.smtp_password = ""
+  result.imap_password_set = !!(result.imap_password_encrypted && String(result.imap_password_encrypted).includes(":"))
+  delete result.imap_password_encrypted
+  result.imap_password = ""
   delete result.gps_session
   delete result.gps_group
   return result
@@ -4438,6 +4444,13 @@ function updateSettings(current = {}, body = {}) {
       ? encryptSettingSecret(body.smtp_password)
       : (body.smtp_password_encrypted || current.smtp_password_encrypted || ""),
     smtp_name: String(body.smtp_name ?? current.smtp_name ?? current.companyName ?? "InfraFlow").trim(),
+    imap_host: String(body.imap_host ?? current.imap_host ?? "").trim(),
+    imap_port: Number(body.imap_port || current.imap_port || 993),
+    imap_secure: body.imap_secure !== undefined ? Boolean(body.imap_secure) : (current.imap_secure !== undefined ? Boolean(current.imap_secure) : true),
+    imap_user: String(body.imap_user ?? current.imap_user ?? "").trim(),
+    imap_password_encrypted: body.imap_password
+      ? encryptSettingSecret(body.imap_password)
+      : (body.imap_password_encrypted || current.imap_password_encrypted || ""),
     tva_implicit: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_standard: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_redusa: Number(body.cota_tva_redusa ?? current.cota_tva_redusa ?? 9),
