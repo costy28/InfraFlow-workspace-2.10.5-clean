@@ -1019,3 +1019,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ badge vizibil pentru emailurile arhivate;
 - `server/modules/messaging/routes.js` — ✅ normalizare status email la PATCH înainte de salvare;
 - `updates/UPDATE_403_actiuni_rapide_inbox_erp.md` — ✅ documentație update și verificări.
+
+### UPDATE 404 — Acțiuni în masă Inbox ERP
+
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ selecție individuală și selecție globală pentru emailurile vizibile;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiuni în masă pentru marcare citit/necitit și arhivare;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ resetare selecție la refresh/filtrare și corecție `setEmailError` → `setError`;
+- `updates/UPDATE_404_actiuni_in_masa_inbox_erp.md` — ✅ documentație update și verificări.

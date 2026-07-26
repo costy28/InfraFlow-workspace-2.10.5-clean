@@ -155,6 +155,8 @@ export default function MessagingPage() {
   const [emailStats, setEmailStats] = useState({ total: 0, unread: 0, important: 0, with_attachments: 0 })
   const [emailFilters, setEmailFilters] = useState(emailFilterDefaults)
   const [emailLoading, setEmailLoading] = useState(false)
+  const [selectedEmailIds, setSelectedEmailIds] = useState([])
+  const [emailBulkLoading, setEmailBulkLoading] = useState(false)
   const [taskUsers, setTaskUsers] = useState([])
   const [taskEmail, setTaskEmail] = useState(null)
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', priority: 'normal', due_date: '' })
@@ -244,6 +246,7 @@ export default function MessagingPage() {
       const params = Object.fromEntries(Object.entries(emailFilters).filter(([, value]) => String(value || '').trim()))
       const response = await api.get('/messaging/email/inbox', { params })
       setEmailRows(arrayFrom(response.data, ['emails']))
+      setSelectedEmailIds([])
       setEmailCategories(arrayFrom(response.data, ['categories']))
       setEmailStats(response.data?.stats || { total: 0, unread: 0, important: 0, with_attachments: 0 })
     } catch (err) {
@@ -455,7 +458,31 @@ export default function MessagingPage() {
       await api.patch(`/messaging/email/inbox/${email.id}`, { status })
       await loadEmailInbox()
     } catch (err) {
-      setEmailError(err.response?.data?.error || 'Statusul emailului nu a putut fi actualizat.')
+      setError(err.response?.data?.error || 'Statusul emailului nu a putut fi actualizat.')
+    }
+  }
+
+  function toggleEmailSelection(emailId) {
+    setSelectedEmailIds(ids => ids.some(id => String(id) === String(emailId))
+      ? ids.filter(id => String(id) !== String(emailId))
+      : ids.concat(emailId))
+  }
+
+  function toggleAllVisibleEmails() {
+    setSelectedEmailIds(allVisibleEmailsSelected ? [] : selectableEmailRows.map(email => email.id))
+  }
+
+  async function bulkUpdateEmailStatus(status) {
+    if (!selectedVisibleEmailIds.length) return
+    setEmailBulkLoading(true)
+    setError('')
+    try {
+      await Promise.all(selectedVisibleEmailIds.map(id => api.patch(`/messaging/email/inbox/${id}`, { status })))
+      await loadEmailInbox()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Emailurile selectate nu au putut fi actualizate.')
+    } finally {
+      setEmailBulkLoading(false)
     }
   }
 
@@ -641,6 +668,12 @@ export default function MessagingPage() {
 
   const canWrite = activeChannel && !activeChannel.readonly
   const totalUnread = channels.reduce((sum, c) => sum + (c.unread || 0), 0)
+  const selectableEmailRows = useMemo(() => emailRows.filter(email => email.direction !== 'draft'), [emailRows])
+  const selectedVisibleEmailIds = useMemo(
+    () => selectedEmailIds.filter(id => selectableEmailRows.some(email => String(email.id) === String(id))),
+    [selectedEmailIds, selectableEmailRows]
+  )
+  const allVisibleEmailsSelected = selectableEmailRows.length > 0 && selectedVisibleEmailIds.length === selectableEmailRows.length
 
   return (
     <div className="space-y-4">
@@ -760,6 +793,26 @@ export default function MessagingPage() {
 
           {error && <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
 
+          {selectableEmailRows.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={allVisibleEmailsSelected}
+                  onChange={toggleAllVisibleEmails}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                Selectează emailurile vizibile
+              </label>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                <span>{selectedVisibleEmailIds.length} selectate</span>
+                <Button size="sm" variant="secondary" disabled={!selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('read')}>Marchează citite</Button>
+                <Button size="sm" variant="secondary" disabled={!selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('unread')}>Marchează necitite</Button>
+                <Button size="sm" variant="secondary" disabled={!selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('archived')}>Arhivează</Button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="overflow-hidden rounded-xl border border-slate-200">
             {emailLoading ? (
               <div className="p-6 text-sm text-slate-500">Se încarcă Inbox ERP...</div>
@@ -773,9 +826,20 @@ export default function MessagingPage() {
               </div>
             ) : emailRows.map(email => {
               const badge = importanceBadge(email.importance)
+              const selectable = email.direction !== 'draft'
+              const selected = selectedEmailIds.some(id => String(id) === String(email.id))
               return (
                 <div key={email.id} className="border-b border-slate-100 p-4 last:border-b-0 hover:bg-slate-50">
                   <div className="flex flex-wrap items-start justify-between gap-3">
+                    {selectable ? (
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleEmailSelection(email.id)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300"
+                        aria-label={`Selectează email ${email.subject || email.id}`}
+                      />
+                    ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">

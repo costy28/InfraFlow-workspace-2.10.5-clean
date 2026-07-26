@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.384 - 2026-07-26
+
+## Acțiuni în masă Inbox ERP
+
+- Inbox ERP permite selectarea emailurilor vizibile prin checkbox.
+- Utilizatorul poate selecta toate emailurile vizibile dintr-un singur click.
+- Emailurile selectate pot fi marcate citite, marcate necitite sau arhivate în masă.
+- Selecția se resetează automat la refresh/filtrare ca să nu aplice acțiuni pe emailuri ascunse.
+- A fost corectată eroarea latentă din catch-ul de actualizare status email (`setEmailError` → `setError`).
+
 # v2.12.383 - 2026-07-25
 
 ## Acțiuni rapide Inbox ERP

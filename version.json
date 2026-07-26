@@ -1,5 +1,5 @@
 {
-  "version": "2.12.383",
-  "date": "2026-07-25",
-  "changelog": "## v2.12.383 - 2026-07-25\n### Actiuni rapide Inbox ERP\n- Emailurile pot fi marcate citit/necitit direct din lista.\n- Emailurile pot fi arhivate si readuse in inbox.\n- Statusul emailului este normalizat server-side si pastrat in audit."
+  "version": "2.12.384",
+  "date": "2026-07-26",
+  "changelog": "## v2.12.384 - 2026-07-26\n### Actiuni in masa Inbox ERP\n- Emailurile vizibile pot fi selectate individual sau toate odata.\n- Selectia permite marcare citit/necitit si arhivare in masa.\n- Selectia se reseteaza automat la reincarcarea inboxului sau la schimbarea filtrelor."
 }
