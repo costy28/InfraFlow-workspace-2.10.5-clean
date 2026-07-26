@@ -1,5 +1,5 @@
 {
-  "version": "2.12.384",
+  "version": "2.12.385",
   "date": "2026-07-26",
-  "changelog": "## v2.12.384 - 2026-07-26\n### Actiuni in masa Inbox ERP\n- Emailurile vizibile pot fi selectate individual sau toate odata.\n- Selectia permite marcare citit/necitit si arhivare in masa.\n- Selectia se reseteaza automat la reincarcarea inboxului sau la schimbarea filtrelor."
+  "changelog": "## v2.12.385 - 2026-07-26\n### Primire email prin IMAP\n- Inbox ERP poate sincroniza manual emailuri reale prin IMAP.\n- Pentru Gmail/Microsoft 365 hostul IMAP este derivat din configurarea SMTP.\n- Emailurile importate sunt deduplicate, clasificate si salvate ca inbound necitite."
 }

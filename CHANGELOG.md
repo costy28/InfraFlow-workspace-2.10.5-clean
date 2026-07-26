@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.385 - 2026-07-26
+
+## Primire email prin IMAP
+
+- Inbox ERP primește primul mecanism real de sincronizare email: `POST /api/messaging/email/sync`.
+- A fost adăugat client IMAP minimal fără dependențe noi, pe `tls`/`net`.
+- Pentru Gmail, Microsoft 365/Outlook și Yahoo, hostul IMAP este derivat automat din configurarea SMTP.
+- Sincronizarea importă ultimele emailuri din INBOX, evită duplicatele prin `Message-ID`/UID și le salvează ca emailuri inbound necitite.
+- Emailurile importate sunt clasificate automat minimal pe categorii: general, contracte, contabilitate, achiziții, HR, sesizări.
+- `Mesaje → Inbox ERP` are buton `Sincronizează inbox`.
+- Erorile IMAP sunt returnate prietenos, cu pași recomandați pentru Gmail/App Password/IMAP activ.
+
 # v2.12.384 - 2026-07-26
 
 ## Acțiuni în masă Inbox ERP

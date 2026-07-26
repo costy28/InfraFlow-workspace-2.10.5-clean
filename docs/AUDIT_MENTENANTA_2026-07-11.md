@@ -1026,3 +1026,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiuni în masă pentru marcare citit/necitit și arhivare;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ resetare selecție la refresh/filtrare și corecție `setEmailError` → `setError`;
 - `updates/UPDATE_404_actiuni_in_masa_inbox_erp.md` — ✅ documentație update și verificări.
+
+### UPDATE 405 — Primire email prin IMAP
+
+- `server/modules/messaging/imap.js` — ✅ client IMAP minimal fără dependențe noi, bazat pe `tls`/`net`;
+- `server/modules/messaging/imap.js` — ✅ derivare host IMAP din SMTP pentru Gmail, Microsoft 365/Outlook, Yahoo și fallback `smtp.*` → `imap.*`;
+- `server/modules/messaging/routes.js` — ✅ endpoint `POST /messaging/email/sync` pentru import manual emailuri reale;
+- `server/modules/messaging/routes.js` — ✅ deduplicare după `Message-ID`/UID și audit `messaging_email_imap_sync`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ buton `Sincronizează inbox` și mesaje de rezultat/diagnostic;
+- `updates/UPDATE_405_primire_email_imap.md` — ✅ note despre Gmail App Password, IMAP activ și limitări Microsoft 365 Basic Auth.

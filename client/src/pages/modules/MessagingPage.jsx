@@ -157,6 +157,7 @@ export default function MessagingPage() {
   const [emailLoading, setEmailLoading] = useState(false)
   const [selectedEmailIds, setSelectedEmailIds] = useState([])
   const [emailBulkLoading, setEmailBulkLoading] = useState(false)
+  const [emailSyncLoading, setEmailSyncLoading] = useState(false)
   const [taskUsers, setTaskUsers] = useState([])
   const [taskEmail, setTaskEmail] = useState(null)
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', priority: 'normal', due_date: '' })
@@ -486,6 +487,29 @@ export default function MessagingPage() {
     }
   }
 
+  async function syncIncomingEmail() {
+    setEmailSyncLoading(true)
+    setError('')
+    setComposeMessage('')
+    try {
+      const response = await api.post('/messaging/email/sync', { limit: 20 })
+      const imported = Number(response.data?.imported || 0)
+      const scanned = Number(response.data?.scanned || 0)
+      const host = response.data?.host || 'IMAP'
+      setComposeMessage(imported > 0
+        ? `Sincronizare email OK: ${imported} emailuri noi importate din ${host}.`
+        : `Sincronizare email OK: ${scanned} emailuri verificate, niciun email nou.`)
+      setEmailFilters(filters => ({ ...filters, direction: 'inbound', status: '' }))
+      await loadEmailInbox()
+    } catch (err) {
+      const data = err.response?.data || {}
+      const tips = Array.isArray(data.tips) && data.tips.length ? `\n${data.tips.map(item => `• ${item}`).join('\n')}` : ''
+      setError(`${data.error || 'Sincronizarea emailurilor nu a reușit.'}${tips}`)
+    } finally {
+      setEmailSyncLoading(false)
+    }
+  }
+
   function emailBodyHtml(text) {
     return String(text || '')
       .trim()
@@ -713,6 +737,7 @@ export default function MessagingPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={openComposeEmail}><Mail size={15} /> Email nou</Button>
+              <Button variant="secondary" onClick={syncIncomingEmail} loading={emailSyncLoading}>Sincronizează inbox</Button>
               <Button variant="secondary" onClick={loadEmailInbox} loading={emailLoading}>Reîncarcă</Button>
             </div>
           </div>
@@ -791,7 +816,7 @@ export default function MessagingPage() {
             </div>
           </div>
 
-          {error && <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+          {error && <div className="whitespace-pre-line rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
 
           {selectableEmailRows.length > 0 ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
