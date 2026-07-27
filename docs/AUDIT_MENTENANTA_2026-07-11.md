@@ -1068,3 +1068,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/messaging/email-sync.js` — ✅ aplicare reguli la importul IMAP înainte de salvarea emailului;
 - `client/src/pages/SetariPage.jsx` — ✅ UI de administrare reguli email fără editare tehnică;
 - `updates/UPDATE_409_reguli_automate_email_inbox.md` — ✅ documentație update și verificări.
+
+### UPDATE 410 — Reguli email vizibile și testabile
+
+- `server/modules/messaging/routes.js` — ✅ expunere metadate regulă pe email și filtru Inbox după regulă;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ badge regulă aplicată și filtru `Regulă`;
+- `client/src/pages/SetariPage.jsx` — ✅ simulator per regulă cu expeditor, subiect și conținut de probă;
+- `updates/UPDATE_410_reguli_email_vizibile_testabile.md` — ✅ documentație update și verificări.

@@ -131,6 +131,37 @@ const emailRuleStatusOptions = [
   { value: 'archived', label: 'Arhivat' },
 ]
 
+function emailRuleOptionLabel(options, value, fallback = '-') {
+  return options.find(item => String(item.value) === String(value || ''))?.label || fallback
+}
+
+function normalizeEmailRuleText(value) {
+  return String(value || '').toLowerCase()
+}
+
+function testEmailRuleMatch(rule = {}, sample = {}) {
+  const needle = normalizeEmailRuleText(rule.match).trim()
+  if (!needle) return false
+  const fields = {
+    from: sample.from,
+    subject: sample.subject,
+    body: sample.body,
+    all: [sample.from, sample.subject, sample.body].filter(Boolean).join(' '),
+  }
+  const haystack = normalizeEmailRuleText(fields[rule.field || 'all'])
+  switch (rule.operator || 'contains') {
+    case 'starts_with':
+      return haystack.startsWith(needle)
+    case 'ends_with':
+      return haystack.endsWith(needle)
+    case 'equals':
+      return haystack === needle
+    case 'contains':
+    default:
+      return haystack.includes(needle)
+  }
+}
+
 const departmentIconOptions = ['👥', '🔧', '🏗️', '📦', '🚛', '🏭', '🌿', '📍', '🧹', '🚦', '❄️', '⚙️', '💰', '📋', '🎯', '🔨', '🛒', '📬', '⚖️', '🗄️', '🏠', '🚗', '📊', '💼', '🔩', '🌱', '🏢', '🎫']
 
 const moduleGroups = [
@@ -461,6 +492,7 @@ export default function SetariPage() {
   const [piusiAssets, setPiusiAssets] = useState([])
   const [piusiSyncing, setPiusiSyncing] = useState(false)
   const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
+  const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -1616,6 +1648,43 @@ export default function SetariPage() {
     }))
   }
 
+  function updateEmailRuleTest(ruleId, key, value) {
+    setEmailRuleTests(current => ({
+      ...current,
+      [ruleId]: {
+        from: '',
+        subject: '',
+        body: '',
+        ...(current[ruleId] || {}),
+        [key]: value,
+        result: null
+      }
+    }))
+  }
+
+  function runEmailRuleTest(rule) {
+    const ruleId = rule.id || 'email-rule-test'
+    const sample = emailRuleTests[ruleId] || {}
+    const matched = testEmailRuleMatch(rule, sample)
+    const actions = [
+      rule.category ? `categorie: ${emailRuleOptionLabel(emailRuleCategoryOptions, rule.category, rule.category)}` : '',
+      rule.importance ? `importanță: ${emailRuleOptionLabel(emailRuleImportanceOptions, rule.importance, rule.importance)}` : '',
+      rule.status ? `status: ${emailRuleOptionLabel(emailRuleStatusOptions, rule.status, rule.status)}` : '',
+    ].filter(Boolean)
+    setEmailRuleTests(current => ({
+      ...current,
+      [ruleId]: {
+        from: '',
+        subject: '',
+        body: '',
+        ...(current[ruleId] || {}),
+        result: matched
+          ? `Se potrivește. Va aplica ${actions.join(', ') || 'regula fără acțiuni configurate'}.`
+          : 'Nu se potrivește pe datele de probă introduse.'
+      }
+    }))
+  }
+
   async function saveExternalPaths() {
     try {
       const payload = {
@@ -2006,6 +2075,37 @@ export default function SetariPage() {
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       Regula se aplică doar emailurilor noi importate după salvare.
                     </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-indigo-700">Testează regula</div>
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <Input
+                        label="Expeditor probă"
+                        value={(emailRuleTests[rule.id || index]?.from) || ''}
+                        onChange={event => updateEmailRuleTest(rule.id || String(index), 'from', event.target.value)}
+                        placeholder="ex. office@furnizor.ro"
+                      />
+                      <Input
+                        label="Subiect probă"
+                        value={(emailRuleTests[rule.id || index]?.subject) || ''}
+                        onChange={event => updateEmailRuleTest(rule.id || String(index), 'subject', event.target.value)}
+                        placeholder="ex. Factura iulie"
+                      />
+                      <Input
+                        label="Conținut probă"
+                        value={(emailRuleTests[rule.id || index]?.body) || ''}
+                        onChange={event => updateEmailRuleTest(rule.id || String(index), 'body', event.target.value)}
+                        placeholder="text scurt din email"
+                      />
+                      <div className="flex items-end">
+                        <Button type="button" variant="secondary" onClick={() => runEmailRuleTest(rule)}>Testează regula</Button>
+                      </div>
+                    </div>
+                    {emailRuleTests[rule.id || index]?.result ? (
+                      <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${String(emailRuleTests[rule.id || index].result).startsWith('Se potrivește') ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                        {emailRuleTests[rule.id || index].result}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))}

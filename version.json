@@ -1,5 +1,5 @@
 {
-  "version": "2.12.389",
+  "version": "2.12.390",
   "date": "2026-07-27",
-  "changelog": "## v2.12.389 - 2026-07-27\n### Reguli automate email Inbox\n- Setarile pot salva reguli automate pentru emailurile importate prin IMAP.\n- Importul IMAP aplica regulile inainte de salvare: categorie, importanta si status.\n- UI-ul din Setari permite administrarea regulilor fara editare tehnica."
+  "changelog": "## v2.12.390 - 2026-07-27\n### Reguli email vizibile si testabile\n- Inbox ERP afiseaza regula care a sortat automat un email.\n- Inbox ERP poate filtra emailurile sortate automat, fara regula sau dupa o regula anume.\n- Setari include simulator rapid pentru testarea regulilor email."
 }

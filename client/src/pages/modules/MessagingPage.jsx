@@ -68,7 +68,7 @@ function messageText(message) {
 
 const emptyChannelForm = { nume: '', tip: 'departament', descriere: '' }
 
-const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '', direction: 'inbound' }
+const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '', direction: 'inbound', rule: '' }
 const emptyEmailComposeForm = { draft_id: '', to: '', cc: '', bcc: '', subject: '', body: '', category: 'general', importance: 'normal', attachments: [] }
 const emptyEmailSyncStatus = {
   enabled: false,
@@ -177,6 +177,7 @@ export default function MessagingPage() {
   const [messages, setMessages] = useState([])
   const [emailRows, setEmailRows] = useState([])
   const [emailCategories, setEmailCategories] = useState([])
+  const [emailRules, setEmailRules] = useState([])
   const [emailStats, setEmailStats] = useState({ total: 0, unread: 0, important: 0, with_attachments: 0 })
   const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
   const [emailFilters, setEmailFilters] = useState(emailFilterDefaults)
@@ -278,6 +279,7 @@ export default function MessagingPage() {
       setEmailRows(arrayFrom(response.data, ['emails']))
       setSelectedEmailIds([])
       setEmailCategories(arrayFrom(response.data, ['categories']))
+      setEmailRules(arrayFrom(response.data, ['rules']))
       setEmailStats(response.data?.stats || { total: 0, unread: 0, important: 0, with_attachments: 0 })
       setEmailSyncStatus(syncStatusRes.data?.status || emptyEmailSyncStatus)
     } catch (err) {
@@ -809,7 +811,7 @@ export default function MessagingPage() {
             ) : null}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_auto]">
+          <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1fr_auto]">
             <Input
               label="Caută"
               value={emailFilters.q}
@@ -855,6 +857,16 @@ export default function MessagingPage() {
                 { value: 'read', label: 'Citite' },
                 { value: 'archived', label: 'Arhivate' },
               ]}
+            />
+            <Select
+              label="Regulă"
+              value={emailFilters.rule}
+              onChange={event => setEmailFilters(filters => ({ ...filters, rule: event.target.value }))}
+              options={[
+                { value: '', label: 'Toate' },
+                { value: 'auto', label: 'Sortate automat' },
+                { value: 'none', label: 'Fără regulă' },
+              ].concat(emailRules.map(item => ({ value: item.id, label: item.name || item.id })))}
             />
             <div className="flex items-end gap-2">
               <Button type="button" onClick={loadEmailInbox} loading={emailLoading}><Search size={15} /></Button>
@@ -920,6 +932,11 @@ export default function MessagingPage() {
                         {email.status === 'unread' ? <Badge tone="danger">necitit</Badge> : null}
                         {email.status === 'archived' ? <Badge>arhivat</Badge> : null}
                         {email.direction === 'draft' ? <Badge tone="warning">draft</Badge> : null}
+                        {email.email_rule_applied ? (
+                          <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                            🤖 regula: {email.email_rule_name || email.email_rule_id}
+                          </span>
+                        ) : null}
                         {email.has_attachments ? <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Paperclip size={13} /> {email.attachments_count || 1}</span> : null}
                       </div>
                       <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">{email.subject}</h3>
@@ -940,6 +957,11 @@ export default function MessagingPage() {
                       {email.source_label ? (
                         <div className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
                           Legat de: {email.source_label}
+                        </div>
+                      ) : null}
+                      {email.email_rule_applied ? (
+                        <div className="mt-2 rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs text-indigo-700">
+                          Sortat automat de regula „{email.email_rule_name || email.email_rule_id}”.
                         </div>
                       ) : null}
                     </div>

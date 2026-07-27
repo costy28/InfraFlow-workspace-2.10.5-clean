@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.390 - 2026-07-27
+
+## Reguli email vizibile și testabile
+
+- Inbox ERP afișează pe email badge-ul regulii automate care a sortat mesajul.
+- Lista de emailuri are filtru nou `Regulă`: toate, sortate automat, fără regulă sau o regulă configurată.
+- API-ul Inbox expune `email_rule_id`, `email_rule_name` și `email_rule_applied` pentru fiecare email.
+- API-ul Inbox acceptă filtrarea după `rule=auto`, `rule=none` sau `rule=<id>`.
+- Setările includ simulator per regulă, cu expeditor/subiect/conținut de probă și rezultat instant.
+
 # v2.12.389 - 2026-07-27
 
 ## Reguli automate email Inbox

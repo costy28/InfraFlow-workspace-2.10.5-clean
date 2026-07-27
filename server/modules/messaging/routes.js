@@ -115,6 +115,9 @@ function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES) {
     category_label: category.label,
     category_icon: category.icon,
     importance: EMAIL_IMPORTANCE.includes(message.importance) ? message.importance : 'normal',
+    email_rule_id: message.email_rule_id || null,
+    email_rule_name: message.email_rule_name || null,
+    email_rule_applied: Boolean(message.email_rule_id || message.email_rule_name),
     has_attachments: Boolean(message.has_attachments || (Array.isArray(message.attachments) && message.attachments.length)),
     attachments_count: Array.isArray(message.attachments) ? message.attachments.length : Number(message.attachments_count || 0),
     attachments: normalizeEmailAttachments(message.attachments),
@@ -603,6 +606,7 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     const status = String(req.query.status || '').trim().toLowerCase()
     const direction = String(req.query.direction || '').trim().toLowerCase()
     const sourceType = String(req.query.source_type || '').trim()
+    const rule = String(req.query.rule || req.query.email_rule || '').trim()
     const hasAttachments = String(req.query.has_attachments || '').trim()
     const limit = Math.min(200, Math.max(1, Number(req.query.limit || 80)))
 
@@ -615,6 +619,9 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     if (status) rows = rows.filter(item => item.status === status)
     if (EMAIL_DIRECTIONS.includes(direction)) rows = rows.filter(item => item.direction === direction)
     if (sourceType) rows = rows.filter(item => String(item.source_type || '') === sourceType)
+    if (rule === 'auto') rows = rows.filter(item => item.email_rule_applied)
+    if (rule === 'none') rows = rows.filter(item => !item.email_rule_applied)
+    if (rule && !['auto', 'none'].includes(rule)) rows = rows.filter(item => String(item.email_rule_id || '') === rule)
     if (hasAttachments === 'true') rows = rows.filter(item => item.has_attachments)
     if (hasAttachments === 'false') rows = rows.filter(item => !item.has_attachments)
 
@@ -622,6 +629,9 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     sendJson(res, 200, {
       emails: rows,
       categories: categories.map(publicEmailCategory),
+      rules: (Array.isArray(auth.db?.settings?.email_rules) ? auth.db.settings.email_rules : [])
+        .filter(item => item && item.active !== false && item.id)
+        .map(item => ({ id: String(item.id), name: item.name || String(item.id) })),
       stats: emailStats(rows)
     })
   } catch (error) {
