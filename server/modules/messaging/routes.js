@@ -64,6 +64,7 @@ function ensureMessagingDb(db) {
   db.messaging.mentions = Array.isArray(db.messaging.mentions) ? db.messaging.mentions : []
   db.messaging.emailCategories = Array.isArray(db.messaging.emailCategories) ? db.messaging.emailCategories : []
   db.messaging.emailMessages = Array.isArray(db.messaging.emailMessages) ? db.messaging.emailMessages : []
+  db.messaging.emailLinks = Array.isArray(db.messaging.emailLinks) ? db.messaging.emailLinks : []
   return db.messaging
 }
 
@@ -80,6 +81,7 @@ const DEFAULT_EMAIL_CATEGORIES = [
 const EMAIL_IMPORTANCE = ['low', 'normal', 'high', 'urgent']
 const EMAIL_DIRECTIONS = ['inbound', 'outbound', 'draft']
 const EMAIL_STATUSES = ['unread', 'read', 'archived', 'draft', 'sent']
+const EMAIL_LINK_TYPES = ['contract', 'document', 'task']
 
 function emailCategories(messaging) {
   const custom = messaging.emailCategories.filter(item => item && item.id)
@@ -98,8 +100,27 @@ function publicEmailCategory(category) {
   }
 }
 
-function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES) {
+function publicEmailLink(link) {
+  return {
+    id: link.id,
+    target_type: link.target_type,
+    target_id: link.target_id,
+    target_label: link.target_label || `${link.target_type} ${link.target_id}`,
+    target_url: safeInternalUrl(link.target_url) || '',
+    created_at: link.created_at || null,
+    created_by: link.created_by || null
+  }
+}
+
+function activeEmailLinks(messaging, emailId = null) {
+  return (Array.isArray(messaging?.emailLinks) ? messaging.emailLinks : [])
+    .filter(item => item && !item.cancelled_at)
+    .filter(item => emailId == null || String(item.email_id) === String(emailId))
+}
+
+function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES, links = []) {
   const category = categories.find(item => String(item.id) === String(message.category || 'general')) || DEFAULT_EMAIL_CATEGORIES[0]
+  const emailLinks = links.filter(item => String(item.email_id) === String(message.id)).map(publicEmailLink)
   return {
     id: message.id,
     direction: message.direction || 'inbound',
@@ -125,6 +146,9 @@ function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES) {
     source_id: message.source_id || null,
     source_label: message.source_label || null,
     source_url: message.source_url || null,
+    links: emailLinks,
+    links_count: emailLinks.length,
+    linked: emailLinks.length > 0,
     received_at: message.received_at || message.created_at,
     created_at: message.created_at,
     created_by: message.created_by || null,
@@ -141,6 +165,60 @@ function safeInternalUrl(value) {
   const text = String(value || '').trim()
   if (!text || !text.startsWith('/') || text.startsWith('//')) return null
   return text
+}
+
+function compactLabel(value, max = 180) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+function emailTargetUrl(type, id) {
+  const safeId = encodeURIComponent(String(id || ''))
+  if (type === 'contract') return `/contracte?contract=${safeId}`
+  if (type === 'document') return `/documente?document=${safeId}`
+  if (type === 'task') return `/taskuri?task=${safeId}`
+  return ''
+}
+
+function emailLinkTargetCollections(db) {
+  const contracts = (db.contractManagement?.contracts || db.contracts || [])
+    .filter(item => item && !item.cancelled_at && !item.anulat_la)
+    .map(item => ({
+      target_type: 'contract',
+      target_id: String(item.id),
+      target_label: compactLabel(`Contract ${item.numar || item.id} — ${item.titlu || item.partener || 'fără titlu'}`),
+      target_url: emailTargetUrl('contract', item.id),
+      search: [item.numar, item.titlu, item.partener, item.status].join(' ')
+    }))
+  const documents = (db.documents?.documents || [])
+    .filter(item => item && !item.cancelled_at)
+    .map(item => ({
+      target_type: 'document',
+      target_id: String(item.uuid || item.id),
+      target_label: compactLabel(`Document ${item.nr_document || item.uuid || item.id} — ${item.titlu || item.tip_id || 'fără titlu'}`),
+      target_url: emailTargetUrl('document', item.uuid || item.id),
+      search: [item.nr_document, item.titlu, item.tip_id, item.status].join(' ')
+    }))
+  const tasks = (db.taskManagement?.tasks || [])
+    .filter(item => item && !item.cancelled_at)
+    .map(item => ({
+      target_type: 'task',
+      target_id: String(item.id),
+      target_label: compactLabel(`Task ${item.title || item.titlu || item.id}`),
+      target_url: emailTargetUrl('task', item.id),
+      search: [item.title, item.titlu, item.description, item.status, item.source_label].join(' ')
+    }))
+  return { contract: contracts, document: documents, task: tasks }
+}
+
+function emailLinkTargets(db, query = {}) {
+  const type = String(query.type || '').trim()
+  const q = String(query.q || '').trim().toLowerCase()
+  const collections = emailLinkTargetCollections(db)
+  const types = EMAIL_LINK_TYPES.includes(type) ? [type] : EMAIL_LINK_TYPES
+  return types.flatMap(itemType => collections[itemType] || [])
+    .filter(item => !q || [item.target_label, item.search].join(' ').toLowerCase().includes(q))
+    .slice(0, 80)
+    .map(({ search, ...item }) => item)
 }
 
 function normalizeEmailAttachments(value) {
@@ -607,10 +685,13 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     const direction = String(req.query.direction || '').trim().toLowerCase()
     const sourceType = String(req.query.source_type || '').trim()
     const rule = String(req.query.rule || req.query.email_rule || '').trim()
+    const linked = String(req.query.linked || '').trim()
+    const linkedType = String(req.query.linked_type || '').trim()
     const hasAttachments = String(req.query.has_attachments || '').trim()
     const limit = Math.min(200, Math.max(1, Number(req.query.limit || 80)))
 
-    let rows = messaging.emailMessages.filter(item => !item.cancelled_at).map(item => publicEmailMessage(item, categories))
+    const links = activeEmailLinks(messaging)
+    let rows = messaging.emailMessages.filter(item => !item.cancelled_at).map(item => publicEmailMessage(item, categories, links))
     if (query) {
       rows = rows.filter(item => [item.from, item.to, item.cc, item.subject, item.preview, item.source_label].join(' ').toLowerCase().includes(query))
     }
@@ -622,6 +703,9 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     if (rule === 'auto') rows = rows.filter(item => item.email_rule_applied)
     if (rule === 'none') rows = rows.filter(item => !item.email_rule_applied)
     if (rule && !['auto', 'none'].includes(rule)) rows = rows.filter(item => String(item.email_rule_id || '') === rule)
+    if (linked === 'true') rows = rows.filter(item => item.linked)
+    if (linked === 'false') rows = rows.filter(item => !item.linked)
+    if (EMAIL_LINK_TYPES.includes(linkedType)) rows = rows.filter(item => item.links.some(link => link.target_type === linkedType))
     if (hasAttachments === 'true') rows = rows.filter(item => item.has_attachments)
     if (hasAttachments === 'false') rows = rows.filter(item => !item.has_attachments)
 
@@ -634,6 +718,81 @@ router.get('/messaging/email/inbox', (req, res, next) => {
         .map(item => ({ id: String(item.id), name: item.name || String(item.id) })),
       stats: emailStats(rows)
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/messaging/email/link-targets', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:view')) return
+    sendJson(res, 200, { targets: emailLinkTargets(auth.db, req.query || {}) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/messaging/email/inbox/:id/links', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:send')) return
+    const messaging = ensureMessagingDb(auth.db)
+    const email = messaging.emailMessages.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at)
+    if (!email) return sendJson(res, 404, { error: 'Emailul nu a fost găsit.' })
+    const body = req.body || {}
+    const targetType = String(body.target_type || body.type || '').trim()
+    const targetId = String(body.target_id || body.id || '').trim()
+    if (!EMAIL_LINK_TYPES.includes(targetType)) return sendJson(res, 400, { error: 'Tipul legăturii nu este suportat.' })
+    if (!targetId) return sendJson(res, 400, { error: 'Alege o țintă ERP validă.' })
+    const target = emailLinkTargets(auth.db, { type: targetType, q: '' }).find(item => String(item.target_id) === targetId)
+    const targetLabel = compactLabel(body.target_label || target?.target_label || `${targetType} ${targetId}`)
+    const targetUrl = safeInternalUrl(body.target_url || target?.target_url || emailTargetUrl(targetType, targetId)) || ''
+    const existing = activeEmailLinks(messaging, email.id).find(item => item.target_type === targetType && String(item.target_id) === targetId)
+    const categories = emailCategories(messaging)
+    if (existing) return sendJson(res, 200, { link: publicEmailLink(existing), email: publicEmailMessage(email, categories, activeEmailLinks(messaging)) })
+    const link = {
+      id: `email-link-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      email_id: email.id,
+      target_type: targetType,
+      target_id: targetId,
+      target_label: targetLabel,
+      target_url: targetUrl,
+      created_by: auth.user.id || auth.user.username || '',
+      created_at: nowIso(),
+      cancelled_at: null,
+      cancelled_by: null,
+      cancelled_reason: ''
+    }
+    messaging.emailLinks.push(link)
+    email.updated_at = nowIso()
+    addAudit(auth.db, auth.user, 'messaging_email_link_add', `${email.subject || email.id} -> ${targetLabel}`)
+    writeDb(auth.db)
+    sendJson(res, 201, { link: publicEmailLink(link), email: publicEmailMessage(email, categories, activeEmailLinks(messaging)) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.delete('/messaging/email/inbox/:id/links/:linkId', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:send')) return
+    const messaging = ensureMessagingDb(auth.db)
+    const email = messaging.emailMessages.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at)
+    if (!email) return sendJson(res, 404, { error: 'Emailul nu a fost găsit.' })
+    const link = messaging.emailLinks.find(item => String(item.id) === String(req.params.linkId) && String(item.email_id) === String(email.id) && !item.cancelled_at)
+    if (!link) return sendJson(res, 404, { error: 'Legătura nu a fost găsită.' })
+    link.cancelled_at = nowIso()
+    link.cancelled_by = auth.user.id || auth.user.username || ''
+    link.cancelled_reason = String(req.body?.reason || 'Anulată din Inbox ERP').trim()
+    email.updated_at = nowIso()
+    addAudit(auth.db, auth.user, 'messaging_email_link_cancel', `${email.subject || email.id} - ${link.target_label || link.target_id}`)
+    writeDb(auth.db)
+    sendJson(res, 200, { ok: true, email: publicEmailMessage(email, emailCategories(messaging), activeEmailLinks(messaging)) })
   } catch (error) {
     next(error)
   }

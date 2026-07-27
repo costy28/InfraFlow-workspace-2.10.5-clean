@@ -1075,3 +1075,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ badge regulă aplicată și filtru `Regulă`;
 - `client/src/pages/SetariPage.jsx` — ✅ simulator per regulă cu expeditor, subiect și conținut de probă;
 - `updates/UPDATE_410_reguli_email_vizibile_testabile.md` — ✅ documentație update și verificări.
+
+### UPDATE 411 — Legare email de entități ERP
+
+- `server/modules/messaging/routes.js` — ✅ registru generic `messaging.emailLinks`, ținte ERP, link/unlink și filtre după legături;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ modal `Leagă de...`, afișare legături și filtre cu/fără legături;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ task/document create din email sunt legate automat înapoi de email;
+- `updates/UPDATE_411_legare_email_entitati_erp.md` — ✅ documentație update și verificări.

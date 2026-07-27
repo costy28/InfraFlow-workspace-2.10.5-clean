@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.391 - 2026-07-27
+
+## Legare email de entități ERP
+
+- Inbox ERP poate lega emailurile de Contracte, Documente și Task-uri.
+- A fost adăugat registru generic `messaging.emailLinks`, cu anulare controlată a legăturilor.
+- API-ul Inbox expune `links`, `links_count` și `linked` pentru fiecare email.
+- Inbox ERP are filtre noi pentru emailuri cu/fără legături și după tipul legăturii.
+- Modalul `Leagă de...` permite selectarea rapidă a unei ținte ERP.
+- Task-urile și documentele create din email sunt legate automat înapoi de email.
+
 # v2.12.390 - 2026-07-27
 
 ## Reguli email vizibile și testabile

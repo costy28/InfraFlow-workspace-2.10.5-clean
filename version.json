@@ -1,5 +1,5 @@
 {
-  "version": "2.12.390",
+  "version": "2.12.391",
   "date": "2026-07-27",
-  "changelog": "## v2.12.390 - 2026-07-27\n### Reguli email vizibile si testabile\n- Inbox ERP afiseaza regula care a sortat automat un email.\n- Inbox ERP poate filtra emailurile sortate automat, fara regula sau dupa o regula anume.\n- Setari include simulator rapid pentru testarea regulilor email."
+  "changelog": "## v2.12.391 - 2026-07-27\n### Legare email de entitati ERP\n- Inbox ERP poate lega emailuri de contracte, documente si task-uri.\n- Emailurile afiseaza legaturile ERP si pot fi filtrate dupa existenta sau tipul legaturii.\n- Taskurile si documentele create din email primesc automat legatura inapoi catre email."
 }

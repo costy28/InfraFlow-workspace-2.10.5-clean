@@ -68,8 +68,9 @@ function messageText(message) {
 
 const emptyChannelForm = { nume: '', tip: 'departament', descriere: '' }
 
-const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '', direction: 'inbound', rule: '' }
+const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '', direction: 'inbound', rule: '', linked: '', linked_type: '' }
 const emptyEmailComposeForm = { draft_id: '', to: '', cc: '', bcc: '', subject: '', body: '', category: 'general', importance: 'normal', attachments: [] }
+const emptyLinkForm = { target_type: 'contract', target_id: '', q: '' }
 const emptyEmailSyncStatus = {
   enabled: false,
   interval_min: 15,
@@ -195,6 +196,11 @@ export default function MessagingPage() {
   const [documentForm, setDocumentForm] = useState({ tip_id: '', titlu: '', prioritate: 'normal', termen_limita: '' })
   const [documentLoading, setDocumentLoading] = useState(false)
   const [documentError, setDocumentError] = useState('')
+  const [linkEmail, setLinkEmail] = useState(null)
+  const [linkForm, setLinkForm] = useState(emptyLinkForm)
+  const [linkTargets, setLinkTargets] = useState([])
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkError, setLinkError] = useState('')
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeTitle, setComposeTitle] = useState('Email nou')
   const [composeForm, setComposeForm] = useState(emptyEmailComposeForm)
@@ -334,13 +340,22 @@ export default function MessagingPage() {
     setTaskLoading(true)
     setTaskError('')
     try {
-      await api.post('/tasks', {
+      const response = await api.post('/tasks', {
         ...taskForm,
         source_type: 'email',
         source_id: String(taskEmail.id),
         source_label: `Email: ${taskEmail.subject || taskEmail.from || taskEmail.id}`,
         source_url: '/mesaje',
       })
+      const task = response.data?.task
+      if (task?.id) {
+        await api.post(`/messaging/email/inbox/${taskEmail.id}/links`, {
+          target_type: 'task',
+          target_id: task.id,
+          target_label: `Task: ${task.title || task.titlu || task.id}`,
+          target_url: `/taskuri?task=${encodeURIComponent(String(task.id))}`
+        }).catch(() => {})
+      }
       await api.patch(`/messaging/email/inbox/${taskEmail.id}`, { status: 'read' }).catch(() => {})
       setTaskEmail(null)
       await loadEmailInbox()
@@ -387,7 +402,7 @@ export default function MessagingPage() {
     setDocumentLoading(true)
     setDocumentError('')
     try {
-      await api.post('/documents', {
+      const response = await api.post('/documents', {
         ...documentForm,
         date: {
           source_type: 'email',
@@ -406,6 +421,16 @@ export default function MessagingPage() {
           email_attachments_count: Number(documentEmail.attachments_count || 0),
         },
       })
+      const document = response.data?.document
+      const documentId = document?.uuid || document?.id
+      if (documentId) {
+        await api.post(`/messaging/email/inbox/${documentEmail.id}/links`, {
+          target_type: 'document',
+          target_id: documentId,
+          target_label: `Document: ${document.nr_document || document.titlu || documentId}`,
+          target_url: `/documente?document=${encodeURIComponent(String(documentId))}`
+        }).catch(() => {})
+      }
       await api.patch(`/messaging/email/inbox/${documentEmail.id}`, { status: 'read' }).catch(() => {})
       setDocumentEmail(null)
       await loadEmailInbox()
@@ -413,6 +438,79 @@ export default function MessagingPage() {
       setDocumentError(err.response?.data?.error || 'Documentul nu a putut fi creat din email.')
     } finally {
       setDocumentLoading(false)
+    }
+  }
+
+  async function loadEmailLinkTargets(nextForm = linkForm) {
+    setLinkLoading(true)
+    setLinkError('')
+    try {
+      const response = await api.get('/messaging/email/link-targets', {
+        params: {
+          type: nextForm.target_type,
+          q: nextForm.q,
+        }
+      })
+      const rows = arrayFrom(response.data, ['targets'])
+      setLinkTargets(rows)
+      setLinkForm(form => ({
+        ...form,
+        target_id: rows.some(item => String(item.target_id) === String(form.target_id)) ? form.target_id : (rows[0]?.target_id || '')
+      }))
+    } catch (err) {
+      setLinkTargets([])
+      setLinkError(err.response?.data?.error || 'Țintele ERP nu au putut fi încărcate.')
+    } finally {
+      setLinkLoading(false)
+    }
+  }
+
+  async function openLinkEmail(email) {
+    setLinkEmail(email)
+    setLinkError('')
+    const next = { ...emptyLinkForm, target_type: email.category === 'documente' ? 'document' : (email.category === 'contracte' ? 'contract' : 'contract') }
+    setLinkForm(next)
+    await loadEmailLinkTargets(next)
+  }
+
+  async function updateLinkType(value) {
+    const next = { ...linkForm, target_type: value, target_id: '' }
+    setLinkForm(next)
+    await loadEmailLinkTargets(next)
+  }
+
+  async function saveEmailLink(event) {
+    event.preventDefault()
+    if (!linkEmail) return
+    const target = linkTargets.find(item => String(item.target_id) === String(linkForm.target_id))
+    if (!target) {
+      setLinkError('Alege o țintă ERP validă.')
+      return
+    }
+    setLinkLoading(true)
+    setLinkError('')
+    try {
+      await api.post(`/messaging/email/inbox/${linkEmail.id}/links`, {
+        target_type: target.target_type,
+        target_id: target.target_id,
+        target_label: target.target_label,
+        target_url: target.target_url,
+      })
+      setLinkEmail(null)
+      await loadEmailInbox()
+    } catch (err) {
+      setLinkError(err.response?.data?.error || 'Legătura nu a putut fi salvată.')
+    } finally {
+      setLinkLoading(false)
+    }
+  }
+
+  async function cancelEmailLink(email, link) {
+    try {
+      await api.delete(`/messaging/email/inbox/${email.id}/links/${link.id}`)
+      await loadEmailInbox()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Legătura nu a putut fi anulată.')
     }
   }
 
@@ -811,7 +909,7 @@ export default function MessagingPage() {
             ) : null}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1fr_auto]">
+          <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_auto]">
             <Input
               label="Caută"
               value={emailFilters.q}
@@ -867,6 +965,27 @@ export default function MessagingPage() {
                 { value: 'auto', label: 'Sortate automat' },
                 { value: 'none', label: 'Fără regulă' },
               ].concat(emailRules.map(item => ({ value: item.id, label: item.name || item.id })))}
+            />
+            <Select
+              label="Legături"
+              value={emailFilters.linked}
+              onChange={event => setEmailFilters(filters => ({ ...filters, linked: event.target.value }))}
+              options={[
+                { value: '', label: 'Toate' },
+                { value: 'true', label: 'Cu legături ERP' },
+                { value: 'false', label: 'Fără legături' },
+              ]}
+            />
+            <Select
+              label="Tip legătură"
+              value={emailFilters.linked_type}
+              onChange={event => setEmailFilters(filters => ({ ...filters, linked_type: event.target.value }))}
+              options={[
+                { value: '', label: 'Orice tip' },
+                { value: 'contract', label: 'Contracte' },
+                { value: 'document', label: 'Documente' },
+                { value: 'task', label: 'Task-uri' },
+              ]}
             />
             <div className="flex items-end gap-2">
               <Button type="button" onClick={loadEmailInbox} loading={emailLoading}><Search size={15} /></Button>
@@ -959,6 +1078,19 @@ export default function MessagingPage() {
                           Legat de: {email.source_label}
                         </div>
                       ) : null}
+                      {Array.isArray(email.links) && email.links.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {email.links.map(link => (
+                            <span key={link.id} className="inline-flex items-center gap-1 rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs text-blue-700">
+                              🔗 {link.target_label}
+                              {link.target_url ? (
+                                <button type="button" className="font-semibold underline" onClick={() => { window.location.href = link.target_url }}>deschide</button>
+                              ) : null}
+                              <button type="button" className="text-blue-400 hover:text-rose-600" title="Anulează legătura" onClick={() => cancelEmailLink(email, link)}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                       {email.email_rule_applied ? (
                         <div className="mt-2 rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs text-indigo-700">
                           Sortat automat de regula „{email.email_rule_name || email.email_rule_id}”.
@@ -981,6 +1113,7 @@ export default function MessagingPage() {
                           <Button size="sm" variant="secondary" onClick={() => openForwardEmail(email)}>
                             <Forward size={14} /> Forward
                           </Button>
+                          <Button size="sm" variant="secondary" onClick={() => openLinkEmail(email)}>Leagă de...</Button>
                           <Button size="sm" onClick={() => openTaskFromEmail(email)}>Creează task</Button>
                           <Button size="sm" variant="secondary" onClick={() => openDocumentFromEmail(email)}>
                             <FileText size={14} /> Document
@@ -1399,6 +1532,54 @@ export default function MessagingPage() {
             <Button type="submit" loading={composeLoading} disabled={!composeForm.to.trim() || !composeForm.subject.trim() || !composeForm.body.trim()}>
               <Send size={15} /> Trimite email
             </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(linkEmail)} title="Leagă emailul de ERP" onClose={() => setLinkEmail(null)}>
+        <form className="grid gap-4" onSubmit={saveEmailLink}>
+          {linkEmail ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-semibold text-slate-900">{linkEmail.subject || 'Email fără subiect'}</div>
+              <div className="mt-1 text-xs text-slate-500">De la {linkEmail.from || '-'} · {linkEmail.category_label || linkEmail.category || 'General'}</div>
+            </div>
+          ) : null}
+          {linkError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{linkError}</div> : null}
+          <Select
+            label="Tip țintă"
+            value={linkForm.target_type}
+            onChange={event => updateLinkType(event.target.value)}
+            options={[
+              { value: 'contract', label: 'Contract' },
+              { value: 'document', label: 'Document' },
+              { value: 'task', label: 'Task' },
+            ]}
+          />
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <Input
+              label="Caută țintă"
+              value={linkForm.q}
+              onChange={event => setLinkForm(form => ({ ...form, q: event.target.value }))}
+              placeholder="număr, titlu, partener..."
+            />
+            <div className="flex items-end">
+              <Button type="button" variant="secondary" onClick={() => loadEmailLinkTargets()} loading={linkLoading}>Caută</Button>
+            </div>
+          </div>
+          <Select
+            label="Țintă ERP"
+            value={linkForm.target_id}
+            onChange={event => setLinkForm(form => ({ ...form, target_id: event.target.value }))}
+            options={linkTargets.length
+              ? linkTargets.map(item => ({ value: item.target_id, label: item.target_label }))
+              : [{ value: '', label: linkLoading ? 'Se încarcă...' : 'Nicio țintă găsită' }]}
+          />
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
+            Legătura apare pe email și poate fi anulată ulterior. Înregistrarea rămâne în audit.
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setLinkEmail(null)}>Renunță</Button>
+            <Button type="submit" loading={linkLoading} disabled={!linkForm.target_id}>Salvează legătura</Button>
           </div>
         </form>
       </Modal>
