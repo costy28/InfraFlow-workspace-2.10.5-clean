@@ -1053,3 +1053,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/system/routes.js` — ✅ setări `email_sync_enabled`, `email_sync_interval_min`, `email_sync_limit`;
 - `client/src/pages/SetariPage.jsx` — ✅ controale pentru activare autosync, interval și limită emailuri/rulare;
 - `updates/UPDATE_407_sincronizare_automata_inbox_imap.md` — ✅ documentație update și verificări.
+
+### UPDATE 408 — Status sincronizare Inbox IMAP
+
+- `server/modules/messaging/email-sync.js` — ✅ status public pentru ultima sincronizare manuală/automată, următoarea rulare și ultima eroare;
+- `server/modules/messaging/routes.js` — ✅ endpoint `GET /messaging/email/sync/status`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ status compact în `Mesaje → Inbox ERP`;
+- `client/src/pages/SetariPage.jsx` — ✅ status autosync în zona `Sincronizare automată Inbox`;
+- `updates/UPDATE_408_status_sincronizare_inbox_imap.md` — ✅ documentație update și verificări.

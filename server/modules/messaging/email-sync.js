@@ -49,6 +49,40 @@ function syncActor(actor) {
   return actor || { id: 'system-email-sync', name: 'InfraFlow Email Sync', role: 'system' }
 }
 
+function publicEmailSyncStatus(db) {
+  const messaging = ensureMessagingDb(db)
+  const sync = messaging.emailSync || {}
+  const settings = db?.settings || {}
+  const enabled = settings.email_sync_enabled === true
+  const intervalMin = Math.max(5, Math.min(1440, Number(settings.email_sync_interval_min || 15)))
+  const lastAuto = sync.last_auto_sync_at || ''
+  const lastStarted = sync.last_auto_sync_started_at || ''
+  let nextAutoSyncAt = ''
+  if (enabled && (lastStarted || lastAuto)) {
+    const base = new Date(lastStarted || lastAuto).getTime()
+    if (!Number.isNaN(base)) nextAutoSyncAt = new Date(base + intervalMin * 60 * 1000).toISOString()
+  }
+  return {
+    enabled,
+    interval_min: intervalMin,
+    limit: Math.max(1, Math.min(50, Number(settings.email_sync_limit || 20))),
+    last_manual_sync_at: sync.last_manual_sync_at || '',
+    last_manual_sync_by: sync.last_manual_sync_by || '',
+    last_manual_sync_host: sync.last_manual_sync_host || '',
+    last_manual_sync_imported: Number(sync.last_manual_sync_imported || 0),
+    last_manual_sync_scanned: Number(sync.last_manual_sync_scanned || 0),
+    last_manual_sync_error: sync.last_manual_sync_error || '',
+    last_auto_sync_started_at: lastStarted,
+    last_auto_sync_at: lastAuto,
+    last_auto_sync_host: sync.last_auto_sync_host || '',
+    last_auto_sync_imported: Number(sync.last_auto_sync_imported || 0),
+    last_auto_sync_scanned: Number(sync.last_auto_sync_scanned || 0),
+    last_auto_sync_error: sync.last_auto_sync_error || '',
+    last_auto_sync_error_at: sync.last_auto_sync_error_at || '',
+    next_auto_sync_at: nextAutoSyncAt
+  }
+}
+
 async function syncIncomingEmails(db, { actor, limit = 20, mode = 'manual', persist = true } = {}) {
   const messaging = ensureMessagingDb(db)
   const sync = messaging.emailSync
@@ -117,4 +151,4 @@ async function syncIncomingEmails(db, { actor, limit = 20, mode = 'manual', pers
   }
 }
 
-module.exports = { syncIncomingEmails, ensureMessagingDb, emailCategories }
+module.exports = { syncIncomingEmails, publicEmailSyncStatus, ensureMessagingDb, emailCategories }

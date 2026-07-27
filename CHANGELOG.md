@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.388 - 2026-07-26
+
+## Status sincronizare Inbox IMAP
+
+- Backend-ul expune endpoint public autentificat pentru statusul sincronizării: `GET /api/messaging/email/sync/status`.
+- Statusul include modul activ, interval, limită, ultima sincronizare manuală, ultima sincronizare automată, următoarea rulare și ultima eroare autosync.
+- Pagina `Mesaje → Inbox ERP` afișează status compact lângă lista de emailuri.
+- Pagina `Setări → General` afișează statusul autosync lângă configurarea IMAP.
+- După salvarea setărilor generale, statusul autosync este reîncărcat automat.
+
 # v2.12.387 - 2026-07-26
 
 ## Sincronizare automată Inbox IMAP

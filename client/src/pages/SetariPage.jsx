@@ -77,6 +77,20 @@ const emptyDeptForm = {
   permissions: [],
 }
 
+const emptyEmailSyncStatus = {
+  enabled: false,
+  interval_min: 15,
+  limit: 20,
+  last_manual_sync_at: '',
+  last_manual_sync_imported: 0,
+  last_manual_sync_scanned: 0,
+  last_auto_sync_at: '',
+  last_auto_sync_imported: 0,
+  last_auto_sync_scanned: 0,
+  last_auto_sync_error: '',
+  next_auto_sync_at: '',
+}
+
 const departmentIconOptions = ['👥', '🔧', '🏗️', '📦', '🚛', '🏭', '🌿', '📍', '🧹', '🚦', '❄️', '⚙️', '💰', '📋', '🎯', '🔨', '🛒', '📬', '⚖️', '🗄️', '🏠', '🚗', '📊', '💼', '🔩', '🌱', '🏢', '🎫']
 
 const moduleGroups = [
@@ -406,6 +420,7 @@ export default function SetariPage() {
   const [piusiMapari, setPiusiMapari] = useState([])
   const [piusiAssets, setPiusiAssets] = useState([])
   const [piusiSyncing, setPiusiSyncing] = useState(false)
+  const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
   const [integrationTests, setIntegrationTests] = useState({})
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -525,7 +540,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes, emailSyncStatusRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -541,6 +556,7 @@ export default function SetariPage() {
         api.get('/settings/modules/catalog'),
         api.get('/settings/country-profiles'),
         api.get('/settings/country-rules'),
+        api.get('/messaging/email/sync/status'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -576,6 +592,7 @@ export default function SetariPage() {
         if (countries.length) setCountryProfiles(countries)
       }
       if (countryRulesRes.status === 'fulfilled') setCountryRules(countryRulesRes.value.data || fallbackCountryRules)
+      if (emailSyncStatusRes.status === 'fulfilled') setEmailSyncStatus(emailSyncStatusRes.value.data?.status || emptyEmailSyncStatus)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -648,6 +665,8 @@ export default function SetariPage() {
     try {
       const response = await api.post('/settings', settings)
       setSettings({ ...(response.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      const syncStatus = await api.get('/messaging/email/sync/status').catch(() => null)
+      if (syncStatus?.data?.status) setEmailSyncStatus(syncStatus.data.status)
       notify('Setările generale au fost salvate.')
     } catch (err) {
       fail(err, 'Setările nu au putut fi salvate.')
@@ -1818,6 +1837,26 @@ export default function SetariPage() {
             />
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
               Recomandat: 15 minute și 20 emailuri/rulare. Pentru Gmail/Microsoft 365, păstrează intervale rezonabile ca să nu declanșezi limitări ale providerului.
+            </div>
+            <div className={`md:col-span-2 rounded-2xl border p-4 text-sm ${emailSyncStatus.last_auto_sync_error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-100 bg-emerald-50 text-emerald-800'}`}>
+              <div className="font-semibold">Status sincronizare Inbox</div>
+              <div className="mt-2 grid gap-2 md:grid-cols-3">
+                <div>
+                  <span className="text-xs uppercase opacity-70">Mod</span>
+                  <div>{emailSyncStatus.enabled ? `Automat la ${emailSyncStatus.interval_min || 15} min` : 'Manual / dezactivat automat'}</div>
+                </div>
+                <div>
+                  <span className="text-xs uppercase opacity-70">Ultima automată</span>
+                  <div>{emailSyncStatus.last_auto_sync_at ? `${formatDate(emailSyncStatus.last_auto_sync_at)} · ${emailSyncStatus.last_auto_sync_imported || 0}/${emailSyncStatus.last_auto_sync_scanned || 0}` : 'Nicio rulare'}</div>
+                </div>
+                <div>
+                  <span className="text-xs uppercase opacity-70">Următoarea</span>
+                  <div>{emailSyncStatus.next_auto_sync_at ? formatDate(emailSyncStatus.next_auto_sync_at) : '-'}</div>
+                </div>
+              </div>
+              {emailSyncStatus.last_auto_sync_error ? (
+                <div className="mt-2 whitespace-pre-wrap text-xs">Ultima eroare autosync: {emailSyncStatus.last_auto_sync_error}</div>
+              ) : null}
             </div>
             <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
               <h3 className="text-sm font-semibold text-slate-900">Configurare TVA</h3>

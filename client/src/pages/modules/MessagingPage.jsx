@@ -70,6 +70,19 @@ const emptyChannelForm = { nume: '', tip: 'departament', descriere: '' }
 
 const emailFilterDefaults = { q: '', category: '', importance: '', status: '', has_attachments: '', direction: 'inbound' }
 const emptyEmailComposeForm = { draft_id: '', to: '', cc: '', bcc: '', subject: '', body: '', category: 'general', importance: 'normal', attachments: [] }
+const emptyEmailSyncStatus = {
+  enabled: false,
+  interval_min: 15,
+  limit: 20,
+  last_manual_sync_at: '',
+  last_manual_sync_imported: 0,
+  last_manual_sync_scanned: 0,
+  last_auto_sync_at: '',
+  last_auto_sync_imported: 0,
+  last_auto_sync_scanned: 0,
+  last_auto_sync_error: '',
+  next_auto_sync_at: '',
+}
 
 function importanceBadge(value) {
   if (value === 'urgent') return { label: 'urgent', tone: 'danger', cls: 'bg-rose-100 text-rose-700' }
@@ -144,6 +157,18 @@ function quotedEmailText(email) {
   ].filter(line => line !== '').join('\n')
 }
 
+function syncStatusText(status) {
+  const last = status.last_auto_sync_at || status.last_manual_sync_at
+  if (!last) return 'Nicio sincronizare încă'
+  const imported = status.last_auto_sync_at
+    ? Number(status.last_auto_sync_imported || 0)
+    : Number(status.last_manual_sync_imported || 0)
+  const scanned = status.last_auto_sync_at
+    ? Number(status.last_auto_sync_scanned || 0)
+    : Number(status.last_manual_sync_scanned || 0)
+  return `${formatDate(last)} · ${imported} importate / ${scanned} verificate`
+}
+
 export default function MessagingPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('chat')
@@ -153,6 +178,7 @@ export default function MessagingPage() {
   const [emailRows, setEmailRows] = useState([])
   const [emailCategories, setEmailCategories] = useState([])
   const [emailStats, setEmailStats] = useState({ total: 0, unread: 0, important: 0, with_attachments: 0 })
+  const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
   const [emailFilters, setEmailFilters] = useState(emailFilterDefaults)
   const [emailLoading, setEmailLoading] = useState(false)
   const [selectedEmailIds, setSelectedEmailIds] = useState([])
@@ -245,11 +271,15 @@ export default function MessagingPage() {
     setError('')
     try {
       const params = Object.fromEntries(Object.entries(emailFilters).filter(([, value]) => String(value || '').trim()))
-      const response = await api.get('/messaging/email/inbox', { params })
+      const [response, syncStatusRes] = await Promise.all([
+        api.get('/messaging/email/inbox', { params }),
+        api.get('/messaging/email/sync/status').catch(() => ({ data: { status: emptyEmailSyncStatus } }))
+      ])
       setEmailRows(arrayFrom(response.data, ['emails']))
       setSelectedEmailIds([])
       setEmailCategories(arrayFrom(response.data, ['categories']))
       setEmailStats(response.data?.stats || { total: 0, unread: 0, important: 0, with_attachments: 0 })
+      setEmailSyncStatus(syncStatusRes.data?.status || emptyEmailSyncStatus)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca Inbox ERP.')
     } finally {
@@ -762,6 +792,22 @@ export default function MessagingPage() {
           </div>
 
           {composeMessage ? <div className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{composeMessage}</div> : null}
+          <div className={`rounded-xl border px-3 py-2 text-sm ${emailSyncStatus.last_auto_sync_error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="font-semibold text-slate-800">Sincronizare email:</span>{' '}
+                {emailSyncStatus.enabled ? `automată la ${emailSyncStatus.interval_min || 15} minute` : 'manuală'}
+                <span className="mx-2 text-slate-300">•</span>
+                {syncStatusText(emailSyncStatus)}
+              </div>
+              {emailSyncStatus.next_auto_sync_at ? (
+                <span>Următoarea: {formatDate(emailSyncStatus.next_auto_sync_at)}</span>
+              ) : null}
+            </div>
+            {emailSyncStatus.last_auto_sync_error ? (
+              <div className="mt-1 whitespace-pre-wrap text-xs text-rose-700">Ultima eroare autosync: {emailSyncStatus.last_auto_sync_error}</div>
+            ) : null}
+          </div>
 
           <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_auto]">
             <Input

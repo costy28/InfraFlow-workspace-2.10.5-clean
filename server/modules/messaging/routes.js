@@ -5,7 +5,7 @@ const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = requ
 const { addAudit } = require('../../core/audit')
 const { sendEmail, getEmailSettings } = require('./email')
 const { describeImapError } = require('./imap')
-const { syncIncomingEmails } = require('./email-sync')
+const { syncIncomingEmails, publicEmailSyncStatus } = require('./email-sync')
 const router = Router()
 
 const sseClients = new Map()
@@ -698,6 +698,17 @@ router.patch('/messaging/email/inbox/:id', (req, res, next) => {
     addAudit(auth.db, auth.user, 'messaging_email_inbox_update', `${email.id} / ${email.subject}`)
     writeDb(auth.db)
     sendJson(res, 200, { email: publicEmailMessage(email, categories) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/messaging/email/sync/status', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:view')) return
+    sendJson(res, 200, { status: publicEmailSyncStatus(auth.db) })
   } catch (error) {
     next(error)
   }

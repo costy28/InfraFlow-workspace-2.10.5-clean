@@ -1,5 +1,5 @@
 {
-  "version": "2.12.387",
+  "version": "2.12.388",
   "date": "2026-07-26",
-  "changelog": "## v2.12.387 - 2026-07-26\n### Sincronizare automata Inbox IMAP\n- Inbox ERP poate sincroniza automat emailurile noi prin IMAP.\n- Setarile includ activare autosync, interval si limita emailuri pe rulare.\n- Schedulerul ruleaza controlat, fara suprapuneri, si pastreaza statusul ultimei sincronizari."
+  "changelog": "## v2.12.388 - 2026-07-26\n### Status sincronizare Inbox IMAP\n- Backend-ul expune status public pentru sincronizarea emailurilor.\n- Mesaje afiseaza ultima sincronizare, urmatoarea rulare si ultima eroare autosync.\n- Setari afiseaza acelasi status langa configurarea automata."
 }
