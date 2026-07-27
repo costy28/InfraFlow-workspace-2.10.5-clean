@@ -13,6 +13,7 @@ const DEFAULT_EMAIL_CATEGORIES = [
 ]
 
 const EMAIL_IMPORTANCE = ['low', 'normal', 'high', 'urgent']
+const EMAIL_STATUSES = ['unread', 'read', 'archived']
 
 function nowIso() {
   return new Date().toISOString()
@@ -43,6 +44,63 @@ function emailCategories(messaging) {
 function normalizeEmailImportance(value) {
   const text = String(value || 'normal').trim().toLowerCase()
   return EMAIL_IMPORTANCE.includes(text) ? text : 'normal'
+}
+
+function normalizeEmailStatus(value) {
+  const text = String(value || 'unread').trim().toLowerCase()
+  return EMAIL_STATUSES.includes(text) ? text : 'unread'
+}
+
+function normalizeRuleText(value) {
+  return String(value || '').toLowerCase()
+}
+
+function emailRuleHaystack(email, field) {
+  const selectedField = String(field || 'all').trim()
+  const values = {
+    from: email.from,
+    subject: email.subject,
+    body: [email.body, email.preview].filter(Boolean).join(' ')
+  }
+  if (selectedField === 'all') {
+    return normalizeRuleText([values.from, values.subject, values.body].filter(Boolean).join(' '))
+  }
+  return normalizeRuleText(values[selectedField])
+}
+
+function emailRuleMatches(email, rule) {
+  const needle = normalizeRuleText(rule.match).trim()
+  if (!needle) return false
+  const haystack = emailRuleHaystack(email, rule.field)
+  switch (rule.operator) {
+    case 'starts_with':
+      return haystack.startsWith(needle)
+    case 'ends_with':
+      return haystack.endsWith(needle)
+    case 'equals':
+      return haystack === needle
+    case 'contains':
+    default:
+      return haystack.includes(needle)
+  }
+}
+
+function activeEmailRules(db) {
+  return (Array.isArray(db?.settings?.email_rules) ? db.settings.email_rules : [])
+    .filter(rule => rule && rule.active !== false && String(rule.match || '').trim())
+}
+
+function applyEmailRules(db, incoming, categories) {
+  const rule = activeEmailRules(db).find(item => emailRuleMatches(incoming, item))
+  const incomingCategory = categories.some(item => String(item.id) === String(incoming.category)) ? incoming.category : 'general'
+  const ruleCategory = rule?.category && categories.some(item => String(item.id) === String(rule.category)) ? rule.category : ''
+  return {
+    category: ruleCategory || incomingCategory,
+    importance: normalizeEmailImportance(rule?.importance || incoming.importance),
+    status: normalizeEmailStatus(rule?.status || 'unread'),
+    rule_id: rule?.id || null,
+    rule_name: rule?.name || null
+  }
 }
 
 function syncActor(actor) {
@@ -103,10 +161,11 @@ async function syncIncomingEmails(db, { actor, limit = 20, mode = 'manual', pers
       const externalId = String(incoming.external_id || '').trim()
       const uidKey = `imap:${result.host}:${result.user}:${incoming.uid}`
       if ((externalId && existingKeys.has(externalId)) || existingKeys.has(uidKey)) continue
+      const ruleResult = applyEmailRules(db, incoming, categories)
       const email = {
         id: nextId(messaging.emailMessages),
         direction: 'inbound',
-        status: 'unread',
+        status: ruleResult.status,
         from: incoming.from || '',
         to: incoming.to || result.user || '',
         cc: incoming.cc || '',
@@ -114,8 +173,10 @@ async function syncIncomingEmails(db, { actor, limit = 20, mode = 'manual', pers
         subject: incoming.subject || '(fără subiect)',
         preview: incoming.preview || '',
         body: incoming.body || incoming.preview || '',
-        category: categories.some(item => String(item.id) === String(incoming.category)) ? incoming.category : 'general',
-        importance: normalizeEmailImportance(incoming.importance),
+        category: ruleResult.category,
+        importance: ruleResult.importance,
+        email_rule_id: ruleResult.rule_id,
+        email_rule_name: ruleResult.rule_name,
         attachments: [],
         has_attachments: Boolean(incoming.has_attachments),
         attachments_count: Number(incoming.attachments_count || 0),

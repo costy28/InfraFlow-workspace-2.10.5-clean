@@ -91,6 +91,46 @@ const emptyEmailSyncStatus = {
   next_auto_sync_at: '',
 }
 
+const emailRuleFieldOptions = [
+  { value: 'all', label: 'Oriunde' },
+  { value: 'from', label: 'Expeditor' },
+  { value: 'subject', label: 'Subiect' },
+  { value: 'body', label: 'Conținut' },
+]
+
+const emailRuleOperatorOptions = [
+  { value: 'contains', label: 'conține' },
+  { value: 'starts_with', label: 'începe cu' },
+  { value: 'ends_with', label: 'se termină cu' },
+  { value: 'equals', label: 'este exact' },
+]
+
+const emailRuleCategoryOptions = [
+  { value: '', label: 'Păstrează categoria' },
+  { value: 'general', label: 'General' },
+  { value: 'contracte', label: 'Contracte' },
+  { value: 'achizitii', label: 'Achiziții' },
+  { value: 'contabilitate', label: 'Contabilitate' },
+  { value: 'hr', label: 'HR' },
+  { value: 'documente', label: 'Documente' },
+  { value: 'sesizari', label: 'Sesizări' },
+]
+
+const emailRuleImportanceOptions = [
+  { value: '', label: 'Păstrează importanța' },
+  { value: 'low', label: 'Scăzută' },
+  { value: 'normal', label: 'Normală' },
+  { value: 'high', label: 'Ridicată' },
+  { value: 'urgent', label: 'Urgentă' },
+]
+
+const emailRuleStatusOptions = [
+  { value: '', label: 'Păstrează necitit' },
+  { value: 'unread', label: 'Necitit' },
+  { value: 'read', label: 'Citit' },
+  { value: 'archived', label: 'Arhivat' },
+]
+
 const departmentIconOptions = ['👥', '🔧', '🏗️', '📦', '🚛', '🏭', '🌿', '📍', '🧹', '🚦', '❄️', '⚙️', '💰', '📋', '🎯', '🔨', '🛒', '📬', '⚖️', '🗄️', '🏠', '🚗', '📊', '💼', '🔩', '🌱', '🏢', '🎫']
 
 const moduleGroups = [
@@ -1541,6 +1581,41 @@ export default function SetariPage() {
     }))
   }
 
+  function updateEmailRule(index, key, value) {
+    setSettings(current => {
+      const rows = Array.isArray(current.email_rules) ? [...current.email_rules] : []
+      rows[index] = { ...(rows[index] || {}), [key]: value }
+      return { ...current, email_rules: rows }
+    })
+  }
+
+  function addEmailRule() {
+    setSettings(current => ({
+      ...current,
+      email_rules: [
+        ...(Array.isArray(current.email_rules) ? current.email_rules : []),
+        {
+          id: `email-rule-${Date.now()}`,
+          name: '',
+          active: true,
+          field: 'all',
+          operator: 'contains',
+          match: '',
+          category: 'general',
+          importance: '',
+          status: ''
+        }
+      ]
+    }))
+  }
+
+  function removeEmailRule(index) {
+    setSettings(current => ({
+      ...current,
+      email_rules: (Array.isArray(current.email_rules) ? current.email_rules : []).filter((_, rowIndex) => rowIndex !== index)
+    }))
+  }
+
   async function saveExternalPaths() {
     try {
       const payload = {
@@ -1854,9 +1929,86 @@ export default function SetariPage() {
                   <div>{emailSyncStatus.next_auto_sync_at ? formatDate(emailSyncStatus.next_auto_sync_at) : '-'}</div>
                 </div>
               </div>
-              {emailSyncStatus.last_auto_sync_error ? (
-                <div className="mt-2 whitespace-pre-wrap text-xs">Ultima eroare autosync: {emailSyncStatus.last_auto_sync_error}</div>
-              ) : null}
+            {emailSyncStatus.last_auto_sync_error ? (
+              <div className="mt-2 whitespace-pre-wrap text-xs">Ultima eroare autosync: {emailSyncStatus.last_auto_sync_error}</div>
+            ) : null}
+            </div>
+            <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Reguli automate email</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">Se aplică la emailurile importate prin IMAP înainte de salvare: categorie, importanță sau status.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={addEmailRule}>➕ Regulă email</Button>
+              </div>
+            </div>
+            <div className="md:col-span-2 space-y-3">
+              {(Array.isArray(settings.email_rules) ? settings.email_rules : []).length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                  Nu există reguli configurate. Exemplu util: expeditorul conține „anaf” → categoria Contabilitate, importanță Ridicată.
+                </div>
+              ) : (Array.isArray(settings.email_rules) ? settings.email_rules : []).map((rule, index) => (
+                <div key={rule.id || index} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={rule.active !== false}
+                        onChange={event => updateEmailRule(index, 'active', event.target.checked)}
+                      />
+                      Regulă activă
+                    </label>
+                    <Button type="button" variant="ghost" onClick={() => removeEmailRule(index)}>Șterge</Button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <Input
+                      label="Nume regulă"
+                      value={rule.name || ''}
+                      onChange={event => updateEmailRule(index, 'name', event.target.value)}
+                      placeholder="ex. Facturi furnizori"
+                    />
+                    <Select
+                      label="Caută în"
+                      value={rule.field || 'all'}
+                      onChange={event => updateEmailRule(index, 'field', event.target.value)}
+                      options={emailRuleFieldOptions}
+                    />
+                    <Select
+                      label="Condiție"
+                      value={rule.operator || 'contains'}
+                      onChange={event => updateEmailRule(index, 'operator', event.target.value)}
+                      options={emailRuleOperatorOptions}
+                    />
+                    <Input
+                      label="Text căutat"
+                      value={rule.match || ''}
+                      onChange={event => updateEmailRule(index, 'match', event.target.value)}
+                      placeholder="ex. factura / anaf / contract"
+                    />
+                    <Select
+                      label="Categorie"
+                      value={rule.category || ''}
+                      onChange={event => updateEmailRule(index, 'category', event.target.value)}
+                      options={emailRuleCategoryOptions}
+                    />
+                    <Select
+                      label="Importanță"
+                      value={rule.importance || ''}
+                      onChange={event => updateEmailRule(index, 'importance', event.target.value)}
+                      options={emailRuleImportanceOptions}
+                    />
+                    <Select
+                      label="Status"
+                      value={rule.status || ''}
+                      onChange={event => updateEmailRule(index, 'status', event.target.value)}
+                      options={emailRuleStatusOptions}
+                    />
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      Regula se aplică doar emailurilor noi importate după salvare.
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
             <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
               <h3 className="text-sm font-semibold text-slate-900">Configurare TVA</h3>

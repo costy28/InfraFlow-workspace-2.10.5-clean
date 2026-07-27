@@ -1,5 +1,5 @@
 {
-  "version": "2.12.388",
-  "date": "2026-07-26",
-  "changelog": "## v2.12.388 - 2026-07-26\n### Status sincronizare Inbox IMAP\n- Backend-ul expune status public pentru sincronizarea emailurilor.\n- Mesaje afiseaza ultima sincronizare, urmatoarea rulare si ultima eroare autosync.\n- Setari afiseaza acelasi status langa configurarea automata."
+  "version": "2.12.389",
+  "date": "2026-07-27",
+  "changelog": "## v2.12.389 - 2026-07-27\n### Reguli automate email Inbox\n- Setarile pot salva reguli automate pentru emailurile importate prin IMAP.\n- Importul IMAP aplica regulile inainte de salvare: categorie, importanta si status.\n- UI-ul din Setari permite administrarea regulilor fara editare tehnica."
 }

@@ -1061,3 +1061,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ status compact în `Mesaje → Inbox ERP`;
 - `client/src/pages/SetariPage.jsx` — ✅ status autosync în zona `Sincronizare automată Inbox`;
 - `updates/UPDATE_408_status_sincronizare_inbox_imap.md` — ✅ documentație update și verificări.
+
+### UPDATE 409 — Reguli automate email Inbox
+
+- `server/modules/system/routes.js` — ✅ normalizare și salvare `settings.email_rules` cu reguli simple pentru Inbox ERP;
+- `server/modules/messaging/email-sync.js` — ✅ aplicare reguli la importul IMAP înainte de salvarea emailului;
+- `client/src/pages/SetariPage.jsx` — ✅ UI de administrare reguli email fără editare tehnică;
+- `updates/UPDATE_409_reguli_automate_email_inbox.md` — ✅ documentație update și verificări.

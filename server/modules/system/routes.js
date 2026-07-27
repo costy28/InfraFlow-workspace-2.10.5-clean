@@ -4369,6 +4369,34 @@ function normalizeExternalIntegrations(input) {
     .filter(item => item.name || item.path)
 }
 
+const EMAIL_RULE_FIELDS = new Set(['from', 'subject', 'body', 'all'])
+const EMAIL_RULE_OPERATORS = new Set(['contains', 'starts_with', 'ends_with', 'equals'])
+const EMAIL_RULE_IMPORTANCE = new Set(['', 'low', 'normal', 'high', 'urgent'])
+const EMAIL_RULE_STATUSES = new Set(['', 'unread', 'read', 'archived'])
+
+function normalizeEmailRules(input) {
+  if (!Array.isArray(input)) return []
+  return input
+    .map((item, index) => {
+      const field = String(item?.field || 'all').trim()
+      const operator = String(item?.operator || 'contains').trim()
+      const importance = String(item?.importance || '').trim().toLowerCase()
+      const status = String(item?.status || '').trim().toLowerCase()
+      return {
+        id: String(item?.id || `email-rule-${index + 1}`).trim(),
+        name: String(item?.name || '').trim() || `Regulă email ${index + 1}`,
+        active: item?.active !== false,
+        field: EMAIL_RULE_FIELDS.has(field) ? field : 'all',
+        operator: EMAIL_RULE_OPERATORS.has(operator) ? operator : 'contains',
+        match: String(item?.match ?? item?.value ?? '').trim(),
+        category: String(item?.category || '').trim(),
+        importance: EMAIL_RULE_IMPORTANCE.has(importance) ? importance : '',
+        status: EMAIL_RULE_STATUSES.has(status) ? status : '',
+      }
+    })
+    .filter(item => item.match && (item.category || item.importance || item.status))
+}
+
 function normalizeSettingText(value, fallback = "") {
   const text = String(value ?? fallback ?? "").trim()
   return text || String(fallback || "").trim()
@@ -4454,6 +4482,7 @@ function updateSettings(current = {}, body = {}) {
     email_sync_enabled: body.email_sync_enabled !== undefined ? Boolean(body.email_sync_enabled) : Boolean(current.email_sync_enabled),
     email_sync_interval_min: Math.max(5, Math.min(1440, Number(body.email_sync_interval_min || current.email_sync_interval_min || 15))),
     email_sync_limit: Math.max(1, Math.min(50, Number(body.email_sync_limit || current.email_sync_limit || 20))),
+    email_rules: normalizeEmailRules(body.email_rules ?? current.email_rules ?? []),
     tva_implicit: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_standard: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_redusa: Number(body.cota_tva_redusa ?? current.cota_tva_redusa ?? 9),

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.389 - 2026-07-27
+
+## Reguli automate email Inbox
+
+- Pagina `Setări → General` include acum reguli automate pentru emailurile importate prin IMAP.
+- O regulă poate verifica expeditorul, subiectul, conținutul sau tot emailul cu operatori simpli: conține, începe cu, se termină cu, este exact.
+- Regulile pot seta automat categoria, importanța și statusul emailului importat.
+- Backend-ul normalizează regulile la salvarea setărilor, filtrând rândurile incomplete.
+- Importul IMAP aplică regulile înainte de salvarea emailului în Inbox ERP și păstrează numele regulii pe mesaj.
+
 # v2.12.388 - 2026-07-26
 
 ## Status sincronizare Inbox IMAP
