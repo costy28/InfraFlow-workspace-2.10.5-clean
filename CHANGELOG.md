@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.392 - 2026-07-27
+
+## Emailuri legate vizibile în dosare ERP
+
+- A fost adăugat endpoint generic pentru citirea emailurilor legate de o țintă ERP.
+- Dosarul contractului afișează emailurile asociate din Inbox ERP.
+- Dosarul documentului afișează emailurile asociate explicit, separat de sursa inițială.
+- Detaliul task-ului afișează emailurile asociate din Inbox ERP.
+- Deep-linkul `/taskuri?task=ID` deschide automat detaliul task-ului.
+
 # v2.12.391 - 2026-07-27
 
 ## Legare email de entități ERP

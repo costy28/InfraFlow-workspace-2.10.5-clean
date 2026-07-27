@@ -248,6 +248,8 @@ export default function ContractePage() {
   const [erpTaskModalOpen, setErpTaskModalOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
   const [contractDetails, setContractDetails] = useState(null)
+  const [relatedEmails, setRelatedEmails] = useState([])
+  const [relatedEmailsLoading, setRelatedEmailsLoading] = useState(false)
   const [deepLinkedContractId, setDeepLinkedContractId] = useState('')
   const [contractForm, setContractForm] = useState(emptyContractForm)
   const [consumptionForm, setConsumptionForm] = useState(emptyConsumptionForm)
@@ -622,16 +624,24 @@ export default function ContractePage() {
   async function openDetails(contract) {
     setSelectedContract(contract)
     setContractDetails(null)
+    setRelatedEmails([])
     setAttachmentForm(emptyAttachmentForm)
     setAddendumForm(emptyAddendumForm)
     setDetailModalOpen(true)
     setError('')
     setNotice('')
+    setRelatedEmailsLoading(true)
     try {
-      const response = await api.get(`/contracts/${contract.id}`)
+      const [response, emailsResponse] = await Promise.all([
+        api.get(`/contracts/${contract.id}`),
+        api.get('/messaging/email/links', { params: { target_type: 'contract', target_id: String(contract.id) } }).catch(() => ({ data: { emails: [] } })),
+      ])
       setContractDetails(response.data.contract || null)
+      setRelatedEmails(arrayFrom(emailsResponse.data, ['emails']))
     } catch (err) {
       setError(err.response?.data?.error || 'Detaliile contractului nu au putut fi încărcate.')
+    } finally {
+      setRelatedEmailsLoading(false)
     }
   }
 
@@ -1778,6 +1788,34 @@ export default function ContractePage() {
                 </div>
               </div>
             ) : null}
+
+            <Card title="Emailuri legate" subtitle="Mesaje din Inbox ERP asociate explicit acestui contract.">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Badge tone={relatedEmails.length ? 'info' : 'gray'}>{relatedEmails.length} emailuri</Badge>
+                <Button size="sm" variant="secondary" onClick={() => { window.location.href = '/mesaje' }}>Deschide Inbox</Button>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {relatedEmailsLoading ? (
+                  <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-4 text-sm text-slate-500">Se încarcă emailurile legate...</div>
+                ) : relatedEmails.length === 0 ? (
+                  <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-4 text-sm text-slate-500">Nu există emailuri legate manual de acest contract.</div>
+                ) : relatedEmails.slice(0, 6).map(email => (
+                  <div key={email.id} className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-blue-950">📧 {email.subject || email.from || `Email ${email.id}`}</div>
+                        <div className="mt-1 text-xs text-slate-600">{email.from || '-'} · {formatDate(email.received_at || email.created_at)}</div>
+                        {email.preview ? <div className="mt-1 line-clamp-2 text-xs text-slate-500">{email.preview}</div> : null}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-1">
+                        <Badge tone={email.importance === 'urgent' ? 'danger' : email.importance === 'high' ? 'warning' : 'gray'}>{email.importance || 'normal'}</Badge>
+                        {email.has_attachments ? <Badge tone="info">{email.attachments_count || 1} ataș.</Badge> : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
 
             <Card title="Cockpit contract" subtitle="Radiografia rapidă: ce este consumat, ce lipsește și ce acțiuni sunt încă deschise.">
               <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">

@@ -221,6 +221,8 @@ export default function DocumentePage() {
   const [taskError, setTaskError] = useState('')
   const [relatedTasks, setRelatedTasks] = useState([])
   const [relatedTasksLoading, setRelatedTasksLoading] = useState(false)
+  const [relatedEmails, setRelatedEmails] = useState([])
+  const [relatedEmailsLoading, setRelatedEmailsLoading] = useState(false)
   const [pendingDocumentParam, setPendingDocumentParam] = useState(() => new URLSearchParams(window.location.search).get('document') || '')
   const [templateSaving, setTemplateSaving] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
@@ -280,8 +282,10 @@ export default function DocumentePage() {
     setError('')
     setDocumentHtml('')
     setRelatedTasks([])
+    setRelatedEmails([])
     setDocumentHtmlLoading(true)
     setRelatedTasksLoading(true)
+    setRelatedEmailsLoading(true)
     try {
       const response = await api.get(`/documents/${document.uuid}`)
       const currentDocument = response.data.document || document
@@ -291,20 +295,25 @@ export default function DocumentePage() {
         audit: arrayFrom(response.data, ['audit']),
       })
       const documentId = documentTaskSourceId(currentDocument)
-      const [htmlResponse, tasksResponse] = await Promise.all([
+      const [htmlResponse, tasksResponse, emailsResponse] = await Promise.all([
         api.get(`/documents/${document.uuid}/pdf`, { responseType: 'text' }),
         documentId
           ? api.get('/tasks', { params: { source_type: 'document', source_id: String(documentId) } }).catch(() => ({ data: { tasks: [] } }))
           : Promise.resolve({ data: { tasks: [] } }),
+        documentId
+          ? api.get('/messaging/email/links', { params: { target_type: 'document', target_id: String(documentId) } }).catch(() => ({ data: { emails: [] } }))
+          : Promise.resolve({ data: { emails: [] } }),
       ])
       setDocumentHtml(String(htmlResponse.data || ''))
       setRelatedTasks(arrayFrom(tasksResponse.data, ['tasks']))
+      setRelatedEmails(arrayFrom(emailsResponse.data, ['emails']))
     } catch (err) {
       setDetails({ document, steps: [], audit: [] })
       setError(err.response?.data?.error || 'Nu am putut încărca detaliile documentului.')
     } finally {
       setDocumentHtmlLoading(false)
       setRelatedTasksLoading(false)
+      setRelatedEmailsLoading(false)
     }
   }
 
@@ -855,6 +864,39 @@ export default function DocumentePage() {
                       </div>
                     </div>
                   ) : null}
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-800">Emailuri legate</h3>
+                        <p className="text-xs text-slate-500">Mesaje din Inbox ERP asociate explicit acestui document.</p>
+                      </div>
+                      <Badge tone={relatedEmails.length ? 'info' : 'neutral'}>{relatedEmails.length} emailuri</Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      {relatedEmailsLoading ? (
+                        <p className="text-sm text-slate-500">Se încarcă emailurile legate...</p>
+                      ) : relatedEmails.length === 0 ? (
+                        <p className="text-sm text-slate-500">Nu există emailuri legate manual de acest document.</p>
+                      ) : relatedEmails.slice(0, 5).map(email => (
+                        <div key={email.id} className="flex flex-col gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                              <Mail size={14} /> <span className="truncate">{email.subject || email.from || `Email ${email.id}`}</span>
+                            </div>
+                            <div className="mt-1 text-xs text-slate-600">
+                              {email.from || '-'} · {formatDate(email.received_at || email.created_at)}
+                            </div>
+                            {email.preview ? <div className="mt-1 line-clamp-2 text-xs text-slate-500">{email.preview}</div> : null}
+                          </div>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            <Badge tone={email.importance === 'urgent' ? 'danger' : email.importance === 'high' ? 'warning' : 'neutral'} size="sm">{label(email.importance || 'normal')}</Badge>
+                            <Button type="button" size="sm" variant="secondary" onClick={() => { window.location.href = '/mesaje' }}>Inbox</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white p-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

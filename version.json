@@ -1,5 +1,5 @@
 {
-  "version": "2.12.391",
+  "version": "2.12.392",
   "date": "2026-07-27",
-  "changelog": "## v2.12.391 - 2026-07-27\n### Legare email de entitati ERP\n- Inbox ERP poate lega emailuri de contracte, documente si task-uri.\n- Emailurile afiseaza legaturile ERP si pot fi filtrate dupa existenta sau tipul legaturii.\n- Taskurile si documentele create din email primesc automat legatura inapoi catre email."
+  "changelog": "## v2.12.392 - 2026-07-27\n### Emailuri legate vizibile in dosare ERP\n- Contractele, documentele si taskurile afiseaza emailurile asociate din Inbox ERP.\n- A fost adaugat endpoint generic pentru citirea emailurilor legate de o tinta ERP.\n- Deep-linkul catre taskuri din Inbox deschide automat detaliul taskului."
 }

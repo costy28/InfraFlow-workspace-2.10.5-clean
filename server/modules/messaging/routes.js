@@ -221,6 +221,19 @@ function emailLinkTargets(db, query = {}) {
     .map(({ search, ...item }) => item)
 }
 
+function emailsLinkedToTarget(messaging, categories, query = {}) {
+  const targetType = String(query.target_type || query.type || '').trim()
+  const targetId = String(query.target_id || query.id || '').trim()
+  if (!EMAIL_LINK_TYPES.includes(targetType) || !targetId) return []
+  const links = activeEmailLinks(messaging)
+    .filter(item => String(item.target_type) === targetType && String(item.target_id) === targetId)
+  const emailIds = new Set(links.map(item => String(item.email_id)))
+  return messaging.emailMessages
+    .filter(item => item && !item.cancelled_at && emailIds.has(String(item.id)))
+    .map(item => publicEmailMessage(item, categories, links))
+    .sort((a, b) => String(b.received_at || b.created_at || '').localeCompare(String(a.received_at || a.created_at || '')))
+}
+
 function normalizeEmailAttachments(value) {
   return Array.isArray(value) ? value.map(item => ({
     name: String(item?.name || item?.filename || '').trim(),
@@ -729,6 +742,20 @@ router.get('/messaging/email/link-targets', (req, res, next) => {
     if (!auth) return
     if (!requireMessaging(auth, res, 'messaging:view')) return
     sendJson(res, 200, { targets: emailLinkTargets(auth.db, req.query || {}) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/messaging/email/links', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:view')) return
+    const messaging = ensureMessagingDb(auth.db)
+    const categories = emailCategories(messaging)
+    const emails = emailsLinkedToTarget(messaging, categories, req.query || {})
+    sendJson(res, 200, { emails, total: emails.length })
   } catch (error) {
     next(error)
   }

@@ -53,6 +53,11 @@ function urlSourceFilters() {
   }
 }
 
+function urlTaskParam() {
+  if (typeof window === 'undefined') return ''
+  return new URLSearchParams(window.location.search).get('task') || ''
+}
+
 function statusTone(status) {
   if (status === 'done') return 'success'
   if (status === 'blocked' || status === 'cancelled') return 'danger'
@@ -104,6 +109,9 @@ export default function TasksPage() {
   const [assigneeScope, setAssigneeScope] = useState('self')
   const [selected, setSelected] = useState(null)
   const [details, setDetails] = useState({ task: null, comments: [], attachments: [] })
+  const [relatedEmails, setRelatedEmails] = useState([])
+  const [relatedEmailsLoading, setRelatedEmailsLoading] = useState(false)
+  const [pendingTaskParam, setPendingTaskParam] = useState(urlTaskParam)
   const [formOpen, setFormOpen] = useState(false)
   const [templateFormOpen, setTemplateFormOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -182,19 +190,38 @@ export default function TasksPage() {
     return { open, overdue, done }
   }, [tasks])
 
+  useEffect(() => {
+    if (!pendingTaskParam || loading) return
+    const target = tasks.find(task => String(task.id) === String(pendingTaskParam))
+    if (!target) {
+      if (activeTab !== 'all' && isManager) setActiveTab('all')
+      return
+    }
+    setPendingTaskParam('')
+    Promise.resolve().then(() => openDetails(target))
+  }, [activeTab, isManager, loading, pendingTaskParam, tasks])
+
   async function openDetails(task) {
     setSelected(task)
     setComment('')
+    setRelatedEmails([])
+    setRelatedEmailsLoading(true)
     try {
-      const response = await api.get(`/tasks/${task.id}`)
+      const [response, emailsResponse] = await Promise.all([
+        api.get(`/tasks/${task.id}`),
+        api.get('/messaging/email/links', { params: { target_type: 'task', target_id: String(task.id) } }).catch(() => ({ data: { emails: [] } })),
+      ])
       setDetails({
         task: response.data.task || task,
         comments: arrayFrom(response.data, ['comments']),
         attachments: arrayFrom(response.data, ['attachments']),
       })
+      setRelatedEmails(arrayFrom(emailsResponse.data, ['emails']))
     } catch (err) {
       setMessage(err.response?.data?.error || 'Nu am putut încărca detaliile task-ului.')
       setDetails({ task, comments: [], attachments: [] })
+    } finally {
+      setRelatedEmailsLoading(false)
     }
   }
 
@@ -513,7 +540,7 @@ export default function TasksPage() {
         </form>
       </Modal>
 
-      <Modal open={Boolean(selected)} title="Detalii task" onClose={() => { setSelected(null); setDetails({ task: null, comments: [], attachments: [] }) }} size="lg">
+      <Modal open={Boolean(selected)} title="Detalii task" onClose={() => { setSelected(null); setDetails({ task: null, comments: [], attachments: [] }); setRelatedEmails([]) }} size="lg">
         {details.task ? (
           <div className="grid gap-4">
             <div>
@@ -538,6 +565,36 @@ export default function TasksPage() {
                   </div>
                 </div>
               ) : null}
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white px-3 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">Emailuri legate</div>
+                  <div className="text-xs text-slate-500">Context primit din Inbox ERP pentru acest task.</div>
+                </div>
+                <Badge tone={relatedEmails.length ? 'info' : 'neutral'}>{relatedEmails.length} emailuri</Badge>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {relatedEmailsLoading ? (
+                  <p className="text-sm text-slate-500">Se încarcă emailurile legate...</p>
+                ) : relatedEmails.length === 0 ? (
+                  <p className="text-sm text-slate-500">Nu există emailuri legate manual de acest task.</p>
+                ) : relatedEmails.slice(0, 4).map(email => (
+                  <div key={email.id} className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-blue-950">📧 {email.subject || email.from || `Email ${email.id}`}</div>
+                        <div className="mt-1 text-xs text-slate-600">{email.from || '-'} · {String(email.received_at || email.created_at || '').slice(0, 16).replace('T', ' ')}</div>
+                        {email.preview ? <div className="mt-1 line-clamp-2 text-xs text-slate-500">{email.preview}</div> : null}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-1">
+                        <Badge tone={priorityTone(email.importance === 'urgent' ? 'urgent' : email.importance === 'high' ? 'high' : 'normal')} size="sm">{label(email.importance || 'normal')}</Badge>
+                        {email.has_attachments ? <Badge tone="info" size="sm">{email.attachments_count || 1} ataș.</Badge> : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="grid gap-2 md:grid-cols-2">
               <Select label="Status" value={details.task.status || 'open'} onChange={event => updateTask(details.task, { status: event.target.value })}>

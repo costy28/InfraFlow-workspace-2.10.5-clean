@@ -1082,3 +1082,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ modal `Leagă de...`, afișare legături și filtre cu/fără legături;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ task/document create din email sunt legate automat înapoi de email;
 - `updates/UPDATE_411_legare_email_entitati_erp.md` — ✅ documentație update și verificări.
+
+### UPDATE 412 — Emailuri legate vizibile în dosare ERP
+
+- `server/modules/messaging/routes.js` — ✅ endpoint generic `GET /messaging/email/links` pentru emailuri legate de contract/document/task;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ dosarul contractului afișează emailurile asociate din Inbox ERP;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ dosarul documentului afișează emailurile legate explicit;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ detaliul task-ului afișează emailurile legate și suportă `/taskuri?task=ID`;
+- `updates/UPDATE_412_emailuri_vizibile_dosare_erp.md` — ✅ documentație update și verificări.
