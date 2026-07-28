@@ -1,5 +1,5 @@
 {
-  "version": "2.12.394",
-  "date": "2026-07-27",
-  "changelog": "## v2.12.394 - 2026-07-28\n### Modal detalii email ERP\n- Inbox ERP permite deschiderea unui email in modal de detalii.\n- Modalul afiseaza antete, continut complet, atasamente, reguli si legaturi ERP.\n- Deep-linkul /mesaje?email=ID deschide automat detaliul emailului tinta."
+  "version": "2.12.395",
+  "date": "2026-07-28",
+  "changelog": "## v2.12.395 - 2026-07-28\n### Download atasamente email ERP\n- Atașamentele emailurilor păstrate în Inbox ERP pot fi descărcate din modalul de detalii.\n- Descărcarea folosește endpoint protejat cu autentificarea aplicației.\n- Pentru emailurile unde IMAP a furnizat doar metadata, interfața afișează clar că fișierul nu este disponibil local."
 }

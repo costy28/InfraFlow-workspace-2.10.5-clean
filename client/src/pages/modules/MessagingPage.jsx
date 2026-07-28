@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileText, Forward, Hash, Info, Mail, Paperclip, Plus, Reply, Search, Send, Trash2, Users, X } from 'lucide-react'
+import { Download, FileText, Forward, Hash, Info, Mail, Paperclip, Plus, Reply, Search, Send, Trash2, Users, X } from 'lucide-react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -769,6 +769,25 @@ export default function MessagingPage() {
 
   function removeComposeAttachment(index) {
     setComposeForm(form => ({ ...form, attachments: form.attachments.filter((_, itemIndex) => itemIndex !== index) }))
+  }
+
+  async function downloadEmailAttachment(email, attachment, index) {
+    if (!email?.id || !attachment?.download_available) return
+    try {
+      setEmailError('')
+      const response = await api.get(`/messaging/email/inbox/${email.id}/attachments/${index}`, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: response.headers?.['content-type'] || attachment.type || 'application/octet-stream' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = attachment.name || `atasament-${index + 1}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setEmailError(err.response?.data?.error || 'Atașamentul nu a putut fi descărcat.')
+    }
   }
 
   // ─── Info panel ───────────────────────────────────────────────────────────────
@@ -1560,7 +1579,16 @@ export default function MessagingPage() {
                         <Paperclip size={13} className="mr-1 inline" />
                         {attachment.name} · {Math.ceil(Number(attachment.size || 0) / 1024)} KB
                       </span>
-                      {attachment.type ? <Badge tone="neutral">{attachment.type}</Badge> : null}
+                      <span className="flex flex-wrap items-center gap-2">
+                        {attachment.type ? <Badge tone="neutral">{attachment.type}</Badge> : null}
+                        {attachment.download_available ? (
+                          <Button type="button" size="sm" variant="secondary" onClick={() => downloadEmailAttachment(emailDetails, attachment, index)}>
+                            <Download size={14} /> Descarcă
+                          </Button>
+                        ) : (
+                          <Badge tone="warning">doar metadata</Badge>
+                        )}
+                      </span>
                     </div>
                   ))}
                 </div>

@@ -141,7 +141,7 @@ function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES, link
     email_rule_applied: Boolean(message.email_rule_id || message.email_rule_name),
     has_attachments: Boolean(message.has_attachments || (Array.isArray(message.attachments) && message.attachments.length)),
     attachments_count: Array.isArray(message.attachments) ? message.attachments.length : Number(message.attachments_count || 0),
-    attachments: normalizeEmailAttachments(message.attachments),
+    attachments: normalizeEmailAttachments(message.attachments, message.id),
     source_type: message.source_type || null,
     source_id: message.source_id || null,
     source_label: message.source_label || null,
@@ -234,12 +234,33 @@ function emailsLinkedToTarget(messaging, categories, query = {}) {
     .sort((a, b) => String(b.received_at || b.created_at || '').localeCompare(String(a.received_at || a.created_at || '')))
 }
 
-function normalizeEmailAttachments(value) {
-  return Array.isArray(value) ? value.map(item => ({
+function normalizeEmailAttachments(value, emailId = null) {
+  return Array.isArray(value) ? value.map((item, index) => ({
     name: String(item?.name || item?.filename || '').trim(),
     size: Number(item?.size || 0),
-    type: String(item?.type || '').trim()
+    type: String(item?.type || item?.contentType || '').trim(),
+    download_available: Boolean(item?.content),
+    download_url: item?.content && emailId != null
+      ? `/api/messaging/email/inbox/${encodeURIComponent(String(emailId))}/attachments/${encodeURIComponent(String(item?.index ?? index))}`
+      : ''
   })).filter(item => item.name) : []
+}
+
+function normalizeStoredEmailAttachments(value) {
+  return Array.isArray(value) ? value.map(item => {
+    const name = String(item?.name || item?.filename || '').trim()
+    if (!name) return null
+    const content = String(item?.content || '').trim()
+    return {
+      name,
+      filename: name,
+      size: Number(item?.size || 0),
+      type: String(item?.type || item?.contentType || '').trim(),
+      contentType: String(item?.contentType || item?.type || '').trim(),
+      content,
+      encoding: String(item?.encoding || 'base64').trim() || 'base64'
+    }
+  }).filter(Boolean).map((item, index) => ({ ...item, index })) : []
 }
 
 function normalizeOutgoingAttachments(value) {
@@ -538,7 +559,7 @@ router.post('/messaging/email/send', async (req, res, next) => {
     const categories = emailCategories(messaging)
     const category = categories.some(item => String(item.id) === String(req.body?.category || 'general')) ? String(req.body?.category || 'general') : 'general'
     const settings = getEmailSettings(auth.db)
-    const normalizedAttachments = normalizeEmailAttachments(attachments)
+    const normalizedAttachments = normalizeStoredEmailAttachments(attachments)
     const sentEmail = {
       id: nextId(messaging.emailMessages),
       direction: 'outbound',
@@ -610,7 +631,7 @@ router.post('/messaging/email/drafts', (req, res, next) => {
       existing.body = textBody
       existing.category = category
       existing.importance = normalizeEmailImportance(body.importance)
-      existing.attachments = normalizeEmailAttachments(body.attachments)
+      existing.attachments = normalizeStoredEmailAttachments(body.attachments)
       existing.has_attachments = existing.attachments.length > 0
       existing.source_type = String(body.source_type || '').trim() || null
       existing.source_id = String(body.source_id || '').trim() || null
@@ -621,6 +642,7 @@ router.post('/messaging/email/drafts', (req, res, next) => {
       writeDb(auth.db)
       return sendJson(res, 200, { draft: publicEmailMessage(existing, categories) })
     }
+    const draftAttachments = normalizeStoredEmailAttachments(body.attachments)
     const draft = {
       id: nextId(messaging.emailMessages),
       direction: 'draft',
@@ -634,8 +656,8 @@ router.post('/messaging/email/drafts', (req, res, next) => {
       body: textBody,
       category,
       importance: normalizeEmailImportance(body.importance),
-      attachments: normalizeEmailAttachments(body.attachments),
-      has_attachments: normalizeEmailAttachments(body.attachments).length > 0,
+      attachments: draftAttachments,
+      has_attachments: draftAttachments.length > 0,
       source_type: String(body.source_type || '').trim() || null,
       source_id: String(body.source_id || '').trim() || null,
       source_label: String(body.source_label || '').trim() || null,
@@ -731,6 +753,35 @@ router.get('/messaging/email/inbox', (req, res, next) => {
         .map(item => ({ id: String(item.id), name: item.name || String(item.id) })),
       stats: emailStats(rows)
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/messaging/email/inbox/:id/attachments/:index', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireMessaging(auth, res, 'messaging:view')) return
+    const messaging = ensureMessagingDb(auth.db)
+    const email = messaging.emailMessages.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at)
+    if (!email) return sendJson(res, 404, { error: 'Emailul nu a fost găsit.' })
+    const attachments = normalizeStoredEmailAttachments(email.attachments)
+    const attachment = attachments[Number(req.params.index)]
+    if (!attachment || !attachment.content) return sendJson(res, 404, { error: 'Atașamentul nu are conținut disponibil pentru descărcare.' })
+
+    let buffer
+    if (String(attachment.encoding || '').toLowerCase() === 'base64') {
+      buffer = Buffer.from(attachment.content, 'base64')
+    } else {
+      buffer = Buffer.from(attachment.content, 'utf8')
+    }
+
+    const filename = String(attachment.filename || attachment.name || `atasament-${req.params.index}`).replace(/["\r\n]/g, '_')
+    res.setHeader('Content-Type', attachment.contentType || attachment.type || 'application/octet-stream')
+    res.setHeader('Content-Length', buffer.length)
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`)
+    res.send(buffer)
   } catch (error) {
     next(error)
   }
@@ -837,7 +888,7 @@ router.post('/messaging/email/inbox', (req, res, next) => {
     if (!subject || !from) return sendJson(res, 400, { error: 'Expeditorul si subiectul sunt obligatorii.' })
     const categories = emailCategories(messaging)
     const category = categories.some(item => String(item.id) === String(body.category || 'general')) ? String(body.category || 'general') : 'general'
-    const attachments = normalizeEmailAttachments(body.attachments)
+    const attachments = normalizeStoredEmailAttachments(body.attachments)
     const email = {
       id: nextId(messaging.emailMessages),
       direction: EMAIL_DIRECTIONS.includes(body.direction) ? body.direction : 'inbound',

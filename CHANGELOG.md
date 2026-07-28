@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.395 - 2026-07-28
+
+## Download atașamente email ERP
+
+- Atașamentele emailurilor din Inbox ERP pot fi descărcate din modalul de detalii.
+- Conținutul atașamentelor este păstrat intern la emailurile trimise, drafturi și emailuri adăugate manual/API.
+- Endpointul de descărcare este protejat de autentificarea aplicației și permisiunea `messaging:view`.
+- Interfața marchează explicit atașamentele pentru care există doar metadata, fără conținut local descărcabil.
+
 # v2.12.394 - 2026-07-28
 
 ## Modal detalii email ERP

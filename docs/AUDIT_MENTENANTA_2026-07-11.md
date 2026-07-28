@@ -1107,3 +1107,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ deep-linkul `/mesaje?email=ID` deschide automat detaliul emailului țintă;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiuni rapide direct din modal: răspuns, forward, task, document, legare și arhivare;
 - `updates/UPDATE_414_modal_detalii_email_erp.md` — ✅ documentație update și verificări.
+
+### UPDATE 415 — Download atașamente email ERP
+
+- `server/modules/messaging/routes.js` — ✅ atașamentele email păstrează conținut intern când este disponibil, fără expunere în JSON public;
+- `server/modules/messaging/routes.js` — ✅ endpoint protejat `GET /messaging/email/inbox/:id/attachments/:index`;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ buton `Descarcă` în modalul de detalii email;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ badge `doar metadata` pentru atașamente fără conținut local disponibil;
+- `updates/UPDATE_415_download_atasamente_email_erp.md` — ✅ documentație update și verificări.
