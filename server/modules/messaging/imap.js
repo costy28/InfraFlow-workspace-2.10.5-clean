@@ -239,6 +239,111 @@ function decodeBody(text = '', encoding = '') {
   return text
 }
 
+function parseHeaderParams(value = '') {
+  const result = { value: '', params: {} }
+  const parts = String(value || '').split(';')
+  result.value = String(parts.shift() || '').trim().toLowerCase()
+  for (const part of parts) {
+    const idx = part.indexOf('=')
+    if (idx <= 0) continue
+    const key = part.slice(0, idx).trim().toLowerCase()
+    let paramValue = part.slice(idx + 1).trim().replace(/^"|"$/g, '')
+    if (key.endsWith('*')) {
+      paramValue = paramValue.replace(/^[^']*''/i, '')
+      try { paramValue = decodeURIComponent(paramValue) } catch {}
+    }
+    result.params[key.replace(/\*$/, '')] = decodeMimeWords(paramValue)
+  }
+  return result
+}
+
+function parseMimeEntity(raw = '') {
+  const split = /\r?\n\r?\n/.exec(raw)
+  const rawHeaders = split ? raw.slice(0, split.index) : ''
+  const rawBody = split ? raw.slice(split.index + split[0].length) : raw
+  return { headers: headerMap(rawHeaders), rawBody }
+}
+
+function splitMultipartBody(rawBody = '', boundary = '') {
+  if (!boundary) return []
+  const marker = `--${boundary}`
+  return String(rawBody || '')
+    .split(marker)
+    .slice(1)
+    .map(part => part.replace(/^\r?\n/, '').replace(/\r?\n$/, ''))
+    .filter(part => part && !part.startsWith('--'))
+}
+
+function flattenMimeParts(rawBody = '', headers = {}, depth = 0) {
+  if (depth > 8) return []
+  const contentType = headers['content-type'] || ''
+  const boundary = extractBoundary(contentType)
+  if (!boundary) return [{ headers, rawBody }]
+  return splitMultipartBody(rawBody, boundary).flatMap(part => {
+    const entity = parseMimeEntity(part)
+    return flattenMimeParts(entity.rawBody, entity.headers, depth + 1)
+  })
+}
+
+function attachmentFromPart(part, limits) {
+  const contentType = parseHeaderParams(part.headers['content-type'] || '')
+  const disposition = parseHeaderParams(part.headers['content-disposition'] || '')
+  const filename = compactFilename(disposition.params.filename || contentType.params.name || '')
+  const isAttachment = disposition.value === 'attachment' || Boolean(filename)
+  if (!isAttachment || !filename) return null
+
+  const encoding = String(part.headers['content-transfer-encoding'] || '').trim().toLowerCase()
+  let buffer
+  if (encoding.includes('base64')) {
+    buffer = Buffer.from(String(part.rawBody || '').replace(/\s+/g, ''), 'base64')
+  } else if (encoding.includes('quoted-printable')) {
+    buffer = Buffer.from(decodeQuotedPrintable(part.rawBody || ''), 'utf8')
+  } else {
+    buffer = Buffer.from(String(part.rawBody || ''), 'utf8')
+  }
+
+  const size = buffer.length
+  if (!size) return null
+  if (size > limits.maxFileSize || limits.total + size > limits.maxTotalSize || limits.count >= limits.maxFiles) {
+    return {
+      name: filename,
+      filename,
+      size,
+      type: contentType.value || 'application/octet-stream',
+      contentType: contentType.value || 'application/octet-stream',
+      skipped: true,
+      skip_reason: 'Atașament prea mare pentru stocarea în Inbox ERP.'
+    }
+  }
+  limits.total += size
+  limits.count += 1
+  return {
+    name: filename,
+    filename,
+    size,
+    type: contentType.value || 'application/octet-stream',
+    contentType: contentType.value || 'application/octet-stream',
+    content: buffer.toString('base64'),
+    encoding: 'base64'
+  }
+}
+
+function compactFilename(value = '') {
+  return decodeMimeWords(String(value || ''))
+    .replace(/[\\/:*?"<>|\r\n]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180)
+}
+
+function extractAttachments(rawBody, headers) {
+  const parts = flattenMimeParts(rawBody, headers)
+  const limits = { maxFiles: 5, maxFileSize: 2 * 1024 * 1024, maxTotalSize: 5 * 1024 * 1024, total: 0, count: 0 }
+  return parts
+    .map(part => attachmentFromPart(part, limits))
+    .filter(Boolean)
+}
+
 function stripHtml(html = '') {
   return String(html)
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -264,11 +369,14 @@ function extractBody(rawBody, headers) {
   const contentType = headers['content-type'] || ''
   const boundary = extractBoundary(contentType)
   if (boundary) {
-    const parts = String(rawBody || '').split(`--${boundary}`)
-    const parsed = parts.map(part => parseRawEmail(part.trim())).filter(item => item.body || item.preview)
-    const plain = parsed.find(item => String(item.content_type || '').toLowerCase().includes('text/plain'))
-    const html = parsed.find(item => String(item.content_type || '').toLowerCase().includes('text/html'))
-    return plain?.body || stripHtml(html?.body || '') || parsed[0]?.body || ''
+    const parts = flattenMimeParts(rawBody, headers)
+      .filter(part => !parseHeaderParams(part.headers['content-disposition'] || '').value.includes('attachment'))
+      .filter(part => !parseHeaderParams(part.headers['content-disposition'] || '').params.filename)
+    const plain = parts.find(item => String(item.headers['content-type'] || '').toLowerCase().includes('text/plain'))
+    const html = parts.find(item => String(item.headers['content-type'] || '').toLowerCase().includes('text/html'))
+    if (plain) return decodeBody(plain.rawBody, plain.headers['content-transfer-encoding'])
+    if (html) return stripHtml(decodeBody(html.rawBody, html.headers['content-transfer-encoding']))
+    return ''
   }
   const body = decodeBody(rawBody, headers['content-transfer-encoding'])
   if (String(contentType).toLowerCase().includes('text/html')) return stripHtml(body)
@@ -291,7 +399,8 @@ function parseRawEmail(raw) {
   const headers = headerMap(rawHeaders)
   const body = extractBody(rawBody, headers)
   const preview = stripHtml(body).replace(/\s+/g, ' ').trim().slice(0, 240)
-  const attachmentsCount = (String(raw || '').match(/content-disposition:\s*attachment/gi) || []).length
+  const attachments = extractAttachments(rawBody, headers)
+  const attachmentsCount = attachments.length || (String(raw || '').match(/content-disposition:\s*attachment/gi) || []).length
   return {
     external_id: headers['message-id'] || '',
     from: parseAddress(headers.from),
@@ -303,7 +412,8 @@ function parseRawEmail(raw) {
     received_at: safeEmailDate(headers.date),
     content_type: headers['content-type'] || '',
     has_attachments: attachmentsCount > 0,
-    attachments_count: attachmentsCount
+    attachments_count: attachmentsCount,
+    attachments
   }
 }
 

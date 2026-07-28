@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.396 - 2026-07-28
+
+## Import IMAP cu atașamente descărcabile
+
+- Sincronizarea IMAP extrage atașamentele MIME uzuale din emailurile primite.
+- Atașamentele sub limitele de siguranță sunt salvate în Inbox ERP și devin descărcabile din modalul de detalii.
+- Sunt suportate atașamente base64, quoted-printable și text/binary simplu.
+- Atașamentele prea mari sunt păstrate ca metadata, fără conținut local, pentru a evita umflarea bazei.
+
 # v2.12.395 - 2026-07-28
 
 ## Download atașamente email ERP

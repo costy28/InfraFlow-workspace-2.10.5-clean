@@ -1,5 +1,5 @@
 {
-  "version": "2.12.395",
+  "version": "2.12.396",
   "date": "2026-07-28",
-  "changelog": "## v2.12.395 - 2026-07-28\n### Download atasamente email ERP\n- Atașamentele emailurilor păstrate în Inbox ERP pot fi descărcate din modalul de detalii.\n- Descărcarea folosește endpoint protejat cu autentificarea aplicației.\n- Pentru emailurile unde IMAP a furnizat doar metadata, interfața afișează clar că fișierul nu este disponibil local."
+  "changelog": "## v2.12.396 - 2026-07-28\n### Import IMAP cu atașamente descărcabile\n- Sincronizarea IMAP extrage atașamentele MIME uzuale și le salvează în Inbox ERP când sunt sub limitele de siguranță.\n- Atașamentele importate prin IMAP devin descărcabile din modalul de detalii email.\n- Atașamentele prea mari sunt păstrate ca metadata pentru trasabilitate, fără conținut local."
 }

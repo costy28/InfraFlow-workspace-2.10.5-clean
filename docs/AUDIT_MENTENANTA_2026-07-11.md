@@ -1115,3 +1115,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ buton `Descarcă` în modalul de detalii email;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ badge `doar metadata` pentru atașamente fără conținut local disponibil;
 - `updates/UPDATE_415_download_atasamente_email_erp.md` — ✅ documentație update și verificări.
+
+### UPDATE 416 — Import IMAP cu atașamente descărcabile
+
+- `server/modules/messaging/imap.js` — ✅ parser MIME multipart cu extragere atașamente base64/quoted-printable;
+- `server/modules/messaging/imap.js` — ✅ limite de siguranță pentru stocarea atașamentelor IMAP în Inbox ERP;
+- `server/modules/messaging/email-sync.js` — ✅ atașamentele importate prin IMAP sunt salvate pe email;
+- `updates/UPDATE_416_import_imap_atasamente_descarcabile.md` — ✅ documentație update și verificări.

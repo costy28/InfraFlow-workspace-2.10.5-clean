@@ -162,6 +162,7 @@ async function syncIncomingEmails(db, { actor, limit = 20, mode = 'manual', pers
       const uidKey = `imap:${result.host}:${result.user}:${incoming.uid}`
       if ((externalId && existingKeys.has(externalId)) || existingKeys.has(uidKey)) continue
       const ruleResult = applyEmailRules(db, incoming, categories)
+      const attachments = Array.isArray(incoming.attachments) ? incoming.attachments : []
       const email = {
         id: nextId(messaging.emailMessages),
         direction: 'inbound',
@@ -177,9 +178,9 @@ async function syncIncomingEmails(db, { actor, limit = 20, mode = 'manual', pers
         importance: ruleResult.importance,
         email_rule_id: ruleResult.rule_id,
         email_rule_name: ruleResult.rule_name,
-        attachments: [],
-        has_attachments: Boolean(incoming.has_attachments),
-        attachments_count: Number(incoming.attachments_count || 0),
+        attachments,
+        has_attachments: Boolean(incoming.has_attachments || attachments.length),
+        attachments_count: attachments.length || Number(incoming.attachments_count || 0),
         external_id: externalId || uidKey,
         message_id: externalId || null,
         source_type: 'email_imap',
