@@ -1,5 +1,5 @@
 {
-  "version": "2.12.393",
+  "version": "2.12.394",
   "date": "2026-07-27",
-  "changelog": "## v2.12.393 - 2026-07-28\n### Deep-link direct catre emailuri ERP\n- Mesaje accepta /mesaje?email=ID si deschide automat Inbox ERP.\n- Emailul tinta este cautat in toate cutiile, evidentiat si marcat citit cand este gasit.\n- Contractele, documentele si taskurile trimit direct catre emailul asociat."
+  "changelog": "## v2.12.394 - 2026-07-28\n### Modal detalii email ERP\n- Inbox ERP permite deschiderea unui email in modal de detalii.\n- Modalul afiseaza antete, continut complet, atasamente, reguli si legaturi ERP.\n- Deep-linkul /mesaje?email=ID deschide automat detaliul emailului tinta."
 }

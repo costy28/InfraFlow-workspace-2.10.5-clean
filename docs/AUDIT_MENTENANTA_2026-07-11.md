@@ -1099,3 +1099,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ emailurile legate/sursa email din document se deschid direct;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ emailurile legate din detaliul task-ului se deschid direct;
 - `updates/UPDATE_413_deeplink_email_erp.md` — ✅ documentație update și verificări.
+
+### UPDATE 414 — Modal detalii email ERP
+
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ emailurile pot fi deschise într-un modal de detalii;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ modalul afișează antete, corp complet, atașamente, regulă aplicată și legături ERP;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ deep-linkul `/mesaje?email=ID` deschide automat detaliul emailului țintă;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiuni rapide direct din modal: răspuns, forward, task, document, legare și arhivare;
+- `updates/UPDATE_414_modal_detalii_email_erp.md` — ✅ documentație update și verificări.

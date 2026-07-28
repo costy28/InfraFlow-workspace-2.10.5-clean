@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.394 - 2026-07-28
+
+## Modal detalii email ERP
+
+- Inbox ERP permite deschiderea unui email într-un modal dedicat.
+- Modalul afișează antetele emailului, direcția, statusul, importanța și categoria.
+- Corpul emailului este afișat complet, nu doar ca preview în listă.
+- Atașamentele, regula automată aplicată și legăturile ERP sunt vizibile în detalii.
+- Din modal se pot porni acțiuni rapide: răspuns, forward, legare ERP, task, document și arhivare.
+- Deep-linkul `/mesaje?email=ID` deschide automat detaliul emailului țintă.
+
 # v2.12.393 - 2026-07-28
 
 ## Deep-link direct către emailuri ERP

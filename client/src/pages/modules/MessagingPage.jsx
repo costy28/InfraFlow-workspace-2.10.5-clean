@@ -191,6 +191,7 @@ export default function MessagingPage() {
   const [emailFilters, setEmailFilters] = useState(() => urlEmailParam() ? { ...emailFilterDefaults, direction: '' } : emailFilterDefaults)
   const [emailLoading, setEmailLoading] = useState(false)
   const [selectedEmailIds, setSelectedEmailIds] = useState([])
+  const [emailDetails, setEmailDetails] = useState(null)
   const [emailBulkLoading, setEmailBulkLoading] = useState(false)
   const [emailSyncLoading, setEmailSyncLoading] = useState(false)
   const [taskUsers, setTaskUsers] = useState([])
@@ -314,6 +315,7 @@ export default function MessagingPage() {
       return
     }
     setFocusedEmailId(String(target.id))
+    setEmailDetails(target)
     if (target.status === 'unread') updateEmailStatus(target, 'read').catch(() => {})
     window.setTimeout(() => {
       const element = document.getElementById(`email-row-${target.id}`)
@@ -321,6 +323,17 @@ export default function MessagingPage() {
     }, 80)
     setPendingEmailParam('')
   }, [activeTab, emailFilters.direction, emailLoading, emailRows, pendingEmailParam])
+
+  function openEmailDetails(email) {
+    setEmailDetails(email)
+    setFocusedEmailId(String(email?.id || ''))
+    if (email?.status === 'unread') updateEmailStatus(email, 'read').catch(() => {})
+    if (typeof window !== 'undefined' && email?.id) {
+      const url = new URL(window.location.href)
+      url.searchParams.set('email', String(email.id))
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+  }
 
   const loadTaskUsers = useCallback(async () => {
     try {
@@ -609,7 +622,11 @@ export default function MessagingPage() {
 
   async function updateEmailStatus(email, status) {
     try {
-      await api.patch(`/messaging/email/inbox/${email.id}`, { status })
+      const response = await api.patch(`/messaging/email/inbox/${email.id}`, { status })
+      const updatedEmail = response.data?.email || { ...email, status }
+      if (emailDetails && String(emailDetails.id) === String(email.id)) {
+        setEmailDetails(current => current ? { ...current, ...updatedEmail } : current)
+      }
       await loadEmailInbox()
     } catch (err) {
       setError(err.response?.data?.error || 'Statusul emailului nu a putut fi actualizat.')
@@ -1086,7 +1103,13 @@ export default function MessagingPage() {
                         ) : null}
                         {email.has_attachments ? <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Paperclip size={13} /> {email.attachments_count || 1}</span> : null}
                       </div>
-                      <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">{email.subject}</h3>
+                      <button
+                        type="button"
+                        className="mt-2 block max-w-full truncate text-left text-sm font-semibold text-slate-900 hover:text-primary-700"
+                        onClick={() => openEmailDetails(email)}
+                      >
+                        {email.subject || 'Email fără subiect'}
+                      </button>
                       <p className="mt-1 text-xs text-slate-500">
                         {email.direction === 'draft' ? (
                           <>Draft către <strong>{email.to || '-'}</strong>{email.cc ? <> · CC {email.cc}</> : null}</>
@@ -1130,6 +1153,7 @@ export default function MessagingPage() {
                         <Button size="sm" onClick={() => openDraftEmail(email)}>Editează draft</Button>
                       ) : (
                         <>
+                          <Button size="sm" variant="secondary" onClick={() => openEmailDetails(email)}>Deschide</Button>
                           {email.status === 'unread' ? (
                             <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'read')}>Marchează citit</Button>
                           ) : email.status === 'read' ? (
@@ -1459,6 +1483,107 @@ export default function MessagingPage() {
       </Modal>
         </div>
       )}
+
+      <Modal open={Boolean(emailDetails)} title="Detalii email" onClose={() => setEmailDetails(null)} size="lg">
+        {emailDetails ? (
+          <div className="grid gap-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                      {emailDetails.category_icon || '📥'} {emailDetails.category_label || emailDetails.category || 'General'}
+                    </span>
+                    <Badge tone={emailDetails.importance === 'urgent' ? 'danger' : emailDetails.importance === 'high' ? 'warning' : 'neutral'}>
+                      {emailDetails.importance || 'normal'}
+                    </Badge>
+                    <Badge tone={emailDetails.direction === 'outbound' ? 'info' : emailDetails.direction === 'draft' ? 'warning' : 'success'}>
+                      {emailDetails.direction === 'outbound' ? 'trimis' : emailDetails.direction === 'draft' ? 'draft' : 'primit'}
+                    </Badge>
+                    {emailDetails.status ? <Badge tone={emailDetails.status === 'archived' ? 'neutral' : emailDetails.status === 'unread' ? 'danger' : 'info'}>{emailDetails.status}</Badge> : null}
+                  </div>
+                  <h2 className="mt-2 break-words text-lg font-semibold text-slate-900">{emailDetails.subject || 'Email fără subiect'}</h2>
+                  <div className="mt-2 grid gap-1 text-xs text-slate-600">
+                    <div><strong>De la:</strong> {emailDetails.from || '-'}</div>
+                    <div><strong>Către:</strong> {emailDetails.to || '-'}</div>
+                    {emailDetails.cc ? <div><strong>CC:</strong> {emailDetails.cc}</div> : null}
+                    <div><strong>Data:</strong> {formatDate(emailDetails.received_at || emailDetails.created_at)}</div>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {emailDetails.direction !== 'draft' ? (
+                    <>
+                      <Button size="sm" variant="secondary" onClick={() => openReplyEmail(emailDetails)}><Reply size={14} /> Răspunde</Button>
+                      <Button size="sm" variant="secondary" onClick={() => openForwardEmail(emailDetails)}><Forward size={14} /> Forward</Button>
+                    </>
+                  ) : (
+                    <Button size="sm" onClick={() => openDraftEmail(emailDetails)}>Editează draft</Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {emailDetails.email_rule_applied ? (
+              <div className="rounded-md border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+                Sortat automat de regula „{emailDetails.email_rule_name || emailDetails.email_rule_id}”.
+              </div>
+            ) : null}
+
+            {Array.isArray(emailDetails.links) && emailDetails.links.length > 0 ? (
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                <div className="mb-2 text-sm font-semibold text-blue-900">Legături ERP</div>
+                <div className="flex flex-wrap gap-2">
+                  {emailDetails.links.map(link => (
+                    <span key={link.id} className="inline-flex items-center gap-2 rounded-md border border-blue-100 bg-white px-2 py-1 text-xs text-blue-700">
+                      🔗 {link.target_label}
+                      {link.target_url ? <button type="button" className="font-semibold underline" onClick={() => { window.location.href = link.target_url }}>deschide</button> : null}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="mb-2 text-sm font-semibold text-slate-900">Conținut email</div>
+              <div className="max-h-[45vh] overflow-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                {stripHtml(emailDetails.body || emailDetails.preview || 'Email fără conținut.')}
+              </div>
+            </div>
+
+            {Array.isArray(emailDetails.attachments) && emailDetails.attachments.length > 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 text-sm font-semibold text-slate-900">Atașamente</div>
+                <div className="grid gap-2">
+                  {emailDetails.attachments.map((attachment, index) => (
+                    <div key={`${attachment.name}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                      <span className="truncate text-slate-700">
+                        <Paperclip size={13} className="mr-1 inline" />
+                        {attachment.name} · {Math.ceil(Number(attachment.size || 0) / 1024)} KB
+                      </span>
+                      {attachment.type ? <Badge tone="neutral">{attachment.type}</Badge> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => openLinkEmail(emailDetails)}>Leagă de...</Button>
+              {emailDetails.direction !== 'draft' ? (
+                <>
+                  <Button type="button" onClick={() => openTaskFromEmail(emailDetails)}>Creează task</Button>
+                  <Button type="button" variant="secondary" onClick={() => openDocumentFromEmail(emailDetails)}><FileText size={14} /> Document</Button>
+                  {emailDetails.status === 'archived' ? (
+                    <Button type="button" variant="secondary" onClick={() => updateEmailStatus(emailDetails, 'read')}>Readuce în inbox</Button>
+                  ) : (
+                    <Button type="button" variant="secondary" onClick={() => updateEmailStatus(emailDetails, 'archived')}>Arhivează</Button>
+                  )}
+                </>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal open={composeOpen} title={composeTitle} onClose={() => setComposeOpen(false)} size="lg">
         <form className="grid gap-4" onSubmit={sendComposeEmail}>
