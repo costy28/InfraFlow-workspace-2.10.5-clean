@@ -1,5 +1,5 @@
 {
-  "version": "2.12.392",
+  "version": "2.12.393",
   "date": "2026-07-27",
-  "changelog": "## v2.12.392 - 2026-07-27\n### Emailuri legate vizibile in dosare ERP\n- Contractele, documentele si taskurile afiseaza emailurile asociate din Inbox ERP.\n- A fost adaugat endpoint generic pentru citirea emailurilor legate de o tinta ERP.\n- Deep-linkul catre taskuri din Inbox deschide automat detaliul taskului."
+  "changelog": "## v2.12.393 - 2026-07-28\n### Deep-link direct catre emailuri ERP\n- Mesaje accepta /mesaje?email=ID si deschide automat Inbox ERP.\n- Emailul tinta este cautat in toate cutiile, evidentiat si marcat citit cand este gasit.\n- Contractele, documentele si taskurile trimit direct catre emailul asociat."
 }

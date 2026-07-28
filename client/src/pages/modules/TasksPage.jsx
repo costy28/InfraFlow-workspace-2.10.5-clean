@@ -590,6 +590,7 @@ export default function TasksPage() {
                       <div className="flex shrink-0 flex-wrap gap-1">
                         <Badge tone={priorityTone(email.importance === 'urgent' ? 'urgent' : email.importance === 'high' ? 'high' : 'normal')} size="sm">{label(email.importance || 'normal')}</Badge>
                         {email.has_attachments ? <Badge tone="info" size="sm">{email.attachments_count || 1} ataș.</Badge> : null}
+                        <Button size="sm" variant="secondary" onClick={() => { window.location.href = `/mesaje?email=${encodeURIComponent(String(email.id))}` }}>Deschide</Button>
                       </div>
                     </div>
                   </div>

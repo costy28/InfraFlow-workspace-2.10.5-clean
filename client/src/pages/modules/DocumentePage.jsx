@@ -858,7 +858,7 @@ export default function DocumentePage() {
                             <p className="mt-2 line-clamp-3 text-xs text-slate-600">{selectedEmailSource.preview}</p>
                           ) : null}
                         </div>
-                        <Button type="button" variant="secondary" onClick={() => { window.location.href = selectedEmailSource.url }}>
+                        <Button type="button" variant="secondary" onClick={() => { window.location.href = selectedEmailSource.id ? `/mesaje?email=${encodeURIComponent(String(selectedEmailSource.id))}` : selectedEmailSource.url }}>
                           Deschide Inbox
                         </Button>
                       </div>
@@ -891,7 +891,7 @@ export default function DocumentePage() {
                           </div>
                           <div className="flex shrink-0 flex-wrap gap-2">
                             <Badge tone={email.importance === 'urgent' ? 'danger' : email.importance === 'high' ? 'warning' : 'neutral'} size="sm">{label(email.importance || 'normal')}</Badge>
-                            <Button type="button" size="sm" variant="secondary" onClick={() => { window.location.href = '/mesaje' }}>Inbox</Button>
+                            <Button type="button" size="sm" variant="secondary" onClick={() => { window.location.href = `/mesaje?email=${encodeURIComponent(String(email.id))}` }}>Inbox</Button>
                           </div>
                         </div>
                       ))}

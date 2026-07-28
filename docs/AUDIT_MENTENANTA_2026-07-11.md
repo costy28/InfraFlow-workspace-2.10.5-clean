@@ -1090,3 +1090,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ dosarul documentului afișează emailurile legate explicit;
 - `client/src/pages/modules/TasksPage.jsx` — ✅ detaliul task-ului afișează emailurile legate și suportă `/taskuri?task=ID`;
 - `updates/UPDATE_412_emailuri_vizibile_dosare_erp.md` — ✅ documentație update și verificări.
+
+### UPDATE 413 — Deep-link direct către emailuri ERP
+
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ suport `/mesaje?email=ID`, comutare automată pe Inbox ERP și evidențiere email țintă;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ emailul țintă este căutat în toate direcțiile și marcat citit dacă era necitit;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ emailurile legate din dosarul contractului se deschid direct;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ emailurile legate/sursa email din document se deschid direct;
+- `client/src/pages/modules/TasksPage.jsx` — ✅ emailurile legate din detaliul task-ului se deschid direct;
+- `updates/UPDATE_413_deeplink_email_erp.md` — ✅ documentație update și verificări.

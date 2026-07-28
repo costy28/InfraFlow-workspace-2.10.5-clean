@@ -170,9 +170,16 @@ function syncStatusText(status) {
   return `${formatDate(last)} · ${imported} importate / ${scanned} verificate`
 }
 
+function urlEmailParam() {
+  if (typeof window === 'undefined') return ''
+  return new URLSearchParams(window.location.search || '').get('email') || ''
+}
+
 export default function MessagingPage() {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState('chat')
+  const [pendingEmailParam, setPendingEmailParam] = useState(urlEmailParam)
+  const [focusedEmailId, setFocusedEmailId] = useState(urlEmailParam)
+  const [activeTab, setActiveTab] = useState(() => urlEmailParam() ? 'email' : 'chat')
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [messages, setMessages] = useState([])
@@ -181,7 +188,7 @@ export default function MessagingPage() {
   const [emailRules, setEmailRules] = useState([])
   const [emailStats, setEmailStats] = useState({ total: 0, unread: 0, important: 0, with_attachments: 0 })
   const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
-  const [emailFilters, setEmailFilters] = useState(emailFilterDefaults)
+  const [emailFilters, setEmailFilters] = useState(() => urlEmailParam() ? { ...emailFilterDefaults, direction: '' } : emailFilterDefaults)
   const [emailLoading, setEmailLoading] = useState(false)
   const [selectedEmailIds, setSelectedEmailIds] = useState([])
   const [emailBulkLoading, setEmailBulkLoading] = useState(false)
@@ -298,6 +305,22 @@ export default function MessagingPage() {
   useEffect(() => {
     if (activeTab === 'email') Promise.resolve().then(() => loadEmailInbox())
   }, [activeTab, loadEmailInbox])
+
+  useEffect(() => {
+    if (!pendingEmailParam || activeTab !== 'email' || emailLoading) return
+    const target = emailRows.find(email => String(email.id) === String(pendingEmailParam))
+    if (!target) {
+      if (emailFilters.direction) setEmailFilters(filters => ({ ...filters, direction: '' }))
+      return
+    }
+    setFocusedEmailId(String(target.id))
+    if (target.status === 'unread') updateEmailStatus(target, 'read').catch(() => {})
+    window.setTimeout(() => {
+      const element = document.getElementById(`email-row-${target.id}`)
+      if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 80)
+    setPendingEmailParam('')
+  }, [activeTab, emailFilters.direction, emailLoading, emailRows, pendingEmailParam])
 
   const loadTaskUsers = useCallback(async () => {
     try {
@@ -1030,8 +1053,13 @@ export default function MessagingPage() {
               const badge = importanceBadge(email.importance)
               const selectable = email.direction !== 'draft'
               const selected = selectedEmailIds.some(id => String(id) === String(email.id))
+              const focused = String(focusedEmailId || '') === String(email.id)
               return (
-                <div key={email.id} className="border-b border-slate-100 p-4 last:border-b-0 hover:bg-slate-50">
+                <div
+                  key={email.id}
+                  id={`email-row-${email.id}`}
+                  className={`border-b border-slate-100 p-4 last:border-b-0 hover:bg-slate-50 ${focused ? 'bg-blue-50 ring-2 ring-inset ring-blue-200' : ''}`}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     {selectable ? (
                       <input

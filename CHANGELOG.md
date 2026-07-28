@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.393 - 2026-07-28
+
+## Deep-link direct către emailuri ERP
+
+- Pagina Mesaje acceptă acum deep-link direct: `/mesaje?email=ID`.
+- La accesarea linkului, aplicația comută automat pe Inbox ERP și caută emailul în toate cutiile.
+- Emailul țintă este evidențiat vizual și derulat în centru.
+- Dacă emailul țintă este necitit, este marcat citit după deschidere.
+- Cardurile de emailuri legate din Contracte, Documente și Task-uri trimit direct la emailul asociat.
+
 # v2.12.392 - 2026-07-27
 
 ## Emailuri legate vizibile în dosare ERP
