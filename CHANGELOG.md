@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.397 - 2026-07-28
+
+## Document ERP din atașament email
+
+- Atașamentele afișate în modalul de detalii email pot porni direct crearea unui document ERP.
+- Formularul de document completează titlul cu numele atașamentului.
+- Documentul creat păstrează sursa email, indexul atașamentului, numele, tipul, dimensiunea și disponibilitatea la descărcare.
+- Dosarul documentului afișează atașamentul sursă pentru trasabilitate.
+
 # v2.12.396 - 2026-07-28
 
 ## Import IMAP cu atașamente descărcabile

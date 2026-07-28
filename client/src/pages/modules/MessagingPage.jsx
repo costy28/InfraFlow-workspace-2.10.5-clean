@@ -420,15 +420,18 @@ export default function MessagingPage() {
     return 'normal'
   }
 
-  async function openDocumentFromEmail(email) {
+  async function openDocumentFromEmail(email, attachment = null, attachmentIndex = null) {
     setDocumentEmail(email)
     setDocumentError('')
     const rows = documentTemplates.length ? documentTemplates : await loadDocumentTemplates()
+    const attachmentName = attachment?.name || attachment?.filename || ''
     setDocumentForm({
       tip_id: rows[0]?.id || '',
-      titlu: `Email: ${email.subject || 'fără subiect'}`,
+      titlu: attachmentName ? `Atașament: ${attachmentName}` : `Email: ${email.subject || 'fără subiect'}`,
       prioritate: documentPriorityFromEmail(email),
       termen_limita: '',
+      attachment,
+      attachment_index: attachmentIndex,
     })
   }
 
@@ -455,6 +458,12 @@ export default function MessagingPage() {
           email_preview: documentEmail.preview || '',
           email_has_attachments: Boolean(documentEmail.has_attachments),
           email_attachments_count: Number(documentEmail.attachments_count || 0),
+          email_attachment_index: documentForm.attachment ? Number(documentForm.attachment_index || 0) : null,
+          email_attachment_name: documentForm.attachment?.name || '',
+          email_attachment_size: Number(documentForm.attachment?.size || 0),
+          email_attachment_type: documentForm.attachment?.type || '',
+          email_attachment_download_url: documentForm.attachment?.download_url || '',
+          email_attachment_download_available: Boolean(documentForm.attachment?.download_available),
         },
       })
       const document = response.data?.document
@@ -1588,6 +1597,9 @@ export default function MessagingPage() {
                         ) : (
                           <Badge tone="warning">doar metadata</Badge>
                         )}
+                        <Button type="button" size="sm" variant="secondary" onClick={() => openDocumentFromEmail(emailDetails, attachment, index)}>
+                          <FileText size={14} /> Document
+                        </Button>
                       </span>
                     </div>
                   ))}
@@ -1829,6 +1841,14 @@ export default function MessagingPage() {
                 De la {documentEmail.from || '-'} · {documentEmail.category_label || documentEmail.category || 'General'}
               </div>
               {documentEmail.preview ? <p className="mt-2 line-clamp-3 text-xs text-slate-600">{documentEmail.preview}</p> : null}
+              {documentForm.attachment ? (
+                <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  <Paperclip size={13} className="mr-1 inline" />
+                  Document creat din atașamentul <strong>{documentForm.attachment.name}</strong>
+                  {' '}· {Math.ceil(Number(documentForm.attachment.size || 0) / 1024)} KB
+                  {documentForm.attachment.download_available ? ' · descărcabil din email' : ' · doar metadata'}
+                </div>
+              ) : null}
             </div>
           ) : null}
           <Select

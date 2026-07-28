@@ -1,5 +1,5 @@
 {
-  "version": "2.12.396",
+  "version": "2.12.397",
   "date": "2026-07-28",
-  "changelog": "## v2.12.396 - 2026-07-28\n### Import IMAP cu atașamente descărcabile\n- Sincronizarea IMAP extrage atașamentele MIME uzuale și le salvează în Inbox ERP când sunt sub limitele de siguranță.\n- Atașamentele importate prin IMAP devin descărcabile din modalul de detalii email.\n- Atașamentele prea mari sunt păstrate ca metadata pentru trasabilitate, fără conținut local."
+  "changelog": "## v2.12.397 - 2026-07-28\n### Document ERP din atașament email\n- Atașamentele din modalul de email pot porni direct crearea unui document ERP draft.\n- Documentul creat păstrează metadata atașamentului și legătura la emailul sursă.\n- Dosarul documentului afișează atașamentul sursă pentru trasabilitate."
 }

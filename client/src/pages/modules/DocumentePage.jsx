@@ -149,6 +149,10 @@ function emailSourceForDocument(document) {
     preview: data.email_preview || '',
     hasAttachments: Boolean(data.email_has_attachments),
     attachmentsCount: Number(data.email_attachments_count || 0),
+    attachmentName: data.email_attachment_name || '',
+    attachmentSize: Number(data.email_attachment_size || 0),
+    attachmentType: data.email_attachment_type || '',
+    attachmentDownloadAvailable: Boolean(data.email_attachment_download_available),
   }
 }
 
@@ -854,6 +858,14 @@ export default function DocumentePage() {
                             {selectedEmailSource.importance ? <Badge tone={selectedEmailSource.importance === 'urgent' ? 'danger' : 'warning'}>{label(selectedEmailSource.importance)}</Badge> : null}
                             {selectedEmailSource.hasAttachments ? <Badge tone="info">{selectedEmailSource.attachmentsCount || 1} ataș.</Badge> : null}
                           </div>
+                          {selectedEmailSource.attachmentName ? (
+                            <div className="mt-2 rounded-md border border-blue-100 bg-white px-3 py-2 text-xs text-blue-800">
+                              Atașament sursă: <strong>{selectedEmailSource.attachmentName}</strong>
+                              {selectedEmailSource.attachmentSize ? ` · ${Math.ceil(selectedEmailSource.attachmentSize / 1024)} KB` : ''}
+                              {selectedEmailSource.attachmentType ? ` · ${selectedEmailSource.attachmentType}` : ''}
+                              {selectedEmailSource.attachmentDownloadAvailable ? ' · descărcabil din Inbox' : ' · doar metadata'}
+                            </div>
+                          ) : null}
                           {selectedEmailSource.preview ? (
                             <p className="mt-2 line-clamp-3 text-xs text-slate-600">{selectedEmailSource.preview}</p>
                           ) : null}

@@ -1122,3 +1122,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/messaging/imap.js` — ✅ limite de siguranță pentru stocarea atașamentelor IMAP în Inbox ERP;
 - `server/modules/messaging/email-sync.js` — ✅ atașamentele importate prin IMAP sunt salvate pe email;
 - `updates/UPDATE_416_import_imap_atasamente_descarcabile.md` — ✅ documentație update și verificări.
+
+### UPDATE 417 — Document ERP din atașament email
+
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ acțiune `Document` pe fiecare atașament din modalul de email;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ document draft creat cu metadata atașamentului și sursa email;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ dosarul documentului afișează atașamentul sursă;
+- `updates/UPDATE_417_document_din_atasament_email.md` — ✅ documentație update și verificări.
