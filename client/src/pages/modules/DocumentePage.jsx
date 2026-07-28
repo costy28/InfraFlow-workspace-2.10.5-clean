@@ -152,6 +152,7 @@ function emailSourceForDocument(document) {
     attachmentName: data.email_attachment_name || '',
     attachmentSize: Number(data.email_attachment_size || 0),
     attachmentType: data.email_attachment_type || '',
+    attachmentDownloadUrl: data.email_attachment_download_url || '',
     attachmentDownloadAvailable: Boolean(data.email_attachment_download_available),
   }
 }
@@ -227,6 +228,7 @@ export default function DocumentePage() {
   const [relatedTasksLoading, setRelatedTasksLoading] = useState(false)
   const [relatedEmails, setRelatedEmails] = useState([])
   const [relatedEmailsLoading, setRelatedEmailsLoading] = useState(false)
+  const [sourceAttachmentError, setSourceAttachmentError] = useState('')
   const [pendingDocumentParam, setPendingDocumentParam] = useState(() => new URLSearchParams(window.location.search).get('document') || '')
   const [templateSaving, setTemplateSaving] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
@@ -599,6 +601,28 @@ export default function DocumentePage() {
     window.open(`/api/documents/templates/${template.id}/download-model`, '_blank')
   }
 
+  async function downloadSourceAttachment(source) {
+    if (!source?.attachmentDownloadAvailable || !source?.attachmentDownloadUrl) return
+    try {
+      setSourceAttachmentError('')
+      const endpoint = String(source.attachmentDownloadUrl).replace(/^\/api(?=\/)/, '')
+      const response = await api.get(endpoint, { responseType: 'blob' })
+      const blob = new Blob([response.data], {
+        type: response.headers?.['content-type'] || source.attachmentType || 'application/octet-stream',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = source.attachmentName || 'atasament-email'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setSourceAttachmentError(err.response?.data?.error || 'Atașamentul sursă nu a putut fi descărcat.')
+    }
+  }
+
   const currentUserStep = details.steps.find(step =>
     step.status === 'asteptare' && String(step.user_responsabil) === String(userId(user))
   )
@@ -859,12 +883,22 @@ export default function DocumentePage() {
                             {selectedEmailSource.hasAttachments ? <Badge tone="info">{selectedEmailSource.attachmentsCount || 1} ataș.</Badge> : null}
                           </div>
                           {selectedEmailSource.attachmentName ? (
-                            <div className="mt-2 rounded-md border border-blue-100 bg-white px-3 py-2 text-xs text-blue-800">
-                              Atașament sursă: <strong>{selectedEmailSource.attachmentName}</strong>
-                              {selectedEmailSource.attachmentSize ? ` · ${Math.ceil(selectedEmailSource.attachmentSize / 1024)} KB` : ''}
-                              {selectedEmailSource.attachmentType ? ` · ${selectedEmailSource.attachmentType}` : ''}
-                              {selectedEmailSource.attachmentDownloadAvailable ? ' · descărcabil din Inbox' : ' · doar metadata'}
+                            <div className="mt-2 flex flex-col gap-2 rounded-md border border-blue-100 bg-white px-3 py-2 text-xs text-blue-800 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0">
+                                Atașament sursă: <strong>{selectedEmailSource.attachmentName}</strong>
+                                {selectedEmailSource.attachmentSize ? ` · ${Math.ceil(selectedEmailSource.attachmentSize / 1024)} KB` : ''}
+                                {selectedEmailSource.attachmentType ? ` · ${selectedEmailSource.attachmentType}` : ''}
+                                {!selectedEmailSource.attachmentDownloadAvailable ? ' · doar metadata' : ''}
+                              </div>
+                              {selectedEmailSource.attachmentDownloadAvailable && selectedEmailSource.attachmentDownloadUrl ? (
+                                <Button type="button" size="sm" variant="secondary" className="w-full justify-center sm:w-auto" onClick={() => downloadSourceAttachment(selectedEmailSource)}>
+                                  <Download size={14} /> Descarcă atașamentul
+                                </Button>
+                              ) : null}
                             </div>
+                          ) : null}
+                          {sourceAttachmentError ? (
+                            <p className="mt-2 text-xs text-red-600">{sourceAttachmentError}</p>
                           ) : null}
                           {selectedEmailSource.preview ? (
                             <p className="mt-2 line-clamp-3 text-xs text-slate-600">{selectedEmailSource.preview}</p>

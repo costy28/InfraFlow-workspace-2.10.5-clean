@@ -1129,3 +1129,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ document draft creat cu metadata atașamentului și sursa email;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ dosarul documentului afișează atașamentul sursă;
 - `updates/UPDATE_417_document_din_atasament_email.md` — ✅ documentație update și verificări.
+
+### UPDATE 418 — Descărcare atașament sursă din document
+
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ metadata sursei email include URL-ul de descărcare al atașamentului;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ dosarul documentului permite descărcarea atașamentului sursă prin API autentificat;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ atașamentele fără conținut local rămân marcate ca `doar metadata`;
+- `updates/UPDATE_418_download_atasament_sursa_document.md` — ✅ documentație update și verificări.

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.398 - 2026-07-28
+
+## Descărcare atașament sursă din document
+
+- Documentele create din atașamente email pot descărca atașamentul sursă direct din dosarul documentului.
+- Descărcarea folosește endpointul protejat al Inbox ERP și păstrează autentificarea aplicației.
+- Interfața marchează clar diferența dintre atașamente descărcabile și atașamente păstrate doar ca metadata.
+- Fluxul email → atașament → document devine complet fără revenire obligatorie în Inbox.
+
 # v2.12.397 - 2026-07-28
 
 ## Document ERP din atașament email

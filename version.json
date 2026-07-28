@@ -1,5 +1,5 @@
 {
-  "version": "2.12.397",
+  "version": "2.12.398",
   "date": "2026-07-28",
-  "changelog": "## v2.12.397 - 2026-07-28\n### Document ERP din atașament email\n- Atașamentele din modalul de email pot porni direct crearea unui document ERP draft.\n- Documentul creat păstrează metadata atașamentului și legătura la emailul sursă.\n- Dosarul documentului afișează atașamentul sursă pentru trasabilitate."
+  "changelog": "## v2.12.398 - 2026-07-28\n### Descărcare atașament sursă din document\n- Documentele create din atașamente email pot descărca atașamentul sursă direct din dosarul documentului.\n- Descărcarea folosește endpointul protejat al Inbox ERP și păstrează autentificarea aplicației.\n- Dosarul documentului arată clar când atașamentul este descărcabil sau există doar ca metadata."
 }
