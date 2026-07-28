@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.399 - 2026-07-28
+
+## Audit complet aplicație și hotfix Inbox ERP
+
+- A fost creat registrul `docs/AUDIT_COMPLET_2026-07-28.md`, cu stare pe module, riscuri și backlog prioritar.
+- Modalul de detalii email are acum stare de eroare dedicată pentru descărcarea atașamentelor.
+- Descărcarea atașamentelor email nu mai poate apela `setEmailError` nedefinit pe calea de eroare.
+- Diagnosticul GPS nu mai afișează raw body în consola browserului în producție.
+- Fișa vehiculului tratează explicit indisponibilitatea GPS live și păstrează ultima poziție cunoscută.
+
 # v2.12.398 - 2026-07-28
 
 ## Descărcare atașament sursă din document

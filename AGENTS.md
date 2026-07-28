@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.398**
-**Versiune în lucru: v2.12.398**
+**Versiune curentă sursă: v2.12.399**
+**Versiune în lucru: v2.12.399**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -307,6 +307,7 @@ Comunicare
   ✅ Import IMAP cu atașamente descărcabile (v2.12.396)
   ✅ Document ERP din atașament email (v2.12.397)
   ✅ Descărcare atașament sursă din document (v2.12.398)
+  ✅ Hotfix eroare atașament Inbox ERP (v2.12.399)
 
 Task Management
   ✅ Fundație task-uri personale și delegate (v2.12.355)
@@ -331,6 +332,7 @@ Sistem
   ✅ Backup/Restore
   ✅ Update pachete
   ✅ Audit log
+  ✅ Audit complet aplicație și backlog prioritar (v2.12.399)
 ```
 
 ### ✅ IMPLEMENTAT ÎN SURSĂ (v2.10.6 → v2.11.5)
@@ -632,6 +634,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Faza 24: import IMAP cu atașamente descărcabile ✅ UPDATE 416
       → Faza 25: document ERP din atașament email ✅ UPDATE 417
       → Faza 26: descărcare atașament sursă din document ✅ UPDATE 418
+      → Faza 27: audit complet aplicație și hotfix Inbox ERP ✅ UPDATE 419
       → Email organizațional per utilizator, fără conturi personale
       → Inbox integrat în aplicație, cu categorii și importanță
       → Filtre după dată, expeditor, categorie, modul, sursă ERP și atașamente
@@ -713,9 +716,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.398
+VERSIUNE CURENTĂ SURSĂ: 2.12.399
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.398 ✅
+UPDATE ZIP CURENT: 2.12.399 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -922,6 +925,7 @@ UPDATES ÎN LUCRU:
   2.12.396 → UPDATE 416 Import IMAP cu atașamente descărcabile ✅
   2.12.397 → UPDATE 417 Document ERP din atașament email ✅
   2.12.398 → UPDATE 418 Descărcare atașament sursă din document ✅
+  2.12.399 → UPDATE 419 Audit complet aplicație și hotfix Inbox ERP ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -952,7 +956,7 @@ SMTP Email
   DNS: configurabil per domeniul clientului
   Fallback: Gmail App Password pentru instalări mici
   Direcție: Inbox ERP organizațional în aplicație, fără email personal
-  Status Inbox ERP: fundație internă + categorii + filtre + task/document din email + sursă vizibilă în Documente + trimitere email din Mesaje + CC/BCC și atașamente + răspuns/forward + drafturi + SMTP stabilizat + diagnostic prietenos + acțiuni rapide/în masă + primire IMAP manuală + configurare IMAP explicită + autosync IMAP + status autosync vizibil + reguli automate email + reguli vizibile/testabile + legare email de entități ERP + emailuri legate vizibile în dosare ERP + deep-link direct către emailuri ERP + modal detalii email ERP + download atașamente email ERP + import IMAP cu atașamente descărcabile + document ERP din atașament email + descărcare atașament sursă din document ✅
+  Status Inbox ERP: fundație internă + categorii + filtre + task/document din email + sursă vizibilă în Documente + trimitere email din Mesaje + CC/BCC și atașamente + răspuns/forward + drafturi + SMTP stabilizat + diagnostic prietenos + acțiuni rapide/în masă + primire IMAP manuală + configurare IMAP explicită + autosync IMAP + status autosync vizibil + reguli automate email + reguli vizibile/testabile + legare email de entități ERP + emailuri legate vizibile în dosare ERP + deep-link direct către emailuri ERP + modal detalii email ERP + download atașamente email ERP + import IMAP cu atașamente descărcabile + document ERP din atașament email + descărcare atașament sursă din document + hotfix eroare atașament Inbox ERP ✅
 
 ANAF / e-Factura
   Status: Export XML manual (utilizatorul urcă în SPV)
@@ -1416,5 +1420,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 28 Iulie 2026 | InfraFlow sursă v2.12.398*
+*AGENTS.md actualizat: 28 Iulie 2026 | InfraFlow sursă v2.12.399*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

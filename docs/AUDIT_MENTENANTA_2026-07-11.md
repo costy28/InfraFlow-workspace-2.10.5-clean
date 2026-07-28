@@ -1136,3 +1136,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ dosarul documentului permite descărcarea atașamentului sursă prin API autentificat;
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ atașamentele fără conținut local rămân marcate ca `doar metadata`;
 - `updates/UPDATE_418_download_atasament_sursa_document.md` — ✅ documentație update și verificări.
+
+### UPDATE 419 — Audit complet aplicație și hotfix Inbox ERP
+
+- `docs/AUDIT_COMPLET_2026-07-28.md` — ✅ registru audit complet pe module, riscuri și backlog prioritar;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ reparat `setEmailError` nedefinit la eroare de descărcare atașament email;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ eroarea de descărcare atașament este afișată în modalul email;
+- `client/src/pages/SetariPage.jsx` — ✅ raw body GPS nu mai este logat în consola browserului în producție;
+- `client/src/pages/FisaVehicul.jsx` — ✅ indisponibilitatea GPS live este tratată explicit;
+- `updates/UPDATE_419_audit_complet_hotfix_messaging.md` — ✅ documentație update și verificări.

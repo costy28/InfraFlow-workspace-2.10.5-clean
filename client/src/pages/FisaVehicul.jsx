@@ -91,7 +91,9 @@ export default function FisaVehicul() {
       try {
         const response = await api.get(`/fleet/assets/${id}/gps-live`)
         setData(current => current ? { ...current, gps: response.data.gps } : current)
-      } catch {}
+      } catch {
+        // GPS live este opțional; păstrăm ultima poziție cunoscută dacă furnizorul nu răspunde.
+      }
     }, 30000)
     return () => window.clearInterval(timer)
   }, [id, data?.asset?.gps_device_id])

@@ -192,6 +192,7 @@ export default function MessagingPage() {
   const [emailLoading, setEmailLoading] = useState(false)
   const [selectedEmailIds, setSelectedEmailIds] = useState([])
   const [emailDetails, setEmailDetails] = useState(null)
+  const [emailError, setEmailError] = useState('')
   const [emailBulkLoading, setEmailBulkLoading] = useState(false)
   const [emailSyncLoading, setEmailSyncLoading] = useState(false)
   const [taskUsers, setTaskUsers] = useState([])
@@ -311,20 +312,24 @@ export default function MessagingPage() {
     if (!pendingEmailParam || activeTab !== 'email' || emailLoading) return
     const target = emailRows.find(email => String(email.id) === String(pendingEmailParam))
     if (!target) {
-      if (emailFilters.direction) setEmailFilters(filters => ({ ...filters, direction: '' }))
+      if (emailFilters.direction) Promise.resolve().then(() => setEmailFilters(filters => ({ ...filters, direction: '' })))
       return
     }
-    setFocusedEmailId(String(target.id))
-    setEmailDetails(target)
-    if (target.status === 'unread') updateEmailStatus(target, 'read').catch(() => {})
-    window.setTimeout(() => {
-      const element = document.getElementById(`email-row-${target.id}`)
-      if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 80)
-    setPendingEmailParam('')
+    Promise.resolve().then(() => {
+      setFocusedEmailId(String(target.id))
+      setEmailError('')
+      setEmailDetails(target)
+      if (target.status === 'unread') updateEmailStatus(target, 'read').catch(() => {})
+      window.setTimeout(() => {
+        const element = document.getElementById(`email-row-${target.id}`)
+        if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 80)
+      setPendingEmailParam('')
+    })
   }, [activeTab, emailFilters.direction, emailLoading, emailRows, pendingEmailParam])
 
   function openEmailDetails(email) {
+    setEmailError('')
     setEmailDetails(email)
     setFocusedEmailId(String(email?.id || ''))
     if (email?.status === 'unread') updateEmailStatus(email, 'read').catch(() => {})
@@ -801,7 +806,7 @@ export default function MessagingPage() {
 
   // ─── Info panel ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (infoOpen && activeChannel) loadMembers(activeChannel)
+    if (infoOpen && activeChannel) Promise.resolve().then(() => loadMembers(activeChannel))
   }, [infoOpen, activeChannel, loadMembers])
 
   // ─── SSE stream ──────────────────────────────────────────────────────────────
@@ -1512,7 +1517,7 @@ export default function MessagingPage() {
         </div>
       )}
 
-      <Modal open={Boolean(emailDetails)} title="Detalii email" onClose={() => setEmailDetails(null)} size="lg">
+      <Modal open={Boolean(emailDetails)} title="Detalii email" onClose={() => { setEmailDetails(null); setEmailError('') }} size="lg">
         {emailDetails ? (
           <div className="grid gap-4">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -1568,6 +1573,12 @@ export default function MessagingPage() {
                     </span>
                   ))}
                 </div>
+              </div>
+            ) : null}
+
+            {emailError ? (
+              <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+                {emailError}
               </div>
             ) : null}
 

@@ -1878,11 +1878,13 @@ export default function SetariPage() {
                   if (gasit.vehicule_parsate > 0) {
                     notify(`✅ GPS funcțional! Acțiune: ${gasit.actiune}, ${gasit.vehicule_parsate} vehicule`)
                   } else {
-                    notify(`⚠️ Acțiune "${gasit.actiune}": ${gasit.raw_length} caractere, tip: ${gasit.tip_raspuns}, 0 vehicule parsate. Deschide F12 → Consolă pentru raw body.`)
-                    console.log('=== GPS RAW BODY ===')
-                    console.log('Tip:', gasit.tip_raspuns)
-                    console.log('Body:', gasit.raw_body)
-                    console.log('===================')
+                    notify(`⚠️ Acțiune "${gasit.actiune}": ${gasit.raw_length} caractere, tip: ${gasit.tip_raspuns}, 0 vehicule parsate. Raw body nu este afișat în browser pentru protecția datelor.`)
+                    if (import.meta.env.DEV) {
+                      console.debug('=== GPS RAW BODY ===')
+                      console.debug('Tip:', gasit.tip_raspuns)
+                      console.debug('Body:', gasit.raw_body)
+                      console.debug('===================')
+                    }
                   }
                 } catch (e) { fail(e, '❌ Raw GPS eșuat') }
               }}>📋 Raw Response GPS</Button>
