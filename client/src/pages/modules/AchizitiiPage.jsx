@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import CPVSelector from '../../components/forms/CPVSelector'
 import ContextHelp from '../../components/ui/ContextHelp'
 import { downloadApiFile, openApiFile } from '../../utils/download'
@@ -136,6 +137,8 @@ export default function AchizitiiPage() {
   const [paapModal, setPaapModal] = useState(false)
   const [paapEditing, setPaapEditing] = useState(null)
   const [paapForm, setPaapForm] = useState(emptyPaap(new Date().getFullYear() + 1))
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [receiveForm, setReceiveForm] = useState({ nr_aviz: '', data_receptie: today(), contract_id: '', observatii: '', linii: [] })
   const [returnForm, setReturnForm] = useState({ data: today(), motiv: '', linii: [] })
   const [materialForm, setMaterialForm] = useState({ cod: '', denumire: '', um: 'kg', categorie: 'materie_prima', stoc_minim: '', pret_unitar: '', cod_cpv: '', furnizor_implicit: '' })
@@ -372,11 +375,19 @@ export default function AchizitiiPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, planYear])
 
-  async function generatePlan() {
-    if (!window.confirm(`Generezi pozițiile PAAP ${planYear} din comenzile ${planYear - 1}, cu inflație 5%?`)) return
-    const response = await api.post('/paap/genereaza-din-istoric', { an: planYear })
-    setMessage(`Au fost generate ${response.data.paap?.length || 0} poziții PAAP.`)
-    await loadPlan()
+  function generatePlan() {
+    setConfirmAction({
+      title: 'Generează plan PAAP',
+      message: `Generezi pozițiile PAAP ${planYear} din comenzile ${planYear - 1}?`,
+      details: 'Se aplică inflație estimată de 5%. Verifică apoi valorile și procedurile propuse înainte de folosirea planului în achiziții.',
+      confirmLabel: 'Generează plan',
+      tone: 'warning',
+      run: async () => {
+        const response = await api.post('/paap/genereaza-din-istoric', { an: planYear })
+        setMessage(`Au fost generate ${response.data.paap?.length || 0} poziții PAAP.`)
+        await loadPlan()
+      },
+    })
   }
 
   function openPaap(item = null) {
@@ -394,11 +405,33 @@ export default function AchizitiiPage() {
     await loadPlan()
   }
 
-  async function removePaap(item) {
-    if (!window.confirm(`Anulezi poziția ${item.cpv_cod} / ${item.material}?`)) return
-    await api.delete(`/paap/${item.id}`, { data: { reason: 'Anulare din interfața Plan anual' } })
-    setMessage('Poziția PAAP a fost anulată.')
-    await loadPlan()
+  function removePaap(item) {
+    setConfirmAction({
+      title: 'Anulează poziție PAAP',
+      message: `Anulezi poziția ${item.cpv_cod} / ${item.material}?`,
+      details: 'Poziția este anulată controlat și rămâne în istoricul aplicației pentru audit.',
+      confirmLabel: 'Anulează poziția',
+      tone: 'danger',
+      run: async () => {
+        await api.delete(`/paap/${item.id}`, { data: { reason: 'Anulare din interfața Plan anual' } })
+        setMessage('Poziția PAAP a fost anulată.')
+        await loadPlan()
+      },
+    })
+  }
+
+  async function runConfirmAction() {
+    if (!confirmAction?.run) return
+    setConfirmLoading(true)
+    setError('')
+    try {
+      await confirmAction.run()
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
   }
 
   const scaleConnected = !!(scaleStatus?.connected || scaleStatus?.ok || scaleStatus?.available || scaleStatus?.status === 'connected' || scaleStatus?.readable)
@@ -816,6 +849,18 @@ export default function AchizitiiPage() {
           <Button type="submit">Salvează poziția</Button>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

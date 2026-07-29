@@ -4,6 +4,7 @@ Versiune analizată inițial: `2.12.398`
 Update audit inițial: `2.12.399` / `UPDATE 419`
 Completare P0 securitate export/print: `2.12.400` / `UPDATE 420`
 Completare P0 securitate notificări live: `2.12.401` / `UPDATE 421`
+Completare P0 UX confirmări native: `2.12.402` / `UPDATE 422`
 
 ## Rezumat executiv
 
@@ -61,6 +62,14 @@ Direcția corectă pentru perioada următoare:
 | Pagina Mesaje | stream-ul din pagină duplica același model cu token în URL | aceeași cale de handshake prin API autentificat |
 | Audit securitate | `rg "token=" client/src server` găsea încă expuneri URL | pattern eliminat din codul aplicației |
 
+## Probleme remediate în UPDATE 422
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| UI comun | lipsea o confirmare ERP reutilizabilă pentru acțiuni critice | componentă `ConfirmDialog` cu ton, explicație, butoane și loading |
+| Achiziții / PAAP | generarea planului folosea dialog nativ `window.confirm` | modal explicit cu impactul generării din istoric |
+| Achiziții / PAAP | anularea pozițiilor folosea dialog nativ și mesaj scurt | confirmare în stil aplicație, cu precizarea că anularea rămâne în audit |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -95,7 +104,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
-| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | UX neuniform, greu de folosit, risc de mesaje neclare |
+| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP; continuă pe modulele active |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |

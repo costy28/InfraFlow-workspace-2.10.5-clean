@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.402 - 2026-07-29
+
+## Confirmări UX PAAP fără dialoguri native
+
+- A fost adăugat `ConfirmDialog`, o componentă reutilizabilă pentru confirmări critice în stil InfraFlow.
+- Achiziții / PAAP nu mai folosește `window.confirm` pentru generarea planului din istoric.
+- Anularea unei poziții PAAP are acum dialog cu impact explicit și stare de încărcare.
+- Auditul UX marchează începutul înlocuirii dialogurilor native cu modaluri consistente.
+
 # v2.12.401 - 2026-07-29
 
 ## Notificări live fără token real în URL

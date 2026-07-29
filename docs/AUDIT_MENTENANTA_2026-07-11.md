@@ -1164,3 +1164,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/hooks/useGlobalNotifications.js` — ✅ notificări globale prin tichet SSE;
 - `client/src/pages/modules/MessagingPage.jsx` — ✅ pagina Mesaje folosește același handshake SSE;
 - `updates/UPDATE_421_notificari_live_fara_token_url.md` — ✅ documentație update și verificări.
+
+### UPDATE 422 — Confirmări UX PAAP fără dialoguri native
+
+- `client/src/components/ui/ConfirmDialog.jsx` — ✅ dialog reutilizabil pentru confirmări critice, cu ton, detalii și stare de încărcare;
+- `client/src/pages/modules/AchizitiiPage.jsx` — ✅ generarea planului PAAP din istoric folosește confirmare ERP, nu `window.confirm`;
+- `client/src/pages/modules/AchizitiiPage.jsx` — ✅ anularea poziției PAAP explică impactul și păstrează fluxul de audit;
+- `docs/AUDIT_COMPLET_2026-07-28.md` — ✅ auditul marchează primul pas din curățarea dialogurilor native;
+- `updates/UPDATE_422_confirmari_ux_paap.md` — ✅ documentație update și verificări.

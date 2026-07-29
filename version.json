@@ -1,5 +1,5 @@
 {
-  "version": "2.12.401",
+  "version": "2.12.402",
   "date": "2026-07-29",
-  "changelog": "## v2.12.401 - 2026-07-29\n### Notificări live fără token real în URL\n- Stream-ul SSE pentru mesaje folosește acum un tichet temporar, emis prin API autentificat cu header Authorization.\n- Tokenul real de login nu mai este transmis în URL pentru notificările live.\n- Hook-ul global de notificări și pagina Mesaje folosesc utilitarul comun de creare EventSource.\n- Verificarea globală nu mai găsește patternul token= în client/src sau server."
+  "changelog": "## v2.12.402 - 2026-07-29\n### Confirmări UX PAAP fără dialoguri native\n- A fost adăugat dialogul reutilizabil ConfirmDialog pentru confirmări critice în stil InfraFlow.\n- Achiziții / PAAP folosește confirmări clare pentru generarea planului din istoric și anularea pozițiilor.\n- Dialogurile explică impactul acțiunii și afișează stare de încărcare până la finalizarea operațiunii.\n- Primul pas din curățarea window.confirm/window.prompt/window.alert este documentat în audit."
 }
