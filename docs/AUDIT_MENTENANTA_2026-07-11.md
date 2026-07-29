@@ -1195,3 +1195,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/GestiunePage.jsx` — ✅ aprobare/ștergere bon consum prin dialog ERP;
 - `client/src/pages/modules/GestiunePage.jsx` — ✅ creare/finalizare inventar prin dialog ERP;
 - `updates/UPDATE_425_confirmari_ux_gestiune.md` — ✅ documentație update și verificări.
+
+### UPDATE 426 — Confirmări UX HR
+
+- `client/src/pages/modules/HRPage.jsx` — ✅ anulare flux HR, respingere ore suplimentare, dezactivare ture și ștergere evaluări prin `ConfirmDialog`;
+- `client/src/pages/modules/HRPage.jsx` — ✅ devalidare pontaj, completare lună și blocare/deblocare pontaj cu dialoguri clare și motiv unde este necesar;
+- `client/src/pages/modules/HRPage.jsx` — ✅ respingere certificat medical și confirmare trimitere salarizare fără `window.prompt/window.alert`;
+- `client/src/pages/modules/hr/HREmployeeFilesTab.jsx` — ✅ anulare document dosar angajat prin dialog ERP cu motiv obligatoriu;
+- `updates/UPDATE_426_confirmari_ux_hr.md` — ✅ documentație update și verificări.

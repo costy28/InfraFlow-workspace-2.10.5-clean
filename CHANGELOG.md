@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.406 - 2026-07-29
+
+## Confirmări UX HR
+
+- `HRPage.jsx` nu mai folosește `window.prompt/window.confirm/window.alert` pentru acțiunile critice din HR.
+- Devalidarea pontajului, blocarea/deblocarea lunii și respingerea certificatelor medicale folosesc `ConfirmDialog` cu motiv unde este necesar.
+- Orele suplimentare, turele, evaluările și fluxurile HR au confirmări clare în stilul aplicației.
+- Dosarul electronic al angajatului folosește dialog ERP pentru anularea documentelor, cu motiv obligatoriu.
+
 # v2.12.405 - 2026-07-29
 
 ## Confirmări UX în Gestiune

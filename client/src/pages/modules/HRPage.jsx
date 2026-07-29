@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import ContextHelp from '../../components/ui/ContextHelp'
 import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
@@ -295,6 +296,9 @@ export default function HRPage() {
   const [dotareForm, setDotareForm] = useState({ angajat_id: '', tip_id: '', marime: '', numar_serie: '', valoare_inventar: '', data_dotare: new Date().toISOString().slice(0, 10), cantitate: 1, stare: 'nou', observatii: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [filters, setFilters] = useState({ dept_id: '', activ: '', luna: currentMonth(), tip: '', alert: '' })
   const photoInputRef = useRef()
   const templateEditorRef = useRef()
@@ -308,9 +312,25 @@ export default function HRPage() {
   const canManageEquipment = isAdmin || hasPermission('echipamente:gestionar') || hasPermission('hr:manage')
   const ownDepartmentKey = user?.departmentId || user?.department_id || user?.dept_id || user?.department || user?.departament || ''
 
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    setConfirmLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
+
   async function load() {
     setLoading(true)
     setError('')
+    setNotice('')
     try {
       const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, managementRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
@@ -568,8 +588,27 @@ export default function HRPage() {
 
   async function closeEmployeeWorkflow(cancel = false) {
     if (!employeeDetails?.id || !employeeWorkflow?.uuid) return
-    const note = cancel ? window.prompt('Motiv anulare flux:', 'Anulat de HR') : ''
-    if (cancel && !note) return
+    if (cancel) {
+      setConfirmAction({
+        title: 'Anulează flux HR',
+        message: 'Fluxul angajatului va fi închis ca anulat.',
+        details: 'Pașii existenți rămân în istoric, iar motivul este salvat pentru audit.',
+        confirmLabel: 'Anulează fluxul',
+        tone: 'danger',
+        reasonLabel: 'Motiv anulare',
+        reasonDefault: 'Anulat de HR',
+        reasonRequired: true,
+        minReasonLength: 5,
+        errorMessage: 'Fluxul HR nu a putut fi închis.',
+        run: note => closeEmployeeWorkflowRequest(true, note),
+      })
+      return
+    }
+    await closeEmployeeWorkflowRequest(false, '')
+  }
+
+  async function closeEmployeeWorkflowRequest(cancel = false, note = '') {
+    if (!employeeDetails?.id || !employeeWorkflow?.uuid) return
     try {
       const response = await api.post(`/hr/employees/${employeeDetails.id}/workflow/close`, { cancel, note })
       setEmployeeWorkflow(response.data?.workflow || null)
@@ -906,8 +945,26 @@ export default function HRPage() {
   }
 
   async function decideOvertime(item, status) {
-    const reason = status === 'reject' ? window.prompt('Motivul respingerii (minimum 5 caractere):') : ''
-    if (status === 'reject' && (!reason || reason.trim().length < 5)) return
+    if (status === 'reject') {
+      setConfirmAction({
+        title: 'Respinge ore suplimentare',
+        message: `Respingi cererea de ore suplimentare pentru ${item.nume || item.employee_name || 'angajat'}?`,
+        details: 'Motivul respingerii va fi păstrat în istoricul cererii.',
+        confirmLabel: 'Respinge',
+        tone: 'danger',
+        reasonLabel: 'Motiv respingere',
+        reasonPlaceholder: 'Ex.: interval suprapus, justificare insuficientă...',
+        reasonRequired: true,
+        minReasonLength: 5,
+        errorMessage: 'Decizia nu a putut fi salvata.',
+        run: reason => decideOvertimeRequest(item, status, reason),
+      })
+      return
+    }
+    await decideOvertimeRequest(item, status, '')
+  }
+
+  async function decideOvertimeRequest(item, status, reason = '') {
     try {
       await api.post(`/hr/overtime/${item.id}/${status}`, { reason })
       await loadWorkTimeControls()
@@ -996,7 +1053,18 @@ export default function HRPage() {
   }
 
   async function deactivateShift(tura) {
-    if (!window.confirm(`Dezactivezi tura ${tura.nume}? Programarile istorice raman pastrate.`)) return
+    setConfirmAction({
+      title: 'Dezactivează tura',
+      message: `Dezactivezi tura ${tura.nume}?`,
+      details: 'Programările istorice rămân păstrate. Tura nu va mai fi disponibilă pentru planificări noi.',
+      confirmLabel: 'Dezactivează',
+      tone: 'danger',
+      errorMessage: 'Tura nu a putut fi dezactivata.',
+      run: () => deactivateShiftRequest(tura),
+    })
+  }
+
+  async function deactivateShiftRequest(tura) {
     try { await api.delete(`/hr/tures/${tura.id}`); await loadScheduleData() }
     catch (err) { setError(err.response?.data?.error || 'Tura nu a putut fi dezactivata.') }
   }
@@ -1095,7 +1163,7 @@ export default function HRPage() {
   async function createEquipmentReferat() {
     const response = await api.post('/hr/echipamente/creeaza-referat', {})
     setError('')
-    window.alert(`Referat ${response.data.referat.serie}/${response.data.referat.numar} creat în status draft.`)
+    setNotice(`Referat ${response.data.referat.serie}/${response.data.referat.numar} creat în status draft.`)
   }
 
   async function compensateOvertime(event) {
@@ -1143,7 +1211,18 @@ export default function HRPage() {
   }
 
   async function deleteEvaluation(id) {
-    if (!window.confirm('Ștergi evaluarea?')) return
+    setConfirmAction({
+      title: 'Șterge evaluarea',
+      message: 'Ștergi evaluarea selectată?',
+      details: 'Acțiunea elimină evaluarea din lista HR.',
+      confirmLabel: 'Șterge',
+      tone: 'danger',
+      errorMessage: 'Eroare la ștergere.',
+      run: () => deleteEvaluationRequest(id),
+    })
+  }
+
+  async function deleteEvaluationRequest(id) {
     try {
       await api.delete(`/hr/evaluations/${id}`)
       await loadTrainingData()
@@ -1212,13 +1291,27 @@ export default function HRPage() {
   }
 
   async function invalidateMonth() {
-    const reason = window.prompt('Motivul devalidarii pontajului (minimum 5 caractere):')
-    if (!reason || reason.trim().length < 5) return
+    setConfirmAction({
+      title: 'Devalidează pontajul',
+      message: `Devalidezi pontajul pentru luna ${filters.luna}?`,
+      details: 'Pontajele validate din selecția curentă vor reveni la stadiu editabil. Motivul rămâne în audit.',
+      confirmLabel: 'Devalidează',
+      tone: 'danger',
+      reasonLabel: 'Motiv devalidare',
+      reasonPlaceholder: 'Ex.: concediu aprobat ulterior, corecție ore...',
+      reasonRequired: true,
+      minReasonLength: 5,
+      errorMessage: 'Pontajul nu a putut fi devalidat.',
+      run: reason => invalidateMonthRequest(reason),
+    })
+  }
+
+  async function invalidateMonthRequest(reason) {
     try {
       const employeeIds = scopedMonthlySheet.map(row => row.employee_id || row.id).filter(Boolean)
       const response = await api.post('/hr/timesheets/invalidate', { employee_ids: employeeIds, luna: filters.luna, reason })
-      window.alert(response.data?.invalidated ? `${response.data.invalidated} inregistrari de pontaj au fost devalidate.` : 'Nu existau pontaje validate in selectia curenta.')
       await load()
+      setNotice(response.data?.invalidated ? `${response.data.invalidated} înregistrări de pontaj au fost devalidate.` : 'Nu existau pontaje validate în selecția curentă.')
     } catch (err) { setError(err.response?.data?.error || 'Pontajul nu a putut fi devalidat.') }
   }
 
@@ -1238,11 +1331,27 @@ export default function HRPage() {
 
   async function fillWorkingDays() {
     const departmentId = (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || ''
-    if (!departmentId && !window.confirm('Nu este selectat un departament. Completezi toate departamentele cu 8 ore in zilele lucratoare?')) return
+    if (!departmentId) {
+      setConfirmAction({
+        title: 'Completează toate departamentele',
+        message: 'Nu este selectat un departament.',
+        details: 'Completezi toate departamentele cu 8 ore în zilele lucrătoare?',
+        confirmLabel: 'Completează toate',
+        tone: 'warning',
+        errorMessage: 'Completarea automata nu a reusit.',
+        run: () => fillWorkingDaysRequest(departmentId),
+      })
+      return
+    }
+    await fillWorkingDaysRequest(departmentId)
+  }
+
+  async function fillWorkingDaysRequest(departmentId) {
     try {
       const response = await api.post('/hr/timesheets/fill-month', { luna: filters.luna, dept_id: departmentId, ore_lucrate: 8 })
       await load()
-      setError(response.data?.inserted ? '' : 'Nu au fost adaugate zile: pontajele existau deja sau departamentul nu are angajati activi.')
+      if (response.data?.inserted) setNotice(`${response.data.inserted} zile de pontaj au fost completate automat.`)
+      else setError('Nu au fost adaugate zile: pontajele existau deja sau departamentul nu are angajati activi.')
     } catch (err) { setError(err.response?.data?.error || 'Completarea automata nu a reusit.') }
   }
 
@@ -1252,10 +1361,24 @@ export default function HRPage() {
   }
 
   async function toggleTimesheetLock() {
+    const locked = timesheetLock?.locked
+    setConfirmAction({
+      title: locked ? 'Deblochează pontajul' : 'Închide pontajul',
+      message: locked ? `Deblochezi pontajul pentru luna ${filters.luna}?` : `Închizi pontajul pentru luna ${filters.luna}?`,
+      details: locked ? 'Pontajul va putea fi editat din nou.' : 'Pontajul va fi marcat ca închis pentru control lunar.',
+      confirmLabel: locked ? 'Deblochează' : 'Închide luna',
+      tone: locked ? 'warning' : 'success',
+      reasonLabel: locked ? 'Motiv deblocare' : 'Motiv închidere',
+      reasonDefault: locked ? '' : 'Pontaj lunar verificat si inchis',
+      reasonRequired: true,
+      minReasonLength: 1,
+      errorMessage: 'Starea pontajului nu a putut fi schimbata.',
+      run: motiv => toggleTimesheetLockRequest(locked, motiv),
+    })
+  }
+
+  async function toggleTimesheetLockRequest(locked, motiv) {
     try {
-      const locked = timesheetLock?.locked
-      const motiv = window.prompt(locked ? 'Motivul deblocarii pontajului:' : 'Motivul inchiderii pontajului:', locked ? '' : 'Pontaj lunar verificat si inchis')
-      if (!motiv) return
       await api.post(locked ? '/hr/timesheets/unlock' : '/hr/timesheets/lock', { luna: filters.luna, motiv })
       await loadTimesheetLock()
     } catch (err) { setError(err.response?.data?.error || 'Starea pontajului nu a putut fi schimbata.') }
@@ -1324,9 +1447,27 @@ export default function HRPage() {
   }
 
   async function reviewMedicalLeave(item, decision) {
+    if (decision === 'reject') {
+      setConfirmAction({
+        title: 'Respinge certificat medical',
+        message: `Respinge documentul medical pentru ${item.nume || ''} ${item.prenume || ''}`.trim(),
+        details: 'Motivul respingerii rămâne vizibil în istoricul cererii.',
+        confirmLabel: 'Respinge document',
+        tone: 'danger',
+        reasonLabel: 'Motiv respingere',
+        reasonPlaceholder: 'Ex.: document ilizibil, date neconforme...',
+        reasonRequired: true,
+        minReasonLength: 5,
+        errorMessage: 'Verificarea certificatului medical a esuat.',
+        run: motiv => reviewMedicalLeaveRequest(item, decision, motiv),
+      })
+      return
+    }
+    await reviewMedicalLeaveRequest(item, decision, '')
+  }
+
+  async function reviewMedicalLeaveRequest(item, decision, motiv = '') {
     try {
-      const motiv = decision === 'reject' ? window.prompt('Motivul respingerii certificatului (minimum 5 caractere):') : ''
-      if (decision === 'reject' && (!motiv || motiv.trim().length < 5)) return
       await api.post(`/hr/medical-leaves/${item.medical_certificate_uuid}/${decision}`, { motiv })
       await load()
     } catch (err) { setError(err.response?.data?.error || 'Verificarea certificatului medical a esuat.') }
@@ -1350,7 +1491,7 @@ export default function HRPage() {
       setMedicalPayrollItem(null)
       setMedicalDailyBase('')
       await loadMedicalRegister()
-      window.alert('Indemnizatia a fost trimisa in salarizare ca ajustare confirmata.')
+      setNotice('Indemnizația a fost trimisă în salarizare ca ajustare confirmată.')
     } catch (err) { setError(err.response?.data?.error || 'Indemnizatia nu a putut fi trimisa in salarizare.') }
   }
 
@@ -1597,6 +1738,7 @@ export default function HRPage() {
       />
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+      {notice ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div> : null}
 
       <ContextHelp
         eyebrow="Ghid HR"
@@ -2169,6 +2311,24 @@ export default function HRPage() {
         onDotareFormChange={setDotareForm}
         onSubmit={saveDotare}
         onClose={() => setDotareModal(false)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel={confirmAction?.cancelLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        reasonLabel={confirmAction?.reasonLabel}
+        reasonDefault={confirmAction?.reasonDefault}
+        reasonPlaceholder={confirmAction?.reasonPlaceholder}
+        reasonRequired={confirmAction?.reasonRequired}
+        minReasonLength={confirmAction?.minReasonLength}
+        onConfirm={runConfirmAction}
+        onCancel={() => setConfirmAction(null)}
       />
     </div>
   )

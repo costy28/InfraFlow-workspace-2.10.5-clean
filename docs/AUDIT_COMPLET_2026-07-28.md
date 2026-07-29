@@ -8,6 +8,7 @@ Completare P0 UX confirmări native: `2.12.402` / `UPDATE 422`
 Completare P0 UX contracte: `2.12.403` / `UPDATE 423`
 Completare P0 UX setări: `2.12.404` / `UPDATE 424`
 Completare P0 UX gestiune: `2.12.405` / `UPDATE 425`
+Completare P0 UX HR: `2.12.406` / `UPDATE 426`
 
 ## Rezumat executiv
 
@@ -100,6 +101,17 @@ Direcția corectă pentru perioada următoare:
 | Gestiune / Bon Consum | aprobarea/ștergerea bonului folosea dialog nativ | confirmări explicite despre scăderea stocului și documente draft |
 | Gestiune / Inventar | crearea/finalizarea inventarului folosea dialog nativ | confirmări explicite despre preluarea scriptică și aplicarea diferențelor |
 
+## Probleme remediate în UPDATE 426
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| HR / Flux angajat | anularea fluxului folosea `window.prompt` | dialog ERP cu motiv obligatoriu și explicație de audit |
+| HR / Ore suplimentare | respingerea cererilor folosea prompt nativ | motiv obligatoriu în `ConfirmDialog`, păstrând aceeași rută API |
+| HR / Ture și evaluări | dezactivarea turelor și ștergerea evaluărilor foloseau `window.confirm` | confirmări explicite cu impact operațional |
+| HR / Pontaj lunar | devalidarea, completarea tuturor departamentelor și blocarea/deblocarea lunii foloseau dialoguri native | dialoguri ERP cu motiv unde este necesar și mesaje de succes în pagină |
+| HR / Concedii medicale | respingerea certificatului și trimiterea în salarizare foloseau prompt/alert nativ | respingere cu motiv auditat și notificare verde de confirmare |
+| HR / Dosar angajat | anularea documentelor din dosarul electronic folosea prompt nativ | dialog ERP cu motiv și precizare că documentul rămâne trasabil |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -134,7 +146,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
-| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte, UPDATE 424 pentru Setări și UPDATE 425 pentru Gestiune |
+| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte, UPDATE 424 pentru Setări, UPDATE 425 pentru Gestiune și UPDATE 426 pentru HR |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |

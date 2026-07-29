@@ -1,5 +1,5 @@
 {
-  "version": "2.12.405",
+  "version": "2.12.406",
   "date": "2026-07-29",
-  "changelog": "## v2.12.405 - 2026-07-29\n### Confirmări UX în Gestiune\n- Gestiunea nu mai folosește window.confirm pentru acțiunile critice pe stoc.\n- Recepțiile NIR, anulările NIR, bonurile de consum și inventarele au confirmări ERP cu impact explicit.\n- Ștergerea materialelor și furnizorilor afișează avertizări despre dependențe operaționale.\n- Auditul UX marchează Gestiunea ca a patra zonă curățată din dialogurile native."
+  "changelog": "## v2.12.406 - 2026-07-29\n### Confirmări UX HR\n- HR nu mai folosește dialoguri native pentru flux angajat, ore suplimentare, ture, evaluări, pontaj și concedii medicale.\n- Devalidarea și blocarea/deblocarea pontajului folosesc dialog ERP cu motiv auditat.\n- Dosarul electronic al angajatului folosește dialog ERP pentru anularea documentelor.\n- Mesajele de succes sunt afișate în pagina HR, nu prin window.alert."
 }

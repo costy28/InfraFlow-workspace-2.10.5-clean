@@ -4,6 +4,7 @@ import Input from '../../../components/forms/Input'
 import Select from '../../../components/forms/Select'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
+import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 
 const fileTypes = [
   {value:'contract',label:'Contract'},
@@ -23,6 +24,8 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
   const [type, setType] = useState('contract')
   const [editing, setEditing] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState(null)
+  const [cancelBusy, setCancelBusy] = useState(false)
 
   async function loadFiles() {
     try { const response = await api.get(`/hr/employees/${employeeId}/files`); setItems(response.data?.items || []) } catch (error) { onError(error.response?.data?.error || 'Dosarul electronic nu a putut fi incarcat.') }
@@ -89,12 +92,18 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
   }
 
   async function cancelFile(item) {
-    const motiv = window.prompt('Motiv anulare document:', 'Inlocuit / incarcat gresit')
-    if (!motiv) return
+    setCancelTarget(item)
+  }
+
+  async function confirmCancelFile(motiv) {
+    if (!cancelTarget) return
     try {
-      await api.delete(`/hr/employees/${employeeId}/files/${item.id}`, { data: { motiv } })
+      setCancelBusy(true)
+      await api.delete(`/hr/employees/${employeeId}/files/${cancelTarget.id}`, { data: { motiv } })
+      setCancelTarget(null)
       await loadFiles()
     } catch (error) { onError(error.response?.data?.error || 'Documentul nu a putut fi anulat.') }
+    finally { setCancelBusy(false) }
   }
 
   return (
@@ -154,6 +163,21 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Renunta</Button><Button type="submit">Salveaza</Button></div>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={Boolean(cancelTarget)}
+        title="Anulează document"
+        message={`Anulezi documentul ${cancelTarget?.denumire || 'selectat'}?`}
+        details="Documentul nu este șters fizic; va fi marcat ca anulat și rămâne trasabil în dosarul angajatului."
+        confirmLabel="Anulează document"
+        tone="danger"
+        loading={cancelBusy}
+        reasonLabel="Motiv anulare"
+        reasonDefault="Inlocuit / incarcat gresit"
+        reasonRequired
+        minReasonLength={3}
+        onConfirm={confirmCancelFile}
+        onCancel={() => setCancelTarget(null)}
+      />
     </div>
   )
 }
