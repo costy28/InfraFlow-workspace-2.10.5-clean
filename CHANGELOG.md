@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.405 - 2026-07-29
+
+## Confirmări UX în Gestiune
+
+- `GestiunePage.jsx` nu mai folosește `window.confirm` pentru acțiunile critice pe stoc.
+- Recepțiile NIR, anulările NIR, aprobarea/ștergerea bonurilor și inventarele au confirmări ERP cu impact explicit.
+- Ștergerea materialelor și furnizorilor avertizează despre posibile dependențe operaționale.
+- Acțiunile trimit aceleași requesturi serverului; s-a schimbat doar UX-ul confirmării.
+
 # v2.12.404 - 2026-07-29
 
 ## Confirmări UX în Setări

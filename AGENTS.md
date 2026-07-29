@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.404**
-**Versiune în lucru: v2.12.404**
+**Versiune curentă sursă: v2.12.405**
+**Versiune în lucru: v2.12.405**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -202,6 +202,7 @@ Gestiune / Depozit
   ✅ Inventariere
   ✅ Rapoarte zilnice/periodice
   ✅ Export Excel
+  ✅ Confirmări UX pentru acțiuni critice pe stoc (v2.12.405)
 
 Mecanizare / Fleet
   ✅ Evidență utilaje/vehicule
@@ -312,6 +313,7 @@ Comunicare
   ✅ Confirmări UX PAAP fără dialoguri native (v2.12.402)
   ✅ Confirmări UX contracte cu motiv auditat (v2.12.403)
   ✅ Confirmări UX în Setări (v2.12.404)
+  ✅ Confirmări UX în Gestiune (v2.12.405)
 
 Task Management
   ✅ Fundație task-uri personale și delegate (v2.12.355)
@@ -725,9 +727,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.404
+VERSIUNE CURENTĂ SURSĂ: 2.12.405
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.404 ✅
+UPDATE ZIP CURENT: 2.12.405 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -940,6 +942,7 @@ UPDATES ÎN LUCRU:
   2.12.402 → UPDATE 422 Confirmări UX PAAP fără dialoguri native ✅
   2.12.403 → UPDATE 423 Confirmări UX contracte cu motiv auditat ✅
   2.12.404 → UPDATE 424 Confirmări UX în Setări ✅
+  2.12.405 → UPDATE 425 Confirmări UX în Gestiune ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1434,5 +1437,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 29 Iulie 2026 | InfraFlow sursă v2.12.404*
+*AGENTS.md actualizat: 29 Iulie 2026 | InfraFlow sursă v2.12.405*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

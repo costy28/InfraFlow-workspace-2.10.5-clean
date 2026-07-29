@@ -7,6 +7,7 @@ Completare P0 securitate notificări live: `2.12.401` / `UPDATE 421`
 Completare P0 UX confirmări native: `2.12.402` / `UPDATE 422`
 Completare P0 UX contracte: `2.12.403` / `UPDATE 423`
 Completare P0 UX setări: `2.12.404` / `UPDATE 424`
+Completare P0 UX gestiune: `2.12.405` / `UPDATE 425`
 
 ## Rezumat executiv
 
@@ -89,6 +90,16 @@ Direcția corectă pentru perioada următoare:
 | Setări / Roluri | resetarea permisiunilor folosea `window.confirm` scurt | confirmare clară cu rolul vizat și efectul resetării |
 | Audit UX | `SetariPage.jsx` păstra dialoguri native | pagina Setări nu mai conține `window.confirm/window.prompt/window.alert` |
 
+## Probleme remediate în UPDATE 425
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Gestiune / Materiale | ștergerea materialului folosea `window.confirm` | dialog ERP cu avertizare despre mișcări/documente legate |
+| Gestiune / Furnizori | ștergerea furnizorului folosea `window.confirm` | dialog ERP cu avertizare despre recepții, comenzi și facturi |
+| Gestiune / NIR | confirmarea/anularea recepției folosea dialog nativ | confirmări explicite despre actualizarea sau revertirea stocului |
+| Gestiune / Bon Consum | aprobarea/ștergerea bonului folosea dialog nativ | confirmări explicite despre scăderea stocului și documente draft |
+| Gestiune / Inventar | crearea/finalizarea inventarului folosea dialog nativ | confirmări explicite despre preluarea scriptică și aplicarea diferențelor |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -123,7 +134,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
-| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte și UPDATE 424 pentru Setări |
+| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte, UPDATE 424 pentru Setări și UPDATE 425 pentru Gestiune |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |

@@ -1187,3 +1187,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/SetariPage.jsx` — ✅ resetarea permisiunilor de rol folosește `ConfirmDialog`, nu `window.confirm`;
 - `client/src/pages/SetariPage.jsx` — ✅ pagina Setări nu mai conține `window.confirm/window.prompt/window.alert`;
 - `updates/UPDATE_424_confirmari_ux_setari.md` — ✅ documentație update și verificări.
+
+### UPDATE 425 — Confirmări UX în Gestiune
+
+- `client/src/pages/modules/GestiunePage.jsx` — ✅ ștergere materiale/furnizori prin `ConfirmDialog`, cu avertizări despre dependențe;
+- `client/src/pages/modules/GestiunePage.jsx` — ✅ confirmare/anulare NIR prin dialog ERP, cu impact pe stoc;
+- `client/src/pages/modules/GestiunePage.jsx` — ✅ aprobare/ștergere bon consum prin dialog ERP;
+- `client/src/pages/modules/GestiunePage.jsx` — ✅ creare/finalizare inventar prin dialog ERP;
+- `updates/UPDATE_425_confirmari_ux_gestiune.md` — ✅ documentație update și verificări.

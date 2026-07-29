@@ -5,6 +5,7 @@ import Select from '../../components/forms/Select'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Modal from '../../components/ui/Modal'
 import { exportExcel } from '../../utils/export'
 
@@ -82,6 +83,8 @@ export default function GestiunePage() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState('')
   const [saving, setSaving]     = useState(false)
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
 
   // ── load helpers ────────────────────────────────────────────────────────────
   async function loadBase() {
@@ -185,10 +188,19 @@ export default function GestiunePage() {
     finally { setSaving(false) }
   }
 
-  async function deleteMaterial(id) {
-    if (!window.confirm('Ștergi materialul? Această acțiune nu poate fi anulată.')) return
-    try { await api.delete(`/materials/${id}`); await loadBase() }
-    catch (err) { setError(err.response?.data?.error || 'Eroare la ștergere.') }
+  function deleteMaterial(id) {
+    const material = materials.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Șterge material',
+      message: `Ștergi materialul ${material?.name || material?.denumire || id}?`,
+      details: 'Operațiunea poate fi refuzată dacă materialul are mișcări de stoc sau documente legate. Verifică istoricul înainte de ștergere.',
+      confirmLabel: 'Șterge materialul',
+      tone: 'danger',
+      run: async () => {
+        await api.delete(`/materials/${id}`)
+        await loadBase()
+      },
+    })
   }
 
   // ── furnizor CRUD ────────────────────────────────────────────────────────────
@@ -207,12 +219,19 @@ export default function GestiunePage() {
     finally { setSaving(false) }
   }
 
-  async function deleteFurnizor(id) {
-    if (!window.confirm('Ștergi furnizorul?')) return
-    try {
-      await api.delete(`/gestiune/furnizori/${id}`)
-      setFurnizori(f => f.filter(x => x.id !== id))
-    } catch (err) { setError(err.response?.data?.error || 'Eroare.') }
+  function deleteFurnizor(id) {
+    const furnizor = furnizori.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Șterge furnizor',
+      message: `Ștergi furnizorul ${furnizor?.nume || id}?`,
+      details: 'Dacă furnizorul este folosit în recepții, comenzi sau facturi, serverul poate bloca operațiunea.',
+      confirmLabel: 'Șterge furnizorul',
+      tone: 'danger',
+      run: async () => {
+        await api.delete(`/gestiune/furnizori/${id}`)
+        setFurnizori(f => f.filter(x => x.id !== id))
+      },
+    })
   }
 
   // ── NIR lines helpers ────────────────────────────────────────────────────────
@@ -243,20 +262,36 @@ export default function GestiunePage() {
     finally { setSaving(false) }
   }
 
-  async function confirmNir(id) {
-    if (!window.confirm('Confirmi recepția? Stocurile vor fi actualizate.')) return
-    try {
-      await api.patch(`/gestiune/nir/${id}`, { status: 'confirmat' })
-      await loadNir(); await loadBase()
-    } catch (err) { setError(err.response?.data?.error || 'Eroare.') }
+  function confirmNir(id) {
+    const nir = nirList.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Confirmă recepția NIR',
+      message: `Confirmi recepția ${nir?.numar || id}?`,
+      details: 'Stocurile materialelor din NIR vor fi actualizate. După confirmare, corecțiile se fac prin anulare/retur, nu prin editare brută.',
+      confirmLabel: 'Confirmă recepția',
+      tone: 'warning',
+      run: async () => {
+        await api.patch(`/gestiune/nir/${id}`, { status: 'confirmat' })
+        await loadNir()
+        await loadBase()
+      },
+    })
   }
 
-  async function cancelNir(id) {
-    if (!window.confirm('Anulezi NIR-ul? Stocurile vor fi revertite dacă era confirmat.')) return
-    try {
-      await api.patch(`/gestiune/nir/${id}`, { status: 'anulat' })
-      await loadNir(); await loadBase()
-    } catch (err) { setError(err.response?.data?.error || 'Eroare.') }
+  function cancelNir(id) {
+    const nir = nirList.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Anulează NIR',
+      message: `Anulezi NIR-ul ${nir?.numar || id}?`,
+      details: 'Dacă NIR-ul era confirmat, stocurile vor fi revertite conform mișcărilor înregistrate.',
+      confirmLabel: 'Anulează NIR',
+      tone: 'danger',
+      run: async () => {
+        await api.patch(`/gestiune/nir/${id}`, { status: 'anulat' })
+        await loadNir()
+        await loadBase()
+      },
+    })
   }
 
   // ── BC lines helpers ─────────────────────────────────────────────────────────
@@ -279,12 +314,20 @@ export default function GestiunePage() {
     finally { setSaving(false) }
   }
 
-  async function approveBc(id) {
-    if (!window.confirm('Aprobi bonul de consum? Stocurile vor fi scăzute.')) return
-    try {
-      await api.patch(`/gestiune/bonuri-consum/${id}`, { status: 'aprobat' })
-      await loadBc(); await loadBase()
-    } catch (err) { setError(err.response?.data?.error || 'Eroare.') }
+  function approveBc(id) {
+    const bon = bcList.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Aprobă bon de consum',
+      message: `Aprobi bonul ${bon?.numar || id}?`,
+      details: 'Materialele din bon vor fi scăzute din stoc. Verifică liniile înainte de aprobare.',
+      confirmLabel: 'Aprobă bonul',
+      tone: 'warning',
+      run: async () => {
+        await api.patch(`/gestiune/bonuri-consum/${id}`, { status: 'aprobat' })
+        await loadBc()
+        await loadBase()
+      },
+    })
   }
 
   async function rejectBc() {
@@ -295,20 +338,35 @@ export default function GestiunePage() {
     } catch (err) { setError(err.response?.data?.error || 'Eroare.') }
   }
 
-  async function deleteBc(id) {
-    if (!window.confirm('Ștergi bonul de consum?')) return
-    try { await api.delete(`/gestiune/bonuri-consum/${id}`); await loadBc() }
-    catch (err) { setError(err.response?.data?.error || 'Eroare.') }
+  function deleteBc(id) {
+    const bon = bcList.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Șterge bon de consum',
+      message: `Ștergi bonul ${bon?.numar || id}?`,
+      details: 'Ștergerea este potrivită pentru drafturi sau documente introduse greșit. Pentru documente aprobate, folosește anulare/corecție dacă fluxul o cere.',
+      confirmLabel: 'Șterge bonul',
+      tone: 'danger',
+      run: async () => {
+        await api.delete(`/gestiune/bonuri-consum/${id}`)
+        await loadBc()
+      },
+    })
   }
 
   // ── inventar ────────────────────────────────────────────────────────────────
-  async function createInventar() {
-    if (!window.confirm('Creezi un inventar nou? Se va prelua stocul scriptic din sistem.')) return
-    try {
-      const res = await api.post('/gestiune/inventare', { data: today() })
-      setInvActive(res.data)
-      await loadInventare()
-    } catch (err) { setError(err.response?.data?.error || 'Eroare.') }
+  function createInventar() {
+    setConfirmAction({
+      title: 'Creează inventar',
+      message: 'Creezi un inventar nou?',
+      details: 'Se va prelua stocul scriptic curent din sistem. Completează apoi stocul faptic pentru fiecare material.',
+      confirmLabel: 'Creează inventar',
+      tone: 'warning',
+      run: async () => {
+        const res = await api.post('/gestiune/inventare', { data: today() })
+        setInvActive(res.data)
+        await loadInventare()
+      },
+    })
   }
 
   async function updateInvLine(invId, matId, val) {
@@ -333,13 +391,35 @@ export default function GestiunePage() {
     } catch (err) { setError(err.response?.data?.error || 'Eroare la salvare.') }
   }
 
-  async function finalizeInventar(id) {
-    if (!window.confirm('Finalizezi inventarul? Diferențele vor fi aplicate la stoc.')) return
+  function finalizeInventar(id) {
+    const inventar = invActive || inventare.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Finalizează inventar',
+      message: `Finalizezi inventarul ${inventar?.numar || id}?`,
+      details: 'Diferențele dintre stocul scriptic și cel faptic vor fi aplicate la stoc. Verifică atent liniile înainte de finalizare.',
+      confirmLabel: 'Finalizează inventarul',
+      tone: 'danger',
+      run: async () => {
+        await api.patch(`/gestiune/inventare/${id}`, { status: 'finalizat' })
+        setInvActive(null)
+        await loadInventare()
+        await loadBase()
+      },
+    })
+  }
+
+  async function runConfirmAction() {
+    if (!confirmAction?.run) return
+    setConfirmLoading(true)
+    setError('')
     try {
-      const res = await api.patch(`/gestiune/inventare/${id}`, { status: 'finalizat' })
-      setInvActive(null)
-      await loadInventare(); await loadBase()
-    } catch (err) { setError(err.response?.data?.error || 'Eroare.') }
+      await confirmAction.run()
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
   }
 
   // ── print NIR ────────────────────────────────────────────────────────────────
@@ -1148,6 +1228,18 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
           </div>
         ) : null}
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        onCancel={() => !confirmLoading && setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

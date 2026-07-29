@@ -1,5 +1,5 @@
 {
-  "version": "2.12.404",
+  "version": "2.12.405",
   "date": "2026-07-29",
-  "changelog": "## v2.12.404 - 2026-07-29\n### Confirmări UX în Setări\n- Setările nu mai folosesc window.confirm pentru ștergerea departamentelor și resetarea permisiunilor de rol.\n- Ștergerea departamentului afișează impactul operațional înainte de confirmare.\n- Resetarea rolului la permisiunile implicite are confirmare clară în stil InfraFlow.\n- Auditul UX marchează Setările ca a treia zonă curățată din dialogurile native."
+  "changelog": "## v2.12.405 - 2026-07-29\n### Confirmări UX în Gestiune\n- Gestiunea nu mai folosește window.confirm pentru acțiunile critice pe stoc.\n- Recepțiile NIR, anulările NIR, bonurile de consum și inventarele au confirmări ERP cu impact explicit.\n- Ștergerea materialelor și furnizorilor afișează avertizări despre dependențe operaționale.\n- Auditul UX marchează Gestiunea ca a patra zonă curățată din dialogurile native."
 }
