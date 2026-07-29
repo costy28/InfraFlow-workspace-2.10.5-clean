@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import CPVSelector from '../../components/forms/CPVSelector'
 import ContextHelp from '../../components/ui/ContextHelp'
+import { downloadApiFile, openApiFile } from '../../utils/download'
 
 const tabs = ['Comenzi', 'Recepții', 'Cerințe', 'Cântar', 'Plan anual']
 const pageSize = 10
@@ -287,9 +288,22 @@ export default function AchizitiiPage() {
     })
   }
 
-  function printOrder(order) {
-    const token = encodeURIComponent(localStorage.getItem('infraflow_token') || '')
-    window.open(`/api/procurement-orders/${order.uuid || order.id}/pdf?token=${token}`, '_blank', 'noopener,noreferrer')
+  async function printOrder(order) {
+    setError('')
+    try {
+      await openApiFile(`/procurement-orders/${order.uuid || order.id}/pdf`, `comanda-${order.numar || order.id}.html`)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Comanda nu a putut fi deschisă pentru tipărire.')
+    }
+  }
+
+  async function exportPaap() {
+    setError('')
+    try {
+      await downloadApiFile(`/paap/raport?an=${planYear}`, `PAAP_${planYear}.xlsx`)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Raportul PAAP nu a putut fi exportat.')
+    }
   }
 
   async function submitReceive(event) {
@@ -680,7 +694,7 @@ export default function AchizitiiPage() {
             <Input label="An" type="number" value={planYear} onChange={event => setPlanYear(Number(event.target.value))} />
             <Button type="button" onClick={() => openPaap()}>+ Adaugă poziție</Button>
             <Button type="button" onClick={generatePlan}>Generează plan din istoric</Button>
-            <Button type="button" variant="secondary" onClick={() => window.open(`/api/paap/raport?an=${planYear}&token=${localStorage.getItem('infraflow_token')}`, '_blank')}>Exportă Excel</Button>
+            <Button type="button" variant="secondary" onClick={exportPaap}>Exportă Excel</Button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">

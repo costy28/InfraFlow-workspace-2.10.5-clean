@@ -9,6 +9,7 @@ import Modal from '../../components/ui/Modal'
 import Select from '../../components/forms/Select'
 import CPVSelector from '../../components/forms/CPVSelector'
 import ContextHelp from '../../components/ui/ContextHelp'
+import { openApiFile } from '../../utils/download'
 
 const tabs = [
   { key: '', label: 'Toate' },
@@ -246,6 +247,16 @@ export default function ReferatePage() {
     }
   }
 
+  async function printSelectedReferat() {
+    if (!selected?.id && !selected?.uuid) return
+    setError('')
+    try {
+      await openApiFile(`/referate/${selected.uuid || selected.id}/pdf`, `referat-${selected.serie || 'REF'}-${selected.numar || selected.id}.html`)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Referatul nu a putut fi deschis pentru tipărire.')
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -299,7 +310,7 @@ export default function ReferatePage() {
           <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-2">Poziție</th><th>UM</th><th>Cant.</th><th>Stoc magazie</th><th>CPV</th></tr></thead><tbody>{selected.items.map(item => <tr key={item.id} className="border-t"><td className="p-2">{item.denumire}</td><td>{item.um}</td><td>{item.cantitate}</td><td>{item.stoc_magazie}</td><td>{item.cpv_cod || '-'}</td></tr>)}</tbody></table></div>
           <div><h3 className="mb-2 font-semibold">Timeline flux</h3><div className="grid gap-2 border-l-2 border-primary-200 pl-4">{selected.flux.map(item => <div key={item.id} className="rounded border border-slate-200 p-2 text-sm"><strong>{flowLabels[item.pas] || item.pas}</strong> · {item.user_name || '-'}<div className="text-xs text-slate-500">{new Date(item.data_actiune).toLocaleString('ro-RO')} · {item.actiune}</div>{item.observatii ? <div>{item.observatii}</div> : null}</div>)}</div></div>
           {!['aprobat', 'respins'].includes(selected.status) ? <div className="grid gap-2"><Input label="Nr. înregistrare / observații flux" value={flowForm.nr_inregistrare} onChange={event => setFlowForm({ ...flowForm, nr_inregistrare: event.target.value })} /><Input label="Observații" value={flowForm.observatii} onChange={event => setFlowForm({ ...flowForm, observatii: event.target.value })} /><div className="flex gap-2"><Button onClick={() => advance()}>Înaintează</Button><Button variant="danger" onClick={() => advance('respinge')}>Respinge</Button></div></div> : null}
-          <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => window.open(`/api/referate/${selected.uuid || selected.id}/pdf?token=${localStorage.getItem('infraflow_token')}`, '_blank')}>📄 Tipărește PDF</Button><Button variant="secondary" onClick={() => setReceiveOpen(true)}>Înregistrează recepție</Button></div>
+          <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={printSelectedReferat}>📄 Tipărește PDF</Button><Button variant="secondary" onClick={() => setReceiveOpen(true)}>Înregistrează recepție</Button></div>
         </div> : null}
       </Modal>
 

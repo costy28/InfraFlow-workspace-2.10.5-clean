@@ -1,5 +1,5 @@
 {
-  "version": "2.12.399",
+  "version": "2.12.400",
   "date": "2026-07-28",
-  "changelog": "## v2.12.399 - 2026-07-28\n### Audit complet aplicație și hotfix Inbox ERP\n- A fost creat registrul de audit complet pe module, cu pași prioritizați pentru stabilizare, UX și modularizare.\n- Modalul de detalii email are stare de eroare dedicată pentru descărcarea atașamentelor, eliminând un bug runtime pe calea de eroare.\n- Diagnosticul GPS nu mai afișează raw body în consola browserului în producție.\n- GPS live din fișa vehiculului păstrează ultima poziție cunoscută când furnizorul nu răspunde."
+  "changelog": "## v2.12.400 - 2026-07-28\n### Exporturi și printări fără token în URL\n- Exporturile și printările vizate nu mai includ tokenul de autentificare în query string.\n- A fost adăugat un utilitar frontend pentru descărcare/deschidere fișiere prin API autentificat cu header Authorization.\n- Achiziții, Referate, Contracte, Terți contabilitate și Kiosk folosesc requesturi blob pentru documentele protejate.\n- Stream-ul live de notificări rămâne pentru un update separat, deoarece EventSource necesită o strategie dedicată."
 }

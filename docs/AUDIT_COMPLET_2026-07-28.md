@@ -1,7 +1,8 @@
 # Audit complet InfraFlow ERP — 28 Iulie 2026
 
-Versiune analizată inițial: `2.12.398`  
-Update rezultat: `2.12.399` / `UPDATE 419`
+Versiune analizată inițial: `2.12.398`
+Update audit inițial: `2.12.399` / `UPDATE 419`
+Completare P0 securitate: `2.12.400` / `UPDATE 420`
 
 ## Rezumat executiv
 
@@ -39,6 +40,17 @@ Direcția corectă pentru perioada următoare:
 | Setări / GPS | raw body GPS putea ajunge în consola browserului în producție | raw body logat doar în development |
 | Fișa vehiculului | catch gol la GPS live | tratament explicit, păstrează ultima poziție cunoscută |
 
+## Probleme remediate în UPDATE 420
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Achiziții / PAAP | exporturile și printarea comenzilor puneau token în URL | request blob prin API autentificat cu header |
+| Referate | printarea referatului punea token în URL | deschidere document prin blob autentificat |
+| Contracte | fișa contractului, raportul portofoliu și exportul Excel puneau token în URL | helper comun `download/open` cu `Authorization` din interceptor |
+| Contabilitate / Terți | confirmările de sold și fișa furnizorului puneau token în URL | documente deschise prin API autentificat |
+| Kiosk | adeverința folosea URL cu token ERP | sesiune ERP prin header și mesaj explicit pentru login kiosk pur |
+| Notificări live | EventSource încă folosește token în URL | rămas intenționat pentru update separat, necesitând strategie SSE/cookie |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -75,7 +87,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 | --- | --- | --- |
 | P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | UX neuniform, greu de folosit, risc de mesaje neclare |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
-| P0 | unele exporturi folosesc token în query string | risc de expunere token în history/loguri; trebuie endpointuri download autentificate prin API/blob |
+| P0 | unele exporturi foloseau token în query string | rezolvat pentru exporturi/printări în UPDATE 420; rămâne separat stream-ul SSE de notificări |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |
 | P1 | modulele mature nu au peste tot „următorul pas” vizibil | aplicația e puternică, dar trebuie să ghideze operatorul |
 | P1 | lint-ul global are multe erori istorice | nu blochează build-ul, dar încetinește refactorizarea sigură |

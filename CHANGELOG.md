@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.400 - 2026-07-28
+
+## Exporturi și printări fără token în URL
+
+- A fost adăugat utilitarul `client/src/utils/download.js` pentru descărcări și documente deschise prin API autentificat cu header `Authorization`.
+- Achiziții: tipărirea comenzilor și exportul PAAP nu mai trimit tokenul în query string.
+- Referate: tipărirea PDF/HTML folosește blob autentificat, fără token în URL.
+- Contracte: fișa contractului, raportul portofoliu și exportul Excel folosesc requesturi autentificate.
+- Contabilitate/Terți: confirmările de sold și fișa furnizorului se deschid prin API autentificat.
+- Kiosk: adeverința de salariat se solicită prin sesiunea ERP și afișează mesaj clar pentru login-ul kiosk pur.
+- Notificările live SSE rămân într-un pas separat, pentru o soluție dedicată fără token în URL.
+
 # v2.12.399 - 2026-07-28
 
 ## Audit complet aplicație și hotfix Inbox ERP

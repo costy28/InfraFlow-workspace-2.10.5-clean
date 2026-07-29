@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
+import { openApiFile } from '../../utils/download'
 import { AccountingShell, DropdownMenu, Table } from './accounting-shared'
 
 const blankThirdParty = (tip) => ({
@@ -286,18 +287,24 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
-  function printConfirmation(target = detail?.tert) {
+  async function printConfirmation(target = detail?.tert) {
     if (!target?.id) return
-    const token = localStorage.getItem('infraflow_token')
-    const authQuery = token ? `?token=${encodeURIComponent(token)}` : ''
-    window.open(`/api${statusEndpoint}/${target.id}/confirmation/print${authQuery}`, '_blank', 'noopener,noreferrer')
+    setError('')
+    try {
+      await openApiFile(`${statusEndpoint}/${target.id}/confirmation/print`, `confirmare-sold-${type}-${target.denumire || target.id}.html`)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Confirmarea de sold nu a putut fi deschisă pentru tipărire.')
+    }
   }
 
-  function printDetail(target = detail?.tert) {
+  async function printDetail(target = detail?.tert) {
     if (type !== 'furnizor' || !target?.id) return
-    const token = localStorage.getItem('infraflow_token')
-    const authQuery = token ? `?token=${encodeURIComponent(token)}` : ''
-    window.open(`/api/accounting/suppliers-status/${target.id}/print${authQuery}`, '_blank', 'noopener,noreferrer')
+    setError('')
+    try {
+      await openApiFile(`/accounting/suppliers-status/${target.id}/print`, `fisa-furnizor-${target.denumire || target.id}.html`)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Fișa furnizorului nu a putut fi deschisă pentru tipărire.')
+    }
   }
 
   async function markConfirmation(action, payload = {}, target = detail?.tert) {

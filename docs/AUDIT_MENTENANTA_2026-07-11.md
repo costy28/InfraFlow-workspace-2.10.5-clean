@@ -1145,3 +1145,13 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/SetariPage.jsx` — ✅ raw body GPS nu mai este logat în consola browserului în producție;
 - `client/src/pages/FisaVehicul.jsx` — ✅ indisponibilitatea GPS live este tratată explicit;
 - `updates/UPDATE_419_audit_complet_hotfix_messaging.md` — ✅ documentație update și verificări.
+
+### UPDATE 420 — Exporturi și printări fără token în URL
+
+- `client/src/utils/download.js` — ✅ utilitar comun pentru download/open prin API autentificat cu header;
+- `client/src/pages/modules/AchizitiiPage.jsx` — ✅ tipărire comandă și export PAAP fără token în query string;
+- `client/src/pages/modules/ReferatePage.jsx` — ✅ tipărire referat prin blob autentificat;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ fișă contract, raport portofoliu și export Excel fără token în URL;
+- `client/src/pages/accounting/TertiContab.jsx` — ✅ confirmări sold și fișă furnizor prin API autentificat;
+- `client/src/pages/KioskPage.jsx` — ✅ adeverința de salariat folosește sesiunea ERP și are mesaj clar pentru login kiosk pur;
+- `updates/UPDATE_420_exporturi_fara_token_url.md` — ✅ documentație update și verificări.

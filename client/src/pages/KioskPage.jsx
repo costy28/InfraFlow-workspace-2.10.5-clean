@@ -12,6 +12,7 @@ import Input from '../components/forms/Input'
 import Modal from '../components/ui/Modal'
 import Select from '../components/forms/Select'
 import { useAuth } from '../hooks/useAuth'
+import { openApiFile } from '../utils/download'
 import axios from 'axios'
 
 // ─── Keys localStorage ───────────────────────────────────────────────────────
@@ -432,6 +433,20 @@ export default function KioskPage() {
       setTimeout(() => URL.revokeObjectURL(url), 60000)
     } catch (err) {
       setError(err.response?.data?.error || 'Documentul nu a putut fi deschis.')
+    }
+  }
+
+  async function requestEmployeeCertificate() {
+    if (!employee?.id) return
+    if (kioskToken) {
+      setError('Adeverința se generează momentan din sesiunea ERP asociată utilizatorului. Contactează HR dacă ai intrat doar cu login Kiosk.')
+      return
+    }
+    setError('')
+    try {
+      await openApiFile(`/hr/employees/${employee.id}/adeverinta?tip=salariat`, `adeverinta-${employee.nume || employee.name || employee.id}.html`)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Adeverința nu a putut fi deschisă.')
     }
   }
 
@@ -1226,10 +1241,7 @@ export default function KioskPage() {
 
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => document.getElementById('kiosk-leave-request')?.scrollIntoView({ behavior: 'smooth' })}>📝 Cerere concediu</Button>
-              <Button variant="secondary" onClick={() => {
-                const token = localStorage.getItem('infraflow_token')
-                if (employee && token) window.open(`/api/hr/employees/${employee.id}/adeverinta?tip=salariat&token=${encodeURIComponent(token)}`, '_blank')
-              }}>📄 Solicită adeverință</Button>
+              <Button variant="secondary" onClick={requestEmployeeCertificate}>📄 Solicită adeverință</Button>
             </div>
 
             {myDocuments.length > 0 && (

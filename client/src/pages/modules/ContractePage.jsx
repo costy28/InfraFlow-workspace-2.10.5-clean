@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal'
 import PageHeader from '../../components/ui/PageHeader'
 import Select from '../../components/ui/Select'
 import { formatDate, formatMoney, formatPercent } from '../../utils/format'
+import { downloadApiFile, openApiFile } from '../../utils/download'
 
 const emptyContractForm = {
   numar: '',
@@ -882,17 +883,18 @@ export default function ContractePage() {
     if (contract) openDetails(contract)
   }
 
-  function printContract(contract) {
+  async function printContract(contract) {
     if (!contract?.id) return
-    const token = localStorage.getItem('infraflow_token') || ''
-    const query = token ? `?token=${encodeURIComponent(token)}` : ''
-    window.open(`/api/contracts/${encodeURIComponent(contract.id)}/print${query}`, '_blank', 'noopener,noreferrer')
+    setError('')
+    try {
+      await openApiFile(`/contracts/${encodeURIComponent(contract.id)}/print`, `contract-${contract.numar || contract.id}.html`)
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Fișa contractului nu a putut fi deschisă pentru tipărire.')
+    }
   }
 
   function portfolioQueryString() {
     const params = new URLSearchParams()
-    const token = localStorage.getItem('infraflow_token') || ''
-    if (token) params.set('token', token)
     if (portfolioFilters.q.trim()) params.set('q', portfolioFilters.q.trim())
     if (portfolioFilters.status !== 'toate') params.set('status', portfolioFilters.status)
     if (portfolioFilters.risk === 'alerte') params.set('alerts', 'true')
@@ -912,12 +914,22 @@ export default function ContractePage() {
     return query ? `?${query}` : ''
   }
 
-  function printPortfolio() {
-    window.open(`/api/contracts/portfolio/print${portfolioQueryString()}`, '_blank', 'noopener,noreferrer')
+  async function printPortfolio() {
+    setError('')
+    try {
+      await openApiFile(`/contracts/portfolio/print${portfolioQueryString()}`, 'raport-portofoliu-contracte.html')
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Raportul de portofoliu nu a putut fi deschis.')
+    }
   }
 
-  function exportPortfolioExcel() {
-    window.open(`/api/contracts/portfolio/export.xlsx${portfolioQueryString()}`, '_blank', 'noopener,noreferrer')
+  async function exportPortfolioExcel() {
+    setError('')
+    try {
+      await downloadApiFile(`/contracts/portfolio/export.xlsx${portfolioQueryString()}`, 'portofoliu-contracte.xlsx')
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Exportul portofoliului de contracte nu a putut fi generat.')
+    }
   }
 
   async function uploadAttachment(event) {
