@@ -5,6 +5,7 @@ Update audit inițial: `2.12.399` / `UPDATE 419`
 Completare P0 securitate export/print: `2.12.400` / `UPDATE 420`
 Completare P0 securitate notificări live: `2.12.401` / `UPDATE 421`
 Completare P0 UX confirmări native: `2.12.402` / `UPDATE 422`
+Completare P0 UX contracte: `2.12.403` / `UPDATE 423`
 
 ## Rezumat executiv
 
@@ -70,6 +71,15 @@ Direcția corectă pentru perioada următoare:
 | Achiziții / PAAP | generarea planului folosea dialog nativ `window.confirm` | modal explicit cu impactul generării din istoric |
 | Achiziții / PAAP | anularea pozițiilor folosea dialog nativ și mesaj scurt | confirmare în stil aplicație, cu precizarea că anularea rămâne în audit |
 
+## Probleme remediate în UPDATE 423
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| UI comun | confirmările nu puteau cere motiv auditat | `ConfirmDialog` acceptă câmp de motiv, default și validare minimă |
+| Contracte | lifecycle-ul contractului folosea `window.prompt/window.confirm` | închidere, redeschidere, anulare și reactivare prin dialog ERP |
+| Contracte | închiderea cu blocaje cerea confirmare nativă greu de citit | pas dedicat pentru forțare, cu lista blocajelor afișată în modal |
+| Contracte | anularea actelor adiționale și atașamentelor folosea prompt nativ | motiv obligatoriu în modal, cu păstrare în audit |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -104,7 +114,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
-| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP; continuă pe modulele active |
+| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP și continuat în UPDATE 423 pentru Contracte |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |

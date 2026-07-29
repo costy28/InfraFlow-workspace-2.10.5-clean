@@ -1,5 +1,5 @@
 {
-  "version": "2.12.402",
+  "version": "2.12.403",
   "date": "2026-07-29",
-  "changelog": "## v2.12.402 - 2026-07-29\n### Confirmări UX PAAP fără dialoguri native\n- A fost adăugat dialogul reutilizabil ConfirmDialog pentru confirmări critice în stil InfraFlow.\n- Achiziții / PAAP folosește confirmări clare pentru generarea planului din istoric și anularea pozițiilor.\n- Dialogurile explică impactul acțiunii și afișează stare de încărcare până la finalizarea operațiunii.\n- Primul pas din curățarea window.confirm/window.prompt/window.alert este documentat în audit."
+  "changelog": "## v2.12.403 - 2026-07-29\n### Confirmări UX contracte cu motiv auditat\n- ConfirmDialog suportă acum motiv auditat opțional, cu validare minimă.\n- Modulul Contracte nu mai folosește window.prompt/window.confirm pentru lifecycle contract, acte adiționale și atașamente.\n- Închiderea cu blocaje deschide un pas de confirmare forțată, cu blocajele afișate explicit.\n- Auditul UX marchează contractele ca a doua felie curățată din dialogurile native."
 }

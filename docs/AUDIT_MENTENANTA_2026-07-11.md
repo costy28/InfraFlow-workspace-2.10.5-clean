@@ -1172,3 +1172,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/AchizitiiPage.jsx` — ✅ anularea poziției PAAP explică impactul și păstrează fluxul de audit;
 - `docs/AUDIT_COMPLET_2026-07-28.md` — ✅ auditul marchează primul pas din curățarea dialogurilor native;
 - `updates/UPDATE_422_confirmari_ux_paap.md` — ✅ documentație update și verificări.
+
+### UPDATE 423 — Confirmări UX contracte cu motiv auditat
+
+- `client/src/components/ui/ConfirmDialog.jsx` — ✅ suport opțional pentru motiv auditat, default și validare minimă;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ închidere/redeschidere/anulare/reactivare contract fără `window.prompt/window.confirm`;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ închiderea cu blocaje deschide confirmare forțată cu lista blocajelor;
+- `client/src/pages/modules/ContractePage.jsx` — ✅ anulare acte adiționale și atașamente prin dialog ERP cu motiv obligatoriu;
+- `updates/UPDATE_423_confirmari_ux_contracte.md` — ✅ documentație update și verificări.

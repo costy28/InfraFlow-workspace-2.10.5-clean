@@ -3,6 +3,7 @@ import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
 import PageHeader from '../../components/ui/PageHeader'
@@ -276,6 +277,7 @@ export default function ContractePage() {
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [portfolioFilters, setPortfolioFilters] = useState(emptyPortfolioFilters)
+  const [confirmAction, setConfirmAction] = useState(null)
 
   const riskByContractId = useMemo(() => {
     const map = new Map()
@@ -983,23 +985,25 @@ export default function ContractePage() {
     }
   }
 
-  async function cancelAddendum(item) {
+  function cancelAddendum(item) {
     if (!contractDetails?.id || !item?.id) return
-    const reason = window.prompt('Motiv anulare act adițional:', 'Corectat prin act adițional nou')
-    if (reason === null) return
-    setSaving(true)
-    setError('')
-    setNotice('')
-    try {
-      const response = await api.delete(`/contracts/${contractDetails.id}/addenda/${item.id}`, { data: { reason } })
-      setContractDetails(response.data.contract || contractDetails)
-      setNotice(response.data.note || 'Actul adițional a fost anulat din istoric.')
-      await load()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Actul adițional nu a putut fi anulat.')
-    } finally {
-      setSaving(false)
-    }
+    setConfirmAction({
+      title: 'Anulează act adițional',
+      message: `Anulezi actul adițional ${item.numar || item.id}?`,
+      details: 'Înregistrarea rămâne în istoricul contractului pentru audit.',
+      confirmLabel: 'Anulează actul',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Corectat prin act adițional nou',
+      reasonRequired: true,
+      minReasonLength: 5,
+      run: async reason => {
+        const response = await api.delete(`/contracts/${contractDetails.id}/addenda/${item.id}`, { data: { reason } })
+        setContractDetails(response.data.contract || contractDetails)
+        setNotice(response.data.note || 'Actul adițional a fost anulat din istoric.')
+        await load()
+      },
+    })
   }
 
   async function downloadAttachment(item) {
@@ -1017,22 +1021,25 @@ export default function ContractePage() {
     }
   }
 
-  async function cancelAttachment(item) {
+  function cancelAttachment(item) {
     if (!contractDetails?.id || !item?.id) return
-    const reason = window.prompt('Motiv anulare atașament:', 'Înlocuit / încărcat greșit')
-    if (reason === null) return
-    setSaving(true)
-    setError('')
-    try {
-      const response = await api.delete(`/contracts/${contractDetails.id}/attachments/${item.id}`, { data: { reason } })
-      setContractDetails(response.data.contract || contractDetails)
-      setNotice('Atașamentul a fost anulat din dosarul contractului.')
-      await load()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Atașamentul nu a putut fi anulat.')
-    } finally {
-      setSaving(false)
-    }
+    setConfirmAction({
+      title: 'Anulează atașament',
+      message: `Anulezi atașamentul ${item.original_name || item.file_name || item.id}?`,
+      details: 'Fișierul nu mai apare ca activ în dosar, dar rămâne trasabil în istoricul contractului.',
+      confirmLabel: 'Anulează atașamentul',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Înlocuit / încărcat greșit',
+      reasonRequired: true,
+      minReasonLength: 5,
+      run: async reason => {
+        const response = await api.delete(`/contracts/${contractDetails.id}/attachments/${item.id}`, { data: { reason } })
+        setContractDetails(response.data.contract || contractDetails)
+        setNotice('Atașamentul a fost anulat din dosarul contractului.')
+        await load()
+      },
+    })
   }
 
   async function saveContract(event) {
@@ -1188,11 +1195,45 @@ export default function ContractePage() {
     }
   }
 
-  async function closeContract(force = false, previousReason = '') {
+  function closeContract(force = false, previousReason = '') {
     if (!contractDetails?.id) return
     const defaultReason = previousReason || 'Contract finalizat și verificat operațional'
-    const reason = window.prompt(force ? 'Motiv închidere forțată contract:' : 'Motiv închidere contract:', defaultReason)
-    if (reason === null) return
+    setConfirmAction({
+      title: force ? 'Închidere forțată contract' : 'Închide contract',
+      message: force ? 'Forțezi închiderea contractului cu blocajele păstrate în audit?' : 'Confirmi închiderea controlată a contractului?',
+      details: force
+        ? 'Folosește această opțiune doar când blocajele sunt cunoscute și asumate.'
+        : 'Contractul trece în status închis și nu mai intră în fluxurile active curente.',
+      confirmLabel: force ? 'Închide forțat' : 'Închide contract',
+      tone: force ? 'danger' : 'warning',
+      reasonLabel: force ? 'Motiv închidere forțată' : 'Motiv închidere',
+      reasonDefault: defaultReason,
+      reasonRequired: true,
+      minReasonLength: 5,
+      run: reason => closeContractRequest(reason, force),
+      onError: async (err, reason) => {
+        const readiness = err.response?.data?.readiness
+        if (err.response?.status === 409 && readiness?.blockers?.length) {
+          setConfirmAction({
+            title: 'Forțează închiderea contractului',
+            message: 'Contractul are blocaje înainte de închidere.',
+            details: `Blocaje găsite:\n- ${readiness.blockers.join('\n- ')}\n\nDacă mergi mai departe, blocajele rămân în audit.`,
+            confirmLabel: 'Forțează închiderea',
+            tone: 'danger',
+            reasonLabel: 'Motiv închidere forțată',
+            reasonDefault: reason || defaultReason,
+            reasonRequired: true,
+            minReasonLength: 5,
+            run: forceReason => closeContractRequest(forceReason, true),
+          })
+          return true
+        }
+        return false
+      },
+    })
+  }
+
+  async function closeContractRequest(reason, force = false) {
     setSaving(true)
     setError('')
     setNotice('')
@@ -1201,75 +1242,87 @@ export default function ContractePage() {
       setContractDetails(response.data.contract || contractDetails)
       setNotice(response.data?.forced ? 'Contractul a fost închis forțat, cu blocajele păstrate în audit.' : 'Contractul a fost închis controlat.')
       await load()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function reopenContract() {
+    if (!contractDetails?.id) return
+    setConfirmAction({
+      title: 'Redeschide contract',
+      message: 'Redeschizi contractul pentru documente sau corecții ulterioare?',
+      details: 'Contractul reintră în lucru controlat, cu motiv păstrat în istoric.',
+      confirmLabel: 'Redeschide',
+      tone: 'warning',
+      reasonLabel: 'Motiv redeschidere',
+      reasonDefault: 'Contract redeschis pentru documente sau corecții ulterioare',
+      reasonRequired: true,
+      minReasonLength: 5,
+      run: async reason => {
+        const response = await api.post(`/contracts/${contractDetails.id}/reopen`, { reason })
+        setContractDetails(response.data.contract || contractDetails)
+        setNotice('Contractul a fost redeschis controlat.')
+        await load()
+      },
+    })
+  }
+
+  function cancelContract() {
+    if (!contractDetails?.id) return
+    setConfirmAction({
+      title: 'Anulează contract',
+      message: 'Confirmi anularea contractului?',
+      details: 'Contractul rămâne în dosar, dar nu mai intră în fluxurile active.',
+      confirmLabel: 'Anulează contractul',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Contract anulat prin decizie operațională',
+      reasonRequired: true,
+      minReasonLength: 5,
+      run: async reason => {
+        const response = await api.post(`/contracts/${contractDetails.id}/cancel`, { reason })
+        setContractDetails(response.data.contract || contractDetails)
+        setNotice('Contractul a fost anulat controlat și rămâne disponibil în dosar.')
+        await load()
+      },
+    })
+  }
+
+  function reactivateContract() {
+    if (!contractDetails?.id) return
+    setConfirmAction({
+      title: 'Reactivează contract',
+      message: 'Confirmi reactivarea contractului?',
+      details: 'Contractul reintră în fluxurile active și devine disponibil pentru consum, task-uri și alerte.',
+      confirmLabel: 'Reactivează',
+      tone: 'warning',
+      reasonLabel: 'Motiv reactivare',
+      reasonDefault: 'Contract reactivat după verificare operațională',
+      reasonRequired: true,
+      minReasonLength: 5,
+      run: async reason => {
+        const response = await api.post(`/contracts/${contractDetails.id}/reactivate`, { reason })
+        setContractDetails(response.data.contract || contractDetails)
+        setNotice('Contractul a fost reactivat controlat.')
+        await load()
+      },
+    })
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      await confirmAction.run(reason)
+      setConfirmAction(null)
     } catch (err) {
-      const readiness = err.response?.data?.readiness
-      if (err.response?.status === 409 && readiness?.blockers?.length) {
-        const message = `Există blocaje:\n- ${readiness.blockers.join('\n- ')}\n\nVrei să forțezi închiderea cu motiv auditat?`
-        if (window.confirm(message)) {
-          await closeContract(true, reason)
-          return
-        }
+      const handled = await confirmAction.onError?.(err, reason)
+      if (!handled) {
+        setError(err.response?.data?.error || err.message || 'Acțiunea nu a putut fi executată.')
       }
-      setError(err.response?.data?.error || 'Contractul nu a putut fi închis.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function reopenContract() {
-    if (!contractDetails?.id) return
-    const reason = window.prompt('Motiv redeschidere contract:', 'Contract redeschis pentru documente sau corecții ulterioare')
-    if (reason === null) return
-    setSaving(true)
-    setError('')
-    setNotice('')
-    try {
-      const response = await api.post(`/contracts/${contractDetails.id}/reopen`, { reason })
-      setContractDetails(response.data.contract || contractDetails)
-      setNotice('Contractul a fost redeschis controlat.')
-      await load()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Contractul nu a putut fi redeschis.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function cancelContract() {
-    if (!contractDetails?.id) return
-    const reason = window.prompt('Motiv anulare contract:', 'Contract anulat prin decizie operațională')
-    if (reason === null) return
-    if (!window.confirm('Confirmi anularea contractului? Contractul rămâne în dosar, dar nu mai intră în fluxurile active.')) return
-    setSaving(true)
-    setError('')
-    setNotice('')
-    try {
-      const response = await api.post(`/contracts/${contractDetails.id}/cancel`, { reason })
-      setContractDetails(response.data.contract || contractDetails)
-      setNotice('Contractul a fost anulat controlat și rămâne disponibil în dosar.')
-      await load()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Contractul nu a putut fi anulat.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function reactivateContract() {
-    if (!contractDetails?.id) return
-    const reason = window.prompt('Motiv reactivare contract:', 'Contract reactivat după verificare operațională')
-    if (reason === null) return
-    if (!window.confirm('Confirmi reactivarea contractului? Contractul va reintra în fluxurile active.')) return
-    setSaving(true)
-    setError('')
-    setNotice('')
-    try {
-      const response = await api.post(`/contracts/${contractDetails.id}/reactivate`, { reason })
-      setContractDetails(response.data.contract || contractDetails)
-      setNotice('Contractul a fost reactivat controlat.')
-      await load()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Contractul nu a putut fi reactivat.')
     } finally {
       setSaving(false)
     }
@@ -2643,6 +2696,24 @@ export default function ContractePage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel={confirmAction?.cancelLabel}
+        tone={confirmAction?.tone}
+        loading={saving}
+        reasonLabel={confirmAction?.reasonLabel}
+        reasonDefault={confirmAction?.reasonDefault}
+        reasonPlaceholder={confirmAction?.reasonPlaceholder}
+        reasonRequired={confirmAction?.reasonRequired}
+        minReasonLength={confirmAction?.minReasonLength}
+        onCancel={() => !saving && setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

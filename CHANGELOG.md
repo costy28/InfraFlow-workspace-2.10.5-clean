@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.403 - 2026-07-29
+
+## Confirmări UX contracte cu motiv auditat
+
+- `ConfirmDialog` suportă acum câmp opțional de motiv auditat, cu validare minimă.
+- Contractele nu mai folosesc `window.prompt/window.confirm` pentru închidere, redeschidere, anulare sau reactivare.
+- Anularea actelor adiționale și a atașamentelor folosește dialog ERP cu motiv obligatoriu.
+- Închiderea contractului cu blocaje deschide un pas dedicat de confirmare forțată, cu blocajele afișate explicit.
+
 # v2.12.402 - 2026-07-29
 
 ## Confirmări UX PAAP fără dialoguri native
