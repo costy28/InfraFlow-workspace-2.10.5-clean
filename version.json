@@ -1,5 +1,5 @@
 {
-  "version": "2.12.406",
+  "version": "2.12.407",
   "date": "2026-07-29",
-  "changelog": "## v2.12.406 - 2026-07-29\n### Confirmări UX HR\n- HR nu mai folosește dialoguri native pentru flux angajat, ore suplimentare, ture, evaluări, pontaj și concedii medicale.\n- Devalidarea și blocarea/deblocarea pontajului folosesc dialog ERP cu motiv auditat.\n- Dosarul electronic al angajatului folosește dialog ERP pentru anularea documentelor.\n- Mesajele de succes sunt afișate în pagina HR, nu prin window.alert."
+  "changelog": "## v2.12.407 - 2026-07-29\n### Confirmări UX Salarizare\n- Salarizarea nu mai folosește window.prompt/window.confirm pentru acțiunile critice.\n- Devalidarea și rectificarea statului salarial folosesc dialog ERP cu motiv auditat.\n- Plățile salariale, obligațiile bugetare și stornările sunt confirmate explicit.\n- Anularea ajustărilor salariale cere motiv și păstrează aceeași rută API."
 }

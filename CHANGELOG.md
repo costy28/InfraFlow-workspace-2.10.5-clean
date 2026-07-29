@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.407 - 2026-07-29
+
+## Confirmări UX Salarizare
+
+- `Salarizare.jsx` nu mai folosește `window.prompt/window.confirm` pentru acțiunile critice.
+- Devalidarea și rectificarea statului salarial folosesc `ConfirmDialog` cu motiv auditat.
+- Înregistrarea plății salariilor, plata obligațiilor bugetare și stornările au confirmări explicite.
+- Anularea ajustărilor salariale cere motiv în dialog ERP și păstrează aceeași rută API.
+
 # v2.12.406 - 2026-07-29
 
 ## Confirmări UX HR

@@ -6,6 +6,7 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatMoney } from '../../utils/format'
 import { AccountingShell, DropdownMenu, Info, Table, currentMonth, statusTone } from './accounting-shared'
 
@@ -34,8 +35,25 @@ export default function Salarizare() {
   const [sourceDetails, setSourceDetails] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
 
   useEffect(() => { load() }, [month])
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      setMessage('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
 
   async function load() {
     try {
@@ -76,8 +94,22 @@ export default function Salarizare() {
   }
 
   async function devalidate() {
-    const motiv = window.prompt('Motivul devalidarii:')
-    if (!motiv) return
+    setConfirmAction({
+      title: 'Devalidează stat salarial',
+      message: `Redeschizi statul salarial pentru ${month}?`,
+      details: 'Statul validat va reveni la stadiu editabil. Motivul este necesar pentru audit.',
+      confirmLabel: 'Devalidează',
+      tone: 'danger',
+      reasonLabel: 'Motiv devalidare',
+      reasonPlaceholder: 'Ex.: corecție pontaj, contract actualizat...',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Statul salarial nu a putut fi devalidat.',
+      run: motiv => devalidateRequest(motiv),
+    })
+  }
+
+  async function devalidateRequest(motiv) {
     try {
       setError(''); setMessage('')
       await api.post(`/hr/payroll/${data.run.id}/devalidate`, { motiv })
@@ -87,8 +119,22 @@ export default function Salarizare() {
   }
 
   async function createCorrective() {
-    const motiv = window.prompt('Motivul rectificarii statului salarial:')
-    if (!motiv) return
+    setConfirmAction({
+      title: 'Creează stat rectificativ',
+      message: `Creezi stat rectificativ pentru ${month}?`,
+      details: 'Originalul rămâne în istoric, iar noul stat pornește ca draft.',
+      confirmLabel: 'Creează rectificativ',
+      tone: 'warning',
+      reasonLabel: 'Motiv rectificare',
+      reasonPlaceholder: 'Ex.: diferențe identificate după validare...',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Statul rectificativ nu a putut fi creat.',
+      run: motiv => createCorrectiveRequest(motiv),
+    })
+  }
+
+  async function createCorrectiveRequest(motiv) {
     try {
       await api.post(`/hr/payroll/${data.run.id}/corrective`, { motiv })
       setMessage('Statul rectificativ a fost creat ca draft. Originalul ramane in istoric.')
@@ -174,7 +220,18 @@ export default function Salarizare() {
   }
 
   async function payPayroll() {
-    if (!window.confirm(`Înregistrezi plata netă de ${formatMoney(data.run.total_net)} în trezorerie?`)) return
+    setConfirmAction({
+      title: 'Înregistrează plata salariilor',
+      message: `Înregistrezi plata netă de ${formatMoney(data.run.total_net)} în trezorerie?`,
+      details: 'Operațiunea va marca plata în trezorerie și în contul 421.',
+      confirmLabel: 'Înregistrează plata',
+      tone: 'success',
+      errorMessage: 'Plata salariilor nu a putut fi înregistrată.',
+      run: payPayrollRequest,
+    })
+  }
+
+  async function payPayrollRequest() {
     try {
       await api.post(`/hr/payroll/${data.run.id}/pay`, { profile_id: selectedBankId, data: new Date().toISOString().slice(0, 10) })
       setMessage('Plata salariilor a fost înregistrată în trezorerie și în contul 421.')
@@ -183,8 +240,22 @@ export default function Salarizare() {
   }
 
   async function reversePayment() {
-    const motiv = window.prompt('Motivul stornării plății:')
-    if (!motiv) return
+    setConfirmAction({
+      title: 'Stornează plata salarială',
+      message: 'Stornezi plata salarială înregistrată?',
+      details: 'Operațiunea creează inversarea controlată a plății. Motivul rămâne în audit.',
+      confirmLabel: 'Stornează plata',
+      tone: 'danger',
+      reasonLabel: 'Motiv stornare',
+      reasonPlaceholder: 'Ex.: plată introdusă greșit...',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Plata nu a putut fi stornată.',
+      run: motiv => reversePaymentRequest(motiv),
+    })
+  }
+
+  async function reversePaymentRequest(motiv) {
     try {
       await api.post(`/hr/payroll/${data.run.id}/reverse-payment`, { motiv })
       setMessage('Plata salarială a fost stornată controlat.')
@@ -193,8 +264,22 @@ export default function Salarizare() {
   }
 
   async function reverseAccounting() {
-    const motiv = window.prompt('Motivul stornării notei contabile:')
-    if (!motiv) return
+    setConfirmAction({
+      title: 'Stornează nota contabilă',
+      message: 'Stornezi nota contabilă salarială?',
+      details: 'Nota storno va păstra legătura cu statul salarial și cu nota inițială.',
+      confirmLabel: 'Stornează nota',
+      tone: 'danger',
+      reasonLabel: 'Motiv stornare',
+      reasonPlaceholder: 'Ex.: stat salarial rectificat...',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Nota contabilă nu a putut fi stornată.',
+      run: motiv => reverseAccountingRequest(motiv),
+    })
+  }
+
+  async function reverseAccountingRequest(motiv) {
     try {
       await api.post(`/hr/payroll/${data.run.id}/reverse-accounting`, { motiv })
       setMessage('Nota contabilă salarială a fost stornată.')
@@ -222,7 +307,18 @@ export default function Salarizare() {
   }
 
   async function payObligation(order) {
-    if (!window.confirm(`Înregistrezi plata ${order.code} de ${formatMoney(order.amount)}?`)) return
+    setConfirmAction({
+      title: 'Înregistrează obligație salarială',
+      message: `Înregistrezi plata ${order.code} de ${formatMoney(order.amount)}?`,
+      details: 'Plata va fi marcată în trezorerie pentru ordinul selectat.',
+      confirmLabel: 'Înregistrează plata',
+      tone: 'success',
+      errorMessage: 'Ordinul nu a putut fi înregistrat.',
+      run: () => payObligationRequest(order),
+    })
+  }
+
+  async function payObligationRequest(order) {
     try {
       await api.post(`/hr/payroll/${data.run.id}/obligations/${order.id}/pay`, { profile_id: selectedBankId, data: new Date().toISOString().slice(0, 10) })
       setMessage(`${order.code} a fost înregistrat în trezorerie.`)
@@ -231,8 +327,22 @@ export default function Salarizare() {
   }
 
   async function reverseObligation(order) {
-    const motiv = window.prompt(`Motivul stornării ${order.code}:`)
-    if (!motiv) return
+    setConfirmAction({
+      title: 'Stornează obligație salarială',
+      message: `Stornezi plata ${order.code}?`,
+      details: `Suma: ${formatMoney(order.amount)}. Motivul stornării va fi salvat pentru audit.`,
+      confirmLabel: 'Stornează',
+      tone: 'danger',
+      reasonLabel: `Motiv stornare ${order.code}`,
+      reasonPlaceholder: 'Ex.: ordin plătit eronat...',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Ordinul nu a putut fi stornat.',
+      run: motiv => reverseObligationRequest(order, motiv),
+    })
+  }
+
+  async function reverseObligationRequest(order, motiv) {
     try {
       await api.post(`/hr/payroll/${data.run.id}/obligations/${order.id}/reverse`, { motiv })
       setMessage(`${order.code} a fost stornat.`)
@@ -252,9 +362,24 @@ export default function Salarizare() {
   }
 
   async function cancelAdjustment(item) {
-    if (!window.confirm('Anulezi ajustarea salariala?')) return
+    setConfirmAction({
+      title: 'Anulează ajustare salarială',
+      message: 'Anulezi ajustarea salarială selectată?',
+      details: `${item.tip?.replaceAll('_', ' ') || 'ajustare'} · ${formatMoney(item.amount || 0)}`,
+      confirmLabel: 'Anulează ajustarea',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Anulare din salarizare',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Ajustarea nu a putut fi anulata.',
+      run: motiv => cancelAdjustmentRequest(item, motiv),
+    })
+  }
+
+  async function cancelAdjustmentRequest(item, motiv) {
     try {
-      await api.delete(`/hr/payroll/adjustments/${item.id}`, { data: { motiv: 'Anulare din salarizare' } })
+      await api.delete(`/hr/payroll/adjustments/${item.id}`, { data: { motiv } })
       setMessage('Ajustarea a fost anulata.')
       load()
     } catch (err) { setError(err.response?.data?.error || 'Ajustarea nu a putut fi anulata.') }
@@ -394,6 +519,24 @@ export default function Salarizare() {
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setSettingsOpen(false)}>Renunta</Button><Button type="submit">Salveaza profil</Button></div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel={confirmAction?.cancelLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        reasonLabel={confirmAction?.reasonLabel}
+        reasonDefault={confirmAction?.reasonDefault}
+        reasonPlaceholder={confirmAction?.reasonPlaceholder}
+        reasonRequired={confirmAction?.reasonRequired}
+        minReasonLength={confirmAction?.minReasonLength}
+        onConfirm={runConfirmAction}
+        onCancel={() => setConfirmAction(null)}
+      />
     </AccountingShell>
   )
 }

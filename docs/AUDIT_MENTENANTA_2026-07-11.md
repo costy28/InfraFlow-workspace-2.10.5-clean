@@ -1203,3 +1203,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/HRPage.jsx` — ✅ respingere certificat medical și confirmare trimitere salarizare fără `window.prompt/window.alert`;
 - `client/src/pages/modules/hr/HREmployeeFilesTab.jsx` — ✅ anulare document dosar angajat prin dialog ERP cu motiv obligatoriu;
 - `updates/UPDATE_426_confirmari_ux_hr.md` — ✅ documentație update și verificări.
+
+### UPDATE 427 — Confirmări UX Salarizare
+
+- `client/src/pages/accounting/Salarizare.jsx` — ✅ devalidare și rectificare stat salarial prin `ConfirmDialog` cu motiv auditat;
+- `client/src/pages/accounting/Salarizare.jsx` — ✅ înregistrare plăți salarii și obligații bugetare prin confirmări ERP explicite;
+- `client/src/pages/accounting/Salarizare.jsx` — ✅ stornări plată/notă/obligații cu motiv obligatoriu în dialog;
+- `client/src/pages/accounting/Salarizare.jsx` — ✅ anulare ajustări salariale cu motiv editabil și aceeași rută API;
+- `updates/UPDATE_427_confirmari_ux_salarizare.md` — ✅ documentație update și verificări.
