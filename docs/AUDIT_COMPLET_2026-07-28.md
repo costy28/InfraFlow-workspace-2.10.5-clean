@@ -157,7 +157,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
-| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte, UPDATE 424 pentru Setări, UPDATE 425 pentru Gestiune, UPDATE 426 pentru HR și UPDATE 427 pentru Salarizare |
+| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte, UPDATE 424 pentru Setări, UPDATE 425 pentru Gestiune, UPDATE 426 pentru HR, UPDATE 427 pentru Salarizare și UPDATE 428 pentru Facturi/Registru jurnal |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |

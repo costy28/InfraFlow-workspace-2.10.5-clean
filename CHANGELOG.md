@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.408 - 2026-07-29
+
+## Confirmări UX Facturi și Registru jurnal
+
+- `FacturiContab.jsx` nu mai folosește `window.confirm` pentru stornare sau anulare draft.
+- Anularea facturilor draft cere motiv auditat în dialog ERP.
+- `RegistruJurnal.jsx` folosește `ConfirmDialog` pentru devalidare, anulare draft și creare storno.
+- Acțiunile contabile critice explică impactul înainte de confirmare, fără schimbări de API.
+
 # v2.12.407 - 2026-07-29
 
 ## Confirmări UX Salarizare

@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
@@ -36,6 +37,8 @@ export function FacturiContab({ direction = 'in' }) {
   const [message, setMessage] = useState('')
   const [validatedJournal, setValidatedJournal] = useState(null)
   const [actionLoading, setActionLoading] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const emptyLine = () => ({ denumire: '', cont: isIn ? '628' : '704', valoare: '', tva_procent: 21 })
   const [form, setForm] = useState({ data: today(), valoare: '', tva_procent: 21, cont_cheltuiala: '628', cont_venit: '704', contract_id: '', lines: [emptyLine()] })
   const endpoint = isIn ? '/accounting/invoices-in' : '/accounting/invoices-out'
@@ -63,6 +66,23 @@ export function FacturiContab({ direction = 'in' }) {
     setQ(searchParams.get('q') || '')
   }, [direction, searchParams])
   useEffect(() => { load().catch(() => {}) }, [direction, month, status, tertFilter])
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      setMessage('')
+      setValidatedJournal(null)
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(errorText(err, confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.'))
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
+
   const invoiceLines = Array.isArray(form.lines) ? form.lines : []
   const thirdPartyById = useMemo(() => new Map(thirdParties.map(tert => [String(tert.id), tert])), [thirdParties])
   const visibleRows = useMemo(() => {
@@ -249,7 +269,18 @@ export function FacturiContab({ direction = 'in' }) {
     finally { setActionLoading('') }
   }
   async function storno(row) {
-    if (!window.confirm('Stornezi documentul selectat?')) return
+    setConfirmAction({
+      title: 'Stornează factura',
+      message: `Stornezi documentul ${row.nr_document || row.numar || row.id}?`,
+      details: 'Factura și nota contabilă legată vor primi document storno. Operațiunea este permisă doar dacă luna este deschisă.',
+      confirmLabel: 'Stornează',
+      tone: 'danger',
+      errorMessage: 'Factura nu a putut fi stornată. Verifică dacă există nota contabilă și luna este deschisă.',
+      run: () => stornoRequest(row),
+    })
+  }
+
+  async function stornoRequest(row) {
     setActionLoading(`storno-${row.uuid}`)
     try {
       setError('')
@@ -304,13 +335,28 @@ export function FacturiContab({ direction = 'in' }) {
     }
   }
   async function cancelDraft(row) {
-    if (!window.confirm('Anulezi documentul draft selectat?')) return
+    setConfirmAction({
+      title: 'Anulează factură draft',
+      message: `Anulezi documentul draft ${row.nr_document || row.numar || row.id}?`,
+      details: 'Documentul draft va fi marcat anulat. Pentru documente validate folosește devalidare sau storno.',
+      confirmLabel: 'Anulează draft',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Anulare document draft',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Factura nu a putut fi anulată. Doar documentele draft se pot anula direct.',
+      run: motiv => cancelDraftRequest(row, motiv),
+    })
+  }
+
+  async function cancelDraftRequest(row, motiv) {
     setActionLoading(`cancel-${row.uuid}`)
     try {
       setError('')
       setMessage('')
       setValidatedJournal(null)
-      await api.delete(`${endpoint}/${row.uuid}`, { data: { motiv: 'Anulare document draft' } })
+      await api.delete(`${endpoint}/${row.uuid}`, { data: { motiv } })
       setMessage('Factura draft a fost anulată.')
       await load()
     } catch (err) {
@@ -670,6 +716,23 @@ export function FacturiContab({ direction = 'in' }) {
           </div>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel={confirmAction?.cancelLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        reasonLabel={confirmAction?.reasonLabel}
+        reasonDefault={confirmAction?.reasonDefault}
+        reasonPlaceholder={confirmAction?.reasonPlaceholder}
+        reasonRequired={confirmAction?.reasonRequired}
+        minReasonLength={confirmAction?.minReasonLength}
+        onConfirm={runConfirmAction}
+        onCancel={() => setConfirmAction(null)}
+      />
     </AccountingShell>
   )
 }

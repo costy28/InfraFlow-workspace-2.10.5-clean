@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
@@ -25,6 +26,8 @@ export function RegistruJurnal() {
   const [importFile, setImportFile] = useState(null)
   const [importPreview, setImportPreview] = useState(null)
   const [importing, setImporting] = useState(false)
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const importInputRef = useRef(null)
   const selected = rows.find(row => row.uuid === selectedUuid) || rows[0] || null
   const difference = selected ? Math.abs(money(selected.total_debit) - money(selected.total_credit)) : 0
@@ -47,6 +50,21 @@ export function RegistruJurnal() {
     if (rows.length && !rows.some(row => row.uuid === selectedUuid)) setSelectedUuid(rows[0].uuid)
     if (!rows.length) setSelectedUuid('')
   }, [rows, selectedUuid])
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      setMessage('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
 
   function load() {
     const [an, luna] = month.split('-')
@@ -155,8 +173,22 @@ export function RegistruJurnal() {
   }
 
   async function devalidateNote(row) {
-    const motiv = window.prompt('Motiv devalidare nota:', 'Corectie nota manuala')
-    if (motiv === null) return
+    setConfirmAction({
+      title: 'Devalidează nota contabilă',
+      message: `Devalidezi nota ${row.nr_document || `NC ${row.id}`}?`,
+      details: 'Nota nu va mai intra în balanță până la revalidare. Motivul rămâne în audit.',
+      confirmLabel: 'Devalidează',
+      tone: 'danger',
+      reasonLabel: 'Motiv devalidare',
+      reasonDefault: 'Corectie nota manuala',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Nota nu a putut fi devalidata. Verifica daca luna este deschisa.',
+      run: motiv => devalidateNoteRequest(row, motiv),
+    })
+  }
+
+  async function devalidateNoteRequest(row, motiv) {
     try {
       setError('')
       setMessage('')
@@ -169,11 +201,26 @@ export function RegistruJurnal() {
   }
 
   async function cancelDraftNote(row) {
-    if (!window.confirm('Anulezi nota draft selectata?')) return
+    setConfirmAction({
+      title: 'Anulează nota draft',
+      message: `Anulezi nota draft ${row.nr_document || `NC ${row.id}`}?`,
+      details: 'Nota va fi marcată anulat și nu va intra în registru/balanță.',
+      confirmLabel: 'Anulează draft',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Anulare nota draft',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Nota draft nu a putut fi anulata.',
+      run: motiv => cancelDraftNoteRequest(row, motiv),
+    })
+  }
+
+  async function cancelDraftNoteRequest(row, motiv) {
     try {
       setError('')
       setMessage('')
-      await api.delete(`/accounting/journals/${row.uuid}`, { data: { motiv: 'Anulare nota draft' } })
+      await api.delete(`/accounting/journals/${row.uuid}`, { data: { motiv } })
       setMessage('Nota draft a fost anulata.')
       load()
     } catch (err) {
@@ -182,7 +229,18 @@ export function RegistruJurnal() {
   }
 
   async function storno(row) {
-    if (!window.confirm('Creezi nota storno pentru nota selectata?')) return
+    setConfirmAction({
+      title: 'Creează nota storno',
+      message: `Creezi nota storno pentru ${row.nr_document || `NC ${row.id}`}?`,
+      details: 'Se va genera o notă inversă legată de nota contabilă selectată.',
+      confirmLabel: 'Creează storno',
+      tone: 'warning',
+      errorMessage: 'Nota storno nu a putut fi creata.',
+      run: () => stornoRequest(row),
+    })
+  }
+
+  async function stornoRequest(row) {
     try {
       setError('')
       await api.post(`/accounting/journals/${row.uuid}/storno`)
@@ -465,6 +523,23 @@ export function RegistruJurnal() {
           </div>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel={confirmAction?.cancelLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        reasonLabel={confirmAction?.reasonLabel}
+        reasonDefault={confirmAction?.reasonDefault}
+        reasonPlaceholder={confirmAction?.reasonPlaceholder}
+        reasonRequired={confirmAction?.reasonRequired}
+        minReasonLength={confirmAction?.minReasonLength}
+        onConfirm={runConfirmAction}
+        onCancel={() => setConfirmAction(null)}
+      />
     </AccountingShell>
   )
 }

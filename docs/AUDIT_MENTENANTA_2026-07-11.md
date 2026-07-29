@@ -1211,3 +1211,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/accounting/Salarizare.jsx` — ✅ stornări plată/notă/obligații cu motiv obligatoriu în dialog;
 - `client/src/pages/accounting/Salarizare.jsx` — ✅ anulare ajustări salariale cu motiv editabil și aceeași rută API;
 - `updates/UPDATE_427_confirmari_ux_salarizare.md` — ✅ documentație update și verificări.
+
+### UPDATE 428 — Confirmări UX Facturi și Registru jurnal
+
+- `client/src/pages/accounting/FacturiContab.jsx` — ✅ stornare factură și anulare draft prin `ConfirmDialog`, fără `window.confirm`;
+- `client/src/pages/accounting/FacturiContab.jsx` — ✅ anularea draftului cere motiv auditat și păstrează aceeași rută API;
+- `client/src/pages/accounting/RegistruJurnal.jsx` — ✅ devalidare notă contabilă prin dialog ERP cu motiv obligatoriu;
+- `client/src/pages/accounting/RegistruJurnal.jsx` — ✅ anulare draft și creare storno prin confirmări explicite;
+- `updates/UPDATE_428_confirmari_ux_facturi_registru_jurnal.md` — ✅ documentație update și verificări.
