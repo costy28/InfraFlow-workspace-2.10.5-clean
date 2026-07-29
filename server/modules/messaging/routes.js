@@ -1,6 +1,7 @@
 const { Router } = require('express')
+const crypto = require('crypto')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, effectivePermissionsForUser } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { sendEmail, getEmailSettings } = require('./email')
@@ -9,12 +10,46 @@ const { syncIncomingEmails, publicEmailSyncStatus } = require('./email-sync')
 const router = Router()
 
 const sseClients = new Map()
+const sseTickets = new Map()
+const SSE_TICKET_TTL_MS = 8 * 60 * 60 * 1000
 let mssqlMessagingDisabled = false
 
 function notifyUser(userId, event, data) {
   const clients = sseClients.get(userId) || []
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
   clients.forEach(res => res.write(payload))
+}
+
+function cleanupSseTickets(now = Date.now()) {
+  for (const [ticket, meta] of sseTickets.entries()) {
+    if (!meta?.expiresAt || meta.expiresAt <= now) sseTickets.delete(ticket)
+  }
+}
+
+function issueSseTicket(auth) {
+  cleanupSseTickets()
+  const ticket = `sse_${crypto.randomBytes(24).toString('hex')}`
+  sseTickets.set(ticket, {
+    userId: auth.user.id,
+    issuedAt: Date.now(),
+    expiresAt: Date.now() + SSE_TICKET_TTL_MS,
+  })
+  return ticket
+}
+
+function authFromSseTicket(req, res) {
+  const ticket = String(req.query?.sse || '').trim()
+  if (!ticket) return requireAuth(req, res)
+  cleanupSseTickets()
+  const meta = sseTickets.get(ticket)
+  if (!meta) return sendJson(res, 401, { error: 'Tichetul pentru notificări live a expirat.' })
+  const db = readDb()
+  const user = db.users.find(item => String(item.id) === String(meta.userId))
+  if (!user || user.active === false || user.active === 0) {
+    sseTickets.delete(ticket)
+    return sendJson(res, 401, { error: 'Sesiune notificări invalidă.' })
+  }
+  return { db, user, token: null, permissions: effectivePermissionsForUser(user, db) }
 }
 
 function sendJson(res, status, data) {
@@ -528,8 +563,17 @@ FOR JSON PATH;
 `, { channelId, userId })[0] || null
 }
 
-router.get('/messaging/stream', (req, res) => {
+router.post('/messaging/stream-ticket', (req, res) => {
   const auth = requireAuth(req, res)
+  if (!auth) return
+  sendJson(res, 201, {
+    ticket: issueSseTicket(auth),
+    expires_in_seconds: Math.floor(SSE_TICKET_TTL_MS / 1000),
+  })
+})
+
+router.get('/messaging/stream', (req, res) => {
+  const auth = authFromSseTicket(req, res)
   if (!auth) return
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')

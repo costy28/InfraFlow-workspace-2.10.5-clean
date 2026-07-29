@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react'
 import { notifyDocument, notifyMessage, notifyTask, notifyTicket, permissionGranted } from '../utils/notifications'
 import { useAuth } from './useAuth'
 import api from '../api/client'
+import { createMessagingEventSource } from '../utils/sse'
 
 const POLL_INTERVAL_MS = 60_000 // 1 minut
 
@@ -18,27 +19,39 @@ export function useGlobalNotifications() {
   // ─── SSE mesaje ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return
-    const token = localStorage.getItem('infraflow_token')
-    if (!token) return
-    const source = new EventSource(`/api/messaging/stream?token=${encodeURIComponent(token)}`)
+    let cancelled = false
+    let source
 
-    source.addEventListener('message', event => {
+    async function connect() {
       try {
-        const payload = JSON.parse(event.data)
-        const msg = payload?.message
-        // Notifică doar dacă fereastra nu e activă și mesajul nu e al meu
-        if (document.hidden && msg && String(msg.sender_id) !== String(user.id)) {
-          notifyMessage({
-            sender: msg.sender_id,
-            preview: msg.continut?.slice(0, 80),
-            channelName: payload.channel?.nume || payload.channel?.name,
-          })
+        source = await createMessagingEventSource()
+        if (cancelled) {
+          source.close()
+          return
         }
-      } catch { /* ignore */ }
-    })
+        source.addEventListener('message', event => {
+          try {
+            const payload = JSON.parse(event.data)
+            const msg = payload?.message
+            // Notifică doar dacă fereastra nu e activă și mesajul nu e al meu
+            if (document.hidden && msg && String(msg.sender_id) !== String(user.id)) {
+              notifyMessage({
+                sender: msg.sender_id,
+                preview: msg.continut?.slice(0, 80),
+                channelName: payload.channel?.nume || payload.channel?.name,
+              })
+            }
+          } catch { /* ignore */ }
+        })
+        source.onerror = () => {}
+      } catch { /* notificările live revin la următoarea montare */ }
+    }
 
-    source.onerror = () => {}
-    return () => source.close()
+    connect()
+    return () => {
+      cancelled = true
+      if (source) source.close()
+    }
   }, [user])
 
   // ─── Polling sesizări + documente ────────────────────────────────────────────

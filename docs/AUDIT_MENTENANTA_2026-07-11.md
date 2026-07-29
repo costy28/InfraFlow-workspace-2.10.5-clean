@@ -1155,3 +1155,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/accounting/TertiContab.jsx` — ✅ confirmări sold și fișă furnizor prin API autentificat;
 - `client/src/pages/KioskPage.jsx` — ✅ adeverința de salariat folosește sesiunea ERP și are mesaj clar pentru login kiosk pur;
 - `updates/UPDATE_420_exporturi_fara_token_url.md` — ✅ documentație update și verificări.
+
+### UPDATE 421 — Notificări live fără token real în URL
+
+- `server/modules/messaging/routes.js` — ✅ endpoint `POST /messaging/stream-ticket` pentru tichet SSE temporar și scoped;
+- `server/modules/messaging/routes.js` — ✅ stream-ul SSE validează tichetul fără a expune tokenul real de login;
+- `client/src/utils/sse.js` — ✅ utilitar comun pentru handshake-ul EventSource;
+- `client/src/hooks/useGlobalNotifications.js` — ✅ notificări globale prin tichet SSE;
+- `client/src/pages/modules/MessagingPage.jsx` — ✅ pagina Mesaje folosește același handshake SSE;
+- `updates/UPDATE_421_notificari_live_fara_token_url.md` — ✅ documentație update și verificări.

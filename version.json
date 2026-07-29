@@ -1,5 +1,5 @@
 {
-  "version": "2.12.400",
-  "date": "2026-07-28",
-  "changelog": "## v2.12.400 - 2026-07-28\n### Exporturi și printări fără token în URL\n- Exporturile și printările vizate nu mai includ tokenul de autentificare în query string.\n- A fost adăugat un utilitar frontend pentru descărcare/deschidere fișiere prin API autentificat cu header Authorization.\n- Achiziții, Referate, Contracte, Terți contabilitate și Kiosk folosesc requesturi blob pentru documentele protejate.\n- Stream-ul live de notificări rămâne pentru un update separat, deoarece EventSource necesită o strategie dedicată."
+  "version": "2.12.401",
+  "date": "2026-07-29",
+  "changelog": "## v2.12.401 - 2026-07-29\n### Notificări live fără token real în URL\n- Stream-ul SSE pentru mesaje folosește acum un tichet temporar, emis prin API autentificat cu header Authorization.\n- Tokenul real de login nu mai este transmis în URL pentru notificările live.\n- Hook-ul global de notificări și pagina Mesaje folosesc utilitarul comun de creare EventSource.\n- Verificarea globală nu mai găsește patternul token= în client/src sau server."
 }

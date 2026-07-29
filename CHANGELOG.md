@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.401 - 2026-07-29
+
+## Notificări live fără token real în URL
+
+- A fost adăugat endpointul `POST /api/messaging/stream-ticket`, care emite tichete temporare și limitate la stream-ul live.
+- `GET /api/messaging/stream` acceptă acum tichetul SSE scurt, fără să expună tokenul real de login în URL.
+- Hook-ul global de notificări și pagina Mesaje folosesc `client/src/utils/sse.js` pentru handshake-ul comun.
+- Verificarea `rg "token=" client/src server` nu mai găsește tokenuri în URL în codul aplicației.
+- Compatibilitatea veche a `requireAuth` nu a fost modificată global, pentru a evita regresii pe linkuri istorice.
+
 # v2.12.400 - 2026-07-28
 
 ## Exporturi și printări fără token în URL

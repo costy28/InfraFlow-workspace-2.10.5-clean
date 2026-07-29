@@ -2,7 +2,8 @@
 
 Versiune analizată inițial: `2.12.398`
 Update audit inițial: `2.12.399` / `UPDATE 419`
-Completare P0 securitate: `2.12.400` / `UPDATE 420`
+Completare P0 securitate export/print: `2.12.400` / `UPDATE 420`
+Completare P0 securitate notificări live: `2.12.401` / `UPDATE 421`
 
 ## Rezumat executiv
 
@@ -51,6 +52,15 @@ Direcția corectă pentru perioada următoare:
 | Kiosk | adeverința folosea URL cu token ERP | sesiune ERP prin header și mesaj explicit pentru login kiosk pur |
 | Notificări live | EventSource încă folosește token în URL | rămas intenționat pentru update separat, necesitând strategie SSE/cookie |
 
+## Probleme remediate în UPDATE 421
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Mesaje / SSE | `EventSource` nu poate trimite header `Authorization`, deci folosea tokenul real în query string | endpoint de handshake `stream-ticket` cu tichet temporar și limitat la notificări |
+| Notificări globale | hook-ul global construia URL-ul SSE cu `token=` | utilitar comun `createMessagingEventSource()` |
+| Pagina Mesaje | stream-ul din pagină duplica același model cu token în URL | aceeași cale de handshake prin API autentificat |
+| Audit securitate | `rg "token=" client/src server` găsea încă expuneri URL | pattern eliminat din codul aplicației |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -87,7 +97,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 | --- | --- | --- |
 | P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | UX neuniform, greu de folosit, risc de mesaje neclare |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
-| P0 | unele exporturi foloseau token în query string | rezolvat pentru exporturi/printări în UPDATE 420; rămâne separat stream-ul SSE de notificări |
+| P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |
 | P1 | modulele mature nu au peste tot „următorul pas” vizibil | aplicația e puternică, dar trebuie să ghideze operatorul |
 | P1 | lint-ul global are multe erori istorice | nu blochează build-ul, dar încetinește refactorizarea sigură |

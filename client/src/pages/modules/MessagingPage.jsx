@@ -10,6 +10,7 @@ import Modal from '../../components/ui/Modal'
 import { formatDate } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
 import { notifyMessage, permissionGranted, requestPermission } from '../../utils/notifications'
+import { createMessagingEventSource } from '../../utils/sse'
 
 function arrayFrom(data, keys) {
   if (Array.isArray(data)) return data
@@ -811,28 +812,42 @@ export default function MessagingPage() {
 
   // ─── SSE stream ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    const token = localStorage.getItem('infraflow_token')
-    if (!token) return undefined
-    const source = new EventSource(`/api/messaging/stream?token=${encodeURIComponent(token)}`)
-    source.addEventListener('message', event => {
+    let cancelled = false
+    let source
+
+    async function connect() {
       try {
-        const payload = JSON.parse(event.data)
-        if (String(payload?.channel?.id) === String(activeChannel?.id)) {
-          setMessages(current => [...current, payload.message])
+        source = await createMessagingEventSource()
+        if (cancelled) {
+          source.close()
+          return
         }
-        loadChannels()
-        if (document.hidden && payload?.message && String(payload.message.sender_id) !== String(currentUserId)) {
-          notifyMessage({
-            sender: payload.message.sender_id,
-            preview: payload.message.continut?.slice(0, 80),
-            channelName: payload.channel?.nume || payload.channel?.name,
-          })
-        }
-      } catch { loadChannels() }
-    })
-    source.addEventListener('mention', () => loadChannels())
-    source.onerror = () => {}
-    return () => source.close()
+        source.addEventListener('message', event => {
+          try {
+            const payload = JSON.parse(event.data)
+            if (String(payload?.channel?.id) === String(activeChannel?.id)) {
+              setMessages(current => [...current, payload.message])
+            }
+            loadChannels()
+            if (document.hidden && payload?.message && String(payload.message.sender_id) !== String(currentUserId)) {
+              notifyMessage({
+                sender: payload.message.sender_id,
+                preview: payload.message.continut?.slice(0, 80),
+                channelName: payload.channel?.nume || payload.channel?.name,
+              })
+            }
+          } catch { loadChannels() }
+        })
+        source.addEventListener('mention', () => loadChannels())
+        source.onerror = () => {}
+      } catch { /* stream-ul se reface la următoarea montare */ }
+    }
+
+    connect()
+    return () => {
+      cancelled = true
+      if (source) source.close()
+    }
   }, [activeChannel?.id, currentUserId, loadChannels])
 
   const activeMessages = useMemo(() => messages.filter(m => !m.sters_la), [messages])
