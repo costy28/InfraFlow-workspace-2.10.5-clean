@@ -4,6 +4,7 @@ import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 import ContextHelp from '../components/ui/ContextHelp'
 import DropdownMenu from '../components/ui/DropdownMenu'
 import Input from '../components/ui/Input'
@@ -477,6 +478,8 @@ export default function SetariPage() {
   const [roleCreateSaving, setRoleCreateSaving] = useState(false)
   const [roleCreateMsg, setRoleCreateMsg] = useState('')
   const [roleDeleteConfirm, setRoleDeleteConfirm] = useState(null)
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [materials, setMaterials] = useState([])
   const [updateInfo, setUpdateInfo] = useState(null)
   const [manualUpdate, setManualUpdate] = useState(null)
@@ -1065,15 +1068,20 @@ export default function SetariPage() {
     }
   }
 
-  async function handleDeleteDept(id) {
-    if (!window.confirm('Ștergi departamentul?')) return
-    try {
-      await api.delete(`/departments/${id}`)
-      setDepartments(current => current.filter(item => item.id !== id))
-      notify('Departamentul a fost șters.')
-    } catch (err) {
-      fail(err, 'Departamentul nu a putut fi șters.')
-    }
+  function handleDeleteDept(id) {
+    const department = departments.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Șterge departamentul',
+      message: `Ștergi departamentul ${department?.name || id}?`,
+      details: 'Verifică înainte dacă nu este folosit de utilizatori, angajați sau fluxuri operaționale. Dacă serverul detectează dependențe, acțiunea va fi respinsă.',
+      confirmLabel: 'Șterge departamentul',
+      tone: 'danger',
+      run: async () => {
+        await api.delete(`/departments/${id}`)
+        setDepartments(current => current.filter(item => item.id !== id))
+        notify('Departamentul a fost șters.')
+      },
+    })
   }
 
   async function handleToggleDeptPermission(deptId, permission) {
@@ -1161,20 +1169,40 @@ export default function SetariPage() {
     }
   }
 
-  async function resetRolePermissions() {
-    if (!selectedRoleId || !window.confirm('Resetezi la permisiunile implicite?')) return
-    setRoleSaving(true)
+  function resetRolePermissions() {
+    if (!selectedRoleId) return
+    const roleId = selectedRoleId
+    const role = rolesData.find(item => String(item.id) === String(roleId))
+    setConfirmAction({
+      title: 'Resetează permisiunile rolului',
+      message: `Resetezi rolul ${role?.name || roleId} la permisiunile implicite?`,
+      details: 'Permisiunile personalizate ale rolului vor fi înlocuite cu setul implicit definit în aplicație.',
+      confirmLabel: 'Resetează rolul',
+      tone: 'warning',
+      run: async () => {
+        setRoleSaving(true)
+        const response = await api.patch(`/roles/${roleId}/permissions`, { reset: true })
+        const updated = (response.data.roles || rolesData).find(r => String(r.id) === String(roleId))
+        setRolesData(response.data.roles || rolesData)
+        setRoleEditPerms(updated ? [...updated.permissions] : [])
+        setRoleEditMeta({ name: updated?.name || '', description: updated?.description || '' })
+        setRoleMsg('✅ Rolul a fost resetat la valorile implicite.')
+      },
+    })
+  }
+
+  async function runConfirmAction() {
+    if (!confirmAction?.run) return
+    setConfirmLoading(true)
+    setError('')
     try {
-      const response = await api.patch(`/roles/${selectedRoleId}/permissions`, { reset: true })
-      const updated = (response.data.roles || rolesData).find(r => r.id === selectedRoleId)
-      setRolesData(response.data.roles || rolesData)
-      setRoleEditPerms(updated ? [...updated.permissions] : [])
-      setRoleEditMeta({ name: updated?.name || '', description: updated?.description || '' })
-      setRoleMsg('✅ Rolul a fost resetat la valorile implicite.')
+      await confirmAction.run()
+      setConfirmAction(null)
     } catch (err) {
-      setRoleMsg('❌ ' + (err.response?.data?.error || 'Eroare la resetare.'))
+      fail(err, 'Acțiunea nu a putut fi executată.')
     } finally {
       setRoleSaving(false)
+      setConfirmLoading(false)
     }
   }
 
@@ -3037,6 +3065,18 @@ export default function SetariPage() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        onCancel={() => !confirmLoading && setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
 
       {activeTab === 'Module' && (
         <div className="grid gap-4">

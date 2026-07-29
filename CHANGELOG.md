@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.404 - 2026-07-29
+
+## Confirmări UX în Setări
+
+- Setările nu mai folosesc `window.confirm` pentru ștergerea departamentelor.
+- Resetarea rolurilor la permisiunile implicite folosește dialog ERP cu impact explicit.
+- `ConfirmDialog` este reutilizat și în pagina de administrare, fără schimbări de API sau DB.
+- Auditul UX marchează Setările ca a treia zonă curățată din dialogurile native.
+
 # v2.12.403 - 2026-07-29
 
 ## Confirmări UX contracte cu motiv auditat

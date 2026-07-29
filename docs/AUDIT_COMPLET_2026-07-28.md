@@ -6,6 +6,7 @@ Completare P0 securitate export/print: `2.12.400` / `UPDATE 420`
 Completare P0 securitate notificări live: `2.12.401` / `UPDATE 421`
 Completare P0 UX confirmări native: `2.12.402` / `UPDATE 422`
 Completare P0 UX contracte: `2.12.403` / `UPDATE 423`
+Completare P0 UX setări: `2.12.404` / `UPDATE 424`
 
 ## Rezumat executiv
 
@@ -80,6 +81,14 @@ Direcția corectă pentru perioada următoare:
 | Contracte | închiderea cu blocaje cerea confirmare nativă greu de citit | pas dedicat pentru forțare, cu lista blocajelor afișată în modal |
 | Contracte | anularea actelor adiționale și atașamentelor folosea prompt nativ | motiv obligatoriu în modal, cu păstrare în audit |
 
+## Probleme remediate în UPDATE 424
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Setări / Departamente | ștergerea departamentului folosea `window.confirm` generic | dialog ERP cu numele departamentului și impact operațional |
+| Setări / Roluri | resetarea permisiunilor folosea `window.confirm` scurt | confirmare clară cu rolul vizat și efectul resetării |
+| Audit UX | `SetariPage.jsx` păstra dialoguri native | pagina Setări nu mai conține `window.confirm/window.prompt/window.alert` |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -114,7 +123,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
-| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP și continuat în UPDATE 423 pentru Contracte |
+| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte și UPDATE 424 pentru Setări |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |

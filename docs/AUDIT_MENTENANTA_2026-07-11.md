@@ -1180,3 +1180,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ContractePage.jsx` — ✅ închiderea cu blocaje deschide confirmare forțată cu lista blocajelor;
 - `client/src/pages/modules/ContractePage.jsx` — ✅ anulare acte adiționale și atașamente prin dialog ERP cu motiv obligatoriu;
 - `updates/UPDATE_423_confirmari_ux_contracte.md` — ✅ documentație update și verificări.
+
+### UPDATE 424 — Confirmări UX în Setări
+
+- `client/src/pages/SetariPage.jsx` — ✅ ștergerea departamentului folosește `ConfirmDialog`, cu impact operațional explicit;
+- `client/src/pages/SetariPage.jsx` — ✅ resetarea permisiunilor de rol folosește `ConfirmDialog`, nu `window.confirm`;
+- `client/src/pages/SetariPage.jsx` — ✅ pagina Setări nu mai conține `window.confirm/window.prompt/window.alert`;
+- `updates/UPDATE_424_confirmari_ux_setari.md` — ✅ documentație update și verificări.

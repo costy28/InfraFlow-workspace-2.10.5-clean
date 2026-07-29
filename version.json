@@ -1,5 +1,5 @@
 {
-  "version": "2.12.403",
+  "version": "2.12.404",
   "date": "2026-07-29",
-  "changelog": "## v2.12.403 - 2026-07-29\n### Confirmări UX contracte cu motiv auditat\n- ConfirmDialog suportă acum motiv auditat opțional, cu validare minimă.\n- Modulul Contracte nu mai folosește window.prompt/window.confirm pentru lifecycle contract, acte adiționale și atașamente.\n- Închiderea cu blocaje deschide un pas de confirmare forțată, cu blocajele afișate explicit.\n- Auditul UX marchează contractele ca a doua felie curățată din dialogurile native."
+  "changelog": "## v2.12.404 - 2026-07-29\n### Confirmări UX în Setări\n- Setările nu mai folosesc window.confirm pentru ștergerea departamentelor și resetarea permisiunilor de rol.\n- Ștergerea departamentului afișează impactul operațional înainte de confirmare.\n- Resetarea rolului la permisiunile implicite are confirmare clară în stil InfraFlow.\n- Auditul UX marchează Setările ca a treia zonă curățată din dialogurile native."
 }
