@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatMoney } from '../../utils/format'
 
 const tabs = ['Centre cost', 'Cheltuieli', 'Buget vs Real', 'Cost automat', 'Rapoarte']
@@ -103,6 +104,8 @@ export default function ControllingPage() {
   const [assignModal, setAssignModal] = useState(false)
   const [assignCenter, setAssignCenter] = useState(null)
   const [assignForm, setAssignForm] = useState({ object_id: '', object_type: 'equipment' })
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filters, setFilters] = useState({ luna: currentMonth(), centru_id: '', categorie: '', from: '', to: '' })
@@ -179,6 +182,20 @@ export default function ControllingPage() {
     return allAssignmentOptions.filter(item => item.type === 'equipment' || !['department', 'project', 'vehicle'].includes(item.type))
   }
 
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
+
   function toggle(id) {
     setExpanded(current => {
       const next = new Set(current)
@@ -237,7 +254,18 @@ export default function ControllingPage() {
   }
 
   async function disableCenter(center) {
-    if (!window.confirm(`Dezactivezi centrul "${centerName(center)}"?`)) return
+    setConfirmAction({
+      title: 'Dezactivează centru de cost',
+      message: `Dezactivezi centrul „${centerName(center)}”?`,
+      details: 'Centrul nu va mai fi folosit pentru alocări noi, dar istoricul cheltuielilor și rapoartelor rămâne păstrat.',
+      confirmLabel: 'Dezactivează',
+      tone: 'danger',
+      errorMessage: 'Centrul de cost nu a putut fi dezactivat.',
+      run: () => disableCenterRequest(center)
+    })
+  }
+
+  async function disableCenterRequest(center) {
     try {
       await api.delete(`/controlling/cost-centers/${center.id}`)
       await load()
@@ -581,6 +609,17 @@ export default function ControllingPage() {
           </div>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

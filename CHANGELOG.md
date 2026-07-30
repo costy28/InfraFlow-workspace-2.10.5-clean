@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.409 - 2026-07-29
+
+## Confirmări UX Controlling și raportări contabile
+
+- `ControllingPage.jsx` nu mai folosește `window.confirm` la dezactivarea centrelor de cost.
+- `DeclaratiiDiverse.jsx` folosește `ConfirmDialog` cu motiv auditat pentru D205 și Intrastat.
+- `SituatiiFinanciare.jsx` cere motiv auditat la anularea mapărilor financiare.
+- `TertiContab.jsx` folosește confirmări ERP pentru note de credit și confirmări de sold.
+
 # v2.12.408 - 2026-07-29
 
 ## Confirmări UX Facturi și Registru jurnal

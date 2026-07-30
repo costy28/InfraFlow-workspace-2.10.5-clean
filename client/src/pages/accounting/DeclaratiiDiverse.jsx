@@ -3,6 +3,7 @@ import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { AccountingShell, Table, currentMonth } from './accounting-shared'
@@ -16,6 +17,8 @@ export default function DeclaratiiDiverse() {
   const [map, setMap] = useState({ declarations: [] })
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [d205Form, setD205Form] = useState({ cnp_cui: '', nume: '', tip_venit: '08', tip_plata: '2', venit_brut: '', impozit_retinut: '', dividende_distribuite: '', dividende_platite: '' })
   const emptyIntrastat = { flux: 'introduceri', tara_partenera: '', tara_origine: '', judet_destinatie: '', cod_nc: '', natura_tranzactie: '11', conditie_livrare: '', mod_transport: '', masa_neta: '', valoare_facturata: '', valoare_statistica: '' }
   const [intrastatForm, setIntrastatForm] = useState(emptyIntrastat)
@@ -39,7 +42,36 @@ export default function DeclaratiiDiverse() {
     event.preventDefault()
     try { await api.post('/accounting/intrastat/entries', { ...intrastatForm, perioada: month }); setIntrastatForm(emptyIntrastat); setMessage('Poziția Intrastat a fost salvată.'); load() } catch (err) { setError(err.response?.data?.error || 'Poziția Intrastat nu a putut fi salvată.') }
   }
-  async function cancel(kind, id) { if (!window.confirm('Anulezi această poziție?')) return; await api.delete(`/accounting/${kind}/entries/${id}`, { data: { motiv: 'Corecție registru fiscal' } }); load() }
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      setMessage('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
+  function cancel(kind, id) {
+    setConfirmAction({
+      title: 'Anulează poziție fiscală',
+      message: `Anulezi poziția ${kind.toUpperCase()} selectată?`,
+      details: 'Poziția va fi scoasă din registrul de lucru fiscal, iar istoricul rămâne păstrat pentru audit.',
+      confirmLabel: 'Anulează poziția',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Corecție registru fiscal',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Poziția fiscală nu a putut fi anulată.',
+      run: motiv => cancelRequest(kind, id, motiv)
+    })
+  }
+  async function cancelRequest(kind, id, motiv) { await api.delete(`/accounting/${kind}/entries/${id}`, { data: { motiv } }); setMessage('Poziția fiscală a fost anulată.'); load() }
   async function download(path, filename, params) { try { const response = await api.get(path, { params, responseType: 'blob' }); const url = URL.createObjectURL(response.data); const link = document.createElement('a'); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url) } catch (err) { setError(err.response?.data?.error || 'Fișierul nu a putut fi generat.') } }
   const field = (form, setForm, key) => event => setForm({ ...form, [key]: event.target.value })
 
@@ -63,5 +95,20 @@ export default function DeclaratiiDiverse() {
     </>}
 
     {tab === 'status' && <Card><h3 className="mb-3 font-semibold">Situația fiscală {month}</h3><div className="grid gap-2 md:grid-cols-3">{map.declarations?.map(item => <div key={item.code} className="flex items-center justify-between rounded-md border border-slate-200 p-3"><strong>{item.code}</strong><Badge tone={item.receipt_status === 'acceptata' ? 'success' : item.status === 'nepregatit' ? 'warning' : 'info'}>{item.receipt_status || item.status}</Badge></div>)}<div className="flex items-center justify-between rounded-md border border-slate-200 p-3"><strong>D205</strong><Badge tone={map.d205?.ready ? 'success' : 'warning'}>{map.d205?.ready ? 'pregătit' : 'de completat'}</Badge></div><div className="flex items-center justify-between rounded-md border border-slate-200 p-3"><strong>Intrastat</strong><Badge tone={map.intrastat?.ready ? 'success' : 'warning'}>{map.intrastat?.ready ? 'pregătit' : 'de completat'}</Badge></div></div></Card>}
+    <ConfirmDialog
+      open={Boolean(confirmAction)}
+      title={confirmAction?.title}
+      message={confirmAction?.message}
+      details={confirmAction?.details}
+      confirmLabel={confirmAction?.confirmLabel}
+      tone={confirmAction?.tone}
+      loading={confirmLoading}
+      reasonLabel={confirmAction?.reasonLabel}
+      reasonDefault={confirmAction?.reasonDefault}
+      reasonRequired={confirmAction?.reasonRequired}
+      minReasonLength={confirmAction?.minReasonLength}
+      onCancel={() => setConfirmAction(null)}
+      onConfirm={runConfirmAction}
+    />
   </AccountingShell>
 }

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.408",
+  "version": "2.12.409",
   "date": "2026-07-29",
-  "changelog": "## v2.12.408 - 2026-07-29\n### Confirmări UX Facturi și Registru jurnal\n- Facturile contabile nu mai folosesc window.confirm pentru stornare și anulare draft.\n- Anularea draftului cere motiv auditat în dialog ERP.\n- Registrul jurnal folosește ConfirmDialog pentru devalidare, anulare draft și storno.\n- Comportamentul API rămâne identic; se schimbă doar interfața de confirmare."
+  "changelog": "## v2.12.409 - 2026-07-29\n### Confirmări UX Controlling și raportări contabile\n- Controlling folosește dialog ERP pentru dezactivarea centrelor de cost.\n- D205/Intrastat cer motiv auditat la anularea pozițiilor fiscale.\n- Situațiile financiare cer motiv la anularea mapărilor.\n- Terții contabili folosesc ConfirmDialog pentru note de credit și confirmări de sold."
 }

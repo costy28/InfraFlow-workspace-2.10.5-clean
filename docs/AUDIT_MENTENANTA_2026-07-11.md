@@ -1219,3 +1219,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/accounting/RegistruJurnal.jsx` — ✅ devalidare notă contabilă prin dialog ERP cu motiv obligatoriu;
 - `client/src/pages/accounting/RegistruJurnal.jsx` — ✅ anulare draft și creare storno prin confirmări explicite;
 - `updates/UPDATE_428_confirmari_ux_facturi_registru_jurnal.md` — ✅ documentație update și verificări.
+
+### UPDATE 429 — Confirmări UX Controlling și raportări contabile
+
+- `client/src/pages/modules/ControllingPage.jsx` — ✅ dezactivarea centrelor de cost folosește `ConfirmDialog`;
+- `client/src/pages/accounting/DeclaratiiDiverse.jsx` — ✅ anularea pozițiilor D205/Intrastat cere motiv auditat;
+- `client/src/pages/accounting/SituatiiFinanciare.jsx` — ✅ anularea mapărilor financiare cere motiv auditat;
+- `client/src/pages/accounting/TertiContab.jsx` — ✅ devalidare/storno note de credit și anulare confirmări de sold prin dialog ERP;
+- `updates/UPDATE_429_confirmari_ux_controlling_raportari_contabile.md` — ✅ documentație update și verificări.

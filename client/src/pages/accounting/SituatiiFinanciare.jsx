@@ -6,6 +6,7 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatMoney } from '../../utils/format'
 import { AccountingShell, DropdownMenu, Info, Table } from './accounting-shared'
 
@@ -27,6 +28,8 @@ export default function SituatiiFinanciare() {
   const [profile, setProfile] = useState(emptyProfile)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
 
   useEffect(() => { load() }, [an, luna, tip, profileCode])
 
@@ -58,10 +61,41 @@ export default function SituatiiFinanciare() {
     catch (err) { setError(err.response?.data?.error || 'Profilul nu a putut fi salvat.') }
   }
 
-  async function removeMapping(item) {
-    if (!window.confirm(`Anulezi maparea ${item.code}?`)) return
-    try { await api.delete(`/accounting/financial-statements/mappings/${item.id}`, { data: { motiv: 'Anulare din situatii financiare' } }); setMessage('Maparea a fost anulata.'); load() }
-    catch (err) { setError(err.response?.data?.error || 'Maparea nu a putut fi anulata.') }
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      setMessage('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
+
+  function removeMapping(item) {
+    setConfirmAction({
+      title: 'Anulează mapare financiară',
+      message: `Anulezi maparea ${item.code}?`,
+      details: 'Indicatorul nu va mai fi calculat prin această mapare. Profilul și istoricul de configurare rămân disponibile pentru audit.',
+      confirmLabel: 'Anulează maparea',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Anulare din situatii financiare',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Maparea nu a putut fi anulata.',
+      run: motiv => removeMappingRequest(item, motiv)
+    })
+  }
+
+  async function removeMappingRequest(item, motiv) {
+    await api.delete(`/accounting/financial-statements/mappings/${item.id}`, { data: { motiv } })
+    setMessage('Maparea a fost anulata.')
+    load()
   }
 
   function editMapping(item = null) {
@@ -120,6 +154,21 @@ export default function SituatiiFinanciare() {
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setProfileOpen(false)}>Renunta</Button><Button type="submit">Salveaza profilul</Button></div>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        reasonLabel={confirmAction?.reasonLabel}
+        reasonDefault={confirmAction?.reasonDefault}
+        reasonRequired={confirmAction?.reasonRequired}
+        minReasonLength={confirmAction?.minReasonLength}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </AccountingShell>
   )
 }

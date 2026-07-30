@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
@@ -58,6 +59,8 @@ export function TertiContab({ type = 'furnizor' }) {
   const [receiveModal, setReceiveModal] = useState(false)
   const [receiveTarget, setReceiveTarget] = useState(null)
   const [receiveForm, setReceiveForm] = useState({ confirmed_sold: '', observatii: '' })
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [q, setQ] = useState('')
   const [activeFilter, setActiveFilter] = useState('active')
   const [confirmationFilter, setConfirmationFilter] = useState('all')
@@ -170,10 +173,54 @@ export function TertiContab({ type = 'furnizor' }) {
     }
   }
 
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      setMessage('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
+
   async function creditNoteAction(note, action) {
-    const reason = action === 'devalidate' ? window.prompt('Motivul devalidarii notei de credit:', '') : ''
-    if (action === 'devalidate' && !reason) return
-    if (action === 'storno' && !window.confirm(`Stornezi nota de credit ${note.nr_document}?`)) return
+    if (action === 'devalidate') {
+      setConfirmAction({
+        title: 'Devalidează nota de credit',
+        message: `Devalidezi nota de credit ${note.nr_document || note.id}?`,
+        details: 'Nota nu va mai intra ca document valid până la revalidare. Motivul rămâne păstrat în audit.',
+        confirmLabel: 'Devalidează',
+        tone: 'danger',
+        reasonLabel: 'Motiv devalidare',
+        reasonPlaceholder: 'Ex: corecție sumă / document introdus greșit',
+        reasonRequired: true,
+        minReasonLength: 3,
+        errorMessage: 'Actiunea asupra notei de credit nu a putut fi efectuata.',
+        run: motiv => creditNoteActionRequest(note, action, motiv)
+      })
+      return
+    }
+    if (action === 'storno') {
+      setConfirmAction({
+        title: 'Stornează nota de credit',
+        message: `Stornezi nota de credit ${note.nr_document || note.id}?`,
+        details: 'Se va crea operațiunea de storno pentru nota validată, păstrând legătura cu documentul original.',
+        confirmLabel: 'Stornează',
+        tone: 'danger',
+        errorMessage: 'Actiunea asupra notei de credit nu a putut fi efectuata.',
+        run: () => creditNoteActionRequest(note, action)
+      })
+      return
+    }
+    await creditNoteActionRequest(note, action)
+  }
+
+  async function creditNoteActionRequest(note, action, reason = '') {
     setError('')
     setMessage('')
     try {
@@ -348,11 +395,21 @@ export function TertiContab({ type = 'furnizor' }) {
     setReceiveTarget(null)
   }
 
-  async function cancelConfirmation(row) {
+  function cancelConfirmation(row) {
     if (!row?.id) return
-    const ok = window.confirm('Anulezi ultima confirmare de sold pentru acest tert? Istoricul ramane pastrat.')
-    if (!ok) return
-    await markConfirmation('cancel', { motiv: 'Anulare confirmare sold' }, row)
+    setConfirmAction({
+      title: 'Anulează confirmare sold',
+      message: `Anulezi ultima confirmare de sold pentru ${row.denumire || row.cod || 'acest terț'}?`,
+      details: 'Istoricul confirmărilor rămâne păstrat. Se retrage doar confirmarea curentă din statusul activ.',
+      confirmLabel: 'Anulează confirmarea',
+      tone: 'danger',
+      reasonLabel: 'Motiv anulare',
+      reasonDefault: 'Anulare confirmare sold',
+      reasonRequired: true,
+      minReasonLength: 3,
+      errorMessage: 'Confirmarea de sold nu a putut fi anulată.',
+      run: motiv => markConfirmation('cancel', { motiv }, row)
+    })
   }
 
   function confirmationMenu(row) {
@@ -755,6 +812,22 @@ export function TertiContab({ type = 'furnizor' }) {
           </div>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        tone={confirmAction?.tone}
+        loading={confirmLoading}
+        reasonLabel={confirmAction?.reasonLabel}
+        reasonDefault={confirmAction?.reasonDefault}
+        reasonPlaceholder={confirmAction?.reasonPlaceholder}
+        reasonRequired={confirmAction?.reasonRequired}
+        minReasonLength={confirmAction?.minReasonLength}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </AccountingShell>
   )
 }
