@@ -10,6 +10,9 @@ Completare P0 UX setări: `2.12.404` / `UPDATE 424`
 Completare P0 UX gestiune: `2.12.405` / `UPDATE 425`
 Completare P0 UX HR: `2.12.406` / `UPDATE 426`
 Completare P0 UX Salarizare: `2.12.407` / `UPDATE 427`
+Completare P0 UX facturi și registru jurnal: `2.12.408` / `UPDATE 428`
+Completare P0 UX controlling și raportări contabile: `2.12.409` / `UPDATE 429`
+Completare P0 UX producție, așternere, documente și dashboard: `2.12.410` / `UPDATE 430`
 
 ## Rezumat executiv
 
@@ -123,6 +126,15 @@ Direcția corectă pentru perioada următoare:
 | Contabilitate / Salarizare | stornările de plată/notă/obligații foloseau prompt nativ | dialoguri cu motiv obligatoriu și impact vizibil |
 | Contabilitate / Salarizare | anularea ajustărilor salariale folosea confirmare nativă și motiv fix | motiv editabil în dialog ERP, trimis prin aceeași rută API |
 
+## Probleme remediate în UPDATE 430
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Producție | legarea consumului de Gestiune folosea `window.confirm` | dialog ERP cu impact explicit asupra mișcărilor de stoc |
+| Așternere | anularea lucrărilor și ștergerea rapoartelor foloseau `window.confirm` | confirmări ERP cu identificator și efect asupra dashboardului |
+| Documente | dezactivarea template-urilor folosea `window.confirm` | confirmare ERP care explică păstrarea documentelor deja generate |
+| Dashboard | resetarea demo folosea `window.confirm` | confirmare ERP înainte de reset și reîncărcare pagină |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -157,7 +169,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
-| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte, UPDATE 424 pentru Setări, UPDATE 425 pentru Gestiune, UPDATE 426 pentru HR, UPDATE 427 pentru Salarizare, UPDATE 428 pentru Facturi/Registru jurnal și UPDATE 429 pentru Controlling/raportări contabile |
+| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte, UPDATE 424 pentru Setări, UPDATE 425 pentru Gestiune, UPDATE 426 pentru HR, UPDATE 427 pentru Salarizare, UPDATE 428 pentru Facturi/Registru jurnal, UPDATE 429 pentru Controlling/raportări contabile și UPDATE 430 pentru Producție/Așternere/Documente/Dashboard |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |

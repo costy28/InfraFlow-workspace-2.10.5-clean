@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { useAuth } from '../../hooks/useAuth'
 import { exportExcel, exportPdf } from '../../utils/export'
 
@@ -80,6 +81,8 @@ export default function ProductiePage() {
   const [raportZilnic, setRaportZilnic] = useState(null)
   const [raportLoading, setRaportLoading] = useState(false)
   const [linkingId, setLinkingId] = useState(null)
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [form, setForm] = useState({
     date: today(),
     recipeId: '',
@@ -161,7 +164,18 @@ export default function ProductiePage() {
   }, [activeTab, raportLuna])
 
   async function linkGestiune(consumptionId) {
-    if (!window.confirm('Scade din stocul Gestiune materiile prime consumate pentru această producție?')) return
+    setConfirmAction({
+      title: 'Leagă consumul de Gestiune',
+      message: 'Scazi din stocul Gestiune materiile prime consumate pentru această producție?',
+      details: 'Se vor genera mișcările de stoc pentru consumul selectat. Verifică rețeta și cantitățile înainte de confirmare.',
+      confirmLabel: 'Scade din stoc',
+      tone: 'warning',
+      run: () => linkGestiuneRequest(consumptionId),
+      errorMessage: 'Eroare la legare Gestiune.',
+    })
+  }
+
+  async function linkGestiuneRequest(consumptionId) {
     setLinkingId(consumptionId)
     try {
       await api.post(`/production/consumptions/link-gestiune/${consumptionId}`)
@@ -170,6 +184,20 @@ export default function ProductiePage() {
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la legare Gestiune.')
     } finally { setLinkingId(null) }
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
   }
 
   function printRaportZilnic() {
@@ -559,6 +587,19 @@ export default function ProductiePage() {
           </div>
         ) : null}
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Renunță"
+        tone={confirmAction?.tone || 'warning'}
+        loading={confirmLoading || Boolean(linkingId)}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

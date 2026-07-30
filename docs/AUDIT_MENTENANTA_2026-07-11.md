@@ -1227,3 +1227,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/accounting/SituatiiFinanciare.jsx` — ✅ anularea mapărilor financiare cere motiv auditat;
 - `client/src/pages/accounting/TertiContab.jsx` — ✅ devalidare/storno note de credit și anulare confirmări de sold prin dialog ERP;
 - `updates/UPDATE_429_confirmari_ux_controlling_raportari_contabile.md` — ✅ documentație update și verificări.
+
+### UPDATE 430 — Confirmări UX Producție, Așternere, Documente și Dashboard
+
+- `client/src/pages/modules/ProductiePage.jsx` — ✅ legarea consumurilor de Gestiune folosește `ConfirmDialog`, cu impact pe stoc explicat;
+- `client/src/pages/modules/AsternerePage.jsx` — ✅ anularea lucrărilor și ștergerea rapoartelor zilnice folosesc dialog ERP;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ dezactivarea template-urilor explică faptul că documentele existente rămân păstrate;
+- `client/src/pages/DashboardPage.jsx` — ✅ resetarea demo cere confirmare ERP înainte de reîncărcarea paginii;
+- `updates/UPDATE_430_confirmari_ux_productie_asternere_documente_dashboard.md` — ✅ documentație update și verificări.

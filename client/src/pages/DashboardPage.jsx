@@ -12,6 +12,7 @@ import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { useAuth } from '../hooks/useAuth'
 
 const emptyState = {
@@ -723,10 +724,23 @@ export default function DashboardPage() {
   const [errors, setErrors] = useState({})
   const [resettingDemo, setResettingDemo] = useState(false)
   const [demoMessage, setDemoMessage] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const snowSeason = isSnowSeason()
 
   async function resetDemo() {
-    if (!window.confirm('Resetezi datele demo la starea initiala pentru prezentare?')) return
+    setConfirmAction({
+      title: 'Resetează datele demo',
+      message: 'Resetezi datele demo la starea inițială pentru prezentare?',
+      details: 'Datele demo se vor reface la scenariul inițial, iar pagina se va reîncărca după confirmare.',
+      confirmLabel: 'Resetează demo',
+      tone: 'warning',
+      run: resetDemoRequest,
+      errorMessage: 'Resetul demo nu a reușit.',
+    })
+  }
+
+  async function resetDemoRequest() {
     setResettingDemo(true)
     setDemoMessage('')
     try {
@@ -736,6 +750,20 @@ export default function DashboardPage() {
     } catch (err) {
       setDemoMessage(err.response?.data?.error || 'Resetul demo nu a reușit.')
       setResettingDemo(false)
+    }
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setDemoMessage('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setDemoMessage(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
     }
   }
 
@@ -1047,6 +1075,19 @@ export default function DashboardPage() {
           ) : null}
         </Card>
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Renunță"
+        tone={confirmAction?.tone || 'warning'}
+        loading={confirmLoading || resettingDemo}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

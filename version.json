@@ -1,5 +1,5 @@
 {
-  "version": "2.12.409",
-  "date": "2026-07-29",
-  "changelog": "## v2.12.409 - 2026-07-29\n### Confirmări UX Controlling și raportări contabile\n- Controlling folosește dialog ERP pentru dezactivarea centrelor de cost.\n- D205/Intrastat cer motiv auditat la anularea pozițiilor fiscale.\n- Situațiile financiare cer motiv la anularea mapărilor.\n- Terții contabili folosesc ConfirmDialog pentru note de credit și confirmări de sold."
+  "version": "2.12.410",
+  "date": "2026-07-30",
+  "changelog": "## v2.12.410 - 2026-07-30\n### Confirmări UX Producție, Așternere, Documente și Dashboard\n- Producția folosește dialog ERP pentru legarea consumurilor de Gestiune.\n- Așternerea folosește confirmări clare pentru anularea lucrărilor și ștergerea rapoartelor.\n- Documentele confirmă dezactivarea template-urilor cu impact explicat.\n- Dashboard-ul confirmă resetarea demo înainte de reîncărcare."
 }

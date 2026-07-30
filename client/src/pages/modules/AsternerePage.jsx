@@ -10,6 +10,7 @@ import {
   CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import api from '../../api/client'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
 // ─── constante ────────────────────────────────────────────────────────────────
 
@@ -142,6 +143,8 @@ export default function AsternerePage() {
   // Consum
   const [consumData, setConsumData] = useState(null)
   const [consumFilter, setConsumFilter] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
 
   // ─── loaders ────────────────────────────────────────────────────────────────
 
@@ -253,7 +256,19 @@ export default function AsternerePage() {
   }
 
   async function deleteLucrare(id) {
-    if (!window.confirm('Anulezi această lucrare?')) return
+    const lucrare = lucrari.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Anulează lucrare',
+      message: `Anulezi lucrarea ${lucrare?.denumire || lucrare?.cod || id}?`,
+      details: 'Lucrarea va fi scoasă din evidența activă. Rapoartele și indicatorii se vor reîncărca după confirmare.',
+      confirmLabel: 'Anulează lucrarea',
+      tone: 'danger',
+      run: () => deleteLucrareRequest(id),
+      errorMessage: 'Lucrarea nu a putut fi anulată.',
+    })
+  }
+
+  async function deleteLucrareRequest(id) {
     try {
       await api.delete(`/asternere/lucrari/${id}`)
       await loadLucrari()
@@ -305,12 +320,38 @@ export default function AsternerePage() {
   }
 
   async function deleteRaport(id) {
-    if (!window.confirm('Ștergi acest raport?')) return
+    const raport = rapoarte.find(item => String(item.id) === String(id))
+    setConfirmAction({
+      title: 'Șterge raport zilnic',
+      message: `Ștergi raportul ${raport?.data || raport?.cod || id}?`,
+      details: 'Raportul nu va mai intra în totalurile de așternere. Dashboard-ul se va recalcula după confirmare.',
+      confirmLabel: 'Șterge raportul',
+      tone: 'danger',
+      run: () => deleteRaportRequest(id),
+      errorMessage: 'Raportul nu a putut fi șters.',
+    })
+  }
+
+  async function deleteRaportRequest(id) {
     try {
       await api.delete(`/asternere/rapoarte-zilnice/${id}`)
       await loadRapoarte()
       await loadDashboard()
     } catch (e) { setError(e.response?.data?.error || 'Eroare') }
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (e) {
+      setError(e.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
   }
 
   // ─── toggle utilaj în raport ─────────────────────────────────────────────
@@ -1110,6 +1151,19 @@ export default function AsternerePage() {
           </form>
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Renunță"
+        tone={confirmAction?.tone || 'warning'}
+        loading={confirmLoading}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

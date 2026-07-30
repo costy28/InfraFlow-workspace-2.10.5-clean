@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.410 - 2026-07-30
+
+## Confirmări UX Producție, Așternere, Documente și Dashboard
+
+- `ProductiePage.jsx` nu mai folosește `window.confirm` la legarea consumurilor de Gestiune.
+- `AsternerePage.jsx` folosește `ConfirmDialog` pentru anularea lucrărilor și ștergerea rapoartelor zilnice.
+- `DocumentePage.jsx` confirmă dezactivarea template-urilor cu impact explicit.
+- `DashboardPage.jsx` confirmă resetarea demo înainte de reîncărcarea paginii.
+
 # v2.12.409 - 2026-07-29
 
 ## Confirmări UX Controlling și raportări contabile

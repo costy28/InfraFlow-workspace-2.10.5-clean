@@ -9,6 +9,7 @@ import DropdownMenu from '../../components/ui/DropdownMenu'
 import DocumentTemplateEditor from '../../components/forms/DocumentTemplateEditor'
 import Modal from '../../components/ui/Modal'
 import Table from '../../components/ui/Table'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatDate } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -231,6 +232,8 @@ export default function DocumentePage() {
   const [sourceAttachmentError, setSourceAttachmentError] = useState('')
   const [pendingDocumentParam, setPendingDocumentParam] = useState(() => new URLSearchParams(window.location.search).get('document') || '')
   const [templateSaving, setTemplateSaving] = useState(false)
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
   const canEditDocument = useCallback(document => (
@@ -569,12 +572,37 @@ export default function DocumentePage() {
   }
 
   async function deleteTemplate(template) {
-    if (!window.confirm(`Dezactivezi template-ul ${template.denumire || template.id}?`)) return
+    setConfirmAction({
+      title: 'Dezactivează template',
+      message: `Dezactivezi template-ul ${template.denumire || template.id}?`,
+      details: 'Template-ul nu va mai fi folosit pentru documente noi. Documentele generate anterior rămân păstrate.',
+      confirmLabel: 'Dezactivează',
+      tone: 'warning',
+      run: () => deleteTemplateRequest(template),
+      errorMessage: 'Template-ul nu a putut fi dezactivat.',
+    })
+  }
+
+  async function deleteTemplateRequest(template) {
     try {
       await api.delete(`/documents/templates/${template.id}`)
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Template-ul nu a putut fi dezactivat.')
+    }
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
     }
   }
 
@@ -1365,6 +1393,19 @@ export default function DocumentePage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Renunță"
+        tone={confirmAction?.tone || 'warning'}
+        loading={confirmLoading}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }
