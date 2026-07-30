@@ -14,6 +14,8 @@ Completare P0 UX facturi și registru jurnal: `2.12.408` / `UPDATE 428`
 Completare P0 UX controlling și raportări contabile: `2.12.409` / `UPDATE 429`
 Completare P0 UX producție, așternere, documente și dashboard: `2.12.410` / `UPDATE 430`
 Completare P0 UX mecanizare, FAZ și operațiuni contabile: `2.12.411` / `UPDATE 431`
+Completare P0 dashboard comercial generic: `2.12.412` / `UPDATE 432`
+Completare P0 shell comercial generic: `2.12.413` / `UPDATE 433`
 
 ## Rezumat executiv
 
@@ -145,6 +147,25 @@ Direcția corectă pentru perioada următoare:
 | Mecanizare | ștergeri, import PIUSI și FAZ lunar foloseau `window.confirm` | confirmări ERP explicite, fără popup nativ |
 | Operațiuni contabile | stornarea retururilor și acțiunile pe imobilizări foloseau `window.confirm/window.prompt` | dialog ERP cu câmp pentru locație, valoare sau motiv |
 
+## Probleme remediate în UPDATE 432
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Dashboard | prima pagină păstra limbaj de demo/pilot orientat spre asfalt și utilaje | texte repoziționate ca ERP modular pentru orice organizație |
+| Dashboard / demo operațional | fluxul de prezentare folosea exemplu concret „motorină utilaje” | flux generic: aprobări, resurse, oameni, contracte și costuri |
+| Dashboard / onboarding | utilizatorul nou nu primea pe prima pagină direcția comercială modulară | bandă „Start rapid” cu module, task-uri și dosare contract/document |
+| Dashboard / metrici | activitatea zilnică depindea conceptual de `asphaltTotal` | fallback generic `outputTotal`, păstrând compatibilitatea cu datele vechi |
+
+## Probleme remediate în UPDATE 433
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Sidebar | meniul principal păstra etichete prea specifice pentru client/domeniu pilot | `Parc & Resurse` și `Lucrări / Execuție` ca etichete comerciale mai generale |
+| Setări | formularul de companie cerea `Stație` | câmpul vizibil a devenit `Punct de lucru / locație` |
+| Catalog module | producția era descrisă explicit ca producție asfalt | descriere generică pentru rețete, fluxuri, consumuri și output operațional |
+| Server / rapoarte | fallback-ul de firmă era `Statie asfalt` | fallback generic `Organizație` |
+| Documentație utilizator | ghidurile scurte Dashboard/Producție erau orientate pe producție/utilaje | texte aliniate cu ERP modular |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -180,7 +201,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
 | P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | rezolvat gradual în UPDATE 422-431; scan-ul principal `client/src/pages` + `client/src/components` nu mai găsește dialoguri native |
-| P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
+| P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | dashboardul principal a fost generalizat în UPDATE 432; modulele istorice rămân candidate la curățare graduală |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |
 | P1 | modulele mature nu au peste tot „următorul pas” vizibil | aplicația e puternică, dar trebuie să ghideze operatorul |

@@ -52,6 +52,30 @@ const routes = {
   tasks: '/taskuri',
 }
 
+const onboardingCards = [
+  {
+    icon: '🧩',
+    title: 'Alege modulele utile',
+    description: 'Pornești cu ce folosește clientul azi și activezi restul treptat: HR, gestiune, contracte, contabilitate, documente sau operațiuni.',
+    route: routes.audit,
+    cta: 'Configurează',
+  },
+  {
+    icon: '✅',
+    title: 'Lucrul zilnic într-un singur loc',
+    description: 'Task-urile, aprobările și alertele adună următorul pas pentru fiecare rol, fără să cauți prin toate modulele.',
+    route: routes.tasks,
+    cta: 'Vezi task-uri',
+  },
+  {
+    icon: '📑',
+    title: 'Contracte și documente legate',
+    description: 'Emailurile, documentele, contractele și costurile pot fi urmărite împreună, pe dosar și pe responsabil.',
+    route: routes.contracts,
+    cta: 'Vezi contracte',
+  },
+]
+
 function localDate(date) {
   const offset = date.getTimezoneOffset() * 60000
   return new Date(date.getTime() - offset).toISOString().slice(0, 10)
@@ -238,26 +262,26 @@ function KpiCard({ icon, label, value, loading, error, onClick }) {
 function DirectorDemoPanel({ user, onNavigate, onResetDemo, resettingDemo }) {
   const canResetDemo = user?.username === 'demo' || user?.role === 'superadmin'
   const steps = [
-    { label: 'Referat la director', value: 'Motorina utilaje', route: routes.referate, action: 'Aprobă' },
-    { label: 'Mecanizare', value: 'Alocări și alerte', route: routes.mecanizare, action: 'Vezi parc' },
-    { label: 'HR', value: 'Pontaj, CO, scadențe', route: routes.hr, action: 'Vezi HR' },
-    { label: 'Controlling', value: 'Bugete și costuri', route: routes.controlling, action: 'Vezi costuri' },
+    { label: 'Achiziții', value: 'Referate și aprobări', route: routes.referate, action: 'Vezi flux' },
+    { label: 'Operațiuni', value: 'Resurse, alocări și alerte', route: routes.mecanizare, action: 'Vezi resurse' },
+    { label: 'Oameni', value: 'Pontaj, concedii, scadențe', route: routes.hr, action: 'Vezi HR' },
+    { label: 'Control', value: 'Bugete, costuri și contracte', route: routes.controlling, action: 'Vezi control' },
   ]
   const checklist = [
-    'Director: aprobă referatul RA/122',
-    'Șef mecanizare: trimite foaia FP-2026-KIOSK-001',
-    'Șofer: completează verso din Kiosk mobil',
-    'Mecanizare: vede foaia completată și o închide'
+    'Manager: vede cererile care cer decizie',
+    'Responsabil: alocă resursele și setează termenul',
+    'Angajat: primește task-ul în Kiosk sau în aplicație',
+    'Echipa: închide activitatea cu documente și dovezi'
   ]
 
   return (
     <Card className="border-primary-200 bg-gradient-to-br from-primary-50 via-white to-slate-50">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Demo director</div>
-          <h3 className="mt-1 text-lg font-bold text-slate-900">Flux rapid pentru prezentare</h3>
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Demo operațional</div>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">Flux rapid pentru orice organizație</h3>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Contul director vede exact zona de decizie: aprobări, alerte operaționale, oameni și costuri.
+            Contul de management vede zona de decizie: aprobări, alerte, oameni, contracte și costuri — indiferent de domeniul firmei.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -581,7 +605,7 @@ function buildTodayActions(view, profile = dashboardProfile(null)) {
       tone: 'warning',
       weight: 65,
       title: `${view.criticalStocks.length} materiale sub minim`,
-      description: 'Stocurile critice pot genera întârzieri în operațiuni, producție sau servicii.',
+      description: 'Stocurile critice pot genera întârzieri în operațiuni, livrări, producție sau servicii.',
       route: routes.stock,
       cta: 'Vezi stocuri',
     })
@@ -716,6 +740,37 @@ function TodayActionsPanel({ actions, profile, loading, error, onNavigate }) {
   )
 }
 
+function CommercialOnboardingPanel({ onNavigate }) {
+  return (
+    <Card className="border-slate-200 bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start rapid</div>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">InfraFlow se adaptează pe firma clientului</h3>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600">
+            Prima pagină trebuie să arate următorul pas, nu domeniul implicit. Modulele pot acoperi producție, servicii, depozite, contracte, HR, contabilitate sau operațiuni de teren.
+          </p>
+        </div>
+        <Badge tone="info">ERP modular</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {onboardingCards.map(card => (
+          <button
+            key={card.title}
+            className="rounded-[var(--radius-panel)] border border-slate-100 bg-slate-50/70 p-3 text-left transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-white hover:shadow-md"
+            onClick={() => onNavigate(card.route)}
+          >
+            <div className="text-xl">{card.icon}</div>
+            <div className="mt-2 text-sm font-semibold text-slate-900">{card.title}</div>
+            <p className="mt-1 min-h-12 text-xs text-slate-500">{card.description}</p>
+            <div className="mt-3 text-xs font-semibold text-primary-700">{card.cta} →</div>
+          </button>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -818,7 +873,7 @@ export default function DashboardPage() {
         if (settled?.status === 'rejected') nextErrors.production7 = settled.reason
         return {
           date: date.slice(5),
-          tone: numberFrom(report?.metrics?.asphaltTotal ?? report?.asphaltTotal),
+          tone: numberFrom(report?.metrics?.outputTotal ?? report?.outputTotal ?? report?.metrics?.asphaltTotal ?? report?.asphaltTotal),
         }
       })
 
@@ -849,7 +904,7 @@ export default function DashboardPage() {
 
     const nextView = {
       criticalStocks,
-      operationalOutputToday: numberFrom(report.metrics?.asphaltTotal ?? report.asphaltTotal),
+      operationalOutputToday: numberFrom(report.metrics?.outputTotal ?? report.outputTotal ?? report.metrics?.asphaltTotal ?? report.asphaltTotal),
       activeAssets: fleetAssets.filter(assetIsActive).length,
       inboxDocuments,
       tickets,
@@ -874,8 +929,8 @@ export default function DashboardPage() {
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">Dashboard operational</h2>
-          <p className="text-sm text-slate-500">Indicatori rapizi din operațiuni, stocuri, echipe, flotă și documente.</p>
+          <h2 className="text-xl font-semibold text-slate-900">Dashboard operațional</h2>
+          <p className="text-sm text-slate-500">Indicatori rapizi din modulele active: operațiuni, stocuri, oameni, contracte, documente și costuri.</p>
         </div>
         <Badge tone="success">Live API</Badge>
       </div>
@@ -890,16 +945,16 @@ export default function DashboardPage() {
           onClick={() => navigate(routes.stock)}
         />
         <KpiCard
-          icon="🏭"
-          label="Output operațional azi"
+          icon="📊"
+          label="Activitate înregistrată azi"
           value={view.operationalOutputToday.toLocaleString('ro-RO')}
           loading={loading}
           error={errors.daily}
           onClick={() => navigate(routes.production)}
         />
         <KpiCard
-          icon="🚗"
-          label="Utilaje active azi"
+          icon="🧰"
+          label="Resurse active azi"
           value={view.activeAssets}
           loading={loading}
           error={errors.fleetAssets}
@@ -923,6 +978,8 @@ export default function DashboardPage() {
         loading={loading}
         onNavigate={navigate}
       />
+
+      <CommercialOnboardingPanel onNavigate={navigate} />
 
       {user?.username === 'director' || user?.username === 'demo' || ['manager', 'superadmin'].includes(user?.role) ? (
         <DirectorDemoPanel user={user} onNavigate={navigate} onResetDemo={resetDemo} resettingDemo={resettingDemo} />
@@ -970,7 +1027,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="cursor-pointer" onClick={() => navigate(routes.production)}>
-          <h3 className="mb-4 text-base font-semibold text-slate-900">Grafic output operațional ultimele 7 zile</h3>
+          <h3 className="mb-4 text-base font-semibold text-slate-900">Grafic activitate operațională ultimele 7 zile</h3>
           <SectionError error={errors.production7} />
           {loading ? <Skeleton className="h-72" /> : (
             <div className="h-72">

@@ -1325,7 +1325,7 @@ function completeInitialSetup(db, body) {
   const password = String(body.password || "");
   const confirmPassword = String(body.confirmPassword || "");
   if (!companyName) throwHttp(400, "Numele firmei este obligatoriu.");
-  if (!stationName) throwHttp(400, "Numele statiei este obligatoriu.");
+  if (!stationName) throwHttp(400, "Numele punctului de lucru este obligatoriu.");
   if (!adminName) throwHttp(400, "Numele Superadminului este obligatoriu.");
   if (!/^[a-z0-9._-]{3,32}$/.test(username)) throwHttp(400, "Utilizatorul trebuie sa aiba 3-32 caractere: litere, cifre, punct, minus sau underscore.");
   if (password.length < 8) throwHttp(400, "Parola trebuie sa aiba cel putin 8 caractere.");
@@ -2819,7 +2819,7 @@ function updateSettings(current, body) {
     : (license.trialStartedAt || null);
   return {
     ...current,
-    companyName: String(body.companyName || current.companyName || "Statie asfalt").trim(),
+    companyName: String(body.companyName || current.companyName || "Organizație").trim(),
     stationName: String(body.stationName || "").trim(),
     location: String(body.location || "").trim(),
     logoDataUrl: validLogoDataUrl(body.logoDataUrl !== undefined ? body.logoDataUrl : current.logoDataUrl || ""),
@@ -7043,7 +7043,7 @@ function buildCostAccountingReportPage(db, report) {
 
 function reportPage(db, { title, subtitle, content }) {
   const settings = db.settings || {};
-  const company = settings.companyName || "Statie asfalt";
+  const company = settings.companyName || "Organizație";
   const station = settings.stationName || "";
   const location = settings.location || "";
   const logo = settings.logoDataUrl ? `<img class="logo" src="${htmlEscape(settings.logoDataUrl)}" alt="Logo">` : "";

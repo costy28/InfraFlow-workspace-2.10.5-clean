@@ -1,5 +1,5 @@
 {
-  "version": "2.12.411",
+  "version": "2.12.413",
   "date": "2026-07-30",
-  "changelog": "## v2.12.411 - 2026-07-30\n### Confirmări UX Mecanizare, FAZ și operațiuni contabile\n- FAZ utilaje și foi parcurs folosesc dialog ERP înainte de generare.\n- Mecanizarea folosește confirmări clare pentru ștergeri, import PIUSI și FAZ lunar.\n- Operațiunile contabile folosesc ConfirmDialog pentru stornare retur și acțiuni pe imobilizări.\n- Scan-ul frontend principal nu mai găsește window.confirm/window.prompt/window.alert."
+  "changelog": "## v2.12.413 - 2026-07-30\n### Shell comercial generic\n- Sidebar-ul folosește etichete mai generale pentru parc/resurse și lucrări/execuție.\n- Catalogul de module din Setări descrie producția ca flux operațional configurabil, nu doar asfalt.\n- Câmpul Stație din Setări devine Punct de lucru / locație.\n- Fallback-urile server pentru firmă/rapoarte nu mai afișează Statie asfalt."
 }

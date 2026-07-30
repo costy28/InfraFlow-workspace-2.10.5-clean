@@ -1,12 +1,12 @@
 # Dashboard
 
-Dashboard-ul arată pe scurt situația firmei: stocuri, producție, utilaje, documente și sesizări. Este prima pagină pe care o vezi după login.
+Dashboard-ul arată pe scurt situația organizației: priorități, stocuri, activitate operațională, oameni, contracte, documente și sesizări. Este prima pagină pe care o vezi după login.
 
 ## Pași
 1. Intră în aplicație și deschide **Dashboard**.
-2. Urmărește cardurile rapide pentru alerte importante.
+2. Urmărește cardurile rapide și secțiunea „Ce ai de făcut azi”.
 3. Apasă pe un card pentru a merge la modulul corespunzător.
-4. Verifică listele de activitate recentă pentru noutăți.
+4. Verifică onboarding-ul și listele de activitate recentă pentru următorul pas.
 
 ## Note importante
 ⚠️ Dacă un card nu se încarcă, verifică rețeaua și reîncarcă pagina.

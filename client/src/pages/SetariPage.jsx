@@ -171,7 +171,7 @@ const moduleGroups = [
     locked: true,
     modules: [
       { key: 'core', icon: '🔒', label: 'Core', description: 'Autentificare și securitate' },
-      { key: 'production', icon: '🔒', label: 'Producție', description: 'Producție asfalt și rețete' },
+      { key: 'production', icon: '🔒', label: 'Producție / Operațiuni', description: 'Rețete, fluxuri, consumuri și output operațional' },
       { key: 'inventory', icon: '🔒', label: 'Stocuri', description: 'Gestiune materiale' },
       { key: 'reports', icon: '🔒', label: 'Rapoarte', description: 'Rapoarte standard' },
     ],
@@ -179,7 +179,7 @@ const moduleGroups = [
   {
     title: 'OPERAȚIONALE',
     modules: [
-      { key: 'fleet', icon: '⚙️', label: 'Flotă / Mecanizare' },
+      { key: 'fleet', icon: '⚙️', label: 'Parc & Resurse' },
       { key: 'technical', icon: '⚙️', label: 'Tehnic' },
       { key: 'procurement', icon: '⚙️', label: 'Achiziții' },
       { key: 'contract_management', icon: '⚙️', label: 'Contracte' },
@@ -1823,7 +1823,7 @@ export default function SetariPage() {
                 )}
               </div>
             </div>
-            <Input label="Stație" value={settings.stationName || ''} onChange={event => setSettings(s => ({ ...s, stationName: event.target.value }))} />
+            <Input label="Punct de lucru / locație" value={settings.stationName || ''} onChange={event => setSettings(s => ({ ...s, stationName: event.target.value }))} />
             <Input label="GPS lat meteo" value={settings.weatherLat || ''} onChange={event => setSettings(s => ({ ...s, weatherLat: event.target.value }))} />
             <Input label="GPS lng meteo" value={settings.weatherLng || ''} onChange={event => setSettings(s => ({ ...s, weatherLng: event.target.value }))} />
             <Input label="Port server" type="number" value={settings.serverPort || ''} onChange={event => setSettings(s => ({ ...s, serverPort: event.target.value }))} />

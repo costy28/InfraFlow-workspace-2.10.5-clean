@@ -4417,7 +4417,7 @@ function updateSettings(current = {}, body = {}) {
     : (license.trialStartedAt || null);
   return {
     ...current,
-    companyName: String(body.companyName || current.companyName || "Statie asfalt").trim(),
+    companyName: String(body.companyName || current.companyName || "Organizație").trim(),
     companyCui: String(body.companyCui ?? body.cui ?? current.companyCui ?? current.cui ?? "").trim(),
     cui: String(body.companyCui ?? body.cui ?? current.companyCui ?? current.cui ?? "").trim(),
     address: String(body.address ?? current.address ?? "").trim(),
@@ -8747,7 +8747,7 @@ function buildCostAccountingReportPage(db, report) {
 
 function reportPage(db, { title, subtitle, content }) {
   const settings = db.settings || {};
-  const company = settings.companyName || "Statie asfalt";
+  const company = settings.companyName || "Organizație";
   const station = settings.stationName || "";
   const location = settings.location || "";
   const logo = settings.logoDataUrl ? `<img class="logo" src="${htmlEscape(settings.logoDataUrl)}" alt="Logo">` : "";

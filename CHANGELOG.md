@@ -1,5 +1,24 @@
 # Changelog
 
+# v2.12.413 - 2026-07-30
+
+## Shell comercial generic
+
+- Sidebar-ul folosește etichete mai generale: `Parc & Resurse` și `Lucrări / Execuție`.
+- Catalogul de module din Setări descrie producția ca flux operațional configurabil, nu doar producție de asfalt.
+- Câmpul `Stație` din Setări a devenit `Punct de lucru / locație`.
+- Fallback-urile server pentru firmă și rapoarte folosesc `Organizație`, nu `Statie asfalt`.
+- Documentația scurtă pentru Dashboard și Producție a fost aliniată cu direcția de ERP modular.
+
+# v2.12.412 - 2026-07-30
+
+## Dashboard comercial generic
+
+- `DashboardPage.jsx` folosește limbaj de ERP modular și elimină textele de demo nișate pe asfalt/utilaje.
+- Demo-ul operațional descrie aprobări, resurse, oameni, contracte și costuri pentru orice tip de organizație.
+- Prima pagină include o bandă de onboarding pentru module, task-uri și dosare contract/documente.
+- Indicatorii de activitate folosesc fallback generic `outputTotal` cu compatibilitate pe datele existente `asphaltTotal`.
+
 # v2.12.411 - 2026-07-30
 
 ## Confirmări UX Mecanizare, FAZ și operațiuni contabile

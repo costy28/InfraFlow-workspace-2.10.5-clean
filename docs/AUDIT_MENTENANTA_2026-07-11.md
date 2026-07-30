@@ -1244,3 +1244,19 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/accounting/OperatiuniContabile.jsx` — ✅ stornare retur și acțiuni pe imobilizări fără `window.confirm/window.prompt`;
 - `client/src/pages` + `client/src/components` — ✅ scan curat pentru `window.confirm/window.prompt/window.alert`;
 - `updates/UPDATE_431_confirmari_ux_mecanizare_faz_operatiuni_contabile.md` — ✅ documentație update și verificări.
+
+### UPDATE 432 — Dashboard comercial generic și onboarding modular
+
+- `client/src/pages/DashboardPage.jsx` — ✅ textele de demo/pilot au fost înlocuite cu limbaj ERP modular;
+- Demo-ul operațional prezintă aprobări, resurse, oameni, contracte și costuri, fără exemplu nișat pe asfalt/utilaje;
+- Prima pagină include bandă de onboarding pentru module active, task-uri și dosare contract/document;
+- Indicatorii de activitate folosesc fallback generic `outputTotal`, păstrând compatibilitatea cu `asphaltTotal`;
+- `updates/UPDATE_432_dashboard_comercial_generic.md` — ✅ documentație update și verificări.
+
+### UPDATE 433 — Shell comercial generic
+
+- `client/src/components/layout/Sidebar.jsx` — ✅ etichete comerciale mai generale pentru parc/resurse și lucrări/execuție;
+- `client/src/pages/SetariPage.jsx` — ✅ catalog module și câmp punct de lucru aliniate cu produs modular;
+- `server/modules/system/routes.js` + `server/modules/system/service.js` — ✅ fallback `Statie asfalt` înlocuit cu `Organizație`;
+- `docs/utilizator/02-dashboard.md` + `docs/utilizator/03-productie.md` — ✅ documentație scurtă generalizată;
+- `updates/UPDATE_433_shell_comercial_generic.md` — ✅ documentație update și verificări.
