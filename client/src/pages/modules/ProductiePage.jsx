@@ -212,9 +212,9 @@ export default function ProductiePage() {
       </tr>`).join('')
     const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>Raport Zilnic Producție</title>
 <style>body{font-family:Arial,sans-serif;font-size:10pt;margin:1.5cm}h2{text-align:center}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px 6px}th{background:#f0f0f0;text-align:center}.total{font-weight:bold;background:#e8e8e8}@media print{body{margin:1cm}}</style></head><body>
-<h2>RAPORT ZILNIC PRODUCȚIE ASFALT</h2>
+<h2>RAPORT ZILNIC PRODUCȚIE / OPERAȚIUNI</h2>
 <p style="text-align:center">Luna: <strong>${raportZilnic.luna}</strong> · Total: <strong>${raportZilnic.totals?.tone_total} tone</strong> în <strong>${raportZilnic.totals?.zile_productie} zile</strong></p>
-<table><thead><tr><th>Data</th><th>Tone produse</th><th>Nr. producții</th><th>Rețete</th><th>Consum materii prime</th></tr></thead>
+<table><thead><tr><th>Data</th><th>Output</th><th>Nr. operațiuni</th><th>Rețete / fluxuri</th><th>Consum resurse</th></tr></thead>
 <tbody>${rows}<tr class="total"><td colspan="1">TOTAL</td><td style="text-align:right">${raportZilnic.totals?.tone_total}</td><td style="text-align:right">${raportZilnic.totals?.productii_total}</td><td colspan="2"></td></tr></tbody></table>
 </body></html>`
     const win = window.open('', '_blank'); win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 400)
@@ -242,8 +242,8 @@ export default function ProductiePage() {
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">Producție</h2>
-          <p className="text-sm text-slate-500">Consumuri, rețete și planuri de producție.</p>
+          <h2 className="text-xl font-semibold text-slate-900">Producție / Operațiuni</h2>
+          <p className="text-sm text-slate-500">Consumuri, rețete, fluxuri și planuri de activitate operațională.</p>
         </div>
         <Button onClick={() => setModalOpen(true)}>Adaugă nou</Button>
       </div>
@@ -299,7 +299,7 @@ export default function ProductiePage() {
                 filteredConsumptions.map(item => ({
                   'Dată': item.date || item.data || '',
                   'Rețetă': item.recipeName || item.reteta || '',
-                  'Tone asfalt': Number(item.asphalt || item.tone || 0),
+                  'Output': Number(item.asphalt || item.tone || 0),
                   'Operator': item.operatorName || item.operator || '',
                   'Lucrare': item.jobName || item.lucrare || '',
                 })),

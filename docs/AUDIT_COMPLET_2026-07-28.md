@@ -16,6 +16,7 @@ Completare P0 UX producție, așternere, documente și dashboard: `2.12.410` / `
 Completare P0 UX mecanizare, FAZ și operațiuni contabile: `2.12.411` / `UPDATE 431`
 Completare P0 dashboard comercial generic: `2.12.412` / `UPDATE 432`
 Completare P0 shell comercial generic: `2.12.413` / `UPDATE 433`
+Completare P0 module operaționale limbaj generic: `2.12.414` / `UPDATE 434`
 
 ## Rezumat executiv
 
@@ -165,6 +166,15 @@ Direcția corectă pentru perioada următoare:
 | Catalog module | producția era descrisă explicit ca producție asfalt | descriere generică pentru rețete, fluxuri, consumuri și output operațional |
 | Server / rapoarte | fallback-ul de firmă era `Statie asfalt` | fallback generic `Organizație` |
 | Documentație utilizator | ghidurile scurte Dashboard/Producție erau orientate pe producție/utilaje | texte aliniate cu ERP modular |
+
+## Probleme remediate în UPDATE 434
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Parc operațional | pagina se prezenta ca `Mecanizare` și vorbea preponderent despre utilaje | header, helper, demo și KPI-uri repoziționate ca `Parc & Resurse` |
+| Flotă | headerul `Flotă utilaje` era prea îngust | `Parc & Resurse mobile` |
+| Producție | pagina și exporturile păstrau limbaj orientat pe asfalt | `Producție / Operațiuni`, output generic și raport printabil general |
+| Lucrări / Execuție | pagina era titulată `Asternere Asfalt` | header și corelare producție generalizate |
 
 ## Zone mari de cod
 

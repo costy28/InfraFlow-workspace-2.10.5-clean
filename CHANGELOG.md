@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.414 - 2026-07-30
+
+## Module operaționale cu limbaj generic
+
+- `MecanizarePage.jsx` se prezintă ca `Parc & Resurse` în header, helper, demo și KPI-uri.
+- `FlotaPage.jsx` se prezintă ca `Parc & Resurse mobile`.
+- `ProductiePage.jsx` se prezintă ca `Producție / Operațiuni`, iar exportul consumurilor folosește `Output`.
+- `AsternerePage.jsx` se prezintă ca `Lucrări / Execuție`, cu corelare generică la `Producție / Operațiuni`.
+- Rapoartele printabile din Producție și Parc & Resurse folosesc titluri generale.
+
 # v2.12.413 - 2026-07-30
 
 ## Shell comercial generic

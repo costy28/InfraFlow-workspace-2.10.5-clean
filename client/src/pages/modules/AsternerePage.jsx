@@ -1,5 +1,5 @@
 /**
- * InfraFlow — Modul Asternere Asfalt
+ * InfraFlow — Modul Lucrări / Execuție
  * §67 AGENTS.md
  *
  * Tabs: Dashboard | Lucrări | Rapoarte zilnice | Progres lucrări | Consum asfalt
@@ -450,8 +450,8 @@ export default function AsternerePage() {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">🛣️ Asternere Asfalt</h1>
-          <p className="text-sm text-slate-500">Lucrări, rapoarte zilnice, progres și consum</p>
+          <h1 className="text-xl font-bold text-slate-800">🛣️ Lucrări / Execuție</h1>
+          <p className="text-sm text-slate-500">Lucrări, rapoarte zilnice, progres, consum și recepții operaționale</p>
         </div>
         <div className="flex gap-2">
           {tab === 'Lucrări' && (
@@ -902,7 +902,7 @@ export default function AsternerePage() {
               {(consumData.productii_livrate || []).length > 0 && (
                 <div className="rounded-xl border border-slate-200 bg-white">
                   <div className="border-b border-slate-100 px-5 py-3 font-semibold text-slate-700">
-                    Producții livrate (din Producție Asfalt)
+                    Producții livrate (din Producție / Operațiuni)
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">

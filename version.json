@@ -1,5 +1,5 @@
 {
-  "version": "2.12.413",
+  "version": "2.12.414",
   "date": "2026-07-30",
-  "changelog": "## v2.12.413 - 2026-07-30\n### Shell comercial generic\n- Sidebar-ul folosește etichete mai generale pentru parc/resurse și lucrări/execuție.\n- Catalogul de module din Setări descrie producția ca flux operațional configurabil, nu doar asfalt.\n- Câmpul Stație din Setări devine Punct de lucru / locație.\n- Fallback-urile server pentru firmă/rapoarte nu mai afișează Statie asfalt."
+  "changelog": "## v2.12.414 - 2026-07-30\n### Module operaționale cu limbaj generic\n- Mecanizarea se prezintă ca Parc & Resurse în header, helper și KPI-uri.\n- Flota se prezintă ca Parc & Resurse mobile.\n- Producția se prezintă ca Producție / Operațiuni, cu output generic în exporturi.\n- Așternerea se prezintă ca Lucrări / Execuție, iar corelarea producției este generică."
 }

@@ -650,10 +650,10 @@ export default function MecanizarePage() {
 table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px 6px;font-size:9pt}th{background:#f0f0f0;text-align:center}
 .n{text-align:right}.red{color:red;font-weight:bold}.total{background:#e8e8e8;font-weight:bold}
 @media print{body{margin:1cm}}</style></head><body>
-<h2>RAPORT DE ACTIVITATE UTILAJE — ${raport.luna}</h2>
+<h2>RAPORT DE ACTIVITATE RESURSE — ${raport.luna}</h2>
 <p class="sub">Total service: ${raport.costService.toFixed(2)} RON</p>
 <table>
-<thead><tr><th>Utilaj / Vehicul</th><th>Zile lucrate</th><th>Ore lucru</th><th>Km parcurși</th><th>Cons. real (L)</th><th>Cons. normat (L)</th><th>Diferență (L)</th></tr></thead>
+<thead><tr><th>Resursă / Vehicul</th><th>Zile lucrate</th><th>Ore lucru</th><th>Km parcurși</th><th>Cons. real (L)</th><th>Cons. normat (L)</th><th>Diferență (L)</th></tr></thead>
 <tbody>${rows}
 <tr class="total"><td>TOTAL</td><td class="n">${t.zile_lucrate}</td><td class="n">${t.ore_total.toFixed(1)}</td><td class="n">${t.km_total.toFixed(0)}</td><td class="n">${t.consum_total.toFixed(1)}</td><td class="n">${t.consum_normat_total.toFixed(1)}</td><td class="n ${t.diferenta_consum > 0 ? 'red' : ''}">${t.diferenta_consum.toFixed(1)}</td></tr>
 </tbody></table>
@@ -731,8 +731,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">⚙️ Mecanizare</h1>
-          <p className="text-sm text-slate-500">Parc utilaje, planificare, bonuri de lucru, intervenții</p>
+          <h1 className="text-xl font-bold text-slate-900">⚙️ Parc & Resurse</h1>
+          <p className="text-sm text-slate-500">Vehicule, utilaje, echipamente, planificare, bonuri de lucru și intervenții.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => navigate('/foi-parcurs')}>Foi Parcurs</Button>
@@ -746,16 +746,16 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
 
       <ContextHelp
-        eyebrow="Ghid mecanizare"
+        eyebrow="Ghid parc & resurse"
         title="Ține parcul în ordine: cereri → planificare → bonuri → alimentări → scadențe"
-        description="Mecanizarea funcționează bine când utilajele sunt planificate, bonurile se închid lunar, alimentările sunt mapate și scadențele nu ajung urgente."
+        description="Parcul operațional funcționează bine când resursele sunt planificate, bonurile se închid lunar, alimentările sunt mapate și scadențele nu ajung urgente."
         icon="⚙️"
         tone={mechanizationHelp.tone}
         steps={mechanizationHelp.steps}
         tips={[
           'Bonurile de lucru închise sunt baza pentru FAZ și cost/oră.',
           'Alimentările nemapate strică raportul de consum și diferențele normate.',
-          'Un utilaj cu scadență critică trebuie verificat înainte de alocare.',
+          'O resursă cu scadență critică trebuie verificată înainte de alocare.',
         ]}
         nextAction={mechanizationHelp.nextAction}
         compact
@@ -792,7 +792,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           {/* KPI cards */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 2xl:grid-cols-7">
             {[
-              { label: 'Total utilaje', value: dashboard?.stats?.totalUtilaje ?? '…', icon: '🏗️' },
+              { label: 'Total echipamente', value: dashboard?.stats?.totalUtilaje ?? '…', icon: '🏗️' },
               { label: 'Total vehicule', value: dashboard?.stats?.totalVehicule ?? '…', icon: '🚗' },
               { label: 'Alocate azi', value: dashboard?.stats?.alocateAzi ?? '…', icon: '🟡', tone: 'amber' },
               { label: 'În service', value: dashboard?.stats?.inService ?? '…', icon: '🔧', tone: 'rose' },
@@ -811,10 +811,10 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <Card className="border-emerald-200 bg-emerald-50/60">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-semibold uppercase text-emerald-700">Demo mecanizare → șofer</div>
+              <div className="text-xs font-semibold uppercase text-emerald-700">Demo parc operațional → șofer</div>
                 <h3 className="mt-1 text-lg font-semibold text-slate-900">Foaia șoferului Ion Popescu</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Șeful de mecanizare trimite foaia, șoferul o completează din Kiosk, apoi mecanizarea o închide pentru FAZ.
+                  Responsabilul trimite foaia, șoferul o completează din Kiosk, apoi biroul operațional o închide pentru FAZ.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1875,7 +1875,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               {/* Summary cards */}
               <div className="grid gap-3 sm:grid-cols-4">
                 {[
-                  { label: 'Utilaje active', value: raport.rows.length, icon: '🏗️' },
+                  { label: 'Resurse active', value: raport.rows.length, icon: '🏗️' },
                   { label: 'Total ore lucru', value: raport.totals.ore_total.toFixed(1) + 'h', icon: '⏱️' },
                   { label: 'Total km', value: raport.totals.km_total.toFixed(0), icon: '🛣️' },
                   { label: 'Cost service', value: raport.costService.toFixed(2) + ' RON', icon: '🔧', tone: raport.costService > 0 ? 'rose' : '' },
@@ -2084,7 +2084,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Data" type="date" value={planForm.date} onChange={e => setPlanForm({ ...planForm, date: e.target.value })} required />
             <Select label="Utilaj / Vehicul" value={planForm.asset_id} onChange={e => setPlanForm({ ...planForm, asset_id: e.target.value })} options={assetOptions} required />
-            <Input label="Departament" value={planForm.department} onChange={e => setPlanForm({ ...planForm, department: e.target.value })} placeholder="ex: Asternere, Betoane…" />
+            <Input label="Departament" value={planForm.department} onChange={e => setPlanForm({ ...planForm, department: e.target.value })} placeholder="ex: Execuție, Depozit, Service…" />
             <Input label="Lucrare / Obiectiv" value={planForm.job_name} onChange={e => setPlanForm({ ...planForm, job_name: e.target.value })} placeholder="ex: DN7 km 12" />
             <Input label="Operator / Șofer" value={planForm.operator} onChange={e => setPlanForm({ ...planForm, operator: e.target.value })} />
             <div className="grid grid-cols-2 gap-2">
@@ -2110,7 +2110,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             <Input label="Data" type="date" value={woForm.date} onChange={e => setWoForm({ ...woForm, date: e.target.value })} required />
             <Select label="Utilaj / Vehicul" value={woForm.asset_id} onChange={e => setWoForm({ ...woForm, asset_id: e.target.value })} options={assetOptions} required />
             <Input label="Operator / Șofer" value={woForm.operator} onChange={e => setWoForm({ ...woForm, operator: e.target.value })} />
-            <Input label="Activitate" value={woForm.activitate} onChange={e => setWoForm({ ...woForm, activitate: e.target.value })} placeholder="ex: Transport asfalt, Nivelare…" />
+            <Input label="Activitate" value={woForm.activitate} onChange={e => setWoForm({ ...woForm, activitate: e.target.value })} placeholder="ex: Transport materiale, Nivelare, Intervenție…" />
             <Input label="Locație" value={woForm.locatie} onChange={e => setWoForm({ ...woForm, locatie: e.target.value })} placeholder="ex: DN7 km 12" />
             <Input label="Ore lucrate" type="number" step="0.5" min="0" value={woForm.ore_lucrate} onChange={e => setWoForm({ ...woForm, ore_lucrate: e.target.value })} />
             <Input label="Km parcurși" type="number" min="0" value={woForm.km_parcursi} onChange={e => setWoForm({ ...woForm, km_parcursi: e.target.value })} />

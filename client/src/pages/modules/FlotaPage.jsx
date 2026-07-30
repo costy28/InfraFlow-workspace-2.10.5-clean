@@ -658,8 +658,8 @@ export default function FlotaPage() {
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">Flotă utilaje</h2>
-          <p className="text-sm text-slate-500">Autovehicule, utilaje, solicitări, rapoarte zilnice și alerte.</p>
+          <h2 className="text-xl font-semibold text-slate-900">Parc & Resurse mobile</h2>
+          <p className="text-sm text-slate-500">Autovehicule, utilaje, echipamente mobile, solicitări, rapoarte zilnice și alerte.</p>
         </div>
         {activeTab === TAB_VEHICLES && <Button onClick={() => openAssetModal('autovehicul')}>Autovehicul nou</Button>}
         {activeTab === TAB_EQUIPMENT && <Button onClick={() => openAssetModal('utilaj')}>Utilaj nou</Button>}

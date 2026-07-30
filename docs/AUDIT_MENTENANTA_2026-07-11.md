@@ -1260,3 +1260,11 @@ Următorul pas de stabilizare: `2.12.300`
 - `server/modules/system/routes.js` + `server/modules/system/service.js` — ✅ fallback `Statie asfalt` înlocuit cu `Organizație`;
 - `docs/utilizator/02-dashboard.md` + `docs/utilizator/03-productie.md` — ✅ documentație scurtă generalizată;
 - `updates/UPDATE_433_shell_comercial_generic.md` — ✅ documentație update și verificări.
+
+### UPDATE 434 — Module operaționale cu limbaj generic
+
+- `client/src/pages/modules/MecanizarePage.jsx` — ✅ header/helper/demo/KPI-uri repoziționate ca `Parc & Resurse`;
+- `client/src/pages/modules/FlotaPage.jsx` — ✅ header repoziționat ca `Parc & Resurse mobile`;
+- `client/src/pages/modules/ProductiePage.jsx` — ✅ header, export și raport printabil repoziționate ca `Producție / Operațiuni`;
+- `client/src/pages/modules/AsternerePage.jsx` — ✅ header și corelare producție repoziționate ca `Lucrări / Execuție`;
+- `updates/UPDATE_434_module_operationale_limbaj_generic.md` — ✅ documentație update și verificări.
