@@ -3,6 +3,7 @@ import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Input from '../components/ui/Input'
 import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
@@ -63,6 +64,8 @@ export default function FoaieParcursPage() {
   const [closingUuid, setClosingUuid] = useState(null) // uuid being closed via mecanizare
   const [signShare, setSignShare] = useState(null)
   const [filters, setFilters] = useState({ data: '', asset_id: '', luna: currentMonth() })
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [newForm, setNewForm] = useState({
     nr_foaie: '',
     asset_id: '',
@@ -248,7 +251,18 @@ export default function FoaieParcursPage() {
   }
 
   async function generateFaz() {
-    if (!window.confirm(`Generezi FAZ pentru ${filters.luna}? Foile vor fi marcate in_faz.`)) return
+    setConfirmAction({
+      title: 'Generează FAZ foi parcurs',
+      message: `Generezi FAZ pentru ${filters.luna}?`,
+      details: 'Foile închise din luna selectată vor fi incluse în FAZ și marcate ca introduse în raportul lunar.',
+      confirmLabel: 'Generează FAZ',
+      tone: 'warning',
+      run: generateFazRequest,
+      errorMessage: 'FAZ-ul lunar nu a putut fi generat.',
+    })
+  }
+
+  async function generateFazRequest() {
     try {
       const response = await api.post('/fleet/trip-logs/faz-generate', { luna: filters.luna })
       setMessage(`FAZ generat: ${response.data.foi} foi, ${response.data.total_km} km.`)
@@ -258,6 +272,20 @@ export default function FoaieParcursPage() {
       win.document.close()
     } catch (err) {
       setError(err.response?.data?.error || 'FAZ-ul lunar nu a putut fi generat.')
+    }
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
     }
   }
 
@@ -528,6 +556,19 @@ export default function FoaieParcursPage() {
           </div>
         </div> : null}
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Renunță"
+        tone={confirmAction?.tone || 'warning'}
+        loading={confirmLoading}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

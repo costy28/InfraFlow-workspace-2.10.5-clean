@@ -13,6 +13,7 @@ Completare P0 UX Salarizare: `2.12.407` / `UPDATE 427`
 Completare P0 UX facturi și registru jurnal: `2.12.408` / `UPDATE 428`
 Completare P0 UX controlling și raportări contabile: `2.12.409` / `UPDATE 429`
 Completare P0 UX producție, așternere, documente și dashboard: `2.12.410` / `UPDATE 430`
+Completare P0 UX mecanizare, FAZ și operațiuni contabile: `2.12.411` / `UPDATE 431`
 
 ## Rezumat executiv
 
@@ -135,6 +136,15 @@ Direcția corectă pentru perioada următoare:
 | Documente | dezactivarea template-urilor folosea `window.confirm` | confirmare ERP care explică păstrarea documentelor deja generate |
 | Dashboard | resetarea demo folosea `window.confirm` | confirmare ERP înainte de reset și reîncărcare pagină |
 
+## Probleme remediate în UPDATE 431
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| FC Utilaje | generarea FAZ utilaje folosea `window.confirm` | dialog ERP cu impact asupra marcării FC-urilor în FAZ |
+| Foi Parcurs | generarea FAZ lunar folosea `window.confirm` | confirmare ERP înainte de centralizarea foilor închise |
+| Mecanizare | ștergeri, import PIUSI și FAZ lunar foloseau `window.confirm` | confirmări ERP explicite, fără popup nativ |
+| Operațiuni contabile | stornarea retururilor și acțiunile pe imobilizări foloseau `window.confirm/window.prompt` | dialog ERP cu câmp pentru locație, valoare sau motiv |
+
 ## Zone mari de cod
 
 | Prioritate | Fișier / zonă | Linii aproximative | Observație |
@@ -169,7 +179,7 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 
 | Prioritate | Problemă | Impact |
 | --- | --- | --- |
-| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | început rezolvare în UPDATE 422 pentru PAAP, continuat în UPDATE 423 pentru Contracte, UPDATE 424 pentru Setări, UPDATE 425 pentru Gestiune, UPDATE 426 pentru HR, UPDATE 427 pentru Salarizare, UPDATE 428 pentru Facturi/Registru jurnal, UPDATE 429 pentru Controlling/raportări contabile și UPDATE 430 pentru Producție/Așternere/Documente/Dashboard |
+| P0 | multe acțiuni critice folosesc `window.confirm`, `window.prompt`, `window.alert` | rezolvat gradual în UPDATE 422-431; scan-ul principal `client/src/pages` + `client/src/components` nu mai găsește dialoguri native |
 | P0 | dashboardul și unele module încă folosesc termeni legați de asfalt | produsul trebuie să pară ERP modular general, nu aplicație de nișă |
 | P0 | unele exporturi și stream-uri live foloseau token în query string | rezolvat în UPDATE 420 și UPDATE 421 |
 | P1 | setările sunt foarte dense | utilizatorul nou nu știe ce este esențial și ce este avansat |

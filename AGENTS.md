@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.410**
-**Versiune în lucru: v2.12.410**
+**Versiune curentă sursă: v2.12.411**
+**Versiune în lucru: v2.12.411**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -211,6 +211,7 @@ Mecanizare / Fleet
   ✅ Odometru + consum combustibil
   ✅ Alerte scadențe ITP/RCA
   ✅ Import Autominder XML
+  ✅ Confirmări UX FAZ, ștergeri și import PIUSI (v2.12.411)
   ✅ GPS Live — urmariregps.ro ✅ (v2.10.1)
      → 23 vehicule afișate pe hartă
      → Responsive mobil cu tabs (v2.10.2)
@@ -320,6 +321,7 @@ Comunicare
   ✅ Confirmări UX Facturi și Registru jurnal (v2.12.408)
   ✅ Confirmări UX Controlling și raportări contabile (v2.12.409)
   ✅ Confirmări UX Producție, Așternere, Documente și Dashboard (v2.12.410)
+  ✅ Confirmări UX Mecanizare, FAZ și operațiuni contabile (v2.12.411)
 
 Task Management
   ✅ Fundație task-uri personale și delegate (v2.12.355)
@@ -733,9 +735,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.410
+VERSIUNE CURENTĂ SURSĂ: 2.12.411
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.410 ✅
+UPDATE ZIP CURENT: 2.12.411 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -954,6 +956,7 @@ UPDATES ÎN LUCRU:
   2.12.408 → UPDATE 428 Confirmări UX Facturi și Registru jurnal ✅
   2.12.409 → UPDATE 429 Confirmări UX Controlling și raportări contabile ✅
   2.12.410 → UPDATE 430 Confirmări UX Producție, Așternere, Documente și Dashboard ✅
+  2.12.411 → UPDATE 431 Confirmări UX Mecanizare, FAZ și operațiuni contabile ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1448,5 +1451,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 30 Iulie 2026 | InfraFlow sursă v2.12.410*
+*AGENTS.md actualizat: 30 Iulie 2026 | InfraFlow sursă v2.12.411*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

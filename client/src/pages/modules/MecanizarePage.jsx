@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import DropdownMenu from '../../components/ui/DropdownMenu'
 import ContextHelp from '../../components/ui/ContextHelp'
 import { exportExcel } from '../../utils/export'
@@ -192,6 +193,8 @@ export default function MecanizarePage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
 
   // ── load ────────────────────────────────────────────────────────────────────
   async function loadAll() {
@@ -357,7 +360,18 @@ export default function MecanizarePage() {
   }
 
   async function deletePlanning(id) {
-    if (!window.confirm('Ștergi planificarea?')) return
+    setConfirmAction({
+      title: 'Șterge planificarea',
+      message: 'Ștergi această planificare?',
+      details: 'Planificarea va fi scoasă din calendarul operațional al utilajelor. Verifică dacă nu este deja folosită în activitatea zilei.',
+      confirmLabel: 'Șterge planificarea',
+      tone: 'danger',
+      run: () => deletePlanningRequest(id),
+      errorMessage: 'Eroare la ștergere.',
+    })
+  }
+
+  async function deletePlanningRequest(id) {
     try { await api.delete(`/mechanization/plannings/${id}`); await loadPlannings() }
     catch { setError('Eroare la ștergere.') }
   }
@@ -381,7 +395,18 @@ export default function MecanizarePage() {
   }
 
   async function deleteWorkOrder(id) {
-    if (!window.confirm('Ștergi bonul de lucru?')) return
+    setConfirmAction({
+      title: 'Șterge bon de lucru',
+      message: 'Ștergi acest bon de lucru?',
+      details: 'Bonul nu va mai intra în centralizările operaționale. Dacă reprezintă activitate reală, verifică înainte de confirmare.',
+      confirmLabel: 'Șterge bonul',
+      tone: 'danger',
+      run: () => deleteWorkOrderRequest(id),
+      errorMessage: 'Eroare la ștergere.',
+    })
+  }
+
+  async function deleteWorkOrderRequest(id) {
     try { await api.delete(`/mechanization/work-orders/${id}`); await loadWorkOrders() }
     catch { setError('Eroare la ștergere.') }
   }
@@ -406,7 +431,18 @@ export default function MecanizarePage() {
   }
 
   async function deleteFuelLog(id) {
-    if (!window.confirm('Ștergi alimentarea?')) return
+    setConfirmAction({
+      title: 'Șterge alimentare',
+      message: 'Ștergi această alimentare?',
+      details: 'Alimentarea va fi eliminată din raportarea mecanizării și poate modifica totalurile de carburant.',
+      confirmLabel: 'Șterge alimentarea',
+      tone: 'danger',
+      run: () => deleteFuelLogRequest(id),
+      errorMessage: 'Eroare la ștergere alimentare.',
+    })
+  }
+
+  async function deleteFuelLogRequest(id) {
     try { await api.delete(`/mechanization/fuel-logs/${id}`); await loadFuelLogs() }
     catch { setError('Eroare la ștergere alimentare.') }
   }
@@ -444,7 +480,18 @@ export default function MecanizarePage() {
   async function importPiusiInFaz() {
     const count = piusiFuelRows.filter(row => row.asset_id && row.procesat !== true).length
     if (!count) { setError('Nu există alimentări PIUSI mapate și neprocesate.'); return }
-    if (!window.confirm(`Import ${count} alimentări PIUSI în FAZ/alimentări mecanizare?`)) return
+    setConfirmAction({
+      title: 'Importă alimentări PIUSI',
+      message: `Importi ${count} alimentări PIUSI în FAZ/alimentări mecanizare?`,
+      details: 'Vor fi preluate doar alimentările mapate pe utilaj/vehicul și neprocesate încă.',
+      confirmLabel: 'Importă în FAZ',
+      tone: 'warning',
+      run: importPiusiInFazRequest,
+      errorMessage: 'Importul PIUSI în FAZ a eșuat.',
+    })
+  }
+
+  async function importPiusiInFazRequest() {
     setError('')
     try {
       await api.post('/integration/piusi/import-faz', { ids: piusiFuelRows.filter(row => row.asset_id && row.procesat !== true).map(row => row.id) })
@@ -549,7 +596,18 @@ export default function MecanizarePage() {
   }
 
   async function generateMechanizationFaz() {
-    if (!window.confirm(`Generezi FAZ mecanizare pentru ${fazLuna}?`)) return
+    setConfirmAction({
+      title: 'Generează FAZ mecanizare',
+      message: `Generezi FAZ mecanizare pentru ${fazLuna}?`,
+      details: 'Raportul lunar va centraliza activitatea, alimentările și costurile pentru filtrele selectate.',
+      confirmLabel: 'Generează FAZ',
+      tone: 'warning',
+      run: generateMechanizationFazRequest,
+      errorMessage: 'Generarea FAZ a eșuat.',
+    })
+  }
+
+  async function generateMechanizationFazRequest() {
     setError('')
     try {
       const res = await api.post('/mechanization/faz-lunar/generate', {
@@ -563,6 +621,20 @@ export default function MecanizarePage() {
       win.focus()
     } catch (err) {
       setError(err.response?.data?.error || 'FAZ-ul mecanizare nu a putut fi generat.')
+    }
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
     }
   }
 
@@ -2150,6 +2222,19 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           </form>
         ) : null}
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Renunță"
+        tone={confirmAction?.tone || 'warning'}
+        loading={confirmLoading}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }

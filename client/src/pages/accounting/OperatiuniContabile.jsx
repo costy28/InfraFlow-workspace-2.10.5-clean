@@ -3,6 +3,7 @@ import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/forms/Input'
 import Modal from '../../components/ui/Modal'
 import { formatMoney } from '../../utils/format'
@@ -47,6 +48,8 @@ export function OperatiuniContabile() {
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const selectedReceiptRows = useMemo(() => (inventoryReconciliation.rows || []).filter(row => selectedReceipts.includes(row.id)), [inventoryReconciliation.rows, selectedReceipts])
   const selectedReceiptTotal = useMemo(() => selectedReceiptRows.reduce((sum, row) => sum + Number(row.total || 0), 0), [selectedReceiptRows])
 
@@ -175,7 +178,18 @@ export function OperatiuniContabile() {
   }
 
   async function resolveFullReturn(returnRecord) {
-    if (!window.confirm('Factura și nota contabilă legată vor fi stornate. Continui?')) return
+    setConfirmAction({
+      title: 'Stornează factura legată',
+      message: 'Factura și nota contabilă legată vor fi stornate. Continui?',
+      details: 'Acțiunea rezolvă returul contabil prin documente de stornare și actualizează situația facturii legate.',
+      confirmLabel: 'Stornează documentele',
+      tone: 'danger',
+      run: () => resolveFullReturnRequest(returnRecord),
+      errorMessage: 'Returul nu a putut fi rezolvat contabil.',
+    })
+  }
+
+  async function resolveFullReturnRequest(returnRecord) {
     setBusy(`return-${returnRecord.id}`); setError(''); setMessage('')
     try {
       const res = await api.post(`/accounting/inventory-returns/${returnRecord.id}/storno-linked-invoice`)
@@ -279,16 +293,79 @@ export function OperatiuniContabile() {
 
   async function assetAction(row, action) {
     const payload = { action, data: today() }
-    if (action === 'transfer') payload.location = window.prompt('Noua locație a imobilizării:', row.location || '') || ''
-    if (action === 'reevaluare') payload.new_value = window.prompt('Noua valoare contabilă:', row.acquisition_value || '') || ''
-    if (action === 'casare') payload.motiv = window.prompt('Motivul casării:', '') || ''
-    if ((action === 'transfer' && !payload.location) || (action === 'reevaluare' && !payload.new_value) || (action === 'casare' && !payload.motiv)) return
+    if (action === 'transfer') {
+      setConfirmAction({
+        title: 'Transferă imobilizarea',
+        message: `Transferi imobilizarea ${row.inventory_no || row.name}?`,
+        details: 'Completează noua locație. Mișcarea va fi înregistrată în istoricul mijlocului fix.',
+        confirmLabel: 'Transferă',
+        tone: 'warning',
+        reasonLabel: 'Noua locație',
+        reasonDefault: row.location || '',
+        reasonRequired: true,
+        minReasonLength: 2,
+        run: value => assetActionRequest(row, action, { location: value }),
+        errorMessage: 'Transferul nu a putut fi înregistrat.',
+      })
+      return
+    }
+    if (action === 'reevaluare') {
+      setConfirmAction({
+        title: 'Reevaluează imobilizarea',
+        message: `Reevaluezi imobilizarea ${row.inventory_no || row.name}?`,
+        details: 'Completează noua valoare contabilă. Verifică documentele justificative înainte de confirmare.',
+        confirmLabel: 'Reevaluează',
+        tone: 'warning',
+        reasonLabel: 'Noua valoare contabilă',
+        reasonDefault: String(row.acquisition_value || ''),
+        reasonRequired: true,
+        minReasonLength: 1,
+        run: value => assetActionRequest(row, action, { new_value: value }),
+        errorMessage: 'Reevaluarea nu a putut fi înregistrată.',
+      })
+      return
+    }
+    if (action === 'casare') {
+      setConfirmAction({
+        title: 'Casează imobilizarea',
+        message: `Casezi imobilizarea ${row.inventory_no || row.name}?`,
+        details: 'Completează motivul casării. Acțiunea trebuie să fie justificată și păstrată în audit.',
+        confirmLabel: 'Casează',
+        tone: 'danger',
+        reasonLabel: 'Motiv casare',
+        reasonPlaceholder: 'Ex: uzură fizică, deteriorare, casare aprobată prin PV...',
+        reasonRequired: true,
+        minReasonLength: 3,
+        run: value => assetActionRequest(row, action, { motiv: value }),
+        errorMessage: 'Casarea nu a putut fi înregistrată.',
+      })
+      return
+    }
+    await assetActionRequest(row, action, payload)
+  }
+
+  async function assetActionRequest(row, action, extraPayload = {}) {
+    const payload = { action, data: today(), ...extraPayload }
     setBusy(`asset-${row.uuid}`); setError(''); setMessage('')
     try {
       await api.post(`/accounting/fixed-assets/${row.uuid}/action`, payload)
       setMessage(`Acțiunea ${action.replaceAll('_', ' ')} a fost înregistrată pentru ${row.inventory_no}.`)
       load()
     } catch (err) { setError(err.response?.data?.error || 'Acțiunea nu a putut fi înregistrată.') } finally { setBusy('') }
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
+    }
   }
 
   async function runDepreciation() {
@@ -537,6 +614,24 @@ export function OperatiuniContabile() {
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreditModal(false)}>Renunță</Button><Button type="submit" disabled={busy === 'credit-note'}>Salvează draft</Button></div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Renunță"
+        tone={confirmAction?.tone || 'warning'}
+        loading={confirmLoading}
+        reasonLabel={confirmAction?.reasonLabel}
+        reasonDefault={confirmAction?.reasonDefault}
+        reasonPlaceholder={confirmAction?.reasonPlaceholder}
+        reasonRequired={confirmAction?.reasonRequired}
+        minReasonLength={confirmAction?.minReasonLength}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </AccountingShell>
   )
 }

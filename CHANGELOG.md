@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.411 - 2026-07-30
+
+## Confirmări UX Mecanizare, FAZ și operațiuni contabile
+
+- `FcUtilajePage.jsx` folosește `ConfirmDialog` la generarea FAZ utilaje.
+- `FoaieParcursPage.jsx` folosește `ConfirmDialog` la generarea FAZ lunar din foi de parcurs.
+- `MecanizarePage.jsx` nu mai folosește dialoguri native pentru ștergeri, import PIUSI și generare FAZ.
+- `OperatiuniContabile.jsx` folosește dialog ERP pentru stornarea retururilor și acțiuni pe imobilizări.
+- Scan-ul principal `client/src/pages` + `client/src/components` nu mai găsește `window.confirm/window.prompt/window.alert`.
+
 # v2.12.410 - 2026-07-30
 
 ## Confirmări UX Producție, Așternere, Documente și Dashboard

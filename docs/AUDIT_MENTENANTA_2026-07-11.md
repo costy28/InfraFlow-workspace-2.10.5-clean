@@ -1235,3 +1235,12 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ dezactivarea template-urilor explică faptul că documentele existente rămân păstrate;
 - `client/src/pages/DashboardPage.jsx` — ✅ resetarea demo cere confirmare ERP înainte de reîncărcarea paginii;
 - `updates/UPDATE_430_confirmari_ux_productie_asternere_documente_dashboard.md` — ✅ documentație update și verificări.
+
+### UPDATE 431 — Confirmări UX Mecanizare, FAZ și operațiuni contabile
+
+- `client/src/pages/FcUtilajePage.jsx` — ✅ generarea FAZ utilaje folosește `ConfirmDialog`;
+- `client/src/pages/FoaieParcursPage.jsx` — ✅ generarea FAZ lunar din foi de parcurs folosește `ConfirmDialog`;
+- `client/src/pages/modules/MecanizarePage.jsx` — ✅ ștergeri, import PIUSI și generare FAZ fără `window.confirm`;
+- `client/src/pages/accounting/OperatiuniContabile.jsx` — ✅ stornare retur și acțiuni pe imobilizări fără `window.confirm/window.prompt`;
+- `client/src/pages` + `client/src/components` — ✅ scan curat pentru `window.confirm/window.prompt/window.alert`;
+- `updates/UPDATE_431_confirmari_ux_mecanizare_faz_operatiuni_contabile.md` — ✅ documentație update și verificări.

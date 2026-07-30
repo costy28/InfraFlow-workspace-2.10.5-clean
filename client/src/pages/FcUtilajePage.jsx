@@ -3,6 +3,7 @@ import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Input from '../components/ui/Input'
 import PageHeader from '../components/ui/PageHeader'
 import Select from '../components/ui/Select'
@@ -116,6 +117,8 @@ export default function FcUtilajePage() {
   const [message, setMessage] = useState('')
   const [form, setForm] = useState(initialForm)
   const [filters, setFilters] = useState({ asset_id: '', luna: currentMonth(), status: '' })
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -230,7 +233,18 @@ export default function FcUtilajePage() {
   }
 
   async function generateFaz() {
-    if (!window.confirm(`Generezi FAZ utilaje pentru ${filters.luna}? FC-urile completate vor fi marcate in_faz.`)) return
+    setConfirmAction({
+      title: 'Generează FAZ utilaje',
+      message: `Generezi FAZ utilaje pentru ${filters.luna}?`,
+      details: 'FC-urile completate vor fi incluse în raportul lunar și marcate ca introduse în FAZ.',
+      confirmLabel: 'Generează FAZ',
+      tone: 'warning',
+      run: generateFazRequest,
+      errorMessage: 'FAZ-ul lunar nu a putut fi generat.',
+    })
+  }
+
+  async function generateFazRequest() {
     try {
       const response = await api.post('/fleet/fc-logs/faz-generate', {
         luna: filters.luna,
@@ -243,6 +257,20 @@ export default function FcUtilajePage() {
       win.document.close()
     } catch (err) {
       setError(err.response?.data?.error || 'FAZ-ul lunar nu a putut fi generat.')
+    }
+  }
+
+  async function runConfirmAction(reason) {
+    if (!confirmAction?.run) return
+    try {
+      setConfirmLoading(true)
+      setError('')
+      await confirmAction.run(reason)
+      setConfirmAction(null)
+    } catch (err) {
+      setError(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
+    } finally {
+      setConfirmLoading(false)
     }
   }
 
@@ -451,6 +479,19 @@ export default function FcUtilajePage() {
           <Table columns={historyColumns.filter(column => column.key !== 'actions')} data={fazRows} loading={loading} />
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.title}
+        message={confirmAction?.message}
+        details={confirmAction?.details}
+        confirmLabel={confirmAction?.confirmLabel}
+        cancelLabel="Renunță"
+        tone={confirmAction?.tone || 'warning'}
+        loading={confirmLoading}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+      />
     </div>
   )
 }
