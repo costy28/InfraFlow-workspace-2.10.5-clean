@@ -59,6 +59,8 @@ function InboxTaskRow({ item, onOpenTask }) {
       ? 'border-amber-200 bg-amber-50'
       : 'border-blue-200 bg-blue-50'
   const severityLabel = item.severity === 'critical' ? 'critic' : item.severity === 'warning' ? 'atenție' : 'info'
+  const hasUploadActionLabel = String(item.action_label || '').toLowerCase() === 'încarcă document'
+  const showGuidedUploadButton = ['dosar', 'scadente'].includes(item.category) && item.employee_id && !hasUploadActionLabel
 
   return (
     <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${severityClass}`}>
@@ -73,7 +75,7 @@ function InboxTaskRow({ item, onOpenTask }) {
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {item.due_date ? <div className="text-right text-xs text-slate-500"><div>Termen/sursă</div><strong>{String(item.due_date).slice(0, 10)}</strong></div> : null}
-        {['dosar', 'scadente'].includes(item.category) && item.employee_id ? (
+        {showGuidedUploadButton ? (
           <Button size="sm" variant="secondary" onClick={() => onOpenTask({ ...item, action: 'guided_upload', action_label: 'Încarcă document' })}>Încarcă document</Button>
         ) : null}
         <Button size="sm" onClick={() => onOpenTask(item)}>{item.action_label || 'Deschide'}</Button>

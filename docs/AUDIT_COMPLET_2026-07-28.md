@@ -436,3 +436,13 @@ Status: ✅ implementat în v2.12.425.
 | Operare | Pentru documentul selectat, asistentul leagă circuitul, task-urile și emailurile într-un singur fir de lucru. |
 
 Status: ✅ implementat în v2.12.426.
+
+## Probleme remediate în UPDATE 447 — Asistent discret Mecanizare + hotfix Inbox HR
+
+| Zonă | Remediere |
+| --- | --- |
+| Mecanizare | Ghidul generic a devenit asistent compact pentru cereri, planificări, bonuri, PIUSI, intervenții și scadențe. |
+| HR Inbox | Nu se mai afișează două butoane identice „Încarcă document” pentru aceeași sarcină. |
+| UX | Operatorul vede următorul blocaj operațional fără să intre manual în fiecare subtab. |
+
+Status: ✅ implementat în v2.12.427.

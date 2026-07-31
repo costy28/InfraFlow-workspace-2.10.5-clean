@@ -1359,3 +1359,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Asistentul calculează următorul pas pentru Inbox, urgențe, drafturi, template-uri și documente provenite din email;
 - Pentru documentul selectat, evidențiază pașii în așteptare, task-urile și legăturile email;
 - `updates/UPDATE_446_asistent_discret_documente.md` — ✅ documentație update și verificări.
+
+### UPDATE 447 — Asistent discret Mecanizare + hotfix Inbox HR
+
+- `client/src/pages/modules/MecanizarePage.jsx` — ✅ helperul generic a devenit asistent operațional compact pentru Parc & Resurse;
+- Asistentul calculează următorul pas pentru cereri, planificări, bonuri, PIUSI, intervenții și scadențe;
+- `client/src/pages/modules/hr/HRInboxPanel.jsx` — ✅ reparată dublarea butonului „Încarcă document” când acțiunea principală era deja aceeași;
+- `updates/UPDATE_447_asistent_discret_mecanizare_hotfix_hr.md` — ✅ documentație update și verificări.

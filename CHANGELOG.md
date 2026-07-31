@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.427 - 2026-07-31
+
+## Asistent discret Mecanizare + hotfix Inbox HR
+
+- Modulul Mecanizare / Parc & Resurse afișează un asistent compact pentru cereri, planificări, bonuri, alimentări PIUSI, intervenții și scadențe.
+- Asistentul calculează următorul pas operațional și oferă indicatori rapizi către zonele relevante.
+- Inbox HR nu mai afișează două butoane identice „Încarcă document” pentru aceeași sarcină de dosar.
+- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită.
+
 # v2.12.426 - 2026-07-31
 
 ## Asistent discret Documente

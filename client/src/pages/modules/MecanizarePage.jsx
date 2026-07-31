@@ -9,7 +9,6 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import DropdownMenu from '../../components/ui/DropdownMenu'
-import ContextHelp from '../../components/ui/ContextHelp'
 import { exportExcel } from '../../utils/export'
 
 const tabGroups = [
@@ -195,6 +194,7 @@ export default function MecanizarePage() {
   const [error, setError] = useState('')
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [mechanizationAssistantExpanded, setMechanizationAssistantExpanded] = useState(false)
 
   // ── load ────────────────────────────────────────────────────────────────────
   async function loadAll() {
@@ -665,7 +665,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
 
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const mechanizationHelp = useMemo(() => {
+  const mechanizationAssistant = useMemo(() => {
     const openRequestStatuses = ['new', 'nou', 'deschisa', 'trimisa', 'in_lucru', 'pending']
     const pendingRequests = requests.filter(request => openRequestStatuses.includes(String(request.status || '').toLowerCase())).length
     const openWorkOrders = workOrders.filter(order => !['inchis', 'finalizat', 'anulat', 'closed', 'done'].includes(String(order.status || '').toLowerCase())).length
@@ -674,6 +674,54 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
     const dashboardAlerts = Number(dashboard?.stats?.alerteDocumente || dashboard?.stats?.alerts || dashboard?.alerte || 0)
     const scadenteAlerts = Array.isArray(scadente?.expirari) ? scadente.expirari.length : 0
     const alertCount = Math.max(dashboardAlerts, mechanizationAlerts.length, scadenteAlerts, serviceAssets)
+    const plannedToday = Number(dashboard?.stats?.alocateAzi || 0) || plannings.length
+    const inService = Number(dashboard?.stats?.inService || 0) || serviceAssets
+    const totalAssets = assets.length || Number(dashboard?.stats?.totalUtilaje || 0) + Number(dashboard?.stats?.totalVehicule || 0)
+    const openInterventions = interventions.filter(item => !['finalizat', 'inchis', 'anulat', 'done', 'closed'].includes(String(item.status || '').toLowerCase())).length
+
+    const cards = [
+      {
+        key: 'requests',
+        label: 'Cereri',
+        value: pendingRequests,
+        hint: pendingRequests ? 'de aprobat/alocat' : 'fără cereri deschise',
+        tone: pendingRequests ? 'warning' : 'success',
+        action: () => setActiveTab('Parc Utilaje'),
+      },
+      {
+        key: 'planning',
+        label: 'Plan azi',
+        value: plannedToday,
+        hint: plannedToday ? 'resurse planificate' : 'nimic planificat azi',
+        tone: plannedToday ? 'info' : 'warning',
+        action: () => setActiveTab('Planificare'),
+      },
+      {
+        key: 'work-orders',
+        label: 'Bonuri',
+        value: openWorkOrders,
+        hint: openWorkOrders ? 'deschise' : 'închise/curate',
+        tone: openWorkOrders ? 'warning' : 'success',
+        action: () => setActiveTab('Bonuri Lucru'),
+      },
+      {
+        key: 'fuel',
+        label: 'PIUSI',
+        value: unmappedPiusiRows,
+        hint: unmappedPiusiRows ? 'alimentări nemapate' : 'mapări curate',
+        tone: unmappedPiusiRows ? 'danger' : 'success',
+        action: () => setActiveTab(unmappedPiusiRows ? 'Alimentări PIUSI' : 'Alimentări'),
+      },
+      {
+        key: 'alerts',
+        label: 'Scadențe',
+        value: alertCount,
+        hint: alertCount ? 'documente/service' : 'nimic critic',
+        tone: alertCount ? 'danger' : 'success',
+        action: () => setActiveTab('Scadențe & Asigurări'),
+      },
+    ]
+
     const steps = [
       {
         key: 'requests',
@@ -710,18 +758,37 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
         done: alertCount === 0,
         onClick: () => setActiveTab('Scadențe & Asigurări'),
       },
+      {
+        key: 'interventions',
+        label: openInterventions ? `Intervenții deschise · ${openInterventions}` : 'Intervenții fără blocaje',
+        hint: 'Intervențiile active trebuie închise cu costuri și următoarea revizie, ca raportul lunar să fie corect.',
+        done: openInterventions === 0,
+        onClick: () => setActiveTab('Intervenții'),
+      },
     ]
-    const nextStep = steps.find(step => !step.done) || steps[0]
-    return {
-      steps,
-      nextAction: nextStep ? {
-        label: 'Deschide recomandarea',
-        onClick: nextStep.onClick,
-        variant: 'secondary',
-      } : null,
-      tone: pendingRequests || openWorkOrders || unmappedPiusiRows || alertCount ? 'warning' : 'success',
+    const nextStep = steps.find(step => !step.done)
+    const primary = nextStep ? {
+      tone: nextStep.key === 'fuel' || nextStep.key === 'alerts' ? 'danger' : 'warning',
+      title: nextStep.label,
+      description: nextStep.hint,
+      label: 'Deschide zona',
+      onClick: nextStep.onClick,
+    } : {
+      tone: 'success',
+      title: 'Parcul este sub control.',
+      description: 'Poți continua cu planificarea, bonurile de lucru sau rapoartele lunare.',
+      label: 'Vezi Dashboard',
+      onClick: () => setActiveTab('Dashboard'),
     }
-  }, [requests, plannings.length, workOrders, piusiFuelRows, assets, assetStatus, dashboard, mechanizationAlerts.length, scadente])
+
+    return {
+      cards,
+      steps,
+      primary,
+      tone: primary.tone === 'danger' ? 'danger' : (pendingRequests || openWorkOrders || unmappedPiusiRows || alertCount || openInterventions ? 'warning' : 'success'),
+      summary: `Monitorizez ${totalAssets || 0} resurse, cereri, bonuri, alimentări, intervenții și scadențe într-un singur fir operațional.`,
+    }
+  }, [requests, plannings.length, workOrders, piusiFuelRows, assets, assetStatus, dashboard, mechanizationAlerts.length, scadente, interventions])
 
   const demoTrip = tripLogs.find(trip => trip.nr_foaie === 'FP-2026-KIOSK-001')
   const completedDemoTrips = tripLogs.filter(trip => ['completata', 'semnata_sofer', 'semnata_responsabil'].includes(trip.status))
@@ -745,21 +812,82 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
 
-      <ContextHelp
-        eyebrow="Ghid parc & resurse"
-        title="Ține parcul în ordine: cereri → planificare → bonuri → alimentări → scadențe"
-        description="Parcul operațional funcționează bine când resursele sunt planificate, bonurile se închid lunar, alimentările sunt mapate și scadențele nu ajung urgente."
-        icon="⚙️"
-        tone={mechanizationHelp.tone}
-        steps={mechanizationHelp.steps}
-        tips={[
-          'Bonurile de lucru închise sunt baza pentru FAZ și cost/oră.',
-          'Alimentările nemapate strică raportul de consum și diferențele normate.',
-          'O resursă cu scadență critică trebuie verificată înainte de alocare.',
-        ]}
-        nextAction={mechanizationHelp.nextAction}
-        compact
-      />
+      <Card
+        title="Asistent parc & resurse"
+        subtitle="Ține la vedere cererile, planificarea, bonurile, alimentările, intervențiile și scadențele."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={mechanizationAssistant.tone}>{mechanizationAssistant.tone === 'danger' ? 'intervenție' : mechanizationAssistant.tone === 'warning' ? 'atenție' : 'sub control'}</Badge>
+            <Button size="sm" variant="secondary" onClick={() => setMechanizationAssistantExpanded(value => !value)}>
+              {mechanizationAssistantExpanded ? 'Ascunde detalii' : 'Vezi detalii'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-3">
+          <div className={`rounded-2xl border p-4 ${mechanizationAssistant.tone === 'danger' ? 'border-rose-200 bg-rose-50' : mechanizationAssistant.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={mechanizationAssistant.primary.tone}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{mechanizationAssistant.primary.title}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{mechanizationAssistant.primary.description}</p>
+                <p className="mt-1 text-xs text-slate-500">{mechanizationAssistant.summary}</p>
+              </div>
+              <Button size="sm" variant={mechanizationAssistant.primary.tone === 'danger' ? 'primary' : 'secondary'} onClick={mechanizationAssistant.primary.onClick}>
+                {mechanizationAssistant.primary.label}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {mechanizationAssistant.cards.map(item => (
+              <button
+                key={item.key}
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                onClick={item.action}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase text-slate-500">{item.label}</span>
+                  <Badge tone={item.tone}>{item.value}</Badge>
+                </div>
+                <div className="mt-1 text-xs text-slate-500">{item.hint}</div>
+              </button>
+            ))}
+          </div>
+
+          {mechanizationAssistantExpanded ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-2">
+                {mechanizationAssistant.steps.map(step => (
+                  <button
+                    key={step.key}
+                    type="button"
+                    onClick={step.onClick}
+                    className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${step.done ? 'border-primary-100 bg-primary-50 text-primary-800' : 'border-slate-200 bg-white text-slate-700'} hover:border-primary-200 hover:bg-white`}
+                  >
+                    <span className="mt-0.5">{step.done ? '✓' : '○'}</span>
+                    <span>
+                      <span className="block font-medium">{step.label}</span>
+                      <span className="block text-xs text-slate-500">{step.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">De reținut</div>
+                <ul className="grid gap-2 text-sm text-slate-700">
+                  <li>Bonurile de lucru închise sunt baza pentru FAZ, cost/oră și raportul lunar.</li>
+                  <li>Alimentările PIUSI nemapate strică raportul de consum și diferențele normate.</li>
+                  <li>O resursă cu RCA, ITP, ISCIR sau service critic trebuie verificată înainte de alocare.</li>
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
