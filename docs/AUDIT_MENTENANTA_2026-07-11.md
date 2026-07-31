@@ -1296,3 +1296,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `scripts/smoke-demo.js` — ✅ mesaje de test neutre pentru operator Kiosk și coordonator resurse;
 - `scripts/seed-demo.js` — ✅ rețete, notificări, puncte de lucru și consumuri demo generalizate;
 - `updates/UPDATE_437_demo_smoke_limbaj_comercial.md` — ✅ documentație update și verificări.
+
+### UPDATE 438 — Checklist primii pași după instalare
+
+- `client/src/pages/DashboardPage.jsx` — ✅ checklist ghidat pentru configurarea inițială: organizație, module, utilizatori, email, import date și backup/update;
+- `client/src/pages/SetariPage.jsx` — ✅ suport pentru deep-link pe tab prin `?tab=...`, folosit de onboarding;
+- Dashboardul continuă direcția comercială: arată următorul pas, nu o industrie implicită;
+- `updates/UPDATE_438_checklist_primii_pasi_instalare.md` — ✅ documentație update și verificări.

@@ -435,7 +435,10 @@ function mapEntries(map = {}) {
 }
 
 export default function SetariPage() {
-  const [activeTab, setActiveTab] = useState('General')
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    return tabGroups.some(group => group.tabs.includes(tab)) ? tab : 'General'
+  })
   const [settings, setSettings] = useState({})
   const [moduleConfig, setModuleConfig] = useState(null)
   const [moduleFeatureDraft, setModuleFeatureDraft] = useState({})

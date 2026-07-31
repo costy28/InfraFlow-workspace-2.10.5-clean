@@ -346,3 +346,13 @@ Notă: `server/modules/nomenclator/cpv_codes.json` are ~47k linii, dar este data
 ## Concluzie
 
 InfraFlow este deja solid la nivel funcțional pentru un proiect atât de amplu: testele trec, modulele răspund, backup-ul e valid. Următoarea etapă nu este „mai multe funcții brute”, ci transformarea complexității în fluxuri ghidate, curate și comerciale. Acolo apare diferența dintre o aplicație mare și un produs care creează dependență.
+
+## Probleme remediate în UPDATE 438 — Checklist primii pași după instalare
+
+| Zonă | Remediere |
+| --- | --- |
+| Dashboard | Adăugat checklist ghidat pentru pornirea oricărei organizații, cu pași clari și CTA-uri directe. |
+| Setări | Adăugat suport pentru `?tab=...`, ca onboardingul să deschidă direct zona relevantă. |
+| Comercializare | Prima pagină arată secvența minimă de configurare: profil, module, oameni, email, import și siguranță operațională. |
+
+Status: ✅ implementat în v2.12.418.

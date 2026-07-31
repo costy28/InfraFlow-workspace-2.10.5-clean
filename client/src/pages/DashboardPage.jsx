@@ -50,6 +50,13 @@ const routes = {
   contracts: '/contracte',
   accounting: '/contabilitate',
   tasks: '/taskuri',
+  settings: '/setari',
+  settingsGeneral: '/setari?tab=General',
+  settingsModules: '/setari?tab=Module',
+  settingsUsers: '/setari?tab=Utilizatori',
+  settingsUpdates: '/setari?tab=Actualizări',
+  settingsIntegrations: '/setari?tab=Integrări',
+  legacyImport: '/import-date-vechi',
 }
 
 const onboardingCards = [
@@ -73,6 +80,57 @@ const onboardingCards = [
     description: 'Emailurile, documentele, contractele și costurile pot fi urmărite împreună, pe dosar și pe responsabil.',
     route: routes.contracts,
     cta: 'Vezi contracte',
+  },
+]
+
+const firstSteps = [
+  {
+    step: '01',
+    icon: '🏢',
+    title: 'Configurează profilul organizației',
+    description: 'Denumire, CUI/CIF, țară, limbă, monedă, fus orar și date de contact. Asta devine baza pentru rapoarte, documente și reguli locale.',
+    route: routes.settingsGeneral,
+    cta: 'Deschide General',
+  },
+  {
+    step: '02',
+    icon: '🧩',
+    title: 'Alege modulele utile',
+    description: 'Activează doar modulele necesare clientului acum. Restul pot rămâne pregătite pentru extindere, fără să aglomereze interfața.',
+    route: routes.settingsModules,
+    cta: 'Alege module',
+  },
+  {
+    step: '03',
+    icon: '👥',
+    title: 'Adaugă utilizatori și roluri',
+    description: 'Creează oamenii cheie, departamentele și accesul potrivit. Fiecare utilizator trebuie să vadă doar ce îl ajută în lucru.',
+    route: routes.settingsUsers,
+    cta: 'Configurează utilizatori',
+  },
+  {
+    step: '04',
+    icon: '✉️',
+    title: 'Leagă emailul organizațional',
+    description: 'SMTP/IMAP transformă Mesaje în Inbox ERP real: emailuri, atașamente, task-uri și documente legate de dosare.',
+    route: routes.settingsIntegrations,
+    cta: 'Configurează integrări',
+  },
+  {
+    step: '05',
+    icon: '📥',
+    title: 'Importă datele de pornire',
+    description: 'Încarcă nomenclatoare, angajați, materiale, furnizori sau date istorice. Migrarea controlată scurtează mult onboardingul.',
+    route: routes.legacyImport,
+    cta: 'Import date',
+  },
+  {
+    step: '06',
+    icon: '🛡️',
+    title: 'Verifică backup și update',
+    description: 'Înainte de lucru real, confirmă că backupul, actualizările și diagnosticele sunt clare. Aici câștigăm liniștea de producție.',
+    route: routes.settingsUpdates,
+    cta: 'Verifică sistem',
   },
 ]
 
@@ -771,6 +829,43 @@ function CommercialOnboardingPanel({ onNavigate }) {
   )
 }
 
+function FirstStepsPanel({ onNavigate }) {
+  return (
+    <Card className="border-primary-100 bg-gradient-to-br from-white via-primary-50/40 to-white">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Primii pași după instalare</div>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">Checklist de pornire pentru orice organizație</h3>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600">
+            InfraFlow poate fi mare, dar începutul trebuie să fie simplu: companie, module, oameni, email, date și siguranță. Parcurge pașii în ordine sau sari direct la zona care lipsește.
+          </p>
+        </div>
+        <Badge tone="success">Ghid operațional</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {firstSteps.map(item => (
+          <button
+            key={item.step}
+            className="group rounded-[var(--radius-panel)] border border-primary-100 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md"
+            onClick={() => onNavigate(item.route)}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-primary-50 text-lg">{item.icon}</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-primary-700">Pas {item.step}</span>
+              </div>
+              <span className="text-primary-600 transition group-hover:translate-x-0.5">→</span>
+            </div>
+            <div className="mt-3 text-sm font-semibold text-slate-900">{item.title}</div>
+            <p className="mt-1 min-h-14 text-xs leading-relaxed text-slate-500">{item.description}</p>
+            <div className="mt-3 text-xs font-semibold text-primary-700">{item.cta}</div>
+          </button>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -978,6 +1073,8 @@ export default function DashboardPage() {
         loading={loading}
         onNavigate={navigate}
       />
+
+      <FirstStepsPanel onNavigate={navigate} />
 
       <CommercialOnboardingPanel onNavigate={navigate} />
 

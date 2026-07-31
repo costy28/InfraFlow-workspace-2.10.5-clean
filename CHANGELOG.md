@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.418 - 2026-07-31
+
+## Checklist primii pași după instalare
+
+- `DashboardPage.jsx` afișează un checklist ghidat pentru configurarea inițială a oricărei organizații.
+- Pașii duc către profil organizație, module, utilizatori, email/integrări, import date și backup/update.
+- `SetariPage.jsx` acceptă `?tab=...`, astfel încât onboardingul poate deschide direct tabul relevant.
+- Fluxul rămâne generic și comercial, fără presupuneri despre asfalt, un client pilot sau o industrie implicită.
+
 # v2.12.417 - 2026-07-31
 
 ## Demo și smoke test cu limbaj comercial

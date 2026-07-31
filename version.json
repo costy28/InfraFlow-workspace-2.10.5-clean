@@ -1,5 +1,5 @@
 {
-  "version": "2.12.417",
-  "date": "2026-07-30",
-  "changelog": "## v2.12.417 - 2026-07-31\n### Demo și smoke test cu limbaj comercial\n- Start Demo descrie operațiuni generale, nu mecanizare ca verticală implicită.\n- Smoke demo verifică operatorul Kiosk și coordonatorul de resurse cu mesaje neutre.\n- Seed-ul demo are canale, notificări, rețete și puncte de lucru mai generale.\n- Conturile demo istorice rămân compatibile pentru testare și prezentare."
+  "version": "2.12.418",
+  "date": "2026-07-31",
+  "changelog": "## v2.12.418 - 2026-07-31\n### Checklist primii pași după instalare\n- Dashboardul afișează un checklist ghidat pentru configurarea inițială a oricărei organizații.\n- Pașii acoperă profil organizație, module, utilizatori, email, import date și backup/update.\n- Setările acceptă deep-link pe tab prin parametrul ?tab= pentru navigare directă din checklist.\n- Fluxul rămâne generic și comercial, fără presupuneri despre un domeniu implicit."
 }
