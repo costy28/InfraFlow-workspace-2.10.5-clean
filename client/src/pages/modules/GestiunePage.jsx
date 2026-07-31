@@ -1007,7 +1007,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
             <Input label="Denumire *" value={matForm.name} onChange={e => setMatForm({ ...matForm, name: e.target.value })} required />
             <Input label="Unitate măsură (UM) *" value={matForm.unit} onChange={e => setMatForm({ ...matForm, unit: e.target.value })} placeholder="buc, kg, l, m, t…" required />
             <Select label="Categorie" value={matForm.categorie} onChange={e => setMatForm({ ...matForm, categorie: e.target.value })} options={[
-              { value: 'general', label: 'General' }, { value: 'asfalt', label: 'Asfalt' },
+              { value: 'general', label: 'General' }, { value: 'asfalt', label: 'Material de producție' },
               { value: 'constructii', label: 'Construcții' }, { value: 'electrice', label: 'Electrice' },
               { value: 'piese_auto', label: 'Piese auto' }, { value: 'combustibil', label: 'Combustibil' },
               { value: 'consumabile', label: 'Consumabile' }, { value: 'altele', label: 'Altele' },

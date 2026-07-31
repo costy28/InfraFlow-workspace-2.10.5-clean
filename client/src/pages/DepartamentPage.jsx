@@ -21,7 +21,7 @@ const MODULE_MAP = [
   { prefix: 'procurement_orders', label: 'Comenzi achiziții',    icon: '🛒', route: '/achizitii' },
   { prefix: 'procurement',        label: 'Achiziții',            icon: '💼', route: '/achizitii' },
   { prefix: 'fleet',              label: 'Foi parcurs / FAZ',    icon: '🚗', route: '/flota' },
-  { prefix: 'mechanization',      label: 'Mecanizare',           icon: '🔧', route: '/flota' },
+  { prefix: 'mechanization',      label: 'Parc & Resurse',       icon: '🔧', route: '/flota' },
   { prefix: 'technical',          label: 'Tehnic',               icon: '⚙️', route: '/tehnic' },
   { prefix: 'hr',                 label: 'Resurse Umane',        icon: '👥', route: '/hr' },
   { prefix: 'cost_accounting',    label: 'Contabilitate costuri',icon: '💰', route: '/controlling' },

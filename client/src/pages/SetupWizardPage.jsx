@@ -19,14 +19,14 @@ const PROFILES = [
     id: 'constructii',
     icon: '🏗️',
     title: 'Construcții & Drumuri',
-    desc: 'Mecanizare, Gestiune, Producție Asfalt, Asternere',
+    desc: 'Parc & Resurse, Gestiune, Producție / Operațiuni, Execuție',
     modules: ['gestiune','mecanizare','productie','asternere','controlling','hr'],
   },
   {
     id: 'transport',
     icon: '🚛',
     title: 'Transport & Logistică',
-    desc: 'Foi parcurs, Șoferi, Mecanizare, GPS',
+    desc: 'Foi parcurs, operatori, Parc & Resurse, GPS',
     modules: ['fleet','mecanizare','hr','gestiune'],
   },
   {
@@ -278,7 +278,7 @@ function Step3({ data, onChange }) {
           label="Nume complet *"
           value={data.name}
           onChange={e => onChange({ ...data, name: e.target.value })}
-          placeholder="Ion Popescu"
+          placeholder="Alex Ionescu"
         />
         <Input
           label="Username * (fără spații)"

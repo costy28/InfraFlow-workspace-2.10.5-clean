@@ -1,5 +1,5 @@
 {
-  "version": "2.12.415",
+  "version": "2.12.416",
   "date": "2026-07-30",
-  "changelog": "## v2.12.415 - 2026-07-30\n### Seed-uri și exemple comerciale generice\n- Catalogul intern de module folosește denumiri comerciale generale.\n- Workflow-urile standard descriu output operațional și resurse mobile, nu doar asfalt/utilaje.\n- Demo-ul din Parc & Resurse folosește limbaj de operator/equipă mobilă.\n- Maparea contabilă pentru producție folosește descrieri generice de output operațional."
+  "changelog": "## v2.12.416 - 2026-07-31\n### Curățare onboarding și demo comercial\n- Wizardul inițial folosește descrieri comerciale generale pentru profiluri și operatori.\n- Ghidul de ajutor descrie producția operațională și Parc & Resurse, nu doar asfalt/utilaje.\n- Tehnic folosește tabul Vânzări / Output și descrieri generale.\n- Demo seed-ul folosește exemple operaționale neutre pentru parc, referate, PAAP și notificări."
 }

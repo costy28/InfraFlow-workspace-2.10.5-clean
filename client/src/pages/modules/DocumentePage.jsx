@@ -616,7 +616,7 @@ export default function DocumentePage() {
           total: '1.250,00 RON',
           continut: 'Text demonstrativ generat pentru verificarea modelului.',
           utilaj: { cod: 'IF-UTIL-01', denumire: 'Buldoexcavator' },
-          sofer_nume: 'Ion Popescu',
+          sofer_nume: 'Operator demo',
         },
       })
       setTemplatePreview({ template, html: response.data?.html || '' })

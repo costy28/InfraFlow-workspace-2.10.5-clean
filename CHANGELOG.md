@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.416 - 2026-07-31
+
+## Curățare onboarding și demo comercial
+
+- Wizardul inițial folosește descrieri comerciale generale pentru profiluri și operatori.
+- Ghidul de ajutor descrie producția operațională și `Parc & Resurse`, nu doar asfalt/utilaje.
+- Modulul Tehnic folosește `Vânzări / Output` și descrieri generale.
+- Selectorul de categorii din Gestiune afișează `Material de producție` pentru categoria tehnică istorică.
+- Demo seed-ul folosește exemple operaționale neutre pentru parc, referate, PAAP, costuri și notificări.
+
 # v2.12.415 - 2026-07-30
 
 ## Seed-uri și exemple comerciale generice

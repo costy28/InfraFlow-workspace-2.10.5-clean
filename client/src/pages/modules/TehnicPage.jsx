@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Badge from '../../components/ui/Badge'
 import IntersoftPage from './IntersoftPage'
 
-const tabs = ['Lucrări', 'Comenzi de lucru', 'Vânzări asfalt', 'Clienți', 'Rapoarte', 'Intersoft']
+const tabs = ['Lucrări', 'Comenzi de lucru', 'Vânzări / Output', 'Clienți', 'Rapoarte', 'Intersoft']
 const pageSize = 10
 
 function today() {
@@ -75,7 +75,7 @@ export default function TehnicPage() {
   const [clientForm, setClientForm] = useState({ name: '', cif: '', address: '', contact: '', phone: '', email: '' })
   const [anafLookup, setAnafLookup] = useState(null)
   const [anafLoading, setAnafLoading] = useState(false)
-  const [orderForm, setOrderForm] = useState({ titlu: '', descriere: '', tip: 'lucrare', data_termen: '', departamente: 'mecanizare, asfalt' })
+  const [orderForm, setOrderForm] = useState({ titlu: '', descriere: '', tip: 'lucrare', data_termen: '', departamente: 'parc-resurse, productie' })
 
   async function load() {
     setLoading(true)
@@ -192,7 +192,7 @@ export default function TehnicPage() {
     try {
       await api.post('/work/orders', { ...orderForm, departamente: orderForm.departamente.split(',').map(item => item.trim()).filter(Boolean) })
       setModal('')
-      setOrderForm({ titlu: '', descriere: '', tip: 'lucrare', data_termen: '', departamente: 'mecanizare, asfalt' })
+      setOrderForm({ titlu: '', descriere: '', tip: 'lucrare', data_termen: '', departamente: 'parc-resurse, productie' })
       setMessage('Comanda de lucru a fost creată.')
       await load()
     } catch (err) {
@@ -266,9 +266,9 @@ export default function TehnicPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Tehnic</h2>
-          <p className="text-sm text-slate-500">Lucrări, vânzări asfalt, clienți și rapoarte.</p>
+          <p className="text-sm text-slate-500">Lucrări, output operațional, clienți și rapoarte.</p>
         </div>
-        {!['Rapoarte', 'Intersoft'].includes(activeTab) && <Button onClick={() => setModal(activeTab)}>{activeTab === 'Lucrări' ? 'Lucrare nouă' : activeTab === 'Comenzi de lucru' ? 'Comandă nouă' : activeTab === 'Vânzări asfalt' ? 'Vânzare nouă' : 'Client nou'}</Button>}
+        {!['Rapoarte', 'Intersoft'].includes(activeTab) && <Button onClick={() => setModal(activeTab)}>{activeTab === 'Lucrări' ? 'Lucrare nouă' : activeTab === 'Comenzi de lucru' ? 'Comandă nouă' : activeTab === 'Vânzări / Output' ? 'Vânzare nouă' : 'Client nou'}</Button>}
       </div>
 
       {message && <div className="rounded-md bg-primary-50 px-3 py-2 text-sm text-primary-700">{message}</div>}
@@ -295,9 +295,9 @@ export default function TehnicPage() {
         </Card>
       )}
 
-      {activeTab === 'Vânzări asfalt' && (
+      {activeTab === 'Vânzări / Output' && (
         <Card>
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Vânzări asfalt</h3><Button onClick={() => setModal('Vânzări asfalt')}>Vânzare nouă</Button></div>
+          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Vânzări / Output</h3><Button onClick={() => setModal('Vânzări / Output')}>Vânzare nouă</Button></div>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Dată</th><th className="px-3 py-2">Client</th><th className="px-3 py-2">Rețetă</th><th className="px-3 py-2">Cantitate</th><th className="px-3 py-2">Valoare</th></tr></thead>
@@ -370,7 +370,7 @@ export default function TehnicPage() {
         </form>
       </Modal>
 
-      <Modal open={modal === 'Vânzări asfalt'} title="Vânzare nouă" onClose={() => setModal('')}>
+      <Modal open={modal === 'Vânzări / Output'} title="Vânzare nouă" onClose={() => setModal('')}>
         <form className="grid gap-3" onSubmit={submitSale}>
           <Input label="Dată" type="date" value={saleForm.date} onChange={event => setSaleForm({ ...saleForm, date: event.target.value })} />
           <Select label="Client" value={saleForm.clientId} onChange={event => setSaleForm({ ...saleForm, clientId: event.target.value })} options={[{ value: '', label: 'Client liber' }, ...clients.map(client => ({ value: client.id, label: client.name }))]} />

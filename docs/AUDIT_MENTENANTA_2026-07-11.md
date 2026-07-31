@@ -1278,3 +1278,14 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/MecanizarePage.jsx` + `client/src/pages/StartDemoPage.jsx` — ✅ demo repoziționat pe operator/equipă mobilă;
 - `server/modules/accounting/accounting-routes.js` — ✅ mapare contabilă producție descrisă generic;
 - `updates/UPDATE_435_seeduri_exemple_comerciale_generice.md` — ✅ documentație update și verificări.
+
+### UPDATE 436 — Curățare onboarding și demo comercial
+
+- `client/src/pages/SetupWizardPage.jsx` — ✅ profiluri onboarding descrise generic;
+- `client/src/pages/HelpPage.jsx` — ✅ ghidul de utilizare repoziționat pe producție operațională și Parc & Resurse;
+- `client/src/pages/modules/TehnicPage.jsx` — ✅ tab `Vânzări / Output` și descrieri generale;
+- `client/src/pages/modules/GestiunePage.jsx` — ✅ categorie vizibilă `Material de producție`;
+- `client/src/pages/DepartamentPage.jsx` — ✅ etichetă `Parc & Resurse`;
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ preview documente cu operator demo neutru;
+- `scripts/seed-demo.js` — ✅ date demo mai neutre pentru prezentare comercială;
+- `updates/UPDATE_436_curatare_onboarding_demo_comercial.md` — ✅ documentație update și verificări.

@@ -18,6 +18,7 @@ Completare P0 dashboard comercial generic: `2.12.412` / `UPDATE 432`
 Completare P0 shell comercial generic: `2.12.413` / `UPDATE 433`
 Completare P0 module operaționale limbaj generic: `2.12.414` / `UPDATE 434`
 Completare P0 seed-uri și exemple comerciale generice: `2.12.415` / `UPDATE 435`
+Completare P0 onboarding și demo comercial generic: `2.12.416` / `UPDATE 436`
 
 ## Rezumat executiv
 
@@ -186,6 +187,16 @@ Direcția corectă pentru perioada următoare:
 | Workflow standard | template-urile și conexiunile vorbeau explicit despre asfalt/utilaje | formulări neutre: output operațional, resurse mobile, execuție |
 | Demo parc | cardurile vizibile foloseau `șofer`/nume demo prea concret | limbaj de operator și echipă mobilă |
 | Contabilitate | maparea `out_productie` descria asfaltul ca default | descriere generică pentru produse, servicii sau output operațional |
+
+## Probleme remediate în UPDATE 436
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Wizard inițial | profilurile de onboarding promovau asfalt/mecanizare ca default | profiluri descrise cu Parc & Resurse, Producție / Operațiuni și Execuție |
+| Ghid ajutor | întrebările principale erau nișate pe consum de asfalt și utilaje | întrebări generale pentru consum operațional și resurse |
+| Tehnic | tabul de vânzări era `Vânzări asfalt` | `Vânzări / Output`, descriere generică |
+| Gestiune | categoria tehnică `asfalt` era afișată vizibil ca verticală default | etichetă vizibilă `Material de producție`, valoare internă păstrată |
+| Demo seed | exemplele de demo păstrau nume și activități foarte specifice asfaltului | exemple operaționale neutre pentru foi, referate, PAAP, costuri și notificări |
 
 ## Zone mari de cod
 

@@ -4,9 +4,9 @@ import PageHeader from '../components/ui/PageHeader'
 
 const sections = [
   {
-    title: '📦 PRODUCȚIE',
+    title: '📦 PRODUCȚIE / OPERAȚIUNI',
     items: [
-      ['Cum înregistrezi un consum de asfalt?', ['Deschide Producție.', 'Alege tabul Consumuri.', 'Apasă Adaugă consum nou și completează rețeta, tonajul și lucrarea.']],
+      ['Cum înregistrezi un consum operațional?', ['Deschide Producție / Operațiuni.', 'Alege tabul Consumuri.', 'Apasă Adaugă consum nou și completează rețeta, cantitatea și lucrarea.']],
       ['Cum creezi o rețetă nouă?', ['Deschide tabul Rețete.', 'Apasă Adaugă nou.', 'Completează componentele și salvează.']],
       ['Cum gestionezi planurile de producție?', ['Intră în tabul Planuri.', 'Alege perioada.', 'Adaugă sau actualizează cantitățile planificate.']],
     ],
@@ -20,11 +20,11 @@ const sections = [
     ],
   },
   {
-    title: '🚗 FLOTĂ',
+    title: '🚗 PARC & RESURSE',
     items: [
-      ['Cum adaugi un utilaj nou?', ['Deschide Flotă utilaje.', 'Apasă Utilaj nou.', 'Completează datele și salvează.']],
-      ['Cum înregistrezi o solicitare de utilaj?', ['Intră în tabul Solicitări.', 'Apasă Solicitare nouă.', 'Alege utilajul, șantierul și perioada.']],
-      ['Cum faci raportul zilnic?', ['Intră în Raport zilnic.', 'Alege utilajul și data.', 'Completează orele, kilometrii și combustibilul.']],
+      ['Cum adaugi o resursă nouă?', ['Deschide Parc & Resurse.', 'Apasă Resursă nouă.', 'Completează datele și salvează.']],
+      ['Cum înregistrezi o solicitare de resursă?', ['Intră în tabul Solicitări.', 'Apasă Solicitare nouă.', 'Alege resursa, punctul de lucru și perioada.']],
+      ['Cum faci raportul zilnic?', ['Intră în Raport zilnic.', 'Alege resursa și data.', 'Completează orele, kilometrii/indicatorii și combustibilul dacă se aplică.']],
     ],
   },
   {

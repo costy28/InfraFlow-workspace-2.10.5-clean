@@ -144,7 +144,7 @@ function buildStockOperations(materials) {
 function buildTripLogs(seed) {
   const destinations = [
     'Santier DJ207B km 3+500, Piatra-Neamt',
-    'Statia asfalt - depozit agregate',
+    'Depozit operațional - agregate',
     'Str. Mihail Kogalniceanu',
     'DN15 Piatra-Neamt - marcaje',
     'Depozit materiale Savinesti'
@@ -166,14 +166,14 @@ function buildTripLogs(seed) {
       asset_id: vehicle.id,
       sofer_id: pick(drivers, index),
       driverId: pick(drivers, index),
-      sofer_text: pick(['Ion Popescu', 'Gheorghe Constantin'], index),
+      sofer_text: pick(['Alex Ionescu', 'Gheorghe Constantin'], index),
       km_plecare: start,
       km_sosire: start + km,
       km_parcursi: km,
       destination: pick(destinations, index),
       destinatie: pick(destinations, index),
       scopul_deplasarii: index % 2 ? 'Transport materiale' : 'Transport balast',
-      marfa: index % 2 ? 'Mixtura asfaltica' : 'Criblura 4-8mm',
+      marfa: index % 2 ? 'Material procesat' : 'Criblura 4-8mm',
       tone: 18 + (index % 6),
       combustibil_start: 180 - (index % 20),
       combustibil_sfarsit: 145 - (index % 12),
@@ -199,15 +199,15 @@ function buildTripLogs(seed) {
     sofer_id: 'EMP-001',
     employee_id: 'EMP-001',
     driverId: 'EMP-001',
-    sofer_text: 'Ion Popescu',
+    sofer_text: 'Alex Ionescu',
     nr_inmatriculare: 'NT-01-ABC',
     km_plecare: 48250,
     km_sosire: '',
     km_parcursi: 0,
     destination: 'Reabilitare DJ207B km 3+000 - km 8+500',
     destinatie: 'Reabilitare DJ207B km 3+000 - km 8+500',
-    scopul_deplasarii: 'Transport mixtura asfaltica',
-    marfa: 'Mixtura asfaltica BA16',
+    scopul_deplasarii: 'Transport material procesat',
+    marfa: 'Material procesat demo',
     tone: 0,
     combustibil_sold_initial: 180,
     combustibil_primit: 120,
@@ -240,7 +240,7 @@ function buildGps(seed) {
 
 function buildReferate(seed) {
   const rows = [
-    { dep: 'DEP-002', user: 'USR-004', supplier: 'BITUM TRADING SRL', status: 'aprobat', tip: 'aprovizionare', obs: 'Aprovizionare bitum pentru programul de asfaltare DJ207B.', lines: [['MAT-001', 18, 3350, 12663], ['MAT-024', 120, 18, 453.6]] },
+    { dep: 'DEP-002', user: 'USR-004', supplier: 'MATERIALE INDUSTRIALE SRL', status: 'aprobat', tip: 'aprovizionare', obs: 'Aprovizionare materiale pentru programul operațional DJ207B.', lines: [['MAT-001', 18, 3350, 12663], ['MAT-024', 120, 18, 453.6]] },
     { dep: 'DEP-002', user: 'USR-004', supplier: 'AUTO PIESE NORD SRL', status: 'la_gestionar', tip: 'aprovizionare', obs: 'Filtre si consumabile pentru revizia autobasculantelor.', lines: [['MAT-013', 20, 85, 357], ['MAT-014', 18, 110, 415.8], ['MAT-009', 80, 19, 319.2]] },
     { dep: 'DEP-007', user: 'USR-013', supplier: 'PETROM SA', status: 'dir_general', tip: 'aprovizionare', obs: 'DEMO DIRECTOR: motorina necesara pentru utilajele alocate in saptamana curenta. Acest referat asteapta aprobarea directorului general.', lines: [['MAT-007', 6500, 6.25, 8531.25]] },
     { dep: 'DEP-006', user: 'USR-010', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'draft', tip: 'servicii', obs: 'Servicii inchiriere utilaj compactare pentru lucrare canalizare.', lines: [['MAT-030', 140, 42, 1234.8]] },
@@ -422,8 +422,8 @@ function buildPaapDemo() {
   const year = new Date().getFullYear() + 1
   const rows = [
     ['paap-001', '09134200-9', 'Motorina', 'Motorina Euro 5 pentru utilaje si transport', 'litri', 120000, 780000, 612000, 'Licitatie deschisa', 1, 'Oana Barbu', 'Buget local / venituri proprii', 'Program lucrari drumuri 2027', 'Achizitii'],
-    ['paap-002', '44113620-7', 'Bitum', 'Bitum rutier 50/70', 'tone', 420, 1320000, 975000, 'Licitatie deschisa', 1, 'Oana Barbu', 'Venituri proprii', 'Program asfaltare 2027', 'Achizitii'],
-    ['paap-003', '14212200-2', 'Agregate', 'Agregate concasate pentru statia de asfalt', 'tone', 2800, 294000, 188000, 'Procedura simplificata', 2, 'Oana Barbu', 'Venituri proprii', 'Program asfaltare 2027', 'Achizitii'],
+    ['paap-002', '44113620-7', 'Materiale procesabile', 'Materiale pentru fluxuri operaționale', 'tone', 420, 1320000, 975000, 'Licitatie deschisa', 1, 'Oana Barbu', 'Venituri proprii', 'Program operațional 2027', 'Achizitii'],
+    ['paap-003', '14212200-2', 'Agregate', 'Agregate concasate pentru producție', 'tone', 2800, 294000, 188000, 'Procedura simplificata', 2, 'Oana Barbu', 'Venituri proprii', 'Program operațional 2027', 'Achizitii'],
     ['paap-004', '44811000-8', 'Vopsele', 'Vopsea pentru marcaje rutiere', 'kg', 1600, 52000, 48500, 'Achizitie directa', 2, 'Oana Barbu', 'Buget local', 'Siguranta circulatiei', 'Tehnic'],
     ['paap-005', '18830000-6', 'Incaltaminte de protectie', 'Bocanci si cizme protectie S3', 'per', 210, 46200, 11200, 'Achizitie directa', 3, 'Ana Rusu', 'Buget local', 'Protectia muncii', 'Resurse Umane'],
     ['paap-006', '34992200-9', 'Indicatoare rutiere', 'Indicatoare si semnalizare rutiera temporara', 'buc', 280, 98000, 101500, 'Achizitie directa', 3, 'Oana Barbu', 'Buget local', 'Siguranta circulatiei', 'Tehnic']
@@ -602,8 +602,8 @@ function buildHrEquipment(employees) {
     echipamenteTipuri: types,
     echipamenteMarimi: sizes,
     echipamenteDepartament: [
-      { id: 1, departament: 'Mecanizare', tip_id: 1, culoare: 'Bleomarin', cod_articol: 'Ares 82/83', obligatoriu: true },
-      { id: 2, departament: 'Mecanizare', tip_id: 2, culoare: 'Negru', cod_articol: 'Bocanci S3', obligatoriu: true },
+      { id: 1, departament: 'Parc & Resurse', tip_id: 1, culoare: 'Bleomarin', cod_articol: 'EIP-OP-01', obligatoriu: true },
+      { id: 2, departament: 'Parc & Resurse', tip_id: 2, culoare: 'Negru', cod_articol: 'Bocanci S3', obligatoriu: true },
       { id: 3, departament: 'Salubrizare', tip_id: 6, culoare: 'Reflectorizant', cod_articol: '4100217', obligatoriu: true },
       { id: 4, departament: 'Tehnic', tip_id: 9, culoare: 'Alb', cod_articol: 'CAS-SSM', obligatoriu: true }
     ],
@@ -624,7 +624,7 @@ function buildNotifications() {
     { id: 'notif-002', tip: 'alerta_doc', type: 'alerta_doc', mesaj: 'ITP UTIL-001 expira in 18 zile.', message: 'ITP UTIL-001 expira in 18 zile.', urgenta: 'ridicata', read: false, created_at: isoDaysAgo(1, 9) },
     { id: 'notif-003', tip: 'alerta_stoc', type: 'alerta_stoc', mesaj: 'Stoc Bitum 50/70 aproape de limita minima.', message: 'Stoc Bitum 50/70 aproape de limita minima.', urgenta: 'ridicata', read: false, created_at: isoDaysAgo(2, 10) },
     { id: 'notif-004', tip: 'aprobare', type: 'aprobare', mesaj: 'Referatul REFNEC-2026-0015 asteapta aprobarea ta.', message: 'Referatul REFNEC-2026-0015 asteapta aprobarea ta.', urgenta: 'normala', read: false, created_at: isoDaysAgo(2, 13) },
-    { id: 'notif-005', tip: 'info', type: 'info', mesaj: 'Foaia de parcurs FP-2026-0031 a fost inchisa de Ion Popescu.', message: 'Foaia de parcurs FP-2026-0031 a fost inchisa de Ion Popescu.', urgenta: 'scazuta', read: true, created_at: isoDaysAgo(3, 15) },
+    { id: 'notif-005', tip: 'info', type: 'info', mesaj: 'Foaia de parcurs FP-2026-0031 a fost inchisa de operatorul din teren.', message: 'Foaia de parcurs FP-2026-0031 a fost inchisa de operatorul din teren.', urgenta: 'scazuta', read: true, created_at: isoDaysAgo(3, 15) },
     { id: 'notif-006', tip: 'alerta_hr', type: 'alerta_hr', mesaj: '3 autorizatii HR expira in urmatoarele 30 zile.', message: '3 autorizatii HR expira in urmatoarele 30 zile.', urgenta: 'normala', read: false, created_at: isoDaysAgo(4, 12) },
     { id: 'notif-007', tip: 'mediu', type: 'mediu', mesaj: 'Raportul deseuri luna curenta este in lucru.', message: 'Raportul deseuri luna curenta este in lucru.', urgenta: 'scazuta', read: true, created_at: isoDaysAgo(5, 9) },
     { id: 'notif-008', tip: 'controlling', type: 'controlling', mesaj: 'Centrul SUB-BASC a consumat 78% din bugetul lunar.', message: 'Centrul SUB-BASC a consumat 78% din bugetul lunar.', urgenta: 'normala', read: false, created_at: isoDaysAgo(5, 14) },
@@ -665,7 +665,7 @@ function buildCostEntries() {
   const month = new Date().toISOString().slice(0, 7) + '-01'
   return [
     { id: 'cost-001', cost_center_id: 'SUB-BASC', categorie: 'combustibil', descriere: 'Motorina autobasculante', valoare: 18400, data: addDays(-8), luna: month, validat: true },
-    { id: 'cost-002', cost_center_id: 'SUB-FINISOR', categorie: 'mentenanta', descriere: 'Revizie finisor asfalt', valoare: 6200, data: addDays(-11), luna: month, validat: true },
+    { id: 'cost-002', cost_center_id: 'SUB-FINISOR', categorie: 'mentenanta', descriere: 'Revizie echipament execuție', valoare: 6200, data: addDays(-11), luna: month, validat: true },
     { id: 'cost-003', cost_center_id: 'DEP-SALUB', categorie: 'materiale', descriere: 'Consumabile salubrizare', valoare: 9800, data: addDays(-6), luna: month, validat: true },
     { id: 'cost-004', cost_center_id: 'DEP-TEHNIC', categorie: 'materiale', descriere: 'Marcaje si indicatoare', valoare: 4300, data: addDays(-3), luna: month, validat: true }
   ]
@@ -675,19 +675,19 @@ function buildMechanizationDemo() {
   const month = new Date().toISOString().slice(0, 7)
   const today = addDays(0)
   const plannings = [
-    { id: 'plan-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Ion Popescu', ora_start: '07:00', ora_sfarsit: '15:00', status: 'planificat', observatii: 'Transport agregate' },
-    { id: 'plan-002', date: today, asset_id: 'UTIL-005', asset_name: 'Finisor asfalt Vogele S1800', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Florin Lazar', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Asternere mixtura' },
+    { id: 'plan-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Alex Ionescu', ora_start: '07:00', ora_sfarsit: '15:00', status: 'planificat', observatii: 'Transport agregate' },
+    { id: 'plan-002', date: today, asset_id: 'UTIL-005', asset_name: 'Echipament execuție Vogele S1800', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Florin Lazar', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Execuție strat final' },
     { id: 'plan-003', date: today, asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Sorin Munteanu', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Compactare' }
   ]
   const workOrders = [
-    { id: 'wo-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', operator: 'Ion Popescu', activitate: 'Transport criblura 4-8mm', locatie: 'DJ207B km 3+500', ore_lucrate: 7.5, km_parcursi: 84, consum_carburant: 38, consum_normat: 34, cost_center_id: 'SUB-BASC', status: 'activ', observatii: '2 curse depozit - santier' },
-    { id: 'wo-002', date: today, asset_id: 'UTIL-005', asset_name: 'Finisor asfalt Vogele S1800', operator: 'Florin Lazar', activitate: 'Asternere BA16', locatie: 'DJ207B km 4+100', ore_lucrate: 6.5, km_parcursi: 0, consum_carburant: 52, consum_normat: 50, cost_center_id: 'SUB-FINISOR', status: 'activ', observatii: 'Front lucru deschis' },
+    { id: 'wo-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', operator: 'Alex Ionescu', activitate: 'Transport criblura 4-8mm', locatie: 'DJ207B km 3+500', ore_lucrate: 7.5, km_parcursi: 84, consum_carburant: 38, consum_normat: 34, cost_center_id: 'SUB-BASC', status: 'activ', observatii: '2 curse depozit - santier' },
+    { id: 'wo-002', date: today, asset_id: 'UTIL-005', asset_name: 'Echipament execuție Vogele S1800', operator: 'Florin Lazar', activitate: 'Execuție strat final', locatie: 'DJ207B km 4+100', ore_lucrate: 6.5, km_parcursi: 0, consum_carburant: 52, consum_normat: 50, cost_center_id: 'SUB-FINISOR', status: 'activ', observatii: 'Front lucru deschis' },
     { id: 'wo-003', date: addDays(-1), asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', operator: 'Sorin Munteanu', activitate: 'Compactare strat uzura', locatie: 'DJ207B', ore_lucrate: 8, km_parcursi: 0, consum_carburant: 46, consum_normat: 48, cost_center_id: 'DEP-MECAN', status: 'inchis', observatii: 'Finalizat fara abateri' },
-    { id: 'wo-004', date: `${month}-03`, asset_id: 'VEH-003', asset_name: 'Autobasculanta Volvo FMX / NT-03-CDE', operator: 'Gheorghe Constantin', activitate: 'Transport mixtura asfaltica', locatie: 'DN15 Piatra-Neamt', ore_lucrate: 7, km_parcursi: 96, consum_carburant: 44, consum_normat: 40, cost_center_id: 'SUB-BASC', status: 'inchis', observatii: 'Consum usor peste norma din cauza stationarii' }
+    { id: 'wo-004', date: `${month}-03`, asset_id: 'VEH-003', asset_name: 'Autobasculanta Volvo FMX / NT-03-CDE', operator: 'Gheorghe Constantin', activitate: 'Transport material procesat', locatie: 'DN15 Piatra-Neamt', ore_lucrate: 7, km_parcursi: 96, consum_carburant: 44, consum_normat: 40, cost_center_id: 'SUB-BASC', status: 'inchis', observatii: 'Consum usor peste norma din cauza stationarii' }
   ]
   const fuelLogs = [
-    { id: 'fuel-001', data: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', nr_document: 'BF-2401', furnizor: 'PETROM SA', cantitate_litri: 160, pret_litru: 7.42, valoare_totala: 1187.2, km_ore: 48320, sofer_operator: 'Ion Popescu', cost_center_id: 'SUB-BASC' },
-    { id: 'fuel-002', data: today, asset_id: 'UTIL-005', asset_name: 'Finisor asfalt Vogele S1800', nr_document: 'BF-2402', furnizor: 'PETROM SA', cantitate_litri: 120, pret_litru: 7.42, valoare_totala: 890.4, km_ore: 2010, sofer_operator: 'Florin Lazar', cost_center_id: 'SUB-FINISOR' },
+    { id: 'fuel-001', data: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', nr_document: 'BF-2401', furnizor: 'PETROM SA', cantitate_litri: 160, pret_litru: 7.42, valoare_totala: 1187.2, km_ore: 48320, sofer_operator: 'Alex Ionescu', cost_center_id: 'SUB-BASC' },
+    { id: 'fuel-002', data: today, asset_id: 'UTIL-005', asset_name: 'Echipament execuție Vogele S1800', nr_document: 'BF-2402', furnizor: 'PETROM SA', cantitate_litri: 120, pret_litru: 7.42, valoare_totala: 890.4, km_ore: 2010, sofer_operator: 'Florin Lazar', cost_center_id: 'SUB-FINISOR' },
     { id: 'fuel-003', data: addDays(-1), asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', nr_document: 'BF-2398', furnizor: 'PETROM SA', cantitate_litri: 95, pret_litru: 7.39, valoare_totala: 702.05, km_ore: 2470, sofer_operator: 'Sorin Munteanu', cost_center_id: 'DEP-MECAN' },
     { id: 'fuel-004', data: `${month}-03`, asset_id: 'VEH-003', asset_name: 'Autobasculanta Volvo FMX / NT-03-CDE', nr_document: 'BF-2360', furnizor: 'PETROM SA', cantitate_litri: 140, pret_litru: 7.35, valoare_totala: 1029, km_ore: 76520, sofer_operator: 'Gheorghe Constantin', cost_center_id: 'SUB-BASC' }
   ]
@@ -847,7 +847,7 @@ function buildDb(seed) {
     ],
     department_consumptions: [],
     fleet_work_logs: [
-      { id: 'fwl-001', assetId: 'UTIL-005', assetName: 'Finisor asfalt Vogele S1800', date: addDays(-4), hours: 7.5, jobName: 'DJ207B', costCenterId: 'SUB-FINISOR' },
+      { id: 'fwl-001', assetId: 'UTIL-005', assetName: 'Echipament execuție Vogele S1800', date: addDays(-4), hours: 7.5, jobName: 'DJ207B', costCenterId: 'SUB-FINISOR' },
       { id: 'fwl-002', assetId: 'UTIL-001', assetName: 'Excavator Liebherr R926', date: addDays(-2), hours: 6, jobName: 'Canalizare Str. Mihail Kogalniceanu', costCenterId: 'SUB-EXC3' }
     ],
     mechanization,
