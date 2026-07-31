@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.424 - 2026-07-31
+
+## Asistent discret Gestiune / Depozit
+
+- Modulul Gestiune afișează următorul pas pentru stocuri critice, bonuri de consum, praguri minime și nomenclator.
+- Asistentul detectează materiale epuizate/sub minim, materiale fără CPV, fără locație sau fără stoc minim.
+- Indicatorii rapizi duc direct la tabul relevant.
+- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită.
+
 # v2.12.423 - 2026-07-31
 
 ## Asistent discret Achiziții

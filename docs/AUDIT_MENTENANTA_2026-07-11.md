@@ -1338,3 +1338,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Asistentul calculează următorul pas pentru cerințe urgente, comenzi deschise, PAAP la limită/depășit și cântar nemapat;
 - Indicatorii rapizi duc direct în tabul relevant, fără căutare manuală;
 - `updates/UPDATE_443_asistent_discret_achizitii.md` — ✅ documentație update și verificări.
+
+### UPDATE 444 — Asistent discret Gestiune / Depozit
+
+- `client/src/pages/modules/GestiunePage.jsx` — ✅ adăugat asistent compact de depozit;
+- Asistentul calculează următorul pas pentru materiale epuizate/sub minim, bonuri draft, lipsă CPV, lipsă locație sau lipsă prag minim;
+- Indicatorii rapizi duc direct la Dashboard, Nomenclator, Bon Consum sau Raport Valoric;
+- `updates/UPDATE_444_asistent_discret_gestiune.md` — ✅ documentație update și verificări.

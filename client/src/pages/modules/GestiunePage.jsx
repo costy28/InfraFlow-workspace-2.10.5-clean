@@ -85,6 +85,7 @@ export default function GestiunePage() {
   const [saving, setSaving]     = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [inventoryAssistantExpanded, setInventoryAssistantExpanded] = useState(false)
 
   // ── load helpers ────────────────────────────────────────────────────────────
   async function loadBase() {
@@ -172,6 +173,131 @@ export default function GestiunePage() {
     if (!furSearch) return furnizori
     return furnizori.filter(f => [f.nume, f.cui, f.email, f.telefon].join(' ').toLowerCase().includes(furSearch.toLowerCase()))
   }, [furnizori, furSearch])
+
+  const inventoryAssistant = useMemo(() => {
+    const lowStockMaterials = materials.filter(material => {
+      const stoc = Number(material.stock ?? material.stoc_curent ?? 0)
+      const min = Number(material.alert || material.stoc_minim || 0)
+      return min > 0 && stoc < min
+    })
+    const depletedMaterials = lowStockMaterials.filter(material => Number(material.stock ?? material.stoc_curent ?? 0) === 0)
+    const warningStockMaterials = materials.filter(material => {
+      const stoc = Number(material.stock ?? material.stoc_curent ?? 0)
+      const min = Number(material.alert || material.stoc_minim || 0)
+      return min > 0 && stoc >= min && stoc < min * 1.5
+    })
+    const materialsWithoutMinimum = materials.filter(material => Number(material.alert || material.stoc_minim || 0) <= 0)
+    const materialsWithoutCpv = materials.filter(material => !String(material.cod_cpv || material.cpv_cod || '').trim())
+    const materialsWithoutLocation = materials.filter(material => !String(material.locatie_depozit || '').trim())
+    const pendingBc = Number(dashboard?.stats?.bcPending || 0)
+    const alertCount = Number(dashboard?.stats?.alerteStoc ?? lowStockMaterials.length)
+
+    const primary = depletedMaterials.length
+      ? {
+        tone: 'danger',
+        title: `${depletedMaterials.length} materiale epuizate`,
+        description: 'Începe cu materialele fără stoc. Deschide nomenclatorul, verifică furnizorul preferat și pregătește reaprovizionarea.',
+        label: 'Vezi materiale',
+        onClick: () => setActiveTab('Nomenclator'),
+      }
+      : lowStockMaterials.length || alertCount
+        ? {
+          tone: 'danger',
+          title: `${lowStockMaterials.length || alertCount} materiale sub minim`,
+          description: 'Stocul a coborât sub pragul minim. Verifică lista și decide NIR, comandă sau ajustare de prag.',
+          label: 'Verifică stoc',
+          onClick: () => setActiveTab('Dashboard'),
+        }
+        : pendingBc
+          ? {
+            tone: 'warning',
+            title: `${pendingBc} bonuri de consum în așteptare`,
+            description: 'Aprobă sau respinge bonurile draft ca stocul scriptic să rămână curat.',
+            label: 'Vezi bonuri',
+            onClick: () => setActiveTab('Bon Consum'),
+          }
+          : materialsWithoutMinimum.length
+            ? {
+              tone: 'warning',
+              title: `${materialsWithoutMinimum.length} materiale fără stoc minim`,
+              description: 'Setează praguri minime pentru materialele importante, altfel aplicația nu poate avertiza din timp.',
+              label: 'Completează praguri',
+              onClick: () => setActiveTab('Nomenclator'),
+            }
+            : materialsWithoutCpv.length
+              ? {
+                tone: 'info',
+                title: `${materialsWithoutCpv.length} materiale fără CPV`,
+                description: 'Completează codurile CPV pentru legătura curată cu Achiziții, PAAP și contracte.',
+                label: 'Vezi nomenclator',
+                onClick: () => setActiveTab('Nomenclator'),
+              }
+              : furnizori.length === 0
+                ? {
+                  tone: 'info',
+                  title: 'Adaugă primul furnizor',
+                  description: 'Recepțiile și reaprovizionarea devin mai clare când materialele au furnizori disponibili.',
+                  label: 'Furnizor nou',
+                  onClick: () => setActiveTab('Furnizori'),
+                }
+                : {
+                  tone: 'success',
+                  title: 'Depozitul este sub control',
+                  description: 'Nu sunt alerte majore de stoc sau documente evidente de închis.',
+                  label: 'Raport valoric',
+                  onClick: () => setActiveTab('Raport Valoric'),
+                }
+
+    const tone = primary.tone === 'danger' ? 'danger' : primary.tone === 'warning' ? 'warning' : 'success'
+    return {
+      tone,
+      primary,
+      stats: [
+        { key: 'depleted', label: 'Epuizate', value: depletedMaterials.length, tone: depletedMaterials.length ? 'danger' : 'success', onClick: () => setActiveTab('Nomenclator') },
+        { key: 'low', label: 'Sub minim', value: lowStockMaterials.length || alertCount, tone: lowStockMaterials.length || alertCount ? 'danger' : 'success', onClick: () => setActiveTab('Dashboard') },
+        { key: 'warning', label: 'Atenție', value: warningStockMaterials.length, tone: warningStockMaterials.length ? 'warning' : 'success', onClick: () => setActiveTab('Nomenclator') },
+        { key: 'pendingBc', label: 'BC draft', value: pendingBc, tone: pendingBc ? 'warning' : 'success', onClick: () => setActiveTab('Bon Consum') },
+        { key: 'noCpv', label: 'Fără CPV', value: materialsWithoutCpv.length, tone: materialsWithoutCpv.length ? 'info' : 'success', onClick: () => setActiveTab('Nomenclator') },
+      ],
+      steps: [
+        {
+          key: 'stock',
+          label: `Stoc critic · ${lowStockMaterials.length || alertCount}`,
+          hint: 'Verifică materialele sub minim și decide reaprovizionare sau corecție prag.',
+          done: !(lowStockMaterials.length || alertCount),
+          onClick: () => setActiveTab('Dashboard'),
+        },
+        {
+          key: 'documents',
+          label: `Bonuri în așteptare · ${pendingBc}`,
+          hint: 'Aprobă/respinge bonurile ca scăderile de stoc să fie controlate.',
+          done: pendingBc === 0,
+          onClick: () => setActiveTab('Bon Consum'),
+        },
+        {
+          key: 'minimums',
+          label: `Fără minim · ${materialsWithoutMinimum.length}`,
+          hint: 'Pragurile minime transformă depozitul din listă pasivă în sistem de alertare.',
+          done: materialsWithoutMinimum.length === 0,
+          onClick: () => setActiveTab('Nomenclator'),
+        },
+        {
+          key: 'cpv',
+          label: `Fără CPV · ${materialsWithoutCpv.length}`,
+          hint: 'CPV-ul ajută la legătura cu PAAP, contracte și achiziții.',
+          done: materialsWithoutCpv.length === 0,
+          onClick: () => setActiveTab('Nomenclator'),
+        },
+        {
+          key: 'location',
+          label: `Fără locație · ${materialsWithoutLocation.length}`,
+          hint: 'Locația face depozitul mai rapid de operat și pregătește viitorul WMS.',
+          done: materialsWithoutLocation.length === 0,
+          onClick: () => setActiveTab('Nomenclator'),
+        },
+      ],
+    }
+  }, [materials, dashboard, furnizori.length])
 
   // ── material CRUD ────────────────────────────────────────────────────────────
   async function saveMaterial(ev) {
@@ -521,6 +647,81 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
       </div>
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
+
+      <Card
+        title="Asistent depozit"
+        subtitle="Urmărește stocurile critice, documentele de consum și calitatea nomenclatorului."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={inventoryAssistant.tone}>{inventoryAssistant.tone === 'danger' ? 'intervenție' : inventoryAssistant.tone === 'warning' ? 'atenție' : 'sub control'}</Badge>
+            <Button size="sm" variant="secondary" onClick={() => setInventoryAssistantExpanded(value => !value)}>
+              {inventoryAssistantExpanded ? 'Ascunde detalii' : 'Vezi detalii'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-3">
+          <div className={`rounded-2xl border p-4 ${inventoryAssistant.tone === 'danger' ? 'border-rose-200 bg-rose-50' : inventoryAssistant.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={inventoryAssistant.primary.tone}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{inventoryAssistant.primary.title}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{inventoryAssistant.primary.description}</p>
+              </div>
+              <Button size="sm" variant={inventoryAssistant.primary.tone === 'danger' ? 'primary' : 'secondary'} onClick={inventoryAssistant.primary.onClick}>
+                {inventoryAssistant.primary.label}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {inventoryAssistant.stats.map(item => (
+              <button
+                key={item.key}
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                onClick={item.onClick}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase text-slate-500">{item.label}</span>
+                  <Badge tone={item.tone}>{item.value}</Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {inventoryAssistantExpanded ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-2">
+                {inventoryAssistant.steps.map(step => (
+                  <button
+                    key={step.key}
+                    type="button"
+                    onClick={step.onClick}
+                    className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${step.done ? 'border-primary-100 bg-primary-50 text-primary-800' : 'border-slate-200 bg-white text-slate-700'} hover:border-primary-200 hover:bg-white`}
+                  >
+                    <span className="mt-0.5">{step.done ? '✓' : '○'}</span>
+                    <span>
+                      <span className="block font-medium">{step.label}</span>
+                      <span className="block text-xs text-slate-500">{step.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">De reținut</div>
+                <ul className="grid gap-2 text-sm text-slate-700">
+                  <li>Stocul minim este motorul alertelor; fără el, depozitul nu poate preveni lipsurile.</li>
+                  <li>NIR-ul confirmat crește stocul, iar bonul aprobat îl scade controlat.</li>
+                  <li>CPV-ul și locația de depozit pregătesc legătura cu Achiziții, Contracte și viitorul WMS.</li>
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-1 border-b border-slate-200">

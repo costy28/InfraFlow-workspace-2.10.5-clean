@@ -406,3 +406,13 @@ Status: ✅ implementat în v2.12.422.
 | Operare | Indicatorii rapizi deschid tabul relevant și reduc căutarea manuală prin liste. |
 
 Status: ✅ implementat în v2.12.423.
+
+## Probleme remediate în UPDATE 444 — Asistent discret Gestiune / Depozit
+
+| Zonă | Remediere |
+| --- | --- |
+| Gestiune | Pagina arată următorul pas recomandat pentru stocuri, documente și nomenclator. |
+| UX | Operatorul vede imediat materialele epuizate/sub minim, bonurile draft și lipsurile de configurare. |
+| Operare | Indicatorii rapizi duc direct la tabul relevant și pregătesc viitorul WMS prin locații/CPV/praguri. |
+
+Status: ✅ implementat în v2.12.424.
