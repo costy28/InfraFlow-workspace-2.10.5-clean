@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.420 - 2026-07-31
+
+## Asistent configurare în Setări
+
+- `SetariPage.jsx` afișează un panou de onboarding vizibil permanent, deasupra taburilor.
+- Asistentul arată progresul configurării, pașii bifați și următorul pas recomandat.
+- Fiecare pas deschide direct tabul relevant din Setări.
+- Schimbarea refolosește logica existentă de onboarding și nu introduce API-uri sau schemă DB nouă.
+
 # v2.12.419 - 2026-07-31
 
 ## Checklist onboarding inteligent

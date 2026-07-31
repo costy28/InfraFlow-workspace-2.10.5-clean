@@ -1310,3 +1310,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Pașii se bifează automat pe baza profilului organizației, modulelor active, utilizatorilor, emailului, datelor operaționale și backup/update;
 - Dashboardul afișează „Următorul pas recomandat” cu explicație și link direct;
 - `updates/UPDATE_439_checklist_onboarding_inteligent.md` — ✅ documentație update și verificări.
+
+### UPDATE 440 — Asistent configurare în Setări
+
+- `client/src/pages/SetariPage.jsx` — ✅ panou de onboarding vizibil permanent deasupra taburilor;
+- Asistentul afișează progres, pașii bifați și următorul pas recomandat;
+- Fiecare pas deschide direct tabul relevant, fără ca utilizatorul să caute prin meniuri;
+- `updates/UPDATE_440_asistent_configurare_setari.md` — ✅ documentație update și verificări.

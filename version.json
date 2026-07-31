@@ -1,5 +1,5 @@
 {
-  "version": "2.12.419",
+  "version": "2.12.420",
   "date": "2026-07-31",
-  "changelog": "## v2.12.419 - 2026-07-31\n### Checklist onboarding inteligent\n- Checklistul Primii pași de pe Dashboard calculează automat progresul configurării.\n- Pașii se bifează din date reale: profil organizație, module, utilizatori, email, date operaționale și backup/update.\n- Dashboardul afișează următorul pas recomandat, cu link direct către zona relevantă.\n- Dacă un endpoint de verificare nu răspunde, pagina rămâne funcțională și marchează pasul ca de făcut."
+  "changelog": "## v2.12.420 - 2026-07-31\n### Asistent configurare în Setări\n- Setările afișează un panou vizibil permanent pentru onboardingul organizației.\n- Asistentul arată progresul configurării, pașii bifați și următorul pas recomandat.\n- Fiecare pas deschide direct tabul relevant: General, Module, Utilizatori, Departamente, Licență sau AI Assistant.\n- Schimbarea refolosește logica existentă din Setări și nu introduce endpointuri sau schemă DB nouă."
 }

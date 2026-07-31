@@ -366,3 +366,13 @@ Status: ✅ implementat în v2.12.418.
 | Reziliență UX | Verificările sunt tolerante la endpointuri indisponibile; pagina rămâne utilizabilă. |
 
 Status: ✅ implementat în v2.12.419.
+
+## Probleme remediate în UPDATE 440 — Asistent configurare în Setări
+
+| Zonă | Remediere |
+| --- | --- |
+| Setări | Onboardingul nu mai este ascuns în tabul Module; este vizibil permanent deasupra taburilor. |
+| UX | Utilizatorul vede progresul, pașii bifați și următorul pas recomandat chiar în zona de configurare. |
+| Navigare | Fiecare pas deschide direct tabul relevant din Setări. |
+
+Status: ✅ implementat în v2.12.420.
