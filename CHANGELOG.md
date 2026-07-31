@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.426 - 2026-07-31
+
+## Asistent discret Documente
+
+- Modulul Documente afișează un asistent compact pentru Inbox, urgențe, drafturi, template-uri și legături email/task.
+- Asistentul calculează următorul pas din datele deja încărcate și din documentul selectat.
+- Indicatorii rapizi deschid direct documentul sau tabul relevant.
+- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită.
+
 # v2.12.425 - 2026-07-31
 
 ## Asistent discret HR

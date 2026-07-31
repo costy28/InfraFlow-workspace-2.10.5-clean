@@ -1352,3 +1352,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Asistentul calculează următorul pas pentru Inbox HR, concedii, certificate medicale, dosare, scadențe, pontaj și conturi Kiosk;
 - Indicatorii rapizi duc direct la tabul relevant, fără căutare manuală prin zona HR;
 - `updates/UPDATE_445_asistent_discret_hr.md` — ✅ documentație update și verificări.
+
+### UPDATE 446 — Asistent discret Documente
+
+- `client/src/pages/modules/DocumentePage.jsx` — ✅ ghidul generic a fost înlocuit cu un asistent operațional compact;
+- Asistentul calculează următorul pas pentru Inbox, urgențe, drafturi, template-uri și documente provenite din email;
+- Pentru documentul selectat, evidențiază pașii în așteptare, task-urile și legăturile email;
+- `updates/UPDATE_446_asistent_discret_documente.md` — ✅ documentație update și verificări.

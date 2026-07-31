@@ -426,3 +426,13 @@ Status: ✅ implementat în v2.12.424.
 | Operare | Indicatorii rapizi deschid tabul relevant și păstrează detaliile operaționale pliabile. |
 
 Status: ✅ implementat în v2.12.425.
+
+## Probleme remediate în UPDATE 446 — Asistent discret Documente
+
+| Zonă | Remediere |
+| --- | --- |
+| Documente | Ghidul generic a fost transformat în asistent compact cu următorul pas calculat. |
+| UX | Utilizatorul vede Inbox, urgențe, drafturi, emailuri sursă și template-uri fără să parcurgă manual toate zonele. |
+| Operare | Pentru documentul selectat, asistentul leagă circuitul, task-urile și emailurile într-un singur fir de lucru. |
+
+Status: ✅ implementat în v2.12.426.

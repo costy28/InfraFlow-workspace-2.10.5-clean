@@ -4,7 +4,6 @@ import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
-import ContextHelp from '../../components/ui/ContextHelp'
 import DropdownMenu from '../../components/ui/DropdownMenu'
 import DocumentTemplateEditor from '../../components/forms/DocumentTemplateEditor'
 import Modal from '../../components/ui/Modal'
@@ -234,6 +233,7 @@ export default function DocumentePage() {
   const [templateSaving, setTemplateSaving] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [documentAssistantExpanded, setDocumentAssistantExpanded] = useState(false)
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
   const canEditDocument = useCallback(document => (
@@ -656,37 +656,169 @@ export default function DocumentePage() {
   )
   const selectedEmailSource = emailSourceForDocument(details.document)
 
-  const documentContextHelp = useMemo(() => {
-    const inboxCount = activeTab === 'Inbox' ? visibleDocuments.length : null
+  const documentAssistant = useMemo(() => {
+    const currentRows = visibleDocuments || []
+    const selectedDocument = details.document
+    const inboxCount = activeTab === 'Inbox' ? currentRows.length : null
     const templateCount = activeTab === 'Template-uri' ? templates.length : null
-    const steps = [
+    const draftCount = currentRows.filter(item => String(item.status || '').toLowerCase() === 'draft').length
+    const flowCount = currentRows.filter(item => ['in_circuit', 'asteptare', 'in_asteptare'].includes(String(item.status || '').toLowerCase())).length
+    const urgentCount = currentRows.filter(item => ['urgent', 'critic', 'critica'].includes(String(item.prioritate || item.priority || '').toLowerCase())).length
+    const rejectedCount = currentRows.filter(item => String(item.status || '').toLowerCase() === 'respins').length
+    const emailCount = currentRows.filter(item => emailSourceForDocument(item)).length
+    const selectedOpenTasks = relatedTasks.filter(task => !['done', 'cancelled'].includes(String(task.status || '').toLowerCase())).length
+    const selectedWaitingSteps = details.steps.filter(step => String(step.status || '').toLowerCase() === 'asteptare').length
+
+    const openFirst = (predicate, fallbackTab = activeTab) => () => {
+      const target = currentRows.find(predicate)
+      if (target) openDetails(target)
+      else setActiveTab(fallbackTab)
+    }
+
+    const cards = [
       {
         key: 'inbox',
-        label: inboxCount === null ? 'Inbox aprobare' : `Inbox aprobare · ${inboxCount}`,
-        hint: inboxCount && inboxCount > 0 ? 'Ai documente care așteaptă acțiune.' : 'Verifică documentele primite spre avizare.',
-        done: inboxCount === 0,
-        onClick: () => setActiveTab('Inbox'),
+        label: 'Inbox',
+        value: inboxCount === null ? 'vezi' : inboxCount,
+        hint: inboxCount === null ? 'documente primite spre avizare' : (inboxCount ? 'așteaptă acțiune' : 'nimic în așteptare'),
+        tone: inboxCount && inboxCount > 0 ? 'warning' : 'success',
+        action: () => setActiveTab('Inbox'),
       },
       {
-        key: 'new-document',
-        label: 'Document nou',
-        hint: 'Alege template-ul, completează datele și lansează circuitul.',
-        done: false,
-        onClick: openDocumentModal,
+        key: 'urgent',
+        label: 'Urgente',
+        value: urgentCount,
+        hint: urgentCount ? 'prioritate mare' : 'fără urgențe în listă',
+        tone: urgentCount ? 'danger' : 'success',
+        action: urgentCount ? openFirst(item => ['urgent', 'critic', 'critica'].includes(String(item.prioritate || item.priority || '').toLowerCase())) : () => setActiveTab('Toate'),
+      },
+      {
+        key: 'draft',
+        label: 'Drafturi',
+        value: draftCount,
+        hint: draftCount ? 'de finalizat/lansat' : 'drafturi curate',
+        tone: draftCount ? 'warning' : 'success',
+        action: draftCount ? openFirst(item => String(item.status || '').toLowerCase() === 'draft', 'Ale mele') : () => setActiveTab('Ale mele'),
+      },
+      {
+        key: 'email',
+        label: 'Email sursă',
+        value: emailCount,
+        hint: emailCount ? 'documente venite din email' : 'nimic legat în lista curentă',
+        tone: emailCount ? 'info' : 'neutral',
+        action: emailCount ? openFirst(item => emailSourceForDocument(item)) : () => setActiveTab('Toate'),
       },
       {
         key: 'templates',
-        label: templateCount === null ? 'Template-uri Word' : `Template-uri Word · ${templateCount}`,
-        hint: 'Modelele Word sunt sursa principală pentru documente comerciale ușor de întreținut.',
-        done: templateCount !== 0,
-        onClick: () => setActiveTab('Template-uri'),
+        label: 'Template-uri',
+        value: templateCount === null ? 'vezi' : templateCount,
+        hint: templateCount === 0 ? 'lipsește modelul de pornire' : 'modele Word/HTML',
+        tone: templateCount === 0 ? 'warning' : 'neutral',
+        action: () => setActiveTab('Template-uri'),
       },
     ]
-    const nextStep = activeTab !== 'Inbox'
-      ? steps[0]
-      : (visibleDocuments.length > 0 ? steps[0] : steps[1])
-    return { steps, nextStep }
-  }, [activeTab, visibleDocuments.length, templates.length])
+
+    const steps = [
+      {
+        key: 'approval',
+        label: currentUserStep ? 'Ai un pas de aprobare pe documentul curent' : (inboxCount ? `Inbox aprobare (${inboxCount})` : 'Inbox aprobare verificat'),
+        hint: currentUserStep ? 'Poți aproba sau respinge documentul selectat.' : 'Documentele primite spre avizare sunt primul blocaj de închis.',
+        done: !currentUserStep && inboxCount === 0,
+        action: currentUserStep ? () => setConfirm('approve') : () => setActiveTab('Inbox'),
+      },
+      {
+        key: 'flow',
+        label: selectedDocument ? `Circuit curent: ${selectedWaitingSteps} pași în așteptare` : `Documente în circuit: ${flowCount}`,
+        hint: selectedDocument ? 'Urmărește cine trebuie să avizeze documentul selectat.' : 'Documentele în circuit au nevoie de trasabilitate și eventual task-uri.',
+        done: selectedDocument ? selectedWaitingSteps === 0 : flowCount === 0,
+        action: selectedDocument ? undefined : (flowCount ? openFirst(item => ['in_circuit', 'asteptare', 'in_asteptare'].includes(String(item.status || '').toLowerCase())) : () => setActiveTab('Toate')),
+      },
+      {
+        key: 'tasks',
+        label: selectedDocument ? `Task-uri pe document: ${selectedOpenTasks}` : 'Creează task din document când apare blocaj',
+        hint: selectedDocument ? 'Task-urile legate țin responsabilul și termenul lângă document.' : 'Din orice document poți crea o sarcină urmărită în Task-uri.',
+        done: selectedDocument ? selectedOpenTasks > 0 : false,
+        action: selectedDocument ? () => openTaskFromDocument(selectedDocument) : undefined,
+      },
+      {
+        key: 'templates',
+        label: templateCount === null ? 'Verifică template-urile' : `Template-uri disponibile: ${templateCount}`,
+        hint: 'Modelele Word sunt recomandate pentru utilizatori reali; HTML rămâne compatibilitate.',
+        done: templateCount !== 0,
+        action: () => setActiveTab('Template-uri'),
+      },
+    ]
+
+    let primary
+    if (currentUserStep) {
+      primary = {
+        tone: 'warning',
+        title: 'Ai un document selectat care îți cere aprobare.',
+        description: 'Comentariul rămâne disponibil înainte de decizie; dacă documentul e corect, îl poți aproba direct.',
+        label: 'Aprobă documentul',
+        onClick: () => setConfirm('approve'),
+      }
+    } else if (inboxCount && inboxCount > 0) {
+      primary = {
+        tone: 'warning',
+        title: `Inbox documente: ${inboxCount} elemente de verificat.`,
+        description: 'Închide întâi documentele primite spre avizare, apoi lucrează pe documente noi sau template-uri.',
+        label: 'Deschide Inbox',
+        onClick: () => setActiveTab('Inbox'),
+      }
+    } else if (urgentCount > 0) {
+      primary = {
+        tone: 'danger',
+        title: `Există ${urgentCount} documente cu prioritate mare în lista curentă.`,
+        description: 'Deschide primul document urgent și decide dacă are nevoie de aprobare, task sau clarificare.',
+        label: 'Vezi urgentul',
+        onClick: openFirst(item => ['urgent', 'critic', 'critica'].includes(String(item.prioritate || item.priority || '').toLowerCase())),
+      }
+    } else if (draftCount > 0) {
+      primary = {
+        tone: 'warning',
+        title: `Ai ${draftCount} documente draft de finalizat.`,
+        description: 'Un draft neterminat nu intră în circuit și poate rămâne invizibil pentru restul echipei.',
+        label: 'Vezi draft',
+        onClick: openFirst(item => String(item.status || '').toLowerCase() === 'draft', 'Ale mele'),
+      }
+    } else if (templateCount === 0) {
+      primary = {
+        tone: 'warning',
+        title: 'Nu există încă template-uri disponibile.',
+        description: 'Pentru lucru comercial real, template-urile Word trebuie să fie punctul de pornire.',
+        label: 'Deschide Template-uri',
+        onClick: () => setActiveTab('Template-uri'),
+      }
+    } else {
+      primary = {
+        tone: 'success',
+        title: 'Documentele arată ordonat în contextul curent.',
+        description: 'Poți crea un document nou, verifica legăturile cu emailuri/taskuri sau întreține template-urile.',
+        label: 'Document nou',
+        onClick: openDocumentModal,
+      }
+    }
+
+    return {
+      cards,
+      steps,
+      primary,
+      tone: primary.tone === 'danger' ? 'danger' : (primary.tone === 'warning' ? 'warning' : 'success'),
+      summary: selectedDocument
+        ? 'Pentru documentul selectat vezi într-un loc circuitul, emailurile sursă și task-urile legate.'
+        : 'Prioritizez Inbox-ul, urgențele, drafturile și template-urile ca să nu pierzi firul documentelor.',
+      rejectedCount,
+    }
+  }, [
+    activeTab,
+    currentUserStep,
+    details.document,
+    details.steps,
+    relatedTasks,
+    templates.length,
+    visibleDocuments,
+  ])
 
   return (
     <div className="grid gap-4">
@@ -706,23 +838,83 @@ export default function DocumentePage() {
 
       {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
 
-      <ContextHelp
-        eyebrow="Ghid documente"
-        icon="📄"
-        tone={visibleDocuments.length > 0 && activeTab === 'Inbox' ? 'warning' : 'info'}
-        title="Documentele merg cel mai bine când modelul Word, datele și circuitul sunt clare."
-        description="Pentru utilizator: alege documentul din Inbox sau creează unul nou. Pentru administrator: întreține template-urile Word, iar aplicația le folosește în flux."
-        compact
-        steps={documentContextHelp.steps}
-        tips={[
-          'Template-urile Word sunt fluxul principal; editorul HTML rămâne doar pentru compatibilitate.',
-          'Documentele lansate în circuit păstrează pașii și istoricul de aprobare.',
-        ]}
-        nextAction={documentContextHelp.nextStep ? {
-          label: `Deschide: ${documentContextHelp.nextStep.label}`,
-          onClick: documentContextHelp.nextStep.onClick,
-        } : null}
-      />
+      <Card
+        title="Asistent documente"
+        subtitle="Ține la vedere Inbox-ul, urgențele, drafturile, template-urile și legăturile cu email/task."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={documentAssistant.tone}>{documentAssistant.tone === 'danger' ? 'intervenție' : documentAssistant.tone === 'warning' ? 'atenție' : 'sub control'}</Badge>
+            <Button size="sm" variant="secondary" onClick={() => setDocumentAssistantExpanded(value => !value)}>
+              {documentAssistantExpanded ? 'Ascunde detalii' : 'Vezi detalii'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-3">
+          <div className={`rounded-2xl border p-4 ${documentAssistant.tone === 'danger' ? 'border-rose-200 bg-rose-50' : documentAssistant.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={documentAssistant.primary.tone}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{documentAssistant.primary.title}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{documentAssistant.primary.description}</p>
+                <p className="mt-1 text-xs text-slate-500">{documentAssistant.summary}</p>
+              </div>
+              <Button size="sm" variant={documentAssistant.primary.tone === 'danger' ? 'primary' : 'secondary'} onClick={documentAssistant.primary.onClick}>
+                {documentAssistant.primary.label}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {documentAssistant.cards.map(item => (
+              <button
+                key={item.key}
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                onClick={item.action}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase text-slate-500">{item.label}</span>
+                  <Badge tone={item.tone}>{item.value}</Badge>
+                </div>
+                <div className="mt-1 text-xs text-slate-500">{item.hint}</div>
+              </button>
+            ))}
+          </div>
+
+          {documentAssistantExpanded ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-2">
+                {documentAssistant.steps.map(step => (
+                  <button
+                    key={step.key}
+                    type="button"
+                    disabled={!step.action}
+                    onClick={step.action}
+                    className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${step.done ? 'border-primary-100 bg-primary-50 text-primary-800' : 'border-slate-200 bg-white text-slate-700'} hover:border-primary-200 hover:bg-white disabled:cursor-default disabled:opacity-70`}
+                  >
+                    <span className="mt-0.5">{step.done ? '✓' : '○'}</span>
+                    <span>
+                      <span className="block font-medium">{step.label}</span>
+                      <span className="block text-xs text-slate-500">{step.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">De reținut</div>
+                <ul className="grid gap-2 text-sm text-slate-700">
+                  <li>Template-urile Word sunt fluxul recomandat pentru utilizatori reali; HTML rămâne compatibilitate.</li>
+                  <li>Documentele lansate în circuit păstrează pașii, istoricul și deciziile de aprobare.</li>
+                  <li>Un document poate deveni rapid task sau poate păstra legătura cu emailul din care a pornit.</li>
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       <div className="flex flex-wrap gap-2">
         {tabs.map(tab => (

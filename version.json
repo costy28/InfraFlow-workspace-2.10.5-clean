@@ -1,5 +1,5 @@
 {
-  "version": "2.12.425",
+  "version": "2.12.426",
   "date": "2026-07-31",
-  "changelog": "## v2.12.425 - 2026-07-31\n### Asistent discret HR\n- Modulul HR afișează un asistent compact pentru concedii, pontaj, dosare, scadențe și Kiosk.\n- Asistentul calculează următorul pas din datele deja încărcate: Inbox HR, concedii, dosare, pontaj și conturi Kiosk.\n- Indicatorii rapizi deschid direct tabul relevant.\n- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită."
+  "changelog": "## v2.12.426 - 2026-07-31\n### Asistent discret Documente\n- Modulul Documente afișează un asistent compact pentru Inbox, urgențe, drafturi, template-uri și legături email/task.\n- Asistentul calculează următorul pas din datele deja încărcate și din documentul selectat.\n- Indicatorii rapizi deschid direct documentul sau tabul relevant.\n- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită."
 }
