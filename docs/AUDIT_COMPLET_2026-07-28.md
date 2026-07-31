@@ -356,3 +356,13 @@ InfraFlow este deja solid la nivel funcțional pentru un proiect atât de amplu:
 | Comercializare | Prima pagină arată secvența minimă de configurare: profil, module, oameni, email, import și siguranță operațională. |
 
 Status: ✅ implementat în v2.12.418.
+
+## Probleme remediate în UPDATE 439 — Checklist onboarding inteligent
+
+| Zonă | Remediere |
+| --- | --- |
+| Dashboard | Checklistul citește statusuri reale și calculează automat progresul configurării. |
+| Onboarding | Se afișează „Următorul pas recomandat”, ca utilizatorul să nu ghicească ce lipsește. |
+| Reziliență UX | Verificările sunt tolerante la endpointuri indisponibile; pagina rămâne utilizabilă. |
+
+Status: ✅ implementat în v2.12.419.

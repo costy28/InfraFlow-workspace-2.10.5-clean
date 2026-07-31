@@ -1303,3 +1303,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/SetariPage.jsx` — ✅ suport pentru deep-link pe tab prin `?tab=...`, folosit de onboarding;
 - Dashboardul continuă direcția comercială: arată următorul pas, nu o industrie implicită;
 - `updates/UPDATE_438_checklist_primii_pasi_instalare.md` — ✅ documentație update și verificări.
+
+### UPDATE 439 — Checklist onboarding inteligent
+
+- `client/src/pages/DashboardPage.jsx` — ✅ checklistul calculează progresul din date reale, nu doar afișează pași statici;
+- Pașii se bifează automat pe baza profilului organizației, modulelor active, utilizatorilor, emailului, datelor operaționale și backup/update;
+- Dashboardul afișează „Următorul pas recomandat” cu explicație și link direct;
+- `updates/UPDATE_439_checklist_onboarding_inteligent.md` — ✅ documentație update și verificări.

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.419 - 2026-07-31
+
+## Checklist onboarding inteligent
+
+- Checklistul `Primii pași după instalare` calculează automat progresul configurării.
+- Pașii se bifează din date reale: profil organizație, module active, utilizatori, email, date operaționale și backup/update.
+- Dashboardul afișează următorul pas recomandat, cu link direct către tabul sau modulul relevant.
+- Verificările sunt tolerante: dacă un endpoint nu răspunde, Dashboardul rămâne funcțional și marchează pasul ca de făcut.
+
 # v2.12.418 - 2026-07-31
 
 ## Checklist primii pași după instalare
