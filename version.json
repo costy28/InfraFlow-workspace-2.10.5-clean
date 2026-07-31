@@ -1,5 +1,5 @@
 {
-  "version": "2.12.416",
+  "version": "2.12.417",
   "date": "2026-07-30",
-  "changelog": "## v2.12.416 - 2026-07-31\n### Curățare onboarding și demo comercial\n- Wizardul inițial folosește descrieri comerciale generale pentru profiluri și operatori.\n- Ghidul de ajutor descrie producția operațională și Parc & Resurse, nu doar asfalt/utilaje.\n- Tehnic folosește tabul Vânzări / Output și descrieri generale.\n- Demo seed-ul folosește exemple operaționale neutre pentru parc, referate, PAAP și notificări."
+  "changelog": "## v2.12.417 - 2026-07-31\n### Demo și smoke test cu limbaj comercial\n- Start Demo descrie operațiuni generale, nu mecanizare ca verticală implicită.\n- Smoke demo verifică operatorul Kiosk și coordonatorul de resurse cu mesaje neutre.\n- Seed-ul demo are canale, notificări, rețete și puncte de lucru mai generale.\n- Conturile demo istorice rămân compatibile pentru testare și prezentare."
 }

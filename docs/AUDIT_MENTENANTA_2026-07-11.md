@@ -1289,3 +1289,10 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/DocumentePage.jsx` — ✅ preview documente cu operator demo neutru;
 - `scripts/seed-demo.js` — ✅ date demo mai neutre pentru prezentare comercială;
 - `updates/UPDATE_436_curatare_onboarding_demo_comercial.md` — ✅ documentație update și verificări.
+
+### UPDATE 437 — Demo și smoke test cu limbaj comercial
+
+- `client/src/pages/StartDemoPage.jsx` — ✅ descriere director repoziționată pe operațiuni generale;
+- `scripts/smoke-demo.js` — ✅ mesaje de test neutre pentru operator Kiosk și coordonator resurse;
+- `scripts/seed-demo.js` — ✅ rețete, notificări, puncte de lucru și consumuri demo generalizate;
+- `updates/UPDATE_437_demo_smoke_limbaj_comercial.md` — ✅ documentație update și verificări.

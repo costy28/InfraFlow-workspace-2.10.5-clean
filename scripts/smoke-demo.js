@@ -71,7 +71,7 @@ async function main() {
   addCheck('banner DEMO in HTML', String(root.raw || '').includes('DEMO - Date fictive'), '')
 
   const startDemo = await request('GET', '/start-demo')
-  addCheck('/start-demo include conturi demo', startDemo.status === 200 && String(startDemo.raw || '').includes('Director:') && String(startDemo.raw || '').includes('Kiosk sofer'), `status=${startDemo.status}`)
+  addCheck('/start-demo include conturi demo', startDemo.status === 200 && String(startDemo.raw || '').includes('Director:') && String(startDemo.raw || '').includes('Kiosk operator'), `status=${startDemo.status}`)
 
   const login = await request('POST', '/api/login', { body: { username: USERNAME, password: PASSWORD } })
   addCheck(`login ${USERNAME}`, login.status === 200 && Boolean(login.data?.token), `status=${login.status}, user=${login.data?.user?.username || '-'}`)
@@ -145,13 +145,13 @@ async function main() {
     const demoTrip = Array.isArray(mechanizationTrips.data?.trip_logs)
       ? mechanizationTrips.data.trip_logs.find((item) => item.nr_foaie === 'FP-2026-KIOSK-001')
       : null
-    addCheck('mecanizare vede foaia kiosk demo', mechanizationTrips.status === 200 && Boolean(demoTrip), `status=${mechanizationTrips.status}, foaie=${demoTrip?.nr_foaie || '-'}`)
+    addCheck('coordonatorul vede foaia kiosk demo', mechanizationTrips.status === 200 && Boolean(demoTrip), `status=${mechanizationTrips.status}, foaie=${demoTrip?.nr_foaie || '-'}`)
     if (demoTrip?.uuid) {
       const sendToDriver = await request('POST', `/api/fleet/trip-logs/${demoTrip.uuid}/trimite`, {
         token: mechanizationToken,
         body: { sofer_id: demoTrip.sofer_id || 'EMP-001' }
       })
-      addCheck('mecanizare trimite foaia la sofer', sendToDriver.status === 200 && sendToDriver.data?.trip_log?.status === 'trimisa', `status=${sendToDriver.status}, next=${sendToDriver.data?.trip_log?.status || '-'}`)
+      addCheck('coordonatorul trimite foaia la operator', sendToDriver.status === 200 && sendToDriver.data?.trip_log?.status === 'trimisa', `status=${sendToDriver.status}, next=${sendToDriver.data?.trip_log?.status || '-'}`)
     }
   }
 
@@ -190,11 +190,11 @@ async function main() {
 
   const kioskLogin = await request('POST', '/api/hr/kiosk/login', { body: { username: 'sofer1', password: PASSWORD } })
   const kioskToken = kioskLogin.data?.token
-  addCheck('login kiosk sofer1', kioskLogin.status === 200 && Boolean(kioskToken), `status=${kioskLogin.status}, employee=${kioskLogin.data?.employee_name || '-'}`)
+  addCheck('login kiosk operator demo', kioskLogin.status === 200 && Boolean(kioskToken), `status=${kioskLogin.status}, employee=${kioskLogin.data?.employee_name || '-'}`)
 
   if (kioskToken) {
     const kioskProfile = await request('GET', '/api/hr/kiosk/me', { token: kioskToken })
-    addCheck('/api/hr/kiosk/me are profil sofer', kioskProfile.status === 200 && kioskProfile.data?.angajat?.id === 'EMP-001' && Number(kioskProfile.data?.pontaj_luna?.ore_total || 0) > 0, `status=${kioskProfile.status}, ore=${kioskProfile.data?.pontaj_luna?.ore_total}`)
+    addCheck('/api/hr/kiosk/me are profil operator', kioskProfile.status === 200 && kioskProfile.data?.angajat?.id === 'EMP-001' && Number(kioskProfile.data?.pontaj_luna?.ore_total || 0) > 0, `status=${kioskProfile.status}, ore=${kioskProfile.data?.pontaj_luna?.ore_total}`)
 
     const kioskLeave = await request('POST', '/api/hr/kiosk/sync', {
       token: kioskToken,
@@ -208,7 +208,7 @@ async function main() {
             tip: 'CO',
             data_start: leaveStart,
             data_sfarsit: leaveEnd,
-            motiv: 'Test smoke Kiosk sofer'
+            motiv: 'Test smoke Kiosk operator'
           }
         }]
       }
@@ -225,7 +225,7 @@ async function main() {
         token: kioskToken,
         body: {
           activitati: [
-            { id: 'smoke-act-1', locul_plecarii: 'Depou central', locul_sosirii: 'DJ207B km 4+200', ziua: new Date().toISOString().slice(0, 10), ora: '08', minut: '15', km_incarcat: 18, km_gol: 4, tone: 18, marfa: 'Mixtura asfaltica BA16' }
+            { id: 'smoke-act-1', locul_plecarii: 'Depou central', locul_sosirii: 'Punct lucru demo km 4+200', ziua: new Date().toISOString().slice(0, 10), ora: '08', minut: '15', km_incarcat: 18, km_gol: 4, tone: 18, marfa: 'Material procesat demo' }
           ],
           km_sosire: 48302,
           km_cat1: 40,
@@ -239,7 +239,7 @@ async function main() {
 
       if (mechanizationToken) {
         const closeByMechanization = await request('PATCH', `/api/fleet/trip-logs/${activeKioskTrip.uuid}/close-mecanizare`, { token: mechanizationToken })
-        addCheck('mecanizare inchide foaia completata', closeByMechanization.status === 200 && closeByMechanization.data?.trip_log?.status === 'inchisa', `status=${closeByMechanization.status}, next=${closeByMechanization.data?.trip_log?.status || '-'}`)
+        addCheck('coordonatorul inchide foaia completata', closeByMechanization.status === 200 && closeByMechanization.data?.trip_log?.status === 'inchisa', `status=${closeByMechanization.status}, next=${closeByMechanization.data?.trip_log?.status || '-'}`)
       }
     }
   }
@@ -284,7 +284,7 @@ async function main() {
     : { status: 0, data: {} }
   const afterResetTrips = Array.isArray(afterResetKioskTrips.data?.trips) ? afterResetKioskTrips.data.trips : []
   const resetActiveTrip = afterResetTrips.find((item) => item.nr_foaie === 'FP-2026-KIOSK-001' && item.status === 'deschisa')
-  addCheck('dupa reset foaia sofer revine deschisa', afterResetKioskTrips.status === 200 && Boolean(resetActiveTrip), `status=${afterResetKioskTrips.status}, trip=${resetActiveTrip?.status || '-'}`)
+  addCheck('dupa reset foaia operatorului revine deschisa', afterResetKioskTrips.status === 200 && Boolean(resetActiveTrip), `status=${afterResetKioskTrips.status}, trip=${resetActiveTrip?.status || '-'}`)
 
   const summary = {
     passed: checks.filter((item) => item.ok).length,

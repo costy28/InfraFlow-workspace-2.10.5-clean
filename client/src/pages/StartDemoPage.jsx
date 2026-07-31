@@ -11,7 +11,7 @@ const accounts = [
     password: 'demo123',
     route: '/dashboard',
     badge: 'Aprobari',
-    description: 'Vede tabloul de bord, aproba referatul RA/122 si urmareste costuri, HR si mecanizare.',
+    description: 'Vede tabloul de bord, aprobă referate și urmărește costuri, HR și operațiuni.',
   },
   {
     key: 'mecanizare',

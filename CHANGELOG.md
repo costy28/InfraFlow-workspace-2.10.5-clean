@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.417 - 2026-07-31
+
+## Demo și smoke test cu limbaj comercial
+
+- `StartDemoPage` descrie operațiuni generale, nu mecanizare ca verticală implicită.
+- `scripts/smoke-demo.js` folosește mesaje neutre pentru operator Kiosk și coordonator resurse.
+- `scripts/seed-demo.js` are canale, notificări, rețete, puncte de lucru și consumuri demo mai generale.
+- Conturile demo istorice au rămas compatibile pentru testare și prezentare.
+
 # v2.12.416 - 2026-07-31
 
 ## Curățare onboarding și demo comercial

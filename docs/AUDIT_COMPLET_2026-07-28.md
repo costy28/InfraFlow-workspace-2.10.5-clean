@@ -19,6 +19,7 @@ Completare P0 shell comercial generic: `2.12.413` / `UPDATE 433`
 Completare P0 module operaționale limbaj generic: `2.12.414` / `UPDATE 434`
 Completare P0 seed-uri și exemple comerciale generice: `2.12.415` / `UPDATE 435`
 Completare P0 onboarding și demo comercial generic: `2.12.416` / `UPDATE 436`
+Completare P0 demo și smoke test limbaj comercial: `2.12.417` / `UPDATE 437`
 
 ## Rezumat executiv
 
@@ -197,6 +198,15 @@ Direcția corectă pentru perioada următoare:
 | Tehnic | tabul de vânzări era `Vânzări asfalt` | `Vânzări / Output`, descriere generică |
 | Gestiune | categoria tehnică `asfalt` era afișată vizibil ca verticală default | etichetă vizibilă `Material de producție`, valoare internă păstrată |
 | Demo seed | exemplele de demo păstrau nume și activități foarte specifice asfaltului | exemple operaționale neutre pentru foi, referate, PAAP, costuri și notificări |
+
+## Probleme remediate în UPDATE 437
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Start Demo | descrierea directorului menționa mecanizarea ca zonă implicită | descriere generală pe operațiuni, HR și costuri |
+| Smoke demo | mesajele de test vorbeau despre șofer/mecanizare | mesaje neutre: operator Kiosk și coordonator resurse |
+| Seed demo | rețete, notificări și puncte de lucru păstrau exemple nișate | rețete `Flux operațional`, material procesabil și punct lucru demo |
+| Compatibilitate demo | conturile istorice puteau fi schimbate accidental | conturile/rutele/câmpurile interne au fost păstrate explicit |
 
 ## Zone mari de cod
 

@@ -96,7 +96,7 @@ function withFleetDueDates(assets) {
   return assets.map((asset, index) => ({
     ...asset,
     active: true,
-    department: asset.costCenterId === 'DEP-SALUB' ? 'Salubrizare' : 'Mecanizare',
+    department: asset.costCenterId === 'DEP-SALUB' ? 'Salubrizare' : 'Parc & Resurse',
     insurance_expiry: addDays(pick(rcaOffsets, index)),
     itp_expiry: addDays(pick(itpOffsets, index)),
     iscir_expiry: asset.category === 'equipment' ? addDays(pick([20, 48, 95, 130, -9], index)) : null,
@@ -143,7 +143,7 @@ function buildStockOperations(materials) {
 
 function buildTripLogs(seed) {
   const destinations = [
-    'Santier DJ207B km 3+500, Piatra-Neamt',
+    'Punct lucru demo km 3+500',
     'Depozit operațional - agregate',
     'Str. Mihail Kogalniceanu',
     'DN15 Piatra-Neamt - marcaje',
@@ -204,8 +204,8 @@ function buildTripLogs(seed) {
     km_plecare: 48250,
     km_sosire: '',
     km_parcursi: 0,
-    destination: 'Reabilitare DJ207B km 3+000 - km 8+500',
-    destinatie: 'Reabilitare DJ207B km 3+000 - km 8+500',
+    destination: 'Punct lucru demo - execuție',
+    destinatie: 'Punct lucru demo - execuție',
     scopul_deplasarii: 'Transport material procesat',
     marfa: 'Material procesat demo',
     tone: 0,
@@ -240,7 +240,7 @@ function buildGps(seed) {
 
 function buildReferate(seed) {
   const rows = [
-    { dep: 'DEP-002', user: 'USR-004', supplier: 'MATERIALE INDUSTRIALE SRL', status: 'aprobat', tip: 'aprovizionare', obs: 'Aprovizionare materiale pentru programul operațional DJ207B.', lines: [['MAT-001', 18, 3350, 12663], ['MAT-024', 120, 18, 453.6]] },
+    { dep: 'DEP-002', user: 'USR-004', supplier: 'MATERIALE INDUSTRIALE SRL', status: 'aprobat', tip: 'aprovizionare', obs: 'Aprovizionare materiale pentru programul operațional demo.', lines: [['MAT-001', 18, 3350, 12663], ['MAT-024', 120, 18, 453.6]] },
     { dep: 'DEP-002', user: 'USR-004', supplier: 'AUTO PIESE NORD SRL', status: 'la_gestionar', tip: 'aprovizionare', obs: 'Filtre si consumabile pentru revizia autobasculantelor.', lines: [['MAT-013', 20, 85, 357], ['MAT-014', 18, 110, 415.8], ['MAT-009', 80, 19, 319.2]] },
     { dep: 'DEP-007', user: 'USR-013', supplier: 'PETROM SA', status: 'dir_general', tip: 'aprovizionare', obs: 'DEMO DIRECTOR: motorina necesara pentru utilajele alocate in saptamana curenta. Acest referat asteapta aprobarea directorului general.', lines: [['MAT-007', 6500, 6.25, 8531.25]] },
     { dep: 'DEP-006', user: 'USR-010', supplier: 'CONSTRUCTIV MATERIALE SA', status: 'draft', tip: 'servicii', obs: 'Servicii inchiriere utilaj compactare pentru lucrare canalizare.', lines: [['MAT-030', 140, 42, 1234.8]] },
@@ -622,27 +622,27 @@ function buildNotifications() {
   return [
     { id: 'notif-001', tip: 'alerta_doc', type: 'alerta_doc', mesaj: 'RCA VEH-002 expirat acum 4 zile!', message: 'RCA VEH-002 expirat acum 4 zile!', urgenta: 'critica', read: false, created_at: isoDaysAgo(1, 8) },
     { id: 'notif-002', tip: 'alerta_doc', type: 'alerta_doc', mesaj: 'ITP UTIL-001 expira in 18 zile.', message: 'ITP UTIL-001 expira in 18 zile.', urgenta: 'ridicata', read: false, created_at: isoDaysAgo(1, 9) },
-    { id: 'notif-003', tip: 'alerta_stoc', type: 'alerta_stoc', mesaj: 'Stoc Bitum 50/70 aproape de limita minima.', message: 'Stoc Bitum 50/70 aproape de limita minima.', urgenta: 'ridicata', read: false, created_at: isoDaysAgo(2, 10) },
+    { id: 'notif-003', tip: 'alerta_stoc', type: 'alerta_stoc', mesaj: 'Stoc material procesabil aproape de limita minima.', message: 'Stoc material procesabil aproape de limita minima.', urgenta: 'ridicata', read: false, created_at: isoDaysAgo(2, 10) },
     { id: 'notif-004', tip: 'aprobare', type: 'aprobare', mesaj: 'Referatul REFNEC-2026-0015 asteapta aprobarea ta.', message: 'Referatul REFNEC-2026-0015 asteapta aprobarea ta.', urgenta: 'normala', read: false, created_at: isoDaysAgo(2, 13) },
     { id: 'notif-005', tip: 'info', type: 'info', mesaj: 'Foaia de parcurs FP-2026-0031 a fost inchisa de operatorul din teren.', message: 'Foaia de parcurs FP-2026-0031 a fost inchisa de operatorul din teren.', urgenta: 'scazuta', read: true, created_at: isoDaysAgo(3, 15) },
     { id: 'notif-006', tip: 'alerta_hr', type: 'alerta_hr', mesaj: '3 autorizatii HR expira in urmatoarele 30 zile.', message: '3 autorizatii HR expira in urmatoarele 30 zile.', urgenta: 'normala', read: false, created_at: isoDaysAgo(4, 12) },
     { id: 'notif-007', tip: 'mediu', type: 'mediu', mesaj: 'Raportul deseuri luna curenta este in lucru.', message: 'Raportul deseuri luna curenta este in lucru.', urgenta: 'scazuta', read: true, created_at: isoDaysAgo(5, 9) },
     { id: 'notif-008', tip: 'controlling', type: 'controlling', mesaj: 'Centrul SUB-BASC a consumat 78% din bugetul lunar.', message: 'Centrul SUB-BASC a consumat 78% din bugetul lunar.', urgenta: 'normala', read: false, created_at: isoDaysAgo(5, 14) },
-    { id: 'notif-009', tip: 'chat', type: 'chat', mesaj: 'Mesaj nou in #mecanizare.', message: 'Mesaj nou in #mecanizare.', urgenta: 'scazuta', read: false, created_at: isoDaysAgo(0, 11) },
+    { id: 'notif-009', tip: 'chat', type: 'chat', mesaj: 'Mesaj nou in #parc-resurse.', message: 'Mesaj nou in #parc-resurse.', urgenta: 'scazuta', read: false, created_at: isoDaysAgo(0, 11) },
     { id: 'notif-010', tip: 'achizitii', type: 'achizitii', mesaj: 'Comanda CMD-2026-0104 este gata de receptie.', message: 'Comanda CMD-2026-0104 este gata de receptie.', urgenta: 'normala', read: false, created_at: isoDaysAgo(1, 16) }
   ]
 }
 
 function buildMessaging() {
   const channels = [
-    { id: 'ch-001', tip: 'departament', type: 'departament', nume: '#mecanizare', name: '#mecanizare', members: ['sef.mecanizare', 'sofer1', 'sofer2'] },
+    { id: 'ch-001', tip: 'departament', type: 'departament', nume: '#parc-resurse', name: '#parc-resurse', members: ['sef.mecanizare', 'sofer1', 'sofer2'] },
     { id: 'ch-002', tip: 'departament', type: 'departament', nume: '#gestiune', name: '#gestiune', members: ['sef.gestiune', 'gestionar'] },
-    { id: 'ch-003', tip: 'direct', type: 'direct', nume: 'director - sef.mecanizare', name: 'director - sef.mecanizare', members: ['director', 'sef.mecanizare'] }
+    { id: 'ch-003', tip: 'direct', type: 'direct', nume: 'director - coordonator resurse', name: 'director - coordonator resurse', members: ['director', 'sef.mecanizare'] }
   ]
   const samples = [
     'Am incarcat foile de parcurs pe ziua de azi.',
     'Confirm receptia materialelor, verific cantitatile.',
-    'Trimitem autobasculanta la DJ207B dupa ora 11.',
+    'Trimitem vehiculul alocat la punctul de lucru demo dupa ora 11.',
     'Referatul pentru filtre este in aprobare.',
     'Verificam stocul de motorina la final de schimb.',
     'Programarea pentru finisor ramane valabila.'
@@ -675,14 +675,14 @@ function buildMechanizationDemo() {
   const month = new Date().toISOString().slice(0, 7)
   const today = addDays(0)
   const plannings = [
-    { id: 'plan-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Alex Ionescu', ora_start: '07:00', ora_sfarsit: '15:00', status: 'planificat', observatii: 'Transport agregate' },
-    { id: 'plan-002', date: today, asset_id: 'UTIL-005', asset_name: 'Echipament execuție Vogele S1800', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Florin Lazar', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Execuție strat final' },
-    { id: 'plan-003', date: today, asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', department: 'Tehnic', job_name: 'Reabilitare DJ207B km 3+000 - km 8+500', operator: 'Sorin Munteanu', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Compactare' }
+    { id: 'plan-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', department: 'Tehnic', job_name: 'Punct lucru demo - execuție', operator: 'Alex Ionescu', ora_start: '07:00', ora_sfarsit: '15:00', status: 'planificat', observatii: 'Transport agregate' },
+    { id: 'plan-002', date: today, asset_id: 'UTIL-005', asset_name: 'Echipament execuție Vogele S1800', department: 'Tehnic', job_name: 'Punct lucru demo - execuție', operator: 'Florin Lazar', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Execuție strat final' },
+    { id: 'plan-003', date: today, asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', department: 'Tehnic', job_name: 'Punct lucru demo - execuție', operator: 'Sorin Munteanu', ora_start: '08:00', ora_sfarsit: '16:00', status: 'planificat', observatii: 'Compactare' }
   ]
   const workOrders = [
-    { id: 'wo-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', operator: 'Alex Ionescu', activitate: 'Transport criblura 4-8mm', locatie: 'DJ207B km 3+500', ore_lucrate: 7.5, km_parcursi: 84, consum_carburant: 38, consum_normat: 34, cost_center_id: 'SUB-BASC', status: 'activ', observatii: '2 curse depozit - santier' },
-    { id: 'wo-002', date: today, asset_id: 'UTIL-005', asset_name: 'Echipament execuție Vogele S1800', operator: 'Florin Lazar', activitate: 'Execuție strat final', locatie: 'DJ207B km 4+100', ore_lucrate: 6.5, km_parcursi: 0, consum_carburant: 52, consum_normat: 50, cost_center_id: 'SUB-FINISOR', status: 'activ', observatii: 'Front lucru deschis' },
-    { id: 'wo-003', date: addDays(-1), asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', operator: 'Sorin Munteanu', activitate: 'Compactare strat uzura', locatie: 'DJ207B', ore_lucrate: 8, km_parcursi: 0, consum_carburant: 46, consum_normat: 48, cost_center_id: 'DEP-MECAN', status: 'inchis', observatii: 'Finalizat fara abateri' },
+    { id: 'wo-001', date: today, asset_id: 'VEH-001', asset_name: 'Autobasculanta MAN TGS 35.460 / NT-01-ABC', operator: 'Alex Ionescu', activitate: 'Transport agregat 4-8mm', locatie: 'Punct lucru demo km 3+500', ore_lucrate: 7.5, km_parcursi: 84, consum_carburant: 38, consum_normat: 34, cost_center_id: 'SUB-BASC', status: 'activ', observatii: '2 curse depozit - punct lucru' },
+    { id: 'wo-002', date: today, asset_id: 'UTIL-005', asset_name: 'Echipament execuție Vogele S1800', operator: 'Florin Lazar', activitate: 'Execuție strat final', locatie: 'Punct lucru demo km 4+100', ore_lucrate: 6.5, km_parcursi: 0, consum_carburant: 52, consum_normat: 50, cost_center_id: 'SUB-FINISOR', status: 'activ', observatii: 'Front lucru deschis' },
+    { id: 'wo-003', date: addDays(-1), asset_id: 'UTIL-006', asset_name: 'Cilindru compactor Hamm HD120', operator: 'Sorin Munteanu', activitate: 'Compactare strat final', locatie: 'Punct lucru demo', ore_lucrate: 8, km_parcursi: 0, consum_carburant: 46, consum_normat: 48, cost_center_id: 'DEP-MECAN', status: 'inchis', observatii: 'Finalizat fara abateri' },
     { id: 'wo-004', date: `${month}-03`, asset_id: 'VEH-003', asset_name: 'Autobasculanta Volvo FMX / NT-03-CDE', operator: 'Gheorghe Constantin', activitate: 'Transport material procesat', locatie: 'DN15 Piatra-Neamt', ore_lucrate: 7, km_parcursi: 96, consum_carburant: 44, consum_normat: 40, cost_center_id: 'SUB-BASC', status: 'inchis', observatii: 'Consum usor peste norma din cauza stationarii' }
   ]
   const fuelLogs = [
@@ -716,7 +716,7 @@ function buildDb(seed) {
     employeeId: user.employeeId || userEmployeeMap[user.username] || '',
     passwordHash,
     createdAt: isoDaysAgo(20, 8),
-    demoHint: user.username === 'director' ? 'Cont director: aproba referate, vede mecanizare, HR sumar si controlling.' : undefined
+    demoHint: user.username === 'director' ? 'Cont director: aproba referate, vede operatiuni, HR sumar si controlling.' : undefined
   }))
   const hrEmployees = buildHrEmployees(seed)
   const timesheets = buildTimesheets(hrEmployees)
@@ -831,8 +831,8 @@ function buildDb(seed) {
       }))
     },
     recipes: [
-      { id: 'REC-001', name: 'BA16 rul 50/70', active: true },
-      { id: 'REC-002', name: 'BAD22.4 leg 50/70', active: true }
+      { id: 'REC-001', name: 'Flux operațional A', active: true },
+      { id: 'REC-002', name: 'Flux operațional B', active: true }
     ],
     environment_reports: seed.environment_reports,
     environment: { reports: seed.environment_reports },
@@ -841,20 +841,20 @@ function buildDb(seed) {
     procurementReceipts,
     procurement_requirements: referate,
     consumptions: [
-      { id: 'cons-000', date: addDays(0), recipeId: 'REC-001', recipeName: 'BA16 rul 50/70', reportNo: 'RZ-2026-AZI', ticket: 'TIC-2406', asphalt: 124, jobName: 'DJ207B', operatorName: 'Operator Demo', createdAt: isoDaysAgo(0, 10) },
-      { id: 'cons-001', date: addDays(-5), recipeId: 'REC-001', recipeName: 'BA16 rul 50/70', asphalt: 86, jobName: 'DJ207B', createdAt: isoDaysAgo(5, 13) },
-      { id: 'cons-002', date: addDays(-3), recipeId: 'REC-002', recipeName: 'BAD22.4 leg 50/70', asphalt: 54, jobName: 'MARC-DN15', createdAt: isoDaysAgo(3, 12) }
+      { id: 'cons-000', date: addDays(0), recipeId: 'REC-001', recipeName: 'Flux operațional A', reportNo: 'RZ-2026-AZI', ticket: 'TIC-2406', asphalt: 124, jobName: 'Punct lucru demo', operatorName: 'Operator Demo', createdAt: isoDaysAgo(0, 10) },
+      { id: 'cons-001', date: addDays(-5), recipeId: 'REC-001', recipeName: 'Flux operațional A', asphalt: 86, jobName: 'Punct lucru demo', createdAt: isoDaysAgo(5, 13) },
+      { id: 'cons-002', date: addDays(-3), recipeId: 'REC-002', recipeName: 'Flux operațional B', asphalt: 54, jobName: 'MARC-DN15', createdAt: isoDaysAgo(3, 12) }
     ],
     department_consumptions: [],
     fleet_work_logs: [
-      { id: 'fwl-001', assetId: 'UTIL-005', assetName: 'Echipament execuție Vogele S1800', date: addDays(-4), hours: 7.5, jobName: 'DJ207B', costCenterId: 'SUB-FINISOR' },
+      { id: 'fwl-001', assetId: 'UTIL-005', assetName: 'Echipament execuție Vogele S1800', date: addDays(-4), hours: 7.5, jobName: 'Punct lucru demo', costCenterId: 'SUB-FINISOR' },
       { id: 'fwl-002', assetId: 'UTIL-001', assetName: 'Excavator Liebherr R926', date: addDays(-2), hours: 6, jobName: 'Canalizare Str. Mihail Kogalniceanu', costCenterId: 'SUB-EXC3' }
     ],
     mechanization,
     technicalWorkLogs: [],
     fleetRequests: [
-      { id: 'fr-001', assetId: 'VEH-001', date: addDays(1), startTime: '07:00', endTime: '15:00', department: 'Tehnic', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', status: 'approved', createdAt: isoDaysAgo(1, 10) },
-      { id: 'fr-002', assetId: 'UTIL-005', date: addDays(2), startTime: '08:00', endTime: '16:00', department: 'Tehnic', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', status: 'planned', createdAt: isoDaysAgo(0, 9) }
+      { id: 'fr-001', assetId: 'VEH-001', date: addDays(1), startTime: '07:00', endTime: '15:00', department: 'Tehnic', jobName: 'Punct lucru demo - execuție', status: 'approved', createdAt: isoDaysAgo(1, 10) },
+      { id: 'fr-002', assetId: 'UTIL-005', date: addDays(2), startTime: '08:00', endTime: '16:00', department: 'Tehnic', jobName: 'Punct lucru demo - execuție', status: 'planned', createdAt: isoDaysAgo(0, 9) }
     ],
     fleet_requests: [],
     timesheets,
@@ -872,12 +872,12 @@ function buildDb(seed) {
     message_channels: messaging.channels,
     messaging: { channels: messaging.channels, messages: messaging.messages },
     departmentRequests: [
-      { id: 'dreq-001', type: 'material', materialId: 'MAT-001', materialName: 'Bitum 50/70', amount: 24, unit: 'tone', department: 'Tehnic', status: 'approved', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', createdAt: isoDaysAgo(2, 9) },
+      { id: 'dreq-001', type: 'material', materialId: 'MAT-001', materialName: 'Material procesabil', amount: 24, unit: 'tone', department: 'Tehnic', status: 'approved', jobName: 'Punct lucru demo - execuție', createdAt: isoDaysAgo(2, 9) },
       { id: 'dreq-002', type: 'material', materialId: 'MAT-010', materialName: 'Vopsea marcaj alb', amount: 720, unit: 'kg', department: 'Tehnic', status: 'planned', jobName: 'Marcaje rutiere DN15 Piatra-Neamt', createdAt: isoDaysAgo(3, 11) },
       { id: 'dreq-003', type: 'material', materialId: 'MAT-025', materialName: 'Sare industriala', amount: 130, unit: 'tone', department: 'Salubrizare', status: 'planned', jobName: 'Stoc preventiv iarna', createdAt: isoDaysAgo(4, 10) }
     ],
     department_requests: [
-      { id: 'dr-001', type: 'material', itemName: 'Criblura 4-8mm', amount: 45, unit: 'tone', department: 'Tehnic', status: 'planned', jobName: 'Reabilitare DJ207B km 3+000 - km 8+500', createdAt: isoDaysAgo(7, 9) }
+      { id: 'dr-001', type: 'material', itemName: 'Agregat 4-8mm', amount: 45, unit: 'tone', department: 'Tehnic', status: 'planned', jobName: 'Punct lucru demo - execuție', createdAt: isoDaysAgo(7, 9) }
     ],
     documents: [],
     cost_entries: buildCostEntries(),
