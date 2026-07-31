@@ -7,12 +7,12 @@ begin transaction;
 
 merge core.modules as target
 using (values
-  (N'production', N'Productie', N'#0f766e', N'factory', 1, 1),
+  (N'production', N'Producție / Operațiuni', N'#0f766e', N'factory', 1, 1),
   (N'technical', N'Tehnic', N'#2563eb', N'ruler', 1, 1),
   (N'accounting', N'Contabilitate', N'#7c3aed', N'calculator', 1, 1),
-  (N'mechanization', N'Mecanizare', N'#b45309', N'truck', 1, 1),
-  (N'concrete', N'Betoane', N'#64748b', N'blocks', 0, 1),
-  (N'paving', N'Asternere asfalt', N'#475569', N'road', 0, 1),
+  (N'mechanization', N'Parc & Resurse', N'#b45309', N'truck', 1, 1),
+  (N'concrete', N'Beton / Prefabricate', N'#64748b', N'blocks', 0, 1),
+  (N'paving', N'Lucrări / Execuție', N'#475569', N'road', 0, 1),
   (N'traffic_safety', N'Siguranta circulatiei', N'#ca8a04', N'cone', 0, 1),
   (N'sewerage', N'Canalizare', N'#0891b2', N'waves', 0, 1),
   (N'inventory', N'Gestiune', N'#3f6212', N'warehouse', 1, 1),
@@ -51,8 +51,8 @@ values (source.role_key, source.name, source.level_no, source.system_role);
 merge workflow.templates as target
 using (values
   (null, N'material', N'Solicitare materiale', N'inventory'),
-  (null, N'asphalt', N'Solicitare asfalt', N'production'),
-  (null, N'fleet', N'Solicitare utilaj/autovehicul', N'mechanization'),
+  (null, N'asphalt', N'Solicitare output operațional', N'production'),
+  (null, N'fleet', N'Solicitare resursă mobilă', N'mechanization'),
   (null, N'procurement', N'Comanda aprovizionare', N'procurement'),
   (null, N'work_situation', N'Situatie lucrari', N'technical'),
   (null, N'nonconformity', N'Neconformitate', N'technical')
@@ -67,4 +67,3 @@ if not exists (select 1 from core.schema_migrations where version = N'003_seed_s
   values (N'003_seed_standard_modules', N'InfraFlow 1.0 module, roluri si workflow-uri standard');
 
 commit transaction;
-

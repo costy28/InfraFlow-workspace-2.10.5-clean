@@ -17,6 +17,7 @@ Completare P0 UX mecanizare, FAZ și operațiuni contabile: `2.12.411` / `UPDATE
 Completare P0 dashboard comercial generic: `2.12.412` / `UPDATE 432`
 Completare P0 shell comercial generic: `2.12.413` / `UPDATE 433`
 Completare P0 module operaționale limbaj generic: `2.12.414` / `UPDATE 434`
+Completare P0 seed-uri și exemple comerciale generice: `2.12.415` / `UPDATE 435`
 
 ## Rezumat executiv
 
@@ -175,6 +176,16 @@ Direcția corectă pentru perioada următoare:
 | Flotă | headerul `Flotă utilaje` era prea îngust | `Parc & Resurse mobile` |
 | Producție | pagina și exporturile păstrau limbaj orientat pe asfalt | `Producție / Operațiuni`, output generic și raport printabil general |
 | Lucrări / Execuție | pagina era titulată `Asternere Asfalt` | header și corelare producție generalizate |
+
+## Probleme remediate în UPDATE 435
+
+| Zonă | Problemă | Remediere |
+| --- | --- | --- |
+| Catalog module / seed | denumirile standard rămâneau `Mecanizare`, `Productie`, `Asternere asfalt` | seed și catalog intern repoziționate comercial |
+| Instalații existente | schimbarea de denumiri nu ajungea în MSSQL existent | migrare `069_commercial_generic_module_labels.sql` |
+| Workflow standard | template-urile și conexiunile vorbeau explicit despre asfalt/utilaje | formulări neutre: output operațional, resurse mobile, execuție |
+| Demo parc | cardurile vizibile foloseau `șofer`/nume demo prea concret | limbaj de operator și echipă mobilă |
+| Contabilitate | maparea `out_productie` descria asfaltul ca default | descriere generică pentru produse, servicii sau output operațional |
 
 ## Zone mari de cod
 

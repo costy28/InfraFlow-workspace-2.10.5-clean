@@ -1268,3 +1268,13 @@ Următorul pas de stabilizare: `2.12.300`
 - `client/src/pages/modules/ProductiePage.jsx` — ✅ header, export și raport printabil repoziționate ca `Producție / Operațiuni`;
 - `client/src/pages/modules/AsternerePage.jsx` — ✅ header și corelare producție repoziționate ca `Lucrări / Execuție`;
 - `updates/UPDATE_434_module_operationale_limbaj_generic.md` — ✅ documentație update și verificări.
+
+### UPDATE 435 — Seed-uri și exemple comerciale generice
+
+- `server/src/modules.js` — ✅ denumiri comerciale generale pentru catalogul intern de module;
+- `db/sqlserver/003_seed_standard_modules.sql` — ✅ seed inițial aliniat pentru instalări noi;
+- `db/migrations/069_commercial_generic_module_labels.sql` — ✅ migrare pentru instalările existente;
+- `server/core/db.js` + `server/modules/workflow/engine.js` — ✅ workflow-uri implicite formulate generic;
+- `client/src/pages/modules/MecanizarePage.jsx` + `client/src/pages/StartDemoPage.jsx` — ✅ demo repoziționat pe operator/equipă mobilă;
+- `server/modules/accounting/accounting-routes.js` — ✅ mapare contabilă producție descrisă generic;
+- `updates/UPDATE_435_seeduri_exemple_comerciale_generice.md` — ✅ documentație update și verificări.

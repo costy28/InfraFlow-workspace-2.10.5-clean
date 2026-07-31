@@ -738,7 +738,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <Button onClick={() => navigate('/foi-parcurs')}>Foi Parcurs</Button>
           <DropdownMenu align="right" label="Meniu" items={[
             { label: 'Registru FAZ utilaje', onClick: () => navigate('/faz-utilaje') },
-            { label: 'Kiosk sofer', onClick: () => window.open('/kiosk', '_blank') },
+            { label: 'Kiosk operator', onClick: () => window.open('/kiosk', '_blank') },
           ]} />
         </div>
       </div>
@@ -811,15 +811,15 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <Card className="border-emerald-200 bg-emerald-50/60">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-              <div className="text-xs font-semibold uppercase text-emerald-700">Demo parc operațional → șofer</div>
-                <h3 className="mt-1 text-lg font-semibold text-slate-900">Foaia șoferului Ion Popescu</h3>
+                <div className="text-xs font-semibold uppercase text-emerald-700">Demo parc operațional → operator</div>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900">Foaia echipei mobile</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Responsabilul trimite foaia, șoferul o completează din Kiosk, apoi biroul operațional o închide pentru FAZ.
+                  Responsabilul trimite foaia, operatorul o completează din Kiosk, apoi biroul operațional o închide pentru FAZ.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => navigate('/foi-parcurs')}>Deschide Foi Parcurs</Button>
-                <Button variant="secondary" onClick={() => window.open('/kiosk', '_blank')}>Kiosk șofer</Button>
+                <Button variant="secondary" onClick={() => window.open('/kiosk', '_blank')}>Kiosk operator</Button>
               </div>
             </div>
             <div className="mt-4 grid gap-3 text-sm md:grid-cols-4">
@@ -833,14 +833,14 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 <div className="mt-2"><Badge tone={statusTone(demoTrip?.status)}>{statusLabel(demoTrip?.status || 'deschisa')}</Badge></div>
               </div>
               <div className="rounded-md border border-white bg-white p-3 shadow-sm">
-                <div className="text-xs font-semibold uppercase text-slate-500">Șofer</div>
-                <div className="mt-1 font-semibold text-slate-900">{demoTrip?.sofer_nume || 'Ion Popescu'}</div>
-                <div className="mt-1 text-slate-500">Kiosk: sofer1 / demo123</div>
+                <div className="text-xs font-semibold uppercase text-slate-500">Operator</div>
+                <div className="mt-1 font-semibold text-slate-900">{demoTrip?.sofer_nume || 'Operator demo'}</div>
+                <div className="mt-1 text-slate-500">Kiosk operator: sofer1 / demo123</div>
               </div>
               <div className="rounded-md border border-white bg-white p-3 shadow-sm">
                 <div className="text-xs font-semibold uppercase text-slate-500">De închis</div>
                 <div className="mt-1 text-2xl font-bold text-slate-900">{completedDemoTrips.length}</div>
-                <div className="mt-1 text-slate-500">foi completate de șoferi</div>
+                <div className="mt-1 text-slate-500">foi completate din Kiosk</div>
               </div>
             </div>
           </Card>

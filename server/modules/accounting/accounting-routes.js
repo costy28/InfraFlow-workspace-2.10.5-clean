@@ -97,8 +97,8 @@ const JOURNAL_TEMPLATES = [
   {
     key: "out_productie",
     source: "iesire",
-    label: "Productie / asfalt",
-    description: "Factura client pentru produse finite sau asfalt.",
+    label: "Producție / operațiuni",
+    description: "Factura client pentru produse finite, servicii sau output operațional.",
     main_account: "701",
     line_account: "701",
     vat_account: "4427",

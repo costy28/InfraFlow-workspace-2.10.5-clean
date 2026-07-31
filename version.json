@@ -1,5 +1,5 @@
 {
-  "version": "2.12.414",
+  "version": "2.12.415",
   "date": "2026-07-30",
-  "changelog": "## v2.12.414 - 2026-07-30\n### Module operaționale cu limbaj generic\n- Mecanizarea se prezintă ca Parc & Resurse în header, helper și KPI-uri.\n- Flota se prezintă ca Parc & Resurse mobile.\n- Producția se prezintă ca Producție / Operațiuni, cu output generic în exporturi.\n- Așternerea se prezintă ca Lucrări / Execuție, iar corelarea producției este generică."
+  "changelog": "## v2.12.415 - 2026-07-30\n### Seed-uri și exemple comerciale generice\n- Catalogul intern de module folosește denumiri comerciale generale.\n- Workflow-urile standard descriu output operațional și resurse mobile, nu doar asfalt/utilaje.\n- Demo-ul din Parc & Resurse folosește limbaj de operator/equipă mobilă.\n- Maparea contabilă pentru producție folosește descrieri generice de output operațional."
 }

@@ -127,28 +127,28 @@ const MSSQL_RELATIONAL_MODE = ["1", "true", "yes", "da"].includes(String(process
 let mssqlRelationalRuntimeEnabled = MSSQL_RELATIONAL_MODE;
 const defaultWorkflowTemplates = [
   { id: "wft-material", type: "material", name: "Solicitare materiale", moduleKey: "gestiune" },
-  { id: "wft-asphalt", type: "asphalt", name: "Solicitare asfalt", moduleKey: "production" },
-  { id: "wft-fleet", type: "fleet", name: "Solicitare utilaj/autovehicul", moduleKey: "mecanizare" },
+  { id: "wft-asphalt", type: "asphalt", name: "Solicitare output operațional", moduleKey: "production" },
+  { id: "wft-fleet", type: "fleet", name: "Solicitare resursă mobilă", moduleKey: "mecanizare" },
   { id: "wft-procurement", type: "procurement", name: "Aprovizionare", moduleKey: "achizitii" },
   { id: "wft-work-situation", type: "work_situation", name: "Situatie de lucrari", moduleKey: "tehnic" },
   { id: "wft-personnel", type: "personnel", name: "Solicitare personal", moduleKey: "ru" },
   { id: "wft-nonconformity", type: "nonconformity", name: "Raport neconformitate", moduleKey: "tehnic" }
 ];
 const defaultDepartmentConnections = [
-  ["tehnic", "production", "Situatii lucrari si productie asfalt"], 
-  ["tehnic", "asternere", "Lucrari, ore utilaje si productie pusa in opera"],
+  ["tehnic", "production", "Situații lucrări și producție / operațiuni"], 
+  ["tehnic", "asternere", "Lucrări, ore resurse și output pus în operă"],
   ["tehnic", "canalizare", "Lucrari canalizare si materiale"],      
-  ["tehnic", "betoane", "Lucrari betoane si productie"],
+  ["tehnic", "betoane", "Lucrări beton / prefabricate și producție"],
   ["tehnic", "contabilitate", "Centre de cost si rapoarte lucrari"],
-  ["mecanizare", "production", "Alocari utilaje pentru productie"], 
-  ["mecanizare", "asternere", "Alocari utilaje catre asternere"],   
-  ["mecanizare", "betoane", "Alocari utilaje catre betoane"],       
+  ["mecanizare", "production", "Alocări resurse pentru producție"], 
+  ["mecanizare", "asternere", "Alocări resurse către execuție"],   
+  ["mecanizare", "betoane", "Alocări resurse către beton / prefabricate"],       
   ["gestiune", "production", "Materiale si transferuri catre productie"],
   ["gestiune", "betoane", "Materiale si transferuri catre betoane"],
-  ["gestiune", "mecanizare", "Piese, consumabile si materiale parc auto"],
+  ["gestiune", "mecanizare", "Piese, consumabile și materiale parc resurse"],
   ["gestiune", "contabilitate", "Stocuri si documente pentru contabilitate"],
-  ["production", "asternere", "Asfalt livrat spre asternere"],      
-  ["betoane", "canalizare", "Beton si materiale pentru canalizare"],
+  ["production", "asternere", "Output livrat spre execuție"],      
+  ["betoane", "canalizare", "Beton / materiale pentru canalizare"],
   ["contabilitate", "gestiune", "Verificari contabile pe stocuri"]  
 ];
 const permissionGroups = {

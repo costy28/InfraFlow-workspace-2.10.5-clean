@@ -15,21 +15,21 @@ const accounts = [
   },
   {
     key: 'mecanizare',
-    title: 'Sef Mecanizare',
+    title: 'Coordonator Resurse',
     username: 'sef.mecanizare',
     password: 'demo123',
     route: '/mecanizare',
     badge: 'Operatiuni',
-    description: 'Trimite foaia FP-2026-KIOSK-001 catre sofer si inchide foile completate.',
+    description: 'Trimite foi de lucru către operatorii din teren și închide foile completate.',
   },
   {
     key: 'kiosk',
-    title: 'Sofer Kiosk',
+    title: 'Operator Kiosk',
     username: 'sofer1',
     password: 'demo123',
     route: '/kiosk',
     badge: 'Mobil',
-    description: 'Experienta de telefon pentru Ion Popescu: pontaj, echipamente, concediu si foaie parcurs.',
+    description: 'Experiență de telefon pentru angajatul din teren: pontaj, echipamente, concediu și foaie de lucru.',
     publicRoute: true,
   },
   {
@@ -88,7 +88,7 @@ export default function StartDemoPage() {
             <div className="text-xs font-semibold uppercase text-primary-700">InfraFlow ERP demo</div>
             <h1 className="mt-2 text-3xl font-bold tracking-normal text-slate-950">Organizație Demo SRL</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Scenariu pregatit pentru prezentare: director, mecanizare, sofer pe mobil si reset rapid al datelor.
+              Scenariu pregătit pentru prezentare: director, coordonator resurse, operator pe mobil și reset rapid al datelor.
             </p>
           </div>
           <button
@@ -127,7 +127,7 @@ export default function StartDemoPage() {
         </div>
 
         <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700 md:grid-cols-5">
-          {['Start Demo', 'Director aproba referat', 'Mecanizare trimite foaie', 'Sofer completeaza Kiosk', 'Reset demo'].map((step, index) => (
+          {['Start Demo', 'Director aprobă referat', 'Coordonatorul trimite foaia', 'Operatorul completează Kiosk', 'Reset demo'].map((step, index) => (
             <div key={step} className="flex items-center gap-2">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary-600 text-xs font-bold text-white">{index + 1}</span>
               <span>{step}</span>

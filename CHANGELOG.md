@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.415 - 2026-07-30
+
+## Seed-uri și exemple comerciale generice
+
+- Catalogul intern de module folosește denumiri comerciale generale pentru producție, parc/resurse și execuție.
+- Seed-ul SQL și migrarea `069_commercial_generic_module_labels.sql` actualizează etichetele în instalări noi și existente.
+- Workflow-urile standard descriu output operațional și resurse mobile, nu doar asfalt/utilaje.
+- Demo-ul din Parc & Resurse și pagina Start Demo folosesc limbaj de operator/equipă mobilă.
+- Maparea contabilă pentru producție folosește descrieri generice de output operațional.
+
 # v2.12.414 - 2026-07-30
 
 ## Module operaționale cu limbaj generic
