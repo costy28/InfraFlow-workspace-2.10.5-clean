@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.422 - 2026-07-31
+
+## Asistent discret Contracte
+
+- Modulul Contracte afișează sănătatea portofoliului într-un panou compact.
+- Utilizatorul primește direct următorul pas recomandat: manageri, documente semnate, scadențe, depășiri sau task-uri.
+- Detaliile recomandărilor pot fi extinse doar la nevoie.
+- Indicatorii rapizi filtrează portofoliul fără căutare manuală.
+
 # v2.12.421 - 2026-07-31
 
 ## Asistent configurare pliabil

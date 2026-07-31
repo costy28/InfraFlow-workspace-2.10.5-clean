@@ -278,6 +278,7 @@ export default function ContractePage() {
   const [saving, setSaving] = useState(false)
   const [portfolioFilters, setPortfolioFilters] = useState(emptyPortfolioFilters)
   const [confirmAction, setConfirmAction] = useState(null)
+  const [contractAssistantExpanded, setContractAssistantExpanded] = useState(false)
 
   const riskByContractId = useMemo(() => {
     const map = new Map()
@@ -410,6 +411,44 @@ export default function ContractePage() {
       })
     }
     return recommendations.slice(0, 5)
+  }, [dashboard, savedViewCounts, tasks.length])
+
+  const assistantPrimaryRecommendation = assistantRecommendations[0]
+  const contractAssistantHealth = useMemo(() => {
+    const critical = Number(savedViewCounts.critice || 0)
+    const expiring = Number(savedViewCounts.scad_30 || 0)
+    const missingManagers = Number(savedViewCounts.fara_manager || 0)
+    const missingSignedFiles = Number(savedViewCounts.fara_semnat || 0)
+    const overdueTasks = Number(dashboard?.tasks_overdue || 0)
+    const openTasks = Number(dashboard?.tasks_open || tasks.length || 0)
+    const riskTotal = Number(dashboard?.risk_summary?.total || 0)
+    const alerts = Number(dashboard?.alerts?.length || 0)
+
+    let tone = 'success'
+    let label = 'Portofoliu sub control'
+    let message = 'Nu sunt intervenții urgente. Poți continua monitorizarea sau poți crea contracte noi.'
+    if (critical || overdueTasks) {
+      tone = 'danger'
+      label = 'Necesită intervenție'
+      message = 'Există contracte critice sau task-uri restante. Începe cu prima recomandare.'
+    } else if (expiring || missingManagers || missingSignedFiles || alerts || riskTotal) {
+      tone = 'warning'
+      label = 'Atenție operațională'
+      message = 'Sunt câteva lucruri de închis ca portofoliul să rămână curat.'
+    }
+
+    return {
+      tone,
+      label,
+      message,
+      stats: [
+        { key: 'critical', label: 'Critice', value: critical, tone: critical ? 'danger' : 'success' },
+        { key: 'expiring', label: 'Scad 30 zile', value: expiring, tone: expiring ? 'warning' : 'success' },
+        { key: 'missingManagers', label: 'Fără manager', value: missingManagers, tone: missingManagers ? 'warning' : 'success' },
+        { key: 'missingSignedFiles', label: 'Fără semnat', value: missingSignedFiles, tone: missingSignedFiles ? 'info' : 'success' },
+        { key: 'openTasks', label: 'Task-uri', value: openTasks, tone: overdueTasks ? 'danger' : openTasks ? 'info' : 'success' },
+      ],
+    }
   }, [dashboard, savedViewCounts, tasks.length])
 
   const activeFilterCount = useMemo(() => {
@@ -1380,45 +1419,107 @@ export default function ContractePage() {
       </div>
 
       <Card
-        title="Asistent operațional contracte"
-        subtitle="Recomandări concrete pe baza riscurilor curente: ce trebuie făcut acum, nu doar ce trebuie urmărit."
-        actions={assistantRecommendations.length ? <Badge tone="info">{assistantRecommendations.length} recomandări</Badge> : <Badge tone="success">Portofoliu curat</Badge>}
+        title="Asistent contracte"
+        subtitle="Îți arată următoarea acțiune utilă pe baza scadențelor, documentelor, managerilor și task-urilor."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={contractAssistantHealth.tone}>{contractAssistantHealth.label}</Badge>
+            <Button size="sm" variant="secondary" onClick={() => setContractAssistantExpanded(value => !value)}>
+              {contractAssistantExpanded ? 'Ascunde detalii' : 'Vezi detalii'}
+            </Button>
+          </div>
+        }
       >
-        {assistantRecommendations.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {assistantRecommendations.map(item => (
-              <div key={item.key} className="rounded-xl border border-slate-200 bg-white p-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={item.tone}>{item.tone === 'danger' ? 'urgent' : item.tone === 'warning' ? 'atenție' : 'recomandat'}</Badge>
-                      <div className="font-semibold text-slate-900">{item.title}</div>
-                    </div>
-                    <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+        <div className="grid gap-3">
+          <div className={`rounded-2xl border p-4 ${contractAssistantHealth.tone === 'danger' ? 'border-rose-200 bg-rose-50' : contractAssistantHealth.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={contractAssistantHealth.tone}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">
+                    {assistantPrimaryRecommendation?.title || 'Portofoliul de contracte este curat'}
                   </div>
-                  <Button size="sm" variant={item.tone === 'danger' ? 'primary' : 'secondary'} onClick={() => runAssistantRecommendation(item)} loading={saving}>
-                    {item.actionLabel}
-                  </Button>
                 </div>
+                <p className="mt-2 text-sm text-slate-700">
+                  {assistantPrimaryRecommendation?.description || contractAssistantHealth.message}
+                </p>
               </div>
+              {assistantPrimaryRecommendation ? (
+                <Button
+                  size="sm"
+                  variant={assistantPrimaryRecommendation.tone === 'danger' ? 'primary' : 'secondary'}
+                  onClick={() => runAssistantRecommendation(assistantPrimaryRecommendation)}
+                  loading={saving}
+                >
+                  {assistantPrimaryRecommendation.actionLabel}
+                </Button>
+              ) : (
+                <Button size="sm" variant="secondary" onClick={openNewContract}>Contract nou</Button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {contractAssistantHealth.stats.map(item => (
+              <button
+                key={item.key}
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                onClick={() => {
+                  const viewMap = {
+                    critical: 'critice',
+                    expiring: 'scad_30',
+                    missingManagers: 'fara_manager',
+                    missingSignedFiles: 'fara_semnat',
+                  }
+                  const view = savedPortfolioViews.find(saved => saved.key === viewMap[item.key])
+                  if (view) applySavedPortfolioView(view)
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase text-slate-500">{item.label}</span>
+                  <Badge tone={item.tone}>{item.value}</Badge>
+                </div>
+              </button>
             ))}
-            {dashboard?.alerts?.length ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="font-semibold text-emerald-900">Remindere către responsabili</div>
-                    <p className="mt-2 text-sm text-emerald-800">Trimite notificări pentru alertele active fără să schimbi datele contractelor.</p>
+          </div>
+
+          {contractAssistantExpanded ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {assistantRecommendations.length ? assistantRecommendations.map(item => (
+                <div key={item.key} className="rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={item.tone}>{item.tone === 'danger' ? 'urgent' : item.tone === 'warning' ? 'atenție' : 'recomandat'}</Badge>
+                        <div className="font-semibold text-slate-900">{item.title}</div>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+                    </div>
+                    <Button size="sm" variant={item.tone === 'danger' ? 'primary' : 'secondary'} onClick={() => runAssistantRecommendation(item)} loading={saving}>
+                      {item.actionLabel}
+                    </Button>
                   </div>
-                  <Button size="sm" variant="secondary" onClick={sendReminders} loading={saving}>Trimite remindere</Button>
                 </div>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
-            Nu am găsit intervenții urgente în portofoliul de contracte. Când apar lipsuri, scadențe sau depășiri, aici vei primi direct acțiunea recomandată.
-          </div>
-        )}
+              )) : (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                  Nu am găsit intervenții urgente în portofoliul de contracte. Când apar lipsuri, scadențe sau depășiri, aici vei primi direct acțiunea recomandată.
+                </div>
+              )}
+              {dashboard?.alerts?.length ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-emerald-900">Remindere către responsabili</div>
+                      <p className="mt-2 text-sm text-emerald-800">Trimite notificări pentru alertele active fără să schimbi datele contractelor.</p>
+                    </div>
+                    <Button size="sm" variant="secondary" onClick={sendReminders} loading={saving}>Trimite remindere</Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </Card>
 
       <Card title="Radar executiv contracte" subtitle="Cele mai importante cozi de lucru din portofoliu, cu scurtături către contractele care cer intervenție.">

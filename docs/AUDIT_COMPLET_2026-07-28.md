@@ -386,3 +386,13 @@ Status: ✅ implementat în v2.12.420.
 | UX | Bara compactă păstrează progresul, statusul și acțiunea rapidă către următorul pas. |
 
 Status: ✅ implementat în v2.12.421.
+
+## Probleme remediate în UPDATE 442 — Asistent discret Contracte
+
+| Zonă | Remediere |
+| --- | --- |
+| Contracte | Portofoliul are status compact de sănătate: critic, atenție sau sub control. |
+| UX | Utilizatorul vede direct următorul pas recomandat, nu o listă lungă de posibile probleme. |
+| Operare | Indicatorii rapizi filtrează contractele critice, scadente, fără manager sau fără document semnat. |
+
+Status: ✅ implementat în v2.12.422.

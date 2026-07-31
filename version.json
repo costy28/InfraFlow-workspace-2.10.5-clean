@@ -1,5 +1,5 @@
 {
-  "version": "2.12.421",
+  "version": "2.12.422",
   "date": "2026-07-31",
-  "changelog": "## v2.12.421 - 2026-07-31\n### Asistent configurare pliabil\n- Asistentul de configurare din Setări se poate strânge și redeschide manual.\n- Panoul se deschide automat când există pași de onboarding lipsă.\n- După configurarea completă, panoul devine compact automat ca să nu ocupe spațiu de lucru.\n- Bara compactă păstrează progresul, statusul și accesul rapid către următorul pas."
+  "changelog": "## v2.12.422 - 2026-07-31\n### Asistent discret Contracte\n- Modulul Contracte afișează sănătatea portofoliului într-un panou compact.\n- Utilizatorul primește direct următorul pas recomandat: manageri, documente semnate, scadențe, depășiri sau task-uri.\n- Detaliile recomandărilor pot fi extinse doar la nevoie.\n- Indicatorii rapizi filtrează portofoliul fără căutare manuală."
 }

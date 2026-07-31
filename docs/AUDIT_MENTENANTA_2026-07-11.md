@@ -1324,3 +1324,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul se deschide automat când există pași lipsă și se strânge automat când onboardingul este complet;
 - Bara compactă păstrează progresul și accesul rapid la următorul pas;
 - `updates/UPDATE_441_asistent_configurare_pliabil.md` — ✅ documentație update și verificări.
+
+### UPDATE 442 — Asistent discret Contracte
+
+- `client/src/pages/modules/ContractePage.jsx` — ✅ asistentul Contracte afișează statusul de sănătate al portofoliului;
+- Următorul pas recomandat este vizibil imediat: manageri lipsă, documente semnate, scadențe, depășiri sau task-uri;
+- Recomandările detaliate sunt pliabile, ca pagina să rămână aerisită;
+- `updates/UPDATE_442_asistent_discret_contracte.md` — ✅ documentație update și verificări.
