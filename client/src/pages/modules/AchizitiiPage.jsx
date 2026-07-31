@@ -8,7 +8,6 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import CPVSelector from '../../components/forms/CPVSelector'
-import ContextHelp from '../../components/ui/ContextHelp'
 import { downloadApiFile, openApiFile } from '../../utils/download'
 
 const tabs = ['Comenzi', 'Recepții', 'Cerințe', 'Cântar', 'Plan anual']
@@ -139,6 +138,7 @@ export default function AchizitiiPage() {
   const [paapForm, setPaapForm] = useState(emptyPaap(new Date().getFullYear() + 1))
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [procurementAssistantExpanded, setProcurementAssistantExpanded] = useState(false)
   const [receiveForm, setReceiveForm] = useState({ nr_aviz: '', data_receptie: today(), contract_id: '', observatii: '', linii: [] })
   const [returnForm, setReturnForm] = useState({ data: today(), motiv: '', linii: [] })
   const [materialForm, setMaterialForm] = useState({ cod: '', denumire: '', um: 'kg', categorie: 'materie_prima', stoc_minim: '', pret_unitar: '', cod_cpv: '', furnizor_implicit: '' })
@@ -435,18 +435,31 @@ export default function AchizitiiPage() {
   }
 
   const scaleConnected = !!(scaleStatus?.connected || scaleStatus?.ok || scaleStatus?.available || scaleStatus?.status === 'connected' || scaleStatus?.readable)
-  const procurementHelp = useMemo(() => {
+  const procurementAssistant = useMemo(() => {
     const closedOrderStatuses = ['received', 'livrata', 'finalizata', 'ok', 'receptionata', 'closed', 'canceled', 'anulata', 'respinsa']
     const closedRequirementStatuses = ['done', 'closed', 'finalizata', 'aprobata', 'respinsa', 'anulata']
-    const openOrders = orders.filter(order => !closedOrderStatuses.includes(String(order.status || '').toLowerCase())).length
-    const pendingRequirements = requirements.filter(item => !closedRequirementStatuses.includes(String(item.status || '').toLowerCase())).length
+    const openOrdersList = orders.filter(order => !closedOrderStatuses.includes(String(order.status || '').toLowerCase()))
+    const pendingRequirementsList = requirements.filter(item => !closedRequirementStatuses.includes(String(item.status || '').toLowerCase()))
+    const openOrders = openOrdersList.length
+    const pendingRequirements = pendingRequirementsList.length
+    const urgentRequirements = pendingRequirementsList.filter(item => item.urgent === true || item.urgent === 1 || Number(item.shortage || item.deficit || 0) > 0).length
     const mappedProducts = productMap.filter(row => row.materialId).length
     const hasScaleTickets = tickets.length > 0
+    const mappedProductCodes = new Set(productMap.filter(row => row.materialId).map(row => String(row.product || '').trim().toLowerCase()).filter(Boolean))
+    const unmappedTicketProducts = new Set(tickets
+      .map(ticket => String(ticket.product || ticket.productName || ticket.material || '').trim())
+      .filter(product => product && !mappedProductCodes.has(product.toLowerCase())))
+    const ordersWithoutContract = openOrdersList.filter(order => !(order.contract_id || order.contractId || order.contract_numar)).length
     const riskyPaapRows = planRows.filter(row => {
       const percent = Number(row.procent ?? row.percent ?? row.progress ?? 0)
       const planned = Number(row.valoare_estimata || row.estimatedValue || 0)
       const executed = Number(row.valoare_executata || row.executedValue || 0)
       return percent > 90 || (planned > 0 && executed > planned)
+    }).length
+    const paapOverrunRows = planRows.filter(row => {
+      const planned = Number(row.valoare_estimata || row.estimatedValue || 0)
+      const executed = Number(row.valoare_executata || row.executedValue || 0)
+      return planned > 0 && executed > planned
     }).length
     const steps = [
       {
@@ -485,15 +498,75 @@ export default function AchizitiiPage() {
         onClick: () => selectTab('Plan anual'),
       },
     ]
-    const nextStep = steps.find(step => !step.done) || steps[0]
+    const primary = urgentRequirements
+      ? {
+        tone: 'danger',
+        title: `${urgentRequirements} cerințe urgente de aprovizionare`,
+        description: 'Începe cu necesarul intern: transformă ce e urgent în comandă sau clarifică de ce rămâne deschis.',
+        label: 'Deschide cerințe',
+        onClick: () => selectTab('Cerințe'),
+      }
+      : openOrders
+        ? {
+          tone: 'warning',
+          title: `${openOrders} comenzi deschise`,
+          description: ordersWithoutContract
+            ? `${ordersWithoutContract} comenzi nu sunt legate de contract. Închide firul până la recepție și contract.`
+            : 'Urmărește comenzile până la recepție ca stocul și contabilitatea să primească date curate.',
+          label: 'Vezi comenzi',
+          onClick: () => selectTab('Comenzi'),
+        }
+        : paapOverrunRows
+          ? {
+            tone: 'danger',
+            title: `${paapOverrunRows} poziții PAAP depășite`,
+            description: 'Verifică execuția înainte de comenzi noi și decide ajustare, justificare sau blocare.',
+            label: 'Verifică PAAP',
+            onClick: () => selectTab('Plan anual'),
+          }
+          : riskyPaapRows
+            ? {
+              tone: 'warning',
+              title: `${riskyPaapRows} poziții PAAP aproape de plafon`,
+              description: 'Execuția se apropie de limită. E momentul potrivit pentru control înainte de achiziții noi.',
+              label: 'Verifică PAAP',
+              onClick: () => selectTab('Plan anual'),
+            }
+            : hasScaleTickets && unmappedTicketProducts.size
+              ? {
+                tone: 'warning',
+                title: `${unmappedTicketProducts.size} produse de cântar nemapate`,
+                description: 'Mapează produsele din cântar pe materiale ca recepțiile și stocul să fie coerente.',
+                label: 'Mapează cântarul',
+                onClick: () => selectTab('Cântar'),
+              }
+              : orders.length === 0
+                ? {
+                  tone: 'info',
+                  title: 'Creează prima comandă de aprovizionare',
+                  description: 'Pornește fluxul comercial cu o comandă legată de material, CPV și contract dacă există.',
+                  label: 'Comandă nouă',
+                  onClick: () => setModalOpen(true),
+                }
+                : {
+                  tone: 'success',
+                  title: 'Fluxul de achiziții este sub control',
+                  description: 'Nu sunt cerințe urgente, comenzi deschise sau depășiri PAAP evidente.',
+                  label: 'Vezi recepții',
+                  onClick: () => selectTab('Recepții'),
+                }
+    const tone = primary.tone === 'danger' ? 'danger' : primary.tone === 'warning' ? 'warning' : 'success'
     return {
       steps,
-      nextAction: nextStep ? {
-        label: nextStep.key === 'orders' && !orders.length ? 'Creează comandă' : 'Deschide recomandarea',
-        onClick: nextStep.key === 'orders' && !orders.length ? () => setModalOpen(true) : nextStep.onClick,
-        variant: 'secondary',
-      } : null,
-      tone: pendingRequirements || openOrders || riskyPaapRows || (hasScaleTickets && !scaleConnected) ? 'warning' : 'success',
+      primary,
+      tone,
+      stats: [
+        { key: 'requirements', label: 'Cerințe', value: pendingRequirements, tone: urgentRequirements ? 'danger' : pendingRequirements ? 'warning' : 'success', onClick: () => selectTab('Cerințe') },
+        { key: 'orders', label: 'Comenzi deschise', value: openOrders, tone: openOrders ? 'warning' : 'success', onClick: () => selectTab('Comenzi') },
+        { key: 'receipts', label: 'Recepții', value: receipts.length, tone: receipts.length ? 'info' : 'gray', onClick: () => selectTab('Recepții') },
+        { key: 'paap', label: 'PAAP atenție', value: riskyPaapRows, tone: paapOverrunRows ? 'danger' : riskyPaapRows ? 'warning' : 'success', onClick: () => selectTab('Plan anual') },
+        { key: 'scale', label: 'Cântar nemapat', value: hasScaleTickets ? unmappedTicketProducts.size : 0, tone: hasScaleTickets && unmappedTicketProducts.size ? 'warning' : 'success', onClick: () => selectTab('Cântar') },
+      ],
     }
   }, [orders, requirements, receipts.length, productMap, tickets.length, planRows, scaleConnected])
 
@@ -507,21 +580,80 @@ export default function AchizitiiPage() {
         <Button onClick={() => setModalOpen(true)}>Comandă nouă</Button>
       </div>
 
-      <ContextHelp
-        eyebrow="Ghid achiziții"
-        title="Ține firul: necesar intern → comandă → recepție → PAAP"
-        description="Pentru o evidență comercială curată, comenzile trebuie legate de cerințe, recepțiile trebuie confirmate la timp, iar planul anual trebuie verificat înainte de depășiri."
-        icon="🛒"
-        tone={procurementHelp.tone}
-        steps={procurementHelp.steps}
-        tips={[
-          'Recepția este momentul în care stocul devine real în aplicație.',
-          'Pozițiile PAAP peste 90% merită verificate înainte de o comandă nouă.',
-          'Cântarul ajută doar dacă produsele lui sunt mapate corect pe materiale.',
-        ]}
-        nextAction={procurementHelp.nextAction}
-        compact
-      />
+      <Card
+        title="Asistent achiziții"
+        subtitle="Ține firul necesar intern → comandă → recepție → PAAP și arată ce merită făcut acum."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={procurementAssistant.tone}>{procurementAssistant.tone === 'danger' ? 'intervenție' : procurementAssistant.tone === 'warning' ? 'atenție' : 'sub control'}</Badge>
+            <Button size="sm" variant="secondary" onClick={() => setProcurementAssistantExpanded(value => !value)}>
+              {procurementAssistantExpanded ? 'Ascunde detalii' : 'Vezi detalii'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-3">
+          <div className={`rounded-2xl border p-4 ${procurementAssistant.tone === 'danger' ? 'border-rose-200 bg-rose-50' : procurementAssistant.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={procurementAssistant.primary.tone}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{procurementAssistant.primary.title}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{procurementAssistant.primary.description}</p>
+              </div>
+              <Button size="sm" variant={procurementAssistant.primary.tone === 'danger' ? 'primary' : 'secondary'} onClick={procurementAssistant.primary.onClick}>
+                {procurementAssistant.primary.label}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {procurementAssistant.stats.map(item => (
+              <button
+                key={item.key}
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                onClick={item.onClick}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase text-slate-500">{item.label}</span>
+                  <Badge tone={item.tone}>{item.value}</Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {procurementAssistantExpanded ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-2">
+                {procurementAssistant.steps.map(step => (
+                  <button
+                    key={step.key}
+                    type="button"
+                    onClick={step.onClick}
+                    className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${step.done ? 'border-primary-100 bg-primary-50 text-primary-800' : 'border-slate-200 bg-white text-slate-700'} hover:border-primary-200 hover:bg-white`}
+                  >
+                    <span className="mt-0.5">{step.done ? '✓' : '○'}</span>
+                    <span>
+                      <span className="block font-medium">{step.label}</span>
+                      <span className="block text-xs text-slate-500">{step.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">De reținut</div>
+                <ul className="grid gap-2 text-sm text-slate-700">
+                  <li>Recepția este momentul în care stocul devine real în aplicație.</li>
+                  <li>Pozițiile PAAP peste 90% merită verificate înainte de o comandă nouă.</li>
+                  <li>Cântarul ajută doar dacă produsele lui sunt mapate corect pe materiale.</li>
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       <div className="flex flex-wrap gap-2">
         {tabs.map(tab => (

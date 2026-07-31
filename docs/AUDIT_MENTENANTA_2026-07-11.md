@@ -1331,3 +1331,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Următorul pas recomandat este vizibil imediat: manageri lipsă, documente semnate, scadențe, depășiri sau task-uri;
 - Recomandările detaliate sunt pliabile, ca pagina să rămână aerisită;
 - `updates/UPDATE_442_asistent_discret_contracte.md` — ✅ documentație update și verificări.
+
+### UPDATE 443 — Asistent discret Achiziții
+
+- `client/src/pages/modules/AchizitiiPage.jsx` — ✅ helperul generic a fost transformat într-un asistent operațional compact;
+- Asistentul calculează următorul pas pentru cerințe urgente, comenzi deschise, PAAP la limită/depășit și cântar nemapat;
+- Indicatorii rapizi duc direct în tabul relevant, fără căutare manuală;
+- `updates/UPDATE_443_asistent_discret_achizitii.md` — ✅ documentație update și verificări.

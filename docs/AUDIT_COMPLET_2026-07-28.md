@@ -396,3 +396,13 @@ Status: ✅ implementat în v2.12.421.
 | Operare | Indicatorii rapizi filtrează contractele critice, scadente, fără manager sau fără document semnat. |
 
 Status: ✅ implementat în v2.12.422.
+
+## Probleme remediate în UPDATE 443 — Asistent discret Achiziții
+
+| Zonă | Remediere |
+| --- | --- |
+| Achiziții | Helperul generic a devenit asistent de modul cu următorul pas calculat din date reale. |
+| UX | Utilizatorul vede imediat dacă trebuie să rezolve cerințe, comenzi, PAAP sau cântar. |
+| Operare | Indicatorii rapizi deschid tabul relevant și reduc căutarea manuală prin liste. |
+
+Status: ✅ implementat în v2.12.423.

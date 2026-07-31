@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.423 - 2026-07-31
+
+## Asistent discret Achiziții
+
+- Modulul Achiziții are un asistent compact pentru firul necesar intern → comandă → recepție → PAAP.
+- Asistentul calculează următorul pas: cerințe urgente, comenzi deschise, PAAP la limită/depășit sau produse de cântar nemapate.
+- Indicatorii rapizi deschid direct tabul relevant.
+- Detaliile operaționale pot fi extinse doar la nevoie.
+
 # v2.12.422 - 2026-07-31
 
 ## Asistent discret Contracte

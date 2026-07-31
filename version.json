@@ -1,5 +1,5 @@
 {
-  "version": "2.12.422",
+  "version": "2.12.423",
   "date": "2026-07-31",
-  "changelog": "## v2.12.422 - 2026-07-31\n### Asistent discret Contracte\n- Modulul Contracte afișează sănătatea portofoliului într-un panou compact.\n- Utilizatorul primește direct următorul pas recomandat: manageri, documente semnate, scadențe, depășiri sau task-uri.\n- Detaliile recomandărilor pot fi extinse doar la nevoie.\n- Indicatorii rapizi filtrează portofoliul fără căutare manuală."
+  "changelog": "## v2.12.423 - 2026-07-31\n### Asistent discret Achiziții\n- Modulul Achiziții are un asistent compact pentru firul necesar intern → comandă → recepție → PAAP.\n- Asistentul calculează următorul pas: cerințe urgente, comenzi deschise, PAAP la limită/depășit sau produse de cântar nemapate.\n- Indicatorii rapizi deschid direct tabul relevant.\n- Detaliile operaționale pot fi extinse doar la nevoie."
 }
