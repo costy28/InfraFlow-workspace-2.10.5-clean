@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.421 - 2026-07-31
+
+## Asistent configurare pliabil
+
+- Asistentul de configurare din Setări se poate strânge și redeschide manual.
+- Panoul se deschide automat când există pași de onboarding lipsă.
+- După configurarea completă, panoul devine compact automat ca să nu ocupe spațiu de lucru.
+- Bara compactă păstrează progresul, statusul și accesul rapid către următorul pas.
+
 # v2.12.420 - 2026-07-31
 
 ## Asistent configurare în Setări

@@ -376,3 +376,13 @@ Status: ✅ implementat în v2.12.419.
 | Navigare | Fiecare pas deschide direct tabul relevant din Setări. |
 
 Status: ✅ implementat în v2.12.420.
+
+## Probleme remediate în UPDATE 441 — Asistent configurare pliabil
+
+| Zonă | Remediere |
+| --- | --- |
+| Setări | Asistentul poate fi strâns manual, ca să nu ocupe spațiu când utilizatorul lucrează în taburi. |
+| Onboarding | Panoul se deschide automat când există pași lipsă și se compactează automat la configurare completă. |
+| UX | Bara compactă păstrează progresul, statusul și acțiunea rapidă către următorul pas. |
+
+Status: ✅ implementat în v2.12.421.

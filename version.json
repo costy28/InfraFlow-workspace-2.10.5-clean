@@ -1,5 +1,5 @@
 {
-  "version": "2.12.420",
+  "version": "2.12.421",
   "date": "2026-07-31",
-  "changelog": "## v2.12.420 - 2026-07-31\n### Asistent configurare în Setări\n- Setările afișează un panou vizibil permanent pentru onboardingul organizației.\n- Asistentul arată progresul configurării, pașii bifați și următorul pas recomandat.\n- Fiecare pas deschide direct tabul relevant: General, Module, Utilizatori, Departamente, Licență sau AI Assistant.\n- Schimbarea refolosește logica existentă din Setări și nu introduce endpointuri sau schemă DB nouă."
+  "changelog": "## v2.12.421 - 2026-07-31\n### Asistent configurare pliabil\n- Asistentul de configurare din Setări se poate strânge și redeschide manual.\n- Panoul se deschide automat când există pași de onboarding lipsă.\n- După configurarea completă, panoul devine compact automat ca să nu ocupe spațiu de lucru.\n- Bara compactă păstrează progresul, statusul și accesul rapid către următorul pas."
 }

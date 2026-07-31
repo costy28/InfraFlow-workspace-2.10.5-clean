@@ -435,58 +435,83 @@ function mapEntries(map = {}) {
 }
 
 function SettingsSetupAssistant({ steps, done, percent, nextStep, loading, onOpenTab }) {
+  const [collapsed, setCollapsed] = useState(false)
   const visibleSteps = steps.slice(0, 6)
+
+  useEffect(() => {
+    if (loading) return
+    setCollapsed(!nextStep)
+  }, [loading, nextStep])
+
+  const statusLabel = loading
+    ? 'verificare'
+    : nextStep
+      ? 'de configurat'
+      : 'complet'
+
   return (
     <Card className="border-primary-100 bg-gradient-to-br from-white via-primary-50/40 to-white">
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Asistent configurare</div>
-          <h3 className="mt-1 text-lg font-bold text-slate-900">Pornește organizația fără să ghicești ordinea pașilor</h3>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">{nextStep && !loading ? `Următorul pas: ${nextStep.label}` : 'Configurarea organizației'}</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Setările sunt centrul de comandă pentru onboarding: profil companie, module, utilizatori, departamente, licență și integrări. InfraFlow îți arată ce este gata și ce lipsește.
+            {nextStep && !loading ? nextStep.hint : 'InfraFlow îți arată ce este gata și ce mai trebuie verificat înainte de lucru real.'}
           </p>
-          <div className="mt-4 rounded-[var(--radius-panel)] border border-primary-100 bg-white p-3">
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="font-semibold text-slate-800">Progres configurare</span>
-              <span className="text-slate-500">{done}/{steps.length} pași</span>
-            </div>
-            <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-3 rounded-full bg-primary-600 transition-all" style={{ width: `${percent}%` }} />
-            </div>
-            <div className="mt-2 text-xs text-slate-500">{loading ? 'Verific statusul...' : `${percent}% pregătit pentru utilizare operațională.`}</div>
-          </div>
-          {nextStep && !loading ? (
-            <div className="mt-4 rounded-[var(--radius-panel)] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <div className="font-semibold">Următorul pas recomandat: {nextStep.label}</div>
-              <div className="mt-1">{nextStep.hint}</div>
-              <Button className="mt-3" size="sm" variant="secondary" onClick={() => onOpenTab(nextStep.tab)}>
-                Deschide {nextStep.tab}
-              </Button>
-            </div>
-          ) : null}
-          {!nextStep && !loading ? (
-            <div className="mt-4 rounded-[var(--radius-panel)] border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-              Configurarea de bază este completă. Poți continua cu importuri, instruirea utilizatorilor sau activarea modulelor avansate.
-            </div>
-          ) : null}
         </div>
-        <div className="grid gap-2">
-          {visibleSteps.map(step => (
-            <button
-              key={step.key}
-              type="button"
-              onClick={() => onOpenTab(step.tab)}
-              className={`flex items-start justify-between gap-3 rounded-[var(--radius-panel)] border p-3 text-left text-sm transition hover:-translate-y-0.5 hover:shadow-sm ${step.done ? 'border-primary-100 bg-primary-50/70 text-primary-900' : 'border-slate-200 bg-white text-slate-700 hover:border-primary-200'}`}
-            >
-              <span>
-                <span className="block font-semibold">{step.done ? '✓' : '○'} {step.label}</span>
-                <span className="mt-1 block text-xs text-slate-500">{step.done ? 'Configurat' : step.hint}</span>
-              </span>
-              <Badge tone={step.done ? 'success' : 'warning'} size="sm">{step.done ? 'gata' : step.tab}</Badge>
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={nextStep ? 'warning' : 'success'}>{statusLabel}</Badge>
+          <span className="text-sm font-semibold text-slate-700">{done}/{steps.length} pași · {percent}%</span>
+          {nextStep && !loading ? (
+            <Button size="sm" variant="secondary" onClick={() => onOpenTab(nextStep.tab)}>Deschide {nextStep.tab}</Button>
+          ) : null}
+          <Button size="sm" variant="secondary" onClick={() => setCollapsed(value => !value)}>
+            {collapsed ? 'Arată detalii' : 'Strânge'}
+          </Button>
         </div>
       </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: `${percent}%` }} />
+      </div>
+      {!collapsed ? (
+        <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <p className="text-sm text-slate-600">
+              Setările sunt centrul de comandă pentru onboarding: profil companie, module, utilizatori, departamente, licență și integrări. După completare, acest panou se strânge automat ca să nu ocupe spațiu inutil.
+            </p>
+            {nextStep && !loading ? (
+              <div className="mt-4 rounded-[var(--radius-panel)] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="font-semibold">Următorul pas recomandat: {nextStep.label}</div>
+                <div className="mt-1">{nextStep.hint}</div>
+                <Button className="mt-3" size="sm" variant="secondary" onClick={() => onOpenTab(nextStep.tab)}>
+                  Deschide {nextStep.tab}
+                </Button>
+              </div>
+            ) : null}
+            {!nextStep && !loading ? (
+              <div className="mt-4 rounded-[var(--radius-panel)] border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                Configurarea de bază este completă. Panoul rămâne disponibil compact pentru verificări rapide.
+              </div>
+            ) : null}
+          </div>
+          <div className="grid gap-2">
+            {visibleSteps.map(step => (
+              <button
+                key={step.key}
+                type="button"
+                onClick={() => onOpenTab(step.tab)}
+                className={`flex items-start justify-between gap-3 rounded-[var(--radius-panel)] border p-3 text-left text-sm transition hover:-translate-y-0.5 hover:shadow-sm ${step.done ? 'border-primary-100 bg-primary-50/70 text-primary-900' : 'border-slate-200 bg-white text-slate-700 hover:border-primary-200'}`}
+              >
+                <span>
+                  <span className="block font-semibold">{step.done ? '✓' : '○'} {step.label}</span>
+                  <span className="mt-1 block text-xs text-slate-500">{step.done ? 'Configurat' : step.hint}</span>
+                </span>
+                <Badge tone={step.done ? 'success' : 'warning'} size="sm">{step.done ? 'gata' : step.tab}</Badge>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </Card>
   )
 }

@@ -1317,3 +1317,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Asistentul afișează progres, pașii bifați și următorul pas recomandat;
 - Fiecare pas deschide direct tabul relevant, fără ca utilizatorul să caute prin meniuri;
 - `updates/UPDATE_440_asistent_configurare_setari.md` — ✅ documentație update și verificări.
+
+### UPDATE 441 — Asistent configurare pliabil
+
+- `client/src/pages/SetariPage.jsx` — ✅ asistentul de configurare poate fi strâns/redeschis manual;
+- Panoul se deschide automat când există pași lipsă și se strânge automat când onboardingul este complet;
+- Bara compactă păstrează progresul și accesul rapid la următorul pas;
+- `updates/UPDATE_441_asistent_configurare_pliabil.md` — ✅ documentație update și verificări.
