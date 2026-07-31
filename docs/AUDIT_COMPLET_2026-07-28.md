@@ -416,3 +416,13 @@ Status: ✅ implementat în v2.12.423.
 | Operare | Indicatorii rapizi duc direct la tabul relevant și pregătesc viitorul WMS prin locații/CPV/praguri. |
 
 Status: ✅ implementat în v2.12.424.
+
+## Probleme remediate în UPDATE 445 — Asistent discret HR
+
+| Zonă | Remediere |
+| --- | --- |
+| HR | Ghidul HR a devenit asistent compact cu următorul pas calculat din date reale. |
+| UX | Utilizatorul vede imediat concedii, certificate medicale, dosare, scadențe, Kiosk și pontaj fără să caute în toate taburile. |
+| Operare | Indicatorii rapizi deschid tabul relevant și păstrează detaliile operaționale pliabile. |
+
+Status: ✅ implementat în v2.12.425.

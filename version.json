@@ -1,5 +1,5 @@
 {
-  "version": "2.12.424",
+  "version": "2.12.425",
   "date": "2026-07-31",
-  "changelog": "## v2.12.424 - 2026-07-31\n### Asistent discret Gestiune / Depozit\n- Modulul Gestiune afișează următorul pas pentru stocuri critice, bonuri de consum, praguri minime și nomenclator.\n- Asistentul detectează materiale epuizate/sub minim, materiale fără CPV, fără locație sau fără stoc minim.\n- Indicatorii rapizi duc direct la tabul relevant.\n- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită."
+  "changelog": "## v2.12.425 - 2026-07-31\n### Asistent discret HR\n- Modulul HR afișează un asistent compact pentru concedii, pontaj, dosare, scadențe și Kiosk.\n- Asistentul calculează următorul pas din datele deja încărcate: Inbox HR, concedii, dosare, pontaj și conturi Kiosk.\n- Indicatorii rapizi deschid direct tabul relevant.\n- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită."
 }

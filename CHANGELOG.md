@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.425 - 2026-07-31
+
+## Asistent discret HR
+
+- Modulul HR afișează un asistent compact pentru concedii, pontaj, dosare, scadențe și Kiosk.
+- Asistentul calculează următorul pas din datele deja încărcate: Inbox HR, concedii, certificate medicale, dosare, pontaj și conturi Kiosk.
+- Indicatorii rapizi deschid direct tabul relevant.
+- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită.
+
 # v2.12.424 - 2026-07-31
 
 ## Asistent discret Gestiune / Depozit

@@ -1345,3 +1345,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Asistentul calculează următorul pas pentru materiale epuizate/sub minim, bonuri draft, lipsă CPV, lipsă locație sau lipsă prag minim;
 - Indicatorii rapizi duc direct la Dashboard, Nomenclator, Bon Consum sau Raport Valoric;
 - `updates/UPDATE_444_asistent_discret_gestiune.md` — ✅ documentație update și verificări.
+
+### UPDATE 445 — Asistent discret HR
+
+- `client/src/pages/modules/HRPage.jsx` — ✅ helperul HR a fost transformat într-un asistent operațional compact;
+- Asistentul calculează următorul pas pentru Inbox HR, concedii, certificate medicale, dosare, scadențe, pontaj și conturi Kiosk;
+- Indicatorii rapizi duc direct la tabul relevant, fără căutare manuală prin zona HR;
+- `updates/UPDATE_445_asistent_discret_hr.md` — ✅ documentație update și verificări.

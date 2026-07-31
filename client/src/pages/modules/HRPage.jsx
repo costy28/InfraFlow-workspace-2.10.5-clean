@@ -7,7 +7,6 @@ import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
-import ContextHelp from '../../components/ui/ContextHelp'
 import { exportExcel, exportPdf } from '../../utils/export'
 import { useAuth } from '../../hooks/useAuth'
 import HRAdvancedTimesheetPanel from './hr/HRAdvancedTimesheetPanel'
@@ -299,6 +298,7 @@ export default function HRPage() {
   const [notice, setNotice] = useState('')
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [hrAssistantExpanded, setHrAssistantExpanded] = useState(false)
   const [filters, setFilters] = useState({ dept_id: '', activ: '', luna: currentMonth(), tip: '', alert: '' })
   const photoInputRef = useRef()
   const templateEditorRef = useRef()
@@ -1666,51 +1666,118 @@ export default function HRPage() {
     return (hrActivity.rows || []).filter(item => String(item.employee_id || '') === String(employeeDetails.id)).slice(0, 6)
   }, [hrActivity.rows, employeeDetails?.id])
 
-  const hrContextHelp = useMemo(() => {
-    const inboxTotal = Number(hrInbox.summary?.total || 0)
+  const hrAssistant = useMemo(() => {
+    const rows = Array.isArray(hrInbox.rows) ? hrInbox.rows : []
+    const inboxTotal = Number(hrInbox.summary?.total || rows.length || 0)
+    const inboxCritical = Number(hrInbox.summary?.critical || hrInbox.summary?.critice || 0) || rows.filter(row => row.severity === 'critical').length
     const pendingLeaveCount = pendingLeaves.length
-    const alertCount = dashboardAlerts.length
+    const medicalPending = (medicalRegister.rows || []).filter(item => !['verificat', 'respins', 'respinsa', 'trimis_salarizare'].includes(String(item.status || item.status_verificare || '').toLowerCase())).length
+    const alertCount = dashboardAlerts.length + Number(advancedExpirations.summary?.critical || advancedExpirations.summary?.expired || advancedExpirations.summary?.warning || 0)
+    const dossierIssues = Number(dossierDashboard.summary?.missing_required || dossierDashboard.summary?.missing_required_count || dossierDashboard.summary?.issues || 0)
+      || (dossierDashboard.rows || []).filter(row => Number(row.issue_score || 0) > 0 || Number(row.missing_required_count || 0) > 0).length
+    const activeEmployees = employees.filter(employee => employee.activ !== false && employee.activ !== 0)
+    const missingKiosk = activeEmployees.filter(employee => !(
+      employee.user_id ||
+      employee.userId ||
+      employee.employee_user_id ||
+      employee.associated_user_id ||
+      employee.kiosk_user_id ||
+      employee.kiosk_username
+    )).length
+    const timesheetIssues = canUsePontaj
+      ? timesheetOverview.filter(item => {
+        const status = String(item.status || item.timesheet_status || item.pontaj_status || '').toLowerCase()
+        if (!status) return false
+        return !['finalizat', 'validat', 'completat', 'ok'].includes(status)
+      }).length
+      : 0
+
+    const canOpen = tab => visibleTabs.includes(tab)
+    const goto = tab => canOpen(tab) ? () => setActiveTab(tab) : undefined
+    const openDashboard = () => setActiveTab(visibleTabs.includes('Dashboard HR') ? 'Dashboard HR' : visibleTabs[0] || 'Dashboard HR')
+
+    const cards = [
+      { key: 'leave', label: 'Concedii', value: pendingLeaveCount, hint: pendingLeaveCount ? 'cereri în așteptare' : 'fără cereri blocate', tone: pendingLeaveCount ? 'warning' : 'success', action: goto('Concedii') },
+      { key: 'medical', label: 'Medicale', value: medicalPending, hint: medicalPending ? 'certificate de verificat' : 'registre curate', tone: medicalPending ? 'warning' : 'success', action: goto('Concedii') },
+      { key: 'alerts', label: 'Scadențe', value: alertCount, hint: alertCount ? 'documente de urmărit' : 'nimic critic', tone: alertCount ? 'danger' : 'success', action: goto('Dashboard HR') },
+      { key: 'dossier', label: 'Dosar', value: dossierIssues, hint: dossierIssues ? 'lipsuri sau confirmări' : 'dosare în regulă', tone: dossierIssues ? 'warning' : 'success', action: goto('Documente HR') },
+      { key: 'kiosk', label: 'Kiosk', value: missingKiosk, hint: missingKiosk ? 'angajați fără cont asociat' : 'conturi asociate', tone: missingKiosk ? 'warning' : 'success', action: goto('Angajați') },
+    ]
+
     const steps = [
       {
         key: 'inbox',
-        label: `Inbox HR${inboxTotal ? ` · ${inboxTotal}` : ''}`,
-        hint: inboxTotal ? 'Rezolvă sarcinile critice și documentele cu termen.' : 'Nu sunt sarcini HR deschise.',
+        label: inboxTotal ? `Rezolvă Inbox HR (${inboxTotal})` : 'Inbox HR este curat',
+        hint: inboxCritical ? `${inboxCritical} elemente critice au prioritate.` : 'Ține aici documentele și verificările HR care cer acțiune.',
         done: inboxTotal === 0,
-        onClick: () => setActiveTab('Inbox HR'),
+        action: goto('Inbox HR'),
       },
       {
         key: 'leaves',
-        label: `Concedii${pendingLeaveCount ? ` · ${pendingLeaveCount}` : ''}`,
-        hint: pendingLeaveCount ? 'Aprobă/respingi cererile înainte să validezi pontajul.' : 'Nu sunt cereri de concediu în așteptare.',
+        label: pendingLeaveCount ? `Aprobă/respingi concedii (${pendingLeaveCount})` : 'Concediile nu blochează pontajul',
+        hint: 'Concediile aprobate actualizează pontajul și reduc blocajele la salarizare.',
         done: pendingLeaveCount === 0,
-        onClick: () => setActiveTab('Concedii'),
+        action: goto('Concedii'),
       },
       {
-        key: 'alerts',
-        label: `Scadențe${alertCount ? ` · ${alertCount}` : ''}`,
-        hint: alertCount ? 'Verifică documentele care expiră curând.' : 'Nu sunt scadențe critice în dashboard.',
-        done: alertCount === 0,
-        onClick: () => setActiveTab('Dashboard HR'),
+        key: 'dossier',
+        label: dossierIssues ? `Completează dosare (${dossierIssues})` : 'Dosarele nu au lipsuri majore',
+        hint: 'Contractele, actele și confirmările Kiosk trebuie urmărite înainte de audit sau salarizare.',
+        done: dossierIssues === 0,
+        action: goto('Documente HR') || goto('Angajați'),
       },
       {
         key: 'timesheet',
-        label: 'Pontaj',
-        hint: canUsePontaj ? 'Completează și validează luna după concedii.' : 'Pontajul este disponibil doar pentru rolurile autorizate.',
-        done: !canUsePontaj,
-        onClick: canUsePontaj ? () => setActiveTab('Pontaj') : undefined,
+        label: timesheetIssues ? `Verifică pontajul (${timesheetIssues})` : 'Pontajul este pregătit pentru verificare',
+        hint: canUsePontaj ? 'Pontajul se validează după concedii, recuperări și zile speciale.' : 'Pontajul apare doar pentru rolurile cu acces.',
+        done: !canUsePontaj || timesheetIssues === 0,
+        action: goto('Pontaj'),
       },
     ]
 
-    const nextStep = steps.find(step => !step.done && step.onClick)
-    return {
-      steps,
-      nextStep,
-      title: activeTab === 'Dashboard HR'
-        ? 'Începe cu blocajele: sarcini, concedii și scadențe.'
-        : `Ești în ${activeTab}. Următorul pas util rămâne vizibil aici.`,
-      description: 'HR are multe fluxuri paralele. Ghidul scurt îți arată ce merită verificat întâi, fără să cauți prin toate taburile.',
+    const next = steps.find(step => !step.done && step.action)
+      || cards.find(card => Number(card.value || 0) > 0 && card.action)
+      || null
+    const primary = next ? {
+      tone: 'warning',
+      title: next.label,
+      description: next.hint || 'Deschide zona indicată și închide blocajul înainte să continui cu închiderea lunii.',
+      label: 'Deschide zona',
+      onClick: next.action,
+    } : {
+      tone: 'success',
+      title: 'Nu văd blocaje majore în HR.',
+      description: 'Poți continua cu angajați, pontaj, documente sau verificări periodice.',
+      label: 'Vezi Dashboard HR',
+      onClick: openDashboard,
     }
-  }, [activeTab, hrInbox.summary?.total, pendingLeaves.length, dashboardAlerts.length, canUsePontaj])
+
+    return {
+      cards,
+      steps,
+      next,
+      primary,
+      tone: next ? 'warning' : 'success',
+      title: next ? 'HR are câteva lucruri care merită închise întâi.' : 'HR arată bine — poți lucra pe fluxul dorit.',
+      summary: next
+        ? 'Am prioritizat concediile, dosarele, scadențele, Kiosk-ul și pontajul ca să nu cauți manual blocajele.'
+        : 'Nu văd blocaje majore în datele încărcate acum.',
+      openDashboard,
+    }
+  }, [
+    advancedExpirations.summary,
+    canUsePontaj,
+    dashboardAlerts.length,
+    dossierDashboard.rows,
+    dossierDashboard.summary,
+    employees,
+    hrInbox.rows,
+    hrInbox.summary,
+    medicalRegister.rows,
+    pendingLeaves.length,
+    timesheetOverview,
+    visibleTabs,
+  ])
 
   const hrActivityCategories = useMemo(() => {
     const map = new Map()
@@ -1740,26 +1807,84 @@ export default function HRPage() {
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
       {notice ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div> : null}
 
-      <ContextHelp
-        eyebrow="Ghid HR"
-        icon="👥"
-        tone={hrContextHelp.nextStep ? 'warning' : 'success'}
-        title={hrContextHelp.title}
-        description={hrContextHelp.description}
-        compact
-        steps={hrContextHelp.steps}
-        tips={[
-          'Aprobă concediile înainte de validarea pontajului.',
-          'Scadențele și documentele lipsă trebuie rezolvate înainte de închiderea lunii.',
-        ]}
-        nextAction={hrContextHelp.nextStep ? {
-          label: `Deschide: ${hrContextHelp.nextStep.label}`,
-          onClick: hrContextHelp.nextStep.onClick,
-        } : {
-          label: 'HR fără blocaje',
-          disabled: true,
-        }}
-      />
+      <Card
+        title="Asistent HR"
+        subtitle="Ține la vedere concediile, pontajul, dosarele, scadențele și asocierea cu Kiosk."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={hrAssistant.tone}>{hrAssistant.tone === 'warning' ? 'atenție' : 'sub control'}</Badge>
+            <Button size="sm" variant="secondary" onClick={() => setHrAssistantExpanded(value => !value)}>
+              {hrAssistantExpanded ? 'Ascunde detalii' : 'Vezi detalii'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-3">
+          <div className={`rounded-2xl border p-4 ${hrAssistant.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={hrAssistant.primary.tone}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{hrAssistant.primary.title}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{hrAssistant.primary.description}</p>
+                <p className="mt-1 text-xs text-slate-500">{hrAssistant.summary}</p>
+              </div>
+              <Button size="sm" variant={hrAssistant.primary.tone === 'warning' ? 'primary' : 'secondary'} onClick={hrAssistant.primary.onClick}>
+                {hrAssistant.primary.label}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {hrAssistant.cards.map(item => (
+              <button
+                key={item.key}
+                type="button"
+                disabled={!item.action}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-primary-300 hover:bg-primary-50 disabled:cursor-default disabled:opacity-70 disabled:hover:border-slate-200 disabled:hover:bg-white"
+                onClick={item.action}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase text-slate-500">{item.label}</span>
+                  <Badge tone={item.tone}>{item.value}</Badge>
+                </div>
+                <div className="mt-1 text-xs text-slate-500">{item.hint}</div>
+              </button>
+            ))}
+          </div>
+
+          {hrAssistantExpanded ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-2">
+                {hrAssistant.steps.map(step => (
+                  <button
+                    key={step.key}
+                    type="button"
+                    disabled={!step.action}
+                    onClick={step.action}
+                    className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${step.done ? 'border-primary-100 bg-primary-50 text-primary-800' : 'border-slate-200 bg-white text-slate-700'} hover:border-primary-200 hover:bg-white disabled:cursor-default disabled:opacity-70`}
+                  >
+                    <span className="mt-0.5">{step.done ? '✓' : '○'}</span>
+                    <span>
+                      <span className="block font-medium">{step.label}</span>
+                      <span className="block text-xs text-slate-500">{step.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">De reținut</div>
+                <ul className="grid gap-2 text-sm text-slate-700">
+                  <li>Aprobă concediile înainte de validarea pontajului.</li>
+                  <li>Dosarul HR operațional nu este același lucru cu un PDF încărcat; contractul activ trebuie să existe în tabul Contracte.</li>
+                  <li>Contul ERP/Kiosk asociat angajatului activează cererile, documentele și confirmările din Kiosk.</li>
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       <Card>
         <HRNavigationTabs
