@@ -526,3 +526,13 @@ Status: ✅ implementat în v2.12.434.
 | Contabilitate | Conturile afișate din total, mișcările și filtrele active sunt vizibile lângă totaluri. |
 
 Status: ✅ implementat în v2.12.435.
+
+## Probleme remediate în UPDATE 456 — Flux simplu Fișă cont
+
+| Zonă | Remediere |
+| --- | --- |
+| Fișă cont | Pagina afișează verdictul pentru cont: coerent, fără mișcări sau cu diferență de sold. |
+| UX | Utilizatorul vede primul pas recomandat: Balanță, Registru jurnal sau Export Excel. |
+| Contabilitate | Formula sold inițial + rulaje = sold final este explicată direct în interfață. |
+
+Status: ✅ implementat în v2.12.436.

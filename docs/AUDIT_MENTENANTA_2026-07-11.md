@@ -1422,3 +1422,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat reîncărcarea, deschiderea Balanței sau exportul Excel;
 - Indicatorii rapizi arată conturile afișate din total, mișcările și filtrul aplicat;
 - `updates/UPDATE_455_flux_simplu_cartea_mare.md` — ✅ documentație update și verificări.
+
+### UPDATE 456 — Flux simplu Fișă cont
+
+- `client/src/pages/accounting/FisaCont.jsx` — ✅ adăugat verdict operațional pentru fișa contului;
+- Panoul recomandă automat deschiderea Balanței, Registrului jurnal sau exportul Excel;
+- Indicatorii rapizi arată mișcările, natura soldului și intervalul analizat;
+- `updates/UPDATE_456_flux_simplu_fisa_cont.md` — ✅ documentație update și verificări.

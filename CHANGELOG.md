@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.436 - 2026-08-01
+
+## Flux simplu Fișă cont
+
+- Pagina Fișă cont afișează un verdict clar pentru contul selectat: coerent, fără mișcări sau cu diferență de sold.
+- Panoul recomandă automat următoarea acțiune: deschide Balanța, deschide Registru jurnal sau exportă Excel.
+- Sunt afișate explicit mișcările, natura soldului și intervalul folosit.
+- Utilizatorul vede formula operațională sold inițial + rulaje = sold final fără interpretare manuală.
+
 # v2.12.435 - 2026-08-01
 
 ## Flux simplu Cartea Mare
