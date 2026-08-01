@@ -299,6 +299,120 @@ export default function GestiunePage() {
     }
   }, [materials, dashboard, furnizori.length])
 
+  const inventoryFlow = useMemo(() => {
+    const materialsCount = materials.length
+    const suppliersCount = furnizori.length
+    const valueTotal = Number(dashboard?.stats?.valoareTotal || 0)
+    const incomingValue = Number(dashboard?.stats?.valoareIntrari || 0)
+    const outgoingValue = Number(dashboard?.stats?.valoareIesiri || 0)
+    const pendingBc = Number(dashboard?.stats?.bcPending || 0)
+    const lowStock = Number(dashboard?.stats?.alerteStoc || 0)
+    const materialsWithoutMinimum = materials.filter(material => Number(material.alert || material.stoc_minim || 0) <= 0).length
+    const materialsWithoutLocation = materials.filter(material => !String(material.locatie_depozit || '').trim()).length
+    const materialsWithoutPrice = materials.filter(material => Number(material.pret_achizitie || 0) <= 0).length
+    const stockedMaterials = materials.filter(material => Number(material.stock ?? material.stoc_curent ?? 0) > 0).length
+
+    const openMaterial = () => {
+      setMatEditing(null)
+      setMatForm(emptyMatForm)
+      setMatModal(true)
+      setActiveTab('Nomenclator')
+    }
+    const openSupplier = () => {
+      setFurEditing(null)
+      setFurForm(emptyFurForm)
+      setFurModal(true)
+      setActiveTab('Furnizori')
+    }
+    const openNir = () => {
+      setNirForm({ ...emptyNirForm, linii: [{ ...emptyLine }] })
+      setNirModal(true)
+      setActiveTab('Recepție (NIR)')
+    }
+    const openBc = () => {
+      setBcForm({ ...emptyBcForm, linii: [{ ...emptyLine }] })
+      setBcModal(true)
+      setActiveTab('Bon Consum')
+    }
+
+    const steps = [
+      {
+        key: 'catalog',
+        title: 'Catalog produse/materiale',
+        description: 'Cod intern, unitate de măsură, prag minim, preț și locație. De aici pornesc toate documentele.',
+        status: materialsCount ? `${materialsCount} materiale` : 'lipsește',
+        done: materialsCount > 0 && materialsWithoutMinimum === 0,
+        tone: !materialsCount ? 'danger' : materialsWithoutMinimum ? 'warning' : 'success',
+        actionLabel: materialsCount ? 'Verifică nomenclator' : '+ Material nou',
+        onClick: materialsCount ? () => setActiveTab('Nomenclator') : openMaterial,
+      },
+      {
+        key: 'suppliers',
+        title: 'Furnizori și contracte',
+        description: 'Furnizorul și contractul fac recepția clară și pregătesc legătura cu Achiziții, Contracte și Contabilitate.',
+        status: suppliersCount ? `${suppliersCount} furnizori` : 'neconfigurat',
+        done: suppliersCount > 0,
+        tone: suppliersCount ? 'success' : 'warning',
+        actionLabel: suppliersCount ? 'Vezi furnizori' : '+ Furnizor nou',
+        onClick: suppliersCount ? () => setActiveTab('Furnizori') : openSupplier,
+      },
+      {
+        key: 'incoming',
+        title: 'Recepție marfă / NIR',
+        description: 'Când intră marfa, NIR-ul confirmat crește stocul și păstrează urma valorică.',
+        status: incomingValue ? `${fmt(incomingValue)} RON luna curentă` : 'fără intrări luna curentă',
+        done: incomingValue > 0 || stockedMaterials > 0,
+        tone: incomingValue > 0 || stockedMaterials > 0 ? 'success' : 'info',
+        actionLabel: '+ NIR nou',
+        onClick: openNir,
+      },
+      {
+        key: 'outgoing',
+        title: 'Consum / ieșiri controlate',
+        description: 'Bonul aprobat scade stocul și arată cine a cerut, pentru ce lucrare sau departament.',
+        status: pendingBc ? `${pendingBc} bonuri de aprobat` : outgoingValue ? `${fmt(outgoingValue)} RON ieșiri` : 'fără blocaje',
+        done: pendingBc === 0,
+        tone: pendingBc ? 'warning' : 'success',
+        actionLabel: pendingBc ? 'Aprobă bonuri' : '+ Bon consum',
+        onClick: pendingBc ? () => setActiveTab('Bon Consum') : openBc,
+      },
+      {
+        key: 'inventory',
+        title: 'Inventar și diferențe',
+        description: 'Inventarul compară scripticul cu faptele din depozit și aplică diferențele doar după finalizare.',
+        status: materialsWithoutLocation ? `${materialsWithoutLocation} fără locație` : 'pregătit',
+        done: materialsCount > 0 && materialsWithoutLocation === 0,
+        tone: materialsWithoutLocation ? 'warning' : materialsCount ? 'success' : 'info',
+        actionLabel: materialsWithoutLocation ? 'Completează locații' : '+ Inventar nou',
+        onClick: materialsWithoutLocation ? () => setActiveTab('Nomenclator') : createInventar,
+      },
+      {
+        key: 'report',
+        title: 'Raport valoric / contabilitate',
+        description: 'Raportul valoric arată ce există în stoc și ce poate fi dus mai departe către contabilitate.',
+        status: valueTotal ? `${fmt(valueTotal)} RON în stoc` : materialsWithoutPrice ? `${materialsWithoutPrice} fără preț` : 'fără valoare',
+        done: valueTotal > 0 && materialsWithoutPrice === 0,
+        tone: valueTotal > 0 && materialsWithoutPrice === 0 ? 'success' : 'warning',
+        actionLabel: 'Raport valoric',
+        onClick: () => setActiveTab('Raport Valoric'),
+      },
+    ]
+
+    const primary = !materialsCount
+      ? { title: 'Începe cu primul material', description: 'Fără catalog, depozitul nu are pe ce face NIR, bon sau inventar.', label: '+ Material nou', tone: 'danger', onClick: openMaterial }
+      : suppliersCount === 0
+        ? { title: 'Adaugă furnizorii principali', description: 'Recepțiile devin mai clare când NIR-ul are furnizor și, unde există, contract.', label: '+ Furnizor nou', tone: 'warning', onClick: openSupplier }
+        : lowStock > 0
+          ? { title: 'Rezolvă stocurile sub minim', description: 'Depozitul are alerte active. Verifică dacă trebuie NIR, comandă sau ajustare de prag.', label: 'Vezi alerte', tone: 'danger', onClick: () => setActiveTab('Dashboard') }
+          : pendingBc > 0
+            ? { title: 'Închide bonurile de consum', description: 'Bonurile draft țin stocul într-o zonă neclară până sunt aprobate sau respinse.', label: 'Aprobă bonuri', tone: 'warning', onClick: () => setActiveTab('Bon Consum') }
+            : materialsWithoutLocation > 0 || materialsWithoutMinimum > 0
+              ? { title: 'Curăță nomenclatorul', description: 'Completează pragurile și locațiile, ca depozitul să poată avertiza și ghida rapid operatorul.', label: 'Completează date', tone: 'warning', onClick: () => setActiveTab('Nomenclator') }
+              : { title: 'Depozitul poate fi raportat', description: 'Fluxul de bază este sănătos. Următorul pas util este raportul valoric sau inventarul periodic.', label: 'Raport valoric', tone: 'success', onClick: () => setActiveTab('Raport Valoric') }
+
+    return { steps, primary }
+  }, [materials, furnizori.length, dashboard])
+
   // ── material CRUD ────────────────────────────────────────────────────────────
   async function saveMaterial(ev) {
     ev.preventDefault(); setSaving(true); setError('')
@@ -647,6 +761,51 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
       </div>
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
+
+      <Card
+        title="Flux simplu depozit"
+        subtitle="De la catalog până la raport: aplicația îți arată ordinea firească și următoarea acțiune."
+        actions={
+          <Button
+            size="sm"
+            variant={inventoryFlow.primary.tone === 'danger' ? 'primary' : 'secondary'}
+            onClick={inventoryFlow.primary.onClick}
+          >
+            {inventoryFlow.primary.label}
+          </Button>
+        }
+      >
+        <div className={`mb-3 rounded-2xl border p-4 ${inventoryFlow.primary.tone === 'danger' ? 'border-rose-200 bg-rose-50' : inventoryFlow.primary.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={inventoryFlow.primary.tone}>recomandat acum</Badge>
+            <div className="font-semibold text-slate-900">{inventoryFlow.primary.title}</div>
+          </div>
+          <p className="mt-2 text-sm text-slate-700">{inventoryFlow.primary.description}</p>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {inventoryFlow.steps.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={step.onClick}
+              className={`rounded-2xl border p-3 text-left transition hover:border-primary-300 hover:bg-primary-50 ${step.done ? 'border-emerald-100 bg-emerald-50/70' : step.tone === 'danger' ? 'border-rose-200 bg-rose-50' : step.tone === 'warning' ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-white'}`}
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${step.done ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                    {index + 1}
+                  </span>
+                  <div className="font-semibold text-slate-900">{step.title}</div>
+                </div>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <p className="min-h-[2.5rem] text-sm text-slate-600">{step.description}</p>
+              <div className="mt-3 text-xs font-semibold text-primary-700">{step.actionLabel} →</div>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       <Card
         title="Asistent depozit"

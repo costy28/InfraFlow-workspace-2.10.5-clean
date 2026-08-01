@@ -1530,3 +1530,11 @@ Următorul pas de stabilizare: `2.12.300`
 - Indicatorii rapizi arată centrele, obiectele legate, bugetul lunar, costurile filtrate și costurile automate;
 - Fluxul păstrează taburile existente, dar explică ordinea naturală centre → alocări → costuri → buget vs real → raport;
 - `updates/UPDATE_470_flux_simplu_controlling.md` — ✅ documentație update și verificări.
+
+### UPDATE 471 — Flux simplu Gestiune / Depozit
+
+- `client/src/pages/modules/GestiunePage.jsx` — ✅ adăugat panou ghidat pentru fluxul complet de depozit;
+- Panoul explică ordinea catalog → furnizori/contracte → recepție NIR → bon consum → inventar → raport valoric;
+- Recomandarea principală se schimbă automat în funcție de starea datelor: catalog lipsă, furnizori lipsă, stocuri sub minim, bonuri în așteptare, nomenclator incomplet sau raport pregătit;
+- Fiecare pas are status și acțiune directă către zona potrivită, păstrând taburile și operațiunile existente;
+- `updates/UPDATE_471_flux_simplu_gestiune_depozit.md` — ✅ documentație update și verificări.

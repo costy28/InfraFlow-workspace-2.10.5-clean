@@ -676,3 +676,13 @@ Status: ✅ implementat în v2.12.449.
 | Contabilitate | Centrele, obiectele asociate, bugetul lunar, costurile filtrate și costurile automate sunt vizibile înainte de taburile tehnice. |
 
 Status: ✅ implementat în v2.12.450.
+
+## Probleme remediate în UPDATE 471 — Flux simplu Gestiune / Depozit
+
+| Zonă | Remediere |
+| --- | --- |
+| Gestiune / Depozit | Modulul afișează fluxul catalog → furnizori/contracte → NIR → consum → inventar → raport valoric. |
+| UX | Utilizatorul vede primul pas recomandat: material nou, furnizor nou, alerte stoc, bonuri de aprobat, completare nomenclator sau raport. |
+| Operare | Fiecare etapă are status, explicație scurtă și acțiune directă, fără să oblige operatorul să ghicească tabul corect. |
+
+Status: ✅ implementat în v2.12.451.

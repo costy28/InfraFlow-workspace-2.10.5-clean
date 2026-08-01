@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.451 - 2026-08-01
+
+## Flux simplu Gestiune / Depozit
+
+- Modulul Gestiune afișează un panou ghidat de la catalog până la raportul valoric.
+- Panoul prezintă pașii de lucru: catalog produse/materiale, furnizori și contracte, recepție NIR, consum/ieșiri, inventar și raport valoric.
+- Recomandarea principală se schimbă automat: material nou, furnizor nou, alerte stoc, bonuri de aprobat, completare nomenclator sau raport valoric.
+- Fiecare pas are status, explicație scurtă și acțiune directă către zona potrivită.
+- Funcțiile existente de NIR, bon consum, inventar, furnizori și raport rămân neschimbate.
+
 # v2.12.450 - 2026-08-01
 
 ## Flux simplu Controlling
