@@ -586,3 +586,13 @@ Status: ✅ implementat în v2.12.440.
 | Contabilitate | Pozițiile D205, pozițiile Intrastat, atențiile și obligațiile urmărite sunt vizibile înainte de registre. |
 
 Status: ✅ implementat în v2.12.441.
+
+## Probleme remediate în UPDATE 462 — Flux simplu Audit fiscal
+
+| Zonă | Remediere |
+| --- | --- |
+| Audit fiscal | Pagina afișează fluxul acceptanță lunară → validator D406 → SAF-T → recipise/dosar fiscal. |
+| UX | Utilizatorul vede primul pas recomandat: acceptanță, DUK, D406, export acceptanță sau dosar fiscal. |
+| Contabilitate | Blocajele, avertizările, rulările D406 și recipisele lipsă sunt vizibile înainte de tabelele tehnice. |
+
+Status: ✅ implementat în v2.12.442.

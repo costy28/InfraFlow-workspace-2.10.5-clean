@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.441**
-**Versiune în lucru: v2.12.441**
+**Versiune curentă sursă: v2.12.442**
+**Versiune în lucru: v2.12.442**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -294,6 +294,7 @@ Contabilitate / Salarizare
   ✅ Flux simplu Operațiuni contabile: surse → stocuri → control → închidere → audit/export (v2.12.439)
   ✅ Flux simplu Centru fiscal: control → TVA/D300 → declarații → termen/recipisă → audit/export (v2.12.440)
   ✅ Flux simplu Declarații diverse: D205 → Intrastat → status fiscal → export/control (v2.12.441)
+  ✅ Flux simplu Audit fiscal: acceptanță → validator D406 → SAF-T → recipise/dosar fiscal (v2.12.442)
   ✅ Salarizare internă integrată cu HR, pontaj, plăți și D112 preliminar
   ✅ Confirmări UX Salarizare pentru plăți, stornări și rectificări (v2.12.407)
 
@@ -769,9 +770,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.441
+VERSIUNE CURENTĂ SURSĂ: 2.12.442
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.441 ✅
+UPDATE ZIP CURENT: 2.12.442 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1021,6 +1022,7 @@ UPDATES ÎN LUCRU:
   2.12.439 → UPDATE 459 Flux simplu Operațiuni contabile ✅
   2.12.440 → UPDATE 460 Flux simplu Centru fiscal ✅
   2.12.441 → UPDATE 461 Flux simplu Declarații diverse ✅
+  2.12.442 → UPDATE 462 Flux simplu Audit fiscal ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1515,5 +1517,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.441*
+*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.442*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

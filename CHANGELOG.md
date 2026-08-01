@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.442 - 2026-08-01
+
+## Flux simplu Audit fiscal
+
+- Pagina Audit fiscal afișează un panou ghidat pentru acceptanță lunară, validator D406, SAF-T și dosar fiscal.
+- Panoul recomandă automat următoarea acțiune: rulează acceptanța, configurează DUK, generează/reverifică D406, exportă acceptanța sau descarcă dosarul fiscal.
+- Sunt afișate explicit blocajele, avertizările, rulările D406 și recipisele lipsă.
+- Operatorul vede cauza blocajului fiscal înainte de tabelele tehnice.
+
 # v2.12.441 - 2026-08-01
 
 ## Flux simplu Declarații diverse

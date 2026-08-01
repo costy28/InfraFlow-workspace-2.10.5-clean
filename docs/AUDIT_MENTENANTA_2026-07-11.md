@@ -1464,3 +1464,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat completarea/verificarea D205, verificarea Intrastat, consultarea statusului fiscal sau exportul;
 - Indicatorii rapizi arată pozițiile D205, pozițiile Intrastat, atențiile și obligațiile urmărite;
 - `updates/UPDATE_461_flux_simplu_declaratii_diverse.md` — ✅ documentație update și verificări.
+
+### UPDATE 462 — Flux simplu Audit fiscal
+
+- `client/src/pages/accounting/AuditFiscal.jsx` — ✅ adăugat panou ghidat pentru audit fiscal;
+- Panoul recomandă automat acceptanța lunară, configurarea DUK, generarea/reverificarea D406, exportul acceptanței sau dosarul fiscal;
+- Indicatorii rapizi arată blocajele, avertizările, rulările D406 și recipisele lipsă;
+- `updates/UPDATE_462_flux_simplu_audit_fiscal.md` — ✅ documentație update și verificări.

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.441",
+  "version": "2.12.442",
   "date": "2026-08-01",
-  "changelog": "## v2.12.441 - 2026-08-01\n### Flux simplu Declarații diverse\n- Pagina Declarații și raportări afișează un panou ghidat pentru D205, Intrastat și status fiscal.\n- Panoul recomandă automat următoarea acțiune: completare D205, verificare D205, verificare Intrastat, status fiscal sau export.\n- Sunt afișate explicit pozițiile D205, pozițiile Intrastat, atențiile și obligațiile urmărite.\n- Operatorul vede dacă raportările diverse sunt pregătite fără să interpreteze manual fiecare tab."
+  "changelog": "## v2.12.442 - 2026-08-01\n### Flux simplu Audit fiscal\n- Pagina Audit fiscal afișează un panou ghidat pentru acceptanță lunară, validator D406, SAF-T și dosar fiscal.\n- Panoul recomandă automat următoarea acțiune: rulează acceptanța, configurează DUK, generează/reverifică D406, exportă acceptanța sau descarcă dosarul fiscal.\n- Sunt afișate explicit blocajele, avertizările, rulările D406 și recipisele lipsă.\n- Operatorul vede cauza blocajului fiscal înainte de tabelele tehnice."
 }
