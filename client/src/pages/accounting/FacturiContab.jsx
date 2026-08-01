@@ -100,6 +100,79 @@ export function FacturiContab({ direction = 'in' }) {
     draft: visibleRows.filter(row => row.status === 'draft').length,
     rest: visibleRows.reduce((sum, row) => sum + invoiceRemaining(row), 0)
   }), [visibleRows])
+  const invoiceFlow = useMemo(() => {
+    const drafts = visibleRows.filter(row => row.status === 'draft')
+    const payable = visibleRows.filter(row => canPayInvoice(row))
+    const firstDraft = drafts[0]
+    const firstDraftHint = firstDraft ? invoiceValidationHint(firstDraft) : ''
+    const firstPayable = payable[0]
+    const firstEfactura = !isIn
+      ? visibleRows.find(row => ['validat', 'partial', 'incasat'].includes(row.status) && !row.efactura_id)
+      : null
+
+    let next = {
+      title: visibleRows.length ? 'Facturile filtrate sunt curate operațional' : `Adaugă prima factură ${isIn ? 'de intrare' : 'de ieșire'}`,
+      text: visibleRows.length
+        ? 'Nu am găsit drafturi sau resturi deschise în filtrul curent. Poți verifica registrul jurnal sau balanța lunii.'
+        : `Pornește cu documentul, terțul, data, liniile și conturile. Restul firului se activează după salvare.`,
+      label: visibleRows.length ? 'Vezi registru jurnal' : 'Factură nouă',
+      to: visibleRows.length ? `/contabilitate/registru-jurnal?luna=${month}` : '',
+      onClick: visibleRows.length ? null : openNew,
+      tone: 'success'
+    }
+
+    if (!thirdParties.length) {
+      next = {
+        title: `Nu există ${isIn ? 'furnizori' : 'clienți'} configurați`,
+        text: `Creează cel puțin un ${isIn ? 'furnizor' : 'client'} înainte să introduci facturi.`,
+        label: isIn ? 'Creează furnizor' : 'Creează client',
+        to: isIn ? '/contabilitate/furnizori' : '/contabilitate/clienti',
+        tone: 'warning'
+      }
+    } else if (firstDraft && firstDraftHint) {
+      next = {
+        title: 'Primul draft are date lipsă',
+        text: firstDraftHint,
+        label: 'Corectează draftul',
+        onClick: () => openEdit(firstDraft),
+        tone: 'warning'
+      }
+    } else if (firstDraft) {
+      next = {
+        title: `${drafts.length} draft${drafts.length === 1 ? '' : 'uri'} gata de validare`,
+        text: 'Validarea generează nota contabilă. Începe cu primul draft din lista filtrată.',
+        label: 'Validează primul draft',
+        onClick: () => validate(firstDraft),
+        tone: 'info'
+      }
+    } else if (firstPayable) {
+      next = {
+        title: isIn ? 'Există facturi de plătit' : 'Există facturi de încasat',
+        text: `${firstPayable.nr_document || firstPayable.numar || firstPayable.id} are rest deschis ${formatMoney(invoiceRemaining(firstPayable))}.`,
+        label: isIn ? 'Înregistrează plata' : 'Înregistrează încasarea',
+        onClick: () => openPayment(firstPayable),
+        tone: 'warning'
+      }
+    } else if (firstEfactura) {
+      next = {
+        title: 'e-Factura nu este pregătită',
+        text: `Factura ${firstEfactura.nr_document || firstEfactura.numar || firstEfactura.id} este validată, dar nu are draft e-Factura.`,
+        label: 'Pregătește e-Factura',
+        onClick: () => syncEfactura(firstEfactura),
+        tone: 'info'
+      }
+    }
+
+    return {
+      next,
+      steps: [
+        { label: 'Terți', done: thirdParties.length > 0, detail: thirdParties.length || 'lipsă' },
+        { label: 'Drafturi', done: !drafts.length, detail: drafts.length ? `${drafts.length} de validat` : 'OK' },
+        { label: 'Resturi', done: !payable.length, detail: payable.length ? `${payable.length} deschise` : 'OK' },
+        { label: 'e-Factura', done: isIn || !firstEfactura, detail: isIn ? 'n/a' : firstEfactura ? 'de pregătit' : 'OK' }
+      ]
+    }
+  }, [isIn, month, thirdParties.length, visibleRows])
   const valoareLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare), 0)
   const tvaLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare) * money(line.tva_procent) / 100, 0)
   const baseValue = invoiceLines.length ? valoareLines : money(form.valoare)
@@ -543,6 +616,36 @@ export function FacturiContab({ direction = 'in' }) {
             ...thirdParties.map(tert => ({ value: tert.id, label: `${tert.cod} - ${tert.denumire}` }))
           ]} />
           <Input label="Cauta" value={q} onChange={event => setQ(event.target.value)} placeholder="Document, tert, CUI..." />
+        </div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Flux simplu facturi</div>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">{invoiceFlow.next.title}</h3>
+            <p className="mt-1 text-sm text-slate-600">{invoiceFlow.next.text}</p>
+          </div>
+          {invoiceFlow.next.to ? (
+            <Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] bg-primary-700 px-[var(--control-px)] text-sm font-semibold text-white shadow-sm transition hover:bg-primary-800" to={invoiceFlow.next.to}>
+              {invoiceFlow.next.label}
+            </Link>
+          ) : (
+            <Button type="button" onClick={invoiceFlow.next.onClick}>{invoiceFlow.next.label}</Button>
+          )}
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {invoiceFlow.steps.map(step => (
+            <div key={step.label} className={`rounded-md border px-3 py-2 ${step.done ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">{step.label}</div>
+                <Badge tone={step.done ? 'success' : 'warning'}>{step.done ? 'OK' : 'Pas'}</Badge>
+              </div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">{step.detail}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 text-xs text-slate-500">
+          Firul simplu: terț configurat → draft complet → validare cu notă contabilă → plată/încasare → e-Factura pentru ieșiri.
         </div>
       </Card>
       <div className="grid gap-3 md:grid-cols-4">

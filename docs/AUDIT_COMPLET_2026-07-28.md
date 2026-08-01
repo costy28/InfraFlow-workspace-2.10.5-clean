@@ -466,3 +466,13 @@ Status: ✅ implementat în v2.12.428.
 | Contabilitate | Legătura HR → stat → notă contabilă → plată → obligații → D112 este vizibilă într-un singur panou. |
 
 Status: ✅ implementat în v2.12.429.
+
+## Probleme remediate în UPDATE 450 — Flux simplu Facturi
+
+| Zonă | Remediere |
+| --- | --- |
+| Facturi | Intrările și ieșirile afișează următoarea acțiune utilă din lista filtrată. |
+| UX | Operatorul vede imediat dacă trebuie creat terțul, corectat draftul, validată factura sau înregistrată plata/încasarea. |
+| e-Factura | Pentru facturile de ieșire se ridică explicit pasul de pregătire e-Factura când lipsește. |
+
+Status: ✅ implementat în v2.12.430.

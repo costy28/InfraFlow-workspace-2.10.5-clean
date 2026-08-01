@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.429**
-**Versiune în lucru: v2.12.429**
+**Versiune curentă sursă: v2.12.430**
+**Versiune în lucru: v2.12.430**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -282,6 +282,7 @@ Servicii Publice
 Contabilitate / Salarizare
   ✅ Dashboard contabil cu verificări, reconciliere și flux ghidat lună (v2.12.428)
   ✅ Flux simplu Salarizare: HR → stat → notă contabilă → plăți → obligații → D112 (v2.12.429)
+  ✅ Flux simplu Facturi: terți → draft → validare → plată/încasare → e-Factura (v2.12.430)
   ✅ Salarizare internă integrată cu HR, pontaj, plăți și D112 preliminar
   ✅ Confirmări UX Salarizare pentru plăți, stornări și rectificări (v2.12.407)
 
@@ -757,9 +758,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.429
+VERSIUNE CURENTĂ SURSĂ: 2.12.430
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.429 ✅
+UPDATE ZIP CURENT: 2.12.430 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -997,6 +998,7 @@ UPDATES ÎN LUCRU:
   2.12.427 → UPDATE 447 Asistent discret Mecanizare + hotfix Inbox HR ✅
   2.12.428 → UPDATE 448 Asistent discret Contabilitate ✅
   2.12.429 → UPDATE 449 Flux simplu Salarizare ✅
+  2.12.430 → UPDATE 450 Flux simplu Facturi ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1491,5 +1493,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.429*
+*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.430*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

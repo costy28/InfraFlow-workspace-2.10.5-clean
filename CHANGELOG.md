@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.430 - 2026-08-01
+
+## Flux simplu Facturi
+
+- Facturile de intrare și ieșire afișează un flux operațional simplu: terți, drafturi, resturi și e-Factura pentru ieșiri.
+- Aplicația recomandă automat următoarea acțiune: creează terțul, corectează draftul, validează, plătește/încasează sau pregătește e-Factura.
+- Operatorul vede imediat ce blochează lista filtrată fără să intre pe fiecare rând.
+- Panoul păstrează acțiunile existente și le scoate în față pe cele utile acum.
+
 # v2.12.429 - 2026-08-01
 
 ## Flux simplu Salarizare
