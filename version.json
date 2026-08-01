@@ -1,5 +1,5 @@
 {
-  "version": "2.12.452",
+  "version": "2.12.453",
   "date": "2026-08-01",
-  "changelog": "## v2.12.452 - 2026-08-01\n### Flux simplu Contract Management\n- Modulul Contracte afișează un panou ghidat pentru contract, dosar complet, consum, praguri, task-uri și raport/închidere.\n- Operatorul vede pașii contract → manager/document semnat → consum din facturi/documente → alerte → task-uri → raport portofoliu.\n- Panoul recomandă automat următoarea acțiune: contract nou, asignare manager, document semnat, depășiri, scadențe sau raport.\n- Fluxul păstrează cockpit-ul și asistentul existent, dar pune portofoliul într-o ordine de lucru mai intuitivă."
+  "changelog": "## v2.12.453 - 2026-08-01\n### Flux simplu Achiziții\n- Modulul Achiziții afișează un panou ghidat pentru necesar, CPV/PAAP, comandă, contract, recepție și raport.\n- Operatorul vede pașii: nevoie clară, CPV/plan anual, comandă emisă, contract legat, recepție confirmată și cântar/raport.\n- Panoul recomandă automat următoarea acțiune: cerințe urgente, verificare PAAP, comenzi deschise, legare contract, mapare cântar sau comandă nouă.\n- Fluxul păstrează asistentul achiziții și taburile existente, dar face ordinea de lucru mai explicită."
 }

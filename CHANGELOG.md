@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.453 - 2026-08-01
+
+## Flux simplu Achiziții
+
+- Modulul Achiziții afișează un panou ghidat pentru necesar, CPV/PAAP, comandă, contract, recepție și raport.
+- Panoul prezintă pașii de lucru: nevoia este clară, CPV/plan anual verificate, comanda este emisă, contractul este legat când contează, recepția confirmă realitatea și cântarul/raportul închid firul.
+- Recomandarea principală se schimbă automat: cerințe urgente, PAAP aproape de plafon, comenzi deschise, comenzi fără contract, produse de cântar nemapate sau comandă nouă.
+- Fiecare pas are status, explicație scurtă și acțiune directă către tabul potrivit.
+- Asistentul achiziții, PAAP-ul, comenzile, recepțiile și cântarul rămân neschimbate.
+
 # v2.12.452 - 2026-08-01
 
 ## Flux simplu Contract Management

@@ -696,3 +696,13 @@ Status: ✅ implementat în v2.12.451.
 | Operare | Portofoliul contractual este prezentat ca proces de lucru, nu doar ca listă cu cockpit-uri tehnice. |
 
 Status: ✅ implementat în v2.12.452.
+
+## Probleme remediate în UPDATE 473 — Flux simplu Achiziții
+
+| Zonă | Remediere |
+| --- | --- |
+| Achiziții | Modulul afișează fluxul necesar → CPV/PAAP → comandă → contract → recepție → cântar/raport. |
+| UX | Utilizatorul vede primul pas recomandat: cerințe urgente, PAAP cu risc, comenzi deschise, comenzi fără contract, produse de cântar nemapate sau comandă nouă. |
+| Operare | Achiziția este prezentată ca fir complet de lucru, nu ca taburi separate care trebuie ghicite. |
+
+Status: ✅ implementat în v2.12.453.

@@ -1546,3 +1546,11 @@ Următorul pas de stabilizare: `2.12.300`
 - Recomandarea principală se schimbă automat în funcție de starea portofoliului: contract lipsă, manager lipsă, document semnat lipsă, depășire, scadență apropiată, task restant sau raport pregătit;
 - Cockpit-ul, radarul executiv, asistentul contracte, task-urile și dosarul contractului rămân neschimbate;
 - `updates/UPDATE_472_flux_simplu_contract_management.md` — ✅ documentație update și verificări.
+
+### UPDATE 473 — Flux simplu Achiziții
+
+- `client/src/pages/modules/AchizitiiPage.jsx` — ✅ adăugat panou ghidat pentru fluxul complet de achiziții;
+- Panoul explică ordinea necesar intern → CPV/PAAP → comandă → contract → recepție → cântar/raport;
+- Recomandarea principală se schimbă automat în funcție de starea datelor: cerințe urgente, PAAP cu risc, comenzi deschise, comenzi fără contract, cântar nemapat sau lipsă comenzi;
+- Asistentul achiziții, taburile, comenzile, recepțiile, PAAP-ul, CPV-ul și cântarul rămân neschimbate;
+- `updates/UPDATE_473_flux_simplu_achizitii.md` — ✅ documentație update și verificări.

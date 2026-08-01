@@ -570,6 +570,112 @@ export default function AchizitiiPage() {
     }
   }, [orders, requirements, receipts.length, productMap, tickets.length, planRows, scaleConnected])
 
+  const procurementSimpleFlow = useMemo(() => {
+    const closedOrderStatuses = ['received', 'livrata', 'finalizata', 'ok', 'receptionata', 'closed', 'canceled', 'anulata', 'respinsa']
+    const closedRequirementStatuses = ['done', 'closed', 'finalizata', 'aprobata', 'respinsa', 'anulata']
+    const openOrders = orders.filter(order => !closedOrderStatuses.includes(String(order.status || '').toLowerCase())).length
+    const pendingRequirements = requirements.filter(item => !closedRequirementStatuses.includes(String(item.status || '').toLowerCase())).length
+    const urgentRequirements = requirements.filter(item => {
+      const status = String(item.status || '').toLowerCase()
+      if (closedRequirementStatuses.includes(status)) return false
+      return item.urgent === true || item.urgent === 1 || Number(item.shortage || item.deficit || 0) > 0
+    }).length
+    const ordersWithoutContract = orders.filter(order => !closedOrderStatuses.includes(String(order.status || '').toLowerCase()) && !(order.contract_id || order.contractId || order.contract_numar)).length
+    const materialsWithoutCpv = materials.filter(material => !String(material.cod_cpv || material.cpv_cod || material.cpv || '').trim()).length
+    const paapRows = planRows.length
+    const paapRiskRows = planRows.filter(row => {
+      const percent = Number(row.procent ?? row.percent ?? row.progress ?? 0)
+      const planned = Number(row.valoare_estimata || row.estimatedValue || 0)
+      const executed = Number(row.valoare_executata || row.executedValue || 0)
+      return percent > 90 || (planned > 0 && executed > planned)
+    }).length
+    const mappedProducts = productMap.filter(row => row.materialId).length
+    const mappedProductCodes = new Set(productMap.filter(row => row.materialId).map(row => String(row.product || '').trim().toLowerCase()).filter(Boolean))
+    const unmappedTicketProducts = new Set(tickets
+      .map(ticket => String(ticket.product || ticket.productName || ticket.material || '').trim())
+      .filter(product => product && !mappedProductCodes.has(product.toLowerCase())))
+    const hasScaleTickets = tickets.length > 0
+
+    const steps = [
+      {
+        key: 'need',
+        title: 'Nevoia este clară',
+        description: 'Pornește din cerințe interne sau dintr-o comandă nouă, cu material, cantitate și motiv.',
+        status: urgentRequirements ? `${urgentRequirements} urgente` : pendingRequirements ? `${pendingRequirements} cerințe` : 'fără blocaje',
+        done: urgentRequirements === 0,
+        tone: urgentRequirements ? 'danger' : pendingRequirements ? 'warning' : 'success',
+        actionLabel: pendingRequirements ? 'Vezi cerințe' : 'Comandă nouă',
+        onClick: pendingRequirements ? () => selectTab('Cerințe') : () => setModalOpen(true),
+      },
+      {
+        key: 'cpv',
+        title: 'CPV / plan anual verificate',
+        description: 'Pentru România, CPV-ul și PAAP-ul țin achiziția în zona controlată. Internațional, rămâne extensibil pe profil de țară.',
+        status: paapRiskRows ? `${paapRiskRows} PAAP atenție` : materialsWithoutCpv ? `${materialsWithoutCpv} materiale fără CPV` : 'verificat',
+        done: paapRiskRows === 0 && materialsWithoutCpv === 0,
+        tone: paapRiskRows ? 'danger' : materialsWithoutCpv ? 'warning' : 'success',
+        actionLabel: paapRiskRows || paapRows ? 'Vezi PAAP' : '+ Poziție PAAP',
+        onClick: paapRiskRows || paapRows ? () => selectTab('Plan anual') : () => { selectTab('Plan anual'); openPaap() },
+      },
+      {
+        key: 'order',
+        title: 'Comanda este emisă',
+        description: 'Comanda leagă furnizorul, materialul, CPV-ul și contractul, dacă există.',
+        status: openOrders ? `${openOrders} deschise` : orders.length ? 'fără deschise' : 'nicio comandă',
+        done: orders.length > 0 && openOrders === 0,
+        tone: openOrders ? 'warning' : orders.length ? 'success' : 'info',
+        actionLabel: openOrders ? 'Vezi comenzi' : 'Comandă nouă',
+        onClick: openOrders ? () => selectTab('Comenzi') : () => setModalOpen(true),
+      },
+      {
+        key: 'contract',
+        title: 'Contractul este legat când contează',
+        description: 'Pentru achiziții recurente sau valori mari, legătura cu contractul ajută la consum, alerte și raportare.',
+        status: ordersWithoutContract ? `${ordersWithoutContract} fără contract` : contracts.length ? `${contracts.length} contracte disponibile` : 'opțional',
+        done: ordersWithoutContract === 0,
+        tone: ordersWithoutContract ? 'warning' : 'success',
+        actionLabel: ordersWithoutContract ? 'Verifică comenzi' : 'Contracte OK',
+        onClick: () => selectTab('Comenzi'),
+      },
+      {
+        key: 'receipt',
+        title: 'Recepția confirmă realitatea',
+        description: 'La recepție se actualizează stocul și se pregătește traseul către contabilitate.',
+        status: receipts.length ? `${receipts.length} recepții` : 'fără recepții',
+        done: receipts.length > 0 || openOrders === 0,
+        tone: openOrders && !receipts.length ? 'warning' : receipts.length ? 'success' : 'info',
+        actionLabel: openOrders ? 'Recepționează' : 'Vezi recepții',
+        onClick: () => selectTab(openOrders ? 'Comenzi' : 'Recepții'),
+      },
+      {
+        key: 'scale-report',
+        title: 'Cântar și raport',
+        description: 'Cântarul este util doar mapat pe materiale. PAAP-ul și exportul închid firul de audit.',
+        status: hasScaleTickets && unmappedTicketProducts.size ? `${unmappedTicketProducts.size} nemapate` : paapRows ? `${paapRows} poziții PAAP` : 'pregătit',
+        done: !hasScaleTickets || unmappedTicketProducts.size === 0,
+        tone: hasScaleTickets && unmappedTicketProducts.size ? 'warning' : 'success',
+        actionLabel: hasScaleTickets && unmappedTicketProducts.size ? 'Mapează cântar' : 'Export PAAP',
+        onClick: hasScaleTickets && unmappedTicketProducts.size ? () => selectTab('Cântar') : exportPaap,
+      },
+    ]
+
+    const primary = urgentRequirements
+      ? { tone: 'danger', title: 'Rezolvă cerințele urgente', description: 'Când necesarul intern e urgent, prima acțiune trebuie să fie clarificarea sau transformarea în comandă.', label: 'Vezi cerințe', onClick: () => selectTab('Cerințe') }
+      : paapRiskRows
+        ? { tone: 'danger', title: 'Verifică PAAP înainte de comenzi noi', description: 'Există poziții aproape de plafon sau depășite. Aici e mai bine să frânezi puțin decât să repari după.', label: 'Vezi PAAP', onClick: () => selectTab('Plan anual') }
+        : openOrders
+          ? { tone: 'warning', title: 'Închide comenzile deschise', description: 'Comanda nu e finală până nu ajunge în recepție, stoc și eventual contract.', label: 'Vezi comenzi', onClick: () => selectTab('Comenzi') }
+          : ordersWithoutContract
+            ? { tone: 'warning', title: 'Leagă comenzile de contract', description: 'Unde există contract, legătura ajută la consum automat și alerte de depășire.', label: 'Verifică comenzi', onClick: () => selectTab('Comenzi') }
+            : hasScaleTickets && unmappedTicketProducts.size
+              ? { tone: 'warning', title: 'Mapează produsele de cântar', description: 'Fără mapare, cântarul produce date, dar nu devine stoc coerent.', label: 'Cântar', onClick: () => selectTab('Cântar') }
+              : orders.length === 0
+                ? { tone: 'info', title: 'Creează prima comandă', description: 'Începe simplu: furnizor, material, cantitate, preț, CPV și contract dacă există.', label: 'Comandă nouă', onClick: () => setModalOpen(true) }
+                : { tone: 'success', title: 'Achizițiile pot fi urmărite', description: 'Fluxul de bază este curat. Poți verifica recepțiile sau exporta PAAP-ul pentru control.', label: 'Vezi recepții', onClick: () => selectTab('Recepții') }
+
+    return { primary, steps }
+  }, [orders, requirements, materials, planRows, productMap, tickets, contracts.length])
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -579,6 +685,51 @@ export default function AchizitiiPage() {
         </div>
         <Button onClick={() => setModalOpen(true)}>Comandă nouă</Button>
       </div>
+
+      <Card
+        title="Flux simplu achiziții"
+        subtitle="De la necesar până la recepție, contract, PAAP și raport — fără să ghicești următorul tab."
+        actions={
+          <Button
+            size="sm"
+            variant={procurementSimpleFlow.primary.tone === 'danger' ? 'primary' : 'secondary'}
+            onClick={procurementSimpleFlow.primary.onClick}
+          >
+            {procurementSimpleFlow.primary.label}
+          </Button>
+        }
+      >
+        <div className={`mb-3 rounded-2xl border p-4 ${procurementSimpleFlow.primary.tone === 'danger' ? 'border-rose-200 bg-rose-50' : procurementSimpleFlow.primary.tone === 'warning' ? 'border-amber-200 bg-amber-50' : procurementSimpleFlow.primary.tone === 'info' ? 'border-sky-200 bg-sky-50' : 'border-emerald-200 bg-emerald-50'}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={procurementSimpleFlow.primary.tone}>recomandat acum</Badge>
+            <div className="font-semibold text-slate-900">{procurementSimpleFlow.primary.title}</div>
+          </div>
+          <p className="mt-2 text-sm text-slate-700">{procurementSimpleFlow.primary.description}</p>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {procurementSimpleFlow.steps.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={step.onClick}
+              className={`rounded-2xl border p-3 text-left transition hover:border-primary-300 hover:bg-primary-50 ${step.done ? 'border-emerald-100 bg-emerald-50/70' : step.tone === 'danger' ? 'border-rose-200 bg-rose-50' : step.tone === 'warning' ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-white'}`}
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${step.done ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                    {index + 1}
+                  </span>
+                  <div className="font-semibold text-slate-900">{step.title}</div>
+                </div>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <p className="min-h-[2.5rem] text-sm text-slate-600">{step.description}</p>
+              <div className="mt-3 text-xs font-semibold text-primary-700">{step.actionLabel} →</div>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       <Card
         title="Asistent achiziții"

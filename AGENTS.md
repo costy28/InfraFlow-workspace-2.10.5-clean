@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.452**
-**Versiune în lucru: v2.12.452**
+**Versiune curentă sursă: v2.12.453**
+**Versiune în lucru: v2.12.453**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -253,6 +253,7 @@ Achiziții
   ✅ Cântar (scale tickets)
   ✅ Plan Anual PAAP complet + CPV (v2.10.8)
   ✅ Asistent discret pentru firul necesar → comandă → recepție → PAAP (v2.12.423)
+  ✅ Flux simplu Achiziții: necesar → CPV/PAAP → comandă → contract → recepție → cântar/raport (v2.12.453)
 
 Referate
   ✅ Referate Aprovizionare + Servicii (v2.10.6)
@@ -781,9 +782,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.452
+VERSIUNE CURENTĂ SURSĂ: 2.12.453
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.452 ✅
+UPDATE ZIP CURENT: 2.12.453 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1044,6 +1045,7 @@ UPDATES ÎN LUCRU:
   2.12.450 → UPDATE 470 Flux simplu Controlling ✅
   2.12.451 → UPDATE 471 Flux simplu Gestiune / Depozit ✅
   2.12.452 → UPDATE 472 Flux simplu Contract Management ✅
+  2.12.453 → UPDATE 473 Flux simplu Achiziții ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1538,5 +1540,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.452*
+*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.453*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
