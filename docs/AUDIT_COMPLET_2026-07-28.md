@@ -616,3 +616,13 @@ Status: ✅ implementat în v2.12.443.
 | Contabilitate | Liniile completate, conturile selectate, liniile cu sume și diferența debit-credit sunt vizibile înainte de tabelul tehnic. |
 
 Status: ✅ implementat în v2.12.444.
+
+## Probleme remediate în UPDATE 465 — Flux simplu Șabloane note contabile
+
+| Zonă | Remediere |
+| --- | --- |
+| Șabloane note | Pagina afișează fluxul tip document → șabloane active → conturi → folosire pe facturi. |
+| UX | Utilizatorul vede primul pas recomandat: creează șablon, curăță filtrul, creează custom sau deschide facturi. |
+| Contabilitate | Șabloanele afișate, custom active, de sistem și conturile disponibile sunt vizibile înainte de lista tehnică. |
+
+Status: ✅ implementat în v2.12.445.

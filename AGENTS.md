@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.444**
-**Versiune în lucru: v2.12.444**
+**Versiune curentă sursă: v2.12.445**
+**Versiune în lucru: v2.12.445**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -297,6 +297,7 @@ Contabilitate / Salarizare
   ✅ Flux simplu Audit fiscal: acceptanță → validator D406 → SAF-T → recipise/dosar fiscal (v2.12.442)
   ✅ Flux simplu Plan de conturi: caută → selectează → analitic → fișă cont/control (v2.12.443)
   ✅ Flux simplu Solduri inițiale: an fiscal → conturi → debit-credit → salvare/verificare Balanță (v2.12.444)
+  ✅ Flux simplu Șabloane note contabile: tip document → șabloane active → conturi → folosire pe facturi (v2.12.445)
   ✅ Salarizare internă integrată cu HR, pontaj, plăți și D112 preliminar
   ✅ Confirmări UX Salarizare pentru plăți, stornări și rectificări (v2.12.407)
 
@@ -772,9 +773,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.444
+VERSIUNE CURENTĂ SURSĂ: 2.12.445
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.444 ✅
+UPDATE ZIP CURENT: 2.12.445 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1027,6 +1028,7 @@ UPDATES ÎN LUCRU:
   2.12.442 → UPDATE 462 Flux simplu Audit fiscal ✅
   2.12.443 → UPDATE 463 Flux simplu Plan de conturi ✅
   2.12.444 → UPDATE 464 Flux simplu Solduri inițiale ✅
+  2.12.445 → UPDATE 465 Flux simplu Șabloane note contabile ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1521,5 +1523,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.444*
+*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.445*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

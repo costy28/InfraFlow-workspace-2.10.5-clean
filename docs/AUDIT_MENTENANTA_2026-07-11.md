@@ -1485,3 +1485,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat adăugarea primelor linii, completarea liniilor incomplete, echilibrarea debit-credit sau salvarea soldurilor;
 - Indicatorii rapizi arată liniile completate, conturile selectate, liniile cu sume și diferența debit-credit;
 - `updates/UPDATE_464_flux_simplu_solduri_initiale.md` — ✅ documentație update și verificări.
+
+### UPDATE 465 — Flux simplu Șabloane note contabile
+
+- `client/src/pages/accounting/SabloaneNote.jsx` — ✅ adăugat panou ghidat pentru șabloanele de note contabile;
+- Panoul recomandă automat crearea unui șablon, curățarea filtrului, crearea unei variante custom sau deschiderea facturilor relevante;
+- Indicatorii rapizi arată șabloanele afișate, șabloanele custom active, șabloanele de sistem și conturile disponibile;
+- `updates/UPDATE_465_flux_simplu_sabloane_note.md` — ✅ documentație update și verificări.

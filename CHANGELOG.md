@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.445 - 2026-08-01
+
+## Flux simplu Șabloane note contabile
+
+- Pagina Șabloane note contabile afișează un panou ghidat pentru tip document, șabloane active, conturi și folosirea pe facturi.
+- Panoul recomandă automat următoarea acțiune: creează șablon, curăță filtrul, creează variantă custom sau deschide facturile potrivite.
+- Sunt afișate explicit șabloanele afișate, șabloanele custom active, șabloanele de sistem și conturile disponibile.
+- Operatorul înțelege rapid cum transformă configurarea șabloanelor în contabilizare mai rapidă pe facturi.
+
 # v2.12.444 - 2026-08-01
 
 ## Flux simplu Solduri inițiale
