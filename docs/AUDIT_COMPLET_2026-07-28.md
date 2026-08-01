@@ -536,3 +536,13 @@ Status: ✅ implementat în v2.12.435.
 | Contabilitate | Formula sold inițial + rulaje = sold final este explicată direct în interfață. |
 
 Status: ✅ implementat în v2.12.436.
+
+## Probleme remediate în UPDATE 457 — Flux simplu Profit și pierdere
+
+| Zonă | Remediere |
+| --- | --- |
+| Profit și pierdere | Pagina afișează fluxul perioadă → venituri → cheltuieli → rezultat. |
+| UX | Utilizatorul vede primul pas recomandat: reîncarcă, verifică Balanța/Cartea Mare sau exportă. |
+| Contabilitate | Conturile de venituri, conturile de cheltuieli și marja rezultatului sunt vizibile lângă totaluri. |
+
+Status: ✅ implementat în v2.12.437.

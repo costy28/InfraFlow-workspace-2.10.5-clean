@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.437 - 2026-08-01
+
+## Flux simplu Profit și pierdere
+
+- Pagina Profit și pierdere afișează fluxul perioadă → venituri → cheltuieli → rezultat.
+- Panoul recomandă automat următoarea acțiune: reîncarcă raportul, verifică balanța/Cartea Mare sau exportă Excel.
+- Sunt afișate explicit conturile de venituri, conturile de cheltuieli și marja rezultatului.
+- Operatorul vede cauza rezultatului lunar fără să interpreteze manual tabelele.
+
 # v2.12.436 - 2026-08-01
 
 ## Flux simplu Fișă cont

@@ -48,6 +48,21 @@ export function ProfitPierdere() {
   }
 
   const totals = data.totals || {}
+  const venituriRows = data.venituri || []
+  const cheltuieliRows = data.cheltuieli || []
+  const margin = Number(totals.venituri || 0)
+    ? (Number(totals.rezultat || 0) / Number(totals.venituri || 0)) * 100
+    : null
+  const profitFlow = buildProfitLossFlow({
+    month,
+    tip,
+    totals,
+    venituriCount: venituriRows.length,
+    cheltuieliCount: cheltuieliRows.length,
+    perioada: data.perioada || {},
+    load,
+    exportExcel,
+  })
   const resultTone = Number(totals.rezultat || 0) >= 0
     ? 'bg-emerald-50 text-emerald-700'
     : 'bg-red-50 text-red-700'
@@ -90,6 +105,58 @@ export function ProfitPierdere() {
         </div>
       </Card>
 
+      <Card>
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-2 py-1 text-xs font-semibold ${profitFlow.badgeClass}`}>
+                {profitFlow.badge}
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Flux simplu profit si pierdere
+              </span>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">{profitFlow.title}</h3>
+              <p className="mt-1 text-sm text-slate-600">{profitFlow.detail}</p>
+            </div>
+            <div className="grid gap-2 md:grid-cols-4">
+              {profitFlow.steps.map(step => (
+                <div key={step.label} className={`rounded-xl border px-3 py-2 ${step.className}`}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.label}</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{step.value}</div>
+                  <div className="mt-1 text-xs text-slate-500">{step.hint}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 lg:min-w-[220px]">
+            {profitFlow.to ? (
+              <Link
+                className="rounded-[var(--radius-control)] bg-primary-700 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-primary-800"
+                to={profitFlow.to}
+              >
+                {profitFlow.actionLabel}
+              </Link>
+            ) : (
+              <button
+                className="rounded-[var(--radius-control)] bg-primary-700 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-800"
+                type="button"
+                onClick={profitFlow.onClick}
+              >
+                {profitFlow.actionLabel}
+              </button>
+            )}
+            <Link
+              className="rounded-[var(--radius-control)] border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              to={`/contabilitate/balanta?luna=${month}`}
+            >
+              Verifica balanta
+            </Link>
+          </div>
+        </div>
+      </Card>
+
       <div className={`rounded-md px-3 py-2 text-sm font-semibold ${resultTone}`}>
         {Number(totals.rezultat || 0) >= 0
           ? `Profit estimat: ${formatMoney(totals.rezultat || 0)}`
@@ -100,12 +167,17 @@ export function ProfitPierdere() {
         <Info label="Venituri" value={formatMoney(totals.venituri || 0)} />
         <Info label="Cheltuieli" value={formatMoney(totals.cheltuieli || 0)} />
         <Info label="Rezultat" value={formatMoney(totals.rezultat || 0)} />
+        <Info label="Marja rezultat" value={formatPercent(margin)} />
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
         <Info label="Perioada" value={`${data.perioada?.de_la || '-'} - ${data.perioada?.pana_la || '-'}`} />
+        <Info label="Conturi venituri" value={`${venituriRows.length}`} />
+        <Info label="Conturi cheltuieli" value={`${cheltuieliRows.length}`} />
       </div>
 
       <Card title="Venituri">
         <Table headers={['Cont', 'Denumire', 'Credit', 'Debit', 'Valoare']}>
-          {(data.venituri || []).map(row => (
+          {venituriRows.map(row => (
             <tr key={row.cont} className="hover:bg-slate-50">
               <td className="px-3 py-2">
                 <Link className="font-mono font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont}?de_la=${data.perioada?.de_la}&pana_la=${data.perioada?.pana_la}`}>{row.cont}</Link>
@@ -116,7 +188,7 @@ export function ProfitPierdere() {
               <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.valoare || 0)}</td>
             </tr>
           ))}
-          {(data.venituri || []).length ? (
+          {venituriRows.length ? (
             <tr className="bg-slate-50 font-semibold">
               <td className="px-3 py-2" colSpan={4}>TOTAL VENITURI</td>
               <td className="px-3 py-2 text-right">{formatMoney(totals.venituri || 0)}</td>
@@ -129,7 +201,7 @@ export function ProfitPierdere() {
 
       <Card title="Cheltuieli">
         <Table headers={['Cont', 'Denumire', 'Debit', 'Credit', 'Valoare']}>
-          {(data.cheltuieli || []).map(row => (
+          {cheltuieliRows.map(row => (
             <tr key={row.cont} className="hover:bg-slate-50">
               <td className="px-3 py-2">
                 <Link className="font-mono font-semibold text-primary-700 hover:underline" to={`/contabilitate/fisa-cont/${row.cont}?de_la=${data.perioada?.de_la}&pana_la=${data.perioada?.pana_la}`}>{row.cont}</Link>
@@ -140,7 +212,7 @@ export function ProfitPierdere() {
               <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.valoare || 0)}</td>
             </tr>
           ))}
-          {(data.cheltuieli || []).length ? (
+          {cheltuieliRows.length ? (
             <tr className="bg-slate-50 font-semibold">
               <td className="px-3 py-2" colSpan={4}>TOTAL CHELTUIELI</td>
               <td className="px-3 py-2 text-right">{formatMoney(totals.cheltuieli || 0)}</td>
@@ -155,3 +227,77 @@ export function ProfitPierdere() {
 }
 
 export default ProfitPierdere
+
+function buildProfitLossFlow({ month, tip, totals, venituriCount, cheltuieliCount, perioada, load, exportExcel }) {
+  const venituri = Number(totals.venituri || 0)
+  const cheltuieli = Number(totals.cheltuieli || 0)
+  const rezultat = Number(totals.rezultat || 0)
+  const hasActivity = venituriCount > 0 || cheltuieliCount > 0 || Math.abs(venituri) > 0.009 || Math.abs(cheltuieli) > 0.009
+  const margin = venituri ? (rezultat / venituri) * 100 : null
+  const start = perioada?.de_la || `${month}-01`
+  const end = perioada?.pana_la || `${month}-31`
+  const steps = [
+    {
+      label: 'Perioada',
+      value: `${start} - ${end}`,
+      hint: tip === 'sintetica' ? 'raport sintetic' : 'raport analitic',
+      className: 'border-slate-200 bg-slate-50',
+    },
+    {
+      label: 'Venituri',
+      value: formatMoney(venituri),
+      hint: `${venituriCount} conturi incluse`,
+      className: venituriCount ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50',
+    },
+    {
+      label: 'Cheltuieli',
+      value: formatMoney(cheltuieli),
+      hint: `${cheltuieliCount} conturi incluse`,
+      className: cheltuieliCount ? 'border-blue-200 bg-blue-50' : 'border-amber-200 bg-amber-50',
+    },
+    {
+      label: 'Rezultat',
+      value: formatMoney(rezultat),
+      hint: `marja ${formatPercent(margin)}`,
+      className: rezultat >= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50',
+    },
+  ]
+
+  if (!hasActivity) {
+    return {
+      badge: 'fara miscari',
+      badgeClass: 'bg-amber-100 text-amber-700',
+      title: 'Nu exista activitate pentru luna selectata',
+      detail: 'Raportul nu are venituri sau cheltuieli. Reincarca raportul dupa ce exista note contabile, facturi sau operatiuni importate.',
+      steps,
+      actionLabel: 'Reincarca raport',
+      onClick: load,
+    }
+  }
+
+  if (rezultat < 0) {
+    return {
+      badge: 'pierdere',
+      badgeClass: 'bg-red-100 text-red-700',
+      title: 'Luna este pe pierdere estimata',
+      detail: 'Verifica balanta si conturile cu valori mari inainte de export sau raportare. Ecranul arata cauza pe venituri si cheltuieli.',
+      steps,
+      actionLabel: 'Deschide Cartea Mare',
+      to: `/contabilitate/cartea-mare?de_la=${start}&pana_la=${end}`,
+    }
+  }
+
+  return {
+    badge: rezultat === 0 ? 'echilibru' : 'profit',
+    badgeClass: rezultat === 0 ? 'bg-slate-100 text-slate-700' : 'bg-emerald-100 text-emerald-700',
+    title: rezultat === 0 ? 'Rezultat pe zero' : 'Luna este pe profit estimat',
+    detail: 'Datele sunt grupate pe clasele de venituri si cheltuieli. Daca balanta este coerenta, poti exporta raportul pentru dosarul lunar.',
+    steps,
+    actionLabel: 'Export Excel',
+    onClick: exportExcel,
+  }
+}
+
+function formatPercent(value) {
+  return value == null || Number.isNaN(Number(value)) ? '-' : `${Number(value).toFixed(1)}%`
+}

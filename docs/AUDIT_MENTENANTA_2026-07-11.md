@@ -1429,3 +1429,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat deschiderea Balanței, Registrului jurnal sau exportul Excel;
 - Indicatorii rapizi arată mișcările, natura soldului și intervalul analizat;
 - `updates/UPDATE_456_flux_simplu_fisa_cont.md` — ✅ documentație update și verificări.
+
+### UPDATE 457 — Flux simplu Profit și pierdere
+
+- `client/src/pages/accounting/ProfitPierdere.jsx` — ✅ adăugat panou ghidat pentru profit și pierdere;
+- Panoul recomandă automat reîncărcarea raportului, verificarea Balanței/Cartea Mare sau exportul Excel;
+- Indicatorii rapizi arată conturile de venituri, conturile de cheltuieli și marja rezultatului;
+- `updates/UPDATE_457_flux_simplu_profit_pierdere.md` — ✅ documentație update și verificări.

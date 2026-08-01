@@ -1,5 +1,5 @@
 {
-  "version": "2.12.436",
+  "version": "2.12.437",
   "date": "2026-08-01",
-  "changelog": "## v2.12.436 - 2026-08-01\n### Flux simplu Fișă cont\n- Pagina Fișă cont afișează un verdict clar pentru contul selectat: coerent, fără mișcări sau cu diferență de sold.\n- Panoul recomandă automat următoarea acțiune: deschide Balanța, deschide Registru jurnal sau exportă Excel.\n- Sunt afișate explicit mișcările, natura soldului și intervalul folosit.\n- Utilizatorul vede formula operațională sold inițial + rulaje = sold final fără interpretare manuală."
+  "changelog": "## v2.12.437 - 2026-08-01\n### Flux simplu Profit și pierdere\n- Pagina Profit și pierdere afișează fluxul perioadă → venituri → cheltuieli → rezultat.\n- Panoul recomandă automat următoarea acțiune: reîncarcă raportul, verifică balanța/Cartea Mare sau exportă Excel.\n- Sunt afișate explicit conturile de venituri, conturile de cheltuieli și marja rezultatului.\n- Operatorul vede cauza rezultatului lunar fără să interpreteze manual tabelele."
 }
