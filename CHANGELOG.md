@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.444 - 2026-08-01
+
+## Flux simplu Solduri inițiale
+
+- Pagina Solduri inițiale afișează un panou ghidat pentru anul fiscal, conturi, echilibrare debit-credit și verificare în Balanță.
+- Panoul recomandă automat următoarea acțiune: adaugă linie, completează liniile incomplete, echilibrează diferența sau salvează soldurile.
+- Sunt afișate explicit liniile completate, conturile selectate, liniile cu sume și diferența debit-credit.
+- Operatorul înțelege rapid dacă soldurile pot fi salvate înainte de a intra în tabelul tehnic.
+
 # v2.12.443 - 2026-08-01
 
 ## Flux simplu Plan de conturi

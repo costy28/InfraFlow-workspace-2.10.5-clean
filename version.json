@@ -1,5 +1,5 @@
 {
-  "version": "2.12.443",
+  "version": "2.12.444",
   "date": "2026-08-01",
-  "changelog": "## v2.12.443 - 2026-08-01\n### Flux simplu Plan de conturi\n- Pagina Plan de conturi afișează un panou ghidat pentru căutare, selectare, analitic și fișa contului.\n- Panoul recomandă automat următoarea acțiune: curățare filtre, reîncărcare, reactivare cont, adăugare analitic sau deschidere fișă cont.\n- Sunt afișate explicit conturile afișate, analiticele, conturile inactive și filtrele active.\n- Operatorul înțelege rapid cum se folosește planul de conturi fără să intre direct în lista tehnică."
+  "changelog": "## v2.12.444 - 2026-08-01\n### Flux simplu Solduri inițiale\n- Pagina Solduri inițiale afișează un panou ghidat pentru anul fiscal, conturi, echilibrare debit-credit și verificare în Balanță.\n- Panoul recomandă automat următoarea acțiune: adaugă linie, completează liniile incomplete, echilibrează diferența sau salvează soldurile.\n- Sunt afișate explicit liniile completate, conturile selectate, liniile cu sume și diferența debit-credit.\n- Operatorul înțelege rapid dacă soldurile pot fi salvate înainte de a intra în tabelul tehnic."
 }

@@ -1478,3 +1478,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat curățarea filtrelor, reîncărcarea, reactivarea contului, adăugarea unui analitic sau deschiderea fișei contului;
 - Indicatorii rapizi arată conturile afișate, analiticele, conturile inactive și filtrele active;
 - `updates/UPDATE_463_flux_simplu_plan_conturi.md` — ✅ documentație update și verificări.
+
+### UPDATE 464 — Flux simplu Solduri inițiale
+
+- `client/src/pages/accounting/SolduriInitiale.jsx` — ✅ adăugat panou ghidat pentru soldurile inițiale;
+- Panoul recomandă automat adăugarea primelor linii, completarea liniilor incomplete, echilibrarea debit-credit sau salvarea soldurilor;
+- Indicatorii rapizi arată liniile completate, conturile selectate, liniile cu sume și diferența debit-credit;
+- `updates/UPDATE_464_flux_simplu_solduri_initiale.md` — ✅ documentație update și verificări.

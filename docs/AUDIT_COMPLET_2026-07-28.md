@@ -606,3 +606,13 @@ Status: ✅ implementat în v2.12.442.
 | Contabilitate | Conturile afișate, analiticele, conturile inactive și filtrele active sunt vizibile înainte de lista tehnică. |
 
 Status: ✅ implementat în v2.12.443.
+
+## Probleme remediate în UPDATE 464 — Flux simplu Solduri inițiale
+
+| Zonă | Remediere |
+| --- | --- |
+| Solduri inițiale | Pagina afișează fluxul an fiscal → conturi → debit-credit → salvare/verificare Balanță. |
+| UX | Utilizatorul vede primul pas recomandat: adaugă linie, completează liniile incomplete, echilibrează diferența sau salvează. |
+| Contabilitate | Liniile completate, conturile selectate, liniile cu sume și diferența debit-credit sunt vizibile înainte de tabelul tehnic. |
+
+Status: ✅ implementat în v2.12.444.
