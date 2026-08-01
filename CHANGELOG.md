@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.438 - 2026-08-01
+
+## Flux simplu Registru jurnal
+
+- Registrul jurnal afișează un panou ghidat pentru luna și filtrul curent: note, drafturi/devalidate și diferență debit-credit.
+- Panoul recomandă automat următoarea acțiune: notă manuală, filtrare drafturi/devalidate, verificare Balanță sau export Excel.
+- Sunt afișate explicit total debit, total credit, note stornate și note devalidate.
+- Operatorul vede imediat dacă registrul poate alimenta rapoartele sau mai are note de lucru.
+
 # v2.12.437 - 2026-08-01
 
 ## Flux simplu Profit și pierdere

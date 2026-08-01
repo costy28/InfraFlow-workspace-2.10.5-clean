@@ -1436,3 +1436,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat reîncărcarea raportului, verificarea Balanței/Cartea Mare sau exportul Excel;
 - Indicatorii rapizi arată conturile de venituri, conturile de cheltuieli și marja rezultatului;
 - `updates/UPDATE_457_flux_simplu_profit_pierdere.md` — ✅ documentație update și verificări.
+
+### UPDATE 458 — Flux simplu Registru jurnal
+
+- `client/src/pages/accounting/RegistruJurnal.jsx` — ✅ adăugat panou ghidat pentru registrul jurnal;
+- Panoul recomandă automat nota manuală, filtrarea drafturilor/devalidatelor, verificarea Balanței sau exportul Excel;
+- Indicatorii rapizi arată total debit, total credit, note stornate și note devalidate;
+- `updates/UPDATE_458_flux_simplu_registru_jurnal.md` — ✅ documentație update și verificări.

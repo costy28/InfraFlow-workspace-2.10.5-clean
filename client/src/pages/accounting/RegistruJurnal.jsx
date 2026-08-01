@@ -36,8 +36,23 @@ export function RegistruJurnal() {
     acc.credit += money(row.total_credit)
     acc.drafts += row.status === 'draft' ? 1 : 0
     acc.active += row.status === 'activ' ? 1 : 0
+    acc.devalidated += row.status === 'devalidat' ? 1 : 0
+    acc.storned += row.status === 'stornat' ? 1 : 0
     return acc
-  }, { debit: 0, credit: 0, drafts: 0, active: 0 }), [rows])
+  }, { debit: 0, credit: 0, drafts: 0, active: 0, devalidated: 0, storned: 0 }), [rows])
+  const totalDifference = Math.abs(totals.debit - totals.credit)
+  const journalFlow = buildJournalFlow({
+    month,
+    status,
+    rowsCount: rows.length,
+    totals,
+    totalDifference,
+    openManualNote,
+    openImport: () => setImportModal(true),
+    exportExcel,
+    focusDrafts: () => setStatus('draft'),
+    focusDevalidated: () => setStatus('devalidat'),
+  })
 
   useEffect(() => {
     setMonth(searchParams.get('luna') || currentMonth())
@@ -361,11 +376,69 @@ export function RegistruJurnal() {
         </div>
       </Card>
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      <Card>
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-2 py-1 text-xs font-semibold ${journalFlow.badgeClass}`}>
+                {journalFlow.badge}
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Flux simplu registru jurnal
+              </span>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">{journalFlow.title}</h3>
+              <p className="mt-1 text-sm text-slate-600">{journalFlow.detail}</p>
+            </div>
+            <div className="grid gap-2 md:grid-cols-4">
+              {journalFlow.steps.map(step => (
+                <div key={step.label} className={`rounded-xl border px-3 py-2 ${step.className}`}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.label}</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{step.value}</div>
+                  <div className="mt-1 text-xs text-slate-500">{step.hint}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 lg:min-w-[220px]">
+            {journalFlow.to ? (
+              <Link
+                className="rounded-[var(--radius-control)] bg-primary-700 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-primary-800"
+                to={journalFlow.to}
+              >
+                {journalFlow.actionLabel}
+              </Link>
+            ) : (
+              <button
+                className="rounded-[var(--radius-control)] bg-primary-700 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-800"
+                type="button"
+                onClick={journalFlow.onClick}
+              >
+                {journalFlow.actionLabel}
+              </button>
+            )}
+            <button
+              className="rounded-[var(--radius-control)] border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              type="button"
+              onClick={load}
+            >
+              Reincarca registru
+            </button>
+          </div>
+        </div>
+      </Card>
       <div className="grid gap-3 md:grid-cols-4">
         <Info label="Note filtrate" value={rows.length} />
         <Info label="Note active" value={totals.active} />
         <Info label="Drafturi" value={totals.drafts} />
-        <Info label="Diferenta debit-credit" value={formatMoney(Math.abs(totals.debit - totals.credit))} />
+        <Info label="Diferenta debit-credit" value={formatMoney(totalDifference)} />
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <Info label="Note devalidate" value={totals.devalidated} />
+        <Info label="Note stornate" value={totals.storned} />
+        <Info label="Total debit" value={formatMoney(totals.debit)} />
+        <Info label="Total credit" value={formatMoney(totals.credit)} />
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <Table headers={['Data', 'Document', 'Tip', 'Explicatie', 'Debit', 'Credit', 'Status']}>
@@ -545,3 +618,106 @@ export function RegistruJurnal() {
 }
 
 export default RegistruJurnal
+
+function buildJournalFlow({
+  month,
+  status,
+  rowsCount,
+  totals,
+  totalDifference,
+  openManualNote,
+  openImport,
+  exportExcel,
+  focusDrafts,
+  focusDevalidated,
+}) {
+  const activeFilter = status || 'toate'
+  const hasRows = rowsCount > 0
+  const hasDrafts = Number(totals.drafts || 0) > 0
+  const hasDevalidated = Number(totals.devalidated || 0) > 0
+  const balanced = totalDifference <= 0.01
+  const steps = [
+    {
+      label: 'Luna',
+      value: month,
+      hint: `filtru: ${activeFilter}`,
+      className: 'border-slate-200 bg-slate-50',
+    },
+    {
+      label: 'Note',
+      value: `${rowsCount}`,
+      hint: `${totals.active || 0} active`,
+      className: hasRows ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50',
+    },
+    {
+      label: 'De lucru',
+      value: `${totals.drafts || 0} draft / ${totals.devalidated || 0} devalidat`,
+      hint: 'trebuie validate pentru rapoarte',
+      className: hasDrafts || hasDevalidated ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50',
+    },
+    {
+      label: 'Debit-credit',
+      value: formatMoney(totalDifference),
+      hint: balanced ? 'registru echilibrat' : 'verifica notele',
+      className: balanced ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50',
+    },
+  ]
+
+  if (!hasRows) {
+    return {
+      badge: 'gol',
+      badgeClass: 'bg-amber-100 text-amber-700',
+      title: 'Nu exista note contabile pentru filtrul curent',
+      detail: 'Poți crea o notă manuală sau importa note din XLS. După validare, acestea intră în balanță, Cartea Mare și fișa contului.',
+      steps,
+      actionLabel: 'Nota manuala noua',
+      onClick: openManualNote,
+    }
+  }
+
+  if (hasDrafts) {
+    return {
+      badge: 'drafturi',
+      badgeClass: 'bg-amber-100 text-amber-700',
+      title: 'Există note draft care nu intră încă în rapoarte',
+      detail: 'Filtrează drafturile, verifică debit-credit și validează-le când sunt corecte. Asta păstrează rapoartele curate.',
+      steps,
+      actionLabel: 'Vezi drafturile',
+      onClick: focusDrafts,
+    }
+  }
+
+  if (hasDevalidated) {
+    return {
+      badge: 'devalidat',
+      badgeClass: 'bg-orange-100 text-orange-700',
+      title: 'Există note devalidate care trebuie revizuite',
+      detail: 'Notele devalidate sunt scoase temporar din rapoarte. Revizuiește-le, corectează-le și validează-le din nou dacă trebuie incluse.',
+      steps,
+      actionLabel: 'Vezi devalidate',
+      onClick: focusDevalidated,
+    }
+  }
+
+  if (!balanced) {
+    return {
+      badge: 'diferenta',
+      badgeClass: 'bg-red-100 text-red-700',
+      title: 'Registrul filtrat nu este echilibrat debit-credit',
+      detail: 'Verifică notele din listă înainte de balanță. Un registru dezechilibrat afectează rapoartele lunii.',
+      steps,
+      actionLabel: 'Deschide Balanta',
+      to: `/contabilitate/balanta?luna=${month}`,
+    }
+  }
+
+  return {
+    badge: 'ok',
+    badgeClass: 'bg-emerald-100 text-emerald-700',
+    title: 'Registrul filtrat este pregătit pentru control',
+    detail: 'Notele active sunt echilibrate. Poți exporta registrul, verifica balanța sau merge în Cartea Mare pentru detalii pe conturi.',
+    steps,
+    actionLabel: 'Export Excel',
+    onClick: exportExcel || openImport,
+  }
+}

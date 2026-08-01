@@ -546,3 +546,13 @@ Status: ✅ implementat în v2.12.436.
 | Contabilitate | Conturile de venituri, conturile de cheltuieli și marja rezultatului sunt vizibile lângă totaluri. |
 
 Status: ✅ implementat în v2.12.437.
+
+## Probleme remediate în UPDATE 458 — Flux simplu Registru jurnal
+
+| Zonă | Remediere |
+| --- | --- |
+| Registru jurnal | Pagina afișează fluxul note → drafturi/devalidate → debit-credit → raportare. |
+| UX | Utilizatorul vede primul pas recomandat: notă manuală, drafturi/devalidate, Balanță sau Export Excel. |
+| Contabilitate | Total debit, total credit, note stornate și note devalidate sunt vizibile lângă indicatorii existenți. |
+
+Status: ✅ implementat în v2.12.438.
