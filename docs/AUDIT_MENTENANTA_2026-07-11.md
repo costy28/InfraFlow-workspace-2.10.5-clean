@@ -1492,3 +1492,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat crearea unui șablon, curățarea filtrului, crearea unei variante custom sau deschiderea facturilor relevante;
 - Indicatorii rapizi arată șabloanele afișate, șabloanele custom active, șabloanele de sistem și conturile disponibile;
 - `updates/UPDATE_465_flux_simplu_sabloane_note.md` — ✅ documentație update și verificări.
+
+### UPDATE 466 — Flux simplu Jurnale contabile
+
+- `client/src/pages/accounting/JurnaleClasice.jsx` — ✅ adăugat panou ghidat pentru jurnalele contabile;
+- Panoul recomandă automat rezolvarea avertizărilor, deschiderea facturilor, verificarea trezoreriei sau exportul Excel;
+- Indicatorii rapizi arată documentele, operațiunile de casă/bancă, totalul documentelor și avertizările;
+- `updates/UPDATE_466_flux_simplu_jurnale_contabile.md` — ✅ documentație update și verificări.

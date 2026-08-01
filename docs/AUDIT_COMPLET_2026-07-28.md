@@ -626,3 +626,13 @@ Status: ✅ implementat în v2.12.444.
 | Contabilitate | Șabloanele afișate, custom active, de sistem și conturile disponibile sunt vizibile înainte de lista tehnică. |
 
 Status: ✅ implementat în v2.12.445.
+
+## Probleme remediate în UPDATE 466 — Flux simplu Jurnale contabile
+
+| Zonă | Remediere |
+| --- | --- |
+| Jurnale contabile | Pagina afișează fluxul lună → facturi → casă/bancă → export dosar lunar. |
+| UX | Utilizatorul vede primul pas recomandat: reîncarcă, deschide facturi, verifică trezoreria sau exportă. |
+| Contabilitate | Documentele, operațiunile de casă/bancă, totalul documentelor și avertizările sunt vizibile înainte de registre. |
+
+Status: ✅ implementat în v2.12.446.

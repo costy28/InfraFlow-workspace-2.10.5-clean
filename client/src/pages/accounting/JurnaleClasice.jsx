@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
+import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/forms/Input'
@@ -25,6 +26,7 @@ export function JurnaleClasice() {
   const [cota, setCota] = useState('')
   const [data, setData] = useState(emptyData())
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => { load() }, [month, status, cota])
 
@@ -61,6 +63,16 @@ export function JurnaleClasice() {
     casa: data.registru_casa?.totals || {},
     banca: data.jurnal_banca?.totals || {}
   }), [data])
+  const journalsSummary = buildJournalsSummary({ data, totals, status, cota })
+  const journalsFlow = buildJournalsFlow({
+    month,
+    summary: journalsSummary,
+    load,
+    exportExcel,
+    openIncoming: () => navigate(`/contabilitate/facturi-intrare?luna=${month}`),
+    openOutgoing: () => navigate(`/contabilitate/facturi-iesire?luna=${month}`),
+    openTreasury: () => navigate(`/contabilitate/trezorerie?luna=${month}`)
+  })
 
   return (
     <AccountingShell
@@ -77,6 +89,45 @@ export function JurnaleClasice() {
       ]} />}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge tone={journalsFlow.tone}>{journalsFlow.badge}</Badge>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Jurnale contabile simplificate</span>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">{journalsFlow.title}</h3>
+            <p className="mt-1 max-w-4xl text-sm text-slate-500">{journalsFlow.description}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={journalsFlow.primaryAction}>{journalsFlow.primaryLabel}</Button>
+            <Button variant="secondary" onClick={load}>Reîncarcă</Button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {journalsFlow.steps.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={step.onClick}
+              className={`rounded-lg border px-4 py-3 text-left transition hover:shadow-sm ${step.active ? 'border-emerald-300 bg-emerald-50' : step.tone === 'warning' ? 'border-amber-200 bg-amber-50' : step.tone === 'danger' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{index + 1}</span>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <div className="mt-3 font-semibold text-slate-900">{step.title}</div>
+              <p className="mt-1 text-sm text-slate-500">{step.detail}</p>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Info label="Documente" value={journalsSummary.invoiceRows} />
+          <Info label="Operațiuni casă/bancă" value={journalsSummary.treasuryRows} />
+          <Info label="Total documente" value={formatMoney(journalsSummary.documentsTotal)} />
+          <Info label="Avertizări" value={journalsSummary.warningsCount} />
+        </div>
+      </Card>
       <Card>
         <div className="grid gap-3 md:grid-cols-[220px_180px_180px]">
           <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
@@ -111,6 +162,121 @@ export function JurnaleClasice() {
       </div>
     </AccountingShell>
   )
+}
+
+function buildJournalsSummary({ data, totals, status, cota }) {
+  const purchaseRows = data.jurnal_cumparari?.rows?.length || 0
+  const saleRows = data.jurnal_vanzari?.rows?.length || 0
+  const cashRows = data.registru_casa?.rows?.length || 0
+  const bankRows = data.jurnal_banca?.rows?.length || 0
+  const warningsCount = data.warnings?.length || 0
+  const documentsTotal = Number(totals.cumparari.total || 0) + Number(totals.vanzari.total || 0)
+
+  return {
+    purchaseRows,
+    saleRows,
+    cashRows,
+    bankRows,
+    invoiceRows: purchaseRows + saleRows,
+    treasuryRows: cashRows + bankRows,
+    warningsCount,
+    documentsTotal,
+    hasData: purchaseRows + saleRows + cashRows + bankRows > 0,
+    hasFilters: Boolean(status || cota),
+    filterLabel: [
+      status ? `status ${status}` : null,
+      cota ? `TVA ${cota}%` : null
+    ].filter(Boolean).join(' · ') || 'fără filtre suplimentare',
+  }
+}
+
+function buildJournalsFlow({ month, summary, load, exportExcel, openIncoming, openOutgoing, openTreasury }) {
+  const steps = [
+    {
+      key: 'period',
+      title: 'Alege luna de lucru',
+      detail: `Jurnalele sunt calculate pentru ${month}. Filtru curent: ${summary.filterLabel}.`,
+      status: summary.hasFilters ? 'filtrat' : 'standard',
+      tone: summary.hasFilters ? 'info' : 'neutral',
+      active: true,
+      onClick: load,
+    },
+    {
+      key: 'invoices',
+      title: 'Verifică facturile',
+      detail: `${summary.purchaseRows} cumpărări și ${summary.saleRows} vânzări intră în jurnale.`,
+      status: summary.invoiceRows ? 'date' : 'gol',
+      tone: summary.invoiceRows ? 'success' : 'warning',
+      active: summary.invoiceRows > 0,
+      onClick: summary.saleRows > summary.purchaseRows ? openOutgoing : openIncoming,
+    },
+    {
+      key: 'treasury',
+      title: 'Verifică casa și banca',
+      detail: `${summary.cashRows} operațiuni în casă și ${summary.bankRows} operațiuni în bancă.`,
+      status: summary.treasuryRows ? 'date' : 'gol',
+      tone: summary.treasuryRows ? 'success' : 'warning',
+      active: summary.treasuryRows > 0,
+      onClick: openTreasury,
+    },
+    {
+      key: 'export',
+      title: 'Exportă dosarul lunar',
+      detail: summary.hasData
+        ? 'Exportul Excel poate fi folosit pentru verificare, arhivă sau predare contabilă.'
+        : 'Exportul devine util după ce există documente sau operațiuni în lună.',
+      status: summary.hasData ? 'pregătit' : 'după date',
+      tone: summary.hasData ? 'success' : 'neutral',
+      active: summary.hasData,
+      onClick: exportExcel,
+    },
+  ]
+
+  if (summary.warningsCount) {
+    return {
+      badge: 'Atenție',
+      tone: 'warning',
+      title: `${summary.warningsCount} avertizări în jurnalele lunii`,
+      description: 'Rezolvă avertizările înainte de export sau predare. De obicei indică documente incomplete, statusuri sau corelări care trebuie verificate.',
+      primaryLabel: 'Reîncarcă jurnale',
+      primaryAction: load,
+      steps,
+    }
+  }
+
+  if (!summary.hasData) {
+    return {
+      badge: 'Fără date',
+      tone: 'warning',
+      title: `Nu sunt documente în jurnalele pentru ${month}`,
+      description: 'Adaugă sau validează facturi și operațiuni de trezorerie, apoi revino aici pentru registrul de cumpărări, vânzări, casă și bancă.',
+      primaryLabel: 'Deschide facturi intrare',
+      primaryAction: openIncoming,
+      steps,
+    }
+  }
+
+  if (!summary.invoiceRows && summary.treasuryRows) {
+    return {
+      badge: 'Trezorerie',
+      tone: 'info',
+      title: 'Luna are casă/bancă, dar nu are facturi în jurnale',
+      description: 'Verifică dacă facturile sunt validate sau dacă filtrul curent ascunde documentele. Jurnalele clasice trebuie să arate imaginea completă a lunii.',
+      primaryLabel: 'Deschide facturi',
+      primaryAction: openIncoming,
+      steps,
+    }
+  }
+
+  return {
+    badge: 'Pregătit',
+    tone: 'success',
+    title: `Jurnalele pentru ${month} sunt pregătite`,
+    description: 'Ai date în registrele lunii. Verifică rapid totalurile, apoi exportă Excel pentru control, arhivă sau predare mai departe.',
+    primaryLabel: 'Export Excel',
+    primaryAction: exportExcel,
+    steps,
+  }
 }
 
 function JournalInvoiceTable({ title, rows, partyLabel, totals = {} }) {

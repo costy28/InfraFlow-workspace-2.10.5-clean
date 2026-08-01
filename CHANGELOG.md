@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.446 - 2026-08-01
+
+## Flux simplu Jurnale contabile
+
+- Pagina Jurnale contabile afișează un panou ghidat pentru lună, facturi, casă/bancă și exportul dosarului lunar.
+- Panoul recomandă automat următoarea acțiune: rezolvă avertizări, deschide facturi, verifică trezoreria sau exportă Excel.
+- Sunt afișate explicit documentele, operațiunile de casă/bancă, totalul documentelor și avertizările.
+- Operatorul înțelege rapid dacă jurnalele lunii sunt goale, filtrate, cu atenționări sau pregătite pentru export.
+
 # v2.12.445 - 2026-08-01
 
 ## Flux simplu Șabloane note contabile
