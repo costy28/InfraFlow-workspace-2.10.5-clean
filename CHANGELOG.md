@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.435 - 2026-08-01
+
+## Flux simplu Cartea Mare
+
+- Pagina Cartea Mare afișează un verdict clar pentru intervalul selectat: coerentă, cu diferențe sau fără conturi în filtrul curent.
+- Panoul recomandă automat următoarea acțiune: reîncarcă raportul, deschide Balanța sau exportă Excel.
+- Sunt afișate explicit filtrele active, conturile afișate din total și mișcările din interval.
+- Utilizatorul poate ajunge rapid din raport către fișa contului, Registru jurnal sau Balanță.
+
 # v2.12.434 - 2026-08-01
 
 ## Flux simplu Balanță

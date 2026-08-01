@@ -1415,3 +1415,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat reîncărcarea, deschiderea Registrului jurnal sau exportul Excel;
 - Indicatorii rapizi arată diferența filtrată și numărul de conturi afișate din total;
 - `updates/UPDATE_454_flux_simplu_balanta.md` — ✅ documentație update și verificări.
+
+### UPDATE 455 — Flux simplu Cartea Mare
+
+- `client/src/pages/accounting/CarteaMare.jsx` — ✅ adăugat verdict operațional pentru Cartea Mare;
+- Panoul recomandă automat reîncărcarea, deschiderea Balanței sau exportul Excel;
+- Indicatorii rapizi arată conturile afișate din total, mișcările și filtrul aplicat;
+- `updates/UPDATE_455_flux_simplu_cartea_mare.md` — ✅ documentație update și verificări.

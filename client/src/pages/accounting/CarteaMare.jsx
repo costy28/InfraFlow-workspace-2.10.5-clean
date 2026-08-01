@@ -37,6 +37,23 @@ export function CarteaMare() {
     acc.movements_count += Number(row.movements_count || 0)
     return acc
   }, { sold_initial: 0, total_debit: 0, total_credit: 0, sold_final: 0, movements_count: 0 }), [rows])
+  const reportMonth = String(from || currentMonth()).slice(0, 7)
+  const activeFilterLabels = [
+    `${from || 'start'} → ${to || 'final'}`,
+    clasa ? `clasa ${clasa}` : '',
+    q ? `căutare: ${q}` : '',
+    onlyWithValues ? 'doar conturi cu valori' : 'toate conturile'
+  ].filter(Boolean)
+  const ledgerFlow = buildLedgerFlow({
+    balanced: data.totals?.balanced,
+    rowsCount: rows.length,
+    totalRows: data.accounts?.length || 0,
+    movementsCount: filteredTotals.movements_count || 0,
+    reportMonth,
+    activeFilterLabels,
+    load,
+    exportExcel
+  })
 
   function params() {
     return {
@@ -96,16 +113,45 @@ export function CarteaMare() {
           Afiseaza doar conturi cu sold sau miscari
         </label>
       </Card>
+      <Card>
+        <div className={`rounded-xl border px-4 py-4 ${ledgerFlow.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : ledgerFlow.tone === 'danger' ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold uppercase tracking-wide opacity-75">Flux simplu Cartea Mare</div>
+              <h3 className="mt-1 text-lg font-bold">{ledgerFlow.title}</h3>
+              <p className="mt-1 text-sm opacity-90">{ledgerFlow.detail}</p>
+              <div className="mt-4 grid gap-2 md:grid-cols-4">
+                {ledgerFlow.steps.map(step => (
+                  <div key={step.label} className={`rounded-md border px-3 py-3 text-sm ${step.ok ? 'border-emerald-200 bg-white/70' : 'border-amber-200 bg-amber-50'}`}>
+                    <strong className="block">{step.label}</strong>
+                    <span className="mt-1 block text-xs opacity-80">{step.detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2 sm:min-w-56">
+              {ledgerFlow.primary.to ? (
+                <Link to={ledgerFlow.primary.to} className="rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-slate-800">{ledgerFlow.primary.label}</Link>
+              ) : (
+                <button type="button" onClick={ledgerFlow.primary.onClick} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">{ledgerFlow.primary.label}</button>
+              )}
+              <span className="text-xs opacity-75">{activeFilterLabels.join(' · ')}</span>
+            </div>
+          </div>
+        </div>
+      </Card>
       <div className={`rounded-md px-3 py-2 text-sm ${data.totals?.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
         {data.totals?.balanced ? 'Cartea Mare este coerenta pe intervalul selectat.' : 'Exista diferente intre sold initial + rulaje si sold final.'}
       </div>
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
         <Info label="Conturi" value={rows.length} />
         <Info label="Sold initial" value={formatMoney(filteredTotals.sold_initial || 0)} />
         <Info label="Rulaj debit" value={formatMoney(filteredTotals.total_debit || 0)} />
         <Info label="Rulaj credit" value={formatMoney(filteredTotals.total_credit || 0)} />
         <Info label="Sold final" value={formatMoney(filteredTotals.sold_final || 0)} />
         <Info label="Miscari" value={filteredTotals.movements_count || 0} />
+        <Info label="Conturi total" value={data.accounts?.length || 0} />
+        <Info label="Filtru" value={onlyWithValues ? 'cu valori' : 'toate'} />
       </div>
       <Table headers={['Cont', 'Denumire', 'Tip', 'Sold initial', 'Debit', 'Credit', 'Sold final', 'Natura', 'Miscari', 'Actiuni']}>
         {rows.map(row => (
@@ -148,3 +194,39 @@ export function CarteaMare() {
 }
 
 export default CarteaMare
+
+function buildLedgerFlow({ balanced, rowsCount, totalRows, movementsCount, reportMonth, activeFilterLabels, load, exportExcel }) {
+  const hasRows = rowsCount > 0
+  const hasMovements = movementsCount > 0
+  const steps = [
+    { label: 'Interval', ok: true, detail: activeFilterLabels[0] || reportMonth },
+    { label: 'Conturi', ok: hasRows, detail: hasRows ? `${rowsCount} din ${totalRows} afișate` : 'Nu sunt conturi în filtrul curent' },
+    { label: 'Mișcări', ok: hasMovements, detail: hasMovements ? `${movementsCount} mișcări` : 'Fără mișcări pe interval' },
+    { label: 'Coerență', ok: balanced !== false, detail: balanced === false ? 'Soldurile nu se închid pe unele conturi' : 'Soldurile se închid corect' }
+  ]
+  if (!hasRows) {
+    return {
+      tone: 'warning',
+      title: 'Cartea Mare nu are conturi în filtrul curent.',
+      detail: 'Lărgește filtrul sau reîncarcă raportul pentru intervalul selectat.',
+      steps,
+      primary: { label: 'Reîncarcă raportul', onClick: load }
+    }
+  }
+  if (balanced === false) {
+    return {
+      tone: 'danger',
+      title: 'Cartea Mare are diferențe de coerență.',
+      detail: 'Verifică balanța și registrul jurnal pentru luna filtrată înainte de închidere.',
+      steps,
+      primary: { label: 'Deschide Balanța', to: `/contabilitate/balanta?luna=${reportMonth}` }
+    }
+  }
+  return {
+    tone: 'success',
+    title: 'Cartea Mare este coerentă pe intervalul selectat.',
+    detail: hasMovements ? 'Poți exporta raportul sau deschide fișa unui cont pentru detalii.' : 'Nu sunt mișcări în filtrul curent, dar soldurile se închid corect.',
+    steps,
+    primary: { label: 'Export Excel', onClick: exportExcel }
+  }
+}

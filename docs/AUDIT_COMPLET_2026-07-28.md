@@ -516,3 +516,13 @@ Status: ✅ implementat în v2.12.433.
 | Contabilitate | Filtrele active, diferența filtrată și numărul de conturi afișate sunt vizibile lângă totaluri. |
 
 Status: ✅ implementat în v2.12.434.
+
+## Probleme remediate în UPDATE 455 — Flux simplu Cartea Mare
+
+| Zonă | Remediere |
+| --- | --- |
+| Cartea Mare | Pagina afișează verdictul de coerență pentru intervalul selectat. |
+| UX | Utilizatorul vede următorul pas recomandat: reîncarcă, deschide Balanța sau exportă. |
+| Contabilitate | Conturile afișate din total, mișcările și filtrele active sunt vizibile lângă totaluri. |
+
+Status: ✅ implementat în v2.12.435.
