@@ -1457,3 +1457,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat controlul lunar, verificarea TVA/D300, exportul controlului declarațiilor, confirmarea TVA sau auditul contabil;
 - Indicatorii rapizi arată verificările de rezolvat, declarațiile nepregătite, TVA estimat și termenele active;
 - `updates/UPDATE_460_flux_simplu_centru_fiscal.md` — ✅ documentație update și verificări.
+
+### UPDATE 461 — Flux simplu Declarații diverse
+
+- `client/src/pages/accounting/DeclaratiiDiverse.jsx` — ✅ adăugat panou ghidat pentru D205, Intrastat și status fiscal;
+- Panoul recomandă automat completarea/verificarea D205, verificarea Intrastat, consultarea statusului fiscal sau exportul;
+- Indicatorii rapizi arată pozițiile D205, pozițiile Intrastat, atențiile și obligațiile urmărite;
+- `updates/UPDATE_461_flux_simplu_declaratii_diverse.md` — ✅ documentație update și verificări.

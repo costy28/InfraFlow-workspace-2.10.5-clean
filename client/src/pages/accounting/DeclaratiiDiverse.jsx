@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
-import { AccountingShell, Table, currentMonth } from './accounting-shared'
+import { AccountingShell, Info, Table, currentMonth } from './accounting-shared'
 import { formatMoney } from '../../utils/format'
 
 export default function DeclaratiiDiverse() {
@@ -74,11 +74,61 @@ export default function DeclaratiiDiverse() {
   async function cancelRequest(kind, id, motiv) { await api.delete(`/accounting/${kind}/entries/${id}`, { data: { motiv } }); setMessage('Poziția fiscală a fost anulată.'); load() }
   async function download(path, filename, params) { try { const response = await api.get(path, { params, responseType: 'blob' }); const url = URL.createObjectURL(response.data); const link = document.createElement('a'); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url) } catch (err) { setError(err.response?.data?.error || 'Fișierul nu a putut fi generat.') } }
   const field = (form, setForm, key) => event => setForm({ ...form, [key]: event.target.value })
+  const fiscalSummary = buildDiverseFiscalSummary({ d205, intrastat, map })
+  const fiscalFlow = buildDiverseFiscalFlow({
+    month,
+    tab,
+    summary: fiscalSummary,
+    goD205: () => setTab('d205'),
+    goIntrastat: () => setTab('intrastat'),
+    goStatus: () => setTab('status'),
+    exportD205: () => download('/accounting/d205/export', `D205_lucru_${month.slice(0, 4)}.xlsx`, { an: month.slice(0, 4) }),
+    exportIntrastat: () => download('/accounting/intrastat/export', `Intrastat_${month}.xlsx`, { perioada: month })
+  })
 
   return <AccountingShell active="declaratii-diverse" title="Declarații și raportări" subtitle="D205, Intrastat și imaginea unică a obligațiilor fiscale." actions={<Input type="month" value={month} onChange={event => setMonth(event.target.value)} />}>
     {error && <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {message && <div className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">{message}</div>}
     <Card density="compact"><div className="flex flex-wrap gap-2"><Button variant={tab === 'd205' ? 'primary' : 'secondary'} onClick={() => setTab('d205')}>D205</Button><Button variant={tab === 'intrastat' ? 'primary' : 'secondary'} onClick={() => setTab('intrastat')}>Intrastat</Button><Button variant={tab === 'status' ? 'primary' : 'secondary'} onClick={() => setTab('status')}>Status fiscal</Button></div></Card>
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge tone={fiscalFlow.tone}>{fiscalFlow.badge}</Badge>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Raportări fiscale simple</span>
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900">{fiscalFlow.title}</h3>
+          <p className="mt-1 max-w-4xl text-sm text-slate-500">{fiscalFlow.description}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={fiscalFlow.primaryAction}>{fiscalFlow.primaryLabel}</Button>
+          <Button variant="secondary" onClick={load}>Reîncarcă</Button>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {fiscalFlow.steps.map((step, index) => (
+          <button
+            key={step.key}
+            type="button"
+            onClick={step.onClick}
+            className={`rounded-lg border px-4 py-3 text-left transition hover:shadow-sm ${step.active ? 'border-emerald-300 bg-emerald-50' : step.tone === 'warning' ? 'border-amber-200 bg-amber-50' : step.tone === 'danger' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{index + 1}</span>
+              <Badge tone={step.tone}>{step.status}</Badge>
+            </div>
+            <div className="mt-3 font-semibold text-slate-900">{step.title}</div>
+            <p className="mt-1 text-sm text-slate-500">{step.detail}</p>
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <Info label="Poziții D205" value={fiscalSummary.d205Rows} />
+        <Info label="Poziții Intrastat" value={fiscalSummary.intrastatRows} />
+        <Info label="Atenții" value={fiscalSummary.totalIssues} />
+        <Info label="Obligații urmărite" value={fiscalSummary.statusItems} />
+      </div>
+    </Card>
 
     {tab === 'd205' && <>
       <Card><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Declarația 205 - registru de lucru {month.slice(0, 4)}</h3><p className="text-sm text-slate-500">Venituri cu impozit reținut la sursă. Exportul candidat se validează ulterior cu instrumentele oficiale.</p></div><div className="flex gap-2"><Button variant="secondary" onClick={() => download('/accounting/d205/export', `D205_lucru_${month.slice(0, 4)}.xlsx`, { an: month.slice(0, 4) })}>Excel</Button><Button variant="secondary" onClick={() => download('/accounting/d205/candidate', `D205_candidat_${month.slice(0, 4)}.xml`, { an: month.slice(0, 4) })}>XML candidat</Button></div></div>
@@ -111,4 +161,135 @@ export default function DeclaratiiDiverse() {
       onConfirm={runConfirmAction}
     />
   </AccountingShell>
+}
+
+function buildDiverseFiscalSummary({ d205, intrastat, map }) {
+  const d205Rows = d205?.rows?.length || 0
+  const intrastatRows = intrastat?.rows?.length || 0
+  const d205Issues = d205?.issues?.length || 0
+  const intrastatIssues = intrastat?.issues?.length || 0
+  const statusDeclarations = map?.declarations || []
+  const blockedDeclarations = statusDeclarations.filter(item => item.status === 'nepregatit' || item.receipt_status === 'respinsa' || item.receipt_status === 'eroare').length
+  const statusItems = statusDeclarations.length + 2
+  const d205Ready = Boolean(map?.d205?.ready) || d205Rows > 0
+  const intrastatReady = Boolean(map?.intrastat?.ready) || intrastatRows > 0
+  const totalIssues = d205Issues + intrastatIssues + blockedDeclarations + (d205Ready ? 0 : 1) + (intrastatReady ? 0 : 1)
+
+  return {
+    d205Rows,
+    intrastatRows,
+    d205Issues,
+    intrastatIssues,
+    blockedDeclarations,
+    statusItems,
+    d205Ready,
+    intrastatReady,
+    totalIssues,
+    d205Total: Number(d205?.totals?.venit_brut || d205?.totals?.total_venit || 0),
+    intrastatTotal: Number(intrastat?.totals?.valoare_facturata || intrastat?.totals?.total_valoare || 0)
+  }
+}
+
+function buildDiverseFiscalFlow({ month, tab, summary, goD205, goIntrastat, goStatus, exportD205, exportIntrastat }) {
+  const year = month.slice(0, 4)
+  const steps = [
+    {
+      key: 'd205',
+      title: `D205 ${year}`,
+      detail: summary.d205Rows
+        ? `${summary.d205Rows} poziții · bază ${formatMoney(summary.d205Total)}.`
+        : 'Adaugă beneficiarii și veniturile cu impozit reținut la sursă.',
+      status: summary.d205Ready ? 'pregătit' : 'de completat',
+      tone: summary.d205Issues ? 'warning' : summary.d205Ready ? 'success' : 'warning',
+      active: tab === 'd205',
+      onClick: goD205
+    },
+    {
+      key: 'intrastat',
+      title: `Intrastat ${month}`,
+      detail: summary.intrastatRows
+        ? `${summary.intrastatRows} poziții · valoare ${formatMoney(summary.intrastatTotal)}.`
+        : 'Completează doar dacă firma are obligație Intrastat pentru luna selectată.',
+      status: summary.intrastatReady ? 'pregătit' : 'opțional/de completat',
+      tone: summary.intrastatIssues ? 'warning' : summary.intrastatReady ? 'success' : 'gray',
+      active: tab === 'intrastat',
+      onClick: goIntrastat
+    },
+    {
+      key: 'status',
+      title: 'Status fiscal',
+      detail: summary.blockedDeclarations
+        ? `${summary.blockedDeclarations} declarații au status de urmărit.`
+        : 'Obligațiile fiscale urmărite nu semnalează respingeri sau blocaje.',
+      status: summary.blockedDeclarations ? 'atenție' : 'ok',
+      tone: summary.blockedDeclarations ? 'danger' : 'success',
+      active: tab === 'status',
+      onClick: goStatus
+    }
+  ]
+
+  if (!summary.d205Ready) {
+    return {
+      badge: 'D205',
+      tone: 'warning',
+      title: `Completează registrul D205 pentru ${year}`,
+      description: 'D205 este anuală, dar o pregătim din timp din poziții controlabile. Completează beneficiarii, apoi exportă candidatul pentru validare oficială.',
+      primaryLabel: 'Deschide D205',
+      primaryAction: goD205,
+      steps
+    }
+  }
+  if (summary.d205Issues) {
+    return {
+      badge: 'Atenții D205',
+      tone: 'warning',
+      title: 'Verifică pozițiile D205 înainte de export',
+      description: 'Există atenționări pe registrul D205. Corectează pozițiile anulate/greșite înainte să descarci fișierul de lucru.',
+      primaryLabel: 'Deschide D205',
+      primaryAction: goD205,
+      steps
+    }
+  }
+  if (summary.intrastatIssues || (!summary.intrastatReady && summary.intrastatRows > 0)) {
+    return {
+      badge: 'Intrastat',
+      tone: 'warning',
+      title: 'Verifică pozițiile Intrastat',
+      description: 'Există poziții Intrastat sau atenționări care trebuie controlate pentru luna selectată.',
+      primaryLabel: 'Deschide Intrastat',
+      primaryAction: goIntrastat,
+      steps
+    }
+  }
+  if (summary.blockedDeclarations) {
+    return {
+      badge: 'Status',
+      tone: 'danger',
+      title: 'Urmărește obligațiile cu status problematic',
+      description: 'Statusul fiscal centralizat arată declarații nepregătite, respinse sau cu eroare de recipisă.',
+      primaryLabel: 'Vezi status fiscal',
+      primaryAction: goStatus,
+      steps
+    }
+  }
+  if (summary.intrastatRows) {
+    return {
+      badge: 'Pregătit',
+      tone: 'success',
+      title: 'Raportările diverse sunt pregătite pentru export',
+      description: 'Pozițiile D205 și Intrastat sunt completate. Poți exporta fișierele de lucru pentru controlul final.',
+      primaryLabel: 'Export Intrastat',
+      primaryAction: exportIntrastat,
+      steps
+    }
+  }
+  return {
+    badge: 'Curat',
+    tone: 'success',
+    title: 'Registrul D205 este pregătit, Intrastat rămâne opțional',
+    description: 'Pentru luna curentă nu există poziții Intrastat. Dacă firma are obligație, completează pozițiile; altfel poți exporta D205 când ai nevoie.',
+    primaryLabel: 'Export D205',
+    primaryAction: exportD205,
+    steps
+  }
 }

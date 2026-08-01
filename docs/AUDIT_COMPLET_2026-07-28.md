@@ -576,3 +576,13 @@ Status: ✅ implementat în v2.12.439.
 | Contabilitate | Verificările de rezolvat, declarațiile nepregătite, TVA estimat și termenele active sunt vizibile înainte de detalii. |
 
 Status: ✅ implementat în v2.12.440.
+
+## Probleme remediate în UPDATE 461 — Flux simplu Declarații diverse
+
+| Zonă | Remediere |
+| --- | --- |
+| Declarații diverse | Pagina afișează fluxul D205 → Intrastat → status fiscal. |
+| UX | Utilizatorul vede primul pas recomandat: completare/verificare D205, Intrastat, status fiscal sau export. |
+| Contabilitate | Pozițiile D205, pozițiile Intrastat, atențiile și obligațiile urmărite sunt vizibile înainte de registre. |
+
+Status: ✅ implementat în v2.12.441.

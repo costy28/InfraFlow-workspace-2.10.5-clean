@@ -1,5 +1,5 @@
 {
-  "version": "2.12.440",
+  "version": "2.12.441",
   "date": "2026-08-01",
-  "changelog": "## v2.12.440 - 2026-08-01\n### Flux simplu Centru fiscal\n- Pagina Centru fiscal afișează un panou ghidat pentru control lunar, TVA/D300, declarații și termene/recipise.\n- Panoul recomandă automat următoarea acțiune: control lunar, verificare TVA/D300, export control declarații, confirmare TVA sau audit contabil.\n- Sunt afișate explicit verificările de rezolvat, declarațiile nepregătite, TVA estimat și termenele active.\n- Operatorul vede starea fiscală a lunii fără să navigheze manual prin toate taburile."
+  "changelog": "## v2.12.441 - 2026-08-01\n### Flux simplu Declarații diverse\n- Pagina Declarații și raportări afișează un panou ghidat pentru D205, Intrastat și status fiscal.\n- Panoul recomandă automat următoarea acțiune: completare D205, verificare D205, verificare Intrastat, status fiscal sau export.\n- Sunt afișate explicit pozițiile D205, pozițiile Intrastat, atențiile și obligațiile urmărite.\n- Operatorul vede dacă raportările diverse sunt pregătite fără să interpreteze manual fiecare tab."
 }

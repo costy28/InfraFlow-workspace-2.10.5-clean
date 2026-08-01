@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.441 - 2026-08-01
+
+## Flux simplu Declarații diverse
+
+- Pagina Declarații și raportări afișează un panou ghidat pentru D205, Intrastat și status fiscal.
+- Panoul recomandă automat următoarea acțiune: completare D205, verificare D205, verificare Intrastat, status fiscal sau export.
+- Sunt afișate explicit pozițiile D205, pozițiile Intrastat, atențiile și obligațiile urmărite.
+- Operatorul vede dacă raportările diverse sunt pregătite fără să interpreteze manual fiecare tab.
+
 # v2.12.440 - 2026-08-01
 
 ## Flux simplu Centru fiscal
