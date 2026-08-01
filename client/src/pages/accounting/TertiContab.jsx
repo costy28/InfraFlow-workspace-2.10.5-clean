@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -10,7 +10,7 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { openApiFile } from '../../utils/download'
-import { AccountingShell, DropdownMenu, Table } from './accounting-shared'
+import { AccountingShell, DropdownMenu, Info, Table } from './accounting-shared'
 
 const blankThirdParty = (tip) => ({
   tip,
@@ -65,6 +65,7 @@ export function TertiContab({ type = 'furnizor' }) {
   const [activeFilter, setActiveFilter] = useState('active')
   const [confirmationFilter, setConfirmationFilter] = useState('all')
   const [form, setForm] = useState(blankThirdParty(type))
+  const navigate = useNavigate()
   const title = type === 'client' ? 'Clienti' : 'Furnizori'
   const statusEndpoint = type === 'client' ? '/accounting/clients-status' : '/accounting/suppliers-status'
   const invoicePath = type === 'client' ? '/contabilitate/facturi-iesire' : '/contabilitate/facturi-intrare'
@@ -261,6 +262,26 @@ export function TertiContab({ type = 'furnizor' }) {
     confirmationSent: filteredRows.filter(row => confirmationLabel(row.confirmation) === 'trimisa').length,
     confirmationConfirmed: filteredRows.filter(row => confirmationLabel(row.confirmation) === 'confirmata').length
   }), [filteredRows])
+  const tertiSummary = buildTertiSummary({
+    rows,
+    filteredRows,
+    totals,
+    q,
+    activeFilter,
+    confirmationFilter,
+    accountKey,
+    type
+  })
+  const tertiFlow = buildTertiFlow({
+    summary: tertiSummary,
+    type,
+    openNew,
+    clearFilters: () => { setQ(''); setActiveFilter('active'); setConfirmationFilter('all') },
+    showMissingConfirmations: () => setConfirmationFilter('netrimisa'),
+    exportExcel,
+    exportConfirmationsRegister,
+    openInvoices: () => navigate(invoicePath)
+  })
 
   async function exportExcel() {
     setError('')
@@ -459,6 +480,45 @@ export function TertiContab({ type = 'furnizor' }) {
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge tone={tertiFlow.tone}>{tertiFlow.badge}</Badge>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Terți contabili simplificați</span>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">{tertiFlow.title}</h3>
+            <p className="mt-1 max-w-4xl text-sm text-slate-500">{tertiFlow.description}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={tertiFlow.primaryAction}>{tertiFlow.primaryLabel}</Button>
+            <Button variant="secondary" onClick={load}>Reîncarcă</Button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {tertiFlow.steps.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={step.onClick}
+              className={`rounded-lg border px-4 py-3 text-left transition hover:shadow-sm ${step.active ? 'border-emerald-300 bg-emerald-50' : step.tone === 'warning' ? 'border-amber-200 bg-amber-50' : step.tone === 'danger' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{index + 1}</span>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <div className="mt-3 font-semibold text-slate-900">{step.title}</div>
+              <p className="mt-1 text-sm text-slate-500">{step.detail}</p>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Info label="Afișați / total" value={`${tertiSummary.filteredCount} / ${tertiSummary.totalCount}`} />
+          <Info label="Sold deschis" value={formatMoney(tertiSummary.openBalance)} />
+          <Info label="Depășit" value={formatMoney(tertiSummary.overdueAmount)} />
+          <Info label="Confirmări netrimise" value={tertiSummary.confirmationMissing} />
+        </div>
+      </Card>
       <Card>
         <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_170px_190px_110px_150px_150px_150px]">
           <Input label="Cauta tert" value={q} onChange={event => setQ(event.target.value)} placeholder="Denumire, CUI, cont..." />
@@ -830,6 +890,144 @@ export function TertiContab({ type = 'furnizor' }) {
       />
     </AccountingShell>
   )
+}
+
+function buildTertiSummary({ rows, filteredRows, totals, q, activeFilter, confirmationFilter, accountKey, type }) {
+  const missingAccounts = filteredRows.filter(row => !row[accountKey]).length
+  const inactiveTotal = rows.filter(row => row.activ === false).length
+  const activeTotal = rows.filter(row => row.activ !== false).length
+  const hasFilters = Boolean(q.trim()) || activeFilter !== 'active' || confirmationFilter !== 'all'
+  const label = type === 'client' ? 'clienți' : 'furnizori'
+
+  return {
+    label,
+    totalCount: rows.length,
+    filteredCount: filteredRows.length,
+    activeTotal,
+    inactiveTotal,
+    missingAccounts,
+    hasFilters,
+    filterLabel: [
+      q.trim() ? `căutare „${q.trim()}”` : null,
+      activeFilter !== 'active' ? `status ${activeFilter}` : null,
+      confirmationFilter !== 'all' ? `confirmare ${confirmationFilter}` : null,
+    ].filter(Boolean).join(' · ') || 'activi, toate confirmările',
+    openBalance: Number(totals.sold || 0),
+    overdueAmount: Number(totals.overdueAmount || 0),
+    overdueCount: Number(totals.overdue || 0),
+    confirmationMissing: Number(totals.confirmationMissing || 0),
+    confirmationSent: Number(totals.confirmationSent || 0),
+    confirmationConfirmed: Number(totals.confirmationConfirmed || 0),
+  }
+}
+
+function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfirmations, exportExcel, exportConfirmationsRegister, openInvoices }) {
+  const singular = type === 'client' ? 'client' : 'furnizor'
+  const plural = type === 'client' ? 'clienți' : 'furnizori'
+  const invoiceLabel = type === 'client' ? 'facturi ieșire' : 'facturi intrare'
+  const analyticLabel = type === 'client' ? '4111.x' : '401.x'
+  const steps = [
+    {
+      key: 'catalog',
+      title: 'Catalog terți',
+      detail: summary.totalCount
+        ? `${summary.activeTotal} activi și ${summary.inactiveTotal} inactivi. Filtru curent: ${summary.filterLabel}.`
+        : `Adaugă primul ${singular}; aplicația generează automat analiticul contabil.`,
+      status: summary.totalCount ? 'date' : 'start',
+      tone: summary.totalCount ? 'success' : 'warning',
+      active: summary.totalCount > 0,
+      onClick: summary.hasFilters ? clearFilters : openNew,
+    },
+    {
+      key: 'analytics',
+      title: 'Analitice contabile',
+      detail: summary.missingAccounts
+        ? `${summary.missingAccounts} terți afișați nu au analitic ${analyticLabel} vizibil. Verifică fișa sau editează terțul.`
+        : `Analiticele ${analyticLabel} sunt vizibile pentru terții afișați.`,
+      status: summary.missingAccounts ? 'verifică' : 'ok',
+      tone: summary.missingAccounts ? 'warning' : 'success',
+      active: !summary.missingAccounts && summary.filteredCount > 0,
+      onClick: openNew,
+    },
+    {
+      key: 'aging',
+      title: 'Scadențar',
+      detail: summary.overdueAmount
+        ? `${summary.overdueCount} scadențe depășite, total ${formatMoney(summary.overdueAmount)}. Exportă scadențarul pentru urmărire.`
+        : `Sold deschis ${formatMoney(summary.openBalance)} fără valori depășite în filtrul curent.`,
+      status: summary.overdueAmount ? 'atenție' : 'ok',
+      tone: summary.overdueAmount ? 'warning' : 'success',
+      active: summary.openBalance > 0,
+      onClick: summary.overdueAmount ? exportExcel : openInvoices,
+    },
+    {
+      key: 'confirmations',
+      title: 'Confirmări sold',
+      detail: `${summary.confirmationMissing} netrimise, ${summary.confirmationSent} trimise, ${summary.confirmationConfirmed} confirmate.`,
+      status: summary.confirmationMissing ? 'de trimis' : 'control',
+      tone: summary.confirmationMissing ? 'warning' : 'info',
+      active: summary.confirmationMissing === 0 && summary.filteredCount > 0,
+      onClick: summary.confirmationMissing ? showMissingConfirmations : exportConfirmationsRegister,
+    },
+  ]
+
+  if (!summary.totalCount) {
+    return {
+      badge: 'Start',
+      tone: 'warning',
+      title: `Adaugă primul ${singular}`,
+      description: `Catalogul de ${plural} este baza pentru ${invoiceLabel}, scadențar, confirmări de sold și fișe analitice.`,
+      primaryLabel: `Adaugă ${singular}`,
+      primaryAction: openNew,
+      steps,
+    }
+  }
+
+  if (summary.hasFilters && !summary.filteredCount) {
+    return {
+      badge: 'Filtru gol',
+      tone: 'warning',
+      title: `Niciun ${singular} nu corespunde filtrelor`,
+      description: 'Curăță filtrele ca să revii la lista activă sau ajustează căutarea după denumire, CUI, email, telefon ori cont analitic.',
+      primaryLabel: 'Curăță filtrele',
+      primaryAction: clearFilters,
+      steps,
+    }
+  }
+
+  if (summary.overdueAmount) {
+    return {
+      badge: 'Scadențe',
+      tone: 'warning',
+      title: `Ai ${formatMoney(summary.overdueAmount)} depășit la ${summary.label}`,
+      description: 'Înainte de confirmări sau raportări, verifică scadențele depășite și exportă lista de lucru pentru încasări/plăți.',
+      primaryLabel: 'Export scadentar',
+      primaryAction: exportExcel,
+      steps,
+    }
+  }
+
+  if (summary.confirmationMissing) {
+    return {
+      badge: 'Confirmări',
+      tone: 'info',
+      title: `${summary.confirmationMissing} confirmări de sold netrimise`,
+      description: 'Filtrează confirmările netrimise, tipărește/exportă confirmarea de sold și marchează statusul când primești răspuns.',
+      primaryLabel: 'Vezi netrimise',
+      primaryAction: showMissingConfirmations,
+      steps,
+    }
+  }
+
+  return {
+    badge: 'Pregătit',
+    tone: 'success',
+    title: `Catalogul de ${plural} este pregătit`,
+    description: `Terții activi sunt gata pentru ${invoiceLabel}, fișe analitice, scadențar și confirmări de sold.`,
+    primaryLabel: `Deschide ${invoiceLabel}`,
+    primaryAction: openInvoices,
+    steps,
+  }
 }
 
 export default TertiContab

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.446",
+  "version": "2.12.447",
   "date": "2026-08-01",
-  "changelog": "## v2.12.446 - 2026-08-01\n### Flux simplu Jurnale contabile\n- Pagina Jurnale contabile afișează un panou ghidat pentru lună, facturi, casă/bancă și exportul dosarului lunar.\n- Panoul recomandă automat următoarea acțiune: rezolvă avertizări, deschide facturi, verifică trezoreria sau exportă Excel.\n- Sunt afișate explicit documentele, operațiunile de casă/bancă, totalul documentelor și avertizările.\n- Operatorul înțelege rapid dacă jurnalele lunii sunt goale, filtrate, cu atenționări sau pregătite pentru export."
+  "changelog": "## v2.12.447 - 2026-08-01\n### Flux simplu Terți contabili\n- Pagina Clienți/Furnizori afișează un panou ghidat pentru catalog, analitice, scadențar și confirmări sold.\n- Panoul recomandă automat următoarea acțiune: adaugă terț, curăță filtre, exportă scadențar, vezi confirmări netrimise sau deschide facturi.\n- Sunt afișate explicit terții afișați din total, soldul deschis, valoarea depășită și confirmările netrimise.\n- Operatorul înțelege rapid dacă lista este goală, filtrată, cu scadențe sau pregătită pentru facturi și confirmări."
 }

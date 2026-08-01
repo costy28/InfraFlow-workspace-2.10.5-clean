@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.447 - 2026-08-01
+
+## Flux simplu Terți contabili
+
+- Pagina Clienți/Furnizori afișează un panou ghidat pentru catalog, analitice, scadențar și confirmări sold.
+- Panoul recomandă automat următoarea acțiune: adaugă terț, curăță filtre, exportă scadențar, vezi confirmări netrimise sau deschide facturi.
+- Sunt afișate explicit terții afișați din total, soldul deschis, valoarea depășită și confirmările netrimise.
+- Operatorul înțelege rapid dacă lista este goală, filtrată, cu scadențe sau pregătită pentru facturi și confirmări.
+
 # v2.12.446 - 2026-08-01
 
 ## Flux simplu Jurnale contabile

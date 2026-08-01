@@ -636,3 +636,13 @@ Status: ✅ implementat în v2.12.445.
 | Contabilitate | Documentele, operațiunile de casă/bancă, totalul documentelor și avertizările sunt vizibile înainte de registre. |
 
 Status: ✅ implementat în v2.12.446.
+
+## Probleme remediate în UPDATE 467 — Flux simplu Terți contabili
+
+| Zonă | Remediere |
+| --- | --- |
+| Terți contabili | Pagina afișează fluxul catalog → analitice → scadențar → confirmări sold. |
+| UX | Utilizatorul vede primul pas recomandat: adaugă terț, curăță filtre, exportă scadențar, vezi confirmări sau deschide facturi. |
+| Contabilitate | Terții afișați, soldul deschis, valoarea depășită și confirmările netrimise sunt vizibile înainte de tabelul mare. |
+
+Status: ✅ implementat în v2.12.447.

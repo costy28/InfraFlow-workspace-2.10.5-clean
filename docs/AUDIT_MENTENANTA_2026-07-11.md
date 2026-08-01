@@ -1499,3 +1499,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat rezolvarea avertizărilor, deschiderea facturilor, verificarea trezoreriei sau exportul Excel;
 - Indicatorii rapizi arată documentele, operațiunile de casă/bancă, totalul documentelor și avertizările;
 - `updates/UPDATE_466_flux_simplu_jurnale_contabile.md` — ✅ documentație update și verificări.
+
+### UPDATE 467 — Flux simplu Terți contabili
+
+- `client/src/pages/accounting/TertiContab.jsx` — ✅ adăugat panou ghidat pentru clienți și furnizori;
+- Panoul recomandă automat adăugarea unui terț, curățarea filtrelor, exportul scadențarului, filtrarea confirmărilor netrimise sau deschiderea facturilor;
+- Indicatorii rapizi arată terții afișați din total, soldul deschis, valoarea depășită și confirmările netrimise;
+- `updates/UPDATE_467_flux_simplu_terti_contabili.md` — ✅ documentație update și verificări.
