@@ -1506,3 +1506,11 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat adăugarea unui terț, curățarea filtrelor, exportul scadențarului, filtrarea confirmărilor netrimise sau deschiderea facturilor;
 - Indicatorii rapizi arată terții afișați din total, soldul deschis, valoarea depășită și confirmările netrimise;
 - `updates/UPDATE_467_flux_simplu_terti_contabili.md` — ✅ documentație update și verificări.
+
+### UPDATE 468 — Flux simplu Alerte legislative
+
+- `client/src/pages/accounting/AlerteLegislative.jsx` — ✅ adăugat panou ghidat pentru monitorul legislativ;
+- Panoul recomandă automat filtrarea alertelor noi, verificarea impactului în Centrul fiscal, consultarea declarațiilor sau auditul fiscal;
+- Indicatorii rapizi arată alertele totale, noi, citite/în lucru și implementate;
+- Lista permite marcarea rapidă a alertelor ca citite sau implementate, folosind endpointurile existente;
+- `updates/UPDATE_468_flux_simplu_alerte_legislative.md` — ✅ documentație update și verificări.

@@ -646,3 +646,13 @@ Status: ✅ implementat în v2.12.446.
 | Contabilitate | Terții afișați, soldul deschis, valoarea depășită și confirmările netrimise sunt vizibile înainte de tabelul mare. |
 
 Status: ✅ implementat în v2.12.447.
+
+## Probleme remediate în UPDATE 468 — Flux simplu Alerte legislative
+
+| Zonă | Remediere |
+| --- | --- |
+| Alerte legislative | Pagina afișează fluxul preluare alerte noi → impact fiscal → declarații → audit. |
+| UX | Utilizatorul vede primul pas recomandat: alerte noi, centru fiscal, declarații sau audit fiscal. |
+| Contabilitate | Alertele totale, noi, citite/în lucru și implementate sunt vizibile înainte de lista tehnică. |
+
+Status: ✅ implementat în v2.12.448.

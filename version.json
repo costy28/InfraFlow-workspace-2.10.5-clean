@@ -1,5 +1,5 @@
 {
-  "version": "2.12.447",
+  "version": "2.12.448",
   "date": "2026-08-01",
-  "changelog": "## v2.12.447 - 2026-08-01\n### Flux simplu Terți contabili\n- Pagina Clienți/Furnizori afișează un panou ghidat pentru catalog, analitice, scadențar și confirmări sold.\n- Panoul recomandă automat următoarea acțiune: adaugă terț, curăță filtre, exportă scadențar, vezi confirmări netrimise sau deschide facturi.\n- Sunt afișate explicit terții afișați din total, soldul deschis, valoarea depășită și confirmările netrimise.\n- Operatorul înțelege rapid dacă lista este goală, filtrată, cu scadențe sau pregătită pentru facturi și confirmări."
+  "changelog": "## v2.12.448 - 2026-08-01\n### Flux simplu Alerte legislative\n- Pagina Alerte legislative afișează un panou ghidat pentru preluare alerte noi, impact fiscal, declarații și audit.\n- Operatorul vede imediat alertele totale, noi, citite și implementate, cu recomandarea următoarei acțiuni.\n- Alertele pot fi marcate citite sau implementate direct din lista de lucru, folosind endpointurile existente.\n- Fluxul trimite rapid către Centrul fiscal, Declarații diverse, Audit fiscal sau Închidere lună."
 }

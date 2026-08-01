@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.448 - 2026-08-01
+
+## Flux simplu Alerte legislative
+
+- Pagina Alerte legislative afișează un panou ghidat pentru preluare alerte noi, impact fiscal, declarații și audit.
+- Panoul recomandă automat următoarea acțiune: vezi alertele noi, deschide centrul fiscal, verifică declarațiile sau auditul.
+- Sunt afișate explicit alertele totale, noi, citite/în lucru și implementate.
+- Operatorul poate marca rapid alerta ca citită sau implementată direct din lista de lucru.
+
 # v2.12.447 - 2026-08-01
 
 ## Flux simplu Terți contabili
