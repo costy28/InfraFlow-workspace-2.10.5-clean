@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.449 - 2026-08-01
+
+## Flux simplu ANAF / e-Factura
+
+- Modulul ANAF afișează un panou ghidat pentru verificare partener, pregătire factură, XML/SPV, recipisă și conectare SPV.
+- Panoul recomandă automat următoarea acțiune: caută CIF, creează factură, vezi drafturi, descarcă XML sau arhivează recipisa.
+- Sunt afișate explicit partenerii, facturile, drafturile, validatele, trimisele SPV și starea conexiunii SPV.
+- Fluxul păstrează operarea manuală XML/SPV, dar pregătește interfața pentru automatizarea SPV viitoare.
+
 # v2.12.448 - 2026-08-01
 
 ## Flux simplu Alerte legislative

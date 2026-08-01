@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.448**
-**Versiune în lucru: v2.12.448**
+**Versiune curentă sursă: v2.12.449**
+**Versiune în lucru: v2.12.449**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -301,6 +301,7 @@ Contabilitate / Salarizare
   ✅ Flux simplu Jurnale contabile: lună → facturi → casă/bancă → export dosar lunar (v2.12.446)
   ✅ Flux simplu Terți contabili: catalog → analitice → scadențar → confirmări sold (v2.12.447)
   ✅ Flux simplu Alerte legislative: alerte noi → impact fiscal → declarații → audit (v2.12.448)
+  ✅ Flux simplu ANAF / e-Factura: partener → factură → XML/SPV → recipisă → SPV (v2.12.449)
   ✅ Salarizare internă integrată cu HR, pontaj, plăți și D112 preliminar
   ✅ Confirmări UX Salarizare pentru plăți, stornări și rectificări (v2.12.407)
 
@@ -309,6 +310,7 @@ ANAF / e-Factura
   ✅ Export XML UBL 2.1 CIUS-RO
   ✅ Căutare CIF ANAF
   ✅ Parteneri
+  ✅ Flux ghidat e-Factura pentru partener, factură, XML/SPV, recipisă și conectare SPV (v2.12.449)
   ✅ TVA 21% disponibil și implicit din settings (v2.10.7)
   ✅ Draft editabil + validată readonly/editare admin (v2.10.7)
   ❌  Integrare automată SPV (după înregistrare ANAF)
@@ -776,9 +778,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.448
+VERSIUNE CURENTĂ SURSĂ: 2.12.449
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.448 ✅
+UPDATE ZIP CURENT: 2.12.449 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1035,6 +1037,7 @@ UPDATES ÎN LUCRU:
   2.12.446 → UPDATE 466 Flux simplu Jurnale contabile ✅
   2.12.447 → UPDATE 467 Flux simplu Terți contabili ✅
   2.12.448 → UPDATE 468 Flux simplu Alerte legislative ✅
+  2.12.449 → UPDATE 469 Flux simplu ANAF / e-Factura ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1529,5 +1532,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.448*
+*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.449*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

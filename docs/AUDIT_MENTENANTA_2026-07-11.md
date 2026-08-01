@@ -1514,3 +1514,11 @@ Următorul pas de stabilizare: `2.12.300`
 - Indicatorii rapizi arată alertele totale, noi, citite/în lucru și implementate;
 - Lista permite marcarea rapidă a alertelor ca citite sau implementate, folosind endpointurile existente;
 - `updates/UPDATE_468_flux_simplu_alerte_legislative.md` — ✅ documentație update și verificări.
+
+### UPDATE 469 — Flux simplu ANAF / e-Factura
+
+- `client/src/pages/modules/AnafPage.jsx` — ✅ adăugat panou ghidat pentru e-Factura;
+- Panoul recomandă automat verificarea CIF/CUI, crearea facturii, tratarea drafturilor, descărcarea XML/SPV sau arhivarea recipisei;
+- Indicatorii rapizi arată partenerii, facturile, drafturile/validatele, trimisele SPV și starea conexiunii SPV;
+- Fluxul păstrează modul manual XML/SPV și pregătește interfața pentru automatizarea SPV viitoare;
+- `updates/UPDATE_469_flux_simplu_anaf_efactura.md` — ✅ documentație update și verificări.

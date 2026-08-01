@@ -656,3 +656,13 @@ Status: ✅ implementat în v2.12.447.
 | Contabilitate | Alertele totale, noi, citite/în lucru și implementate sunt vizibile înainte de lista tehnică. |
 
 Status: ✅ implementat în v2.12.448.
+
+## Probleme remediate în UPDATE 469 — Flux simplu ANAF / e-Factura
+
+| Zonă | Remediere |
+| --- | --- |
+| ANAF / e-Factura | Modulul afișează fluxul partener → factură → XML/SPV → recipisă → conectare SPV. |
+| UX | Utilizatorul vede primul pas recomandat: caută CIF, creează factură, vezi drafturi, descarcă XML sau arhivează recipisa. |
+| Contabilitate | Partenerii, facturile, drafturile/validatele, trimisele SPV și starea conexiunii SPV sunt vizibile înainte de taburile tehnice. |
+
+Status: ✅ implementat în v2.12.449.

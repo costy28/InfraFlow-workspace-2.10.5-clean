@@ -48,6 +48,138 @@ function roiNumber(n) {
   return Number(n || 0).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function buildAnafFlow({ summary, showLookup, showInvoices, showPartners, showSpv, createInvoice }) {
+  const steps = [
+    {
+      key: 'partner',
+      title: 'Verifică partenerul',
+      detail: summary.partners
+        ? `${summary.partners} parteneri sunt salvați din verificări CIF.`
+        : 'Caută CIF/CUI înainte de facturare, ca datele să nu fie scrise manual greșit.',
+      status: summary.partners ? 'date' : 'start',
+      tone: summary.partners ? 'success' : 'warning',
+      active: summary.partners > 0,
+      onClick: showLookup,
+    },
+    {
+      key: 'draft',
+      title: 'Pregătește factura',
+      detail: summary.invoices
+        ? `${summary.invoices} facturi e-Factura în anul filtrat; ${summary.draft} drafturi.`
+        : 'Creează factura din datele partenerului sau din factura contabilă de ieșire.',
+      status: summary.draft ? 'draft' : summary.invoices ? 'ok' : 'de creat',
+      tone: summary.draft ? 'warning' : summary.invoices ? 'success' : 'info',
+      active: summary.invoices > 0 && !summary.draft,
+      onClick: summary.invoices ? showInvoices : createInvoice,
+    },
+    {
+      key: 'xml',
+      title: 'Descarcă XML / trimite',
+      detail: summary.validated
+        ? `${summary.validated} facturi validate pot fi descărcate ca XML și trimise în SPV.`
+        : 'Validează factura înainte de XML, ca documentul trimis să fie controlat.',
+      status: summary.validated ? 'de trimis' : 'control',
+      tone: summary.validated ? 'warning' : 'info',
+      active: summary.validated === 0 && summary.invoices > 0,
+      onClick: showInvoices,
+    },
+    {
+      key: 'receipt',
+      title: 'Arhivează recipisa',
+      detail: summary.sent
+        ? `${summary.sent} facturi sunt marcate trimise; atașează răspunsul SPV.`
+        : summary.accepted
+          ? `${summary.accepted} facturi au răspuns acceptat.`
+          : 'După upload în SPV, atașează recipisa și marchează acceptată/respinsă.',
+      status: summary.sent ? 'așteaptă' : summary.accepted ? 'acceptate' : 'recipisă',
+      tone: summary.sent ? 'warning' : summary.accepted ? 'success' : 'info',
+      active: summary.sent === 0 && summary.accepted > 0,
+      onClick: showInvoices,
+    },
+    {
+      key: 'spv',
+      title: 'Conectare SPV',
+      detail: summary.spvConfigured
+        ? summary.spvAuthorized ? 'SPV este configurat și autorizat pentru pașii următori.' : 'SPV este configurat, dar autorizarea nu este finalizată.'
+        : 'Pentru automatizare viitoare, configurează aplicația ANAF. Manualul XML rămâne disponibil.',
+      status: summary.spvAuthorized ? 'activ' : summary.spvConfigured ? 'configurat' : 'manual',
+      tone: summary.spvAuthorized ? 'success' : summary.spvConfigured ? 'warning' : 'neutral',
+      active: summary.spvAuthorized,
+      onClick: showSpv,
+    },
+  ]
+
+  if (!summary.partners) {
+    return {
+      badge: 'Start',
+      tone: 'warning',
+      title: 'Începe cu verificarea partenerului',
+      description: 'Pentru e-Factura, cea mai bună scurtătură este să aduci datele din CIF/CUI și abia apoi să pregătești factura.',
+      primaryLabel: 'Caută CIF/CUI',
+      primaryAction: showLookup,
+      steps,
+    }
+  }
+
+  if (!summary.invoices) {
+    return {
+      badge: 'Pregătire',
+      tone: 'info',
+      title: 'Ai parteneri, urmează prima factură',
+      description: 'Creează factura e-Factura sau pregătește-o din factura contabilă de ieșire. XML-ul trebuie să plece doar după validare.',
+      primaryLabel: 'Factură nouă',
+      primaryAction: createInvoice,
+      steps,
+    }
+  }
+
+  if (summary.draft) {
+    return {
+      badge: 'Drafturi',
+      tone: 'warning',
+      title: `${summary.draft} facturi sunt încă draft`,
+      description: 'Completează liniile, verifică TVA-ul și validează factura înainte de generarea XML.',
+      primaryLabel: 'Vezi drafturi',
+      primaryAction: () => showInvoices('draft'),
+      steps,
+    }
+  }
+
+  if (summary.validated) {
+    return {
+      badge: 'XML',
+      tone: 'warning',
+      title: `${summary.validated} facturi validate așteaptă XML/SPV`,
+      description: 'Descarcă XML-ul, încarcă în SPV sau marchează factura ca trimisă dacă upload-ul a fost făcut manual.',
+      primaryLabel: 'Vezi validate',
+      primaryAction: () => showInvoices('validata'),
+      steps,
+    }
+  }
+
+  if (summary.sent) {
+    return {
+      badge: 'Recipise',
+      tone: 'warning',
+      title: `${summary.sent} facturi așteaptă răspuns SPV`,
+      description: 'Atașează recipisa primită din SPV și marchează documentul acceptat sau respins.',
+      primaryLabel: 'Vezi trimise',
+      primaryAction: () => showInvoices('trimisa_spv'),
+      steps,
+    }
+  }
+
+  return {
+    badge: 'La zi',
+    tone: 'success',
+    title: 'Fluxul e-Factura este la zi',
+    description: 'Facturile filtrate nu au pași evidenți blocați. Poți verifica partenerii, SPV-ul sau dosarul fiscal.',
+    primaryLabel: summary.spvAuthorized ? 'Vezi facturi' : 'Verifică SPV',
+    primaryAction: summary.spvAuthorized ? showInvoices : showSpv,
+    steps,
+  }
+}
+
 export default function AnafPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState(tabs[0])
@@ -154,6 +286,14 @@ export default function AnafPage() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, filterStatus, filterYear])
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      loadInvoices()
+      loadPartners()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     api.get('/anaf/settings')
@@ -294,6 +434,29 @@ export default function AnafPage() {
 
   const totalFaraTVA = useMemo(() => invForm.linii.reduce((s, l) => s + (l.valoareFaraTVA || 0), 0), [invForm.linii])
   const totalTVA = useMemo(() => invForm.linii.reduce((s, l) => s + (l.valoareTVA || 0), 0), [invForm.linii])
+  const flowSummary = useMemo(() => ({
+    partners: partners.length,
+    invoices: invoices.length,
+    draft: invoices.filter(invoice => invoice.status === 'draft').length,
+    validated: invoices.filter(invoice => invoice.status === 'validata').length,
+    sent: invoices.filter(invoice => invoice.status === 'trimisa_spv').length,
+    accepted: invoices.filter(invoice => invoice.status === 'acceptata').length,
+    rejected: invoices.filter(invoice => invoice.status === 'respinsa').length,
+    spvConfigured: Boolean(spv.configured),
+    spvAuthorized: Boolean(spv.authorized),
+  }), [partners.length, invoices, spv.configured, spv.authorized])
+  function showInvoices(status = '') {
+    setFilterStatus(status)
+    setActiveTab(tabs[1])
+  }
+  const anafFlow = buildAnafFlow({
+    summary: flowSummary,
+    showLookup: () => setActiveTab(tabs[0]),
+    showInvoices,
+    showPartners: () => setActiveTab(tabs[2]),
+    showSpv: () => setActiveTab(tabs[3]),
+    createInvoice: () => { setActiveTab(tabs[1]); openNewInvoice() },
+  })
 
   return (
     <div className="grid gap-4">
@@ -313,6 +476,70 @@ export default function AnafPage() {
           <button onClick={() => setError('')}><X size={14} /></button>
         </div>
       )}
+
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge tone={anafFlow.tone}>{anafFlow.badge}</Badge>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Flux e-Factura simplificat</span>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">{anafFlow.title}</h3>
+            <p className="mt-1 max-w-4xl text-sm text-slate-500">{anafFlow.description}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setActiveTab(tabs[2])}>Parteneri</Button>
+            <Button onClick={anafFlow.primaryAction}>{anafFlow.primaryLabel}</Button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-5">
+          <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Parteneri</div>
+            <div className="mt-1 font-semibold text-slate-900">{flowSummary.partners}</div>
+          </div>
+          <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Facturi</div>
+            <div className="mt-1 font-semibold text-slate-900">{flowSummary.invoices}</div>
+          </div>
+          <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Draft / validate</div>
+            <div className="mt-1 font-semibold text-slate-900">{flowSummary.draft} / {flowSummary.validated}</div>
+          </div>
+          <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Trimise SPV</div>
+            <div className="mt-1 font-semibold text-slate-900">{flowSummary.sent}</div>
+          </div>
+          <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">SPV</div>
+            <div className="mt-1"><Badge tone={flowSummary.spvAuthorized ? 'success' : flowSummary.spvConfigured ? 'warning' : 'neutral'}>{flowSummary.spvAuthorized ? 'activ' : flowSummary.spvConfigured ? 'configurat' : 'manual'}</Badge></div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-5">
+          {anafFlow.steps.map((step, index) => (
+            <button
+              type="button"
+              key={step.key}
+              onClick={step.onClick}
+              className={`rounded-[var(--radius-panel)] border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                step.active
+                  ? 'border-emerald-200 bg-emerald-50'
+                  : step.tone === 'warning'
+                    ? 'border-amber-200 bg-amber-50'
+                    : 'border-slate-200 bg-white'
+              }`}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary-700 text-xs font-bold text-white">{index + 1}</span>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <div className="font-semibold text-slate-900">{step.title}</div>
+              <div className="mt-1 text-xs leading-5 text-slate-600">{step.detail}</div>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       {/* Tabs */}
       <Card>

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.448",
+  "version": "2.12.449",
   "date": "2026-08-01",
-  "changelog": "## v2.12.448 - 2026-08-01\n### Flux simplu Alerte legislative\n- Pagina Alerte legislative afișează un panou ghidat pentru preluare alerte noi, impact fiscal, declarații și audit.\n- Operatorul vede imediat alertele totale, noi, citite și implementate, cu recomandarea următoarei acțiuni.\n- Alertele pot fi marcate citite sau implementate direct din lista de lucru, folosind endpointurile existente.\n- Fluxul trimite rapid către Centrul fiscal, Declarații diverse, Audit fiscal sau Închidere lună."
+  "changelog": "## v2.12.449 - 2026-08-01\n### Flux simplu ANAF / e-Factura\n- Modulul ANAF afișează un panou ghidat pentru verificare partener, pregătire factură, XML/SPV, recipisă și conectare SPV.\n- Operatorul vede imediat partenerii, facturile, drafturile, validatele, trimisele SPV și starea conexiunii SPV.\n- Panoul recomandă automat următoarea acțiune: caută CIF, creează factură, vezi drafturi, descarcă XML sau arhivează recipisa.\n- Fluxul păstrează operarea manuală XML/SPV, dar pregătește interfața pentru automatizarea SPV viitoare."
 }
