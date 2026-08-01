@@ -446,3 +446,13 @@ Status: ✅ implementat în v2.12.426.
 | UX | Operatorul vede următorul blocaj operațional fără să intre manual în fiecare subtab. |
 
 Status: ✅ implementat în v2.12.427.
+
+## Probleme remediate în UPDATE 448 — Asistent discret Contabilitate
+
+| Zonă | Remediere |
+| --- | --- |
+| Contabilitate | Dashboard-ul afișează următorul pas al lunii din verificări, reconciliere, alerte și închidere. |
+| UX | Operatorul vede imediat dacă trebuie să curețe baza, să rezolve documente sau să verifice balanța. |
+| Operare | Pașii ghidați reduc căutarea prin submeniuri și păstrează controalele existente vizibile. |
+
+Status: ✅ implementat în v2.12.428.

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.428 - 2026-08-01
+
+## Asistent discret Contabilitate
+
+- Dashboard-ul contabil afișează un asistent compact pentru verificări de bază, reconciliere lunară, alerte legislative și închiderea perioadei.
+- Asistentul calculează următorul pas din datele reale ale lunii: configurări lipsă, documente draft, resturi, note dezechilibrate sau luna pregătită pentru balanță.
+- Pașii ghidați duc direct la zona relevantă: plan de conturi, registru jurnal, balanță sau închidere lună.
+- Indicatorii rapizi păstrează interfața contabilă mai ușor de urmărit fără să ascundă controalele existente.
+
 # v2.12.427 - 2026-07-31
 
 ## Asistent discret Mecanizare + hotfix Inbox HR

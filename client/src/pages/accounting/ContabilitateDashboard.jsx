@@ -38,6 +38,91 @@ export function ContabilitateDashboard() {
     ].slice(0, 12)
   }, [reconciliation])
 
+  const accountingAssistant = useMemo(() => {
+    const failedChecks = (health?.checks || []).filter(check => !check.ok)
+    const urgentIssue = actionableIssues[0]
+    const issueGroups = actionableIssues.reduce((acc, issue) => {
+      acc[issue.group] = (acc[issue.group] || 0) + 1
+      return acc
+    }, {})
+    const groupSummary = Object.entries(issueGroups)
+      .map(([group, count]) => `${group}: ${count}`)
+      .slice(0, 4)
+
+    let primary = {
+      tone: 'success',
+      title: 'Luna arată curat pentru controlul de bază.',
+      text: 'Poți verifica balanța și apoi pregăti închiderea perioadei.',
+      to: `/contabilitate/balanta?luna=${month}`,
+      label: 'Verifică balanța'
+    }
+
+    if (!summary && !health && !reconciliation) {
+      primary = {
+        tone: 'info',
+        title: 'Încarc verificările contabile ale lunii.',
+        text: 'Asistentul va afișa primul blocaj după ce se termină încărcarea.',
+        to: '/contabilitate',
+        label: 'Dashboard'
+      }
+    } else if (failedChecks.length) {
+      const first = failedChecks[0]
+      primary = {
+        tone: 'warning',
+        title: first.label || 'Date de bază de verificat',
+        text: first.message || 'Există nomenclatoare sau configurări care trebuie curățate înainte de documente.',
+        to: first.link || '/contabilitate/plan-conturi',
+        label: 'Rezolvă verificarea'
+      }
+    } else if (urgentIssue) {
+      primary = {
+        tone: urgentIssue.kind === 'unbalanced_journal' ? 'danger' : 'warning',
+        title: urgentIssue.group,
+        text: urgentIssue.action,
+        to: urgentIssue.link || `/contabilitate/inchidere-luna?luna=${month}`,
+        label: 'Deschide problema'
+      }
+    } else if (summary?.alertsNew) {
+      primary = {
+        tone: 'warning',
+        title: `${summary.alertsNew} alerte legislative noi`,
+        text: 'Verifică alertele înainte de validări fiscale sau închiderea lunii.',
+        to: '/contabilitate/alerte',
+        label: 'Vezi alertele'
+      }
+    }
+
+    return {
+      primary,
+      counts: [
+        { label: 'Verificări de bază', value: failedChecks.length ? `${failedChecks.length} de rezolvat` : 'OK', tone: failedChecks.length ? 'warning' : 'success' },
+        { label: 'Probleme lunare', value: actionableIssues.length || '0', tone: actionableIssues.length ? 'warning' : 'success' },
+        { label: 'Status reconciliere', value: reconciliation?.status || 'în lucru', tone: reconciliation?.status === 'ok' ? 'success' : reconciliation?.status === 'danger' ? 'danger' : 'warning' },
+        { label: 'Alerte legislative', value: summary?.alertsNew || 0, tone: summary?.alertsNew ? 'warning' : 'success' }
+      ],
+      steps: [
+        {
+          label: '1. Curăță baza',
+          text: failedChecks.length ? failedChecks[0]?.message || 'Rezolvă verificările de bază.' : 'Planul de conturi, partenerii și setările lunii sunt în regulă.',
+          to: failedChecks[0]?.link || '/contabilitate/plan-conturi',
+          done: !failedChecks.length
+        },
+        {
+          label: '2. Rezolvă documentele',
+          text: actionableIssues.length ? groupSummary.join(' · ') : 'Nu sunt facturi, trezorerii sau note cu blocaje evidente.',
+          to: urgentIssue?.link || `/contabilitate/registru-jurnal?luna=${month}`,
+          done: !actionableIssues.length
+        },
+        {
+          label: '3. Închide luna',
+          text: !failedChecks.length && !actionableIssues.length ? 'Poți merge la controlul final al perioadei.' : 'Închiderea devine disponibilă logic după pașii de mai sus.',
+          to: `/contabilitate/inchidere-luna?luna=${month}`,
+          done: !failedChecks.length && !actionableIssues.length
+        }
+      ]
+    }
+  }, [actionableIssues, health, month, reconciliation, summary])
+
   function issueActionMenu(issue) {
     const treasuryBase = `/contabilitate/trezorerie?luna=${month}`
     if (issue.kind === 'open_supplier') {
@@ -92,6 +177,44 @@ export function ContabilitateDashboard() {
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
       <Card>
         <Input label="Luna" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Asistent contabil</div>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">{accountingAssistant.primary.title}</h3>
+            <p className="mt-1 text-sm text-slate-600">{accountingAssistant.primary.text}</p>
+          </div>
+          <Link
+            className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] bg-primary-700 px-[var(--control-px)] text-sm font-semibold text-white shadow-sm transition hover:bg-primary-800"
+            to={accountingAssistant.primary.to}
+          >
+            {accountingAssistant.primary.label}
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {accountingAssistant.counts.map(item => (
+            <div key={item.label} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-xs text-slate-500">{item.label}</div>
+              <div className="mt-1"><Badge tone={item.tone}>{item.value}</Badge></div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {accountingAssistant.steps.map(step => (
+            <Link
+              key={step.label}
+              to={step.to}
+              className={`rounded-md border p-3 transition hover:-translate-y-0.5 hover:shadow-sm ${step.done ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-semibold text-slate-900">{step.label}</div>
+                <Badge tone={step.done ? 'success' : 'warning'}>{step.done ? 'OK' : 'De lucru'}</Badge>
+              </div>
+              <div className="mt-2 text-xs text-slate-600">{step.text}</div>
+            </Link>
+          ))}
+        </div>
       </Card>
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         {[

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.427",
-  "date": "2026-07-31",
-  "changelog": "## v2.12.427 - 2026-07-31\n### Asistent discret Mecanizare + hotfix Inbox HR\n- Modulul Mecanizare/Parc & Resurse afișează un asistent compact pentru cereri, planificări, bonuri, alimentări PIUSI, intervenții și scadențe.\n- Asistentul calculează următorul pas operațional și oferă indicatori rapizi către zonele relevante.\n- Inbox HR nu mai afișează două butoane identice „Încarcă document” pentru aceeași sarcină de dosar.\n- Detaliile operaționale sunt pliabile pentru o interfață mai aerisită."
+  "version": "2.12.428",
+  "date": "2026-08-01",
+  "changelog": "## v2.12.428 - 2026-08-01\n### Asistent discret Contabilitate\n- Dashboard-ul contabil afișează un asistent compact pentru verificări de bază, reconciliere lunară, alerte legislative și închiderea perioadei.\n- Asistentul calculează următorul pas din datele reale ale lunii: configurări lipsă, documente draft, resturi, note dezechilibrate sau luna pregătită pentru balanță.\n- Pașii ghidați duc direct la zona relevantă: plan de conturi, registru jurnal, balanță sau închidere lună.\n- Indicatorii rapizi păstrează interfața contabilă mai ușor de urmărit fără să ascundă controalele existente."
 }

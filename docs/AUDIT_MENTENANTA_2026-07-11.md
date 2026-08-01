@@ -1366,3 +1366,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Asistentul calculează următorul pas pentru cereri, planificări, bonuri, PIUSI, intervenții și scadențe;
 - `client/src/pages/modules/hr/HRInboxPanel.jsx` — ✅ reparată dublarea butonului „Încarcă document” când acțiunea principală era deja aceeași;
 - `updates/UPDATE_447_asistent_discret_mecanizare_hotfix_hr.md` — ✅ documentație update și verificări.
+
+### UPDATE 448 — Asistent discret Contabilitate
+
+- `client/src/pages/accounting/ContabilitateDashboard.jsx` — ✅ adăugat asistent compact pe dashboard-ul contabil;
+- Asistentul calculează următorul pas din verificări de bază, reconciliere, alerte legislative și statusul lunii;
+- Mini-fluxul curățare bază → documente → închidere lună duce direct către zona relevantă;
+- `updates/UPDATE_448_asistent_discret_contabilitate.md` — ✅ documentație update și verificări.
