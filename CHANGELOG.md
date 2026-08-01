@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.450 - 2026-08-01
+
+## Flux simplu Controlling
+
+- Modulul Controlling afișează un panou ghidat pentru centre, obiecte legate, cheltuieli, buget vs real și raport.
+- Panoul recomandă automat următoarea acțiune: adaugă centru, leagă obiecte, adaugă cheltuieli, verifică depășiri sau generează raport.
+- Sunt afișate explicit centrele, obiectele asociate, bugetul lunar, costurile filtrate și costurile automate.
+- Fluxul păstrează funcțiile existente, dar face analiza costurilor mai ușor de urmărit.
+
 # v2.12.449 - 2026-08-01
 
 ## Flux simplu ANAF / e-Factura

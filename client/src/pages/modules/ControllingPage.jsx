@@ -88,6 +88,124 @@ function CenterNode({ center, expanded, onToggle, onEdit, onDisable, onAssign })
   )
 }
 
+function buildControllingFlow({ summary, showCenters, showExpenses, showBudget, showAutoCosts, showReports, addCenter, addExpense, runReport }) {
+  const steps = [
+    {
+      key: 'centers',
+      title: 'Definește centrele',
+      detail: summary.centerCount
+        ? `${summary.centerCount} centre active, cu buget total lunar ${formatMoney(summary.budgetTotal)}.`
+        : 'Creează primul centru de cost ca să poți urmări cheltuielile pe responsabilitate.',
+      status: summary.centerCount ? 'date' : 'start',
+      tone: summary.centerCount ? 'success' : 'warning',
+      active: summary.centerCount > 0,
+      onClick: summary.centerCount ? showCenters : addCenter,
+    },
+    {
+      key: 'links',
+      title: 'Leagă obiectele',
+      detail: summary.objectLinks
+        ? `${summary.objectLinks} departamente, utilaje, vehicule sau proiecte sunt legate la centre.`
+        : 'Asociază departamente, utilaje, vehicule sau proiecte ca să nu alegi manual centrul de fiecare dată.',
+      status: summary.objectLinks ? 'legat' : 'de legat',
+      tone: summary.objectLinks ? 'success' : 'warning',
+      active: summary.objectLinks > 0,
+      onClick: showCenters,
+    },
+    {
+      key: 'expenses',
+      title: 'Încarcă cheltuieli',
+      detail: summary.expenseCount
+        ? `${summary.expenseCount} cheltuieli în filtrul curent, total ${formatMoney(summary.expenseTotal)}.`
+        : 'Adaugă cheltuiala manuală sau lasă facturile/fluxurile să o trimită automat către controlling.',
+      status: summary.expenseCount ? 'costuri' : 'gol',
+      tone: summary.expenseCount ? 'success' : 'info',
+      active: summary.expenseCount > 0,
+      onClick: summary.expenseCount ? showExpenses : addExpense,
+    },
+    {
+      key: 'budget',
+      title: 'Compară buget vs real',
+      detail: summary.overBudgetCount
+        ? `${summary.overBudgetCount} centre/categorii depășesc bugetul; verifică diferențele înainte de raport.`
+        : `Realizat ${summary.realPercent}% din bugetul lunii în filtrul curent.`,
+      status: summary.overBudgetCount ? 'depășiri' : 'control',
+      tone: summary.overBudgetCount ? 'danger' : 'success',
+      active: summary.overBudgetCount === 0 && summary.centerCount > 0,
+      onClick: showBudget,
+    },
+    {
+      key: 'report',
+      title: 'Scoate raportul',
+      detail: summary.autoCostTotal
+        ? `Costuri automate detectate: ${formatMoney(summary.autoCostTotal)}. Pregătește documentul de centre sau execuția.`
+        : 'Când centrele și cheltuielile sunt curate, generează documentul/raportul de execuție.',
+      status: summary.autoCostTotal ? 'automat' : 'raport',
+      tone: summary.autoCostTotal ? 'info' : 'neutral',
+      active: summary.expenseCount > 0 || summary.autoCostTotal > 0,
+      onClick: summary.autoCostTotal ? showAutoCosts : showReports,
+    },
+  ]
+
+  if (!summary.centerCount) {
+    return {
+      badge: 'Start',
+      tone: 'warning',
+      title: 'Începe cu primul centru de cost',
+      description: 'Controlling-ul devine simplu când fiecare cheltuială are o destinație clară: departament, utilaj, vehicul, proiect sau lucrare.',
+      primaryLabel: 'Adaugă centru',
+      primaryAction: addCenter,
+      steps,
+    }
+  }
+
+  if (!summary.objectLinks) {
+    return {
+      badge: 'Asocieri',
+      tone: 'warning',
+      title: 'Centrele există, dar nu au obiecte legate',
+      description: 'Leagă departamentele, utilajele, vehiculele și proiectele la centre ca raportarea să vină automat din module.',
+      primaryLabel: 'Vezi centre cost',
+      primaryAction: showCenters,
+      steps,
+    }
+  }
+
+  if (summary.overBudgetCount) {
+    return {
+      badge: 'Depășiri',
+      tone: 'danger',
+      title: `${summary.overBudgetCount} centre sau categorii au depășit bugetul`,
+      description: 'Verifică rapid diferențele buget-real și apoi mergi pe cheltuieli ca să vezi sursa depășirii.',
+      primaryLabel: 'Buget vs Real',
+      primaryAction: showBudget,
+      steps,
+    }
+  }
+
+  if (!summary.expenseCount && !summary.autoCostTotal) {
+    return {
+      badge: 'Fără costuri',
+      tone: 'info',
+      title: 'Centrele sunt pregătite, dar luna nu are costuri încă',
+      description: 'Adaugă o cheltuială manuală sau verifică sursele automate înainte de raportare.',
+      primaryLabel: 'Adaugă cheltuială',
+      primaryAction: addExpense,
+      steps,
+    }
+  }
+
+  return {
+    badge: 'La zi',
+    tone: 'success',
+    title: 'Controlling-ul lunii este pregătit pentru analiză',
+    description: 'Ai centre, alocări și costuri. Următorul pas util este raportul de execuție sau documentul de centre de cost/profit.',
+    primaryLabel: 'Raport execuție',
+    primaryAction: runReport,
+    steps,
+  }
+}
+
 export default function ControllingPage() {
   const [activeTab, setActiveTab] = useState('Centre cost')
   const [centers, setCenters] = useState([])
@@ -181,6 +299,39 @@ export default function ControllingPage() {
     if (type === 'vehicle') return allAssignmentOptions.filter(item => item.type === 'vehicle')
     return allAssignmentOptions.filter(item => item.type === 'equipment' || !['department', 'project', 'vehicle'].includes(item.type))
   }
+
+  const flowSummary = useMemo(() => {
+    const budgetTotal = flatCenters.reduce((sum, center) => sum + Number(center.buget_lunar || center.buget || 0), 0)
+    const realTotal = report.reduce((sum, row) => sum + Number(row.real || 0), 0)
+    const reportBudgetTotal = report.reduce((sum, row) => sum + Number(row.buget || 0), 0)
+    const objectLinks = flatCenters.reduce((sum, center) => sum + Number((center.obiecte || []).length), 0)
+    const expenseTotal = filteredEntries.reduce((sum, entry) => sum + Number(entry.valoare || entry.amount || 0), 0)
+    const overBudgetCount = report.filter(row => Number(row.procent_realizat || percentage(row.real, row.buget)) > 100).length
+    const autoCostTotal = Number(autoCosts?.totals?.cost_total || 0)
+    return {
+      centerCount: flatCenters.length,
+      budgetTotal,
+      realTotal,
+      objectLinks,
+      expenseCount: filteredEntries.length,
+      expenseTotal,
+      overBudgetCount,
+      autoCostTotal,
+      realPercent: reportBudgetTotal > 0 ? Number(((realTotal / reportBudgetTotal) * 100).toFixed(1)) : 0,
+    }
+  }, [flatCenters, report, filteredEntries, autoCosts])
+
+  const controllingFlow = buildControllingFlow({
+    summary: flowSummary,
+    showCenters: () => setActiveTab('Centre cost'),
+    showExpenses: () => setActiveTab('Cheltuieli'),
+    showBudget: () => setActiveTab('Buget vs Real'),
+    showAutoCosts: () => setActiveTab('Cost automat'),
+    showReports: () => setActiveTab('Rapoarte'),
+    addCenter: () => openCenterModal(),
+    addExpense: () => setModalOpen(true),
+    runReport: () => { setActiveTab('Rapoarte'); loadExecutionReport() },
+  })
 
   async function runConfirmAction(reason) {
     if (!confirmAction?.run) return
@@ -331,6 +482,64 @@ export default function ControllingPage() {
       </div>
 
       {error ? <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</div> : null}
+
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge tone={controllingFlow.tone}>{controllingFlow.badge}</Badge>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Flux controlling simplificat</span>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">{controllingFlow.title}</h3>
+            <p className="mt-1 max-w-4xl text-sm text-slate-500">{controllingFlow.description}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setActiveTab('Buget vs Real')}>Buget vs Real</Button>
+            <Button onClick={controllingFlow.primaryAction}>{controllingFlow.primaryLabel}</Button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-5">
+          {[
+            ['Centre', flowSummary.centerCount],
+            ['Obiecte legate', flowSummary.objectLinks],
+            ['Buget lunar', formatMoney(flowSummary.budgetTotal)],
+            ['Costuri filtrate', formatMoney(flowSummary.expenseTotal || flowSummary.realTotal)],
+            ['Cost automat', formatMoney(flowSummary.autoCostTotal)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+              <div className="mt-1 break-words font-semibold text-slate-900">{value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-5">
+          {controllingFlow.steps.map((step, index) => (
+            <button
+              type="button"
+              key={step.key}
+              onClick={step.onClick}
+              className={`rounded-[var(--radius-panel)] border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                step.active
+                  ? 'border-emerald-200 bg-emerald-50'
+                  : step.tone === 'danger'
+                    ? 'border-rose-200 bg-rose-50'
+                    : step.tone === 'warning'
+                      ? 'border-amber-200 bg-amber-50'
+                      : 'border-slate-200 bg-white'
+              }`}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary-700 text-xs font-bold text-white">{index + 1}</span>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <div className="font-semibold text-slate-900">{step.title}</div>
+              <div className="mt-1 text-xs leading-5 text-slate-600">{step.detail}</div>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       <Card>
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">

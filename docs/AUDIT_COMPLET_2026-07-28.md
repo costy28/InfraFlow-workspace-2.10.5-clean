@@ -666,3 +666,13 @@ Status: ✅ implementat în v2.12.448.
 | Contabilitate | Partenerii, facturile, drafturile/validatele, trimisele SPV și starea conexiunii SPV sunt vizibile înainte de taburile tehnice. |
 
 Status: ✅ implementat în v2.12.449.
+
+## Probleme remediate în UPDATE 470 — Flux simplu Controlling
+
+| Zonă | Remediere |
+| --- | --- |
+| Controlling | Modulul afișează fluxul centre → obiecte legate → cheltuieli → buget vs real → raport. |
+| UX | Utilizatorul vede primul pas recomandat: adaugă centru, leagă obiecte, adaugă cheltuieli, verifică depășiri sau generează raport. |
+| Contabilitate | Centrele, obiectele asociate, bugetul lunar, costurile filtrate și costurile automate sunt vizibile înainte de taburile tehnice. |
+
+Status: ✅ implementat în v2.12.450.

@@ -1522,3 +1522,11 @@ Următorul pas de stabilizare: `2.12.300`
 - Indicatorii rapizi arată partenerii, facturile, drafturile/validatele, trimisele SPV și starea conexiunii SPV;
 - Fluxul păstrează modul manual XML/SPV și pregătește interfața pentru automatizarea SPV viitoare;
 - `updates/UPDATE_469_flux_simplu_anaf_efactura.md` — ✅ documentație update și verificări.
+
+### UPDATE 470 — Flux simplu Controlling
+
+- `client/src/pages/modules/ControllingPage.jsx` — ✅ adăugat panou ghidat pentru controlling;
+- Panoul recomandă automat adăugarea primului centru, legarea obiectelor, încărcarea cheltuielilor, verificarea depășirilor sau generarea raportului;
+- Indicatorii rapizi arată centrele, obiectele legate, bugetul lunar, costurile filtrate și costurile automate;
+- Fluxul păstrează taburile existente, dar explică ordinea naturală centre → alocări → costuri → buget vs real → raport;
+- `updates/UPDATE_470_flux_simplu_controlling.md` — ✅ documentație update și verificări.

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.449",
+  "version": "2.12.450",
   "date": "2026-08-01",
-  "changelog": "## v2.12.449 - 2026-08-01\n### Flux simplu ANAF / e-Factura\n- Modulul ANAF afișează un panou ghidat pentru verificare partener, pregătire factură, XML/SPV, recipisă și conectare SPV.\n- Operatorul vede imediat partenerii, facturile, drafturile, validatele, trimisele SPV și starea conexiunii SPV.\n- Panoul recomandă automat următoarea acțiune: caută CIF, creează factură, vezi drafturi, descarcă XML sau arhivează recipisa.\n- Fluxul păstrează operarea manuală XML/SPV, dar pregătește interfața pentru automatizarea SPV viitoare."
+  "changelog": "## v2.12.450 - 2026-08-01\n### Flux simplu Controlling\n- Modulul Controlling afișează un panou ghidat pentru centre, obiecte legate, cheltuieli, buget vs real și raport.\n- Operatorul vede imediat centrele, obiectele asociate, bugetul lunar, costurile filtrate și costurile automate.\n- Panoul recomandă automat următoarea acțiune: adaugă centru, leagă obiecte, adaugă cheltuieli, verifică depășiri sau generează raport.\n- Fluxul păstrează funcțiile existente, dar face analiza costurilor mai ușor de urmărit."
 }
