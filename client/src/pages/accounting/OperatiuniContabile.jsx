@@ -7,7 +7,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/forms/Input'
 import Modal from '../../components/ui/Modal'
 import { formatMoney } from '../../utils/format'
-import { AccountingShell, DropdownMenu, Table, currentMonth, today } from './accounting-shared'
+import { AccountingShell, DropdownMenu, Info, Table, currentMonth, today } from './accounting-shared'
 
 function defaultAsset() {
   return {
@@ -52,6 +52,30 @@ export function OperatiuniContabile() {
   const [confirmLoading, setConfirmLoading] = useState(false)
   const selectedReceiptRows = useMemo(() => (inventoryReconciliation.rows || []).filter(row => selectedReceipts.includes(row.id)), [inventoryReconciliation.rows, selectedReceipts])
   const selectedReceiptTotal = useMemo(() => selectedReceiptRows.reduce((sum, row) => sum + Number(row.total || 0), 0), [selectedReceiptRows])
+  const operationsSummary = useMemo(() => buildOperationsSummary({
+    stock,
+    annual,
+    reconciliation,
+    valuation,
+    carryforward,
+    inventoryReconciliation,
+    integrity,
+    status,
+    selectedReceipts,
+  }), [stock, annual, reconciliation, valuation, carryforward, inventoryReconciliation, integrity, status, selectedReceipts])
+  const operationsFlow = buildOperationsFlow({
+    month,
+    year,
+    summary: operationsSummary,
+    load,
+    openBatchInvoice,
+    syncStock,
+    autoConfirmBank,
+    runDepreciation,
+    closeYear,
+    carryforwardBalances,
+    exportAudit: () => download('/accounting/integrity-audit/export', `Audit_contabil_${month}.xlsx`),
+  })
 
   useEffect(() => { load() }, [month, year])
 
@@ -419,6 +443,58 @@ export function OperatiuniContabile() {
       </Card>
 
       <Card>
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-2 py-1 text-xs font-semibold ${operationsFlow.badgeClass}`}>
+                {operationsFlow.badge}
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Flux simplu operațiuni contabile
+              </span>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">{operationsFlow.title}</h3>
+              <p className="mt-1 text-sm text-slate-600">{operationsFlow.detail}</p>
+            </div>
+            <div className="grid gap-2 md:grid-cols-4">
+              {operationsFlow.steps.map(step => (
+                <div key={step.label} className={`rounded-xl border px-3 py-2 ${step.className}`}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.label}</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{step.value}</div>
+                  <div className="mt-1 text-xs text-slate-500">{step.hint}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 lg:min-w-[230px]">
+            <button
+              className="rounded-[var(--radius-control)] bg-primary-700 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-800 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={operationsFlow.onClick}
+              disabled={operationsFlow.disabled}
+            >
+              {operationsFlow.actionLabel}
+            </button>
+            <button
+              className="rounded-[var(--radius-control)] border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              type="button"
+              onClick={load}
+            >
+              Reîncarcă operațiuni
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <Info label="Recepții nelegate" value={operationsSummary.receiptsPending} />
+        <Info label="Bancă neclasificată" value={operationsSummary.bankUnclassified} />
+        <Info label="Stoc de contabilizat" value={operationsSummary.stockPending} />
+        <Info label="Audit integritate" value={`${operationsSummary.integrityIssues} probleme`} />
+      </div>
+
+      <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="text-base font-semibold">Recepții și facturi furnizor</h3><p className="mt-1 text-sm text-slate-500">Selectează mai multe NIR-uri ale aceluiași furnizor când sunt cuprinse într-o singură factură.</p></div>
           <div className="flex flex-wrap items-center gap-2"><Badge tone={inventoryReconciliation.summary?.discrepancies ? 'warning' : 'success'}>{inventoryReconciliation.summary?.discrepancies || 0} diferențe</Badge><Badge tone={inventoryReconciliation.summary?.pending ? 'warning' : 'success'}>{inventoryReconciliation.summary?.linked || 0}/{inventoryReconciliation.summary?.total || 0} legate</Badge><Button variant="secondary" onClick={openBatchInvoice} disabled={!selectedReceipts.length || busy === 'receipt-batch'}>Factură din selecție ({selectedReceipts.length})</Button></div>
@@ -637,3 +713,209 @@ export function OperatiuniContabile() {
 }
 
 export default OperatiuniContabile
+
+function buildOperationsSummary({
+  stock = {},
+  annual = {},
+  reconciliation = {},
+  valuation = {},
+  carryforward = {},
+  inventoryReconciliation = {},
+  integrity = {},
+  status = {},
+  selectedReceipts = [],
+}) {
+  const receiptRows = inventoryReconciliation.rows || []
+  const bankOperations = reconciliation.operations || []
+  const assets = status.fixed_assets || []
+  return {
+    receiptsTotal: receiptRows.length,
+    receiptsPending: receiptRows.filter(row => !row.linked_invoice).length,
+    receiptDiscrepancies: Number(inventoryReconciliation.summary?.discrepancies || 0),
+    pendingReturns: receiptRows.filter(row => row.pending_return).length,
+    selectedReceipts: selectedReceipts.length,
+    bankUnclassified: bankOperations.filter(row => row.corelare_tip === 'neclasificat').length,
+    bankAutoEligible: Number(reconciliation.summary?.auto_eligible || 0),
+    bankAmbiguous: Number(reconciliation.summary?.ambiguous || 0),
+    stockPending: Number(stock.pending?.length || 0),
+    stockErrors: Number(stock.errors?.length || 0),
+    valuationRows: Number(valuation.rows?.length || 0),
+    valuationErrors: Number(valuation.errors?.length || 0),
+    integrityIssues: Number(integrity.issues?.length || 0),
+    assetsCount: assets.length,
+    depreciationRuns: Number(status.depreciation_runs?.length || 0),
+    annualBlockers: Number(annual.blockers?.length || 0),
+    annualCanClose: Boolean(annual.can_close),
+    carryforwardBlockers: Number(carryforward.blockers?.length || 0),
+    carryforwardCanRun: Boolean(carryforward.can_carryforward),
+  }
+}
+
+function buildOperationsFlow({
+  month,
+  year,
+  summary,
+  load,
+  openBatchInvoice,
+  syncStock,
+  autoConfirmBank,
+  runDepreciation,
+  closeYear,
+  carryforwardBalances,
+  exportAudit,
+}) {
+  const steps = [
+    {
+      label: 'Surse',
+      value: `${summary.receiptsPending} NIR / ${summary.bankUnclassified} bancă`,
+      hint: `${summary.receiptDiscrepancies} diferențe, ${summary.pendingReturns} retururi`,
+      className: summary.receiptsPending || summary.bankUnclassified || summary.receiptDiscrepancies || summary.pendingReturns
+        ? 'border-amber-200 bg-amber-50'
+        : 'border-emerald-200 bg-emerald-50',
+    },
+    {
+      label: 'Stocuri',
+      value: `${summary.stockPending} în așteptare`,
+      hint: `${summary.stockErrors} erori stoc`,
+      className: summary.stockErrors
+        ? 'border-red-200 bg-red-50'
+        : summary.stockPending
+          ? 'border-amber-200 bg-amber-50'
+          : 'border-emerald-200 bg-emerald-50',
+    },
+    {
+      label: 'Control',
+      value: `${summary.integrityIssues} probleme`,
+      hint: `${summary.valuationErrors} erori CMP`,
+      className: summary.integrityIssues || summary.valuationErrors
+        ? 'border-red-200 bg-red-50'
+        : 'border-emerald-200 bg-emerald-50',
+    },
+    {
+      label: 'Închidere',
+      value: year,
+      hint: summary.annualCanClose ? 'an pregătit' : `${summary.annualBlockers} blocaje`,
+      className: summary.annualBlockers
+        ? 'border-amber-200 bg-amber-50'
+        : 'border-slate-200 bg-slate-50',
+    },
+  ]
+
+  if (summary.selectedReceipts) {
+    return {
+      badge: 'selecție NIR',
+      badgeClass: 'bg-blue-100 text-blue-700',
+      title: 'Ai NIR-uri selectate pentru o factură furnizor',
+      detail: 'Finalizează factura din selecție cât timp contextul este clar: același furnizor, aceeași factură, aceeași lună de lucru.',
+      steps,
+      actionLabel: `Factură din selecție (${summary.selectedReceipts})`,
+      onClick: openBatchInvoice,
+    }
+  }
+
+  if (summary.receiptDiscrepancies || summary.pendingReturns) {
+    return {
+      badge: 'atenție NIR',
+      badgeClass: 'bg-amber-100 text-amber-700',
+      title: 'Recepțiile au diferențe sau retururi de rezolvat',
+      detail: 'Verifică legăturile NIR–factură și retururile înainte să mergi mai departe spre rapoarte și închidere.',
+      steps,
+      actionLabel: 'Reîncarcă verificările',
+      onClick: load,
+    }
+  }
+
+  if (summary.stockErrors) {
+    return {
+      badge: 'erori stoc',
+      badgeClass: 'bg-red-100 text-red-700',
+      title: 'Contabilizarea stocurilor are erori',
+      detail: 'Rezolvă conturile, valorile sau mișcările lipsă înainte de generarea notelor contabile din stoc.',
+      steps,
+      actionLabel: 'Reîncarcă verificările',
+      onClick: load,
+    }
+  }
+
+  if (summary.stockPending) {
+    return {
+      badge: 'stocuri',
+      badgeClass: 'bg-amber-100 text-amber-700',
+      title: 'Există mișcări de stoc pregătite pentru note contabile',
+      detail: 'Generează notele din intrări și consumuri ca să ajungă în Registru jurnal și Balanță.',
+      steps,
+      actionLabel: 'Generează note stoc',
+      onClick: syncStock,
+    }
+  }
+
+  if (summary.bankAutoEligible) {
+    return {
+      badge: 'bancă',
+      badgeClass: 'bg-blue-100 text-blue-700',
+      title: 'Există operații bancare care pot fi potrivite automat',
+      detail: 'Confirmă potrivirile sigure, apoi validează operațiile în Trezorerie. Asta reduce munca manuală pe extras.',
+      steps,
+      actionLabel: `Potrivește sigur (${summary.bankAutoEligible})`,
+      onClick: autoConfirmBank,
+    }
+  }
+
+  if (summary.integrityIssues || summary.valuationErrors) {
+    return {
+      badge: 'control',
+      badgeClass: 'bg-red-100 text-red-700',
+      title: 'Auditul contabil are probleme de verificat',
+      detail: 'Descarcă auditul sau verifică lista de probleme înainte de exporturi și închiderea perioadei.',
+      steps,
+      actionLabel: 'Exportă auditul',
+      onClick: exportAudit,
+    }
+  }
+
+  if (summary.assetsCount && !summary.depreciationRuns) {
+    return {
+      badge: 'amortizare',
+      badgeClass: 'bg-amber-100 text-amber-700',
+      title: 'Imobilizările există, verifică amortizarea lunii',
+      detail: 'Calculează amortizarea pentru luna curentă înainte de balanță și închidere.',
+      steps,
+      actionLabel: `Calculează amortizarea ${month}`,
+      onClick: runDepreciation,
+    }
+  }
+
+  if (summary.annualCanClose) {
+    return {
+      badge: 'închidere',
+      badgeClass: 'bg-emerald-100 text-emerald-700',
+      title: 'Anul pare pregătit pentru nota de închidere',
+      detail: 'Poți genera nota anuală după ce luna decembrie și rapoartele sunt verificate.',
+      steps,
+      actionLabel: 'Generează nota anuală',
+      onClick: closeYear,
+    }
+  }
+
+  if (summary.carryforwardCanRun) {
+    return {
+      badge: 'report',
+      badgeClass: 'bg-blue-100 text-blue-700',
+      title: 'Soldurile pot fi reportate în anul următor',
+      detail: 'După închiderea anului, reportarea creează baza pentru perioada următoare.',
+      steps,
+      actionLabel: 'Reportează soldurile',
+      onClick: carryforwardBalances,
+    }
+  }
+
+  return {
+    badge: 'ok',
+    badgeClass: 'bg-emerald-100 text-emerald-700',
+    title: 'Operațiunile contabile nu au blocaje evidente',
+    detail: 'Sursele principale sunt curate pentru filtrul curent. Poți verifica Registru jurnal, Balanța sau exporta auditul pentru dosar.',
+    steps,
+    actionLabel: 'Exportă auditul',
+    onClick: exportAudit,
+  }
+}

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.439 - 2026-08-01
+
+## Flux simplu Operațiuni contabile
+
+- Pagina Operațiuni contabile afișează un panou de control pentru surse, stocuri, audit și închidere.
+- Panoul recomandă automat următoarea acțiune: factură din NIR-uri selectate, generare note stoc, potrivire bancă, amortizare, închidere anuală, report sau export audit.
+- Sunt afișate explicit recepțiile nelegate, banca neclasificată, stocul de contabilizat și problemele de audit.
+- Operatorul vede primul blocaj contabil înainte să intre în cardurile detaliate.
+
 # v2.12.438 - 2026-08-01
 
 ## Flux simplu Registru jurnal

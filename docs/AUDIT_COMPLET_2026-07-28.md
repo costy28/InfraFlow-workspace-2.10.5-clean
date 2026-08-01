@@ -556,3 +556,13 @@ Status: ✅ implementat în v2.12.437.
 | Contabilitate | Total debit, total credit, note stornate și note devalidate sunt vizibile lângă indicatorii existenți. |
 
 Status: ✅ implementat în v2.12.438.
+
+## Probleme remediate în UPDATE 459 — Flux simplu Operațiuni contabile
+
+| Zonă | Remediere |
+| --- | --- |
+| Operațiuni contabile | Pagina afișează fluxul surse → stocuri → control → închidere. |
+| UX | Utilizatorul vede primul pas recomandat: NIR/factură, note stoc, bancă, amortizare, închidere, report sau audit. |
+| Contabilitate | Recepțiile nelegate, banca neclasificată, stocul de contabilizat și auditul sunt vizibile înainte de cardurile detaliate. |
+
+Status: ✅ implementat în v2.12.439.

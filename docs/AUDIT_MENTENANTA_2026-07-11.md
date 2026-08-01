@@ -1443,3 +1443,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat nota manuală, filtrarea drafturilor/devalidatelor, verificarea Balanței sau exportul Excel;
 - Indicatorii rapizi arată total debit, total credit, note stornate și note devalidate;
 - `updates/UPDATE_458_flux_simplu_registru_jurnal.md` — ✅ documentație update și verificări.
+
+### UPDATE 459 — Flux simplu Operațiuni contabile
+
+- `client/src/pages/accounting/OperatiuniContabile.jsx` — ✅ adăugat panou de control pentru operațiuni contabile;
+- Panoul recomandă automat acțiunea următoare: factură din NIR-uri selectate, note stoc, potrivire bancară, amortizare, închidere anuală, report sau audit;
+- Indicatorii rapizi arată recepții nelegate, bancă neclasificată, stoc de contabilizat și probleme de audit;
+- `updates/UPDATE_459_flux_simplu_operatiuni_contabile.md` — ✅ documentație update și verificări.

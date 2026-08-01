@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.438**
-**Versiune în lucru: v2.12.438**
+**Versiune curentă sursă: v2.12.439**
+**Versiune în lucru: v2.12.439**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -291,6 +291,7 @@ Contabilitate / Salarizare
   ✅ Flux simplu Fișă cont: interval → mișcări → sold progresiv → registru/balanță/export (v2.12.436)
   ✅ Flux simplu Profit și pierdere: perioadă → venituri → cheltuieli → rezultat → verificare/export (v2.12.437)
   ✅ Flux simplu Registru jurnal: note → drafturi/devalidate → debit-credit → balanță/export (v2.12.438)
+  ✅ Flux simplu Operațiuni contabile: surse → stocuri → control → închidere → audit/export (v2.12.439)
   ✅ Salarizare internă integrată cu HR, pontaj, plăți și D112 preliminar
   ✅ Confirmări UX Salarizare pentru plăți, stornări și rectificări (v2.12.407)
 
@@ -766,9 +767,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.438
+VERSIUNE CURENTĂ SURSĂ: 2.12.439
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.438 ✅
+UPDATE ZIP CURENT: 2.12.439 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1015,6 +1016,7 @@ UPDATES ÎN LUCRU:
   2.12.436 → UPDATE 456 Flux simplu Fișă cont ✅
   2.12.437 → UPDATE 457 Flux simplu Profit și pierdere ✅
   2.12.438 → UPDATE 458 Flux simplu Registru jurnal ✅
+  2.12.439 → UPDATE 459 Flux simplu Operațiuni contabile ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1509,5 +1511,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.438*
+*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.439*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

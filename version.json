@@ -1,5 +1,5 @@
 {
-  "version": "2.12.438",
+  "version": "2.12.439",
   "date": "2026-08-01",
-  "changelog": "## v2.12.438 - 2026-08-01\n### Flux simplu Registru jurnal\n- Registrul jurnal afișează un panou ghidat pentru luna și filtrul curent: note, drafturi/devalidate și diferență debit-credit.\n- Panoul recomandă automat următoarea acțiune: notă manuală, filtrare drafturi/devalidate, verificare Balanță sau export Excel.\n- Sunt afișate explicit total debit, total credit, note stornate și note devalidate.\n- Operatorul vede imediat dacă registrul poate alimenta rapoartele sau mai are note de lucru."
+  "changelog": "## v2.12.439 - 2026-08-01\n### Flux simplu Operațiuni contabile\n- Pagina Operațiuni contabile afișează un panou de control pentru surse, stocuri, audit și închidere.\n- Panoul recomandă automat următoarea acțiune: factură din NIR-uri selectate, generare note stoc, potrivire bancă, amortizare, închidere anuală, report sau export audit.\n- Sunt afișate explicit recepțiile nelegate, banca neclasificată, stocul de contabilizat și problemele de audit.\n- Operatorul vede primul blocaj contabil înainte să intre în cardurile detaliate."
 }
