@@ -201,6 +201,99 @@ export function Trezorerie() {
         .slice(0, 6)
     }
   }, [openInvoicesIn, openInvoicesOut])
+  const treasuryFlow = useMemo(() => {
+    const drafts = visibleRows.filter(row => row.status === 'draft')
+    const firstDraftWithSuggestion = drafts.find(row => (row.suggested_matches || []).length)
+    const firstDraft = drafts[0]
+    const firstDraftHint = firstDraft ? treasuryValidationHint(firstDraft) : ''
+    const firstAdvance = visibleRows.find(row => row.status === 'validat' && row.corelare_tip === 'avans' && !row.linked_invoice && (row.suggested_matches || []).length)
+    const firstAllocatable = visibleRows.find(row => row.status === 'validat' && row.tert_id && !row.linked_invoice && money(row.available_total ?? row.suma - money(row.allocated_total)) > 0)
+    const firstSupplier = openInvoiceSummary.suppliers[0]
+    const firstClient = openInvoiceSummary.clients[0]
+
+    let next = {
+      title: visibleRows.length ? 'Trezoreria filtrată este curată operațional' : 'Adaugă prima operație de trezorerie',
+      text: visibleRows.length
+        ? 'Nu am găsit drafturi, sugestii sau avansuri de stins în filtrul curent. Poți verifica registrul jurnal sau balanța.'
+        : 'Pornește cu registrul, tipul operației, conturile și suma. Poți salva și valida din același formular.',
+      label: visibleRows.length ? 'Vezi registru jurnal' : 'Operație nouă',
+      to: visibleRows.length ? `/contabilitate/registru-jurnal?luna=${month}` : '',
+      onClick: visibleRows.length ? null : openNew,
+      tone: 'success'
+    }
+
+    if (firstDraftWithSuggestion) {
+      const suggestion = firstDraftWithSuggestion.suggested_matches[0]
+      next = {
+        title: 'Există o potrivire probabilă cu factură',
+        text: `Operația ${firstDraftWithSuggestion.nr_document || firstDraftWithSuggestion.id} poate fi legată de ${suggestion.document}.`,
+        label: 'Leagă factura sugerată',
+        onClick: () => attachSuggestedInvoice(firstDraftWithSuggestion, suggestion),
+        tone: 'info'
+      }
+    } else if (firstDraft && firstDraftHint) {
+      next = {
+        title: 'Primul draft are date lipsă',
+        text: firstDraftHint,
+        label: 'Corectează draftul',
+        onClick: () => openEdit(firstDraft),
+        tone: 'warning'
+      }
+    } else if (firstDraft) {
+      next = {
+        title: `${drafts.length} draft${drafts.length === 1 ? '' : 'uri'} gata de validare`,
+        text: 'Validarea generează nota contabilă și actualizează scadențarul/avansurile.',
+        label: 'Validează primul draft',
+        onClick: () => validate(firstDraft),
+        tone: 'info'
+      }
+    } else if (firstAdvance) {
+      const suggestion = firstAdvance.suggested_matches[0]
+      next = {
+        title: 'Avans de stins cu factură',
+        text: `Avansul ${firstAdvance.nr_document || firstAdvance.id} poate fi stins cu ${suggestion.document}.`,
+        label: 'Stinge avansul',
+        onClick: () => settleAdvance(firstAdvance, suggestion),
+        tone: 'warning'
+      }
+    } else if (firstAllocatable) {
+      next = {
+        title: 'Operație de alocat pe facturi',
+        text: `Suma disponibilă este ${formatMoney(money(firstAllocatable.available_total ?? firstAllocatable.suma - money(firstAllocatable.allocated_total)))}.`,
+        label: 'Alocă pe facturi',
+        onClick: () => openSettlement(firstAllocatable),
+        tone: 'warning'
+      }
+    } else if (firstSupplier) {
+      next = {
+        title: 'Factură furnizor de plătit',
+        text: `${invoiceDocument(firstSupplier)} are rest ${formatMoney(firstSupplier.rest)}.`,
+        label: 'Pregătește plata',
+        onClick: () => openInvoiceOperation(firstSupplier, 'intrare'),
+        tone: 'warning'
+      }
+    } else if (firstClient) {
+      next = {
+        title: 'Factură client de încasat',
+        text: `${invoiceDocument(firstClient)} are rest ${formatMoney(firstClient.rest)}.`,
+        label: 'Pregătește încasarea',
+        onClick: () => openInvoiceOperation(firstClient, 'iesire'),
+        tone: 'warning'
+      }
+    }
+
+    return {
+      next,
+      steps: [
+        { label: 'Drafturi', done: !drafts.length, detail: drafts.length ? `${drafts.length} de validat` : 'OK' },
+        { label: 'Sugestii', done: !firstDraftWithSuggestion, detail: firstDraftWithSuggestion ? 'potrivire găsită' : 'OK' },
+        { label: 'Facturi furnizor', done: !openInvoiceSummary.suppliers.length, detail: openInvoiceSummary.suppliers.length ? `${openInvoiceSummary.suppliers.length} deschise` : 'OK' },
+        { label: 'Facturi client', done: !openInvoiceSummary.clients.length, detail: openInvoiceSummary.clients.length ? `${openInvoiceSummary.clients.length} deschise` : 'OK' },
+        { label: 'Avansuri', done: !serverSummary.advances?.count, detail: serverSummary.advances?.count ? `${serverSummary.advances.count} nestinse` : 'OK' },
+        { label: 'Neclasificate', done: !visibleRows.some(row => row.corelare_tip === 'neclasificat' && row.status === 'validat'), detail: visibleRows.filter(row => row.corelare_tip === 'neclasificat' && row.status === 'validat').length || 'OK' }
+      ]
+    }
+  }, [month, openInvoiceSummary, serverSummary.advances, visibleRows])
 
   async function exportExcel() {
     const [an, luna] = month.split('-')
@@ -711,6 +804,36 @@ export function Trezorerie() {
             ...thirdParties.map(tert => ({ value: tert.id, label: `${tert.cod} - ${tert.denumire}` }))
           ]} />
           <Input label="Cauta" value={q} onChange={event => setQ(event.target.value)} placeholder="Document, tert, cont..." />
+        </div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Flux simplu trezorerie</div>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">{treasuryFlow.next.title}</h3>
+            <p className="mt-1 text-sm text-slate-600">{treasuryFlow.next.text}</p>
+          </div>
+          {treasuryFlow.next.to ? (
+            <Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] bg-primary-700 px-[var(--control-px)] text-sm font-semibold text-white shadow-sm transition hover:bg-primary-800" to={treasuryFlow.next.to}>
+              {treasuryFlow.next.label}
+            </Link>
+          ) : (
+            <Button type="button" onClick={treasuryFlow.next.onClick}>{treasuryFlow.next.label}</Button>
+          )}
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
+          {treasuryFlow.steps.map(step => (
+            <div key={step.label} className={`rounded-md border px-3 py-2 ${step.done ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">{step.label}</div>
+                <Badge tone={step.done ? 'success' : 'warning'}>{step.done ? 'OK' : 'Pas'}</Badge>
+              </div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">{step.detail}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 text-xs text-slate-500">
+          Firul simplu: factură deschisă → plată/încasare pregătită → corelare factură/avans → validare → notă contabilă.
         </div>
       </Card>
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">

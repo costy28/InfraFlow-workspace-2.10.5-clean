@@ -1387,3 +1387,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă următoarea acțiune utilă: terț lipsă, draft de corectat, validare, plată/încasare sau e-Factura;
 - Indicatorii rapizi arată Terți, Drafturi, Resturi și e-Factura fără intrare manuală pe fiecare rând;
 - `updates/UPDATE_450_flux_simplu_facturi.md` — ✅ documentație update și verificări.
+
+### UPDATE 451 — Flux simplu Trezorerie
+
+- `client/src/pages/accounting/Trezorerie.jsx` — ✅ adăugat panou „Flux simplu trezorerie”;
+- Panoul recomandă automat legarea facturii sugerate, corectarea draftului, validarea, stingerea avansului, alocarea pe facturi sau pregătirea plății/încasării;
+- Indicatorii rapizi arată Drafturi, Sugestii, Facturi furnizor/client, Avansuri și Neclasificate;
+- `updates/UPDATE_451_flux_simplu_trezorerie.md` — ✅ documentație update și verificări.

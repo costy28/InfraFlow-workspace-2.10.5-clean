@@ -476,3 +476,13 @@ Status: ✅ implementat în v2.12.429.
 | e-Factura | Pentru facturile de ieșire se ridică explicit pasul de pregătire e-Factura când lipsește. |
 
 Status: ✅ implementat în v2.12.430.
+
+## Probleme remediate în UPDATE 451 — Flux simplu Trezorerie
+
+| Zonă | Remediere |
+| --- | --- |
+| Trezorerie | Registrul afișează următoarea acțiune utilă din drafturi, scadențar, sugestii și avansuri. |
+| UX | Operatorul nu mai caută manual operația de legat/validat; panoul scoate primul pas în față. |
+| Contabilitate | Plățile/încasările se leagă mai clar de facturi, avansuri și notele contabile. |
+
+Status: ✅ implementat în v2.12.431.

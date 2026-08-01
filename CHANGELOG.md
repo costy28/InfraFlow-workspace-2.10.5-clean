@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.431 - 2026-08-01
+
+## Flux simplu Trezorerie
+
+- Trezoreria afișează un flux operațional simplu pentru drafturi, sugestii de potrivire factură, scadențar, avansuri și operații neclasificate.
+- Aplicația recomandă automat următoarea acțiune: leagă factura sugerată, corectează draftul, validează, stinge avansul, alocă pe facturi sau pregătește plata/încasarea.
+- Operatorul vede într-un singur panou ce blochează registrul curent fără să intre manual pe fiecare operație.
+- Indicatorii rapizi conectează scadențarul cu registrul de casă/bancă și notele contabile.
+
 # v2.12.430 - 2026-08-01
 
 ## Flux simplu Facturi
