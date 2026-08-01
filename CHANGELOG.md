@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.434 - 2026-08-01
+
+## Flux simplu Balanță
+
+- Pagina Balanță afișează un verdict clar pentru luna selectată: echilibrată, dezechilibrată sau fără rânduri în filtrul curent.
+- Panoul recomandă automat următoarea acțiune: reîncarcă balanța, deschide Registru jurnal sau exportă Excel.
+- Sunt afișate explicit diferența totală, diferența filtrată și numărul de conturi afișate.
+- Utilizatorul vede filtrele active și poate ajunge rapid la fișa contului, Cartea Mare sau Registru jurnal.
+
 # v2.12.433 - 2026-08-01
 
 ## Flux simplu Situații financiare

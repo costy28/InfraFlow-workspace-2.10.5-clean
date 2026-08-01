@@ -26,6 +26,27 @@ export function Balanta() {
     ['sume_precedente_D', 'sume_precedente_C', 'rulaje_D', 'rulaje_C', 'sume_totale_D', 'sume_totale_C', 'sold_D', 'sold_C'].forEach(key => { acc[key] = money((acc[key] || 0) + row[key]) })
     return acc
   }, {}), [rows])
+  const totalDifference = Math.abs(money(data.totals.sume_totale_D) - money(data.totals.sume_totale_C))
+  const filteredDifference = Math.abs(money(filteredTotals.sume_totale_D) - money(filteredTotals.sume_totale_C))
+  const activeFilterLabels = [
+    tip === 'analitica' ? 'analitică' : 'sintetică',
+    clasa ? `clasa ${clasa}` : '',
+    q ? `căutare: ${q}` : '',
+    onlyWithValues ? 'doar conturi cu valori' : 'toate conturile'
+  ].filter(Boolean)
+  const balanceFlow = buildBalanceFlow({
+    balanced: data.balanced,
+    totalDifference,
+    filteredDifference,
+    rowsCount: rows.length,
+    totalRows: data.rows.length,
+    month,
+    monthStart,
+    monthEnd,
+    activeFilterLabels,
+    load,
+    exportExcel
+  })
 
   useEffect(() => { load() }, [month, tip])
 
@@ -74,16 +95,45 @@ export function Balanta() {
           </label>
         </div>
       </Card>
+      <Card>
+        <div className={`rounded-xl border px-4 py-4 ${balanceFlow.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rose-200 bg-rose-50 text-rose-900'}`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold uppercase tracking-wide opacity-75">Flux simplu balanță</div>
+              <h3 className="mt-1 text-lg font-bold">{balanceFlow.title}</h3>
+              <p className="mt-1 text-sm opacity-90">{balanceFlow.detail}</p>
+              <div className="mt-4 grid gap-2 md:grid-cols-4">
+                {balanceFlow.steps.map(step => (
+                  <div key={step.label} className={`rounded-md border px-3 py-3 text-sm ${step.ok ? 'border-emerald-200 bg-white/70' : 'border-amber-200 bg-amber-50'}`}>
+                    <strong className="block">{step.label}</strong>
+                    <span className="mt-1 block text-xs opacity-80">{step.detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2 sm:min-w-56">
+              {balanceFlow.primary.to ? (
+                <Link to={balanceFlow.primary.to} className="rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-slate-800">{balanceFlow.primary.label}</Link>
+              ) : (
+                <button type="button" onClick={balanceFlow.primary.onClick} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">{balanceFlow.primary.label}</button>
+              )}
+              <span className="text-xs opacity-75">{activeFilterLabels.join(' · ')}</span>
+            </div>
+          </div>
+        </div>
+      </Card>
       <div className={`rounded-md px-3 py-2 text-sm ${data.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
         {data.balanced ? 'Balanta este echilibrata.' : `Balanta nu este echilibrata: diferenta ${formatMoney(Math.abs(money(data.totals.sume_totale_D) - money(data.totals.sume_totale_C)))}`}
       </div>
-      <div className="grid gap-3 md:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
         <Info label="Sold init. debit" value={formatMoney(filteredTotals.sume_precedente_D || 0)} />
         <Info label="Sold init. credit" value={formatMoney(filteredTotals.sume_precedente_C || 0)} />
         <Info label="Rulaj debit" value={formatMoney(filteredTotals.rulaje_D || 0)} />
         <Info label="Rulaj credit" value={formatMoney(filteredTotals.rulaje_C || 0)} />
         <Info label="Sold debit" value={formatMoney(filteredTotals.sold_D || 0)} />
         <Info label="Sold credit" value={formatMoney(filteredTotals.sold_C || 0)} />
+        <Info label="Diferență filtrată" value={formatMoney(filteredDifference || 0)} />
+        <Info label="Conturi afișate" value={`${rows.length}/${data.rows.length}`} />
       </div>
       <Table headers={['Cont', 'Denumire', 'Init D', 'Init C', 'Rulaj D', 'Rulaj C', 'Sume D', 'Sume C', 'Sold D', 'Sold C', 'Actiuni']}>
         {rows.map(row => (
@@ -130,3 +180,40 @@ export function Balanta() {
 }
 
 export default Balanta
+
+function buildBalanceFlow({ balanced, totalDifference, filteredDifference, rowsCount, totalRows, month, monthStart, monthEnd, activeFilterLabels, load, exportExcel }) {
+  const hasRows = rowsCount > 0
+  const hasFilters = activeFilterLabels.length > 1
+  const steps = [
+    { label: 'Perioadă', ok: Boolean(month), detail: month || 'Alege luna' },
+    { label: 'Conturi', ok: hasRows, detail: hasRows ? `${rowsCount} din ${totalRows} afișate` : 'Nu sunt conturi în filtrul curent' },
+    { label: 'Egalitate', ok: balanced, detail: balanced ? 'Debit = Credit pe total' : `Diferență ${formatMoney(totalDifference)}` },
+    { label: 'Filtru', ok: true, detail: hasFilters ? activeFilterLabels.join(' · ') : 'fără filtre speciale' }
+  ]
+  if (!hasRows) {
+    return {
+      tone: 'warning',
+      title: 'Balanța nu are rânduri în filtrul curent.',
+      detail: 'Lărgește filtrul sau reincarcă balanța pentru luna selectată.',
+      steps,
+      primary: { label: 'Reîncarcă balanța', onClick: load }
+    }
+  }
+  if (!balanced) {
+    return {
+      tone: 'danger',
+      title: 'Balanța nu este echilibrată.',
+      detail: `Diferența totală este ${formatMoney(totalDifference)}. Diferența pe filtrul curent este ${formatMoney(filteredDifference)}.`,
+      steps,
+      primary: { label: 'Deschide Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` }
+    }
+  }
+  return {
+    tone: 'success',
+    title: 'Balanța este echilibrată.',
+    detail: 'Poți exporta balanța sau continua verificarea pe Cartea Mare / Închidere lună.',
+    steps,
+    primary: { label: 'Export Excel', onClick: exportExcel },
+    secondary: { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${monthStart}&pana_la=${monthEnd}` }
+  }
+}

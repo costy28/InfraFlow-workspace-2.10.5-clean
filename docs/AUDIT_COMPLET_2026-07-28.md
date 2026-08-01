@@ -506,3 +506,13 @@ Status: ✅ implementat în v2.12.432.
 | Contabilitate | Raportarea rămâne managerială configurabilă și nu este prezentată ca formular oficial automat. |
 
 Status: ✅ implementat în v2.12.433.
+
+## Probleme remediate în UPDATE 454 — Flux simplu Balanță
+
+| Zonă | Remediere |
+| --- | --- |
+| Balanță | Pagina afișează verdictul debit-credit și diferențele relevante fără interpretare manuală. |
+| UX | Utilizatorul vede primul pas recomandat: reîncarcă, verifică Registrul jurnal sau exportă. |
+| Contabilitate | Filtrele active, diferența filtrată și numărul de conturi afișate sunt vizibile lângă totaluri. |
+
+Status: ✅ implementat în v2.12.434.

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.433",
+  "version": "2.12.434",
   "date": "2026-08-01",
-  "changelog": "## v2.12.433 - 2026-08-01\n### Flux simplu Situații financiare\n- Pagina Situații financiare afișează un flux ghidat: profil, mapări, balanță/control, raport și export.\n- Aplicația recomandă automat următorul pas util: adaugă profil, adaugă mapare, verifică balanța, recalculează sau exportă.\n- Indicatorii rapizi arată numărul de rânduri, mapări active, indicatori fără valori și tipul raportului.\n- Raportul rămâne managerial configurabil, fără să fie prezentat ca formular oficial automat."
+  "changelog": "## v2.12.434 - 2026-08-01\n### Flux simplu Balanță\n- Pagina Balanță afișează un verdict clar pentru luna selectată: echilibrată, dezechilibrată sau fără rânduri în filtrul curent.\n- Panoul recomandă automat următoarea acțiune: reîncarcă balanța, deschide Registru jurnal sau exportă Excel.\n- Sunt afișate explicit diferența totală, diferența filtrată și numărul de conturi afișate.\n- Utilizatorul vede filtrele active și poate ajunge rapid la fișa contului, Cartea Mare sau Registru jurnal."
 }

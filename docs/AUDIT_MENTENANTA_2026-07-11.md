@@ -1408,3 +1408,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat profilul, maparea, balanța/controlul, recalcularea sau exportul;
 - Indicatorii rapizi arată rândurile calculate, mapările active, indicatorii fără valori și tipul raportului;
 - `updates/UPDATE_453_flux_simplu_situatii_financiare.md` — ✅ documentație update și verificări.
+
+### UPDATE 454 — Flux simplu Balanță
+
+- `client/src/pages/accounting/Balanta.jsx` — ✅ adăugat verdict operațional pentru balanță;
+- Panoul recomandă automat reîncărcarea, deschiderea Registrului jurnal sau exportul Excel;
+- Indicatorii rapizi arată diferența filtrată și numărul de conturi afișate din total;
+- `updates/UPDATE_454_flux_simplu_balanta.md` — ✅ documentație update și verificări.
