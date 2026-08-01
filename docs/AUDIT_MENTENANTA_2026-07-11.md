@@ -1471,3 +1471,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat acceptanța lunară, configurarea DUK, generarea/reverificarea D406, exportul acceptanței sau dosarul fiscal;
 - Indicatorii rapizi arată blocajele, avertizările, rulările D406 și recipisele lipsă;
 - `updates/UPDATE_462_flux_simplu_audit_fiscal.md` — ✅ documentație update și verificări.
+
+### UPDATE 463 — Flux simplu Plan de conturi
+
+- `client/src/pages/accounting/PlanConturi.jsx` — ✅ adăugat panou ghidat pentru planul de conturi;
+- Panoul recomandă automat curățarea filtrelor, reîncărcarea, reactivarea contului, adăugarea unui analitic sau deschiderea fișei contului;
+- Indicatorii rapizi arată conturile afișate, analiticele, conturile inactive și filtrele active;
+- `updates/UPDATE_463_flux_simplu_plan_conturi.md` — ✅ documentație update și verificări.

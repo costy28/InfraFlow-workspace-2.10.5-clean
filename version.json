@@ -1,5 +1,5 @@
 {
-  "version": "2.12.442",
+  "version": "2.12.443",
   "date": "2026-08-01",
-  "changelog": "## v2.12.442 - 2026-08-01\n### Flux simplu Audit fiscal\n- Pagina Audit fiscal afișează un panou ghidat pentru acceptanță lunară, validator D406, SAF-T și dosar fiscal.\n- Panoul recomandă automat următoarea acțiune: rulează acceptanța, configurează DUK, generează/reverifică D406, exportă acceptanța sau descarcă dosarul fiscal.\n- Sunt afișate explicit blocajele, avertizările, rulările D406 și recipisele lipsă.\n- Operatorul vede cauza blocajului fiscal înainte de tabelele tehnice."
+  "changelog": "## v2.12.443 - 2026-08-01\n### Flux simplu Plan de conturi\n- Pagina Plan de conturi afișează un panou ghidat pentru căutare, selectare, analitic și fișa contului.\n- Panoul recomandă automat următoarea acțiune: curățare filtre, reîncărcare, reactivare cont, adăugare analitic sau deschidere fișă cont.\n- Sunt afișate explicit conturile afișate, analiticele, conturile inactive și filtrele active.\n- Operatorul înțelege rapid cum se folosește planul de conturi fără să intre direct în lista tehnică."
 }

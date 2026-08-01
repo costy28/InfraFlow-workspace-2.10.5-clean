@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.443 - 2026-08-01
+
+## Flux simplu Plan de conturi
+
+- Pagina Plan de conturi afișează un panou ghidat pentru căutare, selectare, analitic și fișa contului.
+- Panoul recomandă automat următoarea acțiune: curățare filtre, reîncărcare, reactivare cont, adăugare analitic sau deschidere fișă cont.
+- Sunt afișate explicit conturile afișate, analiticele, conturile inactive și filtrele active.
+- Operatorul înțelege rapid cum se folosește planul de conturi fără să intre direct în lista tehnică.
+
 # v2.12.442 - 2026-08-01
 
 ## Flux simplu Audit fiscal

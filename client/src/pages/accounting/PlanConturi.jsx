@@ -152,6 +152,17 @@ export function PlanConturi() {
     8: 'Conturi speciale',
     9: 'Gestiune interna'
   }
+  const planSummary = buildPlanConturiSummary({ accounts, selected, filters })
+  const planFlow = buildPlanConturiFlow({
+    summary: planSummary,
+    selected,
+    load,
+    clearFilters: () => setFilters({ q: '', clasa: '', tip: '', nivel: '' }),
+    openAnalytic,
+    openEdit,
+    openSelectedSheet: () => selected && navigate(`/contabilitate/fisa-cont/${selected.simbol}`),
+    toggleSelectedActive
+  })
   return (
     <AccountingShell
       active="plan"
@@ -161,6 +172,45 @@ export function PlanConturi() {
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge tone={planFlow.tone}>{planFlow.badge}</Badge>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Plan de conturi simplificat</span>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">{planFlow.title}</h3>
+            <p className="mt-1 max-w-4xl text-sm text-slate-500">{planFlow.description}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={planFlow.primaryAction}>{planFlow.primaryLabel}</Button>
+            <Button variant="secondary" onClick={load}>Reîncarcă</Button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {planFlow.steps.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={step.onClick}
+              className={`rounded-lg border px-4 py-3 text-left transition hover:shadow-sm ${step.active ? 'border-emerald-300 bg-emerald-50' : step.tone === 'warning' ? 'border-amber-200 bg-amber-50' : step.tone === 'danger' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{index + 1}</span>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <div className="mt-3 font-semibold text-slate-900">{step.title}</div>
+              <p className="mt-1 text-sm text-slate-500">{step.detail}</p>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Info label="Conturi afișate" value={planSummary.totalAccounts} />
+          <Info label="Analitice" value={planSummary.analytics} />
+          <Info label="Inactive" value={planSummary.inactive} />
+          <Info label="Filtre active" value={planSummary.activeFilters} />
+        </div>
+      </Card>
       <Card>
         <div className="grid gap-3 md:grid-cols-4">
           <Input label="Cauta" value={filters.q} onChange={event => setFilters({ ...filters, q: event.target.value })} placeholder="401, TVA, capital..." />
@@ -275,6 +325,145 @@ export function PlanConturi() {
       </Modal>
     </AccountingShell>
   )
+}
+
+function buildPlanConturiSummary({ accounts, selected, filters }) {
+  const rows = accounts || []
+  const activeFilters = Object.values(filters || {}).filter(Boolean).length
+  const analytics = rows.filter(account => Number(account.nivel || 0) >= 3 || String(account.simbol || '').includes('.')).length
+  const inactive = rows.filter(account => account.activ === false).length
+  const tvaAccounts = rows.filter(account => account.tva_deductibil || account.tva_colectat).length
+  const selectedHasAnalytics = selected
+    ? rows.some(account => String(account.simbol || '').startsWith(`${selected.simbol}.`))
+    : false
+
+  return {
+    totalAccounts: rows.length,
+    activeFilters,
+    analytics,
+    inactive,
+    tvaAccounts,
+    selected,
+    selectedHasAnalytics,
+    selectedIsInactive: selected?.activ === false,
+    selectedIsSynthetic: selected ? Number(selected.nivel || 0) < 3 : false
+  }
+}
+
+function buildPlanConturiFlow({ summary, selected, load, clearFilters, openAnalytic, openEdit, openSelectedSheet, toggleSelectedActive }) {
+  const steps = [
+    {
+      key: 'filter',
+      title: 'Găsește contul',
+      detail: summary.activeFilters
+        ? `${summary.activeFilters} filtre active · ${summary.totalAccounts} rezultate.`
+        : 'Folosește căutarea, clasa, tipul sau nivelul ca să ajungi rapid la cont.',
+      status: summary.activeFilters ? 'filtrat' : 'deschis',
+      tone: summary.totalAccounts ? 'success' : 'warning',
+      active: Boolean(summary.activeFilters),
+      onClick: summary.activeFilters ? clearFilters : load
+    },
+    {
+      key: 'select',
+      title: 'Selectează contul',
+      detail: selected
+        ? `${selected.simbol} · ${selected.denumire || 'cont selectat'}`
+        : 'Alege un cont din listă pentru detalii și acțiuni.',
+      status: selected ? 'selectat' : 'neales',
+      tone: selected ? 'success' : 'warning',
+      active: Boolean(selected),
+      onClick: load
+    },
+    {
+      key: 'analytic',
+      title: 'Adaugă analitic',
+      detail: selected
+        ? summary.selectedHasAnalytics
+          ? 'Contul are deja analitice în lista curentă.'
+          : 'Creează subcont pentru furnizor, client, proiect sau centru intern.'
+        : 'Alege un cont părinte înainte de analitic.',
+      status: summary.selectedHasAnalytics ? 'există' : 'util',
+      tone: selected ? 'success' : 'gray',
+      active: false,
+      onClick: () => selected && openAnalytic(selected)
+    },
+    {
+      key: 'control',
+      title: 'Verifică fișa',
+      detail: selected
+        ? 'Deschide mișcările contului și soldul progresiv.'
+        : 'Fișa contului devine disponibilă după selectare.',
+      status: selected ? 'disponibil' : 'în așteptare',
+      tone: selected ? 'success' : 'gray',
+      active: false,
+      onClick: openSelectedSheet
+    }
+  ]
+
+  if (!summary.totalAccounts && summary.activeFilters) {
+    return {
+      badge: 'Filtre prea strânse',
+      tone: 'warning',
+      title: 'Nu există conturi pentru filtrele curente',
+      description: 'Primul pas este să eliberezi filtrele și să cauți din nou. Planul de conturi nu trebuie să pară gol când doar filtrarea e cauza.',
+      primaryLabel: 'Curăță filtrele',
+      primaryAction: clearFilters,
+      steps
+    }
+  }
+  if (!summary.totalAccounts) {
+    return {
+      badge: 'Gol',
+      tone: 'warning',
+      title: 'Planul de conturi nu are rezultate încărcate',
+      description: 'Reîncarcă lista sau verifică inițializarea contabilității înainte de facturi, note și rapoarte.',
+      primaryLabel: 'Reîncarcă planul',
+      primaryAction: load,
+      steps
+    }
+  }
+  if (!selected) {
+    return {
+      badge: 'Alege cont',
+      tone: 'warning',
+      title: 'Selectează un cont pentru acțiuni',
+      description: 'Lista este încărcată; selectarea contului deschide editarea, analiticele și fișa contului.',
+      primaryLabel: 'Reîncarcă lista',
+      primaryAction: load,
+      steps
+    }
+  }
+  if (summary.selectedIsInactive) {
+    return {
+      badge: 'Inactiv',
+      tone: 'warning',
+      title: `Contul ${selected.simbol} este inactiv`,
+      description: 'Conturile inactive rămân în istoric, dar nu sunt potrivite pentru documente noi. Reactivează-l doar dacă este folosit din nou.',
+      primaryLabel: 'Reactivează contul',
+      primaryAction: toggleSelectedActive,
+      steps
+    }
+  }
+  if (summary.selectedIsSynthetic && !summary.selectedHasAnalytics) {
+    return {
+      badge: 'Analitic recomandat',
+      tone: 'success',
+      title: `Creează analitic sub ${selected.simbol} dacă îl folosești în documente`,
+      description: 'Asta păstrează planul curat: sinteticul rămâne pentru raportare, analiticul pentru furnizori, clienți sau gestiuni.',
+      primaryLabel: 'Adaugă analitic',
+      primaryAction: () => openAnalytic(selected),
+      steps
+    }
+  }
+  return {
+    badge: 'Pregătit',
+    tone: 'success',
+    title: `Contul ${selected.simbol} este pregătit pentru lucru`,
+    description: 'Poți edita detaliile, crea analitice sau deschide fișa contului pentru sold și mișcări.',
+    primaryLabel: 'Deschide fișa contului',
+    primaryAction: openSelectedSheet || (() => openEdit(selected)),
+    steps
+  }
 }
 
 export default PlanConturi

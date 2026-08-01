@@ -596,3 +596,13 @@ Status: ✅ implementat în v2.12.441.
 | Contabilitate | Blocajele, avertizările, rulările D406 și recipisele lipsă sunt vizibile înainte de tabelele tehnice. |
 
 Status: ✅ implementat în v2.12.442.
+
+## Probleme remediate în UPDATE 463 — Flux simplu Plan de conturi
+
+| Zonă | Remediere |
+| --- | --- |
+| Plan de conturi | Pagina afișează fluxul caută → selectează → analitic → fișă cont. |
+| UX | Utilizatorul vede primul pas recomandat: curăță filtre, reîncarcă, reactivează, adaugă analitic sau deschide fișa. |
+| Contabilitate | Conturile afișate, analiticele, conturile inactive și filtrele active sunt vizibile înainte de lista tehnică. |
+
+Status: ✅ implementat în v2.12.443.
