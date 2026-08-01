@@ -486,3 +486,13 @@ Status: ✅ implementat în v2.12.430.
 | Contabilitate | Plățile/încasările se leagă mai clar de facturi, avansuri și notele contabile. |
 
 Status: ✅ implementat în v2.12.431.
+
+## Probleme remediate în UPDATE 452 — Flux simplu Închidere lună
+
+| Zonă | Remediere |
+| --- | --- |
+| Închidere lună | Pagina afișează verdictul curent al lunii: blocată, pregătită, închisă sau depusă. |
+| UX | Operatorul primește un singur buton principal pentru prima acțiune logică. |
+| Contabilitate | Pașii documente, trezorerie, TVA, balanță, închidere și declarații sunt legați într-un progres vizibil. |
+
+Status: ✅ implementat în v2.12.432.

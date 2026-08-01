@@ -124,9 +124,30 @@ export function InchidereLuna() {
     { label: 'Stocuri', ok: true, detail: 'Verifică sincronizarea și CMP', to: `/contabilitate/operatiuni?luna=${month}` },
     { label: 'TVA', ok: checks.tva_checked && checks.tva_current !== false, detail: checks.tva_checked ? checks.tva_current === false ? 'Documente modificate, reverifică' : 'TVA verificat și actual' : 'TVA necesită verificare', to: `/contabilitate/tva-d300?luna=${month}` },
     { label: 'Balanță', ok: checks.balance_ok && checks.journal_structure_ok, detail: checks.balance_ok ? 'Balanță echilibrată' : 'Există diferențe', to: `/contabilitate/balanta?luna=${month}` },
-    { label: 'Închidere', ok: checks.can_close || ['inchisa', 'depusa'].includes(status), detail: ['inchisa', 'depusa'].includes(status) ? `Luna este ${status}` : checks.can_close ? 'Pregătită pentru închidere' : 'Așteaptă pașii anteriori', to: `/contabilitate/inchidere-luna?luna=${month}` }
-    ,{ label: 'Declarații', ok: submission.ready, detail: submission.ready ? 'Toate recipisele obligatorii sunt acceptate' : `Lipsesc: ${(submission.missing || []).join(', ') || '-'}`, to: `/contabilitate/audit-fiscal?luna=${month}` }
+    { label: 'Închidere', ok: checks.can_close || ['inchisa', 'depusa'].includes(status), detail: ['inchisa', 'depusa'].includes(status) ? `Luna este ${status}` : checks.can_close ? 'Pregătită pentru închidere' : 'Așteaptă pașii anteriori', to: `/contabilitate/inchidere-luna?luna=${month}` },
+    { label: 'Declarații', ok: submission.ready, detail: submission.ready ? 'Toate recipisele obligatorii sunt acceptate' : `Lipsesc: ${(submission.missing || []).join(', ') || '-'}`, to: `/contabilitate/audit-fiscal?luna=${month}` }
   ]
+  const completedSteps = assistantSteps.filter(step => step.ok).length
+  const closeProgress = Math.round((completedSteps / Math.max(assistantSteps.length, 1)) * 100)
+  const firstBlockingStep = assistantSteps.find(step => !step.ok)
+  const closeVerdict = buildCloseVerdict({
+    status,
+    checks,
+    blockers,
+    submission,
+    month,
+    firstBlockingStep,
+    closeMonth,
+    markSubmitted,
+    downloadDossier,
+    load
+  })
+  const verdictClasses = {
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    warning: 'border-amber-200 bg-amber-50 text-amber-900',
+    danger: 'border-red-200 bg-red-50 text-red-900',
+    info: 'border-sky-200 bg-sky-50 text-sky-900'
+  }[closeVerdict.tone] || 'border-slate-200 bg-slate-50 text-slate-900'
 
   return (
     <AccountingShell
@@ -146,6 +167,40 @@ export function InchidereLuna() {
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       {data ? (
         <>
+          <Card>
+            <div className={`rounded-xl border px-4 py-4 ${verdictClasses}`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold uppercase tracking-wide opacity-75">Verdict operare lună</div>
+                  <h3 className="mt-1 text-lg font-bold">{closeVerdict.title}</h3>
+                  <p className="mt-1 text-sm opacity-90">{closeVerdict.detail}</p>
+                  <div className="mt-4">
+                    <div className="mb-1 flex items-center justify-between text-xs font-semibold opacity-75">
+                      <span>Progres verificări</span>
+                      <span>{completedSteps}/{assistantSteps.length} · {closeProgress}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/70">
+                      <div className="h-full rounded-full bg-current transition-all" style={{ width: `${closeProgress}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col gap-2 sm:min-w-56">
+                  {closeVerdict.to ? (
+                    <Link to={closeVerdict.to} className="rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
+                      {closeVerdict.actionLabel}
+                    </Link>
+                  ) : (
+                    <button type="button" onClick={closeVerdict.onClick} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
+                      {closeVerdict.actionLabel}
+                    </button>
+                  )}
+                  {firstBlockingStep && !['inchisa', 'depusa'].includes(status) ? (
+                    <span className="text-xs opacity-75">Primul blocaj: {firstBlockingStep.label}</span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </Card>
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -275,4 +330,68 @@ function downloadBlob(blob, filename) {
   const link = document.createElement('a')
   link.href = url; link.download = filename; link.click()
   URL.revokeObjectURL(url)
+}
+
+function buildCloseVerdict({ status, checks, blockers, submission, month, firstBlockingStep, closeMonth, markSubmitted, downloadDossier, load }) {
+  if (status === 'depusa') {
+    return {
+      tone: 'success',
+      title: 'Luna este închisă și declarațiile sunt marcate ca depuse.',
+      detail: 'Nu mai este nevoie de acțiuni curente. Poți păstra dosarul lunar pentru audit sau controale.',
+      actionLabel: 'Descarcă dosar ZIP',
+      onClick: downloadDossier
+    }
+  }
+  if (status === 'inchisa' && !submission.ready) {
+    return {
+      tone: 'warning',
+      title: 'Luna este închisă, dar nu poate fi marcată ca depusă.',
+      detail: `Lipsesc recipise acceptate pentru: ${(submission.missing || []).join(', ') || 'declarații obligatorii'}.`,
+      actionLabel: 'Deschide Audit fiscal',
+      to: `/contabilitate/audit-fiscal?luna=${month}`
+    }
+  }
+  if (status === 'inchisa' && checks.can_mark_submitted) {
+    return {
+      tone: 'info',
+      title: 'Luna este închisă. Ultimul pas este marcarea declarațiilor depuse.',
+      detail: 'Completează referința depunerii/recipisei și marchează depunerea ca finalizată.',
+      actionLabel: 'Marchează depus',
+      onClick: markSubmitted
+    }
+  }
+  if (status === 'inchisa') {
+    return {
+      tone: 'success',
+      title: 'Luna este închisă și protejată la modificări.',
+      detail: 'Poți descărca dosarul lunar sau redeschide luna doar cu motiv auditat.',
+      actionLabel: 'Descarcă dosar ZIP',
+      onClick: downloadDossier
+    }
+  }
+  if (checks.can_close) {
+    return {
+      tone: 'success',
+      title: 'Luna este pregătită pentru închidere.',
+      detail: 'Verificările principale sunt curate. Poți bloca luna și genera snapshot-ul contabil.',
+      actionLabel: 'Închide luna',
+      onClick: closeMonth
+    }
+  }
+  if (firstBlockingStep?.to) {
+    return {
+      tone: blockers.length ? 'danger' : 'warning',
+      title: blockers.length ? 'Luna este blocată de verificări nerezolvate.' : 'Mai există pași de verificat înainte de închidere.',
+      detail: blockers.length ? blockers.slice(0, 3).join(' · ') : firstBlockingStep.detail,
+      actionLabel: `Rezolvă: ${firstBlockingStep.label}`,
+      to: firstBlockingStep.to
+    }
+  }
+  return {
+    tone: 'info',
+    title: 'Verifică luna înainte de închidere.',
+    detail: 'Rulează din nou controlul lunar pentru a vedea starea actuală.',
+    actionLabel: 'Verifică luna',
+    onClick: load
+  }
 }

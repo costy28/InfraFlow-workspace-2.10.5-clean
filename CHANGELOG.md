@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.432 - 2026-08-01
+
+## Flux simplu Închidere lună
+
+- Închiderea lunii afișează un verdict operațional clar: blocată, pregătită, închisă sau depusă.
+- Panoul recomandă automat prima acțiune utilă: rezolvă blocajul, închide luna, deschide Audit fiscal, marchează depunerea sau descarcă dosarul ZIP.
+- Progresul verificărilor lunare este vizibil într-o bară simplă, calculată din pașii existenți.
+- Operatorul nu mai trebuie să deducă manual ce urmează din blocaje, tabele și meniuri.
+
 # v2.12.431 - 2026-08-01
 
 ## Flux simplu Trezorerie

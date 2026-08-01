@@ -1,5 +1,5 @@
 {
-  "version": "2.12.431",
+  "version": "2.12.432",
   "date": "2026-08-01",
-  "changelog": "## v2.12.431 - 2026-08-01\n### Flux simplu Trezorerie\n- Trezoreria afișează un flux operațional simplu pentru drafturi, sugestii de potrivire factură, scadențar, avansuri și operații neclasificate.\n- Aplicația recomandă automat următoarea acțiune: leagă factura sugerată, corectează draftul, validează, stinge avansul, alocă pe facturi sau pregătește plata/încasarea.\n- Operatorul vede într-un singur panou ce blochează registrul curent fără să intre manual pe fiecare operație.\n- Indicatorii rapizi conectează scadențarul cu registrul de casă/bancă și notele contabile."
+  "changelog": "## v2.12.432 - 2026-08-01\n### Flux simplu Închidere lună\n- Închiderea lunii afișează un verdict operațional clar: blocată, pregătită, închisă sau depusă.\n- Panoul recomandă automat prima acțiune utilă: rezolvă blocajul, închide luna, deschide Audit fiscal, marchează depunerea sau descarcă dosarul ZIP.\n- Progresul verificărilor lunare este vizibil într-o bară simplă, calculată din pașii existenți.\n- Operatorul nu mai trebuie să deducă manual ce urmează din blocaje, tabele și meniuri."
 }

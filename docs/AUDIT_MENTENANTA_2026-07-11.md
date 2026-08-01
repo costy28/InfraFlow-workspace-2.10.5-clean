@@ -1394,3 +1394,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat legarea facturii sugerate, corectarea draftului, validarea, stingerea avansului, alocarea pe facturi sau pregătirea plății/încasării;
 - Indicatorii rapizi arată Drafturi, Sugestii, Facturi furnizor/client, Avansuri și Neclasificate;
 - `updates/UPDATE_451_flux_simplu_trezorerie.md` — ✅ documentație update și verificări.
+
+### UPDATE 452 — Flux simplu Închidere lună
+
+- `client/src/pages/accounting/InchidereLuna.jsx` — ✅ adăugat verdict operațional pentru închiderea lunii;
+- Panoul recomandă automat prima acțiune utilă: rezolvă blocajul, închide luna, deschide Audit fiscal, marchează depunerea sau descarcă dosarul ZIP;
+- Progresul verificărilor lunare este afișat într-o bară simplă calculată din pașii existenți;
+- `updates/UPDATE_452_flux_simplu_inchidere_luna.md` — ✅ documentație update și verificări.
