@@ -456,3 +456,13 @@ Status: ✅ implementat în v2.12.427.
 | Operare | Pașii ghidați reduc căutarea prin submeniuri și păstrează controalele existente vizibile. |
 
 Status: ✅ implementat în v2.12.428.
+
+## Probleme remediate în UPDATE 449 — Flux simplu Salarizare
+
+| Zonă | Remediere |
+| --- | --- |
+| Salarizare | Pagina afișează un flux operațional care recomandă următoarea acțiune reală. |
+| UX | Operatorul nu mai deduce ordinea din meniul mare; urmează butonul recomandat. |
+| Contabilitate | Legătura HR → stat → notă contabilă → plată → obligații → D112 este vizibilă într-un singur panou. |
+
+Status: ✅ implementat în v2.12.429.

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -409,6 +410,135 @@ export default function Salarizare() {
     { label: 'Pregatire D112', to: `/contabilitate/tva-d300?tab=d112&luna=${month}` }
   ].filter(Boolean)
 
+  const payrollFlow = useMemo(() => {
+    const lines = data.lines || []
+    const blockingLines = lines.filter(line => (line.errors || []).length)
+    const warningLines = lines.filter(line => (line.warnings || []).length || line.source_diagnostics?.source_changed_after_run)
+    const orders = data.paymentOrders || []
+    const unpaidOrder = orders.find(order => order.status !== 'platit')
+    const allOrdersPaid = orders.length > 0 && !unpaidOrder
+    const accountingActive = Boolean(run?.accounting_journal_id && !run?.accounting_reversed_at)
+    const sourcesChanged = Boolean(run?.source_status?.changed_after_run)
+    const canGenerateObligations = run?.status === 'validat' && accountingActive && !orders.length
+
+    let next = {
+      title: 'Generează statul salarial',
+      text: 'Alege luna și pornește calculul din contracte, pontaj, concedii și ajustări.',
+      label: 'Generează din pontaj',
+      onClick: generate,
+      tone: 'info'
+    }
+
+    if (run && sourcesChanged) {
+      next = {
+        title: 'Sursele HR s-au schimbat',
+        text: 'Pontajul, contractele sau concediile au fost modificate după calcul. Regenerează statul înainte de validare.',
+        label: 'Regenerează din pontaj',
+        onClick: generate,
+        tone: 'warning'
+      }
+    } else if (blockingLines.length) {
+      next = {
+        title: `${blockingLines.length} angajat${blockingLines.length === 1 ? '' : 'i'} cu erori`,
+        text: 'Corectează contractul, pontajul sau regulile fiscale înainte de validarea statului.',
+        label: 'Vezi primul blocaj',
+        onClick: () => setSourceDetails(blockingLines[0]),
+        tone: 'danger'
+      }
+    } else if (warningLines.length && run?.status === 'draft') {
+      next = {
+        title: `${warningLines.length} avertizări de verificat`,
+        text: 'Nu blochează neapărat calculul, dar sunt cazuri speciale care trebuie văzute de operator.',
+        label: 'Vezi prima avertizare',
+        onClick: () => setSourceDetails(warningLines[0]),
+        tone: 'warning'
+      }
+    } else if (run?.status === 'draft') {
+      next = {
+        title: 'Statul este gata de validare',
+        text: 'Dacă totalurile sunt corecte, validează statul ca să poată alimenta contabilitatea și D112.',
+        label: 'Validează statul',
+        onClick: validate,
+        tone: 'success'
+      }
+    } else if (run?.status === 'validat' && !accountingActive) {
+      next = {
+        title: 'Generează nota contabilă',
+        text: 'Statul validat trebuie trimis în contabilitate înainte de plăți și obligații.',
+        label: 'Generează nota contabilă',
+        onClick: postAccounting,
+        tone: 'info'
+      }
+    } else if (run?.status === 'validat' && accountingActive && !activePayment) {
+      next = {
+        title: 'Înregistrează plata salariilor',
+        text: 'Nota contabilă există. Următorul pas este plata netului către angajați.',
+        label: 'Înregistrează plata',
+        onClick: payPayroll,
+        tone: 'info'
+      }
+    } else if (canGenerateObligations) {
+      next = {
+        title: 'Pregătește obligațiile bugetare',
+        text: 'Generează ordinele pentru CAS, CASS, impozit și CAM din statul validat.',
+        label: 'Generează obligații',
+        onClick: generateObligations,
+        tone: 'info'
+      }
+    } else if (unpaidOrder) {
+      next = {
+        title: `Plătește ${unpaidOrder.code}`,
+        text: `Mai există obligații bugetare pregătite, dar neînregistrate. Suma: ${formatMoney(unpaidOrder.amount)}.`,
+        label: `Înregistrează ${unpaidOrder.code}`,
+        onClick: () => payObligation(unpaidOrder),
+        tone: 'warning'
+      }
+    } else if (run?.status === 'validat' && accountingActive && activePayment && allOrdersPaid) {
+      next = {
+        title: 'Luna salarială este pregătită pentru D112',
+        text: 'Statul, nota contabilă, plata salariilor și obligațiile bugetare sunt închise operațional.',
+        label: 'Deschide D112',
+        to: `/contabilitate/tva-d300?tab=d112&luna=${month}`,
+        tone: 'success'
+      }
+    }
+
+    const steps = [
+      {
+        label: 'Surse HR',
+        done: Boolean(run && !sourcesChanged && !blockingLines.length),
+        detail: !run ? 'necalculat' : sourcesChanged ? 'modificate' : blockingLines.length ? `${blockingLines.length} erori` : 'curat'
+      },
+      {
+        label: 'Stat',
+        done: run?.status === 'validat',
+        detail: run?.status || 'negenerat'
+      },
+      {
+        label: 'Notă contabilă',
+        done: accountingActive,
+        detail: accountingActive ? `#${run.accounting_journal_id}` : run?.accounting_reversed_at ? 'stornată' : 'lipsește'
+      },
+      {
+        label: 'Plată net',
+        done: Boolean(activePayment),
+        detail: activePayment ? 'înregistrată' : 'neînregistrată'
+      },
+      {
+        label: 'Obligații',
+        done: allOrdersPaid,
+        detail: orders.length ? `${orders.filter(order => order.status === 'platit').length}/${orders.length} plătite` : 'negenerate'
+      },
+      {
+        label: 'D112',
+        done: Boolean(run?.status === 'validat' && accountingActive),
+        detail: run?.status === 'validat' && accountingActive ? 'pregătibilă' : 'după validare'
+      }
+    ]
+
+    return { next, steps, blockingLines, warningLines }
+  }, [activePayment, data.lines, data.paymentOrders, month, run])
+
   return (
     <AccountingShell active="salarizare" title="Salarizare" subtitle="Calcul lunar preliminar, validare si sursa controlata pentru D112." actions={<DropdownMenu label="Actiuni salarizare" align="right" items={actionItems} />}>
       <Card>
@@ -422,6 +552,36 @@ export default function Salarizare() {
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
       {run?.source_status?.changed_after_run ? <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Sursele HR s-au modificat după calculul acestui stat. Regenerează din pontaj pentru valori actualizate.</div> : null}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Flux simplu salarizare</div>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">{payrollFlow.next.title}</h3>
+            <p className="mt-1 text-sm text-slate-600">{payrollFlow.next.text}</p>
+          </div>
+          {payrollFlow.next.to ? (
+            <Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] bg-primary-700 px-[var(--control-px)] text-sm font-semibold text-white shadow-sm transition hover:bg-primary-800" to={payrollFlow.next.to}>
+              {payrollFlow.next.label}
+            </Link>
+          ) : (
+            <Button type="button" onClick={payrollFlow.next.onClick}>{payrollFlow.next.label}</Button>
+          )}
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+          {payrollFlow.steps.map(step => (
+            <div key={step.label} className={`rounded-md border px-3 py-2 ${step.done ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">{step.label}</div>
+                <Badge tone={step.done ? 'success' : 'warning'}>{step.done ? 'OK' : 'Pas'}</Badge>
+              </div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">{step.detail}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 text-xs text-slate-500">
+          Ideea este simplă: operatorul nu trebuie să știe meniul pe de rost; urmează butonul recomandat până când luna salarială devine pregătită pentru D112.
+        </div>
+      </Card>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Info label="Status" value={run ? <Badge tone={statusTone(run.status)}>{run.status}</Badge> : 'Negenerat'} />
         <Info label="Angajati" value={run?.employee_count || 0} />

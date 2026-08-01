@@ -1,5 +1,5 @@
 {
-  "version": "2.12.428",
+  "version": "2.12.429",
   "date": "2026-08-01",
-  "changelog": "## v2.12.428 - 2026-08-01\n### Asistent discret Contabilitate\n- Dashboard-ul contabil afișează un asistent compact pentru verificări de bază, reconciliere lunară, alerte legislative și închiderea perioadei.\n- Asistentul calculează următorul pas din datele reale ale lunii: configurări lipsă, documente draft, resturi, note dezechilibrate sau luna pregătită pentru balanță.\n- Pașii ghidați duc direct la zona relevantă: plan de conturi, registru jurnal, balanță sau închidere lună.\n- Indicatorii rapizi păstrează interfața contabilă mai ușor de urmărit fără să ascundă controalele existente."
+  "changelog": "## v2.12.429 - 2026-08-01\n### Flux simplu Salarizare\n- Pagina Salarizare afișează acum un flux operațional clar: surse HR, stat, notă contabilă, plată net, obligații și D112.\n- Aplicația recomandă butonul următor în funcție de starea reală a lunii: generează, regenerează, verifică blocajul, validează, postează în contabilitate, plătește sau deschide D112.\n- Operatorul nu mai trebuie să deducă manual ordinea acțiunilor din meniul mare de salarizare.\n- Pașii afișează rapid ce este OK și ce mai este de lucrat."
 }

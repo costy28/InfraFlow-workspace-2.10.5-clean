@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.429 - 2026-08-01
+
+## Flux simplu Salarizare
+
+- Pagina Salarizare afișează acum un flux operațional clar: surse HR, stat, notă contabilă, plată net, obligații și D112.
+- Aplicația recomandă butonul următor în funcție de starea reală a lunii: generează, regenerează, verifică blocajul, validează, postează în contabilitate, plătește sau deschide D112.
+- Operatorul nu mai trebuie să deducă manual ordinea acțiunilor din meniul mare de salarizare.
+- Pașii afișează rapid ce este OK și ce mai este de lucrat.
+
 # v2.12.428 - 2026-08-01
 
 ## Asistent discret Contabilitate

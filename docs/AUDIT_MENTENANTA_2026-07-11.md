@@ -1373,3 +1373,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Asistentul calculează următorul pas din verificări de bază, reconciliere, alerte legislative și statusul lunii;
 - Mini-fluxul curățare bază → documente → închidere lună duce direct către zona relevantă;
 - `updates/UPDATE_448_asistent_discret_contabilitate.md` — ✅ documentație update și verificări.
+
+### UPDATE 449 — Flux simplu Salarizare
+
+- `client/src/pages/accounting/Salarizare.jsx` — ✅ adăugat panou „Flux simplu salarizare”;
+- Panoul recomandă acțiunea următoare din starea reală a lunii: generare, regenerare, verificare blocaj, validare, notă contabilă, plată, obligații sau D112;
+- Linia de progres afișează pe scurt Surse HR, Stat, Notă contabilă, Plată net, Obligații și D112;
+- `updates/UPDATE_449_flux_simplu_salarizare.md` — ✅ documentație update și verificări.
