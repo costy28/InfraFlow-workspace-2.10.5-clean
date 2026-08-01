@@ -1450,3 +1450,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat acțiunea următoare: factură din NIR-uri selectate, note stoc, potrivire bancară, amortizare, închidere anuală, report sau audit;
 - Indicatorii rapizi arată recepții nelegate, bancă neclasificată, stoc de contabilizat și probleme de audit;
 - `updates/UPDATE_459_flux_simplu_operatiuni_contabile.md` — ✅ documentație update și verificări.
+
+### UPDATE 460 — Flux simplu Centru fiscal
+
+- `client/src/pages/accounting/TVADeclaratii.jsx` — ✅ adăugat panou ghidat pentru Centrul fiscal;
+- Panoul recomandă automat controlul lunar, verificarea TVA/D300, exportul controlului declarațiilor, confirmarea TVA sau auditul contabil;
+- Indicatorii rapizi arată verificările de rezolvat, declarațiile nepregătite, TVA estimat și termenele active;
+- `updates/UPDATE_460_flux_simplu_centru_fiscal.md` — ✅ documentație update și verificări.

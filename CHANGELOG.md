@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.440 - 2026-08-01
+
+## Flux simplu Centru fiscal
+
+- Pagina Centru fiscal afișează un panou ghidat pentru control lunar, TVA/D300, declarații și termene/recipise.
+- Panoul recomandă automat următoarea acțiune: control lunar, verificare TVA/D300, export control declarații, confirmare TVA sau audit contabil.
+- Sunt afișate explicit verificările de rezolvat, declarațiile nepregătite, TVA estimat și termenele active.
+- Operatorul vede starea fiscală a lunii fără să navigheze manual prin toate taburile.
+
 # v2.12.439 - 2026-08-01
 
 ## Flux simplu Operațiuni contabile

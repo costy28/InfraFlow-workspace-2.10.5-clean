@@ -1,5 +1,5 @@
 {
-  "version": "2.12.439",
+  "version": "2.12.440",
   "date": "2026-08-01",
-  "changelog": "## v2.12.439 - 2026-08-01\n### Flux simplu Operațiuni contabile\n- Pagina Operațiuni contabile afișează un panou de control pentru surse, stocuri, audit și închidere.\n- Panoul recomandă automat următoarea acțiune: factură din NIR-uri selectate, generare note stoc, potrivire bancă, amortizare, închidere anuală, report sau export audit.\n- Sunt afișate explicit recepțiile nelegate, banca neclasificată, stocul de contabilizat și problemele de audit.\n- Operatorul vede primul blocaj contabil înainte să intre în cardurile detaliate."
+  "changelog": "## v2.12.440 - 2026-08-01\n### Flux simplu Centru fiscal\n- Pagina Centru fiscal afișează un panou ghidat pentru control lunar, TVA/D300, declarații și termene/recipise.\n- Panoul recomandă automat următoarea acțiune: control lunar, verificare TVA/D300, export control declarații, confirmare TVA sau audit contabil.\n- Sunt afișate explicit verificările de rezolvat, declarațiile nepregătite, TVA estimat și termenele active.\n- Operatorul vede starea fiscală a lunii fără să navigheze manual prin toate taburile."
 }

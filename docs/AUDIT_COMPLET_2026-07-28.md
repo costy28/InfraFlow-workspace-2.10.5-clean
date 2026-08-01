@@ -566,3 +566,13 @@ Status: ✅ implementat în v2.12.438.
 | Contabilitate | Recepțiile nelegate, banca neclasificată, stocul de contabilizat și auditul sunt vizibile înainte de cardurile detaliate. |
 
 Status: ✅ implementat în v2.12.439.
+
+## Probleme remediate în UPDATE 460 — Flux simplu Centru fiscal
+
+| Zonă | Remediere |
+| --- | --- |
+| Centru fiscal | Pagina afișează fluxul control lunar → TVA/D300 → declarații → termen/recipisă. |
+| UX | Utilizatorul vede primul pas recomandat: control lunar, TVA/D300, export control, confirmare TVA sau audit. |
+| Contabilitate | Verificările de rezolvat, declarațiile nepregătite, TVA estimat și termenele active sunt vizibile înainte de detalii. |
+
+Status: ✅ implementat în v2.12.440.

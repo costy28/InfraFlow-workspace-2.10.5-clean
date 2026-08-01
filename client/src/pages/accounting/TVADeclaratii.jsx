@@ -272,6 +272,38 @@ export function TVADeclaratii() {
   const periodStatus = data.period_status || journal.period_status || {}
   const canCheckVat = periodStatus.status !== 'inchisa' && periodStatus.status !== 'depusa'
   const fileMonth = month.replace('-', '_')
+  const fiscalSummary = buildFiscalSummary({
+    data,
+    journal,
+    readiness,
+    d394,
+    saft,
+    d112,
+    d112Mapping,
+    fiscalCheck,
+    calendar,
+    endToEndAudit,
+    declarationRegister,
+    periodStatus,
+    warnings,
+    month
+  })
+  const fiscalFlow = buildFiscalFlow({
+    month,
+    tab,
+    summary: fiscalSummary,
+    canCheckVat,
+    load,
+    markVatChecked,
+    exportControl: () => download('/accounting/declarations/control-export', `Control_declaratii_${fileMonth}.xlsx`),
+    exportVatJournal: () => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`),
+    exportAudit: () => download('/accounting/audit/end-to-end/export', `Audit_contabil_${fileMonth}.xlsx`),
+    goControl: () => changeTab('control'),
+    goD300: () => changeTab('d300'),
+    goD394: () => changeTab('d394'),
+    goD112: () => changeTab('d112'),
+    goSaft: () => changeTab('saft')
+  })
 
   return (
     <AccountingShell
@@ -307,6 +339,45 @@ export function TVADeclaratii() {
             ['d112', 'D112'], ['saft', 'SAF-T'], ['registru', 'Registru']
           ].map(([value, label]) => <Button key={value} size="sm" variant={tab === value ? 'primary' : 'secondary'} onClick={() => changeTab(value)}>{label}</Button>)}
           <Link className="inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-[var(--control-px)] text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" to="/contabilitate/anaf">e-Factura</Link>
+        </div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge tone={fiscalFlow.tone}>{fiscalFlow.badge}</Badge>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Centru fiscal simplificat</span>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">{fiscalFlow.title}</h3>
+            <p className="mt-1 max-w-4xl text-sm text-slate-500">{fiscalFlow.description}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={fiscalFlow.primaryAction}>{fiscalFlow.primaryLabel}</Button>
+            <Button variant="secondary" onClick={load}>Reîncarcă</Button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {fiscalFlow.steps.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={step.onClick}
+              className={`rounded-lg border px-4 py-3 text-left transition hover:shadow-sm ${step.active ? 'border-emerald-300 bg-emerald-50' : step.tone === 'danger' ? 'border-red-200 bg-red-50' : step.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{index + 1}</span>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <div className="mt-3 font-semibold text-slate-900">{step.title}</div>
+              <p className="mt-1 text-sm text-slate-500">{step.detail}</p>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Info label="Verificări de rezolvat" value={fiscalSummary.totalIssues} />
+          <Info label="Declarații nepregătite" value={fiscalSummary.declarationsNotReady} />
+          <Info label="TVA estimat" value={fiscalSummary.vatLabel} />
+          <Info label="Termene active" value={fiscalSummary.calendarItems} />
         </div>
       </Card>
       {tab === 'control' ? (
@@ -614,6 +685,194 @@ export function TVADeclaratii() {
       </> : null}
     </AccountingShell>
   )
+}
+
+function buildFiscalSummary({
+  data,
+  journal,
+  readiness,
+  d394,
+  saft,
+  d112,
+  d112Mapping,
+  fiscalCheck,
+  calendar,
+  endToEndAudit,
+  declarationRegister,
+  periodStatus,
+  warnings,
+  month
+}) {
+  const decont = data?.decont || {}
+  const fiscalIssues = (fiscalCheck?.checks || []).filter(item => !item.ok).length
+  const endToEndIssues = (endToEndAudit?.checks || []).filter(item => !(item.status === 'ok' || item.count === 0)).length
+  const readinessIssues = (readiness?.checks || []).filter(item => !item.ok).length
+  const declarationsNotReady = (readiness?.declarations || []).filter(item => !['pregatit', 'pregatit_date', 'pregatit_mapare', 'ready'].includes(item.status)).length
+  const d394Warnings = (d394?.warnings || []).length
+  const saftIssues = (saft?.issues || saft?.warnings || []).length
+  const d112Issues = (d112?.issues || d112?.warnings || []).length
+  const d112MappingIssues = [
+    ...(d112Mapping?.company_errors || []),
+    ...(d112Mapping?.employee_errors || []),
+    ...(d112Mapping?.contract_errors || [])
+  ].length
+  const calendarItems = (calendar?.obligations || []).filter(item => item.perioada === month || item.perioada === data?.luna || item.perioada === journal?.luna || item.perioada === periodStatus?.month).length
+  const urgentObligations = (calendar?.obligations || []).filter(item => ['urgent', 'depasit'].includes(item.alert)).length
+  const declarationPendingReceipt = (declarationRegister?.declarations || []).filter(item => ['exportat', 'depus', 'validat'].includes(item.status) && !item.recipisa_status).length
+  const totalWarnings = (warnings || []).length + d394Warnings
+  const totalIssues = fiscalIssues + endToEndIssues + readinessIssues + declarationsNotReady + saftIssues + d112Issues + d112MappingIssues + urgentObligations + declarationPendingReceipt
+  const tvaPayable = Number(decont.tva_de_plata || 0)
+  const tvaRecoverable = Number(decont.tva_de_recuperat || 0)
+  const vatLabel = tvaPayable > 0
+    ? `plată ${formatMoney(tvaPayable)}`
+    : tvaRecoverable > 0
+      ? `recuperat ${formatMoney(tvaRecoverable)}`
+      : formatMoney(0)
+
+  return {
+    fiscalIssues,
+    endToEndIssues,
+    readinessIssues,
+    declarationsNotReady,
+    d394Warnings,
+    saftIssues,
+    d112Issues,
+    d112MappingIssues,
+    calendarItems,
+    urgentObligations,
+    declarationPendingReceipt,
+    totalWarnings,
+    totalIssues,
+    tvaPayable,
+    tvaRecoverable,
+    vatLabel,
+    rowsCount: (decont.randuri || []).length,
+    vatChecked: Boolean(periodStatus?.tva_verificat_la)
+  }
+}
+
+function buildFiscalFlow({
+  month,
+  tab,
+  summary,
+  canCheckVat,
+  load,
+  markVatChecked,
+  exportControl,
+  exportVatJournal,
+  exportAudit,
+  goControl,
+  goD300,
+  goD394,
+  goD112,
+  goSaft
+}) {
+  const controlIssues = summary.fiscalIssues + summary.endToEndIssues
+  const declarationIssues = summary.readinessIssues + summary.declarationsNotReady + summary.d112Issues + summary.d112MappingIssues + summary.saftIssues
+  const deadlineIssues = summary.urgentObligations + summary.declarationPendingReceipt
+  const steps = [
+    {
+      key: 'control',
+      title: 'Control lunar',
+      detail: controlIssues ? `${controlIssues} verificări cer atenție înainte de export.` : 'Datele lunii sunt coerente la verificările curente.',
+      status: controlIssues ? 'atenție' : 'ok',
+      tone: controlIssues ? 'warning' : 'success',
+      active: tab === 'control',
+      onClick: goControl
+    },
+    {
+      key: 'd300',
+      title: 'TVA / D300',
+      detail: `${summary.rowsCount} rânduri D300 · ${summary.vatLabel}.`,
+      status: summary.totalWarnings ? `${summary.totalWarnings} alerte` : 'pregătit',
+      tone: summary.totalWarnings ? 'warning' : 'success',
+      active: tab === 'd300',
+      onClick: goD300
+    },
+    {
+      key: 'declarations',
+      title: 'Declarații',
+      detail: declarationIssues ? `${declarationIssues} elemente nepregătite în D394, D112 sau SAF-T.` : 'D394, D112 și SAF-T nu semnalează blocaje majore.',
+      status: declarationIssues ? 'de lucru' : 'ok',
+      tone: declarationIssues ? 'warning' : 'success',
+      active: ['d394', 'd112', 'saft'].includes(tab),
+      onClick: declarationIssues && summary.d112Issues + summary.d112MappingIssues >= summary.saftIssues ? goD112 : summary.saftIssues ? goSaft : goD394
+    },
+    {
+      key: 'deadline',
+      title: 'Termen / recipisă',
+      detail: deadlineIssues ? `${deadlineIssues} termene sau recipise trebuie urmărite.` : 'Termenele orientative și recipisele sunt sub control.',
+      status: summary.vatChecked ? 'TVA verificat' : 'neverificat',
+      tone: deadlineIssues ? 'danger' : summary.vatChecked ? 'success' : 'warning',
+      active: false,
+      onClick: goControl
+    }
+  ]
+
+  if (controlIssues) {
+    return {
+      badge: 'Control întâi',
+      tone: 'warning',
+      title: `Închide verificările fiscale pentru ${month}`,
+      description: 'Sunt diferențe sau blocaje în circuitul contabil. Rezolvă-le înainte să tratezi declarațiile ca finale.',
+      primaryLabel: 'Vezi controlul lunar',
+      primaryAction: goControl,
+      steps
+    }
+  }
+  if (summary.totalWarnings) {
+    return {
+      badge: 'Atenții TVA',
+      tone: 'warning',
+      title: 'TVA-ul are date pregătite, dar merită verificat jurnalul',
+      description: 'Jurnalul TVA sau D394 semnalează atenționări. Verifică baza și cotele înainte de export.',
+      primaryLabel: 'Vezi TVA / D300',
+      primaryAction: goD300,
+      steps
+    }
+  }
+  if (declarationIssues) {
+    return {
+      badge: 'Declarații',
+      tone: 'warning',
+      title: 'Pregătește declarațiile rămase',
+      description: 'Datele lunii sunt aproape gata, dar mai există mapări sau controale pentru D394, D112 ori SAF-T.',
+      primaryLabel: 'Export control declarații',
+      primaryAction: exportControl,
+      steps
+    }
+  }
+  if (!summary.vatChecked && canCheckVat) {
+    return {
+      badge: 'Confirmare',
+      tone: 'warning',
+      title: 'Marchează TVA-ul ca verificat după control',
+      description: 'Nu blochez pagina, dar las vizibil pasul de confirmare ca să nu se depună luna fără control intern.',
+      primaryLabel: 'Marchează TVA verificat',
+      primaryAction: markVatChecked,
+      steps
+    }
+  }
+  if (deadlineIssues) {
+    return {
+      badge: 'Termene',
+      tone: 'danger',
+      title: 'Urmărește termenele și recipisele',
+      description: 'Declarațiile par pregătite, dar există termene apropiate/depășite sau recipise care trebuie urmărite.',
+      primaryLabel: 'Vezi calendar fiscal',
+      primaryAction: goControl,
+      steps
+    }
+  }
+  return {
+    badge: 'Luna e curată',
+    tone: 'success',
+    title: `Centru fiscal pregătit pentru ${month}`,
+    description: 'Controlul lunar, TVA-ul și declarațiile nu semnalează blocaje. Poți exporta dosarul de control sau jurnalul TVA.',
+    primaryLabel: 'Export audit contabil',
+    primaryAction: summary.rowsCount ? exportAudit : load,
+    steps: steps.map(step => ({ ...step, tone: step.tone === 'danger' ? 'warning' : step.tone }))
+  }
 }
 
 export default TVADeclaratii
