@@ -686,3 +686,13 @@ Status: ✅ implementat în v2.12.450.
 | Operare | Fiecare etapă are status, explicație scurtă și acțiune directă, fără să oblige operatorul să ghicească tabul corect. |
 
 Status: ✅ implementat în v2.12.451.
+
+## Probleme remediate în UPDATE 472 — Flux simplu Contract Management
+
+| Zonă | Remediere |
+| --- | --- |
+| Contracte | Modulul afișează fluxul contract → dosar complet → consum → praguri/termene → task-uri → raport/închidere. |
+| UX | Utilizatorul vede primul pas recomandat: contract nou, manager lipsă, document semnat lipsă, depășiri, scadențe, task-uri restante sau raport portofoliu. |
+| Operare | Portofoliul contractual este prezentat ca proces de lucru, nu doar ca listă cu cockpit-uri tehnice. |
+
+Status: ✅ implementat în v2.12.452.

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.452 - 2026-08-01
+
+## Flux simplu Contract Management
+
+- Modulul Contracte afișează un panou ghidat pentru contract, dosar complet, consum, praguri, task-uri și raport/închidere.
+- Panoul prezintă pașii de lucru: contract în portofoliu, manager/document semnat, consum din facturi/documente, praguri/termene, task-uri/remindere și raport portofoliu.
+- Recomandarea principală se schimbă automat: contract nou, asignare manager, încărcare document semnat, verificare depășiri, scadențe în 30 zile, task-uri restante sau raport portofoliu.
+- Fiecare pas are status, explicație scurtă și acțiune directă.
+- Cockpit-ul, radarul executiv, task-urile și dosarul contractului rămân neschimbate.
+
 # v2.12.451 - 2026-08-01
 
 ## Flux simplu Gestiune / Depozit

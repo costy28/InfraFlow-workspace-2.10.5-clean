@@ -451,6 +451,110 @@ export default function ContractePage() {
     }
   }, [dashboard, savedViewCounts, tasks.length])
 
+  const contractSimpleFlow = useMemo(() => {
+    const totalContracts = Number(dashboard?.contracts_total || contracts.length || 0)
+    const activeContracts = Number(dashboard?.contracts_active || contracts.filter(contract => String(contract.status || 'activ') === 'activ').length || 0)
+    const totalContracted = Number(dashboard?.total_contractat || 0)
+    const totalConsumed = Number(dashboard?.total_consumat || 0)
+    const globalPercent = Number(dashboard?.procent_consum_global || 0)
+    const alertsCount = Number(dashboard?.alerts?.length || 0)
+    const riskTotal = Number(dashboard?.risk_summary?.total || 0)
+    const critical = Number(savedViewCounts.critice || 0)
+    const missingManagers = Number(savedViewCounts.fara_manager || 0)
+    const missingSignedFiles = Number(savedViewCounts.fara_semnat || 0)
+    const expiringSoon = Number(savedViewCounts.scad_30 || 0)
+    const overBudget = Number(savedViewCounts.depasite || 0)
+    const openTasks = Number(dashboard?.tasks_open || tasks.length || 0)
+    const overdueTasks = Number(dashboard?.tasks_overdue || 0)
+
+    const steps = [
+      {
+        key: 'create',
+        title: 'Contractul există în portofoliu',
+        description: 'Înregistrează număr, partener, valoare, perioadă, responsabil și, pentru România, CPV/PAAP când este cazul.',
+        status: totalContracts ? `${totalContracts} contracte` : 'niciun contract',
+        done: totalContracts > 0,
+        tone: totalContracts ? 'success' : 'danger',
+        actionLabel: totalContracts ? 'Vezi portofoliu' : '+ Contract nou',
+        onClick: totalContracts ? resetPortfolioFilters : openNewContract,
+      },
+      {
+        key: 'complete',
+        title: 'Dosarul este complet',
+        description: 'Managerul și documentul semnat sunt baza. Fără ele, contractul există, dar nu are proprietar și dovadă.',
+        status: missingManagers || missingSignedFiles ? `${missingManagers + missingSignedFiles} lipsuri` : 'complet de bază',
+        done: totalContracts > 0 && missingManagers === 0 && missingSignedFiles === 0,
+        tone: missingManagers || missingSignedFiles ? 'warning' : totalContracts ? 'success' : 'info',
+        actionLabel: missingManagers ? 'Fără manager' : missingSignedFiles ? 'Fără semnat' : 'Checklist OK',
+        onClick: () => {
+          const viewKey = missingManagers ? 'fara_manager' : missingSignedFiles ? 'fara_semnat' : 'critice'
+          const view = savedPortfolioViews.find(item => item.key === viewKey)
+          if (view) applySavedPortfolioView(view)
+        },
+      },
+      {
+        key: 'consume',
+        title: 'Facturile și documentele scad contractul',
+        description: 'Leagă facturi, NIR-uri, comenzi sau consumuri manuale ca valoarea rămasă să fie mereu clară.',
+        status: totalConsumed ? `${formatMoney(totalConsumed)} consum` : 'fără consum',
+        done: totalConsumed > 0 || activeContracts === 0,
+        tone: totalConsumed > 0 ? 'success' : activeContracts ? 'warning' : 'info',
+        actionLabel: totalConsumed ? 'Vezi consum' : 'Contracte active',
+        onClick: () => applyQuickContractFilter({ status: 'activ' }),
+      },
+      {
+        key: 'limits',
+        title: 'Praguri și termene urmărite',
+        description: 'Alertele apar când consumul se apropie de limită, contractul expiră sau riscul devine operațional.',
+        status: alertsCount || expiringSoon || overBudget ? `${alertsCount + expiringSoon + overBudget} atenționări` : 'fără alerte',
+        done: alertsCount === 0 && expiringSoon === 0 && overBudget === 0,
+        tone: overBudget || critical ? 'danger' : alertsCount || expiringSoon ? 'warning' : 'success',
+        actionLabel: overBudget ? 'Depășite' : expiringSoon ? 'Scad curând' : 'Cu alerte',
+        onClick: () => {
+          const viewKey = overBudget ? 'depasite' : expiringSoon ? 'scad_30' : 'critice'
+          const view = savedPortfolioViews.find(item => item.key === viewKey)
+          if (view) applySavedPortfolioView(view)
+        },
+      },
+      {
+        key: 'tasks',
+        title: 'Responsabilii primesc acțiuni',
+        description: 'Task-urile și reminderele transformă alerta în treabă concretă pentru managerul de contract.',
+        status: overdueTasks ? `${overdueTasks} restante` : openTasks ? `${openTasks} deschise` : 'fără restanțe',
+        done: overdueTasks === 0,
+        tone: overdueTasks ? 'danger' : openTasks ? 'info' : 'success',
+        actionLabel: openTasks || alertsCount ? 'Generează task-uri' : 'Trimite remindere',
+        onClick: openTasks || alertsCount ? generateTasks : sendReminders,
+      },
+      {
+        key: 'report',
+        title: 'Raport și închidere controlată',
+        description: 'La final vezi portofoliul, valoarea contractată, consumată, rămasă și contractele ce pot fi închise cu audit.',
+        status: totalContracted ? `${formatPercent(globalPercent)} consum global` : 'fără valori',
+        done: totalContracts > 0 && riskTotal === 0 && overdueTasks === 0,
+        tone: critical || riskTotal || overdueTasks ? 'warning' : totalContracts ? 'success' : 'info',
+        actionLabel: 'Raport portofoliu',
+        onClick: printPortfolio,
+      },
+    ]
+
+    const primary = !totalContracts
+      ? { tone: 'danger', title: 'Începe cu primul contract', description: 'Contract Management devine util abia după ce ai portofoliul de urmărit: partener, valoare, termen și responsabil.', label: '+ Contract nou', onClick: openNewContract }
+      : missingManagers
+        ? { tone: 'warning', title: 'Contracte fără manager', description: 'Fără responsabil, alertele nu au proprietar. Setează managerii înainte de consum și remindere.', label: 'Asignează manageri', onClick: () => applySavedPortfolioView(savedPortfolioViews.find(item => item.key === 'fara_manager')) }
+        : missingSignedFiles
+          ? { tone: 'warning', title: 'Lipsește documentul semnat', description: 'Dosarul contractual trebuie să conțină contractul real semnat, nu doar fișa generată.', label: 'Vezi lipsuri', onClick: () => applySavedPortfolioView(savedPortfolioViews.find(item => item.key === 'fara_semnat')) }
+          : overBudget
+            ? { tone: 'danger', title: 'Contracte depășite', description: 'Consum peste valoarea contractată. Aici trebuie clarificare rapidă cu Achiziții/Contabilitate.', label: 'Vezi depășiri', onClick: () => applySavedPortfolioView(savedPortfolioViews.find(item => item.key === 'depasite')) }
+            : expiringSoon
+              ? { tone: 'warning', title: 'Contracte aproape de termen', description: 'Pregătește prelungire, închidere sau renegociere înainte să devină urgență.', label: 'Scad în 30 zile', onClick: () => applySavedPortfolioView(savedPortfolioViews.find(item => item.key === 'scad_30')) }
+              : overdueTasks
+                ? { tone: 'danger', title: 'Task-uri restante pe contracte', description: 'Închide restanțele ca portofoliul să reflecte realitatea operațională.', label: 'Vezi task-uri', onClick: generateTasks }
+                : { tone: 'success', title: 'Portofoliul poate fi raportat', description: 'Dosarele de bază sunt curate. Următorul pas sănătos este raportul de portofoliu sau monitorizarea consumului.', label: 'Raport portofoliu', onClick: printPortfolio }
+
+    return { primary, steps }
+  }, [contracts, dashboard, savedViewCounts, tasks.length])
+
   const activeFilterCount = useMemo(() => {
     let count = 0
     if (portfolioFilters.status !== 'toate') count += 1
@@ -1417,6 +1521,52 @@ export default function ContractePage() {
           <p className="mt-1 text-xs text-slate-500">{dashboard?.risk_summary?.danger || 0} critice</p>
         </Card>
       </div>
+
+      <Card
+        title="Flux simplu Contract Management"
+        subtitle="De la contract semnat până la consum, alerte, task-uri și închidere controlată."
+        actions={
+          <Button
+            size="sm"
+            variant={contractSimpleFlow.primary.tone === 'danger' ? 'primary' : 'secondary'}
+            onClick={contractSimpleFlow.primary.onClick}
+            loading={saving}
+          >
+            {contractSimpleFlow.primary.label}
+          </Button>
+        }
+      >
+        <div className={`mb-3 rounded-2xl border p-4 ${contractSimpleFlow.primary.tone === 'danger' ? 'border-rose-200 bg-rose-50' : contractSimpleFlow.primary.tone === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={contractSimpleFlow.primary.tone}>recomandat acum</Badge>
+            <div className="font-semibold text-slate-900">{contractSimpleFlow.primary.title}</div>
+          </div>
+          <p className="mt-2 text-sm text-slate-700">{contractSimpleFlow.primary.description}</p>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {contractSimpleFlow.steps.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={step.onClick}
+              className={`rounded-2xl border p-3 text-left transition hover:border-primary-300 hover:bg-primary-50 ${step.done ? 'border-emerald-100 bg-emerald-50/70' : step.tone === 'danger' ? 'border-rose-200 bg-rose-50' : step.tone === 'warning' ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-white'}`}
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${step.done ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                    {index + 1}
+                  </span>
+                  <div className="font-semibold text-slate-900">{step.title}</div>
+                </div>
+                <Badge tone={step.tone}>{step.status}</Badge>
+              </div>
+              <p className="min-h-[2.5rem] text-sm text-slate-600">{step.description}</p>
+              <div className="mt-3 text-xs font-semibold text-primary-700">{step.actionLabel} →</div>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       <Card
         title="Asistent contracte"

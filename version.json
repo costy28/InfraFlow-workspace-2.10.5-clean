@@ -1,5 +1,5 @@
 {
-  "version": "2.12.451",
+  "version": "2.12.452",
   "date": "2026-08-01",
-  "changelog": "## v2.12.451 - 2026-08-01\n### Flux simplu Gestiune / Depozit\n- Modulul Gestiune afișează un panou ghidat de la catalog până la raportul valoric.\n- Operatorul vede pașii: catalog, furnizori/contracte, NIR, bon consum, inventar și raport valoric.\n- Panoul recomandă automat următoarea acțiune: material nou, furnizor nou, NIR, aprobare bonuri, completare nomenclator sau raport.\n- Fluxul păstrează taburile și operațiunile existente, dar reduce navigarea prin ghicire."
+  "changelog": "## v2.12.452 - 2026-08-01\n### Flux simplu Contract Management\n- Modulul Contracte afișează un panou ghidat pentru contract, dosar complet, consum, praguri, task-uri și raport/închidere.\n- Operatorul vede pașii contract → manager/document semnat → consum din facturi/documente → alerte → task-uri → raport portofoliu.\n- Panoul recomandă automat următoarea acțiune: contract nou, asignare manager, document semnat, depășiri, scadențe sau raport.\n- Fluxul păstrează cockpit-ul și asistentul existent, dar pune portofoliul într-o ordine de lucru mai intuitivă."
 }
