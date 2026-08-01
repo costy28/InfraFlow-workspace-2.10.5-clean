@@ -496,3 +496,13 @@ Status: ✅ implementat în v2.12.431.
 | Contabilitate | Pașii documente, trezorerie, TVA, balanță, închidere și declarații sunt legați într-un progres vizibil. |
 
 Status: ✅ implementat în v2.12.432.
+
+## Probleme remediate în UPDATE 453 — Flux simplu Situații financiare
+
+| Zonă | Remediere |
+| --- | --- |
+| Situații financiare | Raportul afișează fluxul profil → mapări → balanță/control → raport → export. |
+| UX | Operatorul vede imediat dacă trebuie să adauge mapări, să verifice balanța sau să exporte raportul. |
+| Contabilitate | Raportarea rămâne managerială configurabilă și nu este prezentată ca formular oficial automat. |
+
+Status: ✅ implementat în v2.12.433.

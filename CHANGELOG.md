@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.433 - 2026-08-01
+
+## Flux simplu Situații financiare
+
+- Pagina Situații financiare afișează un flux ghidat: profil, mapări, balanță/control, raport și export.
+- Aplicația recomandă automat următorul pas util: adaugă profil, adaugă mapare, verifică balanța, recalculează sau exportă.
+- Indicatorii rapizi arată numărul de rânduri, mapări active, indicatori fără valori și tipul raportului.
+- Raportul rămâne managerial configurabil, fără să fie prezentat ca formular oficial automat.
+
 # v2.12.432 - 2026-08-01
 
 ## Flux simplu Închidere lună

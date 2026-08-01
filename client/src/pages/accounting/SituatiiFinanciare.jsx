@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -113,6 +114,25 @@ export default function SituatiiFinanciare() {
   }
 
   const activeMappings = mappings.filter(item => item.statement_type === tip && (item.profile_code || 'MANAGERIAL_STANDARD') === profileCode)
+  const reportMonth = `${an}-${String(luna).padStart(2, '0')}`
+  const reportRows = data.rows || []
+  const selectedProfile = profiles.find(item => item.code === profileCode)
+  const zeroRows = reportRows.filter(row => Number(row.current || 0) === 0 && Number(row.previous || 0) === 0)
+  const reportFlow = buildFinancialStatementFlow({
+    tip,
+    profileCode,
+    selectedProfile,
+    profiles,
+    activeMappings,
+    rows: reportRows,
+    control: data.control,
+    reportMonth,
+    load,
+    exportExcel: () => download('/accounting/financial-statements/export', `Situatie_${tip}_${an}_${luna}.xlsx`),
+    printReport: () => download('/accounting/financial-statements/print', '', true),
+    addMapping: () => editMapping(),
+    addProfile: () => setProfileOpen(true)
+  })
   return (
     <AccountingShell
       active="situatii-financiare"
@@ -130,7 +150,43 @@ export default function SituatiiFinanciare() {
       <Card><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Input label="An" type="number" min="2000" max="2100" value={an} onChange={event => setAn(Number(event.target.value))} /><Select label="Luna de raportare" value={luna} onChange={event => setLuna(Number(event.target.value))} options={Array.from({ length: 12 }, (_, index) => ({ value: index + 1, label: String(index + 1).padStart(2, '0') }))} /><Select label="Situatie" value={tip} onChange={event => setTip(event.target.value)} options={[{ value: 'BILANT', label: 'Pozitie financiara' }, { value: 'CPP', label: 'Profit si pierdere' }]} /><Select label="Profil formular" value={profileCode} onChange={event => setProfileCode(event.target.value)} options={profiles.map(item => ({ value: item.code, label: item.label }))} /></div></Card>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Flux simplu situații financiare</div>
+            <h3 className="mt-1 text-lg font-bold text-slate-900">{reportFlow.title}</h3>
+            <p className="mt-1 text-sm text-slate-600">{reportFlow.detail}</p>
+            <div className="mt-4 grid gap-2 md:grid-cols-5">
+              {reportFlow.steps.map((step, index) => (
+                step.to ? (
+                  <Link key={step.label} to={step.to} className={`rounded-md border px-3 py-3 text-sm transition hover:shadow-sm ${step.ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                    <StepContent step={step} index={index} />
+                  </Link>
+                ) : (
+                  <button key={step.label} type="button" onClick={step.onClick} className={`rounded-md border px-3 py-3 text-left text-sm transition hover:shadow-sm ${step.ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                    <StepContent step={step} index={index} />
+                  </button>
+                )
+              ))}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:min-w-56">
+            {reportFlow.primary.to ? (
+              <Link to={reportFlow.primary.to} className="rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-slate-800">{reportFlow.primary.label}</Link>
+            ) : (
+              <Button type="button" onClick={reportFlow.primary.onClick}>{reportFlow.primary.label}</Button>
+            )}
+            <span className="text-xs text-slate-500">Profil: {selectedProfile?.label || profileCode} · {activeMappings.length} mapări</span>
+          </div>
+        </div>
+      </Card>
       <div className="grid gap-3 sm:grid-cols-3"><Info label="Perioada" value={data.period_end || '-'} /><Info label="Comparativ" value={data.previous_period_end || '-'} /><Info label="Control" value={<Badge tone={data.control?.ok ? 'success' : 'warning'}>{data.control?.message || '-'}</Badge>} /></div>
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Info label="Indicatori" value={reportRows.length} />
+        <Info label="Mapări active" value={activeMappings.length} />
+        <Info label="Indicatori fără valori" value={zeroRows.length} />
+        <Info label="Tip raport" value={tip === 'BILANT' ? 'Poziție financiară' : 'Profit și pierdere'} />
+      </div>
       <Table headers={['Cod', 'Indicator', 'Conturi', 'An curent', 'An precedent', 'Diferenta', 'Variatie', 'Actiuni']}>
         {(data.rows || []).map(row => <tr key={row.code}><td className="px-3 py-2 font-mono font-semibold">{row.code}</td><td className="px-3 py-2">{row.label}</td><td className="px-3 py-2 text-xs text-slate-500">{(row.prefixes || []).join(', ')}</td><td className="px-3 py-2 text-right font-semibold">{formatMoney(row.current)}</td><td className="px-3 py-2 text-right">{formatMoney(row.previous)}</td><td className="px-3 py-2 text-right">{formatMoney(row.difference)}</td><td className="px-3 py-2 text-right">{row.variation_percent == null ? '-' : `${row.variation_percent}%`}</td><td className="px-3 py-2"><DropdownMenu label="Actiuni" items={[{ label: 'Editeaza maparea', onClick: () => editMapping(row) }, { label: 'Anuleaza maparea', onClick: () => removeMapping(row) }]} /></td></tr>)}
       </Table>
@@ -170,5 +226,46 @@ export default function SituatiiFinanciare() {
         onConfirm={runConfirmAction}
       />
     </AccountingShell>
+  )
+}
+
+function buildFinancialStatementFlow({ tip, profileCode, selectedProfile, profiles, activeMappings, rows, control, reportMonth, load, exportExcel, printReport, addMapping, addProfile }) {
+  const hasProfile = Boolean(selectedProfile) || profileCode === 'MANAGERIAL_STANDARD' || profiles.length === 0
+  const hasMappings = activeMappings.length > 0
+  const hasRows = rows.length > 0
+  const controlOk = control?.ok !== false
+  const statementLabel = tip === 'BILANT' ? 'poziția financiară' : 'profitul și pierderea'
+  const steps = [
+    { label: 'Profil', ok: hasProfile, detail: hasProfile ? 'Profilul raportului este selectat' : 'Lipsește profilul formularului', onClick: addProfile },
+    { label: 'Mapări', ok: hasMappings, detail: hasMappings ? `${activeMappings.length} rânduri configurate` : 'Adaugă conturile care intră în raport', onClick: addMapping },
+    { label: 'Balanță', ok: controlOk, detail: controlOk ? 'Controlul nu raportează blocaje' : control?.message || 'Verifică balanța', to: `/contabilitate/balanta?luna=${reportMonth}` },
+    { label: 'Raport', ok: hasRows, detail: hasRows ? `${rows.length} indicatori calculați` : 'Recalculează după mapări și balanță', onClick: load },
+    { label: 'Export', ok: hasRows && controlOk, detail: hasRows && controlOk ? 'Excel/PDF pregătit pentru dosar' : 'Așteaptă verificările anterioare', onClick: exportExcel }
+  ]
+  const firstBlocking = steps.find(step => !step.ok)
+  if (firstBlocking) {
+    return {
+      title: `Raportul pentru ${statementLabel} mai are pași de pregătit.`,
+      detail: firstBlocking.detail,
+      steps,
+      primary: firstBlocking.to ? { label: `Rezolvă: ${firstBlocking.label}`, to: firstBlocking.to } : { label: `Rezolvă: ${firstBlocking.label}`, onClick: firstBlocking.onClick || load }
+    }
+  }
+  return {
+    title: `Raportul pentru ${statementLabel} este pregătit pentru export.`,
+    detail: 'Poți exporta Excel pentru lucru sau deschide varianta de tipărire/PDF pentru dosar.',
+    steps,
+    primary: { label: 'Export Excel', onClick: exportExcel },
+    secondary: { label: 'Tipărește / PDF', onClick: printReport }
+  }
+}
+
+function StepContent({ step, index }) {
+  return (
+    <>
+      <span className={`mb-2 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${step.ok ? 'bg-emerald-700 text-white' : 'bg-amber-500 text-white'}`}>{step.ok ? '✓' : index + 1}</span>
+      <strong className="block text-slate-900">{step.label}</strong>
+      <span className="mt-1 block text-xs text-slate-600">{step.detail}</span>
+    </>
   )
 }

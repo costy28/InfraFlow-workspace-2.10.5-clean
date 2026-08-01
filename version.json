@@ -1,5 +1,5 @@
 {
-  "version": "2.12.432",
+  "version": "2.12.433",
   "date": "2026-08-01",
-  "changelog": "## v2.12.432 - 2026-08-01\n### Flux simplu Închidere lună\n- Închiderea lunii afișează un verdict operațional clar: blocată, pregătită, închisă sau depusă.\n- Panoul recomandă automat prima acțiune utilă: rezolvă blocajul, închide luna, deschide Audit fiscal, marchează depunerea sau descarcă dosarul ZIP.\n- Progresul verificărilor lunare este vizibil într-o bară simplă, calculată din pașii existenți.\n- Operatorul nu mai trebuie să deducă manual ce urmează din blocaje, tabele și meniuri."
+  "changelog": "## v2.12.433 - 2026-08-01\n### Flux simplu Situații financiare\n- Pagina Situații financiare afișează un flux ghidat: profil, mapări, balanță/control, raport și export.\n- Aplicația recomandă automat următorul pas util: adaugă profil, adaugă mapare, verifică balanța, recalculează sau exportă.\n- Indicatorii rapizi arată numărul de rânduri, mapări active, indicatori fără valori și tipul raportului.\n- Raportul rămâne managerial configurabil, fără să fie prezentat ca formular oficial automat."
 }

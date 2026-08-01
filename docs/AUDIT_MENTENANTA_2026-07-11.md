@@ -1401,3 +1401,10 @@ Următorul pas de stabilizare: `2.12.300`
 - Panoul recomandă automat prima acțiune utilă: rezolvă blocajul, închide luna, deschide Audit fiscal, marchează depunerea sau descarcă dosarul ZIP;
 - Progresul verificărilor lunare este afișat într-o bară simplă calculată din pașii existenți;
 - `updates/UPDATE_452_flux_simplu_inchidere_luna.md` — ✅ documentație update și verificări.
+
+### UPDATE 453 — Flux simplu Situații financiare
+
+- `client/src/pages/accounting/SituatiiFinanciare.jsx` — ✅ adăugat flux ghidat pentru raportare managerială;
+- Panoul recomandă automat profilul, maparea, balanța/controlul, recalcularea sau exportul;
+- Indicatorii rapizi arată rândurile calculate, mapările active, indicatorii fără valori și tipul raportului;
+- `updates/UPDATE_453_flux_simplu_situatii_financiare.md` — ✅ documentație update și verificări.
