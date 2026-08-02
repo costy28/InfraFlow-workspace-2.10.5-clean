@@ -1559,3 +1559,8 @@ Următorul pas de stabilizare: `2.12.300`
 - Adăugat panou ghidat în HR pentru firul angajat → contract → pontaj → concedii/medicale → dosar/Kiosk → salarizare.
 - Panoul recomandă automat următorul pas din date reale: angajați activi, contracte, salarii de bază, pontaj, absențe, dosare și Kiosk.
 - Nu modifică API-uri sau schema DB; este o simplificare de operare peste logica existentă.
+### UPDATE 475 — Flux simplu Producție / Operațiuni
+
+- Adăugat panou ghidat în Producție pentru firul rețetă/BOM → plan → realizare → stoc → raport → control costuri.
+- Panoul recomandă automat următorul pas din date reale: rețete aprobate, planuri, consumuri, legare Gestiune și raport lunar.
+- Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente.

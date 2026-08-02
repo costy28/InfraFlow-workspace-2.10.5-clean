@@ -238,6 +238,104 @@ export default function ProductiePage() {
     }
   }
 
+  const productionFlow = useMemo(() => {
+    const currentMonth = raportLuna || new Date().toISOString().slice(0, 7)
+    const monthConsumptions = consumptions.filter(item => String(item.date || item.data || '').startsWith(currentMonth))
+    const approvedRecipes = recipes.filter(recipeStatus).length
+    const draftRecipes = Math.max(0, recipes.length - approvedRecipes)
+    const openPlans = plans.filter(plan => !['finalizat', 'inchis', 'închis', 'anulat', 'cancelled'].includes(String(plan.status || '').toLowerCase())).length
+    const plannedQty = plans.reduce((sum, plan) => sum + Number(plan.asphalt || plan.tone || plan.quantity || 0), 0)
+    const producedQty = monthConsumptions.reduce((sum, item) => sum + Number(item.asphalt || item.tone || item.quantity || 0), 0)
+    const unlinkedConsumptions = monthConsumptions.filter(item => !item.gestiune_linked && !item.inventory_linked && !item.stock_linked).length
+    const reportReady = Boolean(raportZilnic)
+
+    const steps = [
+      {
+        key: 'recipes',
+        label: 'Rețete / BOM',
+        title: recipes.length ? `${recipes.length} rețete configurate` : 'Configurează prima rețetă',
+        detail: recipes.length
+          ? `${approvedRecipes} aprobate · ${draftRecipes} draft. Rețeta este baza consumului automat.`
+          : 'Fără rețetă sau listă de materiale, consumul nu poate fi calculat coerent.',
+        tone: recipes.length && approvedRecipes ? 'success' : recipes.length ? 'warning' : 'danger',
+        done: recipes.length > 0 && approvedRecipes > 0,
+        actionLabel: 'Vezi rețete',
+        action: () => setActiveTab('Rețete'),
+      },
+      {
+        key: 'plans',
+        label: 'Plan',
+        title: plans.length ? `${plans.length} planuri în sistem` : 'Planifică producția',
+        detail: plans.length
+          ? `${openPlans} planuri active · ${plannedQty.toLocaleString('ro-RO')} unități planificate.`
+          : 'Planul spune ce trebuie produs, când și pe ce flux operațional.',
+        tone: plans.length ? (openPlans ? 'warning' : 'success') : 'neutral',
+        done: plans.length > 0,
+        actionLabel: 'Vezi planuri',
+        action: () => setActiveTab('Planuri'),
+      },
+      {
+        key: 'consumption',
+        label: 'Realizare',
+        title: monthConsumptions.length ? `${monthConsumptions.length} consumuri în luna curentă` : 'Înregistrează realizarea',
+        detail: monthConsumptions.length
+          ? `${producedQty.toLocaleString('ro-RO')} unități produse/raportate în ${currentMonth}.`
+          : 'Când se produce efectiv, aici se înregistrează output-ul și consumurile.',
+        tone: monthConsumptions.length ? 'success' : 'warning',
+        done: monthConsumptions.length > 0,
+        actionLabel: monthConsumptions.length ? 'Vezi consumuri' : '+ Adaugă consum',
+        action: monthConsumptions.length ? () => setActiveTab('Consumuri') : () => setModalOpen(true),
+      },
+      {
+        key: 'inventory',
+        label: 'Stoc',
+        title: unlinkedConsumptions ? 'Leagă consumurile de Gestiune' : 'Stocul este sincronizat',
+        detail: unlinkedConsumptions
+          ? `${unlinkedConsumptions} consumuri din ${currentMonth} nu au scăzut încă materiile prime din stoc.`
+          : 'Consumurile lunii nu arată restanțe de legare cu Gestiune.',
+        tone: unlinkedConsumptions ? 'warning' : 'success',
+        done: unlinkedConsumptions === 0,
+        actionLabel: 'Legare Gestiune',
+        action: () => setActiveTab('Raport Zilnic'),
+      },
+      {
+        key: 'report',
+        label: 'Raport',
+        title: reportReady ? 'Raportul lunii este încărcat' : 'Generează raportul lunii',
+        detail: reportReady
+          ? `${raportZilnic?.totals?.productii_total || monthConsumptions.length} operațiuni · ${raportZilnic?.totals?.tone_total || producedQty} total.`
+          : 'Raportul zilnic centralizează producția, rețetele și consumul de resurse.',
+        tone: reportReady ? 'success' : 'neutral',
+        done: reportReady,
+        actionLabel: reportReady ? 'Vezi raport' : 'Generează raport',
+        action: () => {
+          setActiveTab('Raport Zilnic')
+          if (!reportReady) Promise.resolve().then(() => loadRaportZilnic())
+        },
+      },
+      {
+        key: 'control',
+        label: 'Control',
+        title: 'Trimite datele curate mai departe',
+        detail: 'După raport și stoc, exporturile pot alimenta controllingul, costurile și dosarul lunar.',
+        tone: monthConsumptions.length && unlinkedConsumptions === 0 ? 'success' : 'neutral',
+        done: monthConsumptions.length > 0 && unlinkedConsumptions === 0,
+        actionLabel: 'Export / raport',
+        action: () => setActiveTab('Consumuri'),
+      },
+    ]
+
+    const next = steps.find(step => !step.done && step.action) || steps.find(step => step.action)
+    return {
+      steps,
+      next,
+      doneCount: steps.filter(step => step.done).length,
+      totalCount: steps.length,
+      tone: next && !next.done ? next.tone : 'success',
+      currentMonth,
+    }
+  }, [consumptions, plans, raportLuna, raportZilnic, recipes])
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -249,6 +347,56 @@ export default function ProductiePage() {
       </div>
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+
+      <Card
+        title="Flux simplu Producție / Operațiuni"
+        subtitle="Rețetă/BOM → plan → realizare → stoc → raport → control costuri."
+        actions={<Badge tone={productionFlow.tone}>{productionFlow.doneCount}/{productionFlow.totalCount} pași în regulă</Badge>}
+      >
+        <div className="grid gap-4">
+          <div className={`rounded-2xl border p-4 ${productionFlow.next?.done ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={productionFlow.next?.tone || 'success'}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{productionFlow.next?.title || 'Fluxul de producție este pregătit.'}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{productionFlow.next?.detail || 'Poți continua cu planificare, realizare sau raportare.'}</p>
+                <p className="mt-1 text-xs text-slate-500">Panoul este generic: poate descrie asfalt, beton, mobilier, atelier sau orice producție unde ai rețetă, consum, output și cost.</p>
+              </div>
+              {productionFlow.next?.action ? (
+                <Button size="sm" variant={productionFlow.next.done ? 'secondary' : 'primary'} onClick={productionFlow.next.action}>
+                  {productionFlow.next.actionLabel || 'Deschide'}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {productionFlow.steps.map((step, index) => (
+              <button
+                key={step.key}
+                type="button"
+                onClick={step.action}
+                className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${step.done ? 'bg-primary-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{index + 1}</span>
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.label}</div>
+                      <div className="font-semibold text-slate-900">{step.title}</div>
+                    </div>
+                  </div>
+                  <Badge tone={step.tone}>{step.done ? 'ok' : 'de lucrat'}</Badge>
+                </div>
+                <p className="mt-3 text-sm text-slate-600">{step.detail}</p>
+                <div className="mt-3 text-xs font-semibold text-primary-700">{step.actionLabel}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">

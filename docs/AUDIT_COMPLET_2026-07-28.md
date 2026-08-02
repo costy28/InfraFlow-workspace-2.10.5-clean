@@ -711,3 +711,8 @@ Status: ✅ implementat în v2.12.453.
 - HR are acum un flux operațional clar pentru angajat, contract, pontaj, concedii/medicale, dosar/Kiosk și salarizare.
 - Operatorul vede imediat următorul pas util fără să deducă ordinea din taburi și tabele.
 - Panoul folosește datele deja încărcate și păstrează Asistentul HR existent pentru blocaje operaționale.
+## Probleme remediate în UPDATE 475 — Flux simplu Producție / Operațiuni
+
+- Modulul Producție are acum un flux ghidat generic pentru rețete/BOM, planuri, realizări, stoc, raport și control costuri.
+- Operatorul vede următorul pas din date reale, fără să deducă manual ordinea din taburi.
+- Limbajul panoului pregătește modulul pentru producție generală, nu doar pentru scenarii istorice de asfalt.

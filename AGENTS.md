@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.454**
-**Versiune în lucru: v2.12.454**
+**Versiune curentă sursă: v2.12.455**
+**Versiune în lucru: v2.12.455**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -238,6 +238,7 @@ Producție Asfalt
   ✅ Consum materiale
   ✅ Planuri producție
   ✅ Raport tehnic + controlling
+  ✅ Flux simplu Producție / Operațiuni: rețetă/BOM → plan → realizare → stoc → raport → control costuri (v2.12.455)
 
 Tehnic / Controlling
   ✅ Jurnale de lucru (work-logs)
@@ -783,9 +784,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.454
+VERSIUNE CURENTĂ SURSĂ: 2.12.455
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.454 ✅
+UPDATE ZIP CURENT: 2.12.455 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1048,6 +1049,7 @@ UPDATES ÎN LUCRU:
   2.12.452 → UPDATE 472 Flux simplu Contract Management ✅
   2.12.453 → UPDATE 473 Flux simplu Achiziții ✅
   2.12.454 → UPDATE 474 Flux simplu HR ✅
+  2.12.455 → UPDATE 475 Flux simplu Producție / Operațiuni ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1542,5 +1544,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 August 2026 | InfraFlow sursă v2.12.454*
+*AGENTS.md actualizat: 2 August 2026 | InfraFlow sursă v2.12.455*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.455 - 2026-08-02
+
+## Flux simplu Producție / Operațiuni
+
+- Modulul Producție afișează un panou ghidat generic pentru rețetă/BOM, plan, realizare, stoc, raport și control costuri.
+- Panoul arată următorul pas util din date reale: rețete aprobate, planuri, consumuri, legare cu Gestiune sau raport lunar.
+- Fiecare etapă are status, explicație scurtă și acțiune directă către tabul potrivit.
+- Limbajul panoului este pregătit pentru producție generică, nu doar pentru asfalt.
+
 # v2.12.454 - 2026-08-01
 
 ## Flux simplu HR
