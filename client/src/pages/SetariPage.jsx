@@ -367,6 +367,92 @@ const moduleFeatureCatalog = {
   ],
 }
 
+const workflowActorTypeOptions = [
+  { value: 'role', label: 'Rol' },
+  { value: 'department', label: 'Departament' },
+  { value: 'user', label: 'Utilizator' },
+  { value: 'manager', label: 'Manager direct' },
+]
+
+const workflowDocumentFlowDefaults = [
+  {
+    id: 'referat',
+    document_type: 'referat',
+    label: 'Referat / necesar intern',
+    active: true,
+    version: 1,
+    escalation_days: 2,
+    steps: [
+      { name: 'Întocmire și verificare conținut', actor_type: 'department', actor_ref: 'Departament inițiator', deadline_days: 1, required: true, condition: 'mereu' },
+      { name: 'Control buget / CPV', actor_type: 'role', actor_ref: 'Achiziții', deadline_days: 2, required: true, condition: 'dacă are valoare estimată' },
+      { name: 'Aprobare finală', actor_type: 'manager', actor_ref: 'Manager direct', deadline_days: 2, required: true, condition: 'mereu' },
+    ],
+  },
+  {
+    id: 'contract',
+    document_type: 'contract',
+    label: 'Contract',
+    active: true,
+    version: 1,
+    escalation_days: 3,
+    steps: [
+      { name: 'Manager contract', actor_type: 'user', actor_ref: 'Responsabil contract', deadline_days: 2, required: true, condition: 'mereu' },
+      { name: 'Juridic / conformitate', actor_type: 'role', actor_ref: 'Juridic', deadline_days: 3, required: true, condition: 'dacă există clauze speciale' },
+      { name: 'Aprobare buget', actor_type: 'role', actor_ref: 'Contabilitate', deadline_days: 2, required: true, condition: 'dacă afectează bugetul' },
+    ],
+  },
+  {
+    id: 'factura',
+    document_type: 'factura',
+    label: 'Factură intrare',
+    active: true,
+    version: 1,
+    escalation_days: 2,
+    steps: [
+      { name: 'Confirmare recepție / prestare', actor_type: 'department', actor_ref: 'Departament beneficiar', deadline_days: 2, required: true, condition: 'mereu' },
+      { name: 'Verificare contract / comandă', actor_type: 'role', actor_ref: 'Achiziții', deadline_days: 2, required: true, condition: 'dacă există contract sau comandă' },
+      { name: 'Înregistrare contabilă', actor_type: 'role', actor_ref: 'Contabilitate', deadline_days: 1, required: true, condition: 'mereu' },
+    ],
+  },
+  {
+    id: 'hr',
+    document_type: 'hr',
+    label: 'Document HR',
+    active: true,
+    version: 1,
+    escalation_days: 2,
+    steps: [
+      { name: 'Validare HR', actor_type: 'role', actor_ref: 'HR', deadline_days: 2, required: true, condition: 'mereu' },
+      { name: 'Confirmare angajat / Kiosk', actor_type: 'user', actor_ref: 'Angajat asociat', deadline_days: 3, required: false, condition: 'dacă documentul cere confirmare' },
+      { name: 'Arhivare dosar personal', actor_type: 'role', actor_ref: 'HR', deadline_days: 1, required: true, condition: 'după aprobare' },
+    ],
+  },
+]
+
+function normalizeWorkflowDocumentFlowsClient(input) {
+  const source = Array.isArray(input) && input.length ? input : workflowDocumentFlowDefaults
+  return source.map((flow, flowIndex) => {
+    const fallback = workflowDocumentFlowDefaults[flowIndex] || workflowDocumentFlowDefaults[0]
+    const steps = Array.isArray(flow.steps) && flow.steps.length ? flow.steps : fallback.steps
+    return {
+      id: String(flow.id || fallback.id || `flux-${flowIndex + 1}`).trim(),
+      document_type: String(flow.document_type || flow.documentType || fallback.document_type || 'document').trim(),
+      label: String(flow.label || fallback.label || `Flux document ${flowIndex + 1}`).trim(),
+      active: flow.active !== false,
+      version: Math.max(1, Number(flow.version || fallback.version || 1)),
+      escalation_days: Math.max(0, Number(flow.escalation_days ?? flow.escalationDays ?? fallback.escalation_days ?? 2)),
+      steps: steps.map((step, stepIndex) => ({
+        name: String(step.name || `Pas ${stepIndex + 1}`).trim(),
+        actor_type: workflowActorTypeOptions.some(item => item.value === step.actor_type) ? step.actor_type : 'role',
+        actor_ref: String(step.actor_ref || step.actorRef || '').trim(),
+        deadline_days: Math.max(0, Number(step.deadline_days ?? step.deadlineDays ?? 1)),
+        required: step.required !== false,
+        condition: String(step.condition || 'mereu').trim(),
+      })),
+    }
+  })
+}
+
 const fallbackCountryProfiles = [
   { code: 'RO', label: 'România', locale: 'ro-RO', currency: 'RON', timezone: 'Europe/Bucharest', jurisdiction_profile: 'RO', legislation_status: 'activ' },
   { code: 'GB', label: 'United Kingdom', locale: 'en-GB', currency: 'GBP', timezone: 'Europe/London', jurisdiction_profile: 'GB', legislation_status: 'roadmap' },
@@ -623,6 +709,19 @@ export default function SetariPage() {
     () => moduleCatalog?.packages?.length ? moduleCatalog.packages : commercialModulePackages,
     [moduleCatalog]
   )
+  const workflowDocumentFlows = useMemo(
+    () => normalizeWorkflowDocumentFlowsClient(settings.workflow_document_flows),
+    [settings.workflow_document_flows]
+  )
+  const workflowFlowStats = useMemo(() => {
+    const active = workflowDocumentFlows.filter(flow => flow.active !== false)
+    const steps = workflowDocumentFlows.reduce((total, flow) => total + (flow.steps?.length || 0), 0)
+    const conditioned = workflowDocumentFlows.reduce(
+      (total, flow) => total + (flow.steps || []).filter(step => step.condition && step.condition !== 'mereu').length,
+      0
+    )
+    return { active: active.length, total: workflowDocumentFlows.length, steps, conditioned }
+  }, [workflowDocumentFlows])
   const moduleByKey = useMemo(
     () => new Map(moduleGroups.flatMap(group => group.modules).map(mod => [mod.key, mod])),
     []
@@ -1415,6 +1514,79 @@ export default function SetariPage() {
       notify('Modulele active au fost salvate.')
     } catch (err) {
       fail(err, 'Modulele nu au putut fi salvate.')
+    }
+  }
+
+  function setWorkflowDocumentFlows(nextFlows) {
+    setSettings(current => ({
+      ...current,
+      workflow_document_flows: normalizeWorkflowDocumentFlowsClient(nextFlows),
+    }))
+  }
+
+  function updateWorkflowFlow(flowId, patch) {
+    setWorkflowDocumentFlows(workflowDocumentFlows.map(flow => (
+      flow.id === flowId ? { ...flow, ...patch } : flow
+    )))
+  }
+
+  function updateWorkflowStep(flowId, stepIndex, patch) {
+    setWorkflowDocumentFlows(workflowDocumentFlows.map(flow => {
+      if (flow.id !== flowId) return flow
+      return {
+        ...flow,
+        steps: (flow.steps || []).map((step, index) => (
+          index === stepIndex ? { ...step, ...patch } : step
+        )),
+      }
+    }))
+  }
+
+  function addWorkflowStep(flowId) {
+    setWorkflowDocumentFlows(workflowDocumentFlows.map(flow => {
+      if (flow.id !== flowId) return flow
+      return {
+        ...flow,
+        steps: [
+          ...(flow.steps || []),
+          {
+            name: `Pas ${(flow.steps || []).length + 1}`,
+            actor_type: 'role',
+            actor_ref: '',
+            deadline_days: 1,
+            required: true,
+            condition: 'mereu',
+          },
+        ],
+      }
+    }))
+  }
+
+  function removeWorkflowStep(flowId, stepIndex) {
+    setWorkflowDocumentFlows(workflowDocumentFlows.map(flow => {
+      if (flow.id !== flowId) return flow
+      const steps = (flow.steps || []).filter((_, index) => index !== stepIndex)
+      return { ...flow, steps: steps.length ? steps : flow.steps }
+    }))
+  }
+
+  function resetWorkflowFlows() {
+    setWorkflowDocumentFlows(workflowDocumentFlowDefaults)
+    notify('Șabloanele de workflow au fost resetate local. Apasă „Salvează fluxurile” pentru confirmare.')
+  }
+
+  async function saveWorkflowFlows() {
+    try {
+      const next = normalizeWorkflowDocumentFlowsClient(workflowDocumentFlows)
+      const response = await api.post('/settings', {
+        ...settings,
+        workflow_document_flows: next,
+        workflow_document_flows_updated_at: new Date().toISOString(),
+      })
+      setSettings({ ...(response.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      notify('Fluxurile documentelor au fost salvate.')
+    } catch (err) {
+      fail(err, 'Fluxurile documentelor nu au putut fi salvate.')
     }
   }
 
@@ -3248,47 +3420,182 @@ export default function SetariPage() {
 
           <Card
             title="Fluxuri documente configurabile"
-            subtitle="Pregătire pentru organizații cu trasee diferite de aprobare. Fluxurile implicite sunt doar punct de pornire, nu reguli bătute în cuie."
-            actions={<Badge tone="info">planificat</Badge>}
+            subtitle="Definește trasee diferite de aprobare pe tip de document. Șabloanele implicite sunt punct de pornire și pot fi adaptate de fiecare organizație."
+            actions={[
+              <Button key="reset-workflows" variant="secondary" onClick={resetWorkflowFlows}>Resetează șabloane</Button>,
+              <Button key="save-workflows" onClick={saveWorkflowFlows}>Salvează fluxurile</Button>,
+            ]}
           >
-            <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
               <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-4">
                 <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Principiul comercial</div>
                 <h3 className="mt-1 text-lg font-semibold text-slate-900">Fiecare organizație își setează propriul circuit.</h3>
                 <p className="mt-2 text-sm text-slate-600">
                   Un referat, o factură, un contract sau un document HR pot avea aprobatori diferiți în funcție de tip, valoare, departament, centru de cost sau jurisdicție.
                 </p>
-                <div className="mt-4 grid gap-2 text-sm text-slate-700">
-                  {[
-                    'Tip document → flux dedicat',
-                    'Pași pe rol, departament, utilizator sau manager direct',
-                    'Condiții pe valoare, prioritate, centru de cost și țară',
-                    'Termene, escaladări, notificări și audit',
-                  ].map(item => (
-                    <div key={item} className="flex items-start gap-2">
-                      <span className="mt-0.5 text-primary-700">✓</span>
-                      <span>{item}</span>
-                    </div>
-                  ))}
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                    <div className="text-xs text-slate-500">Fluxuri active</div>
+                    <div className="mt-1 text-2xl font-bold text-slate-900">{workflowFlowStats.active}/{workflowFlowStats.total}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                    <div className="text-xs text-slate-500">Pași configurați</div>
+                    <div className="mt-1 text-2xl font-bold text-slate-900">{workflowFlowStats.steps}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                    <div className="text-xs text-slate-500">Condiții speciale</div>
+                    <div className="mt-1 text-2xl font-bold text-slate-900">{workflowFlowStats.conditioned}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                    <div className="text-xs text-slate-500">Persistență</div>
+                    <div className="mt-1 text-sm font-semibold text-primary-800">salvat în profil organizație</div>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  Acest panou configurează șabloanele. Documentele deja lansate vor trebui să păstreze versiunea de flux activă la pornire când legăm engine-ul avansat.
                 </div>
               </div>
+
               <div className="grid gap-3">
-                {[
-                  { step: '01', title: 'Șabloane de flux', text: 'Pornire rapidă pentru referate, contracte, facturi, HR sau documente juridice.' },
-                  { step: '02', title: 'Editor vizual simplu', text: 'Adaugi pas, alegi aprobatorul, condiția, termenul și notificarea.' },
-                  { step: '03', title: 'Versionare sigură', text: 'Documentele deja lansate păstrează versiunea de flux activă la data pornirii.' },
-                ].map(item => (
-                  <div key={item.step} className="rounded-xl border border-slate-200 bg-white p-3">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{item.step}</div>
+                {workflowDocumentFlows.map(flow => (
+                  <div key={flow.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold text-slate-900">{item.title}</div>
-                        <div className="mt-1 text-sm text-slate-500">{item.text}</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone={flow.active ? 'success' : 'neutral'}>{flow.active ? 'activ' : 'inactiv'}</Badge>
+                          <Badge tone="info">v{flow.version}</Badge>
+                          <span className="text-xs uppercase tracking-wide text-slate-400">{flow.document_type}</span>
+                        </div>
+                        <input
+                          className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900"
+                          value={flow.label}
+                          onChange={event => updateWorkflowFlow(flow.id, { label: event.target.value })}
+                        />
                       </div>
+                      <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={flow.active !== false}
+                          onChange={event => updateWorkflowFlow(flow.id, { active: event.target.checked })}
+                        />
+                        Flux activ
+                      </label>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                      <Input
+                        label="Tip document"
+                        value={flow.document_type}
+                        onChange={event => updateWorkflowFlow(flow.id, { document_type: event.target.value })}
+                      />
+                      <Input
+                        label="Escaladare după zile"
+                        type="number"
+                        min="0"
+                        value={flow.escalation_days}
+                        onChange={event => updateWorkflowFlow(flow.id, { escalation_days: event.target.value })}
+                      />
+                      <Input
+                        label="Versiune"
+                        type="number"
+                        min="1"
+                        value={flow.version}
+                        onChange={event => updateWorkflowFlow(flow.id, { version: event.target.value })}
+                      />
+                    </div>
+
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                            <th className="px-2 py-2">Pas</th>
+                            <th className="px-2 py-2">Cine aprobă</th>
+                            <th className="px-2 py-2">Referință</th>
+                            <th className="px-2 py-2">Termen</th>
+                            <th className="px-2 py-2">Condiție</th>
+                            <th className="px-2 py-2">Oblig.</th>
+                            <th className="px-2 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(flow.steps || []).map((step, stepIndex) => (
+                            <tr key={`${flow.id}-${stepIndex}`} className="border-t border-slate-100 align-top">
+                              <td className="px-2 py-2">
+                                <input
+                                  className="w-48 rounded-md border border-slate-200 px-2 py-1"
+                                  value={step.name}
+                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { name: event.target.value })}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <select
+                                  className="w-36 rounded-md border border-slate-200 px-2 py-1"
+                                  value={step.actor_type}
+                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { actor_type: event.target.value })}
+                                >
+                                  {workflowActorTypeOptions.map(option => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-2 py-2">
+                                <input
+                                  className="w-44 rounded-md border border-slate-200 px-2 py-1"
+                                  placeholder="ex. Contabilitate"
+                                  value={step.actor_ref}
+                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { actor_ref: event.target.value })}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <input
+                                  className="w-20 rounded-md border border-slate-200 px-2 py-1"
+                                  type="number"
+                                  min="0"
+                                  value={step.deadline_days}
+                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { deadline_days: event.target.value })}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <input
+                                  className="w-48 rounded-md border border-slate-200 px-2 py-1"
+                                  value={step.condition}
+                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value })}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={step.required !== false}
+                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { required: event.target.checked })}
+                                />
+                              </td>
+                              <td className="px-2 py-2 text-right">
+                                <Button size="sm" variant="ghost" onClick={() => removeWorkflowStep(flow.id, stepIndex)}>Șterge</Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-3 flex justify-end">
+                      <Button size="sm" variant="secondary" onClick={() => addWorkflowStep(flow.id)}>+ Adaugă pas</Button>
                     </div>
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {[
+                { title: 'Șabloane editabile', text: 'Pornire rapidă pentru referate, contracte, facturi și HR.' },
+                { title: 'Reguli ușor de citit', text: 'Pasul spune cine aprobă, în câte zile și când se aplică.' },
+                { title: 'Pregătit pentru engine', text: 'Structura salvată poate fi legată ulterior la lansarea documentelor.' },
+              ].map(item => (
+                <div key={item.title} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="font-semibold text-slate-900">{item.title}</div>
+                  <div className="mt-1 text-sm text-slate-500">{item.text}</div>
+                </div>
+              ))}
             </div>
           </Card>
 

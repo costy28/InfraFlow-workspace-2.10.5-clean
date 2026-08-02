@@ -4373,6 +4373,7 @@ const EMAIL_RULE_FIELDS = new Set(['from', 'subject', 'body', 'all'])
 const EMAIL_RULE_OPERATORS = new Set(['contains', 'starts_with', 'ends_with', 'equals'])
 const EMAIL_RULE_IMPORTANCE = new Set(['', 'low', 'normal', 'high', 'urgent'])
 const EMAIL_RULE_STATUSES = new Set(['', 'unread', 'read', 'archived'])
+const WORKFLOW_ACTOR_TYPES = new Set(['role', 'department', 'user', 'manager'])
 
 function normalizeEmailRules(input) {
   if (!Array.isArray(input)) return []
@@ -4395,6 +4396,38 @@ function normalizeEmailRules(input) {
       }
     })
     .filter(item => item.match && (item.category || item.importance || item.status))
+}
+
+function normalizeWorkflowDocumentFlows(input) {
+  if (!Array.isArray(input)) return []
+  return input
+    .slice(0, 30)
+    .map((flow, flowIndex) => {
+      const steps = Array.isArray(flow?.steps) ? flow.steps : []
+      return {
+        id: normalizeSettingText(flow?.id, `flux-${flowIndex + 1}`).slice(0, 80),
+        document_type: normalizeSettingText(flow?.document_type ?? flow?.documentType, 'document').slice(0, 80),
+        label: normalizeSettingText(flow?.label, `Flux document ${flowIndex + 1}`).slice(0, 160),
+        active: flow?.active !== false,
+        version: Math.max(1, Math.min(999, Number(flow?.version || 1))),
+        escalation_days: Math.max(0, Math.min(365, Number(flow?.escalation_days ?? flow?.escalationDays ?? 2))),
+        steps: steps
+          .slice(0, 20)
+          .map((step, stepIndex) => {
+            const actorType = normalizeSettingText(step?.actor_type ?? step?.actorType, 'role')
+            return {
+              name: normalizeSettingText(step?.name, `Pas ${stepIndex + 1}`).slice(0, 160),
+              actor_type: WORKFLOW_ACTOR_TYPES.has(actorType) ? actorType : 'role',
+              actor_ref: normalizeSettingText(step?.actor_ref ?? step?.actorRef, '').slice(0, 160),
+              deadline_days: Math.max(0, Math.min(365, Number(step?.deadline_days ?? step?.deadlineDays ?? 1))),
+              required: step?.required !== false,
+              condition: normalizeSettingText(step?.condition, 'mereu').slice(0, 240),
+            }
+          })
+          .filter(step => step.name),
+      }
+    })
+    .filter(flow => flow.document_type && flow.label)
 }
 
 function normalizeSettingText(value, fallback = "") {
@@ -4483,6 +4516,8 @@ function updateSettings(current = {}, body = {}) {
     email_sync_interval_min: Math.max(5, Math.min(1440, Number(body.email_sync_interval_min || current.email_sync_interval_min || 15))),
     email_sync_limit: Math.max(1, Math.min(50, Number(body.email_sync_limit || current.email_sync_limit || 20))),
     email_rules: normalizeEmailRules(body.email_rules ?? current.email_rules ?? []),
+    workflow_document_flows: normalizeWorkflowDocumentFlows(body.workflow_document_flows ?? current.workflow_document_flows ?? []),
+    workflow_document_flows_updated_at: normalizeSettingText(body.workflow_document_flows_updated_at ?? current.workflow_document_flows_updated_at, ''),
     tva_implicit: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_standard: Number(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard ?? defaultVatRate),
     cota_tva_redusa: Number(body.cota_tva_redusa ?? current.cota_tva_redusa ?? 9),

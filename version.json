@@ -1,5 +1,5 @@
 {
-  "version": "2.12.459",
+  "version": "2.12.460",
   "date": "2026-08-02",
-  "changelog": "## v2.12.459 - 2026-08-02\n### Workflow configurabil vizibil în Setări\n- Setări > Module afișează un panou dedicat pentru fluxuri documente configurabile pe organizație și tip document.\n- Panoul explică pașii viitori: șabloane de flux, editor vizual simplu și versionare sigură.\n- Roadmap-ul comercial notează că fluxurile implicite sunt doar punct de pornire, iar clientul trebuie să poată modifica traseul fără cod.\n- Nu introduce API-uri sau schemă DB nouă; pregătește UX-ul pentru Workflow avansat."
+  "changelog": "## v2.12.460 - 2026-08-02\n### Editor simplu pentru șabloane de workflow documente\n- Setări > Module permite editarea șabloanelor de flux pentru referate, contracte, facturi și documente HR.\n- Administratorul poate modifica pașii, tipul aprobatorului, referința, termenul, condiția și caracterul obligatoriu al pasului.\n- Configurația este salvată persistent în profilul organizației prin settings.workflow_document_flows și normalizată server-side.\n- Pregătește legarea ulterioară la engine-ul real de documente cu versionare pe flux."
 }

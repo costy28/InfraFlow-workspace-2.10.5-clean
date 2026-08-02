@@ -129,6 +129,12 @@ Regulă de implementare:
 
 > Fluxurile implicite pot exista ca exemple sau șabloane, dar clientul trebuie să poată modifica traseul fără intervenție în cod.
 
+Stadiu implementare:
+
+- `v2.12.459`: direcția este vizibilă în `Setări > Module`.
+- `v2.12.460`: șabloanele de flux pot fi editate și salvate în profilul organizației (`settings.workflow_document_flows`).
+- Următorul pas: documentul nou pornește cu snapshot-ul versiunii de flux active, ca aprobările istorice să rămână stabile.
+
 ## Reguli de decuplare de client
 
 - Nu se adaugă nume de client în fallback-uri, template-uri implicite sau UI.

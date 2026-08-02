@@ -1,7 +1,7 @@
 {
   "name": "infraflow-client",
-  "version": "2.12.211",
-  "description": "InfraFlow ERP — Client desktop (Electron)",
+  "version": "2.12.460",
+  "description": "InfraFlow ERP - Client desktop (Electron)",
   "main": "main.js",
   "author": "InfraSuite",
   "private": true,
@@ -14,7 +14,7 @@
   "build": {
     "appId": "ro.appnode.infraflow.client",
     "productName": "InfraFlow ERP",
-    "copyright": "Copyright © 2026 InfraSuite",
+    "copyright": "Copyright (c) 2026 InfraSuite",
     "icon": "infraflow-client.ico",
     "files": [
       "main.js",

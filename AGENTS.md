@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.459**
-**Versiune în lucru: v2.12.459**
+**Versiune curentă sursă: v2.12.460**
+**Versiune în lucru: v2.12.460**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -207,6 +207,7 @@ Core System
   ✅ Asistent discret pentru portofoliul de contracte (v2.12.422)
   ✅ Dashboard generic cu KPI „Rezultat operațional azi” și flux simplu Documente (v2.12.458)
   ✅ Panou vizibil în Setări pentru workflow configurabil pe organizație și tip document (v2.12.459)
+  ✅ Editor simplu pentru șabloane de workflow documente în Setări (v2.12.460)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -332,6 +333,7 @@ Workflow
   ✅ Asistent discret pentru Inbox, urgențe, drafturi, template-uri și legături document-email-task (v2.12.426)
   ✅ Flux simplu Documente: intrare → clasificare → circuit → legături → arhivare (v2.12.458)
   ✅ Direcție workflow configurabil vizibilă în Setări și roadmap comercial (v2.12.459)
+  ✅ Șabloane workflow editabile și persistente în profilul organizației (v2.12.460)
 
 Comunicare
   ✅ Chat intern pe canale, mențiuni și notificări live
@@ -722,8 +724,8 @@ PRIORITATE 3 — Infrastructură comercială:
       → Fluxurile se configurează pe tip document: referat, contract, factură, HR, cerere internă, document juridic etc.
       → Pașii pot fi departamente, roluri, utilizatori nominali sau managerul direct al inițiatorului
       → Condiții pe valoare, departament, centru de cost, țară/jurisdicție, prioritate sau sursă document
-      → Interfață vizuală simplă: adaugă pas, aprobator, condiție, termen, escaladare și notificări
-      → Șabloane de flux per profil organizație, dar editabile de client
+      → Interfață vizuală simplă: adaugă pas, aprobator, condiție, termen, escaladare și notificări ✅ Fundație v2.12.460
+      → Șabloane de flux per profil organizație, dar editabile de client ✅ Fundație v2.12.460
       → Versionare fluxuri: documentele pornite păstrează versiunea de flux activă la data lansării
       → Audit complet pentru modificarea fluxurilor și pentru fiecare decizie din circuit
 
@@ -800,9 +802,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.459
-BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.459 ✅
+VERSIUNE CURENTĂ SURSĂ: 2.12.460
+BUILD EXE EXISTENT: 2.12.459 ✅
+UPDATE ZIP CURENT: 2.12.460 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1070,6 +1072,7 @@ UPDATES ÎN LUCRU:
   2.12.457 → UPDATE 477 Flux simplu Parc & Resurse ✅
   2.12.458 → UPDATE 478 Dashboard generic și flux simplu Documente ✅
   2.12.459 → UPDATE 479 Workflow configurabil vizibil în Setări ✅
+  2.12.460 → UPDATE 480 Editor șabloane workflow documente ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1564,5 +1567,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 2 August 2026 | InfraFlow sursă v2.12.459*
+*AGENTS.md actualizat: 2 August 2026 | InfraFlow sursă v2.12.460*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

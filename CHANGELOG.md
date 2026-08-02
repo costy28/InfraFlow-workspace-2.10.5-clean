@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.460 - 2026-08-02
+
+## Editor simplu pentru șabloane de workflow documente
+
+- `Setări > Module` permite editarea șabloanelor de flux pentru referate, contracte, facturi și documente HR.
+- Administratorul poate modifica pașii, tipul aprobatorului, referința, termenul, condiția și caracterul obligatoriu al pasului.
+- Configurația este salvată persistent în profilul organizației prin `settings.workflow_document_flows`.
+- Serverul normalizează defensiv configurația, cu limite pentru numărul de fluxuri, pași și lungimea câmpurilor.
+- Pregătește legarea ulterioară la engine-ul real de documente cu versionare pe flux.
+
 # v2.12.459 - 2026-08-02
 
 ## Workflow configurabil vizibil în Setări
