@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.458 - 2026-08-02
+
+## Dashboard generic și flux simplu Documente
+
+- Dashboard-ul folosește eticheta generică `Rezultat operațional azi`, fără poziționare implicită pe o industrie.
+- Modulul Documente afișează fluxul simplu: intrare → clasificare → circuit → legături → arhivare.
+- Panoul Documente arată următorul pas util din lista curentă: Inbox, draft/template, aprobare, email/task sau arhivare.
+- Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste datele existente.
+
 # v2.12.457 - 2026-08-02
 
 ## Flux simplu Parc & Resurse

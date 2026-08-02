@@ -1,5 +1,5 @@
 {
-  "version": "2.12.457",
-  "date": "2026-08-01",
-  "changelog": "## v2.12.457 - 2026-08-02\n### Flux simplu Parc & Resurse\n- Modulul Mecanizare afișează un panou ghidat pentru parc, cereri, planificare, bonuri/FAZ, combustibil/intervenții și scadențe/raport.\n- Operatorul vede imediat dacă lipsesc resurse, cereri de alocat, planificări, bonuri închise, alimentări mapate, intervenții sau raport lunar.\n- Panoul recomandă automat următoarea acțiune: parc, cereri, planificare, bonuri, PIUSI, intervenții, scadențe sau raport.\n- Asistentul existent rămâne neschimbat pentru monitorizarea blocajelor."
+  "version": "2.12.458",
+  "date": "2026-08-02",
+  "changelog": "## v2.12.458 - 2026-08-02\n### Dashboard generic și flux simplu Documente\n- Dashboard-ul folosește eticheta generică `Rezultat operațional azi`, potrivită pentru orice profil de firmă.\n- Modulul Documente afișează un flux ghidat: intrare, clasificare, circuit, legături și arhivare.\n- Fiecare pas are indicator, explicație scurtă și acțiune directă către zona potrivită.\n- Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente."
 }

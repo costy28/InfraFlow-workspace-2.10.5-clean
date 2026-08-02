@@ -820,6 +820,94 @@ export default function DocumentePage() {
     visibleDocuments,
   ])
 
+  const documentSimpleFlow = useMemo(() => {
+    const currentRows = visibleDocuments || []
+    const selectedDocument = details.document
+    const incomingCount = currentRows.filter(item =>
+      activeTab === 'Inbox' ||
+      emailSourceForDocument(item) ||
+      ['inbox', 'primit', 'in_circuit', 'asteptare', 'in_asteptare'].includes(String(item.status || '').toLowerCase())
+    ).length
+    const draftCount = currentRows.filter(item => String(item.status || '').toLowerCase() === 'draft').length
+    const flowCount = currentRows.filter(item => ['in_circuit', 'asteptare', 'in_asteptare'].includes(String(item.status || '').toLowerCase())).length
+    const approvedCount = currentRows.filter(item => ['aprobat', 'avizat', 'semnat', 'finalizat'].includes(String(item.status || '').toLowerCase())).length
+    const linkedEmailCount = currentRows.filter(item => emailSourceForDocument(item)).length
+    const selectedOpenTasks = relatedTasks.filter(task => !['done', 'cancelled'].includes(String(task.status || '').toLowerCase())).length
+
+    const openFirstDocument = (predicate, fallbackTab = 'Toate') => {
+      const target = currentRows.find(predicate)
+      if (target) openDetails(target)
+      else setActiveTab(fallbackTab)
+    }
+
+    const steps = [
+      {
+        key: 'incoming',
+        icon: '📥',
+        title: 'Intrare',
+        value: incomingCount,
+        done: incomingCount === 0,
+        hint: incomingCount ? 'documente care trebuie verificate sau preluate' : 'nu sunt intrări noi în filtrul curent',
+        action: () => setActiveTab('Inbox'),
+        cta: 'Vezi Inbox',
+      },
+      {
+        key: 'classify',
+        icon: '🏷️',
+        title: 'Clasificare',
+        value: templates.length,
+        done: templates.length > 0 && draftCount === 0,
+        hint: draftCount ? `${draftCount} drafturi de completat / lansat` : 'template-uri pregătite pentru documente noi',
+        action: draftCount
+          ? () => openFirstDocument(item => String(item.status || '').toLowerCase() === 'draft', 'Ale mele')
+          : () => setActiveTab('Template-uri'),
+        cta: draftCount ? 'Vezi draft' : 'Template-uri',
+      },
+      {
+        key: 'flow',
+        icon: '✅',
+        title: 'Circuit',
+        value: flowCount,
+        done: flowCount === 0 && !currentUserStep,
+        hint: currentUserStep ? 'ai un pas de aprobare pe documentul selectat' : (flowCount ? 'documente aflate în aprobare' : 'nu există circuit blocat'),
+        action: currentUserStep
+          ? () => setConfirm('approve')
+          : () => openFirstDocument(item => ['in_circuit', 'asteptare', 'in_asteptare'].includes(String(item.status || '').toLowerCase())),
+        cta: currentUserStep ? 'Aprobă' : 'Vezi circuit',
+      },
+      {
+        key: 'links',
+        icon: '🔗',
+        title: 'Legături',
+        value: selectedDocument ? selectedOpenTasks : linkedEmailCount,
+        done: selectedDocument ? selectedOpenTasks > 0 : linkedEmailCount > 0,
+        hint: selectedDocument ? 'task-uri legate de documentul selectat' : 'documente venite din email în filtrul curent',
+        action: selectedDocument ? () => openTaskFromDocument(selectedDocument) : () => openFirstDocument(item => emailSourceForDocument(item)),
+        cta: selectedDocument ? 'Task document' : 'Vezi email',
+      },
+      {
+        key: 'archive',
+        icon: '🗄️',
+        title: 'Arhivare',
+        value: approvedCount,
+        done: approvedCount > 0,
+        hint: approvedCount ? 'documente finalizate / aprobate în filtrul curent' : 'finalizarea devine dosar auditabil',
+        action: () => setActiveTab('Toate'),
+        cta: 'Vezi toate',
+      },
+    ]
+
+    const nextStep = steps.find(step => !step.done) || steps[steps.length - 1]
+    return { steps, nextStep }
+  }, [
+    activeTab,
+    currentUserStep,
+    details.document,
+    relatedTasks,
+    templates.length,
+    visibleDocuments,
+  ])
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -913,6 +1001,36 @@ export default function DocumentePage() {
               </div>
             </div>
           ) : null}
+        </div>
+      </Card>
+
+      <Card
+        title="Flux simplu Documente"
+        subtitle="Intrare → clasificare → circuit → legături → arhivare. Utilizatorul vede ordinea firească, nu trebuie să ghicească tabul corect."
+        actions={<Badge tone={documentSimpleFlow.nextStep.done ? 'success' : 'warning'}>următorul pas: {documentSimpleFlow.nextStep.title}</Badge>}
+      >
+        <div className="grid gap-3 lg:grid-cols-5">
+          {documentSimpleFlow.steps.map((step, index) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={step.action}
+              className={`rounded-2xl border p-3 text-left transition hover:border-primary-300 hover:bg-primary-50 ${step.done ? 'border-emerald-100 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{String(index + 1).padStart(2, '0')}</div>
+                  <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <span>{step.icon}</span>
+                    <span>{step.title}</span>
+                  </div>
+                </div>
+                <Badge tone={step.done ? 'success' : 'warning'}>{step.value}</Badge>
+              </div>
+              <p className="min-h-[2.5rem] text-xs text-slate-600">{step.hint}</p>
+              <div className="mt-3 text-xs font-semibold text-primary-700">{step.cta}</div>
+            </button>
+          ))}
         </div>
       </Card>
 

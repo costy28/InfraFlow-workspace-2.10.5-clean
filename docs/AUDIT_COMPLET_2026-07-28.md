@@ -726,3 +726,9 @@ Status: ✅ implementat în v2.12.453.
 - Modulul Mecanizare are acum un flux ghidat pentru parc, cereri, planificare, bonuri/FAZ, combustibil/intervenții și scadențe/raport.
 - Operatorul vede următorul pas din date reale, înainte să intre în taburile detaliate.
 - Asistentul existent rămâne disponibil pentru blocaje operaționale, iar fluxul nou oferă orientarea de bază.
+
+## Probleme remediate în UPDATE 478 — Dashboard generic și flux simplu Documente
+
+- Dashboard-ul afișează KPI-ul operațional ca `Rezultat operațional azi`, fără trimitere la o industrie implicită.
+- Modulul Documente are acum un flux ghidat: intrare → clasificare → circuit → legături → arhivare.
+- Panoul Documente oferă acțiuni directe către Inbox, Template-uri, documente în circuit, email/task sau lista completă.

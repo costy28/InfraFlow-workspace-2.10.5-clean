@@ -1192,7 +1192,7 @@ export default function DashboardPage() {
         />
         <KpiCard
           icon="📊"
-          label="Activitate înregistrată azi"
+          label="Rezultat operațional azi"
           value={view.operationalOutputToday.toLocaleString('ro-RO')}
           loading={loading}
           error={errors.daily}

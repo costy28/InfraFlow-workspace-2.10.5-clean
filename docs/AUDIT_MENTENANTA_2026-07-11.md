@@ -1574,3 +1574,9 @@ Următorul pas de stabilizare: `2.12.300`
 - Adăugat panou ghidat în Mecanizare pentru firul parc → cereri → planificare → bonuri/FAZ → combustibil/intervenții → scadențe/raport.
 - Panoul recomandă automat următorul pas din date reale: parc, cereri, planificare, bonuri, PIUSI, intervenții, scadențe sau raport.
 - Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente.
+
+### UPDATE 478 — Dashboard generic și flux simplu Documente
+
+- Dashboard-ul folosește eticheta `Rezultat operațional azi`, compatibilă cu firme din industrii diferite.
+- Adăugat panou ghidat în Documente pentru firul intrare → clasificare → circuit → legături → arhivare.
+- Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente.
