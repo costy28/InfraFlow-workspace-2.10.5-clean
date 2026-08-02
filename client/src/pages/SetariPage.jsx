@@ -3247,6 +3247,52 @@ export default function SetariPage() {
           </Card>
 
           <Card
+            title="Fluxuri documente configurabile"
+            subtitle="Pregătire pentru organizații cu trasee diferite de aprobare. Fluxurile implicite sunt doar punct de pornire, nu reguli bătute în cuie."
+            actions={<Badge tone="info">planificat</Badge>}
+          >
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+              <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Principiul comercial</div>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900">Fiecare organizație își setează propriul circuit.</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Un referat, o factură, un contract sau un document HR pot avea aprobatori diferiți în funcție de tip, valoare, departament, centru de cost sau jurisdicție.
+                </p>
+                <div className="mt-4 grid gap-2 text-sm text-slate-700">
+                  {[
+                    'Tip document → flux dedicat',
+                    'Pași pe rol, departament, utilizator sau manager direct',
+                    'Condiții pe valoare, prioritate, centru de cost și țară',
+                    'Termene, escaladări, notificări și audit',
+                  ].map(item => (
+                    <div key={item} className="flex items-start gap-2">
+                      <span className="mt-0.5 text-primary-700">✓</span>
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-3">
+                {[
+                  { step: '01', title: 'Șabloane de flux', text: 'Pornire rapidă pentru referate, contracte, facturi, HR sau documente juridice.' },
+                  { step: '02', title: 'Editor vizual simplu', text: 'Adaugi pas, alegi aprobatorul, condiția, termenul și notificarea.' },
+                  { step: '03', title: 'Versionare sigură', text: 'Documentele deja lansate păstrează versiunea de flux activă la data pornirii.' },
+                ].map(item => (
+                  <div key={item.step} className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{item.step}</div>
+                      <div>
+                        <div className="font-semibold text-slate-900">{item.title}</div>
+                        <div className="mt-1 text-sm text-slate-500">{item.text}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          <Card
             title="Pachete comerciale"
             subtitle="Alege rapid un profil de produs. Se modifică selecția locală; salvarea se face cu butonul „Salvează module”."
           >

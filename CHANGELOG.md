@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.459 - 2026-08-02
+
+## Workflow configurabil vizibil în Setări
+
+- `Setări > Module` afișează un panou pentru fluxuri documente configurabile pe organizație și tip document.
+- Panoul explică direcția: șabloane de flux, editor vizual simplu, condiții pe document și versionare sigură.
+- `AGENTS.md` și `docs/PRODUCTIZARE_COMERCIALA.md` notează cerința comercială: fluxurile implicite sunt editabile de client, nu hardcodate.
+- Nu introduce API-uri sau schemă DB nouă; pregătește interfața pentru Workflow avansat.
+
 # v2.12.458 - 2026-08-02
 
 ## Dashboard generic și flux simplu Documente

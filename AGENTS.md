@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.458**
-**Versiune în lucru: v2.12.458**
+**Versiune curentă sursă: v2.12.459**
+**Versiune în lucru: v2.12.459**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -206,6 +206,7 @@ Core System
   ✅ Asistent configurare pliabil și compact automat (v2.12.421)
   ✅ Asistent discret pentru portofoliul de contracte (v2.12.422)
   ✅ Dashboard generic cu KPI „Rezultat operațional azi” și flux simplu Documente (v2.12.458)
+  ✅ Panou vizibil în Setări pentru workflow configurabil pe organizație și tip document (v2.12.459)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -330,6 +331,7 @@ Workflow
   ✅ Notificări automate
   ✅ Asistent discret pentru Inbox, urgențe, drafturi, template-uri și legături document-email-task (v2.12.426)
   ✅ Flux simplu Documente: intrare → clasificare → circuit → legături → arhivare (v2.12.458)
+  ✅ Direcție workflow configurabil vizibilă în Setări și roadmap comercial (v2.12.459)
 
 Comunicare
   ✅ Chat intern pe canale, mențiuni și notificări live
@@ -798,9 +800,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.458
+VERSIUNE CURENTĂ SURSĂ: 2.12.459
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.458 ✅
+UPDATE ZIP CURENT: 2.12.459 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1067,6 +1069,7 @@ UPDATES ÎN LUCRU:
   2.12.456 → UPDATE 476 Flux simplu Referate ✅
   2.12.457 → UPDATE 477 Flux simplu Parc & Resurse ✅
   2.12.458 → UPDATE 478 Dashboard generic și flux simplu Documente ✅
+  2.12.459 → UPDATE 479 Workflow configurabil vizibil în Setări ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1561,5 +1564,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 2 August 2026 | InfraFlow sursă v2.12.458*
+*AGENTS.md actualizat: 2 August 2026 | InfraFlow sursă v2.12.459*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

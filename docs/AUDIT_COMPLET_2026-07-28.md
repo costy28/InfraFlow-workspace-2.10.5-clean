@@ -732,3 +732,9 @@ Status: ✅ implementat în v2.12.453.
 - Dashboard-ul afișează KPI-ul operațional ca `Rezultat operațional azi`, fără trimitere la o industrie implicită.
 - Modulul Documente are acum un flux ghidat: intrare → clasificare → circuit → legături → arhivare.
 - Panoul Documente oferă acțiuni directe către Inbox, Template-uri, documente în circuit, email/task sau lista completă.
+
+## Probleme remediate în UPDATE 479 — Workflow configurabil vizibil în Setări
+
+- `Setări > Module` afișează panou pentru fluxuri documente configurabile pe organizație și tip document.
+- Roadmap-ul comercial precizează că fluxurile implicite sunt șabloane editabile, nu trasee hardcodate.
+- Panoul explică șabloanele de flux, editorul vizual simplu și versionarea sigură a circuitelor.

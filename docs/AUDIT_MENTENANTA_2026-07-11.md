@@ -1580,3 +1580,9 @@ Următorul pas de stabilizare: `2.12.300`
 - Dashboard-ul folosește eticheta `Rezultat operațional azi`, compatibilă cu firme din industrii diferite.
 - Adăugat panou ghidat în Documente pentru firul intrare → clasificare → circuit → legături → arhivare.
 - Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente.
+
+### UPDATE 479 — Workflow configurabil vizibil în Setări
+
+- `Setări > Module` include un panou pentru fluxuri documente configurabile pe organizație și tip document.
+- `AGENTS.md` și ghidul de productizare notează condițiile: tip document, valoare, departament, centru de cost, țară și manager direct.
+- Nu introduce API-uri sau schemă DB nouă; pregătește UX-ul pentru Workflow avansat.
