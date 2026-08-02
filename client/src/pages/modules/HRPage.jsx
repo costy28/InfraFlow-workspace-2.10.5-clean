@@ -1666,6 +1666,145 @@ export default function HRPage() {
     return (hrActivity.rows || []).filter(item => String(item.employee_id || '') === String(employeeDetails.id)).slice(0, 6)
   }, [hrActivity.rows, employeeDetails?.id])
 
+  const hrSimpleFlow = useMemo(() => {
+    const canOpen = tab => visibleTabs.includes(tab)
+    const goto = tab => canOpen(tab) ? () => setActiveTab(tab) : undefined
+    const activeEmployees = employees.filter(employee => employee.activ !== false && employee.activ !== 0)
+    const hasActiveContract = employee => {
+      if (Array.isArray(employee.contracte_active) && employee.contracte_active.length) return true
+      return Boolean(
+        employee.contract_id ||
+        employee.contract_activ_id ||
+        employee.numar_contract ||
+        employee.data_contract ||
+        employee.data_angajare ||
+        employee.contract_start ||
+        employee.data_start_contract
+      )
+    }
+    const hasSalaryBase = employee => Number(employee.salariu_baza || employee.salary_base || employee.base_salary || 0) > 0
+    const employeesWithoutContract = activeEmployees.filter(employee => !hasActiveContract(employee)).length
+    const employeesWithoutSalary = activeEmployees.filter(employee => !hasSalaryBase(employee)).length
+    const pendingLeaveCount = pendingLeaves.length
+    const medicalPending = (medicalRegister.rows || []).filter(item => !['verificat', 'respins', 'respinsa', 'trimis_salarizare'].includes(String(item.status || item.status_verificare || '').toLowerCase())).length
+    const dossierIssues = Number(dossierDashboard.summary?.missing_required || dossierDashboard.summary?.missing_required_count || dossierDashboard.summary?.issues || 0)
+      || (dossierDashboard.rows || []).filter(row => Number(row.issue_score || 0) > 0 || Number(row.missing_required_count || 0) > 0).length
+    const missingKiosk = activeEmployees.filter(employee => !(
+      employee.user_id ||
+      employee.userId ||
+      employee.employee_user_id ||
+      employee.associated_user_id ||
+      employee.kiosk_user_id ||
+      employee.kiosk_username
+    )).length
+    const monthRows = scopedMonthlySheet.length
+    const timesheetDepartments = Array.isArray(timesheetOverview) ? timesheetOverview.length : 0
+    const timesheetIssues = canUsePontaj
+      ? timesheetOverview.filter(item => {
+        const status = String(item.status || item.timesheet_status || item.pontaj_status || '').toLowerCase()
+        if (!status) return true
+        return !['finalizat', 'validat', 'completat', 'ok'].includes(status)
+      }).length
+      : 0
+    const monthValidated = ['validat', 'validated'].includes(String(timesheetLock?.status || timesheetLock?.state || '').toLowerCase())
+      || Boolean(timesheetLock?.validated || timesheetLock?.validat || timesheetLock?.validated_at)
+
+    const steps = [
+      {
+        key: 'employees',
+        label: 'Angajați',
+        title: activeEmployees.length ? `${activeEmployees.length} angajați activi` : 'Adaugă primul angajat',
+        detail: activeEmployees.length ? 'Baza HR există. De aici se leagă pontaj, dosar, Kiosk și salarizare.' : 'Fără angajați activi, restul fluxului HR nu are pe ce lucra.',
+        tone: activeEmployees.length ? 'success' : 'warning',
+        done: activeEmployees.length > 0,
+        actionLabel: activeEmployees.length ? 'Vezi angajații' : '+ Angajat nou',
+        action: activeEmployees.length ? goto('Angajați') : () => setEmployeeModal(true),
+      },
+      {
+        key: 'contract',
+        label: 'Contract',
+        title: employeesWithoutContract || employeesWithoutSalary ? 'Completează contractele active' : 'Contracte și salarii pregătite',
+        detail: employeesWithoutContract || employeesWithoutSalary
+          ? `${employeesWithoutContract} fără contract detectat · ${employeesWithoutSalary} fără salariu de bază.`
+          : 'Datele de contract și baza salarială pot alimenta contabilitatea.',
+        tone: employeesWithoutContract || employeesWithoutSalary ? 'warning' : 'success',
+        done: activeEmployees.length > 0 && employeesWithoutContract === 0 && employeesWithoutSalary === 0,
+        actionLabel: 'Deschide angajați',
+        action: goto('Angajați'),
+      },
+      {
+        key: 'timesheet',
+        label: 'Pontaj',
+        title: monthValidated ? 'Pontaj validat' : monthRows ? 'Pontajul lunii este în lucru' : 'Completează pontajul lunii',
+        detail: canUsePontaj
+          ? `${monthRows} rânduri pontaj · ${timesheetIssues} departamente/rânduri de verificat.`
+          : 'Pontajul este vizibil doar pentru rolurile cu acces la pontaj.',
+        tone: !canUsePontaj ? 'neutral' : monthValidated ? 'success' : monthRows ? 'warning' : 'danger',
+        done: !canUsePontaj || monthValidated,
+        actionLabel: canUsePontaj ? 'Deschide pontaj' : 'Fără acces',
+        action: canUsePontaj ? goto('Pontaj') : undefined,
+      },
+      {
+        key: 'leave',
+        label: 'Concedii / medicale',
+        title: pendingLeaveCount || medicalPending ? 'Închide absențele înainte de salarizare' : 'Absențele nu au blocaje',
+        detail: `${pendingLeaveCount} cereri concediu · ${medicalPending} certificate medicale de verificat.`,
+        tone: pendingLeaveCount || medicalPending ? 'warning' : 'success',
+        done: pendingLeaveCount === 0 && medicalPending === 0,
+        actionLabel: 'Vezi concedii',
+        action: goto('Concedii'),
+      },
+      {
+        key: 'dossier',
+        label: 'Dosar / Kiosk',
+        title: dossierIssues || missingKiosk ? 'Completează dosarul și asocierea Kiosk' : 'Dosar și Kiosk în regulă',
+        detail: `${dossierIssues} dosare cu lipsuri · ${missingKiosk} angajați fără cont Kiosk asociat.`,
+        tone: dossierIssues || missingKiosk ? 'warning' : 'success',
+        done: dossierIssues === 0 && missingKiosk === 0,
+        actionLabel: dossierIssues ? 'Dosare HR' : 'Asocieri Kiosk',
+        action: dossierIssues ? (goto('Documente HR') || goto('Angajați')) : goto('Angajați'),
+      },
+      {
+        key: 'payroll',
+        label: 'Salarizare',
+        title: monthValidated ? 'Poți exporta/trimite spre salarizare' : 'Salarizarea așteaptă pontajul validat',
+        detail: timesheetDepartments ? `${timesheetDepartments} departamente în overview pontaj.` : 'După validare, exportul și contabilitatea preiau luna mai curat.',
+        tone: monthValidated ? 'success' : 'neutral',
+        done: monthValidated,
+        actionLabel: canUsePontaj ? 'Export Nexus' : 'Overview',
+        action: canUsePontaj ? () => {
+          setNexusExportForm({ luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || '' })
+          setNexusExportModal(true)
+        } : goto('Overview pontaje'),
+      },
+    ]
+
+    const next = steps.find(step => !step.done && step.action) || steps.find(step => step.action) || null
+    return {
+      steps,
+      next,
+      doneCount: steps.filter(step => step.done).length,
+      totalCount: steps.length,
+      tone: next && !next.done ? next.tone : 'success',
+    }
+  }, [
+    canUsePontaj,
+    dossierDashboard.rows,
+    dossierDashboard.summary,
+    employees,
+    filters.dept_id,
+    filters.luna,
+    isHRPontaj,
+    isSefPontaj,
+    medicalRegister.rows,
+    ownDepartmentKey,
+    pendingLeaves.length,
+    scopedMonthlySheet.length,
+    timesheetLock,
+    timesheetOverview,
+    visibleTabs,
+  ])
+
   const hrAssistant = useMemo(() => {
     const rows = Array.isArray(hrInbox.rows) ? hrInbox.rows : []
     const inboxTotal = Number(hrInbox.summary?.total || rows.length || 0)
@@ -1806,6 +1945,57 @@ export default function HRPage() {
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
       {notice ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div> : null}
+
+      <Card
+        title="Flux simplu HR"
+        subtitle="Angajat → contract → pontaj → concedii/medicale → dosar/Kiosk → salarizare."
+        actions={<Badge tone={hrSimpleFlow.tone}>{hrSimpleFlow.doneCount}/{hrSimpleFlow.totalCount} pași în regulă</Badge>}
+      >
+        <div className="grid gap-4">
+          <div className={`rounded-2xl border p-4 ${hrSimpleFlow.next?.done ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={hrSimpleFlow.next?.tone || 'success'}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{hrSimpleFlow.next?.title || 'Fluxul HR este pregătit.'}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{hrSimpleFlow.next?.detail || 'Poți lucra pe orice etapă fără blocaje vizibile.'}</p>
+                <p className="mt-1 text-xs text-slate-500">Ideea este simplă: orice concediu, medical sau document HR se așază întâi pe angajat și contract, apoi ajunge corect în pontaj și contabilitate.</p>
+              </div>
+              {hrSimpleFlow.next?.action ? (
+                <Button size="sm" variant={hrSimpleFlow.next.done ? 'secondary' : 'primary'} onClick={hrSimpleFlow.next.action}>
+                  {hrSimpleFlow.next.actionLabel || 'Deschide'}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {hrSimpleFlow.steps.map((step, index) => (
+              <button
+                key={step.key}
+                type="button"
+                disabled={!step.action}
+                onClick={step.action}
+                className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50 disabled:cursor-default disabled:opacity-70 disabled:hover:border-slate-200 disabled:hover:bg-white"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${step.done ? 'bg-primary-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{index + 1}</span>
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.label}</div>
+                      <div className="font-semibold text-slate-900">{step.title}</div>
+                    </div>
+                  </div>
+                  <Badge tone={step.tone}>{step.done ? 'ok' : 'de lucrat'}</Badge>
+                </div>
+                <p className="mt-3 text-sm text-slate-600">{step.detail}</p>
+                <div className="mt-3 text-xs font-semibold text-primary-700">{step.actionLabel}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       <Card
         title="Asistent HR"

@@ -1554,3 +1554,8 @@ Următorul pas de stabilizare: `2.12.300`
 - Recomandarea principală se schimbă automat în funcție de starea datelor: cerințe urgente, PAAP cu risc, comenzi deschise, comenzi fără contract, cântar nemapat sau lipsă comenzi;
 - Asistentul achiziții, taburile, comenzile, recepțiile, PAAP-ul, CPV-ul și cântarul rămân neschimbate;
 - `updates/UPDATE_473_flux_simplu_achizitii.md` — ✅ documentație update și verificări.
+### UPDATE 474 — Flux simplu HR
+
+- Adăugat panou ghidat în HR pentru firul angajat → contract → pontaj → concedii/medicale → dosar/Kiosk → salarizare.
+- Panoul recomandă automat următorul pas din date reale: angajați activi, contracte, salarii de bază, pontaj, absențe, dosare și Kiosk.
+- Nu modifică API-uri sau schema DB; este o simplificare de operare peste logica existentă.

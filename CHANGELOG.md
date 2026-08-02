@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.454 - 2026-08-01
+
+## Flux simplu HR
+
+- Modulul HR afișează un panou ghidat pentru angajat, contract, pontaj, concedii/medicale, dosar/Kiosk și salarizare.
+- Panoul arată următorul pas util din date reale: angajat nou, contract/salariu de bază, pontaj, absențe, dosar/Kiosk sau export salarizare.
+- Fiecare etapă are status, explicație scurtă și acțiune directă către zona relevantă.
+- Asistentul HR existent rămâne neschimbat și continuă să urmărească blocajele operaționale.
+
 # v2.12.453 - 2026-08-01
 
 ## Flux simplu Achiziții

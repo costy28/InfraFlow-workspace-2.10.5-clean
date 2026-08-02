@@ -706,3 +706,8 @@ Status: ✅ implementat în v2.12.452.
 | Operare | Achiziția este prezentată ca fir complet de lucru, nu ca taburi separate care trebuie ghicite. |
 
 Status: ✅ implementat în v2.12.453.
+## Probleme remediate în UPDATE 474 — Flux simplu HR
+
+- HR are acum un flux operațional clar pentru angajat, contract, pontaj, concedii/medicale, dosar/Kiosk și salarizare.
+- Operatorul vede imediat următorul pas util fără să deducă ordinea din taburi și tabele.
+- Panoul folosește datele deja încărcate și păstrează Asistentul HR existent pentru blocaje operaționale.
