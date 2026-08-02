@@ -715,6 +715,16 @@ PRIORITATE 3 — Infrastructură comercială:
       → SMTP global ca fallback pentru instalări mici și notificări de sistem
       → Viitor: alias centralizat, OAuth/SMTP per utilizator și politici pe tenant
 
+  [ ] Workflow configurabil pe organizație și tip document
+      → Fiecare organizație își definește propriile fluxuri, nu există un traseu universal hardcodat
+      → Fluxurile se configurează pe tip document: referat, contract, factură, HR, cerere internă, document juridic etc.
+      → Pașii pot fi departamente, roluri, utilizatori nominali sau managerul direct al inițiatorului
+      → Condiții pe valoare, departament, centru de cost, țară/jurisdicție, prioritate sau sursă document
+      → Interfață vizuală simplă: adaugă pas, aprobator, condiție, termen, escaladare și notificări
+      → Șabloane de flux per profil organizație, dar editabile de client
+      → Versionare fluxuri: documentele pornite păstrează versiunea de flux activă la data lansării
+      → Audit complet pentru modificarea fluxurilor și pentru fiecare decizie din circuit
+
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
       → Toate labelurile/mesajele traduse

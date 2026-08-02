@@ -111,6 +111,24 @@ Direcție Task Management:
 - dashboard-ul afișează task-urile relevante pentru rolul utilizatorului;
 - task-urile delegate trebuie să respecte ierarhia și permisiunile, nu doar departamentul textual.
 
+## Workflow configurabil pe organizație
+
+Nu toate organizațiile aprobă documentele prin aceleași departamente sau în aceeași ordine. InfraFlow trebuie să trateze fluxul de documente ca parte configurabilă a profilului organizației, nu ca traseu fix.
+
+Direcție:
+
+- fluxuri definite pe tip document: referat, contract, factură, HR, juridic, cerere internă etc.;
+- pași pe rol, departament, utilizator nominal sau manager direct;
+- condiții pe valoare, departament, centru de cost, prioritate, țară/jurisdicție sau sursă document;
+- termene, escaladări și notificări configurabile;
+- șabloane de flux pentru pornire rapidă, dar editabile de client;
+- versionare de flux: documentele deja lansate păstrează traseul valabil la data lansării;
+- audit complet pentru orice modificare de flux și pentru fiecare decizie de aprobare.
+
+Regulă de implementare:
+
+> Fluxurile implicite pot exista ca exemple sau șabloane, dar clientul trebuie să poată modifica traseul fără intervenție în cod.
+
 ## Reguli de decuplare de client
 
 - Nu se adaugă nume de client în fallback-uri, template-uri implicite sau UI.
