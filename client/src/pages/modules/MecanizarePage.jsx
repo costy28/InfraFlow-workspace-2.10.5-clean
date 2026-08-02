@@ -790,6 +790,99 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
     }
   }, [requests, plannings.length, workOrders, piusiFuelRows, assets, assetStatus, dashboard, mechanizationAlerts.length, scadente, interventions])
 
+  const mechanizationSimpleFlow = useMemo(() => {
+    const totalAssets = assets.length || Number(dashboard?.stats?.totalUtilaje || 0) + Number(dashboard?.stats?.totalVehicule || 0)
+    const availableAssets = assets.filter(asset => ['liber', 'activ', 'available'].includes(String(assetStatus[asset.id] || '').toLowerCase())).length
+    const serviceAssets = assets.filter(asset => assetStatus[asset.id] === 'service').length || Number(dashboard?.stats?.inService || 0)
+    const openRequestStatuses = ['new', 'nou', 'deschisa', 'trimisa', 'in_lucru', 'pending']
+    const pendingRequests = requests.filter(request => openRequestStatuses.includes(String(request.status || '').toLowerCase())).length
+    const plannedToday = Number(dashboard?.stats?.alocateAzi || 0) || plannings.length
+    const openWorkOrders = workOrders.filter(order => !['inchis', 'finalizat', 'anulat', 'closed', 'done'].includes(String(order.status || '').toLowerCase())).length
+    const closedWorkOrders = workOrders.filter(order => ['inchis', 'finalizat', 'closed', 'done'].includes(String(order.status || '').toLowerCase())).length
+    const unmappedPiusiRows = piusiFuelRows.filter(row => !row.asset_id && row.procesat !== true).length
+    const fuelValue = Number(fuelTotals?.valoare_totala || dashboard?.stats?.costLuna || 0)
+    const openInterventions = interventions.filter(item => !['finalizat', 'inchis', 'anulat', 'done', 'closed'].includes(String(item.status || '').toLowerCase())).length
+    const alertCount = Math.max(
+      Number(dashboard?.stats?.alerteDocumente || dashboard?.stats?.alerts || dashboard?.alerte || 0),
+      mechanizationAlerts.length,
+      Array.isArray(scadente?.expirari) ? scadente.expirari.length : 0,
+      serviceAssets,
+    )
+    const hasMonthlyReport = Boolean(raport || fazReport || costHour)
+
+    const steps = [
+      {
+        key: 'park',
+        label: 'Parc',
+        title: totalAssets ? `${totalAssets} resurse în parc` : 'Încarcă parcul de resurse',
+        detail: totalAssets ? `${availableAssets} disponibile · ${serviceAssets} în service.` : 'Fără vehicule/utilaje în parc, cererile și planificarea nu au pe ce lucra.',
+        tone: totalAssets ? (serviceAssets ? 'warning' : 'success') : 'danger',
+        done: totalAssets > 0,
+        actionLabel: 'Vezi parc',
+        action: () => setActiveTab('Parc Utilaje'),
+      },
+      {
+        key: 'requests',
+        label: 'Cereri',
+        title: pendingRequests ? `${pendingRequests} cereri de rezolvat` : 'Cererile sunt curate',
+        detail: 'Cererile aprobate trebuie alocate pe resursa potrivită înainte de lucru.',
+        tone: pendingRequests ? 'warning' : 'success',
+        done: pendingRequests === 0,
+        actionLabel: 'Vezi cereri',
+        action: () => setActiveTab('Parc Utilaje'),
+      },
+      {
+        key: 'planning',
+        label: 'Planificare',
+        title: plannedToday ? `${plannedToday} resurse planificate azi` : 'Planifică activitatea zilei',
+        detail: 'Planificarea leagă resursa, operatorul, lucrarea și intervalul de lucru.',
+        tone: plannedToday ? 'success' : 'warning',
+        done: plannedToday > 0,
+        actionLabel: plannedToday ? 'Vezi planul' : '+ Planificare',
+        action: plannedToday ? () => setActiveTab('Planificare') : () => setPlanModal(true),
+      },
+      {
+        key: 'activity',
+        label: 'Bonuri / FAZ',
+        title: openWorkOrders ? `${openWorkOrders} bonuri deschise` : closedWorkOrders ? 'Bonurile sunt închise' : 'Înregistrează activitatea',
+        detail: closedWorkOrders ? `${closedWorkOrders} bonuri închise pot alimenta FAZ-ul.` : 'Bonurile închise dau ore, kilometri, consum și costuri pentru raport.',
+        tone: openWorkOrders ? 'warning' : closedWorkOrders ? 'success' : 'neutral',
+        done: closedWorkOrders > 0 && openWorkOrders === 0,
+        actionLabel: openWorkOrders ? 'Închide bonuri' : 'Bonuri lucru',
+        action: () => setActiveTab('Bonuri Lucru'),
+      },
+      {
+        key: 'fuel',
+        label: 'Combustibil / intervenții',
+        title: unmappedPiusiRows || openInterventions ? 'Curăță alimentările și intervențiile' : 'Consum și intervenții fără blocaje',
+        detail: `${unmappedPiusiRows} alimentări PIUSI nemapate · ${openInterventions} intervenții deschise · ${money(fuelValue)} cost/lună.`,
+        tone: unmappedPiusiRows ? 'danger' : openInterventions ? 'warning' : 'success',
+        done: unmappedPiusiRows === 0 && openInterventions === 0,
+        actionLabel: unmappedPiusiRows ? 'Alimentări PIUSI' : openInterventions ? 'Intervenții' : 'Alimentări',
+        action: () => setActiveTab(unmappedPiusiRows ? 'Alimentări PIUSI' : openInterventions ? 'Intervenții' : 'Alimentări'),
+      },
+      {
+        key: 'report',
+        label: 'Scadențe / raport',
+        title: alertCount ? `${alertCount} scadențe sau alerte` : hasMonthlyReport ? 'Raportarea este pregătită' : 'Generează raportarea lunii',
+        detail: 'RCA, ITP, ISCIR, service, FAZ și raportul lunar închid controlul parcului.',
+        tone: alertCount ? 'danger' : hasMonthlyReport ? 'success' : 'neutral',
+        done: alertCount === 0 && hasMonthlyReport,
+        actionLabel: alertCount ? 'Vezi scadențe' : 'Raport lunar',
+        action: () => setActiveTab(alertCount ? 'Scadențe & Asigurări' : 'Raport Lunar'),
+      },
+    ]
+
+    const next = steps.find(step => !step.done && step.action) || steps.find(step => step.action)
+    return {
+      steps,
+      next,
+      doneCount: steps.filter(step => step.done).length,
+      totalCount: steps.length,
+      tone: next && !next.done ? next.tone : 'success',
+    }
+  }, [assets, assetStatus, costHour, dashboard, fazReport, fuelTotals, interventions, mechanizationAlerts.length, piusiFuelRows, plannings.length, raport, requests, scadente, workOrders])
+
   const demoTrip = tripLogs.find(trip => trip.nr_foaie === 'FP-2026-KIOSK-001')
   const completedDemoTrips = tripLogs.filter(trip => ['completata', 'semnata_sofer', 'semnata_responsabil'].includes(trip.status))
 
@@ -811,6 +904,56 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </div>
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
+
+      <Card
+        title="Flux simplu Parc & Resurse"
+        subtitle="Parc → cereri → planificare → bonuri/FAZ → combustibil/intervenții → scadențe/raport."
+        actions={<Badge tone={mechanizationSimpleFlow.tone}>{mechanizationSimpleFlow.doneCount}/{mechanizationSimpleFlow.totalCount} pași în regulă</Badge>}
+      >
+        <div className="grid gap-4">
+          <div className={`rounded-2xl border p-4 ${mechanizationSimpleFlow.next?.done ? 'border-emerald-200 bg-emerald-50' : mechanizationSimpleFlow.next?.tone === 'danger' ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={mechanizationSimpleFlow.next?.tone || 'success'}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{mechanizationSimpleFlow.next?.title || 'Fluxul parcului este pregătit.'}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{mechanizationSimpleFlow.next?.detail || 'Poți continua cu planificare, bonuri, alimentări sau raportare.'}</p>
+                <p className="mt-1 text-xs text-slate-500">Firul simplu este valabil pentru flotă, utilaje, echipamente, atelier, service intern sau orice resursă care produce cost și activitate.</p>
+              </div>
+              {mechanizationSimpleFlow.next?.action ? (
+                <Button size="sm" variant={mechanizationSimpleFlow.next.tone === 'danger' ? 'primary' : 'secondary'} onClick={mechanizationSimpleFlow.next.action}>
+                  {mechanizationSimpleFlow.next.actionLabel || 'Deschide'}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {mechanizationSimpleFlow.steps.map((step, index) => (
+              <button
+                key={step.key}
+                type="button"
+                onClick={step.action}
+                className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${step.done ? 'bg-primary-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{index + 1}</span>
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.label}</div>
+                      <div className="font-semibold text-slate-900">{step.title}</div>
+                    </div>
+                  </div>
+                  <Badge tone={step.tone}>{step.done ? 'ok' : 'de lucrat'}</Badge>
+                </div>
+                <p className="mt-3 text-sm text-slate-600">{step.detail}</p>
+                <div className="mt-3 text-xs font-semibold text-primary-700">{step.actionLabel}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       <Card
         title="Asistent parc & resurse"

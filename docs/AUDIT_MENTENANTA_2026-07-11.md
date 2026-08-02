@@ -1569,3 +1569,8 @@ Următorul pas de stabilizare: `2.12.300`
 - Adăugat panou ghidat în Referate pentru firul necesar → poziții/CPV → aprobare → comandă/contract → recepție → PDF/dosar.
 - Panoul recomandă automat următorul pas din date reale: referat nou, drafturi, în aprobare, aprobate, diferențe de factură sau respinse.
 - Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente.
+### UPDATE 477 — Flux simplu Parc & Resurse
+
+- Adăugat panou ghidat în Mecanizare pentru firul parc → cereri → planificare → bonuri/FAZ → combustibil/intervenții → scadențe/raport.
+- Panoul recomandă automat următorul pas din date reale: parc, cereri, planificare, bonuri, PIUSI, intervenții, scadențe sau raport.
+- Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente.

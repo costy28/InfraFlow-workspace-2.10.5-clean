@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.457 - 2026-08-02
+
+## Flux simplu Parc & Resurse
+
+- Modulul Mecanizare afișează un panou ghidat pentru parc, cereri, planificare, bonuri/FAZ, combustibil/intervenții și scadențe/raport.
+- Panoul arată următorul pas util din date reale: parc, cereri de alocat, planificări, bonuri, PIUSI, intervenții, scadențe sau raport lunar.
+- Fiecare etapă are status, explicație scurtă și acțiune directă către zona potrivită.
+- Asistentul existent rămâne disponibil pentru monitorizarea blocajelor operaționale.
+
 # v2.12.456 - 2026-08-02
 
 ## Flux simplu Referate

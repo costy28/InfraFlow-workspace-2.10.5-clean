@@ -721,3 +721,8 @@ Status: ✅ implementat în v2.12.453.
 - Modulul Referate are acum un flux ghidat scurt pentru necesar, poziții/CPV, aprobare, comandă/contract, recepție și PDF/dosar.
 - Operatorul vede următorul pas din statistici reale, înainte să intre în lista și timeline-ul tehnic.
 - Ghidul contextual existent rămâne disponibil, dar fluxul operațional apare primul.
+## Probleme remediate în UPDATE 477 — Flux simplu Parc & Resurse
+
+- Modulul Mecanizare are acum un flux ghidat pentru parc, cereri, planificare, bonuri/FAZ, combustibil/intervenții și scadențe/raport.
+- Operatorul vede următorul pas din date reale, înainte să intre în taburile detaliate.
+- Asistentul existent rămâne disponibil pentru blocaje operaționale, iar fluxul nou oferă orientarea de bază.

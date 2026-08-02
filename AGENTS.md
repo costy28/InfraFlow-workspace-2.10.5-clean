@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.456**
-**Versiune în lucru: v2.12.456**
+**Versiune curentă sursă: v2.12.457**
+**Versiune în lucru: v2.12.457**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -227,6 +227,7 @@ Mecanizare / Fleet
   ✅ Import Autominder XML
   ✅ Confirmări UX FAZ, ștergeri și import PIUSI (v2.12.411)
   ✅ Asistent discret pentru cereri, planificări, bonuri, PIUSI, intervenții și scadențe (v2.12.427)
+  ✅ Flux simplu Parc & Resurse: parc → cereri → planificare → bonuri/FAZ → combustibil/intervenții → scadențe/raport (v2.12.457)
   ✅ GPS Live — urmariregps.ro ✅ (v2.10.1)
      → 23 vehicule afișate pe hartă
      → Responsive mobil cu tabs (v2.10.2)
@@ -785,9 +786,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.456
+VERSIUNE CURENTĂ SURSĂ: 2.12.457
 BUILD EXE EXISTENT: 2.12.210 ✅
-UPDATE ZIP CURENT: 2.12.456 ✅
+UPDATE ZIP CURENT: 2.12.457 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1052,6 +1053,7 @@ UPDATES ÎN LUCRU:
   2.12.454 → UPDATE 474 Flux simplu HR ✅
   2.12.455 → UPDATE 475 Flux simplu Producție / Operațiuni ✅
   2.12.456 → UPDATE 476 Flux simplu Referate ✅
+  2.12.457 → UPDATE 477 Flux simplu Parc & Resurse ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1546,5 +1548,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 2 August 2026 | InfraFlow sursă v2.12.456*
+*AGENTS.md actualizat: 2 August 2026 | InfraFlow sursă v2.12.457*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

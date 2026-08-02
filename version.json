@@ -1,5 +1,5 @@
 {
-  "version": "2.12.456",
+  "version": "2.12.457",
   "date": "2026-08-01",
-  "changelog": "## v2.12.456 - 2026-08-02\n### Flux simplu Referate\n- Modulul Referate afișează un panou ghidat pentru necesar, poziții/CPV, aprobare, comandă/contract, recepție și PDF/dosar.\n- Operatorul vede imediat drafturile, referatele în aprobare, aprobatele, diferențele de factură și respinsele.\n- Panoul recomandă automat următoarea acțiune: referat nou, completare poziții, scoatere din draft, urmărire aprobare, recepție sau dosar.\n- Ghidul existent rămâne disponibil, dar fluxul scurt apare primul."
+  "changelog": "## v2.12.457 - 2026-08-02\n### Flux simplu Parc & Resurse\n- Modulul Mecanizare afișează un panou ghidat pentru parc, cereri, planificare, bonuri/FAZ, combustibil/intervenții și scadențe/raport.\n- Operatorul vede imediat dacă lipsesc resurse, cereri de alocat, planificări, bonuri închise, alimentări mapate, intervenții sau raport lunar.\n- Panoul recomandă automat următoarea acțiune: parc, cereri, planificare, bonuri, PIUSI, intervenții, scadențe sau raport.\n- Asistentul existent rămâne neschimbat pentru monitorizarea blocajelor."
 }
