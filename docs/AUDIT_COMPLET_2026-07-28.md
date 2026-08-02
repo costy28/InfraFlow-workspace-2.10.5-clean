@@ -716,3 +716,8 @@ Status: ✅ implementat în v2.12.453.
 - Modulul Producție are acum un flux ghidat generic pentru rețete/BOM, planuri, realizări, stoc, raport și control costuri.
 - Operatorul vede următorul pas din date reale, fără să deducă manual ordinea din taburi.
 - Limbajul panoului pregătește modulul pentru producție generală, nu doar pentru scenarii istorice de asfalt.
+## Probleme remediate în UPDATE 476 — Flux simplu Referate
+
+- Modulul Referate are acum un flux ghidat scurt pentru necesar, poziții/CPV, aprobare, comandă/contract, recepție și PDF/dosar.
+- Operatorul vede următorul pas din statistici reale, înainte să intre în lista și timeline-ul tehnic.
+- Ghidul contextual existent rămâne disponibil, dar fluxul operațional apare primul.

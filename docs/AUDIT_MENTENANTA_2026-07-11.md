@@ -1564,3 +1564,8 @@ Următorul pas de stabilizare: `2.12.300`
 - Adăugat panou ghidat în Producție pentru firul rețetă/BOM → plan → realizare → stoc → raport → control costuri.
 - Panoul recomandă automat următorul pas din date reale: rețete aprobate, planuri, consumuri, legare Gestiune și raport lunar.
 - Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente.
+### UPDATE 476 — Flux simplu Referate
+
+- Adăugat panou ghidat în Referate pentru firul necesar → poziții/CPV → aprobare → comandă/contract → recepție → PDF/dosar.
+- Panoul recomandă automat următorul pas din date reale: referat nou, drafturi, în aprobare, aprobate, diferențe de factură sau respinse.
+- Nu introduce API-uri sau schemă DB nouă; simplifică operarea peste funcțiile existente.

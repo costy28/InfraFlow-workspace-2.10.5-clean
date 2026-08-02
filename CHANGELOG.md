@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.456 - 2026-08-02
+
+## Flux simplu Referate
+
+- Modulul Referate afișează un panou ghidat pentru necesar, poziții/CPV, aprobare, comandă/contract, recepție și PDF/dosar.
+- Panoul arată următorul pas util din date reale: referat nou, completare poziții, drafturi, în aprobare, aprobate, diferențe de factură sau respinse.
+- Fiecare etapă are status, explicație scurtă și acțiune directă către filtrul sau acțiunea potrivită.
+- Ghidul existent rămâne disponibil, dar fluxul scurt apare primul pentru orientare rapidă.
+
 # v2.12.455 - 2026-08-02
 
 ## Flux simplu Producție / Operațiuni

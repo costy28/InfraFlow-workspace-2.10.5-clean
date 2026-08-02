@@ -1,5 +1,5 @@
 {
-  "version": "2.12.455",
+  "version": "2.12.456",
   "date": "2026-08-01",
-  "changelog": "## v2.12.455 - 2026-08-02\n### Flux simplu Producție / Operațiuni\n- Modulul Producție afișează un panou ghidat generic pentru rețetă/BOM, plan, realizare, stoc, raport și control costuri.\n- Operatorul vede imediat dacă lipsesc rețete aprobate, planuri, consumuri, legare cu Gestiune sau raport lunar.\n- Panoul recomandă automat următoarea acțiune: vezi rețete, planuri, adaugă consum, leagă Gestiune, generează raport sau exportă.\n- Limbajul este pregătit pentru producție generică, nu doar pentru asfalt."
+  "changelog": "## v2.12.456 - 2026-08-02\n### Flux simplu Referate\n- Modulul Referate afișează un panou ghidat pentru necesar, poziții/CPV, aprobare, comandă/contract, recepție și PDF/dosar.\n- Operatorul vede imediat drafturile, referatele în aprobare, aprobatele, diferențele de factură și respinsele.\n- Panoul recomandă automat următoarea acțiune: referat nou, completare poziții, scoatere din draft, urmărire aprobare, recepție sau dosar.\n- Ghidul existent rămâne disponibil, dar fluxul scurt apare primul."
 }

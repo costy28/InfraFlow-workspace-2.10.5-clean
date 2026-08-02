@@ -185,6 +185,92 @@ export default function ReferatePage() {
     }
   }, [stats, canCreate])
 
+  const referateSimpleFlow = useMemo(() => {
+    const total = statFor(stats, '')
+    const draftCount = statFor(stats, 'draft')
+    const approvalCount = statFor(stats, 'in_aprobare')
+    const approvedCount = statFor(stats, 'aprobat')
+    const rejectedCount = statFor(stats, 'respins')
+    const contractsActive = contracts.filter(contract => !contract.cancelled_at && !contract.cancelledAt).length
+    const materialsWithCpv = materials.filter(item => item.cod_cpv || item.cpv || item.cpv_cod).length
+    const needsReapproval = referate.filter(item => item.necesita_reaprobare || item.status === 'diferenta_factura').length
+    const approvedVisible = referate.filter(item => item.status === 'aprobat').length
+    const approvedWithoutContract = referate.filter(item => item.status === 'aprobat' && !item.contract_numar && !item.contract_id).length
+
+    const steps = [
+      {
+        key: 'request',
+        label: 'Necesar',
+        title: total ? `${total} referate în sistem` : 'Creează primul referat',
+        detail: total ? 'Necesarul intern este captat în referate, cu departament și valoare.' : 'Pornește de la ce trebuie cumpărat sau contractat, nu de la tabelele tehnice.',
+        tone: total ? 'success' : 'warning',
+        done: total > 0,
+        actionLabel: canCreate ? '+ Referat nou' : 'Vezi lista',
+        action: canCreate ? () => setCreateOpen(true) : () => setActiveTab(''),
+      },
+      {
+        key: 'classification',
+        label: 'Poziții / CPV',
+        title: materialsWithCpv ? 'Nomenclator pregătit pentru CPV' : 'Verifică pozițiile și CPV-ul',
+        detail: `${materialsWithCpv} materiale au CPV · ${contractsActive} contracte active disponibile pentru legare.`,
+        tone: materialsWithCpv ? 'success' : 'warning',
+        done: materialsWithCpv > 0,
+        actionLabel: canCreate ? 'Completează poziții' : 'Vezi referate',
+        action: canCreate ? () => setCreateOpen(true) : () => setActiveTab(''),
+      },
+      {
+        key: 'approval',
+        label: 'Flux aprobare',
+        title: draftCount || approvalCount ? 'Scoate referatele din blocaj' : 'Fluxul de aprobare este curat',
+        detail: `${draftCount} draft · ${approvalCount} în aprobare. Referatul trebuie să circule, nu să stea într-un status intermediar.`,
+        tone: draftCount || approvalCount ? 'warning' : 'success',
+        done: draftCount === 0 && approvalCount === 0,
+        actionLabel: draftCount ? 'Vezi drafturi' : 'Vezi în aprobare',
+        action: () => setActiveTab(draftCount ? 'draft' : 'in_aprobare'),
+      },
+      {
+        key: 'approved',
+        label: 'Aprobare / comandă',
+        title: approvedCount ? `${approvedCount} referate aprobate` : 'Nu ai referate aprobate încă',
+        detail: approvedWithoutContract ? `${approvedWithoutContract} aprobate vizibile nu au contract legat.` : 'După aprobare urmează comandă, contract, recepție sau dosar justificativ.',
+        tone: approvedCount ? (approvedWithoutContract ? 'warning' : 'success') : 'neutral',
+        done: approvedCount > 0 && approvedWithoutContract === 0,
+        actionLabel: 'Vezi aprobate',
+        action: () => setActiveTab('aprobat'),
+      },
+      {
+        key: 'receipt',
+        label: 'Recepție / factură',
+        title: needsReapproval ? 'Există diferențe de factură' : 'Recepția poate fi controlată',
+        detail: needsReapproval ? `${needsReapproval} referate cer reaprobare după diferența de factură.` : 'Dacă factura depășește referatul, aplicația trimite cazul înapoi la control.',
+        tone: needsReapproval ? 'danger' : 'success',
+        done: needsReapproval === 0,
+        actionLabel: 'Vezi aprobate',
+        action: () => setActiveTab('aprobat'),
+      },
+      {
+        key: 'archive',
+        label: 'PDF / dosar',
+        title: rejectedCount ? 'Curăță respinsele și păstrează dosarul' : 'Dosarul poate fi tipărit/atașat',
+        detail: `${rejectedCount} respinse. PDF-ul rămâne documentul ușor de pus în dosar sau de transmis mai departe.`,
+        tone: rejectedCount ? 'warning' : 'success',
+        done: rejectedCount === 0,
+        actionLabel: rejectedCount ? 'Vezi respinse' : 'Vezi toate',
+        action: () => setActiveTab(rejectedCount ? 'respins' : ''),
+      },
+    ]
+
+    const next = steps.find(step => !step.done && step.action) || steps.find(step => step.action)
+    return {
+      steps,
+      next,
+      doneCount: steps.filter(step => step.done).length,
+      totalCount: steps.length,
+      tone: next && !next.done ? next.tone : 'success',
+      approvedVisible,
+    }
+  }, [canCreate, contracts, materials, referate, stats])
+
   function patchLine(index, patch) {
     setForm(current => ({ ...current, items: current.items.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line) }))
   }
@@ -263,6 +349,56 @@ export default function ReferatePage() {
         <div><h1 className="text-2xl font-semibold text-slate-900">Referate</h1><p className="text-sm text-slate-500">Aprovizionare și servicii, cu flux complet de avizare.</p></div>
         {canCreate ? <Button onClick={() => setCreateOpen(true)}>+ Referat nou</Button> : null}
       </div>
+
+      <Card
+        title="Flux simplu Referate"
+        subtitle="Necesar → poziții/CPV → aprobare → comandă/contract → recepție → PDF/dosar."
+        actions={<Badge tone={referateSimpleFlow.tone}>{referateSimpleFlow.doneCount}/{referateSimpleFlow.totalCount} pași în regulă</Badge>}
+      >
+        <div className="grid gap-4">
+          <div className={`rounded-2xl border p-4 ${referateSimpleFlow.next?.done ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={referateSimpleFlow.next?.tone || 'success'}>următorul pas</Badge>
+                  <div className="font-semibold text-slate-900">{referateSimpleFlow.next?.title || 'Fluxul de referate este pregătit.'}</div>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{referateSimpleFlow.next?.detail || 'Poți crea, aproba, recepționa sau tipări dosarul fără blocaje vizibile.'}</p>
+                <p className="mt-1 text-xs text-slate-500">Referatul este puntea simplă dintre necesarul intern, achiziție, contract, recepție și dosarul justificativ.</p>
+              </div>
+              {referateSimpleFlow.next?.action ? (
+                <Button size="sm" variant={referateSimpleFlow.next.done ? 'secondary' : 'primary'} onClick={referateSimpleFlow.next.action}>
+                  {referateSimpleFlow.next.actionLabel || 'Deschide'}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {referateSimpleFlow.steps.map((step, index) => (
+              <button
+                key={step.key}
+                type="button"
+                onClick={step.action}
+                className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${step.done ? 'bg-primary-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{index + 1}</span>
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.label}</div>
+                      <div className="font-semibold text-slate-900">{step.title}</div>
+                    </div>
+                  </div>
+                  <Badge tone={step.tone}>{step.done ? 'ok' : 'de lucrat'}</Badge>
+                </div>
+                <p className="mt-3 text-sm text-slate-600">{step.detail}</p>
+                <div className="mt-3 text-xs font-semibold text-primary-700">{step.actionLabel}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       <ContextHelp
         eyebrow="Ghid referate"
