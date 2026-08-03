@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.462 - 2026-08-03
+
+## Testare flux workflow în Setări
+
+- `Setări > Module` include un simulator rapid pentru șabloanele de workflow documente.
+- Administratorul poate testa tipul documentului, inițiatorul, departamentul, valoarea estimată și prioritatea înainte de lansarea reală.
+- Preview-ul arată fluxul potrivit, versiunea, pașii, aprobatorii, termenele și condițiile aplicabile.
+- Sunt afișate avertizări prietenoase pentru cazuri precum lipsa inițiatorului, lipsa departamentului, pași pe manager direct sau referințe generice de utilizator.
+- Nu modifică engine-ul existent; adaugă verificare vizuală peste configurația deja salvată.
+
 # v2.12.461 - 2026-08-02
 
 ## Aplicare șabloane workflow la lansarea documentelor

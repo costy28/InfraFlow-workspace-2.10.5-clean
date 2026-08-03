@@ -1,5 +1,5 @@
 {
-  "version": "2.12.461",
-  "date": "2026-08-02",
-  "changelog": "## v2.12.461 - 2026-08-02\n### Aplicare șabloane workflow la lansarea documentelor\n- La lansarea unui document în circuit, aplicația caută șablonul activ din settings.workflow_document_flows și salvează un snapshot în date_json.workflow_snapshot.\n- Pașii de circuit sunt generați din snapshot când există șablon configurat; fără șablon activ rămâne fallback-ul existent.\n- Snapshot-ul păstrează versiunea, denumirea fluxului, pașii, condițiile și termenul pasului.\n- În dosarul documentului este afișat fluxul aplicat, ca utilizatorul să vadă clar ce circuit a fost folosit."
+  "version": "2.12.462",
+  "date": "2026-08-03",
+  "changelog": "## v2.12.462 - 2026-08-03\n### Testare flux workflow în Setări\n- Setări > Module include un simulator rapid pentru șabloanele de workflow documente.\n- Administratorul poate testa tipul documentului, inițiatorul, departamentul, valoarea estimată și prioritatea înainte de lansarea reală.\n- Preview-ul arată fluxul potrivit, versiunea, pașii, aprobatorii, termenele, condițiile și avertizările operaționale.\n- Nu modifică engine-ul existent; este un strat de claritate și verificare peste configurația deja salvată."
 }

@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.461**
-**Versiune în lucru: v2.12.461**
+**Versiune curentă sursă: v2.12.462**
+**Versiune în lucru: v2.12.462**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -209,6 +209,7 @@ Core System
   ✅ Panou vizibil în Setări pentru workflow configurabil pe organizație și tip document (v2.12.459)
   ✅ Editor simplu pentru șabloane de workflow documente în Setări (v2.12.460)
   ✅ Aplicare șabloane workflow la lansarea documentelor cu snapshot pe document (v2.12.461)
+  ✅ Testare simulată a fluxului workflow înainte de lansare în Setări (v2.12.462)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -336,6 +337,7 @@ Workflow
   ✅ Direcție workflow configurabil vizibilă în Setări și roadmap comercial (v2.12.459)
   ✅ Șabloane workflow editabile și persistente în profilul organizației (v2.12.460)
   ✅ Șabloane workflow aplicate la lansarea documentelor, cu snapshot/versionare vizibilă în dosar (v2.12.461)
+  ✅ Testare simulată a fluxului înainte de lansarea documentului (v2.12.462)
 
 Comunicare
   ✅ Chat intern pe canale, mențiuni și notificări live
@@ -729,6 +731,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Interfață vizuală simplă: adaugă pas, aprobator, condiție, termen, escaladare și notificări ✅ Fundație v2.12.460
       → Șabloane de flux per profil organizație, dar editabile de client ✅ Fundație v2.12.460
       → Versionare fluxuri: documentele pornite păstrează versiunea de flux activă la data lansării ✅ Fundație v2.12.461
+      → Testare flux înainte de lansare cu tip document, inițiator, departament, valoare și prioritate ✅ Fundație v2.12.462
       → Audit complet pentru modificarea fluxurilor și pentru fiecare decizie din circuit
 
   [ ] Multi-limbă + profil de țară
@@ -804,9 +807,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.461
+VERSIUNE CURENTĂ SURSĂ: 2.12.462
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.461 ✅
+UPDATE ZIP CURENT: 2.12.462 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1076,6 +1079,7 @@ UPDATES ÎN LUCRU:
   2.12.459 → UPDATE 479 Workflow configurabil vizibil în Setări ✅
   2.12.460 → UPDATE 480 Editor șabloane workflow documente ✅
   2.12.461 → UPDATE 481 Aplicare șabloane workflow la lansarea documentelor ✅
+  2.12.462 → UPDATE 482 Testare flux workflow în Setări ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1570,5 +1574,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 2 August 2026 | InfraFlow sursă v2.12.461*
+*AGENTS.md actualizat: 3 August 2026 | InfraFlow sursă v2.12.462*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

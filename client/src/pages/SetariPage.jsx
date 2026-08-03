@@ -453,6 +453,58 @@ function normalizeWorkflowDocumentFlowsClient(input) {
   })
 }
 
+function compactWorkflowKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '')
+}
+
+function workflowFlowMatchesScenario(flow, scenario) {
+  const tested = compactWorkflowKey(scenario?.document_type)
+  if (!tested) return false
+  const candidates = [flow.document_type, flow.id, flow.label].map(compactWorkflowKey).filter(Boolean)
+  return candidates.some(candidate => candidate === tested || tested.includes(candidate))
+}
+
+function workflowActorLabel(step) {
+  const actorType = workflowActorTypeOptions.find(item => item.value === step.actor_type)?.label || 'Actor'
+  return `${actorType}${step.actor_ref ? `: ${step.actor_ref}` : ''}`
+}
+
+function simulateWorkflowDocumentFlow(flows, scenario = {}) {
+  const activeFlows = normalizeWorkflowDocumentFlowsClient(flows).filter(flow => flow.active !== false)
+  const flow = activeFlows.find(item => workflowFlowMatchesScenario(item, scenario)) || null
+  const warnings = []
+  if (!flow) {
+    warnings.push('Nu există un șablon activ pentru tipul testat. La lansare se va folosi fallback-ul existent.')
+    return { flow: null, steps: [], warnings }
+  }
+  const value = Number(scenario.value || 0)
+  const hasValue = Number.isFinite(value) && value > 0
+  if (!flow.steps?.length) warnings.push('Fluxul este activ, dar nu are pași configurați.')
+  if ((flow.steps || []).some(step => step.actor_type === 'manager') && !scenario.initiator) {
+    warnings.push('Există pas pe manager direct. Pentru test complet alege inițiatorul documentului.')
+  }
+  if ((flow.steps || []).some(step => step.actor_type === 'department') && !scenario.department) {
+    warnings.push('Există pas pe departament. Pentru test complet alege departamentul documentului.')
+  }
+  if ((flow.steps || []).some(step => step.condition?.toLowerCase().includes('valoare')) && !hasValue) {
+    warnings.push('Fluxul are condiții după valoare. Completează valoarea estimată ca să fie clar când se aplică pasul.')
+  }
+  if ((flow.steps || []).some(step => step.actor_type === 'user' && /responsabil|angajat|asociat/i.test(step.actor_ref || ''))) {
+    warnings.push('Unii pași folosesc referințe generice de utilizator. La documentul real trebuie să existe responsabil/angajat asociat.')
+  }
+  const steps = (flow.steps || []).map((step, index) => ({
+    ...step,
+    index: index + 1,
+    actor_label: workflowActorLabel(step),
+    applies_hint: step.condition && step.condition !== 'mereu' ? step.condition : 'se aplică mereu',
+  }))
+  return { flow, steps, warnings }
+}
+
 const fallbackCountryProfiles = [
   { code: 'RO', label: 'România', locale: 'ro-RO', currency: 'RON', timezone: 'Europe/Bucharest', jurisdiction_profile: 'RO', legislation_status: 'activ' },
   { code: 'GB', label: 'United Kingdom', locale: 'en-GB', currency: 'GBP', timezone: 'Europe/London', jurisdiction_profile: 'GB', legislation_status: 'roadmap' },
@@ -688,6 +740,13 @@ export default function SetariPage() {
   const [verifyNumar, setVerifyNumar] = useState('')
   const [verifyResult, setVerifyResult] = useState(null) // null | { found, error, employee_id, nume, functia } | 'not_found'
   const [verifyLoading, setVerifyLoading] = useState(false)
+  const [workflowTest, setWorkflowTest] = useState({
+    document_type: 'referat',
+    initiator: '',
+    department: '',
+    value: '',
+    priority: 'normal',
+  })
 
   const activeModules = useMemo(() => new Set(license?.module_active || license?.module || []), [license])
   const configurableModuleKeys = useMemo(() => moduleGroups.flatMap(group => group.modules).filter(item => !['core', 'production', 'inventory', 'reports'].includes(item.key)).map(item => item.key), [])
@@ -722,6 +781,10 @@ export default function SetariPage() {
     )
     return { active: active.length, total: workflowDocumentFlows.length, steps, conditioned }
   }, [workflowDocumentFlows])
+  const workflowSimulation = useMemo(
+    () => simulateWorkflowDocumentFlow(workflowDocumentFlows, workflowTest),
+    [workflowDocumentFlows, workflowTest]
+  )
   const moduleByKey = useMemo(
     () => new Map(moduleGroups.flatMap(group => group.modules).map(mod => [mod.key, mod])),
     []
@@ -3585,11 +3648,123 @@ export default function SetariPage() {
                 ))}
               </div>
             </div>
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Test rapid</div>
+                  <h3 className="mt-1 text-lg font-semibold text-slate-900">Testează fluxul înainte de lansare</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Completezi un scenariu simplu și vezi imediat ce șablon se aplică, ce pași pornesc și unde trebuie atenție.
+                  </p>
+                </div>
+                <Badge tone={workflowSimulation.flow ? 'success' : 'warning'}>
+                  {workflowSimulation.flow ? `potrivit: ${workflowSimulation.flow.label}` : 'fără potrivire'}
+                </Badge>
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+                  <Select
+                    label="Tip document testat"
+                    value={workflowTest.document_type}
+                    onChange={event => setWorkflowTest(current => ({ ...current, document_type: event.target.value }))}
+                  >
+                    {workflowDocumentFlows.map(flow => (
+                      <option key={flow.id} value={flow.document_type}>{flow.label} ({flow.document_type})</option>
+                    ))}
+                    <option value="document">Document generic</option>
+                  </Select>
+                  <Select
+                    label="Inițiator document"
+                    value={workflowTest.initiator}
+                    onChange={event => setWorkflowTest(current => ({ ...current, initiator: event.target.value }))}
+                  >
+                    <option value="">Alege inițiatorul pentru test</option>
+                    {users.filter(user => user.active !== false).map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.name || user.username}{user.department ? ` — ${user.department}` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    label="Departament"
+                    value={workflowTest.department}
+                    onChange={event => setWorkflowTest(current => ({ ...current, department: event.target.value }))}
+                  >
+                    <option value="">Alege departamentul pentru test</option>
+                    {departments.map(dept => {
+                      const name = dept.name || dept.nume || dept.denumire || dept
+                      return <option key={dept.id || name} value={name}>{dept.icon || ''} {name}</option>
+                    })}
+                  </Select>
+                  <Input
+                    label="Valoare estimată"
+                    type="number"
+                    min="0"
+                    value={workflowTest.value}
+                    onChange={event => setWorkflowTest(current => ({ ...current, value: event.target.value }))}
+                    placeholder="ex. 15000"
+                  />
+                  <Select
+                    label="Prioritate"
+                    value={workflowTest.priority}
+                    onChange={event => setWorkflowTest(current => ({ ...current, priority: event.target.value }))}
+                  >
+                    <option value="normal">Normală</option>
+                    <option value="urgent">Urgentă</option>
+                    <option value="critic">Critică</option>
+                  </Select>
+                </div>
+
+                <div className="rounded-xl border border-white bg-white p-4 shadow-sm">
+                  {workflowSimulation.flow ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="success">flux activ</Badge>
+                        <Badge tone="info">v{workflowSimulation.flow.version}</Badge>
+                        <span className="text-sm font-semibold text-slate-900">{workflowSimulation.flow.label}</span>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {workflowSimulation.steps.map(step => (
+                          <div key={`${workflowSimulation.flow.id}-preview-${step.index}`} className="rounded-lg border border-slate-200 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="font-semibold text-slate-900">Pas {step.index}: {step.name}</div>
+                              <Badge tone={step.required ? 'warning' : 'neutral'}>{step.required ? 'obligatoriu' : 'opțional'}</Badge>
+                            </div>
+                            <div className="mt-2 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
+                              <span>{step.actor_label}</span>
+                              <span>Termen: {step.deadline_days || 0} zile</span>
+                              <span>{step.applies_hint}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      Nu am găsit un flux activ pentru scenariul testat. Documentul nu se blochează, dar va merge pe circuitul fallback existent.
+                    </div>
+                  )}
+                  {workflowSimulation.warnings.length ? (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <div className="text-sm font-semibold text-amber-900">De verificat înainte de folosire reală:</div>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
+                        {workflowSimulation.warnings.map(item => <li key={item}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                      Scenariul testat are un flux activ și pași clari. Poate fi folosit ca verificare rapidă înainte de lansare.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {[
                 { title: 'Șabloane editabile', text: 'Pornire rapidă pentru referate, contracte, facturi și HR.' },
                 { title: 'Reguli ușor de citit', text: 'Pasul spune cine aprobă, în câte zile și când se aplică.' },
-                { title: 'Pregătit pentru engine', text: 'Structura salvată poate fi legată ulterior la lansarea documentelor.' },
+                { title: 'Test înainte de folosire', text: 'Adminul vede traseul aplicat înainte ca documentul să intre în circuit.' },
               ].map(item => (
                 <div key={item.title} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="font-semibold text-slate-900">{item.title}</div>
