@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.463 - 2026-08-03
+
+## Condiții ghidate pentru workflow documente
+
+- Editorul de pași workflow din `Setări > Module` primește preset-uri rapide pentru condiții uzuale: mereu, valoare estimată, prioritate, departament și țară.
+- Administratorul poate compune o condiție prin câmp, operator și valoare, fără să scrie expresii tehnice.
+- Condiția rezultată se aplică direct în câmpul text existent al pasului, astfel încât backend-ul și documentele existente rămân compatibile.
+- Builder-ul pregătește trecerea ulterioară către condiții evaluate mai strict de engine, fără să rupă formatul actual.
+
 # v2.12.462 - 2026-08-03
 
 ## Testare flux workflow în Setări

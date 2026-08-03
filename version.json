@@ -1,5 +1,5 @@
 {
-  "version": "2.12.462",
+  "version": "2.12.463",
   "date": "2026-08-03",
-  "changelog": "## v2.12.462 - 2026-08-03\n### Testare flux workflow în Setări\n- Setări > Module include un simulator rapid pentru șabloanele de workflow documente.\n- Administratorul poate testa tipul documentului, inițiatorul, departamentul, valoarea estimată și prioritatea înainte de lansarea reală.\n- Preview-ul arată fluxul potrivit, versiunea, pașii, aprobatorii, termenele, condițiile și avertizările operaționale.\n- Nu modifică engine-ul existent; este un strat de claritate și verificare peste configurația deja salvată."
+  "changelog": "## v2.12.463 - 2026-08-03\n### Condiții ghidate pentru workflow documente\n- Editorul de pași workflow din Setări are preset-uri rapide pentru condiții uzuale.\n- Administratorul poate compune condiții prin câmp, operator și valoare, fără expresii tehnice.\n- Condiția generată se salvează în același câmp text existent, păstrând compatibilitatea cu engine-ul actual.\n- Update-ul pregătește reguli workflow mai clare pentru valoare, departament, prioritate, țară, centru de cost și sursă document."
 }

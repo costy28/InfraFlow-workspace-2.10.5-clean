@@ -374,6 +374,36 @@ const workflowActorTypeOptions = [
   { value: 'manager', label: 'Manager direct' },
 ]
 
+const workflowConditionFieldOptions = [
+  { value: 'always', label: 'Mereu' },
+  { value: 'estimated_value', label: 'Valoare estimată' },
+  { value: 'department', label: 'Departament' },
+  { value: 'priority', label: 'Prioritate' },
+  { value: 'country', label: 'Țară / jurisdicție' },
+  { value: 'cost_center', label: 'Centru de cost' },
+  { value: 'source', label: 'Sursă document' },
+]
+
+const workflowConditionOperatorOptions = [
+  { value: '=', label: '=' },
+  { value: '!=', label: '≠' },
+  { value: '>', label: '>' },
+  { value: '>=', label: '≥' },
+  { value: '<', label: '<' },
+  { value: '<=', label: '≤' },
+  { value: 'contains', label: 'conține' },
+]
+
+const workflowConditionPresetOptions = [
+  { value: 'mereu', label: 'Mereu' },
+  { value: 'valoare estimată > 0', label: 'Are valoare estimată' },
+  { value: 'valoare estimată >= 10000', label: 'Valoare peste prag' },
+  { value: 'prioritate = urgentă', label: 'Prioritate urgentă' },
+  { value: 'prioritate = critică', label: 'Prioritate critică' },
+  { value: 'departament = departament beneficiar', label: 'Departament beneficiar' },
+  { value: 'țară = profil organizație', label: 'Țara organizației' },
+]
+
 const workflowDocumentFlowDefaults = [
   {
     id: 'referat',
@@ -471,6 +501,19 @@ function workflowFlowMatchesScenario(flow, scenario) {
 function workflowActorLabel(step) {
   const actorType = workflowActorTypeOptions.find(item => item.value === step.actor_type)?.label || 'Actor'
   return `${actorType}${step.actor_ref ? `: ${step.actor_ref}` : ''}`
+}
+
+function defaultWorkflowConditionDraft() {
+  return { field: 'estimated_value', operator: '>=', value: '' }
+}
+
+function buildWorkflowConditionLabel(draft = {}) {
+  if (!draft.field || draft.field === 'always') return 'mereu'
+  const field = workflowConditionFieldOptions.find(item => item.value === draft.field)?.label || draft.field
+  const operator = workflowConditionOperatorOptions.find(item => item.value === draft.operator)?.value || '='
+  const value = String(draft.value || '').trim()
+  if (!value) return `${field.toLowerCase()} ${operator} ...`
+  return `${field.toLowerCase()} ${operator} ${value}`
 }
 
 function simulateWorkflowDocumentFlow(flows, scenario = {}) {
@@ -747,6 +790,7 @@ export default function SetariPage() {
     value: '',
     priority: 'normal',
   })
+  const [workflowConditionDrafts, setWorkflowConditionDrafts] = useState({})
 
   const activeModules = useMemo(() => new Set(license?.module_active || license?.module || []), [license])
   const configurableModuleKeys = useMemo(() => moduleGroups.flatMap(group => group.modules).filter(item => !['core', 'production', 'inventory', 'reports'].includes(item.key)).map(item => item.key), [])
@@ -1603,6 +1647,24 @@ export default function SetariPage() {
         )),
       }
     }))
+  }
+
+  function updateWorkflowConditionDraft(flowId, stepIndex, patch) {
+    const key = `${flowId}:${stepIndex}`
+    setWorkflowConditionDrafts(current => ({
+      ...current,
+      [key]: {
+        ...defaultWorkflowConditionDraft(),
+        ...(current[key] || {}),
+        ...patch,
+      },
+    }))
+  }
+
+  function applyWorkflowConditionDraft(flowId, stepIndex) {
+    const key = `${flowId}:${stepIndex}`
+    const nextCondition = buildWorkflowConditionLabel(workflowConditionDrafts[key] || defaultWorkflowConditionDraft())
+    updateWorkflowStep(flowId, stepIndex, { condition: nextCondition })
   }
 
   function addWorkflowStep(flowId) {
@@ -3619,11 +3681,59 @@ export default function SetariPage() {
                                 />
                               </td>
                               <td className="px-2 py-2">
-                                <input
-                                  className="w-48 rounded-md border border-slate-200 px-2 py-1"
-                                  value={step.condition}
-                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value })}
-                                />
+                                <div className="grid w-72 gap-2">
+                                  <input
+                                    className="rounded-md border border-slate-200 px-2 py-1"
+                                    value={step.condition}
+                                    onChange={event => updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value })}
+                                  />
+                                  <div className="grid gap-1 rounded-lg border border-slate-100 bg-slate-50 p-2">
+                                    <select
+                                      className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                                      value=""
+                                      onChange={event => {
+                                        if (event.target.value) updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value })
+                                      }}
+                                    >
+                                      <option value="">Preset rapid...</option>
+                                      {workflowConditionPresetOptions.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                      ))}
+                                    </select>
+                                    <div className="grid grid-cols-[1fr_72px_1fr] gap-1">
+                                      <select
+                                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                                        value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).field}
+                                        onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { field: event.target.value })}
+                                      >
+                                        {workflowConditionFieldOptions.map(option => (
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                                        value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).operator}
+                                        onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { operator: event.target.value })}
+                                      >
+                                        {workflowConditionOperatorOptions.map(option => (
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                      </select>
+                                      <input
+                                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                                        placeholder="valoare"
+                                        value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).value}
+                                        onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { value: event.target.value })}
+                                      />
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="truncate text-[11px] text-slate-500">
+                                        {buildWorkflowConditionLabel(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft())}
+                                      </span>
+                                      <Button size="sm" variant="secondary" onClick={() => applyWorkflowConditionDraft(flow.id, stepIndex)}>Aplică</Button>
+                                    </div>
+                                  </div>
+                                </div>
                               </td>
                               <td className="px-2 py-2">
                                 <input
