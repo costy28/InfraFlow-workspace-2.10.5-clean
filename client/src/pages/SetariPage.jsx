@@ -395,13 +395,13 @@ const workflowConditionOperatorOptions = [
 ]
 
 const workflowConditionPresetOptions = [
-  { value: 'mereu', label: 'Mereu' },
-  { value: 'valoare estimată > 0', label: 'Are valoare estimată' },
-  { value: 'valoare estimată >= 10000', label: 'Valoare peste prag' },
-  { value: 'prioritate = urgentă', label: 'Prioritate urgentă' },
-  { value: 'prioritate = critică', label: 'Prioritate critică' },
-  { value: 'departament = departament beneficiar', label: 'Departament beneficiar' },
-  { value: 'țară = profil organizație', label: 'Țara organizației' },
+  { value: 'mereu', label: 'Mereu', rule: { field: 'always', operator: '=', value: '' } },
+  { value: 'valoare estimată > 0', label: 'Are valoare estimată', rule: { field: 'estimated_value', operator: '>', value: '0' } },
+  { value: 'valoare estimată >= 10000', label: 'Valoare peste prag', rule: { field: 'estimated_value', operator: '>=', value: '10000' } },
+  { value: 'prioritate = urgentă', label: 'Prioritate urgentă', rule: { field: 'priority', operator: '=', value: 'urgentă' } },
+  { value: 'prioritate = critică', label: 'Prioritate critică', rule: { field: 'priority', operator: '=', value: 'critică' } },
+  { value: 'departament = departament beneficiar', label: 'Departament beneficiar', rule: { field: 'department', operator: '=', value: 'departament beneficiar' } },
+  { value: 'țară = profil organizație', label: 'Țara organizației', rule: { field: 'country', operator: '=', value: 'profil organizație' } },
 ]
 
 const workflowDocumentFlowDefaults = [
@@ -478,6 +478,7 @@ function normalizeWorkflowDocumentFlowsClient(input) {
         deadline_days: Math.max(0, Number(step.deadline_days ?? step.deadlineDays ?? 1)),
         required: step.required !== false,
         condition: String(step.condition || 'mereu').trim(),
+        condition_rule: normalizeWorkflowConditionRuleClient(step.condition_rule || step.conditionRule || {}),
       })),
     }
   })
@@ -505,6 +506,18 @@ function workflowActorLabel(step) {
 
 function defaultWorkflowConditionDraft() {
   return { field: 'estimated_value', operator: '>=', value: '' }
+}
+
+function normalizeWorkflowConditionRuleClient(rule) {
+  if (!rule || typeof rule !== 'object') return null
+  const field = String(rule?.field || '').trim()
+  const operator = String(rule?.operator || '').trim()
+  if (!field || field === 'always') return { field: 'always', operator: '=', value: '' }
+  return {
+    field: workflowConditionFieldOptions.some(item => item.value === field) ? field : 'estimated_value',
+    operator: workflowConditionOperatorOptions.some(item => item.value === operator) ? operator : '=',
+    value: String(rule?.value ?? '').trim().slice(0, 120),
+  }
 }
 
 function buildWorkflowConditionLabel(draft = {}) {
@@ -1663,8 +1676,17 @@ export default function SetariPage() {
 
   function applyWorkflowConditionDraft(flowId, stepIndex) {
     const key = `${flowId}:${stepIndex}`
-    const nextCondition = buildWorkflowConditionLabel(workflowConditionDrafts[key] || defaultWorkflowConditionDraft())
-    updateWorkflowStep(flowId, stepIndex, { condition: nextCondition })
+    const conditionRule = normalizeWorkflowConditionRuleClient(workflowConditionDrafts[key] || defaultWorkflowConditionDraft())
+    const nextCondition = buildWorkflowConditionLabel(conditionRule)
+    updateWorkflowStep(flowId, stepIndex, { condition: nextCondition, condition_rule: conditionRule })
+  }
+
+  function applyWorkflowConditionPreset(flowId, stepIndex, presetValue) {
+    const preset = workflowConditionPresetOptions.find(item => item.value === presetValue)
+    if (!preset) return
+    const conditionRule = normalizeWorkflowConditionRuleClient(preset.rule || {})
+    setWorkflowConditionDrafts(current => ({ ...current, [`${flowId}:${stepIndex}`]: conditionRule }))
+    updateWorkflowStep(flowId, stepIndex, { condition: preset.value, condition_rule: conditionRule })
   }
 
   function addWorkflowStep(flowId) {
@@ -1681,6 +1703,7 @@ export default function SetariPage() {
             deadline_days: 1,
             required: true,
             condition: 'mereu',
+            condition_rule: { field: 'always', operator: '=', value: '' },
           },
         ],
       }
@@ -3685,14 +3708,14 @@ export default function SetariPage() {
                                   <input
                                     className="rounded-md border border-slate-200 px-2 py-1"
                                     value={step.condition}
-                                    onChange={event => updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value })}
+                                    onChange={event => updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value, condition_rule: null })}
                                   />
                                   <div className="grid gap-1 rounded-lg border border-slate-100 bg-slate-50 p-2">
                                     <select
                                       className="rounded-md border border-slate-200 px-2 py-1 text-xs"
                                       value=""
                                       onChange={event => {
-                                        if (event.target.value) updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value })
+                                        if (event.target.value) applyWorkflowConditionPreset(flow.id, stepIndex, event.target.value)
                                       }}
                                     >
                                       <option value="">Preset rapid...</option>

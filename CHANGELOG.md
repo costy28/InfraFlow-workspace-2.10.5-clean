@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.464 - 2026-08-03
+
+## Reguli workflow structurate în configurație
+
+- Condițiile ghidate din `Setări > Module` salvează acum și `condition_rule` cu `field`, `operator` și `value`.
+- Serverul normalizează defensiv regula structurată pentru fiecare pas workflow, cu whitelist pentru câmpuri și operatori.
+- Snapshot-ul creat la lansarea documentului în circuit păstrează `condition_rule`, astfel încât documentele pornite au și eticheta umană, și regula structurată valabilă la acel moment.
+- Condițiile scrise manual rămân compatibile ca text liber; doar condițiile compuse din builder devin reguli structurate.
+- Pregătește pasul următor: evaluarea reală a condițiilor în engine fără să rupă documentele deja lansate.
+
 # v2.12.463 - 2026-08-03
 
 ## Condiții ghidate pentru workflow documente

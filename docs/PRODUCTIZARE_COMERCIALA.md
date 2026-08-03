@@ -136,7 +136,8 @@ Stadiu implementare:
 - `v2.12.461`: documentul lansat în circuit primește snapshot-ul versiunii de flux active, ca aprobările istorice să rămână stabile.
 - `v2.12.462`: administratorul poate testa simulat fluxul înainte de lansare, cu inițiator, departament, valoare, prioritate și tip document.
 - `v2.12.463`: condițiile pașilor pot fi compuse prin câmp, operator și valoare, fără expresii tehnice.
-- Următorul pas: salvarea condițiilor ghidate și într-un format intern structurat, evaluabil de engine.
+- `v2.12.464`: condițiile ghidate se salvează și ca `condition_rule` structurat în configurație și în snapshot-ul documentului.
+- Următorul pas: evaluator safe pentru reguli structurate, întâi în simulator, apoi în engine.
 
 ## Reguli de decuplare de client
 

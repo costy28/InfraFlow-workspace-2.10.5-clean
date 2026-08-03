@@ -4374,6 +4374,8 @@ const EMAIL_RULE_OPERATORS = new Set(['contains', 'starts_with', 'ends_with', 'e
 const EMAIL_RULE_IMPORTANCE = new Set(['', 'low', 'normal', 'high', 'urgent'])
 const EMAIL_RULE_STATUSES = new Set(['', 'unread', 'read', 'archived'])
 const WORKFLOW_ACTOR_TYPES = new Set(['role', 'department', 'user', 'manager'])
+const WORKFLOW_CONDITION_FIELDS = new Set(['always', 'estimated_value', 'department', 'priority', 'country', 'cost_center', 'source'])
+const WORKFLOW_CONDITION_OPERATORS = new Set(['=', '!=', '>', '>=', '<', '<=', 'contains'])
 
 function normalizeEmailRules(input) {
   if (!Array.isArray(input)) return []
@@ -4396,6 +4398,18 @@ function normalizeEmailRules(input) {
       }
     })
     .filter(item => item.match && (item.category || item.importance || item.status))
+}
+
+function normalizeWorkflowConditionRule(input) {
+  if (!input || typeof input !== 'object') return null
+  const field = normalizeSettingText(input.field, '')
+  const operator = normalizeSettingText(input.operator, '=')
+  if (!field || field === 'always') return { field: 'always', operator: '=', value: '' }
+  return {
+    field: WORKFLOW_CONDITION_FIELDS.has(field) ? field : 'estimated_value',
+    operator: WORKFLOW_CONDITION_OPERATORS.has(operator) ? operator : '=',
+    value: normalizeSettingText(input.value, '').slice(0, 120),
+  }
 }
 
 function normalizeWorkflowDocumentFlows(input) {
@@ -4422,6 +4436,7 @@ function normalizeWorkflowDocumentFlows(input) {
               deadline_days: Math.max(0, Math.min(365, Number(step?.deadline_days ?? step?.deadlineDays ?? 1))),
               required: step?.required !== false,
               condition: normalizeSettingText(step?.condition, 'mereu').slice(0, 240),
+              condition_rule: normalizeWorkflowConditionRule(step?.condition_rule ?? step?.conditionRule),
             }
           })
           .filter(step => step.name),

@@ -187,6 +187,7 @@ function buildWorkflowSnapshot(db, document, type) {
       actor_type: String(step.actor_type || 'role').trim(),
       actor_ref: String(step.actor_ref || '').trim(),
       condition: String(step.condition || 'mereu').trim(),
+      condition_rule: step.condition_rule || step.conditionRule || null,
       required: step.required !== false,
       tip: 'aprobare',
       rol_responsabil: resolved.role,
