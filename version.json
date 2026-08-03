@@ -1,5 +1,5 @@
 {
-  "version": "2.12.466",
+  "version": "2.12.467",
   "date": "2026-08-03",
-  "changelog": "## v2.12.466 - 2026-08-03\n### Diagnostic vizual pentru workflow configurabil\n- Setări > Module afișează un panou de diagnostic pentru fluxurile documentelor.\n- Sunt semnalate fluxurile active fără pași, tipurile duplicate, aprobatorii incompleți și regulile cu valori lipsă.\n- Condițiile text libere sunt marcate separat, ca administratorul să știe ce nu poate fi evaluat automat.\n- Diagnosticul este read-only și nu schimbă engine-ul real de workflow."
+  "changelog": "## v2.12.467 - 2026-08-03\n### Aplicare controlată a regulilor workflow în engine\n- Engine-ul documentelor evaluează condition_rule la lansarea în circuit.\n- Pașii cu reguli structurate evaluate fals sunt săriți și păstrați în snapshot ca skipped_steps.\n- Regulile text libere, datele lipsă sau regulile neevaluabile rămân incluse pentru siguranță.\n- Dacă toate condițiile ar sări pașii, aplicația folosește fallback-ul existent, ca documentul să nu rămână fără circuit."
 }

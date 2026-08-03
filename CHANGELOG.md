@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.467 - 2026-08-03
+
+## Aplicare controlată a regulilor workflow în engine
+
+- Engine-ul de documente evaluează acum `condition_rule` la lansarea documentului în circuit.
+- Pașii cu reguli structurate evaluate clar `false` sunt săriți și apar în snapshot ca `skipped_steps`.
+- Pașii cu reguli text libere, reguli lipsă sau date insuficiente rămân incluși pentru siguranță, ca să nu se piardă aprobări importante.
+- Snapshot-ul documentului păstrează scenariul evaluat și motorul de condiții `safe_v1`.
+- Dacă toate regulile ar sări toți pașii, aplicația revine la fallback-ul existent, astfel încât documentul nu rămâne fără circuit.
+
 # v2.12.466 - 2026-08-03
 
 ## Diagnostic vizual pentru workflow configurabil

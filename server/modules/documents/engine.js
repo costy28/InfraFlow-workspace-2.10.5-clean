@@ -176,25 +176,144 @@ function workflowFlowForDocument(db, document, type) {
   )) || null
 }
 
+function documentData(document) {
+  return parseJson(document?.date_json, {})
+}
+
+function workflowScenarioForDocument(db, document, type) {
+  const data = documentData(document)
+  const valueCandidates = [
+    data.estimated_value,
+    data.valoare_estimata,
+    data.valoare,
+    data.total,
+    data.amount,
+    document.valoare_estimata,
+    document.valoare,
+  ]
+  const firstValue = valueCandidates.find(item => String(item ?? '').trim() !== '')
+  return {
+    document_type: type?.tip_document || type?.tipDocument || document.tip_document || document.tip_id || '',
+    value: firstValue ?? '',
+    department: document.dept_initiatoare || data.department || data.departament || data.dept || '',
+    priority: document.prioritate || data.priority || data.prioritate || 'normal',
+    country: data.country || data.tara || db.settings?.country || 'RO',
+    cost_center: data.cost_center || data.costCenter || data.centru_cost || '',
+    source: data.source || data.sursa || data.email_source || data.source_type || '',
+  }
+}
+
+function normalizeWorkflowConditionRule(rule) {
+  if (!rule || typeof rule !== 'object') return null
+  const field = String(rule.field || '').trim()
+  const operator = String(rule.operator || '=').trim()
+  const allowedFields = new Set(['always', 'estimated_value', 'department', 'priority', 'country', 'cost_center', 'source'])
+  const allowedOperators = new Set(['=', '!=', '>', '>=', '<', '<=', 'contains'])
+  if (!field || field === 'always') return { field: 'always', operator: '=', value: '' }
+  return {
+    field: allowedFields.has(field) ? field : 'estimated_value',
+    operator: allowedOperators.has(operator) ? operator : '=',
+    value: String(rule.value ?? '').trim(),
+  }
+}
+
+function workflowScenarioValue(rule, scenario) {
+  switch (rule?.field) {
+    case 'estimated_value':
+      return scenario.value
+    case 'department':
+      return scenario.department
+    case 'priority':
+      return scenario.priority
+    case 'country':
+      return scenario.country
+    case 'cost_center':
+      return scenario.cost_center
+    case 'source':
+      return scenario.source
+    default:
+      return ''
+  }
+}
+
+function compareWorkflowValues(actualRaw, operator, expectedRaw) {
+  const actualText = String(actualRaw ?? '').trim()
+  const expectedText = String(expectedRaw ?? '').trim()
+  const actualNumber = Number(actualText)
+  const expectedNumber = Number(expectedText)
+  const numeric = actualText !== '' && expectedText !== '' && Number.isFinite(actualNumber) && Number.isFinite(expectedNumber)
+  if (numeric && ['>', '>=', '<', '<='].includes(operator)) {
+    if (operator === '>') return actualNumber > expectedNumber
+    if (operator === '>=') return actualNumber >= expectedNumber
+    if (operator === '<') return actualNumber < expectedNumber
+    if (operator === '<=') return actualNumber <= expectedNumber
+  }
+  const actual = actualText.toLowerCase()
+  const expected = expectedText.toLowerCase()
+  if (operator === '!=') return actual !== expected
+  if (operator === 'contains') return actual.includes(expected)
+  if (operator === '>') return actual > expected
+  if (operator === '>=') return actual >= expected
+  if (operator === '<') return actual < expected
+  if (operator === '<=') return actual <= expected
+  return actual === expected
+}
+
+function evaluateWorkflowConditionRule(rule, scenario) {
+  const normalized = normalizeWorkflowConditionRule(rule)
+  if (!normalized) return { status: 'unknown', applies: true, reason: 'conditie_text_liber' }
+  if (normalized.field === 'always') return { status: 'applies', applies: true, reason: 'mereu' }
+  const actual = workflowScenarioValue(normalized, scenario)
+  const expected = String(normalized.value ?? '').trim()
+  if (String(actual ?? '').trim() === '' || !expected) {
+    return { status: 'missing', applies: true, reason: 'date_lipsa', actual: actual ?? '', expected }
+  }
+  const applies = compareWorkflowValues(actual, normalized.operator, expected)
+  return {
+    status: applies ? 'applies' : 'skipped',
+    applies,
+    reason: applies ? 'regula_adevarata' : 'regula_falsa',
+    actual,
+    expected,
+  }
+}
+
 function buildWorkflowSnapshot(db, document, type) {
   const flow = workflowFlowForDocument(db, document, type)
   if (!flow || !Array.isArray(flow.steps) || !flow.steps.length) return null
+  const scenario = workflowScenarioForDocument(db, document, type)
+  const skippedSteps = []
   const steps = flow.steps.map((step, index) => {
     const resolved = resolveWorkflowActor(db, document, step)
+    const conditionRule = step.condition_rule || step.conditionRule || null
+    const conditionEvaluation = evaluateWorkflowConditionRule(conditionRule, scenario)
+    if (!conditionEvaluation.applies) {
+      skippedSteps.push({
+        nr_pas_initial: index + 1,
+        name: String(step.name || `Pas ${index + 1}`).trim(),
+        condition: String(step.condition || 'mereu').trim(),
+        condition_rule: conditionRule,
+        condition_evaluation: conditionEvaluation,
+      })
+      return null
+    }
     return {
-      nr_pas: index + 1,
+      nr_pas: 0,
+      nr_pas_initial: index + 1,
       name: String(step.name || `Pas ${index + 1}`).trim(),
       actor_type: String(step.actor_type || 'role').trim(),
       actor_ref: String(step.actor_ref || '').trim(),
       condition: String(step.condition || 'mereu').trim(),
-      condition_rule: step.condition_rule || step.conditionRule || null,
+      condition_rule: conditionRule,
+      condition_evaluation: conditionEvaluation,
       required: step.required !== false,
       tip: 'aprobare',
       rol_responsabil: resolved.role,
       user_responsabil: resolved.user,
       termen_ore: Math.max(1, Number(step.deadline_days || step.deadlineDays || 1) * 24),
     }
-  })
+  }).filter(Boolean).map((step, index) => ({ ...step, nr_pas: index + 1 }))
+  if (!steps.length) return null
   return {
     source: 'settings.workflow_document_flows',
     flow_id: String(flow.id || '').trim(),
@@ -203,7 +322,10 @@ function buildWorkflowSnapshot(db, document, type) {
     version: Math.max(1, Number(flow.version || 1)),
     escalation_days: Math.max(0, Number(flow.escalation_days || flow.escalationDays || 0)),
     captured_at: nowIso(),
+    condition_engine: 'safe_v1',
+    scenario,
     steps,
+    skipped_steps: skippedSteps,
   }
 }
 
