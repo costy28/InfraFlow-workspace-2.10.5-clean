@@ -1,5 +1,5 @@
 {
-  "version": "2.12.465",
+  "version": "2.12.466",
   "date": "2026-08-03",
-  "changelog": "## v2.12.465 - 2026-08-03\n### Evaluator safe pentru simulatorul workflow\n- Simulatorul din Setări evaluează condition_rule fără eval sau expresii executate.\n- Scenariul de test include țară, centru de cost și sursă document.\n- Fiecare pas arată dacă se aplică, ar fi sărit sau nu are suficiente date.\n- Engine-ul real rămâne neschimbat; evaluarea este doar preview controlat."
+  "changelog": "## v2.12.466 - 2026-08-03\n### Diagnostic vizual pentru workflow configurabil\n- Setări > Module afișează un panou de diagnostic pentru fluxurile documentelor.\n- Sunt semnalate fluxurile active fără pași, tipurile duplicate, aprobatorii incompleți și regulile cu valori lipsă.\n- Condițiile text libere sunt marcate separat, ca administratorul să știe ce nu poate fi evaluat automat.\n- Diagnosticul este read-only și nu schimbă engine-ul real de workflow."
 }

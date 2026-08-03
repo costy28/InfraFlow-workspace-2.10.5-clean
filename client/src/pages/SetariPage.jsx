@@ -625,6 +625,76 @@ function simulateWorkflowDocumentFlow(flows, scenario = {}) {
   return { flow, steps, warnings }
 }
 
+function workflowDiagnosticTone(level) {
+  if (level === 'critical') return 'danger'
+  if (level === 'warning') return 'warning'
+  return 'info'
+}
+
+function buildWorkflowDiagnostics(flows) {
+  const normalized = normalizeWorkflowDocumentFlowsClient(flows)
+  const diagnostics = []
+  const activeByType = new Map()
+
+  normalized.forEach(flow => {
+    const flowLabel = flow.label || flow.document_type || flow.id
+    const documentTypeKey = compactWorkflowKey(flow.document_type)
+
+    if (flow.active !== false && documentTypeKey) {
+      const existing = activeByType.get(documentTypeKey) || []
+      activeByType.set(documentTypeKey, [...existing, flowLabel])
+    }
+
+    if (!String(flow.label || '').trim()) {
+      diagnostics.push({ level: 'warning', title: 'Flux fără denumire clară', detail: `Fluxul ${flow.id} are nevoie de un nume ușor de recunoscut.` })
+    }
+    if (!String(flow.document_type || '').trim()) {
+      diagnostics.push({ level: 'critical', title: 'Tip document lipsă', detail: `${flowLabel} nu are tip document; simulatorul și lansarea nu îl pot potrivi corect.` })
+    }
+    if (flow.active !== false && !(flow.steps || []).length) {
+      diagnostics.push({ level: 'critical', title: 'Flux activ fără pași', detail: `${flowLabel} este activ, dar nu are pași configurați.` })
+    }
+    if ((flow.steps || []).some(step => !String(step.name || '').trim())) {
+      diagnostics.push({ level: 'warning', title: 'Pași fără nume', detail: `${flowLabel} conține pași greu de urmărit; completează numele fiecărui pas.` })
+    }
+
+    ;(flow.steps || []).forEach((step, stepIndex) => {
+      const stepLabel = `Pas ${stepIndex + 1} din ${flowLabel}`
+      if (['role', 'department', 'user'].includes(step.actor_type) && !String(step.actor_ref || '').trim()) {
+        diagnostics.push({ level: 'critical', title: 'Aprobator incomplet', detail: `${stepLabel} cere ${workflowActorLabel(step).toLowerCase()}, dar nu are referința completată.` })
+      }
+      if (!Number.isFinite(Number(step.deadline_days)) || Number(step.deadline_days) < 0) {
+        diagnostics.push({ level: 'warning', title: 'Termen neclar', detail: `${stepLabel} are termen invalid. Folosește 0 sau un număr pozitiv de zile.` })
+      }
+      const rule = normalizeWorkflowConditionRuleClient(step.condition_rule)
+      const readableCondition = String(step.condition || '').trim()
+      if ((!rule || rule.field === 'always') && readableCondition && readableCondition !== 'mereu') {
+        diagnostics.push({ level: 'info', title: 'Condiție text liber', detail: `${stepLabel} are condiție lizibilă, dar nu poate fi evaluată automat până nu este aplicată din builder.` })
+      }
+      if (rule && rule.field !== 'always' && !String(rule.value || '').trim()) {
+        diagnostics.push({ level: 'warning', title: 'Regulă cu valoare lipsă', detail: `${stepLabel} are câmp/operator, dar valoarea condiției este goală.` })
+      }
+    })
+  })
+
+  activeByType.forEach((labels, documentType) => {
+    if (labels.length > 1) {
+      diagnostics.push({ level: 'warning', title: 'Tip document duplicat', detail: `Există ${labels.length} fluxuri active pentru "${documentType}": ${labels.join(', ')}.` })
+    }
+  })
+
+  const critical = diagnostics.filter(item => item.level === 'critical').length
+  const warning = diagnostics.filter(item => item.level === 'warning').length
+  const info = diagnostics.filter(item => item.level === 'info').length
+  return {
+    critical,
+    warning,
+    info,
+    items: diagnostics,
+    ok: diagnostics.length === 0,
+  }
+}
+
 const fallbackCountryProfiles = [
   { code: 'RO', label: 'România', locale: 'ro-RO', currency: 'RON', timezone: 'Europe/Bucharest', jurisdiction_profile: 'RO', legislation_status: 'activ' },
   { code: 'GB', label: 'United Kingdom', locale: 'en-GB', currency: 'GBP', timezone: 'Europe/London', jurisdiction_profile: 'GB', legislation_status: 'roadmap' },
@@ -905,6 +975,10 @@ export default function SetariPage() {
     )
     return { active: active.length, total: workflowDocumentFlows.length, steps, conditioned }
   }, [workflowDocumentFlows])
+  const workflowDiagnostics = useMemo(
+    () => buildWorkflowDiagnostics(workflowDocumentFlows),
+    [workflowDocumentFlows]
+  )
   const workflowSimulation = useMemo(
     () => simulateWorkflowDocumentFlow(workflowDocumentFlows, {
       ...workflowTest,
@@ -3850,6 +3924,63 @@ export default function SetariPage() {
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Diagnostic workflow</div>
+                  <h3 className="mt-1 text-lg font-semibold text-slate-900">Calitatea șabloanelor înainte de folosire</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Verifică automat fluxurile active, actorii, regulile și pașii incompleți. Nu modifică nimic; doar îți arată ce merită corectat.
+                  </p>
+                </div>
+                <Badge tone={workflowDiagnostics.ok ? 'success' : workflowDiagnostics.critical ? 'danger' : 'warning'}>
+                  {workflowDiagnostics.ok ? 'totul pare în regulă' : `${workflowDiagnostics.critical} critice · ${workflowDiagnostics.warning} avertizări`}
+                </Badge>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-rose-100 bg-rose-50 p-3">
+                  <div className="text-xs font-semibold uppercase text-rose-700">Critice</div>
+                  <div className="mt-1 text-2xl font-bold text-rose-900">{workflowDiagnostics.critical}</div>
+                  <div className="text-xs text-rose-700">blochează folosirea clară a fluxului</div>
+                </div>
+                <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
+                  <div className="text-xs font-semibold uppercase text-amber-700">Avertizări</div>
+                  <div className="mt-1 text-2xl font-bold text-amber-900">{workflowDiagnostics.warning}</div>
+                  <div className="text-xs text-amber-700">pot crea confuzie sau rezultate incomplete</div>
+                </div>
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                  <div className="text-xs font-semibold uppercase text-blue-700">Informative</div>
+                  <div className="mt-1 text-2xl font-bold text-blue-900">{workflowDiagnostics.info}</div>
+                  <div className="text-xs text-blue-700">nu blochează, dar merită urmărite</div>
+                </div>
+              </div>
+
+              {workflowDiagnostics.items.length ? (
+                <div className="mt-4 grid gap-2">
+                  {workflowDiagnostics.items.slice(0, 8).map((item, index) => (
+                    <div key={`${item.title}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={workflowDiagnosticTone(item.level)} size="sm">
+                          {item.level === 'critical' ? 'critic' : item.level === 'warning' ? 'avertizare' : 'info'}
+                        </Badge>
+                        <span className="font-semibold text-slate-900">{item.title}</span>
+                      </div>
+                      <div className="mt-1 text-sm text-slate-600">{item.detail}</div>
+                    </div>
+                  ))}
+                  {workflowDiagnostics.items.length > 8 ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                      Încă {workflowDiagnostics.items.length - 8} observații. Corectează primele elemente și lista se va scurta automat.
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  Fluxurile definite au pași, actori și reguli clare. Următorul control rămâne simulatorul pe scenariu concret.
+                </div>
+              )}
             </div>
             <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">

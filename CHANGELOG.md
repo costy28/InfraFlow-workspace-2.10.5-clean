@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.466 - 2026-08-03
+
+## Diagnostic vizual pentru workflow configurabil
+
+- `Setări > Module` include un panou de diagnostic pentru șabloanele de workflow documente.
+- Diagnosticul semnalează fluxurile active fără pași, tipurile document duplicat, pașii fără nume, aprobatorii incompleți și termenele invalide.
+- Regulile structurate cu valoare lipsă apar ca avertizare, înainte să fie folosite în simulator sau în engine.
+- Condițiile text libere sunt marcate informativ, ca administratorul să știe ce reguli trebuie convertite prin builder pentru evaluare automată.
+- Panoul este read-only: nu schimbă setările și nu modifică engine-ul real de lansare workflow.
+
 # v2.12.465 - 2026-08-03
 
 ## Evaluator safe pentru simulatorul workflow

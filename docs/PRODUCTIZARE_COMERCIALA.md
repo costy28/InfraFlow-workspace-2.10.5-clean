@@ -138,7 +138,8 @@ Stadiu implementare:
 - `v2.12.463`: condițiile pașilor pot fi compuse prin câmp, operator și valoare, fără expresii tehnice.
 - `v2.12.464`: condițiile ghidate se salvează și ca `condition_rule` structurat în configurație și în snapshot-ul documentului.
 - `v2.12.465`: simulatorul evaluează safe `condition_rule` și marchează pașii care se aplică, ar fi săriți sau au date lipsă.
-- Următorul pas: diagnostic pentru regulile incomplete și aplicarea controlată în engine după validare.
+- `v2.12.466`: Setări afișează diagnostic read-only pentru fluxuri incomplete, aprobatori lipsă, reguli cu valori lipsă și condiții text libere.
+- Următorul pas: aplicarea controlată în engine după validarea regulilor și diagnosticelor.
 
 ## Reguli de decuplare de client
 
