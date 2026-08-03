@@ -137,7 +137,8 @@ Stadiu implementare:
 - `v2.12.462`: administratorul poate testa simulat fluxul înainte de lansare, cu inițiator, departament, valoare, prioritate și tip document.
 - `v2.12.463`: condițiile pașilor pot fi compuse prin câmp, operator și valoare, fără expresii tehnice.
 - `v2.12.464`: condițiile ghidate se salvează și ca `condition_rule` structurat în configurație și în snapshot-ul documentului.
-- Următorul pas: evaluator safe pentru reguli structurate, întâi în simulator, apoi în engine.
+- `v2.12.465`: simulatorul evaluează safe `condition_rule` și marchează pașii care se aplică, ar fi săriți sau au date lipsă.
+- Următorul pas: diagnostic pentru regulile incomplete și aplicarea controlată în engine după validare.
 
 ## Reguli de decuplare de client
 

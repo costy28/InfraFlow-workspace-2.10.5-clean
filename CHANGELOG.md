@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.465 - 2026-08-03
+
+## Evaluator safe pentru simulatorul workflow
+
+- Simulatorul din `Setări > Module` evaluează acum regulile structurate `condition_rule` fără `eval`, fără expresii executate și fără efecte asupra documentelor reale.
+- Scenariul de test include și țară/jurisdicție, centru de cost și sursă document, pe lângă tip document, inițiator, departament, valoare și prioritate.
+- Preview-ul fiecărui pas arată clar dacă pasul se aplică, ar fi sărit sau nu are suficiente date pentru test.
+- Câmpurile text libere rămân compatibile și sunt marcate ca reguli neautomatizabile în preview.
+- Engine-ul real de lansare workflow rămâne neschimbat; acest update este stratul sigur de verificare înainte de aplicarea automată în circuit.
+
 # v2.12.464 - 2026-08-03
 
 ## Reguli workflow structurate în configurație

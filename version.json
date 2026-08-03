@@ -1,5 +1,5 @@
 {
-  "version": "2.12.464",
+  "version": "2.12.465",
   "date": "2026-08-03",
-  "changelog": "## v2.12.464 - 2026-08-03\n### Reguli workflow structurate în configurație\n- Condițiile ghidate salvează acum și regula structurată condition_rule, nu doar eticheta text.\n- Serverul normalizează defensiv field/operator/value pentru pașii workflow salvați în settings.workflow_document_flows.\n- Snapshot-ul documentului păstrează condition_rule la lansarea în circuit, alături de condiția lizibilă.\n- Textul liber rămâne compatibil; regulile structurate pregătesc evaluarea reală în engine."
+  "changelog": "## v2.12.465 - 2026-08-03\n### Evaluator safe pentru simulatorul workflow\n- Simulatorul din Setări evaluează condition_rule fără eval sau expresii executate.\n- Scenariul de test include țară, centru de cost și sursă document.\n- Fiecare pas arată dacă se aplică, ar fi sărit sau nu are suficiente date.\n- Engine-ul real rămâne neschimbat; evaluarea este doar preview controlat."
 }

@@ -529,6 +529,66 @@ function buildWorkflowConditionLabel(draft = {}) {
   return `${field.toLowerCase()} ${operator} ${value}`
 }
 
+function workflowScenarioValue(rule, scenario = {}) {
+  switch (rule?.field) {
+    case 'estimated_value':
+      return scenario.value
+    case 'department':
+      return scenario.department
+    case 'priority':
+      return scenario.priority
+    case 'country':
+      return scenario.country
+    case 'cost_center':
+      return scenario.cost_center
+    case 'source':
+      return scenario.source
+    default:
+      return ''
+  }
+}
+
+function compareWorkflowValues(actualRaw, operator, expectedRaw) {
+  const actualText = String(actualRaw ?? '').trim()
+  const expectedText = String(expectedRaw ?? '').trim()
+  const actualNumber = Number(actualText)
+  const expectedNumber = Number(expectedText)
+  const numeric = actualText !== '' && expectedText !== '' && Number.isFinite(actualNumber) && Number.isFinite(expectedNumber)
+  if (numeric && ['>', '>=', '<', '<='].includes(operator)) {
+    if (operator === '>') return actualNumber > expectedNumber
+    if (operator === '>=') return actualNumber >= expectedNumber
+    if (operator === '<') return actualNumber < expectedNumber
+    if (operator === '<=') return actualNumber <= expectedNumber
+  }
+  const actual = actualText.toLowerCase()
+  const expected = expectedText.toLowerCase()
+  if (operator === '!=') return actual !== expected
+  if (operator === 'contains') return actual.includes(expected)
+  if (operator === '>') return actual > expected
+  if (operator === '>=') return actual >= expected
+  if (operator === '<') return actual < expected
+  if (operator === '<=') return actual <= expected
+  return actual === expected
+}
+
+function evaluateWorkflowConditionRule(rule, scenario = {}) {
+  const normalized = normalizeWorkflowConditionRuleClient(rule)
+  if (!normalized) return { status: 'unknown', applies: true, label: 'condiție text liber' }
+  if (normalized.field === 'always') return { status: 'applies', applies: true, label: 'se aplică mereu' }
+  const actual = workflowScenarioValue(normalized, scenario)
+  const missing = String(actual ?? '').trim() === ''
+  const expected = String(normalized.value ?? '').trim()
+  if (missing || !expected) {
+    return { status: 'missing', applies: true, label: 'nu sunt suficiente date pentru test' }
+  }
+  const applies = compareWorkflowValues(actual, normalized.operator, expected)
+  return {
+    status: applies ? 'applies' : 'skipped',
+    applies,
+    label: applies ? 'se aplică în scenariul testat' : 'ar fi sărit în scenariul testat',
+  }
+}
+
 function simulateWorkflowDocumentFlow(flows, scenario = {}) {
   const activeFlows = normalizeWorkflowDocumentFlowsClient(flows).filter(flow => flow.active !== false)
   const flow = activeFlows.find(item => workflowFlowMatchesScenario(item, scenario)) || null
@@ -552,12 +612,16 @@ function simulateWorkflowDocumentFlow(flows, scenario = {}) {
   if ((flow.steps || []).some(step => step.actor_type === 'user' && /responsabil|angajat|asociat/i.test(step.actor_ref || ''))) {
     warnings.push('Unii pași folosesc referințe generice de utilizator. La documentul real trebuie să existe responsabil/angajat asociat.')
   }
-  const steps = (flow.steps || []).map((step, index) => ({
-    ...step,
-    index: index + 1,
-    actor_label: workflowActorLabel(step),
-    applies_hint: step.condition && step.condition !== 'mereu' ? step.condition : 'se aplică mereu',
-  }))
+  const steps = (flow.steps || []).map((step, index) => {
+    const evaluation = evaluateWorkflowConditionRule(step.condition_rule, scenario)
+    return {
+      ...step,
+      index: index + 1,
+      actor_label: workflowActorLabel(step),
+      applies_hint: step.condition && step.condition !== 'mereu' ? step.condition : 'se aplică mereu',
+      evaluation,
+    }
+  })
   return { flow, steps, warnings }
 }
 
@@ -802,6 +866,9 @@ export default function SetariPage() {
     department: '',
     value: '',
     priority: 'normal',
+    country: 'RO',
+    cost_center: '',
+    source: '',
   })
   const [workflowConditionDrafts, setWorkflowConditionDrafts] = useState({})
 
@@ -839,8 +906,11 @@ export default function SetariPage() {
     return { active: active.length, total: workflowDocumentFlows.length, steps, conditioned }
   }, [workflowDocumentFlows])
   const workflowSimulation = useMemo(
-    () => simulateWorkflowDocumentFlow(workflowDocumentFlows, workflowTest),
-    [workflowDocumentFlows, workflowTest]
+    () => simulateWorkflowDocumentFlow(workflowDocumentFlows, {
+      ...workflowTest,
+      country: workflowTest.country || settings.country || 'RO',
+    }),
+    [workflowDocumentFlows, workflowTest, settings.country]
   )
   const moduleByKey = useMemo(
     () => new Map(moduleGroups.flatMap(group => group.modules).map(mod => [mod.key, mod])),
@@ -3847,6 +3917,27 @@ export default function SetariPage() {
                     <option value="urgent">Urgentă</option>
                     <option value="critic">Critică</option>
                   </Select>
+                  <Select
+                    label="Țară / jurisdicție"
+                    value={workflowTest.country || settings.country || 'RO'}
+                    onChange={event => setWorkflowTest(current => ({ ...current, country: event.target.value }))}
+                  >
+                    {countryProfiles.map(profile => (
+                      <option key={profile.code} value={profile.code}>{profile.label}</option>
+                    ))}
+                  </Select>
+                  <Input
+                    label="Centru de cost"
+                    value={workflowTest.cost_center}
+                    onChange={event => setWorkflowTest(current => ({ ...current, cost_center: event.target.value }))}
+                    placeholder="ex. CC-ADMIN"
+                  />
+                  <Input
+                    label="Sursă document"
+                    value={workflowTest.source}
+                    onChange={event => setWorkflowTest(current => ({ ...current, source: event.target.value }))}
+                    placeholder="ex. email, manual, contract"
+                  />
                 </div>
 
                 <div className="rounded-xl border border-white bg-white p-4 shadow-sm">
@@ -3862,7 +3953,12 @@ export default function SetariPage() {
                           <div key={`${workflowSimulation.flow.id}-preview-${step.index}`} className="rounded-lg border border-slate-200 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="font-semibold text-slate-900">Pas {step.index}: {step.name}</div>
-                              <Badge tone={step.required ? 'warning' : 'neutral'}>{step.required ? 'obligatoriu' : 'opțional'}</Badge>
+                              <div className="flex flex-wrap gap-2">
+                                <Badge tone={step.evaluation?.status === 'skipped' ? 'neutral' : step.evaluation?.status === 'missing' ? 'warning' : 'success'}>
+                                  {step.evaluation?.label || 'se aplică'}
+                                </Badge>
+                                <Badge tone={step.required ? 'warning' : 'neutral'}>{step.required ? 'obligatoriu' : 'opțional'}</Badge>
+                              </div>
                             </div>
                             <div className="mt-2 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
                               <span>{step.actor_label}</span>
