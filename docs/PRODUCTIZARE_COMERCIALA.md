@@ -133,7 +133,8 @@ Stadiu implementare:
 
 - `v2.12.459`: direcția este vizibilă în `Setări > Module`.
 - `v2.12.460`: șabloanele de flux pot fi editate și salvate în profilul organizației (`settings.workflow_document_flows`).
-- Următorul pas: documentul nou pornește cu snapshot-ul versiunii de flux active, ca aprobările istorice să rămână stabile.
+- `v2.12.461`: documentul lansat în circuit primește snapshot-ul versiunii de flux active, ca aprobările istorice să rămână stabile.
+- Următorul pas: testarea simulată a fluxului înainte de lansare, cu inițiator, departament, valoare și tip document.
 
 ## Reguli de decuplare de client
 

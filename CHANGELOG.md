@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.461 - 2026-08-02
+
+## Aplicare șabloane workflow la lansarea documentelor
+
+- La lansarea unui document în circuit, aplicația caută șablonul activ din `settings.workflow_document_flows`.
+- Dacă găsește un șablon potrivit pentru tipul documentului, salvează un snapshot în `date_json.workflow_snapshot`.
+- Pașii de circuit sunt generați din snapshot; dacă nu există șablon activ, rămâne fallback-ul existent.
+- Snapshot-ul păstrează versiunea, denumirea fluxului, pașii, condițiile și termenul pasului.
+- Dosarul documentului afișează fluxul aplicat, pentru trasabilitate și încredere operațională.
+
 # v2.12.460 - 2026-08-02
 
 ## Editor simplu pentru șabloane de workflow documente

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.460",
+  "version": "2.12.461",
   "date": "2026-08-02",
-  "changelog": "## v2.12.460 - 2026-08-02\n### Editor simplu pentru șabloane de workflow documente\n- Setări > Module permite editarea șabloanelor de flux pentru referate, contracte, facturi și documente HR.\n- Administratorul poate modifica pașii, tipul aprobatorului, referința, termenul, condiția și caracterul obligatoriu al pasului.\n- Configurația este salvată persistent în profilul organizației prin settings.workflow_document_flows și normalizată server-side.\n- Pregătește legarea ulterioară la engine-ul real de documente cu versionare pe flux."
+  "changelog": "## v2.12.461 - 2026-08-02\n### Aplicare șabloane workflow la lansarea documentelor\n- La lansarea unui document în circuit, aplicația caută șablonul activ din settings.workflow_document_flows și salvează un snapshot în date_json.workflow_snapshot.\n- Pașii de circuit sunt generați din snapshot când există șablon configurat; fără șablon activ rămâne fallback-ul existent.\n- Snapshot-ul păstrează versiunea, denumirea fluxului, pașii, condițiile și termenul pasului.\n- În dosarul documentului este afișat fluxul aplicat, ca utilizatorul să vadă clar ce circuit a fost folosit."
 }

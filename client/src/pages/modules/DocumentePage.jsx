@@ -655,6 +655,7 @@ export default function DocumentePage() {
     step.status === 'asteptare' && String(step.user_responsabil) === String(userId(user))
   )
   const selectedEmailSource = emailSourceForDocument(details.document)
+  const selectedWorkflowSnapshot = documentDataObject(details.document)?.workflow_snapshot || null
 
   const documentAssistant = useMemo(() => {
     const currentRows = visibleDocuments || []
@@ -1327,6 +1328,38 @@ export default function DocumentePage() {
                       ) : null}
                     </div>
                   </div>
+
+                  {selectedWorkflowSnapshot ? (
+                    <div className="rounded-xl border border-primary-100 bg-primary-50/70 p-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h3 className="text-sm font-semibold text-primary-900">Flux aplicat documentului</h3>
+                          <p className="mt-1 text-sm text-primary-800">
+                            {selectedWorkflowSnapshot.label || selectedWorkflowSnapshot.document_type || 'Workflow configurabil'}
+                          </p>
+                          <p className="mt-1 text-xs text-primary-700">
+                            Snapshot salvat la lansare
+                            {selectedWorkflowSnapshot.captured_at ? ` · ${formatDate(selectedWorkflowSnapshot.captured_at)}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge tone="success">v{selectedWorkflowSnapshot.version || 1}</Badge>
+                          <Badge tone="info">{(selectedWorkflowSnapshot.steps || []).length} pași</Badge>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {(selectedWorkflowSnapshot.steps || []).slice(0, 6).map(step => (
+                          <div key={`${selectedWorkflowSnapshot.flow_id || 'flow'}-${step.nr_pas}`} className="rounded-lg border border-primary-100 bg-white/80 px-3 py-2 text-xs text-slate-700">
+                            <span className="font-semibold text-slate-900">Pas {step.nr_pas}: {step.name || 'Aprobare'}</span>
+                            <span className="ml-2 text-slate-500">
+                              {label(step.actor_type || 'rol')} · {step.actor_ref || step.rol_responsabil || step.user_responsabil || '-'}
+                              {step.condition ? ` · ${step.condition}` : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <h3 className="text-sm font-semibold text-slate-800">Circuit aprobare</h3>
                   <div className="grid gap-2">

@@ -75,6 +75,161 @@ function jsonWorkflowSteps(db, templateId) {
     .sort((a, b) => Number(a.nr_pas || a.step_order || a.order || a.nrPas || 0) - Number(b.nr_pas || b.step_order || b.order || b.nrPas || 0))
 }
 
+function compactKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function normalizeRoleRef(value) {
+  const key = compactKey(value)
+  const aliases = {
+    achizitii: 'procurement',
+    aprovizionare: 'procurement',
+    contabilitate: 'accounting',
+    contabil: 'accounting',
+    hr: 'hr',
+    resurse_umane: 'hr',
+    juridic: 'legal',
+    legal: 'legal',
+    manager: 'manager',
+    administrare: 'admin',
+    administrator: 'admin',
+    superadmin: 'superadmin',
+    documente: 'admin',
+    secretariat: 'secretariat',
+  }
+  return aliases[key] || key || null
+}
+
+function userRoles(user) {
+  return Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].map(item => String(item || '').trim()).filter(Boolean)))
+}
+
+function activeUsers(db) {
+  return (db.users || []).filter(user => user && user.active !== false)
+}
+
+function userById(db, id) {
+  return activeUsers(db).find(user => String(user.id) === String(id)) || null
+}
+
+function findUserByRole(db, role) {
+  const normalized = normalizeRoleRef(role)
+  return activeUsers(db).find(user => userRoles(user).some(item => compactKey(item) === compactKey(normalized)))
+    || activeUsers(db).find(user => userRoles(user).some(item => compactKey(item) === compactKey(role)))
+    || null
+}
+
+function findUserByDepartment(db, departmentRef) {
+  const target = compactKey(departmentRef)
+  if (!target) return null
+  const department = (db.departments || []).find(item => compactKey(item.id) === target || compactKey(item.name) === target || compactKey(item.denumire) === target)
+  const departmentId = department?.id || departmentRef
+  return activeUsers(db).find(user => compactKey(user.departmentId || user.department_id || user.department) === compactKey(departmentId))
+    || activeUsers(db).find(user => compactKey(user.department || '') === target)
+    || null
+}
+
+function resolveWorkflowActor(db, document, step) {
+  const actorType = String(step.actor_type || step.actorType || 'role').trim()
+  const actorRef = String(step.actor_ref || step.actorRef || '').trim()
+  if (actorType === 'manager') {
+    const creator = userById(db, document.creat_de)
+    const manager = creator ? userById(db, creator.manager_id || creator.managerId) : null
+    return { role: null, user: manager?.id || null }
+  }
+  if (actorType === 'user') {
+    const user = userById(db, actorRef)
+      || activeUsers(db).find(item => compactKey(item.name) === compactKey(actorRef) || compactKey(item.username) === compactKey(actorRef))
+    return { role: null, user: user?.id || null }
+  }
+  if (actorType === 'department') {
+    const user = findUserByDepartment(db, actorRef || document.dept_initiatoare)
+    return { role: null, user: user?.id || null }
+  }
+  const role = normalizeRoleRef(actorRef || step.name)
+  const user = findUserByRole(db, role)
+  return { role, user: user?.id || null }
+}
+
+function workflowDocumentType(document, type) {
+  return compactKey(type?.tip_document || type?.tipDocument || document.tip_document || document.tip_id || '')
+}
+
+function workflowFlowForDocument(db, document, type) {
+  const configured = Array.isArray(db.settings?.workflow_document_flows) ? db.settings.workflow_document_flows : []
+  const documentKeys = new Set([
+    workflowDocumentType(document, type),
+    compactKey(document.tip_id),
+    compactKey(type?.id),
+    compactKey(type?.denumire),
+    compactKey(document.titlu),
+  ].filter(Boolean))
+  return configured.find(flow => flow && flow.active !== false && (
+    documentKeys.has(compactKey(flow.document_type || flow.documentType))
+    || documentKeys.has(compactKey(flow.id))
+    || documentKeys.has(compactKey(flow.label))
+  )) || null
+}
+
+function buildWorkflowSnapshot(db, document, type) {
+  const flow = workflowFlowForDocument(db, document, type)
+  if (!flow || !Array.isArray(flow.steps) || !flow.steps.length) return null
+  const steps = flow.steps.map((step, index) => {
+    const resolved = resolveWorkflowActor(db, document, step)
+    return {
+      nr_pas: index + 1,
+      name: String(step.name || `Pas ${index + 1}`).trim(),
+      actor_type: String(step.actor_type || 'role').trim(),
+      actor_ref: String(step.actor_ref || '').trim(),
+      condition: String(step.condition || 'mereu').trim(),
+      required: step.required !== false,
+      tip: 'aprobare',
+      rol_responsabil: resolved.role,
+      user_responsabil: resolved.user,
+      termen_ore: Math.max(1, Number(step.deadline_days || step.deadlineDays || 1) * 24),
+    }
+  })
+  return {
+    source: 'settings.workflow_document_flows',
+    flow_id: String(flow.id || '').trim(),
+    document_type: String(flow.document_type || flow.documentType || '').trim(),
+    label: String(flow.label || '').trim(),
+    version: Math.max(1, Number(flow.version || 1)),
+    escalation_days: Math.max(0, Number(flow.escalation_days || flow.escalationDays || 0)),
+    captured_at: nowIso(),
+    steps,
+  }
+}
+
+function attachWorkflowSnapshot(document, snapshot) {
+  if (!snapshot) return parseJson(document.date_json, {})
+  const data = parseJson(document.date_json, {})
+  data.workflow_snapshot = snapshot
+  data.workflow_flow_id = snapshot.flow_id
+  data.workflow_flow_version = snapshot.version
+  document.date_json = JSON.stringify(data)
+  return data
+}
+
+function stepsFromSnapshot(snapshot) {
+  return (snapshot?.steps || []).map((step, index) => ({
+    nr_pas: Number(step.nr_pas || index + 1),
+    tip: step.tip || 'aprobare',
+    rol_responsabil: step.rol_responsabil || null,
+    user_responsabil: step.user_responsabil || null,
+    termen_ore: Number(step.termen_ore || 48),
+    workflow_name: step.name || '',
+    workflow_condition: step.condition || '',
+    workflow_actor_type: step.actor_type || '',
+    workflow_actor_ref: step.actor_ref || '',
+  }))
+}
+
 function defaultStepForDocument(db, document) {
   const user = (db.users || []).find(item => item.role === 'admin' || item.role === 'superadmin') || (db.users || []).find(item => item.id !== document.creat_de)
   return [{
@@ -260,6 +415,57 @@ ${body}
 
 function launchDocument(documentId, userId, db) {
   if (isMssqlMode()) {
+    const documentInfo = mssqlJson(`
+DECLARE @documentId int = TRY_CONVERT(int, JSON_VALUE(@p, '$.documentId'));
+DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
+SELECT TOP 1 d.id, d.uuid, d.tip_id, d.nr_document, d.titlu, d.date_json, d.status, d.versiune, d.creat_de, d.dept_initiatoare,
+  d.prioritate, d.termen_limita, d.fisier_draft_path, d.fisier_final_path, d.created_at, d.updated_at,
+  dt.denumire, dt.tip_document, dt.workflow_template_id
+FROM documents.documents d JOIN documents.document_types dt ON dt.id = d.tip_id
+WHERE d.id = @documentId AND d.creat_de = @userId
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`, { documentId, userId })
+    if (!documentInfo) throwHttp(404, 'Document inexistent.')
+    if (documentInfo.status !== 'draft') throwHttp(400, 'Documentul nu este in draft.')
+    const snapshot = buildWorkflowSnapshot(db, documentInfo, {
+      id: documentInfo.tip_id,
+      denumire: documentInfo.denumire,
+      tip_document: documentInfo.tip_document,
+      workflow_template_id: documentInfo.workflow_template_id,
+    })
+    const configuredSteps = stepsFromSnapshot(snapshot)
+    if (snapshot && configuredSteps.length) {
+      const data = parseJson(documentInfo.date_json, {})
+      data.workflow_snapshot = snapshot
+      data.workflow_flow_id = snapshot.flow_id
+      data.workflow_flow_version = snapshot.version
+      const result = mssqlJson(`
+DECLARE @documentId int = TRY_CONVERT(int, JSON_VALUE(@p, '$.documentId'));
+DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
+DECLARE @oldStatus nvarchar(30);
+DECLARE @firstUser nvarchar(64);
+SELECT @oldStatus = status FROM documents.documents WHERE id = @documentId AND creat_de = @userId;
+IF @oldStatus IS NULL THROW 51000, 'Document inexistent.', 1;
+IF @oldStatus <> N'draft' THROW 51000, 'Documentul nu este in draft.', 1;
+UPDATE documents.documents SET status = N'in_circuit', date_json = CONVERT(nvarchar(max), JSON_QUERY(@p, '$.dateJson')), updated_at = sysdatetime() WHERE id = @documentId;
+INSERT INTO documents.circuit_steps (document_id, nr_pas, tip, rol_responsabil, user_responsabil, status, termen_ore)
+SELECT
+  @documentId,
+  TRY_CONVERT(tinyint, JSON_VALUE(value, '$.nr_pas')),
+  N'aprobare',
+  NULL,
+  TRY_CONVERT(uniqueidentifier, NULLIF(JSON_VALUE(value, '$.user_responsabil'), N'')),
+  N'asteptare',
+  COALESCE(TRY_CONVERT(int, JSON_VALUE(value, '$.termen_ore')), 48)
+FROM OPENJSON(@p, '$.steps');
+INSERT INTO documents.circuit_audit (document_id, user_id, actiune, status_vechi, status_nou, comentariu)
+VALUES (@documentId, @userId, N'submis', @oldStatus, N'in_circuit', CONCAT(N'Lansat in circuit configurabil: ', JSON_VALUE(@p, '$.flowLabel')));
+SELECT TOP 1 @firstUser = user_responsabil FROM documents.circuit_steps WHERE document_id = @documentId ORDER BY nr_pas;
+SELECT @firstUser AS firstUser FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`, { documentId, userId, dateJson: data, steps: configuredSteps, flowLabel: snapshot.label })
+      if (result?.firstUser) notifyUser(result.firstUser, 'aprobare_ceruta', { documentId })
+      return
+    }
     const result = mssqlJson(`
 DECLARE @documentId int = TRY_CONVERT(int, JSON_VALUE(@p, '$.documentId'));
 DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
@@ -297,7 +503,12 @@ SELECT @firstUser AS firstUser FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
   if (document.status !== 'draft') throwHttp(400, 'Documentul nu este in draft.')
   if (document.creat_de !== userId) throwHttp(403, 'Doar initiatorul poate lansa documentul.')
   const type = documentTypeFor(db, document.tip_id)
-  const steps = jsonWorkflowSteps(db, type?.workflow_template_id).length ? jsonWorkflowSteps(db, type?.workflow_template_id) : defaultStepForDocument(db, document)
+  const snapshot = buildWorkflowSnapshot(db, document, type)
+  attachWorkflowSnapshot(document, snapshot)
+  const configuredSteps = stepsFromSnapshot(snapshot)
+  const steps = configuredSteps.length
+    ? configuredSteps
+    : (jsonWorkflowSteps(db, type?.workflow_template_id).length ? jsonWorkflowSteps(db, type?.workflow_template_id) : defaultStepForDocument(db, document))
   steps.forEach((step, index) => {
     docs.circuitSteps.push({
       id: nextId(docs.circuitSteps),
@@ -317,7 +528,7 @@ SELECT @firstUser AS firstUser FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
   const oldStatus = document.status
   document.status = 'in_circuit'
   document.updated_at = nowIso()
-  addCircuitAudit(docs, document.id, userId, 'submis', oldStatus, 'in_circuit', 'Lansat in circuit')
+  addCircuitAudit(docs, document.id, userId, 'submis', oldStatus, 'in_circuit', snapshot ? `Lansat in circuit configurabil: ${snapshot.label}` : 'Lansat in circuit')
   const first = activeStep(docs.circuitSteps.filter(step => step.document_id === document.id))
   if (first?.user_responsabil) notifyUser(first.user_responsabil, 'aprobare_ceruta', { document })
 }
