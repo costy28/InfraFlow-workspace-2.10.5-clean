@@ -1,5 +1,5 @@
 {
-  "version": "2.12.475",
+  "version": "2.12.476",
   "date": "2026-08-04",
-  "changelog": "## v2.12.475 - 2026-08-04\n### Filtre rapide în Inbox Documente\n- Documente are filtre rapide peste tab-uri: toate, cer acțiune, blocate, scadente, urgente, drafturi și din email.\n- Lista documentelor afișează statusul, termenul și vechimea blocajului unde este cazul.\n- Deep-link-urile către documente resetează filtrul rapid ca dosarul să fie găsit sigur.\n- Filtrele nu schimbă API-ul și folosesc datele deja încărcate în pagină."
+  "changelog": "## v2.12.476 - 2026-08-04\n### Acțiuni în masă pentru Documente\n- Pagina Documente permite selectarea multiplă a documentelor afișate.\n- Utilizatorul poate crea task-uri de urmărire pentru toate documentele selectate.\n- Fiecare task creat păstrează deep-link direct către dosarul documentului sursă.\n- Lista curentă sau selecția poate fi exportată CSV pentru lucru operațional."
 }

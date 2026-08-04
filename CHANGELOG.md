@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.476 - 2026-08-04
+
+## Acțiuni în masă pentru Documente
+
+- Pagina Documente permite selectarea multiplă a documentelor afișate.
+- Toolbar-ul de lucru poate selecta/deselecta lista filtrată.
+- Din selecție se pot crea task-uri de urmărire, câte unul pentru fiecare document.
+- Fiecare task păstrează sursa `document`, eticheta documentului și deep-link direct în dosar.
+- Lista filtrată sau selecția curentă poate fi exportată CSV.
+
 # v2.12.475 - 2026-08-04
 
 ## Filtre rapide în Inbox Documente

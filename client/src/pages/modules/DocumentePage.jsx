@@ -121,6 +121,10 @@ function documentTaskSourceId(document) {
   return document?.uuid || document?.id || document?.nr_document || ''
 }
 
+function documentSelectionKey(document) {
+  return String(document?.uuid || document?.id || document?.nr_document || '')
+}
+
 function openDocumentTasksPage(document) {
   const documentId = documentTaskSourceId(document)
   const query = documentId ? `?source_type=document&source_id=${encodeURIComponent(String(documentId))}` : ''
@@ -369,6 +373,11 @@ export default function DocumentePage() {
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', priority: 'normal', due_date: '' })
   const [taskSaving, setTaskSaving] = useState(false)
   const [taskError, setTaskError] = useState('')
+  const [bulkTaskOpen, setBulkTaskOpen] = useState(false)
+  const [bulkTaskForm, setBulkTaskForm] = useState({ assigned_to: '', priority: 'normal', due_date: '', title_prefix: 'Urmărește documentul' })
+  const [bulkTaskSaving, setBulkTaskSaving] = useState(false)
+  const [bulkTaskError, setBulkTaskError] = useState('')
+  const [selectedDocumentKeys, setSelectedDocumentKeys] = useState([])
   const [relatedTasks, setRelatedTasks] = useState([])
   const [relatedTasksLoading, setRelatedTasksLoading] = useState(false)
   const [relatedEmails, setRelatedEmails] = useState([])
@@ -435,6 +444,18 @@ export default function DocumentePage() {
     const filter = documentQuickFilters.find(item => item.key === documentQuickFilter) || documentQuickFilters[0]
     return baseVisibleDocuments.filter(filter.predicate)
   }, [activeTab, baseVisibleDocuments, documentQuickFilter, documentQuickFilters])
+
+  const selectedDocuments = useMemo(() => {
+    const keys = new Set(selectedDocumentKeys)
+    return baseVisibleDocuments.filter(document => keys.has(documentSelectionKey(document)))
+  }, [baseVisibleDocuments, selectedDocumentKeys])
+
+  const allVisibleSelected = visibleDocuments.length > 0 && visibleDocuments.every(document => selectedDocumentKeys.includes(documentSelectionKey(document)))
+
+  useEffect(() => {
+    const available = new Set(baseVisibleDocuments.map(documentSelectionKey))
+    setSelectedDocumentKeys(keys => keys.filter(key => available.has(key)))
+  }, [baseVisibleDocuments])
 
   useEffect(() => {
     if (activeTab === 'Template-uri' && documentQuickFilter !== 'all') {
@@ -567,6 +588,104 @@ export default function DocumentePage() {
     } finally {
       setTaskSaving(false)
     }
+  }
+
+  function toggleDocumentSelection(document) {
+    const key = documentSelectionKey(document)
+    if (!key) return
+    setSelectedDocumentKeys(keys => keys.includes(key) ? keys.filter(item => item !== key) : [...keys, key])
+  }
+
+  function toggleVisibleSelection() {
+    const visibleKeys = visibleDocuments.map(documentSelectionKey).filter(Boolean)
+    if (!visibleKeys.length) return
+    if (visibleKeys.every(key => selectedDocumentKeys.includes(key))) {
+      setSelectedDocumentKeys(keys => keys.filter(key => !visibleKeys.includes(key)))
+    } else {
+      setSelectedDocumentKeys(keys => Array.from(new Set([...keys, ...visibleKeys])))
+    }
+  }
+
+  async function openBulkTaskModal() {
+    setBulkTaskError('')
+    const rows = taskUsers.length ? taskUsers : await loadTaskUsers()
+    const urgent = selectedDocuments.some(document => documentIsUrgent(document) || documentIsBlocked(document))
+    setBulkTaskForm(form => ({
+      ...form,
+      assigned_to: form.assigned_to || userId(user) || rows[0]?.id || '',
+      priority: urgent ? 'urgent' : 'normal',
+    }))
+    setBulkTaskOpen(true)
+  }
+
+  async function createBulkTasks(event) {
+    event.preventDefault()
+    if (!selectedDocuments.length) return
+    setBulkTaskSaving(true)
+    setBulkTaskError('')
+    try {
+      await Promise.all(selectedDocuments.map(document => {
+        const documentId = documentTaskSourceId(document)
+        return api.post('/tasks', {
+          title: `${bulkTaskForm.title_prefix || 'Urmărește documentul'} ${document.nr_document || document.titlu || documentId}`,
+          description: [
+            `Document: ${document.nr_document || '-'}`,
+            document.titlu ? `Titlu: ${document.titlu}` : '',
+            document.tip_id ? `Tip: ${document.tip_id}` : '',
+            document.status ? `Status: ${label(document.status)}` : '',
+            document.prioritate ? `Prioritate document: ${label(document.prioritate)}` : '',
+            `Creat din acțiune în masă Documente (${selectedDocuments.length} documente selectate).`,
+          ].filter(Boolean).join('\n'),
+          assigned_to: bulkTaskForm.assigned_to,
+          priority: bulkTaskForm.priority,
+          due_date: bulkTaskForm.due_date,
+          source_type: 'document',
+          source_id: String(documentId || ''),
+          source_label: `${document.nr_document || 'Document'}${document.titlu ? ` · ${document.titlu}` : ''}`,
+          source_url: documentId ? `/documente?document=${encodeURIComponent(String(documentId))}` : '/documente',
+        })
+      }))
+      setBulkTaskOpen(false)
+      setSelectedDocumentKeys([])
+      if (details.document) {
+        const documentId = documentTaskSourceId(details.document)
+        const tasksResponse = await api.get('/tasks', { params: { source_type: 'document', source_id: String(documentId) } }).catch(() => ({ data: { tasks: [] } }))
+        setRelatedTasks(arrayFrom(tasksResponse.data, ['tasks']))
+      }
+    } catch (err) {
+      setBulkTaskError(err.response?.data?.error || 'Task-urile nu au putut fi create pentru documentele selectate.')
+    } finally {
+      setBulkTaskSaving(false)
+    }
+  }
+
+  function exportSelectedDocumentsCsv() {
+    const rows = selectedDocuments.length ? selectedDocuments : visibleDocuments
+    if (!rows.length) return
+    const headers = ['nr_document', 'titlu', 'tip', 'status', 'prioritate', 'termen', 'actualizat_la', 'sursa']
+    const escape = value => `"${String(value ?? '').replaceAll('"', '""')}"`
+    const lines = [
+      headers.join(','),
+      ...rows.map(document => [
+        document.nr_document || '',
+        document.titlu || '',
+        document.tip_id || '',
+        label(document.status),
+        label(document.prioritate),
+        document.termen_limita || '',
+        document.updated_at || document.created_at || '',
+        emailSourceForDocument(document) ? 'Email ERP' : '',
+      ].map(escape).join(',')),
+    ]
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `Documente_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
   }
 
   async function processDocument(action) {
@@ -1279,6 +1398,23 @@ export default function DocumentePage() {
               </button>
             </div>
           ) : null}
+          <div className="mt-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-slate-600">
+              <strong>{selectedDocuments.length}</strong> documente selectate
+              {selectedDocuments.length ? <span className="text-slate-400"> · acțiunile se aplică doar selecției</span> : <span className="text-slate-400"> · exportul folosește lista filtrată dacă nu selectezi nimic</span>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" onClick={toggleVisibleSelection} disabled={!visibleDocuments.length}>
+                {allVisibleSelected ? 'Deselectează lista' : 'Selectează lista'}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={exportSelectedDocumentsCsv} disabled={!visibleDocuments.length && !selectedDocuments.length}>
+                Export CSV
+              </Button>
+              <Button size="sm" onClick={openBulkTaskModal} disabled={!selectedDocuments.length}>
+                Creează task-uri
+              </Button>
+            </div>
+          </div>
         </Card>
       ) : null}
 
@@ -1363,10 +1499,20 @@ export default function DocumentePage() {
               ) : visibleDocuments.map(document => (
                 <div
                   key={document.uuid || document.id}
-                  className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-primary-300 hover:bg-primary-50"
+                  className={`grid gap-2 rounded-lg border bg-white p-3 text-left transition hover:border-primary-300 hover:bg-primary-50 ${
+                    selectedDocumentKeys.includes(documentSelectionKey(document)) ? 'border-primary-300 ring-2 ring-primary-100' : 'border-slate-200'
+                  }`}
                 >
                   <button type="button" className="flex items-start justify-between gap-3 text-left" onClick={() => openDetails(document)}>
                     <div className="min-w-0">
+                      <label className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-600" onClick={event => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedDocumentKeys.includes(documentSelectionKey(document))}
+                          onChange={() => toggleDocumentSelection(document)}
+                        />
+                        Selectează
+                      </label>
                       <div className="text-xs font-semibold uppercase text-slate-500">{document.tip_id}</div>
                       <div className="break-words text-base font-semibold text-slate-900">{document.nr_document}</div>
                       <div className="mt-1 text-sm text-slate-500">{formatDate(document.updated_at || document.created_at)}</div>
@@ -1394,6 +1540,21 @@ export default function DocumentePage() {
             <div className="hidden md:block">
               <Table
                 columns={[
+                  { key: 'select', label: (
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleVisibleSelection}
+                      aria-label="Selectează documentele afișate"
+                    />
+                  ), render: row => (
+                    <input
+                      type="checkbox"
+                      checked={selectedDocumentKeys.includes(documentSelectionKey(row))}
+                      onChange={() => toggleDocumentSelection(row)}
+                      aria-label={`Selectează ${row.nr_document || row.titlu || 'document'}`}
+                    />
+                  ) },
                   { key: 'nr_document', label: 'Nr. document' },
                   { key: 'tip_id', label: 'Tip' },
                   { key: 'source', label: 'Sursă', render: row => {
@@ -2159,6 +2320,79 @@ export default function DocumentePage() {
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setTaskDocument(null)}>Renunță</Button>
             <Button type="submit" loading={taskSaving} disabled={!taskForm.title.trim() || !taskForm.assigned_to}>Creează task</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={bulkTaskOpen} title="Creează task-uri pentru documentele selectate" onClose={() => setBulkTaskOpen(false)}>
+        <form className="grid gap-4" onSubmit={createBulkTasks}>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div className="font-semibold text-slate-900">{selectedDocuments.length} documente selectate</div>
+            <div className="mt-2 grid max-h-36 gap-1 overflow-auto text-xs text-slate-600">
+              {selectedDocuments.slice(0, 8).map(document => (
+                <div key={documentSelectionKey(document)} className="truncate">
+                  {document.nr_document || 'Document'} · {document.titlu || document.tip_id || '-'}
+                </div>
+              ))}
+              {selectedDocuments.length > 8 ? <div className="text-slate-400">+ {selectedDocuments.length - 8} documente...</div> : null}
+            </div>
+          </div>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Prefix titlu task
+            <input
+              className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              value={bulkTaskForm.title_prefix}
+              onChange={event => setBulkTaskForm(form => ({ ...form, title_prefix: event.target.value }))}
+              required
+            />
+          </label>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Responsabil
+              <select
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={bulkTaskForm.assigned_to}
+                onChange={event => setBulkTaskForm(form => ({ ...form, assigned_to: event.target.value }))}
+                required
+              >
+                <option value="">Alege responsabil</option>
+                {taskUsers.map(item => (
+                  <option key={item.id} value={item.id}>{item.name || item.username || item.id}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Prioritate
+              <select
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={bulkTaskForm.priority}
+                onChange={event => setBulkTaskForm(form => ({ ...form, priority: event.target.value }))}
+              >
+                <option value="low">Scăzută</option>
+                <option value="normal">Normală</option>
+                <option value="high">Importantă</option>
+                <option value="urgent">Urgentă</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Termen
+              <input
+                type="date"
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                value={bulkTaskForm.due_date}
+                onChange={event => setBulkTaskForm(form => ({ ...form, due_date: event.target.value }))}
+              />
+            </label>
+          </div>
+          <div className="rounded-lg border border-primary-100 bg-primary-50 p-3 text-xs text-primary-700">
+            Se creează câte un task pentru fiecare document selectat, fiecare cu legătură directă către dosarul documentului.
+          </div>
+          {bulkTaskError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{bulkTaskError}</div> : null}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setBulkTaskOpen(false)}>Renunță</Button>
+            <Button type="submit" loading={bulkTaskSaving} disabled={!selectedDocuments.length || !bulkTaskForm.assigned_to || !bulkTaskForm.title_prefix.trim()}>
+              Creează {selectedDocuments.length} task-uri
+            </Button>
           </div>
         </form>
       </Modal>
