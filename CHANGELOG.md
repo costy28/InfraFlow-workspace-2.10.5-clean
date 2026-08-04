@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.475 - 2026-08-04
+
+## Filtre rapide în Inbox Documente
+
+- Pagina Documente are filtre rapide peste tab-uri: Toate, Cer acțiune, Blocate, Scadente, Urgente, Drafturi și Din email.
+- Filtrele folosesc datele deja încărcate și nu schimbă API-ul.
+- Lista documentelor afișează acum statusul și termenul lângă prioritate.
+- Documentele blocate în circuit de peste 48h sunt marcate cu vechimea blocajului.
+- Deep-link-urile către documente resetează filtrul rapid ca dosarul cerut să nu fie ascuns.
+
 # v2.12.474 - 2026-08-04
 
 ## Radar compact documente pe Dashboard

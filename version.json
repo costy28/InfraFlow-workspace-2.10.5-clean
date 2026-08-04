@@ -1,5 +1,5 @@
 {
-  "version": "2.12.474",
+  "version": "2.12.475",
   "date": "2026-08-04",
-  "changelog": "## v2.12.474 - 2026-08-04\n### Radar compact documente pe Dashboard\n- Dashboard-ul afișează documentele care cer acțiune într-o listă compactă.\n- Documentele din inbox și cele blocate sunt grupate într-un singur panou.\n- Fiecare rând arată termenul, prioritatea și motivul pentru care documentul cere atenție.\n- Click-ul deschide direct dosarul documentului, nu doar pagina generală Documente."
+  "changelog": "## v2.12.475 - 2026-08-04\n### Filtre rapide în Inbox Documente\n- Documente are filtre rapide peste tab-uri: toate, cer acțiune, blocate, scadente, urgente, drafturi și din email.\n- Lista documentelor afișează statusul, termenul și vechimea blocajului unde este cazul.\n- Deep-link-urile către documente resetează filtrul rapid ca dosarul să fie găsit sigur.\n- Filtrele nu schimbă API-ul și folosesc datele deja încărcate în pagină."
 }

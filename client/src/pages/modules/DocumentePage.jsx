@@ -254,6 +254,62 @@ function dueDateForWorkflowStep(step = {}) {
   return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
+function documentStatus(document) {
+  return String(document?.status || '').toLowerCase()
+}
+
+function documentPriority(document) {
+  return String(document?.prioritate || document?.priority || '').toLowerCase()
+}
+
+function documentDueDate(document) {
+  const value = document?.termen_limita || document?.due_date || document?.deadline || ''
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function documentDueMeta(document) {
+  const due = documentDueDate(document)
+  if (!due) return { label: 'fără termen', tone: 'neutral', sort: 99 }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const day = new Date(due)
+  day.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((day - today) / 86400000)
+  if (diffDays < 0) return { label: `întârziat ${Math.abs(diffDays)}z`, tone: 'danger', sort: 0 }
+  if (diffDays === 0) return { label: 'azi', tone: 'danger', sort: 1 }
+  if (diffDays === 1) return { label: 'mâine', tone: 'warning', sort: 2 }
+  if (diffDays <= 3) return { label: `${diffDays} zile`, tone: 'warning', sort: 3 + diffDays }
+  return { label: formatDate(due), tone: 'neutral', sort: 20 + diffDays }
+}
+
+function documentAgeHours(document) {
+  const value = document?.updated_at || document?.created_at || document?.createdAt
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / 3600000))
+}
+
+function documentIsInCircuit(document) {
+  return ['in_circuit', 'asteptare', 'in_asteptare'].includes(documentStatus(document))
+}
+
+function documentIsBlocked(document) {
+  const hours = documentAgeHours(document)
+  return documentIsInCircuit(document) && hours !== null && hours >= 48
+}
+
+function documentIsUrgent(document) {
+  return ['urgent', 'critic', 'critica'].includes(documentPriority(document))
+}
+
+function documentIsDueSoon(document) {
+  const due = documentDueMeta(document)
+  return due.sort <= 6
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -323,6 +379,7 @@ export default function DocumentePage() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [documentAssistantExpanded, setDocumentAssistantExpanded] = useState(false)
+  const [documentQuickFilter, setDocumentQuickFilter] = useState('all')
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
   const canEditDocument = useCallback(document => (
@@ -354,26 +411,52 @@ export default function DocumentePage() {
     Promise.resolve().then(() => load())
   }, [load])
 
-  const visibleDocuments = useMemo(() => {
+  const baseVisibleDocuments = useMemo(() => {
     if (activeTab !== 'Ale mele') return documents
     const id = userId(user)
     return documents.filter(document => String(document.creat_de) === String(id))
   }, [activeTab, documents, user])
 
+  const documentQuickFilters = useMemo(() => {
+    const rows = baseVisibleDocuments || []
+    return [
+      { key: 'all', label: 'Toate', count: rows.length, predicate: () => true },
+      { key: 'action', label: 'Cer acțiune', count: rows.filter(document => documentIsInCircuit(document) || documentStatus(document) === 'draft').length, predicate: document => documentIsInCircuit(document) || documentStatus(document) === 'draft' },
+      { key: 'blocked', label: 'Blocate', count: rows.filter(documentIsBlocked).length, predicate: documentIsBlocked },
+      { key: 'due', label: 'Scadente', count: rows.filter(documentIsDueSoon).length, predicate: documentIsDueSoon },
+      { key: 'urgent', label: 'Urgente', count: rows.filter(documentIsUrgent).length, predicate: documentIsUrgent },
+      { key: 'draft', label: 'Drafturi', count: rows.filter(document => documentStatus(document) === 'draft').length, predicate: document => documentStatus(document) === 'draft' },
+      { key: 'email', label: 'Din email', count: rows.filter(document => Boolean(emailSourceForDocument(document))).length, predicate: document => Boolean(emailSourceForDocument(document)) },
+    ]
+  }, [baseVisibleDocuments])
+
+  const visibleDocuments = useMemo(() => {
+    if (activeTab === 'Template-uri') return baseVisibleDocuments
+    const filter = documentQuickFilters.find(item => item.key === documentQuickFilter) || documentQuickFilters[0]
+    return baseVisibleDocuments.filter(filter.predicate)
+  }, [activeTab, baseVisibleDocuments, documentQuickFilter, documentQuickFilters])
+
+  useEffect(() => {
+    if (activeTab === 'Template-uri' && documentQuickFilter !== 'all') {
+      setDocumentQuickFilter('all')
+    }
+  }, [activeTab, documentQuickFilter])
+
   useEffect(() => {
     if (!pendingDocumentParam || loading || activeTab === 'Template-uri') return
-    const target = visibleDocuments.find(document =>
+    const target = baseVisibleDocuments.find(document =>
       String(document.uuid || '') === String(pendingDocumentParam) ||
       String(document.id || '') === String(pendingDocumentParam) ||
       String(document.nr_document || '') === String(pendingDocumentParam)
     )
     if (target) {
       setPendingDocumentParam('')
+      setDocumentQuickFilter('all')
       Promise.resolve().then(() => openDetails(target))
       return
     }
     if (activeTab !== 'Toate') setActiveTab('Toate')
-  }, [pendingDocumentParam, loading, activeTab, visibleDocuments])
+  }, [pendingDocumentParam, loading, activeTab, baseVisibleDocuments])
 
   async function openDetails(document) {
     setSelected(document)
@@ -1151,6 +1234,54 @@ export default function DocumentePage() {
         ))}
       </div>
 
+      {activeTab !== 'Template-uri' ? (
+        <Card className="border-slate-200 bg-white">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Filtre rapide documente</div>
+              <div className="text-xs text-slate-500">
+                Arată doar ce ai nevoie acum: blocaje, scadențe, urgențe, drafturi sau documente venite din email.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {documentQuickFilters.map(filter => (
+                <button
+                  key={filter.key}
+                  type="button"
+                  onClick={() => setDocumentQuickFilter(filter.key)}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                    documentQuickFilter === filter.key
+                      ? 'border-primary-700 bg-primary-700 text-white shadow-sm'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary-200 hover:bg-primary-50'
+                  }`}
+                >
+                  <span>{filter.label}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${
+                    documentQuickFilter === filter.key
+                      ? 'bg-white/20 text-white'
+                      : filter.count
+                        ? 'bg-primary-100 text-primary-800'
+                        : 'bg-slate-200 text-slate-500'
+                  }`}>
+                    {filter.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {documentQuickFilter !== 'all' ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary-100 bg-primary-50 px-3 py-2 text-sm text-primary-800">
+              <span>
+                Filtru activ: <strong>{documentQuickFilters.find(item => item.key === documentQuickFilter)?.label}</strong> · {visibleDocuments.length} documente afișate.
+              </span>
+              <button type="button" className="text-xs font-semibold underline" onClick={() => setDocumentQuickFilter('all')}>
+                Resetează filtrul
+              </button>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
       {activeTab === 'Template-uri' ? (
         <Card>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1239,6 +1370,11 @@ export default function DocumentePage() {
                       <div className="text-xs font-semibold uppercase text-slate-500">{document.tip_id}</div>
                       <div className="break-words text-base font-semibold text-slate-900">{document.nr_document}</div>
                       <div className="mt-1 text-sm text-slate-500">{formatDate(document.updated_at || document.created_at)}</div>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <Badge tone={toneFor(document.status)}>{label(document.status)}</Badge>
+                        <Badge tone={documentDueMeta(document).tone}>{documentDueMeta(document).label}</Badge>
+                        {documentIsBlocked(document) ? <Badge tone="danger">{documentAgeHours(document)}h blocat</Badge> : null}
+                      </div>
                       {emailSourceForDocument(document) ? (
                         <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
                           <Mail size={12} /> Email ERP
@@ -1270,6 +1406,16 @@ export default function DocumentePage() {
                   } },
                   { key: 'creat_de', label: 'Inițiator' },
                   { key: 'created_at', label: 'Trimis la', render: row => formatDate(row.updated_at || row.created_at) },
+                  { key: 'status', label: 'Status', render: row => (
+                    <div className="flex flex-wrap gap-1">
+                      <Badge tone={toneFor(row.status)}>{label(row.status)}</Badge>
+                      {documentIsBlocked(row) ? <Badge tone="danger">{documentAgeHours(row)}h</Badge> : null}
+                    </div>
+                  ) },
+                  { key: 'termen_limita', label: 'Termen', render: row => {
+                    const due = documentDueMeta(row)
+                    return <Badge tone={due.tone}>{due.label}</Badge>
+                  } },
                   { key: 'prioritate', label: 'Prioritate', render: row => <Badge tone={toneFor(row.prioritate)}>{label(row.prioritate)}</Badge> },
                   { key: 'actions', label: '', render: row => (
                     <div className="flex justify-end">

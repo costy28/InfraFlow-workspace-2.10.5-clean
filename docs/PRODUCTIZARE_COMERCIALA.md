@@ -147,7 +147,8 @@ Stadiu implementare:
 - `v2.12.472`: dosarul documentului afișează auditul deciziilor reale din circuit, cu pas, status înainte/după și următor responsabil.
 - `v2.12.473`: dosarul documentului afișează „Următorul pas” și oferă aprobări, respingeri, task-uri de deblocare și lansare draft direct din dosar.
 - `v2.12.474`: Dashboard-ul grupează documentele din inbox și cele blocate într-un radar compact cu termen, prioritate și deep-link direct în dosar.
-- Următorul pas: extinderea radarului în Inbox Documente, cu filtre rapide pentru blocate, scadente azi și ale mele.
+- `v2.12.475`: Inbox-ul Documente primește filtre rapide pentru acțiune, blocaje, scadențe, urgențe, drafturi și documente venite din email.
+- Următorul pas: acțiuni în masă în Inbox Documente pentru asignare task, marcare urmărit și export listă de lucru.
 
 ## Reguli de decuplare de client
 
