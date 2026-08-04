@@ -1003,6 +1003,7 @@ export default function SetariPage() {
     source: '',
   })
   const [workflowConditionDrafts, setWorkflowConditionDrafts] = useState({})
+  const [workflowAudit, setWorkflowAudit] = useState([])
 
   const activeModules = useMemo(() => new Set(license?.module_active || license?.module || []), [license])
   const configurableModuleKeys = useMemo(() => moduleGroups.flatMap(group => group.modules).filter(item => !['core', 'production', 'inventory', 'reports'].includes(item.key)).map(item => item.key), [])
@@ -1125,7 +1126,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes, emailSyncStatusRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes, emailSyncStatusRes, workflowAuditRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -1142,6 +1143,7 @@ export default function SetariPage() {
         api.get('/settings/country-profiles'),
         api.get('/settings/country-rules'),
         api.get('/messaging/email/sync/status'),
+        api.get('/settings/workflow-audit'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -1178,6 +1180,7 @@ export default function SetariPage() {
       }
       if (countryRulesRes.status === 'fulfilled') setCountryRules(countryRulesRes.value.data || fallbackCountryRules)
       if (emailSyncStatusRes.status === 'fulfilled') setEmailSyncStatus(emailSyncStatusRes.value.data?.status || emptyEmailSyncStatus)
+      if (workflowAuditRes.status === 'fulfilled') setWorkflowAudit(arrayFrom(workflowAuditRes.value.data, ['audit', 'items']))
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -2011,6 +2014,7 @@ export default function SetariPage() {
         workflow_document_flows_updated_at: new Date().toISOString(),
       })
       setSettings({ ...(response.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      if (Array.isArray(response.data.workflowAudit)) setWorkflowAudit(response.data.workflowAudit)
       notify('Fluxurile documentelor au fost salvate.')
     } catch (err) {
       fail(err, 'Fluxurile documentelor nu au putut fi salvate.')
@@ -3896,6 +3900,29 @@ export default function SetariPage() {
                     </div>
                     <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
                       La salvare se actualizează profilul organizației. Documentele deja pornite păstrează snapshot-ul lor, deci auditul istoric rămâne stabil.
+                    </div>
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ultimele modificări persistate</div>
+                      <div className="mt-2 grid gap-2">
+                        {workflowAudit.length ? workflowAudit.slice(0, 3).map(entry => (
+                          <div key={entry.id || entry.at} className="rounded-md border border-white bg-white px-2 py-2 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-semibold text-slate-900">{entry.userName || 'utilizator'}</span>
+                              <span>{entry.at ? formatDate(entry.at) : '-'}</span>
+                            </div>
+                            <div className="mt-1">
+                              {entry.after?.active ?? 0}/{entry.after?.total ?? 0} fluxuri active · {entry.after?.steps ?? 0} pași
+                            </div>
+                            {entry.changed_flow_ids?.length ? (
+                              <div className="mt-1 truncate text-slate-500">Modificate: {entry.changed_flow_ids.join(', ')}</div>
+                            ) : null}
+                          </div>
+                        )) : (
+                          <div className="rounded-md border border-white bg-white px-2 py-2 text-xs text-slate-500">
+                            Încă nu există o modificare salvată în auditul workflow.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

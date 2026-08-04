@@ -143,7 +143,8 @@ Stadiu implementare:
 - `v2.12.468`: diagnosticul oferă reparații ghidate în draft pentru aprobatori lipsă, termene, reguli și duplicate, cu salvare explicită de către administrator.
 - `v2.12.469`: dosarul documentului afișează scenariul evaluat, pașii aplicați și pașii săriți de reguli, cu actual/așteptat.
 - `v2.12.470`: editorul de workflow din Setări este responsive pe carduri, iar panoul afișează auditul configurării și ultima salvare.
-- Următorul pas: audit complet persistat pentru modificările de șabloane workflow și pentru deciziile generate de reguli.
+- `v2.12.471`: modificările șabloanelor workflow sunt păstrate într-un istoric dedicat, vizibil în Setări, cu utilizator, dată, sumar și fluxuri schimbate.
+- Următorul pas: audit complet pentru fiecare decizie din circuit și acțiuni rapide din dosarul documentului când un pas este blocat.
 
 ## Reguli de decuplare de client
 

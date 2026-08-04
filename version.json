@@ -1,5 +1,5 @@
 {
-  "version": "2.12.470",
+  "version": "2.12.471",
   "date": "2026-08-04",
-  "changelog": "## v2.12.470 - 2026-08-04\n### Editor workflow responsive și audit configurare\n- Editorul fluxurilor din Setări folosește carduri responsive pentru pași, nu tabel lat care iese din ecran.\n- Panoul de principiu nu se mai întinde artificial pe înălțimea listei de fluxuri.\n- Configurarea workflow afișează ultima salvare și sumarul fluxurilor/pașilor care vor fi salvați.\n- Fluxurile rămân editabile pe ecrane mai înguste, inclusiv în aplicația desktop."
+  "changelog": "## v2.12.471 - 2026-08-04\n### Audit persistat pentru modificările workflow\n- Modificările șabloanelor workflow sunt păstrate într-un istoric dedicat, cu utilizator, dată, sumar și fluxuri schimbate.\n- Setări afișează ultimele modificări persistate direct în panoul de workflow.\n- Auditul general primește o intrare explicită pentru schimbarea fluxurilor documentelor.\n- Istoricul este limitat la ultimele 100 de modificări, fără salvarea secretelor sau a datelor sensibile."
 }

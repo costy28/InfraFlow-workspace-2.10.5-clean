@@ -105,6 +105,106 @@ const settingsUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 })
 
+function summarizeWorkflowFlows(flows = []) {
+  const list = Array.isArray(flows) ? flows : []
+  return {
+    total: list.length,
+    active: list.filter(flow => flow?.active !== false).length,
+    steps: list.reduce((total, flow) => total + (Array.isArray(flow?.steps) ? flow.steps.length : 0), 0),
+    conditioned: list.reduce((total, flow) => total + (Array.isArray(flow?.steps)
+      ? flow.steps.filter(step => step?.condition && step.condition !== 'mereu').length
+      : 0), 0),
+    flow_ids: list.map(flow => String(flow?.id || flow?.document_type || flow?.label || '').trim()).filter(Boolean),
+  }
+}
+
+function comparableWorkflowFlow(flow = {}) {
+  return {
+    id: String(flow.id || '').trim(),
+    label: String(flow.label || '').trim(),
+    document_type: String(flow.document_type || '').trim(),
+    active: flow.active !== false,
+    version: Number(flow.version || 1),
+    escalation_days: Number(flow.escalation_days || 0),
+    steps: (Array.isArray(flow.steps) ? flow.steps : []).map(step => ({
+      name: String(step.name || '').trim(),
+      actor_type: String(step.actor_type || '').trim(),
+      actor_ref: String(step.actor_ref || '').trim(),
+      deadline_days: Number(step.deadline_days || 0),
+      required: step.required !== false,
+      condition: String(step.condition || '').trim(),
+      condition_rule: step.condition_rule || null,
+    })),
+  }
+}
+
+function buildWorkflowSettingsChange(previousFlows = [], nextFlows = []) {
+  const previousList = Array.isArray(previousFlows) ? previousFlows : []
+  const nextList = Array.isArray(nextFlows) ? nextFlows : []
+  const previousMap = new Map(previousList.map(flow => [String(flow?.id || flow?.document_type || flow?.label || ''), comparableWorkflowFlow(flow)]))
+  const nextMap = new Map(nextList.map(flow => [String(flow?.id || flow?.document_type || flow?.label || ''), comparableWorkflowFlow(flow)]))
+  const changed = []
+  const added = []
+  const removed = []
+
+  nextMap.forEach((flow, key) => {
+    if (!key) return
+    if (!previousMap.has(key)) {
+      added.push(key)
+      changed.push(key)
+      return
+    }
+    if (JSON.stringify(previousMap.get(key)) !== JSON.stringify(flow)) changed.push(key)
+  })
+  previousMap.forEach((_, key) => {
+    if (key && !nextMap.has(key)) {
+      removed.push(key)
+      changed.push(key)
+    }
+  })
+
+  return {
+    before: summarizeWorkflowFlows(previousList),
+    after: summarizeWorkflowFlows(nextList),
+    changed_flow_ids: Array.from(new Set(changed)),
+    added_flow_ids: added,
+    removed_flow_ids: removed,
+  }
+}
+
+function workflowSettingsChanged(previousFlows, nextFlows) {
+  return JSON.stringify((previousFlows || []).map(comparableWorkflowFlow)) !== JSON.stringify((nextFlows || []).map(comparableWorkflowFlow))
+}
+
+function persistWorkflowSettingsAudit(db, user, previousFlows, nextFlows) {
+  if (!workflowSettingsChanged(previousFlows, nextFlows)) return null
+  const at = new Date().toISOString()
+  const change = buildWorkflowSettingsChange(previousFlows, nextFlows)
+  const entry = {
+    id: `workflow-audit-${Date.now()}`,
+    at,
+    userId: user?.id || null,
+    userName: user?.name || user?.username || 'utilizator',
+    action: 'workflow_document_flows_updated',
+    ...change,
+  }
+  db.workflowSettingsAudit = Array.isArray(db.workflowSettingsAudit) ? db.workflowSettingsAudit : []
+  db.workflowSettingsAudit.unshift(entry)
+  db.workflowSettingsAudit = db.workflowSettingsAudit.slice(0, 100)
+  db.settings = db.settings || {}
+  db.settings.workflow_document_flows_updated_at = at
+  db.settings.workflow_document_flows_updated_by = entry.userName
+  db.settings.workflow_document_flows_audit_summary = change.after
+  db.audit = Array.isArray(db.audit) ? db.audit : []
+  addAudit(
+    db,
+    user || { id: null, name: 'sistem', role: 'system' },
+    'workflow_fluxuri_modificate',
+    `${change.after.active}/${change.after.total} fluxuri active, ${change.after.steps} pași, modificate: ${change.changed_flow_ids.join(', ') || 'fără diferențe'}`
+  )
+  return entry
+}
+
 function createSystemSettingsRouter(context) {
   const {
     readJsonBody,
@@ -159,16 +259,33 @@ function createSystemSettingsRouter(context) {
     })
   })
 
+  router.get('/settings/workflow-audit', (req, res) => {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'settings:manage')) return
+    sendJson(res, 200, {
+      audit: Array.isArray(auth.db.workflowSettingsAudit) ? auth.db.workflowSettingsAudit.slice(0, 100) : [],
+      summary: summarizeWorkflowFlows(auth.db.settings?.workflow_document_flows || []),
+    })
+  })
+
   router.patch('/settings', async (req, res, next) => {
     try {
       const auth = requireAuth(req, res)
       if (!auth) return
       if (!requirePermission(auth, res, 'settings:manage')) return
       const body = await readJsonBody(req)
+      const previousWorkflowFlows = auth.db.settings?.workflow_document_flows || []
       auth.db.settings = updateSettings(auth.db.settings, body)
+      const workflowAuditEntry = Object.prototype.hasOwnProperty.call(body || {}, 'workflow_document_flows')
+        ? persistWorkflowSettingsAudit(auth.db, auth.user, previousWorkflowFlows, auth.db.settings.workflow_document_flows || [])
+        : null
       addAudit(auth.db, auth.user, 'setari_modificate', `${auth.db.settings.companyName} / ${auth.db.settings.stationName || ''}`)
       writeDb(auth.db)
-      sendJson(res, 200, { settings: publicSettings(auth.db.settings) })
+      sendJson(res, 200, {
+        settings: publicSettings(auth.db.settings),
+        workflowAudit: workflowAuditEntry ? auth.db.workflowSettingsAudit.slice(0, 100) : undefined,
+      })
     } catch (error) {
       next(error)
     }
@@ -180,10 +297,17 @@ function createSystemSettingsRouter(context) {
       if (!auth) return
       if (!requirePermission(auth, res, 'settings:manage')) return
       const body = await readJsonBody(req)
+      const previousWorkflowFlows = auth.db.settings?.workflow_document_flows || []
       auth.db.settings = updateSettings(auth.db.settings, body)
+      const workflowAuditEntry = Object.prototype.hasOwnProperty.call(body || {}, 'workflow_document_flows')
+        ? persistWorkflowSettingsAudit(auth.db, auth.user, previousWorkflowFlows, auth.db.settings.workflow_document_flows || [])
+        : null
       addAudit(auth.db, auth.user, 'setari_modificate', `${auth.db.settings.companyName} / ${auth.db.settings.stationName || ''}`)
       writeDb(auth.db)
-      sendJson(res, 200, { settings: publicSettings(auth.db.settings) })
+      sendJson(res, 200, {
+        settings: publicSettings(auth.db.settings),
+        workflowAudit: workflowAuditEntry ? auth.db.workflowSettingsAudit.slice(0, 100) : undefined,
+      })
     } catch (error) {
       next(error)
     }

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.471 - 2026-08-04
+
+## Audit persistat pentru modificările workflow
+
+- Serverul păstrează un istoric dedicat pentru modificările șabloanelor workflow configurabil.
+- Fiecare intrare reține utilizatorul, data, sumarul înainte/după și fluxurile adăugate, eliminate sau schimbate.
+- Panoul din Setări afișează ultimele modificări persistate, nu doar ultima salvare din settings.
+- Auditul general primește o acțiune separată `workflow_fluxuri_modificate`.
+- Istoricul este limitat la ultimele 100 de intrări și nu stochează parole, chei sau alte secrete.
+
 # v2.12.470 - 2026-08-04
 
 ## Editor workflow responsive și audit configurare
