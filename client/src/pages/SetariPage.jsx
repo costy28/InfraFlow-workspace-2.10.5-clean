@@ -3853,8 +3853,8 @@ export default function SetariPage() {
               <Button key="save-workflows" onClick={saveWorkflowFlows}>Salvează fluxurile</Button>,
             ]}
           >
-            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-              <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-4">
+            <div className="grid gap-4 2xl:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.25fr)]">
+              <div className="self-start rounded-2xl border border-primary-100 bg-primary-50/60 p-4">
                 <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Principiul comercial</div>
                 <h3 className="mt-1 text-lg font-semibold text-slate-900">Fiecare organizație își setează propriul circuit.</h3>
                 <p className="mt-2 text-sm text-slate-600">
@@ -3881,11 +3881,29 @@ export default function SetariPage() {
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                   Acest panou configurează șabloanele. Documentele deja lansate vor trebui să păstreze versiunea de flux activă la pornire când legăm engine-ul avansat.
                 </div>
+                <div className="mt-3 rounded-xl border border-primary-100 bg-white/80 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Audit configurare</div>
+                  <div className="mt-2 grid gap-2 text-sm text-slate-600">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Ultima salvare</span>
+                      <span className="font-semibold text-slate-900">
+                        {settings.workflow_document_flows_updated_at ? formatDate(settings.workflow_document_flows_updated_at) : 'nesalvat / implicit'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Ce se salvează</span>
+                      <span className="font-semibold text-slate-900">{workflowFlowStats.total} fluxuri · {workflowFlowStats.steps} pași</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                      La salvare se actualizează profilul organizației. Documentele deja pornite păstrează snapshot-ul lor, deci auditul istoric rămâne stabil.
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid min-w-0 gap-3">
                 {workflowDocumentFlows.map(flow => (
-                  <div key={flow.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div key={flow.id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -3931,126 +3949,122 @@ export default function SetariPage() {
                       />
                     </div>
 
-                    <div className="mt-4 overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                            <th className="px-2 py-2">Pas</th>
-                            <th className="px-2 py-2">Cine aprobă</th>
-                            <th className="px-2 py-2">Referință</th>
-                            <th className="px-2 py-2">Termen</th>
-                            <th className="px-2 py-2">Condiție</th>
-                            <th className="px-2 py-2">Oblig.</th>
-                            <th className="px-2 py-2"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(flow.steps || []).map((step, stepIndex) => (
-                            <tr key={`${flow.id}-${stepIndex}`} className="border-t border-slate-100 align-top">
-                              <td className="px-2 py-2">
-                                <input
-                                  className="w-48 rounded-md border border-slate-200 px-2 py-1"
-                                  value={step.name}
-                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { name: event.target.value })}
-                                />
-                              </td>
-                              <td className="px-2 py-2">
+                    <div className="mt-4 grid gap-3">
+                      {(flow.steps || []).map((step, stepIndex) => (
+                        <div key={`${flow.id}-${stepIndex}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                            <label className="grid min-w-0 flex-1 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Pas {stepIndex + 1}
+                              <input
+                                className="min-w-0 rounded-md border border-slate-200 bg-white px-2 py-2 text-sm font-medium normal-case tracking-normal text-slate-900"
+                                value={step.name}
+                                onChange={event => updateWorkflowStep(flow.id, stepIndex, { name: event.target.value })}
+                              />
+                            </label>
+                            <Button size="sm" variant="ghost" className="self-start" onClick={() => removeWorkflowStep(flow.id, stepIndex)}>Șterge</Button>
+                          </div>
+
+                          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Cine aprobă
+                              <select
+                                className="min-w-0 rounded-md border border-slate-200 bg-white px-2 py-2 text-sm font-normal normal-case tracking-normal text-slate-900"
+                                value={step.actor_type}
+                                onChange={event => updateWorkflowStep(flow.id, stepIndex, { actor_type: event.target.value })}
+                              >
+                                {workflowActorTypeOptions.map(option => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Referință
+                              <input
+                                className="min-w-0 rounded-md border border-slate-200 bg-white px-2 py-2 text-sm font-normal normal-case tracking-normal text-slate-900"
+                                placeholder="ex. Contabilitate"
+                                value={step.actor_ref}
+                                onChange={event => updateWorkflowStep(flow.id, stepIndex, { actor_ref: event.target.value })}
+                              />
+                            </label>
+                            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Termen zile
+                              <input
+                                className="min-w-0 rounded-md border border-slate-200 bg-white px-2 py-2 text-sm font-normal normal-case tracking-normal text-slate-900"
+                                type="number"
+                                min="0"
+                                value={step.deadline_days}
+                                onChange={event => updateWorkflowStep(flow.id, stepIndex, { deadline_days: event.target.value })}
+                              />
+                            </label>
+                            <label className="flex items-center gap-2 self-end rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={step.required !== false}
+                                onChange={event => updateWorkflowStep(flow.id, stepIndex, { required: event.target.checked })}
+                              />
+                              Pas obligatoriu
+                            </label>
+                          </div>
+
+                          <div className="mt-3 grid gap-2 rounded-lg border border-slate-200 bg-white p-3">
+                            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Condiție afișată
+                              <input
+                                className="min-w-0 rounded-md border border-slate-200 px-2 py-2 text-sm font-normal normal-case tracking-normal text-slate-900"
+                                value={step.condition}
+                                onChange={event => updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value, condition_rule: null })}
+                              />
+                            </label>
+                            <div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_minmax(0,1fr)_auto] lg:items-end">
+                              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Preset rapid
                                 <select
-                                  className="w-36 rounded-md border border-slate-200 px-2 py-1"
-                                  value={step.actor_type}
-                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { actor_type: event.target.value })}
+                                  className="min-w-0 rounded-md border border-slate-200 px-2 py-2 text-sm font-normal normal-case tracking-normal text-slate-900"
+                                  value=""
+                                  onChange={event => {
+                                    if (event.target.value) applyWorkflowConditionPreset(flow.id, stepIndex, event.target.value)
+                                  }}
                                 >
-                                  {workflowActorTypeOptions.map(option => (
+                                  <option value="">Alege preset...</option>
+                                  {workflowConditionPresetOptions.map(option => (
                                     <option key={option.value} value={option.value}>{option.label}</option>
                                   ))}
                                 </select>
-                              </td>
-                              <td className="px-2 py-2">
+                              </label>
+                              <div className="grid gap-2 sm:grid-cols-[minmax(130px,1fr)_80px_minmax(130px,1fr)]">
+                                <select
+                                  className="min-w-0 rounded-md border border-slate-200 px-2 py-2 text-sm"
+                                  value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).field}
+                                  onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { field: event.target.value })}
+                                >
+                                  {workflowConditionFieldOptions.map(option => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  className="min-w-0 rounded-md border border-slate-200 px-2 py-2 text-sm"
+                                  value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).operator}
+                                  onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { operator: event.target.value })}
+                                >
+                                  {workflowConditionOperatorOptions.map(option => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
+                                </select>
                                 <input
-                                  className="w-44 rounded-md border border-slate-200 px-2 py-1"
-                                  placeholder="ex. Contabilitate"
-                                  value={step.actor_ref}
-                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { actor_ref: event.target.value })}
+                                  className="min-w-0 rounded-md border border-slate-200 px-2 py-2 text-sm"
+                                  placeholder="valoare"
+                                  value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).value}
+                                  onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { value: event.target.value })}
                                 />
-                              </td>
-                              <td className="px-2 py-2">
-                                <input
-                                  className="w-20 rounded-md border border-slate-200 px-2 py-1"
-                                  type="number"
-                                  min="0"
-                                  value={step.deadline_days}
-                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { deadline_days: event.target.value })}
-                                />
-                              </td>
-                              <td className="px-2 py-2">
-                                <div className="grid w-72 gap-2">
-                                  <input
-                                    className="rounded-md border border-slate-200 px-2 py-1"
-                                    value={step.condition}
-                                    onChange={event => updateWorkflowStep(flow.id, stepIndex, { condition: event.target.value, condition_rule: null })}
-                                  />
-                                  <div className="grid gap-1 rounded-lg border border-slate-100 bg-slate-50 p-2">
-                                    <select
-                                      className="rounded-md border border-slate-200 px-2 py-1 text-xs"
-                                      value=""
-                                      onChange={event => {
-                                        if (event.target.value) applyWorkflowConditionPreset(flow.id, stepIndex, event.target.value)
-                                      }}
-                                    >
-                                      <option value="">Preset rapid...</option>
-                                      {workflowConditionPresetOptions.map(option => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </select>
-                                    <div className="grid grid-cols-[1fr_72px_1fr] gap-1">
-                                      <select
-                                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
-                                        value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).field}
-                                        onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { field: event.target.value })}
-                                      >
-                                        {workflowConditionFieldOptions.map(option => (
-                                          <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                      </select>
-                                      <select
-                                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
-                                        value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).operator}
-                                        onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { operator: event.target.value })}
-                                      >
-                                        {workflowConditionOperatorOptions.map(option => (
-                                          <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                      </select>
-                                      <input
-                                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
-                                        placeholder="valoare"
-                                        value={(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft()).value}
-                                        onChange={event => updateWorkflowConditionDraft(flow.id, stepIndex, { value: event.target.value })}
-                                      />
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="truncate text-[11px] text-slate-500">
-                                        {buildWorkflowConditionLabel(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft())}
-                                      </span>
-                                      <Button size="sm" variant="secondary" onClick={() => applyWorkflowConditionDraft(flow.id, stepIndex)}>Aplică</Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-2 py-2">
-                                <input
-                                  type="checkbox"
-                                  checked={step.required !== false}
-                                  onChange={event => updateWorkflowStep(flow.id, stepIndex, { required: event.target.checked })}
-                                />
-                              </td>
-                              <td className="px-2 py-2 text-right">
-                                <Button size="sm" variant="ghost" onClick={() => removeWorkflowStep(flow.id, stepIndex)}>Șterge</Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              </div>
+                              <Button size="sm" variant="secondary" className="justify-center" onClick={() => applyWorkflowConditionDraft(flow.id, stepIndex)}>Aplică</Button>
+                            </div>
+                            <div className="truncate rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-500">
+                              {buildWorkflowConditionLabel(workflowConditionDrafts[`${flow.id}:${stepIndex}`] || defaultWorkflowConditionDraft())}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
                     <div className="mt-3 flex justify-end">

@@ -142,7 +142,8 @@ Stadiu implementare:
 - `v2.12.467`: engine-ul aplică `condition_rule` la lansarea documentului și sare doar pașii cu reguli structurate evaluate fals.
 - `v2.12.468`: diagnosticul oferă reparații ghidate în draft pentru aprobatori lipsă, termene, reguli și duplicate, cu salvare explicită de către administrator.
 - `v2.12.469`: dosarul documentului afișează scenariul evaluat, pașii aplicați și pașii săriți de reguli, cu actual/așteptat.
-- Următorul pas: audit vizibil pentru modificările de șabloane workflow și pentru deciziile generate de reguli.
+- `v2.12.470`: editorul de workflow din Setări este responsive pe carduri, iar panoul afișează auditul configurării și ultima salvare.
+- Următorul pas: audit complet persistat pentru modificările de șabloane workflow și pentru deciziile generate de reguli.
 
 ## Reguli de decuplare de client
 

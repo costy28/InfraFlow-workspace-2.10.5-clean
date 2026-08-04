@@ -1,5 +1,5 @@
 {
-  "version": "2.12.469",
+  "version": "2.12.470",
   "date": "2026-08-04",
-  "changelog": "## v2.12.469 - 2026-08-04\n### Pași workflow săriți vizibili în dosarul documentului\n- Dosarul documentului afișează scenariul evaluat la lansarea în circuit.\n- Snapshot-ul workflow arată pașii aplicați și pașii săriți de condition_rule.\n- Pentru pașii săriți se vede regula, valoarea actuală și valoarea așteptată.\n- Circuitul devine explicabil pentru utilizatori, fără endpoint nou sau migrare DB."
+  "changelog": "## v2.12.470 - 2026-08-04\n### Editor workflow responsive și audit configurare\n- Editorul fluxurilor din Setări folosește carduri responsive pentru pași, nu tabel lat care iese din ecran.\n- Panoul de principiu nu se mai întinde artificial pe înălțimea listei de fluxuri.\n- Configurarea workflow afișează ultima salvare și sumarul fluxurilor/pașilor care vor fi salvați.\n- Fluxurile rămân editabile pe ecrane mai înguste, inclusiv în aplicația desktop."
 }

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.470 - 2026-08-04
+
+## Editor workflow responsive și audit configurare
+
+- Editorul de pași workflow din `Setări > Module > Circuit aprobare` nu mai folosește tabel lat.
+- Fiecare pas este afișat ca un card responsive cu aprobator, referință, termen, condiție și obligație.
+- Panoul explicativ din stânga rămâne sus și nu se mai întinde artificial pe înălțimea fluxurilor.
+- Configurarea afișează audit vizibil: ultima salvare și sumarul fluxurilor/pașilor care vor fi salvați.
+- Fluxurile pot fi editate complet și în fereastra desktop, fără micșorarea manuală a aplicației.
+
 # v2.12.469 - 2026-08-04
 
 ## Pași workflow săriți vizibili în dosarul documentului

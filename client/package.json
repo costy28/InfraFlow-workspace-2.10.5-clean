@@ -1,7 +1,7 @@
 {
   "name": "infraflow-client",
   "private": true,
-  "version": "2.12.469",
+  "version": "2.12.470",
   "type": "module",
   "scripts": {
     "dev": "vite",
