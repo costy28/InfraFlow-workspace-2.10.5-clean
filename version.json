@@ -1,5 +1,5 @@
 {
-  "version": "2.12.468",
+  "version": "2.12.469",
   "date": "2026-08-04",
-  "changelog": "## v2.12.468 - 2026-08-04\n### Reparare ghidată pentru workflow configurabil\n- Diagnosticul workflow din Setări oferă acțiuni de remediere pentru fluxuri și pași incompleți.\n- Reparațiile se aplică doar în draftul local și se confirmă explicit cu Salvează fluxurile.\n- Sunt acoperite aprobatorii lipsă, termenele invalide, pașii fără nume, regulile text libere, valorile lipsă și duplicatele pe tip document.\n- Fluxul rămâne sigur: utilizatorul vede schimbarea înainte să fie salvată în configurația organizației."
+  "changelog": "## v2.12.469 - 2026-08-04\n### Pași workflow săriți vizibili în dosarul documentului\n- Dosarul documentului afișează scenariul evaluat la lansarea în circuit.\n- Snapshot-ul workflow arată pașii aplicați și pașii săriți de condition_rule.\n- Pentru pașii săriți se vede regula, valoarea actuală și valoarea așteptată.\n- Circuitul devine explicabil pentru utilizatori, fără endpoint nou sau migrare DB."
 }

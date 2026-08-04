@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.468**
-**Versiune în lucru: v2.12.468**
+**Versiune curentă sursă: v2.12.469**
+**Versiune în lucru: v2.12.469**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -216,6 +216,7 @@ Core System
   ✅ Diagnostic vizual pentru workflow configurabil în Setări (v2.12.466)
   ✅ Aplicare controlată a regulilor workflow în engine-ul documentelor (v2.12.467)
   ✅ Reparare ghidată pentru diagnostic workflow configurabil (v2.12.468)
+  ✅ Pași workflow săriți vizibili în dosarul documentului (v2.12.469)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -350,6 +351,7 @@ Workflow
   ✅ Diagnostic read-only pentru fluxuri incomplete, aprobatori și reguli lipsă (v2.12.466)
   ✅ Engine-ul aplică `condition_rule` la lansarea documentelor în circuit (v2.12.467)
   ✅ Diagnosticul workflow oferă reparații ghidate în draft înainte de salvare (v2.12.468)
+  ✅ Dosarul documentului explică pașii aplicați/săriți și scenariul evaluat (v2.12.469)
 
 Comunicare
   ✅ Chat intern pe canale, mențiuni și notificări live
@@ -750,6 +752,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Diagnostic read-only pentru fluxuri incomplete, aprobatori lipsă și reguli neclare ✅ Fundație v2.12.466
       → Aplicare controlată în engine: sar doar pașii cu reguli structurate evaluate fals ✅ Fundație v2.12.467
       → Reparare ghidată în draft pentru problemele semnalate de diagnostic ✅ Fundație v2.12.468
+      → Dosar document cu scenariu evaluat, pași aplicați și pași săriți de reguli ✅ Fundație v2.12.469
       → Audit complet pentru modificarea fluxurilor și pentru fiecare decizie din circuit
 
   [ ] Multi-limbă + profil de țară
@@ -825,9 +828,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.468
+VERSIUNE CURENTĂ SURSĂ: 2.12.469
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.468 ✅
+UPDATE ZIP CURENT: 2.12.469 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1104,6 +1107,7 @@ UPDATES ÎN LUCRU:
   2.12.466 → UPDATE 486 Diagnostic workflow configurabil ✅
   2.12.467 → UPDATE 487 Aplicare condition_rule în engine ✅
   2.12.468 → UPDATE 488 Reparare ghidată workflow ✅
+  2.12.469 → UPDATE 489 Pași workflow săriți în dosar ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1598,5 +1602,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.468*
+*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.469*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

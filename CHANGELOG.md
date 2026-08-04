@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.469 - 2026-08-04
+
+## Pași workflow săriți vizibili în dosarul documentului
+
+- Dosarul documentului afișează acum scenariul evaluat de engine-ul workflow la lansarea în circuit.
+- Snapshot-ul workflow arată numărul de pași aplicați și numărul de pași săriți de reguli.
+- Pașii aplicați afișează statusul evaluării condiției, actorul și regula folosită.
+- Pașii săriți sunt listați separat cu regula, valoarea actuală și valoarea așteptată.
+- Nu este necesară migrare DB: informațiile erau deja păstrate în `workflow_snapshot`.
+
 # v2.12.468 - 2026-08-04
 
 ## Reparare ghidată pentru workflow configurabil

@@ -38,6 +38,49 @@ function stepIcon(status) {
   return '⏳'
 }
 
+function workflowEvaluationTone(evaluation) {
+  const status = String(evaluation?.status || '').toLowerCase()
+  if (status === 'skipped') return 'neutral'
+  if (status === 'missing') return 'warning'
+  if (status === 'applies') return 'success'
+  return 'info'
+}
+
+function workflowEvaluationLabel(evaluation) {
+  const status = String(evaluation?.status || '').toLowerCase()
+  if (status === 'skipped') return 'sărit de regulă'
+  if (status === 'missing') return 'date lipsă'
+  if (status === 'applies') return 'se aplică'
+  if (status === 'unknown') return 'neclar'
+  return 'evaluat'
+}
+
+function workflowRuleLabel(rule, fallback = '') {
+  if (!rule || rule.field === 'always') return fallback || 'mereu'
+  const fields = {
+    estimated_value: 'valoare estimată',
+    department: 'departament',
+    priority: 'prioritate',
+    country: 'țară',
+    cost_center: 'centru cost',
+    source: 'sursă',
+  }
+  return `${fields[rule.field] || rule.field} ${rule.operator || '='} ${rule.value ?? ''}`.trim()
+}
+
+function workflowScenarioSummary(scenario = {}) {
+  const items = [
+    ['Tip', scenario.document_type],
+    ['Valoare', scenario.value],
+    ['Departament', scenario.department],
+    ['Prioritate', scenario.priority],
+    ['Țară', scenario.country],
+    ['Centru cost', scenario.cost_center],
+    ['Sursă', scenario.source],
+  ].filter(([, value]) => String(value ?? '').trim())
+  return items
+}
+
 function userId(user) {
   return user?.id || user?.userId || user?.username
 }
@@ -1345,19 +1388,70 @@ export default function DocumentePage() {
                         <div className="flex flex-wrap gap-2">
                           <Badge tone="success">v{selectedWorkflowSnapshot.version || 1}</Badge>
                           <Badge tone="info">{(selectedWorkflowSnapshot.steps || []).length} pași</Badge>
+                          {(selectedWorkflowSnapshot.skipped_steps || []).length ? (
+                            <Badge tone="neutral">{(selectedWorkflowSnapshot.skipped_steps || []).length} săriți</Badge>
+                          ) : null}
                         </div>
                       </div>
+                      {workflowScenarioSummary(selectedWorkflowSnapshot.scenario).length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {workflowScenarioSummary(selectedWorkflowSnapshot.scenario).map(([name, value]) => (
+                            <span key={name} className="rounded-full border border-primary-100 bg-white/80 px-2 py-1 text-xs text-primary-800">
+                              <strong>{name}:</strong> {value}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                       <div className="mt-3 grid gap-2">
                         {(selectedWorkflowSnapshot.steps || []).slice(0, 6).map(step => (
                           <div key={`${selectedWorkflowSnapshot.flow_id || 'flow'}-${step.nr_pas}`} className="rounded-lg border border-primary-100 bg-white/80 px-3 py-2 text-xs text-slate-700">
-                            <span className="font-semibold text-slate-900">Pas {step.nr_pas}: {step.name || 'Aprobare'}</span>
-                            <span className="ml-2 text-slate-500">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-slate-900">Pas {step.nr_pas}: {step.name || 'Aprobare'}</span>
+                              <Badge tone={workflowEvaluationTone(step.condition_evaluation)} size="sm">
+                                {workflowEvaluationLabel(step.condition_evaluation)}
+                              </Badge>
+                            </div>
+                            <div className="mt-1 text-slate-500">
                               {label(step.actor_type || 'rol')} · {step.actor_ref || step.rol_responsabil || step.user_responsabil || '-'}
-                              {step.condition ? ` · ${step.condition}` : ''}
-                            </span>
+                              {' · '}{workflowRuleLabel(step.condition_rule, step.condition)}
+                            </div>
                           </div>
                         ))}
                       </div>
+                      {(selectedWorkflowSnapshot.skipped_steps || []).length ? (
+                        <div className="mt-3 rounded-lg border border-slate-200 bg-white/80 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-sm font-semibold text-slate-900">Pași săriți de regulile workflow</div>
+                            <Badge tone="neutral" size="sm">{selectedWorkflowSnapshot.condition_engine || 'safe'}</Badge>
+                          </div>
+                          <div className="mt-2 grid gap-2">
+                            {(selectedWorkflowSnapshot.skipped_steps || []).map((step, index) => {
+                              const evaluation = step.condition_evaluation || {}
+                              return (
+                                <div key={`${selectedWorkflowSnapshot.flow_id || 'flow'}-skipped-${step.nr_pas_initial || index}`} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge tone="neutral" size="sm">sărit</Badge>
+                                    <span className="font-semibold text-slate-900">Pas inițial {step.nr_pas_initial}: {step.name || 'Aprobare'}</span>
+                                  </div>
+                                  <div className="mt-1">
+                                    Regulă: <strong>{workflowRuleLabel(step.condition_rule, step.condition)}</strong>
+                                    {String(evaluation.actual ?? '').trim() || String(evaluation.expected ?? '').trim() ? (
+                                      <span>
+                                        {' '}· actual: <strong>{String(evaluation.actual ?? '-')}</strong>
+                                        {' '}· așteptat: <strong>{String(evaluation.expected ?? '-')}</strong>
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-lg border border-emerald-100 bg-white/80 px-3 py-2 text-xs text-emerald-800">
+                          Niciun pas nu a fost sărit de reguli pentru scenariul acestui document.
+                        </div>
+                      )}
                     </div>
                   ) : null}
 
