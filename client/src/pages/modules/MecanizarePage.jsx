@@ -218,6 +218,7 @@ export default function MecanizarePage() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [mechanizationAssistantExpanded, setMechanizationAssistantExpanded] = useState(false)
+  const [fuelStockSettingsSaving, setFuelStockSettingsSaving] = useState(false)
 
   // ── load ────────────────────────────────────────────────────────────────────
   async function loadAll() {
@@ -392,6 +393,33 @@ export default function MecanizarePage() {
       await loadAll()
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la adăugarea autovehiculului / utilajului.')
+    }
+  }
+
+  function updateFuelStockSetting(key, value) {
+    setDashboard(current => current ? ({
+      ...current,
+      fuelStockEstimate: {
+        ...(current.fuelStockEstimate || {}),
+        settings: {
+          ...(current.fuelStockEstimate?.settings || {}),
+          [key]: value,
+        },
+      },
+    }) : current)
+  }
+
+  async function saveFuelStockSettings() {
+    if (!dashboard?.fuelStockEstimate?.settings) return
+    setError('')
+    setFuelStockSettingsSaving(true)
+    try {
+      await api.patch('/mechanization/fuel-stock-settings', dashboard.fuelStockEstimate.settings)
+      await loadAll()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Eroare la salvarea pragurilor de carburant.')
+    } finally {
+      setFuelStockSettingsSaving(false)
     }
   }
 
@@ -1139,6 +1167,31 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   </h3>
                   <p className="mt-1 text-sm text-slate-700">{dashboard.fuelStockEstimate.message}</p>
                   <p className="mt-1 text-xs text-slate-500">Sursă: {dashboard.fuelStockEstimate.source}. Nu înlocuiește inventarul fizic al rezervorului/stocului.</p>
+                  <div className="mt-3 grid max-w-2xl gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                    <Input
+                      label="Prag minim alertă (L)"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={dashboard.fuelStockEstimate.settings?.min_liters ?? 25}
+                      onChange={event => updateFuelStockSetting('min_liters', event.target.value)}
+                    />
+                    <Input
+                      label="% din consum lună"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={dashboard.fuelStockEstimate.settings?.warning_percent ?? 10}
+                      onChange={event => updateFuelStockSetting('warning_percent', event.target.value)}
+                    />
+                    <Button className="self-end" size="sm" variant="secondary" onClick={saveFuelStockSettings} disabled={fuelStockSettingsSaving}>
+                      {fuelStockSettingsSaving ? 'Se salvează…' : 'Salvează prag'}
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Prag atenție calculat: {Number(dashboard.fuelStockEstimate.prag_atentie_litri || 0).toFixed(2)} L.
+                  </p>
                 </div>
                 <div className="grid min-w-[280px] grid-cols-3 gap-2 text-center text-sm">
                   <div className="rounded-lg bg-white/80 p-3">

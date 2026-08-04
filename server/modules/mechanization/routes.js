@@ -22,6 +22,11 @@ function todayIso() {
 
 function num(v) { return Number(v) || 0 }
 
+function positiveNumber(value, fallback) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
 function sendJson(res, status, body) {
   res.status(status).json(body)
 }
@@ -43,6 +48,16 @@ function ensureDb(db) {
   if (!Array.isArray(m.fuelLogs))      m.fuelLogs      = []
   if (!Array.isArray(m.fazReports))    m.fazReports    = []
   return m
+}
+
+function fuelStockSettings(db) {
+  if (!db.settings || typeof db.settings !== 'object') db.settings = {}
+  const minLiters = positiveNumber(db.settings.fleet_fuel_stock_min_liters, 25)
+  const warningPercent = positiveNumber(db.settings.fleet_fuel_stock_warning_percent, 10)
+  return {
+    min_liters: minLiters,
+    warning_percent: Math.min(100, warningPercent),
+  }
 }
 
 // ─── views ───────────────────────────────────────────────────────────────────
@@ -412,15 +427,19 @@ router.get('/mechanization/dashboard', (req, res) => {
   const workOrdersThisMonth = m.workOrders.filter(wo => dateInMonth(wo.date, luna))
   const consumedThisMonth = round2(workOrdersThisMonth.reduce((sum, wo) => sum + num(wo.consum_carburant), 0))
   const estimatedFuelBalance = round2(fuelTotalsThisMonth.cantitate_litri - consumedThisMonth)
+  const fuelSettings = fuelStockSettings(db)
+  const warningThreshold = round2(Math.max(fuelSettings.min_liters, consumedThisMonth * (fuelSettings.warning_percent / 100)))
   const fuelStockEstimate = {
     luna,
     intrari_litri: fuelTotalsThisMonth.cantitate_litri,
     consum_litri: consumedThisMonth,
     sold_estimat_litri: estimatedFuelBalance,
-    status: estimatedFuelBalance < 0 ? 'critic' : estimatedFuelBalance <= Math.max(25, consumedThisMonth * 0.1) ? 'atentie' : 'ok',
+    prag_atentie_litri: warningThreshold,
+    settings: fuelSettings,
+    status: estimatedFuelBalance < 0 ? 'critic' : estimatedFuelBalance <= warningThreshold ? 'atentie' : 'ok',
     message: estimatedFuelBalance < 0
       ? 'Consumul raportat depășește alimentările înregistrate. Verifică alimentările lipsă sau consumurile introduse.'
-      : estimatedFuelBalance <= Math.max(25, consumedThisMonth * 0.1)
+      : estimatedFuelBalance <= warningThreshold
         ? 'Soldul estimat este mic față de consumul lunii. Verifică dacă trebuie alimentat sau completate intrări.'
         : 'Soldul estimat este în regulă pentru datele introduse.',
     source: 'alimentări introduse/importate minus consum real din bonuri de lucru',
@@ -470,6 +489,27 @@ router.get('/mechanization/dashboard', (req, res) => {
     highConsumption,
     openInterventions,
   })
+})
+
+router.patch('/mechanization/fuel-stock-settings', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    const db = auth.db
+    if (!db.settings || typeof db.settings !== 'object') db.settings = {}
+    const minLiters = positiveNumber(req.body?.min_liters, 25)
+    const warningPercent = Math.min(100, positiveNumber(req.body?.warning_percent, 10))
+    db.settings.fleet_fuel_stock_min_liters = round2(minLiters)
+    db.settings.fleet_fuel_stock_warning_percent = round2(warningPercent)
+    db.settings.fleet_fuel_stock_settings_updated_at = nowIso()
+    db.settings.fleet_fuel_stock_settings_updated_by = auth.user.id
+    addAudit(auth.db, auth.user, 'setari_carburant_mecanizare', `Prag ${round2(minLiters)} L / ${round2(warningPercent)}%`)
+    writeDb(auth.db)
+    sendJson(res, 200, { settings: fuelStockSettings(db) })
+  } catch (error) {
+    next(error)
+  }
 })
 
 // ─── PLANNINGS ───────────────────────────────────────────────────────────────

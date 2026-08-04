@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.478**
-**Versiune în lucru: v2.12.478**
+**Versiune curentă sursă: v2.12.479**
+**Versiune în lucru: v2.12.479**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -244,6 +244,7 @@ Mecanizare / Fleet
   ✅ FAZ (fișe activitate zilnică)
   ✅ Odometru + consum combustibil
   ✅ Alertă carburant estimat din alimentări minus consum bonuri (v2.12.478)
+  ✅ Praguri configurabile pentru alerta de carburant estimat (v2.12.479)
   ✅ Alerte scadențe ITP/RCA
   ✅ Import Autominder XML ca adaptor opțional, nu sursă implicită
   ✅ Confirmări UX FAZ, ștergeri și import PIUSI (v2.12.411)
@@ -675,7 +676,7 @@ PRIORITATE 2 — Expansiune platformă:
       → Autominder rămâne referință/adaptor opțional pentru import istoric
       → PIUSI rămâne adaptor opțional; trebuie pregătite CSV/Excel și alți furnizori carburant
       → Alimentările manuale trebuie să funcționeze complet fără PIUSI
-      → Alertă stoc carburant estimat pe baza alimentărilor, consumurilor și pragurilor definite de client ✅ Fundație v2.12.478
+      → Alertă stoc carburant estimat pe baza alimentărilor, consumurilor și pragurilor definite de client ✅ Fundație v2.12.478, praguri configurabile v2.12.479
       → Mapări configurabile per furnizor, nu hardcodate pe o singură companie
 
   [ ] Modul Warehouse / WMS
@@ -858,9 +859,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.478
+VERSIUNE CURENTĂ SURSĂ: 2.12.479
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.478 ✅
+UPDATE ZIP CURENT: 2.12.479 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1147,6 +1148,7 @@ UPDATES ÎN LUCRU:
   2.12.476 → UPDATE 496 Acțiuni în masă Documente ✅
   2.12.477 → UPDATE 497 Catalog manual Parc & Resurse ✅
   2.12.478 → UPDATE 498 Alertă carburant estimat Mecanizare ✅
+  2.12.479 → UPDATE 499 Praguri configurabile carburant estimat ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1641,5 +1643,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.478*
+*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.479*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

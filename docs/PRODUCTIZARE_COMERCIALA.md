@@ -168,6 +168,7 @@ Stadiu implementare:
 
 - `v2.12.477`: Parc & Resurse are butoane vizibile pentru adăugare manuală autovehicul/utilaj, iar tab-ul PIUSI este prezentat generic ca Import carburant cu adaptor opțional.
 - `v2.12.478`: Dashboard-ul Parc & Resurse afișează sold carburant estimat lunar din alimentări introduse/importate minus consumul real din bonuri.
+- `v2.12.479`: Pragurile pentru alerta de carburant estimat sunt configurabile de organizație și se salvează auditat.
 
 ## Reguli de decuplare de client
 

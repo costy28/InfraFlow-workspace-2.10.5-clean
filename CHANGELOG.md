@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.479 - 2026-08-04
+
+## Praguri configurabile pentru carburant estimat
+
+- Dashboard-ul Mecanizare permite configurarea pragului minim de alertă în litri.
+- Pragul de atenție poate folosi și un procent din consumul real al lunii.
+- Pragurile sunt salvate server-side în setările organizației și auditate.
+- Calculul soldului estimat folosește pragurile configurate, nu valori fixe în cod.
+- Panoul afișează pragul calculat efectiv pentru luna curentă.
+
 # v2.12.478 - 2026-08-04
 
 ## Alertă carburant estimat în Mecanizare

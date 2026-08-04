@@ -1,5 +1,5 @@
 {
-  "version": "2.12.478",
+  "version": "2.12.479",
   "date": "2026-08-04",
-  "changelog": "## v2.12.478 - 2026-08-04\n### Alertă carburant estimat în Mecanizare\n- Dashboard-ul Parc & Resurse calculează intrări carburant, consum real din bonuri și sold estimat lunar.\n- Cardul nou marchează sold critic sau de atenție fără să presupună un furnizor PIUSI.\n- Mesajul explică sursa calculului și amintește că estimarea nu înlocuiește inventarul fizic."
+  "changelog": "## v2.12.479 - 2026-08-04\n### Praguri configurabile pentru carburant estimat\n- Dashboard-ul Mecanizare permite configurarea pragului minim de alertă în litri.\n- Pragul de atenție poate folosi și un procent din consumul lunii.\n- Setările sunt salvate server-side, auditate și folosite la calculul soldului estimat."
 }
