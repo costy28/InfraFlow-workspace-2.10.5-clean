@@ -1,5 +1,5 @@
 {
-  "version": "2.12.480",
+  "version": "2.12.481",
   "date": "2026-08-04",
-  "changelog": "## v2.12.480 - 2026-08-04\n### Carburant pe resursă Mecanizare\n- Dashboard-ul Mecanizare afișează soldul estimat de carburant pe fiecare utilaj sau vehicul.\n- Calculul combină alimentările lunii cu consumul raportat în bonurile de lucru.\n- Resursele sunt ordonate după criticitate și primesc status ok, atenție, critic sau fără mișcare.\n- Operatorul poate adăuga rapid alimentare sau bon direct din rândul resursei."
+  "changelog": "## v2.12.481 - 2026-08-04\n### Filtre și export pentru carburant pe resursă\n- Panoul carburant pe utilaj/vehicul pornește pe resursele cu probleme.\n- Au fost adăugate filtre rapide pentru probleme, critice, toate și fără mișcare.\n- Exportul Excel descarcă lista filtrată pentru verificare lunară.\n- Statusurile și mesajele au fost uniformizate pentru citire rapidă."
 }

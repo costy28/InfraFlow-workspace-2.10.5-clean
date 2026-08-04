@@ -67,6 +67,23 @@ function alertColor(days) {
   return ''
 }
 
+function fuelStockStatusLabel(status) {
+  const map = {
+    critic: 'critic',
+    atentie: 'atenție',
+    ok: 'ok',
+    fara_miscare: 'fără mișcare',
+  }
+  return map[status] || status || '—'
+}
+
+function fuelStockStatusTone(status) {
+  if (status === 'critic') return 'danger'
+  if (status === 'atentie') return 'warning'
+  if (status === 'ok') return 'success'
+  return 'neutral'
+}
+
 const emptyPlanForm = {
   date: today(), asset_id: '', department: '', job_name: '',
   operator: '', ora_start: '06:00', ora_sfarsit: '14:00', observatii: '',
@@ -219,6 +236,21 @@ export default function MecanizarePage() {
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [mechanizationAssistantExpanded, setMechanizationAssistantExpanded] = useState(false)
   const [fuelStockSettingsSaving, setFuelStockSettingsSaving] = useState(false)
+  const [fuelStockFilter, setFuelStockFilter] = useState('probleme')
+
+  const fuelStockRows = useMemo(() => dashboard?.fuelStockByAsset || [], [dashboard])
+  const filteredFuelStockRows = useMemo(() => {
+    if (fuelStockFilter === 'probleme') return fuelStockRows.filter(row => ['critic', 'atentie'].includes(row.status))
+    if (fuelStockFilter === 'critic') return fuelStockRows.filter(row => row.status === 'critic')
+    if (fuelStockFilter === 'fara_miscare') return fuelStockRows.filter(row => row.status === 'fara_miscare')
+    return fuelStockRows
+  }, [fuelStockRows, fuelStockFilter])
+  const fuelStockSummary = useMemo(() => ({
+    total: fuelStockRows.length,
+    probleme: fuelStockRows.filter(row => ['critic', 'atentie'].includes(row.status)).length,
+    critic: fuelStockRows.filter(row => row.status === 'critic').length,
+    faraMiscare: fuelStockRows.filter(row => row.status === 'fara_miscare').length,
+  }), [fuelStockRows])
 
   // ── load ────────────────────────────────────────────────────────────────────
   async function loadAll() {
@@ -670,6 +702,21 @@ export default function MecanizarePage() {
     } catch {
       setError('Raportul Excel nu a putut fi descărcat.')
     }
+  }
+
+  function exportFuelStockByAsset() {
+    const rows = (filteredFuelStockRows.length ? filteredFuelStockRows : fuelStockRows).map(row => ({
+      'Resursă': row.asset_name,
+      'Tip': row.category === 'equipment' ? 'utilaj' : row.category === 'vehicle' ? 'autovehicul' : 'resursă',
+      'Intrări (L)': Number(row.intrari_litri || 0),
+      'Consum (L)': Number(row.consum_litri || 0),
+      'Sold estimat (L)': Number(row.sold_estimat_litri || 0),
+      'Alimentări': row.alimentari_count || 0,
+      'Bonuri': row.bonuri_count || 0,
+      'Status': fuelStockStatusLabel(row.status),
+      'Observație': row.message || '',
+    }))
+    exportExcel(rows, `Carburant_pe_resursa_${dashboard?.luna || currentMonth()}`)
   }
 
   async function generateMechanizationFaz() {
@@ -1216,10 +1263,37 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <Card
             title="Carburant pe utilaj / vehicul"
             subtitle="Alimentări introduse/importate minus consumul din bonuri, grupate pe fiecare resursă."
-            actions={<Button size="sm" variant="secondary" onClick={() => setActiveTab('Alimentări')}>Vezi alimentări</Button>}
+            actions={
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={exportFuelStockByAsset} disabled={!fuelStockRows.length}>Excel</Button>
+                <Button size="sm" variant="secondary" onClick={() => setActiveTab('Alimentări')}>Vezi alimentări</Button>
+              </div>
+            }
           >
-            {(dashboard?.fuelStockByAsset || []).length === 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+              {[
+                { key: 'probleme', label: `Probleme (${fuelStockSummary.probleme})` },
+                { key: 'critic', label: `Critice (${fuelStockSummary.critic})` },
+                { key: 'toate', label: `Toate (${fuelStockSummary.total})` },
+                { key: 'fara_miscare', label: `Fără mișcare (${fuelStockSummary.faraMiscare})` },
+              ].map(item => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`rounded-full px-3 py-1 font-semibold ${fuelStockFilter === item.key ? 'bg-primary-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  onClick={() => setFuelStockFilter(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <span className="ml-auto text-slate-400">Afișarea pornește pe probleme, ca să nu vânezi acul în carul cu motorină.</span>
+            </div>
+            {fuelStockRows.length === 0 ? (
               <p className="text-sm text-slate-400">Nu există resurse sau mișcări de carburant pentru luna curentă.</p>
+            ) : filteredFuelStockRows.length === 0 ? (
+              <p className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                Nu există resurse în filtrul selectat. Pentru moment, partea asta arată curat.
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1234,7 +1308,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {(dashboard.fuelStockByAsset || []).slice(0, 12).map(row => (
+                    {filteredFuelStockRows.slice(0, 12).map(row => (
                       <tr key={row.asset_id}>
                         <td className="px-3 py-2">
                           <div className="font-medium text-slate-900">{row.asset_name}</div>
@@ -1246,9 +1320,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                           {Number(row.sold_estimat_litri || 0).toFixed(2)} L
                         </td>
                         <td className="px-3 py-2">
-                          <Badge tone={row.status === 'critic' ? 'danger' : row.status === 'atentie' ? 'warning' : row.status === 'fara_miscare' ? 'neutral' : 'success'}>
-                            {row.status === 'critic' ? 'critic' : row.status === 'atentie' ? 'atenție' : row.status === 'fara_miscare' ? 'fără mișcare' : 'ok'}
-                          </Badge>
+                          <Badge tone={fuelStockStatusTone(row.status)}>{fuelStockStatusLabel(row.status)}</Badge>
                           <div className="mt-1 max-w-md text-xs text-slate-500">{row.message}</div>
                         </td>
                         <td className="px-3 py-2">
@@ -1261,8 +1333,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                     ))}
                   </tbody>
                 </table>
-                {(dashboard.fuelStockByAsset || []).length > 12 ? (
-                  <div className="mt-2 text-xs text-slate-500">Afișate primele 12 resurse după criticitate. Pentru lista completă folosește rapoartele lunare.</div>
+                {filteredFuelStockRows.length > 12 ? (
+                  <div className="mt-2 text-xs text-slate-500">Afișate primele 12 resurse din filtrul curent. Exportul Excel include filtrul selectat complet.</div>
                 ) : null}
               </div>
             )}

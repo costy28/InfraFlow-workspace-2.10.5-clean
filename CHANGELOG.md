@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.481 - 2026-08-04
+
+## Filtre și export pentru carburant pe resursă
+
+- Panoul „Carburant pe utilaj / vehicul” pornește pe filtrul Probleme, ca operatorul să vadă întâi ce trebuie corectat.
+- Au fost adăugate filtre rapide: Probleme, Critice, Toate și Fără mișcare.
+- Exportul Excel descarcă lista filtrată curentă pentru verificare lunară sau discuții cu responsabilul de parc.
+- Statusurile și mesajele sunt centralizate pentru afișare consecventă.
+- Dacă filtrul nu are rezultate, interfața afișează un mesaj clar, nu un tabel gol.
+
 # v2.12.480 - 2026-08-04
 
 ## Carburant pe resursă Mecanizare

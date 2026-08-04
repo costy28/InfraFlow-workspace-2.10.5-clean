@@ -170,6 +170,7 @@ Stadiu implementare:
 - `v2.12.478`: Dashboard-ul Parc & Resurse afișează sold carburant estimat lunar din alimentări introduse/importate minus consumul real din bonuri.
 - `v2.12.479`: Pragurile pentru alerta de carburant estimat sunt configurabile de organizație și se salvează auditat.
 - `v2.12.480`: Soldul estimat de carburant este vizibil pe fiecare utilaj/vehicul, cu status, explicație și acțiuni rapide de completare.
+- `v2.12.481`: Panoul carburant pe resursă are filtre rapide pentru probleme și export Excel al listei filtrate.
 
 ## Reguli de decuplare de client
 
