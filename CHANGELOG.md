@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.480 - 2026-08-04
+
+## Carburant pe resursă Mecanizare
+
+- Dashboard-ul Mecanizare afișează soldul estimat de carburant pe fiecare utilaj sau vehicul.
+- Calculul combină alimentările lunii cu consumul raportat în bonurile de lucru.
+- Resursele sunt ordonate după criticitate: critic, atenție, ok, fără mișcare.
+- Fiecare rând explică problema: consum fără alimentări, sold negativ, alimentări fără bonuri sau lipsă mișcare.
+- Din tabel se pot adăuga rapid alimentări sau bonuri pentru resursa selectată.
+
 # v2.12.479 - 2026-08-04
 
 ## Praguri configurabile pentru carburant estimat

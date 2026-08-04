@@ -444,6 +444,88 @@ router.get('/mechanization/dashboard', (req, res) => {
         : 'Soldul estimat este în regulă pentru datele introduse.',
     source: 'alimentări introduse/importate minus consum real din bonuri de lucru',
   }
+  const fuelByAsset = new Map()
+  for (const asset of equipmentList(db)) {
+    fuelByAsset.set(String(asset.id), {
+      asset_id: asset.id,
+      asset_name: assetName(asset) || asset.cod || asset.id,
+      category: asset.category,
+      intrari_litri: 0,
+      consum_litri: 0,
+      sold_estimat_litri: 0,
+      alimentari_count: 0,
+      bonuri_count: 0,
+      status: 'fara_miscare',
+      message: 'Fără alimentări sau consum în luna curentă.',
+    })
+  }
+  for (const fuel of fuelThisMonth) {
+    const key = String(fuel.asset_id || '')
+    if (!key) continue
+    if (!fuelByAsset.has(key)) {
+      fuelByAsset.set(key, {
+        asset_id: key,
+        asset_name: fuel.asset_name || key,
+        category: '',
+        intrari_litri: 0,
+        consum_litri: 0,
+        sold_estimat_litri: 0,
+        alimentari_count: 0,
+        bonuri_count: 0,
+        status: 'fara_miscare',
+        message: 'Resursă găsită în alimentări, dar nu mai este în catalog.',
+      })
+    }
+    const row = fuelByAsset.get(key)
+    row.intrari_litri = round2(row.intrari_litri + num(fuel.cantitate_litri))
+    row.alimentari_count += 1
+  }
+  for (const wo of workOrdersThisMonth) {
+    const key = String(wo.asset_id || '')
+    if (!key) continue
+    if (!fuelByAsset.has(key)) {
+      fuelByAsset.set(key, {
+        asset_id: key,
+        asset_name: wo.asset_name || key,
+        category: '',
+        intrari_litri: 0,
+        consum_litri: 0,
+        sold_estimat_litri: 0,
+        alimentari_count: 0,
+        bonuri_count: 0,
+        status: 'fara_miscare',
+        message: 'Resursă găsită în bonuri, dar nu mai este în catalog.',
+      })
+    }
+    const row = fuelByAsset.get(key)
+    row.consum_litri = round2(row.consum_litri + num(wo.consum_carburant))
+    row.bonuri_count += 1
+  }
+  const fuelStockByAsset = Array.from(fuelByAsset.values()).map(row => {
+    const sold = round2(row.intrari_litri - row.consum_litri)
+    let status = 'ok'
+    let message = 'Alimentările acoperă consumul raportat.'
+    if (row.intrari_litri === 0 && row.consum_litri === 0) {
+      status = 'fara_miscare'
+      message = 'Fără alimentări sau consum în luna curentă.'
+    } else if (row.consum_litri > 0 && row.intrari_litri === 0) {
+      status = 'critic'
+      message = 'Există consum pe bonuri, dar nu există alimentări înregistrate.'
+    } else if (sold < 0) {
+      status = 'critic'
+      message = 'Consumul depășește alimentările înregistrate pentru resursă.'
+    } else if (row.intrari_litri > 0 && row.consum_litri === 0) {
+      status = 'atentie'
+      message = 'Există alimentări, dar nu există consum/bonuri de lucru.'
+    } else if (sold <= warningThreshold) {
+      status = 'atentie'
+      message = 'Soldul estimat pe resursă este aproape de pragul de atenție.'
+    }
+    return { ...row, sold_estimat_litri: sold, status, message }
+  }).sort((a, b) => {
+    const weight = { critic: 0, atentie: 1, ok: 2, fara_miscare: 3 }
+    return (weight[a.status] ?? 9) - (weight[b.status] ?? 9) || Math.abs(b.sold_estimat_litri) - Math.abs(a.sold_estimat_litri)
+  })
 
   const highConsumption = m.workOrders
     .filter(wo => dateInMonth(wo.date, luna))
@@ -486,6 +568,7 @@ router.get('/mechanization/dashboard', (req, res) => {
     topCostHour,
     fuelTotalsThisMonth,
     fuelStockEstimate,
+    fuelStockByAsset,
     highConsumption,
     openInterventions,
   })

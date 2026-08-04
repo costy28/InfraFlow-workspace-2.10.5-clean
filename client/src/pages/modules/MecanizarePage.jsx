@@ -1213,6 +1213,61 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             </Card>
           ) : null}
 
+          <Card
+            title="Carburant pe utilaj / vehicul"
+            subtitle="Alimentări introduse/importate minus consumul din bonuri, grupate pe fiecare resursă."
+            actions={<Button size="sm" variant="secondary" onClick={() => setActiveTab('Alimentări')}>Vezi alimentări</Button>}
+          >
+            {(dashboard?.fuelStockByAsset || []).length === 0 ? (
+              <p className="text-sm text-slate-400">Nu există resurse sau mișcări de carburant pentru luna curentă.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Resursă</th>
+                      <th className="px-3 py-2 text-right">Intrări</th>
+                      <th className="px-3 py-2 text-right">Consum</th>
+                      <th className="px-3 py-2 text-right">Sold estimat</th>
+                      <th className="px-3 py-2">Control</th>
+                      <th className="px-3 py-2">Acțiune</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(dashboard.fuelStockByAsset || []).slice(0, 12).map(row => (
+                      <tr key={row.asset_id}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-slate-900">{row.asset_name}</div>
+                          <div className="text-xs text-slate-400">{row.category === 'equipment' ? 'utilaj' : row.category === 'vehicle' ? 'autovehicul' : 'resursă'} · {row.alimentari_count} alimentări · {row.bonuri_count} bonuri</div>
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold text-slate-800">{Number(row.intrari_litri || 0).toFixed(2)} L</td>
+                        <td className="px-3 py-2 text-right">{Number(row.consum_litri || 0).toFixed(2)} L</td>
+                        <td className={`px-3 py-2 text-right font-semibold ${row.status === 'critic' ? 'text-rose-700' : row.status === 'atentie' ? 'text-amber-700' : 'text-emerald-700'}`}>
+                          {Number(row.sold_estimat_litri || 0).toFixed(2)} L
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge tone={row.status === 'critic' ? 'danger' : row.status === 'atentie' ? 'warning' : row.status === 'fara_miscare' ? 'neutral' : 'success'}>
+                            {row.status === 'critic' ? 'critic' : row.status === 'atentie' ? 'atenție' : row.status === 'fara_miscare' ? 'fără mișcare' : 'ok'}
+                          </Badge>
+                          <div className="mt-1 max-w-md text-xs text-slate-500">{row.message}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            <button className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100" onClick={() => { setFuelForm({ ...emptyFuelForm, asset_id: String(row.asset_id) }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare</button>
+                            <button className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100" onClick={() => { setWoForm({ ...emptyWoForm, asset_id: String(row.asset_id) }); setWoEditing(null); setWoModal(true) }}>+ Bon</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(dashboard.fuelStockByAsset || []).length > 12 ? (
+                  <div className="mt-2 text-xs text-slate-500">Afișate primele 12 resurse după criticitate. Pentru lista completă folosește rapoartele lunare.</div>
+                ) : null}
+              </div>
+            )}
+          </Card>
+
           <Card className="border-emerald-200 bg-emerald-50/60">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>

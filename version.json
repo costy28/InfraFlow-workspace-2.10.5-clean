@@ -1,5 +1,5 @@
 {
-  "version": "2.12.479",
+  "version": "2.12.480",
   "date": "2026-08-04",
-  "changelog": "## v2.12.479 - 2026-08-04\n### Praguri configurabile pentru carburant estimat\n- Dashboard-ul Mecanizare permite configurarea pragului minim de alertă în litri.\n- Pragul de atenție poate folosi și un procent din consumul lunii.\n- Setările sunt salvate server-side, auditate și folosite la calculul soldului estimat."
+  "changelog": "## v2.12.480 - 2026-08-04\n### Carburant pe resursă Mecanizare\n- Dashboard-ul Mecanizare afișează soldul estimat de carburant pe fiecare utilaj sau vehicul.\n- Calculul combină alimentările lunii cu consumul raportat în bonurile de lucru.\n- Resursele sunt ordonate după criticitate și primesc status ok, atenție, critic sau fără mișcare.\n- Operatorul poate adăuga rapid alimentare sau bon direct din rândul resursei."
 }
