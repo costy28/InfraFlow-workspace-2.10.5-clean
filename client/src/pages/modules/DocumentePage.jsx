@@ -240,6 +240,20 @@ function taskTone(status) {
   return 'info'
 }
 
+function workflowStepTitle(step = {}) {
+  return step.workflow_name || step.name || step.tip || `Pas ${step.nr_pas || '?'}`
+}
+
+function workflowStepResponsible(step = {}) {
+  return step.user_responsabil || step.rol_responsabil || step.workflow_actor_ref || '-'
+}
+
+function dueDateForWorkflowStep(step = {}) {
+  const hours = Number(step.termen_ore || step.deadline_hours || 0)
+  if (!Number.isFinite(hours) || hours <= 0) return ''
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -421,23 +435,28 @@ export default function DocumentePage() {
     }
   }, [])
 
-  async function openTaskFromDocument(document) {
+  async function openTaskFromDocument(document, options = {}) {
     setTaskDocument(document)
     setTaskError('')
     const rows = taskUsers.length ? taskUsers : await loadTaskUsers()
+    const step = options.step || null
     const documentLabel = document.nr_document || document.titlu || document.uuid || document.id
+    const priority = document.prioritate === 'critic' ? 'urgent' : (document.prioritate === 'urgent' ? 'high' : 'normal')
     setTaskForm({
-      title: `Verifică documentul ${documentLabel}`,
+      title: options.title || (step ? `Deblochează pasul ${step.nr_pas || ''} pentru ${documentLabel}` : `Verifică documentul ${documentLabel}`),
       description: [
         `Document: ${document.nr_document || '-'}`,
         document.titlu ? `Titlu: ${document.titlu}` : '',
         document.tip_id ? `Tip: ${document.tip_id}` : '',
         document.prioritate ? `Prioritate document: ${label(document.prioritate)}` : '',
+        step ? `Pas circuit: ${step.nr_pas || '-'} · ${workflowStepTitle(step)}` : '',
+        step ? `Responsabil pas: ${workflowStepResponsible(step)}` : '',
+        options.reason ? `Motiv: ${options.reason}` : '',
         emailSourceForDocument(document) ? 'Sursă inițială: Email ERP' : '',
       ].filter(Boolean).join('\n'),
-      assigned_to: userId(user) || rows[0]?.id || '',
-      priority: document.prioritate === 'critic' ? 'urgent' : (document.prioritate === 'urgent' ? 'high' : 'normal'),
-      due_date: '',
+      assigned_to: options.assigned_to || step?.user_responsabil || userId(user) || rows[0]?.id || '',
+      priority: options.priority || priority,
+      due_date: options.due_date || (step ? dueDateForWorkflowStep(step) : ''),
     })
   }
 
@@ -496,6 +515,18 @@ export default function DocumentePage() {
     setTemplateUploadFile(null)
     setTemplateAdvancedOpen(Boolean(template?.template_html && !template?.fisier_model_name))
     setTemplateModal(true)
+  }
+
+  async function launchSelectedDocument() {
+    if (!details.document?.uuid) return
+    setError('')
+    try {
+      await api.post(`/documents/${details.document.uuid}/launch`, {})
+      await load()
+      await openDetails(details.document)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul nu a putut fi lansat în circuit.')
+    }
   }
 
   async function loadDocumentTemplates() {
@@ -726,9 +757,11 @@ export default function DocumentePage() {
     }
   }
 
+  const selectedWaitingStep = details.steps.find(step => String(step.status || '').toLowerCase() === 'asteptare') || null
   const currentUserStep = details.steps.find(step =>
     step.status === 'asteptare' && String(step.user_responsabil) === String(userId(user))
   )
+  const selectedOpenTasks = relatedTasks.filter(task => !['done', 'cancelled'].includes(String(task.status || '').toLowerCase()))
   const selectedEmailSource = emailSourceForDocument(details.document)
   const selectedWorkflowSnapshot = documentDataObject(details.document)?.workflow_snapshot || null
 
@@ -1276,6 +1309,88 @@ export default function DocumentePage() {
                 </div>
 
                 <div className="grid gap-3">
+                  <div className={`rounded-xl border p-3 ${
+                    currentUserStep
+                      ? 'border-amber-200 bg-amber-50'
+                      : selectedWaitingStep
+                        ? 'border-blue-100 bg-blue-50'
+                        : details.document.status === 'draft'
+                          ? 'border-slate-200 bg-slate-50'
+                          : details.document.status === 'respins'
+                            ? 'border-red-100 bg-red-50'
+                            : 'border-emerald-100 bg-emerald-50'
+                  }`}>
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Următorul pas</div>
+                        {currentUserStep ? (
+                          <>
+                            <h3 className="mt-1 text-base font-semibold text-amber-950">Documentul așteaptă decizia ta.</h3>
+                            <p className="mt-1 text-sm text-amber-900">
+                              Pas {currentUserStep.nr_pas}: {workflowStepTitle(currentUserStep)}. Verifică documentul și aprobă sau respinge cu motiv.
+                            </p>
+                          </>
+                        ) : selectedWaitingStep ? (
+                          <>
+                            <h3 className="mt-1 text-base font-semibold text-blue-950">Documentul este în circuit și așteaptă un responsabil.</h3>
+                            <p className="mt-1 text-sm text-blue-900">
+                              Pas {selectedWaitingStep.nr_pas}: {workflowStepTitle(selectedWaitingStep)} · responsabil {workflowStepResponsible(selectedWaitingStep)}.
+                              {selectedOpenTasks.length ? ` Există deja ${selectedOpenTasks.length} task-uri deschise pe acest document.` : ' Poți crea un task de urmărire direct către responsabil.'}
+                            </p>
+                          </>
+                        ) : details.document.status === 'draft' ? (
+                          <>
+                            <h3 className="mt-1 text-base font-semibold text-slate-900">Documentul este draft.</h3>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Completează-l și lansează-l în circuit când este pregătit pentru aprobare.
+                            </p>
+                          </>
+                        ) : details.document.status === 'respins' ? (
+                          <>
+                            <h3 className="mt-1 text-base font-semibold text-red-950">Documentul este respins.</h3>
+                            <p className="mt-1 text-sm text-red-900">Verifică istoricul deciziilor și creează un task dacă trebuie refăcut sau clarificat.</p>
+                          </>
+                        ) : (
+                          <>
+                            <h3 className="mt-1 text-base font-semibold text-emerald-950">Nu există pas deschis în circuit.</h3>
+                            <p className="mt-1 text-sm text-emerald-900">Documentul nu cere acțiune imediată. Poți verifica auditul, PDF-ul sau arhivarea.</p>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        {currentUserStep ? (
+                          <>
+                            <Button type="button" onClick={() => setConfirm('approve')}><Check size={16} /> Aprobă</Button>
+                            <Button type="button" variant="secondary" onClick={() => setConfirm('reject')}><X size={16} /> Respinge</Button>
+                          </>
+                        ) : selectedWaitingStep ? (
+                          <>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => openTaskFromDocument(details.document, {
+                                step: selectedWaitingStep,
+                                reason: 'Pas de circuit în așteptare',
+                                assigned_to: selectedWaitingStep.user_responsabil || '',
+                                priority: details.document.prioritate === 'normal' ? 'high' : undefined,
+                              })}
+                            >
+                              + Task responsabil
+                            </Button>
+                            <Button type="button" variant="secondary" onClick={() => openDocumentTasksPage(details.document)}>Vezi task-uri</Button>
+                          </>
+                        ) : details.document.status === 'draft' && canEditDocument(details.document) ? (
+                          <>
+                            <Button type="button" onClick={launchSelectedDocument}>Lansează în circuit</Button>
+                            <Button type="button" variant="secondary" onClick={() => openDocumentEdit(details.document)}>Editează draft</Button>
+                          </>
+                        ) : (
+                          <Button type="button" variant="secondary" onClick={() => openTaskFromDocument(details.document)}>+ Task</Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {selectedEmailSource ? (
                     <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1564,13 +1679,6 @@ export default function DocumentePage() {
                     />
                   )}
                 </div>
-
-                {currentUserStep && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => setConfirm('approve')}><Check size={16} /> Aprobă</Button>
-                    <Button variant="secondary" onClick={() => setConfirm('reject')}><X size={16} /> Respinge</Button>
-                  </div>
-                )}
               </>
             ) : (
               <p className="text-sm text-slate-500">Selectează un document pentru detalii.</p>

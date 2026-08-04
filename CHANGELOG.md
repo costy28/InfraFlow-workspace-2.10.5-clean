@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.473 - 2026-08-04
+
+## Acțiuni rapide în dosarul documentului
+
+- Dosarul documentului afișează panoul „Următorul pas”, adaptat la statusul documentului.
+- Dacă utilizatorul curent are pas de aprobare, vede direct acțiunile Aprobă și Respinge.
+- Dacă documentul așteaptă alt responsabil, se poate crea rapid un task precompletat pentru pasul respectiv.
+- Task-ul de urmărire preia pasul, responsabilul, prioritatea și termenul estimat din circuit.
+- Documentele draft pot fi lansate în circuit direct din dosar.
+
 # v2.12.472 - 2026-08-04
 
 ## Audit decizii workflow în dosarul documentului

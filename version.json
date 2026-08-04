@@ -1,5 +1,5 @@
 {
-  "version": "2.12.472",
+  "version": "2.12.473",
   "date": "2026-08-04",
-  "changelog": "## v2.12.472 - 2026-08-04\n### Audit decizii workflow în dosarul documentului\n- Deciziile reale din circuit păstrează meta informații despre pasul procesat, statusul rezultat și următorul responsabil.\n- Dosarul documentului afișează istoricul deciziilor într-un panou compact, lângă circuitul de aprobare.\n- Pentru MSSQL existent, comentariul de audit este îmbogățit fără a forța o schimbare riscantă de schemă.\n- Utilizatorul vede cine, când și ce pas a aprobat sau respins, fără să caute în logurile tehnice."
+  "changelog": "## v2.12.473 - 2026-08-04\n### Acțiuni rapide în dosarul documentului\n- Dosarul documentului afișează un panou „Următorul pas” cu acțiunea potrivită pentru statusul curent.\n- Dacă utilizatorul are pas de aprobare, vede direct Aprobă și Respinge.\n- Dacă pasul așteaptă alt responsabil, poate crea rapid un task precompletat pentru acel pas.\n- Documentele draft pot fi lansate în circuit direct din dosar, fără revenire în formular."
 }
