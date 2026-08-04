@@ -642,44 +642,50 @@ function buildWorkflowDiagnostics(flows) {
 
     if (flow.active !== false && documentTypeKey) {
       const existing = activeByType.get(documentTypeKey) || []
-      activeByType.set(documentTypeKey, [...existing, flowLabel])
+      activeByType.set(documentTypeKey, [...existing, { id: flow.id, label: flowLabel }])
     }
 
     if (!String(flow.label || '').trim()) {
-      diagnostics.push({ level: 'warning', title: 'Flux fără denumire clară', detail: `Fluxul ${flow.id} are nevoie de un nume ușor de recunoscut.` })
+      diagnostics.push({ level: 'warning', code: 'missing_label', flowId: flow.id, title: 'Flux fără denumire clară', detail: `Fluxul ${flow.id} are nevoie de un nume ușor de recunoscut.` })
     }
     if (!String(flow.document_type || '').trim()) {
-      diagnostics.push({ level: 'critical', title: 'Tip document lipsă', detail: `${flowLabel} nu are tip document; simulatorul și lansarea nu îl pot potrivi corect.` })
+      diagnostics.push({ level: 'critical', code: 'missing_document_type', flowId: flow.id, title: 'Tip document lipsă', detail: `${flowLabel} nu are tip document; simulatorul și lansarea nu îl pot potrivi corect.` })
     }
     if (flow.active !== false && !(flow.steps || []).length) {
-      diagnostics.push({ level: 'critical', title: 'Flux activ fără pași', detail: `${flowLabel} este activ, dar nu are pași configurați.` })
+      diagnostics.push({ level: 'critical', code: 'empty_active_flow', flowId: flow.id, title: 'Flux activ fără pași', detail: `${flowLabel} este activ, dar nu are pași configurați.` })
     }
     if ((flow.steps || []).some(step => !String(step.name || '').trim())) {
-      diagnostics.push({ level: 'warning', title: 'Pași fără nume', detail: `${flowLabel} conține pași greu de urmărit; completează numele fiecărui pas.` })
+      diagnostics.push({ level: 'warning', code: 'missing_step_name', flowId: flow.id, title: 'Pași fără nume', detail: `${flowLabel} conține pași greu de urmărit; completează numele fiecărui pas.` })
     }
 
     ;(flow.steps || []).forEach((step, stepIndex) => {
       const stepLabel = `Pas ${stepIndex + 1} din ${flowLabel}`
       if (['role', 'department', 'user'].includes(step.actor_type) && !String(step.actor_ref || '').trim()) {
-        diagnostics.push({ level: 'critical', title: 'Aprobator incomplet', detail: `${stepLabel} cere ${workflowActorLabel(step).toLowerCase()}, dar nu are referința completată.` })
+        diagnostics.push({ level: 'critical', code: 'missing_actor', flowId: flow.id, stepIndex, title: 'Aprobator incomplet', detail: `${stepLabel} cere ${workflowActorLabel(step).toLowerCase()}, dar nu are referința completată.` })
       }
       if (!Number.isFinite(Number(step.deadline_days)) || Number(step.deadline_days) < 0) {
-        diagnostics.push({ level: 'warning', title: 'Termen neclar', detail: `${stepLabel} are termen invalid. Folosește 0 sau un număr pozitiv de zile.` })
+        diagnostics.push({ level: 'warning', code: 'invalid_deadline', flowId: flow.id, stepIndex, title: 'Termen neclar', detail: `${stepLabel} are termen invalid. Folosește 0 sau un număr pozitiv de zile.` })
       }
       const rule = normalizeWorkflowConditionRuleClient(step.condition_rule)
       const readableCondition = String(step.condition || '').trim()
       if ((!rule || rule.field === 'always') && readableCondition && readableCondition !== 'mereu') {
-        diagnostics.push({ level: 'info', title: 'Condiție text liber', detail: `${stepLabel} are condiție lizibilă, dar nu poate fi evaluată automat până nu este aplicată din builder.` })
+        diagnostics.push({ level: 'info', code: 'free_text_condition', flowId: flow.id, stepIndex, title: 'Condiție text liber', detail: `${stepLabel} are condiție lizibilă, dar nu poate fi evaluată automat până nu este aplicată din builder.` })
       }
       if (rule && rule.field !== 'always' && !String(rule.value || '').trim()) {
-        diagnostics.push({ level: 'warning', title: 'Regulă cu valoare lipsă', detail: `${stepLabel} are câmp/operator, dar valoarea condiției este goală.` })
+        diagnostics.push({ level: 'warning', code: 'missing_rule_value', flowId: flow.id, stepIndex, title: 'Regulă cu valoare lipsă', detail: `${stepLabel} are câmp/operator, dar valoarea condiției este goală.` })
       }
     })
   })
 
-  activeByType.forEach((labels, documentType) => {
-    if (labels.length > 1) {
-      diagnostics.push({ level: 'warning', title: 'Tip document duplicat', detail: `Există ${labels.length} fluxuri active pentru "${documentType}": ${labels.join(', ')}.` })
+  activeByType.forEach((entries, documentType) => {
+    if (entries.length > 1) {
+      diagnostics.push({
+        level: 'warning',
+        code: 'duplicate_document_type',
+        title: 'Tip document duplicat',
+        detail: `Există ${entries.length} fluxuri active pentru "${documentType}": ${entries.map(item => item.label).join(', ')}.`,
+        duplicate_flow_ids: entries.slice(1).map(item => item.id),
+      })
     }
   })
 
@@ -693,6 +699,62 @@ function buildWorkflowDiagnostics(flows) {
     items: diagnostics,
     ok: diagnostics.length === 0,
   }
+}
+
+function workflowDiagnosticActionLabel(item) {
+  switch (item?.code) {
+    case 'missing_label':
+      return 'Dă nume automat'
+    case 'missing_document_type':
+      return 'Completează tipul'
+    case 'empty_active_flow':
+      return 'Adaugă pas minim'
+    case 'missing_step_name':
+      return 'Numește pașii'
+    case 'missing_actor':
+      return 'Completează aprobator'
+    case 'invalid_deadline':
+      return 'Setează 1 zi'
+    case 'free_text_condition':
+      return 'Convertește regula'
+    case 'missing_rule_value':
+      return 'Pune valoare implicită'
+    case 'duplicate_document_type':
+      return 'Dezactivează duplicate'
+    default:
+      return ''
+  }
+}
+
+function defaultWorkflowActorRef(actorType) {
+  if (actorType === 'department') return 'Departament responsabil'
+  if (actorType === 'user') return 'Responsabil document'
+  if (actorType === 'manager') return 'Manager direct'
+  return 'Manager'
+}
+
+function defaultWorkflowRuleValue(rule, settings = {}) {
+  if (rule?.field === 'estimated_value') return '0'
+  if (rule?.field === 'department') return 'Departament beneficiar'
+  if (rule?.field === 'priority') return 'urgent'
+  if (rule?.field === 'country') return settings.country || 'RO'
+  if (rule?.field === 'cost_center') return 'CC-ADMIN'
+  if (rule?.field === 'source') return 'manual'
+  return ''
+}
+
+function inferWorkflowConditionRuleFromText(condition, settings = {}) {
+  const text = String(condition || '').trim()
+  const key = compactWorkflowKey(text)
+  if (!key || key === 'mereu' || key.includes('dupaaprobare')) return { field: 'always', operator: '=', value: '' }
+  if (key.includes('pesteprag')) return { field: 'estimated_value', operator: '>=', value: '10000' }
+  if (key.includes('valoare')) return { field: 'estimated_value', operator: '>', value: '0' }
+  if (key.includes('urgent')) return { field: 'priority', operator: '=', value: 'urgent' }
+  if (key.includes('critic')) return { field: 'priority', operator: '=', value: 'critic' }
+  if (key.includes('departament')) return { field: 'department', operator: '=', value: 'Departament beneficiar' }
+  if (key.includes('tara') || key.includes('jurisdictie')) return { field: 'country', operator: '=', value: settings.country || 'RO' }
+  if (key.includes('sursa') || key.includes('email')) return { field: 'source', operator: 'contains', value: key.includes('email') ? 'email' : 'manual' }
+  return { field: 'always', operator: '=', value: '' }
 }
 
 const fallbackCountryProfiles = [
@@ -1831,6 +1893,79 @@ export default function SetariPage() {
     const conditionRule = normalizeWorkflowConditionRuleClient(preset.rule || {})
     setWorkflowConditionDrafts(current => ({ ...current, [`${flowId}:${stepIndex}`]: conditionRule }))
     updateWorkflowStep(flowId, stepIndex, { condition: preset.value, condition_rule: conditionRule })
+  }
+
+  function repairWorkflowDiagnostic(item) {
+    if (!item?.code) return
+    let repaired = false
+    setWorkflowDocumentFlows(workflowDocumentFlows.map(flow => {
+      if (item.code === 'duplicate_document_type') {
+        if ((item.duplicate_flow_ids || []).includes(flow.id)) {
+          repaired = true
+          return { ...flow, active: false }
+        }
+        return flow
+      }
+      if (flow.id !== item.flowId) return flow
+      repaired = true
+      if (item.code === 'missing_label') {
+        return { ...flow, label: flow.document_type ? `Flux ${flow.document_type}` : `Flux ${flow.id || 'document'}` }
+      }
+      if (item.code === 'missing_document_type') {
+        return { ...flow, document_type: compactWorkflowKey(flow.id || flow.label || 'document') || 'document' }
+      }
+      if (item.code === 'empty_active_flow') {
+        return {
+          ...flow,
+          steps: [{
+            name: 'Verificare și aprobare',
+            actor_type: 'role',
+            actor_ref: 'Manager',
+            deadline_days: 1,
+            required: true,
+            condition: 'mereu',
+            condition_rule: { field: 'always', operator: '=', value: '' },
+          }],
+        }
+      }
+      if (item.code === 'missing_step_name') {
+        return {
+          ...flow,
+          steps: (flow.steps || []).map((step, index) => ({
+            ...step,
+            name: String(step.name || '').trim() || `Pas ${index + 1}`,
+          })),
+        }
+      }
+      if (Number.isInteger(item.stepIndex)) {
+        return {
+          ...flow,
+          steps: (flow.steps || []).map((step, index) => {
+            if (index !== item.stepIndex) return step
+            if (item.code === 'missing_actor') {
+              return { ...step, actor_ref: defaultWorkflowActorRef(step.actor_type) }
+            }
+            if (item.code === 'invalid_deadline') {
+              return { ...step, deadline_days: 1 }
+            }
+            if (item.code === 'free_text_condition') {
+              const conditionRule = normalizeWorkflowConditionRuleClient(inferWorkflowConditionRuleFromText(step.condition, settings))
+              return { ...step, condition: buildWorkflowConditionLabel(conditionRule), condition_rule: conditionRule }
+            }
+            if (item.code === 'missing_rule_value') {
+              const conditionRule = normalizeWorkflowConditionRuleClient({
+                ...(step.condition_rule || defaultWorkflowConditionDraft()),
+                value: defaultWorkflowRuleValue(step.condition_rule || defaultWorkflowConditionDraft(), settings),
+              })
+              return { ...step, condition: buildWorkflowConditionLabel(conditionRule), condition_rule: conditionRule }
+            }
+            return step
+          }),
+        }
+      }
+      return flow
+    }))
+    if (repaired) notify('Am reparat draftul local. Verifică rezultatul și apasă „Salvează fluxurile”.')
   }
 
   function addWorkflowStep(flowId) {
@@ -3931,7 +4066,7 @@ export default function SetariPage() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Diagnostic workflow</div>
                   <h3 className="mt-1 text-lg font-semibold text-slate-900">Calitatea șabloanelor înainte de folosire</h3>
                   <p className="mt-1 text-sm text-slate-600">
-                    Verifică automat fluxurile active, actorii, regulile și pașii incompleți. Nu modifică nimic; doar îți arată ce merită corectat.
+                    Verifică automat fluxurile active, actorii, regulile și pașii incompleți. Reparațiile propuse schimbă doar draftul local; confirmarea se face cu „Salvează fluxurile”.
                   </p>
                 </div>
                 <Badge tone={workflowDiagnostics.ok ? 'success' : workflowDiagnostics.critical ? 'danger' : 'warning'}>
@@ -3961,13 +4096,22 @@ export default function SetariPage() {
                 <div className="mt-4 grid gap-2">
                   {workflowDiagnostics.items.slice(0, 8).map((item, index) => (
                     <div key={`${item.title}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={workflowDiagnosticTone(item.level)} size="sm">
-                          {item.level === 'critical' ? 'critic' : item.level === 'warning' ? 'avertizare' : 'info'}
-                        </Badge>
-                        <span className="font-semibold text-slate-900">{item.title}</span>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge tone={workflowDiagnosticTone(item.level)} size="sm">
+                              {item.level === 'critical' ? 'critic' : item.level === 'warning' ? 'avertizare' : 'info'}
+                            </Badge>
+                            <span className="font-semibold text-slate-900">{item.title}</span>
+                          </div>
+                          <div className="mt-1 text-sm text-slate-600">{item.detail}</div>
+                        </div>
+                        {workflowDiagnosticActionLabel(item) ? (
+                          <Button size="sm" variant="secondary" onClick={() => repairWorkflowDiagnostic(item)}>
+                            {workflowDiagnosticActionLabel(item)}
+                          </Button>
+                        ) : null}
                       </div>
-                      <div className="mt-1 text-sm text-slate-600">{item.detail}</div>
                     </div>
                   ))}
                   {workflowDiagnostics.items.length > 8 ? (

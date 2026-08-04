@@ -140,6 +140,7 @@ Stadiu implementare:
 - `v2.12.465`: simulatorul evaluează safe `condition_rule` și marchează pașii care se aplică, ar fi săriți sau au date lipsă.
 - `v2.12.466`: Setări afișează diagnostic read-only pentru fluxuri incomplete, aprobatori lipsă, reguli cu valori lipsă și condiții text libere.
 - `v2.12.467`: engine-ul aplică `condition_rule` la lansarea documentului și sare doar pașii cu reguli structurate evaluate fals.
+- `v2.12.468`: diagnosticul oferă reparații ghidate în draft pentru aprobatori lipsă, termene, reguli și duplicate, cu salvare explicită de către administrator.
 - Următorul pas: afișarea explicită în dosarul documentului a pașilor săriți și a motivului evaluării.
 
 ## Reguli de decuplare de client

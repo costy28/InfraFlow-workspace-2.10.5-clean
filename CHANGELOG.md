@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.468 - 2026-08-04
+
+## Reparare ghidată pentru workflow configurabil
+
+- Diagnosticul din `Setări > Module` afișează acum acțiuni de remediere direct pe observațiile găsite.
+- Reparațiile se aplică doar în draftul local al fluxurilor și trebuie confirmate explicit cu „Salvează fluxurile”.
+- Sunt acoperite aprobatorii lipsă, termenele invalide, pașii fără nume, fluxurile fără pași, regulile text libere, valorile lipsă și duplicatele pe tip document.
+- Conversia condițiilor text libere folosește reguli structurate conservative, ca engine-ul real să le poată evalua fără expresii tehnice.
+- Simulatorul rămâne următorul control vizual după fiecare reparare.
+
 # v2.12.467 - 2026-08-03
 
 ## Aplicare controlată a regulilor workflow în engine
