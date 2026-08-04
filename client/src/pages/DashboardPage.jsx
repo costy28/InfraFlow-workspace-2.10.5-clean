@@ -237,6 +237,46 @@ function priorityTone(priority) {
   return 'neutral'
 }
 
+function documentRoute(document) {
+  const id = document?.uuid || document?.id
+  return id ? `${routes.documents}?document=${encodeURIComponent(String(id))}` : routes.documents
+}
+
+function formatShortDate(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10)
+  return date.toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' })
+}
+
+function documentDueState(document) {
+  const raw = document?.termen_limita || document?.due_date || document?.deadline
+  if (!raw) return { label: 'fără termen', tone: 'neutral', sort: 30 }
+  const due = new Date(raw)
+  if (Number.isNaN(due.getTime())) return { label: String(raw).slice(0, 10), tone: 'neutral', sort: 25 }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dueDay = new Date(due)
+  dueDay.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((dueDay - today) / 86400000)
+  if (diffDays < 0) return { label: `întârziat ${Math.abs(diffDays)}z`, tone: 'danger', sort: 0 }
+  if (diffDays === 0) return { label: 'azi', tone: 'danger', sort: 1 }
+  if (diffDays === 1) return { label: 'mâine', tone: 'warning', sort: 2 }
+  if (diffDays <= 3) return { label: `${diffDays} zile`, tone: 'warning', sort: 3 + diffDays }
+  return { label: formatShortDate(raw), tone: 'neutral', sort: 20 + diffDays }
+}
+
+function documentTitle(document) {
+  return document?.nr_document || document?.titlu || document?.title || `Document #${document?.id || ''}`.trim()
+}
+
+function documentSubtitle(document) {
+  return [
+    document?.tip_document || document?.type || document?.tip || 'document',
+    document?.departament || document?.dept_initiatoare || document?.department,
+  ].filter(Boolean).join(' · ')
+}
+
 function assetIsActive(asset) {
   const status = String(asset.status || asset.stare || '').toLowerCase()
   return ['activ', 'active', 'in_lucru', 'ocupat', 'disponibil', 'available'].includes(status)
@@ -571,7 +611,7 @@ function CommandCenterPanel({ data, loading, error, onNavigate }) {
                 {blocked.slice(0, 5).map(doc => (
                   <button
                     key={doc.id || doc.uuid}
-                    onClick={() => onNavigate('/documente')}
+                    onClick={() => onNavigate(documentRoute(doc))}
                     className="flex items-center justify-between gap-2 rounded-md border border-rose-200 bg-white px-3 py-2 text-left transition hover:border-rose-400 hover:shadow-sm"
                   >
                     <div className="min-w-0">
@@ -688,6 +728,85 @@ function MiniTable({ columns, rows, empty }) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+function DocumentWorklistPanel({ inboxDocuments = [], blockedDocuments = [], loading, error, onNavigate }) {
+  const blockedById = new Map(blockedDocuments.map(document => [String(document.uuid || document.id), document]))
+  const merged = [
+    ...blockedDocuments.map(document => ({
+      ...document,
+      _source: 'blocked',
+      _blockedHours: document.hoursBlocked,
+    })),
+    ...inboxDocuments
+      .filter(document => !blockedById.has(String(document.uuid || document.id)))
+      .map(document => ({
+        ...document,
+        _source: 'inbox',
+      })),
+  ]
+    .map(document => ({
+      ...document,
+      _due: documentDueState(document),
+      _priorityTone: document._source === 'blocked' ? 'danger' : priorityTone(document.prioritate || document.priority),
+    }))
+    .sort((a, b) => {
+      const blockedDiff = (a._source === 'blocked' ? 0 : 1) - (b._source === 'blocked' ? 0 : 1)
+      if (blockedDiff) return blockedDiff
+      return (a._due?.sort ?? 99) - (b._due?.sort ?? 99)
+    })
+
+  const blockedCount = blockedDocuments.length
+  const inboxCount = inboxDocuments.length
+
+  return (
+    <Card>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">Documente care cer acțiune</h3>
+          <p className="text-xs text-slate-500">Inbox, blocaje și termene într-o singură listă scurtă.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {blockedCount ? <Badge tone="danger">{blockedCount} blocate</Badge> : null}
+          {inboxCount ? <Badge tone="warning">{inboxCount} în inbox</Badge> : null}
+          <Button size="sm" variant="secondary" onClick={() => onNavigate(routes.documents)}>Vezi toate</Button>
+        </div>
+      </div>
+      <SectionError error={error} />
+      <div className="grid gap-2">
+        {loading ? [1, 2, 3].map(item => <Skeleton key={item} className="h-14" />) : (
+          merged.length ? merged.slice(0, 6).map(document => (
+            <button
+              key={`${document._source}-${document.uuid || document.id}`}
+              className={`rounded-md border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                document._source === 'blocked'
+                  ? 'border-rose-200 bg-rose-50/60 hover:border-rose-300'
+                  : 'border-slate-200 bg-white hover:border-primary-200'
+              }`}
+              onClick={() => onNavigate(documentRoute(document))}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-900">{documentTitle(document)}</div>
+                  <div className="truncate text-xs text-slate-500">{documentSubtitle(document)}</div>
+                </div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                  {document._source === 'blocked' ? <Badge tone="danger">{hoursLabel(document._blockedHours)}</Badge> : null}
+                  <Badge tone={document._due.tone}>{document._due.label}</Badge>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                  {document._source === 'blocked' ? 'blocaj circuit' : 'așteaptă aprobarea ta'}
+                </span>
+                <Badge tone={document._priorityTone}>{document.prioritate || document.priority || statusText(document.status)}</Badge>
+              </div>
+            </button>
+          )) : <p className="py-5 text-sm text-slate-500">Nu sunt documente de aprobat sau blocaje vizibile.</p>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -1145,6 +1264,7 @@ export default function DashboardPage() {
     const contractsTasks = arrayFrom(data.contractsTasks, ['tasks', 'items'])
     const myTasks = arrayFrom(data.myTasks, ['tasks', 'items'])
     const leaveRequests = arrayFrom(data.leaveRequests, ['requests', 'leaveRequests', 'items'])
+    const blockedDocuments = arrayFrom(data.commandCenter?.documentsBlocked, ['documents', 'items'])
     const profile = dashboardProfile(user)
 
     const nextView = {
@@ -1159,6 +1279,7 @@ export default function DashboardPage() {
       contractsDashboard: data.contractsDashboard || {},
       contractsTasks,
       myTasks,
+      blockedDocuments,
       hrStats: data.hrStats || {},
       leaveRequests,
       accountingSummary: data.accountingSummary || {},
@@ -1326,19 +1447,13 @@ export default function DashboardPage() {
           />
         </Card>
 
-        <Card className="cursor-pointer" onClick={() => navigate(routes.documents)}>
-          <h3 className="mb-4 text-base font-semibold text-slate-900">Documente în așteptare</h3>
-          <div className="grid gap-2">
-            {loading ? [1, 2, 3].map(item => <Skeleton key={item} className="h-11" />) : (
-              view.inboxDocuments.length ? view.inboxDocuments.slice(0, 8).map(document => (
-                <div key={document.uuid || document.id} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2">
-                  <span className="truncate text-sm font-medium text-slate-900">{document.nr_document || document.titlu}</span>
-                  <Badge tone="warning">{statusText(document.status)}</Badge>
-                </div>
-              )) : <p className="text-sm text-slate-500">Nu sunt documente de aprobat.</p>
-            )}
-          </div>
-        </Card>
+        <DocumentWorklistPanel
+          inboxDocuments={view.inboxDocuments}
+          blockedDocuments={view.blockedDocuments}
+          loading={loading}
+          error={errors.inboxDocuments || errors.commandCenter}
+          onNavigate={navigate}
+        />
 
         <Card className="cursor-pointer" onClick={() => navigate(routes.audit)}>
           <h3 className="mb-4 text-base font-semibold text-slate-900">Activitate recentă</h3>

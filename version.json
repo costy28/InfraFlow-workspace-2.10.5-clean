@@ -1,5 +1,5 @@
 {
-  "version": "2.12.473",
+  "version": "2.12.474",
   "date": "2026-08-04",
-  "changelog": "## v2.12.473 - 2026-08-04\n### Acțiuni rapide în dosarul documentului\n- Dosarul documentului afișează un panou „Următorul pas” cu acțiunea potrivită pentru statusul curent.\n- Dacă utilizatorul are pas de aprobare, vede direct Aprobă și Respinge.\n- Dacă pasul așteaptă alt responsabil, poate crea rapid un task precompletat pentru acel pas.\n- Documentele draft pot fi lansate în circuit direct din dosar, fără revenire în formular."
+  "changelog": "## v2.12.474 - 2026-08-04\n### Radar compact documente pe Dashboard\n- Dashboard-ul afișează documentele care cer acțiune într-o listă compactă.\n- Documentele din inbox și cele blocate sunt grupate într-un singur panou.\n- Fiecare rând arată termenul, prioritatea și motivul pentru care documentul cere atenție.\n- Click-ul deschide direct dosarul documentului, nu doar pagina generală Documente."
 }

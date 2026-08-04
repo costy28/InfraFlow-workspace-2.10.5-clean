@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.473**
-**Versiune în lucru: v2.12.473**
+**Versiune curentă sursă: v2.12.474**
+**Versiune în lucru: v2.12.474**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -221,6 +221,7 @@ Core System
   ✅ Audit persistat pentru modificările workflow configurabil (v2.12.471)
   ✅ Audit decizii workflow în dosarul documentului (v2.12.472)
   ✅ Acțiuni rapide în dosarul documentului (v2.12.473)
+  ✅ Radar compact documente pe Dashboard (v2.12.474)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -360,6 +361,7 @@ Workflow
   ✅ Modificările șabloanelor workflow sunt păstrate într-un istoric dedicat (v2.12.471)
   ✅ Dosarul documentului afișează auditul deciziilor reale din circuit (v2.12.472)
   ✅ Dosarul documentului afișează următorul pas și acțiuni rapide de deblocare (v2.12.473)
+  ✅ Dashboard-ul afișează un radar compact pentru documente în inbox sau blocate (v2.12.474)
 
 Comunicare
   ✅ Chat intern pe canale, mențiuni și notificări live
@@ -765,6 +767,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Audit persistat pentru modificarea șabloanelor workflow ✅ Fundație v2.12.471
       → Audit decizii reale din circuit vizibil în dosarul documentului ✅ Fundație v2.12.472
       → Acțiuni rapide din dosarul documentului când un pas este blocat ✅ Fundație v2.12.473
+      → Radar compact pe Dashboard pentru inbox, blocaje și termene documente ✅ Fundație v2.12.474
 
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
@@ -839,9 +842,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.473
+VERSIUNE CURENTĂ SURSĂ: 2.12.474
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.473 ✅
+UPDATE ZIP CURENT: 2.12.474 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1123,6 +1126,7 @@ UPDATES ÎN LUCRU:
   2.12.471 → UPDATE 491 Audit workflow persistat ✅
   2.12.472 → UPDATE 492 Audit decizii workflow document ✅
   2.12.473 → UPDATE 493 Acțiuni rapide dosar document ✅
+  2.12.474 → UPDATE 494 Radar compact documente Dashboard ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1617,5 +1621,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.473*
+*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.474*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

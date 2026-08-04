@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.474 - 2026-08-04
+
+## Radar compact documente pe Dashboard
+
+- Dashboard-ul are un panou „Documente care cer acțiune”, cu inbox și blocaje în aceeași listă.
+- Documentele blocate apar primele, cu vechimea blocajului și marcaj vizual de risc.
+- Documentele din inbox afișează termenul, prioritatea și motivul pentru care cer acțiune.
+- Click-ul deschide direct dosarul documentului prin deep-link, nu doar pagina generală Documente.
+- Cardul vechi „Documente în așteptare” a fost înlocuit cu o listă mai practică pentru lucru zilnic.
+
 # v2.12.473 - 2026-08-04
 
 ## Acțiuni rapide în dosarul documentului
