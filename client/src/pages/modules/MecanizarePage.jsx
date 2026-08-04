@@ -1110,7 +1110,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       {activeTab === 'Dashboard' ? (
         <div className="grid gap-4">
           {/* KPI cards */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 2xl:grid-cols-7">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 2xl:grid-cols-8">
             {[
               { label: 'Total echipamente', value: dashboard?.stats?.totalUtilaje ?? '…', icon: '🏗️' },
               { label: 'Total vehicule', value: dashboard?.stats?.totalVehicule ?? '…', icon: '🚗' },
@@ -1119,6 +1119,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               { label: 'Alerte documente', value: dashboard?.stats?.alerteDocumente ?? '…', icon: '⚠️', tone: 'rose' },
               { label: `Cost ${dashboard?.luna || 'lună'}`, value: dashboard ? money(dashboard?.stats?.costLuna) : '…', icon: '💰', small: true },
               { label: `Litri ${dashboard?.luna || 'lună'}`, value: dashboard ? `${Number(dashboard?.stats?.litriLuna || 0).toFixed(2)} L` : '…', icon: '⛽', small: true },
+              { label: 'Sold carburant estimat', value: dashboard ? `${Number(dashboard?.stats?.soldCarburantEstimat || 0).toFixed(2)} L` : '…', icon: '🛢️', small: true, tone: dashboard?.fuelStockEstimate?.status === 'critic' ? 'rose' : dashboard?.fuelStockEstimate?.status === 'atentie' ? 'amber' : '' },
             ].map(k => (
               <Card key={k.label} className="text-center">
                 <div className="text-2xl">{k.icon}</div>
@@ -1127,6 +1128,37 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               </Card>
             ))}
           </div>
+
+          {dashboard?.fuelStockEstimate ? (
+            <Card className={dashboard.fuelStockEstimate.status === 'critic' ? 'border-rose-200 bg-rose-50' : dashboard.fuelStockEstimate.status === 'atentie' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">Control carburant estimat</div>
+                  <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                    Sold estimat {dashboard.luna}: {Number(dashboard.fuelStockEstimate.sold_estimat_litri || 0).toFixed(2)} L
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-700">{dashboard.fuelStockEstimate.message}</p>
+                  <p className="mt-1 text-xs text-slate-500">Sursă: {dashboard.fuelStockEstimate.source}. Nu înlocuiește inventarul fizic al rezervorului/stocului.</p>
+                </div>
+                <div className="grid min-w-[280px] grid-cols-3 gap-2 text-center text-sm">
+                  <div className="rounded-lg bg-white/80 p-3">
+                    <div className="text-xs text-slate-500">Intrări</div>
+                    <div className="font-bold text-slate-900">{Number(dashboard.fuelStockEstimate.intrari_litri || 0).toFixed(2)} L</div>
+                  </div>
+                  <div className="rounded-lg bg-white/80 p-3">
+                    <div className="text-xs text-slate-500">Consum</div>
+                    <div className="font-bold text-slate-900">{Number(dashboard.fuelStockEstimate.consum_litri || 0).toFixed(2)} L</div>
+                  </div>
+                  <div className="rounded-lg bg-white/80 p-3">
+                    <div className="text-xs text-slate-500">Sold</div>
+                    <div className={`font-bold ${dashboard.fuelStockEstimate.status === 'critic' ? 'text-rose-700' : dashboard.fuelStockEstimate.status === 'atentie' ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {Number(dashboard.fuelStockEstimate.sold_estimat_litri || 0).toFixed(2)} L
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ) : null}
 
           <Card className="border-emerald-200 bg-emerald-50/60">
             <div className="flex flex-wrap items-start justify-between gap-3">

@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.478 - 2026-08-04
+
+## Alertă carburant estimat în Mecanizare
+
+- Dashboard-ul Parc & Resurse calculează soldul estimat al carburantului pentru luna curentă.
+- Calculul folosește alimentările introduse/importate minus consumul real din bonurile de lucru.
+- Cardul nou afișează intrări, consum, sold și mesaj `ok`, `atenție` sau `critic`.
+- Funcția este independentă de PIUSI și rămâne compatibilă cu alimentări manuale sau adaptoare viitoare.
+- Interfața precizează că soldul este estimat și nu înlocuiește inventarul fizic.
+
 # v2.12.477 - 2026-08-04
 
 ## Catalog manual Parc & Resurse

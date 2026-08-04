@@ -409,6 +409,22 @@ router.get('/mechanization/dashboard', (req, res) => {
     cantitate_litri: round2(fuelThisMonth.reduce((sum, fuel) => sum + num(fuel.cantitate_litri), 0)),
     valoare_totala: round2(fuelThisMonth.reduce((sum, fuel) => sum + num(fuel.valoare_totala), 0)),
   }
+  const workOrdersThisMonth = m.workOrders.filter(wo => dateInMonth(wo.date, luna))
+  const consumedThisMonth = round2(workOrdersThisMonth.reduce((sum, wo) => sum + num(wo.consum_carburant), 0))
+  const estimatedFuelBalance = round2(fuelTotalsThisMonth.cantitate_litri - consumedThisMonth)
+  const fuelStockEstimate = {
+    luna,
+    intrari_litri: fuelTotalsThisMonth.cantitate_litri,
+    consum_litri: consumedThisMonth,
+    sold_estimat_litri: estimatedFuelBalance,
+    status: estimatedFuelBalance < 0 ? 'critic' : estimatedFuelBalance <= Math.max(25, consumedThisMonth * 0.1) ? 'atentie' : 'ok',
+    message: estimatedFuelBalance < 0
+      ? 'Consumul raportat depășește alimentările înregistrate. Verifică alimentările lipsă sau consumurile introduse.'
+      : estimatedFuelBalance <= Math.max(25, consumedThisMonth * 0.1)
+        ? 'Soldul estimat este mic față de consumul lunii. Verifică dacă trebuie alimentat sau completate intrări.'
+        : 'Soldul estimat este în regulă pentru datele introduse.',
+    source: 'alimentări introduse/importate minus consum real din bonuri de lucru',
+  }
 
   const highConsumption = m.workOrders
     .filter(wo => dateInMonth(wo.date, luna))
@@ -441,6 +457,8 @@ router.get('/mechanization/dashboard', (req, res) => {
       alerteDocumente: alerts.length,
       costLuna: costData.totals.cost_total,
       litriLuna: fuelTotalsThisMonth.cantitate_litri,
+      consumLitriLuna: fuelStockEstimate.consum_litri,
+      soldCarburantEstimat: fuelStockEstimate.sold_estimat_litri,
     },
     planningsToday,
     recentWorkOrders,
@@ -448,6 +466,7 @@ router.get('/mechanization/dashboard', (req, res) => {
     alerts: alerts.slice(0, 10),
     topCostHour,
     fuelTotalsThisMonth,
+    fuelStockEstimate,
     highConsumption,
     openInterventions,
   })
