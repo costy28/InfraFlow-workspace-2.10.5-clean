@@ -13,7 +13,7 @@ import { exportExcel } from '../../utils/export'
 
 const tabGroups = [
   { label: 'Parc', tabs: ['Parc Utilaje', 'Planificare'] },
-  { label: 'Operatiuni', tabs: ['Bonuri Lucru', 'Alimentări', 'Alimentări PIUSI', 'Intervenții'] },
+  { label: 'Operatiuni', tabs: ['Bonuri Lucru', 'Alimentări', 'Import carburant', 'Intervenții'] },
   { label: 'Scadente', tabs: ['Revizii predictive', 'Alerte & ISCIR', 'Scadențe & Asigurări'] },
   { label: 'Rapoarte', tabs: ['Cost/oră', 'FAZ Lunar', 'Raport Lunar'] },
 ]
@@ -88,6 +88,27 @@ const emptyFuelForm = {
   data: today(), asset_id: '', nr_document: '', furnizor: '',
   cantitate_litri: '', pret_litru: '', valoare_totala: '',
   km_ore: '', sofer_operator: '', cost_center_id: '', observatii: '',
+}
+
+const emptyAssetForm = {
+  category: 'vehicle',
+  name: '',
+  registration: '',
+  cod: '',
+  type: '',
+  brand: '',
+  model: '',
+  year: '',
+  department: '',
+  cost_center_id: '',
+  meterUnit: 'km',
+  currentMeter: '',
+  fuelType: 'motorina',
+  tankCapacity: '',
+  standardConsumption: '',
+  nextInspectionDate: '',
+  nextServiceDate: '',
+  notes: '',
 }
 
 const scadenteTabs = ['Expirări', 'RCA/CASCO', 'ITP', 'Taxe', 'ISCIR', 'Raport']
@@ -168,6 +189,8 @@ export default function MecanizarePage() {
   const [fleetDocModal, setFleetDocModal] = useState(false)
   const [fleetDocKind, setFleetDocKind] = useState('asigurare')
   const [fleetDocForm, setFleetDocForm] = useState(emptyFleetDocForm)
+  const [assetModal, setAssetModal] = useState(false)
+  const [assetForm, setAssetForm] = useState(emptyAssetForm)
 
   // modals
   const [planModal, setPlanModal] = useState(false)
@@ -308,7 +331,7 @@ export default function MecanizarePage() {
   useEffect(() => { if (activeTab === 'Planificare')  loadPlannings() }, [activeTab, planDate])
   useEffect(() => { if (activeTab === 'Bonuri Lucru') loadWorkOrders() }, [activeTab, woLuna])
   useEffect(() => { if (activeTab === 'Alimentări') loadFuelLogs() }, [activeTab, fuelLuna])
-  useEffect(() => { if (activeTab === 'Alimentări PIUSI') loadPiusiFuelRows() }, [activeTab, piusiFilters])
+  useEffect(() => { if (activeTab === 'Import carburant') loadPiusiFuelRows() }, [activeTab, piusiFilters])
   useEffect(() => { if (activeTab === 'Intervenții')  loadInterventions() }, [activeTab])
   useEffect(() => { if (activeTab === 'Revizii predictive') loadRevisions() }, [activeTab])
   useEffect(() => { if (activeTab === 'Alerte & ISCIR') loadMechanizationAlerts() }, [activeTab])
@@ -346,6 +369,32 @@ export default function MecanizarePage() {
   }, [costCenters])
 
   // ── actions ─────────────────────────────────────────────────────────────────
+  function openAssetModal(category = 'vehicle') {
+    setAssetForm({
+      ...emptyAssetForm,
+      category,
+      meterUnit: category === 'equipment' ? 'hours' : 'km',
+      type: category === 'equipment' ? 'utilaj' : 'autovehicul',
+    })
+    setAssetModal(true)
+  }
+
+  async function saveFleetAsset(ev) {
+    ev.preventDefault(); setError('')
+    try {
+      const payload = {
+        ...assetForm,
+        tip_asset: assetForm.category === 'equipment' ? 'utilaj' : 'autovehicul',
+      }
+      await api.post('/fleet-assets', payload)
+      setAssetModal(false)
+      setAssetForm(emptyAssetForm)
+      await loadAll()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Eroare la adăugarea autovehiculului / utilajului.')
+    }
+  }
+
   async function savePlanning(ev) {
     ev.preventDefault(); setError('')
     try {
@@ -479,15 +528,15 @@ export default function MecanizarePage() {
 
   async function importPiusiInFaz() {
     const count = piusiFuelRows.filter(row => row.asset_id && row.procesat !== true).length
-    if (!count) { setError('Nu există alimentări PIUSI mapate și neprocesate.'); return }
+    if (!count) { setError('Nu există alimentări importate, mapate și neprocesate.'); return }
     setConfirmAction({
-      title: 'Importă alimentări PIUSI',
-      message: `Importi ${count} alimentări PIUSI în FAZ/alimentări mecanizare?`,
+      title: 'Importă alimentări în FAZ',
+      message: `Importi ${count} alimentări mapate în FAZ/alimentări mecanizare?`,
       details: 'Vor fi preluate doar alimentările mapate pe utilaj/vehicul și neprocesate încă.',
       confirmLabel: 'Importă în FAZ',
       tone: 'warning',
       run: importPiusiInFazRequest,
-      errorMessage: 'Importul PIUSI în FAZ a eșuat.',
+      errorMessage: 'Importul alimentărilor în FAZ a eșuat.',
     })
   }
 
@@ -498,7 +547,7 @@ export default function MecanizarePage() {
       await loadPiusiFuelRows()
       await loadFuelLogs()
     } catch (err) {
-      setError(err.response?.data?.error || 'Importul PIUSI în FAZ a eșuat.')
+      setError(err.response?.data?.error || 'Importul alimentărilor în FAZ a eșuat.')
     }
   }
 
@@ -706,11 +755,11 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       },
       {
         key: 'fuel',
-        label: 'PIUSI',
+        label: 'Import carburant',
         value: unmappedPiusiRows,
         hint: unmappedPiusiRows ? 'alimentări nemapate' : 'mapări curate',
         tone: unmappedPiusiRows ? 'danger' : 'success',
-        action: () => setActiveTab(unmappedPiusiRows ? 'Alimentări PIUSI' : 'Alimentări'),
+        action: () => setActiveTab(unmappedPiusiRows ? 'Import carburant' : 'Alimentări'),
       },
       {
         key: 'alerts',
@@ -746,10 +795,10 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       },
       {
         key: 'fuel',
-        label: unmappedPiusiRows ? `PIUSI nemapate · ${unmappedPiusiRows}` : 'Alimentări curate',
-        hint: 'Alimentările PIUSI trebuie mapate pe utilaj înainte de rapoarte.',
+        label: unmappedPiusiRows ? `Import nemapat · ${unmappedPiusiRows}` : 'Alimentări curate',
+        hint: 'Alimentările importate trebuie mapate pe utilaj/vehicul înainte de rapoarte.',
         done: unmappedPiusiRows === 0,
-        onClick: () => setActiveTab(unmappedPiusiRows ? 'Alimentări PIUSI' : 'Alimentări'),
+        onClick: () => setActiveTab(unmappedPiusiRows ? 'Import carburant' : 'Alimentări'),
       },
       {
         key: 'alerts',
@@ -855,11 +904,11 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
         key: 'fuel',
         label: 'Combustibil / intervenții',
         title: unmappedPiusiRows || openInterventions ? 'Curăță alimentările și intervențiile' : 'Consum și intervenții fără blocaje',
-        detail: `${unmappedPiusiRows} alimentări PIUSI nemapate · ${openInterventions} intervenții deschise · ${money(fuelValue)} cost/lună.`,
+        detail: `${unmappedPiusiRows} alimentări importate nemapate · ${openInterventions} intervenții deschise · ${money(fuelValue)} cost/lună.`,
         tone: unmappedPiusiRows ? 'danger' : openInterventions ? 'warning' : 'success',
         done: unmappedPiusiRows === 0 && openInterventions === 0,
-        actionLabel: unmappedPiusiRows ? 'Alimentări PIUSI' : openInterventions ? 'Intervenții' : 'Alimentări',
-        action: () => setActiveTab(unmappedPiusiRows ? 'Alimentări PIUSI' : openInterventions ? 'Intervenții' : 'Alimentări'),
+        actionLabel: unmappedPiusiRows ? 'Import carburant' : openInterventions ? 'Intervenții' : 'Alimentări',
+        action: () => setActiveTab(unmappedPiusiRows ? 'Import carburant' : openInterventions ? 'Intervenții' : 'Alimentări'),
       },
       {
         key: 'report',
@@ -1023,7 +1072,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">De reținut</div>
                 <ul className="grid gap-2 text-sm text-slate-700">
                   <li>Bonurile de lucru închise sunt baza pentru FAZ, cost/oră și raportul lunar.</li>
-                  <li>Alimentările PIUSI nemapate strică raportul de consum și diferențele normate.</li>
+                  <li>Alimentările importate nemapate strică raportul de consum și diferențele normate.</li>
                   <li>O resursă cu RCA, ITP, ISCIR sau service critic trebuie verificată înainte de alocare.</li>
                 </ul>
               </div>
@@ -1261,6 +1310,22 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       {/* ── PARC UTILAJE ─────────────────────────────────────────────────────── */}
       {activeTab === 'Parc Utilaje' ? (
         <div className="grid gap-4">
+          <Card className="border-emerald-200 bg-emerald-50">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Catalog propriu</div>
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">Adaugă manual autovehicule și utilaje.</h2>
+                <p className="mt-1 max-w-3xl text-sm text-slate-600">
+                  InfraFlow pornește de la parcul introdus de organizație. Importurile din Autominder, PIUSI sau alți furnizori rămân adaptoare opționale, nu sursa implicită.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => openAssetModal('vehicle')}>+ Autovehicul</Button>
+                <Button variant="secondary" onClick={() => openAssetModal('equipment')}>+ Utilaj</Button>
+              </div>
+            </div>
+          </Card>
+
           <Card>
             <div className="grid gap-3 sm:grid-cols-4">
               <Input label="Caută" value={searchAsset} onChange={e => setSearchAsset(e.target.value)} placeholder="Nume, nr. înmatriculare…" />
@@ -1347,7 +1412,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             })}
             {filteredAssets.length === 0 ? (
               <div className="col-span-3 rounded-xl border-2 border-dashed border-slate-200 py-16 text-center text-sm text-slate-400">
-                {loading ? 'Se încarcă…' : 'Nu s-au găsit utilaje / vehicule.'}
+                {loading ? 'Se încarcă…' : 'Nu s-au găsit utilaje / vehicule. Adaugă manual primul autovehicul sau utilaj.'}
               </div>
             ) : null}
           </div>
@@ -1550,9 +1615,22 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
         </div>
       ) : null}
 
-      {/* ── ALIMENTĂRI PIUSI ────────────────────────────────────────────────── */}
-      {activeTab === 'Alimentări PIUSI' ? (
+      {/* ── IMPORT CARBURANT ────────────────────────────────────────────────── */}
+      {activeTab === 'Import carburant' ? (
         <div className="grid gap-4">
+          <Card className="border-sky-200 bg-sky-50">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-sky-700">Adaptor opțional</div>
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">Importă alimentări din softul folosit de companie.</h2>
+                <p className="mt-1 max-w-3xl text-sm text-slate-600">
+                  Momentan avem adaptor compatibil PIUSI. Direcția corectă este să putem adăuga și alți furnizori sau fișiere CSV/Excel, iar alimentările manuale rămân mereu disponibile.
+                </p>
+              </div>
+              <Button variant="secondary" onClick={() => { setFuelForm({ ...emptyFuelForm }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare manuală</Button>
+            </div>
+          </Card>
+
           <Card>
             <div className="flex flex-wrap items-end gap-3">
               <Input label="De la" type="date" value={piusiFilters.de_la} onChange={e => setPiusiFilters(f => ({ ...f, de_la: e.target.value }))} />
@@ -1572,7 +1650,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             <div className="grid gap-3 md:grid-cols-3">
               <Card className="text-center">
                 <div className="text-2xl font-bold text-slate-900">{Number(piusiReport.totals?.piusi_litri || 0).toFixed(2)} L</div>
-                <div className="text-xs text-slate-500">PIUSI pompă</div>
+                <div className="text-xs text-slate-500">Sursă importată</div>
               </Card>
               <Card className="text-center">
                 <div className="text-2xl font-bold text-slate-900">{Number(piusiReport.totals?.faz_litri || 0).toFixed(2)} L</div>
@@ -1591,7 +1669,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 <tr>
                   <th className="px-3 py-2">Data / Ora</th>
                   <th className="px-3 py-2">Vehicul</th>
-                  <th className="px-3 py-2">Cod PIUSI</th>
+                  <th className="px-3 py-2">Cod sursă</th>
                   <th className="px-3 py-2 text-right">Cantitate</th>
                   <th className="px-3 py-2 text-right">Odometru</th>
                   <th className="px-3 py-2">Cheie</th>
@@ -1617,7 +1695,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan="7" className="px-3 py-8 text-center text-sm text-slate-400">Nu există alimentări PIUSI pentru filtrul ales.</td></tr>
+                  <tr><td colSpan="7" className="px-3 py-8 text-center text-sm text-slate-400">Nu există alimentări importate pentru filtrul ales.</td></tr>
                 )}
               </tbody>
             </table>
@@ -2345,6 +2423,53 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setFleetDocModal(false)}>Renunță</Button>
             <Button type="submit">Salvează</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── MODAL ASSET PARC ────────────────────────────────────────────────── */}
+      <Modal open={assetModal} title={assetForm.category === 'equipment' ? 'Adaugă utilaj' : 'Adaugă autovehicul'} onClose={() => setAssetModal(false)} size="lg">
+        <form className="grid gap-3" onSubmit={saveFleetAsset}>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-slate-700">
+            Completează doar ce știi acum. Fișa completă poate fi îmbogățită ulterior cu scadențe, alimentări, intervenții și documente.
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Select label="Categorie" value={assetForm.category} onChange={e => setAssetForm({
+              ...assetForm,
+              category: e.target.value,
+              meterUnit: e.target.value === 'equipment' ? 'hours' : 'km',
+              type: e.target.value === 'equipment' ? 'utilaj' : 'autovehicul',
+            })} options={[
+              { value: 'vehicle', label: 'Autovehicul' },
+              { value: 'equipment', label: 'Utilaj / echipament' },
+            ]} />
+            <Input label="Denumire" value={assetForm.name} onChange={e => setAssetForm({ ...assetForm, name: e.target.value })} placeholder="ex: Autoutilitară, Excavator, Buldoexcavator" />
+            <Input label="Nr. înmatriculare / identificare" value={assetForm.registration} onChange={e => setAssetForm({ ...assetForm, registration: e.target.value })} placeholder="ex: NT-01-ABC sau cod intern" />
+            <Input label="Cod intern / inventar" value={assetForm.cod} onChange={e => setAssetForm({ ...assetForm, cod: e.target.value })} placeholder="opțional" />
+            <Input label="Tip" value={assetForm.type} onChange={e => setAssetForm({ ...assetForm, type: e.target.value })} placeholder="ex: camion, autoutilitară, excavator" />
+            <Input label="Marcă" value={assetForm.brand} onChange={e => setAssetForm({ ...assetForm, brand: e.target.value })} />
+            <Input label="Model" value={assetForm.model} onChange={e => setAssetForm({ ...assetForm, model: e.target.value })} />
+            <Input label="An fabricație" type="number" min="1900" value={assetForm.year} onChange={e => setAssetForm({ ...assetForm, year: e.target.value })} />
+            <Input label="Departament" value={assetForm.department} onChange={e => setAssetForm({ ...assetForm, department: e.target.value })} placeholder="ex: Logistică, Producție, Service" />
+            <Select label="Centru cost" value={assetForm.cost_center_id || ''} onChange={e => setAssetForm({ ...assetForm, cost_center_id: e.target.value })} options={costCenterOptions} />
+            <Select label="Unitate contor" value={assetForm.meterUnit} onChange={e => setAssetForm({ ...assetForm, meterUnit: e.target.value })} options={[
+              { value: 'km', label: 'Kilometri' },
+              { value: 'hours', label: 'Ore funcționare' },
+            ]} />
+            <Input label="Contor actual" type="number" step="0.1" min="0" value={assetForm.currentMeter} onChange={e => setAssetForm({ ...assetForm, currentMeter: e.target.value })} />
+            <Input label="Combustibil" value={assetForm.fuelType} onChange={e => setAssetForm({ ...assetForm, fuelType: e.target.value })} placeholder="motorină, benzină, electric" />
+            <Input label="Capacitate rezervor (L)" type="number" step="0.1" min="0" value={assetForm.tankCapacity} onChange={e => setAssetForm({ ...assetForm, tankCapacity: e.target.value })} />
+            <Input label="Consum normat" type="number" step="0.01" min="0" value={assetForm.standardConsumption} onChange={e => setAssetForm({ ...assetForm, standardConsumption: e.target.value })} placeholder="L/100km sau L/oră" />
+            <Input label="Următoarea inspecție / ITP / ISCIR" type="date" value={assetForm.nextInspectionDate} onChange={e => setAssetForm({ ...assetForm, nextInspectionDate: e.target.value })} />
+            <Input label="Următoarea revizie" type="date" value={assetForm.nextServiceDate} onChange={e => setAssetForm({ ...assetForm, nextServiceDate: e.target.value })} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Observații</label>
+            <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none" rows={3} value={assetForm.notes} onChange={e => setAssetForm({ ...assetForm, notes: e.target.value })} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setAssetModal(false)}>Renunță</Button>
+            <Button type="submit">Salvează în parc</Button>
           </div>
         </form>
       </Modal>

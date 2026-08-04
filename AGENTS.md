@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.476**
-**Versiune în lucru: v2.12.476**
+**Versiune curentă sursă: v2.12.477**
+**Versiune în lucru: v2.12.477**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -239,13 +239,14 @@ Gestiune / Depozit
 
 Mecanizare / Fleet
   ✅ Evidență utilaje/vehicule
+  ✅ Catalog manual autovehicule/utilaje și importuri tratate ca adaptoare opționale (v2.12.477)
   ✅ Foi parcurs (PWA offline + semnătură)
   ✅ FAZ (fișe activitate zilnică)
   ✅ Odometru + consum combustibil
   ✅ Alerte scadențe ITP/RCA
-  ✅ Import Autominder XML
+  ✅ Import Autominder XML ca adaptor opțional, nu sursă implicită
   ✅ Confirmări UX FAZ, ștergeri și import PIUSI (v2.12.411)
-  ✅ Asistent discret pentru cereri, planificări, bonuri, PIUSI, intervenții și scadențe (v2.12.427)
+  ✅ Asistent discret pentru cereri, planificări, bonuri, import carburant, intervenții și scadențe (v2.12.427)
   ✅ Flux simplu Parc & Resurse: parc → cereri → planificare → bonuri/FAZ → combustibil/intervenții → scadențe/raport (v2.12.457)
   ✅ GPS Live — urmariregps.ro ✅ (v2.10.1)
      → 23 vehicule afișate pe hartă
@@ -668,6 +669,14 @@ PRIORITATE 2 — Expansiune platformă:
       → Driver 2, 3... (la identificarea furnizorilor)
       → Clientul alege furnizorul din Setări
 
+  [ ] Fleet / Mecanizare multi-adapter
+      → Catalogul manual de autovehicule și utilaje este sursa de pornire
+      → Autominder rămâne referință/adaptor opțional pentru import istoric
+      → PIUSI rămâne adaptor opțional; trebuie pregătite CSV/Excel și alți furnizori carburant
+      → Alimentările manuale trebuie să funcționeze complet fără PIUSI
+      → Alertă stoc carburant estimat pe baza alimentărilor, consumurilor și pragurilor definite de client
+      → Mapări configurabile per furnizor, nu hardcodate pe o singură companie
+
   [ ] Modul Warehouse / WMS
       → Gestiune depozite de la mic la mare
       → Locații, rafturi, zone, loturi, seriale
@@ -848,9 +857,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.476
+VERSIUNE CURENTĂ SURSĂ: 2.12.477
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.476 ✅
+UPDATE ZIP CURENT: 2.12.477 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1135,6 +1144,7 @@ UPDATES ÎN LUCRU:
   2.12.474 → UPDATE 494 Radar compact documente Dashboard ✅
   2.12.475 → UPDATE 495 Filtre rapide Inbox Documente ✅
   2.12.476 → UPDATE 496 Acțiuni în masă Documente ✅
+  2.12.477 → UPDATE 497 Catalog manual Parc & Resurse ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1629,5 +1639,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.476*
+*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.477*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

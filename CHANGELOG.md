@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.477 - 2026-08-04
+
+## Catalog manual Parc & Resurse
+
+- Mecanizare / Parc & Resurse are acum acțiuni vizibile pentru adăugare manuală de autovehicule și utilaje.
+- Formularul nou pornește cu câmpuri simple: denumire, număr/cod, tip, marcă, model, contor, combustibil, consum normat și scadențe inițiale.
+- Importul de carburant este prezentat generic, cu PIUSI ca adaptor opțional existent, nu ca flux implicit al produsului.
+- Documentația de produs marchează Autominder și PIUSI ca adaptoare configurabile, iar alimentările manuale rămân flux complet.
+- Backlog-ul include alerta de stoc carburant estimat din alimentări, consumuri și praguri definite de client.
+
 # v2.12.476 - 2026-08-04
 
 ## Acțiuni în masă pentru Documente

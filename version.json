@@ -1,5 +1,5 @@
 {
-  "version": "2.12.476",
+  "version": "2.12.477",
   "date": "2026-08-04",
-  "changelog": "## v2.12.476 - 2026-08-04\n### Acțiuni în masă pentru Documente\n- Pagina Documente permite selectarea multiplă a documentelor afișate.\n- Utilizatorul poate crea task-uri de urmărire pentru toate documentele selectate.\n- Fiecare task creat păstrează deep-link direct către dosarul documentului sursă.\n- Lista curentă sau selecția poate fi exportată CSV pentru lucru operațional."
+  "changelog": "## v2.12.477 - 2026-08-04\n### Catalog manual Parc & Resurse\n- Mecanizare / Parc & Resurse are acțiuni vizibile pentru adăugare manuală de autovehicule și utilaje.\n- Importul carburant este prezentat generic, cu PIUSI ca adaptor opțional existent.\n- Autominder și PIUSI sunt documentate ca adaptoare configurabile, nu surse implicite.\n- Backlog-ul include alertă de stoc carburant estimat din alimentări, consumuri și praguri client."
 }

@@ -151,6 +151,23 @@ Stadiu implementare:
 - `v2.12.476`: Documente permite selecție multiplă, task-uri în masă pentru documentele selectate și export CSV al listei de lucru.
 - Următorul pas: marcare „urmărit” / watchlist documente și notificări pe documentele urmărite.
 
+## Fleet / Mecanizare ca modul generic
+
+Mecanizarea nu trebuie să presupună un furnizor unic de import sau o structură moștenită de la un client pilot. Prima experiență trebuie să fie catalogul manual: organizația își adaugă autovehiculele, utilajele și echipamentele, apoi conectează adaptoare doar dacă are nevoie.
+
+Principii:
+
+- autovehiculele și utilajele se pot crea manual, fără import obligatoriu;
+- Autominder este tratat ca adaptor opțional și sursă de inspirație pentru date istorice, nu ca model unic;
+- PIUSI este tratat ca adaptor opțional pentru carburant, nu ca flux implicit;
+- alimentările manuale trebuie să rămână flux complet, inclusiv pentru firme care nu au pompă sau soft dedicat;
+- importurile viitoare trebuie să accepte CSV/Excel și furnizori diferiți, cu mapări configurabile;
+- următorul pas util este alertarea stocului estimat de carburant pe baza alimentărilor, consumurilor și pragurilor definite de client.
+
+Stadiu implementare:
+
+- `v2.12.477`: Parc & Resurse are butoane vizibile pentru adăugare manuală autovehicul/utilaj, iar tab-ul PIUSI este prezentat generic ca Import carburant cu adaptor opțional.
+
 ## Reguli de decuplare de client
 
 - Nu se adaugă nume de client în fallback-uri, template-uri implicite sau UI.
