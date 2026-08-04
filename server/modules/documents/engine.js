@@ -371,7 +371,22 @@ function activeStep(steps) {
     .sort((a, b) => Number(a.nr_pas || 0) - Number(b.nr_pas || 0))[0] || null
 }
 
-function addCircuitAudit(docs, documentId, userId, action, oldStatus, newStatus, comment = '') {
+function auditStepMeta(step = {}, extras = {}) {
+  return {
+    step_id: step.id || null,
+    step_nr: step.nr_pas || null,
+    step_name: step.workflow_name || step.name || step.tip || 'Aprobare',
+    step_status_before: step.status || null,
+    actor_user: step.user_responsabil || null,
+    actor_role: step.rol_responsabil || null,
+    actor_type: step.workflow_actor_type || null,
+    actor_ref: step.workflow_actor_ref || null,
+    condition: step.workflow_condition || '',
+    ...extras,
+  }
+}
+
+function addCircuitAudit(docs, documentId, userId, action, oldStatus, newStatus, comment = '', meta = null) {
   docs.circuitAudit.push({
     id: nextId(docs.circuitAudit),
     document_id: documentId,
@@ -380,6 +395,7 @@ function addCircuitAudit(docs, documentId, userId, action, oldStatus, newStatus,
     status_vechi: oldStatus || null,
     status_nou: newStatus || null,
     comentariu: comment || '',
+    meta: meta || null,
     ip_address: '',
     created_at: nowIso()
   })
@@ -666,11 +682,14 @@ DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
 DECLARE @action nvarchar(30) = JSON_VALUE(@p, '$.action');
 DECLARE @comment nvarchar(max) = JSON_VALUE(@p, '$.comment');
 DECLARE @stepId int;
+DECLARE @stepNr int;
+DECLARE @stepTip nvarchar(100);
+DECLARE @auditComment nvarchar(max);
 DECLARE @oldStatus nvarchar(30);
 DECLARE @newStatus nvarchar(30);
 DECLARE @creator nvarchar(64);
 SELECT @oldStatus = status, @creator = creat_de FROM documents.documents WHERE id = @documentId;
-SELECT TOP 1 @stepId = id FROM documents.circuit_steps WHERE document_id = @documentId AND status = N'asteptare' ORDER BY nr_pas;
+SELECT TOP 1 @stepId = id, @stepNr = nr_pas, @stepTip = tip FROM documents.circuit_steps WHERE document_id = @documentId AND status = N'asteptare' ORDER BY nr_pas;
 IF @stepId IS NULL THROW 51000, 'Nu exista pas activ.', 1;
 IF NOT EXISTS (SELECT 1 FROM documents.circuit_steps WHERE id = @stepId AND (user_responsabil = @userId OR user_responsabil IS NULL)) THROW 51000, 'Nu esti responsabilul pasului curent.', 1;
 IF @action = N'respingere'
@@ -690,8 +709,9 @@ BEGIN
     SET @newStatus = N'aprobat';
   END
 END
+SET @auditComment = CONCAT(N'Pas ', COALESCE(CONVERT(nvarchar(20), @stepNr), N'?'), N' · ', CASE WHEN @action = N'respingere' THEN N'respins' WHEN @action = N'avizare' THEN N'avizat' ELSE N'aprobat' END, CASE WHEN NULLIF(@comment, N'') IS NOT NULL THEN CONCAT(N' · ', @comment) ELSE N'' END);
 INSERT INTO documents.circuit_audit (document_id, user_id, actiune, status_vechi, status_nou, comentariu)
-VALUES (@documentId, @userId, CASE WHEN @action = N'respingere' THEN N'respins' WHEN @action = N'avizare' THEN N'avizat' ELSE N'aprobat' END, @oldStatus, @newStatus, @comment);
+VALUES (@documentId, @userId, CASE WHEN @action = N'respingere' THEN N'respins' WHEN @action = N'avizare' THEN N'avizat' ELSE N'aprobat' END, @oldStatus, @newStatus, @auditComment);
 SELECT @creator AS creator, @newStatus AS status_nou,
   (SELECT TOP 1 user_responsabil FROM documents.circuit_steps WHERE document_id = @documentId AND status = N'asteptare' ORDER BY nr_pas) AS nextUser
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
@@ -710,24 +730,40 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
   if (step.user_responsabil && step.user_responsabil !== userId) throwHttp(403, 'Nu esti responsabilul pasului curent.')
   const oldStatus = document.status
   if (action === 'respingere') {
+    const meta = auditStepMeta(step, {
+      action,
+      decision: 'respins',
+      document_status_after: 'respins',
+      next_step_nr: null,
+      next_user: null,
+      comment_required: true,
+    })
     step.status = 'respins'
     step.comentariu = comment || ''
     step.actionat_de = userId
     step.actionat_la = nowIso()
     document.status = 'respins'
     document.updated_at = nowIso()
-    addCircuitAudit(docs, document.id, userId, 'respins', oldStatus, 'respins', comment)
+    addCircuitAudit(docs, document.id, userId, 'respins', oldStatus, 'respins', comment, meta)
     notifyUser(document.creat_de, 'respins', { document, comment })
     sendSystemMessage(db, document, `Document respins: ${comment}`)
     return
   }
+  const previousStepStatus = step.status
   step.status = action === 'avizare' ? 'avizat' : 'aprobat'
   step.comentariu = comment || ''
   step.actionat_de = userId
   step.actionat_la = nowIso()
   const next = activeStep(steps)
   if (next) {
-    addCircuitAudit(docs, document.id, userId, action === 'avizare' ? 'avizat' : 'aprobat', oldStatus, 'in_circuit', comment)
+    addCircuitAudit(docs, document.id, userId, action === 'avizare' ? 'avizat' : 'aprobat', oldStatus, 'in_circuit', comment, auditStepMeta({ ...step, status: previousStepStatus }, {
+      action,
+      decision: action === 'avizare' ? 'avizat' : 'aprobat',
+      document_status_after: 'in_circuit',
+      next_step_nr: next.nr_pas || null,
+      next_user: next.user_responsabil || null,
+      final_decision: false,
+    }))
     if (next.user_responsabil) notifyUser(next.user_responsabil, 'aprobare_ceruta', { document })
     sendSystemMessage(db, document, `Pas ${step.nr_pas} finalizat`)
     return
@@ -738,7 +774,14 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
   const company = db.settings?.company || db.settings || {}
   const html = generateDocumentHtml({ ...document, template_html: type?.template_html }, steps, company)
   document.fisier_final_path = saveFinalHtml(document, html)
-  addCircuitAudit(docs, document.id, userId, 'aprobat', oldStatus, 'aprobat', comment)
+  addCircuitAudit(docs, document.id, userId, 'aprobat', oldStatus, 'aprobat', comment, auditStepMeta({ ...step, status: previousStepStatus }, {
+    action,
+    decision: action === 'avizare' ? 'avizat' : 'aprobat',
+    document_status_after: 'aprobat',
+    next_step_nr: null,
+    next_user: null,
+    final_decision: true,
+  }))
   sendSystemMessage(db, document, 'Document aprobat final')
 }
 

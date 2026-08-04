@@ -144,7 +144,8 @@ Stadiu implementare:
 - `v2.12.469`: dosarul documentului afișează scenariul evaluat, pașii aplicați și pașii săriți de reguli, cu actual/așteptat.
 - `v2.12.470`: editorul de workflow din Setări este responsive pe carduri, iar panoul afișează auditul configurării și ultima salvare.
 - `v2.12.471`: modificările șabloanelor workflow sunt păstrate într-un istoric dedicat, vizibil în Setări, cu utilizator, dată, sumar și fluxuri schimbate.
-- Următorul pas: audit complet pentru fiecare decizie din circuit și acțiuni rapide din dosarul documentului când un pas este blocat.
+- `v2.12.472`: dosarul documentului afișează auditul deciziilor reale din circuit, cu pas, status înainte/după și următor responsabil.
+- Următorul pas: acțiuni rapide din dosarul documentului când un pas este blocat.
 
 ## Reguli de decuplare de client
 

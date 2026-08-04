@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.472 - 2026-08-04
+
+## Audit decizii workflow în dosarul documentului
+
+- Deciziile reale din circuitul documentelor păstrează meta informații despre pasul procesat, statusul rezultat și următorul responsabil.
+- Dosarul documentului afișează un panou compact „Istoric decizii / audit circuit”.
+- Utilizatorul vede direct aprobările, respingerile, statusul înainte/după și pasul afectat.
+- În MSSQL existent, comentariul de audit este îmbogățit fără a forța o schimbare riscantă de schemă.
+- În modul JSON/app_state, auditul include și obiect `meta` structurat pentru trasabilitate mai bună.
+
 # v2.12.471 - 2026-08-04
 
 ## Audit persistat pentru modificările workflow

@@ -81,6 +81,38 @@ function workflowScenarioSummary(scenario = {}) {
   return items
 }
 
+function auditMeta(entry = {}) {
+  if (entry.meta && typeof entry.meta === 'object') return entry.meta
+  if (entry.meta_json && typeof entry.meta_json === 'object') return entry.meta_json
+  if (entry.meta_json && typeof entry.meta_json === 'string') {
+    try {
+      return JSON.parse(entry.meta_json)
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function auditActionLabel(entry = {}) {
+  const action = String(entry.actiune || '').toLowerCase()
+  if (action === 'creat') return 'Document creat'
+  if (action === 'submis') return 'Lansat în circuit'
+  if (['aprobat', 'aprobare'].includes(action)) return 'Aprobare'
+  if (['avizat', 'avizare'].includes(action)) return 'Avizare'
+  if (['respins', 'respingere'].includes(action)) return 'Respingere'
+  if (action === 'retras') return 'Retras'
+  return label(action || 'eveniment')
+}
+
+function auditTone(entry = {}) {
+  const action = String(entry.actiune || '').toLowerCase()
+  if (['respins', 'respingere'].includes(action)) return 'danger'
+  if (['aprobat', 'aprobare', 'avizat', 'avizare'].includes(action)) return 'success'
+  if (['submis', 'retras'].includes(action)) return 'warning'
+  return 'neutral'
+}
+
 function userId(user) {
   return user?.id || user?.userId || user?.username
 }
@@ -1469,6 +1501,52 @@ export default function DocumentePage() {
                         <Badge tone={toneFor(step.status)}>{label(step.status)}</Badge>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-800">Istoric decizii / audit circuit</h3>
+                        <p className="text-xs text-slate-500">Urma deciziilor reale: lansare, aprobare, respingere și status rezultat.</p>
+                      </div>
+                      <Badge tone={details.audit.length ? 'info' : 'neutral'}>{details.audit.length} evenimente</Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      {details.audit.length === 0 ? (
+                        <p className="text-sm text-slate-500">Nu există încă evenimente de audit pentru acest document.</p>
+                      ) : details.audit.map(entry => {
+                        const meta = auditMeta(entry)
+                        return (
+                          <div key={entry.id || `${entry.actiune}-${entry.created_at}`} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge tone={auditTone(entry)} size="sm">{auditActionLabel(entry)}</Badge>
+                                  {meta.step_nr ? <span className="text-xs font-semibold text-slate-700">Pas {meta.step_nr}</span> : null}
+                                  {meta.final_decision ? <Badge tone="success" size="sm">decizie finală</Badge> : null}
+                                </div>
+                                <div className="mt-1 text-sm font-medium text-slate-900">
+                                  {meta.step_name || entry.comentariu || auditActionLabel(entry)}
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                  Utilizator: {entry.user_id || '-'} · {entry.created_at ? formatDate(entry.created_at) : '-'}
+                                </div>
+                                {entry.comentariu ? (
+                                  <div className="mt-2 rounded-md border border-white bg-white px-2 py-1 text-xs text-slate-600">
+                                    {entry.comentariu}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="grid shrink-0 gap-1 text-xs text-slate-500 sm:text-right">
+                                <span>Status: <strong className="text-slate-800">{label(entry.status_vechi)} → {label(entry.status_nou)}</strong></span>
+                                {meta.next_step_nr ? <span>Următorul pas: <strong className="text-slate-800">{meta.next_step_nr}</strong></span> : null}
+                                {meta.next_user ? <span>Următor responsabil: <strong className="text-slate-800">{meta.next_user}</strong></span> : null}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
 
