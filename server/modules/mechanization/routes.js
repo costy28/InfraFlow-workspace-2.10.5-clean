@@ -446,13 +446,16 @@ router.get('/mechanization/dashboard', (req, res) => {
   }
   const fuelByAsset = new Map()
   for (const asset of equipmentList(db)) {
+    const tankCapacity = round2(num(asset.tankCapacity ?? asset.tank_capacity_litri ?? asset.capacitate_rezervor))
     fuelByAsset.set(String(asset.id), {
       asset_id: asset.id,
       asset_name: assetName(asset) || asset.cod || asset.id,
       category: asset.category,
+      tank_capacity_litri: tankCapacity,
       intrari_litri: 0,
       consum_litri: 0,
       sold_estimat_litri: 0,
+      ocupare_rezervor_procent: null,
       alimentari_count: 0,
       bonuri_count: 0,
       status: 'fara_miscare',
@@ -467,9 +470,11 @@ router.get('/mechanization/dashboard', (req, res) => {
         asset_id: key,
         asset_name: fuel.asset_name || key,
         category: '',
+        tank_capacity_litri: 0,
         intrari_litri: 0,
         consum_litri: 0,
         sold_estimat_litri: 0,
+        ocupare_rezervor_procent: null,
         alimentari_count: 0,
         bonuri_count: 0,
         status: 'fara_miscare',
@@ -488,9 +493,11 @@ router.get('/mechanization/dashboard', (req, res) => {
         asset_id: key,
         asset_name: wo.asset_name || key,
         category: '',
+        tank_capacity_litri: 0,
         intrari_litri: 0,
         consum_litri: 0,
         sold_estimat_litri: 0,
+        ocupare_rezervor_procent: null,
         alimentari_count: 0,
         bonuri_count: 0,
         status: 'fara_miscare',
@@ -503,6 +510,8 @@ router.get('/mechanization/dashboard', (req, res) => {
   }
   const fuelStockByAsset = Array.from(fuelByAsset.values()).map(row => {
     const sold = round2(row.intrari_litri - row.consum_litri)
+    const tankCapacity = round2(num(row.tank_capacity_litri))
+    const fillPercent = tankCapacity > 0 ? round2((sold / tankCapacity) * 100) : null
     let status = 'ok'
     let message = 'Alimentările acoperă consumul raportat.'
     if (row.intrari_litri === 0 && row.consum_litri === 0) {
@@ -517,11 +526,14 @@ router.get('/mechanization/dashboard', (req, res) => {
     } else if (row.intrari_litri > 0 && row.consum_litri === 0) {
       status = 'atentie'
       message = 'Există alimentări, dar nu există consum/bonuri de lucru.'
+    } else if (tankCapacity > 0 && sold > tankCapacity) {
+      status = 'atentie'
+      message = 'Soldul estimat depășește capacitatea rezervorului. Verifică bonurile lipsă sau alimentările duplicate.'
     } else if (sold <= warningThreshold) {
       status = 'atentie'
       message = 'Soldul estimat pe resursă este aproape de pragul de atenție.'
     }
-    return { ...row, sold_estimat_litri: sold, status, message }
+    return { ...row, tank_capacity_litri: tankCapacity, sold_estimat_litri: sold, ocupare_rezervor_procent: fillPercent, status, message }
   }).sort((a, b) => {
     const weight = { critic: 0, atentie: 1, ok: 2, fara_miscare: 3 }
     return (weight[a.status] ?? 9) - (weight[b.status] ?? 9) || Math.abs(b.sold_estimat_litri) - Math.abs(a.sold_estimat_litri)

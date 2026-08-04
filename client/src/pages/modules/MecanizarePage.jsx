@@ -711,6 +711,8 @@ export default function MecanizarePage() {
       'Intrări (L)': Number(row.intrari_litri || 0),
       'Consum (L)': Number(row.consum_litri || 0),
       'Sold estimat (L)': Number(row.sold_estimat_litri || 0),
+      'Capacitate rezervor (L)': Number(row.tank_capacity_litri || 0),
+      'Ocupare estimată (%)': row.ocupare_rezervor_procent === null || row.ocupare_rezervor_procent === undefined ? '' : Number(row.ocupare_rezervor_procent || 0),
       'Alimentări': row.alimentari_count || 0,
       'Bonuri': row.bonuri_count || 0,
       'Status': fuelStockStatusLabel(row.status),
@@ -1303,6 +1305,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                       <th className="px-3 py-2 text-right">Intrări</th>
                       <th className="px-3 py-2 text-right">Consum</th>
                       <th className="px-3 py-2 text-right">Sold estimat</th>
+                      <th className="px-3 py-2">Rezervor</th>
                       <th className="px-3 py-2">Control</th>
                       <th className="px-3 py-2">Acțiune</th>
                     </tr>
@@ -1318,6 +1321,26 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                         <td className="px-3 py-2 text-right">{Number(row.consum_litri || 0).toFixed(2)} L</td>
                         <td className={`px-3 py-2 text-right font-semibold ${row.status === 'critic' ? 'text-rose-700' : row.status === 'atentie' ? 'text-amber-700' : 'text-emerald-700'}`}>
                           {Number(row.sold_estimat_litri || 0).toFixed(2)} L
+                        </td>
+                        <td className="px-3 py-2">
+                          {Number(row.tank_capacity_litri || 0) > 0 ? (
+                            <div className="min-w-[120px]">
+                              <div className="flex justify-between text-xs text-slate-500">
+                                <span>{Number(row.tank_capacity_litri || 0).toFixed(0)} L</span>
+                                <span className={Number(row.ocupare_rezervor_procent || 0) > 100 ? 'font-semibold text-amber-700' : ''}>
+                                  {Number(row.ocupare_rezervor_procent || 0).toFixed(0)}%
+                                </span>
+                              </div>
+                              <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                  className={`h-full ${Number(row.ocupare_rezervor_procent || 0) > 100 ? 'bg-amber-500' : Number(row.ocupare_rezervor_procent || 0) < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                                  style={{ width: `${Math.max(0, Math.min(100, Number(row.ocupare_rezervor_procent || 0)))}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">nesetat</span>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <Badge tone={fuelStockStatusTone(row.status)}>{fuelStockStatusLabel(row.status)}</Badge>

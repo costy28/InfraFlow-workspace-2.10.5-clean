@@ -1,5 +1,5 @@
 {
-  "version": "2.12.481",
+  "version": "2.12.482",
   "date": "2026-08-04",
-  "changelog": "## v2.12.481 - 2026-08-04\n### Filtre și export pentru carburant pe resursă\n- Panoul carburant pe utilaj/vehicul pornește pe resursele cu probleme.\n- Au fost adăugate filtre rapide pentru probleme, critice, toate și fără mișcare.\n- Exportul Excel descarcă lista filtrată pentru verificare lunară.\n- Statusurile și mesajele au fost uniformizate pentru citire rapidă."
+  "changelog": "## v2.12.482 - 2026-08-04\n### Control capacitate rezervor în Mecanizare\n- Soldul estimat de carburant pe resursă include capacitatea rezervorului din fișa utilajului/vehiculului.\n- Dashboard-ul afișează procentul estimat de ocupare și bară vizuală.\n- Resursele cu sold estimat peste capacitate sunt marcate ca atenție.\n- Exportul Excel include capacitatea rezervorului și procentul estimat."
 }

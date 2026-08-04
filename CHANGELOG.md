@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.482 - 2026-08-04
+
+## Control capacitate rezervor în Mecanizare
+
+- Soldul estimat de carburant pe fiecare resursă include capacitatea rezervorului din fișa utilajului/vehiculului.
+- Dashboard-ul afișează procentul estimat de ocupare și o bară vizuală pentru verificare rapidă.
+- Resursele cu sold estimat peste capacitatea rezervorului sunt marcate cu status `atenție`.
+- Mesajul de control recomandă verificarea bonurilor lipsă sau a alimentărilor duplicate.
+- Exportul Excel include capacitatea rezervorului și procentul estimat de ocupare.
+
 # v2.12.481 - 2026-08-04
 
 ## Filtre și export pentru carburant pe resursă
