@@ -216,6 +216,7 @@ export default function MecanizarePage() {
   const [fleetDocForm, setFleetDocForm] = useState(emptyFleetDocForm)
   const [assetModal, setAssetModal] = useState(false)
   const [assetForm, setAssetForm] = useState(emptyAssetForm)
+  const [assetEditing, setAssetEditing] = useState(null)
   const [assetTechnicalModal, setAssetTechnicalModal] = useState(false)
   const [assetTechnicalForm, setAssetTechnicalForm] = useState(emptyAssetTechnicalForm)
   const [assetTechnicalSaving, setAssetTechnicalSaving] = useState(false)
@@ -416,11 +417,38 @@ export default function MecanizarePage() {
 
   // ── actions ─────────────────────────────────────────────────────────────────
   function openAssetModal(category = 'vehicle') {
+    setAssetEditing(null)
     setAssetForm({
       ...emptyAssetForm,
       category,
       meterUnit: category === 'equipment' ? 'hours' : 'km',
       type: category === 'equipment' ? 'utilaj' : 'autovehicul',
+    })
+    setAssetModal(true)
+  }
+
+  function openAssetEditModal(asset) {
+    setAssetEditing(asset)
+    setAssetForm({
+      ...emptyAssetForm,
+      category: asset.category || (asset.tip_asset === 'utilaj' ? 'equipment' : 'vehicle'),
+      name: asset.name || '',
+      registration: asset.registration || asset.nr_inmatriculare || '',
+      cod: asset.cod || asset.assetCode || asset.inventoryNo || '',
+      type: asset.type || asset.tip_asset || '',
+      brand: asset.brand || asset.marca || '',
+      model: asset.model || '',
+      year: asset.year || '',
+      department: asset.department || asset.departament || '',
+      cost_center_id: asset.cost_center_id || asset.costCenterId || '',
+      meterUnit: asset.meterUnit || (asset.category === 'equipment' ? 'hours' : 'km'),
+      currentMeter: asset.currentMeter ?? '',
+      fuelType: asset.fuelType || asset.tip_combustibil || '',
+      tankCapacity: asset.tankCapacity || '',
+      standardConsumption: asset.standardConsumption || asset.consum_normat_km || asset.consum_orar_normat || '',
+      nextInspectionDate: asset.nextInspectionDate || '',
+      nextServiceDate: asset.nextServiceDate || '',
+      notes: asset.notes || '',
     })
     setAssetModal(true)
   }
@@ -432,12 +460,17 @@ export default function MecanizarePage() {
         ...assetForm,
         tip_asset: assetForm.category === 'equipment' ? 'utilaj' : 'autovehicul',
       }
-      await api.post('/fleet-assets', payload)
+      if (assetEditing) {
+        await api.patch(`/fleet-assets/${assetEditing.id}`, payload)
+      } else {
+        await api.post('/fleet-assets', payload)
+      }
       setAssetModal(false)
+      setAssetEditing(null)
       setAssetForm(emptyAssetForm)
       await loadAll()
     } catch (err) {
-      setError(err.response?.data?.error || 'Eroare la adăugarea autovehiculului / utilajului.')
+      setError(err.response?.data?.error || 'Eroare la salvarea autovehiculului / utilajului.')
     }
   }
 
@@ -1677,6 +1710,10 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   </div>
                   <div className="mt-2 flex gap-2">
                     <button
+                      className="rounded bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
+                      onClick={() => openAssetEditModal(asset)}
+                    >Editează</button>
+                    <button
                       className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
                       onClick={() => navigate(`/fleet/asset/${asset.id}`)}
                     >Fișă completă</button>
@@ -2718,7 +2755,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </Modal>
 
       {/* ── MODAL ASSET PARC ────────────────────────────────────────────────── */}
-      <Modal open={assetModal} title={assetForm.category === 'equipment' ? 'Adaugă utilaj' : 'Adaugă autovehicul'} onClose={() => setAssetModal(false)} size="lg">
+      <Modal open={assetModal} title={assetEditing ? 'Editează resursă parc' : (assetForm.category === 'equipment' ? 'Adaugă utilaj' : 'Adaugă autovehicul')} onClose={() => { setAssetModal(false); setAssetEditing(null); setAssetForm(emptyAssetForm) }} size="lg">
         <form className="grid gap-3" onSubmit={saveFleetAsset}>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-slate-700">
             Completează doar ce știi acum. Fișa completă poate fi îmbogățită ulterior cu scadențe, alimentări, intervenții și documente.
@@ -2758,8 +2795,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             <textarea className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none" rows={3} value={assetForm.notes} onChange={e => setAssetForm({ ...assetForm, notes: e.target.value })} />
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setAssetModal(false)}>Renunță</Button>
-            <Button type="submit">Salvează în parc</Button>
+            <Button type="button" variant="secondary" onClick={() => { setAssetModal(false); setAssetEditing(null); setAssetForm(emptyAssetForm) }}>Renunță</Button>
+            <Button type="submit">{assetEditing ? 'Actualizează resursa' : 'Salvează în parc'}</Button>
           </div>
         </form>
       </Modal>

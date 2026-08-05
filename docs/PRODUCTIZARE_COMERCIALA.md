@@ -174,6 +174,7 @@ Stadiu implementare:
 - `v2.12.482`: Soldul estimat este comparat cu capacitatea rezervorului pentru a marca alimentări duplicate sau bonuri lipsă.
 - `v2.12.483`: Resursele fără capacitate rezervor au filtru dedicat, avertizare și deep-link către fișa resursei.
 - `v2.12.484`: Capacitatea rezervorului și consumul normat se pot completa rapid direct din panoul carburant pe resursă.
+- `v2.12.485`: Autovehiculele și utilajele pot fi editate complet direct din catalogul Parc Utilaje.
 
 ## Reguli de decuplare de client
 

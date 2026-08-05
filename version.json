@@ -1,5 +1,5 @@
 {
-  "version": "2.12.484",
+  "version": "2.12.485",
   "date": "2026-08-05",
-  "changelog": "## v2.12.484 - 2026-08-05\n### Editare rapidă date tehnice carburant\n- Panoul carburant pe resursă permite completarea directă a capacității rezervorului.\n- A fost adăugat un modal scurt pentru combustibil, capacitate rezervor și consum normat.\n- Serverul salvează datele tehnice prin endpoint dedicat, cu audit și alerte recalculate.\n- Acțiunea Fișă rămâne disponibilă pentru editări complete."
+  "changelog": "## v2.12.485 - 2026-08-05\n### Editare completă resurse parc\n- Cardurile din Parc Utilaje au acțiune directă Editează.\n- Formularul existent este reutilizat pentru actualizarea autovehiculelor și utilajelor.\n- Serverul salvează editările prin endpoint dedicat, cu audit și alerte recalculate.\n- Modificarea contorului din editare creează înregistrare de corecție în istoricul de rulaj."
 }

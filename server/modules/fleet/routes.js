@@ -54,6 +54,21 @@ router.post('/fleet-assets', async (req, res, next) => {
   }
 })
 
+router.patch('/fleet-assets/:id', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req);
+    const asset = updateFleetAsset(auth.db, auth.user, req.params.id, body);
+    addAudit(auth.db, auth.user, "utilaj_actualizat", `${asset.registration || "-"} / ${asset.name || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { asset, alerts: buildFleetAlerts(auth.db) });
+  } catch (error) {
+    next(error);
+  }
+})
+
 router.patch('/fleet-assets/:id/technical', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
@@ -1378,6 +1393,17 @@ async function handleApi(req, res, url) {
     addAudit(auth.db, auth.user, "utilaj_adaugat", `${asset.registration || "-"} / ${asset.name}`);
     writeDb(auth.db);
     sendJson(res, 201, { asset });
+    return;
+  }
+
+  const fleetAssetEditMatch = url.pathname.match(/^\/api\/fleet-assets\/([^/]+)$/);
+  if ((req.method === "PATCH" || req.method === "PUT") && fleetAssetEditMatch) {
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req);
+    const asset = updateFleetAsset(auth.db, auth.user, fleetAssetEditMatch[1], body);
+    addAudit(auth.db, auth.user, "utilaj_actualizat", `${asset.registration || "-"} / ${asset.name || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { asset, alerts: buildFleetAlerts(auth.db) });
     return;
   }
 
@@ -5544,6 +5570,78 @@ function createFleetAsset(db, user, body) {
     if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
     db.fleetMeterReadings.push(createFleetMeterReading(asset, user, currentMeter, 0, asset.lastMeterDate, "Rulaj initial"));
   }
+  return asset;
+}
+
+function updateFleetAsset(db, user, assetId, body) {
+  const asset = (db.fleetAssets || []).find((item) => String(item.id) === String(assetId) && item.active !== false);
+  if (!asset) throwHttp(404, "Utilajul sau autovehiculul nu exista.");
+
+  const category = String(body.category || asset.category || "vehicle").trim();
+  if (!["vehicle", "equipment"].includes(category)) throwHttp(400, "Categoria trebuie sa fie autovehicul sau utilaj.");
+  const registration = String(body.registration ?? body.nr_inmatriculare ?? asset.registration ?? "").trim().toUpperCase();
+  const name = String(body.name ?? asset.name ?? "").trim();
+  if (!name && !registration) throwHttp(400, "Completeaza numarul de inmatriculare sau denumirea utilajului.");
+
+  const tipAsset = normalizeFleetAssetKind({
+    ...asset,
+    ...body,
+    category,
+    registration,
+    nr_inmatriculare: body.nr_inmatriculare || registration,
+    cod: body.cod || body.assetCode || asset.cod
+  });
+  const meterUnit = normalizeFleetMeterUnit(body.meterUnit || asset.meterUnit || (category === "equipment" ? "hours" : "km"));
+  const previousMeter = fleetNumber(asset.currentMeter);
+  const currentMeter = fleetNumber(body.currentMeter ?? asset.currentMeter);
+  const lastMeterDate = fleetImportDate(body.lastMeterDate) || asset.lastMeterDate || (currentMeter > 0 ? localDate(new Date()) : "");
+
+  asset.category = category;
+  asset.tip_asset = tipAsset;
+  asset.registration = registration;
+  asset.nr_inmatriculare = tipAsset === "autovehicul" ? registration : String(body.nr_inmatriculare ?? asset.nr_inmatriculare ?? "").trim().toUpperCase();
+  asset.cod = String(body.cod ?? body.assetCode ?? asset.cod ?? registration).trim();
+  asset.name = name || registration;
+  asset.type = String(body.type ?? asset.type ?? "").trim();
+  asset.brand = String(body.brand ?? asset.brand ?? "").trim();
+  asset.marca = String(body.marca ?? body.brand ?? asset.marca ?? asset.brand ?? "").trim();
+  asset.model = String(body.model ?? asset.model ?? "").trim();
+  asset.department = String(body.department ?? asset.department ?? "").trim();
+  asset.departament = String(body.departament ?? body.department ?? asset.departament ?? asset.department ?? "").trim();
+  asset.cost_center_id = body.cost_center_id ?? body.costCenterId ?? asset.cost_center_id ?? "";
+  asset.costCenterName = String(body.costCenterName ?? asset.costCenterName ?? "").trim();
+  asset.location = String(body.location ?? asset.location ?? "").trim();
+  asset.inventoryNo = String(body.inventoryNo ?? asset.inventoryNo ?? "").trim();
+  asset.assetCode = String(body.assetCode ?? asset.assetCode ?? "").trim();
+  asset.serialNo = String(body.serialNo ?? asset.serialNo ?? "").trim();
+  asset.vin = String(body.vin ?? asset.vin ?? "").trim().toUpperCase();
+  asset.engineSerial = String(body.engineSerial ?? asset.engineSerial ?? "").trim();
+  asset.year = fleetInteger(body.year ?? asset.year, 0) || "";
+  asset.fuelType = String(body.fuelType ?? body.tip_combustibil ?? asset.fuelType ?? "").trim();
+  asset.tip_combustibil = asset.fuelType;
+  asset.tankCapacity = fleetNumber(body.tankCapacity ?? asset.tankCapacity);
+  asset.standardConsumption = fleetNumber(body.standardConsumption ?? asset.standardConsumption);
+  asset.consum_normat_km = fleetNumber(body.consum_normat_km ?? body.consumNormatKm ?? body.standardConsumption ?? asset.consum_normat_km ?? asset.standardConsumption);
+  asset.consum_orar_normat = fleetNumber(body.consum_orar_normat ?? body.consumOrarNormat ?? body.standardConsumptionHour ?? asset.consum_orar_normat);
+  asset.gps_device_id = String(body.gps_device_id ?? body.gpsDeviceId ?? asset.gps_device_id ?? "").trim();
+  asset.sofer_principal_id = body.sofer_principal_id ?? body.driverId ?? body.sofer_id ?? asset.sofer_principal_id ?? null;
+  asset.meterUnit = meterUnit;
+  asset.currentMeter = currentMeter;
+  asset.lastMeterDate = lastMeterDate;
+  asset.nextServiceDate = fleetDate(body.nextServiceDate ?? asset.nextServiceDate);
+  asset.nextServiceMeter = fleetNumber(body.nextServiceMeter ?? asset.nextServiceMeter);
+  asset.nextInspectionDate = fleetDate(body.nextInspectionDate ?? asset.nextInspectionDate);
+  asset.inspectionType = String(body.inspectionType ?? asset.inspectionType ?? (category === "vehicle" ? "ITP" : "ISCIR / metrologie")).trim();
+  asset.notes = String(body.notes ?? asset.notes ?? "").trim();
+  asset.updatedBy = user.id;
+  asset.updatedByName = user.name;
+  asset.updatedAt = new Date().toISOString();
+
+  if (currentMeter > 0 && currentMeter !== previousMeter) {
+    if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
+    db.fleetMeterReadings.push(createFleetMeterReading(asset, user, currentMeter, previousMeter, lastMeterDate || localDate(new Date()), "Corectie din catalog parc"));
+  }
+
   return asset;
 }
 

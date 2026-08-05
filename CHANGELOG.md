@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.485 - 2026-08-05
+
+## Editare completă resurse parc
+
+- Cardurile din „Parc Utilaje” au acțiune directă `Editează`.
+- Formularul existent de adăugare este reutilizat și pentru actualizarea autovehiculelor și utilajelor.
+- Serverul are endpoint dedicat `PATCH /api/fleet-assets/:id`, cu audit și recalcul al alertelor.
+- Dacă se modifică valoarea contorului, se creează o corecție în istoricul de rulaj.
+- Fluxul rămâne simplu: catalog → editează → salvează → revii în listă fără ecran separat.
+
 # v2.12.484 - 2026-08-05
 
 ## Editare rapidă date tehnice carburant
