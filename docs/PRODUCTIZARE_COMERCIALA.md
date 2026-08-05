@@ -176,6 +176,7 @@ Stadiu implementare:
 - `v2.12.484`: Capacitatea rezervorului și consumul normat se pot completa rapid direct din panoul carburant pe resursă.
 - `v2.12.485`: Autovehiculele și utilajele pot fi editate complet direct din catalogul Parc Utilaje.
 - `v2.12.486`: Resursele parc pot fi arhivate/reactivate controlat, fără pierderea istoricului operațional.
+- `v2.12.487`: Fișa resursei parc are timeline operațional unificat pentru documente, fișiere, alocări, foi/FAZ, alimentări, reparații și audit.
 
 ## Reguli de decuplare de client
 

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.486",
+  "version": "2.12.487",
   "date": "2026-08-05",
-  "changelog": "## v2.12.486 - 2026-08-05\n### Arhivare controlată resurse parc\n- Parc Utilaje afișează implicit doar resursele active și are filtru pentru arhivate sau toate resursele.\n- Fiecare autovehicul/utilaj activ poate fi arhivat cu confirmare și motiv opțional.\n- Resursele arhivate pot fi reactivate din același catalog.\n- Resursele arhivate rămân în istoric și rapoarte, dar nu mai apar implicit în selecțiile operaționale."
+  "changelog": "## v2.12.487 - 2026-08-05\n### Timeline operațional fișă resursă parc\n- Fișa vehiculului/utilajului are tab nou Timeline cu ultimele evenimente într-un singur loc.\n- Timeline-ul combină documente, fișiere, alocări șofer/operator, foi de parcurs, FAZ, alimentări, reparații și audit.\n- Endpoint-ul complet al resursei livrează timeline și statistici compacte pentru interfață.\n- Fișa rămâne simplă: detaliu general, apoi istoric cronologic pentru verificare rapidă."
 }

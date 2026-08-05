@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.487 - 2026-08-05
+
+## Timeline operațional fișă resursă parc
+
+- Fișa vehiculului/utilajului are tab nou `Timeline`.
+- Timeline-ul combină documente/scadențe, fișiere încărcate, alocări șofer/operator, foi de parcurs, FAZ, alimentări, reparații și evenimente de audit relevante.
+- Endpoint-ul complet al resursei livrează `timeline` și `timeline_stats`, ca interfața să afișeze rapid contextul.
+- Evenimentele sunt ordonate cronologic descrescător și limitate la ultimele 80 pentru o fișă rapidă și lizibilă.
+- Operatorul vede istoricul resursei într-un singur loc, fără să sară prin toate taburile.
+
 # v2.12.486 - 2026-08-05
 
 ## Arhivare controlată resurse parc

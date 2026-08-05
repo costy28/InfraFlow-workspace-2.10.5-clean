@@ -14,7 +14,7 @@ import PageHeader from '../components/ui/PageHeader'
 import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 
-const tabs = ['Date generale', 'Documente', 'Soferi / Operatori', 'Foi / FAZ', 'Reparatii', 'Combustibil']
+const tabs = ['Date generale', 'Timeline', 'Documente', 'Soferi / Operatori', 'Foi / FAZ', 'Reparatii', 'Combustibil']
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -47,6 +47,41 @@ function labelValue(label, value) {
       <div className="mt-1 text-sm font-semibold text-slate-900">{value || '-'}</div>
     </div>
   )
+}
+
+function timelineDate(value) {
+  if (!value) return 'fara data'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16)
+  return date.toLocaleString('ro-RO', { dateStyle: 'medium', timeStyle: String(value).includes('T') ? 'short' : undefined })
+}
+
+function timelineIcon(type) {
+  const icons = {
+    document: '📄',
+    file: '📎',
+    driver: '👤',
+    trip: '🚗',
+    faz: '🧾',
+    fuel: '⛽',
+    maintenance: '🔧',
+    audit: '🕘'
+  }
+  return icons[type] || '•'
+}
+
+function timelineTypeLabel(type) {
+  const labels = {
+    document: 'Documente',
+    file: 'Fișiere',
+    driver: 'Alocări',
+    trip: 'Foi parcurs',
+    faz: 'FAZ',
+    fuel: 'Carburant',
+    maintenance: 'Reparații',
+    audit: 'Audit'
+  }
+  return labels[type] || type
 }
 
 export default function FisaVehicul() {
@@ -161,6 +196,8 @@ export default function FisaVehicul() {
     ...(data?.documents || []),
     ...(data?.files || []).map(file => ({ ...file, label: file.denumire || file.file_name, status: 'atasat', data_expirare: '', source: 'fisier' }))
   ]
+  const timelineRows = data?.timeline || []
+  const timelineStats = data?.timeline_stats || {}
 
   return (
     <div className="space-y-5">
@@ -224,6 +261,47 @@ export default function FisaVehicul() {
             {labelValue('Sofer/operator principal', activeDriver?.employee_name)}
           </div>
           <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">{asset.notes || asset.observatii || 'Fara observatii.'}</div>
+        </Card>
+      ) : null}
+
+      {activeTab === 'Timeline' ? (
+        <Card
+          title="Timeline operational"
+          subtitle="Ultimele evenimente ale resursei: documente, fisiere, alocari, foi/FAZ, carburant, reparatii si audit."
+        >
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {labelValue('Evenimente afisate', timelineStats.total || timelineRows.length)}
+            {labelValue('Documente / fisiere', numberValue(timelineStats.document) + numberValue(timelineStats.file))}
+            {labelValue('Operare', numberValue(timelineStats.trip) + numberValue(timelineStats.faz) + numberValue(timelineStats.fuel))}
+            {labelValue('Service / audit', numberValue(timelineStats.maintenance) + numberValue(timelineStats.audit))}
+          </div>
+
+          {timelineRows.length ? (
+            <div className="space-y-3">
+              {timelineRows.map(row => (
+                <div key={row.id} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-[9rem_1fr]">
+                  <div className="text-sm text-slate-500">
+                    <div className="font-semibold text-slate-800">{timelineDate(row.date)}</div>
+                    <Badge tone={row.tone || 'gray'}>{timelineTypeLabel(row.type)}</Badge>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 text-lg" aria-hidden="true">{timelineIcon(row.type)}</span>
+                      <div>
+                        <div className="font-semibold text-slate-900">{row.title}</div>
+                        {row.description ? <div className="mt-1 text-sm text-slate-600">{row.description}</div> : null}
+                        {row.source ? <div className="mt-2 text-xs uppercase tracking-wide text-slate-400">Sursa: {row.source}</div> : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              Nu exista inca evenimente pentru aceasta resursa. Pe masura ce apar documente, alimentari, foi, FAZ-uri sau reparatii, le vei vedea aici.
+            </div>
+          )}
         </Card>
       ) : null}
 

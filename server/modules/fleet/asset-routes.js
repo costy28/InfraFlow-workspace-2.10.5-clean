@@ -229,6 +229,160 @@ function fuelChart(asset, fuelRows, tripRows, fazRows) {
   })
 }
 
+function auditForAsset(db, asset, limit = 50) {
+  const markers = [
+    asset.id,
+    assetLabel(asset),
+    asset.nr_inmatriculare,
+    asset.registration,
+    asset.cod,
+    asset.assetCode,
+    asset.nr_inventar,
+    asset.name,
+    asset.assetName
+  ].filter(Boolean).map(value => String(value).toLowerCase())
+  if (!markers.length) return []
+  return (db.audit || [])
+    .filter(row => {
+      const text = [
+        row.action,
+        row.details,
+        row.entity,
+        row.message,
+        row.userName,
+        row.user_name
+      ].filter(Boolean).join(' ').toLowerCase()
+      return markers.some(marker => text.includes(marker))
+    })
+    .sort((a, b) => String(b.at || b.created_at || '').localeCompare(String(a.at || a.created_at || '')))
+    .slice(0, limit)
+}
+
+function pushTimelineEvent(events, event) {
+  if (!event?.title) return
+  const date = event.date ? String(event.date) : ''
+  events.push({
+    id: event.id || id('fleet-timeline'),
+    type: event.type || 'event',
+    tone: event.tone || 'gray',
+    date,
+    title: event.title,
+    description: event.description || '',
+    meta: event.meta || '',
+    source: event.source || ''
+  })
+}
+
+function timelineStats(events) {
+  return events.reduce((acc, event) => {
+    acc.total += 1
+    acc[event.type] = (acc[event.type] || 0) + 1
+    return acc
+  }, { total: 0 })
+}
+
+function timelineForAsset({ documents, files, drivers, tripLogs, fazLogs, fuelRows, maintenances, auditRows }) {
+  const events = []
+  documents.forEach(doc => pushTimelineEvent(events, {
+    id: `fleet-doc-${doc.source || 'doc'}-${doc.id}`,
+    type: 'document',
+    tone: statusToneForTimeline(doc.status),
+    date: doc.data_expirare,
+    title: `${doc.label || doc.tip || 'Document'} ${doc.status === 'valid' ? 'valid' : doc.status || ''}`.trim(),
+    description: doc.days_until === null ? 'Fara termen clar inregistrat.' : `${doc.days_until} zile pana la scadenta.`,
+    source: 'Documente'
+  }))
+  files.forEach(file => pushTimelineEvent(events, {
+    id: `fleet-file-${file.id}`,
+    type: 'file',
+    tone: 'blue',
+    date: file.created_at,
+    title: `Fisier incarcat: ${file.denumire || file.file_name || 'document'}`,
+    description: file.tip ? `Tip: ${file.tip}` : '',
+    source: 'Dosar'
+  }))
+  drivers.forEach(driver => pushTimelineEvent(events, {
+    id: `fleet-driver-${driver.id}`,
+    type: 'driver',
+    tone: driver.data_sfarsit ? 'gray' : 'success',
+    date: driver.data_start,
+    title: `${driver.data_sfarsit ? 'Alocare inchisa' : 'Alocare activa'}: ${driver.employee_name || 'operator'}`,
+    description: [driver.tip, driver.data_sfarsit ? `pana la ${driver.data_sfarsit}` : 'activ'].filter(Boolean).join(' · '),
+    source: 'Soferi / Operatori'
+  }))
+  tripLogs.forEach(log => pushTimelineEvent(events, {
+    id: `fleet-trip-${log.id || log.uuid || log.data}`,
+    type: 'trip',
+    tone: statusToneForTimeline(log.status),
+    date: log.data || log.date,
+    title: 'Foaie de parcurs',
+    description: [
+      log.sofer_nume || log.driver_name || log.soferName,
+      `${round2(num(log.km_parcursi || log.km_total || 0))} km`,
+      `${round2(num(log.combustibil_consumat || log.consum_efectiv || 0))} l`
+    ].filter(Boolean).join(' · '),
+    source: 'Foi parcurs'
+  }))
+  fazLogs.forEach(log => pushTimelineEvent(events, {
+    id: `fleet-faz-${log.id || log.uuid || log.data}`,
+    type: 'faz',
+    tone: statusToneForTimeline(log.status),
+    date: log.data,
+    title: 'FAZ utilaj',
+    description: [
+      log.operator_name,
+      `${round2(log.ore_lucrate)} ore`,
+      `${round2(log.consum_efectiv)} l`
+    ].filter(Boolean).join(' · '),
+    source: 'FAZ'
+  }))
+  fuelRows.forEach(row => pushTimelineEvent(events, {
+    id: `fleet-fuel-${row.id || row.data}`,
+    type: 'fuel',
+    tone: 'warning',
+    date: row.data,
+    title: 'Alimentare carburant',
+    description: [
+      `${round2(row.cantitate_litri || row.litri)} l`,
+      row.valoare_totala ? `${round2(row.valoare_totala)} RON` : '',
+      row.furnizor
+    ].filter(Boolean).join(' · '),
+    source: 'Combustibil'
+  }))
+  maintenances.forEach(row => pushTimelineEvent(events, {
+    id: `fleet-maintenance-${row.id || row.data_intrare || row.data}`,
+    type: 'maintenance',
+    tone: statusToneForTimeline(row.status),
+    date: row.data_intrare || row.data,
+    title: row.tip || 'Interventie / reparatie',
+    description: [
+      row.descriere,
+      row.cost_total || row.cost ? `${round2(row.cost_total || row.cost)} RON` : '',
+      row.executant || row.furnizor
+    ].filter(Boolean).join(' · '),
+    source: 'Reparatii'
+  }))
+  auditRows.forEach(row => pushTimelineEvent(events, {
+    id: `fleet-audit-${row.id || row.at}`,
+    type: 'audit',
+    tone: 'gray',
+    date: row.at || row.created_at,
+    title: row.action || 'Eveniment audit',
+    description: [row.details, row.userName || row.user_name].filter(Boolean).join(' · '),
+    source: 'Audit'
+  }))
+  return events
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+    .slice(0, 80)
+}
+
+function statusToneForTimeline(status) {
+  if (status === 'valid' || status === 'aprobat' || status === 'semnat' || status === 'completat') return 'success'
+  if (status === 'expira_curand' || status === 'in_lucru' || status === 'draft') return 'warning'
+  if (status === 'expirat' || status === 'respins' || status === 'anulat') return 'danger'
+  return 'gray'
+}
+
 function fullAssetPayload(db, asset) {
   const assetDrivers = allDrivers(db, asset.id)
   const documents = visibleDocumentRecords(db, asset.id)
@@ -237,6 +391,8 @@ function fullAssetPayload(db, asset) {
   const fazLogs = fazLogsForAsset(db, asset.id)
   const fuelRows = fuelForAsset(db, asset.id)
   const maintenances = maintenanceForAsset(db, asset.id)
+  const auditRows = auditForAsset(db, asset)
+  const timeline = timelineForAsset({ documents, files, drivers: assetDrivers, tripLogs, fazLogs, fuelRows, maintenances, auditRows })
   return {
     asset: {
       ...asset,
@@ -253,7 +409,9 @@ function fullAssetPayload(db, asset) {
     faz_logs: fazLogs.slice(0, 30),
     maintenances,
     fuel: fuelRows,
-    fuel_chart: fuelChart(asset, fuelRows, tripLogs, fazLogs)
+    fuel_chart: fuelChart(asset, fuelRows, tripLogs, fazLogs),
+    timeline,
+    timeline_stats: timelineStats(timeline)
   }
 }
 
