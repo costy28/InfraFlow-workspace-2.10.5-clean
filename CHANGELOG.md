@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.486 - 2026-08-05
+
+## Arhivare controlată resurse parc
+
+- „Parc Utilaje” afișează implicit resursele active.
+- A fost adăugat filtrul `Stare catalog`: active, arhivate sau toate.
+- Autovehiculele și utilajele active pot fi arhivate cu confirmare și motiv opțional.
+- Resursele arhivate pot fi reactivate din același catalog.
+- Resursele arhivate rămân în istoric, audit și rapoarte, dar nu mai apar implicit în selecțiile operaționale.
+
 # v2.12.485 - 2026-08-05
 
 ## Editare completă resurse parc

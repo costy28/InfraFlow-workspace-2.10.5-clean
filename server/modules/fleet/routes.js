@@ -69,6 +69,21 @@ router.patch('/fleet-assets/:id', async (req, res, next) => {
   }
 })
 
+router.patch('/fleet-assets/:id/active', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req);
+    const asset = setFleetAssetActive(auth.db, auth.user, req.params.id, body);
+    addAudit(auth.db, auth.user, asset.active === false ? "resursa_parc_arhivata" : "resursa_parc_reactivata", `${asset.registration || "-"} / ${asset.name || "-"} / ${asset.activeReason || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { asset, alerts: buildFleetAlerts(auth.db) });
+  } catch (error) {
+    next(error);
+  }
+})
+
 router.patch('/fleet-assets/:id/technical', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
@@ -1402,6 +1417,17 @@ async function handleApi(req, res, url) {
     const body = await readJsonBody(req);
     const asset = updateFleetAsset(auth.db, auth.user, fleetAssetEditMatch[1], body);
     addAudit(auth.db, auth.user, "utilaj_actualizat", `${asset.registration || "-"} / ${asset.name || "-"}`);
+    writeDb(auth.db);
+    sendJson(res, 200, { asset, alerts: buildFleetAlerts(auth.db) });
+    return;
+  }
+
+  const fleetAssetActiveMatch = url.pathname.match(/^\/api\/fleet-assets\/([^/]+)\/active$/);
+  if ((req.method === "PATCH" || req.method === "POST") && fleetAssetActiveMatch) {
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req);
+    const asset = setFleetAssetActive(auth.db, auth.user, fleetAssetActiveMatch[1], body);
+    addAudit(auth.db, auth.user, asset.active === false ? "resursa_parc_arhivata" : "resursa_parc_reactivata", `${asset.registration || "-"} / ${asset.name || "-"} / ${asset.activeReason || "-"}`);
     writeDb(auth.db);
     sendJson(res, 200, { asset, alerts: buildFleetAlerts(auth.db) });
     return;
@@ -5642,6 +5668,22 @@ function updateFleetAsset(db, user, assetId, body) {
     db.fleetMeterReadings.push(createFleetMeterReading(asset, user, currentMeter, previousMeter, lastMeterDate || localDate(new Date()), "Corectie din catalog parc"));
   }
 
+  return asset;
+}
+
+function setFleetAssetActive(db, user, assetId, body = {}) {
+  const asset = (db.fleetAssets || []).find((item) => String(item.id) === String(assetId));
+  if (!asset) throwHttp(404, "Utilajul sau autovehiculul nu exista.");
+  const nextActive = body.active !== undefined ? Boolean(body.active) : asset.active === false;
+  const reason = String(body.reason || body.motiv || "").trim();
+  asset.active = nextActive;
+  asset.activeReason = reason;
+  asset.activeChangedBy = user.id;
+  asset.activeChangedByName = user.name;
+  asset.activeChangedAt = new Date().toISOString();
+  asset.updatedBy = user.id;
+  asset.updatedByName = user.name;
+  asset.updatedAt = asset.activeChangedAt;
   return asset;
 }
 

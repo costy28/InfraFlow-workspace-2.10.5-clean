@@ -1,5 +1,5 @@
 {
-  "version": "2.12.485",
+  "version": "2.12.486",
   "date": "2026-08-05",
-  "changelog": "## v2.12.485 - 2026-08-05\n### Editare completă resurse parc\n- Cardurile din Parc Utilaje au acțiune directă Editează.\n- Formularul existent este reutilizat pentru actualizarea autovehiculelor și utilajelor.\n- Serverul salvează editările prin endpoint dedicat, cu audit și alerte recalculate.\n- Modificarea contorului din editare creează înregistrare de corecție în istoricul de rulaj."
+  "changelog": "## v2.12.486 - 2026-08-05\n### Arhivare controlată resurse parc\n- Parc Utilaje afișează implicit doar resursele active și are filtru pentru arhivate sau toate resursele.\n- Fiecare autovehicul/utilaj activ poate fi arhivat cu confirmare și motiv opțional.\n- Resursele arhivate pot fi reactivate din același catalog.\n- Resursele arhivate rămân în istoric și rapoarte, dar nu mai apar implicit în selecțiile operaționale."
 }

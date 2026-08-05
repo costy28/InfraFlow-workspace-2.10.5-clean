@@ -209,6 +209,7 @@ export default function MecanizarePage() {
   const [searchAsset, setSearchAsset] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterTip, setFilterTip] = useState('')
+  const [assetVisibility, setAssetVisibility] = useState('active')
   const [scadenteSubtab, setScadenteSubtab] = useState('Expirări')
   const [scadente, setScadente] = useState(null)
   const [fleetDocModal, setFleetDocModal] = useState(false)
@@ -390,18 +391,24 @@ export default function MecanizarePage() {
   // ── computed ────────────────────────────────────────────────────────────────
   const equipment = useMemo(() => assets.filter(a => a.category === 'equipment'), [assets])
   const vehicles  = useMemo(() => assets.filter(a => a.category === 'vehicle'),   [assets])
+  const activeAssetCount = useMemo(() => assets.filter(a => a.active !== false).length, [assets])
+  const archivedAssetCount = useMemo(() => assets.filter(a => a.active === false).length, [assets])
 
   const filteredAssets = useMemo(() => {
     let list = assets
+    if (assetVisibility === 'active') list = list.filter(a => a.active !== false)
+    if (assetVisibility === 'archived') list = list.filter(a => a.active === false)
     if (filterTip === 'utilaj')     list = equipment
     if (filterTip === 'vehicul')    list = vehicles
+    if (assetVisibility === 'active') list = list.filter(a => a.active !== false)
+    if (assetVisibility === 'archived') list = list.filter(a => a.active === false)
     if (filterStatus) list = list.filter(a => assetStatus[a.id] === filterStatus)
     if (searchAsset)  list = list.filter(a => [a.name, a.registration, a.cod].join(' ').toLowerCase().includes(searchAsset.toLowerCase()))
     return list
-  }, [assets, equipment, vehicles, filterTip, filterStatus, searchAsset, assetStatus])
+  }, [assets, equipment, vehicles, filterTip, filterStatus, searchAsset, assetStatus, assetVisibility])
 
   const assetOptions = useMemo(() =>
-    [{ value: '', label: 'Alege utilaj / vehicul…' }, ...assets.map(a => ({
+    [{ value: '', label: 'Alege utilaj / vehicul…' }, ...assets.filter(a => a.active !== false).map(a => ({
       value: String(a.id),
       label: [a.name, a.registration].filter(Boolean).join(' / ')
     }))]
@@ -504,6 +511,28 @@ export default function MecanizarePage() {
     } finally {
       setAssetTechnicalSaving(false)
     }
+  }
+
+  function confirmAssetActiveChange(asset, nextActive) {
+    const label = [asset.name, asset.registration].filter(Boolean).join(' / ') || 'resursa selectată'
+    setConfirmAction({
+      title: nextActive ? 'Reactivează resursa?' : 'Arhivează resursa?',
+      message: nextActive
+        ? `Reactivezi ${label} în catalogul parc.`
+        : `Arhivezi ${label}. Nu se șterg istoricul, bonurile, alimentările sau documentele.`,
+      details: nextActive
+        ? 'Resursa va reapărea în lista activă și va putea fi folosită în planificări, bonuri și alimentări.'
+        : 'Resursele arhivate rămân în rapoarte și audit, dar nu mai apar implicit în selecțiile operaționale.',
+      confirmLabel: nextActive ? 'Reactivează' : 'Arhivează',
+      tone: nextActive ? 'success' : 'danger',
+      reasonLabel: nextActive ? 'Motiv reactivare (opțional)' : 'Motiv arhivare (opțional)',
+      reasonPlaceholder: nextActive ? 'ex: arhivat din greșeală' : 'ex: vândut, scos din uz, înlocuit',
+      run: async (reason) => {
+        await api.patch(`/fleet-assets/${asset.id}/active`, { active: nextActive, reason })
+        await loadAll()
+      },
+      errorMessage: nextActive ? 'Resursa nu a putut fi reactivată.' : 'Resursa nu a putut fi arhivată.',
+    })
   }
 
   function updateFuelStockSetting(key, value) {
@@ -1650,12 +1679,17 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           </Card>
 
           <Card>
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-5">
               <Input label="Caută" value={searchAsset} onChange={e => setSearchAsset(e.target.value)} placeholder="Nume, nr. înmatriculare…" />
               <Select label="Tip" value={filterTip} onChange={e => setFilterTip(e.target.value)} options={[
                 { value: '', label: 'Toate' },
                 { value: 'utilaj', label: 'Utilaje' },
                 { value: 'vehicul', label: 'Autovehicule' },
+              ]} />
+              <Select label="Stare catalog" value={assetVisibility} onChange={e => setAssetVisibility(e.target.value)} options={[
+                { value: 'active', label: `Active (${activeAssetCount})` },
+                { value: 'archived', label: `Arhivate (${archivedAssetCount})` },
+                { value: 'all', label: `Toate (${assets.length})` },
               ]} />
               <Select label="Status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} options={[
                 { value: '', label: 'Toate statusurile' },
@@ -1672,6 +1706,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {filteredAssets.map(asset => {
               const status = assetStatus[asset.id] || 'liber'
+              const isArchived = asset.active === false
               const itp = asset.nextInspectionDate
               const service = asset.nextServiceDate
               const itpDays = daysUntil(itp)
@@ -1684,8 +1719,13 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                       <div className="text-xs text-slate-500">{asset.registration || '—'} · {asset.type || asset.tip_asset || '—'}</div>
                       <div className="text-xs text-slate-400">{asset.brand || ''} {asset.model || ''} {asset.year ? `(${asset.year})` : ''}</div>
                     </div>
-                    <Badge tone={statusTone(status)}>{statusLabel(status)}</Badge>
+                    <Badge tone={isArchived ? 'neutral' : statusTone(status)}>{isArchived ? 'Arhivat' : statusLabel(status)}</Badge>
                   </div>
+                  {isArchived ? (
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-500">
+                      Scos din lista operațională. {asset.activeReason ? `Motiv: ${asset.activeReason}` : 'Istoricul rămâne păstrat.'}
+                    </div>
+                  ) : null}
                   <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
                     <div className="rounded bg-slate-50 px-2 py-1">
                       <div className="text-slate-400">Contor</div>
@@ -1717,22 +1757,35 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                       className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
                       onClick={() => navigate(`/fleet/asset/${asset.id}`)}
                     >Fișă completă</button>
-                    <button
-                      className="rounded bg-primary-50 px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-100"
-                      onClick={() => { setPlanForm({ ...emptyPlanForm, asset_id: String(asset.id) }); setPlanEditing(null); setPlanModal(true) }}
-                    >📋 Planifică</button>
-                    <button
-                      className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
-                      onClick={() => { setWoForm({ ...emptyWoForm, asset_id: String(asset.id) }); setWoEditing(null); setWoModal(true) }}
-                    >🧾 Bon lucru</button>
-                    <button
-                      className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-                      onClick={() => { setFuelForm({ ...emptyFuelForm, asset_id: String(asset.id) }); setFuelEditing(null); setFuelModal(true) }}
-                    >⛽ Alimentare</button>
-                    <button
-                      className="rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-                      onClick={() => { setIntForm({ ...emptyIntForm, asset_id: String(asset.id) }); setIntEditing(null); setIntModal(true) }}
-                    >🔧 Intervenție</button>
+                    {isArchived ? (
+                      <button
+                        className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => confirmAssetActiveChange(asset, true)}
+                      >Reactivează</button>
+                    ) : (
+                      <>
+                        <button
+                          className="rounded bg-primary-50 px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-100"
+                          onClick={() => { setPlanForm({ ...emptyPlanForm, asset_id: String(asset.id) }); setPlanEditing(null); setPlanModal(true) }}
+                        >📋 Planifică</button>
+                        <button
+                          className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
+                          onClick={() => { setWoForm({ ...emptyWoForm, asset_id: String(asset.id) }); setWoEditing(null); setWoModal(true) }}
+                        >🧾 Bon lucru</button>
+                        <button
+                          className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                          onClick={() => { setFuelForm({ ...emptyFuelForm, asset_id: String(asset.id) }); setFuelEditing(null); setFuelModal(true) }}
+                        >⛽ Alimentare</button>
+                        <button
+                          className="rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                          onClick={() => { setIntForm({ ...emptyIntForm, asset_id: String(asset.id) }); setIntEditing(null); setIntModal(true) }}
+                        >🔧 Intervenție</button>
+                        <button
+                          className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                          onClick={() => confirmAssetActiveChange(asset, false)}
+                        >Arhivează</button>
+                      </>
+                    )}
                   </div>
                 </Card>
               )
