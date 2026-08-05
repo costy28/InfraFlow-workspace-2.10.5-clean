@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Download, Eye, FileText, Mail, UploadCloud, X } from 'lucide-react'
+import { Check, Download, Eye, FileText, Mail, Star, UploadCloud, X } from 'lucide-react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -115,6 +115,14 @@ function auditTone(entry = {}) {
 
 function userId(user) {
   return user?.id || user?.userId || user?.username
+}
+
+function documentIsWatched(document, user) {
+  if (!document) return false
+  if (document.watched_by_me) return true
+  const data = documentDataObject(document)
+  const watchers = Array.isArray(data.watchers) ? data.watchers.map(String) : []
+  return watchers.includes(String(userId(user)))
 }
 
 function documentTaskSourceId(document) {
@@ -434,10 +442,11 @@ export default function DocumentePage() {
       { key: 'blocked', label: 'Blocate', count: rows.filter(documentIsBlocked).length, predicate: documentIsBlocked },
       { key: 'due', label: 'Scadente', count: rows.filter(documentIsDueSoon).length, predicate: documentIsDueSoon },
       { key: 'urgent', label: 'Urgente', count: rows.filter(documentIsUrgent).length, predicate: documentIsUrgent },
+      { key: 'watched', label: 'Urmărite', count: rows.filter(document => documentIsWatched(document, user)).length, predicate: document => documentIsWatched(document, user) },
       { key: 'draft', label: 'Drafturi', count: rows.filter(document => documentStatus(document) === 'draft').length, predicate: document => documentStatus(document) === 'draft' },
       { key: 'email', label: 'Din email', count: rows.filter(document => Boolean(emailSourceForDocument(document))).length, predicate: document => Boolean(emailSourceForDocument(document)) },
     ]
-  }, [baseVisibleDocuments])
+  }, [baseVisibleDocuments, user])
 
   const visibleDocuments = useMemo(() => {
     if (activeTab === 'Template-uri') return baseVisibleDocuments
@@ -516,6 +525,22 @@ export default function DocumentePage() {
       setDocumentHtmlLoading(false)
       setRelatedTasksLoading(false)
       setRelatedEmailsLoading(false)
+    }
+  }
+
+  async function toggleWatchDocument(document) {
+    if (!document?.uuid) return
+    const nextWatched = !documentIsWatched(document, user)
+    try {
+      const response = await api.post(`/documents/${document.uuid}/watch`, { watched: nextWatched })
+      const updated = response.data?.document || { ...document, watched_by_me: nextWatched }
+      setDocuments(rows => rows.map(row => String(row.uuid) === String(document.uuid) ? { ...row, ...updated } : row))
+      setSelected(current => current && String(current.uuid) === String(document.uuid) ? { ...current, ...updated } : current)
+      setDetails(current => current.document && String(current.document.uuid) === String(document.uuid)
+        ? { ...current, document: { ...current.document, ...updated } }
+        : current)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Documentul nu a putut fi actualizat ca urmărit.')
     }
   }
 
@@ -977,6 +1002,7 @@ export default function DocumentePage() {
     const urgentCount = currentRows.filter(item => ['urgent', 'critic', 'critica'].includes(String(item.prioritate || item.priority || '').toLowerCase())).length
     const rejectedCount = currentRows.filter(item => String(item.status || '').toLowerCase() === 'respins').length
     const emailCount = currentRows.filter(item => emailSourceForDocument(item)).length
+    const watchedCount = currentRows.filter(item => documentIsWatched(item, user)).length
     const selectedOpenTasks = relatedTasks.filter(task => !['done', 'cancelled'].includes(String(task.status || '').toLowerCase())).length
     const selectedWaitingSteps = details.steps.filter(step => String(step.status || '').toLowerCase() === 'asteptare').length
 
@@ -1018,6 +1044,14 @@ export default function DocumentePage() {
         hint: emailCount ? 'documente venite din email' : 'nimic legat în lista curentă',
         tone: emailCount ? 'info' : 'neutral',
         action: emailCount ? openFirst(item => emailSourceForDocument(item)) : () => setActiveTab('Toate'),
+      },
+      {
+        key: 'watched',
+        label: 'Urmărite',
+        value: watchedCount,
+        hint: watchedCount ? 'sub radarul tău' : 'nimic urmărit în listă',
+        tone: watchedCount ? 'info' : 'neutral',
+        action: watchedCount ? openFirst(item => documentIsWatched(item, user)) : () => setDocumentQuickFilter('watched'),
       },
       {
         key: 'templates',
@@ -1128,6 +1162,7 @@ export default function DocumentePage() {
     details.steps,
     relatedTasks,
     templates.length,
+    user,
     visibleDocuments,
   ])
 
@@ -1519,6 +1554,7 @@ export default function DocumentePage() {
                       <div className="mt-2 flex flex-wrap gap-1">
                         <Badge tone={toneFor(document.status)}>{label(document.status)}</Badge>
                         <Badge tone={documentDueMeta(document).tone}>{documentDueMeta(document).label}</Badge>
+                        {documentIsWatched(document, user) ? <Badge tone="info">urmărit</Badge> : null}
                         {documentIsBlocked(document) ? <Badge tone="danger">{documentAgeHours(document)}h blocat</Badge> : null}
                       </div>
                       {emailSourceForDocument(document) ? (
@@ -1529,8 +1565,17 @@ export default function DocumentePage() {
                     </div>
                     <Badge tone={toneFor(document.prioritate)}>{label(document.prioritate)}</Badge>
                   </button>
+                  <Button
+                    size="sm"
+                    variant={documentIsWatched(document, user) ? 'primary' : 'secondary'}
+                    onClick={() => toggleWatchDocument(document)}
+                  >
+                    <Star size={14} className={documentIsWatched(document, user) ? 'fill-current' : ''} />
+                    {documentIsWatched(document, user) ? 'Urmărit' : 'Urmărește'}
+                  </Button>
                   <DropdownMenu label="Actiuni document" items={[
                     { label: 'Detalii', onClick: () => openDetails(document) },
+                    { label: documentIsWatched(document, user) ? 'Nu mai urmări' : 'Urmărește', onClick: () => toggleWatchDocument(document) },
                     { label: 'Creează task', onClick: () => openTaskFromDocument(document) },
                     canEditDocument(document) ? { label: 'Editeaza', onClick: () => openDocumentEdit(document) } : null,
                   ]} />
@@ -1554,6 +1599,20 @@ export default function DocumentePage() {
                       onChange={() => toggleDocumentSelection(row)}
                       aria-label={`Selectează ${row.nr_document || row.titlu || 'document'}`}
                     />
+                  ) },
+                  { key: 'watched', label: '', render: row => (
+                    <button
+                      type="button"
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                        documentIsWatched(row, user)
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                          : 'border-slate-200 bg-white text-slate-400 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700'
+                      }`}
+                      title={documentIsWatched(row, user) ? 'Document urmărit' : 'Urmărește documentul'}
+                      onClick={() => toggleWatchDocument(row)}
+                    >
+                      <Star size={15} className={documentIsWatched(row, user) ? 'fill-current' : ''} />
+                    </button>
                   ) },
                   { key: 'nr_document', label: 'Nr. document' },
                   { key: 'tip_id', label: 'Tip' },
@@ -1582,6 +1641,7 @@ export default function DocumentePage() {
                     <div className="flex justify-end">
                       <DropdownMenu align="right" label="Actiuni" items={[
                         { label: 'Detalii', onClick: () => openDetails(row) },
+                        { label: documentIsWatched(row, user) ? 'Nu mai urmări' : 'Urmărește', onClick: () => toggleWatchDocument(row) },
                         { label: 'Creează task', onClick: () => openTaskFromDocument(row) },
                         canEditDocument(row) ? { label: 'Editeaza', onClick: () => openDocumentEdit(row) } : null,
                       ]} />
@@ -1606,7 +1666,16 @@ export default function DocumentePage() {
                     <p className="text-sm text-slate-600">{details.document.titlu || 'Document fără titlu'}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={documentIsWatched(details.document, user) ? 'primary' : 'secondary'}
+                      onClick={() => toggleWatchDocument(details.document)}
+                    >
+                      <Star size={14} className={documentIsWatched(details.document, user) ? 'fill-current' : ''} />
+                      {documentIsWatched(details.document, user) ? 'Urmărit' : 'Urmărește'}
+                    </Button>
                     <DropdownMenu align="right" label="Actiuni" items={[
+                      { label: documentIsWatched(details.document, user) ? 'Nu mai urmări' : 'Urmărește', onClick: () => toggleWatchDocument(details.document) },
                       { label: 'Creează task', onClick: () => openTaskFromDocument(details.document) },
                       canEditDocument(details.document) ? { label: 'Editeaza', onClick: () => openDocumentEdit(details.document) } : null,
                       { label: 'Deschide documentul', disabled: !documentHtml, onClick: openDocumentHtml },

@@ -149,7 +149,8 @@ Stadiu implementare:
 - `v2.12.474`: Dashboard-ul grupează documentele din inbox și cele blocate într-un radar compact cu termen, prioritate și deep-link direct în dosar.
 - `v2.12.475`: Inbox-ul Documente primește filtre rapide pentru acțiune, blocaje, scadențe, urgențe, drafturi și documente venite din email.
 - `v2.12.476`: Documente permite selecție multiplă, task-uri în masă pentru documentele selectate și export CSV al listei de lucru.
-- Următorul pas: marcare „urmărit” / watchlist documente și notificări pe documentele urmărite.
+- `v2.12.488`: Documentele pot fi marcate ca urmărite, au filtru rapid dedicat și acțiunea este auditată per utilizator.
+- Următorul pas: notificări pe documentele urmărite când apar pași noi, comentarii, blocaje sau apropiere de termen.
 
 ## Fleet / Mecanizare ca modul generic
 

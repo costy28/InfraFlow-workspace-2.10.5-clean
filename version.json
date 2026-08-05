@@ -1,5 +1,5 @@
 {
-  "version": "2.12.487",
+  "version": "2.12.488",
   "date": "2026-08-05",
-  "changelog": "## v2.12.487 - 2026-08-05\n### Timeline operațional fișă resursă parc\n- Fișa vehiculului/utilajului are tab nou Timeline cu ultimele evenimente într-un singur loc.\n- Timeline-ul combină documente, fișiere, alocări șofer/operator, foi de parcurs, FAZ, alimentări, reparații și audit.\n- Endpoint-ul complet al resursei livrează timeline și statistici compacte pentru interfață.\n- Fișa rămâne simplă: detaliu general, apoi istoric cronologic pentru verificare rapidă."
+  "changelog": "## v2.12.488 - 2026-08-05\n### Watchlist documente urmărite\n- Utilizatorul poate marca sau demarca documente ca urmărite direct din listă sau din dosar.\n- Lista Documente are filtru rapid Urmărite.\n- Urmărirea este salvată în metadatele documentului și auditată.\n- Documentele urmărite au badge și stea vizibilă pentru prioritizare rapidă."
 }

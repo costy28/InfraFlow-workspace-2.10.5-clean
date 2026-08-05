@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.488 - 2026-08-05
+
+## Watchlist documente urmărite
+
+- Documentele pot fi marcate ca `Urmărite` din listă sau din dosarul documentului.
+- Lista Documente are filtru rapid `Urmărite`.
+- Documentele urmărite afișează stea și badge vizibil.
+- Urmărirea este salvată în metadatele documentului, fără migrare nouă.
+- Marcarea/demarcarea este auditată server-side.
+
 # v2.12.487 - 2026-08-05
 
 ## Timeline operațional fișă resursă parc

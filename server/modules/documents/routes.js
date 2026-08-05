@@ -94,7 +94,27 @@ function parseJson(value, fallback = {}) {
   }
 }
 
-function publicDocument(document) {
+function documentWatchers(document = {}) {
+  const data = parseJson(document.date_json, {})
+  return Array.isArray(data.watchers) ? data.watchers.map(String) : []
+}
+
+function documentWatchedBy(document, userId) {
+  return documentWatchers(document).includes(String(userId))
+}
+
+function setDocumentWatcher(document, userId, watched) {
+  const data = parseJson(document.date_json, {})
+  const current = new Set((Array.isArray(data.watchers) ? data.watchers : []).map(String))
+  if (watched) current.add(String(userId))
+  else current.delete(String(userId))
+  data.watchers = Array.from(current)
+  document.date_json = JSON.stringify(data)
+  return data
+}
+
+function publicDocument(document, viewerId = null) {
+  const watchers = documentWatchers(document)
   return {
     id: document.id,
     uuid: document.uuid,
@@ -102,6 +122,8 @@ function publicDocument(document) {
     nr_document: document.nr_document,
     titlu: document.titlu || '',
     date_json: parseJson(document.date_json, {}),
+    watched_by_me: viewerId ? watchers.includes(String(viewerId)) : Boolean(document.watched_by_me),
+    watchers_count: watchers.length,
     status: document.status,
     versiune: document.versiune || 1,
     creat_de: document.creat_de,
@@ -172,6 +194,10 @@ function templateModelFields(template = {}) {
     tip_document: template.tip_document || template.tipDocument || 'generic',
     uploaded_at: template.uploaded_at || attachment.uploaded_at || null
   }
+}
+
+function publicDocuments(documents, auth) {
+  return documents.map(document => publicDocument(document, auth?.user?.id))
 }
 
 function publicTemplate(template = {}) {
@@ -647,12 +673,12 @@ WHERE d.status = N'in_circuit'
 ORDER BY d.created_at DESC
 FOR JSON PATH;
 `, { userId: auth.user.id })
-      sendJson(res, 200, { documents })
+      sendJson(res, 200, { documents: publicDocuments(documents, auth) })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
     const ids = new Set(docs.circuitSteps.filter(step => step.status === 'asteptare' && step.user_responsabil === auth.user.id).map(step => step.document_id))
-    sendJson(res, 200, { documents: docs.documents.filter(document => document.status === 'in_circuit' && ids.has(document.id)).map(publicDocument) })
+    sendJson(res, 200, { documents: publicDocuments(docs.documents.filter(document => document.status === 'in_circuit' && ids.has(document.id)), auth) })
   } catch (error) {
     next(error)
   }
@@ -675,12 +701,12 @@ WHERE (s.shared_with_user = @userId OR s.shared_with_dept = @deptId) AND (s.expi
 ORDER BY d.created_at DESC
 FOR JSON PATH;
 `, { userId: auth.user.id, deptId: auth.user.departmentId || '' })
-      sendJson(res, 200, { documents })
+      sendJson(res, 200, { documents: publicDocuments(documents, auth) })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
     const ids = new Set(docs.documentShares.filter(share => share.shared_with_user === auth.user.id || share.shared_with_dept === auth.user.departmentId).map(share => share.document_id))
-    sendJson(res, 200, { documents: docs.documents.filter(document => ids.has(document.id)).map(publicDocument) })
+    sendJson(res, 200, { documents: publicDocuments(docs.documents.filter(document => ids.has(document.id)), auth) })
   } catch (error) {
     next(error)
   }
@@ -712,11 +738,11 @@ WHERE (@canAll = 1 OR creat_de = @userId OR (@canDept = 1 AND dept_initiatoare =
 ORDER BY created_at DESC
 FOR JSON PATH;
 `, { userId: auth.user.id, deptId: auth.user.departmentId || '', canAll, canDept, tip: req.query.tip || '', status: req.query.status || '', dept: req.query.dept || '' })
-      sendJson(res, 200, { documents })
+      sendJson(res, 200, { documents: publicDocuments(documents, auth) })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
-    const documents = docs.documents.filter(document => canViewDocument(auth, document) && documentMatchesQuery(document, req.query)).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).map(publicDocument)
+    const documents = publicDocuments(docs.documents.filter(document => canViewDocument(auth, document) && documentMatchesQuery(document, req.query)).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))), auth)
     sendJson(res, 200, { documents })
   } catch (error) {
     next(error)
@@ -775,7 +801,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     docs.circuitAudit.push({ id: nextId(docs.circuitAudit), document_id: document.id, user_id: auth.user.id, actiune: 'creat', status_vechi: null, status_nou: 'draft', comentariu: '', ip_address: '', created_at: nowIso() })
     addAudit(auth.db, auth.user, 'document_creat', nrDocument)
     writeDb(auth.db)
-    sendJson(res, 201, { document: publicDocument(document) })
+    sendJson(res, 201, { document: publicDocument(document, auth.user.id) })
   } catch (error) {
     next(error)
   }
@@ -789,7 +815,7 @@ router.get('/documents/:uuid', (req, res, next) => {
     if (isMssqlMode()) {
       const details = mssqlDocumentDetails(req.params.uuid)
       if (!details?.document) throwHttp(404, 'Document inexistent.')
-      sendJson(res, 200, details)
+      sendJson(res, 200, { ...details, document: publicDocument(details.document, auth.user.id) })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
@@ -797,7 +823,7 @@ router.get('/documents/:uuid', (req, res, next) => {
     if (!document) throwHttp(404, 'Document inexistent.')
     if (!canViewDocument(auth, document)) throwHttp(403, 'Nu ai acces la document.')
     sendJson(res, 200, {
-      document: publicDocument(document),
+      document: publicDocument(document, auth.user.id),
       steps: docs.circuitSteps.filter(step => step.document_id === document.id).sort((a, b) => Number(a.nr_pas) - Number(b.nr_pas)),
       audit: docs.circuitAudit.filter(item => item.document_id === document.id),
       shares: docs.documentShares.filter(item => item.document_id === document.id)
@@ -840,7 +866,42 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     }
     document.updated_at = nowIso()
     writeDb(auth.db)
-    sendJson(res, 200, { document: publicDocument(document) })
+    sendJson(res, 200, { document: publicDocument(document, auth.user.id) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/documents/:uuid/watch', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireDocumentPermission(auth, res, 'documents:view_own')) return
+    const watched = Boolean((req.body || {}).watched)
+    if (isMssqlMode()) {
+      const document = mssqlDocument(req.params.uuid)
+      if (!document) throwHttp(404, 'Document inexistent.')
+      setDocumentWatcher(document, auth.user.id, watched)
+      const updated = mssqlJson(`
+UPDATE documents.documents
+SET date_json = JSON_VALUE(@p, '$.dateJson'), updated_at = sysdatetime()
+WHERE uuid = JSON_VALUE(@p, '$.uuid');
+SELECT id, uuid, tip_id, nr_document, titlu, date_json, status, versiune, creat_de, dept_initiatoare, prioritate, termen_limita, fisier_draft_path, fisier_final_path, created_at, updated_at
+FROM documents.documents WHERE uuid = JSON_VALUE(@p, '$.uuid')
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`, { uuid: req.params.uuid, dateJson: document.date_json })
+      addAudit(auth.db, auth.user, watched ? 'document_urmarit' : 'document_neurmarit', document.nr_document)
+      sendJson(res, 200, { document: publicDocument(updated, auth.user.id) })
+      return
+    }
+    const document = documentByUuid(auth.db, req.params.uuid)
+    if (!document) throwHttp(404, 'Document inexistent.')
+    if (!canViewDocument(auth, document)) throwHttp(403, 'Nu ai acces la document.')
+    setDocumentWatcher(document, auth.user.id, watched)
+    document.updated_at = nowIso()
+    addAudit(auth.db, auth.user, watched ? 'document_urmarit' : 'document_neurmarit', document.nr_document)
+    writeDb(auth.db)
+    sendJson(res, 200, { document: publicDocument(document, auth.user.id) })
   } catch (error) {
     next(error)
   }
