@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.483 - 2026-08-04
+
+## Filtru rezervor nesetat în Mecanizare
+
+- Panoul „Carburant pe utilaj / vehicul” afișează câte resurse nu au capacitatea rezervorului completată.
+- A fost adăugat filtrul rapid `Rezervor nesetat`.
+- Rândurile fără capacitate au acțiune directă către fișa completă a resursei.
+- Avertizarea contextuală explică de ce procentul de ocupare estimată are nevoie de capacitatea rezervorului.
+- Fluxul rămâne simplu: vezi lipsa, intri în fișă, completezi datele tehnice.
+
 # v2.12.482 - 2026-08-04
 
 ## Control capacitate rezervor în Mecanizare

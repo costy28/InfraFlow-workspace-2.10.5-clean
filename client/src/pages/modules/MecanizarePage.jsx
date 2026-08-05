@@ -242,6 +242,7 @@ export default function MecanizarePage() {
   const filteredFuelStockRows = useMemo(() => {
     if (fuelStockFilter === 'probleme') return fuelStockRows.filter(row => ['critic', 'atentie'].includes(row.status))
     if (fuelStockFilter === 'critic') return fuelStockRows.filter(row => row.status === 'critic')
+    if (fuelStockFilter === 'rezervor_nesetat') return fuelStockRows.filter(row => Number(row.tank_capacity_litri || 0) <= 0)
     if (fuelStockFilter === 'fara_miscare') return fuelStockRows.filter(row => row.status === 'fara_miscare')
     return fuelStockRows
   }, [fuelStockRows, fuelStockFilter])
@@ -249,6 +250,7 @@ export default function MecanizarePage() {
     total: fuelStockRows.length,
     probleme: fuelStockRows.filter(row => ['critic', 'atentie'].includes(row.status)).length,
     critic: fuelStockRows.filter(row => row.status === 'critic').length,
+    rezervorNesetat: fuelStockRows.filter(row => Number(row.tank_capacity_litri || 0) <= 0).length,
     faraMiscare: fuelStockRows.filter(row => row.status === 'fara_miscare').length,
   }), [fuelStockRows])
 
@@ -1276,6 +1278,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               {[
                 { key: 'probleme', label: `Probleme (${fuelStockSummary.probleme})` },
                 { key: 'critic', label: `Critice (${fuelStockSummary.critic})` },
+                { key: 'rezervor_nesetat', label: `Rezervor nesetat (${fuelStockSummary.rezervorNesetat})` },
                 { key: 'toate', label: `Toate (${fuelStockSummary.total})` },
                 { key: 'fara_miscare', label: `Fără mișcare (${fuelStockSummary.faraMiscare})` },
               ].map(item => (
@@ -1288,8 +1291,13 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   {item.label}
                 </button>
               ))}
-              <span className="ml-auto text-slate-400">Afișarea pornește pe probleme, ca să nu vânezi acul în carul cu motorină.</span>
+              <span className="ml-auto text-slate-400">Afișarea pornește pe probleme; resursele fără rezervor setat pot fi verificate separat.</span>
             </div>
+            {fuelStockSummary.rezervorNesetat > 0 ? (
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {fuelStockSummary.rezervorNesetat} resurse nu au capacitatea rezervorului setată. Controlul de procent funcționează complet după completarea fișei resursei.
+              </div>
+            ) : null}
             {fuelStockRows.length === 0 ? (
               <p className="text-sm text-slate-400">Nu există resurse sau mișcări de carburant pentru luna curentă.</p>
             ) : filteredFuelStockRows.length === 0 ? (
@@ -1350,6 +1358,9 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                           <div className="flex flex-wrap gap-1">
                             <button className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100" onClick={() => { setFuelForm({ ...emptyFuelForm, asset_id: String(row.asset_id) }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare</button>
                             <button className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100" onClick={() => { setWoForm({ ...emptyWoForm, asset_id: String(row.asset_id) }); setWoEditing(null); setWoModal(true) }}>+ Bon</button>
+                            {Number(row.tank_capacity_litri || 0) <= 0 ? (
+                              <button className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100" onClick={() => navigate(`/fleet/asset/${row.asset_id}`)}>Fișă</button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>

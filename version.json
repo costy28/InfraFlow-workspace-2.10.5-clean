@@ -1,5 +1,5 @@
 {
-  "version": "2.12.482",
+  "version": "2.12.483",
   "date": "2026-08-04",
-  "changelog": "## v2.12.482 - 2026-08-04\n### Control capacitate rezervor în Mecanizare\n- Soldul estimat de carburant pe resursă include capacitatea rezervorului din fișa utilajului/vehiculului.\n- Dashboard-ul afișează procentul estimat de ocupare și bară vizuală.\n- Resursele cu sold estimat peste capacitate sunt marcate ca atenție.\n- Exportul Excel include capacitatea rezervorului și procentul estimat."
+  "changelog": "## v2.12.483 - 2026-08-04\n### Filtru rezervor nesetat în Mecanizare\n- Panoul carburant pe resursă afișează câte utilaje/vehicule nu au capacitatea rezervorului completată.\n- A fost adăugat filtrul rapid Rezervor nesetat.\n- Rândurile fără capacitate au acțiune directă către fișa resursei.\n- Mesajul de context explică de ce procentul de ocupare are nevoie de această valoare."
 }

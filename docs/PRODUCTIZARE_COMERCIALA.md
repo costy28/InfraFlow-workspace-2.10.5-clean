@@ -172,6 +172,7 @@ Stadiu implementare:
 - `v2.12.480`: Soldul estimat de carburant este vizibil pe fiecare utilaj/vehicul, cu status, explicație și acțiuni rapide de completare.
 - `v2.12.481`: Panoul carburant pe resursă are filtre rapide pentru probleme și export Excel al listei filtrate.
 - `v2.12.482`: Soldul estimat este comparat cu capacitatea rezervorului pentru a marca alimentări duplicate sau bonuri lipsă.
+- `v2.12.483`: Resursele fără capacitate rezervor au filtru dedicat, avertizare și deep-link către fișa resursei.
 
 ## Reguli de decuplare de client
 
