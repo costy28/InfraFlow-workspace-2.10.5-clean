@@ -173,6 +173,7 @@ Stadiu implementare:
 - `v2.12.481`: Panoul carburant pe resursă are filtre rapide pentru probleme și export Excel al listei filtrate.
 - `v2.12.482`: Soldul estimat este comparat cu capacitatea rezervorului pentru a marca alimentări duplicate sau bonuri lipsă.
 - `v2.12.483`: Resursele fără capacitate rezervor au filtru dedicat, avertizare și deep-link către fișa resursei.
+- `v2.12.484`: Capacitatea rezervorului și consumul normat se pot completa rapid direct din panoul carburant pe resursă.
 
 ## Reguli de decuplare de client
 

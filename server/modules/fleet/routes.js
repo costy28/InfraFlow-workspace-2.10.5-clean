@@ -54,6 +54,21 @@ router.post('/fleet-assets', async (req, res, next) => {
   }
 })
 
+router.patch('/fleet-assets/:id/technical', async (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req);
+    const asset = updateFleetAssetTechnical(auth.db, auth.user, req.params.id, body);
+    addAudit(auth.db, auth.user, "date_tehnice_carburant_actualizate", `${asset.registration || "-"} / ${asset.name || "-"} / rezervor ${fmt(asset.tankCapacity)} L`);
+    writeDb(auth.db);
+    sendJson(res, 200, { asset, alerts: buildFleetAlerts(auth.db) });
+  } catch (error) {
+    next(error);
+  }
+})
+
 router.get('/fleet-requests', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
@@ -1363,6 +1378,17 @@ async function handleApi(req, res, url) {
     addAudit(auth.db, auth.user, "utilaj_adaugat", `${asset.registration || "-"} / ${asset.name}`);
     writeDb(auth.db);
     sendJson(res, 201, { asset });
+    return;
+  }
+
+  const fleetAssetTechnicalMatch = url.pathname.match(/^\/api\/fleet-assets\/([^/]+)\/technical$/);
+  if ((req.method === "PATCH" || req.method === "POST") && fleetAssetTechnicalMatch) {
+    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    const body = await readJsonBody(req);
+    const asset = updateFleetAssetTechnical(auth.db, auth.user, fleetAssetTechnicalMatch[1], body);
+    addAudit(auth.db, auth.user, "date_tehnice_carburant_actualizate", `${asset.registration || "-"} / ${asset.name || "-"} / rezervor ${fmt(asset.tankCapacity)} L`);
+    writeDb(auth.db);
+    sendJson(res, 200, { asset, alerts: buildFleetAlerts(auth.db) });
     return;
   }
 
@@ -5518,6 +5544,37 @@ function createFleetAsset(db, user, body) {
     if (!Array.isArray(db.fleetMeterReadings)) db.fleetMeterReadings = [];
     db.fleetMeterReadings.push(createFleetMeterReading(asset, user, currentMeter, 0, asset.lastMeterDate, "Rulaj initial"));
   }
+  return asset;
+}
+
+function updateFleetAssetTechnical(db, user, assetId, body) {
+  const asset = (db.fleetAssets || []).find((item) => String(item.id) === String(assetId) && item.active !== false);
+  if (!asset) throwHttp(404, "Utilajul sau autovehiculul nu exista.");
+
+  if (body.fuelType !== undefined || body.tip_combustibil !== undefined) {
+    const fuelType = String(body.fuelType || body.tip_combustibil || "").trim();
+    asset.fuelType = fuelType;
+    asset.tip_combustibil = fuelType;
+  }
+
+  if (body.tankCapacity !== undefined || body.tank_capacity_litri !== undefined) {
+    asset.tankCapacity = fleetNumber(body.tankCapacity ?? body.tank_capacity_litri);
+  }
+
+  if (body.standardConsumption !== undefined || body.consum_normat_km !== undefined || body.consum_orar_normat !== undefined) {
+    const standardConsumption = fleetNumber(body.standardConsumption ?? body.consum_normat_km ?? body.consum_orar_normat);
+    asset.standardConsumption = standardConsumption;
+    const meterUnit = normalizeFleetMeterUnit(asset.meterUnit || (asset.category === "equipment" ? "hours" : "km"));
+    if (meterUnit === "hours" || asset.category === "equipment") {
+      asset.consum_orar_normat = standardConsumption;
+    } else {
+      asset.consum_normat_km = standardConsumption;
+    }
+  }
+
+  asset.updatedBy = user.id;
+  asset.updatedByName = user.name;
+  asset.updatedAt = new Date().toISOString();
   return asset;
 }
 

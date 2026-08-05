@@ -128,6 +128,14 @@ const emptyAssetForm = {
   notes: '',
 }
 
+const emptyAssetTechnicalForm = {
+  asset_id: '',
+  asset_name: '',
+  fuelType: '',
+  tankCapacity: '',
+  standardConsumption: '',
+}
+
 const scadenteTabs = ['Expirări', 'RCA/CASCO', 'ITP', 'Taxe', 'ISCIR', 'Raport']
 
 const emptyFleetDocForm = {
@@ -208,6 +216,9 @@ export default function MecanizarePage() {
   const [fleetDocForm, setFleetDocForm] = useState(emptyFleetDocForm)
   const [assetModal, setAssetModal] = useState(false)
   const [assetForm, setAssetForm] = useState(emptyAssetForm)
+  const [assetTechnicalModal, setAssetTechnicalModal] = useState(false)
+  const [assetTechnicalForm, setAssetTechnicalForm] = useState(emptyAssetTechnicalForm)
+  const [assetTechnicalSaving, setAssetTechnicalSaving] = useState(false)
 
   // modals
   const [planModal, setPlanModal] = useState(false)
@@ -427,6 +438,38 @@ export default function MecanizarePage() {
       await loadAll()
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la adăugarea autovehiculului / utilajului.')
+    }
+  }
+
+  function openAssetTechnicalModal(row) {
+    const asset = assets.find(item => String(item.id) === String(row.asset_id)) || {}
+    setAssetTechnicalForm({
+      asset_id: String(row.asset_id || asset.id || ''),
+      asset_name: row.asset_name || [asset.name, asset.registration].filter(Boolean).join(' / ') || 'Resursă parc',
+      fuelType: asset.fuelType || asset.tip_combustibil || row.fuel_type || '',
+      tankCapacity: asset.tankCapacity || row.tank_capacity_litri || '',
+      standardConsumption: asset.standardConsumption || asset.consum_normat_km || asset.consum_orar_normat || '',
+    })
+    setAssetTechnicalModal(true)
+  }
+
+  async function saveAssetTechnical(ev) {
+    ev.preventDefault(); setError('')
+    if (!assetTechnicalForm.asset_id) return
+    setAssetTechnicalSaving(true)
+    try {
+      await api.patch(`/fleet-assets/${assetTechnicalForm.asset_id}/technical`, {
+        fuelType: assetTechnicalForm.fuelType,
+        tankCapacity: assetTechnicalForm.tankCapacity,
+        standardConsumption: assetTechnicalForm.standardConsumption,
+      })
+      setAssetTechnicalModal(false)
+      setAssetTechnicalForm(emptyAssetTechnicalForm)
+      await loadAll()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Datele tehnice nu au putut fi salvate.')
+    } finally {
+      setAssetTechnicalSaving(false)
     }
   }
 
@@ -1359,8 +1402,9 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                             <button className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100" onClick={() => { setFuelForm({ ...emptyFuelForm, asset_id: String(row.asset_id) }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare</button>
                             <button className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100" onClick={() => { setWoForm({ ...emptyWoForm, asset_id: String(row.asset_id) }); setWoEditing(null); setWoModal(true) }}>+ Bon</button>
                             {Number(row.tank_capacity_litri || 0) <= 0 ? (
-                              <button className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100" onClick={() => navigate(`/fleet/asset/${row.asset_id}`)}>Fișă</button>
+                              <button className="rounded bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100" onClick={() => openAssetTechnicalModal(row)}>Setează rezervor</button>
                             ) : null}
+                            <button className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100" onClick={() => navigate(`/fleet/asset/${row.asset_id}`)}>Fișă</button>
                           </div>
                         </td>
                       </tr>
@@ -2716,6 +2760,47 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setAssetModal(false)}>Renunță</Button>
             <Button type="submit">Salvează în parc</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={assetTechnicalModal} title="Date tehnice carburant" onClose={() => { setAssetTechnicalModal(false); setAssetTechnicalForm(emptyAssetTechnicalForm) }} size="md">
+        <form className="grid gap-3" onSubmit={saveAssetTechnical}>
+          <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-800">
+            Completezi doar ce ajută calculul carburantului pentru <strong>{assetTechnicalForm.asset_name}</strong>.
+          </div>
+          <Input
+            label="Combustibil"
+            value={assetTechnicalForm.fuelType}
+            onChange={e => setAssetTechnicalForm({ ...assetTechnicalForm, fuelType: e.target.value })}
+            placeholder="motorină, benzină, electric"
+          />
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input
+              label="Capacitate rezervor (L)"
+              type="number"
+              step="0.1"
+              min="0"
+              value={assetTechnicalForm.tankCapacity}
+              onChange={e => setAssetTechnicalForm({ ...assetTechnicalForm, tankCapacity: e.target.value })}
+              required
+            />
+            <Input
+              label="Consum normat"
+              type="number"
+              step="0.01"
+              min="0"
+              value={assetTechnicalForm.standardConsumption}
+              onChange={e => setAssetTechnicalForm({ ...assetTechnicalForm, standardConsumption: e.target.value })}
+              placeholder="L/100km sau L/oră"
+            />
+          </div>
+          <div className="text-xs text-slate-500">
+            Capacitatea rezervorului permite aplicației să marcheze alimentări imposibile, duplicate sau bonuri lipsă.
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => { setAssetTechnicalModal(false); setAssetTechnicalForm(emptyAssetTechnicalForm) }}>Renunță</Button>
+            <Button type="submit" disabled={assetTechnicalSaving}>{assetTechnicalSaving ? 'Se salvează…' : 'Salvează datele'}</Button>
           </div>
         </form>
       </Modal>

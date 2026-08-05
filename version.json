@@ -1,5 +1,5 @@
 {
-  "version": "2.12.483",
-  "date": "2026-08-04",
-  "changelog": "## v2.12.483 - 2026-08-04\n### Filtru rezervor nesetat în Mecanizare\n- Panoul carburant pe resursă afișează câte utilaje/vehicule nu au capacitatea rezervorului completată.\n- A fost adăugat filtrul rapid Rezervor nesetat.\n- Rândurile fără capacitate au acțiune directă către fișa resursei.\n- Mesajul de context explică de ce procentul de ocupare are nevoie de această valoare."
+  "version": "2.12.484",
+  "date": "2026-08-05",
+  "changelog": "## v2.12.484 - 2026-08-05\n### Editare rapidă date tehnice carburant\n- Panoul carburant pe resursă permite completarea directă a capacității rezervorului.\n- A fost adăugat un modal scurt pentru combustibil, capacitate rezervor și consum normat.\n- Serverul salvează datele tehnice prin endpoint dedicat, cu audit și alerte recalculate.\n- Acțiunea Fișă rămâne disponibilă pentru editări complete."
 }

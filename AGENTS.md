@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.483**
-**Versiune în lucru: v2.12.483**
+**Versiune curentă sursă: v2.12.484**
+**Versiune în lucru: v2.12.484**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -249,6 +249,7 @@ Mecanizare / Fleet
   ✅ Filtre rapide și export Excel pentru carburant pe resursă (v2.12.481)
   ✅ Control capacitate rezervor pentru soldul estimat pe resursă (v2.12.482)
   ✅ Filtru rezervor nesetat și deep-link către fișa resursei (v2.12.483)
+  ✅ Editare rapidă date tehnice carburant din panoul pe resursă (v2.12.484)
   ✅ Alerte scadențe ITP/RCA
   ✅ Import Autominder XML ca adaptor opțional, nu sursă implicită
   ✅ Confirmări UX FAZ, ștergeri și import PIUSI (v2.12.411)
@@ -680,7 +681,7 @@ PRIORITATE 2 — Expansiune platformă:
       → Autominder rămâne referință/adaptor opțional pentru import istoric
       → PIUSI rămâne adaptor opțional; trebuie pregătite CSV/Excel și alți furnizori carburant
       → Alimentările manuale trebuie să funcționeze complet fără PIUSI
-      → Alertă stoc carburant estimat pe baza alimentărilor, consumurilor și pragurilor definite de client ✅ Fundație v2.12.478, praguri configurabile v2.12.479, sold pe resursă v2.12.480, filtre/export v2.12.481, control capacitate v2.12.482, filtru rezervor nesetat v2.12.483
+      → Alertă stoc carburant estimat pe baza alimentărilor, consumurilor și pragurilor definite de client ✅ Fundație v2.12.478, praguri configurabile v2.12.479, sold pe resursă v2.12.480, filtre/export v2.12.481, control capacitate v2.12.482, filtru rezervor nesetat v2.12.483, editare rapidă date tehnice v2.12.484
       → Mapări configurabile per furnizor, nu hardcodate pe o singură companie
 
   [ ] Modul Warehouse / WMS
@@ -863,9 +864,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.483
+VERSIUNE CURENTĂ SURSĂ: 2.12.484
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.483 ✅
+UPDATE ZIP CURENT: 2.12.484 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1157,6 +1158,7 @@ UPDATES ÎN LUCRU:
   2.12.481 → UPDATE 501 Filtre și export carburant pe resursă ✅
   2.12.482 → UPDATE 502 Control capacitate rezervor Mecanizare ✅
   2.12.483 → UPDATE 503 Filtru rezervor nesetat Mecanizare ✅
+  2.12.484 → UPDATE 504 Editare rapidă date tehnice carburant ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1651,5 +1653,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 August 2026 | InfraFlow sursă v2.12.483*
+*AGENTS.md actualizat: 5 August 2026 | InfraFlow sursă v2.12.484*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

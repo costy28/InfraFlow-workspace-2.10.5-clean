@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.484 - 2026-08-05
+
+## Editare rapidă date tehnice carburant
+
+- Panoul „Carburant pe utilaj / vehicul” permite completarea directă a capacității rezervorului pentru resursele marcate ca nesetate.
+- A fost adăugat un modal scurt pentru combustibil, capacitate rezervor și consum normat.
+- Serverul are endpoint dedicat pentru actualizarea datelor tehnice de carburant, cu audit și recalcul al alertelor.
+- Acțiunea „Fișă” rămâne disponibilă separat pentru editări complete.
+- Fluxul rămâne simplu: vezi problema, apeși „Setează rezervor”, salvezi și dashboard-ul se reîmprospătează.
+
 # v2.12.483 - 2026-08-04
 
 ## Filtru rezervor nesetat în Mecanizare
