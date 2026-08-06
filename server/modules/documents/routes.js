@@ -272,6 +272,34 @@ function watchedDocumentNotifications(db, user) {
     .slice(0, 8)
 }
 
+function watchedDocumentNotificationKeys(document = {}) {
+  return new Set([
+    document.uuid,
+    document.id,
+    document.nr_document
+  ].filter(value => value !== undefined && value !== null && String(value).trim()).map(value => `document:${String(value)}`))
+}
+
+function markWatchedDocumentNotificationsRead(db, user, document) {
+  const userId = String(user?.id || '')
+  if (!userId) return 0
+  const keys = watchedDocumentNotificationKeys(document)
+  if (!keys.size) return 0
+  const readAt = nowIso()
+  let changed = 0
+  ensureNotifications(db).forEach(notification => {
+    if (!notification || notification.read === true || notification.read_at) return
+    if (notification.event !== 'document_watch' && notification.type !== 'document_watch') return
+    if (String(notification.user_id || notification.userId || '') !== userId) return
+    if (!keys.has(String(notification.entity_key || notification.entityKey || ''))) return
+    notification.read = true
+    notification.read_at = readAt
+    notification.read_by = user.id
+    changed += 1
+  })
+  return changed
+}
+
 function watchedDocumentsSummary(documents, notifications) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -950,18 +978,23 @@ router.get('/documents/:uuid', (req, res, next) => {
     if (isMssqlMode()) {
       const details = mssqlDocumentDetails(req.params.uuid)
       if (!details?.document) throwHttp(404, 'Document inexistent.')
-      sendJson(res, 200, { ...details, document: publicDocument(details.document, auth.user.id) })
+      const readCount = markWatchedDocumentNotificationsRead(auth.db, auth.user, details.document)
+      if (readCount) writeDb(auth.db)
+      sendJson(res, 200, { ...details, document: publicDocument(details.document, auth.user.id), watched_notifications_read: readCount })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
     const document = documentByUuid(auth.db, req.params.uuid)
     if (!document) throwHttp(404, 'Document inexistent.')
     if (!canViewDocument(auth, document)) throwHttp(403, 'Nu ai acces la document.')
+    const readCount = markWatchedDocumentNotificationsRead(auth.db, auth.user, document)
+    if (readCount) writeDb(auth.db)
     sendJson(res, 200, {
       document: publicDocument(document, auth.user.id),
       steps: docs.circuitSteps.filter(step => step.document_id === document.id).sort((a, b) => Number(a.nr_pas) - Number(b.nr_pas)),
       audit: docs.circuitAudit.filter(item => item.document_id === document.id),
-      shares: docs.documentShares.filter(item => item.document_id === document.id)
+      shares: docs.documentShares.filter(item => item.document_id === document.id),
+      watched_notifications_read: readCount
     })
   } catch (error) {
     next(error)

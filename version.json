@@ -1,5 +1,5 @@
 {
-  "version": "2.12.490",
+  "version": "2.12.491",
   "date": "2026-08-06",
-  "changelog": "## v2.12.490 - 2026-08-06\n### Radar Dashboard pentru documente urmărite\n- Dashboard-ul afișează un panou personal pentru documentele urmărite.\n- Panoul arată activitatea nouă, documentele urgente, întârziate și cele aflate în circuit.\n- Endpoint-ul GET /api/documents/watched aduce doar documentele urmărite de utilizator.\n- Butonul Vezi urmărite deschide Documente direct cu filtrul Urmărite."
+  "changelog": "## v2.12.491 - 2026-08-06\n### Citire automată activitate documente urmărite\n- Notificările document_watch se marchează automat ca citite când utilizatorul deschide documentul urmărit.\n- Citirea se aplică doar notificărilor utilizatorului curent și documentului deschis.\n- Endpoint-ul de detalii returnează watched_notifications_read pentru diagnostic.\n- Nu necesită migrare SQL nouă."
 }

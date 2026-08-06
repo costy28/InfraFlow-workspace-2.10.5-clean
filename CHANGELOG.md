@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.491 - 2026-08-06
+
+## Citire automată activitate documente urmărite
+
+- Notificările `document_watch` se marchează automat ca citite când utilizatorul deschide documentul urmărit.
+- Citirea se aplică doar notificărilor utilizatorului curent și doar documentului deschis.
+- Endpoint-ul de detalii document returnează `watched_notifications_read`, util pentru diagnostic și testare.
+- Radarul de pe Dashboard nu mai rămâne artificial încărcat după ce utilizatorul a intrat în document.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.490 - 2026-08-06
 
 ## Radar Dashboard pentru documente urmărite
