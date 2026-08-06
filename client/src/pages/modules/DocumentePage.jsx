@@ -507,6 +507,7 @@ export default function DocumentePage() {
     return baseVisibleDocuments.filter(document => keys.has(documentSelectionKey(document)))
   }, [baseVisibleDocuments, selectedDocumentKeys])
 
+  const hasWatchedGroupFilter = documentQuickFilter === 'watched' && Boolean(watchedGroupFilter.due || watchedGroupFilter.owner || watchedGroupFilter.type)
   const allVisibleSelected = visibleDocuments.length > 0 && visibleDocuments.every(document => selectedDocumentKeys.includes(documentSelectionKey(document)))
 
   useEffect(() => {
@@ -516,6 +517,10 @@ export default function DocumentePage() {
 
   function setQuickFilter(key) {
     setDocumentQuickFilter(key)
+    setWatchedGroupFilter({ due: '', owner: '', type: '' })
+  }
+
+  function clearWatchedGroupFilter() {
     setWatchedGroupFilter({ due: '', owner: '', type: '' })
   }
 
@@ -1483,9 +1488,16 @@ export default function DocumentePage() {
                 {watchedGroupFilterLabel ? <span> · grup {watchedGroupFilterLabel}</span> : null}
                 {' '}· {visibleDocuments.length} documente afișate.
               </span>
-              <button type="button" className="text-xs font-semibold underline" onClick={() => setQuickFilter('all')}>
-                Resetează filtrul
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                {hasWatchedGroupFilter ? (
+                  <button type="button" className="text-xs font-semibold underline" onClick={clearWatchedGroupFilter}>
+                    Curăță doar grupul
+                  </button>
+                ) : null}
+                <button type="button" className="text-xs font-semibold underline" onClick={() => setQuickFilter('all')}>
+                  Resetează filtrul
+                </button>
+              </div>
             </div>
           ) : null}
           <div className="mt-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1495,7 +1507,9 @@ export default function DocumentePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="secondary" onClick={toggleVisibleSelection} disabled={!visibleDocuments.length}>
-                {allVisibleSelected ? 'Deselectează lista' : 'Selectează lista'}
+                {allVisibleSelected
+                  ? (hasWatchedGroupFilter ? 'Deselectează grupul' : 'Deselectează lista')
+                  : (hasWatchedGroupFilter ? 'Selectează tot grupul' : 'Selectează lista')}
               </Button>
               <Button size="sm" variant="secondary" onClick={exportSelectedDocumentsCsv} disabled={!visibleDocuments.length && !selectedDocuments.length}>
                 Export CSV

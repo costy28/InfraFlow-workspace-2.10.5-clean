@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.494**
-**Versiune în lucru: v2.12.494**
+**Versiune curentă sursă: v2.12.495**
+**Versiune în lucru: v2.12.495**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -230,7 +230,7 @@ Core System
   ✅ Citire automată activitate documente urmărite la deschiderea dosarului (v2.12.491)
   ✅ Acțiuni rapide în radarul de documente urmărite (v2.12.492)
   ✅ Grupare activitate documente urmărite pe termen, responsabil și tip (v2.12.493)
-  ✅ Grupuri acționabile pentru documente urmărite Dashboard → Documente (v2.12.494)
+  ✅ Acțiuni rapide contextualizate pe grupuri documente urmărite în Documente (v2.12.495)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -807,6 +807,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Acțiuni rapide din radar: task legat de document și scoatere din urmărite ✅ Fundație v2.12.492
       → Grupare urmărite pe termen, responsabil și tip document ✅ Fundație v2.12.493
       → Grupuri acționabile Dashboard → Documente cu subfiltru aplicat ✅ Fundație v2.12.494
+      → Acțiuni contextualizate pe grup urmărit: selectare grup și curățare subfiltru ✅ Fundație v2.12.495
 
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
@@ -881,9 +882,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.494
+VERSIUNE CURENTĂ SURSĂ: 2.12.495
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.494 ✅
+UPDATE ZIP CURENT: 2.12.495 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1186,6 +1187,7 @@ UPDATES ÎN LUCRU:
   2.12.492 → UPDATE 512 Acțiuni rapide radar documente urmărite ✅
   2.12.493 → UPDATE 513 Grupare activitate documente urmărite ✅
   2.12.494 → UPDATE 514 Grupuri acționabile documente urmărite ✅
+  2.12.495 → UPDATE 515 Acțiuni rapide pe grupuri documente urmărite ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1680,5 +1682,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 6 August 2026 | InfraFlow sursă v2.12.494*
+*AGENTS.md actualizat: 6 August 2026 | InfraFlow sursă v2.12.495*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

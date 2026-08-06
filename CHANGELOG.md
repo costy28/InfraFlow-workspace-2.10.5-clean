@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.495 - 2026-08-06
+
+## Acțiuni rapide pe grupuri documente urmărite
+
+- DocumentePage afișează acțiuni contextualizate când lista vine dintr-un grup urmărit.
+- Butonul de selecție devine explicit: `Selectează tot grupul` / `Deselectează grupul`.
+- Bara filtrului permite curățarea doar a grupului urmărit, fără resetarea completă a filtrului `Urmărite`.
+- Fluxul Dashboard → Documente devine direct acționabil pentru export CSV și task-uri în masă.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.494 - 2026-08-06
 
 ## Grupuri acționabile pentru documente urmărite

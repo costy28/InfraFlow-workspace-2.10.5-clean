@@ -1,5 +1,5 @@
 {
-  "version": "2.12.494",
+  "version": "2.12.495",
   "date": "2026-08-06",
-  "changelog": "## v2.12.494 - 2026-08-06\n### Grupuri acționabile documente urmărite\n- Grupurile din radarul Dashboard sunt clickabile.\n- DocumentePage deschide filtrul Urmărite cu subfiltru de termen, responsabil sau tip.\n- Bara de filtru arată grupul aplicat și numărul de documente afișate.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.495 - 2026-08-06\n### Acțiuni rapide pe grupuri documente urmărite\n- DocumentePage afișează acțiuni contextualizate când lista vine dintr-un grup urmărit.\n- Butonul de selecție devine explicit: Selectează tot grupul / Deselectează grupul.\n- Bara filtrului permite curățarea doar a grupului urmărit, fără resetarea completă a filtrului Urmărite.\n- Nu necesită migrare SQL nouă."
 }
