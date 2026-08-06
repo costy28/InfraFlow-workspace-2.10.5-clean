@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.494 - 2026-08-06
+
+## Grupuri acționabile pentru documente urmărite
+
+- Cardurile de grupare din radarul Dashboard sunt clickabile.
+- Click pe un grup deschide Documente cu filtrul `Urmărite` și subfiltrul aferent: termen, responsabil sau tip document.
+- DocumentePage citește parametrii `watch_due`, `watch_owner` și `watch_type`.
+- Bara de filtru activ afișează și grupul aplicat, ca utilizatorul să înțeleagă lista restrânsă.
+- Subfiltrele se resetează când utilizatorul alege manual alt filtru rapid.
+
 # v2.12.493 - 2026-08-06
 
 ## Grupare activitate documente urmărite

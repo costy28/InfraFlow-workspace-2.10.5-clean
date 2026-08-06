@@ -322,6 +322,32 @@ function documentIsDueSoon(document) {
   return due.sort <= 6
 }
 
+function watchedDueGroup(document) {
+  const due = documentDueMeta(document)
+  if (due.tone === 'danger') return due.label === 'azi' ? 'today' : 'overdue'
+  if (due.tone === 'warning') return 'soon'
+  if (due.label === 'fără termen') return 'no_due'
+  return 'later'
+}
+
+function watchedOwnerGroup(document) {
+  return document?.current_responsible_label ||
+    (document?.current_responsible_id ? `Responsabil #${document.current_responsible_id}` : '') ||
+    (documentStatus(document) === 'draft' ? 'În draft' : 'Fără responsabil curent')
+}
+
+function watchedTypeGroup(document) {
+  return document?.tip_document_label || document?.tip_document || document?.tip_id || 'Document'
+}
+
+const watchedDueLabels = {
+  overdue: 'Întârziate',
+  today: 'Scad azi',
+  soon: 'Următoarele 3 zile',
+  later: 'Termen viitor',
+  no_due: 'Fără termen',
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -397,6 +423,14 @@ export default function DocumentePage() {
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [documentAssistantExpanded, setDocumentAssistantExpanded] = useState(false)
   const [documentQuickFilter, setDocumentQuickFilter] = useState(() => new URLSearchParams(window.location.search).get('filter') || 'all')
+  const [watchedGroupFilter, setWatchedGroupFilter] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return {
+      due: params.get('watch_due') || '',
+      owner: params.get('watch_owner') || '',
+      type: params.get('watch_type') || '',
+    }
+  })
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
   const canEditDocument = useCallback(document => (
@@ -448,11 +482,25 @@ export default function DocumentePage() {
     ]
   }, [baseVisibleDocuments, user])
 
+  const watchedGroupFilterLabel = useMemo(() => {
+    if (documentQuickFilter !== 'watched') return ''
+    if (watchedGroupFilter.due) return `termen: ${watchedDueLabels[watchedGroupFilter.due] || watchedGroupFilter.due}`
+    if (watchedGroupFilter.owner) return `responsabil: ${watchedGroupFilter.owner}`
+    if (watchedGroupFilter.type) return `tip: ${watchedGroupFilter.type}`
+    return ''
+  }, [documentQuickFilter, watchedGroupFilter])
+
   const visibleDocuments = useMemo(() => {
     if (activeTab === 'Template-uri') return baseVisibleDocuments
     const filter = documentQuickFilters.find(item => item.key === documentQuickFilter) || documentQuickFilters[0]
-    return baseVisibleDocuments.filter(filter.predicate)
-  }, [activeTab, baseVisibleDocuments, documentQuickFilter, documentQuickFilters])
+    let rows = baseVisibleDocuments.filter(filter.predicate)
+    if (documentQuickFilter === 'watched') {
+      if (watchedGroupFilter.due) rows = rows.filter(document => watchedDueGroup(document) === watchedGroupFilter.due)
+      if (watchedGroupFilter.owner) rows = rows.filter(document => watchedOwnerGroup(document) === watchedGroupFilter.owner)
+      if (watchedGroupFilter.type) rows = rows.filter(document => watchedTypeGroup(document) === watchedGroupFilter.type)
+    }
+    return rows
+  }, [activeTab, baseVisibleDocuments, documentQuickFilter, documentQuickFilters, watchedGroupFilter])
 
   const selectedDocuments = useMemo(() => {
     const keys = new Set(selectedDocumentKeys)
@@ -466,9 +514,14 @@ export default function DocumentePage() {
     setSelectedDocumentKeys(keys => keys.filter(key => available.has(key)))
   }, [baseVisibleDocuments])
 
+  function setQuickFilter(key) {
+    setDocumentQuickFilter(key)
+    setWatchedGroupFilter({ due: '', owner: '', type: '' })
+  }
+
   useEffect(() => {
     if (activeTab === 'Template-uri' && documentQuickFilter !== 'all') {
-      setDocumentQuickFilter('all')
+      setQuickFilter('all')
     }
   }, [activeTab, documentQuickFilter])
 
@@ -481,7 +534,7 @@ export default function DocumentePage() {
     )
     if (target) {
       setPendingDocumentParam('')
-      setDocumentQuickFilter('all')
+      setQuickFilter('all')
       Promise.resolve().then(() => openDetails(target))
       return
     }
@@ -1051,7 +1104,7 @@ export default function DocumentePage() {
         value: watchedCount,
         hint: watchedCount ? 'sub radarul tău' : 'nimic urmărit în listă',
         tone: watchedCount ? 'info' : 'neutral',
-        action: watchedCount ? openFirst(item => documentIsWatched(item, user)) : () => setDocumentQuickFilter('watched'),
+        action: watchedCount ? openFirst(item => documentIsWatched(item, user)) : () => setQuickFilter('watched'),
       },
       {
         key: 'templates',
@@ -1402,7 +1455,7 @@ export default function DocumentePage() {
                 <button
                   key={filter.key}
                   type="button"
-                  onClick={() => setDocumentQuickFilter(filter.key)}
+                  onClick={() => setQuickFilter(filter.key)}
                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
                     documentQuickFilter === filter.key
                       ? 'border-primary-700 bg-primary-700 text-white shadow-sm'
@@ -1426,9 +1479,11 @@ export default function DocumentePage() {
           {documentQuickFilter !== 'all' ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary-100 bg-primary-50 px-3 py-2 text-sm text-primary-800">
               <span>
-                Filtru activ: <strong>{documentQuickFilters.find(item => item.key === documentQuickFilter)?.label}</strong> · {visibleDocuments.length} documente afișate.
+                Filtru activ: <strong>{documentQuickFilters.find(item => item.key === documentQuickFilter)?.label}</strong>
+                {watchedGroupFilterLabel ? <span> · grup {watchedGroupFilterLabel}</span> : null}
+                {' '}· {visibleDocuments.length} documente afișate.
               </span>
-              <button type="button" className="text-xs font-semibold underline" onClick={() => setDocumentQuickFilter('all')}>
+              <button type="button" className="text-xs font-semibold underline" onClick={() => setQuickFilter('all')}>
                 Resetează filtrul
               </button>
             </div>

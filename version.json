@@ -1,5 +1,5 @@
 {
-  "version": "2.12.493",
+  "version": "2.12.494",
   "date": "2026-08-06",
-  "changelog": "## v2.12.493 - 2026-08-06\n### Grupare activitate documente urmărite\n- Endpoint-ul documentelor urmărite include tipul documentului și responsabilul curent.\n- Dashboard-ul grupează urmăritele pe termen, responsabil și tip document.\n- Managerul vede mai repede unde se concentrează blocajele.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.494 - 2026-08-06\n### Grupuri acționabile documente urmărite\n- Grupurile din radarul Dashboard sunt clickabile.\n- DocumentePage deschide filtrul Urmărite cu subfiltru de termen, responsabil sau tip.\n- Bara de filtru arată grupul aplicat și numărul de documente afișate.\n- Nu necesită migrare SQL nouă."
 }

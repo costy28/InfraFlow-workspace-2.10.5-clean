@@ -277,7 +277,7 @@ function documentDueState(document) {
 
 function watchedDueBucket(document) {
   const due = documentDueState(document)
-  if (due.tone === 'danger') return { key: 'critic', label: due.label === 'azi' ? 'Scad azi' : 'Întârziate', tone: 'danger', sort: due.label === 'azi' ? 1 : 0 }
+  if (due.tone === 'danger') return { key: due.label === 'azi' ? 'today' : 'overdue', label: due.label === 'azi' ? 'Scad azi' : 'Întârziate', tone: 'danger', sort: due.label === 'azi' ? 1 : 0 }
   if (due.tone === 'warning') return { key: 'soon', label: 'Următoarele 3 zile', tone: 'warning', sort: 2 }
   if (due.label === 'fără termen') return { key: 'no_due', label: 'Fără termen', tone: 'neutral', sort: 4 }
   return { key: 'later', label: 'Termen viitor', tone: 'info', sort: 3 }
@@ -783,16 +783,22 @@ function MiniTable({ columns, rows, empty }) {
   )
 }
 
-function WatchedInsightCard({ title, items = [], empty }) {
+function WatchedInsightCard({ title, group, items = [], empty, onOpenGroup }) {
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3">
       <div className="mb-2 text-sm font-semibold text-slate-800">{title}</div>
       <div className="grid gap-2">
         {items.length ? items.map(item => (
-          <div key={item.key} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2">
+          <button
+            key={item.key}
+            type="button"
+            className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-left transition hover:bg-primary-50"
+            onClick={() => onOpenGroup?.(group, item)}
+            title="Vezi documentele din acest grup"
+          >
             <span className="min-w-0 truncate text-xs font-medium text-slate-700">{item.label}</span>
             <Badge tone={item.tone}>{item.count}</Badge>
-          </div>
+          </button>
         )) : <p className="text-xs text-slate-500">{empty}</p>}
       </div>
     </div>
@@ -807,6 +813,7 @@ function WatchedDocumentsPanel({
   error,
   actionLoading,
   onCreateTask,
+  onOpenGroup,
   onNavigate,
   onUnwatch,
 }) {
@@ -860,9 +867,9 @@ function WatchedDocumentsPanel({
 
           {documents.length ? (
             <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              <WatchedInsightCard title="După termen" items={insights.due} empty="Nu există termene urmărite." />
-              <WatchedInsightCard title="După responsabil" items={insights.responsible} empty="Nu există responsabili în circuit." />
-              <WatchedInsightCard title="După tip document" items={insights.type} empty="Nu există tipuri de document." />
+              <WatchedInsightCard title="După termen" group="due" items={insights.due} empty="Nu există termene urmărite." onOpenGroup={onOpenGroup} />
+              <WatchedInsightCard title="După responsabil" group="owner" items={insights.responsible} empty="Nu există responsabili în circuit." onOpenGroup={onOpenGroup} />
+              <WatchedInsightCard title="După tip document" group="type" items={insights.type} empty="Nu există tipuri de document." onOpenGroup={onOpenGroup} />
             </div>
           ) : null}
 
@@ -1465,6 +1472,12 @@ export default function DashboardPage() {
     }
   }
 
+  function openWatchedGroup(group, item) {
+    const params = new URLSearchParams({ filter: 'watched' })
+    if (group && item?.key) params.set(`watch_${group}`, String(item.key))
+    navigate(`${routes.documents}?${params.toString()}`)
+  }
+
   useEffect(() => {
     let cancelled = false
 
@@ -1644,6 +1657,7 @@ export default function DashboardPage() {
         error={errors.watchedDocuments}
         actionLoading={watchedActionLoading}
         onCreateTask={createWatchedDocumentTask}
+        onOpenGroup={openWatchedGroup}
         onNavigate={navigate}
         onUnwatch={unwatchDashboardDocument}
       />

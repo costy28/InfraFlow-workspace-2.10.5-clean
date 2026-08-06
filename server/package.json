@@ -1,6 +1,6 @@
 {
   "name": "infraflow-1-server",
-  "version": "2.12.493",
+  "version": "2.12.494",
   "private": true,
   "description": "InfraFlow 1.0 API server foundation",
   "type": "commonjs",

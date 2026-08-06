@@ -155,7 +155,8 @@ Stadiu implementare:
 - `v2.12.491`: Activitatea de pe documentele urmărite se marchează citită automat când utilizatorul deschide dosarul documentului.
 - `v2.12.492`: Radarul de documente urmărite are acțiuni rapide pentru task de urmărire și scoatere din urmărite.
 - `v2.12.493`: Radarul grupează urmăritele pe termen, responsabil și tip document, ca managerul să vadă unde se blochează fluxul.
-- Următorul pas: filtru/acțiune directă din fiecare grup, de exemplu „vezi toate întârziatele” sau „creează task pentru responsabil”.
+- `v2.12.494`: Grupurile din radar sunt acționabile și deschid Documente cu subfiltru aplicat.
+- Următorul pas: acțiuni de grup, de exemplu „creează task pentru toate întârziatele” sau „trimite reminder responsabilului”.
 
 ## Fleet / Mecanizare ca modul generic
 
