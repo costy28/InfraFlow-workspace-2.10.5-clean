@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.493 - 2026-08-06
+
+## Grupare activitate documente urmărite
+
+- Endpoint-ul documentelor urmărite include tipul documentului și pasul/responsabilul curent din circuit.
+- Dashboard-ul grupează documentele urmărite după termen, responsabil și tip document.
+- Managerul vede rapid unde se concentrează blocajele fără să intre în fiecare dosar.
+- Gruparea rămâne compactă și nu schimbă fluxul existent de aprobare.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.492 - 2026-08-06
 
 ## Acțiuni rapide în radarul de documente urmărite

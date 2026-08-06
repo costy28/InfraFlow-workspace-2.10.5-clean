@@ -103,6 +103,38 @@ function documentWatchedBy(document, userId) {
   return documentWatchers(document).includes(String(userId))
 }
 
+function documentUserId(user = {}) {
+  return user.id ?? user.userId ?? user.username ?? ''
+}
+
+function documentUserLabel(user = {}) {
+  return [
+    user.name,
+    user.fullName,
+    [user.firstName || user.prenume, user.lastName || user.nume].filter(Boolean).join(' '),
+    user.display_name,
+    user.username,
+    user.email,
+    user.id
+  ].find(value => String(value || '').trim()) || ''
+}
+
+function documentPublicContext(db) {
+  const docs = ensureDocumentsDb(db)
+  const users = new Map((Array.isArray(db.users) ? db.users : [])
+    .map(user => [String(documentUserId(user)), user]))
+  const types = new Map(docs.documentTypes.map(type => [String(type.id), type]))
+  const waitingSteps = new Map()
+  docs.circuitSteps
+    .filter(step => String(step.status || '').toLowerCase() === 'asteptare')
+    .sort((a, b) => Number(a.nr_pas || 0) - Number(b.nr_pas || 0))
+    .forEach(step => {
+      const key = String(step.document_id || '')
+      if (key && !waitingSteps.has(key)) waitingSteps.set(key, step)
+    })
+  return { users, types, waitingSteps }
+}
+
 function documentNotificationLabel(document = {}) {
   return document.nr_document || document.titlu || document.uuid || `document-${document.id || 'necunoscut'}`
 }
@@ -175,12 +207,25 @@ function setDocumentWatcher(document, userId, watched) {
   return data
 }
 
-function publicDocument(document, viewerId = null) {
+function publicDocument(document, viewerId = null, context = null) {
   const watchers = documentWatchers(document)
+  const template = context?.types?.get(String(document.tip_id || '')) || null
+  const currentStep = document.current_step_id || document.current_step_name || document.current_responsible_id
+    ? {
+        id: document.current_step_id || null,
+        name: document.current_step_name || '',
+        responsibleId: document.current_responsible_id || '',
+        responsibleLabel: document.current_responsible_label || ''
+      }
+    : context?.waitingSteps?.get(String(document.id || '')) || null
+  const currentResponsibleId = currentStep?.responsibleId || currentStep?.user_responsabil || document.current_responsible_id || ''
+  const currentResponsible = currentResponsibleId ? context?.users?.get(String(currentResponsibleId)) : null
   return {
     id: document.id,
     uuid: document.uuid,
     tip_id: document.tip_id,
+    tip_document: document.tip_document || template?.tip_document || template?.categorie || document.tip_id || 'document',
+    tip_document_label: document.tip_document_label || template?.denumire || document.tip_id || 'Document',
     nr_document: document.nr_document,
     titlu: document.titlu || '',
     date_json: parseJson(document.date_json, {}),
@@ -192,6 +237,9 @@ function publicDocument(document, viewerId = null) {
     dept_initiatoare: document.dept_initiatoare || null,
     prioritate: document.prioritate || 'normal',
     termen_limita: document.termen_limita || null,
+    current_step_name: currentStep?.name || currentStep?.tip || currentStep?.pas || '',
+    current_responsible_id: currentResponsibleId || '',
+    current_responsible_label: currentStep?.responsibleLabel || document.current_responsible_label || documentUserLabel(currentResponsible) || '',
     fisier_draft_path: document.fisier_draft_path || null,
     fisier_final_path: document.fisier_final_path || null,
     created_at: document.created_at,
@@ -259,7 +307,8 @@ function templateModelFields(template = {}) {
 }
 
 function publicDocuments(documents, auth) {
-  return documents.map(document => publicDocument(document, auth?.user?.id))
+  const context = auth?.db ? documentPublicContext(auth.db) : null
+  return documents.map(document => publicDocument(document, auth?.user?.id, context))
 }
 
 function watchedDocumentNotifications(db, user) {
@@ -848,9 +897,18 @@ DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
 DECLARE @deptId nvarchar(64) = JSON_VALUE(@p, '$.deptId');
 DECLARE @canAll bit = CASE WHEN JSON_VALUE(@p, '$.canAll') = N'true' THEN 1 ELSE 0 END;
 DECLARE @canDept bit = CASE WHEN JSON_VALUE(@p, '$.canDept') = N'true' THEN 1 ELSE 0 END;
-SELECT TOP 25 d.id, d.uuid, d.tip_id, d.nr_document, d.titlu, d.date_json, d.status, d.versiune, d.creat_de, d.dept_initiatoare,
-  d.prioritate, d.termen_limita, d.fisier_draft_path, d.fisier_final_path, d.created_at, d.updated_at
+SELECT TOP 25 d.id, d.uuid, d.tip_id, COALESCE(t.tip_document, d.tip_id) AS tip_document, t.denumire AS tip_document_label,
+  d.nr_document, d.titlu, d.date_json, d.status, d.versiune, d.creat_de, d.dept_initiatoare,
+  d.prioritate, d.termen_limita, cs.tip AS current_step_name, cs.user_responsabil AS current_responsible_id,
+  d.fisier_draft_path, d.fisier_final_path, d.created_at, d.updated_at
 FROM documents.documents d
+LEFT JOIN documents.document_types t ON t.id = d.tip_id
+OUTER APPLY (
+  SELECT TOP 1 tip, user_responsabil
+  FROM documents.circuit_steps s
+  WHERE s.document_id = d.id AND s.status = N'asteptare'
+  ORDER BY s.nr_pas
+) cs
 WHERE EXISTS (
   SELECT 1
   FROM OPENJSON(CASE WHEN ISJSON(d.date_json) = 1 THEN d.date_json ELSE N'{}' END, '$.watchers')

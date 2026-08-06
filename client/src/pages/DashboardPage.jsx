@@ -275,6 +275,49 @@ function documentDueState(document) {
   return { label: formatShortDate(raw), tone: 'neutral', sort: 20 + diffDays }
 }
 
+function watchedDueBucket(document) {
+  const due = documentDueState(document)
+  if (due.tone === 'danger') return { key: 'critic', label: due.label === 'azi' ? 'Scad azi' : 'Întârziate', tone: 'danger', sort: due.label === 'azi' ? 1 : 0 }
+  if (due.tone === 'warning') return { key: 'soon', label: 'Următoarele 3 zile', tone: 'warning', sort: 2 }
+  if (due.label === 'fără termen') return { key: 'no_due', label: 'Fără termen', tone: 'neutral', sort: 4 }
+  return { key: 'later', label: 'Termen viitor', tone: 'info', sort: 3 }
+}
+
+function currentResponsibleLabel(document) {
+  return document?.current_responsible_label ||
+    (document?.current_responsible_id ? `Responsabil #${document.current_responsible_id}` : '') ||
+    (String(document?.status || '').toLowerCase() === 'draft' ? 'În draft' : 'Fără responsabil curent')
+}
+
+function watchedTypeLabel(document) {
+  return document?.tip_document_label || document?.tip_document || document?.tip_id || 'Document'
+}
+
+function groupedWatchedInsights(documents = []) {
+  const add = (map, key, label, tone = 'neutral', sort = 30) => {
+    const current = map.get(key) || { key, label, count: 0, tone, sort }
+    current.count += 1
+    current.tone = current.tone === 'danger' || tone === 'danger' ? 'danger' : (current.tone === 'warning' || tone === 'warning' ? 'warning' : tone)
+    current.sort = Math.min(current.sort, sort)
+    map.set(key, current)
+  }
+  const due = new Map()
+  const responsible = new Map()
+  const type = new Map()
+  documents.forEach(document => {
+    const dueBucket = watchedDueBucket(document)
+    add(due, dueBucket.key, dueBucket.label, dueBucket.tone, dueBucket.sort)
+    add(responsible, currentResponsibleLabel(document), currentResponsibleLabel(document), document.current_responsible_id ? 'info' : 'warning')
+    add(type, watchedTypeLabel(document), watchedTypeLabel(document), 'neutral')
+  })
+  const list = map => Array.from(map.values()).sort((a, b) => a.sort - b.sort || b.count - a.count || a.label.localeCompare(b.label, 'ro')).slice(0, 4)
+  return {
+    due: list(due),
+    responsible: list(responsible),
+    type: list(type),
+  }
+}
+
 function documentTitle(document) {
   return document?.nr_document || document?.titlu || document?.title || `Document #${document?.id || ''}`.trim()
 }
@@ -740,6 +783,22 @@ function MiniTable({ columns, rows, empty }) {
   )
 }
 
+function WatchedInsightCard({ title, items = [], empty }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3">
+      <div className="mb-2 text-sm font-semibold text-slate-800">{title}</div>
+      <div className="grid gap-2">
+        {items.length ? items.map(item => (
+          <div key={item.key} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2">
+            <span className="min-w-0 truncate text-xs font-medium text-slate-700">{item.label}</span>
+            <Badge tone={item.tone}>{item.count}</Badge>
+          </div>
+        )) : <p className="text-xs text-slate-500">{empty}</p>}
+      </div>
+    </div>
+  )
+}
+
 function WatchedDocumentsPanel({
   documents = [],
   notifications = [],
@@ -757,6 +816,7 @@ function WatchedDocumentsPanel({
   const inCircuit = Number(summary.in_circuit || 0)
   const topDocuments = documents.slice(0, 4)
   const topNotifications = notifications.slice(0, 3)
+  const insights = groupedWatchedInsights(documents)
   const attentionTone = overdue ? 'danger' : unread ? 'warning' : documents.length ? 'info' : 'neutral'
 
   return (
@@ -797,6 +857,14 @@ function WatchedDocumentsPanel({
               <div className="text-xl font-semibold text-blue-900">{urgent}</div>
             </div>
           </div>
+
+          {documents.length ? (
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <WatchedInsightCard title="După termen" items={insights.due} empty="Nu există termene urmărite." />
+              <WatchedInsightCard title="După responsabil" items={insights.responsible} empty="Nu există responsabili în circuit." />
+              <WatchedInsightCard title="După tip document" items={insights.type} empty="Nu există tipuri de document." />
+            </div>
+          ) : null}
 
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <div className="rounded-md border border-slate-200 p-3">
