@@ -153,7 +153,8 @@ Stadiu implementare:
 - `v2.12.489`: Documentele urmărite trimit notificări persistente când sunt lansate, aprobate, respinse, retrase sau partajate.
 - `v2.12.490`: Dashboard-ul afișează radar personal pentru documentele urmărite, cu activitate nouă, termene și deep-link în dosar.
 - `v2.12.491`: Activitatea de pe documentele urmărite se marchează citită automat când utilizatorul deschide dosarul documentului.
-- Următorul pas: acțiuni rapide din radar pentru „creează task de urmărire” și „nu mai urmări”.
+- `v2.12.492`: Radarul de documente urmărite are acțiuni rapide pentru task de urmărire și scoatere din urmărite.
+- Următorul pas: gruparea activității urmărite pe responsabil, tip document și termen, ca managerul să vadă unde se blochează fluxul.
 
 ## Fleet / Mecanizare ca modul generic
 

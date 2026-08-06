@@ -1,5 +1,5 @@
 {
-  "version": "2.12.491",
+  "version": "2.12.492",
   "date": "2026-08-06",
-  "changelog": "## v2.12.491 - 2026-08-06\n### Citire automată activitate documente urmărite\n- Notificările document_watch se marchează automat ca citite când utilizatorul deschide documentul urmărit.\n- Citirea se aplică doar notificărilor utilizatorului curent și documentului deschis.\n- Endpoint-ul de detalii returnează watched_notifications_read pentru diagnostic.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.492 - 2026-08-06\n### Acțiuni rapide radar documente urmărite\n- Dashboard-ul permite crearea rapidă a unui task legat de documentul urmărit.\n- Documentul poate fi scos din urmărite direct din radar.\n- Panoul se reîmprospătează după acțiune și păstrează confirmarea vizibilă.\n- Nu necesită migrare SQL nouă."
 }

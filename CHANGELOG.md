@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.492 - 2026-08-06
+
+## Acțiuni rapide în radarul de documente urmărite
+
+- Panoul „Documente urmărite” de pe Dashboard permite crearea rapidă a unui task legat de document.
+- Task-ul creat din radar este asignat implicit utilizatorului curent și păstrează legătura `source_type=document`.
+- Documentele pot fi scoase din urmărite direct din Dashboard, fără intrare separată în dosar.
+- După acțiune, radarul se reîmprospătează și mesajul de confirmare rămâne vizibil pe Dashboard.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.491 - 2026-08-06
 
 ## Citire automată activitate documente urmărite

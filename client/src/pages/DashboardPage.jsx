@@ -243,6 +243,14 @@ function documentRoute(document) {
   return id ? `${routes.documents}?document=${encodeURIComponent(String(id))}` : routes.documents
 }
 
+function documentTaskSourceId(document) {
+  return document?.uuid || document?.id || document?.nr_document || ''
+}
+
+function userId(user) {
+  return user?.id || user?.userId || user?.username || ''
+}
+
 function formatShortDate(value) {
   if (!value) return ''
   const date = new Date(value)
@@ -732,7 +740,17 @@ function MiniTable({ columns, rows, empty }) {
   )
 }
 
-function WatchedDocumentsPanel({ documents = [], notifications = [], summary = {}, loading, error, onNavigate }) {
+function WatchedDocumentsPanel({
+  documents = [],
+  notifications = [],
+  summary = {},
+  loading,
+  error,
+  actionLoading,
+  onCreateTask,
+  onNavigate,
+  onUnwatch,
+}) {
   const unread = Number(summary.unread_activity ?? notifications.length ?? 0)
   const overdue = Number(summary.overdue || 0)
   const urgent = Number(summary.urgent || 0)
@@ -786,25 +804,52 @@ function WatchedDocumentsPanel({ documents = [], notifications = [], summary = {
               <div className="grid gap-2">
                 {topDocuments.length ? topDocuments.map(document => {
                   const due = documentDueState(document)
+                  const key = documentTaskSourceId(document)
                   return (
-                    <button
-                      key={document.uuid || document.id}
-                      className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-primary-200 hover:shadow-sm"
-                      onClick={() => onNavigate(documentRoute(document))}
+                    <div
+                      key={key || document.uuid || document.id}
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2 transition hover:border-primary-200 hover:shadow-sm"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-slate-900">{documentTitle(document)}</div>
-                          <div className="truncate text-xs text-slate-500">{documentSubtitle(document)}</div>
+                      <button type="button" className="w-full text-left" onClick={() => onNavigate(documentRoute(document))}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-slate-900">{documentTitle(document)}</div>
+                            <div className="truncate text-xs text-slate-500">{documentSubtitle(document)}</div>
+                          </div>
+                          <Badge tone={due.tone}>{due.label}</Badge>
                         </div>
-                        <Badge tone={due.tone}>{due.label}</Badge>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                          <span>{statusText(document.status)}</span>
+                          <span>·</span>
+                          <span>{formatShortDate(document.updated_at || document.created_at) || 'fără dată'}</span>
+                        </div>
+                      </button>
+                      <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-2">
+                        <button
+                          type="button"
+                          className="rounded-md border border-primary-100 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700 transition hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={Boolean(actionLoading)}
+                          onClick={() => onCreateTask(document)}
+                        >
+                          {actionLoading === `task-${key}` ? 'Creez...' : 'Task'}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={Boolean(actionLoading)}
+                          onClick={() => onUnwatch(document)}
+                        >
+                          {actionLoading === `unwatch-${key}` ? 'Scot...' : 'Nu mai urmări'}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                          onClick={() => onNavigate(documentRoute(document))}
+                        >
+                          Deschide
+                        </button>
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-                        <span>{statusText(document.status)}</span>
-                        <span>·</span>
-                        <span>{formatShortDate(document.updated_at || document.created_at) || 'fără dată'}</span>
-                      </div>
-                    </button>
+                    </div>
                   )
                 }) : <p className="py-3 text-sm text-slate-500">Nu ai documente urmărite încă. Marchează cu steaua documentele importante.</p>}
               </div>
@@ -1242,6 +1287,7 @@ export default function DashboardPage() {
   const [demoMessage, setDemoMessage] = useState('')
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [watchedActionLoading, setWatchedActionLoading] = useState('')
   const snowSeason = isSnowSeason()
 
   async function resetDemo() {
@@ -1280,6 +1326,74 @@ export default function DashboardPage() {
       setDemoMessage(err.response?.data?.error || confirmAction.errorMessage || 'Acțiunea nu a putut fi executată.')
     } finally {
       setConfirmLoading(false)
+    }
+  }
+
+  async function refreshWatchedDocuments() {
+    try {
+      const response = await api.get('/documents/watched')
+      setData(current => ({ ...current, watchedDocuments: response.data }))
+      setErrors(current => {
+        const next = { ...current }
+        delete next.watchedDocuments
+        return next
+      })
+    } catch (err) {
+      setErrors(current => ({ ...current, watchedDocuments: err }))
+    }
+  }
+
+  async function createWatchedDocumentTask(document) {
+    const documentId = documentTaskSourceId(document)
+    if (!documentId || watchedActionLoading) return
+    setWatchedActionLoading(`task-${documentId}`)
+    setDemoMessage('')
+    try {
+      await api.post('/tasks', {
+        title: `Verifică documentul ${document.nr_document || document.titlu || documentId}`,
+        description: [
+          `Document urmărit din Dashboard.`,
+          document.nr_document ? `Număr: ${document.nr_document}` : '',
+          document.titlu ? `Titlu: ${document.titlu}` : '',
+          document.status ? `Status: ${statusText(document.status)}` : '',
+          document.prioritate ? `Prioritate document: ${statusText(document.prioritate)}` : '',
+        ].filter(Boolean).join('\n'),
+        assigned_to: userId(user),
+        priority: ['critica', 'urgent', 'urgenta'].includes(String(document.prioritate || '').toLowerCase()) ? 'urgent' : 'normal',
+        due_date: document.termen_limita || document.due_date || '',
+        source_type: 'document',
+        source_id: String(documentId),
+        source_label: `${document.nr_document || 'Document'}${document.titlu ? ` · ${document.titlu}` : ''}`,
+        source_url: documentRoute(document),
+      })
+      setDemoMessage('Task creat din documentul urmărit.')
+      const [tasksResponse] = await Promise.all([
+        api.get('/tasks/my-open').catch(() => null),
+        refreshWatchedDocuments(),
+      ])
+      if (tasksResponse?.data) {
+        setData(current => ({ ...current, myTasks: tasksResponse.data }))
+      }
+    } catch (err) {
+      setDemoMessage(err.response?.data?.error || 'Task-ul nu a putut fi creat din radarul de documente.')
+    } finally {
+      setWatchedActionLoading('')
+    }
+  }
+
+  async function unwatchDashboardDocument(document) {
+    const documentId = documentTaskSourceId(document)
+    if (!documentId || watchedActionLoading) return
+    setWatchedActionLoading(`unwatch-${documentId}`)
+    setDemoMessage('')
+    try {
+      await api.post(`/documents/${encodeURIComponent(String(documentId))}/watch`, { watched: false })
+      await refreshWatchedDocuments()
+      setDemoMessage('Documentul a fost scos din radarul urmăritelor.')
+    } catch (err) {
+      setDemoMessage(err.response?.data?.error || 'Documentul nu a putut fi scos din urmărite.')
+    } finally {
+      setWatchedActionLoading('')
     }
   }
 
@@ -1460,7 +1574,10 @@ export default function DashboardPage() {
         summary={view.watchedDocumentsSummary}
         loading={loading}
         error={errors.watchedDocuments}
+        actionLoading={watchedActionLoading}
+        onCreateTask={createWatchedDocumentTask}
         onNavigate={navigate}
+        onUnwatch={unwatchDashboardDocument}
       />
 
       <FirstStepsPanel checklist={view.firstStepsChecklist} loading={loading} onNavigate={navigate} />
