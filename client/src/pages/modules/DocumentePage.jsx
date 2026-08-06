@@ -411,6 +411,9 @@ export default function DocumentePage() {
   const [bulkTaskForm, setBulkTaskForm] = useState({ assigned_to: '', priority: 'normal', due_date: '', title_prefix: 'Urmărește documentul' })
   const [bulkTaskSaving, setBulkTaskSaving] = useState(false)
   const [bulkTaskError, setBulkTaskError] = useState('')
+  const [watchedGroupTaskSaving, setWatchedGroupTaskSaving] = useState(false)
+  const [watchedGroupTaskMessage, setWatchedGroupTaskMessage] = useState('')
+  const [watchedGroupTaskError, setWatchedGroupTaskError] = useState('')
   const [selectedDocumentKeys, setSelectedDocumentKeys] = useState([])
   const [relatedTasks, setRelatedTasks] = useState([])
   const [relatedTasksLoading, setRelatedTasksLoading] = useState(false)
@@ -509,6 +512,10 @@ export default function DocumentePage() {
 
   const hasWatchedGroupFilter = documentQuickFilter === 'watched' && Boolean(watchedGroupFilter.due || watchedGroupFilter.owner || watchedGroupFilter.type)
   const allVisibleSelected = visibleDocuments.length > 0 && visibleDocuments.every(document => selectedDocumentKeys.includes(documentSelectionKey(document)))
+  const visibleWatchedGroupResponsibleDocuments = useMemo(() => {
+    if (!hasWatchedGroupFilter) return []
+    return visibleDocuments.filter(document => document.current_responsible_id)
+  }, [hasWatchedGroupFilter, visibleDocuments])
 
   useEffect(() => {
     const available = new Set(baseVisibleDocuments.map(documentSelectionKey))
@@ -739,6 +746,49 @@ export default function DocumentePage() {
       setBulkTaskError(err.response?.data?.error || 'Task-urile nu au putut fi create pentru documentele selectate.')
     } finally {
       setBulkTaskSaving(false)
+    }
+  }
+
+  async function createResponsibleTasksForWatchedGroup() {
+    const rows = visibleWatchedGroupResponsibleDocuments
+    setWatchedGroupTaskMessage('')
+    setWatchedGroupTaskError('')
+    if (!rows.length) {
+      setWatchedGroupTaskError('Grupul afișat nu are documente cu responsabil curent.')
+      return
+    }
+    setWatchedGroupTaskSaving(true)
+    try {
+      await Promise.all(rows.map(document => {
+        const documentId = documentTaskSourceId(document)
+        const dueDate = document.termen_limita ? String(document.termen_limita).slice(0, 10) : ''
+        return api.post('/tasks', {
+          title: `Reminder document ${document.nr_document || document.titlu || documentId}`,
+          description: [
+            watchedGroupFilterLabel ? `Grup urmărit: ${watchedGroupFilterLabel}` : '',
+            `Document: ${document.nr_document || '-'}`,
+            document.titlu ? `Titlu: ${document.titlu}` : '',
+            document.current_step_name ? `Pas curent: ${document.current_step_name}` : '',
+            document.current_responsible_label ? `Responsabil: ${document.current_responsible_label}` : '',
+            document.status ? `Status: ${label(document.status)}` : '',
+            document.termen_limita ? `Termen document: ${formatDate(document.termen_limita)}` : '',
+            'Creat automat din grupul de documente urmărite.',
+          ].filter(Boolean).join('\n'),
+          assigned_to: document.current_responsible_id,
+          priority: documentIsBlocked(document) || documentIsUrgent(document) ? 'urgent' : (documentIsDueSoon(document) ? 'high' : 'normal'),
+          due_date: dueDate,
+          source_type: 'document',
+          source_id: String(documentId || ''),
+          source_label: `${document.nr_document || 'Document'}${document.titlu ? ` · ${document.titlu}` : ''}`,
+          source_url: documentId ? `/documente?document=${encodeURIComponent(String(documentId))}` : '/documente',
+        })
+      }))
+      setWatchedGroupTaskMessage(`Am creat ${rows.length} task-uri către responsabilii curenți ai grupului.`)
+      setSelectedDocumentKeys(rows.map(documentSelectionKey).filter(Boolean))
+    } catch (err) {
+      setWatchedGroupTaskError(err.response?.data?.error || 'Nu am putut crea task-urile către responsabilii grupului.')
+    } finally {
+      setWatchedGroupTaskSaving(false)
     }
   }
 
@@ -1506,6 +1556,17 @@ export default function DocumentePage() {
               {selectedDocuments.length ? <span className="text-slate-400"> · acțiunile se aplică doar selecției</span> : <span className="text-slate-400"> · exportul folosește lista filtrată dacă nu selectezi nimic</span>}
             </div>
             <div className="flex flex-wrap gap-2">
+              {hasWatchedGroupFilter ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={createResponsibleTasksForWatchedGroup}
+                  loading={watchedGroupTaskSaving}
+                  disabled={!visibleWatchedGroupResponsibleDocuments.length}
+                >
+                  Task-uri către responsabili
+                </Button>
+              ) : null}
               <Button size="sm" variant="secondary" onClick={toggleVisibleSelection} disabled={!visibleDocuments.length}>
                 {allVisibleSelected
                   ? (hasWatchedGroupFilter ? 'Deselectează grupul' : 'Deselectează lista')
@@ -1519,6 +1580,16 @@ export default function DocumentePage() {
               </Button>
             </div>
           </div>
+          {watchedGroupTaskMessage ? (
+            <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {watchedGroupTaskMessage}
+            </div>
+          ) : null}
+          {watchedGroupTaskError ? (
+            <div className="mt-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {watchedGroupTaskError}
+            </div>
+          ) : null}
         </Card>
       ) : null}
 

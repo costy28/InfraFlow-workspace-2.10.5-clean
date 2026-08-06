@@ -1,5 +1,5 @@
 {
-  "version": "2.12.495",
+  "version": "2.12.496",
   "date": "2026-08-06",
-  "changelog": "## v2.12.495 - 2026-08-06\n### Acțiuni rapide pe grupuri documente urmărite\n- DocumentePage afișează acțiuni contextualizate când lista vine dintr-un grup urmărit.\n- Butonul de selecție devine explicit: Selectează tot grupul / Deselectează grupul.\n- Bara filtrului permite curățarea doar a grupului urmărit, fără resetarea completă a filtrului Urmărite.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.496 - 2026-08-06\n### Task-uri către responsabilii grupurilor urmărite\n- Grupurile urmărite din Documente primesc acțiunea rapidă Task-uri către responsabili.\n- Se creează câte un task pentru fiecare document cu responsabil curent.\n- Task-ul este asignat responsabilului pasului curent și păstrează legătura către dosarul documentului.\n- Nu necesită migrare SQL nouă."
 }

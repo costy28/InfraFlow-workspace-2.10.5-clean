@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.496 - 2026-08-06
+
+## Task-uri către responsabilii grupurilor urmărite
+
+- În Documente, grupurile urmărite primesc acțiunea rapidă `Task-uri către responsabili`.
+- Acțiunea creează câte un task pentru fiecare document din grup care are responsabil curent.
+- Task-ul este asignat direct responsabilului pasului curent și păstrează legătura către dosarul documentului.
+- Prioritatea task-ului se ridică automat la urgentă/importantă pentru documente blocate, urgente sau aproape de termen.
+- După creare, documentele vizate rămân selectate, ca utilizatorul să vadă exact ce s-a procesat.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.495 - 2026-08-06
 
 ## Acțiuni rapide pe grupuri documente urmărite

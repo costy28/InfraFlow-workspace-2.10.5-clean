@@ -157,6 +157,7 @@ Stadiu implementare:
 - `v2.12.493`: Radarul grupează urmăritele pe termen, responsabil și tip document, ca managerul să vadă unde se blochează fluxul.
 - `v2.12.494`: Grupurile din radar sunt acționabile și deschid Documente cu subfiltru aplicat.
 - `v2.12.495`: Grupurile de documente urmărite au acțiuni contextualizate pentru selecția grupului, export și task-uri în masă.
+- `v2.12.496`: Grupurile urmărite pot genera task-uri direct către responsabilii curenți ai documentelor.
 - Următorul pas: acțiuni de grup mai inteligente, de exemplu reminder către responsabil sau task automat pe toate întârziatele.
 
 ## Fleet / Mecanizare ca modul generic
