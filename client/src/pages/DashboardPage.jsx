@@ -21,6 +21,7 @@ const emptyState = {
   stockOperations: [],
   fleetAssets: [],
   inboxDocuments: [],
+  watchedDocuments: null,
   tickets: [],
   projects: [],
   audit: [],
@@ -731,6 +732,107 @@ function MiniTable({ columns, rows, empty }) {
   )
 }
 
+function WatchedDocumentsPanel({ documents = [], notifications = [], summary = {}, loading, error, onNavigate }) {
+  const unread = Number(summary.unread_activity ?? notifications.length ?? 0)
+  const overdue = Number(summary.overdue || 0)
+  const urgent = Number(summary.urgent || 0)
+  const inCircuit = Number(summary.in_circuit || 0)
+  const topDocuments = documents.slice(0, 4)
+  const topNotifications = notifications.slice(0, 3)
+  const attentionTone = overdue ? 'danger' : unread ? 'warning' : documents.length ? 'info' : 'neutral'
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">Documente urmărite</h3>
+          <p className="text-xs text-slate-500">Radarul tău personal: activitate nouă, termene și documente puse sub observație.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={attentionTone}>{documents.length} urmărite</Badge>
+          {unread ? <Badge tone="warning">{unread} activități noi</Badge> : null}
+          <Button size="sm" variant="secondary" onClick={() => onNavigate(`${routes.documents}?filter=watched`)}>Vezi urmărite</Button>
+        </div>
+      </div>
+      <SectionError error={error} />
+      {loading ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {[1, 2, 3, 4].map(item => <Skeleton key={item} className="h-20" />)}
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-xs text-slate-500">În circuit</div>
+              <div className="text-xl font-semibold text-slate-900">{inCircuit}</div>
+            </div>
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+              <div className="text-xs text-amber-700">Activitate nouă</div>
+              <div className="text-xl font-semibold text-amber-900">{unread}</div>
+            </div>
+            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
+              <div className="text-xs text-rose-700">Întârziate</div>
+              <div className="text-xl font-semibold text-rose-900">{overdue}</div>
+            </div>
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
+              <div className="text-xs text-blue-700">Urgente</div>
+              <div className="text-xl font-semibold text-blue-900">{urgent}</div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="rounded-md border border-slate-200 p-3">
+              <div className="mb-2 text-sm font-semibold text-slate-800">Ultimele documente urmărite</div>
+              <div className="grid gap-2">
+                {topDocuments.length ? topDocuments.map(document => {
+                  const due = documentDueState(document)
+                  return (
+                    <button
+                      key={document.uuid || document.id}
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-primary-200 hover:shadow-sm"
+                      onClick={() => onNavigate(documentRoute(document))}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-900">{documentTitle(document)}</div>
+                          <div className="truncate text-xs text-slate-500">{documentSubtitle(document)}</div>
+                        </div>
+                        <Badge tone={due.tone}>{due.label}</Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span>{statusText(document.status)}</span>
+                        <span>·</span>
+                        <span>{formatShortDate(document.updated_at || document.created_at) || 'fără dată'}</span>
+                      </div>
+                    </button>
+                  )
+                }) : <p className="py-3 text-sm text-slate-500">Nu ai documente urmărite încă. Marchează cu steaua documentele importante.</p>}
+              </div>
+            </div>
+
+            <div className="rounded-md border border-slate-200 p-3">
+              <div className="mb-2 text-sm font-semibold text-slate-800">Activitate nouă pe urmărite</div>
+              <div className="grid gap-2">
+                {topNotifications.length ? topNotifications.map(notification => (
+                  <button
+                    key={notification.id || notification.key}
+                    className="rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-left transition hover:border-amber-300 hover:shadow-sm"
+                    onClick={() => onNavigate(notification.targetView || routes.documents)}
+                  >
+                    <div className="text-sm font-semibold text-slate-900">{notification.title || 'Document urmărit'}</div>
+                    <div className="mt-1 line-clamp-2 text-xs text-slate-600">{notification.detail || notification.message || 'Activitate nouă pe document.'}</div>
+                    <div className="mt-2 text-xs text-amber-700">{formatShortDate(notification.createdAt || notification.created_at) || 'recent'}</div>
+                  </button>
+                )) : <p className="py-3 text-sm text-slate-500">Nu există activitate nouă pe documentele urmărite.</p>}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </Card>
+  )
+}
+
 function DocumentWorklistPanel({ inboxDocuments = [], blockedDocuments = [], loading, error, onNavigate }) {
   const blockedById = new Map(blockedDocuments.map(document => [String(document.uuid || document.id), document]))
   const merged = [
@@ -1192,6 +1294,7 @@ export default function DashboardPage() {
         stockOperations: api.get('/stock-operations'),
         fleetAssets: api.get('/fleet-assets'),
         inboxDocuments: api.get('/documents/inbox'),
+        watchedDocuments: api.get('/documents/watched'),
         tickets: api.get('/tickets/my-open'),
         projects: api.get('/field/projects'),
         audit: api.get('/audit'),
@@ -1257,6 +1360,8 @@ export default function DashboardPage() {
     const criticalStocks = report.criticalStocks || []
     const fleetAssets = arrayFrom(data.fleetAssets, ['assets', 'fleetAssets'])
     const inboxDocuments = arrayFrom(data.inboxDocuments, ['documents', 'items'])
+    const watchedDocuments = arrayFrom(data.watchedDocuments, ['documents', 'items'])
+    const watchedDocumentNotifications = arrayFrom(data.watchedDocuments, ['notifications', 'activity'])
     const tickets = arrayFrom(data.tickets, ['tickets', 'items'])
     const projects = arrayFrom(data.projects, ['projects', 'items'])
     const audit = arrayFrom(data.audit, ['audit', 'items'])
@@ -1272,6 +1377,9 @@ export default function DashboardPage() {
       operationalOutputToday: numberFrom(report.metrics?.outputTotal ?? report.outputTotal ?? report.metrics?.asphaltTotal ?? report.asphaltTotal),
       activeAssets: fleetAssets.filter(assetIsActive).length,
       inboxDocuments,
+      watchedDocuments,
+      watchedDocumentNotifications,
+      watchedDocumentsSummary: data.watchedDocuments?.summary || {},
       tickets,
       projects,
       audit,
@@ -1343,6 +1451,15 @@ export default function DashboardPage() {
         actions={view.todayActions}
         profile={view.profile}
         loading={loading}
+        onNavigate={navigate}
+      />
+
+      <WatchedDocumentsPanel
+        documents={view.watchedDocuments}
+        notifications={view.watchedDocumentNotifications}
+        summary={view.watchedDocumentsSummary}
+        loading={loading}
+        error={errors.watchedDocuments}
         onNavigate={navigate}
       />
 

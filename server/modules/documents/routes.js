@@ -262,6 +262,38 @@ function publicDocuments(documents, auth) {
   return documents.map(document => publicDocument(document, auth?.user?.id))
 }
 
+function watchedDocumentNotifications(db, user) {
+  const userId = String(user?.id || '')
+  return (Array.isArray(db.notifications) ? db.notifications : [])
+    .filter(notification => notification && (notification.event === 'document_watch' || notification.type === 'document_watch'))
+    .filter(notification => String(notification.user_id || notification.userId || '') === userId)
+    .filter(notification => notification.read !== true && !notification.read_at)
+    .sort((a, b) => String(b.createdAt || b.created_at || '').localeCompare(String(a.createdAt || a.created_at || '')))
+    .slice(0, 8)
+}
+
+function watchedDocumentsSummary(documents, notifications) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const urgent = documents.filter(document => ['urgent', 'critic', 'critica'].includes(String(document.prioritate || '').toLowerCase())).length
+  const inCircuit = documents.filter(document => String(document.status || '').toLowerCase() === 'in_circuit').length
+  const overdue = documents.filter(document => {
+    const due = document.termen_limita || document.due_date || document.deadline
+    if (!due) return false
+    const date = new Date(due)
+    if (Number.isNaN(date.getTime())) return false
+    date.setHours(0, 0, 0, 0)
+    return date < today
+  }).length
+  return {
+    total: documents.length,
+    unread_activity: notifications.length,
+    urgent,
+    overdue,
+    in_circuit: inCircuit
+  }
+}
+
 function publicTemplate(template = {}) {
   return { ...template, ...templateModelFields(template) }
 }
@@ -769,6 +801,47 @@ FOR JSON PATH;
     const docs = ensureDocumentsDb(auth.db)
     const ids = new Set(docs.documentShares.filter(share => share.shared_with_user === auth.user.id || share.shared_with_dept === auth.user.departmentId).map(share => share.document_id))
     sendJson(res, 200, { documents: publicDocuments(docs.documents.filter(document => ids.has(document.id)), auth) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/documents/watched', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireDocumentPermission(auth, res, 'documents:view_own')) return
+    const notifications = watchedDocumentNotifications(auth.db, auth.user)
+    if (isMssqlMode()) {
+      const canAll = userHasPermission(auth.db, auth.user, 'documents:view_all')
+      const canDept = userHasPermission(auth.db, auth.user, 'documents:view_dept')
+      const documents = mssqlArray(`
+DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
+DECLARE @deptId nvarchar(64) = JSON_VALUE(@p, '$.deptId');
+DECLARE @canAll bit = CASE WHEN JSON_VALUE(@p, '$.canAll') = N'true' THEN 1 ELSE 0 END;
+DECLARE @canDept bit = CASE WHEN JSON_VALUE(@p, '$.canDept') = N'true' THEN 1 ELSE 0 END;
+SELECT TOP 25 d.id, d.uuid, d.tip_id, d.nr_document, d.titlu, d.date_json, d.status, d.versiune, d.creat_de, d.dept_initiatoare,
+  d.prioritate, d.termen_limita, d.fisier_draft_path, d.fisier_final_path, d.created_at, d.updated_at
+FROM documents.documents d
+WHERE EXISTS (
+  SELECT 1
+  FROM OPENJSON(CASE WHEN ISJSON(d.date_json) = 1 THEN d.date_json ELSE N'{}' END, '$.watchers')
+  WHERE CONVERT(nvarchar(64), [value]) = @userId
+)
+  AND (@canAll = 1 OR d.creat_de = @userId OR (@canDept = 1 AND d.dept_initiatoare = @deptId))
+ORDER BY COALESCE(d.updated_at, d.created_at) DESC
+FOR JSON PATH;
+`, { userId: auth.user.id, deptId: auth.user.departmentId || '', canAll, canDept })
+      const items = publicDocuments(documents, auth)
+      sendJson(res, 200, { documents: items, notifications, summary: watchedDocumentsSummary(items, notifications) })
+      return
+    }
+    const docs = ensureDocumentsDb(auth.db)
+    const documents = publicDocuments(docs.documents
+      .filter(document => canViewDocument(auth, document) && documentWatchedBy(document, auth.user.id))
+      .sort((a, b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')))
+      .slice(0, 25), auth)
+    sendJson(res, 200, { documents, notifications, summary: watchedDocumentsSummary(documents, notifications) })
   } catch (error) {
     next(error)
   }

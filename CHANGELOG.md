@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.490 - 2026-08-06
+
+## Radar Dashboard pentru documente urmărite
+
+- Dashboard-ul afișează un panou personal pentru documentele urmărite.
+- Panoul arată totalul urmăritelor, activitatea nouă, documentele urgente, documentele întârziate și cele aflate în circuit.
+- Activitatea nouă folosește notificările `document_watch` generate la lansare/aprobare/respingere/retragere/partajare.
+- A fost adăugat endpoint dedicat `GET /api/documents/watched`, ca Dashboard-ul să nu încarce toată lista de documente.
+- Butonul „Vezi urmărite” deschide modulul Documente direct cu filtrul `Urmărite`.
+
 # v2.12.489 - 2026-08-05
 
 ## Notificări pentru documente urmărite

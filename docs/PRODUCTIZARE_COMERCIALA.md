@@ -151,7 +151,8 @@ Stadiu implementare:
 - `v2.12.476`: Documente permite selecție multiplă, task-uri în masă pentru documentele selectate și export CSV al listei de lucru.
 - `v2.12.488`: Documentele pot fi marcate ca urmărite, au filtru rapid dedicat și acțiunea este auditată per utilizator.
 - `v2.12.489`: Documentele urmărite trimit notificări persistente când sunt lansate, aprobate, respinse, retrase sau partajate.
-- Următorul pas: rezumat personal pe Dashboard pentru documentele urmărite care au activitate nouă sau termen apropiat.
+- `v2.12.490`: Dashboard-ul afișează radar personal pentru documentele urmărite, cu activitate nouă, termene și deep-link în dosar.
+- Următorul pas: marcarea automată a activității urmărite ca citită când utilizatorul deschide documentul din radar.
 
 ## Fleet / Mecanizare ca modul generic
 

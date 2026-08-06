@@ -1,5 +1,5 @@
 {
-  "version": "2.12.489",
-  "date": "2026-08-05",
-  "changelog": "## v2.12.489 - 2026-08-05\n### Notificări pentru documente urmărite\n- Utilizatorii care urmăresc un document primesc notificări când documentul este lansat, aprobat, respins, retras sau partajat.\n- Actorul acțiunii nu își primește propria notificare.\n- Notificările au deep-link către dosarul documentului și folosesc infrastructura existentă db.notifications.\n- Evenimentele repetate sunt deduplicate pe minut."
+  "version": "2.12.490",
+  "date": "2026-08-06",
+  "changelog": "## v2.12.490 - 2026-08-06\n### Radar Dashboard pentru documente urmărite\n- Dashboard-ul afișează un panou personal pentru documentele urmărite.\n- Panoul arată activitatea nouă, documentele urgente, întârziate și cele aflate în circuit.\n- Endpoint-ul GET /api/documents/watched aduce doar documentele urmărite de utilizator.\n- Butonul Vezi urmărite deschide Documente direct cu filtrul Urmărite."
 }

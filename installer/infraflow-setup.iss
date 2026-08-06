@@ -5,14 +5,14 @@
 [Setup]
 AppId={{8F4A2B1C-3D5E-4F6A-8B9C-0D1E2F3A4B5C}
 AppName=InfraFlow ERP
-AppVersion=2.12.489
+AppVersion=2.12.490
 AppPublisher=InfraFlow Software
 AppPublisherURL=https://infraflow.ro
 DefaultDirName={autopf}\InfraFlow
 DefaultGroupName=InfraFlow
 AllowNoIcons=yes
 OutputDir=output
-OutputBaseFilename=InfraFlow-Setup-v2.12.489
+OutputBaseFilename=InfraFlow-Setup-v2.12.490
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -81,7 +81,7 @@ Filename: "{app}\installer\nssm.exe"; Parameters: "remove InfraFlow confirm"; Fl
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=
-    'Acest program va instala InfraFlow ERP v2.12.489' + #13#10#13#10 +
+    'Acest program va instala InfraFlow ERP v2.12.490' + #13#10#13#10 +
     'Contine toate actualizarile din v2.8.0, v2.9.0 si v2.10.0:' + #13#10 +
     '  - Kiosk Angajat & Foi Parcurs (VERSO + semnatura)' + #13#10 +
     '  - Verificare angajat HR la creare cont' + #13#10 +

@@ -396,7 +396,7 @@ export default function DocumentePage() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [documentAssistantExpanded, setDocumentAssistantExpanded] = useState(false)
-  const [documentQuickFilter, setDocumentQuickFilter] = useState('all')
+  const [documentQuickFilter, setDocumentQuickFilter] = useState(() => new URLSearchParams(window.location.search).get('filter') || 'all')
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
   const canEditDocument = useCallback(document => (
