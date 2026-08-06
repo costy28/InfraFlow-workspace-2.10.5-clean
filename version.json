@@ -1,5 +1,5 @@
 {
-  "version": "2.12.488",
+  "version": "2.12.489",
   "date": "2026-08-05",
-  "changelog": "## v2.12.488 - 2026-08-05\n### Watchlist documente urmărite\n- Utilizatorul poate marca sau demarca documente ca urmărite direct din listă sau din dosar.\n- Lista Documente are filtru rapid Urmărite.\n- Urmărirea este salvată în metadatele documentului și auditată.\n- Documentele urmărite au badge și stea vizibilă pentru prioritizare rapidă."
+  "changelog": "## v2.12.489 - 2026-08-05\n### Notificări pentru documente urmărite\n- Utilizatorii care urmăresc un document primesc notificări când documentul este lansat, aprobat, respins, retras sau partajat.\n- Actorul acțiunii nu își primește propria notificare.\n- Notificările au deep-link către dosarul documentului și folosesc infrastructura existentă db.notifications.\n- Evenimentele repetate sunt deduplicate pe minut."
 }

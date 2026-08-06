@@ -103,6 +103,68 @@ function documentWatchedBy(document, userId) {
   return documentWatchers(document).includes(String(userId))
 }
 
+function documentNotificationLabel(document = {}) {
+  return document.nr_document || document.titlu || document.uuid || `document-${document.id || 'necunoscut'}`
+}
+
+function documentNotificationTarget(document = {}) {
+  const key = document.uuid || document.nr_document || document.id || ''
+  return key ? `/documente?document=${encodeURIComponent(String(key))}` : '/documente'
+}
+
+function ensureNotifications(db) {
+  db.notifications = Array.isArray(db.notifications) ? db.notifications : []
+  return db.notifications
+}
+
+function notifyDocumentWatchers(db, actor, document, action, detail, options = {}) {
+  const actorId = actor?.id
+  const watchers = Array.from(new Set(documentWatchers(document)))
+    .filter(userId => userId && String(userId) !== String(actorId))
+
+  if (!watchers.length) return 0
+
+  const notifications = ensureNotifications(db)
+  const createdAt = nowIso()
+  const documentKey = document.uuid || document.id || document.nr_document || crypto.randomUUID()
+  const label = documentNotificationLabel(document)
+  let created = 0
+
+  watchers.forEach(userId => {
+    const key = `document_watch:${action}:${documentKey}:${userId}:${createdAt.slice(0, 16)}`
+    const duplicate = notifications.some(item => item && item.key === key && item.read !== true && !item.read_at)
+    if (duplicate) return
+
+    notifications.push({
+      id: `notification-${crypto.randomUUID()}`,
+      key,
+      event: 'document_watch',
+      type: 'document_watch',
+      severity: options.severity || 'info',
+      title: options.title || `Document urmărit: ${label}`,
+      detail,
+      message: detail,
+      targetView: documentNotificationTarget(document),
+      targetLabel: 'Deschide documentul',
+      user_id: userId,
+      userId: userId,
+      entity_key: `document:${documentKey}`,
+      created_at: createdAt,
+      createdAt,
+      read: false,
+      meta: {
+        document_id: document.id,
+        document_uuid: document.uuid || null,
+        action,
+        actor_id: actorId || null
+      }
+    })
+    created += 1
+  })
+
+  return created
+}
+
 function setDocumentWatcher(document, userId, watched) {
   const data = parseJson(document.date_json, {})
   const current = new Set((Array.isArray(data.watchers) ? data.watchers : []).map(String))
@@ -916,7 +978,8 @@ router.post('/documents/:uuid/launch', (req, res, next) => {
     if (!document) throwHttp(404, 'Document inexistent.')
     engine.launchDocument(document.id, auth.user.id, auth.db)
     addAudit(auth.db, auth.user, 'document_lansat', document.nr_document)
-    if (!isMssqlMode()) writeDb(auth.db)
+    const notified = notifyDocumentWatchers(auth.db, auth.user, document, 'lansat', `Documentul ${documentNotificationLabel(document)} a fost lansat în circuit.`, { severity: 'info' })
+    if (!isMssqlMode() || notified) writeDb(auth.db)
     sendJson(res, 200, { ok: true })
   } catch (error) {
     next(error)
@@ -932,7 +995,8 @@ router.post('/documents/:uuid/approve', (req, res, next) => {
     if (!document) throwHttp(404, 'Document inexistent.')
     engine.processStep(document.id, auth.user.id, 'aprobare', (req.body || {}).comment || (req.body || {}).comentariu || '', auth.db)
     addAudit(auth.db, auth.user, 'document_aprobat', document.nr_document)
-    if (!isMssqlMode()) writeDb(auth.db)
+    const notified = notifyDocumentWatchers(auth.db, auth.user, document, 'aprobat', `Documentul ${documentNotificationLabel(document)} a primit o aprobare.`, { severity: 'info' })
+    if (!isMssqlMode() || notified) writeDb(auth.db)
     sendJson(res, 200, { ok: true })
   } catch (error) {
     next(error)
@@ -949,7 +1013,9 @@ router.post('/documents/:uuid/reject', (req, res, next) => {
     if (!document) throwHttp(404, 'Document inexistent.')
     engine.processStep(document.id, auth.user.id, 'respingere', comment, auth.db)
     addAudit(auth.db, auth.user, 'document_respins', document.nr_document)
-    if (!isMssqlMode()) writeDb(auth.db)
+    const suffix = comment ? ` Motiv: ${comment}` : ''
+    const notified = notifyDocumentWatchers(auth.db, auth.user, document, 'respins', `Documentul ${documentNotificationLabel(document)} a fost respins.${suffix}`, { severity: 'bad' })
+    if (!isMssqlMode() || notified) writeDb(auth.db)
     sendJson(res, 200, { ok: true })
   } catch (error) {
     next(error)
@@ -964,7 +1030,8 @@ router.post('/documents/:uuid/withdraw', (req, res, next) => {
     if (!document) throwHttp(404, 'Document inexistent.')
     engine.withdrawDocument(document.id, auth.user.id, auth.db)
     addAudit(auth.db, auth.user, 'document_retras', document.nr_document)
-    if (!isMssqlMode()) writeDb(auth.db)
+    const notified = notifyDocumentWatchers(auth.db, auth.user, document, 'retras', `Documentul ${documentNotificationLabel(document)} a fost retras din circuit.`, { severity: 'warn' })
+    if (!isMssqlMode() || notified) writeDb(auth.db)
     sendJson(res, 200, { ok: true })
   } catch (error) {
     next(error)
@@ -991,6 +1058,9 @@ SELECT id, document_id, shared_with_dept, shared_with_user, nivel_acces, shared_
 FROM documents.document_shares WHERE id = (SELECT TOP 1 id FROM @created)
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { documentId: document.id, dept: body.shared_with_dept || '', user: body.shared_with_user || '', nivel, sharedBy: auth.user.id, expires: body.expires_at || '' })
+      addAudit(auth.db, auth.user, 'document_partajat', document.nr_document)
+      const notified = notifyDocumentWatchers(auth.db, auth.user, document, 'partajat', `Documentul ${documentNotificationLabel(document)} a fost partajat.`, { severity: 'info' })
+      if (notified) writeDb(auth.db)
       sendJson(res, 201, { share })
       return
     }
@@ -998,6 +1068,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     const share = { id: nextId(docs.documentShares), document_id: document.id, shared_with_dept: body.shared_with_dept || null, shared_with_user: body.shared_with_user || null, nivel_acces: nivel, shared_by: auth.user.id, created_at: nowIso(), expires_at: body.expires_at || null }
     docs.documentShares.push(share)
     addAudit(auth.db, auth.user, 'document_partajat', document.nr_document)
+    notifyDocumentWatchers(auth.db, auth.user, document, 'partajat', `Documentul ${documentNotificationLabel(document)} a fost partajat.`, { severity: 'info' })
     writeDb(auth.db)
     sendJson(res, 201, { share })
   } catch (error) {

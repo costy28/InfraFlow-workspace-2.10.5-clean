@@ -150,7 +150,8 @@ Stadiu implementare:
 - `v2.12.475`: Inbox-ul Documente primește filtre rapide pentru acțiune, blocaje, scadențe, urgențe, drafturi și documente venite din email.
 - `v2.12.476`: Documente permite selecție multiplă, task-uri în masă pentru documentele selectate și export CSV al listei de lucru.
 - `v2.12.488`: Documentele pot fi marcate ca urmărite, au filtru rapid dedicat și acțiunea este auditată per utilizator.
-- Următorul pas: notificări pe documentele urmărite când apar pași noi, comentarii, blocaje sau apropiere de termen.
+- `v2.12.489`: Documentele urmărite trimit notificări persistente când sunt lansate, aprobate, respinse, retrase sau partajate.
+- Următorul pas: rezumat personal pe Dashboard pentru documentele urmărite care au activitate nouă sau termen apropiat.
 
 ## Fleet / Mecanizare ca modul generic
 

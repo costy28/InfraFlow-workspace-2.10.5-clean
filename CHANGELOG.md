@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.489 - 2026-08-05
+
+## Notificări pentru documente urmărite
+
+- Utilizatorii care urmăresc un document primesc notificări persistente când documentul este lansat, aprobat, respins, retras sau partajat.
+- Actorul acțiunii nu își primește propria notificare, ca să nu aglomerăm clopoțelul.
+- Notificările au deep-link către dosarul documentului și eticheta `Deschide documentul`.
+- Evenimentele repetate pe același document/acțiune/utilizator sunt deduplicate pe minut.
+- Funcția folosește infrastructura existentă `db.notifications`, fără migrare nouă.
+
 # v2.12.488 - 2026-08-05
 
 ## Watchlist documente urmărite

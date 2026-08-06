@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.488**
-**Versiune în lucru: v2.12.488**
+**Versiune curentă sursă: v2.12.489**
+**Versiune în lucru: v2.12.489**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -225,6 +225,7 @@ Core System
   ✅ Filtre rapide în Inbox Documente (v2.12.475)
   ✅ Acțiuni în masă pentru Documente (v2.12.476)
   ✅ Watchlist documente urmărite cu filtru rapid și audit (v2.12.488)
+  ✅ Notificări pentru documente urmărite la activitate de circuit (v2.12.489)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -795,6 +796,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Filtre rapide în Inbox Documente pentru acțiune, blocaje, scadențe și sursă email ✅ Fundație v2.12.475
       → Acțiuni în masă: selecție, task-uri per document și export CSV ✅ Fundație v2.12.476
       → Watchlist documente urmărite cu filtru rapid și audit ✅ Fundație v2.12.488
+      → Notificări pentru documente urmărite la lansare, aprobare, respingere, retragere și partajare ✅ Fundație v2.12.489
 
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
@@ -869,9 +871,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.488
+VERSIUNE CURENTĂ SURSĂ: 2.12.489
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.488 ✅
+UPDATE ZIP CURENT: 2.12.489 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1168,6 +1170,7 @@ UPDATES ÎN LUCRU:
   2.12.486 → UPDATE 506 Arhivare controlată resurse parc ✅
   2.12.487 → UPDATE 507 Timeline fișă resursă parc ✅
   2.12.488 → UPDATE 508 Watchlist documente urmărite ✅
+  2.12.489 → UPDATE 509 Notificări documente urmărite ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1662,5 +1665,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 5 August 2026 | InfraFlow sursă v2.12.488*
+*AGENTS.md actualizat: 5 August 2026 | InfraFlow sursă v2.12.489*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
