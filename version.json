@@ -1,5 +1,5 @@
 {
-  "version": "2.12.501",
+  "version": "2.12.502",
   "date": "2026-08-08",
-  "changelog": "## v2.12.501 - 2026-08-08\n### Praguri workflow pentru escaladări documente\n- Filtrul Escaladări din Documente folosește pragul configurat în Setări → Documente → Circuit aprobare.\n- Dashboard-ul calculează badge-ul de escaladări după aceleași praguri configurate pe tip de document.\n- Task-urile către responsabili primesc prioritate și termen recomandat în funcție de pragul real al fluxului.\n- Contractele păstrează fallback de 3 zile, iar celelalte documente fallback de 2 zile dacă nu există flux configurat.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.502 - 2026-08-08\n### Explicații vizibile pentru pragurile de escaladare\n- Panoul de escaladare asistată din Documente afișează pragul configurat pe flux sau intervalul de praguri din lista curentă.\n- Lista arată câte documente urmărite sunt deja peste pragul configurat.\n- Radarul Dashboard pentru documente urmărite afișează pentru fiecare document câte zile mai sunt până la prag sau dacă pragul a fost depășit.\n- Logica folosește aceleași praguri workflow ca filtrul Escaladări și task-urile către responsabili.\n- Nu necesită migrare SQL nouă."
 }

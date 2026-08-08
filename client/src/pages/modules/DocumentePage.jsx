@@ -649,6 +649,15 @@ export default function DocumentePage() {
     const currentAgeGroup = watchedGroupFilter.age || ''
     const urgentCount = rows.filter(document => recommendedTaskPriorityForWatched(document, settings) === 'urgent').length
     const highCount = rows.filter(document => recommendedTaskPriorityForWatched(document, settings) === 'high').length
+    const thresholdValues = rows
+      .map(document => escalationDaysForDocument(document, settings))
+      .filter(value => Number.isFinite(value))
+    const minThreshold = thresholdValues.length ? Math.min(...thresholdValues) : null
+    const maxThreshold = thresholdValues.length ? Math.max(...thresholdValues) : null
+    const overThresholdCount = rows.filter(document => {
+      const age = currentStepAgeDays(document)
+      return age !== null && age >= escalationDaysForDocument(document, settings)
+    }).length
     const missingResponsible = rows.filter(document => !document.current_responsible_id).length
     const oldestAge = rows.reduce((max, document) => {
       const age = currentStepAgeDays(document)
@@ -659,6 +668,9 @@ export default function DocumentePage() {
       responsibleCount: visibleWatchedGroupResponsibleDocuments.length,
       urgentCount,
       highCount,
+      minThreshold,
+      maxThreshold,
+      overThresholdCount,
       missingResponsible,
       oldestAge,
       currentAgeGroup,
@@ -1743,11 +1755,19 @@ export default function DocumentePage() {
                   <div className="mt-1 text-xs">
                     {watchedGroupEscalationSummary.hint}
                     {' '}Cel mai vechi pas: {watchedGroupEscalationSummary.oldestAge} zile.
+                    {watchedGroupEscalationSummary.minThreshold !== null ? (
+                      <span>
+                        {' '}Prag configurat: {watchedGroupEscalationSummary.minThreshold === watchedGroupEscalationSummary.maxThreshold
+                          ? `${watchedGroupEscalationSummary.minThreshold} zile`
+                          : `${watchedGroupEscalationSummary.minThreshold}–${watchedGroupEscalationSummary.maxThreshold} zile`}.
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge tone="neutral">{watchedGroupEscalationSummary.count} în grup</Badge>
                   <Badge tone={watchedGroupEscalationSummary.missingResponsible ? 'warning' : 'info'}>{watchedGroupEscalationSummary.responsibleCount} cu responsabil</Badge>
+                  {watchedGroupEscalationSummary.overThresholdCount ? <Badge tone="danger">{watchedGroupEscalationSummary.overThresholdCount} peste prag</Badge> : null}
                   {watchedGroupEscalationSummary.urgentCount ? <Badge tone="danger">{watchedGroupEscalationSummary.urgentCount} urgente</Badge> : null}
                   {watchedGroupEscalationSummary.highCount ? <Badge tone="warning">{watchedGroupEscalationSummary.highCount} importante</Badge> : null}
                 </div>

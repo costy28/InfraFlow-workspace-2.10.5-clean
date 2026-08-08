@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.502 - 2026-08-08
+
+## Explicații vizibile pentru pragurile de escaladare
+
+- Panoul de escaladare asistată din Documente afișează pragul configurat pe flux sau intervalul de praguri din lista curentă.
+- Lista arată câte documente urmărite sunt deja peste pragul configurat.
+- Radarul Dashboard pentru documente urmărite afișează pentru fiecare document câte zile mai sunt până la prag sau dacă pragul a fost depășit.
+- Logica folosește aceleași praguri workflow ca filtrul Escaladări și task-urile către responsabili.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.501 - 2026-08-08
 
 ## Praguri workflow pentru escaladări documente

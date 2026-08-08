@@ -351,6 +351,15 @@ function watchedDocumentNeedsEscalation(document, settings = {}) {
     ['urgent', 'critic', 'critica'].includes(String(document?.prioritate || document?.priority || '').toLowerCase())
 }
 
+function watchedEscalationLabel(document, settings = {}) {
+  const age = currentStepAgeDays(document)
+  const escalationDays = escalationDaysForDocument(document, settings)
+  if (age === null) return `Prag ${escalationDays}z · pas fără dată`
+  if (age >= escalationDays) return `Depășit pragul ${escalationDays}z`
+  const remaining = Math.max(0, escalationDays - age)
+  return `${remaining}z până la prag (${escalationDays}z)`
+}
+
 function currentResponsibleLabel(document) {
   return document?.current_responsible_label ||
     (document?.current_responsible_id ? `Responsabil #${document.current_responsible_id}` : '') ||
@@ -960,6 +969,7 @@ function WatchedDocumentsPanel({
                   const due = documentDueState(document)
                   const ageBucket = watchedStepAgeBucket(document)
                   const age = currentStepAgeDays(document)
+                  const isEscalated = watchedDocumentNeedsEscalation(document, settings)
                   const key = documentTaskSourceId(document)
                   return (
                     <div
@@ -981,6 +991,10 @@ function WatchedDocumentsPanel({
                           <span>·</span>
                           <span className={ageBucket.tone === 'danger' ? 'font-semibold text-rose-700' : ageBucket.tone === 'warning' ? 'font-semibold text-amber-700' : ''}>
                             {age === null ? ageBucket.label : `${age}z în pas`}
+                          </span>
+                          <span>·</span>
+                          <span className={isEscalated ? 'font-semibold text-rose-700' : 'text-slate-500'}>
+                            {watchedEscalationLabel(document, settings)}
                           </span>
                         </div>
                       </button>
