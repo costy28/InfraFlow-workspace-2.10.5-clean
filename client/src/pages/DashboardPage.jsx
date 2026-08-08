@@ -291,6 +291,44 @@ function currentStepAgeDays(document) {
   return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))
 }
 
+function compactWorkflowKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '')
+}
+
+function workflowDocumentFlowsFromSettings(settings = {}) {
+  return Array.isArray(settings.workflow_document_flows) ? settings.workflow_document_flows : []
+}
+
+function documentWorkflowKey(document) {
+  return compactWorkflowKey(
+    document?.tip_document ||
+    document?.tip_id ||
+    document?.document_type ||
+    document?.type ||
+    document?.categorie ||
+    ''
+  )
+}
+
+function escalationDaysForDocument(document, settings = {}) {
+  const key = documentWorkflowKey(document)
+  const flows = workflowDocumentFlowsFromSettings(settings)
+  const flow = flows.find(item => item?.active !== false && [
+    item.document_type,
+    item.documentType,
+    item.id,
+    item.label,
+  ].map(compactWorkflowKey).filter(Boolean).includes(key))
+  const configured = Number(flow?.escalation_days ?? flow?.escalationDays)
+  if (Number.isFinite(configured) && configured >= 0) return configured
+  if (key.includes('contract')) return 3
+  return 2
+}
+
 function watchedStepAgeBucket(document) {
   if (!document?.current_step_name && !document?.current_responsible_id) {
     return { key: 'no_step', label: 'Fără pas curent', tone: 'neutral', sort: 5 }
@@ -302,10 +340,13 @@ function watchedStepAgeBucket(document) {
   return { key: 'fresh', label: '0–1 zile în pas', tone: 'info', sort: 2 }
 }
 
-function watchedDocumentNeedsEscalation(document) {
+function watchedDocumentNeedsEscalation(document, settings = {}) {
   const ageBucket = watchedStepAgeBucket(document)
+  const age = currentStepAgeDays(document)
+  const escalationDays = escalationDaysForDocument(document, settings)
   const due = documentDueState(document)
-  return ['stalled_3d', 'stalled_2d', 'unknown', 'no_step'].includes(ageBucket.key) ||
+  return ['unknown', 'no_step'].includes(ageBucket.key) ||
+    (age !== null && age >= escalationDays) ||
     due.tone === 'danger' ||
     ['urgent', 'critic', 'critica'].includes(String(document?.prioritate || document?.priority || '').toLowerCase())
 }
@@ -840,6 +881,7 @@ function WatchedDocumentsPanel({
   documents = [],
   notifications = [],
   summary = {},
+  settings = {},
   loading,
   error,
   actionLoading,
@@ -855,7 +897,7 @@ function WatchedDocumentsPanel({
   const topDocuments = documents.slice(0, 4)
   const topNotifications = notifications.slice(0, 3)
   const insights = groupedWatchedInsights(documents)
-  const escalationCount = documents.filter(watchedDocumentNeedsEscalation).length
+  const escalationCount = documents.filter(document => watchedDocumentNeedsEscalation(document, settings)).length
   const attentionTone = overdue ? 'danger' : unread ? 'warning' : documents.length ? 'info' : 'neutral'
 
   return (
@@ -1608,6 +1650,7 @@ export default function DashboardPage() {
     const myTasks = arrayFrom(data.myTasks, ['tasks', 'items'])
     const leaveRequests = arrayFrom(data.leaveRequests, ['requests', 'leaveRequests', 'items'])
     const blockedDocuments = arrayFrom(data.commandCenter?.documentsBlocked, ['documents', 'items'])
+    const settings = data.settings?.settings || data.settings || {}
     const profile = dashboardProfile(user)
 
     const nextView = {
@@ -1629,6 +1672,7 @@ export default function DashboardPage() {
       hrStats: data.hrStats || {},
       leaveRequests,
       accountingSummary: data.accountingSummary || {},
+      settings,
       firstStepsChecklist: buildFirstStepsStatus(data, firstSteps),
     }
     return {
@@ -1696,6 +1740,7 @@ export default function DashboardPage() {
         documents={view.watchedDocuments}
         notifications={view.watchedDocumentNotifications}
         summary={view.watchedDocumentsSummary}
+        settings={view.settings}
         loading={loading}
         error={errors.watchedDocuments}
         actionLoading={watchedActionLoading}

@@ -348,6 +348,44 @@ function currentStepAgeDays(document) {
   return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))
 }
 
+function compactWorkflowKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '')
+}
+
+function workflowDocumentFlowsFromSettings(settings = {}) {
+  return Array.isArray(settings.workflow_document_flows) ? settings.workflow_document_flows : []
+}
+
+function documentWorkflowKey(document) {
+  return compactWorkflowKey(
+    document?.tip_document ||
+    document?.tip_id ||
+    document?.document_type ||
+    document?.type ||
+    document?.categorie ||
+    ''
+  )
+}
+
+function escalationDaysForDocument(document, settings = {}) {
+  const key = documentWorkflowKey(document)
+  const flows = workflowDocumentFlowsFromSettings(settings)
+  const flow = flows.find(item => item?.active !== false && [
+    item.document_type,
+    item.documentType,
+    item.id,
+    item.label,
+  ].map(compactWorkflowKey).filter(Boolean).includes(key))
+  const configured = Number(flow?.escalation_days ?? flow?.escalationDays)
+  if (Number.isFinite(configured) && configured >= 0) return configured
+  if (key.includes('contract')) return 3
+  return 2
+}
+
 function watchedAgeGroup(document) {
   if (!document?.current_step_name && !document?.current_responsible_id) return 'no_step'
   const age = currentStepAgeDays(document)
@@ -381,25 +419,30 @@ function watchedAgeActionHint(group) {
   return 'Monitorizare normală.'
 }
 
-function recommendedTaskPriorityForWatched(document) {
-  const ageGroup = watchedAgeGroup(document)
-  if (ageGroup === 'stalled_3d' || documentIsBlocked(document) || documentIsUrgent(document)) return 'urgent'
-  if (ageGroup === 'stalled_2d' || documentIsDueSoon(document)) return 'high'
+function recommendedTaskPriorityForWatched(document, settings = {}) {
+  const age = currentStepAgeDays(document)
+  const escalationDays = escalationDaysForDocument(document, settings)
+  if ((age !== null && age >= escalationDays + 1) || documentIsBlocked(document) || documentIsUrgent(document)) return 'urgent'
+  if ((age !== null && age >= escalationDays) || documentIsDueSoon(document)) return 'high'
   return 'normal'
 }
 
-function recommendedTaskDueDateForWatched(document) {
+function recommendedTaskDueDateForWatched(document, settings = {}) {
   if (document?.termen_limita) return String(document.termen_limita).slice(0, 10)
   const date = new Date()
-  const ageGroup = watchedAgeGroup(document)
-  date.setDate(date.getDate() + (ageGroup === 'stalled_3d' ? 0 : 1))
+  const age = currentStepAgeDays(document)
+  const escalationDays = escalationDaysForDocument(document, settings)
+  date.setDate(date.getDate() + (age !== null && age >= escalationDays + 1 ? 0 : 1))
   return date.toISOString().slice(0, 10)
 }
 
-function documentNeedsEscalation(document, user) {
+function documentNeedsEscalation(document, user, settings = {}) {
   if (!documentIsWatched(document, user)) return false
   const ageGroup = watchedAgeGroup(document)
-  return ['stalled_3d', 'stalled_2d', 'unknown', 'no_step'].includes(ageGroup) ||
+  const age = currentStepAgeDays(document)
+  const escalationDays = escalationDaysForDocument(document, settings)
+  return ['unknown', 'no_step'].includes(ageGroup) ||
+    (age !== null && age >= escalationDays) ||
     documentIsBlocked(document) ||
     documentIsUrgent(document) ||
     watchedDueGroup(document) === 'overdue' ||
@@ -446,6 +489,7 @@ export default function DocumentePage() {
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [settings, setSettings] = useState({})
   const [templateModal, setTemplateModal] = useState(false)
   const [templateEditing, setTemplateEditing] = useState(null)
   const [templateForm, setTemplateForm] = useState(emptyTemplateForm)
@@ -524,6 +568,20 @@ export default function DocumentePage() {
     Promise.resolve().then(() => load())
   }, [load])
 
+  useEffect(() => {
+    let cancelled = false
+    api.get('/settings')
+      .then(response => {
+        if (!cancelled) setSettings(response.data?.settings || response.data || {})
+      })
+      .catch(() => {
+        if (!cancelled) setSettings({})
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const baseVisibleDocuments = useMemo(() => {
     if (activeTab !== 'Ale mele') return documents
     const id = userId(user)
@@ -539,11 +597,11 @@ export default function DocumentePage() {
       { key: 'due', label: 'Scadente', count: rows.filter(documentIsDueSoon).length, predicate: documentIsDueSoon },
       { key: 'urgent', label: 'Urgente', count: rows.filter(documentIsUrgent).length, predicate: documentIsUrgent },
       { key: 'watched', label: 'Urmărite', count: rows.filter(document => documentIsWatched(document, user)).length, predicate: document => documentIsWatched(document, user) },
-      { key: 'escalations', label: 'Escaladări', count: rows.filter(document => documentNeedsEscalation(document, user)).length, predicate: document => documentNeedsEscalation(document, user) },
+      { key: 'escalations', label: 'Escaladări', count: rows.filter(document => documentNeedsEscalation(document, user, settings)).length, predicate: document => documentNeedsEscalation(document, user, settings) },
       { key: 'draft', label: 'Drafturi', count: rows.filter(document => documentStatus(document) === 'draft').length, predicate: document => documentStatus(document) === 'draft' },
       { key: 'email', label: 'Din email', count: rows.filter(document => Boolean(emailSourceForDocument(document))).length, predicate: document => Boolean(emailSourceForDocument(document)) },
     ]
-  }, [baseVisibleDocuments, user])
+  }, [baseVisibleDocuments, settings, user])
 
   const watchedGroupFilterLabel = useMemo(() => {
     if (documentQuickFilter !== 'watched') return ''
@@ -589,8 +647,8 @@ export default function DocumentePage() {
       return acc
     }, {})
     const currentAgeGroup = watchedGroupFilter.age || ''
-    const urgentCount = rows.filter(document => recommendedTaskPriorityForWatched(document) === 'urgent').length
-    const highCount = rows.filter(document => recommendedTaskPriorityForWatched(document) === 'high').length
+    const urgentCount = rows.filter(document => recommendedTaskPriorityForWatched(document, settings) === 'urgent').length
+    const highCount = rows.filter(document => recommendedTaskPriorityForWatched(document, settings) === 'high').length
     const missingResponsible = rows.filter(document => !document.current_responsible_id).length
     const oldestAge = rows.reduce((max, document) => {
       const age = currentStepAgeDays(document)
@@ -607,7 +665,7 @@ export default function DocumentePage() {
       ageCounts,
       hint: watchedAgeActionHint(currentAgeGroup || (urgentCount ? 'stalled_3d' : highCount ? 'stalled_2d' : 'fresh')),
     }
-  }, [hasEscalationWorkList, visibleDocuments, visibleWatchedGroupResponsibleDocuments.length, watchedGroupFilter.age])
+  }, [hasEscalationWorkList, settings, visibleDocuments, visibleWatchedGroupResponsibleDocuments.length, watchedGroupFilter.age])
 
   useEffect(() => {
     const available = new Set(baseVisibleDocuments.map(documentSelectionKey))
@@ -875,7 +933,7 @@ export default function DocumentePage() {
       }
 
       await Promise.all(rowsToCreate.map(({ document, documentId }) => {
-        const dueDate = recommendedTaskDueDateForWatched(document)
+        const dueDate = recommendedTaskDueDateForWatched(document, settings)
         const age = currentStepAgeDays(document)
         const ageGroup = watchedAgeGroup(document)
         return api.post('/tasks', {
@@ -893,7 +951,7 @@ export default function DocumentePage() {
             'Creat automat din grupul de documente urmărite.',
           ].filter(Boolean).join('\n'),
           assigned_to: document.current_responsible_id,
-          priority: recommendedTaskPriorityForWatched(document),
+          priority: recommendedTaskPriorityForWatched(document, settings),
           due_date: dueDate,
           source_type: 'document',
           source_id: String(documentId || ''),

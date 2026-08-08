@@ -1,5 +1,5 @@
 {
-  "version": "2.12.500",
+  "version": "2.12.501",
   "date": "2026-08-08",
-  "changelog": "## v2.12.500 - 2026-08-08\n### Filtru rapid Escaladări în Documente\n- Documente are filtru rapid Escaladări pentru documentele urmărite care cer intervenție.\n- Lista de escaladări include urmăritele cu pas vechi, pas fără dată, fără pas curent, scadente/întârziate sau prioritate urgentă.\n- Lista Escaladări afișează panoul de escaladare asistată și poate genera task-uri către responsabilii curenți.\n- Dashboard-ul afișează numărul de escaladări și buton direct către lista filtrată.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.501 - 2026-08-08\n### Praguri workflow pentru escaladări documente\n- Filtrul Escaladări din Documente folosește pragul configurat în Setări → Documente → Circuit aprobare.\n- Dashboard-ul calculează badge-ul de escaladări după aceleași praguri configurate pe tip de document.\n- Task-urile către responsabili primesc prioritate și termen recomandat în funcție de pragul real al fluxului.\n- Contractele păstrează fallback de 3 zile, iar celelalte documente fallback de 2 zile dacă nu există flux configurat.\n- Nu necesită migrare SQL nouă."
 }

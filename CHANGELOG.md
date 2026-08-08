@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.501 - 2026-08-08
+
+## Praguri workflow pentru escaladări documente
+
+- Filtrul `Escaladări` din Documente folosește pragul `Escaladare după zile` configurat în Setări → Documente → Circuit aprobare.
+- Dashboard-ul calculează badge-ul de escaladări după aceleași praguri configurate pe tip de document.
+- Task-urile către responsabili primesc prioritate și termen recomandat în funcție de pragul real al fluxului.
+- Dacă nu există flux configurat, fallback-ul rămâne sigur: 3 zile pentru contracte și 2 zile pentru restul documentelor.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.500 - 2026-08-08
 
 ## Filtru rapid Escaladări în Documente

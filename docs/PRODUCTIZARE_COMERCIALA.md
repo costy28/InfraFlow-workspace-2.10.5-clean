@@ -162,7 +162,8 @@ Stadiu implementare:
 - `v2.12.498`: Documentele urmărite se grupează și după vechimea în pasul curent, ca bază pentru escaladări controlate.
 - `v2.12.499`: Documente oferă escaladare asistată pe grupurile urmărite: rezumat blocaje, recomandare și task-uri precompletate inteligent.
 - `v2.12.500`: Documente are filtru rapid `Escaladări`, iar Dashboard-ul trimite direct către lista de documente urmărite care cer intervenție.
-- Următorul pas: automatizare controlată configurabilă, de exemplu reminder/escaladare după X zile în același pas.
+- `v2.12.501`: Escaladările respectă pragul `Escaladare după zile` din fluxul documentului, inclusiv în Dashboard și la task-urile recomandate.
+- Următorul pas: automatizare controlată, de exemplu reminder/escaladare generată periodic după pragurile din flux.
 
 ## Fleet / Mecanizare ca modul generic
 
