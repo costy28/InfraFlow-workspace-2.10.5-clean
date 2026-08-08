@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.503 - 2026-08-08
+
+## Export CSV cu date de escaladare Documente
+
+- Exportul CSV din Documente include responsabilul curent, zilele în pasul curent și pragul de escaladare aplicat.
+- Pentru fiecare document exportat se afișează statusul de escaladare: peste prag, în termen sau pas fără dată.
+- Exportul folosește aceleași praguri workflow ca filtrul Escaladări, Dashboard-ul și task-urile către responsabili.
+- Ajută la audit și raportare fără verificări manuale în interfață.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.502 - 2026-08-08
 
 ## Explicații vizibile pentru pragurile de escaladare

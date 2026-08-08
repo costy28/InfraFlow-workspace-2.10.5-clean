@@ -986,20 +986,46 @@ export default function DocumentePage() {
   function exportSelectedDocumentsCsv() {
     const rows = selectedDocuments.length ? selectedDocuments : visibleDocuments
     if (!rows.length) return
-    const headers = ['nr_document', 'titlu', 'tip', 'status', 'prioritate', 'termen', 'actualizat_la', 'sursa']
+    const headers = [
+      'nr_document',
+      'titlu',
+      'tip',
+      'status',
+      'prioritate',
+      'termen',
+      'actualizat_la',
+      'sursa',
+      'responsabil_curent',
+      'zile_in_pas',
+      'prag_escaladare_zile',
+      'status_escaladare',
+    ]
     const escape = value => `"${String(value ?? '').replaceAll('"', '""')}"`
     const lines = [
       headers.join(','),
-      ...rows.map(document => [
-        document.nr_document || '',
-        document.titlu || '',
-        document.tip_id || '',
-        label(document.status),
-        label(document.prioritate),
-        document.termen_limita || '',
-        document.updated_at || document.created_at || '',
-        emailSourceForDocument(document) ? 'Email ERP' : '',
-      ].map(escape).join(',')),
+      ...rows.map(document => {
+        const age = currentStepAgeDays(document)
+        const escalationDays = escalationDaysForDocument(document, settings)
+        const escalationStatus = age === null
+          ? watchedAgeLabels[watchedAgeGroup(document)] || 'fără dată pas'
+          : age >= escalationDays
+            ? `peste prag (${age - escalationDays} zile)`
+            : `în termen (${escalationDays - age} zile rămase)`
+        return [
+          document.nr_document || '',
+          document.titlu || '',
+          document.tip_id || '',
+          label(document.status),
+          label(document.prioritate),
+          document.termen_limita || '',
+          document.updated_at || document.created_at || '',
+          emailSourceForDocument(document) ? 'Email ERP' : '',
+          document.current_responsible_label || document.current_responsible_name || document.current_responsible_id || '',
+          age ?? '',
+          escalationDays,
+          escalationStatus,
+        ].map(escape).join(',')
+      }),
     ]
     const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)

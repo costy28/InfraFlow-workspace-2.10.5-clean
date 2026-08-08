@@ -1,5 +1,5 @@
 {
-  "version": "2.12.502",
+  "version": "2.12.503",
   "date": "2026-08-08",
-  "changelog": "## v2.12.502 - 2026-08-08\n### Explicații vizibile pentru pragurile de escaladare\n- Panoul de escaladare asistată din Documente afișează pragul configurat pe flux sau intervalul de praguri din lista curentă.\n- Lista arată câte documente urmărite sunt deja peste pragul configurat.\n- Radarul Dashboard pentru documente urmărite afișează pentru fiecare document câte zile mai sunt până la prag sau dacă pragul a fost depășit.\n- Logica folosește aceleași praguri workflow ca filtrul Escaladări și task-urile către responsabili.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.503 - 2026-08-08\n### Export CSV cu date de escaladare Documente\n- Exportul CSV din Documente include responsabilul curent, zilele în pasul curent și pragul de escaladare aplicat.\n- Pentru fiecare document exportat se afișează statusul de escaladare: peste prag, în termen sau pas fără dată.\n- Exportul folosește aceleași praguri workflow ca filtrul Escaladări, Dashboard-ul și task-urile către responsabili.\n- Ajută la audit și raportare fără verificări manuale în interfață.\n- Nu necesită migrare SQL nouă."
 }
