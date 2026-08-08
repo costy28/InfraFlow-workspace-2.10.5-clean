@@ -283,6 +283,25 @@ function watchedDueBucket(document) {
   return { key: 'later', label: 'Termen viitor', tone: 'info', sort: 3 }
 }
 
+function currentStepAgeDays(document) {
+  const raw = document?.current_step_created_at
+  if (!raw) return null
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return null
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))
+}
+
+function watchedStepAgeBucket(document) {
+  if (!document?.current_step_name && !document?.current_responsible_id) {
+    return { key: 'no_step', label: 'Fără pas curent', tone: 'neutral', sort: 5 }
+  }
+  const age = currentStepAgeDays(document)
+  if (age === null) return { key: 'unknown', label: 'Pas fără dată', tone: 'warning', sort: 4 }
+  if (age >= 3) return { key: 'stalled_3d', label: '3+ zile în pas', tone: 'danger', sort: 0 }
+  if (age >= 2) return { key: 'stalled_2d', label: '2 zile în pas', tone: 'warning', sort: 1 }
+  return { key: 'fresh', label: '0–1 zile în pas', tone: 'info', sort: 2 }
+}
+
 function currentResponsibleLabel(document) {
   return document?.current_responsible_label ||
     (document?.current_responsible_id ? `Responsabil #${document.current_responsible_id}` : '') ||
@@ -304,17 +323,21 @@ function groupedWatchedInsights(documents = []) {
   const due = new Map()
   const responsible = new Map()
   const type = new Map()
+  const age = new Map()
   documents.forEach(document => {
     const dueBucket = watchedDueBucket(document)
+    const ageBucket = watchedStepAgeBucket(document)
     add(due, dueBucket.key, dueBucket.label, dueBucket.tone, dueBucket.sort)
     add(responsible, currentResponsibleLabel(document), currentResponsibleLabel(document), document.current_responsible_id ? 'info' : 'warning')
     add(type, watchedTypeLabel(document), watchedTypeLabel(document), 'neutral')
+    add(age, ageBucket.key, ageBucket.label, ageBucket.tone, ageBucket.sort)
   })
   const list = map => Array.from(map.values()).sort((a, b) => a.sort - b.sort || b.count - a.count || a.label.localeCompare(b.label, 'ro')).slice(0, 4)
   return {
     due: list(due),
     responsible: list(responsible),
     type: list(type),
+    age: list(age),
   }
 }
 
@@ -866,10 +889,11 @@ function WatchedDocumentsPanel({
           </div>
 
           {documents.length ? (
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <div className="mt-4 grid gap-3 lg:grid-cols-4">
               <WatchedInsightCard title="După termen" group="due" items={insights.due} empty="Nu există termene urmărite." onOpenGroup={onOpenGroup} />
               <WatchedInsightCard title="După responsabil" group="owner" items={insights.responsible} empty="Nu există responsabili în circuit." onOpenGroup={onOpenGroup} />
               <WatchedInsightCard title="După tip document" group="type" items={insights.type} empty="Nu există tipuri de document." onOpenGroup={onOpenGroup} />
+              <WatchedInsightCard title="După vechime pas" group="age" items={insights.age} empty="Nu există pași curenți." onOpenGroup={onOpenGroup} />
             </div>
           ) : null}
 

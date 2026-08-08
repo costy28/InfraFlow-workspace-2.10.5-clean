@@ -159,6 +159,7 @@ Stadiu implementare:
 - `v2.12.495`: Grupurile de documente urmărite au acțiuni contextualizate pentru selecția grupului, export și task-uri în masă.
 - `v2.12.496`: Grupurile urmărite pot genera task-uri direct către responsabilii curenți ai documentelor.
 - `v2.12.497`: Generarea task-urilor către responsabili evită duplicatele deschise pe același document și responsabil.
+- `v2.12.498`: Documentele urmărite se grupează și după vechimea în pasul curent, ca bază pentru escaladări controlate.
 - Următorul pas: automatizare controlată, de exemplu reminder/escaladare după X zile în același pas.
 
 ## Fleet / Mecanizare ca modul generic

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.497",
+  "version": "2.12.498",
   "date": "2026-08-08",
-  "changelog": "## v2.12.497 - 2026-08-08\n### Anti-duplicare task-uri responsabili grupuri urmărite\n- Acțiunea Task-uri către responsabili verifică task-urile deschise existente pe fiecare document.\n- Documentele care au deja task deschis către același responsabil curent sunt sărite.\n- Mesajul final arată câte task-uri au fost create și câte documente au fost omise.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.498 - 2026-08-08\n### Vechime pas curent documente urmărite\n- Documentele urmărite includ data intrării în pasul curent.\n- Dashboard-ul grupează urmăritele după vechimea în pas: 3+ zile, 2 zile, 0–1 zile, pas fără dată sau fără pas curent.\n- Grupul După vechime pas este clickabil și deschide Documente cu subfiltru watch_age.\n- Nu necesită migrare SQL nouă."
 }

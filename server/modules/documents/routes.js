@@ -215,7 +215,8 @@ function publicDocument(document, viewerId = null, context = null) {
         id: document.current_step_id || null,
         name: document.current_step_name || '',
         responsibleId: document.current_responsible_id || '',
-        responsibleLabel: document.current_responsible_label || ''
+        responsibleLabel: document.current_responsible_label || '',
+        createdAt: document.current_step_created_at || null
       }
     : context?.waitingSteps?.get(String(document.id || '')) || null
   const currentResponsibleId = currentStep?.responsibleId || currentStep?.user_responsabil || document.current_responsible_id || ''
@@ -240,6 +241,7 @@ function publicDocument(document, viewerId = null, context = null) {
     current_step_name: currentStep?.name || currentStep?.tip || currentStep?.pas || '',
     current_responsible_id: currentResponsibleId || '',
     current_responsible_label: currentStep?.responsibleLabel || document.current_responsible_label || documentUserLabel(currentResponsible) || '',
+    current_step_created_at: currentStep?.createdAt || currentStep?.created_at || document.current_step_created_at || null,
     fisier_draft_path: document.fisier_draft_path || null,
     fisier_final_path: document.fisier_final_path || null,
     created_at: document.created_at,
@@ -900,11 +902,12 @@ DECLARE @canDept bit = CASE WHEN JSON_VALUE(@p, '$.canDept') = N'true' THEN 1 EL
 SELECT TOP 25 d.id, d.uuid, d.tip_id, COALESCE(t.tip_document, d.tip_id) AS tip_document, t.denumire AS tip_document_label,
   d.nr_document, d.titlu, d.date_json, d.status, d.versiune, d.creat_de, d.dept_initiatoare,
   d.prioritate, d.termen_limita, cs.tip AS current_step_name, cs.user_responsabil AS current_responsible_id,
+  cs.created_at AS current_step_created_at,
   d.fisier_draft_path, d.fisier_final_path, d.created_at, d.updated_at
 FROM documents.documents d
 LEFT JOIN documents.document_types t ON t.id = d.tip_id
 OUTER APPLY (
-  SELECT TOP 1 tip, user_responsabil
+  SELECT TOP 1 tip, user_responsabil, created_at
   FROM documents.circuit_steps s
   WHERE s.document_id = d.id AND s.status = N'asteptare'
   ORDER BY s.nr_pas

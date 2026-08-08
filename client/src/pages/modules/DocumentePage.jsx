@@ -340,12 +340,37 @@ function watchedTypeGroup(document) {
   return document?.tip_document_label || document?.tip_document || document?.tip_id || 'Document'
 }
 
+function currentStepAgeDays(document) {
+  const raw = document?.current_step_created_at
+  if (!raw) return null
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return null
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))
+}
+
+function watchedAgeGroup(document) {
+  if (!document?.current_step_name && !document?.current_responsible_id) return 'no_step'
+  const age = currentStepAgeDays(document)
+  if (age === null) return 'unknown'
+  if (age >= 3) return 'stalled_3d'
+  if (age >= 2) return 'stalled_2d'
+  return 'fresh'
+}
+
 const watchedDueLabels = {
   overdue: 'Întârziate',
   today: 'Scad azi',
   soon: 'Următoarele 3 zile',
   later: 'Termen viitor',
   no_due: 'Fără termen',
+}
+
+const watchedAgeLabels = {
+  stalled_3d: '3+ zile în pas',
+  stalled_2d: '2 zile în pas',
+  fresh: '0–1 zile în pas',
+  unknown: 'Pas fără dată',
+  no_step: 'Fără pas curent',
 }
 
 const templateTypes = [
@@ -432,6 +457,7 @@ export default function DocumentePage() {
       due: params.get('watch_due') || '',
       owner: params.get('watch_owner') || '',
       type: params.get('watch_type') || '',
+      age: params.get('watch_age') || '',
     }
   })
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
@@ -490,6 +516,7 @@ export default function DocumentePage() {
     if (watchedGroupFilter.due) return `termen: ${watchedDueLabels[watchedGroupFilter.due] || watchedGroupFilter.due}`
     if (watchedGroupFilter.owner) return `responsabil: ${watchedGroupFilter.owner}`
     if (watchedGroupFilter.type) return `tip: ${watchedGroupFilter.type}`
+    if (watchedGroupFilter.age) return `vechime pas: ${watchedAgeLabels[watchedGroupFilter.age] || watchedGroupFilter.age}`
     return ''
   }, [documentQuickFilter, watchedGroupFilter])
 
@@ -501,6 +528,7 @@ export default function DocumentePage() {
       if (watchedGroupFilter.due) rows = rows.filter(document => watchedDueGroup(document) === watchedGroupFilter.due)
       if (watchedGroupFilter.owner) rows = rows.filter(document => watchedOwnerGroup(document) === watchedGroupFilter.owner)
       if (watchedGroupFilter.type) rows = rows.filter(document => watchedTypeGroup(document) === watchedGroupFilter.type)
+      if (watchedGroupFilter.age) rows = rows.filter(document => watchedAgeGroup(document) === watchedGroupFilter.age)
     }
     return rows
   }, [activeTab, baseVisibleDocuments, documentQuickFilter, documentQuickFilters, watchedGroupFilter])
@@ -510,7 +538,7 @@ export default function DocumentePage() {
     return baseVisibleDocuments.filter(document => keys.has(documentSelectionKey(document)))
   }, [baseVisibleDocuments, selectedDocumentKeys])
 
-  const hasWatchedGroupFilter = documentQuickFilter === 'watched' && Boolean(watchedGroupFilter.due || watchedGroupFilter.owner || watchedGroupFilter.type)
+  const hasWatchedGroupFilter = documentQuickFilter === 'watched' && Boolean(watchedGroupFilter.due || watchedGroupFilter.owner || watchedGroupFilter.type || watchedGroupFilter.age)
   const allVisibleSelected = visibleDocuments.length > 0 && visibleDocuments.every(document => selectedDocumentKeys.includes(documentSelectionKey(document)))
   const visibleWatchedGroupResponsibleDocuments = useMemo(() => {
     if (!hasWatchedGroupFilter) return []
@@ -524,11 +552,11 @@ export default function DocumentePage() {
 
   function setQuickFilter(key) {
     setDocumentQuickFilter(key)
-    setWatchedGroupFilter({ due: '', owner: '', type: '' })
+    setWatchedGroupFilter({ due: '', owner: '', type: '', age: '' })
   }
 
   function clearWatchedGroupFilter() {
-    setWatchedGroupFilter({ due: '', owner: '', type: '' })
+    setWatchedGroupFilter({ due: '', owner: '', type: '', age: '' })
   }
 
   useEffect(() => {

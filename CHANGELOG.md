@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.498 - 2026-08-08
+
+## Vechime pas curent documente urmărite
+
+- Endpoint-ul documentelor urmărite include acum data intrării în pasul curent (`current_step_created_at`).
+- Dashboard-ul grupează documentele urmărite și după vechimea în pas: `3+ zile`, `2 zile`, `0–1 zile`, `pas fără dată` sau `fără pas curent`.
+- Grupul `După vechime pas` este clickabil și deschide Documente cu subfiltru aplicat.
+- DocumentePage acceptă parametrul `watch_age` și afișează clar grupul activ.
+- Fundația pregătește escaladări/remindere automate după X zile în același pas.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.497 - 2026-08-08
 
 ## Anti-duplicare task-uri responsabili grupuri urmărite
