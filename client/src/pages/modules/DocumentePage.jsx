@@ -759,8 +759,30 @@ export default function DocumentePage() {
     }
     setWatchedGroupTaskSaving(true)
     try {
-      await Promise.all(rows.map(document => {
+      const openStatuses = new Set(['open', 'todo', 'in_progress', 'blocked'])
+      const existingByDocument = await Promise.all(rows.map(async document => {
         const documentId = documentTaskSourceId(document)
+        if (!documentId) return { document, documentId, openTasks: [] }
+        const response = await api.get('/tasks', { params: { source_type: 'document', source_id: String(documentId) } }).catch(() => ({ data: { tasks: [] } }))
+        return {
+          document,
+          documentId,
+          openTasks: arrayFrom(response.data, ['tasks']).filter(task =>
+            String(task.assigned_to || '') === String(document.current_responsible_id || '') &&
+            openStatuses.has(String(task.status || 'open').toLowerCase())
+          ),
+        }
+      }))
+      const rowsToCreate = existingByDocument.filter(item => !item.openTasks.length)
+      const skipped = existingByDocument.length - rowsToCreate.length
+
+      if (!rowsToCreate.length) {
+        setWatchedGroupTaskMessage(`Nu am creat task-uri noi: există deja task-uri deschise pentru ${skipped} documente din grup.`)
+        setSelectedDocumentKeys(rows.map(documentSelectionKey).filter(Boolean))
+        return
+      }
+
+      await Promise.all(rowsToCreate.map(({ document, documentId }) => {
         const dueDate = document.termen_limita ? String(document.termen_limita).slice(0, 10) : ''
         return api.post('/tasks', {
           title: `Reminder document ${document.nr_document || document.titlu || documentId}`,
@@ -783,8 +805,11 @@ export default function DocumentePage() {
           source_url: documentId ? `/documente?document=${encodeURIComponent(String(documentId))}` : '/documente',
         })
       }))
-      setWatchedGroupTaskMessage(`Am creat ${rows.length} task-uri către responsabilii curenți ai grupului.`)
-      setSelectedDocumentKeys(rows.map(documentSelectionKey).filter(Boolean))
+      setWatchedGroupTaskMessage([
+        `Am creat ${rowsToCreate.length} task-uri către responsabilii curenți ai grupului.`,
+        skipped ? `${skipped} documente au fost sărite deoarece aveau deja task deschis către același responsabil.` : '',
+      ].filter(Boolean).join(' '))
+      setSelectedDocumentKeys(rowsToCreate.map(({ document }) => documentSelectionKey(document)).filter(Boolean))
     } catch (err) {
       setWatchedGroupTaskError(err.response?.data?.error || 'Nu am putut crea task-urile către responsabilii grupului.')
     } finally {

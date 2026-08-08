@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.497 - 2026-08-08
+
+## Anti-duplicare task-uri responsabili grupuri urmărite
+
+- Acțiunea `Task-uri către responsabili` verifică mai întâi task-urile deschise existente pe fiecare document.
+- Dacă există deja un task deschis pentru același document și același responsabil curent, documentul este sărit.
+- Mesajul de confirmare arată câte task-uri au fost create și câte documente au fost omise ca duplicate.
+- Dacă toate documentele au deja task-uri deschise, nu se creează nimic nou și utilizatorul primește explicație clară.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.496 - 2026-08-06
 
 ## Task-uri către responsabilii grupurilor urmărite

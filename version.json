@@ -1,5 +1,5 @@
 {
-  "version": "2.12.496",
-  "date": "2026-08-06",
-  "changelog": "## v2.12.496 - 2026-08-06\n### Task-uri către responsabilii grupurilor urmărite\n- Grupurile urmărite din Documente primesc acțiunea rapidă Task-uri către responsabili.\n- Se creează câte un task pentru fiecare document cu responsabil curent.\n- Task-ul este asignat responsabilului pasului curent și păstrează legătura către dosarul documentului.\n- Nu necesită migrare SQL nouă."
+  "version": "2.12.497",
+  "date": "2026-08-08",
+  "changelog": "## v2.12.497 - 2026-08-08\n### Anti-duplicare task-uri responsabili grupuri urmărite\n- Acțiunea Task-uri către responsabili verifică task-urile deschise existente pe fiecare document.\n- Documentele care au deja task deschis către același responsabil curent sunt sărite.\n- Mesajul final arată câte task-uri au fost create și câte documente au fost omise.\n- Nu necesită migrare SQL nouă."
 }
