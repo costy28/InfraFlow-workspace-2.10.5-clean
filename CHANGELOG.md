@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.499 - 2026-08-08
+
+## Escaladare asistată pentru documente urmărite
+
+- Documente afișează un rezumat de escaladare când lista vine dintr-un grup urmărit.
+- Rezumatul arată câte documente sunt în grup, câte au responsabil curent, câte cer prioritate urgentă/importantă și care este cel mai vechi pas activ.
+- Task-urile către responsabilii curenți includ acum vechimea în pas, recomandarea de acțiune, prioritate recomandată și termen recomandat.
+- Dashboard-ul afișează vechimea pasului și în lista scurtă de documente urmărite.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.498 - 2026-08-08
 
 ## Vechime pas curent documente urmărite

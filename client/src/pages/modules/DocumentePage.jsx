@@ -373,6 +373,29 @@ const watchedAgeLabels = {
   no_step: 'Fără pas curent',
 }
 
+function watchedAgeActionHint(group) {
+  if (group === 'stalled_3d') return 'Merită escaladat sau cerută o clarificare azi.'
+  if (group === 'stalled_2d') return 'Trimite un reminder scurt înainte să devină blocaj.'
+  if (group === 'unknown') return 'Verifică circuitul: pasul curent nu are dată clară.'
+  if (group === 'no_step') return 'Documentul trebuie verificat: nu are pas curent activ.'
+  return 'Monitorizare normală.'
+}
+
+function recommendedTaskPriorityForWatched(document) {
+  const ageGroup = watchedAgeGroup(document)
+  if (ageGroup === 'stalled_3d' || documentIsBlocked(document) || documentIsUrgent(document)) return 'urgent'
+  if (ageGroup === 'stalled_2d' || documentIsDueSoon(document)) return 'high'
+  return 'normal'
+}
+
+function recommendedTaskDueDateForWatched(document) {
+  if (document?.termen_limita) return String(document.termen_limita).slice(0, 10)
+  const date = new Date()
+  const ageGroup = watchedAgeGroup(document)
+  date.setDate(date.getDate() + (ageGroup === 'stalled_3d' ? 0 : 1))
+  return date.toISOString().slice(0, 10)
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -544,6 +567,34 @@ export default function DocumentePage() {
     if (!hasWatchedGroupFilter) return []
     return visibleDocuments.filter(document => document.current_responsible_id)
   }, [hasWatchedGroupFilter, visibleDocuments])
+  const watchedGroupEscalationSummary = useMemo(() => {
+    if (!hasWatchedGroupFilter) return null
+    const rows = visibleDocuments || []
+    const ageCounts = rows.reduce((acc, document) => {
+      const key = watchedAgeGroup(document)
+      acc[key] = (acc[key] || 0) + 1
+      return acc
+    }, {})
+    const currentAgeGroup = watchedGroupFilter.age || ''
+    const urgentCount = rows.filter(document => recommendedTaskPriorityForWatched(document) === 'urgent').length
+    const highCount = rows.filter(document => recommendedTaskPriorityForWatched(document) === 'high').length
+    const missingResponsible = rows.filter(document => !document.current_responsible_id).length
+    const oldestAge = rows.reduce((max, document) => {
+      const age = currentStepAgeDays(document)
+      return age === null ? max : Math.max(max, age)
+    }, 0)
+    return {
+      count: rows.length,
+      responsibleCount: visibleWatchedGroupResponsibleDocuments.length,
+      urgentCount,
+      highCount,
+      missingResponsible,
+      oldestAge,
+      currentAgeGroup,
+      ageCounts,
+      hint: watchedAgeActionHint(currentAgeGroup || (urgentCount ? 'stalled_3d' : highCount ? 'stalled_2d' : 'fresh')),
+    }
+  }, [hasWatchedGroupFilter, visibleDocuments, visibleWatchedGroupResponsibleDocuments.length, watchedGroupFilter.age])
 
   useEffect(() => {
     const available = new Set(baseVisibleDocuments.map(documentSelectionKey))
@@ -811,21 +862,25 @@ export default function DocumentePage() {
       }
 
       await Promise.all(rowsToCreate.map(({ document, documentId }) => {
-        const dueDate = document.termen_limita ? String(document.termen_limita).slice(0, 10) : ''
+        const dueDate = recommendedTaskDueDateForWatched(document)
+        const age = currentStepAgeDays(document)
+        const ageGroup = watchedAgeGroup(document)
         return api.post('/tasks', {
-          title: `Reminder document ${document.nr_document || document.titlu || documentId}`,
+          title: `${ageGroup === 'stalled_3d' ? 'Escaladează' : 'Reminder'} document ${document.nr_document || document.titlu || documentId}`,
           description: [
             watchedGroupFilterLabel ? `Grup urmărit: ${watchedGroupFilterLabel}` : '',
             `Document: ${document.nr_document || '-'}`,
             document.titlu ? `Titlu: ${document.titlu}` : '',
             document.current_step_name ? `Pas curent: ${document.current_step_name}` : '',
+            age !== null ? `Vechime în pas: ${age} zile` : '',
             document.current_responsible_label ? `Responsabil: ${document.current_responsible_label}` : '',
             document.status ? `Status: ${label(document.status)}` : '',
             document.termen_limita ? `Termen document: ${formatDate(document.termen_limita)}` : '',
+            `Recomandare: ${watchedAgeActionHint(ageGroup)}`,
             'Creat automat din grupul de documente urmărite.',
           ].filter(Boolean).join('\n'),
           assigned_to: document.current_responsible_id,
-          priority: documentIsBlocked(document) || documentIsUrgent(document) ? 'urgent' : (documentIsDueSoon(document) ? 'high' : 'normal'),
+          priority: recommendedTaskPriorityForWatched(document),
           due_date: dueDate,
           source_type: 'document',
           source_id: String(documentId || ''),
@@ -1600,6 +1655,31 @@ export default function DocumentePage() {
                 <button type="button" className="text-xs font-semibold underline" onClick={() => setQuickFilter('all')}>
                   Resetează filtrul
                 </button>
+              </div>
+            </div>
+          ) : null}
+          {watchedGroupEscalationSummary ? (
+            <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+              watchedGroupEscalationSummary.urgentCount
+                ? 'border-rose-200 bg-rose-50 text-rose-800'
+                : watchedGroupEscalationSummary.highCount
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : 'border-blue-100 bg-blue-50 text-blue-800'
+            }`}>
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="font-semibold">Escaladare asistată pentru grup</div>
+                  <div className="mt-1 text-xs">
+                    {watchedGroupEscalationSummary.hint}
+                    {' '}Cel mai vechi pas: {watchedGroupEscalationSummary.oldestAge} zile.
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone="neutral">{watchedGroupEscalationSummary.count} în grup</Badge>
+                  <Badge tone={watchedGroupEscalationSummary.missingResponsible ? 'warning' : 'info'}>{watchedGroupEscalationSummary.responsibleCount} cu responsabil</Badge>
+                  {watchedGroupEscalationSummary.urgentCount ? <Badge tone="danger">{watchedGroupEscalationSummary.urgentCount} urgente</Badge> : null}
+                  {watchedGroupEscalationSummary.highCount ? <Badge tone="warning">{watchedGroupEscalationSummary.highCount} importante</Badge> : null}
+                </div>
               </div>
             </div>
           ) : null}

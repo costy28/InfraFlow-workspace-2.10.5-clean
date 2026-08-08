@@ -903,6 +903,8 @@ function WatchedDocumentsPanel({
               <div className="grid gap-2">
                 {topDocuments.length ? topDocuments.map(document => {
                   const due = documentDueState(document)
+                  const ageBucket = watchedStepAgeBucket(document)
+                  const age = currentStepAgeDays(document)
                   const key = documentTaskSourceId(document)
                   return (
                     <div
@@ -921,6 +923,10 @@ function WatchedDocumentsPanel({
                           <span>{statusText(document.status)}</span>
                           <span>·</span>
                           <span>{formatShortDate(document.updated_at || document.created_at) || 'fără dată'}</span>
+                          <span>·</span>
+                          <span className={ageBucket.tone === 'danger' ? 'font-semibold text-rose-700' : ageBucket.tone === 'warning' ? 'font-semibold text-amber-700' : ''}>
+                            {age === null ? ageBucket.label : `${age}z în pas`}
+                          </span>
                         </div>
                       </button>
                       <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-2">
