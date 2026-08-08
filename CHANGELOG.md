@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.504 - 2026-08-08
+
+## Export CSV Documente prietenos pentru Excel
+
+- Exportul CSV din Documente folosește separator `;`, potrivit pentru Excel pe setări regionale RO/EU.
+- Fișierul include BOM UTF-8 pentru afișarea corectă a diacriticelor.
+- Prima linie `sep=;` ajută Excel să deschidă coloanele direct, fără import manual.
+- Numele fișierului arată contextul exportului: Selectate, Escaladari, Urmarite sau Lista.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.503 - 2026-08-08
 
 ## Export CSV cu date de escaladare Documente

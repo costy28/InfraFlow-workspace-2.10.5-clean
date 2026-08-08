@@ -1000,9 +1000,18 @@ export default function DocumentePage() {
       'prag_escaladare_zile',
       'status_escaladare',
     ]
+    const delimiter = ';'
     const escape = value => `"${String(value ?? '').replaceAll('"', '""')}"`
+    const exportScope = selectedDocuments.length
+      ? 'Selectate'
+      : documentQuickFilter === 'escalations'
+        ? 'Escaladari'
+        : documentQuickFilter === 'watched'
+          ? 'Urmarite'
+          : 'Lista'
     const lines = [
-      headers.join(','),
+      `sep=${delimiter}`,
+      headers.join(delimiter),
       ...rows.map(document => {
         const age = currentStepAgeDays(document)
         const escalationDays = escalationDaysForDocument(document, settings)
@@ -1024,14 +1033,14 @@ export default function DocumentePage() {
           age ?? '',
           escalationDays,
           escalationStatus,
-        ].map(escape).join(',')
+        ].map(escape).join(delimiter)
       }),
     ]
-    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const blob = new Blob([`\ufeff${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `Documente_${new Date().toISOString().slice(0, 10)}.csv`
+    link.download = `Documente_${exportScope}_${new Date().toISOString().slice(0, 10)}.csv`
     document.body.appendChild(link)
     link.click()
     link.remove()

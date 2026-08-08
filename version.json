@@ -1,5 +1,5 @@
 {
-  "version": "2.12.503",
+  "version": "2.12.504",
   "date": "2026-08-08",
-  "changelog": "## v2.12.503 - 2026-08-08\n### Export CSV cu date de escaladare Documente\n- Exportul CSV din Documente include responsabilul curent, zilele în pasul curent și pragul de escaladare aplicat.\n- Pentru fiecare document exportat se afișează statusul de escaladare: peste prag, în termen sau pas fără dată.\n- Exportul folosește aceleași praguri workflow ca filtrul Escaladări, Dashboard-ul și task-urile către responsabili.\n- Ajută la audit și raportare fără verificări manuale în interfață.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.504 - 2026-08-08\n### Export CSV Documente prietenos pentru Excel\n- Exportul CSV din Documente folosește separator `;`, potrivit pentru Excel pe setări regionale RO/EU.\n- Fișierul include BOM UTF-8 pentru afișarea corectă a diacriticelor.\n- Prima linie `sep=;` ajută Excel să deschidă coloanele direct, fără import manual.\n- Numele fișierului arată contextul exportului: Selectate, Escaladari, Urmarite sau Lista.\n- Nu necesită migrare SQL nouă."
 }
