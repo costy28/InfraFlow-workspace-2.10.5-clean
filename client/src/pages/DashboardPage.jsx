@@ -302,6 +302,14 @@ function watchedStepAgeBucket(document) {
   return { key: 'fresh', label: '0–1 zile în pas', tone: 'info', sort: 2 }
 }
 
+function watchedDocumentNeedsEscalation(document) {
+  const ageBucket = watchedStepAgeBucket(document)
+  const due = documentDueState(document)
+  return ['stalled_3d', 'stalled_2d', 'unknown', 'no_step'].includes(ageBucket.key) ||
+    due.tone === 'danger' ||
+    ['urgent', 'critic', 'critica'].includes(String(document?.prioritate || document?.priority || '').toLowerCase())
+}
+
 function currentResponsibleLabel(document) {
   return document?.current_responsible_label ||
     (document?.current_responsible_id ? `Responsabil #${document.current_responsible_id}` : '') ||
@@ -847,6 +855,7 @@ function WatchedDocumentsPanel({
   const topDocuments = documents.slice(0, 4)
   const topNotifications = notifications.slice(0, 3)
   const insights = groupedWatchedInsights(documents)
+  const escalationCount = documents.filter(watchedDocumentNeedsEscalation).length
   const attentionTone = overdue ? 'danger' : unread ? 'warning' : documents.length ? 'info' : 'neutral'
 
   return (
@@ -859,6 +868,10 @@ function WatchedDocumentsPanel({
         <div className="flex flex-wrap gap-2">
           <Badge tone={attentionTone}>{documents.length} urmărite</Badge>
           {unread ? <Badge tone="warning">{unread} activități noi</Badge> : null}
+          {escalationCount ? <Badge tone="danger">{escalationCount} escaladări</Badge> : null}
+          {escalationCount ? (
+            <Button size="sm" variant="secondary" onClick={() => onNavigate(`${routes.documents}?filter=escalations`)}>Vezi escaladări</Button>
+          ) : null}
           <Button size="sm" variant="secondary" onClick={() => onNavigate(`${routes.documents}?filter=watched`)}>Vezi urmărite</Button>
         </div>
       </div>

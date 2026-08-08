@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.499**
-**Versiune în lucru: v2.12.499**
+**Versiune curentă sursă: v2.12.500**
+**Versiune în lucru: v2.12.500**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -236,6 +236,7 @@ Core System
   ✅ Protecție anti-duplicare task-uri responsabili pe grupuri urmărite (v2.12.497)
   ✅ Vechime în pasul curent pentru documente urmărite (v2.12.498)
   ✅ Escaladare asistată pentru documente urmărite (v2.12.499)
+  ✅ Filtru rapid Escaladări pentru documente urmărite (v2.12.500)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -817,6 +818,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Protecție anti-duplicare pentru task-uri către responsabilii grupurilor urmărite ✅ Fundație v2.12.497
       → Grupare după vechimea în pasul curent pentru pregătirea escaladărilor ✅ Fundație v2.12.498
       → Escaladare asistată cu rezumat blocaje și task-uri precompletate inteligent ✅ Fundație v2.12.499
+      → Filtru rapid Escaladări și deep-link Dashboard către lista de intervenție ✅ Fundație v2.12.500
 
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
@@ -891,9 +893,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.499
+VERSIUNE CURENTĂ SURSĂ: 2.12.500
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.499 ✅
+UPDATE ZIP CURENT: 2.12.500 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1201,6 +1203,7 @@ UPDATES ÎN LUCRU:
   2.12.497 → UPDATE 517 Anti-duplicare task-uri responsabili grupuri urmărite ✅
   2.12.498 → UPDATE 518 Vechime pas curent documente urmărite ✅
   2.12.499 → UPDATE 519 Escaladare asistată documente urmărite ✅
+  2.12.500 → UPDATE 520 Filtru rapid Escaladări Documente ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1695,5 +1698,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 8 August 2026 | InfraFlow sursă v2.12.499*
+*AGENTS.md actualizat: 8 August 2026 | InfraFlow sursă v2.12.500*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

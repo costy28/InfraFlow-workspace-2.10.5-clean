@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.500 - 2026-08-08
+
+## Filtru rapid Escaladări în Documente
+
+- Documente are filtru rapid `Escaladări` pentru documentele urmărite care cer intervenție.
+- Lista de escaladări include documente urmărite cu pas vechi, pas fără dată, fără pas curent, scadente/întârziate sau prioritate urgentă.
+- Filtrul `Escaladări` afișează același panou de escaladare asistată ca grupurile urmărite.
+- Din lista `Escaladări` se pot crea task-uri către responsabilii curenți.
+- Dashboard-ul afișează numărul de escaladări și oferă buton direct `Vezi escaladări`.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.499 - 2026-08-08
 
 ## Escaladare asistată pentru documente urmărite

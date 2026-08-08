@@ -396,6 +396,16 @@ function recommendedTaskDueDateForWatched(document) {
   return date.toISOString().slice(0, 10)
 }
 
+function documentNeedsEscalation(document, user) {
+  if (!documentIsWatched(document, user)) return false
+  const ageGroup = watchedAgeGroup(document)
+  return ['stalled_3d', 'stalled_2d', 'unknown', 'no_step'].includes(ageGroup) ||
+    documentIsBlocked(document) ||
+    documentIsUrgent(document) ||
+    watchedDueGroup(document) === 'overdue' ||
+    watchedDueGroup(document) === 'today'
+}
+
 const templateTypes = [
   ['generic', 'General'],
   ['referat', 'Referat'],
@@ -529,6 +539,7 @@ export default function DocumentePage() {
       { key: 'due', label: 'Scadente', count: rows.filter(documentIsDueSoon).length, predicate: documentIsDueSoon },
       { key: 'urgent', label: 'Urgente', count: rows.filter(documentIsUrgent).length, predicate: documentIsUrgent },
       { key: 'watched', label: 'Urmărite', count: rows.filter(document => documentIsWatched(document, user)).length, predicate: document => documentIsWatched(document, user) },
+      { key: 'escalations', label: 'Escaladări', count: rows.filter(document => documentNeedsEscalation(document, user)).length, predicate: document => documentNeedsEscalation(document, user) },
       { key: 'draft', label: 'Drafturi', count: rows.filter(document => documentStatus(document) === 'draft').length, predicate: document => documentStatus(document) === 'draft' },
       { key: 'email', label: 'Din email', count: rows.filter(document => Boolean(emailSourceForDocument(document))).length, predicate: document => Boolean(emailSourceForDocument(document)) },
     ]
@@ -562,13 +573,15 @@ export default function DocumentePage() {
   }, [baseVisibleDocuments, selectedDocumentKeys])
 
   const hasWatchedGroupFilter = documentQuickFilter === 'watched' && Boolean(watchedGroupFilter.due || watchedGroupFilter.owner || watchedGroupFilter.type || watchedGroupFilter.age)
+  const hasEscalationQuickFilter = documentQuickFilter === 'escalations'
+  const hasEscalationWorkList = hasWatchedGroupFilter || hasEscalationQuickFilter
   const allVisibleSelected = visibleDocuments.length > 0 && visibleDocuments.every(document => selectedDocumentKeys.includes(documentSelectionKey(document)))
   const visibleWatchedGroupResponsibleDocuments = useMemo(() => {
-    if (!hasWatchedGroupFilter) return []
+    if (!hasEscalationWorkList) return []
     return visibleDocuments.filter(document => document.current_responsible_id)
-  }, [hasWatchedGroupFilter, visibleDocuments])
+  }, [hasEscalationWorkList, visibleDocuments])
   const watchedGroupEscalationSummary = useMemo(() => {
-    if (!hasWatchedGroupFilter) return null
+    if (!hasEscalationWorkList) return null
     const rows = visibleDocuments || []
     const ageCounts = rows.reduce((acc, document) => {
       const key = watchedAgeGroup(document)
@@ -594,7 +607,7 @@ export default function DocumentePage() {
       ageCounts,
       hint: watchedAgeActionHint(currentAgeGroup || (urgentCount ? 'stalled_3d' : highCount ? 'stalled_2d' : 'fresh')),
     }
-  }, [hasWatchedGroupFilter, visibleDocuments, visibleWatchedGroupResponsibleDocuments.length, watchedGroupFilter.age])
+  }, [hasEscalationWorkList, visibleDocuments, visibleWatchedGroupResponsibleDocuments.length, watchedGroupFilter.age])
 
   useEffect(() => {
     const available = new Set(baseVisibleDocuments.map(documentSelectionKey))
@@ -1668,7 +1681,7 @@ export default function DocumentePage() {
             }`}>
               <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <div className="font-semibold">Escaladare asistată pentru grup</div>
+                  <div className="font-semibold">{hasWatchedGroupFilter ? 'Escaladare asistată pentru grup' : 'Escaladare asistată pentru lista curentă'}</div>
                   <div className="mt-1 text-xs">
                     {watchedGroupEscalationSummary.hint}
                     {' '}Cel mai vechi pas: {watchedGroupEscalationSummary.oldestAge} zile.
@@ -1689,7 +1702,7 @@ export default function DocumentePage() {
               {selectedDocuments.length ? <span className="text-slate-400"> · acțiunile se aplică doar selecției</span> : <span className="text-slate-400"> · exportul folosește lista filtrată dacă nu selectezi nimic</span>}
             </div>
             <div className="flex flex-wrap gap-2">
-              {hasWatchedGroupFilter ? (
+              {hasEscalationWorkList ? (
                 <Button
                   size="sm"
                   variant="secondary"
@@ -1702,8 +1715,8 @@ export default function DocumentePage() {
               ) : null}
               <Button size="sm" variant="secondary" onClick={toggleVisibleSelection} disabled={!visibleDocuments.length}>
                 {allVisibleSelected
-                  ? (hasWatchedGroupFilter ? 'Deselectează grupul' : 'Deselectează lista')
-                  : (hasWatchedGroupFilter ? 'Selectează tot grupul' : 'Selectează lista')}
+                  ? (hasEscalationWorkList ? 'Deselectează lista de lucru' : 'Deselectează lista')
+                  : (hasEscalationWorkList ? 'Selectează lista de lucru' : 'Selectează lista')}
               </Button>
               <Button size="sm" variant="secondary" onClick={exportSelectedDocumentsCsv} disabled={!visibleDocuments.length && !selectedDocuments.length}>
                 Export CSV
