@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.505 - 2026-08-08
+
+## Explicație vizibilă pentru exportul CSV Documente
+
+- Zona de acțiuni din Documente explică faptul că exportul CSV se deschide direct în Excel.
+- Textul menționează explicit câmpurile incluse: responsabil, zile în pas, prag și status escaladare.
+- Butonul a fost redenumit în `Export CSV Excel`, ca intenția să fie clară pentru utilizator.
+- Exportul continuă să respecte selecția curentă sau lista filtrată dacă nu există selecție.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.504 - 2026-08-08
 
 ## Export CSV Documente prietenos pentru Excel

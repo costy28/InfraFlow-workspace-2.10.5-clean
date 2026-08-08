@@ -1813,6 +1813,9 @@ export default function DocumentePage() {
             <div className="text-sm text-slate-600">
               <strong>{selectedDocuments.length}</strong> documente selectate
               {selectedDocuments.length ? <span className="text-slate-400"> · acțiunile se aplică doar selecției</span> : <span className="text-slate-400"> · exportul folosește lista filtrată dacă nu selectezi nimic</span>}
+              <div className="mt-1 text-xs text-slate-500">
+                CSV-ul se deschide direct în Excel și include responsabil, zile în pas, prag și status escaladare.
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {hasEscalationWorkList ? (
@@ -1832,7 +1835,7 @@ export default function DocumentePage() {
                   : (hasEscalationWorkList ? 'Selectează lista de lucru' : 'Selectează lista')}
               </Button>
               <Button size="sm" variant="secondary" onClick={exportSelectedDocumentsCsv} disabled={!visibleDocuments.length && !selectedDocuments.length}>
-                Export CSV
+                Export CSV Excel
               </Button>
               <Button size="sm" onClick={openBulkTaskModal} disabled={!selectedDocuments.length}>
                 Creează task-uri

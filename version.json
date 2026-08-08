@@ -1,5 +1,5 @@
 {
-  "version": "2.12.504",
+  "version": "2.12.505",
   "date": "2026-08-08",
-  "changelog": "## v2.12.504 - 2026-08-08\n### Export CSV Documente prietenos pentru Excel\n- Exportul CSV din Documente folosește separator `;`, potrivit pentru Excel pe setări regionale RO/EU.\n- Fișierul include BOM UTF-8 pentru afișarea corectă a diacriticelor.\n- Prima linie `sep=;` ajută Excel să deschidă coloanele direct, fără import manual.\n- Numele fișierului arată contextul exportului: Selectate, Escaladari, Urmarite sau Lista.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.505 - 2026-08-08\n### Explicație vizibilă pentru exportul CSV Documente\n- Zona de acțiuni din Documente explică faptul că exportul CSV se deschide direct în Excel.\n- Textul menționează explicit câmpurile incluse: responsabil, zile în pas, prag și status escaladare.\n- Butonul a fost redenumit în `Export CSV Excel`, ca intenția să fie clară pentru utilizator.\n- Exportul continuă să respecte selecția curentă sau lista filtrată dacă nu există selecție.\n- Nu necesită migrare SQL nouă."
 }

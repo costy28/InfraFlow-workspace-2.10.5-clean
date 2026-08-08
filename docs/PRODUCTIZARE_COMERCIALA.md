@@ -166,6 +166,7 @@ Stadiu implementare:
 - `v2.12.502`: Pragurile de escaladare sunt explicate vizibil în Documente și Dashboard, ca utilizatorul să înțeleagă de ce un document cere acțiune.
 - `v2.12.503`: Exportul CSV Documente include responsabilul, zilele în pas, pragul și statusul escaladării pentru raportare și audit.
 - `v2.12.504`: Exportul CSV Documente este optimizat pentru Excel: separator `;`, UTF-8 cu diacritice și nume de fișier contextual.
+- `v2.12.505`: Zona de acțiuni Documente explică vizibil ce include exportul CSV Excel înainte de descărcare.
 - Următorul pas: automatizare controlată, de exemplu reminder/escaladare generată periodic după pragurile din flux.
 
 ## Fleet / Mecanizare ca modul generic
