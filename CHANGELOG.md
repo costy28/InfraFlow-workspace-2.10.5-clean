@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.508 - 2026-08-20
+
+## Context acționabil pentru Contracte din Dashboard
+
+- Contracte afișează un banner contextual când pagina este deschisă din radarul Dashboard cu filtre de risc.
+- Bannerul explică de ce lista este filtrată: fără manager, fără document semnat, depășiri valorice, scadențe, expirări, riscuri critice, task-uri restante sau alerte.
+- Utilizatorul poate selecta lista vizibilă și porni direct acțiunea potrivită: setare manager în lot sau creare task-uri.
+- Schimbarea manuală a filtrelor, resetarea sau alegerea unei vederi salvate ascunde contextul Dashboard ca să nu inducă în eroare.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.507 - 2026-08-20
 
 ## Cauze vizibile pentru radarul contractual

@@ -190,6 +190,110 @@ function portfolioFiltersFromSearch(search = '') {
   return touched ? next : null
 }
 
+function contractDashboardContextFromSearch(search = '') {
+  const params = new URLSearchParams(search || '')
+  const viewKey = params.get('view')
+  const savedView = savedPortfolioViews.find(item => item.key === viewKey)
+  const risk = params.get('risk')
+  const consum = params.get('consum')
+  const consumMin = params.get('consum_min')
+  const termen = params.get('termen')
+  const termDays = params.get('term_days')
+
+  if (params.get('missing_manager') === 'true' || risk === 'fara_manager' || viewKey === 'fara_manager') {
+    return {
+      tone: 'warning',
+      title: 'Ai venit din Dashboard: contracte fără manager',
+      description: 'Lista este filtrată pe dosare fără responsabil. Cel mai sănătos pas este să alegi contractele vizibile și să setezi managerul în lot.',
+      action: 'manager',
+      actionLabel: 'Setează manager în lot',
+    }
+  }
+
+  if (params.get('missing_signed') === 'true' || risk === 'fara_document_semnat' || viewKey === 'fara_semnat') {
+    return {
+      tone: 'warning',
+      title: 'Ai venit din Dashboard: lipsește contractul semnat',
+      description: 'Lista conține dosare care au nevoie de documentul real semnat. Creează task-uri către responsabili sau deschide fiecare dosar pentru încărcare.',
+      action: 'task',
+      actionLabel: 'Creează task-uri pentru listă',
+    }
+  }
+
+  if (consumMin === '100' || consum === 'peste_100' || viewKey === 'depasite') {
+    return {
+      tone: 'danger',
+      title: 'Ai venit din Dashboard: contracte depășite valoric',
+      description: 'Lista este filtrată pe contracte cu consum peste valoarea contractată. Creează task-uri de clarificare pentru Achiziții, Contabilitate sau managerul de contract.',
+      action: 'task',
+      actionLabel: 'Creează task-uri de clarificare',
+    }
+  }
+
+  if (params.get('expired') === 'true' || termen === 'expirat') {
+    return {
+      tone: 'danger',
+      title: 'Ai venit din Dashboard: contracte expirate',
+      description: 'Lista este filtrată pe contracte cu termen depășit. Trimite task-uri pentru închidere, prelungire sau renegociere.',
+      action: 'task',
+      actionLabel: 'Creează task-uri de termen',
+    }
+  }
+
+  if (['7', '30', '90'].includes(termDays) || ['7', '30', '90'].includes(termen) || viewKey === 'scad_30') {
+    const days = termDays || termen || '30'
+    return {
+      tone: 'warning',
+      title: `Ai venit din Dashboard: contracte care scad în ${days} zile`,
+      description: 'Lista este filtrată pe scadențe apropiate. Poți lansa task-uri pentru prelungire, închidere sau verificare documente.',
+      action: 'task',
+      actionLabel: 'Creează task-uri de scadență',
+    }
+  }
+
+  if (risk === 'danger' || risk === 'critic' || viewKey === 'critice') {
+    return {
+      tone: 'danger',
+      title: 'Ai venit din Dashboard: contracte critice',
+      description: 'Lista este filtrată pe riscuri majore sau task-uri restante. Creează task-uri în lot ca fiecare blocaj să aibă proprietar.',
+      action: 'task',
+      actionLabel: 'Creează task-uri în lot',
+    }
+  }
+
+  if (risk === 'overdue_tasks' || risk === 'taskuri_restante') {
+    return {
+      tone: 'danger',
+      title: 'Ai venit din Dashboard: task-uri restante pe contracte',
+      description: 'Lista este filtrată pe contracte cu acțiuni întârziate. Creează task-uri de follow-up sau reasignează responsabilul.',
+      action: 'task',
+      actionLabel: 'Creează follow-up-uri',
+    }
+  }
+
+  if (params.get('alerts') === 'true' || risk === 'alerte') {
+    return {
+      tone: 'warning',
+      title: 'Ai venit din Dashboard: contracte cu alerte',
+      description: 'Lista este filtrată pe alerte active. Selectează contractele vizibile și trimite task-uri către responsabili.',
+      action: 'task',
+      actionLabel: 'Creează task-uri pentru alerte',
+    }
+  }
+
+  if (savedView) {
+    return {
+      tone: savedView.tone || 'info',
+      title: `Ai venit din Dashboard: ${savedView.label}`,
+      description: savedView.description || 'Lista este filtrată din radarul operațional. Poți lucra direct pe contractele vizibile.',
+      action: savedView.key === 'fara_manager' ? 'manager' : 'task',
+      actionLabel: savedView.key === 'fara_manager' ? 'Setează manager în lot' : 'Creează task-uri pentru listă',
+    }
+  }
+
+  return null
+}
+
 function arrayFrom(data, keys) {
   for (const key of keys) {
     if (Array.isArray(data?.[key])) return data[key]
@@ -345,6 +449,7 @@ export default function ContractePage() {
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [portfolioFilters, setPortfolioFilters] = useState(emptyPortfolioFilters)
+  const [dashboardFilterContext, setDashboardFilterContext] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
   const [contractAssistantExpanded, setContractAssistantExpanded] = useState(false)
 
@@ -635,6 +740,7 @@ export default function ContractePage() {
   }, [portfolioFilters])
 
   function updatePortfolioFilter(key, value) {
+    setDashboardFilterContext(null)
     setPortfolioFilters(current => ({
       ...current,
       [key]: value,
@@ -642,10 +748,13 @@ export default function ContractePage() {
   }
 
   function resetPortfolioFilters() {
+    setDashboardFilterContext(null)
     setPortfolioFilters(emptyPortfolioFilters)
   }
 
   function applySavedPortfolioView(view) {
+    if (!view) return
+    setDashboardFilterContext(null)
     setPortfolioFilters({
       ...emptyPortfolioFilters,
       ...view.filters,
@@ -676,6 +785,7 @@ export default function ContractePage() {
   ]
 
   function applyQuickContractFilter(patch) {
+    setDashboardFilterContext(null)
     setPortfolioFilters(current => ({
       ...current,
       ...patch,
@@ -753,6 +863,10 @@ export default function ContractePage() {
     })
   }
 
+  function selectVisibleContracts() {
+    setSelectedContractIds(filteredContracts.map(contract => contract.id).filter(Boolean))
+  }
+
   function clearContractSelection() {
     setSelectedContractIds([])
   }
@@ -764,6 +878,7 @@ export default function ContractePage() {
   useEffect(() => {
     const filters = portfolioFiltersFromSearch(window.location.search || '')
     if (filters) setPortfolioFilters(filters)
+    setDashboardFilterContext(contractDashboardContextFromSearch(window.location.search || ''))
   }, [])
 
   useEffect(() => {
@@ -1038,6 +1153,13 @@ export default function ContractePage() {
     setBatchModalOpen(true)
     setError('')
     setNotice('')
+  }
+
+  function openBatchActionForVisible(action, label) {
+    openBatchActionForContracts(action, filteredContracts, {
+      label: label || dashboardFilterContext?.title || filterSummary || 'lista filtrată',
+      priority: action === 'task' && dashboardFilterContext?.tone === 'danger' ? '1' : '2',
+    })
   }
 
   function runAssistantRecommendation(recommendation) {
@@ -1907,6 +2029,41 @@ export default function ContractePage() {
         loading={loading}
       >
         <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          {dashboardFilterContext ? (
+            <div className={`rounded-xl border p-3 ${
+              dashboardFilterContext.tone === 'danger'
+                ? 'border-red-200 bg-red-50'
+                : dashboardFilterContext.tone === 'warning'
+                  ? 'border-amber-200 bg-amber-50'
+                  : 'border-blue-200 bg-blue-50'
+            }`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={dashboardFilterContext.tone}>{filteredContracts.length} în listă</Badge>
+                    <div className="font-semibold text-slate-900">{dashboardFilterContext.title}</div>
+                  </div>
+                  <div className="mt-1 text-sm text-slate-600">{dashboardFilterContext.description}</div>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button size="sm" variant="secondary" onClick={selectVisibleContracts} disabled={!filteredContracts.length}>
+                    Selectează lista
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={dashboardFilterContext.tone === 'danger' ? 'danger' : 'primary'}
+                    onClick={() => openBatchActionForVisible(dashboardFilterContext.action, dashboardFilterContext.title)}
+                    disabled={!filteredContracts.length || saving}
+                  >
+                    {dashboardFilterContext.actionLabel}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDashboardFilterContext(null)}>
+                    Ascunde
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="grid gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>

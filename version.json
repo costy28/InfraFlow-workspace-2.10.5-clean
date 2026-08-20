@@ -1,5 +1,5 @@
 {
-  "version": "2.12.507",
+  "version": "2.12.508",
   "date": "2026-08-20",
-  "changelog": "## v2.12.507 - 2026-08-20\n### Cauze vizibile pentru radarul contractual\n- Radarul contractual de pe Dashboard afișează acum de ce portofoliul cere atenție: fără manager, fără document semnat, depășite valoric și scadente/expirate.\n- Fiecare categorie este clickabilă și deschide modulul Contracte direct cu filtrul potrivit.\n- Indicatorii folosesc codurile reale de risc și alertă calculate deja de backend: missing_manager, missing_signed_file, value_exceeded, expires_soon și expired.\n- Utilizatorul vede cauza înainte să intre în modul, deci lista de lucru devine mai clară și mai scurtă.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.508 - 2026-08-20\n### Context acționabil pentru Contracte din Dashboard\n- Contracte afișează un banner contextual când pagina este deschisă din radarul Dashboard cu filtre de risc.\n- Bannerul explică de ce lista este filtrată: fără manager, fără document semnat, depășiri valorice, scadențe, expirări, riscuri critice, task-uri restante sau alerte.\n- Utilizatorul poate selecta lista vizibilă și porni direct acțiunea potrivită: setare manager în lot sau creare task-uri.\n- Schimbarea manuală a filtrelor, resetarea sau alegerea unei vederi salvate ascunde contextul Dashboard ca să nu inducă în eroare.\n- Nu necesită migrare SQL nouă."
 }
