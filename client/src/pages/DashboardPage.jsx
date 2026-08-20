@@ -248,6 +248,18 @@ function contractAttentionMetrics(dashboard = {}, tasks = []) {
   const totalContracted = numberFrom(dashboard.total_contractat)
   const totalConsumed = numberFrom(dashboard.total_consumat)
   const globalPercent = numberFrom(dashboard.procent_consum_global)
+  const reasonCounts = riskContracts.reduce((acc, item) => {
+    ;(item.reasons || []).forEach(reason => {
+      const code = String(reason.code || '').toLowerCase()
+      if (code) acc[code] = (acc[code] || 0) + 1
+    })
+    return acc
+  }, {})
+  const alertCounts = alerts.reduce((acc, item) => {
+    const code = String(item.code || '').toLowerCase()
+    if (code) acc[code] = (acc[code] || 0) + 1
+    return acc
+  }, {})
 
   return {
     total: numberFrom(dashboard.contracts_total),
@@ -262,6 +274,36 @@ function contractAttentionMetrics(dashboard = {}, tasks = []) {
     totalConsumed,
     totalRemaining: numberFrom(dashboard.total_ramas),
     globalPercent,
+    attentionBuckets: [
+      {
+        key: 'missing_manager',
+        label: 'Fără manager',
+        value: numberFrom(reasonCounts.missing_manager),
+        tone: numberFrom(reasonCounts.missing_manager) ? 'warning' : 'success',
+        route: `${routes.contracts}?missing_manager=true`,
+      },
+      {
+        key: 'missing_signed',
+        label: 'Fără semnat',
+        value: numberFrom(reasonCounts.missing_signed_file),
+        tone: numberFrom(reasonCounts.missing_signed_file) ? 'warning' : 'success',
+        route: `${routes.contracts}?missing_signed=true`,
+      },
+      {
+        key: 'over_budget',
+        label: 'Depășite valoric',
+        value: numberFrom(alertCounts.value_exceeded),
+        tone: numberFrom(alertCounts.value_exceeded) ? 'danger' : 'success',
+        route: `${routes.contracts}?consum_min=100`,
+      },
+      {
+        key: 'expiring',
+        label: 'Scadente / expirate',
+        value: numberFrom(alertCounts.expires_soon) + numberFrom(alertCounts.expired),
+        tone: numberFrom(alertCounts.expired) ? 'danger' : (numberFrom(alertCounts.expires_soon) ? 'warning' : 'success'),
+        route: `${routes.contracts}?term_days=30`,
+      },
+    ],
     topRisk,
     topManagers: byManager.filter(item => Number(item.alerts || 0) > 0).slice(0, 3),
     tone: numberFrom(riskSummary.danger) || overdueTasks.length ? 'danger' : (numberFrom(riskSummary.total) || alerts.length ? 'warning' : 'success'),
@@ -1136,6 +1178,29 @@ function ContractRadarPanel({ dashboard = {}, tasks = [], loading, error, onNavi
               <div className="text-xs text-blue-700">Task-uri restante</div>
               <div className="text-xl font-semibold text-blue-900">{metrics.tasksOverdue}</div>
             </button>
+          </div>
+
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50/60 p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">De ce cere atenție?</div>
+                <div className="text-xs text-slate-500">Categoriile de mai jos deschid direct lista de lucru potrivită.</div>
+              </div>
+              <Badge tone={metrics.riskTotal ? 'warning' : 'success'}>{metrics.riskTotal} contracte cu risc</Badge>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {metrics.attentionBuckets.map(bucket => (
+                <button
+                  key={bucket.key}
+                  type="button"
+                  className="flex items-center justify-between gap-3 rounded-md border border-slate-100 bg-white px-3 py-2 text-left shadow-sm transition hover:border-primary-200 hover:bg-primary-50"
+                  onClick={() => onNavigate(bucket.route)}
+                >
+                  <span className="min-w-0 truncate text-xs font-semibold text-slate-700">{bucket.label}</span>
+                  <Badge tone={bucket.tone}>{bucket.value}</Badge>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 rounded-md border border-slate-200 p-3">

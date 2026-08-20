@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.507 - 2026-08-20
+
+## Cauze vizibile pentru radarul contractual
+
+- Radarul contractual de pe Dashboard afișează acum de ce portofoliul cere atenție: fără manager, fără document semnat, depășite valoric și scadente/expirate.
+- Fiecare categorie este clickabilă și deschide modulul Contracte direct cu filtrul potrivit.
+- Indicatorii folosesc codurile reale de risc și alertă calculate deja de backend: `missing_manager`, `missing_signed_file`, `value_exceeded`, `expires_soon` și `expired`.
+- Utilizatorul vede cauza înainte să intre în modul, deci lista de lucru devine mai clară și mai scurtă.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.506 - 2026-08-20
 
 ## Radar contractual pe Dashboard
