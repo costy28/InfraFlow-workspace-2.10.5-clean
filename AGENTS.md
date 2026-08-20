@@ -1293,6 +1293,8 @@ HR / Pontaj:
   MODEL_PONTAJ_2026_rev_1.xlsx — Format import Nexus
                                   (2 rânduri/angajat, Legenda 15 tipuri)
   programarea-concediilor-de-odihna_achizitii.doc — Format CO
+  REGES-Online API roadmap — docs/ROADMAP_REGES_ONLINE_API.md
+                             Sursă oficială: https://github.com/reges-ro/integrare
 
 Achiziții / PAAP:
   sablon.xlsx        — Format oficial SEAP pentru PAAP
