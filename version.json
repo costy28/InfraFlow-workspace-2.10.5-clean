@@ -1,5 +1,5 @@
 {
-  "version": "2.12.505",
-  "date": "2026-08-08",
-  "changelog": "## v2.12.505 - 2026-08-08\n### Explicație vizibilă pentru exportul CSV Documente\n- Zona de acțiuni din Documente explică faptul că exportul CSV se deschide direct în Excel.\n- Textul menționează explicit câmpurile incluse: responsabil, zile în pas, prag și status escaladare.\n- Butonul a fost redenumit în `Export CSV Excel`, ca intenția să fie clară pentru utilizator.\n- Exportul continuă să respecte selecția curentă sau lista filtrată dacă nu există selecție.\n- Nu necesită migrare SQL nouă."
+  "version": "2.12.506",
+  "date": "2026-08-20",
+  "changelog": "## v2.12.506 - 2026-08-20\n### Radar contractual pe Dashboard\n- Dashboard-ul afișează un panou dedicat pentru portofoliul contractual: contracte active, critice, avertizări/scadențe și task-uri restante.\n- Panoul arată consumul total din valoarea contractată, procentul global și suma rămasă estimată.\n- Sunt vizibile primele riscuri contractuale și managerii cu alerte active.\n- Butoanele din radar deschid modulul Contracte direct pe vederea relevantă: critice, scadente, task-uri restante sau contract selectat.\n- Modulul Contracte poate prelua filtre din URL, pentru deep-link-uri din Dashboard și alte module.\n- Nu necesită migrare SQL nouă."
 }

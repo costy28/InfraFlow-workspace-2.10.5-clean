@@ -14,6 +14,7 @@ import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { useAuth } from '../hooks/useAuth'
+import { formatMoney } from '../utils/format'
 
 const emptyState = {
   daily: null,
@@ -230,6 +231,41 @@ function displayText(value, fallback = '') {
     )
   }
   return fallback
+}
+
+function contractViewRoute(viewKey) {
+  return `${routes.contracts}?view=${encodeURIComponent(viewKey)}`
+}
+
+function contractAttentionMetrics(dashboard = {}, tasks = []) {
+  const riskSummary = dashboard.risk_summary || {}
+  const riskContracts = arrayFrom(dashboard, ['risk_contracts'])
+  const alerts = arrayFrom(dashboard, ['alerts'])
+  const openTasks = tasks.filter(task => !['done', 'rezolvat', 'closed', 'inchis'].includes(String(task.status || '').toLowerCase()))
+  const overdueTasks = openTasks.filter(task => task.overdue || (task.deadline || task.due_date) && String(task.deadline || task.due_date).slice(0, 10) < localDate(new Date()))
+  const byManager = arrayFrom(dashboard, ['by_manager'])
+  const topRisk = riskContracts.slice(0, 3)
+  const totalContracted = numberFrom(dashboard.total_contractat)
+  const totalConsumed = numberFrom(dashboard.total_consumat)
+  const globalPercent = numberFrom(dashboard.procent_consum_global)
+
+  return {
+    total: numberFrom(dashboard.contracts_total),
+    active: numberFrom(dashboard.contracts_active),
+    riskTotal: numberFrom(riskSummary.total),
+    critical: numberFrom(riskSummary.danger),
+    warning: numberFrom(riskSummary.warning),
+    alertsCount: alerts.length,
+    tasksOpen: openTasks.length,
+    tasksOverdue: overdueTasks.length,
+    totalContracted,
+    totalConsumed,
+    totalRemaining: numberFrom(dashboard.total_ramas),
+    globalPercent,
+    topRisk,
+    topManagers: byManager.filter(item => Number(item.alerts || 0) > 0).slice(0, 3),
+    tone: numberFrom(riskSummary.danger) || overdueTasks.length ? 'danger' : (numberFrom(riskSummary.total) || alerts.length ? 'warning' : 'success'),
+  }
 }
 
 function priorityTone(priority) {
@@ -1052,6 +1088,129 @@ function WatchedDocumentsPanel({
   )
 }
 
+function ContractRadarPanel({ dashboard = {}, tasks = [], loading, error, onNavigate }) {
+  const metrics = contractAttentionMetrics(dashboard, tasks)
+  const hasContracts = metrics.total > 0
+  const progressWidth = `${Math.max(0, Math.min(100, metrics.globalPercent))}%`
+  const primaryRoute = metrics.critical ? contractViewRoute('critice') : metrics.warning ? contractViewRoute('scad_30') : routes.contracts
+  const statusLabel = metrics.tone === 'danger' ? 'necesită intervenție' : metrics.tone === 'warning' ? 'de urmărit' : 'sub control'
+
+  return (
+    <Card className="border-slate-200 bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Radar contracte</div>
+          <h3 className="mt-1 text-base font-semibold text-slate-900">Portofoliu contractual</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Vezi rapid valoarea consumată, riscurile și managerii care au alerte — fără să intri întâi în toate dosarele.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={metrics.tone}>{statusLabel}</Badge>
+          <Button size="sm" variant="secondary" onClick={() => onNavigate(routes.contracts)}>Deschide Contracte</Button>
+        </div>
+      </div>
+
+      <SectionError error={error} />
+
+      {loading ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {[1, 2, 3, 4].map(item => <Skeleton key={item} className="h-20" />)}
+        </div>
+      ) : hasContracts ? (
+        <>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <button type="button" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-primary-200 hover:bg-white" onClick={() => onNavigate(routes.contracts)}>
+              <div className="text-xs text-slate-500">Contracte active</div>
+              <div className="text-xl font-semibold text-slate-900">{metrics.active}/{metrics.total}</div>
+            </button>
+            <button type="button" className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-left transition hover:border-rose-300 hover:bg-white" onClick={() => onNavigate(contractViewRoute('critice'))}>
+              <div className="text-xs text-rose-700">Critice</div>
+              <div className="text-xl font-semibold text-rose-900">{metrics.critical}</div>
+            </button>
+            <button type="button" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-left transition hover:border-amber-300 hover:bg-white" onClick={() => onNavigate(contractViewRoute('scad_30'))}>
+              <div className="text-xs text-amber-700">Avertizări / scadențe</div>
+              <div className="text-xl font-semibold text-amber-900">{metrics.warning + metrics.alertsCount}</div>
+            </button>
+            <button type="button" className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-left transition hover:border-blue-300 hover:bg-white" onClick={() => onNavigate(`${routes.contracts}?risk=taskuri_restante`)}>
+              <div className="text-xs text-blue-700">Task-uri restante</div>
+              <div className="text-xl font-semibold text-blue-900">{metrics.tasksOverdue}</div>
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-md border border-slate-200 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <div>
+                <span className="font-semibold text-slate-900">{formatMoney(metrics.totalConsumed)}</span>
+                <span className="text-slate-500"> consumat din </span>
+                <span className="font-semibold text-slate-900">{formatMoney(metrics.totalContracted)}</span>
+              </div>
+              <Badge tone={metrics.globalPercent >= 100 ? 'danger' : metrics.globalPercent >= 80 ? 'warning' : 'success'}>
+                {metrics.globalPercent.toLocaleString('ro-RO', { maximumFractionDigits: 1 })}%
+              </Badge>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full ${metrics.globalPercent >= 100 ? 'bg-rose-600' : metrics.globalPercent >= 80 ? 'bg-amber-500' : 'bg-primary-600'}`} style={{ width: progressWidth }} />
+            </div>
+            <div className="mt-2 text-xs text-slate-500">Rămas estimat: {formatMoney(metrics.totalRemaining)}</div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="rounded-md border border-slate-200 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-slate-800">Primele riscuri</div>
+                <Button size="sm" variant="secondary" onClick={() => onNavigate(primaryRoute)}>Vezi lista</Button>
+              </div>
+              <div className="grid gap-2">
+                {metrics.topRisk.length ? metrics.topRisk.map(item => (
+                  <button
+                    key={item.contract_id || item.id || item.contract_numar}
+                    type="button"
+                    className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-left transition hover:border-primary-200 hover:bg-white"
+                    onClick={() => onNavigate(`${routes.contracts}?contract=${encodeURIComponent(String(item.contract_id || item.id || ''))}`)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-slate-900">{item.contract_numar || item.numar || 'Contract'} · {item.contract_titlu || item.titlu || 'fără titlu'}</div>
+                        <div className="mt-1 truncate text-xs text-slate-500">{(item.reasons || []).map(reason => reason.label || reason.message || reason.code).filter(Boolean).slice(0, 2).join(' · ') || 'Risc contractual detectat.'}</div>
+                      </div>
+                      <Badge tone={item.level === 'danger' ? 'danger' : item.level === 'warning' ? 'warning' : 'info'}>{Math.round(Number(item.score || 0))}</Badge>
+                    </div>
+                  </button>
+                )) : <p className="py-4 text-sm text-slate-500">Nu apar riscuri contractuale majore.</p>}
+              </div>
+            </div>
+
+            <div className="rounded-md border border-slate-200 p-3">
+              <div className="mb-2 text-sm font-semibold text-slate-800">Manageri cu alerte</div>
+              <div className="grid gap-2">
+                {metrics.topManagers.length ? metrics.topManagers.map(item => (
+                  <button
+                    key={item.key || item.responsabil_nume}
+                    type="button"
+                    className="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 text-left transition hover:bg-primary-50"
+                    onClick={() => onNavigate(`${routes.contracts}?q=${encodeURIComponent(item.responsabil_nume || '')}&risk=alerte`)}
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium text-slate-700">{item.responsabil_nume || 'Fără manager'}</span>
+                    <Badge tone={Number(item.alerts || 0) ? 'warning' : 'success'}>{item.alerts || 0}</Badge>
+                  </button>
+                )) : <p className="py-4 text-sm text-slate-500">Nu există manageri cu alerte active.</p>}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="mt-4 rounded-[var(--radius-panel)] border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-600">
+          Nu există contracte în portofoliu. Când adaugi primul contract, aici apar consumul, alertele, managerii și task-urile contractuale.
+          <div className="mt-3">
+            <Button size="sm" onClick={() => onNavigate(routes.contracts)}>Adaugă primul contract</Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
 function DocumentWorklistPanel({ inboxDocuments = [], blockedDocuments = [], loading, error, onNavigate }) {
   const blockedById = new Map(blockedDocuments.map(document => [String(document.uuid || document.id), document]))
   const merged = [
@@ -1747,6 +1906,14 @@ export default function DashboardPage() {
         actions={view.todayActions}
         profile={view.profile}
         loading={loading}
+        onNavigate={navigate}
+      />
+
+      <ContractRadarPanel
+        dashboard={view.contractsDashboard}
+        tasks={view.contractsTasks}
+        loading={loading}
+        error={errors.contractsDashboard || errors.contractsTasks}
         onNavigate={navigate}
       />
 

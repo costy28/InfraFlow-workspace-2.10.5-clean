@@ -122,6 +122,74 @@ const savedPortfolioViews = [
   },
 ]
 
+function portfolioFiltersFromSearch(search = '') {
+  const params = new URLSearchParams(search || '')
+  const next = { ...emptyPortfolioFilters }
+  let touched = false
+  const viewKey = params.get('view')
+  const savedView = savedPortfolioViews.find(item => item.key === viewKey)
+  if (savedView) {
+    Object.assign(next, savedView.filters)
+    touched = true
+  }
+
+  const directKeys = ['status', 'q', 'risk', 'consum', 'termen', 'lifecycle']
+  for (const key of directKeys) {
+    const value = params.get(key)
+    if (value != null && value !== '') {
+      next[key] = value
+      touched = true
+    }
+  }
+
+  if (params.get('missing_manager') === 'true') {
+    next.risk = 'fara_manager'
+    touched = true
+  }
+  if (params.get('missing_signed') === 'true') {
+    next.risk = 'fara_document_semnat'
+    touched = true
+  }
+  if (params.get('alerts') === 'true') {
+    next.risk = 'alerte'
+    touched = true
+  }
+  if (params.get('risk') === 'danger') {
+    next.risk = 'critic'
+    touched = true
+  }
+  if (params.get('risk') === 'overdue_tasks') {
+    next.risk = 'taskuri_restante'
+    touched = true
+  }
+  if (params.get('consum_min') === '80') {
+    next.consum = 'peste_80'
+    touched = true
+  }
+  if (params.get('consum_min') === '90') {
+    next.consum = 'peste_90'
+    touched = true
+  }
+  if (params.get('consum_min') === '100') {
+    next.consum = 'peste_100'
+    touched = true
+  }
+  if (params.get('consum_max') === '0') {
+    next.consum = 'fara_consum'
+    touched = true
+  }
+  if (params.get('expired') === 'true') {
+    next.termen = 'expirat'
+    touched = true
+  }
+  if (['7', '30', '90'].includes(params.get('term_days'))) {
+    next.termen = params.get('term_days')
+    touched = true
+  }
+
+  return touched ? next : null
+}
+
 function arrayFrom(data, keys) {
   for (const key of keys) {
     if (Array.isArray(data?.[key])) return data[key]
@@ -691,6 +759,11 @@ export default function ContractePage() {
 
   useEffect(() => {
     load()
+  }, [])
+
+  useEffect(() => {
+    const filters = portfolioFiltersFromSearch(window.location.search || '')
+    if (filters) setPortfolioFilters(filters)
   }, [])
 
   useEffect(() => {

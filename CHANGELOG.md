@@ -1,5 +1,16 @@
 # Changelog
 
+# v2.12.506 - 2026-08-20
+
+## Radar contractual pe Dashboard
+
+- Dashboard-ul afișează un panou dedicat pentru portofoliul contractual: contracte active, critice, avertizări/scadențe și task-uri restante.
+- Panoul arată consumul total din valoarea contractată, procentul global și suma rămasă estimată.
+- Sunt vizibile primele riscuri contractuale și managerii cu alerte active.
+- Butoanele din radar deschid modulul Contracte direct pe vederea relevantă: critice, scadente, task-uri restante sau contract selectat.
+- Modulul Contracte poate prelua filtre din URL, pentru deep-link-uri din Dashboard și alte module.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.505 - 2026-08-08
 
 ## Explicație vizibilă pentru exportul CSV Documente
