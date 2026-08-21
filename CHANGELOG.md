@@ -1,5 +1,17 @@
 # Changelog
 
+# v2.12.509 - 2026-08-20
+
+## Raportări oficiale muncă pe profil de țară
+
+- Registry-ul de reguli pe țară include acum profilul pentru registrul oficial al salariaților.
+- România declară explicit adaptorul local REGES-Online, cu referință la API-ul oficial și status de implementare viitoare.
+- Profilurile non-RO rămân generice, fără REGES afișat ca regulă globală.
+- Setările organizației afișează noua secțiune `Raportare muncă` în profilul internațional.
+- Documentele HR folosesc formulare neutre internațional pentru obligațiile locale.
+- Testul HR confirmă că REGES este adaptor pe țară, nu regulă globală.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.508 - 2026-08-20
 
 ## Context acționabil pentru Contracte din Dashboard

@@ -745,7 +745,7 @@ ${tip === 'fara_plata' ? `<p>Motivul solicitării: ____________________</p>` : '
 <h3>3. Scopul prelucrării</h3>
 <ul>
   <li>Executarea contractului individual de muncă</li>
-  <li>Respectarea obligațiilor legale (REGES, ITM, ANAF)</li>
+  <li>Respectarea obligațiilor legale locale, inclusiv registrul oficial al salariaților, autoritatea muncii și raportările fiscale aplicabile</li>
   <li>Calculul și plata salariilor</li>
   <li>Gestionarea concediilor și absențelor</li>
   <li>Securitatea muncii (SSM/PSI)</li>

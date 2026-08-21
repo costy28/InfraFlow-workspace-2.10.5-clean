@@ -1,5 +1,5 @@
 {
-  "version": "2.12.508",
+  "version": "2.12.509",
   "date": "2026-08-20",
-  "changelog": "## v2.12.508 - 2026-08-20\n### Context acționabil pentru Contracte din Dashboard\n- Contracte afișează un banner contextual când pagina este deschisă din radarul Dashboard cu filtre de risc.\n- Bannerul explică de ce lista este filtrată: fără manager, fără document semnat, depășiri valorice, scadențe, expirări, riscuri critice, task-uri restante sau alerte.\n- Utilizatorul poate selecta lista vizibilă și porni direct acțiunea potrivită: setare manager în lot sau creare task-uri.\n- Schimbarea manuală a filtrelor, resetarea sau alegerea unei vederi salvate ascunde contextul Dashboard ca să nu inducă în eroare.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.509 - 2026-08-20\n### Raportări oficiale muncă pe profil de țară\n- Registry-ul de reguli pe țară include acum profilul pentru registrul oficial al salariaților.\n- România declară explicit adaptorul local REGES-Online, cu referință la API-ul oficial și status de implementare viitoare.\n- Profilurile non-RO rămân generice, fără REGES afișat ca regulă globală.\n- Setările organizației afișează noua secțiune Raportare muncă în profilul internațional.\n- Documentele HR folosesc formulare neutre internațional pentru obligațiile locale.\n- Nu necesită migrare SQL nouă."
 }

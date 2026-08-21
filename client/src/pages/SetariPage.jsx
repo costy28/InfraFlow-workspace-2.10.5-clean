@@ -778,7 +778,17 @@ const fallbackCountryRules = {
     rules: {
       status: 'active',
       modules: {
-        hr: { payroll_profile: 'RO_D112' },
+        hr: {
+          payroll_profile: 'RO_D112',
+          employee_registry: {
+            enabled: true,
+            label: 'REGES-Online',
+            adapter_key: 'reges_online_ro',
+            status: 'roadmap_api',
+            official_api: true,
+            current_export_status: 'internal_work_file',
+          },
+        },
         accounting: { fiscal_profile: 'RO_ANAF', declarations: ['D300', 'D394', 'D112', 'D205', 'D406_SAF_T'] },
         documents: { default_language: 'ro' },
       },
@@ -1061,6 +1071,7 @@ export default function SetariPage() {
     const code = settings.country || countryRules.current?.country || 'RO'
     return countryRules.countries?.find(item => item.country === code) || countryRules.current || fallbackCountryRules.current
   }, [countryRules, settings.country])
+  const selectedLaborRegistry = selectedCountryRules?.rules?.modules?.hr?.employee_registry || {}
   const availableLocales = useMemo(
     () => Array.from(new Set([...localeOptions, ...countryProfiles.map(profile => profile.locale).filter(Boolean)])),
     [countryProfiles]
@@ -2500,10 +2511,24 @@ export default function SetariPage() {
                   {availableTimezones.map(timezone => <option key={timezone} value={timezone}>{timezone}</option>)}
                 </Select>
               </div>
-              <div className="mt-3 grid gap-2 rounded-xl border border-white/70 bg-white/70 p-3 text-xs text-slate-600 md:grid-cols-3">
+              <div className="mt-3 grid gap-2 rounded-xl border border-white/70 bg-white/70 p-3 text-xs text-slate-600 md:grid-cols-4">
                 <div>
                   <span className="block font-semibold text-slate-800">HR</span>
                   Profil: {selectedCountryRules?.rules?.modules?.hr?.payroll_profile || 'generic'}
+                </div>
+                <div>
+                  <span className="block font-semibold text-slate-800">Raportare muncă</span>
+                  {selectedLaborRegistry?.label || 'Registru local'}
+                  <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    selectedLaborRegistry?.enabled
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {selectedLaborRegistry?.enabled ? 'profil local' : 'generic'}
+                  </span>
+                  {selectedLaborRegistry?.current_export_status === 'internal_work_file' ? (
+                    <div className="mt-1 text-[11px] text-slate-500">Momentan: fișier intern de lucru, nu transmitere oficială.</div>
+                  ) : null}
                 </div>
                 <div>
                   <span className="block font-semibold text-slate-800">Fiscal / contabil</span>
@@ -2514,10 +2539,15 @@ export default function SetariPage() {
                   Limbă implicită: {selectedCountryRules?.rules?.modules?.documents?.default_language || 'generic'}
                 </div>
                 {selectedCountryRules?.rules?.warnings?.length > 0 && (
-                  <p className="md:col-span-3 rounded-lg bg-amber-50 px-3 py-2 text-amber-700">
+                  <p className="md:col-span-4 rounded-lg bg-amber-50 px-3 py-2 text-amber-700">
                     {selectedCountryRules.rules.warnings[0]}
                   </p>
                 )}
+                {selectedLaborRegistry?.description ? (
+                  <p className="md:col-span-4 rounded-lg bg-slate-50 px-3 py-2 text-slate-600">
+                    {selectedLaborRegistry.description}
+                  </p>
+                ) : null}
               </div>
             </div>
             <Input label="Punct de lucru / locație" value={settings.stationName || ''} onChange={event => setSettings(s => ({ ...s, stationName: event.target.value }))} />

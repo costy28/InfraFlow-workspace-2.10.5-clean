@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { sanitizeEmployee } = require("../modules/hr/data-policy");
 const { assertTimesheetOpen, findTimesheetLock } = require("../modules/hr/timesheet-locks");
 const { buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
+const { getEmployeeRegistryProfile } = require("../shared/countryRules");
 const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime-policy");
 const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy");
 const { calendarDays, missingMedicalField } = require("../modules/hr/medical-leave-policy");
@@ -39,6 +40,17 @@ test("exportul REGES este marcat explicit ca fisier intern", () => {
   assert.match(xml, /official="false"/);
   assert.match(xml, /Nu este fisier oficial/);
   assert.doesNotMatch(xml, /<ReviSal/);
+});
+
+test("registrul oficial al salariatilor este adaptor pe tara, nu regula globala", () => {
+  const roRegistry = getEmployeeRegistryProfile("RO");
+  const gbRegistry = getEmployeeRegistryProfile("GB");
+
+  assert.equal(roRegistry.enabled, true);
+  assert.equal(roRegistry.adapter_key, "reges_online_ro");
+  assert.equal(roRegistry.label, "REGES-Online");
+  assert.equal(gbRegistry.enabled, false);
+  assert.equal(gbRegistry.status, "generic");
 });
 
 test("12 ore lucrate la norma de 8 genereaza 4 ore suplimentare", () => {

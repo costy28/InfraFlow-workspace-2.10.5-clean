@@ -16,7 +16,15 @@ const genericRules = {
       payroll_profile: 'generic',
       timesheet_week_start: 'monday',
       medical_leave: { enabled: false, requires_operator_validation: true },
-      employee_registry: { enabled: false },
+      employee_registry: {
+        enabled: false,
+        label: 'Registru oficial salariați',
+        adapter_key: null,
+        status: 'generic',
+        official_api: false,
+        country_specific: true,
+        description: 'Adaptorul pentru registrul oficial al salariaților se configurează pe țară, unde legislația locală o cere.',
+      },
     },
     accounting: {
       fiscal_profile: 'generic',
@@ -52,7 +60,15 @@ const countryRules = {
         },
         employee_registry: {
           enabled: true,
-          label: 'REGES/Revisal',
+          label: 'REGES-Online',
+          legacy_label: 'Revisal',
+          adapter_key: 'reges_online_ro',
+          status: 'roadmap_api',
+          official_api: true,
+          api_host: 'api.inspectiamuncii.ro',
+          source_url: 'https://github.com/reges-ro/integrare',
+          current_export_status: 'internal_work_file',
+          description: 'Adaptor local pentru România. Exportul actual rămâne fișier intern de lucru; transmiterea API REGES-Online se implementează separat cu token pe CUI/CIF, recipisă și rezultat asincron.',
         },
       },
       accounting: {
@@ -156,12 +172,18 @@ function getPayrollProfile(countryCode = 'RO') {
   return String(getHrRules(countryCode).payroll_profile || 'generic')
 }
 
+function getEmployeeRegistryProfile(countryCode = 'RO') {
+  const registry = getHrRules(countryCode).employee_registry || genericRules.modules.hr.employee_registry
+  return JSON.parse(JSON.stringify(registry))
+}
+
 module.exports = {
   getAllCountryRules,
   getAccountingRules,
   getCountryProfiles,
   getCountryRules,
   getDefaultVatRate,
+  getEmployeeRegistryProfile,
   getFiscalDeclarations,
   getHrRules,
   getMonthlyFiscalDeclarations,
