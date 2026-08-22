@@ -227,6 +227,7 @@ export default function HRPage() {
   const [hrActivity, setHrActivity] = useState({ rows: [], summary: {} })
   const [hrActivityFilter, setHrActivityFilter] = useState({ category: '', employee_id: '', from: '', to: '' })
   const [hrManagementReport, setHrManagementReport] = useState(null)
+  const [countryRules, setCountryRules] = useState({ current: null })
   const [hrManagementPeriod, setHrManagementPeriod] = useState(() => {
     const now = new Date()
     return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) }
@@ -332,7 +333,7 @@ export default function HRPage() {
     setError('')
     setNotice('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, managementRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, managementRes, countryRulesRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -346,6 +347,7 @@ export default function HRPage() {
         api.get('/hr/inbox').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/activity').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/management-report', { params: hrManagementPeriod }).catch(() => ({ data: null })),
+        api.get('/hr/country-rules').catch(() => ({ data: { current: null } })),
         api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })),
       ])
@@ -362,6 +364,7 @@ export default function HRPage() {
       setHrInbox({ rows: arrayFrom(inboxRes.data, ['rows', 'items']), summary: inboxRes.data?.summary || {} })
       setHrActivity({ rows: arrayFrom(activityRes.data, ['rows', 'items']), summary: activityRes.data?.summary || {} })
       setHrManagementReport(managementRes.data || null)
+      setCountryRules(countryRulesRes.data || { current: null })
       setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
       setExpirationNotifications({ notifications: arrayFrom(expirationNotificationsRes.data, ['notifications', 'items']), summary: expirationNotificationsRes.data?.summary || {} })
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
@@ -2104,6 +2107,7 @@ export default function HRPage() {
           onGenerateHrNotifications={generateHrNotifications}
           hrNotificationResult={hrNotificationResult}
           hrManagementReport={hrManagementReport}
+          countryRules={countryRules}
           pendingLeaves={pendingLeaves}
           onApproveLeave={approveLeave}
           onRejectLeave={rejectLeave}

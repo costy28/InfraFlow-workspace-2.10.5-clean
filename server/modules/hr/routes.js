@@ -23,6 +23,7 @@ const { weeklyControls } = require('./working-time-policy')
 const { calendarDays, missingMedicalField } = require('./medical-leave-policy')
 const { buildMedicalRegister } = require('./medical-leave-register')
 const { applyCompensatedHours } = require('./timesheet-compensation')
+const { getCountryRules } = require('../../shared/countryRules')
 
 const router = Router()
 const NEXUS_TIMESHEET_TEMPLATE = path.join(__dirname, '../../../db/templates/pontaj_nexus_sablon.xlsx')
@@ -4365,6 +4366,21 @@ FOR JSON PATH;
     })
   } catch (error) {
     next(error)
+  }
+})
+
+router.get('/hr/country-rules', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:view')) return
+    const requestedCountry = req.url.includes('?')
+      ? new URL(req.url, 'http://infraflow.local').searchParams.get('country')
+      : ''
+    const country = requestedCountry || auth.db.settings?.country || 'RO'
+    sendJson(res, 200, { current: getCountryRules(country) })
+  } catch (err) {
+    next(err)
   }
 })
 

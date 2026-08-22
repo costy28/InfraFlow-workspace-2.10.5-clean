@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.510 - 2026-08-22
+
+## Panou HR pentru raportări oficiale muncă
+
+- Dashboard HR afișează profilul de țară și registrul oficial al salariaților aplicabil organizației.
+- România afișează `REGES-Online` ca adaptor local, dar exportul curent este marcat clar ca fișier intern de lucru.
+- Profilurile non-RO rămân generice și pregătite pentru adaptoare locale viitoare, fără REGES ca regulă globală.
+- HR primește profilul de țară printr-un endpoint read-only cu permisiune HR, fără să depindă de Setări.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.509 - 2026-08-20
 
 ## Raportări oficiale muncă pe profil de țară
