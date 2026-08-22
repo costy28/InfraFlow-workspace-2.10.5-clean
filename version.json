@@ -1,5 +1,5 @@
 {
-  "version": "2.12.510",
+  "version": "2.12.511",
   "date": "2026-08-22",
-  "changelog": "## v2.12.510 - 2026-08-22\n### Panou HR pentru raportări oficiale muncă\n- Dashboard HR afișează profilul de țară și registrul oficial al salariaților aplicabil organizației.\n- România afișează REGES-Online ca adaptor local, dar exportul curent este marcat clar ca fișier intern de lucru.\n- Profilurile non-RO rămân generice și pregătite pentru adaptoare locale viitoare, fără REGES ca regulă globală.\n- HR primește profilul de țară printr-un endpoint read-only cu permisiune HR, fără să depindă de Setări.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.511 - 2026-08-22\n### Export rapid registru intern muncă din Dashboard HR\n- Cardul Raportări oficiale muncă are acțiune directă pentru descărcarea registrului intern de lucru.\n- Butonul apare doar pentru utilizatorii cu permisiunea hr:reges_export și doar când profilul local are registru activ.\n- Descărcarea folosește endpointul auditat existent /hr/reges/work-register.xlsx.\n- Mesajul din interfață explică faptul că fișierul este pentru lucru intern, nu transmitere oficială.\n- Nu necesită migrare SQL nouă."
 }

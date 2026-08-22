@@ -699,6 +699,21 @@ export default function HRPage() {
     }
   }
 
+  async function downloadLaborWorkRegister() {
+    try {
+      const response = await api.get('/hr/reges/work-register.xlsx', { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Registru_lucru_salariat_${new Date().toISOString().slice(0, 10)}.xlsx`
+      link.click()
+      URL.revokeObjectURL(url)
+      setNotice('Registrul intern de lucru a fost descărcat. Transmiterea oficială se face doar prin adaptorul local validat.')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Registrul intern de lucru nu a putut fi descărcat.')
+    }
+  }
+
   async function loadAdvancedExpirations() {
     try {
       const response = await api.get('/hr/advanced-expirations')
@@ -2108,6 +2123,8 @@ export default function HRPage() {
           hrNotificationResult={hrNotificationResult}
           hrManagementReport={hrManagementReport}
           countryRules={countryRules}
+          canExportLaborRegistry={hasPermission('hr:reges_export')}
+          onExportLaborRegistry={downloadLaborWorkRegister}
           pendingLeaves={pendingLeaves}
           onApproveLeave={approveLeave}
           onRejectLeave={rejectLeave}

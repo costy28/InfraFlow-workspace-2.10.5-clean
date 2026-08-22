@@ -58,7 +58,7 @@ function HRKpiCards({ stats }) {
   )
 }
 
-function HRLaborReportingCard({ countryRules }) {
+function HRLaborReportingCard({ countryRules, canExportLaborRegistry, onExportLaborRegistry }) {
   const current = countryRules?.current || {}
   const profile = current.profile || {}
   const registry = current.rules?.modules?.hr?.employee_registry || {}
@@ -101,16 +101,23 @@ function HRLaborReportingCard({ countryRules }) {
           : 'Pentru fiecare țară se activează adaptorul local doar după validarea legislației și a integrării oficiale.'}
       </div>
 
-      {registry.source_url ? (
-        <a
-          className="mt-2 inline-flex text-xs font-semibold text-primary-700 hover:text-primary-900"
-          href={registry.source_url}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Documentație adaptor oficial
-        </a>
-      ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {canExportLaborRegistry && isEnabled ? (
+          <Button size="sm" onClick={onExportLaborRegistry}>
+            📊 Descarcă registru intern
+          </Button>
+        ) : null}
+        {registry.source_url ? (
+          <a
+            className="inline-flex rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-primary-700 hover:border-primary-200 hover:text-primary-900"
+            href={registry.source_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Documentație adaptor oficial
+          </a>
+        ) : null}
+      </div>
     </Card>
   )
 }
@@ -343,6 +350,8 @@ export default function HRDashboardPanel({
   hrNotificationResult,
   hrManagementReport,
   countryRules,
+  canExportLaborRegistry,
+  onExportLaborRegistry,
   pendingLeaves,
   onApproveLeave,
   onRejectLeave,
@@ -359,7 +368,11 @@ export default function HRDashboardPanel({
   return (
     <div className="grid gap-4">
       <HRKpiCards stats={stats} />
-      <HRLaborReportingCard countryRules={countryRules} />
+      <HRLaborReportingCard
+        countryRules={countryRules}
+        canExportLaborRegistry={canExportLaborRegistry}
+        onExportLaborRegistry={onExportLaborRegistry}
+      />
       <HRManagementReportCard
         period={hrManagementPeriod}
         onPeriodChange={onHrManagementPeriodChange}
