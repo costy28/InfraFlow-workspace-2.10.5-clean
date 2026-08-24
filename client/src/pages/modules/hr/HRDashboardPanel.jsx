@@ -91,6 +91,7 @@ function HRLaborReportingCard({
   const isEnabled = Boolean(registry.enabled)
   const isInternalWorkFile = registry.current_export_status === 'internal_work_file'
   const isRoadmapApi = registry.status === 'roadmap_api'
+  const hasExportBlockers = Number(diagnosticSummary.blocker || 0) > 0
 
   return (
     <Card>
@@ -165,8 +166,8 @@ function HRLaborReportingCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {canExportLaborRegistry && isEnabled ? (
-          <Button size="sm" onClick={onExportLaborRegistry}>
-            📊 Descarcă registru intern
+          <Button size="sm" onClick={onExportLaborRegistry} disabled={hasExportBlockers}>
+            {hasExportBlockers ? 'Rezolvă blocajele pentru export' : '📊 Descarcă registru intern'}
           </Button>
         ) : null}
         {registry.source_url ? (
@@ -180,6 +181,11 @@ function HRLaborReportingCard({
           </a>
         ) : null}
       </div>
+      {hasExportBlockers ? (
+        <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          Exportul intern este blocat până când completezi datele obligatorii. Atenționările nu blochează exportul.
+        </div>
+      ) : null}
 
       {canExportLaborRegistry ? (
         <div className="mt-3 rounded border border-slate-200">

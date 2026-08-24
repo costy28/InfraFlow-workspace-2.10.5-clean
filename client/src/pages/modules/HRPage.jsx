@@ -707,6 +707,10 @@ export default function HRPage() {
 
   async function downloadLaborWorkRegister() {
     try {
+      if (Number(laborRegistryDiagnostic?.summary?.blocker || 0) > 0) {
+        setError('Rezolvă blocajele din diagnosticul registrului intern înainte de descărcare.')
+        return
+      }
       const response = await api.get('/hr/reges/work-register.xlsx', { responseType: 'blob' })
       const url = URL.createObjectURL(response.data)
       const link = document.createElement('a')

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.514",
+  "version": "2.12.515",
   "date": "2026-08-24",
-  "changelog": "## v2.12.514 - 2026-08-24\n### Acțiuni rapide pentru diagnosticul registrului intern muncă\n- Fiecare lipsă din diagnosticul registrului intern are buton Rezolvă.\n- Butonul deschide fișa angajatului direct în tabul potrivit: Contracte pentru contract/salariu/normă/funcție sau Date pentru CNP/nume/date personale.\n- Pentru lipsurile de date personale, fișa pornește direct în mod editare.\n- Diagnosticul devine un flux ghidat de corectare, nu doar o listă pasivă.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.515 - 2026-08-24\n### Export registru intern blocat când există lipsuri obligatorii\n- Butonul de descărcare a registrului intern este dezactivat când diagnosticul are blocaje.\n- Interfața explică faptul că lipsurile obligatorii trebuie rezolvate înainte de export.\n- Atenționările rămân informative și nu blochează descărcarea.\n- Funcția de descărcare are și protecție suplimentară în cod, nu doar buton disabled.\n- Nu necesită migrare SQL nouă."
 }

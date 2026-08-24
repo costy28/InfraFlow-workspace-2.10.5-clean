@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.515 - 2026-08-24
+
+## Export registru intern blocat când există lipsuri obligatorii
+
+- Butonul de descărcare a registrului intern este dezactivat când diagnosticul are blocaje.
+- Interfața explică faptul că lipsurile obligatorii trebuie rezolvate înainte de export.
+- Atenționările rămân informative și nu blochează descărcarea.
+- Funcția de descărcare are și protecție suplimentară în cod, nu doar buton `disabled`.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.514 - 2026-08-24
 
 ## Acțiuni rapide pentru diagnosticul registrului intern muncă
