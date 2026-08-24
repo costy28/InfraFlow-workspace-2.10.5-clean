@@ -1,5 +1,5 @@
 {
-  "version": "2.12.511",
-  "date": "2026-08-22",
-  "changelog": "## v2.12.511 - 2026-08-22\n### Export rapid registru intern muncă din Dashboard HR\n- Cardul Raportări oficiale muncă are acțiune directă pentru descărcarea registrului intern de lucru.\n- Butonul apare doar pentru utilizatorii cu permisiunea hr:reges_export și doar când profilul local are registru activ.\n- Descărcarea folosește endpointul auditat existent /hr/reges/work-register.xlsx.\n- Mesajul din interfață explică faptul că fișierul este pentru lucru intern, nu transmitere oficială.\n- Nu necesită migrare SQL nouă."
+  "version": "2.12.512",
+  "date": "2026-08-23",
+  "changelog": "## v2.12.512 - 2026-08-23\n### Istoric exporturi registru intern muncă în Dashboard HR\n- Exportul rapid al registrului intern de lucru este înregistrat și în istoricul REGES/registru muncă, nu doar în auditul general.\n- Cardul Raportări oficiale muncă afișează ultimele exporturi interne pentru utilizatorii cu permisiunea hr:reges_export.\n- După descărcare, istoricul se reîncarcă automat ca operatorul să vadă imediat trasabilitatea acțiunii.\n- Istoricul marchează explicit exporturile XLSX ca registru intern de lucru.\n- Nu necesită migrare SQL nouă."
 }

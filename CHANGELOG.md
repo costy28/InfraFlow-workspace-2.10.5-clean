@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.512 - 2026-08-23
+
+## Istoric exporturi registru intern muncă în Dashboard HR
+
+- Exportul rapid al registrului intern de lucru este înregistrat și în istoricul REGES/registru muncă, nu doar în auditul general.
+- Cardul `Raportări oficiale muncă` afișează ultimele exporturi interne pentru utilizatorii cu permisiunea `hr:reges_export`.
+- După descărcare, istoricul se reîncarcă automat ca operatorul să vadă imediat trasabilitatea acțiunii.
+- Istoricul marchează explicit exporturile XLSX ca registru intern de lucru.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.511 - 2026-08-22
 
 ## Export rapid registru intern muncă din Dashboard HR

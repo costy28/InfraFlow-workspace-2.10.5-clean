@@ -4850,10 +4850,37 @@ router.get('/hr/reges/work-register.xlsx', (req, res, next) => {
     if (!auth || !requirePermission(auth, res, 'hr:reges_export')) return
     const db = readDb()
     const hr = ensureHrDb(db)
+    const uuid = crypto.randomUUID()
     const employees = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.employees WHERE activ=1 FOR JSON PATH;`) : hr.employees.filter((item) => item.activ !== false)
     const contracts = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.contracts WHERE status=N'activ' FOR JSON PATH;`) : hr.contracts.filter((item) => item.status === 'activ')
     const rows = employees.map((employee) => buildRegesWorkRow(employee, contracts.find((contract) => String(contract.employee_id) === String(employee.id)) || {}, companySettings(db)))
     const buffer = xlsx.write(buildRegesWorkbook(rows), { type: 'buffer', bookType: 'xlsx' })
+    const message = `Registru intern de lucru XLSX, ${rows.length} angajati`
+    if (isMssqlMode()) {
+      mssqlObject(`
+INSERT INTO hr.reges_exports (uuid, tip, fisier_path, status, generat_de, mesaj)
+VALUES (
+  JSON_VALUE(@p, '$.uuid'),
+  N'work_register',
+  NULL,
+  N'generat',
+  JSON_VALUE(@p, '$.userId'),
+  JSON_VALUE(@p, '$.message')
+);
+SELECT TOP 1 * FROM hr.reges_exports WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR JSON PATH;
+`, { uuid, userId: auth.user.id, message })
+    } else {
+      hr.regesExports.push({
+        id: nextId(hr.regesExports),
+        uuid,
+        tip: 'work_register',
+        fisier_path: null,
+        status: 'generat',
+        generat_de: auth.user.id,
+        mesaj: message,
+        created_at: nowIso()
+      })
+    }
     addAudit(db, auth.user, 'hr_reges_work_register_export', `${rows.length} angajati`)
     writeDb(db)
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

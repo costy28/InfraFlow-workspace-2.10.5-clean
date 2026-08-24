@@ -14,6 +14,19 @@ function alertTone(days) {
   return null
 }
 
+function formatDateTime(value) {
+  if (!value) return '-'
+  return String(value).slice(0, 16).replace('T', ' ')
+}
+
+function laborRegistryExportLabel(type) {
+  if (type === 'work_register') return 'Registru intern XLSX'
+  if (type === 'contract') return 'Contract / modificare'
+  if (type === 'incetare') return 'Încetare'
+  if (type === 'suspendare') return 'Suspendare'
+  return type || 'Export registru'
+}
+
 function DashboardAlertRow({ label, date, icon }) {
   const days = daysUntil(date)
   const tone = alertTone(days)
@@ -58,10 +71,11 @@ function HRKpiCards({ stats }) {
   )
 }
 
-function HRLaborReportingCard({ countryRules, canExportLaborRegistry, onExportLaborRegistry }) {
+function HRLaborReportingCard({ countryRules, laborRegistryHistory, canExportLaborRegistry, onExportLaborRegistry }) {
   const current = countryRules?.current || {}
   const profile = current.profile || {}
   const registry = current.rules?.modules?.hr?.employee_registry || {}
+  const history = Array.isArray(laborRegistryHistory) ? laborRegistryHistory.slice(0, 4) : []
   const isEnabled = Boolean(registry.enabled)
   const isInternalWorkFile = registry.current_export_status === 'internal_work_file'
   const isRoadmapApi = registry.status === 'roadmap_api'
@@ -118,6 +132,32 @@ function HRLaborReportingCard({ countryRules, canExportLaborRegistry, onExportLa
           </a>
         ) : null}
       </div>
+
+      {canExportLaborRegistry ? (
+        <div className="mt-3 rounded border border-slate-200">
+          <div className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+            Ultimele exporturi interne
+          </div>
+          {history.length ? (
+            <div className="divide-y divide-slate-100">
+              {history.map(item => (
+                <div key={item.uuid || item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <div>
+                    <div className="font-medium text-slate-800">{laborRegistryExportLabel(item.tip)}</div>
+                    <div className="text-xs text-slate-500">{item.mesaj || 'Export generat pentru lucru intern.'}</div>
+                  </div>
+                  <div className="text-right text-xs text-slate-500">
+                    <div>{formatDateTime(item.created_at)}</div>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700">{item.status || 'generat'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-3 py-3 text-sm text-slate-400">Nu există exporturi interne înregistrate încă.</div>
+          )}
+        </div>
+      ) : null}
     </Card>
   )
 }
@@ -350,6 +390,7 @@ export default function HRDashboardPanel({
   hrNotificationResult,
   hrManagementReport,
   countryRules,
+  laborRegistryHistory,
   canExportLaborRegistry,
   onExportLaborRegistry,
   pendingLeaves,
@@ -370,6 +411,7 @@ export default function HRDashboardPanel({
       <HRKpiCards stats={stats} />
       <HRLaborReportingCard
         countryRules={countryRules}
+        laborRegistryHistory={laborRegistryHistory}
         canExportLaborRegistry={canExportLaborRegistry}
         onExportLaborRegistry={onExportLaborRegistry}
       />
