@@ -798,6 +798,23 @@ export default function HRPage() {
     else setError('Angajatul asociat scadenței nu a fost găsit în lista curentă.')
   }
 
+  async function openLaborRegistryIssue(item) {
+    const employee = employees.find(emp => String(emp.id) === String(item.employee_id))
+    if (!employee) {
+      setError('Angajatul asociat diagnosticului nu a fost găsit în lista curentă.')
+      return
+    }
+    await openEmployee(employee)
+    const missing = [...(item.missing || []), ...(item.warnings || [])].map(value => String(value).toLowerCase())
+    const hasContractIssue = missing.some(value => value.includes('contract') || value.includes('normă') || value.includes('salariu') || value.includes('funcție') || value.includes('dată începere'))
+    if (hasContractIssue) {
+      setEmployeeProfileTab('contracte')
+    } else {
+      setEmployeeProfileTab('date')
+      setEditMode(true)
+    }
+  }
+
   async function openHrInboxTask(item) {
     if (item.action === 'open_leave') {
       setActiveTab('Concedii')
@@ -2156,6 +2173,7 @@ export default function HRPage() {
           canExportLaborRegistry={hasPermission('hr:reges_export')}
           onExportLaborRegistry={downloadLaborWorkRegister}
           onReloadLaborRegistryDiagnostic={loadLaborRegistryDiagnostic}
+          onOpenLaborRegistryIssue={openLaborRegistryIssue}
           pendingLeaves={pendingLeaves}
           onApproveLeave={approveLeave}
           onRejectLeave={rejectLeave}

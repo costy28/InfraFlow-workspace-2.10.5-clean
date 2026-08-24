@@ -1,5 +1,5 @@
 {
-  "version": "2.12.513",
+  "version": "2.12.514",
   "date": "2026-08-24",
-  "changelog": "## v2.12.513 - 2026-08-24\n### Diagnostic pregătire registru intern muncă\n- Dashboard HR verifică datele principale înainte de exportul registrului intern de lucru.\n- Cardul Raportări oficiale muncă arată câți angajați sunt pregătiți, câte atenționări există și câte blocaje trebuie rezolvate.\n- Diagnosticul listează primele lipsuri concrete: CNP, contract activ, număr contract, dată contract, dată începere și câmpuri recomandate.\n- Exportul intern folosește acum corect data de început din contract ca fallback înainte de data angajării.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.514 - 2026-08-24\n### Acțiuni rapide pentru diagnosticul registrului intern muncă\n- Fiecare lipsă din diagnosticul registrului intern are buton Rezolvă.\n- Butonul deschide fișa angajatului direct în tabul potrivit: Contracte pentru contract/salariu/normă/funcție sau Date pentru CNP/nume/date personale.\n- Pentru lipsurile de date personale, fișa pornește direct în mod editare.\n- Diagnosticul devine un flux ghidat de corectare, nu doar o listă pasivă.\n- Nu necesită migrare SQL nouă."
 }

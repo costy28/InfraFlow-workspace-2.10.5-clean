@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.514 - 2026-08-24
+
+## Acțiuni rapide pentru diagnosticul registrului intern muncă
+
+- Fiecare lipsă din diagnosticul registrului intern are buton `Rezolvă`.
+- Butonul deschide fișa angajatului direct în tabul potrivit: `Contracte` pentru contract/salariu/normă/funcție sau `Date` pentru CNP/nume/date personale.
+- Pentru lipsurile de date personale, fișa pornește direct în mod editare.
+- Diagnosticul devine un flux ghidat de corectare, nu doar o listă pasivă.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.513 - 2026-08-24
 
 ## Diagnostic pregătire registru intern muncă

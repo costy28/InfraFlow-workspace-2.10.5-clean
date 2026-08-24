@@ -78,6 +78,7 @@ function HRLaborReportingCard({
   canExportLaborRegistry,
   onExportLaborRegistry,
   onReloadLaborRegistryDiagnostic,
+  onOpenLaborRegistryIssue,
 }) {
   const current = countryRules?.current || {}
   const profile = current.profile || {}
@@ -144,10 +145,15 @@ function HRLaborReportingCard({
           {diagnosticRows.length ? (
             <div className="divide-y divide-slate-100 border-t border-slate-100">
               {diagnosticRows.map(row => (
-                <div key={row.employee_id} className="px-3 py-2 text-sm">
-                  <div className="font-medium text-slate-800">{row.employee_name} {row.marca ? `· marca ${row.marca}` : ''}</div>
-                  {row.missing?.length ? <div className="text-xs text-rose-700">Lipsesc: {row.missing.join(', ')}</div> : null}
-                  {row.warnings?.length ? <div className="text-xs text-amber-700">De verificat: {row.warnings.join(', ')}</div> : null}
+                <div key={row.employee_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <div>
+                    <div className="font-medium text-slate-800">{row.employee_name} {row.marca ? `· marca ${row.marca}` : ''}</div>
+                    {row.missing?.length ? <div className="text-xs text-rose-700">Lipsesc: {row.missing.join(', ')}</div> : null}
+                    {row.warnings?.length ? <div className="text-xs text-amber-700">De verificat: {row.warnings.join(', ')}</div> : null}
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => onOpenLaborRegistryIssue?.(row)}>
+                    Rezolvă
+                  </Button>
                 </div>
               ))}
             </div>
@@ -437,6 +443,7 @@ export default function HRDashboardPanel({
   canExportLaborRegistry,
   onExportLaborRegistry,
   onReloadLaborRegistryDiagnostic,
+  onOpenLaborRegistryIssue,
   pendingLeaves,
   onApproveLeave,
   onRejectLeave,
@@ -460,6 +467,7 @@ export default function HRDashboardPanel({
         canExportLaborRegistry={canExportLaborRegistry}
         onExportLaborRegistry={onExportLaborRegistry}
         onReloadLaborRegistryDiagnostic={onReloadLaborRegistryDiagnostic}
+        onOpenLaborRegistryIssue={onOpenLaborRegistryIssue}
       />
       <HRManagementReportCard
         period={hrManagementPeriod}
