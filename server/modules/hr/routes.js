@@ -17,7 +17,7 @@ const { sendEmail } = require('../messaging/email')
 const { sanitizeEmployee } = require('./data-policy')
 const payrollRoutes = require('./payroll-routes')
 const { assertTimesheetOpen } = require('./timesheet-locks')
-const { buildRegesWorkRow, buildRegesWorkbook, buildInternalXml } = require('./reges-work-register')
+const { analyzeRegesWorkRegister, buildRegesWorkRow, buildRegesWorkbook, buildInternalXml } = require('./reges-work-register')
 const { dailyOvertime } = require('./overtime-policy')
 const { weeklyControls } = require('./working-time-policy')
 const { calendarDays, missingMedicalField } = require('./medical-leave-policy')
@@ -4886,6 +4886,18 @@ SELECT TOP 1 * FROM hr.reges_exports WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR J
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     res.setHeader('Content-Disposition', 'attachment; filename="Registru_lucru_REGES_ONLINE.xlsx"')
     res.end(buffer)
+  } catch (error) { next(error) }
+})
+
+router.get('/hr/reges/work-register/diagnostic', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:reges_export')) return
+    const db = readDb()
+    const hr = ensureHrDb(db)
+    const employees = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.employees WHERE activ=1 FOR JSON PATH;`) : hr.employees.filter((item) => item.activ !== false)
+    const contracts = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.contracts WHERE status=N'activ' FOR JSON PATH;`) : hr.contracts.filter((item) => item.status === 'activ')
+    sendJson(res, 200, analyzeRegesWorkRegister(employees, contracts, companySettings(db)))
   } catch (error) { next(error) }
 })
 

@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { sanitizeEmployee } = require("../modules/hr/data-policy");
 const { assertTimesheetOpen, findTimesheetLock } = require("../modules/hr/timesheet-locks");
-const { buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
+const { analyzeRegesWorkRegister, buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
 const { getEmployeeRegistryProfile } = require("../shared/countryRules");
 const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime-policy");
 const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy");
@@ -35,11 +35,24 @@ test("luna de pontaj blocata refuza modificari", () => {
 });
 
 test("exportul REGES este marcat explicit ca fisier intern", () => {
-  const row = buildRegesWorkRow({ cnp: "123", nume: "Popescu" }, { numar_contract: "10" }, { cui: "RO1" });
+  const row = buildRegesWorkRow({ cnp: "123", nume: "Popescu" }, { numar_contract: "10", data_start: "2026-01-01" }, { cui: "RO1" });
+  assert.equal(row.Data_incepere, "2026-01-01");
   const xml = buildInternalXml(row);
   assert.match(xml, /official="false"/);
   assert.match(xml, /Nu este fisier oficial/);
   assert.doesNotMatch(xml, /<ReviSal/);
+});
+
+test("diagnosticul registrului intern semnaleaza lipsurile obligatorii", () => {
+  const diagnostic = analyzeRegesWorkRegister(
+    [{ id: 1, cnp: "", nume: "Popescu", prenume: "Ion", marca: "10" }],
+    [{ id: 7, employee_id: 1, status: "activ", numar_contract: "", data_start: "2026-01-01" }],
+    { cui: "RO1" }
+  );
+
+  assert.equal(diagnostic.summary.total, 1);
+  assert.equal(diagnostic.summary.blocker, 1);
+  assert.deepEqual(diagnostic.rows[0].missing, ["CNP", "număr contract", "dată contract"]);
 });
 
 test("registrul oficial al salariatilor este adaptor pe tara, nu regula globala", () => {

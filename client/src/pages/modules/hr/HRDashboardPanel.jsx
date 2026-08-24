@@ -71,11 +71,22 @@ function HRKpiCards({ stats }) {
   )
 }
 
-function HRLaborReportingCard({ countryRules, laborRegistryHistory, canExportLaborRegistry, onExportLaborRegistry }) {
+function HRLaborReportingCard({
+  countryRules,
+  laborRegistryHistory,
+  laborRegistryDiagnostic,
+  canExportLaborRegistry,
+  onExportLaborRegistry,
+  onReloadLaborRegistryDiagnostic,
+}) {
   const current = countryRules?.current || {}
   const profile = current.profile || {}
   const registry = current.rules?.modules?.hr?.employee_registry || {}
   const history = Array.isArray(laborRegistryHistory) ? laborRegistryHistory.slice(0, 4) : []
+  const diagnosticRows = Array.isArray(laborRegistryDiagnostic?.rows)
+    ? laborRegistryDiagnostic.rows.filter(row => row.severity !== 'ready').slice(0, 4)
+    : []
+  const diagnosticSummary = laborRegistryDiagnostic?.summary || {}
   const isEnabled = Boolean(registry.enabled)
   const isInternalWorkFile = registry.current_export_status === 'internal_work_file'
   const isRoadmapApi = registry.status === 'roadmap_api'
@@ -114,6 +125,37 @@ function HRLaborReportingCard({ countryRules, laborRegistryHistory, canExportLab
           ? 'Exportul actual este pentru lucru intern și verificare. Transmiterea oficială se implementează separat, cu autentificare, recipisă și audit.'
           : 'Pentru fiecare țară se activează adaptorul local doar după validarea legislației și a integrării oficiale.'}
       </div>
+
+      {canExportLaborRegistry ? (
+        <div className="mt-3 rounded border border-slate-200 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
+            <div>
+              <div className="text-xs font-semibold uppercase text-slate-500">Pregătire export intern</div>
+              <div className="text-xs text-slate-500">{laborRegistryDiagnostic?.message || 'Verificare date pentru registrul intern de lucru.'}</div>
+            </div>
+            <Button size="sm" variant="secondary" onClick={onReloadLaborRegistryDiagnostic}>Reverifică</Button>
+          </div>
+          <div className="grid gap-2 p-3 sm:grid-cols-4">
+            <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Angajați</div><strong>{diagnosticSummary.total ?? '-'}</strong></div>
+            <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm"><div className="text-xs text-emerald-700">Pregătiți</div><strong>{diagnosticSummary.ready ?? 0}</strong></div>
+            <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">Atenționări</div><strong>{diagnosticSummary.warning ?? 0}</strong></div>
+            <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Blocaje</div><strong>{diagnosticSummary.blocker ?? 0}</strong></div>
+          </div>
+          {diagnosticRows.length ? (
+            <div className="divide-y divide-slate-100 border-t border-slate-100">
+              {diagnosticRows.map(row => (
+                <div key={row.employee_id} className="px-3 py-2 text-sm">
+                  <div className="font-medium text-slate-800">{row.employee_name} {row.marca ? `· marca ${row.marca}` : ''}</div>
+                  {row.missing?.length ? <div className="text-xs text-rose-700">Lipsesc: {row.missing.join(', ')}</div> : null}
+                  {row.warnings?.length ? <div className="text-xs text-amber-700">De verificat: {row.warnings.join(', ')}</div> : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="border-t border-slate-100 px-3 py-2 text-sm text-emerald-700">Nu sunt lipsuri principale în datele verificate.</div>
+          )}
+        </div>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {canExportLaborRegistry && isEnabled ? (
@@ -391,8 +433,10 @@ export default function HRDashboardPanel({
   hrManagementReport,
   countryRules,
   laborRegistryHistory,
+  laborRegistryDiagnostic,
   canExportLaborRegistry,
   onExportLaborRegistry,
+  onReloadLaborRegistryDiagnostic,
   pendingLeaves,
   onApproveLeave,
   onRejectLeave,
@@ -412,8 +456,10 @@ export default function HRDashboardPanel({
       <HRLaborReportingCard
         countryRules={countryRules}
         laborRegistryHistory={laborRegistryHistory}
+        laborRegistryDiagnostic={laborRegistryDiagnostic}
         canExportLaborRegistry={canExportLaborRegistry}
         onExportLaborRegistry={onExportLaborRegistry}
+        onReloadLaborRegistryDiagnostic={onReloadLaborRegistryDiagnostic}
       />
       <HRManagementReportCard
         period={hrManagementPeriod}

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.512",
-  "date": "2026-08-23",
-  "changelog": "## v2.12.512 - 2026-08-23\n### Istoric exporturi registru intern muncă în Dashboard HR\n- Exportul rapid al registrului intern de lucru este înregistrat și în istoricul REGES/registru muncă, nu doar în auditul general.\n- Cardul Raportări oficiale muncă afișează ultimele exporturi interne pentru utilizatorii cu permisiunea hr:reges_export.\n- După descărcare, istoricul se reîncarcă automat ca operatorul să vadă imediat trasabilitatea acțiunii.\n- Istoricul marchează explicit exporturile XLSX ca registru intern de lucru.\n- Nu necesită migrare SQL nouă."
+  "version": "2.12.513",
+  "date": "2026-08-24",
+  "changelog": "## v2.12.513 - 2026-08-24\n### Diagnostic pregătire registru intern muncă\n- Dashboard HR verifică datele principale înainte de exportul registrului intern de lucru.\n- Cardul Raportări oficiale muncă arată câți angajați sunt pregătiți, câte atenționări există și câte blocaje trebuie rezolvate.\n- Diagnosticul listează primele lipsuri concrete: CNP, contract activ, număr contract, dată contract, dată începere și câmpuri recomandate.\n- Exportul intern folosește acum corect data de început din contract ca fallback înainte de data angajării.\n- Nu necesită migrare SQL nouă."
 }

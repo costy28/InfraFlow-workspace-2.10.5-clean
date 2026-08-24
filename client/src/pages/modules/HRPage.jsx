@@ -229,6 +229,7 @@ export default function HRPage() {
   const [hrManagementReport, setHrManagementReport] = useState(null)
   const [countryRules, setCountryRules] = useState({ current: null })
   const [laborRegistryHistory, setLaborRegistryHistory] = useState([])
+  const [laborRegistryDiagnostic, setLaborRegistryDiagnostic] = useState(null)
   const [hrManagementPeriod, setHrManagementPeriod] = useState(() => {
     const now = new Date()
     return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) }
@@ -334,7 +335,7 @@ export default function HRPage() {
     setError('')
     setNotice('')
     try {
-      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, managementRes, countryRulesRes, laborRegistryHistoryRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
+      const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, managementRes, countryRulesRes, laborRegistryHistoryRes, laborRegistryDiagnosticRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
@@ -350,6 +351,7 @@ export default function HRPage() {
         api.get('/hr/management-report', { params: hrManagementPeriod }).catch(() => ({ data: null })),
         api.get('/hr/country-rules').catch(() => ({ data: { current: null } })),
         hasPermission('hr:reges_export') ? api.get('/hr/reges/history').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        hasPermission('hr:reges_export') ? api.get('/hr/reges/work-register/diagnostic').catch(() => ({ data: null })) : Promise.resolve({ data: null }),
         api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
         api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })),
       ])
@@ -368,6 +370,7 @@ export default function HRPage() {
       setHrManagementReport(managementRes.data || null)
       setCountryRules(countryRulesRes.data || { current: null })
       setLaborRegistryHistory(arrayFrom(laborRegistryHistoryRes.data, ['exports', 'history', 'items']))
+      setLaborRegistryDiagnostic(laborRegistryDiagnosticRes.data || null)
       setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
       setExpirationNotifications({ notifications: arrayFrom(expirationNotificationsRes.data, ['notifications', 'items']), summary: expirationNotificationsRes.data?.summary || {} })
       const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
@@ -713,6 +716,7 @@ export default function HRPage() {
       URL.revokeObjectURL(url)
       setNotice('Registrul intern de lucru a fost descărcat. Transmiterea oficială se face doar prin adaptorul local validat.')
       await loadLaborRegistryHistory()
+      await loadLaborRegistryDiagnostic()
     } catch (err) {
       setError(err.response?.data?.error || 'Registrul intern de lucru nu a putut fi descărcat.')
     }
@@ -725,6 +729,16 @@ export default function HRPage() {
       setLaborRegistryHistory(arrayFrom(response.data, ['exports', 'history', 'items']))
     } catch {
       setLaborRegistryHistory([])
+    }
+  }
+
+  async function loadLaborRegistryDiagnostic() {
+    if (!hasPermission('hr:reges_export')) return
+    try {
+      const response = await api.get('/hr/reges/work-register/diagnostic')
+      setLaborRegistryDiagnostic(response.data || null)
+    } catch {
+      setLaborRegistryDiagnostic(null)
     }
   }
 
@@ -2138,8 +2152,10 @@ export default function HRPage() {
           hrManagementReport={hrManagementReport}
           countryRules={countryRules}
           laborRegistryHistory={laborRegistryHistory}
+          laborRegistryDiagnostic={laborRegistryDiagnostic}
           canExportLaborRegistry={hasPermission('hr:reges_export')}
           onExportLaborRegistry={downloadLaborWorkRegister}
+          onReloadLaborRegistryDiagnostic={loadLaborRegistryDiagnostic}
           pendingLeaves={pendingLeaves}
           onApproveLeave={approveLeave}
           onRejectLeave={rejectLeave}
