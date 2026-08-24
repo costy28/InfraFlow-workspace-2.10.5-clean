@@ -92,6 +92,14 @@ function HRLaborReportingCard({
   const isInternalWorkFile = registry.current_export_status === 'internal_work_file'
   const isRoadmapApi = registry.status === 'roadmap_api'
   const hasExportBlockers = Number(diagnosticSummary.blocker || 0) > 0
+  const hasWarnings = Number(diagnosticSummary.warning || 0) > 0
+  const exportReadiness = !laborRegistryDiagnostic
+    ? { label: 'neverificat', className: 'bg-slate-100 text-slate-600', note: 'Apasă Reverifică înainte de export.' }
+    : hasExportBlockers
+      ? { label: 'blocat', className: 'bg-rose-100 text-rose-700', note: 'Date obligatorii lipsă. Exportul este oprit inclusiv pe server.' }
+      : hasWarnings
+        ? { label: 'exportabil cu atenționări', className: 'bg-amber-100 text-amber-700', note: 'Se poate exporta, dar merită completate câmpurile recomandate.' }
+        : { label: 'gata de export', className: 'bg-emerald-100 text-emerald-700', note: 'Datele principale verificate sunt complete.' }
 
   return (
     <Card>
@@ -135,8 +143,12 @@ function HRLaborReportingCard({
               <div className="text-xs font-semibold uppercase text-slate-500">Pregătire export intern</div>
               <div className="text-xs text-slate-500">{laborRegistryDiagnostic?.message || 'Verificare date pentru registrul intern de lucru.'}</div>
             </div>
-            <Button size="sm" variant="secondary" onClick={onReloadLaborRegistryDiagnostic}>Reverifică</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-2 py-1 text-xs font-semibold ${exportReadiness.className}`}>{exportReadiness.label}</span>
+              <Button size="sm" variant="secondary" onClick={onReloadLaborRegistryDiagnostic}>Reverifică</Button>
+            </div>
           </div>
+          <div className="border-b border-slate-100 px-3 py-2 text-xs text-slate-600">{exportReadiness.note}</div>
           <div className="grid gap-2 p-3 sm:grid-cols-4">
             <div className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">Angajați</div><strong>{diagnosticSummary.total ?? '-'}</strong></div>
             <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-sm"><div className="text-xs text-emerald-700">Pregătiți</div><strong>{diagnosticSummary.ready ?? 0}</strong></div>

@@ -72,6 +72,23 @@ function analyzeRegesWorkRegister(employees = [], contracts = [], company = {}) 
   };
 }
 
+function assertRegesWorkRegisterExportable(diagnostic) {
+  const blockers = Number(diagnostic?.summary?.blocker || 0);
+  if (blockers <= 0) return true;
+  const firstIssues = (diagnostic.rows || [])
+    .filter((row) => row.severity === "blocker")
+    .slice(0, 3)
+    .map((row) => `${row.employee_name}: ${(row.missing || []).join(", ")}`)
+    .join("; ");
+  const error = new Error(
+    `Registrul intern nu poate fi exportat: ${blockers} angajat(i) au lipsuri obligatorii.${firstIssues ? ` ${firstIssues}` : ""}`
+  );
+  error.status = 422;
+  error.code = "HR_REGES_WORK_REGISTER_BLOCKED";
+  error.diagnostic = diagnostic;
+  throw error;
+}
+
 function buildRegesWorkbook(rows) {
   const sheet = xlsx.utils.json_to_sheet(rows);
   sheet["!cols"] = Object.keys(rows[0] || {}).map((key) => ({ wch: Math.max(14, Math.min(42, key.length + 6)) }));
@@ -88,4 +105,4 @@ function buildInternalXml(row) {
 
 function escapeXml(value) { return String(value ?? "").replace(/[<>&'\"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[char])); }
 
-module.exports = { analyzeRegesWorkRegister, buildRegesWorkRow, buildRegesWorkbook, buildInternalXml };
+module.exports = { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildRegesWorkbook, buildInternalXml };

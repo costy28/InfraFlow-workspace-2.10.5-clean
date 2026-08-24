@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { sanitizeEmployee } = require("../modules/hr/data-policy");
 const { assertTimesheetOpen, findTimesheetLock } = require("../modules/hr/timesheet-locks");
-const { analyzeRegesWorkRegister, buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
+const { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
 const { getEmployeeRegistryProfile } = require("../shared/countryRules");
 const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime-policy");
 const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy");
@@ -53,6 +53,25 @@ test("diagnosticul registrului intern semnaleaza lipsurile obligatorii", () => {
   assert.equal(diagnostic.summary.total, 1);
   assert.equal(diagnostic.summary.blocker, 1);
   assert.deepEqual(diagnostic.rows[0].missing, ["CNP", "număr contract", "dată contract"]);
+});
+
+test("exportul registrului intern este blocat cand exista lipsuri obligatorii", () => {
+  const blocked = analyzeRegesWorkRegister(
+    [{ id: 1, cnp: "", nume: "Popescu", prenume: "Ion" }],
+    [{ id: 7, employee_id: 1, status: "activ", numar_contract: "", data_contract: "", data_start: "2026-01-01" }],
+    { cui: "RO1" }
+  );
+  assert.throws(
+    () => assertRegesWorkRegisterExportable(blocked),
+    (error) => error.status === 422 && error.code === "HR_REGES_WORK_REGISTER_BLOCKED" && /Popescu Ion/.test(error.message)
+  );
+
+  const warningOnly = analyzeRegesWorkRegister(
+    [{ id: 2, cnp: "1800101010011", nume: "Ionescu", prenume: "Ana" }],
+    [{ id: 8, employee_id: 2, status: "activ", numar_contract: "12", data_contract: "2026-01-01", data_start: "2026-01-02" }],
+    { cui: "RO1" }
+  );
+  assert.equal(assertRegesWorkRegisterExportable(warningOnly), true);
 });
 
 test("registrul oficial al salariatilor este adaptor pe tara, nu regula globala", () => {

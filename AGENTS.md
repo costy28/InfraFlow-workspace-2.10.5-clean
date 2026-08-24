@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.515**
-**Versiune în lucru: v2.12.515**
+**Versiune curentă sursă: v2.12.516**
+**Versiune în lucru: v2.12.516**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -252,6 +252,7 @@ Core System
   ✅ Diagnostic pregătire registru intern muncă în Dashboard HR (v2.12.513)
   ✅ Acțiuni rapide pentru diagnosticul registrului intern muncă (v2.12.514)
   ✅ Export registru intern blocat când există lipsuri obligatorii (v2.12.515)
+  ✅ Protecție server-side pentru export registru intern muncă (v2.12.516)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -849,6 +850,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Dashboard HR verifică lipsurile înainte de exportul registrului intern de muncă ✅ v2.12.513
       → Diagnosticul registrului intern deschide fișa angajatului direct în zona de corectare ✅ v2.12.514
       → Exportul registrului intern este blocat până se rezolvă lipsurile obligatorii ✅ v2.12.515
+      → Endpoint-ul XLSX blochează direct exportul dacă există lipsuri obligatorii ✅ v2.12.516
 
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
@@ -923,9 +925,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.515
+VERSIUNE CURENTĂ SURSĂ: 2.12.516
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.515 ✅
+UPDATE ZIP CURENT: 2.12.516 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1249,6 +1251,7 @@ UPDATES ÎN LUCRU:
   2.12.513 → UPDATE 533 Diagnostic registru intern muncă ✅
   2.12.514 → UPDATE 534 Acțiuni diagnostic registru intern muncă ✅
   2.12.515 → UPDATE 535 Blocare export registru intern cu lipsuri ✅
+  2.12.516 → UPDATE 536 Protecție server-side export registru intern ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1745,5 +1748,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 24 August 2026 | InfraFlow sursă v2.12.515*
+*AGENTS.md actualizat: 24 August 2026 | InfraFlow sursă v2.12.516*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

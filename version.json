@@ -1,5 +1,5 @@
 {
-  "version": "2.12.515",
+  "version": "2.12.516",
   "date": "2026-08-24",
-  "changelog": "## v2.12.515 - 2026-08-24\n### Export registru intern blocat când există lipsuri obligatorii\n- Butonul de descărcare a registrului intern este dezactivat când diagnosticul are blocaje.\n- Interfața explică faptul că lipsurile obligatorii trebuie rezolvate înainte de export.\n- Atenționările rămân informative și nu blochează descărcarea.\n- Funcția de descărcare are și protecție suplimentară în cod, nu doar buton disabled.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.516 - 2026-08-24\n### Protecție server-side pentru export registru intern\n- Endpoint-ul XLSX refuză exportul când diagnosticul registrului intern are lipsuri obligatorii.\n- Răspunsul include cod dedicat HR_REGES_WORK_REGISTER_BLOCKED și lista de diagnostic.\n- Cardul HR afișează starea rapidă: neverificat, blocat, exportabil cu atenționări sau gata de export.\n- Atenționările nu blochează exportul; doar lipsurile obligatorii opresc descărcarea.\n- Nu necesită migrare SQL nouă."
 }

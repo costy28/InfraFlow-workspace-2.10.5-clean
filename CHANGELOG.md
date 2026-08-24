@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.516 - 2026-08-24
+
+## Protecție server-side pentru export registru intern
+
+- Endpoint-ul XLSX refuză exportul când diagnosticul registrului intern are lipsuri obligatorii.
+- Răspunsul include cod dedicat `HR_REGES_WORK_REGISTER_BLOCKED` și lista de diagnostic.
+- Cardul HR afișează starea rapidă: neverificat, blocat, exportabil cu atenționări sau gata de export.
+- Atenționările nu blochează exportul; doar lipsurile obligatorii opresc descărcarea.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.515 - 2026-08-24
 
 ## Export registru intern blocat când există lipsuri obligatorii
