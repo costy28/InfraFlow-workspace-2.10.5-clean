@@ -77,6 +77,7 @@ function HRLaborReportingCard({
   laborRegistryDiagnostic,
   canExportLaborRegistry,
   onExportLaborRegistry,
+  onExportLaborRegistryDiagnostic,
   onReloadLaborRegistryDiagnostic,
   onOpenLaborRegistryIssue,
 }) {
@@ -180,6 +181,11 @@ function HRLaborReportingCard({
         {canExportLaborRegistry && isEnabled ? (
           <Button size="sm" onClick={onExportLaborRegistry} disabled={hasExportBlockers}>
             {hasExportBlockers ? 'Rezolvă blocajele pentru export' : '📊 Descarcă registru intern'}
+          </Button>
+        ) : null}
+        {canExportLaborRegistry ? (
+          <Button size="sm" variant="secondary" onClick={onExportLaborRegistryDiagnostic}>
+            📋 Descarcă diagnostic
           </Button>
         ) : null}
         {registry.source_url ? (

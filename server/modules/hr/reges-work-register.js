@@ -89,6 +89,52 @@ function assertRegesWorkRegisterExportable(diagnostic) {
   throw error;
 }
 
+function diagnosticExportRows(diagnostic = {}) {
+  return (diagnostic.rows || []).map((row) => ({
+    "Status": row.severity === "blocker" ? "Blocat" : row.severity === "warning" ? "Atenționare" : "Pregătit",
+    "Angajat": row.employee_name || "",
+    "Marca": row.marca || "",
+    "Contract": row.contract_number || "",
+    "Lipsuri obligatorii": (row.missing || []).join(", "),
+    "Atenționări": (row.warnings || []).join(", "),
+    "Acțiune recomandată": row.severity === "blocker"
+      ? "Completează datele obligatorii înainte de export."
+      : row.severity === "warning"
+        ? "Verifică și completează câmpurile recomandate."
+        : "Nu necesită acțiune.",
+  }));
+}
+
+function buildRegesDiagnosticWorkbook(diagnostic = {}) {
+  const rows = diagnosticExportRows(diagnostic);
+  const summaryRows = [
+    { Indicator: "Angajați verificați", Valoare: diagnostic.summary?.total || 0 },
+    { Indicator: "Pregătiți", Valoare: diagnostic.summary?.ready || 0 },
+    { Indicator: "Atenționări", Valoare: diagnostic.summary?.warning || 0 },
+    { Indicator: "Blocaje", Valoare: diagnostic.summary?.blocker || 0 },
+    { Indicator: "Generat la", Valoare: diagnostic.generated_at || new Date().toISOString() },
+    { Indicator: "Mesaj", Valoare: diagnostic.message || "" },
+  ];
+  const workbook = xlsx.utils.book_new();
+  const summarySheet = xlsx.utils.json_to_sheet(summaryRows);
+  summarySheet["!cols"] = [{ wch: 24 }, { wch: 72 }];
+  xlsx.utils.book_append_sheet(workbook, summarySheet, "Sumar");
+
+  const issuesSheet = xlsx.utils.json_to_sheet(rows.length ? rows : [{ Status: "Pregătit", Angajat: "", Marca: "", Contract: "", "Lipsuri obligatorii": "", "Atenționări": "", "Acțiune recomandată": "Nu există angajați cu lipsuri în diagnostic." }]);
+  issuesSheet["!cols"] = [
+    { wch: 16 },
+    { wch: 28 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 42 },
+    { wch: 42 },
+    { wch: 48 },
+  ];
+  issuesSheet["!autofilter"] = { ref: issuesSheet["!ref"] || "A1:A1" };
+  xlsx.utils.book_append_sheet(workbook, issuesSheet, "Diagnostic");
+  return workbook;
+}
+
 function buildRegesWorkbook(rows) {
   const sheet = xlsx.utils.json_to_sheet(rows);
   sheet["!cols"] = Object.keys(rows[0] || {}).map((key) => ({ wch: Math.max(14, Math.min(42, key.length + 6)) }));
@@ -105,4 +151,4 @@ function buildInternalXml(row) {
 
 function escapeXml(value) { return String(value ?? "").replace(/[<>&'\"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[char])); }
 
-module.exports = { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildRegesWorkbook, buildInternalXml };
+module.exports = { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildRegesWorkbook, buildRegesDiagnosticWorkbook, buildInternalXml };

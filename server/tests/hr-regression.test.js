@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { sanitizeEmployee } = require("../modules/hr/data-policy");
 const { assertTimesheetOpen, findTimesheetLock } = require("../modules/hr/timesheet-locks");
-const { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildInternalXml } = require("../modules/hr/reges-work-register");
+const { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildRegesDiagnosticWorkbook, buildInternalXml } = require("../modules/hr/reges-work-register");
 const { getEmployeeRegistryProfile } = require("../shared/countryRules");
 const { dailyOvertime, overtimePaymentStatus } = require("../modules/hr/overtime-policy");
 const { weeklyControls, mondayOf } = require("../modules/hr/working-time-policy");
@@ -72,6 +72,21 @@ test("exportul registrului intern este blocat cand exista lipsuri obligatorii", 
     { cui: "RO1" }
   );
   assert.equal(assertRegesWorkRegisterExportable(warningOnly), true);
+});
+
+test("diagnosticul registrului intern se poate exporta in workbook cu sumar si probleme", () => {
+  const diagnostic = analyzeRegesWorkRegister(
+    [{ id: 1, cnp: "", nume: "Popescu", prenume: "Ion", marca: "10" }],
+    [{ id: 7, employee_id: 1, status: "activ", numar_contract: "", data_start: "2026-01-01" }],
+    { cui: "RO1" }
+  );
+  const workbook = buildRegesDiagnosticWorkbook(diagnostic);
+
+  assert.deepEqual(workbook.SheetNames, ["Sumar", "Diagnostic"]);
+  const rows = require("xlsx").utils.sheet_to_json(workbook.Sheets.Diagnostic);
+  assert.equal(rows[0].Status, "Blocat");
+  assert.match(rows[0]["Lipsuri obligatorii"], /CNP/);
+  assert.match(rows[0]["Acțiune recomandată"], /Completează/);
 });
 
 test("registrul oficial al salariatilor este adaptor pe tara, nu regula globala", () => {

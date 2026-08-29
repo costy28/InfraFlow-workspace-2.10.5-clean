@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.517 - 2026-08-24
+
+## Export Excel pentru diagnosticul registrului intern HR
+
+- Dashboard HR are buton dedicat pentru descărcarea diagnosticului registrului intern.
+- Endpoint nou pentru XLSX cu sumar și listă de lipsuri/atenționări pe angajat.
+- Exportul diagnosticului este permis și când registrul intern este blocat, ca listă de lucru pentru corecturi.
+- Descărcarea diagnosticului este auditată separat.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.516 - 2026-08-24
 
 ## Protecție server-side pentru export registru intern

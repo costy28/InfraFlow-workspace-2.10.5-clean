@@ -1,5 +1,5 @@
 {
-  "version": "2.12.516",
+  "version": "2.12.517",
   "date": "2026-08-24",
-  "changelog": "## v2.12.516 - 2026-08-24\n### Protecție server-side pentru export registru intern\n- Endpoint-ul XLSX refuză exportul când diagnosticul registrului intern are lipsuri obligatorii.\n- Răspunsul include cod dedicat HR_REGES_WORK_REGISTER_BLOCKED și lista de diagnostic.\n- Cardul HR afișează starea rapidă: neverificat, blocat, exportabil cu atenționări sau gata de export.\n- Atenționările nu blochează exportul; doar lipsurile obligatorii opresc descărcarea.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.517 - 2026-08-24\n### Export Excel pentru diagnosticul registrului intern HR\n- Dashboard HR are buton dedicat pentru descărcarea diagnosticului registrului intern.\n- Endpoint nou pentru XLSX cu sumar și listă de lipsuri/atenționări pe angajat.\n- Exportul diagnosticului este permis și când registrul intern este blocat, ca listă de lucru pentru corecturi.\n- Descărcarea diagnosticului este auditată separat.\n- Nu necesită migrare SQL nouă."
 }

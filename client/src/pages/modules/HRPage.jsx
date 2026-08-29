@@ -726,6 +726,21 @@ export default function HRPage() {
     }
   }
 
+  async function downloadLaborRegistryDiagnostic() {
+    try {
+      const response = await api.get('/hr/reges/work-register/diagnostic.xlsx', { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Diagnostic_registru_lucru_HR_${new Date().toISOString().slice(0, 10)}.xlsx`
+      link.click()
+      URL.revokeObjectURL(url)
+      setNotice('Diagnosticul registrului intern HR a fost descărcat.')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Diagnosticul registrului intern nu a putut fi descărcat.')
+    }
+  }
+
   async function loadLaborRegistryHistory() {
     if (!hasPermission('hr:reges_export')) return
     try {
@@ -2176,6 +2191,7 @@ export default function HRPage() {
           laborRegistryDiagnostic={laborRegistryDiagnostic}
           canExportLaborRegistry={hasPermission('hr:reges_export')}
           onExportLaborRegistry={downloadLaborWorkRegister}
+          onExportLaborRegistryDiagnostic={downloadLaborRegistryDiagnostic}
           onReloadLaborRegistryDiagnostic={loadLaborRegistryDiagnostic}
           onOpenLaborRegistryIssue={openLaborRegistryIssue}
           pendingLeaves={pendingLeaves}

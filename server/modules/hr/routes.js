@@ -17,7 +17,7 @@ const { sendEmail } = require('../messaging/email')
 const { sanitizeEmployee } = require('./data-policy')
 const payrollRoutes = require('./payroll-routes')
 const { assertTimesheetOpen } = require('./timesheet-locks')
-const { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildRegesWorkbook, buildInternalXml } = require('./reges-work-register')
+const { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildRegesWorkbook, buildRegesDiagnosticWorkbook, buildInternalXml } = require('./reges-work-register')
 const { dailyOvertime } = require('./overtime-policy')
 const { weeklyControls } = require('./working-time-policy')
 const { calendarDays, missingMedicalField } = require('./medical-leave-policy')
@@ -4900,6 +4900,24 @@ router.get('/hr/reges/work-register/diagnostic', (req, res, next) => {
     const employees = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.employees WHERE activ=1 FOR JSON PATH;`) : hr.employees.filter((item) => item.activ !== false)
     const contracts = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.contracts WHERE status=N'activ' FOR JSON PATH;`) : hr.contracts.filter((item) => item.status === 'activ')
     sendJson(res, 200, analyzeRegesWorkRegister(employees, contracts, companySettings(db)))
+  } catch (error) { next(error) }
+})
+
+router.get('/hr/reges/work-register/diagnostic.xlsx', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth || !requirePermission(auth, res, 'hr:reges_export')) return
+    const db = readDb()
+    const hr = ensureHrDb(db)
+    const employees = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.employees WHERE activ=1 FOR JSON PATH;`) : hr.employees.filter((item) => item.activ !== false)
+    const contracts = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.contracts WHERE status=N'activ' FOR JSON PATH;`) : hr.contracts.filter((item) => item.status === 'activ')
+    const diagnostic = analyzeRegesWorkRegister(employees, contracts, companySettings(db))
+    const buffer = xlsx.write(buildRegesDiagnosticWorkbook(diagnostic), { type: 'buffer', bookType: 'xlsx' })
+    addAudit(db, auth.user, 'hr_reges_work_register_diagnostic_export', `${diagnostic.summary?.blocker || 0} blocaje, ${diagnostic.summary?.warning || 0} atentionari`)
+    writeDb(db)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', 'attachment; filename="Diagnostic_registru_lucru_HR.xlsx"')
+    res.end(buffer)
   } catch (error) { next(error) }
 })
 
