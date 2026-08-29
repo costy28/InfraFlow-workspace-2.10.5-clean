@@ -1,5 +1,5 @@
 {
-  "version": "2.12.518",
+  "version": "2.12.519",
   "date": "2026-08-29",
-  "changelog": "## v2.12.518 - 2026-08-29\n### Diagnostic HR ghidat pentru registrul intern\n- Diagnosticul registrului intern indică zona de rezolvare pentru fiecare lipsă: Date personale, Contracte sau Setări companie.\n- Fiecare rând are acțiune recomandată și detalii ghidate pe câmpurile lipsă.\n- Butonul Rezolvă folosește ținta din diagnostic, nu mai ghicește după text.\n- Exportul Excel al diagnosticului include zona de rezolvare și detaliile ghidate.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.519 - 2026-08-29\n### Panou ghidat în fișa angajatului pentru diagnosticul registrului intern\n- Când operatorul apasă Rezolvă din diagnosticul registrului intern, fișa angajatului afișează un panou contextual cu problema curentă.\n- Panoul arată sursa, severitatea, zona recomandată și acțiunea concretă de completare.\n- Câmpurile lipsă sunt afișate ca badge-uri, pentru corectare rapidă fără revenire în dashboard.\n- Contextul ghidat se curăță automat la deschiderea altui angajat sau la închiderea fișei.\n- Nu necesită migrare SQL nouă."
 }

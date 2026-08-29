@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.518**
-**Versiune în lucru: v2.12.518**
+**Versiune curentă sursă: v2.12.519**
+**Versiune în lucru: v2.12.519**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -255,6 +255,7 @@ Core System
   ✅ Protecție server-side pentru export registru intern muncă (v2.12.516)
   ✅ Export Excel pentru diagnosticul registrului intern HR (v2.12.517)
   ✅ Diagnostic HR ghidat pentru registrul intern muncă (v2.12.518)
+  ✅ Panou contextual în fișa angajatului pentru diagnosticul registrului intern (v2.12.519)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -855,6 +856,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Endpoint-ul XLSX blochează direct exportul dacă există lipsuri obligatorii ✅ v2.12.516
       → Diagnosticul registrului intern poate fi descărcat ca Excel de lucru ✅ v2.12.517
       → Diagnosticul indică zona exactă de rezolvare și acțiunea recomandată ✅ v2.12.518
+      → Fișa angajatului afișează panou ghidat când este deschisă din diagnostic ✅ v2.12.519
 
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
@@ -929,9 +931,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.518
+VERSIUNE CURENTĂ SURSĂ: 2.12.519
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.518 ✅
+UPDATE ZIP CURENT: 2.12.519 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1258,6 +1260,7 @@ UPDATES ÎN LUCRU:
   2.12.516 → UPDATE 536 Protecție server-side export registru intern ✅
   2.12.517 → UPDATE 537 Export diagnostic registru intern Excel ✅
   2.12.518 → UPDATE 538 Diagnostic HR ghidat registru intern ✅
+  2.12.519 → UPDATE 539 Panou ghidat diagnostic în fișa angajatului ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1754,5 +1757,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 29 August 2026 | InfraFlow sursă v2.12.518*
+*AGENTS.md actualizat: 29 August 2026 | InfraFlow sursă v2.12.519*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

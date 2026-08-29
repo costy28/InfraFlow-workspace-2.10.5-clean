@@ -209,6 +209,7 @@ export default function HRPage() {
   const [employeeWorkflowBusy, setEmployeeWorkflowBusy] = useState(false)
   const [employeeContracts, setEmployeeContracts] = useState([])
   const [employeeAmendments, setEmployeeAmendments] = useState([])
+  const [guidedProfileIssue, setGuidedProfileIssue] = useState(null)
   const [hrDocumentTemplates, setHrDocumentTemplates] = useState([])
   const [templateEditing, setTemplateEditing] = useState(null)
   const [templateAdvancedMode, setTemplateAdvancedMode] = useState(false)
@@ -430,6 +431,7 @@ export default function HRPage() {
     setEmployeeDetails(null)
     setEmployeeProfileTab('date')
     setEmployeeWorkflow(null)
+    setGuidedProfileIssue(null)
     setCoBalance(null)
     setEditMode(false)
     setPhotoPreview(null)
@@ -824,6 +826,16 @@ export default function HRPage() {
       return
     }
     await openEmployee(employee)
+    setGuidedProfileIssue({
+      source: 'Registru intern muncă',
+      title: `Completează datele pentru ${item.employee_name || fullName(employee)}`,
+      severity: item.severity || 'warning',
+      target_area: item.target_area || '',
+      action_label: item.action_label || '',
+      missing: item.missing || [],
+      warnings: item.warnings || [],
+      issue_details: item.issue_details || []
+    })
     if (item.target_tab === 'settings') {
       setError(item.action_label || 'Completează datele organizației în Setări.')
       return
@@ -2567,7 +2579,8 @@ export default function HRPage() {
         coBalance={coBalance}
         activityItems={selectedEmployeeActivity}
         activeTab={employeeProfileTab}
-        onClose={() => setSelectedEmployee(null)}
+        guidedIssue={guidedProfileIssue}
+        onClose={() => { setSelectedEmployee(null); setGuidedProfileIssue(null) }}
         onCancelEdit={() => { setEditMode(false); setPhotoPreview(null); setPhotoFile(null) }}
         onPhotoSelected={file => {
           setPhotoFile(file)

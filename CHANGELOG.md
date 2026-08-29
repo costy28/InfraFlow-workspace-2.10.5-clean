@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.519 - 2026-08-29
+
+## Panou ghidat în fișa angajatului pentru diagnosticul registrului intern
+
+- Când operatorul apasă `Rezolvă` din diagnosticul registrului intern, fișa angajatului afișează un panou contextual cu problema curentă.
+- Panoul arată sursa, severitatea, zona recomandată și acțiunea concretă de completare.
+- Câmpurile lipsă sunt afișate ca badge-uri, pentru corectare rapidă fără revenire în dashboard.
+- Contextul ghidat se curăță automat la deschiderea altui angajat sau la închiderea fișei.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.518 - 2026-08-29
 
 ## Diagnostic HR ghidat pentru registrul intern
