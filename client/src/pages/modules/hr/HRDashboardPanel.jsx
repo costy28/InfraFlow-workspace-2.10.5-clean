@@ -162,8 +162,18 @@ function HRLaborReportingCard({
                 <div key={row.employee_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                   <div>
                     <div className="font-medium text-slate-800">{row.employee_name} {row.marca ? `· marca ${row.marca}` : ''}</div>
+                    {row.target_area ? <div className="mt-0.5 text-xs text-slate-500">Rezolvare: <strong>{row.target_area}</strong> · {row.action_label || 'Verifică datele angajatului.'}</div> : null}
                     {row.missing?.length ? <div className="text-xs text-rose-700">Lipsesc: {row.missing.join(', ')}</div> : null}
                     {row.warnings?.length ? <div className="text-xs text-amber-700">De verificat: {row.warnings.join(', ')}</div> : null}
+                    {row.issue_details?.length ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {row.issue_details.slice(0, 4).map(issue => (
+                          <span key={`${row.employee_id}-${issue.field}`} className={`rounded-full px-2 py-0.5 text-[11px] ${issue.severity === 'blocker' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {issue.field} → {issue.area}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <Button size="sm" variant="secondary" onClick={() => onOpenLaborRegistryIssue?.(row)}>
                     Rezolvă

@@ -824,6 +824,15 @@ export default function HRPage() {
       return
     }
     await openEmployee(employee)
+    if (item.target_tab === 'settings') {
+      setError(item.action_label || 'Completează datele organizației în Setări.')
+      return
+    }
+    if (item.target_tab) {
+      setEmployeeProfileTab(item.target_tab)
+      if (item.target_tab === 'date') setEditMode(true)
+      return
+    }
     const missing = [...(item.missing || []), ...(item.warnings || [])].map(value => String(value).toLowerCase())
     const hasContractIssue = missing.some(value => value.includes('contract') || value.includes('normă') || value.includes('salariu') || value.includes('funcție') || value.includes('dată începere'))
     if (hasContractIssue) {

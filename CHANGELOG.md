@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.518 - 2026-08-29
+
+## Diagnostic HR ghidat pentru registrul intern
+
+- Diagnosticul registrului intern indică zona de rezolvare pentru fiecare lipsă: Date personale, Contracte sau Setări companie.
+- Fiecare rând are acțiune recomandată și detalii ghidate pe câmpurile lipsă.
+- Butonul `Rezolvă` folosește ținta din diagnostic, nu mai ghicește după text.
+- Exportul Excel al diagnosticului include zona de rezolvare și detaliile ghidate.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.517 - 2026-08-24
 
 ## Export Excel pentru diagnosticul registrului intern HR

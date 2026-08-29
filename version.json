@@ -1,5 +1,5 @@
 {
-  "version": "2.12.517",
-  "date": "2026-08-24",
-  "changelog": "## v2.12.517 - 2026-08-24\n### Export Excel pentru diagnosticul registrului intern HR\n- Dashboard HR are buton dedicat pentru descărcarea diagnosticului registrului intern.\n- Endpoint nou pentru XLSX cu sumar și listă de lipsuri/atenționări pe angajat.\n- Exportul diagnosticului este permis și când registrul intern este blocat, ca listă de lucru pentru corecturi.\n- Descărcarea diagnosticului este auditată separat.\n- Nu necesită migrare SQL nouă."
+  "version": "2.12.518",
+  "date": "2026-08-29",
+  "changelog": "## v2.12.518 - 2026-08-29\n### Diagnostic HR ghidat pentru registrul intern\n- Diagnosticul registrului intern indică zona de rezolvare pentru fiecare lipsă: Date personale, Contracte sau Setări companie.\n- Fiecare rând are acțiune recomandată și detalii ghidate pe câmpurile lipsă.\n- Butonul Rezolvă folosește ținta din diagnostic, nu mai ghicește după text.\n- Exportul Excel al diagnosticului include zona de rezolvare și detaliile ghidate.\n- Nu necesită migrare SQL nouă."
 }

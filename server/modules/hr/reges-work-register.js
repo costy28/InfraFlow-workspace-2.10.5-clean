@@ -1,5 +1,27 @@
 const xlsx = require("xlsx");
 
+const issueGuides = {
+  "CUI angajator": { area: "Setări companie", target_tab: "settings", action: "Completează CUI-ul organizației în Setări." },
+  "CNP": { area: "Date personale", target_tab: "date", action: "Completează CNP-ul în fișa angajatului." },
+  "nume salariat": { area: "Date personale", target_tab: "date", action: "Completează numele și prenumele în fișa angajatului." },
+  "contract activ": { area: "Contracte", target_tab: "contracte", action: "Creează sau reactivează contractul salarial operațional." },
+  "număr contract": { area: "Contracte", target_tab: "contracte", action: "Completează numărul contractului activ." },
+  "dată contract": { area: "Contracte", target_tab: "contracte", action: "Completează data contractului activ." },
+  "dată începere": { area: "Contracte", target_tab: "contracte", action: "Completează data începerii activității." },
+  "funcție": { area: "Contracte", target_tab: "contracte", action: "Verifică funcția în contract sau în fișa angajatului." },
+  "normă ore": { area: "Contracte", target_tab: "contracte", action: "Verifică norma zilnică de lucru." },
+  "salariu bază": { area: "Contracte", target_tab: "contracte", action: "Verifică salariul de bază brut." },
+};
+
+function guideForIssue(label, severity) {
+  const guide = issueGuides[label] || { area: severity === "warning" ? "Verificare HR" : "Fișă angajat", target_tab: "date", action: "Verifică datele angajatului." };
+  return { field: label, severity, ...guide };
+}
+
+function primaryGuide(issueDetails = []) {
+  return issueDetails.find((item) => item.severity === "blocker") || issueDetails[0] || null;
+}
+
 function buildRegesWorkRow(employee, contract, company = {}) {
   return {
     Angajator_CUI: company.cui || company.company_cui || "",
@@ -42,6 +64,12 @@ function analyzeRegesWorkRegister(employees = [], contracts = [], company = {}) 
       if (!contract.salariu_baza) warnings.push("salariu bază");
     }
 
+    const issue_details = [
+      ...missing.map((label) => guideForIssue(label, "blocker")),
+      ...warnings.map((label) => guideForIssue(label, "warning")),
+    ];
+    const primary = primaryGuide(issue_details);
+
     return {
       employee_id: employee.id,
       marca: employee.marca || "",
@@ -51,6 +79,10 @@ function analyzeRegesWorkRegister(employees = [], contracts = [], company = {}) 
       severity: missing.length ? "blocker" : warnings.length ? "warning" : "ready",
       missing,
       warnings,
+      issue_details,
+      target_area: primary?.area || "Pregătit",
+      target_tab: primary?.target_tab || "date",
+      action_label: primary?.action || "Nu necesită acțiune.",
     };
   });
 
@@ -95,13 +127,11 @@ function diagnosticExportRows(diagnostic = {}) {
     "Angajat": row.employee_name || "",
     "Marca": row.marca || "",
     "Contract": row.contract_number || "",
+    "Zona de rezolvare": row.target_area || "",
     "Lipsuri obligatorii": (row.missing || []).join(", "),
     "Atenționări": (row.warnings || []).join(", "),
-    "Acțiune recomandată": row.severity === "blocker"
-      ? "Completează datele obligatorii înainte de export."
-      : row.severity === "warning"
-        ? "Verifică și completează câmpurile recomandate."
-        : "Nu necesită acțiune.",
+    "Acțiune recomandată": row.action_label || "Nu necesită acțiune.",
+    "Detalii ghidate": (row.issue_details || []).map((item) => `${item.field} → ${item.area}: ${item.action}`).join(" | "),
   }));
 }
 
@@ -120,15 +150,17 @@ function buildRegesDiagnosticWorkbook(diagnostic = {}) {
   summarySheet["!cols"] = [{ wch: 24 }, { wch: 72 }];
   xlsx.utils.book_append_sheet(workbook, summarySheet, "Sumar");
 
-  const issuesSheet = xlsx.utils.json_to_sheet(rows.length ? rows : [{ Status: "Pregătit", Angajat: "", Marca: "", Contract: "", "Lipsuri obligatorii": "", "Atenționări": "", "Acțiune recomandată": "Nu există angajați cu lipsuri în diagnostic." }]);
+  const issuesSheet = xlsx.utils.json_to_sheet(rows.length ? rows : [{ Status: "Pregătit", Angajat: "", Marca: "", Contract: "", "Zona de rezolvare": "", "Lipsuri obligatorii": "", "Atenționări": "", "Acțiune recomandată": "Nu există angajați cu lipsuri în diagnostic.", "Detalii ghidate": "" }]);
   issuesSheet["!cols"] = [
     { wch: 16 },
     { wch: 28 },
     { wch: 12 },
     { wch: 18 },
+    { wch: 22 },
     { wch: 42 },
     { wch: 42 },
     { wch: 48 },
+    { wch: 80 },
   ];
   issuesSheet["!autofilter"] = { ref: issuesSheet["!ref"] || "A1:A1" };
   xlsx.utils.book_append_sheet(workbook, issuesSheet, "Diagnostic");

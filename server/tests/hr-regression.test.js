@@ -53,6 +53,11 @@ test("diagnosticul registrului intern semnaleaza lipsurile obligatorii", () => {
   assert.equal(diagnostic.summary.total, 1);
   assert.equal(diagnostic.summary.blocker, 1);
   assert.deepEqual(diagnostic.rows[0].missing, ["CNP", "număr contract", "dată contract"]);
+  assert.equal(diagnostic.rows[0].target_area, "Date personale");
+  assert.equal(diagnostic.rows[0].target_tab, "date");
+  assert.match(diagnostic.rows[0].action_label, /CNP/);
+  assert.deepEqual(diagnostic.rows[0].issue_details.filter((item) => item.severity === "blocker").map((item) => item.area), ["Date personale", "Contracte", "Contracte"]);
+  assert.deepEqual(diagnostic.rows[0].issue_details.filter((item) => item.severity === "warning").map((item) => item.area), ["Contracte", "Contracte", "Contracte"]);
 });
 
 test("exportul registrului intern este blocat cand exista lipsuri obligatorii", () => {
@@ -85,8 +90,10 @@ test("diagnosticul registrului intern se poate exporta in workbook cu sumar si p
   assert.deepEqual(workbook.SheetNames, ["Sumar", "Diagnostic"]);
   const rows = require("xlsx").utils.sheet_to_json(workbook.Sheets.Diagnostic);
   assert.equal(rows[0].Status, "Blocat");
+  assert.equal(rows[0]["Zona de rezolvare"], "Date personale");
   assert.match(rows[0]["Lipsuri obligatorii"], /CNP/);
   assert.match(rows[0]["Acțiune recomandată"], /Completează/);
+  assert.match(rows[0]["Detalii ghidate"], /CNP → Date personale/);
 });
 
 test("registrul oficial al salariatilor este adaptor pe tara, nu regula globala", () => {
