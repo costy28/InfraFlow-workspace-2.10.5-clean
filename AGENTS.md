@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.521**
-**Versiune în lucru: v2.12.521**
+**Versiune curentă sursă: v2.12.522**
+**Versiune în lucru: v2.12.522**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -258,6 +258,7 @@ Core System
   ✅ Panou contextual în fișa angajatului pentru diagnosticul registrului intern (v2.12.519)
   ✅ Evidențiere câmpuri HR din diagnosticul registrului intern (v2.12.520)
   ✅ Checklist live pentru diagnosticul registrului intern în fișa angajatului (v2.12.521)
+  ✅ Reîmprospătare diagnostic HR după corectarea fișei angajatului (v2.12.522)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -861,6 +862,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Fișa angajatului afișează panou ghidat când este deschisă din diagnostic ✅ v2.12.519
       → Câmpurile de corectat sunt evidențiate în Date personale și Contracte ✅ v2.12.520
       → Fișa angajatului afișează checklist live pentru lipsurile din diagnostic ✅ v2.12.521
+      → Diagnosticul ghidat se reîmprospătează după salvarea datelor și contractelor ✅ v2.12.522
 
   [ ] Multi-limbă + profil de țară
       → i18n în frontend
@@ -935,9 +937,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.521
+VERSIUNE CURENTĂ SURSĂ: 2.12.522
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.521 ✅
+UPDATE ZIP CURENT: 2.12.522 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1267,6 +1269,7 @@ UPDATES ÎN LUCRU:
   2.12.519 → UPDATE 539 Panou ghidat diagnostic în fișa angajatului ✅
   2.12.520 → UPDATE 540 Evidențiere câmpuri diagnostic registru intern ✅
   2.12.521 → UPDATE 541 Checklist live diagnostic registru intern în fișa angajatului ✅
+  2.12.522 → UPDATE 542 Reîmprospătare diagnostic HR după corectarea fișei ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1763,5 +1766,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 30 August 2026 | InfraFlow sursă v2.12.521*
+*AGENTS.md actualizat: 30 August 2026 | InfraFlow sursă v2.12.522*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

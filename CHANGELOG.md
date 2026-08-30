@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.522 - 2026-08-30
+
+## Reîmprospătare automată diagnostic HR după corectarea fișei
+
+- După salvarea datelor personale, diagnosticul registrului intern se recalculează automat.
+- După salvarea sau actualizarea contractului operațional, diagnosticul ghidat se reîncarcă automat.
+- Dacă angajatul nu mai are lipsuri, panoul ghidat se închide singur.
+- Dacă mai există probleme, panoul se actualizează cu următoarea zonă de rezolvare.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.521 - 2026-08-30
 
 ## Checklist live pentru diagnosticul registrului intern în fișa angajatului

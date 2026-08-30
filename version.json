@@ -1,5 +1,5 @@
 {
-  "version": "2.12.521",
+  "version": "2.12.522",
   "date": "2026-08-29",
-  "changelog": "## v2.12.521 - 2026-08-30\n### Checklist live pentru diagnosticul registrului intern în fișa angajatului\n- Panoul ghidat din fișa angajatului afișează progresul de completare pentru câmpurile cerute de diagnostic.\n- Fiecare lipsă primește status vizual: rezolvat, de completat, de creat sau în Setări.\n- Blocajele rămase sunt numărate separat, ca operatorul să știe dacă exportul mai este oprit.\n- Progresul se actualizează din datele curente ale angajatului și din contractul activ.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.522 - 2026-08-30\n### Reîmprospătare automată diagnostic HR după corectarea fișei\n- După salvarea datelor personale, diagnosticul registrului intern se recalculează automat.\n- După salvarea sau actualizarea contractului operațional, diagnosticul ghidat se reîncarcă automat.\n- Dacă angajatul nu mai are lipsuri, panoul ghidat se închide singur.\n- Dacă mai există probleme, panoul se actualizează cu următoarea zonă de rezolvare.\n- Nu necesită migrare SQL nouă."
 }

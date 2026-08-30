@@ -763,6 +763,34 @@ export default function HRPage() {
     }
   }
 
+  async function refreshGuidedLaborRegistryIssue(employeeId = selectedEmployee?.id) {
+    if (!employeeId || !guidedProfileIssue || !hasPermission('hr:reges_export')) return
+    try {
+      const response = await api.get('/hr/reges/work-register/diagnostic')
+      const diagnostic = response.data || null
+      setLaborRegistryDiagnostic(diagnostic)
+      const row = (Array.isArray(diagnostic?.rows) ? diagnostic.rows : [])
+        .find(item => String(item.employee_id) === String(employeeId) && item.severity !== 'ready')
+      if (!row) {
+        setGuidedProfileIssue(null)
+        return
+      }
+      setGuidedProfileIssue({
+        source: 'Registru intern muncă',
+        title: `Completează datele pentru ${row.employee_name || fullName(employeeDetails || selectedEmployee || {})}`,
+        severity: row.severity || 'warning',
+        target_area: row.target_area || '',
+        action_label: row.action_label || '',
+        missing: row.missing || [],
+        warnings: row.warnings || [],
+        issue_details: row.issue_details || []
+      })
+      if (row.target_tab && row.target_tab !== 'settings') setEmployeeProfileTab(row.target_tab)
+    } catch {
+      await loadLaborRegistryDiagnostic()
+    }
+  }
+
   async function loadAdvancedExpirations() {
     try {
       const response = await api.get('/hr/advanced-expirations')
@@ -1021,6 +1049,7 @@ export default function HRPage() {
     setEmployeeAmendments(arrayFrom(amendments.data, ['amendments', 'items']))
     const details = await api.get(`/hr/employees/${employeeId}`).catch(() => null)
     if (details?.data) setEmployeeDetails(details.data)
+    await refreshGuidedLaborRegistryIssue(employeeId)
   }
 
   async function loadRaportLunar(employeeId, luna) {
@@ -1380,6 +1409,7 @@ export default function HRPage() {
       }
       setEmployeeDetails(details)
       setTransferHistory(arrayFrom(transfersResponse.data, ['transfers', 'items']))
+      await refreshGuidedLaborRegistryIssue(selectedEmployee.id)
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Eroare la salvare.')
     }
