@@ -52,6 +52,7 @@ export default function HREmployeePersonalTab({
   onEditFormChange,
   onLoadAdeverinta,
   onPrintAdeverinta,
+  guidedIssue,
 }) {
   if (editMode) {
     return (
@@ -61,6 +62,7 @@ export default function HREmployeePersonalTab({
         employee={employee}
         linkableUsers={linkableUsers}
         onEditFormChange={onEditFormChange}
+        guidedIssue={guidedIssue}
       />
     )
   }
@@ -81,8 +83,11 @@ export default function HREmployeePersonalTab({
   )
 }
 
-function HREmployeePersonalEditForm({ departments, editForm, employee, linkableUsers, onEditFormChange }) {
+function HREmployeePersonalEditForm({ departments, editForm, employee, linkableUsers, onEditFormChange, guidedIssue }) {
   const patchForm = values => onEditFormChange({ ...editForm, ...values })
+  const guidedFields = new Set((guidedIssue?.issue_details || []).filter(item => item.target_tab === 'date').map(item => String(item.field || '').toLowerCase()))
+  const highlightClass = field => guidedFields.has(field) ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''
+  const nameHighlighted = guidedFields.has('nume salariat')
 
   return (
     <div className="grid gap-4">
@@ -95,14 +100,14 @@ function HREmployeePersonalEditForm({ departments, editForm, employee, linkableU
       <div className="rounded-lg border border-slate-200 p-3">
         <div className="mb-3 text-xs font-semibold uppercase text-slate-500">📋 Date personale</div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Nume" value={editForm.nume || ''} onChange={event => patchForm({ nume: event.target.value })} />
-          <Input label="Prenume" value={editForm.prenume || ''} onChange={event => patchForm({ prenume: event.target.value })} />
+          <Input label="Nume" value={editForm.nume || ''} onChange={event => patchForm({ nume: event.target.value })} className={nameHighlighted ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''} />
+          <Input label="Prenume" value={editForm.prenume || ''} onChange={event => patchForm({ prenume: event.target.value })} className={nameHighlighted ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''} />
           <Input
             label="CNP *"
             maxLength={13}
             value={editForm.cnp || ''}
             onChange={event => patchForm({ cnp: event.target.value })}
-            className={!editForm.cnp ? 'border-yellow-400 bg-yellow-50' : ''}
+            className={highlightClass('cnp') || (!editForm.cnp ? 'border-yellow-400 bg-yellow-50' : '')}
             placeholder={!editForm.cnp ? 'Completează CNP (obligatoriu)' : ''}
           />
           <Input label="Nr. marcă" value={editForm.marca || ''} onChange={event => patchForm({ marca: event.target.value })} />

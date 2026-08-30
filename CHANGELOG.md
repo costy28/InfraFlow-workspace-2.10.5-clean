@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.520 - 2026-08-29
+
+## Evidențiere câmpuri HR din diagnosticul registrului intern
+
+- Datele personale evidențiază CNP/nume/prenume când diagnosticul cere completare.
+- Tabul Contracte afișează ghid de corectare și butoane rapide pentru editare contract activ sau creare contract activ.
+- Câmpurile relevante din contract sunt evidențiate: număr contract, dată contract, dată începere, normă ore și salariu bază.
+- Contextul ghidat rămâne local fișei angajatului și nu modifică date automat.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.519 - 2026-08-29
 
 ## Panou ghidat în fișa angajatului pentru diagnosticul registrului intern

@@ -2618,6 +2618,7 @@ export default function HRPage() {
             workflow={employeeWorkflow}
             workflowBusy={employeeWorkflowBusy}
             guidedWorkflowStep={guidedWorkflowStep}
+            guidedIssue={guidedProfileIssue}
             employeeEquipment={employeeEquipment}
             canManageEquipment={canManageEquipment}
             onEditFormChange={setEditForm}

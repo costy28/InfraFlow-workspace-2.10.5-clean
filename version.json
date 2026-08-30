@@ -1,5 +1,5 @@
 {
-  "version": "2.12.519",
+  "version": "2.12.520",
   "date": "2026-08-29",
-  "changelog": "## v2.12.519 - 2026-08-29\n### Panou ghidat în fișa angajatului pentru diagnosticul registrului intern\n- Când operatorul apasă Rezolvă din diagnosticul registrului intern, fișa angajatului afișează un panou contextual cu problema curentă.\n- Panoul arată sursa, severitatea, zona recomandată și acțiunea concretă de completare.\n- Câmpurile lipsă sunt afișate ca badge-uri, pentru corectare rapidă fără revenire în dashboard.\n- Contextul ghidat se curăță automat la deschiderea altui angajat sau la închiderea fișei.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.520 - 2026-08-29\n### Evidențiere câmpuri HR din diagnosticul registrului intern\n- Datele personale evidențiază CNP/nume/prenume când diagnosticul cere completare.\n- Tabul Contracte afișează ghid de corectare și butoane rapide pentru editare contract activ sau creare contract activ.\n- Câmpurile relevante din contract sunt evidențiate: număr contract, dată contract, dată începere, normă ore și salariu bază.\n- Contextul ghidat rămâne local fișei angajatului și nu modifică date automat.\n- Nu necesită migrare SQL nouă."
 }

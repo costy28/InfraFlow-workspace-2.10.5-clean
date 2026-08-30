@@ -33,12 +33,17 @@ function EmployeeContractsPanel({
   onGenerateAmendmentWord,
   onArchiveContractWord,
   onArchiveAmendmentWord,
-  documentTemplates = []
+  documentTemplates = [],
+  guidedIssue,
 }) {
   const [editing, setEditing] = useState(null)
   const [amendment, setAmendment] = useState(null)
   const hasCimWordTemplate = documentTemplates.some(item => item.id === 'cim' && item.word_template_file)
   const hasActWordTemplate = documentTemplates.some(item => item.id === 'act_aditional' && item.word_template_file)
+  const guidedFields = new Set((guidedIssue?.issue_details || []).filter(item => item.target_tab === 'contracte').map(item => String(item.field || '').toLowerCase()))
+  const hasContractGuide = guidedFields.size > 0 || guidedIssue?.target_tab === 'contracte'
+  const highlightClass = (...fields) => fields.some(field => guidedFields.has(field)) ? 'rounded border border-rose-300 bg-rose-50 px-1 text-rose-800' : ''
+  const inputHighlightClass = (...fields) => fields.some(field => guidedFields.has(field)) ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''
 
   function openNew() {
     setEditing({ ...emptyContractForm, data_contract: new Date().toISOString().slice(0, 10), data_start: new Date().toISOString().slice(0, 10) })
@@ -116,6 +121,17 @@ function EmployeeContractsPanel({
         </div>
         {canManage ? <Button size="sm" onClick={openNew}>+ Contract nou</Button> : null}
       </div>
+      {hasContractGuide ? (
+        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <div className="font-semibold">De completat pentru registrul intern</div>
+          <div className="mt-1 text-xs">{guidedIssue?.action_label || 'Completează datele contractului activ.'}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {Array.from(guidedFields).map(field => <span key={field} className="rounded-full bg-white px-2 py-0.5 text-[11px]">{field}</span>)}
+            {canManage && active[0] ? <Button size="sm" variant="secondary" onClick={() => openEdit(active[0])}>Editează contract activ</Button> : null}
+            {canManage && !active[0] ? <Button size="sm" onClick={openNew}>Creează contract activ</Button> : null}
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-2">
         {contracts.map(contract => (
           <div key={contract.id} className={`rounded border px-3 py-2 text-sm ${String(contract.status || 'activ') === 'incetat' ? 'border-slate-100 bg-slate-50 text-slate-500' : 'border-primary-100 bg-primary-50/40'}`}>
@@ -129,10 +145,10 @@ function EmployeeContractsPanel({
               </div>
             </div>
             <div className="mt-1 grid gap-1 text-xs text-slate-600 sm:grid-cols-4">
-              <div>Data contract: {String(contract.data_contract || '').slice(0, 10) || '-'}</div>
-              <div>Start: {String(contract.data_start || contract.data_incepere || '').slice(0, 10) || '-'}</div>
-              <div>Norma: {contract.norma_ore || 8} ore/zi</div>
-              <div>Salariu: {contract.salariu_baza ? `${Number(contract.salariu_baza).toLocaleString('ro-RO')} RON` : '-'}</div>
+              <div className={highlightClass('dată contract')}>Data contract: {String(contract.data_contract || '').slice(0, 10) || '-'}</div>
+              <div className={highlightClass('dată începere')}>Start: {String(contract.data_start || contract.data_incepere || '').slice(0, 10) || '-'}</div>
+              <div className={highlightClass('normă ore')}>Norma: {contract.norma_ore || 8} ore/zi</div>
+              <div className={highlightClass('salariu bază')}>Salariu: {contract.salariu_baza ? `${Number(contract.salariu_baza).toLocaleString('ro-RO')} RON` : '-'}</div>
             </div>
             {byContract(contract.id).length ? <div className="mt-2 rounded bg-white/70 p-2 text-xs"><div className="mb-1 font-semibold text-slate-600">Istoric acte adiționale</div>{byContract(contract.id).map(item => <div key={item.id || item.uuid} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-1"><span>{item.numar_act || `Act #${item.id}`} · {item.tip} · efect {String(item.data_efect || '').slice(0, 10)}</span><span className="text-slate-500">{item.salariu_baza ? `salariu ${Number(item.salariu_baza).toLocaleString('ro-RO')} RON` : ''}{item.norma_ore ? ` norma ${item.norma_ore}h` : ''}{item.functia ? ` ${item.functia}` : ''}{item.status_contract ? ` ${item.status_contract}` : ''}</span><div className="flex gap-1"><Button size="sm" variant="secondary" onClick={() => onPrintAmendment?.(item, contract)}>Genereaza act</Button>{hasActWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onGenerateAmendmentWord?.(item, contract)}>Word</Button> : null}{hasActWordTemplate ? <Button size="sm" variant="secondary" onClick={() => onArchiveAmendmentWord?.(item, contract)}>Arhivează</Button> : null}</div></div>)}</div> : null}
           </div>
@@ -144,14 +160,14 @@ function EmployeeContractsPanel({
       <Modal open={Boolean(editing)} title={editing?.id ? 'Editeaza contract salarial' : 'Contract salarial nou'} onClose={() => setEditing(null)} size="md">
         <form className="grid gap-3" onSubmit={saveContract}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input label="Numar contract" value={editing?.numar_contract || ''} onChange={event => setEditing(current => ({ ...current, numar_contract: event.target.value }))} placeholder="se genereaza la contract nou" />
+            <Input label="Numar contract" value={editing?.numar_contract || ''} onChange={event => setEditing(current => ({ ...current, numar_contract: event.target.value }))} placeholder="se genereaza la contract nou" className={inputHighlightClass('număr contract')} />
             <Select label="Tip" value={editing?.tip || 'CIM'} onChange={event => setEditing(current => ({ ...current, tip: event.target.value }))} options={[{ value: 'CIM', label: 'CIM' }, { value: 'PFA', label: 'PFA' }, { value: 'zilier', label: 'Zilier' }, { value: 'detasat', label: 'Detasat' }]} />
-            <Input label="Data contract" type="date" value={editing?.data_contract || ''} onChange={event => setEditing(current => ({ ...current, data_contract: event.target.value }))} />
-            <Input label="Data inceperii activitatii" type="date" value={editing?.data_start || ''} onChange={event => setEditing(current => ({ ...current, data_start: event.target.value }))} required />
+            <Input label="Data contract" type="date" value={editing?.data_contract || ''} onChange={event => setEditing(current => ({ ...current, data_contract: event.target.value }))} className={inputHighlightClass('dată contract')} />
+            <Input label="Data inceperii activitatii" type="date" value={editing?.data_start || ''} onChange={event => setEditing(current => ({ ...current, data_start: event.target.value }))} className={inputHighlightClass('dată începere')} required />
             <Input label="Data sfarsit" type="date" value={editing?.data_sfarsit || ''} onChange={event => setEditing(current => ({ ...current, data_sfarsit: event.target.value }))} />
             <Select label="Status" value={editing?.status || 'activ'} onChange={event => setEditing(current => ({ ...current, status: event.target.value }))} options={[{ value: 'activ', label: 'Activ' }, { value: 'suspendat', label: 'Suspendat' }, { value: 'incetat', label: 'Incetat' }]} />
-            <Input label="Norma ore/zi" type="number" step="0.01" value={editing?.norma_ore || ''} onChange={event => setEditing(current => ({ ...current, norma_ore: event.target.value }))} required />
-            <Input label="Salariu baza brut" type="number" step="0.01" value={editing?.salariu_baza || ''} onChange={event => setEditing(current => ({ ...current, salariu_baza: event.target.value }))} />
+            <Input label="Norma ore/zi" type="number" step="0.01" value={editing?.norma_ore || ''} onChange={event => setEditing(current => ({ ...current, norma_ore: event.target.value }))} className={inputHighlightClass('normă ore')} required />
+            <Input label="Salariu baza brut" type="number" step="0.01" value={editing?.salariu_baza || ''} onChange={event => setEditing(current => ({ ...current, salariu_baza: event.target.value }))} className={inputHighlightClass('salariu bază')} />
             <Input label="Cost ora" type="number" step="0.01" value={editing?.cost_ora || ''} onChange={event => setEditing(current => ({ ...current, cost_ora: event.target.value }))} />
           </div>
           <Input label="Observatii" value={editing?.observatii || ''} onChange={event => setEditing(current => ({ ...current, observatii: event.target.value }))} />
@@ -204,6 +220,7 @@ export default function HREmployeeContractsTab({
   onArchiveContractWord,
   onArchiveAmendmentWord,
   documentTemplates,
+  guidedIssue,
 }) {
   const transfers = Array.isArray(transferHistory) ? transferHistory : []
 
@@ -224,6 +241,7 @@ export default function HREmployeeContractsTab({
         onArchiveContractWord={onArchiveContractWord}
         onArchiveAmendmentWord={onArchiveAmendmentWord}
         documentTemplates={documentTemplates}
+        guidedIssue={guidedIssue}
       />
 
       {transfers.length ? (

@@ -31,6 +31,7 @@ export default function HREmployeeProfileTabsRouter({
   workflow,
   workflowBusy,
   guidedWorkflowStep,
+  guidedIssue,
   employeeEquipment,
   canManageEquipment,
   onEditFormChange,
@@ -76,6 +77,7 @@ export default function HREmployeeProfileTabsRouter({
         onLoadAdeverinta={onLoadAdeverinta}
         onAdeverintaTipChange={onAdeverintaTipChange}
         onPrintAdeverinta={onPrintAdeverinta}
+        guidedIssue={guidedIssue}
       />
     )
   }
@@ -98,6 +100,7 @@ export default function HREmployeeProfileTabsRouter({
         onArchiveContractWord={onArchiveContractWord}
         onArchiveAmendmentWord={onArchiveAmendmentWord}
         documentTemplates={documentTemplates}
+        guidedIssue={guidedIssue}
       />
     )
   }
