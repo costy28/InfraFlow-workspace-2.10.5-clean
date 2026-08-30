@@ -2580,6 +2580,7 @@ export default function HRPage() {
         activityItems={selectedEmployeeActivity}
         activeTab={employeeProfileTab}
         guidedIssue={guidedProfileIssue}
+        editForm={editForm}
         onClose={() => { setSelectedEmployee(null); setGuidedProfileIssue(null) }}
         onCancelEdit={() => { setEditMode(false); setPhotoPreview(null); setPhotoFile(null) }}
         onPhotoSelected={file => {

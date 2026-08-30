@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.521 - 2026-08-30
+
+## Checklist live pentru diagnosticul registrului intern în fișa angajatului
+
+- Panoul ghidat din fișa angajatului afișează progresul de completare pentru câmpurile cerute de diagnostic.
+- Fiecare lipsă primește status vizual: rezolvat, de completat, de creat sau în Setări.
+- Blocajele rămase sunt numărate separat, ca operatorul să știe dacă exportul mai este oprit.
+- Progresul se actualizează din datele curente ale angajatului și din contractul activ.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.520 - 2026-08-29
 
 ## Evidențiere câmpuri HR din diagnosticul registrului intern
