@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.524 - 2026-09-01
+
+## Diagnostic securitate și acces remote în Setări
+
+- Setările au tab nou „Securitate” pentru administrator.
+- Backend-ul expune diagnostic read-only pentru mod acces, sesiuni active, stații autorizate și baza de date.
+- Panoul explică diferența dintre aplicație expusă controlat și SQL Server protejat în spatele serverului.
+- Sunt afișate recomandări pentru Cloudflare Tunnel/VPN, fără tokenuri, parole sau connection string în client.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.523 - 2026-09-01
 
 ## Reverificare manuală pentru diagnosticul HR din fișa angajatului

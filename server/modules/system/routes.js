@@ -5,7 +5,7 @@ const crypto = require('crypto')
 const childProcess = require('child_process')
 const os = require('os')
 const AdmZip = require('adm-zip')
-const { requireAuth, hashPassword } = require('../../core/auth')
+const { requireAuth, hashPassword, sessions } = require('../../core/auth')
 const {
   requirePermission,
   requireSuperadmin,
@@ -35,6 +35,7 @@ const {
 } = require('../messaging/routes')
 const {
   buildSystemDiagnostics,
+  buildSecurityAccessDiagnostic,
   buildSupportDiagnostic,
   createServerBackup,
   installUpdatePackage,
@@ -212,6 +213,13 @@ router.get('/system/diagnostics', (req, res) => {
   if (!auth) return;
   if (!requirePermission(auth, res, "system:view")) return;
   sendJson(res, 200, buildSystemDiagnostics(auth.db));
+})
+
+router.get('/system/security', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+  sendJson(res, 200, { diagnostic: buildSecurityAccessDiagnostic(auth.db, sessions, req) });
 })
 
 router.get('/system/diagnostics/export', (req, res) => {

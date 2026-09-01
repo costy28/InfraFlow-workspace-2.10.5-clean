@@ -12,10 +12,10 @@ import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
 import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
-import { formatDate, formatMoney } from '../utils/format'
+import { formatDate, formatDateTime, formatMoney, timeAgo } from '../utils/format'
 
 const tabGroups = [
-  { label: 'Sistem', tabs: ['General', 'Bază date', 'Licență', 'Actualizări'] },
+  { label: 'Sistem', tabs: ['General', 'Securitate', 'Bază date', 'Licență', 'Actualizări'] },
   { label: 'Administrare', tabs: ['Utilizatori', 'Roluri', 'Departamente', 'Module'] },
   { label: 'Interfață', tabs: ['Aspect', 'AI Assistant'] },
   { label: 'Integrări', tabs: ['Cântar', 'Integrări'] },
@@ -35,6 +35,20 @@ function getUserManagerId(user) {
 
 function userDisplayName(user) {
   return user?.name || user?.username || user?.id || '-'
+}
+
+function securityTone(status) {
+  if (['protected', 'ok'].includes(status)) return 'success'
+  if (['good_with_notes', 'info'].includes(status)) return 'info'
+  if (['attention', 'warn', 'warning'].includes(status)) return 'warning'
+  return 'danger'
+}
+
+function securityCardClass(status) {
+  if (['protected', 'ok'].includes(status)) return 'border-primary-100 bg-primary-50/70'
+  if (['good_with_notes', 'info'].includes(status)) return 'border-blue-100 bg-blue-50/70'
+  if (['attention', 'warn', 'warning'].includes(status)) return 'border-amber-200 bg-amber-50/80'
+  return 'border-rose-200 bg-rose-50/80'
 }
 
 const roleDescriptions = {
@@ -980,6 +994,7 @@ export default function SetariPage() {
   const [piusiAssets, setPiusiAssets] = useState([])
   const [piusiSyncing, setPiusiSyncing] = useState(false)
   const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
+  const [securityDiagnostic, setSecurityDiagnostic] = useState(null)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
   const [loading, setLoading] = useState(true)
@@ -1137,7 +1152,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes, emailSyncStatusRes, workflowAuditRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes, emailSyncStatusRes, workflowAuditRes, securityRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -1155,6 +1170,7 @@ export default function SetariPage() {
         api.get('/settings/country-rules'),
         api.get('/messaging/email/sync/status'),
         api.get('/settings/workflow-audit'),
+        api.get('/system/security'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -1192,6 +1208,7 @@ export default function SetariPage() {
       if (countryRulesRes.status === 'fulfilled') setCountryRules(countryRulesRes.value.data || fallbackCountryRules)
       if (emailSyncStatusRes.status === 'fulfilled') setEmailSyncStatus(emailSyncStatusRes.value.data?.status || emptyEmailSyncStatus)
       if (workflowAuditRes.status === 'fulfilled') setWorkflowAudit(arrayFrom(workflowAuditRes.value.data, ['audit', 'items']))
+      if (securityRes.status === 'fulfilled') setSecurityDiagnostic(securityRes.value.data?.diagnostic || null)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -1269,6 +1286,16 @@ export default function SetariPage() {
       notify('Setările generale au fost salvate.')
     } catch (err) {
       fail(err, 'Setările nu au putut fi salvate.')
+    }
+  }
+
+  async function refreshSecurityDiagnostic() {
+    try {
+      const response = await api.get('/system/security')
+      setSecurityDiagnostic(response.data?.diagnostic || null)
+      notify('Diagnostic securitate actualizat.')
+    } catch (err) {
+      fail(err, 'Diagnosticul de securitate nu a putut fi încărcat.')
     }
   }
 
@@ -2895,6 +2922,143 @@ export default function SetariPage() {
             <div className="md:col-span-2"><Button type="submit">Salvează</Button></div>
           </form>
         </Card>
+      )}
+
+      {activeTab === 'Securitate' && (
+        <div className="grid gap-4">
+          <Card
+            title="Securitate & acces"
+            subtitle="Diagnostic pentru acces local, acces remote, sesiuni active, stații autorizate și protecția bazei de date."
+            loading={loading}
+            actions={[<Button key="refresh-security" variant="secondary" onClick={refreshSecurityDiagnostic}>Reverifică</Button>]}
+          >
+            {securityDiagnostic ? (
+              <div className="grid gap-4">
+                <div className={`rounded-2xl border p-4 ${securityCardClass(securityDiagnostic.verdict?.status)}`}>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verdict securitate</div>
+                      <div className="mt-1 text-2xl font-bold text-slate-950">{securityDiagnostic.verdict?.title || 'Neverificat'}</div>
+                      <p className="mt-2 max-w-3xl text-sm text-slate-700">{securityDiagnostic.verdict?.summary || 'Nu există încă un diagnostic disponibil.'}</p>
+                    </div>
+                    <Badge tone={securityTone(securityDiagnostic.verdict?.status)}>{securityDiagnostic.verdict?.score || 0}/100</Badge>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs uppercase text-slate-500">Acces aplicație</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {securityDiagnostic.access?.localOnly ? 'Rețea privată' : 'Extern permis'}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Mod: {securityDiagnostic.access?.networkAccessMode || 'internal-only'}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs uppercase text-slate-500">Sesiuni active</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{securityDiagnostic.sessions?.active ?? 0}</div>
+                    <div className="mt-1 text-xs text-slate-500">Limită licență: {securityDiagnostic.sessions?.maxUsers || '-'}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs uppercase text-slate-500">Stații autorizate</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{securityDiagnostic.devices?.active ?? 0}</div>
+                    <div className="mt-1 text-xs text-slate-500">Înregistrate: {securityDiagnostic.devices?.registered ?? 0} / {securityDiagnostic.devices?.maxDevices || '-'}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs uppercase text-slate-500">Bază date</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{securityDiagnostic.database?.sqlServerEnabled ? 'SQL Server' : securityDiagnostic.database?.mode || 'local'}</div>
+                    <div className="mt-1 text-xs text-slate-500">Acces browser: {securityDiagnostic.database?.browserDirectAccess ? 'permis' : 'blocat'}</div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">Checklist rapid</h3>
+                        <p className="text-sm text-slate-500">Ce vede administratorul înainte să lase aplicația în producție.</p>
+                      </div>
+                      <Badge tone="info">{securityDiagnostic.generatedAt ? formatDateTime(securityDiagnostic.generatedAt) : '-'}</Badge>
+                    </div>
+                    <div className="grid gap-2">
+                      {(securityDiagnostic.checklist || []).map((item, index) => (
+                        <div key={`${item.title}-${index}`} className={`rounded-xl border p-3 ${securityCardClass(item.status)}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-semibold text-slate-900">{item.title}</div>
+                              <div className="mt-1 text-sm text-slate-600">{item.detail}</div>
+                            </div>
+                            <Badge tone={securityTone(item.status)} size="sm">{item.status}</Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <h3 className="font-semibold text-slate-900">Recomandarea InfraFlow</h3>
+                    <p className="mt-2 text-sm text-slate-600">{securityDiagnostic.access?.recommendation}</p>
+                    <div className="mt-4 rounded-xl border border-primary-100 bg-primary-50 p-3 text-sm text-primary-900">
+                      {securityDiagnostic.database?.safetyNote}
+                    </div>
+                    {securityDiagnostic.warnings?.length ? (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <div className="font-semibold text-amber-900">De urmărit</div>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
+                          {securityDiagnostic.warnings.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <Card title="Sesiuni active acum" subtitle="Nu afișăm tokenuri sau parole. Doar metadate utile pentru audit.">
+                    <Table
+                      columns={[
+                        { key: 'userName', label: 'Utilizator' },
+                        { key: 'deviceName', label: 'Stație' },
+                        { key: 'ip', label: 'IP' },
+                        { key: 'startedAt', label: 'Pornită', render: row => row.startedAt ? `${timeAgo(row.startedAt)} · ${formatDateTime(row.startedAt)}` : '-' },
+                      ]}
+                      data={securityDiagnostic.sessions?.recent || []}
+                      empty="Nu există sesiuni active."
+                    />
+                  </Card>
+
+                  <Card title="Stații folosite recent" subtitle="Revizuire rapidă a dispozitivelor autorizate.">
+                    <Table
+                      columns={[
+                        { key: 'name', label: 'Stație' },
+                        { key: 'lastUserName', label: 'Ultimul user' },
+                        { key: 'ip', label: 'IP' },
+                        { key: 'lastSeenAt', label: 'Ultima activitate', render: row => row.lastSeenAt ? `${timeAgo(row.lastSeenAt)} · ${formatDateTime(row.lastSeenAt)}` : '-' },
+                      ]}
+                      data={securityDiagnostic.devices?.recent || []}
+                      empty="Nu există stații autorizate."
+                    />
+                  </Card>
+                </div>
+
+                <Card title="Pași recomandați următori" subtitle="Direcția sănătoasă pentru date sensibile și acces remote.">
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {(securityDiagnostic.nextSteps || []).map((step, index) => (
+                      <div key={`${step}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary-700 text-xs font-bold text-white">{index + 1}</span>
+                        {step}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+                Diagnosticul de securitate nu este încă disponibil. Apasă „Reverifică” sau verifică dacă serverul rulează pe versiunea curentă.
+              </div>
+            )}
+          </Card>
+        </div>
       )}
 
       {activeTab === 'Bază date' && (

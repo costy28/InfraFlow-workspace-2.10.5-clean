@@ -334,6 +334,133 @@ function buildSystemDiagnostics(db) {
   };
 }
 
+function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null) {
+  const settings = db.settings || {};
+  const license = normalizeLicense(settings.license || {});
+  const devices = activeDevices(db);
+  const users = Array.isArray(db.users) ? db.users : [];
+  const devicesById = new Map((db.devices || []).map((device) => [String(device.id || ""), device]));
+  const sessionsList = Array.from(sessionStore?.entries?.() || []).map(([token, session]) => {
+    const user = users.find((item) => String(item.id) === String(session.userId));
+    const device = devicesById.get(String(session.deviceId || ""));
+    return {
+      id: `session-${crypto.createHash("sha256").update(String(token || "")).digest("hex").slice(0, 10)}`,
+      userId: session.userId || null,
+      userName: user?.name || user?.username || "utilizator",
+      username: user?.username || "",
+      deviceName: device?.name || "Stație necunoscută",
+      deviceId: shortId(session.deviceId || device?.id || ""),
+      ip: maskIp(device?.lastIp || ""),
+      startedAt: session.createdAt || (session.loginAt ? new Date(session.loginAt).toISOString() : ""),
+      lastSeenAt: device?.lastSeenAt || "",
+    };
+  }).sort((a, b) => String(b.startedAt || "").localeCompare(String(a.startedAt || "")));
+
+  const networkMode = normalizeNetworkAccessMode(settings.networkAccessMode);
+  const sqlServerMode = DB_MODE === "mssql" || DB_MODE === "sqlserver";
+  const appUrls = networkUrls();
+  const tunnelUrl = String(settings.publicUrl || settings.public_url || settings.cloudflareTunnelUrl || settings.cloudflare_tunnel_url || "").trim();
+  const remoteRecommended = networkMode === "open"
+    ? "Pentru acces extern comercial, folosește Cloudflare Tunnel sau VPN și păstrează SQL Server nepublicat."
+    : "Accesul API este limitat la localhost/rețea privată/VPN; pentru exterior folosește un tunnel HTTPS controlat.";
+  const warnings = [];
+  if (networkMode === "open") warnings.push("Acces API permis din afara rețelei private. Folosește doar dacă există protecție HTTPS/VPN/tunnel.");
+  if (!tunnelUrl) warnings.push("Nu este notat un URL public/tunnel în profilul organizației; pentru suport și audit va fi util să îl configurăm ulterior.");
+  if ((db.devices || []).length > devices.length) warnings.push("Există stații dezactivate/arhivate în registru. Verifică periodic lista de dispozitive.");
+  if (license.status !== "active") warnings.push("Licența nu este semnată activ pentru client; pentru producție folosește licență comercială semnată.");
+
+  const score = Math.max(45, 100
+    - (networkMode === "open" ? 25 : 0)
+    - (!tunnelUrl ? 5 : 0)
+    - (license.status !== "active" ? 10 : 0)
+    - (sessionsList.length > Number(license.maxUsers || 1) ? 10 : 0));
+  const verdictStatus = networkMode === "open" ? "attention" : warnings.length ? "good_with_notes" : "protected";
+
+  return {
+    generatedAt: new Date().toISOString(),
+    verdict: {
+      status: verdictStatus,
+      score,
+      title: verdictStatus === "protected" ? "Protejat" : verdictStatus === "attention" ? "Necesită atenție" : "Protejat, cu observații",
+      summary: networkMode === "open"
+        ? "Aplicația permite acces API și din afara rețelei private. Verifică expunerea și folosește tunnel/VPN."
+        : "Aplicația limitează accesul API la localhost, rețea privată sau VPN. Baza de date rămâne în spatele serverului.",
+    },
+    access: {
+      networkAccessMode: networkMode,
+      currentRequestIp: req ? maskIp(clientIp(req)) : "",
+      localOnly: networkMode !== "open",
+      appUrls,
+      tunnelUrl,
+      recommendation: remoteRecommended,
+    },
+    database: {
+      mode: DB_MODE,
+      sqlServerEnabled: sqlServerMode,
+      sqlServerDatabase: sqlServerMode ? mssqlDatabaseName() : "",
+      relationalMode: sqlServerMode && MSSQL_RELATIONAL_MODE,
+      browserDirectAccess: false,
+      publicExposureKnown: false,
+      safetyNote: "InfraFlow accesează baza de date server-side. Clientul web/Electron nu primește connection string sau parolă SQL.",
+    },
+    sessions: {
+      active: sessionsList.length,
+      maxUsers: license.maxUsers,
+      recent: sessionsList.slice(0, 12),
+    },
+    devices: {
+      active: devices.length,
+      registered: (db.devices || []).length,
+      maxDevices: license.maxDevices,
+      recent: devices
+        .slice()
+        .sort((a, b) => String(b.lastSeenAt || "").localeCompare(String(a.lastSeenAt || "")))
+        .slice(0, 8)
+        .map((device) => ({
+          id: shortId(device.id || ""),
+          name: device.name || "Stație de lucru",
+          lastSeenAt: device.lastSeenAt || "",
+          lastUserName: device.lastUserName || device.lastUsername || "",
+          ip: maskIp(device.lastIp || ""),
+        })),
+    },
+    checklist: [
+      {
+        status: networkMode === "open" ? "warn" : "ok",
+        title: "Acces aplicație",
+        detail: networkMode === "open" ? "Permis și din exterior; verifică tunnel/VPN/HTTPS." : "Limitat la localhost/rețea privată/VPN.",
+      },
+      {
+        status: "ok",
+        title: "Bază de date",
+        detail: "Accesată doar de server; nu trimitem connection string către client.",
+      },
+      {
+        status: sessionsList.length <= Number(license.maxUsers || 1) ? "ok" : "warn",
+        title: "Sesiuni active",
+        detail: `${sessionsList.length} sesiuni active / limită licență ${license.maxUsers || 1}.`,
+      },
+      {
+        status: devices.length <= Number(license.maxDevices || 1) ? "ok" : "warn",
+        title: "Stații autorizate",
+        detail: `${devices.length} stații active / limită licență ${license.maxDevices || 1}.`,
+      },
+      {
+        status: tunnelUrl ? "ok" : "info",
+        title: "Acces remote",
+        detail: tunnelUrl ? `URL/tunnel notat: ${tunnelUrl}` : "Recomandare: Cloudflare Tunnel sau VPN, fără SQL public.",
+      },
+    ],
+    warnings,
+    nextSteps: [
+      "Nu expune portul SQL Server la internet; doar serverul InfraFlow trebuie să vorbească cu baza.",
+      "Pentru acces de la distanță, folosește HTTPS prin Cloudflare Tunnel sau VPN.",
+      "Revizuiește periodic stațiile autorizate și închide sesiunile vechi când un dispozitiv pleacă din firmă.",
+      "Pas ulterior: 2FA, politici parole și expirare controlată a sesiunilor.",
+    ],
+  };
+}
+
 function buildReadinessChecklist(db, context = {}) {
   const backupInfo = context.backupInfo || latestBackupInfo();
   const integrity = context.integrity || integrityStatus();
@@ -2970,6 +3097,24 @@ function isPrivateNetworkAddress(ipValue) {
   }
   if (ip.startsWith("fe80:") || ip.startsWith("fc") || ip.startsWith("fd")) return true;
   return false;
+}
+
+function shortId(value) {
+  const text = String(value || "");
+  if (!text) return "";
+  if (text.length <= 12) return text;
+  return `${text.slice(0, 6)}…${text.slice(-4)}`;
+}
+
+function maskIp(value) {
+  const ip = normalizeIp(value);
+  if (!ip) return "";
+  const parts = ip.split(".");
+  if (parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part))) {
+    return `${parts[0]}.${parts[1]}.${parts[2]}.x`;
+  }
+  if (ip.includes(":")) return `${ip.split(":").slice(0, 3).join(":")}:…`;
+  return ip;
 }
 
 function buildDeviceRegistry(db) {
@@ -7273,6 +7418,7 @@ function httpError(status, message) {
 
 module.exports = {
   buildSystemDiagnostics,
+  buildSecurityAccessDiagnostic,
   buildReadinessChecklist,
   buildSupportDiagnostic,
   createServerBackup,
