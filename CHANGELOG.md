@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.523 - 2026-09-01
+
+## Reverificare manuală pentru diagnosticul HR din fișa angajatului
+
+- Panoul ghidat din fișa angajatului are buton de reverificare diagnostic.
+- Operatorul poate recalcula imediat lipsurile după corectări, fără să închidă fișa.
+- Dacă problema este rezolvată, panoul ghidat se închide automat după reverificare.
+- Dacă mai există lipsuri, panoul afișează următoarea zonă și câmpurile rămase.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.522 - 2026-08-30
 
 ## Reîmprospătare automată diagnostic HR după corectarea fișei

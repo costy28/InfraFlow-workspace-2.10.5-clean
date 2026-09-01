@@ -1,4 +1,5 @@
 import Modal from '../../../components/ui/Modal'
+import Button from '../../../components/ui/Button'
 import {
   HREmployeeProfileActivity,
   HREmployeeProfileHeader,
@@ -32,6 +33,7 @@ export default function HREmployeeProfileModal({
   onStartEdit,
   onReloadActivity,
   onTabChange,
+  onRefreshGuidedIssue,
 }) {
   return (
     <Modal open={open} title={title} onClose={onClose} size="lg">
@@ -66,6 +68,7 @@ export default function HREmployeeProfileModal({
               editForm={editForm}
               editMode={editMode}
               contracts={contracts}
+              onRefresh={onRefreshGuidedIssue}
             />
           ) : null}
 
@@ -116,7 +119,7 @@ function guideStatusForField(field, { employee, editForm, editMode, contracts })
   return { state: 'pending', label: 'verifică' }
 }
 
-function HREmployeeGuidedIssue({ issue, employee, editForm, editMode, contracts }) {
+function HREmployeeGuidedIssue({ issue, employee, editForm, editMode, contracts, onRefresh }) {
   const isBlocker = issue.severity === 'blocker'
   const toneClass = isBlocker
     ? 'border-rose-200 bg-rose-50 text-rose-800'
@@ -141,9 +144,12 @@ function HREmployeeGuidedIssue({ issue, employee, editForm, editMode, contracts 
             {issue.action_label ? ` · ${issue.action_label}` : ''}
           </div>
         </div>
-        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${badgeClass}`}>
-          {isBlocker ? 'blocaj export' : 'atenționare'}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {onRefresh ? <Button size="sm" variant="secondary" onClick={onRefresh}>Reverifică diagnostic</Button> : null}
+          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${badgeClass}`}>
+            {isBlocker ? 'blocaj export' : 'atenționare'}
+          </span>
+        </div>
       </div>
       {details.length ? (
         <div className="mt-3 rounded-md bg-white/60 p-2">

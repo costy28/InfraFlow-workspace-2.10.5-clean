@@ -2622,6 +2622,7 @@ export default function HRPage() {
         onStartEdit={() => { setEmployeeProfileTab('date'); setEditMode(true) }}
         onReloadActivity={() => employeeDetails ? loadHrActivity({ employee_id: employeeDetails.id }) : null}
         onTabChange={setEmployeeProfileTab}
+        onRefreshGuidedIssue={() => refreshGuidedLaborRegistryIssue(employeeDetails?.id || selectedEmployee?.id)}
       >
         {employeeDetails ? (
           <HREmployeeProfileTabsRouter

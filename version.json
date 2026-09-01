@@ -1,5 +1,5 @@
 {
-  "version": "2.12.522",
-  "date": "2026-08-29",
-  "changelog": "## v2.12.522 - 2026-08-30\n### Reîmprospătare automată diagnostic HR după corectarea fișei\n- După salvarea datelor personale, diagnosticul registrului intern se recalculează automat.\n- După salvarea sau actualizarea contractului operațional, diagnosticul ghidat se reîncarcă automat.\n- Dacă angajatul nu mai are lipsuri, panoul ghidat se închide singur.\n- Dacă mai există probleme, panoul se actualizează cu următoarea zonă de rezolvare.\n- Nu necesită migrare SQL nouă."
+  "version": "2.12.523",
+  "date": "2026-09-01",
+  "changelog": "## v2.12.523 - 2026-09-01\n### Reverificare manuală pentru diagnosticul HR din fișa angajatului\n- Panoul ghidat din fișa angajatului are buton de reverificare diagnostic.\n- Operatorul poate recalcula imediat lipsurile după corectări, fără să închidă fișa.\n- Dacă problema este rezolvată, panoul ghidat se închide automat după reverificare.\n- Dacă mai există lipsuri, panoul afișează următoarea zonă și câmpurile rămase.\n- Nu necesită migrare SQL nouă."
 }
