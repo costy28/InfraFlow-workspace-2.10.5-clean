@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.525**
-**Versiune în lucru: v2.12.525**
+**Versiune curentă sursă: v2.12.526**
+**Versiune în lucru: v2.12.526**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -262,6 +262,7 @@ Core System
   ✅ Reverificare manuală diagnostic HR din fișa angajatului (v2.12.523)
   ✅ Diagnostic securitate și acces remote în Setări (v2.12.524)
   ✅ Închidere sesiuni active din Setări (v2.12.525)
+  ✅ Expirare controlată pentru sesiuni (v2.12.526)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -483,6 +484,7 @@ Sistem
   ✅ Diagnostice
   ✅ Diagnostic securitate & acces remote (v2.12.524)
   ✅ Închidere sesiuni active din panoul de securitate (v2.12.525)
+  ✅ Expirare controlată sesiuni și timeout pe inactivitate (v2.12.526)
   ✅ Backup/Restore
   ✅ Update pachete
   ✅ Audit log
@@ -873,7 +875,7 @@ PRIORITATE 3 — Infrastructură comercială:
   [ ] Securitate comercială & acces controlat
       → Panou Setări pentru diagnostic acces local/remote, sesiuni, stații și protecție bază date ✅ v2.12.524
       → Închidere sesiuni active din UI cu audit și protecție pentru sesiunea curentă ✅ v2.12.525
-      → Expirare controlată sesiuni și timeout pe inactivitate
+      → Expirare controlată sesiuni și timeout pe inactivitate ✅ v2.12.526
       → Politici parole și recomandări de complexitate pe profil organizație
       → 2FA pentru administratori și roluri sensibile
       → Audit securitate: autentificări eșuate, stații noi, schimbări permisiuni, acces remote
@@ -952,9 +954,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.525
+VERSIUNE CURENTĂ SURSĂ: 2.12.526
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.525 ✅
+UPDATE ZIP CURENT: 2.12.526 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1288,6 +1290,7 @@ UPDATES ÎN LUCRU:
   2.12.523 → UPDATE 543 Reverificare diagnostic HR din fișa angajatului ✅
   2.12.524 → UPDATE 544 Diagnostic securitate și acces remote ✅
   2.12.525 → UPDATE 545 Închidere sesiuni active din Setări ✅
+  2.12.526 → UPDATE 546 Expirare controlată pentru sesiuni ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1784,5 +1787,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 Septembrie 2026 | InfraFlow sursă v2.12.525*
+*AGENTS.md actualizat: 2 Septembrie 2026 | InfraFlow sursă v2.12.526*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

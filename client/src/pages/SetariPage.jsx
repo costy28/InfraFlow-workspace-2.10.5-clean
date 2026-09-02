@@ -1299,6 +1299,25 @@ export default function SetariPage() {
     }
   }
 
+  async function saveSessionSecuritySettings(event) {
+    event.preventDefault()
+    try {
+      const payload = {
+        ...settings,
+        session_idle_timeout_min: Math.max(15, Math.min(1440, Number(settings.session_idle_timeout_min || 480))),
+        session_absolute_timeout_hours: Math.max(1, Math.min(168, Number(settings.session_absolute_timeout_hours || 24))),
+      }
+      const response = await api.post('/settings', payload)
+      const savedSettings = response.data.settings || payload
+      setSettings({ ...savedSettings, gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      const securityResponse = await api.get('/system/security')
+      setSecurityDiagnostic(securityResponse.data?.diagnostic || null)
+      notify('Politica de sesiuni a fost salvată.')
+    } catch (err) {
+      fail(err, 'Politica de sesiuni nu a putut fi salvată.')
+    }
+  }
+
   function revokeSecuritySession(session) {
     if (!session?.id || session.isCurrent || session.canRevoke === false) return
     setConfirmAction({
@@ -3033,6 +3052,42 @@ export default function SetariPage() {
                     ) : null}
                   </div>
                 </div>
+
+                <Card
+                  title="Politică sesiuni"
+                  subtitle="Controlează automat cât timp rămâne un cont autentificat dacă utilizatorul pleacă de la calculator."
+                >
+                  <form className="grid gap-4 md:grid-cols-[1fr_1fr_auto]" onSubmit={saveSessionSecuritySettings}>
+                    <Input
+                      label="Expirare după inactivitate (minute)"
+                      type="number"
+                      min={15}
+                      max={1440}
+                      value={settings.session_idle_timeout_min ?? securityDiagnostic.sessions?.policy?.idleTimeoutMinutes ?? 480}
+                      onChange={event => setSettings(current => ({
+                        ...current,
+                        session_idle_timeout_min: Number(event.target.value),
+                      }))}
+                    />
+                    <Input
+                      label="Durată maximă sesiune (ore)"
+                      type="number"
+                      min={1}
+                      max={168}
+                      value={settings.session_absolute_timeout_hours ?? securityDiagnostic.sessions?.policy?.absoluteTimeoutHours ?? 24}
+                      onChange={event => setSettings(current => ({
+                        ...current,
+                        session_absolute_timeout_hours: Number(event.target.value),
+                      }))}
+                    />
+                    <div className="flex items-end">
+                      <Button type="submit">Salvează politica</Button>
+                    </div>
+                  </form>
+                  <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+                    {securityDiagnostic.sessions?.policy?.description || 'Recomandare: 480 minute inactivitate și 24 ore durată maximă pentru instalări comerciale mici.'}
+                  </div>
+                </Card>
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <Card title="Sesiuni active acum" subtitle="Nu afișăm tokenuri sau parole. Doar metadate utile pentru audit.">

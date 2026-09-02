@@ -361,6 +361,8 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   }).sort((a, b) => String(b.startedAt || "").localeCompare(String(a.startedAt || "")));
 
   const networkMode = normalizeNetworkAccessMode(settings.networkAccessMode);
+  const sessionIdleTimeoutMinutes = normalizeSessionIdleMinutes(settings.session_idle_timeout_min ?? settings.sessionIdleTimeoutMinutes, 480);
+  const sessionAbsoluteTimeoutHours = normalizeSessionAbsoluteHours(settings.session_absolute_timeout_hours ?? settings.sessionAbsoluteTimeoutHours, 24);
   const sqlServerMode = DB_MODE === "mssql" || DB_MODE === "sqlserver";
   const appUrls = networkUrls();
   const tunnelUrl = String(settings.publicUrl || settings.public_url || settings.cloudflareTunnelUrl || settings.cloudflare_tunnel_url || "").trim();
@@ -411,6 +413,11 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       active: sessionsList.length,
       maxUsers: license.maxUsers,
       currentSessionId,
+      policy: {
+        idleTimeoutMinutes: sessionIdleTimeoutMinutes,
+        absoluteTimeoutHours: sessionAbsoluteTimeoutHours,
+        description: `Sesiunile expiră după ${sessionIdleTimeoutMinutes} minute de inactivitate sau după ${sessionAbsoluteTimeoutHours} ore de la autentificare.`,
+      },
       recent: sessionsList.slice(0, 12),
     },
     devices: {
@@ -446,6 +453,11 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
         detail: `${sessionsList.length} sesiuni active / limită licență ${license.maxUsers || 1}.`,
       },
       {
+        status: "ok",
+        title: "Expirare sesiuni",
+        detail: `${sessionIdleTimeoutMinutes} minute inactivitate / ${sessionAbsoluteTimeoutHours} ore durată maximă.`,
+      },
+      {
         status: devices.length <= Number(license.maxDevices || 1) ? "ok" : "warn",
         title: "Stații autorizate",
         detail: `${devices.length} stații active / limită licență ${license.maxDevices || 1}.`,
@@ -461,7 +473,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       "Nu expune portul SQL Server la internet; doar serverul InfraFlow trebuie să vorbească cu baza.",
       "Pentru acces de la distanță, folosește HTTPS prin Cloudflare Tunnel sau VPN.",
       "Revizuiește periodic stațiile autorizate și închide sesiunile vechi când un dispozitiv pleacă din firmă.",
-      "Pas ulterior: 2FA, politici parole și expirare controlată a sesiunilor.",
+      "Pas ulterior: 2FA și politici de parole pentru rolurile sensibile.",
     ],
   };
 }
@@ -3113,6 +3125,18 @@ function shortId(value) {
 
 function publicSessionId(token) {
   return `session-${crypto.createHash("sha256").update(String(token || "")).digest("hex").slice(0, 10)}`;
+}
+
+function normalizeSessionIdleMinutes(value, fallback = 480) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(15, Math.min(1440, Math.round(n)));
+}
+
+function normalizeSessionAbsoluteHours(value, fallback = 24) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(1, Math.min(168, Math.round(n)));
 }
 
 function sessionTokenFromRequest(req) {

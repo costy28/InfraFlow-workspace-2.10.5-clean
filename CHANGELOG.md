@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.526 - 2026-09-02
+
+## Expirare controlată pentru sesiuni
+
+- Serverul expiră automat sesiunile după inactivitate sau după durata maximă configurată.
+- Setări → Sistem → Securitate are formular pentru politica de sesiuni.
+- Diagnosticul de securitate afișează politica activă pentru administrator.
+- Valorile sunt limitate sigur: 15-1440 minute inactivitate și 1-168 ore durată maximă.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.525 - 2026-09-01
 
 ## Închidere sesiuni active din Setări

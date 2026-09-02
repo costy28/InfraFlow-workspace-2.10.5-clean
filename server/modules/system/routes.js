@@ -4538,6 +4538,8 @@ function updateSettings(current = {}, body = {}) {
     initialStockCompletedBy: current.initialStockCompletedBy || "",
     initialStockCompletedByName: current.initialStockCompletedByName || "",
     networkAccessMode: normalizeNetworkAccessMode(body.networkAccessMode || current.networkAccessMode),
+    session_idle_timeout_min: normalizeSessionIdleMinutes(body.session_idle_timeout_min ?? body.sessionIdleTimeoutMinutes ?? current.session_idle_timeout_min ?? current.sessionIdleTimeoutMinutes),
+    session_absolute_timeout_hours: normalizeSessionAbsoluteHours(body.session_absolute_timeout_hours ?? body.sessionAbsoluteTimeoutHours ?? current.session_absolute_timeout_hours ?? current.sessionAbsoluteTimeoutHours),
     scaleDbPath: String(body.scaleDbPath ?? current.scaleDbPath ?? "").trim(),
     scaleProductMap: normalizeScaleProductMap(body.scaleProductMap !== undefined ? body.scaleProductMap : current.scaleProductMap || {}),
     nexusDbPath: String(body.nexusDbPath ?? current.nexusDbPath ?? "").trim(),
@@ -4597,6 +4599,18 @@ function updateSettings(current = {}, body = {}) {
       trialStartedAt
     })
   };
+}
+
+function normalizeSessionIdleMinutes(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 480;
+  return Math.max(15, Math.min(1440, Math.round(n)));
+}
+
+function normalizeSessionAbsoluteHours(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 24;
+  return Math.max(1, Math.min(168, Math.round(n)));
 }
 
 function settingSecretKey() {

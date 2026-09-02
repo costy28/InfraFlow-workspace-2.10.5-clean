@@ -167,6 +167,12 @@ function requireAuth(req, res) {
     return null;
   }
   const db = readDb();
+  const expiry = sessionExpiryStatus(session, db.settings || {});
+  if (expiry.expired) {
+    sessions.delete(token);
+    sendJson(res, 401, { error: expiry.message });
+    return null;
+  }
   const user = db.users.find((item) => item.id === session.userId);
   if (!user) {
     sessions.delete(token);
@@ -178,7 +184,43 @@ function requireAuth(req, res) {
     sendJson(res, 401, { error: "Cont dezactivat" });
     return null;
   }
+  const now = Date.now();
+  if (!session.loginAt && !session.createdAt) session.loginAt = now;
+  session.lastSeenAt = new Date(now).toISOString();
   return { db, user, token, permissions: effectivePermissionsForUser(user, db) };
+}
+
+function sessionExpiryStatus(session = {}, settings = {}) {
+  const now = Date.now();
+  const idleMs = sessionPolicyMinutes(settings.session_idle_timeout_min ?? settings.sessionIdleTimeoutMinutes, 480) * 60 * 1000;
+  const absoluteMs = sessionPolicyHours(settings.session_absolute_timeout_hours ?? settings.sessionAbsoluteTimeoutHours, 24) * 60 * 60 * 1000;
+  const startedAt = timestampMs(session.loginAt || session.createdAt || now);
+  const lastSeenAt = timestampMs(session.lastSeenAt || session.loginAt || session.createdAt || now);
+  if (absoluteMs > 0 && now - startedAt > absoluteMs) {
+    return { expired: true, reason: "absolute", message: "Sesiunea a expirat. Autentifică-te din nou." };
+  }
+  if (idleMs > 0 && now - lastSeenAt > idleMs) {
+    return { expired: true, reason: "idle", message: "Sesiunea a expirat din cauza inactivității. Autentifică-te din nou." };
+  }
+  return { expired: false };
+}
+
+function timestampMs(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function sessionPolicyMinutes(value, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(15, Math.min(1440, Math.round(n)));
+}
+
+function sessionPolicyHours(value, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(1, Math.min(168, Math.round(n)));
 }
 
 function tokenFrom(req) {
