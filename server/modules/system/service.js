@@ -340,11 +340,15 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   const devices = activeDevices(db);
   const users = Array.isArray(db.users) ? db.users : [];
   const devicesById = new Map((db.devices || []).map((device) => [String(device.id || ""), device]));
+  const currentSessionId = req ? publicSessionId(sessionTokenFromRequest(req)) : "";
   const sessionsList = Array.from(sessionStore?.entries?.() || []).map(([token, session]) => {
+    const sessionId = publicSessionId(token);
     const user = users.find((item) => String(item.id) === String(session.userId));
     const device = devicesById.get(String(session.deviceId || ""));
     return {
-      id: `session-${crypto.createHash("sha256").update(String(token || "")).digest("hex").slice(0, 10)}`,
+      id: sessionId,
+      isCurrent: Boolean(currentSessionId && sessionId === currentSessionId),
+      canRevoke: Boolean(!currentSessionId || sessionId !== currentSessionId),
       userId: session.userId || null,
       userName: user?.name || user?.username || "utilizator",
       username: user?.username || "",
@@ -406,6 +410,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
     sessions: {
       active: sessionsList.length,
       maxUsers: license.maxUsers,
+      currentSessionId,
       recent: sessionsList.slice(0, 12),
     },
     devices: {
@@ -3104,6 +3109,21 @@ function shortId(value) {
   if (!text) return "";
   if (text.length <= 12) return text;
   return `${text.slice(0, 6)}…${text.slice(-4)}`;
+}
+
+function publicSessionId(token) {
+  return `session-${crypto.createHash("sha256").update(String(token || "")).digest("hex").slice(0, 10)}`;
+}
+
+function sessionTokenFromRequest(req) {
+  const header = req?.headers?.authorization || "";
+  if (header.startsWith("Bearer ")) return header.slice(7);
+  try {
+    const url = new URL(req?.url || "", `http://${req?.headers?.host || "localhost"}`);
+    return url.searchParams.get("token") || "";
+  } catch {
+    return "";
+  }
 }
 
 function maskIp(value) {
@@ -7419,6 +7439,7 @@ function httpError(status, message) {
 module.exports = {
   buildSystemDiagnostics,
   buildSecurityAccessDiagnostic,
+  publicSessionId,
   buildReadinessChecklist,
   buildSupportDiagnostic,
   createServerBackup,

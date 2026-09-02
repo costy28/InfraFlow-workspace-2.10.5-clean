@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.525 - 2026-09-01
+
+## Închidere sesiuni active din Setări
+
+- Tabul „Securitate” marchează clar sesiunea curentă a administratorului.
+- Administratorul poate închide alte sesiuni active fără să vadă tokenuri reale.
+- Închiderea sesiunii cere confirmare în interfață și este auditată server-side.
+- Sesiunea curentă este protejată împotriva închiderii accidentale din panoul de securitate.
+- Nu necesită migrare SQL nouă.
+
 # v2.12.524 - 2026-09-01
 
 ## Diagnostic securitate și acces remote în Setări

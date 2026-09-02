@@ -1,5 +1,5 @@
 {
-  "version": "2.12.524",
+  "version": "2.12.525",
   "date": "2026-09-01",
-  "changelog": "## v2.12.524 - 2026-09-01\n### Diagnostic securitate și acces remote în Setări\n- Setările au tab nou Securitate pentru administrator.\n- Backend-ul expune diagnostic read-only pentru mod acces, sesiuni active, stații autorizate și baza de date.\n- Panoul explică diferența dintre aplicație expusă controlat și SQL Server protejat în spatele serverului.\n- Sunt afișate recomandări pentru Cloudflare Tunnel/VPN, fără tokenuri, parole sau connection string în client.\n- Nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.525 - 2026-09-01\n### Închidere sesiuni active din Setări\n- Tabul Securitate marchează clar sesiunea curentă a administratorului.\n- Administratorul poate închide alte sesiuni active fără să vadă tokenuri reale.\n- Închiderea sesiunii este confirmată în UI și auditată server-side.\n- Sesiunea curentă este protejată împotriva închiderii accidentale din panoul de securitate.\n- Nu necesită migrare SQL nouă."
 }

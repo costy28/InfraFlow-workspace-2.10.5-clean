@@ -36,6 +36,7 @@ const {
 const {
   buildSystemDiagnostics,
   buildSecurityAccessDiagnostic,
+  publicSessionId,
   buildSupportDiagnostic,
   createServerBackup,
   installUpdatePackage,
@@ -220,6 +221,46 @@ router.get('/system/security', (req, res) => {
   if (!auth) return;
   if (!requirePermission(auth, res, "settings:manage")) return;
   sendJson(res, 200, { diagnostic: buildSecurityAccessDiagnostic(auth.db, sessions, req) });
+})
+
+router.post('/system/security/sessions/:sessionId/revoke', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+
+  const requestedId = String(req.params.sessionId || "").trim();
+  const currentSessionId = publicSessionId(auth.token);
+  if (!requestedId || !requestedId.startsWith("session-")) {
+    sendJson(res, 400, { error: "Sesiunea selectată nu este validă." });
+    return;
+  }
+  if (requestedId === currentSessionId) {
+    sendJson(res, 400, { error: "Nu poți închide sesiunea curentă din acest panou. Folosește butonul Ieșire pentru contul tău." });
+    return;
+  }
+
+  let revoked = null;
+  for (const [token, session] of sessions.entries()) {
+    if (publicSessionId(token) === requestedId) {
+      revoked = { token, session };
+      break;
+    }
+  }
+
+  if (!revoked) {
+    sendJson(res, 404, { error: "Sesiunea nu mai este activă." });
+    return;
+  }
+
+  const user = (auth.db.users || []).find((item) => String(item.id) === String(revoked.session.userId));
+  sessions.delete(revoked.token);
+  addAudit(auth.db, auth.user, "sesiune_inchisa_admin", `${user?.username || user?.name || revoked.session.userId || "utilizator"} / ${requestedId}`);
+  writeDb(auth.db);
+  sendJson(res, 200, {
+    ok: true,
+    message: "Sesiunea a fost închisă.",
+    diagnostic: buildSecurityAccessDiagnostic(auth.db, sessions, req),
+  });
 })
 
 router.get('/system/diagnostics/export', (req, res) => {

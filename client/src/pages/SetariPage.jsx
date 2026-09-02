@@ -1299,6 +1299,27 @@ export default function SetariPage() {
     }
   }
 
+  function revokeSecuritySession(session) {
+    if (!session?.id || session.isCurrent || session.canRevoke === false) return
+    setConfirmAction({
+      title: 'Închide sesiunea utilizatorului',
+      message: `Închizi sesiunea pentru ${session.userName || session.username || 'utilizator'}?`,
+      details: [
+        `Stație: ${session.deviceName || '-'}`,
+        `IP: ${session.ip || '-'}`,
+        session.startedAt ? `Pornită: ${formatDateTime(session.startedAt)}` : '',
+        'Utilizatorul va trebui să se autentifice din nou. Tokenul real nu este afișat și nu este trimis în interfață.',
+      ].filter(Boolean).join('\n'),
+      confirmLabel: 'Închide sesiunea',
+      tone: 'danger',
+      run: async () => {
+        const response = await api.post(`/system/security/sessions/${encodeURIComponent(session.id)}/revoke`)
+        setSecurityDiagnostic(response.data?.diagnostic || securityDiagnostic)
+        notify(response.data?.message || 'Sesiunea a fost închisă.')
+      },
+    })
+  }
+
   async function importLicense(event) {
     const file = event.target.files?.[0]
     if (!file) return
@@ -3017,10 +3038,20 @@ export default function SetariPage() {
                   <Card title="Sesiuni active acum" subtitle="Nu afișăm tokenuri sau parole. Doar metadate utile pentru audit.">
                     <Table
                       columns={[
-                        { key: 'userName', label: 'Utilizator' },
+                        { key: 'userName', label: 'Utilizator', render: row => (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-semibold text-slate-900">{row.userName || row.username || '-'}</span>
+                            {row.isCurrent ? <Badge tone="success" size="sm">sesiunea ta</Badge> : null}
+                          </div>
+                        ) },
                         { key: 'deviceName', label: 'Stație' },
                         { key: 'ip', label: 'IP' },
                         { key: 'startedAt', label: 'Pornită', render: row => row.startedAt ? `${timeAgo(row.startedAt)} · ${formatDateTime(row.startedAt)}` : '-' },
+                        { key: 'actions', label: 'Acțiuni', render: row => row.isCurrent ? (
+                          <span className="text-xs text-slate-400">Folosește Ieșire</span>
+                        ) : (
+                          <Button size="sm" variant="danger" onClick={() => revokeSecuritySession(row)}>Închide</Button>
+                        ) },
                       ]}
                       data={securityDiagnostic.sessions?.recent || []}
                       empty="Nu există sesiuni active."
