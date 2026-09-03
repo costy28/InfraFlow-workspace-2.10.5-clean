@@ -4,7 +4,7 @@ const crypto = require('crypto')
 const childProcess = require('child_process')
 const os = require('os')
 const coreDb = require('../../core/db')
-const { writeDb, DB_MODE, DB_FILE, MSSQL_APP_STATE_TABLE, MSSQL_RELATIONAL_MODE } = coreDb
+const { writeDb, DB_MODE, DB_FILE, MSSQL_APP_STATE_TABLE, MSSQL_RELATIONAL_MODE, DEFAULT_MSSQL_CONNECTION_STRING } = coreDb
 const { addAudit } = require('../../core/audit')
 
 const ROOT = path.resolve(__dirname, '../../..')

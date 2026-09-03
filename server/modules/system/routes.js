@@ -22,6 +22,7 @@ const {
 const {
   readDb,
   writeDb,
+  DEFAULT_MSSQL_CONNECTION_STRING,
   MSSQL_RELATIONAL_MODE,
   runMssqlScalar: coreRunMssqlScalar,
   databaseHealth: coreDatabaseHealth,

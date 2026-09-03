@@ -1,5 +1,5 @@
 {
-  "version": "2.12.526",
-  "date": "2026-09-02",
-  "changelog": "## v2.12.526 - 2026-09-02\n### Expirare controlată pentru sesiuni\n- Serverul expiră automat sesiunile după inactivitate sau după durata maximă configurată.\n- Setări → Sistem → Securitate are formular pentru politica de sesiuni.\n- Diagnosticul de securitate afișează politica activă pentru administrator.\n- Valorile sunt limitate sigur: 15-1440 minute inactivitate și 1-168 ore durată maximă.\n- Nu necesită migrare SQL nouă."
+  "version": "2.12.527",
+  "date": "2026-09-03",
+  "changelog": "## v2.12.527 - 2026-09-03\n### Hotfix diagnostic securitate în MSSQL\n- Repară eroarea DEFAULT_MSSQL_CONNECTION_STRING is not defined din Setări → Sistem → Securitate.\n- Helper-ele de diagnostic MSSQL folosesc fallback-ul oficial exportat din core/db.\n- Diagnosticarea securității funcționează și când instalarea rulează cu SQL Server Express.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă."
 }

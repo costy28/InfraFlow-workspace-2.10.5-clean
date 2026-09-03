@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.527 - 2026-09-03
+
+## Hotfix diagnostic securitate în MSSQL
+
+- Repară eroarea `DEFAULT_MSSQL_CONNECTION_STRING is not defined` din Setări → Sistem → Securitate.
+- Helper-ele de diagnostic MSSQL folosesc fallback-ul oficial exportat din `core/db`.
+- Diagnosticarea securității funcționează și când instalarea rulează cu SQL Server Express.
+- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.
+
 # v2.12.526 - 2026-09-02
 
 ## Expirare controlată pentru sesiuni
