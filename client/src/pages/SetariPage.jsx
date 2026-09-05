@@ -51,6 +51,17 @@ function securityCardClass(status) {
   return 'border-rose-200 bg-rose-50/80'
 }
 
+function passwordPolicyText(policy = {}) {
+  return [
+    `minimum ${policy.minLength || 10} caractere`,
+    policy.requireUppercase !== false ? 'literă mare' : '',
+    policy.requireLowercase !== false ? 'literă mică' : '',
+    policy.requireNumber !== false ? 'cifră' : '',
+    policy.requireSymbol ? 'simbol' : '',
+    policy.disallowUsername !== false ? 'fără username în parolă' : '',
+  ].filter(Boolean).join(' · ')
+}
+
 const roleDescriptions = {
   superadmin: 'Control complet — licență, backup, sistem.',
   admin: 'Administrare utilizatori și operare completă.',
@@ -1315,6 +1326,30 @@ export default function SetariPage() {
       notify('Politica de sesiuni a fost salvată.')
     } catch (err) {
       fail(err, 'Politica de sesiuni nu a putut fi salvată.')
+    }
+  }
+
+  async function savePasswordSecuritySettings(event) {
+    event.preventDefault()
+    const fallbackPolicy = securityDiagnostic?.passwordPolicy || {}
+    try {
+      const payload = {
+        ...settings,
+        password_min_length: Math.max(8, Math.min(128, Number(settings.password_min_length || fallbackPolicy.minLength || 10))),
+        password_require_uppercase: settings.password_require_uppercase !== undefined ? Boolean(settings.password_require_uppercase) : fallbackPolicy.requireUppercase !== false,
+        password_require_lowercase: settings.password_require_lowercase !== undefined ? Boolean(settings.password_require_lowercase) : fallbackPolicy.requireLowercase !== false,
+        password_require_number: settings.password_require_number !== undefined ? Boolean(settings.password_require_number) : fallbackPolicy.requireNumber !== false,
+        password_require_symbol: settings.password_require_symbol !== undefined ? Boolean(settings.password_require_symbol) : Boolean(fallbackPolicy.requireSymbol),
+        password_disallow_username: settings.password_disallow_username !== undefined ? Boolean(settings.password_disallow_username) : fallbackPolicy.disallowUsername !== false,
+      }
+      const response = await api.post('/settings', payload)
+      const savedSettings = response.data.settings || payload
+      setSettings({ ...savedSettings, gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      const securityResponse = await api.get('/system/security')
+      setSecurityDiagnostic(securityResponse.data?.diagnostic || null)
+      notify('Politica de parole a fost salvată.')
+    } catch (err) {
+      fail(err, 'Politica de parole nu a putut fi salvată.')
     }
   }
 
@@ -3086,6 +3121,52 @@ export default function SetariPage() {
                   </form>
                   <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
                     {securityDiagnostic.sessions?.policy?.description || 'Recomandare: 480 minute inactivitate și 24 ore durată maximă pentru instalări comerciale mici.'}
+                  </div>
+                </Card>
+
+                <Card
+                  title="Politică parole"
+                  subtitle="Regula se aplică la utilizatori noi, schimbări de parolă și aprobarea stațiilor noi."
+                >
+                  <form className="grid gap-4" onSubmit={savePasswordSecuritySettings}>
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr_auto]">
+                      <Input
+                        label="Lungime minimă"
+                        type="number"
+                        min={8}
+                        max={128}
+                        value={settings.password_min_length ?? securityDiagnostic.passwordPolicy?.minLength ?? 10}
+                        onChange={event => setSettings(current => ({
+                          ...current,
+                          password_min_length: Number(event.target.value),
+                        }))}
+                      />
+                      <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {[
+                          ['password_require_uppercase', 'Cere literă mare', securityDiagnostic.passwordPolicy?.requireUppercase !== false],
+                          ['password_require_lowercase', 'Cere literă mică', securityDiagnostic.passwordPolicy?.requireLowercase !== false],
+                          ['password_require_number', 'Cere cifră', securityDiagnostic.passwordPolicy?.requireNumber !== false],
+                          ['password_require_symbol', 'Cere simbol', Boolean(securityDiagnostic.passwordPolicy?.requireSymbol)],
+                          ['password_disallow_username', 'Interzice username-ul în parolă', securityDiagnostic.passwordPolicy?.disallowUsername !== false],
+                        ].map(([key, label, fallback]) => (
+                          <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-slate-300"
+                              checked={settings[key] !== undefined ? Boolean(settings[key]) : Boolean(fallback)}
+                              onChange={event => setSettings(current => ({ ...current, [key]: event.target.checked }))}
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex items-end">
+                        <Button type="submit">Salvează parola</Button>
+                      </div>
+                    </div>
+                  </form>
+                  <div className={`mt-3 rounded-xl border p-3 text-sm ${securityDiagnostic.passwordPolicy?.strong ? 'border-primary-100 bg-primary-50 text-primary-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                    Politică activă: {securityDiagnostic.passwordPolicy?.description || passwordPolicyText(securityDiagnostic.passwordPolicy || {})}
                   </div>
                 </Card>
 
@@ -4987,6 +5068,9 @@ export default function SetariPage() {
             onChange={event => setUserForm(u => ({ ...u, password: event.target.value }))}
             required={!editingUser}
           />
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+            Regula activă: {securityDiagnostic?.passwordPolicy?.description || passwordPolicyText(securityDiagnostic?.passwordPolicy || {})}. Parola existentă nu se schimbă dacă lași câmpul gol.
+          </div>
           <Select label="Rol" value={userForm.role} onChange={event => setUserForm(u => ({ ...u, role: event.target.value }))}>
             {(rolesData.length ? rolesData : [{ id: 'angajat', name: 'Angajat' }]).map(role => (
               <option key={role.id} value={role.id}>{role.name || role.id} — {role.description || roleDescriptions[role.id] || ''}</option>
@@ -5252,6 +5336,9 @@ export default function SetariPage() {
         <form className="grid gap-3" onSubmit={resetUserPassword}>
           <p className="text-sm text-slate-600">Setează o parolă nouă pentru {resetUser?.name || resetUser?.username}.</p>
           <Input label="Parolă nouă" type="password" value={resetPassword} onChange={event => setResetPassword(event.target.value)} required />
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+            Regula activă: {securityDiagnostic?.passwordPolicy?.description || passwordPolicyText(securityDiagnostic?.passwordPolicy || {})}.
+          </div>
           <Button type="submit" variant="danger">Resetează parola</Button>
         </form>
       </Modal>

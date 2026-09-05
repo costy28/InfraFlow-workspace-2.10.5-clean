@@ -307,7 +307,7 @@ function Step3({ data, onChange }) {
 
       {/* Parolă */}
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">Parolă * (minim 8 caractere)</label>
+        <label className="mb-1 block text-sm font-medium text-slate-700">Parolă * (minim 10 caractere, literă mare/mică și cifră)</label>
         <div className="relative">
           <input
             type={showPass ? 'text' : 'password'}
@@ -428,7 +428,13 @@ export default function SetupWizardPage() {
       if (!admin.name.trim())     return 'Numele complet este obligatoriu.'
       if (!/^[a-z0-9._-]{3,32}$/.test(admin.username)) return 'Username invalid: 3-32 caractere, litere/cifre/punct/minus.'
       if (!admin.email.trim())    return 'Email-ul administratorului este obligatoriu.'
-      if (admin.password.length < 8) return 'Parola trebuie să aibă minim 8 caractere.'
+      if (admin.password.length < 10) return 'Parola trebuie să aibă minim 10 caractere.'
+      if (!/[A-ZĂÂÎȘȚ]/.test(admin.password) || !/[a-zăâîșț]/.test(admin.password) || !/\d/.test(admin.password)) {
+        return 'Parola trebuie să conțină literă mare, literă mică și cifră.'
+      }
+      if (admin.username && admin.password.toLowerCase().includes(admin.username.toLowerCase())) {
+        return 'Parola nu trebuie să conțină username-ul.'
+      }
       if (admin.password !== admin.confirmPassword) return 'Parolele nu coincid.'
     }
     return null

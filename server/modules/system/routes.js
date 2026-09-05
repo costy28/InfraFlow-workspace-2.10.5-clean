@@ -5,7 +5,7 @@ const crypto = require('crypto')
 const childProcess = require('child_process')
 const os = require('os')
 const AdmZip = require('adm-zip')
-const { requireAuth, hashPassword, sessions } = require('../../core/auth')
+const { requireAuth, hashPassword, verifyPassword, sessions, assertPasswordPolicy, passwordPolicyFromSettings } = require('../../core/auth')
 const {
   requirePermission,
   requireSuperadmin,
@@ -596,9 +596,9 @@ async function handleApi(req, res, url) {
       const code = String(body.code || '').trim();
       const newPassword = String(body.newPassword || '');
       if (!username || !code || !newPassword) { sendJson(res, 400, { error: 'Date incomplete.' }); return; }
-      if (newPassword.length < 6) { sendJson(res, 400, { error: 'Parola trebuie să aibă cel puțin 6 caractere.' }); return; }
       const user = db.users?.find(u => String(u.username || '').toLowerCase() === username);
       if (!user) { sendJson(res, 400, { error: 'Cod invalid sau expirat.' }); return; }
+      assertPasswordPolicy(newPassword, user, db.settings || {});
       db.passwordResets = db.passwordResets || [];
       const resetEntry = db.passwordResets.find(r => r.userId === user.id && r.code === code && !r.used);
       if (!resetEntry) { sendJson(res, 400, { error: 'Cod invalid sau expirat.' }); return; }
@@ -612,7 +612,7 @@ async function handleApi(req, res, url) {
       writeDb(db);
       sendJson(res, 200, { ok: true, message: 'Parola a fost resetată cu succes. Te poți autentifica.' });
     } catch (err) {
-      sendJson(res, 500, { error: 'Eroare internă.' });
+      sendJson(res, err.status || 500, { error: err.status ? err.message : 'Eroare internă.' });
     }
     return;
   }
@@ -2856,7 +2856,7 @@ function createUser(db, actor, body) {
   if ((db.users || []).some((user) => String(user.username || "").toLowerCase() === username)) throwHttp(400, "Acest nume de utilizator exista deja.");
   roles.forEach(nextRole => ensureCanAssignRole(actor, nextRole));
   enforceUserLimit(db, body.active !== false);
-  if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
+  assertPasswordPolicy(password, { username, name }, db.settings || {});
   const employee_id = String(body.employee_id || "").trim() || null;
   const manager_id = normalizeUserManagerId(db, body.manager_id || body.managerId || "");
   if (employee_id) {
@@ -2931,7 +2931,7 @@ function updateUser(db, actor, userId, body) {
   }
   if (body.password) {
     const password = String(body.password);
-    if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
+    assertPasswordPolicy(password, { username, name }, db.settings || {});
     user.passwordHash = hashPassword(password);
     delete user.password;
   }
@@ -3010,7 +3010,7 @@ function resetUserPassword(db, actor, userId, body) {
   if (!user) throwHttp(404, "Utilizator inexistent.");
   ensureCanManageUser(actor, user, user.role);
   const password = String(body.password || "");
-  if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
+  assertPasswordPolicy(password, user, db.settings || {});
   user.passwordHash = hashPassword(password);
   delete user.password;
   user.updatedBy = actor.id;
@@ -4508,6 +4508,7 @@ function updateSettings(current = {}, body = {}) {
   const license = current.license || {};
   const country = normalizeUpperSetting(body.country ?? current.country, "RO");
   const defaultVatRate = getDefaultVatRate(country, 21);
+  const passwordPolicy = passwordPolicyFromSettings({ ...current, ...body });
   const plan = String(body.licensePlan || license.plan || "internal-preview").trim();
   const trialDays = Math.max(1, Number(body.trialDays || license.trialDays || 30));
   const trialStartedAt = plan === "trial"
@@ -4541,6 +4542,12 @@ function updateSettings(current = {}, body = {}) {
     networkAccessMode: normalizeNetworkAccessMode(body.networkAccessMode || current.networkAccessMode),
     session_idle_timeout_min: normalizeSessionIdleMinutes(body.session_idle_timeout_min ?? body.sessionIdleTimeoutMinutes ?? current.session_idle_timeout_min ?? current.sessionIdleTimeoutMinutes),
     session_absolute_timeout_hours: normalizeSessionAbsoluteHours(body.session_absolute_timeout_hours ?? body.sessionAbsoluteTimeoutHours ?? current.session_absolute_timeout_hours ?? current.sessionAbsoluteTimeoutHours),
+    password_min_length: passwordPolicy.minLength,
+    password_require_uppercase: passwordPolicy.requireUppercase,
+    password_require_lowercase: passwordPolicy.requireLowercase,
+    password_require_number: passwordPolicy.requireNumber,
+    password_require_symbol: passwordPolicy.requireSymbol,
+    password_disallow_username: passwordPolicy.disallowUsername,
     scaleDbPath: String(body.scaleDbPath ?? current.scaleDbPath ?? "").trim(),
     scaleProductMap: normalizeScaleProductMap(body.scaleProductMap !== undefined ? body.scaleProductMap : current.scaleProductMap || {}),
     nexusDbPath: String(body.nexusDbPath ?? current.nexusDbPath ?? "").trim(),
@@ -4816,7 +4823,7 @@ function approveWorkstationRequest(db, actor, requestId, body) {
   const password = String(body.password || "");
   if (!departmentName) throwHttp(400, "Departamentul este obligatoriu.");
   if (!name) throwHttp(400, "Numele utilizatorului este obligatoriu.");
-  if (password.length < 6) throwHttp(400, "Parola temporara trebuie sa aiba cel putin 6 caractere.");
+  assertPasswordPolicy(password, { username, name }, db.settings || {});
   let department = (db.departments || []).find((item) => item.name.toLowerCase() === departmentName.toLowerCase());
   if (!department) {
     department = {

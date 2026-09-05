@@ -1,5 +1,5 @@
 {
-  "version": "2.12.527",
-  "date": "2026-09-03",
-  "changelog": "## v2.12.527 - 2026-09-03\n### Hotfix diagnostic securitate în MSSQL\n- Repară eroarea DEFAULT_MSSQL_CONNECTION_STRING is not defined din Setări → Sistem → Securitate.\n- Helper-ele de diagnostic MSSQL folosesc fallback-ul oficial exportat din core/db.\n- Diagnosticarea securității funcționează și când instalarea rulează cu SQL Server Express.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă."
+  "version": "2.12.528",
+  "date": "2026-09-05",
+  "changelog": "## v2.12.528 - 2026-09-05\n### Politici de parole configurabile\n- Adaugă politică de parole în Setări → Sistem → Securitate.\n- Aplică politica server-side la utilizatori noi, resetări de parolă și aprobări de stații noi.\n- Wizard-ul de instalare cere implicit parolă mai puternică pentru Superadmin.\n- Diagnosticul de securitate afișează starea politicii și recomandări clare.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă."
 }

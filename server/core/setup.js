@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { hashPassword } = require('./auth');
+const { assertPasswordPolicy, hashPassword } = require('./auth');
 const { addAudit } = require('./audit');
 const { normalizeDb } = require('./db');
 const { importSeed: importCpvSeed } = require('../modules/nomenclator/service');
@@ -197,7 +197,7 @@ function completeInitialSetup(db, body) {
   if (!companyName) throwHttp(400, "Numele firmei este obligatoriu.");
   if (!adminName)   throwHttp(400, "Numele Superadminului este obligatoriu.");
   if (!/^[a-z0-9._-]{3,32}$/.test(username)) throwHttp(400, "Utilizatorul trebuie sa aiba 3-32 caractere: litere, cifre, punct, minus sau underscore.");
-  if (password.length < 8) throwHttp(400, "Parola trebuie sa aiba cel putin 8 caractere.");
+  assertPasswordPolicy(password, { username, name: adminName }, {});
   if (password !== confirmPassword) throwHttp(400, "Parolele nu coincid.");
 
   const now = new Date().toISOString();

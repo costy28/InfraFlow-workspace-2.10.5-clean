@@ -247,6 +247,48 @@ function verifyPassword(user, password) {
   return user.password === password;
 }
 
+function passwordPolicyFromSettings(settings = {}) {
+  const minLengthRaw = Number(settings.password_min_length ?? settings.passwordMinLength ?? 10);
+  const minLength = Number.isFinite(minLengthRaw) ? Math.max(8, Math.min(128, Math.round(minLengthRaw))) : 10;
+  return {
+    minLength,
+    requireUppercase: settings.password_require_uppercase !== undefined ? settings.password_require_uppercase !== false : true,
+    requireLowercase: settings.password_require_lowercase !== undefined ? settings.password_require_lowercase !== false : true,
+    requireNumber: settings.password_require_number !== undefined ? settings.password_require_number !== false : true,
+    requireSymbol: settings.password_require_symbol === true,
+    disallowUsername: settings.password_disallow_username !== undefined ? settings.password_disallow_username !== false : true,
+  };
+}
+
+function validatePasswordPolicy(password, user = {}, settings = {}) {
+  const value = String(password || "");
+  const policy = passwordPolicyFromSettings(settings);
+  const failures = [];
+  if (value.length < policy.minLength) failures.push(`minimum ${policy.minLength} caractere`);
+  if (policy.requireUppercase && !/[A-ZĂÂÎȘȚ]/.test(value)) failures.push("cel puțin o literă mare");
+  if (policy.requireLowercase && !/[a-zăâîșț]/.test(value)) failures.push("cel puțin o literă mică");
+  if (policy.requireNumber && !/\d/.test(value)) failures.push("cel puțin o cifră");
+  if (policy.requireSymbol && !/[^A-Za-z0-9ĂÂÎȘȚăâîșț]/.test(value)) failures.push("cel puțin un simbol");
+  const username = String(user.username || "").trim().toLowerCase();
+  if (policy.disallowUsername && username && value.toLowerCase().includes(username)) failures.push("să nu conțină username-ul");
+  return {
+    ok: failures.length === 0,
+    failures,
+    policy,
+    message: failures.length ? `Parola trebuie să respecte politica de securitate: ${failures.join(", ")}.` : "",
+  };
+}
+
+function assertPasswordPolicy(password, user = {}, settings = {}) {
+  const result = validatePasswordPolicy(password, user, settings);
+  if (result.ok) return result;
+  const error = new Error(result.message);
+  error.status = 400;
+  error.policy = result.policy;
+  error.failures = result.failures;
+  throw error;
+}
+
 function networkAccessAllowed(req) {
   let db;
   try {
@@ -482,6 +524,9 @@ module.exports = {
   tokenFrom,
   hashPassword,
   verifyPassword,
+  passwordPolicyFromSettings,
+  validatePasswordPolicy,
+  assertPasswordPolicy,
   registerClientDevice,
   registerWorkstationRequest,
   networkAccessAllowed

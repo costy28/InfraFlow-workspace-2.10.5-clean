@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.528 - 2026-09-05
+
+## Politici de parole configurabile
+
+- Adaugă politică de parole în Setări → Sistem → Securitate.
+- Aplică politica server-side la utilizatori noi, resetări de parolă, resetări cu cod și aprobări de stații noi.
+- Wizard-ul de instalare cere implicit parolă mai puternică pentru Superadmin.
+- Diagnosticul de securitate afișează starea politicii și recomandări clare.
+- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.
+
 # v2.12.527 - 2026-09-03
 
 ## Hotfix diagnostic securitate în MSSQL

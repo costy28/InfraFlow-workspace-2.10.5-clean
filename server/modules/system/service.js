@@ -6,6 +6,7 @@ const os = require('os')
 const coreDb = require('../../core/db')
 const { writeDb, DB_MODE, DB_FILE, MSSQL_APP_STATE_TABLE, MSSQL_RELATIONAL_MODE, DEFAULT_MSSQL_CONNECTION_STRING } = coreDb
 const { addAudit } = require('../../core/audit')
+const { assertPasswordPolicy, hashPassword, passwordPolicyFromSettings } = require('../../core/auth')
 
 const ROOT = path.resolve(__dirname, '../../..')
 const PORT = Number(process.env.INFRAFLOW_PORT || process.env.PORT || 4180)
@@ -363,6 +364,12 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   const networkMode = normalizeNetworkAccessMode(settings.networkAccessMode);
   const sessionIdleTimeoutMinutes = normalizeSessionIdleMinutes(settings.session_idle_timeout_min ?? settings.sessionIdleTimeoutMinutes, 480);
   const sessionAbsoluteTimeoutHours = normalizeSessionAbsoluteHours(settings.session_absolute_timeout_hours ?? settings.sessionAbsoluteTimeoutHours, 24);
+  const passwordPolicy = passwordPolicyFromSettings(settings);
+  const passwordPolicyStrong = passwordPolicy.minLength >= 10
+    && passwordPolicy.requireUppercase
+    && passwordPolicy.requireLowercase
+    && passwordPolicy.requireNumber
+    && passwordPolicy.disallowUsername;
   const sqlServerMode = DB_MODE === "mssql" || DB_MODE === "sqlserver";
   const appUrls = networkUrls();
   const tunnelUrl = String(settings.publicUrl || settings.public_url || settings.cloudflareTunnelUrl || settings.cloudflare_tunnel_url || "").trim();
@@ -374,12 +381,14 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   if (!tunnelUrl) warnings.push("Nu este notat un URL public/tunnel în profilul organizației; pentru suport și audit va fi util să îl configurăm ulterior.");
   if ((db.devices || []).length > devices.length) warnings.push("Există stații dezactivate/arhivate în registru. Verifică periodic lista de dispozitive.");
   if (license.status !== "active") warnings.push("Licența nu este semnată activ pentru client; pentru producție folosește licență comercială semnată.");
+  if (!passwordPolicyStrong) warnings.push("Politica de parole este permisivă. Pentru date sensibile recomandăm minimum 10 caractere, litere mari/mici și cifre.");
 
   const score = Math.max(45, 100
     - (networkMode === "open" ? 25 : 0)
     - (!tunnelUrl ? 5 : 0)
     - (license.status !== "active" ? 10 : 0)
-    - (sessionsList.length > Number(license.maxUsers || 1) ? 10 : 0));
+    - (sessionsList.length > Number(license.maxUsers || 1) ? 10 : 0)
+    - (!passwordPolicyStrong ? 8 : 0));
   const verdictStatus = networkMode === "open" ? "attention" : warnings.length ? "good_with_notes" : "protected";
 
   return {
@@ -420,6 +429,18 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       },
       recent: sessionsList.slice(0, 12),
     },
+    passwordPolicy: {
+      ...passwordPolicy,
+      strong: passwordPolicyStrong,
+      description: [
+        `Minimum ${passwordPolicy.minLength} caractere`,
+        passwordPolicy.requireUppercase ? "literă mare" : "",
+        passwordPolicy.requireLowercase ? "literă mică" : "",
+        passwordPolicy.requireNumber ? "cifră" : "",
+        passwordPolicy.requireSymbol ? "simbol" : "",
+        passwordPolicy.disallowUsername ? "fără username în parolă" : "",
+      ].filter(Boolean).join(" · "),
+    },
     devices: {
       active: devices.length,
       registered: (db.devices || []).length,
@@ -458,6 +479,11 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
         detail: `${sessionIdleTimeoutMinutes} minute inactivitate / ${sessionAbsoluteTimeoutHours} ore durată maximă.`,
       },
       {
+        status: passwordPolicyStrong ? "ok" : "warn",
+        title: "Politică parole",
+        detail: `${passwordPolicy.minLength}+ caractere${passwordPolicy.requireNumber ? ", cifră" : ""}${passwordPolicy.requireUppercase ? ", literă mare" : ""}${passwordPolicy.disallowUsername ? ", fără username" : ""}.`,
+      },
+      {
         status: devices.length <= Number(license.maxDevices || 1) ? "ok" : "warn",
         title: "Stații autorizate",
         detail: `${devices.length} stații active / limită licență ${license.maxDevices || 1}.`,
@@ -473,7 +499,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       "Nu expune portul SQL Server la internet; doar serverul InfraFlow trebuie să vorbească cu baza.",
       "Pentru acces de la distanță, folosește HTTPS prin Cloudflare Tunnel sau VPN.",
       "Revizuiește periodic stațiile autorizate și închide sesiunile vechi când un dispozitiv pleacă din firmă.",
-      "Pas ulterior: 2FA și politici de parole pentru rolurile sensibile.",
+      "Pas ulterior: 2FA pentru rolurile sensibile și jurnal de autentificări eșuate.",
     ],
   };
 }
@@ -1472,7 +1498,7 @@ function completeInitialSetup(db, body) {
   if (!stationName) throwHttp(400, "Numele punctului de lucru este obligatoriu.");
   if (!adminName) throwHttp(400, "Numele Superadminului este obligatoriu.");
   if (!/^[a-z0-9._-]{3,32}$/.test(username)) throwHttp(400, "Utilizatorul trebuie sa aiba 3-32 caractere: litere, cifre, punct, minus sau underscore.");
-  if (password.length < 8) throwHttp(400, "Parola trebuie sa aiba cel putin 8 caractere.");
+  assertPasswordPolicy(password, { username, name }, {});
   if (password !== confirmPassword) throwHttp(400, "Parolele nu coincid.");
 
   const now = new Date().toISOString();
@@ -1721,7 +1747,7 @@ function createUser(db, actor, body) {
   if (!rolePermissions[role]) throwHttp(400, "Rol invalid.");
   ensureCanAssignRole(actor, role);
   enforceUserLimit(db, body.active !== false);
-  if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
+  assertPasswordPolicy(password, { username, name }, db.settings || {});
   const user = {
     id: id("user"),
     name,
@@ -1756,7 +1782,7 @@ function updateUser(db, actor, userId, body) {
   }
   if (body.password) {
     const password = String(body.password);
-    if (password.length < 6) throwHttp(400, "Parola trebuie sa aiba cel putin 6 caractere.");
+    assertPasswordPolicy(password, { username, name }, db.settings || {});
     user.passwordHash = hashPassword(password);
     delete user.password;
   }
@@ -2956,6 +2982,7 @@ function recordDepartmentConsumption(db, user, body) {
 
 function updateSettings(current, body) {
   const license = current.license || {};
+  const passwordPolicy = passwordPolicyFromSettings({ ...current, ...body });
   const plan = String(body.licensePlan || license.plan || "internal-preview").trim();
   const trialDays = Math.max(1, Number(body.trialDays || license.trialDays || 30));
   const trialStartedAt = plan === "trial"
@@ -2973,6 +3000,12 @@ function updateSettings(current, body) {
     initialStockCompletedBy: current.initialStockCompletedBy || "",
     initialStockCompletedByName: current.initialStockCompletedByName || "",
     networkAccessMode: normalizeNetworkAccessMode(body.networkAccessMode || current.networkAccessMode),
+    password_min_length: passwordPolicy.minLength,
+    password_require_uppercase: passwordPolicy.requireUppercase,
+    password_require_lowercase: passwordPolicy.requireLowercase,
+    password_require_number: passwordPolicy.requireNumber,
+    password_require_symbol: passwordPolicy.requireSymbol,
+    password_disallow_username: passwordPolicy.disallowUsername,
     scaleDbPath: String(body.scaleDbPath ?? current.scaleDbPath ?? "").trim(),
     scaleProductMap: normalizeScaleProductMap(body.scaleProductMap !== undefined ? body.scaleProductMap : current.scaleProductMap || {}),
     nexusDbPath: String(body.nexusDbPath ?? current.nexusDbPath ?? "").trim(),
@@ -3218,7 +3251,7 @@ function approveWorkstationRequest(db, actor, requestId, body) {
   const password = String(body.password || "");
   if (!departmentName) throwHttp(400, "Departamentul este obligatoriu.");
   if (!name) throwHttp(400, "Numele utilizatorului este obligatoriu.");
-  if (password.length < 6) throwHttp(400, "Parola temporara trebuie sa aiba cel putin 6 caractere.");
+  assertPasswordPolicy(password, { username, name }, db.settings || {});
   let department = (db.departments || []).find((item) => item.name.toLowerCase() === departmentName.toLowerCase());
   if (!department) {
     department = {
