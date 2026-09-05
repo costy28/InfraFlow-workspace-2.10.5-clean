@@ -108,6 +108,7 @@ function documentUserId(user = {}) {
 }
 
 function documentUserLabel(user = {}) {
+  if (!user || typeof user !== 'object') user = { id: user || '' }
   return [
     user.name,
     user.fullName,

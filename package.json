@@ -12,10 +12,11 @@
     "test:release": "node scripts/release-accounting-acceptance.js",
     "test:backup": "node scripts/verify-backup-roundtrip.js",
     "test:smoke": "node scripts/smoke-modules-readonly.js",
-    "release:check": "node scripts/release-check.js"
+    "release:check": "node scripts/release-check.js",
+    "audit:commercial-smoke": "node scripts/audit-commercial-smoke.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
-  "version": "2.12.528"
+  "version": "2.12.529"
 }

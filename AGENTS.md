@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.528**
-**Versiune în lucru: v2.12.528**
+**Versiune curentă sursă: v2.12.529**
+**Versiune în lucru: v2.12.529**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -265,6 +265,7 @@ Core System
   ✅ Expirare controlată pentru sesiuni (v2.12.526)
   ✅ Hotfix diagnostic securitate în MSSQL (v2.12.527)
   ✅ Politici de parole configurabile (v2.12.528)
+  ✅ Audit comercial smoke și hotfixuri fluxuri reale (v2.12.529)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -489,6 +490,7 @@ Sistem
   ✅ Expirare controlată sesiuni și timeout pe inactivitate (v2.12.526)
   ✅ Hotfix diagnostic securitate în instalări MSSQL (v2.12.527)
   ✅ Politici de parole configurabile și aplicate server-side (v2.12.528)
+  ✅ Audit comercial smoke izolat și hotfixuri pentru rute legacy/documente (v2.12.529)
   ✅ Backup/Restore
   ✅ Update pachete
   ✅ Audit log
@@ -882,6 +884,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Expirare controlată sesiuni și timeout pe inactivitate ✅ v2.12.526
       → Diagnostic securitate stabil și în instalări MSSQL/SQL Server Express ✅ v2.12.527
       → Politici parole și recomandări de complexitate pe profil organizație ✅ v2.12.528
+      → Smoke test comercial izolat pentru fluxuri reale HTTP ✅ v2.12.529
       → 2FA pentru administratori și roluri sensibile
       → Audit securitate: autentificări eșuate, stații noi, schimbări permisiuni, acces remote
       → Remote access recomandat prin Cloudflare Tunnel/VPN; SQL Server nu se expune direct la internet
@@ -959,9 +962,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.528
+VERSIUNE CURENTĂ SURSĂ: 2.12.529
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.528 ✅
+UPDATE ZIP CURENT: 2.12.529 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1298,6 +1301,7 @@ UPDATES ÎN LUCRU:
   2.12.526 → UPDATE 546 Expirare controlată pentru sesiuni ✅
   2.12.527 → UPDATE 547 Hotfix diagnostic securitate în MSSQL ✅
   2.12.528 → UPDATE 548 Politici de parole configurabile ✅
+  2.12.529 → UPDATE 549 Audit comercial smoke și hotfixuri fluxuri reale ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1794,5 +1798,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 5 Septembrie 2026 | InfraFlow sursă v2.12.528*
+*AGENTS.md actualizat: 5 Septembrie 2026 | InfraFlow sursă v2.12.529*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.529 - 2026-09-05
+
+## Audit comercial smoke și hotfixuri fluxuri reale
+
+- Adaugă `npm run audit:commercial-smoke`, smoke test HTTP izolat pe server temporar și bază JSON temporară.
+- Repară timeout-urile din rutele POST legacy când `express.json()` a parsuit deja corpul JSON.
+- Repară crearea documentelor când workflow-ul nu are încă responsabil curent calculat.
+- Confirmă fluxuri reale pentru auth, gestiune, parc/resurse, contracte, task-uri, email draft, documente, HR, sesizări, arhivă și secretariat.
+- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.
 # v2.12.528 - 2026-09-05
 
 ## Politici de parole configurabile

@@ -1821,6 +1821,7 @@ function enforceUserLimit(db, willBeActive) {
 }
 
 function readJsonBody(req, maxBytes = 1_000_000) {
+  if (req.body && typeof req.body === 'object') return Promise.resolve(req.body);
   return new Promise((resolve, reject) => {
     let raw = "";
     req.on("data", (chunk) => {
