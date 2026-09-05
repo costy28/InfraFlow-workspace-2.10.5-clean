@@ -17,7 +17,8 @@ const dbFile = path.join(tempDir, "app-db.audit.json");
 const password = `Audit-${crypto.randomBytes(8).toString("hex")}aA1`;
 const username = `audit_${stamp}`;
 const port = 47000 + Math.floor(Math.random() * 1000);
-const baseUrl = `http://127.0.0.1:${port}/api`;
+const baseOrigin = `http://127.0.0.1:${port}`;
+const baseUrl = `${baseOrigin}/api`;
 
 let child = null;
 let token = "";
@@ -277,6 +278,22 @@ async function runChecks(user) {
     expectTruthy(data.user?.username === username, "Sesiunea validă nu întoarce utilizatorul de audit.");
     expectTruthy(Array.isArray(data.permissions) && data.permissions.includes("settings:manage"), "Permisiunile superadmin nu sunt complete.");
   });
+  await check("Storage: fișierele nu sunt servite public și blochează traversal", async () => {
+    const noAuth = await httpRequest(`${baseOrigin}/storage/audit-missing.txt`, {
+      method: "GET",
+      headers: { Accept: "application/json", Connection: "close" },
+    });
+    expectStatus(noAuth, 401, "storage fără sesiune");
+
+    const traversal = await httpRequest(`${baseOrigin}/storage/%2e%2e%2fpackage.json?token=${encodeURIComponent(token)}`, {
+      method: "GET",
+      headers: { Accept: "application/json", Connection: "close" },
+    });
+    if (traversal.status === 200 || String(traversal.text || "").includes('"scripts"')) {
+      throw new Error("Traversal-ul /storage a expus un fișier din afara folderului storage.");
+    }
+    expectStatus(traversal, [400, 403, 404], "storage traversal blocat");
+  });
 
   let materialId = "";
   await check("Gestiune: creează material, blochează duplicatul și operează ieșire stoc", async () => {
@@ -525,4 +542,3 @@ main()
     process.exitCode = 1;
   })
   .finally(cleanup);
-

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.529",
+  "version": "2.12.530",
   "date": "2026-09-05",
-  "changelog": "## v2.12.529 - 2026-09-05\n### Audit comercial smoke si hotfixuri fluxuri reale\n- Adauga `npm run audit:commercial-smoke` pentru test HTTP izolat pe server temporar si baza JSON temporara.\n- Repara timeout-uri la rute POST legacy cand Express a parsuit deja corpul JSON.\n- Repara creare Documente cand responsabilul curent nu este setat.\n- Confirma fluxurile reale: auth, gestiune, parc/resurse, contracte, task-uri, email draft, documente, HR, sesizari, arhiva si secretariat."
+  "changelog": "## v2.12.530 - 2026-09-05\n### Securizare acces fișiere storage\n- Înlocuiește servirea publică `/storage` cu acces protejat prin sesiune validă.\n- Blochează traversal-ul de cale pentru fișiere din afara folderului storage.\n- Extinde smoke testul comercial cu verificare explicită pentru fișiere neautentificate și traversal.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă."
 }

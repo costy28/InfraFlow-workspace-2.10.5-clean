@@ -1,6 +1,6 @@
 # Audit complet InfraFlow ERP — 2026-09-05
 
-Versiune auditată: **2.12.529**
+Versiune auditată: **2.12.530**
 
 ## Verdict curent
 

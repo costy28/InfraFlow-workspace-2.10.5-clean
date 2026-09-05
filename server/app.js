@@ -38,7 +38,31 @@ global.LICENTA = licentaStatus.licenta
 
 const app = express()
 app.use(express.json({ limit: '10mb' }))
-app.use('/storage', express.static(path.join(__dirname, '../storage')))
+const STORAGE_ROOT = path.resolve(__dirname, '../storage')
+
+function sendProtectedStorageFile(req, res) {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  let relativePath = ''
+  try {
+    relativePath = decodeURIComponent(String(req.path || '')).replace(/^[/\\]+/, '')
+  } catch {
+    res.status(400).json({ error: 'Cale fisier invalida.' })
+    return
+  }
+  const diskPath = path.resolve(STORAGE_ROOT, relativePath)
+  if (!diskPath.startsWith(STORAGE_ROOT + path.sep) && diskPath !== STORAGE_ROOT) {
+    res.status(403).json({ error: 'Acces interzis la fisier.' })
+    return
+  }
+  if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
+    res.status(404).json({ error: 'Fisier inexistent.' })
+    return
+  }
+  res.sendFile(diskPath)
+}
+
+app.use('/storage', sendProtectedStorageFile)
 app.get('/api/v1/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
 app.get('/api/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
 app.get('/api/system/health', (_req, res) => {

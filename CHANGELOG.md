@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.530 - 2026-09-05
+
+## Securizare acces fișiere storage
+
+- Înlocuiește servirea publică `/storage` cu acces protejat prin sesiune validă.
+- Blochează traversal-ul de cale pentru fișiere din afara folderului storage.
+- Extinde smoke testul comercial cu verificare explicită pentru fișiere neautentificate și traversal.
+- Păstrează endpoint-urile dedicate de download existente pentru dosare și atașamente.
+- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.
 # v2.12.529 - 2026-09-05
 
 ## Audit comercial smoke și hotfixuri fluxuri reale
