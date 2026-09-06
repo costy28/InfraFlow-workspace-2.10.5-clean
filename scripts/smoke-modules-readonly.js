@@ -50,6 +50,11 @@ function prepareDatabase() {
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2))
 }
 
+function assertSchedulerStayedDisabled() {
+  if (/scheduler\s+check[A-Za-z]+\s+start/i.test(serverOutput)) {
+    throw new Error('Schedulerul a rulat în smoke readonly, deși INFRAFLOW_SCHEDULER_DISABLED=1.')
+  }
+}
 function spawnServer() {
   child = spawn(process.execPath, [path.join(root, 'server', 'src', 'server.js')], {
     cwd: root,
@@ -60,6 +65,7 @@ function spawnServer() {
       INFRAFLOW_DB_PROVIDER: 'json',
       INFRAFLOW_DB_FILE: dbFile,
       INFRAFLOW_PORT: String(port),
+      INFRAFLOW_SCHEDULER_DISABLED: '1',
       PORT: String(port),
     },
     stdio: ['ignore', 'pipe', 'pipe'],

@@ -23,6 +23,7 @@ const baseUrl = `${baseOrigin}/api`;
 let child = null;
 let token = "";
 let currentCheck = "";
+let serverOutput = "";
 const results = [];
 
 function hashPassword(value) {
@@ -108,6 +109,12 @@ function prepareDatabase() {
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 }
 
+function assertSchedulerStayedDisabled(output) {
+  const text = String(output || "");
+  if (/scheduler\s+check[A-Za-z]+\s+start/i.test(text)) {
+    throw new Error("Schedulerul a rulat în timpul auditului, deși INFRAFLOW_SCHEDULER_DISABLED=1.");
+  }
+}
 function startServer() {
   const env = {
     ...process.env,
@@ -119,6 +126,7 @@ function startServer() {
     PORT: String(port),
     NODE_ENV: "test",
     INFRAFLOW_AUDIT_SMOKE: "true",
+    INFRAFLOW_SCHEDULER_DISABLED: "1",
   };
 
   child = childProcess.spawn(process.execPath, [serverEntry], {
@@ -127,8 +135,8 @@ function startServer() {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
-  child.stdout.on("data", (chunk) => process.stdout.write(`[server] ${chunk}`));
-  child.stderr.on("data", (chunk) => process.stderr.write(`[server] ${chunk}`));
+  child.stdout.on("data", (chunk) => { serverOutput += chunk; process.stdout.write(`[server] ${chunk}`); });
+  child.stderr.on("data", (chunk) => { serverOutput += chunk; process.stderr.write(`[server] ${chunk}`); });
   child.on("exit", (code, signal) => {
     if (currentCheck) {
       process.stderr.write(`[server] exit în timpul "${currentCheck}": code=${code} signal=${signal}\n`);

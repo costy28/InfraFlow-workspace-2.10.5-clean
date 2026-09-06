@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.531**
-**Versiune în lucru: v2.12.531**
+**Versiune curentă sursă: v2.12.532**
+**Versiune în lucru: v2.12.532**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -268,6 +268,7 @@ Core System
   ✅ Audit comercial smoke și hotfixuri fluxuri reale (v2.12.529)
   ✅ Securizare acces fișiere storage (v2.12.530)
   ✅ Download controlat pentru modele documente (v2.12.531)
+  ✅ Scheduler oprit în audit și teste temporare (v2.12.532)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -495,6 +496,7 @@ Sistem
   ✅ Audit comercial smoke izolat și hotfixuri pentru rute legacy/documente (v2.12.529)
   ✅ Securizare /storage prin sesiune și protecție traversal (v2.12.530)
   ✅ Download modele Documente prin API controlat (v2.12.531)
+  ✅ Flag INFRAFLOW_SCHEDULER_DISABLED pentru audit/test (v2.12.532)
   ✅ Backup/Restore
   ✅ Update pachete
   ✅ Audit log
@@ -891,6 +893,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Smoke test comercial izolat pentru fluxuri reale HTTP ✅ v2.12.529
       → Securizare acces fișiere /storage prin sesiune validă ✅ v2.12.530
       → Eliminare expunere /storage din modelele Documente ✅ v2.12.531
+      → Scheduler oprit în audit/test prin flag dedicat ✅ v2.12.532
       → 2FA pentru administratori și roluri sensibile
       → Audit securitate: autentificări eșuate, stații noi, schimbări permisiuni, acces remote
       → Remote access recomandat prin Cloudflare Tunnel/VPN; SQL Server nu se expune direct la internet
@@ -968,9 +971,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.531
+VERSIUNE CURENTĂ SURSĂ: 2.12.532
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.531 ✅
+UPDATE ZIP CURENT: 2.12.532 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1310,6 +1313,7 @@ UPDATES ÎN LUCRU:
   2.12.529 → UPDATE 549 Audit comercial smoke și hotfixuri fluxuri reale ✅
   2.12.530 → UPDATE 550 Securizare acces fișiere storage ✅
   2.12.531 → UPDATE 551 Download controlat pentru modele documente ✅
+  2.12.532 → UPDATE 552 Scheduler oprit în audit și teste temporare ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1806,5 +1810,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 5 Septembrie 2026 | InfraFlow sursă v2.12.531*
+*AGENTS.md actualizat: 6 Septembrie 2026 | InfraFlow sursă v2.12.532*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

@@ -11,7 +11,7 @@ async function main() {
   fs.copyFileSync(path.join(root, "data", "app-db.seed.json"), dbFile);
   const port = 45180 + Math.floor(Math.random() * 500);
   const child = spawn(process.execPath, [path.join(root, "server", "src", "server.js")], {
-    cwd: root, env: { ...process.env, DB_MODE: "json", INFRAFLOW_DB_PROVIDER: "json", INFRAFLOW_DB_FILE: dbFile, INFRAFLOW_PORT: String(port), PORT: String(port) }, stdio: ["ignore", "pipe", "pipe"]
+    cwd: root, env: { ...process.env, DB_MODE: "json", INFRAFLOW_DB_PROVIDER: "json", INFRAFLOW_DB_FILE: dbFile, INFRAFLOW_PORT: String(port), PORT: String(port), INFRAFLOW_SCHEDULER_DISABLED: "1" }, stdio: ["ignore", "pipe", "pipe"]
   });
   let output = "";
   child.stdout.on("data", (data) => { output += data; }); child.stderr.on("data", (data) => { output += data; });
@@ -20,6 +20,7 @@ async function main() {
     if (!health.ok) throw new Error(`Health invalid: ${JSON.stringify(health)}`);
     const parsed = JSON.parse(fs.readFileSync(dbFile, "utf8"));
     if (!parsed || typeof parsed !== "object") throw new Error("Baza temporara nu mai este JSON valid.");
+    if (/scheduler\s+check[A-Za-z]+\s+start/i.test(output)) throw new Error("Schedulerul a rulat în acceptance smoke, deși INFRAFLOW_SCHEDULER_DISABLED=1.");
     console.log(JSON.stringify({ ok: true, version, health, database: dbFile, server_output: output.slice(-500) }, null, 2));
   } finally {
     child.kill();

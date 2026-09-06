@@ -9,6 +9,10 @@ const EMAIL_SYNC_TICK_MS = 5 * 60 * 1000
 const runtimeNotificationKeys = new Set()
 let emailSyncRunning = false
 
+function schedulerDisabled() {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env.INFRAFLOW_SCHEDULER_DISABLED || '').trim().toLowerCase())
+}
+
 function isMssqlMode() {
   return MSSQL_RELATIONAL_MODE && (DB_MODE === 'mssql' || DB_MODE === 'sqlserver')
 }
@@ -716,6 +720,10 @@ function millisecondsUntilMidnight() {
 }
 
 function startScheduler() {
+  if (schedulerDisabled()) {
+    console.log(`[${timestamp()}] scheduler disabled by INFRAFLOW_SCHEDULER_DISABLED`)
+    return { started: false, disabled: true }
+  }
   runHourlyChecks()
   runEmailAutoSyncChecks()
   setInterval(runHourlyChecks, HOUR_MS)
@@ -724,9 +732,10 @@ function startScheduler() {
     runDailyChecks()
     setInterval(runDailyChecks, DAY_MS)
   }, millisecondsUntilMidnight())
+  return { started: true, disabled: false }
 }
 
-startScheduler()
+if (require.main !== module) startScheduler()
 
 module.exports = {
   checkInterstoftPendingExports,
@@ -745,5 +754,6 @@ module.exports = {
   runHourlyChecks,
   runDailyChecks,
   runEmailAutoSyncChecks,
+  schedulerDisabled,
   startScheduler
 }

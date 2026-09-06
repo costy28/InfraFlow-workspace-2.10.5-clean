@@ -1,5 +1,5 @@
 {
-  "version": "2.12.531",
-  "date": "2026-09-05",
-  "changelog": "## v2.12.531 - 2026-09-05\n### Download controlat pentru modele documente\n- API-ul Documente nu mai expune către frontend calea internă/publică `/storage` pentru modelele de template.\n- Template-urile trimit acum `has_model_file` și `fisier_model_download_url` pentru descărcare prin endpoint controlat.\n- Endpoint-ul de download verifică strict folderul `storage/document-templates` și blochează căi ieșite din root.\n- Frontend-ul folosește URL-ul controlat și păstrează butoanele de descărcare pentru modelele existente.\n- Extinde smoke testul comercial cu verificare anti-leak pentru `fisier_model_path` către `/storage`.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă."
+  "version": "2.12.532",
+  "date": "2026-09-06",
+  "changelog": "## v2.12.532 - 2026-09-06\n### Scheduler oprit în audit și teste temporare\n- Adaugă flag-ul `INFRAFLOW_SCHEDULER_DISABLED` pentru oprirea joburilor periodice în medii de audit/test.\n- Schedulerul principal nu mai rulează verificările inițiale și intervalele când flag-ul este activ.\n- Auto-sync PIUSI respectă același flag, fără să pornească timerul în teste.\n- Scripturile de audit temporar setează flag-ul și verifică explicit că schedulerul nu rulează joburi.\n- Nu schimbă comportamentul normal de producție și nu necesită migrare SQL nouă."
 }

@@ -11,6 +11,10 @@ const router = Router()
 let schedulerStarted = false
 let schedulerTimer = null
 let schedulerRunning = false
+
+function schedulerDisabled() {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env.INFRAFLOW_SCHEDULER_DISABLED || '').trim().toLowerCase())
+}
 const PIUSI_SCHEDULER_INTERVAL_MS = 30 * 60 * 1000
 const PIUSI_MISSING_PATH_LOG_MS = 6 * 60 * 60 * 1000
 const PIUSI_MAX_BACKOFF_MS = 6 * 60 * 60 * 1000
@@ -493,9 +497,13 @@ router.get('/integration/piusi/raport-comparativ', (req, res) => {
 })
 
 function startPiusiScheduler() {
+  if (schedulerDisabled()) {
+    updatePiusiSchedulerState({ started: false, disabled: true })
+    return
+  }
   if (schedulerStarted) return
   schedulerStarted = true
-  updatePiusiSchedulerState({ started: true, interval_min: Math.round(PIUSI_SCHEDULER_INTERVAL_MS / 60000) })
+  updatePiusiSchedulerState({ started: true, disabled: false, interval_min: Math.round(PIUSI_SCHEDULER_INTERVAL_MS / 60000) })
   schedulerTimer = setInterval(async () => {
     if (schedulerRunning) return
     const now = Date.now()
@@ -555,4 +563,4 @@ function startPiusiScheduler() {
 module.exports = router
 module.exports.syncPiusi = syncPiusi
 module.exports.startPiusiScheduler = startPiusiScheduler
-module.exports._private = { ensurePiusiDb, processPiusiRowsToFuelLogs, comparativeReport, piusiStatus, getPiusiSchedulerState, piusiSchedulerBackoffMs }
+module.exports._private = { ensurePiusiDb, processPiusiRowsToFuelLogs, comparativeReport, piusiStatus, getPiusiSchedulerState, piusiSchedulerBackoffMs, schedulerDisabled }

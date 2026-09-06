@@ -1,6 +1,6 @@
 # Audit complet InfraFlow ERP — 2026-09-05
 
-Versiune auditată: **2.12.531**
+Versiune auditată: **2.12.532**
 
 ## Verdict curent
 
@@ -45,9 +45,10 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
    - Modelele Documente nu mai expun către frontend path-uri `/storage`, ci URL-uri API controlate.
    - Recomandare rămasă: migrare graduală a tuturor linkurilor de fișiere către endpoint-uri dedicate pe entitate, cu autorizare pe dosar/document/atașament.
 
-2. **Scheduler pornit în teste temporare**
-   - Observat în smoke: joburile de alerte pornesc și în mediu temporar.
-   - Recomandare: `INFRAFLOW_SCHEDULER_DISABLED=true` pentru audit/test, ca testele să fie curate și fără efecte secundare.
+2. **Scheduler pornit în teste temporare** — rezolvat în 2.12.532
+   - Scripturile de audit/test setează `INFRAFLOW_SCHEDULER_DISABLED=1`.
+   - Schedulerul principal și PIUSI nu mai pornesc joburi periodice când flag-ul este activ.
+   - Smoke-urile verifică explicit că nu apar joburi `scheduler check... start`.
 
 3. **Fișiere foarte mari**
    - Modulele `fleet`, `system`, `procurement`, `inventory`, `technical`, `production`, `workflow` au route files de mii de linii.
@@ -75,4 +76,4 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 
 ## Recomandarea pentru următorul update
 
-Următorul pas tehnic ar trebui să fie **oprirea schedulerului în audit/test prin flag dedicat**, pentru ca verificările comerciale să rămână curate și fără zgomot operațional. După aceea continuăm migrarea linkurilor de fișiere rămase spre endpoint-uri dedicate pe entitate.
+Următorul pas tehnic ar trebui să fie **migrarea linkurilor de fișiere rămase spre endpoint-uri dedicate pe entitate**, cu verificare de drepturi pe dosar/document/atașament. După aceea putem continua cu audit securitate pentru autentificări eșuate, stații noi și schimbări de permisiuni.

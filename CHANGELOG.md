@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.532 - 2026-09-06
+
+## Scheduler oprit în audit și teste temporare
+
+- Adaugă flag-ul `INFRAFLOW_SCHEDULER_DISABLED` pentru oprirea joburilor periodice în medii de audit/test.
+- Schedulerul principal nu mai rulează verificările inițiale și intervalele când flag-ul este activ.
+- Auto-sync PIUSI respectă același flag, fără să pornească timerul în teste.
+- Scripturile de audit temporar setează flag-ul și verifică explicit că schedulerul nu rulează joburi.
+- Nu schimbă comportamentul normal de producție și nu necesită migrare SQL nouă.
 # v2.12.531 - 2026-09-05
 
 ## Download controlat pentru modele documente
