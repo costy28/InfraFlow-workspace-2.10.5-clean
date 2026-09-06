@@ -2,6 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
+Ultimul pas executat: 2.12.534 — audit automat expuneri fișiere
 Status: backlog operațional activ
 
 ## Scop
@@ -20,12 +21,14 @@ Obiectiv: niciun fișier sensibil să nu fie accesibil prin scurtături directe 
 
 Pași:
 
+- audit automat pentru expuneri de fișiere; ✅ `v2.12.534`
+- curățare linkuri directe detectate în `FisaVehicul.jsx` și `MyVehicle.jsx`;
 - mutare graduală a tuturor descărcărilor de fișiere către endpoint-uri dedicate pe entitate;
 - verificare permisiune pe dosar, document, contract, email sau task înainte de download;
 - audit pentru descărcări sensibile;
 - mesaje clare când utilizatorul nu are drepturi.
 
-Primul update recomandat: audit automat care detectează expuneri rămase către `/storage` sau path-uri interne în API.
+Primul update recomandat: audit automat care detectează expuneri rămase către `/storage` sau path-uri interne în API. ✅ Implementat în `v2.12.534`.
 
 ### 2. Audit autentificări, stații și permisiuni
 

@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.534 - 2026-09-06
+
+## Audit automat expuneri fișiere
+
+- Adaugă `scripts/audit-file-exposure.js` pentru detectarea linkurilor directe către fișiere și path-uri interne expuse în server/client.
+- Adaugă comanda `npm run audit:file-exposure`.
+- Include auditul în `npm run audit:local` ca verificare advisory, fără blocarea release-ului curent.
+- Primele rezultate semnalează linkuri directe în `FisaVehicul.jsx` și `MyVehicle.jsx`, plus zone de migrat gradual către endpoint-uri controlate.
+- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.
 # v2.12.533 - 2026-09-06
 
 ## Backlog comercial acționabil

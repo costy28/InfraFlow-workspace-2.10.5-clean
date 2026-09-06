@@ -108,6 +108,7 @@ function main() {
   run('Accounting regression tests', npmCmd, ['run', 'test:accounting'])
   run('Release acceptance smoke', npmCmd, ['run', 'test:release'])
   run('Module read-only smoke suite', npmCmd, ['run', 'test:smoke'])
+  run('File exposure audit advisory', npmCmd, ['run', 'audit:file-exposure'], { advisory: true })
   run('Backup roundtrip check', npmCmd, ['run', 'test:backup'])
 
   if (!skipBuild) run('Frontend production build', npmCmd, ['run', 'build'])

@@ -1,5 +1,5 @@
 {
-  "changelog": "## v2.12.533 - 2026-09-06\n### Backlog comercial acționabil\n- Adaugă documentul `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md` ca listă clară de îmbunătățiri pe module.\n- Grupează următorii pași în securitate fișiere, audit acces, simplitate UX, modularizare, internaționalizare și pregătire release comercial.\n- Leagă backlog-ul operațional în `AGENTS.md`, ca fiecare update viitor să poată urmări un punct concret.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.",
-  "version": "2.12.533",
+  "version": "2.12.534",
+  "changelog": "## v2.12.534 - 2026-09-06\n### Audit automat expuneri fișiere\n- Adaugă scriptul `scripts/audit-file-exposure.js` pentru detectarea linkurilor directe către fișiere și path-uri interne expuse în server/client.\n- Adaugă comanda `npm run audit:file-exposure` în pachetul principal.\n- Include auditul de fișiere în `npm run audit:local` ca verificare advisory, fără blocarea release-ului curent.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.",
   "date": "2026-09-06"
 }

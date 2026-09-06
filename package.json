@@ -13,10 +13,11 @@
     "test:backup": "node scripts/verify-backup-roundtrip.js",
     "test:smoke": "node scripts/smoke-modules-readonly.js",
     "release:check": "node scripts/release-check.js",
-    "audit:commercial-smoke": "node scripts/audit-commercial-smoke.js"
+    "audit:commercial-smoke": "node scripts/audit-commercial-smoke.js",
+    "audit:file-exposure": "node scripts/audit-file-exposure.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
-  "version": "2.12.533"
+  "version": "2.12.534"
 }
