@@ -1292,8 +1292,14 @@ export default function DocumentePage() {
     }
   }
 
+  function hasTemplateModel(template) {
+    return Boolean(template?.has_model_file || template?.fisier_model_download_url || template?.fisier_model_name || template?.fisier_model_path)
+  }
+
   function downloadTemplate(template) {
-    window.open(`/api/documents/templates/${template.id}/download-model`, '_blank')
+    if (!template) return
+    const url = template.fisier_model_download_url || `/api/documents/templates/${template.id}/download-model`
+    window.open(url, '_blank')
   }
 
   async function downloadSourceAttachment(source) {
@@ -1888,7 +1894,7 @@ export default function DocumentePage() {
                   <DropdownMenu label="Actiuni template" items={[
                     { label: 'Preview', onClick: () => previewTemplate(template) },
                     { label: 'Editeaza', onClick: () => openTemplateModal(template) },
-                    template.fisier_model_path ? { label: 'Descarca model', onClick: () => downloadTemplate(template) } : null,
+                    hasTemplateModel(template) ? { label: 'Descarca model', onClick: () => downloadTemplate(template) } : null,
                     { separator: true },
                     { label: 'Dezactiveaza', danger: true, onClick: () => deleteTemplate(template) },
                   ]} />
@@ -1914,7 +1920,7 @@ export default function DocumentePage() {
                   <div className="flex justify-end">
                     <DropdownMenu align="right" label="Actiuni" items={[
                       { label: 'Preview', onClick: () => previewTemplate(row) },
-                      row.fisier_model_path ? { label: 'Descarca model', onClick: () => downloadTemplate(row) } : null,
+                      hasTemplateModel(row) ? { label: 'Descarca model', onClick: () => downloadTemplate(row) } : null,
                       { label: 'Editeaza', onClick: () => openTemplateModal(row) },
                       { separator: true },
                       { label: 'Dezactiveaza', danger: true, onClick: () => deleteTemplate(row) },
@@ -2644,7 +2650,7 @@ export default function DocumentePage() {
                   InfraFlow păstrează modelul original pentru descărcare și dosar.
                 </p>
               </div>
-              {templateEditing?.fisier_model_path ? (
+              {hasTemplateModel(templateEditing) ? (
                 <Button type="button" size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => downloadTemplate(templateEditing)}>
                   <Download size={14} /> Descarcă modelul curent
                 </Button>

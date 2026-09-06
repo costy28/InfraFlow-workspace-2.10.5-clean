@@ -416,6 +416,15 @@ async function runChecks(user) {
         activ: true,
       },
     }), [200, 201], "template document");
+    const templatesPayload = expectStatus(await request("/documents/templates"), 200, "lista template-uri documente");
+    const leakedTemplate = (templatesPayload.templates || []).find(item => String(item?.fisier_model_path || "").includes("/storage"));
+    if (leakedTemplate) {
+      throw new Error(`Template-ul ${leakedTemplate.id || "necunoscut"} expune fisier_model_path către /storage.`);
+    }
+    const missingDownload = (templatesPayload.templates || []).find(item => item?.has_model_file && !item?.fisier_model_download_url);
+    if (missingDownload) {
+      throw new Error(`Template-ul ${missingDownload.id || "necunoscut"} are model, dar nu are URL de download controlat.`);
+    }
     const created = expectStatus(await request("/documents", {
       method: "POST",
       body: {

@@ -1,6 +1,6 @@
 # Audit complet InfraFlow ERP — 2026-09-05
 
-Versiune auditată: **2.12.530**
+Versiune auditată: **2.12.531**
 
 ## Verdict curent
 
@@ -8,7 +8,7 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 
 ## Verificări rulate
 
-- `node scripts/audit-commercial-smoke.js` — **10/10 trecut**
+- `node scripts/audit-commercial-smoke.js` — **11/11 trecut**
   - autentificare și sesiune;
   - gestiune materiale și ieșire stoc;
   - parc/resurse cu creare manuală și date tehnice;
@@ -22,7 +22,7 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 - `npm run audit:local` anterior în această rundă — **trecut** pe backend syntax, HR/accounting regression, release acceptance, smoke readonly, backup roundtrip și frontend build.
 - `npm run audit:advisory` anterior în această rundă — a trecut execuția, dar a raportat lint/vulnerabilități advisory.
 
-## Buguri remediate în update 549
+## Buguri remediate în update 549–551
 
 1. **Timeout POST în module legacy mari**
    - Cauză: unele fișiere aveau două funcții `readJsonBody`; varianta veche citea stream-ul raw, dar `express.json()` consumase deja corpul requestului.
@@ -40,9 +40,10 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 
 ## Riscuri rămase prioritare
 
-1. **Securitate fișiere /storage**
-   - Verificat static: `/storage` este servit static la nivel de aplicație.
-   - Recomandare: înlocuire cu endpoint-uri autentificate și autorizate, plus verificare drepturi pe document/atașament.
+1. **Securitate fișiere /storage** — rezolvată parțial în 2.12.530–2.12.531
+   - `/storage` nu mai este servit public; cere sesiune validă și blochează traversal.
+   - Modelele Documente nu mai expun către frontend path-uri `/storage`, ci URL-uri API controlate.
+   - Recomandare rămasă: migrare graduală a tuturor linkurilor de fișiere către endpoint-uri dedicate pe entitate, cu autorizare pe dosar/document/atașament.
 
 2. **Scheduler pornit în teste temporare**
    - Observat în smoke: joburile de alerte pornesc și în mediu temporar.
@@ -74,4 +75,4 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 
 ## Recomandarea pentru următorul update
 
-Următorul pas tehnic ar trebui să fie **securizarea `/storage`**, pentru că aplicația gestionează documente, contracte, concedii medicale și atașamente sensibile. Este mai important decât o îmbunătățire vizuală nouă.
+Următorul pas tehnic ar trebui să fie **oprirea schedulerului în audit/test prin flag dedicat**, pentru ca verificările comerciale să rămână curate și fără zgomot operațional. După aceea continuăm migrarea linkurilor de fișiere rămase spre endpoint-uri dedicate pe entitate.

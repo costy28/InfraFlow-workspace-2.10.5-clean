@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.531 - 2026-09-05
+
+## Download controlat pentru modele documente
+
+- API-ul Documente nu mai expune către frontend calea internă/publică `/storage` pentru modelele de template.
+- Template-urile trimit acum `has_model_file` și `fisier_model_download_url` pentru descărcare prin endpoint controlat.
+- Endpoint-ul de download verifică strict folderul `storage/document-templates` și blochează căi ieșite din root.
+- Frontend-ul folosește URL-ul controlat și păstrează butoanele de descărcare pentru modelele existente.
+- Extinde smoke testul comercial cu verificare anti-leak pentru `fisier_model_path` către `/storage`.
+- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.
 # v2.12.530 - 2026-09-05
 
 ## Securizare acces fișiere storage

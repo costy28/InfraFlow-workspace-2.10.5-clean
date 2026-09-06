@@ -294,9 +294,22 @@ function templatePublicFilePath(templateId, fileName) {
 
 function resolveTemplateFilePath(publicPath) {
   const clean = String(publicPath || '').replace(/^\/+storage\/+/, '').replace(/\\/g, '/')
-  return path.join(path.dirname(TEMPLATE_STORAGE_ROOT), clean)
+  const diskPath = path.resolve(path.dirname(TEMPLATE_STORAGE_ROOT), clean)
+  const root = path.resolve(TEMPLATE_STORAGE_ROOT)
+  if (!diskPath.startsWith(root + path.sep) && diskPath !== root) {
+    throwHttp(403, 'Acces interzis la fișierul model.')
+  }
+  return diskPath
 }
 
+function publicTemplateUploadFile(file = {}) {
+  const templateId = safeTemplateId(file.template_id)
+  return {
+    ...file,
+    file_path: null,
+    download_url: templateId ? `/api/documents/templates/${encodeURIComponent(templateId)}/download-model` : null
+  }
+}
 function templateModelFields(template = {}) {
   const attachment = template.atasament_model || {}
   return {
@@ -374,8 +387,24 @@ function watchedDocumentsSummary(documents, notifications) {
   }
 }
 
+function templateModelDownloadUrl(template = {}) {
+  const id = safeTemplateId(template.id)
+  const fields = templateModelFields(template)
+  if (!id || (!fields.fisier_model_path && !fields.fisier_model_name)) return null
+  return `/api/documents/templates/${encodeURIComponent(id)}/download-model`
+}
+
 function publicTemplate(template = {}) {
-  return { ...template, ...templateModelFields(template) }
+  const fields = templateModelFields(template)
+  const hasModelFile = Boolean(fields.fisier_model_path || fields.fisier_model_name)
+  return {
+    ...template,
+    ...fields,
+    fisier_model_path: null,
+    atasament_model: undefined,
+    has_model_file: hasModelFile,
+    fisier_model_download_url: templateModelDownloadUrl(template)
+  }
 }
 
 function extractTemplateVariables(html) {
@@ -497,7 +526,7 @@ router.get('/documents/templates', (req, res, next) => {
     if (isMssqlMode()) {
       ensureTemplateSchemaMssql()
       const templates = mssqlArray(`SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, categorie, descriere, tip_document, template_format, fisier_model_path, fisier_model_name, fisier_model_size, uploaded_at, created_at FROM documents.document_types ORDER BY id FOR JSON PATH;`)
-      sendJson(res, 200, { templates })
+      sendJson(res, 200, { templates: templates.map(publicTemplate) })
       return
     }
     sendJson(res, 200, { templates: ensureDocumentsDb(auth.db).documentTypes.map(publicTemplate) })
@@ -534,7 +563,7 @@ WHERE id = JSON_VALUE(@p, '$.id');
 SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, categorie, descriere, tip_document, template_format, fisier_model_path, fisier_model_name, fisier_model_size, uploaded_at, created_at FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { id, denumire: body.denumire || '', templateHtml: body.template_html || '', workflowTemplateId: body.workflow_template_id || '', seriePrefix: body.serie_prefix || id, categorie: body.categorie || 'Alt', descriere: body.descriere || '', tipDocument: body.tip_document || 'generic', templateFormat: body.template_format || 'html', activ: body.activ !== false })
-      sendJson(res, 200, { template })
+      sendJson(res, 200, { template: publicTemplate(template) })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
@@ -557,7 +586,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     })
     addAudit(auth.db, auth.user, 'document_template_salvat', id)
     writeDb(auth.db)
-    sendJson(res, 200, { template })
+    sendJson(res, 200, { template: publicTemplate(template) })
   } catch (error) {
     next(error)
   }
@@ -590,7 +619,7 @@ FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { id, denumire: body.denumire || '', templateHtml: body.template_html || '', workflowTemplateId: body.workflow_template_id || '', seriePrefix: body.serie_prefix || id, categorie: body.categorie || '', descriere: body.descriere || '', tipDocument: body.tip_document || '', templateFormat: body.template_format || '', activ: body.activ !== false })
       if (!template) throwHttp(404, 'Template-ul nu a fost gasit.')
-      sendJson(res, 200, { template })
+      sendJson(res, 200, { template: publicTemplate(template) })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
@@ -610,7 +639,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     })
     addAudit(auth.db, auth.user, 'document_template_editat', id)
     writeDb(auth.db)
-    sendJson(res, 200, { template })
+    sendJson(res, 200, { template: publicTemplate(template) })
   } catch (error) {
     next(error)
   }
@@ -632,7 +661,7 @@ FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { id })
       if (!template) throwHttp(404, 'Template-ul nu a fost gasit.')
-      sendJson(res, 200, { template })
+      sendJson(res, 200, { template: publicTemplate(template) })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
@@ -642,7 +671,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     template.deleted_at = nowIso()
     addAudit(auth.db, auth.user, 'document_template_dezactivat', id)
     writeDb(auth.db)
-    sendJson(res, 200, { template })
+    sendJson(res, 200, { template: publicTemplate(template) })
   } catch (error) {
     next(error)
   }
@@ -717,7 +746,7 @@ FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { id, filePath: publicPath, fileName: req.file.originalname, fileSize: req.file.size, fileExt: ext.replace(/^\./, ''), uploadedBy: auth.user.id })
       if (!template) throwHttp(404, 'Template-ul nu a fost găsit.')
-      sendJson(res, 200, { file, template })
+      sendJson(res, 200, { file: publicTemplateUploadFile(file), template: publicTemplate(template) })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
@@ -740,7 +769,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     })
     addAudit(auth.db, auth.user, 'document_template_model_upload', id)
     writeDb(auth.db)
-    sendJson(res, 200, { file, template: publicTemplate(template) })
+    sendJson(res, 200, { file: publicTemplateUploadFile(file), template: publicTemplate(template) })
   } catch (error) {
     next(error)
   }

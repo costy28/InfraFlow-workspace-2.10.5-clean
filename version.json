@@ -1,5 +1,5 @@
 {
-  "version": "2.12.530",
+  "version": "2.12.531",
   "date": "2026-09-05",
-  "changelog": "## v2.12.530 - 2026-09-05\n### Securizare acces fișiere storage\n- Înlocuiește servirea publică `/storage` cu acces protejat prin sesiune validă.\n- Blochează traversal-ul de cale pentru fișiere din afara folderului storage.\n- Extinde smoke testul comercial cu verificare explicită pentru fișiere neautentificate și traversal.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.531 - 2026-09-05\n### Download controlat pentru modele documente\n- API-ul Documente nu mai expune către frontend calea internă/publică `/storage` pentru modelele de template.\n- Template-urile trimit acum `has_model_file` și `fisier_model_download_url` pentru descărcare prin endpoint controlat.\n- Endpoint-ul de download verifică strict folderul `storage/document-templates` și blochează căi ieșite din root.\n- Frontend-ul folosește URL-ul controlat și păstrează butoanele de descărcare pentru modelele existente.\n- Extinde smoke testul comercial cu verificare anti-leak pentru `fisier_model_path` către `/storage`.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă."
 }
