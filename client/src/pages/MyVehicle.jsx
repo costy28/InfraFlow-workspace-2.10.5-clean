@@ -14,6 +14,19 @@ function tone(status) {
   return 'gray'
 }
 
+function normalizeApiDownloadPath(url) {
+  const value = String(url || '')
+  return value.startsWith('/api/') ? value.slice(4) : value
+}
+
+function filenameFromDownload(response, fallback) {
+  const disposition = response?.headers?.['content-disposition'] || ''
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (encoded?.[1]) return decodeURIComponent(encoded[1])
+  const plain = disposition.match(/filename="?([^";]+)"?/i)
+  return plain?.[1] || fallback || 'document'
+}
+
 export default function MyVehicle() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -35,6 +48,24 @@ export default function MyVehicle() {
   useEffect(() => {
     Promise.resolve().then(load)
   }, [])
+
+  async function downloadFile(file) {
+    const endpoint = normalizeApiDownloadPath(file.download_url || `/fleet/assets/${file.asset_id}/files/${file.id}/download`)
+    if (!endpoint) return
+    try {
+      const response = await api.get(endpoint, { responseType: 'blob' })
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = filenameFromDownload(response, file.file_name || file.denumire || 'document')
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(blobUrl)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Fisierul nu a putut fi descarcat.')
+    }
+  }
 
   const asset = data?.asset || {}
   const rows = asset.asset_kind === 'autovehicul' ? (data?.trip_logs || []).slice(0, 5) : (data?.faz_logs || []).slice(0, 5)
@@ -76,10 +107,10 @@ export default function MyVehicle() {
             </div>
           ))}
           {(data?.files || []).map(file => (
-            <a key={file.uuid} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-primary-700" href={file.file_path} target="_blank" rel="noreferrer">
+            <button key={file.uuid || file.id} type="button" className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-left text-primary-700" onClick={() => downloadFile(file)}>
               <span>{file.denumire || file.file_name}</span>
               <span>Descarca</span>
-            </a>
+            </button>
           ))}
         </div>
       </Card>

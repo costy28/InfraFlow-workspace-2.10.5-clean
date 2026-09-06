@@ -170,10 +170,38 @@ function withEmployee(db, row) {
   return { ...row, employee, employee_name: employeeName(employee) || row.employee_name || `#${row.employee_id}` }
 }
 
-function filesForAsset(db, assetIdValue) {
-  return (db.fleetAssetFiles || [])
+function fleetFileDownloadUrl(assetIdValue, fileIdValue) {
+  return `/api/fleet/assets/${encodeURIComponent(assetIdValue)}/files/${encodeURIComponent(fileIdValue)}/download`
+}
+
+function serializeFleetAssetFile(file) {
+  const { local_path, ...safeFile } = file || {}
+  return {
+    ...safeFile,
+    file_path: null,
+    has_file: Boolean(file?.local_path || file?.file_path),
+    download_url: fleetFileDownloadUrl(file?.asset_id, file?.id)
+  }
+}
+
+function filesForAsset(db, assetIdValue, options = {}) {
+  const rows = (db.fleetAssetFiles || [])
     .filter(file => String(file.asset_id) === String(assetIdValue) && !file.cancelled_at)
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+  return options.raw ? rows : rows.map(serializeFleetAssetFile)
+}
+
+function resolveFleetAssetFilePath(file) {
+  const candidates = [file?.local_path, file?.file_path].filter(Boolean)
+  for (const candidate of candidates) {
+    const normalized = String(candidate).replace(/^\/+/, '').replace(/\\/g, '/')
+    const diskPath = path.isAbsolute(candidate)
+      ? path.resolve(candidate)
+      : path.resolve(ROOT, normalized)
+    const relative = path.relative(STORAGE_DIR, diskPath)
+    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative) && fs.existsSync(diskPath)) return diskPath
+  }
+  return ''
 }
 
 function tripLogsForAsset(db, assetIdValue, limit = 30) {
@@ -386,13 +414,13 @@ function statusToneForTimeline(status) {
 function fullAssetPayload(db, asset) {
   const assetDrivers = allDrivers(db, asset.id)
   const documents = visibleDocumentRecords(db, asset.id)
-  const files = filesForAsset(db, asset.id)
+  const rawFiles = filesForAsset(db, asset.id, { raw: true })
   const tripLogs = tripLogsForAsset(db, asset.id)
   const fazLogs = fazLogsForAsset(db, asset.id)
   const fuelRows = fuelForAsset(db, asset.id)
   const maintenances = maintenanceForAsset(db, asset.id)
   const auditRows = auditForAsset(db, asset)
-  const timeline = timelineForAsset({ documents, files, drivers: assetDrivers, tripLogs, fazLogs, fuelRows, maintenances, auditRows })
+  const timeline = timelineForAsset({ documents, files: rawFiles, drivers: assetDrivers, tripLogs, fazLogs, fuelRows, maintenances, auditRows })
   return {
     asset: {
       ...asset,
@@ -403,7 +431,7 @@ function fullAssetPayload(db, asset) {
     drivers: assetDrivers,
     active_drivers: activeDrivers(db, asset.id),
     documents,
-    files,
+    files: rawFiles.map(serializeFleetAssetFile),
     gps: gpsSnapshotForAsset(asset),
     trip_logs: tripLogs.slice(0, 30),
     faz_logs: fazLogs.slice(0, 30),
@@ -607,12 +635,33 @@ router.post('/fleet/assets/:id/files', raw({ type: () => true, limit: MAX_UPLOAD
     auth.db.fleetAssetFiles.push(item)
     addAudit(auth.db, auth.user, 'fleet_asset_file_uploaded', `${assetLabel(asset)} / ${item.file_name}`)
     writeDb(auth.db)
-    sendJson(res, 201, { file: item })
+    sendJson(res, 201, { file: serializeFleetAssetFile(item) })
   } catch (error) {
     next(error)
   }
 })
 
+router.get('/fleet/assets/:id/files/:fileId/download', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireFleetRead(auth, res)) return
+    ensureAssetDb(auth.db)
+    const asset = assetById(auth.db, req.params.id)
+    if (!asset) return sendJson(res, 404, { error: 'Vehiculul/utilajul nu a fost gasit.' })
+    const file = (auth.db.fleetAssetFiles || []).find(item =>
+      String(item.id) === String(req.params.fileId) &&
+      String(item.asset_id) === String(asset.id) &&
+      !item.cancelled_at
+    )
+    if (!file) return sendJson(res, 404, { error: 'Fisierul nu a fost gasit.' })
+    const diskPath = resolveFleetAssetFilePath(file)
+    if (!diskPath) return sendJson(res, 404, { error: 'Fisierul nu mai exista pe disc.' })
+    res.download(diskPath, file.file_name || file.denumire || path.basename(diskPath))
+  } catch (error) {
+    next(error)
+  }
+})
 router.delete('/fleet/assets/:id/files/:fileId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)

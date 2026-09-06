@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.535 - 2026-09-06
+
+## Download controlat fișiere Parc & Resurse
+
+- Elimină linkurile directe către fișiere din `FisaVehicul.jsx` și `MyVehicle.jsx`.
+- API-ul Fleet serializează atașamentele fără `local_path` și fără cale publică directă, expunând doar `has_file` și `download_url`.
+- Adaugă endpoint dedicat de download pentru fișierele resursei parc, cu verificare sesiune, permisiune și limitare la folderul `storage`.
+- Auditul automat `npm run audit:file-exposure` raportează `high=0` după remediere.
+- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.
 # v2.12.534 - 2026-09-06
 
 ## Audit automat expuneri fișiere

@@ -84,6 +84,19 @@ function timelineTypeLabel(type) {
   return labels[type] || type
 }
 
+function normalizeApiDownloadPath(url) {
+  const value = String(url || '')
+  return value.startsWith('/api/') ? value.slice(4) : value
+}
+
+function filenameFromDownload(response, fallback) {
+  const disposition = response?.headers?.['content-disposition'] || ''
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (encoded?.[1]) return decodeURIComponent(encoded[1])
+  const plain = disposition.match(/filename="?([^";]+)"?/i)
+  return plain?.[1] || fallback || 'document'
+}
+
 export default function FisaVehicul() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -189,6 +202,24 @@ export default function FisaVehicul() {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Fisierul nu a putut fi eliminat.')
+    }
+  }
+
+  async function downloadFile(row) {
+    const endpoint = normalizeApiDownloadPath(row.download_url || `/fleet/assets/${id}/files/${row.id}/download`)
+    if (!endpoint) return
+    try {
+      const response = await api.get(endpoint, { responseType: 'blob' })
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = filenameFromDownload(response, row.file_name || row.denumire || row.label || 'document')
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(blobUrl)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Fisierul nu a putut fi descarcat.')
     }
   }
 
@@ -315,8 +346,8 @@ export default function FisaVehicul() {
               { key: 'actions', label: 'Actiuni', render: row => (
                 <div className="flex flex-wrap gap-2">
                   {row.detail_url ? <Link className="text-sm font-medium text-primary-700" to={row.detail_url}>Vezi detalii</Link> : null}
-                  {row.file_path ? <a className="text-sm font-medium text-primary-700" href={row.file_path} target="_blank" rel="noreferrer">Descarca</a> : null}
-                  {row.file_path ? <button className="text-sm font-medium text-rose-600" onClick={() => deleteFile(row.id)}>Sterge</button> : null}
+                  {row.source === 'fisier' && (row.download_url || row.has_file || row.id) ? <button className="text-sm font-medium text-primary-700" onClick={() => downloadFile(row)}>Descarca</button> : null}
+                  {row.source === 'fisier' && row.id ? <button className="text-sm font-medium text-rose-600" onClick={() => deleteFile(row.id)}>Sterge</button> : null}
                 </div>
               ) }
             ]}

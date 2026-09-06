@@ -1,5 +1,5 @@
 {
-  "version": "2.12.534",
-  "changelog": "## v2.12.534 - 2026-09-06\n### Audit automat expuneri fișiere\n- Adaugă scriptul `scripts/audit-file-exposure.js` pentru detectarea linkurilor directe către fișiere și path-uri interne expuse în server/client.\n- Adaugă comanda `npm run audit:file-exposure` în pachetul principal.\n- Include auditul de fișiere în `npm run audit:local` ca verificare advisory, fără blocarea release-ului curent.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.",
+  "version": "2.12.535",
+  "changelog": "## v2.12.535 - 2026-09-06\n### Download controlat fișiere Parc & Resurse\n- Elimină linkurile directe din fișa resursei parc și din pagina Vehiculul meu.\n- API-ul Fleet nu mai trimite către frontend calea locală a fișierului, ci doar indicator de existență și URL dedicat de download.\n- Descărcarea verifică sesiunea, dreptul de citire Fleet și faptul că fișierul este în storage înainte de livrare.\n- Auditul automat de expuneri fișiere nu mai raportează finding-uri high pentru aceste două ecrane.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.",
   "date": "2026-09-06"
 }
