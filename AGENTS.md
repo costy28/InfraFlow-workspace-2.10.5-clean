@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.532**
-**Versiune în lucru: v2.12.532**
+**Versiune curentă sursă: v2.12.533**
+**Versiune în lucru: v2.12.533**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -30,6 +30,7 @@ Produsul trebuie să fie:
   - comercial: demo, licențiere, onboarding, helpere și update-uri clare.
 
 Ghid de produs: docs/PRODUCTIZARE_COMERCIALA.md
+Backlog operațional: docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md
 ```
 
 ### Direcție internațională activă
@@ -269,6 +270,7 @@ Core System
   ✅ Securizare acces fișiere storage (v2.12.530)
   ✅ Download controlat pentru modele documente (v2.12.531)
   ✅ Scheduler oprit în audit și teste temporare (v2.12.532)
+  ✅ Backlog comercial acționabil pe module (v2.12.533)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -497,6 +499,7 @@ Sistem
   ✅ Securizare /storage prin sesiune și protecție traversal (v2.12.530)
   ✅ Download modele Documente prin API controlat (v2.12.531)
   ✅ Flag INFRAFLOW_SCHEDULER_DISABLED pentru audit/test (v2.12.532)
+  ✅ Backlog comercial acționabil pentru audit și îmbunătățiri (v2.12.533)
   ✅ Backup/Restore
   ✅ Update pachete
   ✅ Audit log
@@ -971,9 +974,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.532
+VERSIUNE CURENTĂ SURSĂ: 2.12.533
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.532 ✅
+UPDATE ZIP CURENT: 2.12.533 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1314,6 +1317,7 @@ UPDATES ÎN LUCRU:
   2.12.530 → UPDATE 550 Securizare acces fișiere storage ✅
   2.12.531 → UPDATE 551 Download controlat pentru modele documente ✅
   2.12.532 → UPDATE 552 Scheduler oprit în audit și teste temporare ✅
+  2.12.533 → UPDATE 553 Backlog comercial acționabil ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1810,5 +1814,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 6 Septembrie 2026 | InfraFlow sursă v2.12.532*
+*AGENTS.md actualizat: 6 Septembrie 2026 | InfraFlow sursă v2.12.533*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

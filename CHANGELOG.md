@@ -1,5 +1,13 @@
 # Changelog
 
+# v2.12.533 - 2026-09-06
+
+## Backlog comercial acționabil
+
+- Adaugă `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md` ca listă clară de îmbunătățiri pe module.
+- Grupează următorii pași în securitate fișiere, audit acces, simplitate UX, modularizare, internaționalizare și pregătire release comercial.
+- Leagă backlog-ul operațional în `AGENTS.md`, ca fiecare update viitor să urmărească un punct concret.
+- Nu schimbă comportamentul runtime, schema bazei de date și nu necesită migrare SQL.
 # v2.12.532 - 2026-09-06
 
 ## Scheduler oprit în audit și teste temporare

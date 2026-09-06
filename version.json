@@ -1,5 +1,5 @@
 {
-  "version": "2.12.532",
-  "date": "2026-09-06",
-  "changelog": "## v2.12.532 - 2026-09-06\n### Scheduler oprit în audit și teste temporare\n- Adaugă flag-ul `INFRAFLOW_SCHEDULER_DISABLED` pentru oprirea joburilor periodice în medii de audit/test.\n- Schedulerul principal nu mai rulează verificările inițiale și intervalele când flag-ul este activ.\n- Auto-sync PIUSI respectă același flag, fără să pornească timerul în teste.\n- Scripturile de audit temporar setează flag-ul și verifică explicit că schedulerul nu rulează joburi.\n- Nu schimbă comportamentul normal de producție și nu necesită migrare SQL nouă."
+  "changelog": "## v2.12.533 - 2026-09-06\n### Backlog comercial acționabil\n- Adaugă documentul `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md` ca listă clară de îmbunătățiri pe module.\n- Grupează următorii pași în securitate fișiere, audit acces, simplitate UX, modularizare, internaționalizare și pregătire release comercial.\n- Leagă backlog-ul operațional în `AGENTS.md`, ca fiecare update viitor să poată urmări un punct concret.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.",
+  "version": "2.12.533",
+  "date": "2026-09-06"
 }

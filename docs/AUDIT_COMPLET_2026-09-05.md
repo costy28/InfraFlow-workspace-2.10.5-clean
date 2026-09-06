@@ -1,6 +1,6 @@
 # Audit complet InfraFlow ERP — 2026-09-05
 
-Versiune auditată: **2.12.532**
+Versiune auditată: **2.12.533**
 
 ## Verdict curent
 
@@ -76,4 +76,4 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 
 ## Recomandarea pentru următorul update
 
-Următorul pas tehnic ar trebui să fie **migrarea linkurilor de fișiere rămase spre endpoint-uri dedicate pe entitate**, cu verificare de drepturi pe dosar/document/atașament. După aceea putem continua cu audit securitate pentru autentificări eșuate, stații noi și schimbări de permisiuni.
+Backlog-ul acționabil este acum documentat în `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md`. Următorul pas tehnic rămâne **migrarea linkurilor de fișiere rămase spre endpoint-uri dedicate pe entitate**, cu verificare de drepturi pe dosar/document/atașament. După aceea continuăm cu audit securitate pentru autentificări eșuate, stații noi și schimbări de permisiuni.
