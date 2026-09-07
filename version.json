@@ -1,5 +1,5 @@
 {
-  "version": "2.12.535",
-  "changelog": "## v2.12.535 - 2026-09-06\n### Download controlat fișiere Parc & Resurse\n- Elimină linkurile directe din fișa resursei parc și din pagina Vehiculul meu.\n- API-ul Fleet nu mai trimite către frontend calea locală a fișierului, ci doar indicator de existență și URL dedicat de download.\n- Descărcarea verifică sesiunea, dreptul de citire Fleet și faptul că fișierul este în storage înainte de livrare.\n- Auditul automat de expuneri fișiere nu mai raportează finding-uri high pentru aceste două ecrane.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.",
+  "version": "2.12.536",
+  "changelog": "## v2.12.536 - 2026-09-06\n### Referințe documente parc sanitizate\n- Mecanizare nu mai cere utilizatorului o cale de fișier pentru polițe, ITP, taxe sau ISCIR, ci o referință text opțională.\n- Referința este validată în frontend și blochează căi locale, URL-uri sau linkuri directe către storage.\n- ITP folosește payload explicit, fără trimiterea întregului formular legacy.\n- Auditul de expuneri fișiere recunoaște cazul de referință text sanitizată și reduce finding-urile medium de la 5 la 4.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.",
   "date": "2026-09-06"
 }

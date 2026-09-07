@@ -171,7 +171,7 @@ const emptyFleetDocForm = {
   data_emitere: '',
   inspector: '',
   organism: 'ISCIR',
-  fisier_path: '',
+  document_reference: '',
   observatii: '',
 }
 
@@ -726,6 +726,15 @@ export default function MecanizarePage() {
     return d.toISOString().slice(0, 10)
   }
 
+  function normalizeFleetDocumentReference(value) {
+    const text = String(value || '').trim()
+    if (!text) return ''
+    if (/^[a-z]:[\\/]/i.test(text) || /^\\\\/.test(text) || /^https?:\/\//i.test(text) || /(^|[\\/])storage[\\/]/i.test(text)) {
+      throw new Error('Nu salva căi locale sau linkuri directe aici. Pentru atașare reală, deschide fișa resursei și folosește upload-ul controlat.')
+    }
+    return text.slice(0, 250)
+  }
+
   function openFleetDoc(kind, preset = {}) {
     const next = {
       ...emptyFleetDocForm,
@@ -743,6 +752,7 @@ export default function MecanizarePage() {
   async function saveFleetDoc(ev) {
     ev.preventDefault(); setError('')
     try {
+      const documentReference = normalizeFleetDocumentReference(fleetDocForm.document_reference)
       if (fleetDocKind === 'asigurare') {
         await api.post('/fleet/asigurari', {
           asset_id: fleetDocForm.asset_id,
@@ -758,11 +768,27 @@ export default function MecanizarePage() {
           clasa_bm: fleetDocForm.clasa_bm,
           carte_verde_pos: fleetDocForm.carte_verde_pos,
           carte_verde_data: fleetDocForm.carte_verde_data,
-          fisier_path: fleetDocForm.fisier_path,
+          fisier_path: documentReference,
           observatii: fleetDocForm.observatii,
         })
       } else if (fleetDocKind === 'itp') {
-        await api.post('/fleet/itp', fleetDocForm)
+        await api.post('/fleet/itp', {
+          asset_id: fleetDocForm.asset_id,
+          planificat_pe: fleetDocForm.planificat_pe,
+          executat: fleetDocForm.executat,
+          executat_pe: fleetDocForm.executat_pe,
+          odometru_la_itp: fleetDocForm.odometru_la_itp,
+          furnizor: fleetDocForm.furnizor,
+          valoare_fara_tva: fleetDocForm.valoare_fara_tva,
+          cota_tva: fleetDocForm.cota_tva,
+          nr_factura: fleetDocForm.nr_factura,
+          data_factura: fleetDocForm.data_factura,
+          data_scadenta: fleetDocForm.data_scadenta,
+          factura_platita: fleetDocForm.factura_platita,
+          rezultat: fleetDocForm.rezultat,
+          fisier_path: documentReference,
+          observatii: fleetDocForm.observatii,
+        })
       } else if (fleetDocKind === 'taxa') {
         await api.post('/fleet/taxe', {
           asset_id: fleetDocForm.asset_id,
@@ -772,7 +798,7 @@ export default function MecanizarePage() {
           notif_zile: fleetDocForm.notif_zile,
           valoare: fleetDocForm.valoare_prima,
           nr_document: fleetDocForm.nr_document,
-          fisier_path: fleetDocForm.fisier_path,
+          fisier_path: documentReference,
           observatii: fleetDocForm.observatii,
         })
       } else {
@@ -785,7 +811,7 @@ export default function MecanizarePage() {
           notif_zile: fleetDocForm.notif_zile,
           inspector: fleetDocForm.inspector,
           organism: fleetDocForm.organism,
-          fisier_path: fleetDocForm.fisier_path,
+          fisier_path: documentReference,
           observatii: fleetDocForm.observatii,
         })
       }
@@ -2794,7 +2820,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               </>
             ) : null}
 
-            <Input label="Fișier atașat (cale)" value={fleetDocForm.fisier_path} onChange={e => setFleetDocForm({ ...fleetDocForm, fisier_path: e.target.value })} placeholder="scan/polita.pdf" />
+            <Input label="Referință document (opțional)" value={fleetDocForm.document_reference} onChange={e => setFleetDocForm({ ...fleetDocForm, document_reference: e.target.value })} placeholder="Poliță scanată în dosarul resursei" helperText="Pentru atașare reală, deschide fișa resursei și folosește upload-ul controlat." />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-700">Observații</label>

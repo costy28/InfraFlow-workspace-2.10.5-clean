@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.536 - 2026-09-06
+
+## Referințe documente parc sanitizate
+
+- Redenumește câmpul legacy din Mecanizare din „Fișier atașat (cale)” în „Referință document (opțional)”.
+- Blochează în frontend căi locale, path-uri UNC, URL-uri și linkuri directe către storage pentru referințele de documente parc.
+- Salvarea ITP folosește payload explicit, fără trimiterea întregului formular legacy.
+- Auditul automat recunoaște referințele text sanitizate și reduce finding-urile medium de la 5 la 4.
+- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.
 # v2.12.535 - 2026-09-06
 
 ## Download controlat fișiere Parc & Resurse

@@ -114,7 +114,8 @@ function scanFile(file) {
 
   if (rel.startsWith('client/src/') && /fisier_model_path|file_path|fisier_path|local_path/.test(text)) {
     const hasControlledDownload = /download_url|downloadUrl|_download_url|download-model|\/download/.test(text)
-    if (!hasControlledDownload) {
+    const hasSanitizedReferenceOnly = /normalizeFleetDocumentReference|Referință document/.test(text)
+    if (!hasControlledDownload && !hasSanitizedReferenceOnly) {
       addFinding(
         'medium',
         file,

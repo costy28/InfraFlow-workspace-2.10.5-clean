@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.535 — download controlat fișiere Parc & Resurse
+Ultimul pas executat: 2.12.536 — referințe documente parc sanitizate
 Status: backlog operațional activ
 
 ## Scop
@@ -23,12 +23,12 @@ Pași:
 
 - audit automat pentru expuneri de fișiere; ✅ `v2.12.534`
 - curățare linkuri directe detectate în `FisaVehicul.jsx` și `MyVehicle.jsx`; ✅ `v2.12.535`
-- mutare graduală a tuturor descărcărilor de fișiere către endpoint-uri dedicate pe entitate;
+- mutare graduală a tuturor descărcărilor de fișiere către endpoint-uri dedicate pe entitate; în progres: referințe Mecanizare sanitizate ✅ `v2.12.536`
 - verificare permisiune pe dosar, document, contract, email sau task înainte de download;
 - audit pentru descărcări sensibile;
 - mesaje clare când utilizatorul nu are drepturi.
 
-Primele două update-uri recomandate sunt finalizate: audit automat expuneri fișiere ✅ `v2.12.534`; curățare linkuri directe Fleet ✅ `v2.12.535`.
+Primele trei update-uri recomandate sunt finalizate: audit automat expuneri fișiere ✅ `v2.12.534`; curățare linkuri directe Fleet ✅ `v2.12.535`; referințe documente parc sanitizate ✅ `v2.12.536`.
 
 ### 2. Audit autentificări, stații și permisiuni
 

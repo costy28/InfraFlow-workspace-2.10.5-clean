@@ -1,6 +1,6 @@
 # Audit complet InfraFlow ERP — 2026-09-05
 
-Versiune auditată: **2.12.535**
+Versiune auditată: **2.12.536**
 
 ## Verdict curent
 
@@ -43,7 +43,7 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 1. **Securitate fișiere /storage** — rezolvată parțial în 2.12.530–2.12.531
    - `/storage` nu mai este servit public; cere sesiune validă și blochează traversal.
    - Modelele Documente nu mai expun către frontend path-uri `/storage`, ci URL-uri API controlate.
-   - Recomandare rămasă: migrare graduală a finding-urilor medium către endpoint-uri dedicate pe entitate, cu autorizare pe dosar/document/atașament. Auditul automat pentru detectarea expunerilor este introdus în v2.12.534, iar linkurile directe Fleet high din `FisaVehicul.jsx` și `MyVehicle.jsx` sunt închise în v2.12.535.
+   - Recomandare rămasă: migrare graduală a finding-urilor medium către endpoint-uri dedicate pe entitate, cu autorizare pe dosar/document/atașament. Auditul automat pentru detectarea expunerilor este introdus în v2.12.534, linkurile directe Fleet high din `FisaVehicul.jsx` și `MyVehicle.jsx` sunt închise în v2.12.535, iar referințele text din Mecanizare sunt sanitizate în v2.12.536.
 
 2. **Scheduler pornit în teste temporare** — rezolvat în 2.12.532
    - Scripturile de audit/test setează `INFRAFLOW_SCHEDULER_DISABLED=1`.
@@ -76,4 +76,4 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 
 ## Recomandarea pentru următorul update
 
-Backlog-ul acționabil este acum documentat în `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md`. Linkurile directe high din FisaVehicul/MyVehicle sunt rezolvate în v2.12.535. Următorul pas tehnic rămâne **migrarea finding-urilor medium rămase spre endpoint-uri dedicate pe entitate**, cu verificare de drepturi pe dosar/document/atașament. După aceea continuăm cu audit securitate pentru autentificări eșuate, stații noi și schimbări de permisiuni.
+Backlog-ul acționabil este acum documentat în `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md`. Linkurile directe high din FisaVehicul/MyVehicle sunt rezolvate în v2.12.535, iar referințele text din Mecanizare sunt sanitizate în v2.12.536. Următorul pas tehnic rămâne **migrarea finding-urilor medium rămase spre endpoint-uri dedicate pe entitate**, cu verificare de drepturi pe dosar/document/atașament. După aceea continuăm cu audit securitate pentru autentificări eșuate, stații noi și schimbări de permisiuni.
