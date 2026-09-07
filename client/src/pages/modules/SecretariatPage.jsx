@@ -102,6 +102,7 @@ export default function SecretariatPage() {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState('')
   const [selectedAppointment, setSelectedAppointment] = useState(null)
+  const [registryAttachmentFile, setRegistryAttachmentFile] = useState(null)
   const [filters, setFilters] = useState({ tip: '', status: '', de_la: '', pana_la: '' })
   const [registryForm, setRegistryForm] = useState({
     tip: 'intrare_externa',
@@ -216,10 +217,14 @@ export default function SecretariatPage() {
     event.preventDefault()
     setError('')
     try {
-      await api.post('/secretariat/registry', registryForm)
+      const body = new FormData()
+      Object.entries(registryForm).forEach(([key, value]) => body.append(key, value == null ? '' : value))
+      if (registryAttachmentFile) body.append('attachment', registryAttachmentFile)
+      await api.post('/secretariat/registry', body)
       setMessage('Înregistrarea a fost salvată.')
       setModal('')
       setNextNumber(null)
+      setRegistryAttachmentFile(null)
       setRegistryForm({
         tip: 'intrare_externa',
         expeditor: '',
@@ -239,6 +244,23 @@ export default function SecretariatPage() {
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Înregistrarea nu a putut fi salvată.')
+    }
+  }
+
+  async function downloadRegistryAttachment(item) {
+    const endpoint = String(item.attachment_download_url || '').replace(/^\/api/, '')
+    if (!endpoint) return
+    setError('')
+    try {
+      const response = await api.get(endpoint, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'registratura-' + String(item.nr_inregistrare || item.id || 'atasament').replace(/[\\/]/g, '-')
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Atașamentul nu a putut fi descărcat.')
     }
   }
 
@@ -318,11 +340,12 @@ export default function SecretariatPage() {
                   <th className="px-3 py-2">Tip</th>
                   <th className="px-3 py-2">Expeditor/Destinatar</th>
                   <th className="px-3 py-2">Subiect</th>
+                  <th className="px-3 py-2">Atașament</th>
                   <th className="px-3 py-2">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {pagedRegistry.length === 0 ? <EmptyRow colSpan={6} loading={loading} /> : pagedRegistry.map(item => {
+                {pagedRegistry.length === 0 ? <EmptyRow colSpan={7} loading={loading} /> : pagedRegistry.map(item => {
                   const badge = statusBadge(item.status)
                   return (
                     <tr key={item.id || item.uuid} className="hover:bg-slate-50">
@@ -331,6 +354,11 @@ export default function SecretariatPage() {
                       <td className="px-3 py-3">{item.tip || '-'}</td>
                       <td className="px-3 py-3">{item.expeditor || item.destinatar || '-'}</td>
                       <td className="px-3 py-3">{item.subiect || '-'}</td>
+                      <td className="px-3 py-3">
+                        {item.has_attachment && item.attachment_download_url ? (
+                          <Button size="sm" variant="secondary" onClick={() => downloadRegistryAttachment(item)}>Descarcă</Button>
+                        ) : '-'}
+                      </td>
                       <td className="px-3 py-3"><Badge variant={badge.variant}>{badge.label}</Badge></td>
                     </tr>
                   )
@@ -465,7 +493,19 @@ export default function SecretariatPage() {
             </Select>
             <Input label="Termen răspuns" type="date" value={registryForm.termen_raspuns} onChange={event => setRegistryForm({ ...registryForm, termen_raspuns: event.target.value })} />
           </div>
-          <Input label="Atașament scanat (cale fișier)" value={registryForm.fisier_path || ''} onChange={event => setRegistryForm({ ...registryForm, fisier_path: event.target.value })} />
+          <label className="grid gap-2 rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-600">
+            <span className="font-medium text-slate-700">Atașament scanat (PDF, poză sau document)</span>
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              onChange={event => setRegistryAttachmentFile(event.target.files?.[0] || null)}
+            />
+            {registryAttachmentFile ? (
+              <span className="text-xs text-slate-500">{registryAttachmentFile.name} · {Math.round(registryAttachmentFile.size / 1024)} KB</span>
+            ) : (
+              <span className="text-xs text-slate-500">Opțional. Fișierul se salvează în storage și se descarcă doar prin API-ul aplicației.</span>
+            )}
+          </label>
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" checked={registryForm.trimite_email} onChange={event => setRegistryForm({ ...registryForm, trimite_email: event.target.checked })} />
             Trimite notificare email

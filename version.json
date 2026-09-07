@@ -1,5 +1,5 @@
 {
-  "version": "2.12.537",
-  "changelog": "## v2.12.537 - 2026-09-07\n### Download controlat atașamente Tichete\n- API-ul Tichete nu mai trimite către frontend calea internă a atașamentelor.\n- Detaliile ticketului expun doar metadate sigure, indicator de atașament și URL controlat de download.\n- Descărcarea se face prin endpoint dedicat pe id atașament, cu verificare sesiune, permisiune și limitare la storage/tickets.\n- Endpoint-ul legacy pe nume fișier rămâne compatibil, dar folosește aceeași validare sigură.\n- Auditul de expuneri fișiere reduce finding-urile medium de la 4 la 3.",
+  "version": "2.12.538",
+  "changelog": "## v2.12.538 - 2026-09-07\n### Upload și download controlat în Secretariat\n- Registratura nu mai cere utilizatorului să introducă o cale locală pentru atașament.\n- Formularul de înregistrare acceptă upload real pentru PDF, imagini sau documente Office.\n- API-ul Secretariat salvează fișierul în storage controlat și trimite către frontend doar indicator de atașament și URL de download.\n- Descărcarea atașamentului se face prin endpoint dedicat cu verificare sesiune, permisiune și limitare la storage/secretariat.\n- Auditul de expuneri fișiere reduce finding-urile medium de la 3 la 2.",
   "date": "2026-09-06"
 }

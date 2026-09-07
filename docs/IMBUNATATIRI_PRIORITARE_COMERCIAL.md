@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.537 — download controlat atașamente Tichete
+Ultimul pas executat: 2.12.538 — upload și download controlat în Secretariat
 Status: backlog operațional activ
 
 ## Scop
@@ -23,12 +23,12 @@ Pași:
 
 - audit automat pentru expuneri de fișiere; ✅ `v2.12.534`
 - curățare linkuri directe detectate în `FisaVehicul.jsx` și `MyVehicle.jsx`; ✅ `v2.12.535`
-- mutare graduală a tuturor descărcărilor de fișiere către endpoint-uri dedicate pe entitate; în progres: referințe Mecanizare sanitizate ✅ `v2.12.536`; atașamente Tichete securizate ✅ `v2.12.537`
+- mutare graduală a tuturor descărcărilor de fișiere către endpoint-uri dedicate pe entitate; în progres: referințe Mecanizare sanitizate ✅ `v2.12.536`; atașamente Tichete securizate ✅ `v2.12.537`; Secretariat securizat ✅ `v2.12.538`
 - verificare permisiune pe dosar, document, contract, email sau task înainte de download;
 - audit pentru descărcări sensibile;
 - mesaje clare când utilizatorul nu are drepturi.
 
-Primele patru update-uri recomandate sunt finalizate: audit automat expuneri fișiere ✅ `v2.12.534`; curățare linkuri directe Fleet ✅ `v2.12.535`; referințe documente parc sanitizate ✅ `v2.12.536`; atașamente Tichete prin download controlat ✅ `v2.12.537`.
+Primele cinci update-uri recomandate sunt finalizate: audit automat expuneri fișiere ✅ `v2.12.534`; curățare linkuri directe Fleet ✅ `v2.12.535`; referințe documente parc sanitizate ✅ `v2.12.536`; atașamente Tichete prin download controlat ✅ `v2.12.537`; Secretariat cu upload/download controlat ✅ `v2.12.538`.
 
 ### 2. Audit autentificări, stații și permisiuni
 

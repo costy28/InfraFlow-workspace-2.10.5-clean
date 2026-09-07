@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.538 - 2026-09-07
+
+## Upload și download controlat în Secretariat
+
+- Înlocuiește câmpul „Atașament scanat (cale fișier)” cu upload real de fișier în Registratură.
+- Backend-ul salvează atașamentele Secretariat în `storage/secretariat` și nu mai expune calea internă către frontend.
+- Lista de registratură primește doar `has_attachment` și `attachment_download_url`.
+- Adaugă endpoint dedicat de download cu verificare sesiune, permisiune și limitare strictă la folderul Secretariat.
+- Auditul automat `npm run audit:file-exposure` scade la 2 finding-uri medium, fără finding-uri high.
 # v2.12.537 - 2026-09-07
 
 ## Download controlat atașamente Tichete

@@ -1,5 +1,8 @@
 const { Router } = require('express')
 const crypto = require('crypto')
+const fs = require('fs')
+const path = require('path')
+const multer = require('multer')
 const { requireAuth } = require('../../core/auth')
 const { requirePermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
@@ -8,6 +11,9 @@ const { notifyUser } = require('../messaging/routes')
 const { sendEmail } = require('../messaging/email')
 
 const router = Router()
+const SECRETARIAT_STORAGE = path.join(__dirname, '../../../storage/secretariat')
+function safeFileName(name){return String(name||'fisier').replace(/[^a-zA-Z0-9._-]/g,'_')}
+const registryUpload = multer({storage: multer.diskStorage({destination(req,file,cb){fs.mkdirSync(SECRETARIAT_STORAGE,{recursive:true}); cb(null,SECRETARIAT_STORAGE)},filename(req,file,cb){cb(null,Date.now() + '-' + crypto.randomUUID() + '-' + safeFileName(file.originalname))}}),limits:{fileSize:15*1024*1024}})
 function isMssqlMode(){return MSSQL_RELATIONAL_MODE && (DB_MODE==='mssql'||DB_MODE==='sqlserver')}
 function sendJson(res,status,data){res.status(status).json(data)}
 function nowIso(){return new Date().toISOString()}
@@ -23,14 +29,18 @@ function resolveRegistryAssignment(db,body){const deptId=findDepartmentId(db,bod
 function registryPrefix(tip){const raw=String(tip||'intrare_externa'); if(raw==='iesire_externa')return 'E'; if(raw==='intrare_interna'||raw==='iesire_interna')return 'INT'; return 'I'}
 function nextRegistryNumber(items,tip){const year=new Date().getFullYear(); const prefix=registryPrefix(tip); const n=items.filter(x=>Number(x.an)===year&&registryPrefix(x.tip)===prefix).reduce((m,x)=>Math.max(m,Number(x.nr_curent||0)),0)+1; return {nr_curent:n,format:`${prefix}-${String(n).padStart(3,'0')}/${year}`,an:year,prefix}}
 function notifyAssignment(db, deptId, userId, payload){ if(userId) notifyUser(userId,'secretariat_assigned',payload); (db.users||[]).filter(u=>String(u.departmentId||u.department_id)===String(deptId)).forEach(u=>notifyUser(u.id,'secretariat_assigned',payload)) }
-async function maybeEmailRegistry(db, body, item){ if(!body.trimite_email)return; const targets=(db.users||[]).filter(u=>String(u.id)===String(body.user_responsabil)||String(u.departmentId||u.department_id)===String(body.dept_destinatar)).map(u=>u.email).filter(Boolean); for(const to of targets) await sendEmail({to,subject:`Registratură ${item.nr_inregistrare}`,body:`<p>${item.subiect||'Document nou repartizat'}</p>`},db).catch(()=>{}) }
+async function maybeEmailRegistry(db, body, item){ if(!['true','1',true,1].includes(body.trimite_email))return; const targets=(db.users||[]).filter(u=>String(u.id)===String(body.user_responsabil)||String(u.departmentId||u.department_id)===String(body.dept_destinatar)).map(u=>u.email).filter(Boolean); for(const to of targets) await sendEmail({to,subject:`Registratură ${item.nr_inregistrare}`,body:`<p>${item.subiect||'Document nou repartizat'}</p>`},db).catch(()=>{}) }
 
+function registryDownloadUrl(item){return item?.id?`/api/secretariat/registry/${encodeURIComponent(String(item.id))}/attachment/download`:null}
+function publicRegistryItem(item,db){if(!item)return null; return {...item,fisier_path:null,dept_destinatar_name:item.dept_destinatar_name||deptName(db,item.dept_destinatar),user_responsabil_name:item.user_responsabil_name||userName(db,item.user_responsabil),has_attachment:Boolean(item.fisier_path),attachment_download_url:item.fisier_path?registryDownloadUrl(item):null}}
+function resolveSecretariatFilePath(item){const raw=String(item?.fisier_path||'').trim(); if(!raw)return ''; const storageRoot=path.resolve(SECRETARIAT_STORAGE); const candidate=path.isAbsolute(raw)?path.resolve(raw):path.resolve(path.join(__dirname,'../../..'),raw); const relative=path.relative(storageRoot,candidate); if(!relative||relative.startsWith('..')||path.isAbsolute(relative))return ''; if(!fs.existsSync(candidate))return ''; return candidate}
+function uploadedRegistryPath(file){return file?.path?path.relative(path.join(__dirname,'../../..'),file.path).replace(/\\/g,'/'):''}
 router.get('/secretariat/registry',(req,res,next)=>{try{
   const auth=requireAuth(req,res); if(!auth)return; if(!requirePermission(auth,res,'secretariat:view'))return
   if(isMssqlMode())return sendJson(res,200,mssqlArray(`SELECT r.*, d.denumire AS dept_destinatar_name, u.nume AS user_responsabil_name FROM secretariat.registry r LEFT JOIN core.departments d ON d.id=r.dept_destinatar LEFT JOIN core.users u ON u.id=r.user_responsabil WHERE (NULLIF(JSON_VALUE(@p,'$.tip'),'') IS NULL OR r.tip=JSON_VALUE(@p,'$.tip')) AND (NULLIF(JSON_VALUE(@p,'$.status'),'') IS NULL OR r.status=JSON_VALUE(@p,'$.status')) AND (NULLIF(JSON_VALUE(@p,'$.de_la'),'') IS NULL OR r.data_inregistrare>=TRY_CONVERT(datetime2,JSON_VALUE(@p,'$.de_la'))) AND (NULLIF(JSON_VALUE(@p,'$.pana_la'),'') IS NULL OR r.data_inregistrare<DATEADD(day,1,TRY_CONVERT(datetime2,JSON_VALUE(@p,'$.pana_la')))) AND (NULLIF(JSON_VALUE(@p,'$.q'),'') IS NULL OR r.subiect LIKE N'%'+JSON_VALUE(@p,'$.q')+N'%' OR r.nr_inregistrare LIKE N'%'+JSON_VALUE(@p,'$.q')+N'%') ORDER BY r.data_inregistrare DESC FOR JSON PATH;`,req.query))
   const db=readDb(); let rows=ensureDb(db).registry
   if(req.query.tip)rows=rows.filter(x=>x.tip===req.query.tip); if(req.query.status)rows=rows.filter(x=>x.status===req.query.status); if(req.query.de_la)rows=rows.filter(x=>x.data_inregistrare>=req.query.de_la); if(req.query.pana_la)rows=rows.filter(x=>x.data_inregistrare<=req.query.pana_la); if(req.query.q)rows=rows.filter(x=>String(x.subiect||x.nr_inregistrare||'').toLowerCase().includes(String(req.query.q).toLowerCase()))
-  sendJson(res,200,rows.map(x=>({...x,dept_destinatar_name:deptName(db,x.dept_destinatar),user_responsabil_name:userName(db,x.user_responsabil)})))
+  sendJson(res,200,rows.map(x=>publicRegistryItem(x,db)))
 }catch(e){next(e)}})
 
 router.post('/secretariat/registry/next-number',(req,res,next)=>{try{
@@ -39,17 +49,18 @@ router.post('/secretariat/registry/next-number',(req,res,next)=>{try{
   sendJson(res,200,nextRegistryNumber(ensureDb(readDb()).registry,req.body?.tip||req.query?.tip))
 }catch(e){next(e)}})
 
-router.post('/secretariat/registry',(req,res,next)=>{try{
+router.post('/secretariat/registry',registryUpload.single('attachment'),(req,res,next)=>{try{
   const auth=requireAuth(req,res); if(!auth)return; if(!requirePermission(auth,res,'secretariat:registry'))return
   const db=readDb()
   const body=resolveRegistryAssignment(db,req.body||{})
+  const uploadedPath=uploadedRegistryPath(req.file)
   if(isMssqlMode()){
-    const item=mssqlObject(`DECLARE @year int=YEAR(GETDATE()); DECLARE @tip nvarchar(40)=COALESCE(NULLIF(JSON_VALUE(@p,'$.tip'),''),N'intrare_externa'); DECLARE @prefix nvarchar(5)=CASE WHEN @tip=N'iesire_externa' THEN N'E' WHEN @tip IN (N'intrare_interna',N'iesire_interna') THEN N'INT' ELSE N'I' END; DECLARE @nr int=COALESCE((SELECT MAX(nr_curent)+1 FROM secretariat.registry WHERE an=@year AND nr_inregistrare LIKE @prefix+N'-%'),1); INSERT INTO secretariat.registry (uuid,tip,an,nr_curent,nr_inregistrare,expeditor,destinatar,subiect,dept_destinatar,user_responsabil,status,fisier_path) VALUES (JSON_VALUE(@p,'$.uuid'),@tip,@year,@nr,CONCAT(@prefix,N'-',RIGHT(CONCAT(N'000',@nr),3),N'/',@year),NULLIF(JSON_VALUE(@p,'$.expeditor'),''),NULLIF(JSON_VALUE(@p,'$.destinatar'),''),JSON_VALUE(@p,'$.subiect'),NULLIF(JSON_VALUE(@p,'$.dept_destinatar'),''),NULLIF(JSON_VALUE(@p,'$.user_responsabil'),''),CASE WHEN NULLIF(JSON_VALUE(@p,'$.dept_destinatar'),'') IS NULL THEN N'inregistrat' ELSE N'repartizat' END,NULLIF(JSON_VALUE(@p,'$.fisier_path'),'')); DECLARE @id int=SCOPE_IDENTITY(); IF NULLIF(JSON_VALUE(@p,'$.dept_destinatar'),'') IS NOT NULL INSERT INTO secretariat.correspondence_tracking (registry_id,dept_id,user_id,termen_raspuns,status) VALUES (@id,JSON_VALUE(@p,'$.dept_destinatar'),NULLIF(JSON_VALUE(@p,'$.user_responsabil'),''),TRY_CONVERT(date,NULLIF(JSON_VALUE(@p,'$.termen_raspuns'),'')),N'repartizat'); SELECT TOP 1 * FROM secretariat.registry WHERE id=@id FOR JSON PATH;`,{...body,uuid:crypto.randomUUID()})
-    maybeEmailRegistry(db,body,item).finally(()=>{}); addAudit(db,auth.user,'secretariat_registry_created',item?.nr_inregistrare); writeDb(db); return sendJson(res,201,item)
+    const item=mssqlObject(`DECLARE @year int=YEAR(GETDATE()); DECLARE @tip nvarchar(40)=COALESCE(NULLIF(JSON_VALUE(@p,'$.tip'),''),N'intrare_externa'); DECLARE @prefix nvarchar(5)=CASE WHEN @tip=N'iesire_externa' THEN N'E' WHEN @tip IN (N'intrare_interna',N'iesire_interna') THEN N'INT' ELSE N'I' END; DECLARE @nr int=COALESCE((SELECT MAX(nr_curent)+1 FROM secretariat.registry WHERE an=@year AND nr_inregistrare LIKE @prefix+N'-%'),1); INSERT INTO secretariat.registry (uuid,tip,an,nr_curent,nr_inregistrare,expeditor,destinatar,subiect,dept_destinatar,user_responsabil,status,fisier_path) VALUES (JSON_VALUE(@p,'$.uuid'),@tip,@year,@nr,CONCAT(@prefix,N'-',RIGHT(CONCAT(N'000',@nr),3),N'/',@year),NULLIF(JSON_VALUE(@p,'$.expeditor'),''),NULLIF(JSON_VALUE(@p,'$.destinatar'),''),JSON_VALUE(@p,'$.subiect'),NULLIF(JSON_VALUE(@p,'$.dept_destinatar'),''),NULLIF(JSON_VALUE(@p,'$.user_responsabil'),''),CASE WHEN NULLIF(JSON_VALUE(@p,'$.dept_destinatar'),'') IS NULL THEN N'inregistrat' ELSE N'repartizat' END,NULLIF(JSON_VALUE(@p,'$.uploaded_path'),'')); DECLARE @id int=SCOPE_IDENTITY(); IF NULLIF(JSON_VALUE(@p,'$.dept_destinatar'),'') IS NOT NULL INSERT INTO secretariat.correspondence_tracking (registry_id,dept_id,user_id,termen_raspuns,status) VALUES (@id,JSON_VALUE(@p,'$.dept_destinatar'),NULLIF(JSON_VALUE(@p,'$.user_responsabil'),''),TRY_CONVERT(date,NULLIF(JSON_VALUE(@p,'$.termen_raspuns'),'')),N'repartizat'); SELECT TOP 1 * FROM secretariat.registry WHERE id=@id FOR JSON PATH;`,{...body,uuid:crypto.randomUUID(),uploaded_path:uploadedPath})
+    maybeEmailRegistry(db,body,item).finally(()=>{}); addAudit(db,auth.user,'secretariat_registry_created',item?.nr_inregistrare); writeDb(db); return sendJson(res,201,publicRegistryItem(item,db))
   }
-  const sec=ensureDb(db); const nr=nextRegistryNumber(sec.registry,body.tip); const item={id:nextId(sec.registry),uuid:crypto.randomUUID(),tip:body.tip||'intrare_externa',an:nr.an,nr_curent:nr.nr_curent,nr_inregistrare:nr.format,...body,status:body.dept_destinatar?'repartizat':'inregistrat',created_at:nowIso(),updated_at:null}; sec.registry.push(item)
+  const sec=ensureDb(db); const nr=nextRegistryNumber(sec.registry,body.tip); const item={id:nextId(sec.registry),uuid:crypto.randomUUID(),tip:body.tip||'intrare_externa',an:nr.an,nr_curent:nr.nr_curent,nr_inregistrare:nr.format,...body,fisier_path:uploadedPath,status:body.dept_destinatar?'repartizat':'inregistrat',created_at:nowIso(),updated_at:null}; sec.registry.push(item)
   if(body.dept_destinatar)sec.correspondenceTracking.push({id:nextId(sec.correspondenceTracking),registry_id:item.id,dept_id:body.dept_destinatar,user_id:body.user_responsabil||null,termen_raspuns:body.termen_raspuns||null,status:'repartizat',created_at:nowIso()})
-  maybeEmailRegistry(db,body,item).finally(()=>{}); addAudit(db,auth.user,'secretariat_registry_created',item.nr_inregistrare); writeDb(db); sendJson(res,201,item)
+  maybeEmailRegistry(db,body,item).finally(()=>{}); addAudit(db,auth.user,'secretariat_registry_created',item.nr_inregistrare); writeDb(db); sendJson(res,201,publicRegistryItem(item,db))
 }catch(e){next(e)}})
 
 router.post('/secretariat/registry/:id/assign',(req,res,next)=>{try{
@@ -57,9 +68,20 @@ router.post('/secretariat/registry/:id/assign',(req,res,next)=>{try{
   const db=readDb()
   if(isMssqlMode()){
     const item=mssqlObject(`UPDATE secretariat.registry SET status=N'repartizat', dept_destinatar=JSON_VALUE(@p,'$.dept_id'), user_responsabil=NULLIF(JSON_VALUE(@p,'$.user_id'),''), updated_at=sysdatetime() WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')); INSERT INTO secretariat.correspondence_tracking (registry_id,dept_id,user_id,termen_raspuns,status) VALUES (TRY_CONVERT(int,JSON_VALUE(@p,'$.id')),JSON_VALUE(@p,'$.dept_id'),NULLIF(JSON_VALUE(@p,'$.user_id'),''),TRY_CONVERT(date,NULLIF(JSON_VALUE(@p,'$.termen_raspuns'),'')),N'repartizat'); SELECT TOP 1 * FROM secretariat.registry WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`,{...req.body,id:req.params.id})
-    notifyAssignment(db,req.body.dept_id,req.body.user_id,item); addAudit(db,auth.user,'secretariat_registry_assigned',req.params.id); writeDb(db); return sendJson(res,200,item)
+    notifyAssignment(db,req.body.dept_id,req.body.user_id,item); addAudit(db,auth.user,'secretariat_registry_assigned',req.params.id); writeDb(db); return sendJson(res,200,publicRegistryItem(item,db))
   }
-  const sec=ensureDb(db); const item=sec.registry.find(x=>String(x.id)===String(req.params.id)); if(!item)return sendJson(res,404,{error:'Documentul nu a fost găsit.'}); Object.assign(item,{status:'repartizat',dept_destinatar:req.body.dept_id,user_responsabil:req.body.user_id||null,updated_at:nowIso()}); sec.correspondenceTracking.push({id:nextId(sec.correspondenceTracking),registry_id:item.id,dept_id:req.body.dept_id,user_id:req.body.user_id||null,termen_raspuns:req.body.termen_raspuns||null,status:'repartizat',created_at:nowIso()}); notifyAssignment(db,req.body.dept_id,req.body.user_id,item); addAudit(db,auth.user,'secretariat_registry_assigned',item.nr_inregistrare); writeDb(db); sendJson(res,200,item)
+  const sec=ensureDb(db); const item=sec.registry.find(x=>String(x.id)===String(req.params.id)); if(!item)return sendJson(res,404,{error:'Documentul nu a fost găsit.'}); Object.assign(item,{status:'repartizat',dept_destinatar:req.body.dept_id,user_responsabil:req.body.user_id||null,updated_at:nowIso()}); sec.correspondenceTracking.push({id:nextId(sec.correspondenceTracking),registry_id:item.id,dept_id:req.body.dept_id,user_id:req.body.user_id||null,termen_raspuns:req.body.termen_raspuns||null,status:'repartizat',created_at:nowIso()}); notifyAssignment(db,req.body.dept_id,req.body.user_id,item); addAudit(db,auth.user,'secretariat_registry_assigned',item.nr_inregistrare); writeDb(db); sendJson(res,200,publicRegistryItem(item,db))
+}catch(e){next(e)}})
+
+router.get('/secretariat/registry/:id/attachment/download',(req,res,next)=>{try{
+  const auth=requireAuth(req,res); if(!auth)return; if(!requirePermission(auth,res,'secretariat:view'))return
+  let item
+  if(isMssqlMode())item=mssqlObject(`SELECT TOP 1 * FROM secretariat.registry WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`,req.params)
+  else item=ensureDb(readDb()).registry.find(x=>String(x.id)===String(req.params.id))
+  if(!item)return sendJson(res,404,{error:'Documentul nu a fost găsit.'})
+  const filePath=resolveSecretariatFilePath(item)
+  if(!filePath)return sendJson(res,404,{error:'Atașamentul nu există sau nu este accesibil.'})
+  res.download(filePath,path.basename(filePath).replace(/^\d+-[a-f0-9-]+-/i,'')||'atasament')
 }catch(e){next(e)}})
 
 router.get('/secretariat/registry/:id/tracking',(req,res,next)=>{try{const auth=requireAuth(req,res); if(!auth)return; if(!requirePermission(auth,res,'secretariat:view'))return; if(isMssqlMode())return sendJson(res,200,mssqlArray(`SELECT * FROM secretariat.correspondence_tracking WHERE registry_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) ORDER BY created_at DESC FOR JSON PATH;`,req.params)); sendJson(res,200,ensureDb(readDb()).correspondenceTracking.filter(x=>String(x.registry_id)===String(req.params.id)))}catch(e){next(e)}})

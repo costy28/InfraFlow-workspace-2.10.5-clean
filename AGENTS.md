@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.537**
-**Versiune în lucru: v2.12.537**
+**Versiune curentă sursă: v2.12.538**
+**Versiune în lucru: v2.12.538**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -275,6 +275,7 @@ Core System
   ✅ Download controlat fișiere Parc & Resurse (v2.12.535)
   ✅ Referințe documente parc sanitizate (v2.12.536)
   ✅ Download controlat atașamente Tichete (v2.12.537)
+  ✅ Upload și download controlat în Secretariat (v2.12.538)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -508,6 +509,7 @@ Sistem
   ✅ Download controlat pentru fișiere Parc & Resurse (v2.12.535)
   ✅ Referințe documente parc sanitizate pentru audit fișiere (v2.12.536)
   ✅ Download controlat atașamente Tichete (v2.12.537)
+  ✅ Upload și download controlat în Secretariat (v2.12.538)
   ✅ Backup/Restore
   ✅ Update pachete
   ✅ Audit log
@@ -909,6 +911,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Curățare linkuri directe detectate în FisaVehicul/MyVehicle către endpoint-uri dedicate ✅ v2.12.535
       → Referințe documente Mecanizare sanitizate, fără căi locale/linkuri directe ✅ v2.12.536
       → Atașamente Tichete prin endpoint dedicat, fără path intern expus în client ✅ v2.12.537
+      → Secretariat cu upload real și download controlat, fără cale locală în UI ✅ v2.12.538
       → 2FA pentru administratori și roluri sensibile
       → Audit securitate: autentificări eșuate, stații noi, schimbări permisiuni, acces remote
       → Remote access recomandat prin Cloudflare Tunnel/VPN; SQL Server nu se expune direct la internet
@@ -986,9 +989,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.537
+VERSIUNE CURENTĂ SURSĂ: 2.12.538
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.537 ✅
+UPDATE ZIP CURENT: 2.12.538 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1334,6 +1337,7 @@ UPDATES ÎN LUCRU:
   2.12.535 → UPDATE 555 Download controlat fișiere Parc & Resurse ✅
   2.12.536 → UPDATE 556 Referințe documente parc sanitizate ✅
   2.12.537 → UPDATE 557 Download controlat atașamente Tichete ✅
+  2.12.538 → UPDATE 558 Upload și download controlat în Secretariat ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1830,5 +1834,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 7 Septembrie 2026 | InfraFlow sursă v2.12.537*
+*AGENTS.md actualizat: 7 Septembrie 2026 | InfraFlow sursă v2.12.538*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
