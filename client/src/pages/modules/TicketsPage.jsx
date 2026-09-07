@@ -92,6 +92,22 @@ function age(value) {
   return `${Math.floor(hours / 24)} zile`
 }
 
+function normalizeApiDownloadPath(url) {
+  const value = String(url || '')
+  return value.startsWith('/api/') ? value.slice(4) : value
+}
+
+function downloadNameFromResponse(response, fallback) {
+  const disposition = String(response?.headers?.['content-disposition'] || '')
+  const utfName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  const plainName = disposition.match(/filename="?([^"]+)"?/i)?.[1]
+  try {
+    return decodeURIComponent(utfName || plainName || fallback || 'atasament')
+  } catch {
+    return fallback || 'atasament'
+  }
+}
+
 export default function TicketsPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('Ale mele')
@@ -193,13 +209,20 @@ export default function TicketsPage() {
 
   async function downloadAttachment(file) {
     if (!selected) return
-    const response = await api.get(`/tickets/${selected.uuid}/attachments/${encodeURIComponent(file.fisier_nume)}`, { responseType: 'blob' })
-    const url = URL.createObjectURL(response.data)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = file.fisier_nume || 'atasament'
-    link.click()
-    URL.revokeObjectURL(url)
+    setError('')
+    try {
+      const fallbackEndpoint = `/tickets/${selected.uuid}/attachments/${encodeURIComponent(file.id || file.fisier_nume)}/download`
+      const endpoint = normalizeApiDownloadPath(file.download_url || fallbackEndpoint)
+      const response = await api.get(endpoint, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = downloadNameFromResponse(response, file.fisier_nume || 'atasament')
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Atașamentul nu a putut fi descărcat.')
+    }
   }
 
   function renderFilePreview(file) {
@@ -312,7 +335,7 @@ export default function TicketsPage() {
                     {details.attachments.map(file => (
                       <button
                         type="button"
-                        key={file.id || file.fisier_path}
+                        key={file.id || file.uuid || file.fisier_nume}
                         className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-slate-700 hover:border-primary-300"
                         onClick={() => downloadAttachment(file)}
                       >

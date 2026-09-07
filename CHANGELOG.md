@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.537 - 2026-09-07
+
+## Download controlat atașamente Tichete
+
+- API-ul Tichete nu mai trimite către frontend calea internă a atașamentelor.
+- Detaliile ticketului expun doar metadate sigure, indicator de atașament și URL controlat de download.
+- Descărcarea se face prin endpoint dedicat pe id atașament, cu verificare sesiune, permisiune și limitare la `storage/tickets`.
+- Endpoint-ul legacy pe nume fișier rămâne compatibil, dar folosește aceeași validare sigură.
+- Auditul automat `npm run audit:file-exposure` nu mai raportează Tichete și rămâne cu 3 finding-uri medium.
 # v2.12.536 - 2026-09-06
 
 ## Referințe documente parc sanitizate

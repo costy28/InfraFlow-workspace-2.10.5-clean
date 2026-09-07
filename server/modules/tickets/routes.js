@@ -122,6 +122,45 @@ function publicTicket(ticket) {
   }
 }
 
+function ticketAttachmentDownloadUrl(ticketUuid, attachmentId) {
+  if (!ticketUuid || !attachmentId) return null
+  return `/api/tickets/${encodeURIComponent(String(ticketUuid))}/attachments/${encodeURIComponent(String(attachmentId))}/download`
+}
+
+function publicTicketAttachment(attachment, ticketOrUuid) {
+  if (!attachment) return null
+  const ticketUuid = typeof ticketOrUuid === 'string' ? ticketOrUuid : ticketOrUuid?.uuid
+  return {
+    id: attachment.id,
+    ticket_id: attachment.ticket_id,
+    comment_id: attachment.comment_id || null,
+    fisier_path: null,
+    fisier_nume: attachment.fisier_nume || attachment.file_name || 'atasament',
+    fisier_marime: Number(attachment.fisier_marime || 0),
+    incarcat_de: attachment.incarcat_de || null,
+    created_at: attachment.created_at || null,
+    has_attachment: Boolean(attachment.fisier_path),
+    download_url: ticketAttachmentDownloadUrl(ticketUuid, attachment.id)
+  }
+}
+
+function publicTicketAttachments(attachments, ticketOrUuid) {
+  return (Array.isArray(attachments) ? attachments : []).map(item => publicTicketAttachment(item, ticketOrUuid)).filter(Boolean)
+}
+
+function resolveTicketAttachmentPath(attachment) {
+  const storageRoot = path.resolve(TICKETS_STORAGE)
+  const rawPath = String(attachment?.fisier_path || '').trim()
+  if (!rawPath) return ''
+  const candidate = path.isAbsolute(rawPath)
+    ? path.resolve(rawPath)
+    : path.resolve(path.join(__dirname, '../../..'), rawPath)
+  const relative = path.relative(storageRoot, candidate)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
+  if (!fs.existsSync(candidate)) return ''
+  return candidate
+}
+
 function ticketMatchesQuery(ticket, query) {
   if (query.tip && ticket.tip !== query.tip) return false
   if (query.status && ticket.status !== query.status) return false
@@ -381,7 +420,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
       const attachments = (req.files || []).map(file => createAttachmentRecord(auth.db, ticket, file, auth.user.id))
       if (attachments.length) addAudit(auth.db, auth.user, 'ticket_atasamente', `${titlu}: ${attachments.length} fisiere`)
       if (prioritate === 'critica' || prioritate === 'urgenta') notifyAdmins(auth.db, 'ticket_urgent', { ticket })
-      sendJson(res, 201, { ticket, attachments })
+      sendJson(res, 201, { ticket, attachments: publicTicketAttachments(attachments, ticket) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
@@ -411,7 +450,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     if (attachments.length) addAudit(auth.db, auth.user, 'ticket_atasamente', `${titlu}: ${attachments.length} fisiere`)
     writeDb(auth.db)
     if (prioritate === 'critica' || prioritate === 'urgenta') notifyAdmins(auth.db, 'ticket_urgent', { ticket: publicTicket(ticket) })
-    sendJson(res, 201, { ticket: publicTicket(ticket), attachments })
+    sendJson(res, 201, { ticket: publicTicket(ticket), attachments: publicTicketAttachments(attachments, ticket) })
   } catch (error) {
     next(error)
   }
@@ -426,7 +465,11 @@ router.get('/tickets/:uuid', (req, res, next) => {
       const details = mssqlTicketDetails(req.params.uuid)
       if (!details?.ticket) throwHttp(404, 'Ticket inexistent.')
       if (!canViewTicket(auth, details.ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
-      sendJson(res, 200, details)
+      sendJson(res, 200, {
+        ...details,
+        ticket: publicTicket(details.ticket),
+        attachments: publicTicketAttachments(details.attachments, details.ticket)
+      })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
@@ -436,7 +479,7 @@ router.get('/tickets/:uuid', (req, res, next) => {
     sendJson(res, 200, {
       ticket: publicTicket(ticket),
       comments: ticketsDb.comments.filter(item => item.ticket_id === ticket.id),
-      attachments: ticketsDb.attachments.filter(item => item.ticket_id === ticket.id),
+      attachments: publicTicketAttachments(ticketsDb.attachments.filter(item => item.ticket_id === ticket.id), ticket),
       escalations: ticketsDb.escalations.filter(item => item.ticket_id === ticket.id)
     })
   } catch (error) {
@@ -468,7 +511,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { ticketId: ticket.id, userId: auth.user.id, tip, continut, vizibil: (req.body || {}).vizibil_pentru_autor !== false })
       const attachments = (req.files || []).map(file => createAttachmentRecord(auth.db, ticket, file, auth.user.id, comment.id))
       notifyUser(ticket.creat_de, 'ticket_actualizat', { ticket, comment })
-      sendJson(res, 201, { comment, attachments })
+      sendJson(res, 201, { comment, attachments: publicTicketAttachments(attachments, ticket) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
@@ -481,7 +524,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     ticket.updated_at = nowIso()
     writeDb(auth.db)
     notifyUser(ticket.creat_de, 'ticket_actualizat', { ticket: publicTicket(ticket), comment })
-    sendJson(res, 201, { comment, attachments })
+    sendJson(res, 201, { comment, attachments: publicTicketAttachments(attachments, ticket) })
   } catch (error) {
     next(error)
   }
@@ -629,6 +672,7 @@ router.post('/tickets/:uuid/attach', (req, res, next) => {
     if (!auth) return
     if (!requireTicketPermission(auth, res, 'tickets:view_own')) return
     const body = req.body || {}
+    if (body.fisier_path) throwHttp(400, 'Atasamentele tichetelor se incarca prin formular, nu prin cale locala.')
     if (isMssqlMode()) {
       const ticket = mssqlTicket(req.params.uuid)
       if (!ticket) throwHttp(404, 'Ticket inexistent.')
@@ -644,20 +688,54 @@ UPDATE tickets.tickets SET updated_at = sysdatetime() WHERE id = TRY_CONVERT(int
 SELECT id, ticket_id, comment_id, fisier_path, fisier_nume, fisier_marime, incarcat_de, created_at
 FROM tickets.attachments WHERE id = (SELECT TOP 1 id FROM @created)
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`, { ticketId: ticket.id, commentId: body.comment_id || '', fisierPath: body.fisier_path || '', fisierNume: body.fisier_nume || '', fisierMarime: body.fisier_marime || 0, userId: auth.user.id })
-      sendJson(res, 201, { attachment })
+`, { ticketId: ticket.id, commentId: body.comment_id || '', fisierPath: '', fisierNume: body.fisier_nume || '', fisierMarime: body.fisier_marime || 0, userId: auth.user.id })
+      sendJson(res, 201, { attachment: publicTicketAttachment(attachment, ticket) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
     const ticket = ticketsDb.tickets.find(item => item.uuid === req.params.uuid)
     if (!ticket) throwHttp(404, 'Ticket inexistent.')
     if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
-    const attachment = { id: nextId(ticketsDb.attachments), ticket_id: ticket.id, comment_id: body.comment_id || null, fisier_path: body.fisier_path || '', fisier_nume: body.fisier_nume || '', fisier_marime: Number(body.fisier_marime || 0), incarcat_de: auth.user.id, created_at: nowIso() }
+    const attachment = { id: nextId(ticketsDb.attachments), ticket_id: ticket.id, comment_id: body.comment_id || null, fisier_path: '', fisier_nume: body.fisier_nume || '', fisier_marime: Number(body.fisier_marime || 0), incarcat_de: auth.user.id, created_at: nowIso() }
     ticketsDb.attachments.push(attachment)
     ticket.updated_at = nowIso()
     addAudit(auth.db, auth.user, 'ticket_atasament', `${ticket.titlu}: ${attachment.fisier_nume}`)
     writeDb(auth.db)
-    sendJson(res, 201, { attachment })
+    sendJson(res, 201, { attachment: publicTicketAttachment(attachment, ticket) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/tickets/:uuid/attachments/:attachmentId/download', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requireTicketPermission(auth, res, 'tickets:view_own')) return
+    let ticket
+    let attachment
+    if (isMssqlMode()) {
+      ticket = mssqlTicket(req.params.uuid)
+      if (!ticket) throwHttp(404, 'Ticket inexistent.')
+      if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
+      attachment = mssqlArray(`
+SELECT TOP 1 a.id, a.ticket_id, a.comment_id, a.fisier_path, a.fisier_nume, a.fisier_marime, a.incarcat_de, a.created_at
+FROM tickets.attachments a
+JOIN tickets.tickets t ON t.id = a.ticket_id
+WHERE t.uuid = JSON_VALUE(@p, '$.uuid') AND a.id = TRY_CONVERT(int, JSON_VALUE(@p, '$.attachmentId'))
+FOR JSON PATH;
+`, { uuid: req.params.uuid, attachmentId: req.params.attachmentId })[0]
+    } else {
+      const ticketsDb = ensureTicketsDb(auth.db)
+      ticket = ticketsDb.tickets.find(item => item.uuid === req.params.uuid)
+      if (!ticket) throwHttp(404, 'Ticket inexistent.')
+      if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
+      attachment = ticketsDb.attachments.find(item => item.ticket_id === ticket.id && String(item.id) === String(req.params.attachmentId))
+    }
+    if (!attachment) throwHttp(404, 'Fisier inexistent.')
+    const filePath = resolveTicketAttachmentPath(attachment)
+    if (!filePath) throwHttp(404, 'Fisier inexistent.')
+    res.download(filePath, attachment.fisier_nume || 'atasament')
   } catch (error) {
     next(error)
   }
@@ -690,9 +768,8 @@ FOR JSON PATH;
       attachment = ticketsDb.attachments.find(item => item.ticket_id === ticket.id && item.fisier_nume === req.params.filename)
     }
     if (!attachment) throwHttp(404, 'Fisier inexistent.')
-    const filePath = path.resolve(path.join(__dirname, '../../..'), attachment.fisier_path || '')
-    const storageRoot = path.resolve(TICKETS_STORAGE)
-    if (!filePath.startsWith(storageRoot) || !fs.existsSync(filePath)) throwHttp(404, 'Fisier inexistent.')
+    const filePath = resolveTicketAttachmentPath(attachment)
+    if (!filePath) throwHttp(404, 'Fisier inexistent.')
     res.download(filePath, filename)
   } catch (error) {
     next(error)

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.536",
-  "changelog": "## v2.12.536 - 2026-09-06\n### Referințe documente parc sanitizate\n- Mecanizare nu mai cere utilizatorului o cale de fișier pentru polițe, ITP, taxe sau ISCIR, ci o referință text opțională.\n- Referința este validată în frontend și blochează căi locale, URL-uri sau linkuri directe către storage.\n- ITP folosește payload explicit, fără trimiterea întregului formular legacy.\n- Auditul de expuneri fișiere recunoaște cazul de referință text sanitizată și reduce finding-urile medium de la 5 la 4.\n- Nu schimbă schema bazei de date și nu necesită migrare SQL nouă.",
+  "version": "2.12.537",
+  "changelog": "## v2.12.537 - 2026-09-07\n### Download controlat atașamente Tichete\n- API-ul Tichete nu mai trimite către frontend calea internă a atașamentelor.\n- Detaliile ticketului expun doar metadate sigure, indicator de atașament și URL controlat de download.\n- Descărcarea se face prin endpoint dedicat pe id atașament, cu verificare sesiune, permisiune și limitare la storage/tickets.\n- Endpoint-ul legacy pe nume fișier rămâne compatibil, dar folosește aceeași validare sigură.\n- Auditul de expuneri fișiere reduce finding-urile medium de la 4 la 3.",
   "date": "2026-09-06"
 }
