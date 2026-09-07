@@ -4,6 +4,7 @@ import api from '../api/client'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
+import CompactTable from '../components/ui/CompactTable'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import ContextHelp from '../components/ui/ContextHelp'
 import DropdownMenu from '../components/ui/DropdownMenu'
@@ -1007,6 +1008,7 @@ export default function SetariPage() {
   const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
   const [securityDiagnostic, setSecurityDiagnostic] = useState(null)
   const [securityEventFilter, setSecurityEventFilter] = useState('all')
+  const [securityChecklistExpanded, setSecurityChecklistExpanded] = useState(false)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
   const [loading, setLoading] = useState(true)
@@ -1123,6 +1125,8 @@ export default function SetariPage() {
     () => (securityJournal.recent || []).filter(event => securityEventFilter === 'all' || event.category === securityEventFilter),
     [securityJournal, securityEventFilter]
   )
+  const securityChecklistItems = securityDiagnostic?.checklist || []
+  const visibleSecurityChecklist = securityChecklistExpanded ? securityChecklistItems : securityChecklistItems.slice(0, 5)
   const onboardingSteps = useMemo(() => {
     const enabled = new Set(enabledModules)
     const hasCompany = Boolean(settings.companyName || settings.company_name || settings.firma || settings.nume_companie)
@@ -3070,7 +3074,7 @@ export default function SetariPage() {
                       <Badge tone="info">{securityDiagnostic.generatedAt ? formatDateTime(securityDiagnostic.generatedAt) : '-'}</Badge>
                     </div>
                     <div className="grid gap-2">
-                      {(securityDiagnostic.checklist || []).map((item, index) => (
+                      {visibleSecurityChecklist.map((item, index) => (
                         <div key={`${item.title}-${index}`} className={`rounded-xl border p-3 ${securityCardClass(item.status)}`}>
                           <div className="flex items-start justify-between gap-3">
                             <div>
@@ -3082,6 +3086,18 @@ export default function SetariPage() {
                         </div>
                       ))}
                     </div>
+                    {securityChecklistItems.length > 5 ? (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        <span>
+                          {securityChecklistExpanded
+                            ? `Se afișează toate cele ${securityChecklistItems.length} verificări.`
+                            : `Checklist compact: încă ${securityChecklistItems.length - visibleSecurityChecklist.length} verificări sunt ascunse.`}
+                        </span>
+                        <Button type="button" size="sm" variant="secondary" onClick={() => setSecurityChecklistExpanded(value => !value)}>
+                          {securityChecklistExpanded ? 'Arată compact' : `Vezi tot (${securityChecklistItems.length})`}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -3185,7 +3201,7 @@ export default function SetariPage() {
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <Card title="Sesiuni active acum" subtitle="Nu afișăm tokenuri sau parole. Doar metadate utile pentru audit.">
-                    <Table
+                    <CompactTable
                       columns={[
                         { key: 'userName', label: 'Utilizator', render: row => (
                           <div className="flex flex-col gap-1">
@@ -3204,6 +3220,8 @@ export default function SetariPage() {
                       ]}
                       data={securityDiagnostic.sessions?.recent || []}
                       empty="Nu există sesiuni active."
+                      initialLimit={4}
+                      itemLabel="sesiuni"
                     />
                   </Card>
 
@@ -3226,7 +3244,7 @@ export default function SetariPage() {
                         <div className="mt-1 text-xs">Intră în Administrare / Stații pentru aprobare sau respingere controlată.</div>
                       </div>
                     ) : null}
-                    <Table
+                    <CompactTable
                       columns={[
                         { key: 'riskLabel', label: 'Risc', render: row => <Badge tone={row.risk || 'neutral'}>{row.riskLabel || 'OK'}</Badge> },
                         { key: 'name', label: 'Stație', render: row => (
@@ -3243,6 +3261,8 @@ export default function SetariPage() {
                       ]}
                       data={securityDiagnostic.devices?.registry || securityDiagnostic.devices?.recent || []}
                       empty="Nu există stații autorizate."
+                      initialLimit={4}
+                      itemLabel="stații"
                     />
                   </Card>
                 </div>
@@ -3262,7 +3282,7 @@ export default function SetariPage() {
                       <div className="mt-1 text-2xl font-bold text-slate-900">{securityDiagnostic.authentication?.logout24h ?? 0}</div>
                     </div>
                   </div>
-                  <Table
+                  <CompactTable
                     columns={[
                       { key: 'result', label: 'Rezultat', render: row => <Badge tone={row.result === 'respins' ? 'danger' : row.result === 'acceptat' ? 'success' : 'default'}>{row.result}</Badge> },
                       { key: 'username', label: 'Utilizator' },
@@ -3273,6 +3293,8 @@ export default function SetariPage() {
                     ]}
                     data={securityDiagnostic.authentication?.recent || []}
                     empty="Nu există încă evenimente de autentificare în audit."
+                    initialLimit={5}
+                    itemLabel="evenimente"
                   />
                 </Card>
 
@@ -3294,7 +3316,7 @@ export default function SetariPage() {
                     ))}
                     <span className="ml-auto text-xs text-slate-500">{securityJournal.last24h || 0} evenimente în ultimele 24h</span>
                   </div>
-                  <Table
+                  <CompactTable
                     columns={[
                       { key: 'categoryLabel', label: 'Categorie', render: row => <Badge tone={row.tone || 'neutral'}>{row.categoryLabel}</Badge> },
                       { key: 'actionLabel', label: 'Acțiune' },
@@ -3304,6 +3326,9 @@ export default function SetariPage() {
                     ]}
                     data={visibleSecurityEvents}
                     empty="Nu există evenimente pentru filtrul selectat."
+                    initialLimit={6}
+                    itemLabel="evenimente"
+                    compactHint="Jurnal compact: ultimele evenimente importante rămân la vedere."
                   />
                 </Card>
 

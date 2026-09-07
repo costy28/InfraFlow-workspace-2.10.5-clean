@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.543 - 2026-09-07
+
+## Liste compacte pentru pagini aglomerate
+
+- Adaugă `CompactTable`, componentă reutilizabilă pentru tabele lungi afișate compact implicit.
+- Aplică modelul pe Setări → Securitate: sesiuni active, audit stații, jurnal autentificări și jurnal securitate.
+- Checklist-ul rapid de securitate afișează inițial doar verificările principale și se poate extinde.
+- Pagina rămâne orientată pe concluzii și acțiuni, nu pe scroll lung.
+- Pregătește același pattern pentru Documente, Contracte, HR, Mesaje și Audit.
+
 # v2.12.542 - 2026-09-07
 
 ## Audit stații autorizate

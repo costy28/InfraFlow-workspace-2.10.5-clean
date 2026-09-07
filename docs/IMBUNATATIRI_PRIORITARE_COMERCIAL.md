@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.542 — audit stații autorizate
+Ultimul pas executat: 2.12.543 — liste compacte pentru pagini aglomerate
 Status: backlog operațional activ
 
 ## Scop
@@ -53,6 +53,7 @@ Pași:
 - explicații scurte pentru blocaje;
 - buton principal unic pe fiecare ecran important;
 - mod compact pentru operatori.
+- pattern reutilizabil pentru tabele lungi compacte, aplicat inițial pe Setări → Securitate; ✅ `v2.12.543`
 
 Module prioritare: Documente, Contracte, HR, Parc & Resurse, Contabilitate.
 
