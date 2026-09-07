@@ -14,6 +14,53 @@ const { addAudit } = require("../../core/audit");
 const xmlUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const schemaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+function resolveAnafSchemaStoragePath(schema) {
+  const rawPath = String(schema?.file_path || "").trim();
+  if (!rawPath || schema?.bundled) return "";
+  const storageRoot = path.resolve(__dirname, "../../../storage/anaf-schemas");
+  const projectRoot = path.resolve(__dirname, "../../..");
+  const candidate = path.isAbsolute(rawPath) ? path.resolve(rawPath) : path.resolve(projectRoot, rawPath);
+  const relativePath = path.relative(storageRoot, candidate);
+  if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) return "";
+  if (!fs.existsSync(candidate)) return "";
+  return candidate;
+}
+
+function schemaDownloadUrl(schema) {
+  if (!schema || schema.bundled || !schema.file_path) return null;
+  const id = schema.uuid || schema.id || schema.code;
+  return id ? `/api/accounting/declarations/schemas/${encodeURIComponent(String(id))}/download` : null;
+}
+
+function publicAnafSchema(schema) {
+  if (!schema) return null;
+  const metadata = schema.schema_metadata || parseJson(schema.schema_json) || {};
+  const safeMetadata = metadata && typeof metadata === "object" ? { ...metadata } : {};
+  ["file_path", "local_path", "diskPath", "absolutePath"].forEach((key) => { delete safeMetadata[key]; });
+  return {
+    ...safeMetadata,
+    id: schema.id || null,
+    uuid: schema.uuid || null,
+    code: schema.code || "",
+    declaration_code: schema.declaration_code || schema.code || "",
+    original_name: schema.original_name || schema.file_name || "",
+    file_name: schema.file_name || schema.original_name || "",
+    bundled: Boolean(schema.bundled),
+    sha256: schema.sha256 || schema.actual_sha256 || "",
+    hash_valid: schema.hash_valid !== false,
+    active: schema.active !== false,
+    valid_from: schema.valid_from || "",
+    valid_to: schema.valid_to || "",
+    order_reference: schema.order_reference || "",
+    source_url: schema.source_url || "",
+    uploaded_by: schema.uploaded_by || "",
+    uploaded_at: schema.uploaded_at || "",
+    has_schema_file: Boolean(schema.file_path),
+    download_url: schemaDownloadUrl(schema)
+  };
+}
+function parseJson(value) { try { return typeof value === "string" ? JSON.parse(value) : value; } catch (_) { return null; } }
+
 function registerAccountingControlRoutes(router, middleware) {
   const { requireAccountingView, requireAccountingPost, requireAccountingManage, requireAccountingReports } = middleware;
 
@@ -278,15 +325,26 @@ function registerAccountingControlRoutes(router, middleware) {
   router.get("/accounting/declarations/schemas", requireAccountingReports, (req, res) => {
     const schemas = [...schemaProfiles.bundled(), ...engine.ensureAccounting(req.auth.db).anafSchemas]
       .sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
-    res.status(200).json({ schemas });
+    res.status(200).json({ schemas: schemas.map(publicAnafSchema) });
   });
 
+
+  router.get("/accounting/declarations/schemas/:schemaId/download", requireAccountingReports, (req, res, next) => {
+    try {
+      const accounting = engine.ensureAccounting(req.auth.db);
+      const schema = (accounting.anafSchemas || []).find((item) => [item.uuid, item.id, item.code].some((value) => String(value || "") === String(req.params.schemaId)));
+      if (!schema) throwHttp(404, "Schema ANAF nu a fost gasita.");
+      const filePath = resolveAnafSchemaStoragePath(schema);
+      if (!filePath) throwHttp(404, "Fisierul schemei ANAF nu mai este disponibil.");
+      res.download(filePath, schema.original_name || schema.file_name || `schema-${schema.code || schema.id}.xsd`);
+    } catch (error) { next(error); }
+  });
   router.get("/accounting/declarations/schemas/resolve", requireAccountingReports, (req, res, next) => {
     try {
       const period = String(req.query.perioada || req.query.luna || "").slice(0, 7);
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throwHttp(400, "Perioada trebuie sa aiba formatul YYYY-MM.");
       const schema = schemaProfiles.select(engine.ensureAccounting(req.auth.db), req.query.code, period);
-      res.json({ perioada: period, profile: schemaProfiles.profile(schema), ready: Boolean(schema) });
+      res.json({ perioada: period, profile: publicAnafSchema(schema), ready: Boolean(schema) });
     } catch (error) { next(error); }
   });
 
@@ -320,7 +378,7 @@ function registerAccountingControlRoutes(router, middleware) {
       accounting.anafSchemas.push(schema);
       addAudit(req.auth.db, req.auth.user, "accounting_anaf_schema_upload", `${code} / ${req.file.originalname}`);
       writeDb(req.auth.db);
-      res.status(201).json({ schema });
+      res.status(201).json({ schema: publicAnafSchema(schema) });
     } catch (error) { next(error); }
   });
 

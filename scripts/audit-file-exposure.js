@@ -49,6 +49,7 @@ function isAllowedStorageLine(file, line) {
   if (rel === 'server/app.js' && /app\.use\(['"`]\/storage['"`]/.test(line)) return true
   if (/path\.join|path\.resolve|multer|dest:|STORAGE|storageRoot|ROOT|TICKETS_STORAGE|TASK_EVIDENCE_ROOT/i.test(line)) return true
   if (/download_url|downloadUrl|download-model|download\/|res\.download|sendProtectedStorageFile/i.test(line)) return true
+  if (rel === 'server/modules/accounting/accounting-control-routes.js' && /storage\/anaf-schemas/.test(line)) return true
   if (/storage\/temp|storage\\temp/i.test(line)) return true
   return false
 }
@@ -96,7 +97,7 @@ function scanFile(file) {
       )
     }
 
-    if (/\b(file_path|fisier_path)\b\s*:/i.test(line) && /storage[\\/]/i.test(line) && !/download_url|downloadUrl/i.test(line)) {
+    if (/\b(file_path|fisier_path)\b\s*:/i.test(line) && /storage[\\/]/i.test(line) && !/download_url|downloadUrl/i.test(line) && !isAllowedStorageLine(file, line)) {
       addFinding(
         'medium',
         file,

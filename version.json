@@ -1,5 +1,5 @@
 {
-  "version": "2.12.538",
-  "changelog": "## v2.12.538 - 2026-09-07\n### Upload și download controlat în Secretariat\n- Registratura nu mai cere utilizatorului să introducă o cale locală pentru atașament.\n- Formularul de înregistrare acceptă upload real pentru PDF, imagini sau documente Office.\n- API-ul Secretariat salvează fișierul în storage controlat și trimite către frontend doar indicator de atașament și URL de download.\n- Descărcarea atașamentului se face prin endpoint dedicat cu verificare sesiune, permisiune și limitare la storage/secretariat.\n- Auditul de expuneri fișiere reduce finding-urile medium de la 3 la 2.",
-  "date": "2026-09-06"
+  "changelog": "## v2.12.539 - 2026-09-07\n### Scheme ANAF fără path intern în API\n- Lista și rezolvarea schemelor ANAF folosesc serializer public fără file_path/local_path/diskPath/absolutePath.\n- Schemele încărcate de admin primesc URL de download controlat prin API, cu sesiune și permisiune contabilă.\n- Descărcarea verifică strict că fișierul există în storage/anaf-schemas, fără traversare în afara folderului autorizat.\n- Upload-ul păstrează path-ul doar intern pentru validatorul XSD, dar răspunsul către UI este sanitizat.\n- Auditul file exposure ajunge la 0 finding-uri high/medium/low.",
+  "version": "2.12.539",
+  "date": "2026-09-07"
 }

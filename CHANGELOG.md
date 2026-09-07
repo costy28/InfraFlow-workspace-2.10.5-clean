@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.539 - 2026-09-07
+
+## Scheme ANAF fără path intern în API
+
+- API-ul de listare scheme ANAF folosește serializer public și nu mai trimite `file_path` către UI.
+- Endpoint-ul de rezolvare a schemei active returnează profil sanitizat, fără path-uri locale/interne.
+- Adaugă download controlat pentru schemele ANAF încărcate manual, cu verificare sesiune, permisiune și folder autorizat.
+- Upload-ul păstrează path-ul doar server-side pentru validatorul XSD.
+- Auditul automat `npm run audit:file-exposure` ajunge la 0 finding-uri.
 # v2.12.538 - 2026-09-07
 
 ## Upload și download controlat în Secretariat
