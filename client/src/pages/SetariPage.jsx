@@ -1006,6 +1006,7 @@ export default function SetariPage() {
   const [piusiSyncing, setPiusiSyncing] = useState(false)
   const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
   const [securityDiagnostic, setSecurityDiagnostic] = useState(null)
+  const [securityEventFilter, setSecurityEventFilter] = useState('all')
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
   const [loading, setLoading] = useState(true)
@@ -1109,6 +1110,18 @@ export default function SetariPage() {
   const availableTimezones = useMemo(
     () => Array.from(new Set([...timezoneOptions, ...countryProfiles.map(profile => profile.timezone).filter(Boolean)])),
     [countryProfiles]
+  )
+  const securityJournal = securityDiagnostic?.securityJournal || { filters: [], recent: [], total: 0, last24h: 0 }
+  const securityJournalFilters = useMemo(
+    () => [
+      { key: 'all', label: 'Toate', count: securityJournal.total || 0 },
+      ...(securityJournal.filters || []),
+    ],
+    [securityJournal]
+  )
+  const visibleSecurityEvents = useMemo(
+    () => (securityJournal.recent || []).filter(event => securityEventFilter === 'all' || event.category === securityEventFilter),
+    [securityJournal, securityEventFilter]
   )
   const onboardingSteps = useMemo(() => {
     const enabled = new Set(enabledModules)
@@ -3234,6 +3247,37 @@ export default function SetariPage() {
                     ]}
                     data={securityDiagnostic.authentication?.recent || []}
                     empty="Nu există încă evenimente de autentificare în audit."
+                  />
+                </Card>
+
+                <Card title="Jurnal securitate" subtitle="Roluri, permisiuni, utilizatori, stații și setări sensibile într-un singur loc.">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    {(securityJournalFilters || []).map(filter => (
+                      <button
+                        key={filter.key}
+                        type="button"
+                        onClick={() => setSecurityEventFilter(filter.key)}
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                          securityEventFilter === filter.key
+                            ? 'border-primary-700 bg-primary-700 text-white'
+                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-800'
+                        }`}
+                      >
+                        {filter.label} ({filter.count || 0})
+                      </button>
+                    ))}
+                    <span className="ml-auto text-xs text-slate-500">{securityJournal.last24h || 0} evenimente în ultimele 24h</span>
+                  </div>
+                  <Table
+                    columns={[
+                      { key: 'categoryLabel', label: 'Categorie', render: row => <Badge tone={row.tone || 'neutral'}>{row.categoryLabel}</Badge> },
+                      { key: 'actionLabel', label: 'Acțiune' },
+                      { key: 'actor', label: 'Operator' },
+                      { key: 'details', label: 'Detalii', render: row => row.details || '-' },
+                      { key: 'at', label: 'Moment', render: row => row.at ? `${timeAgo(row.at)} · ${formatDateTime(row.at)}` : '-' },
+                    ]}
+                    data={visibleSecurityEvents}
+                    empty="Nu există evenimente pentru filtrul selectat."
                   />
                 </Card>
 

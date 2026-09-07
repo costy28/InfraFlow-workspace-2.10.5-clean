@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.540**
-**Versiune în lucru: v2.12.540**
+**Versiune curentă sursă: v2.12.541**
+**Versiune în lucru: v2.12.541**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -278,6 +278,7 @@ Core System
   ✅ Upload și download controlat în Secretariat (v2.12.538)
   ✅ Scheme ANAF fără path intern în API (v2.12.539)
   ✅ Jurnal autentificări în securitate (v2.12.540)
+  ✅ Jurnal securitate filtrabil pentru roluri și permisiuni (v2.12.541)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -916,8 +917,9 @@ PRIORITATE 3 — Infrastructură comercială:
       → Secretariat cu upload real și download controlat, fără cale locală în UI ✅ v2.12.538
       → Scheme ANAF contabilitate cu serializer sigur și download controlat ✅ v2.12.539
       → Jurnal autentificări reușite/eșuate/logout în Setări → Securitate ✅ v2.12.540
+      → Jurnal securitate filtrabil pentru roluri, permisiuni, utilizatori, stații și setări sensibile ✅ v2.12.541
       → 2FA pentru administratori și roluri sensibile
-      → Audit securitate: autentificări eșuate, stații noi, schimbări permisiuni, acces remote
+      → Audit securitate: stații noi, revocări, schimbări permisiuni, acces remote
       → Remote access recomandat prin Cloudflare Tunnel/VPN; SQL Server nu se expune direct la internet
 
   [ ] Multi-limbă + profil de țară
@@ -993,9 +995,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.540
+VERSIUNE CURENTĂ SURSĂ: 2.12.541
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.540 ✅
+UPDATE ZIP CURENT: 2.12.541 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1344,6 +1346,7 @@ UPDATES ÎN LUCRU:
   2.12.538 → UPDATE 558 Upload și download controlat în Secretariat ✅
   2.12.539 → UPDATE 559 Scheme ANAF fără path intern în API ✅
   2.12.540 → UPDATE 560 Jurnal autentificări în securitate ✅
+  2.12.541 → UPDATE 561 Audit roluri/permisiuni și filtre securitate ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1840,5 +1843,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 7 Septembrie 2026 | InfraFlow sursă v2.12.540*
+*AGENTS.md actualizat: 7 Septembrie 2026 | InfraFlow sursă v2.12.541*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

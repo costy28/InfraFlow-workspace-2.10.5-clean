@@ -341,6 +341,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   const devices = activeDevices(db);
   const users = Array.isArray(db.users) ? db.users : [];
   const authenticationJournal = buildAuthenticationJournal(db);
+  const securityJournal = buildSecurityJournal(db);
   const devicesById = new Map((db.devices || []).map((device) => [String(device.id || ""), device]));
   const currentSessionId = req ? publicSessionId(sessionTokenFromRequest(req)) : "";
   const sessionsList = Array.from(sessionStore?.entries?.() || []).map(([token, session]) => {
@@ -433,6 +434,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       recent: sessionsList.slice(0, 12),
     },
     authentication: authenticationJournal,
+    securityJournal,
     passwordPolicy: {
       ...passwordPolicy,
       strong: passwordPolicyStrong,
@@ -542,6 +544,124 @@ function buildAuthenticationJournal(db) {
     success24h: events.filter((item) => item.action === "auth_login_reusit" && inLast24h(item)).length,
     logout24h: events.filter((item) => item.action === "auth_logout" && inLast24h(item)).length,
     recent,
+  };
+}
+
+const SECURITY_AUDIT_CATEGORIES = {
+  auth: {
+    label: "Autentificări",
+    tone: "info",
+    actions: ["auth_login_esuat", "auth_login_reusit", "auth_logout", "login", "forgot_password", "password_reset"]
+  },
+  roles: {
+    label: "Roluri & permisiuni",
+    tone: "warning",
+    actions: ["rol_creat", "rol_modificat", "rol_sters", "rol_permisiuni_salvate", "rol_permisiuni_modificate"]
+  },
+  users: {
+    label: "Utilizatori",
+    tone: "warning",
+    actions: ["utilizator_adaugat", "utilizator_modificat", "utilizator_rol_schimbat", "utilizator_roluri_schimbate", "parola_utilizator_resetata"]
+  },
+  devices: {
+    label: "Stații",
+    tone: "success",
+    actions: ["dispozitiv_autorizat", "dispozitiv_eliminat", "statie_aprobata", "statie_respinsa", "sesiune_inchisa_admin"]
+  },
+  settings: {
+    label: "Setări sensibile",
+    tone: "danger",
+    actions: ["setari_modificate", "module_actualizate", "workflow_fluxuri_modificate", "configurare_mssql_actualizata", "licenta_importata", "audit_curatat"]
+  },
+};
+
+const SECURITY_AUDIT_ACTION_LABELS = {
+  auth_login_esuat: "Login respins",
+  auth_login_reusit: "Login reușit",
+  auth_logout: "Logout",
+  login: "Login legacy",
+  forgot_password: "Cod resetare parolă",
+  password_reset: "Parolă resetată",
+  rol_creat: "Rol creat",
+  rol_modificat: "Rol modificat",
+  rol_sters: "Rol șters",
+  rol_permisiuni_salvate: "Permisiuni rol salvate",
+  rol_permisiuni_modificate: "Permisiuni rol modificate",
+  utilizator_adaugat: "Utilizator adăugat",
+  utilizator_modificat: "Utilizator modificat",
+  utilizator_rol_schimbat: "Rol utilizator schimbat",
+  utilizator_roluri_schimbate: "Roluri utilizator schimbate",
+  parola_utilizator_resetata: "Parolă utilizator resetată",
+  dispozitiv_autorizat: "Stație autorizată",
+  dispozitiv_eliminat: "Stație eliminată",
+  statie_aprobata: "Stație aprobată",
+  statie_respinsa: "Stație respinsă",
+  sesiune_inchisa_admin: "Sesiune închisă de admin",
+  setari_modificate: "Setări modificate",
+  module_actualizate: "Module actualizate",
+  workflow_fluxuri_modificate: "Fluxuri documente modificate",
+  configurare_mssql_actualizata: "Configurație MSSQL modificată",
+  licenta_importata: "Licență importată",
+  audit_curatat: "Audit curățat",
+};
+
+function classifySecurityAuditAction(action) {
+  const normalized = String(action || "");
+  const entry = Object.entries(SECURITY_AUDIT_CATEGORIES).find(([, category]) => category.actions.includes(normalized));
+  if (!entry) return null;
+  return { key: entry[0], ...entry[1] };
+}
+
+function sanitizeSecurityAuditDetails(value) {
+  const details = String(value || "")
+    .replace(/token=([^|]+)/gi, "token=ascuns")
+    .replace(/parol[ăa]=([^|]+)/gi, "parola=ascunsă")
+    .replace(/password=([^|]+)/gi, "password=hidden")
+    .trim();
+  const parsed = parseAuditDetails(details);
+  if (parsed.ip) {
+    parsed.ip = maskIp(parsed.ip);
+    return Object.entries(parsed).map(([key, val]) => `${key}=${val}`).join(" | ");
+  }
+  return details;
+}
+
+function buildSecurityJournal(db) {
+  const now = Date.now();
+  const categoryCounts = Object.fromEntries(Object.keys(SECURITY_AUDIT_CATEGORIES).map((key) => [key, 0]));
+  const events = (db.audit || [])
+    .map((item) => {
+      const category = classifySecurityAuditAction(item.action);
+      if (!category) return null;
+      categoryCounts[category.key] = (categoryCounts[category.key] || 0) + 1;
+      const timestamp = Date.parse(String(item.at || ""));
+      const details = sanitizeSecurityAuditDetails(item.details);
+      return {
+        id: item.id || `${item.action}-${item.at || ""}`,
+        at: item.at || "",
+        category: category.key,
+        categoryLabel: category.label,
+        tone: item.action === "auth_login_esuat" ? "danger" : category.tone,
+        action: item.action,
+        actionLabel: SECURITY_AUDIT_ACTION_LABELS[item.action] || String(item.action || "").replaceAll("_", " "),
+        actor: item.userName || "Sistem",
+        details,
+        isRecent24h: Number.isFinite(timestamp) && now - timestamp <= 24 * 60 * 60 * 1000,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+
+  const filters = Object.entries(SECURITY_AUDIT_CATEGORIES).map(([key, category]) => ({
+    key,
+    label: category.label,
+    count: categoryCounts[key] || 0,
+  }));
+  return {
+    total: events.length,
+    last24h: events.filter((item) => item.isRecent24h).length,
+    filters,
+    recent: events.slice(0, 40),
   };
 }
 

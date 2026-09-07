@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.541 - 2026-09-07
+
+## Jurnal securitate filtrabil
+
+- Adaugă în Setări → Securitate un jurnal unificat pentru autentificări, roluri, permisiuni, utilizatori, stații și setări sensibile.
+- Evenimentele au filtre rapide cu contoare, ca administratorul să vadă imediat doar zona care îl interesează.
+- Diagnosticul server-side clasifică auditul existent în categorii comerciale clare.
+- Detaliile sensibile sunt sanitizate: parolele și token-urile nu apar în jurnal.
+- Panoul afișează câte evenimente de securitate au apărut în ultimele 24h.
+
 # v2.12.540 - 2026-09-07
 
 ## Jurnal autentificări în securitate

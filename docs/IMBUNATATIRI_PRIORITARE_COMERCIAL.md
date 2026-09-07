@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.540 — jurnal autentificări în securitate
+Ultimul pas executat: 2.12.541 — jurnal securitate filtrabil
 Status: backlog operațional activ
 
 ## Scop
@@ -38,8 +38,8 @@ Pași:
 
 - jurnal pentru login eșuat, login reușit și logout; ✅ `v2.12.540`
 - jurnal pentru stații noi sau sesiuni noi;
-- audit vizibil pentru modificări de roluri, permisiuni și politici de securitate; în progres: autentificări vizibile ✅ `v2.12.540`
-- filtre în Setări → Securitate pentru evenimente critice.
+- audit vizibil pentru modificări de roluri, permisiuni, utilizatori, stații și politici sensibile; ✅ `v2.12.541`
+- filtre în Setări → Securitate pentru evenimente critice. ✅ `v2.12.541`
 
 ### 3. Simplitate operațională pe fiecare modul
 
