@@ -3208,6 +3208,35 @@ export default function SetariPage() {
                   </Card>
                 </div>
 
+                <Card title="Jurnal autentificări" subtitle="Ultimele intrări/ieșiri și încercări respinse, fără parole sau token-uri.">
+                  <div className="mb-3 grid gap-2 md:grid-cols-3">
+                    <div className="rounded-xl border border-rose-100 bg-rose-50 p-3">
+                      <div className="text-xs font-semibold uppercase text-rose-700">Eșuate 24h</div>
+                      <div className="mt-1 text-2xl font-bold text-rose-900">{securityDiagnostic.authentication?.failed24h ?? 0}</div>
+                    </div>
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                      <div className="text-xs font-semibold uppercase text-emerald-700">Reușite 24h</div>
+                      <div className="mt-1 text-2xl font-bold text-emerald-900">{securityDiagnostic.authentication?.success24h ?? 0}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-xs font-semibold uppercase text-slate-500">Ieșiri 24h</div>
+                      <div className="mt-1 text-2xl font-bold text-slate-900">{securityDiagnostic.authentication?.logout24h ?? 0}</div>
+                    </div>
+                  </div>
+                  <Table
+                    columns={[
+                      { key: 'result', label: 'Rezultat', render: row => <Badge tone={row.result === 'respins' ? 'danger' : row.result === 'acceptat' ? 'success' : 'default'}>{row.result}</Badge> },
+                      { key: 'username', label: 'Utilizator' },
+                      { key: 'ip', label: 'IP' },
+                      { key: 'device', label: 'Stație' },
+                      { key: 'at', label: 'Moment', render: row => row.at ? `${timeAgo(row.at)} · ${formatDateTime(row.at)}` : '-' },
+                      { key: 'reason', label: 'Observație', render: row => row.reason || '-' },
+                    ]}
+                    data={securityDiagnostic.authentication?.recent || []}
+                    empty="Nu există încă evenimente de autentificare în audit."
+                  />
+                </Card>
+
                 <Card title="Pași recomandați următori" subtitle="Direcția sănătoasă pentru date sensibile și acces remote.">
                   <div className="grid gap-2 md:grid-cols-2">
                     {(securityDiagnostic.nextSteps || []).map((step, index) => (

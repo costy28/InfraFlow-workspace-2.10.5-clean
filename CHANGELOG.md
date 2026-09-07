@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.540 - 2026-09-07
+
+## Jurnal autentificări în securitate
+
+- Înregistrează în audit login reușit, login eșuat și logout, fără parole sau token-uri.
+- Login-ul normal actualizează stația/dispozitivul curent, nu doar wizard-ul inițial.
+- Diagnosticul Setări → Securitate primește contoare pe 24h pentru autentificări eșuate, reușite și logout.
+- Adaugă tabel cu ultimele evenimente de autentificare, cu IP mascat și motiv sigur.
+- Încercările eșuate recente apar în avertizări și scad moderat scorul de securitate.
 # v2.12.539 - 2026-09-07
 
 ## Scheme ANAF fără path intern în API

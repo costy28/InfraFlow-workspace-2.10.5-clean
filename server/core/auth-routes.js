@@ -7,6 +7,24 @@ const { addAudit } = require('./audit')
 const crypto = require('crypto')
 const router = Router()
 
+function requestIp(req) {
+  const raw = req.socket?.remoteAddress || ''
+  if (raw.startsWith('::ffff:')) return raw.slice(7)
+  if (raw === '::1') return '127.0.0.1'
+  return raw
+}
+
+function authAuditDetails(req, username, result, extra = '') {
+  const deviceId = String(req.body?.deviceId || req.headers['x-infraflow-device-id'] || req.headers['x-asfalt-device-id'] || '').slice(0, 80)
+  return [
+    `username=${String(username || '-').slice(0, 80)}`,
+    `rezultat=${result}`,
+    `ip=${requestIp(req) || '-'}`,
+    deviceId ? `device=${deviceId}` : '',
+    extra ? `motiv=${String(extra).slice(0, 120)}` : ''
+  ].filter(Boolean).join(' | ')
+}
+
 router.get('/setup/status', async (req, res) => {
   try {
     const db = await readDb()
@@ -63,19 +81,36 @@ router.post('/login', async (req, res) => {
     const user = db.users?.find(u =>
       u.username === username && u.active !== false
     )
-    if (!user || !verifyPassword(user, password))
+    if (!user || !verifyPassword(user, password)) {
+      addAudit(db, { id: 'security', name: 'Securitate', role: 'system' }, 'auth_login_esuat', authAuditDetails(req, username, 'respins', user ? 'parola invalida' : 'utilizator inexistent sau inactiv'))
+      await writeDb(db)
       return res.status(401).json({ error: 'Autentificare necesara.' })
+    }
     const token = crypto.randomBytes(32).toString('hex')
-    sessions.set(token, { userId: user.id, loginAt: Date.now() })
+    const device = registerClientDevice(db, user, req.body || {}, req)
+    sessions.set(token, { userId: user.id, deviceId: device.id, loginAt: Date.now() })
+    addAudit(db, user, 'auth_login_reusit', authAuditDetails(req, username, 'acceptat', device.name || 'statie autorizata'))
+    await writeDb(db)
     const permissions = effectivePermissionsForUser(user, db)
     res.json({ token, user: { ...publicUser(user), permissions }, permissions })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { res.status(e.status || 500).json({ error: e.message }) }
 })
 
-router.post('/logout', (req, res) => {
-  const token = tokenFrom(req)
-  if (token) sessions.delete(token)
-  res.json({ ok: true })
+router.post('/logout', async (req, res) => {
+  try {
+    const token = tokenFrom(req)
+    const session = token ? sessions.get(token) : null
+    if (token) sessions.delete(token)
+    if (session) {
+      const db = await readDb()
+      const user = db.users?.find(u => String(u.id) === String(session.userId))
+      if (user) {
+        addAudit(db, user, 'auth_logout', authAuditDetails(req, user.username, 'iesire'))
+        await writeDb(db)
+      }
+    }
+    res.json({ ok: true })
+  } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
 router.get('/session', async (req, res) => {

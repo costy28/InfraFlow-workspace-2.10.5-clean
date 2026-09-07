@@ -1,5 +1,5 @@
 {
-  "changelog": "## v2.12.539 - 2026-09-07\n### Scheme ANAF fără path intern în API\n- Lista și rezolvarea schemelor ANAF folosesc serializer public fără file_path/local_path/diskPath/absolutePath.\n- Schemele încărcate de admin primesc URL de download controlat prin API, cu sesiune și permisiune contabilă.\n- Descărcarea verifică strict că fișierul există în storage/anaf-schemas, fără traversare în afara folderului autorizat.\n- Upload-ul păstrează path-ul doar intern pentru validatorul XSD, dar răspunsul către UI este sanitizat.\n- Auditul file exposure ajunge la 0 finding-uri high/medium/low.",
-  "version": "2.12.539",
-  "date": "2026-09-07"
+  "date": "2026-09-07",
+  "version": "2.12.540",
+  "changelog": "## v2.12.540 - 2026-09-07\n### Jurnal autentificări în securitate\n- Login-ul reușit, login-ul eșuat și logout-ul sunt înregistrate în audit fără parole sau token-uri.\n- Login-ul normal actualizează stația/dispozitivul curent, nu doar setup-ul inițial.\n- Diagnosticul Setări → Securitate afișează ultimele autentificări și contoare pe 24h.\n- IP-urile sunt mascate în diagnostic, iar încercările eșuate influențează scorul și avertizările de securitate.\n- Erorile de licență/stație la login păstrează statusul HTTP corect."
 }

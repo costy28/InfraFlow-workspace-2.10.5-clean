@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.539 — scheme ANAF fără path intern în API
+Ultimul pas executat: 2.12.540 — jurnal autentificări în securitate
 Status: backlog operațional activ
 
 ## Scop
@@ -36,9 +36,9 @@ Obiectiv: administratorul să vadă rapid încercări suspecte și schimbări cu
 
 Pași:
 
-- jurnal pentru login eșuat, login reușit și logout;
+- jurnal pentru login eșuat, login reușit și logout; ✅ `v2.12.540`
 - jurnal pentru stații noi sau sesiuni noi;
-- audit vizibil pentru modificări de roluri, permisiuni și politici de securitate;
+- audit vizibil pentru modificări de roluri, permisiuni și politici de securitate; în progres: autentificări vizibile ✅ `v2.12.540`
 - filtre în Setări → Securitate pentru evenimente critice.
 
 ### 3. Simplitate operațională pe fiecare modul

@@ -1,6 +1,6 @@
 # Audit complet InfraFlow ERP — 2026-09-05
 
-Versiune auditată: **2.12.539**
+Versiune auditată: **2.12.540**
 
 ## Verdict curent
 
@@ -76,4 +76,4 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 
 ## Recomandarea pentru următorul update
 
-Backlog-ul acționabil este acum documentat în `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md`. Linkurile directe high din FisaVehicul/MyVehicle sunt rezolvate în v2.12.535, referințele text din Mecanizare sunt sanitizate în v2.12.536, Tichete nu mai expune path intern în v2.12.537, Secretariat nu mai folosește cale locală în UI în v2.12.538, iar schemele ANAF nu mai expun path intern în API în v2.12.539. Auditul `npm run audit:file-exposure` raportează 0 finding-uri. Următorul pas tehnic recomandat este auditul de securitate pentru autentificări eșuate, stații noi și schimbări de permisiuni.
+Backlog-ul acționabil este acum documentat în `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md`. Linkurile directe high din FisaVehicul/MyVehicle sunt rezolvate în v2.12.535, referințele text din Mecanizare sunt sanitizate în v2.12.536, Tichete nu mai expune path intern în v2.12.537, Secretariat nu mai folosește cale locală în UI în v2.12.538, iar schemele ANAF nu mai expun path intern în API în v2.12.539. Auditul `npm run audit:file-exposure` raportează 0 finding-uri. Auditul de autentificări a început în v2.12.540: login reușit/eșuat/logout sunt vizibile în Setări → Securitate. Următorul pas tehnic recomandat este extinderea auditului pentru schimbări de roluri, permisiuni și stații noi.

@@ -340,6 +340,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   const license = normalizeLicense(settings.license || {});
   const devices = activeDevices(db);
   const users = Array.isArray(db.users) ? db.users : [];
+  const authenticationJournal = buildAuthenticationJournal(db);
   const devicesById = new Map((db.devices || []).map((device) => [String(device.id || ""), device]));
   const currentSessionId = req ? publicSessionId(sessionTokenFromRequest(req)) : "";
   const sessionsList = Array.from(sessionStore?.entries?.() || []).map(([token, session]) => {
@@ -382,13 +383,15 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   if ((db.devices || []).length > devices.length) warnings.push("Există stații dezactivate/arhivate în registru. Verifică periodic lista de dispozitive.");
   if (license.status !== "active") warnings.push("Licența nu este semnată activ pentru client; pentru producție folosește licență comercială semnată.");
   if (!passwordPolicyStrong) warnings.push("Politica de parole este permisivă. Pentru date sensibile recomandăm minimum 10 caractere, litere mari/mici și cifre.");
+  if (authenticationJournal.failed24h > 0) warnings.push(`Există ${authenticationJournal.failed24h} autentificări eșuate în ultimele 24h. Verifică jurnalul de acces.`);
 
   const score = Math.max(45, 100
     - (networkMode === "open" ? 25 : 0)
     - (!tunnelUrl ? 5 : 0)
     - (license.status !== "active" ? 10 : 0)
     - (sessionsList.length > Number(license.maxUsers || 1) ? 10 : 0)
-    - (!passwordPolicyStrong ? 8 : 0));
+    - (!passwordPolicyStrong ? 8 : 0)
+    - (authenticationJournal.failed24h > 5 ? 8 : authenticationJournal.failed24h > 0 ? 3 : 0));
   const verdictStatus = networkMode === "open" ? "attention" : warnings.length ? "good_with_notes" : "protected";
 
   return {
@@ -429,6 +432,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       },
       recent: sessionsList.slice(0, 12),
     },
+    authentication: authenticationJournal,
     passwordPolicy: {
       ...passwordPolicy,
       strong: passwordPolicyStrong,
@@ -489,6 +493,11 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
         detail: `${devices.length} stații active / limită licență ${license.maxDevices || 1}.`,
       },
       {
+        status: authenticationJournal.failed24h > 5 ? "warn" : "ok",
+        title: "Autentificări",
+        detail: `${authenticationJournal.failed24h} eșuate în ultimele 24h / ${authenticationJournal.success24h} reușite.`,
+      },
+      {
         status: tunnelUrl ? "ok" : "info",
         title: "Acces remote",
         detail: tunnelUrl ? `URL/tunnel notat: ${tunnelUrl}` : "Recomandare: Cloudflare Tunnel sau VPN, fără SQL public.",
@@ -499,9 +508,53 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       "Nu expune portul SQL Server la internet; doar serverul InfraFlow trebuie să vorbească cu baza.",
       "Pentru acces de la distanță, folosește HTTPS prin Cloudflare Tunnel sau VPN.",
       "Revizuiește periodic stațiile autorizate și închide sesiunile vechi când un dispozitiv pleacă din firmă.",
-      "Pas ulterior: 2FA pentru rolurile sensibile și jurnal de autentificări eșuate.",
+      "Urmărește autentificările eșuate; mai multe încercări pe același cont/IP pot indica atac sau parolă compromisă.",
+      "Pas ulterior: 2FA pentru rolurile sensibile.",
     ],
   };
+}
+
+function buildAuthenticationJournal(db) {
+  const now = Date.now();
+  const events = (db.audit || [])
+    .filter((item) => ["auth_login_esuat", "auth_login_reusit", "auth_logout"].includes(item.action))
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const recent = events.slice(0, 15).map((item) => {
+    const details = parseAuditDetails(item.details);
+    return {
+      id: item.id,
+      at: item.at || "",
+      type: item.action,
+      result: item.action === "auth_login_esuat" ? "respins" : item.action === "auth_logout" ? "ieșire" : "acceptat",
+      username: details.username || item.userName || "",
+      userName: item.userName || details.username || "",
+      ip: maskIp(details.ip || ""),
+      device: shortId(details.device || ""),
+      reason: details.motiv || "",
+    };
+  });
+  const inLast24h = (item) => {
+    const timestamp = Date.parse(String(item.at || ""));
+    return Number.isFinite(timestamp) && now - timestamp <= 24 * 60 * 60 * 1000;
+  };
+  return {
+    failed24h: events.filter((item) => item.action === "auth_login_esuat" && inLast24h(item)).length,
+    success24h: events.filter((item) => item.action === "auth_login_reusit" && inLast24h(item)).length,
+    logout24h: events.filter((item) => item.action === "auth_logout" && inLast24h(item)).length,
+    recent,
+  };
+}
+
+function parseAuditDetails(value) {
+  const result = {};
+  String(value || "").split("|").forEach((part) => {
+    const index = part.indexOf("=");
+    if (index === -1) return;
+    const key = part.slice(0, index).trim();
+    const val = part.slice(index + 1).trim();
+    if (key) result[key] = val;
+  });
+  return result;
 }
 
 function buildReadinessChecklist(db, context = {}) {
