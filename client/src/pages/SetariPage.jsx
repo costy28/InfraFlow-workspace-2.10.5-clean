@@ -3207,15 +3207,41 @@ export default function SetariPage() {
                     />
                   </Card>
 
-                  <Card title="Stații folosite recent" subtitle="Revizuire rapidă a dispozitivelor autorizate.">
+                  <Card title="Audit stații autorizate" subtitle="Dispozitive, sesiuni active și stații vechi care merită verificate.">
+                    <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-xl border border-primary-100 bg-primary-50 p-3">
+                        <div className="text-xs font-semibold uppercase text-primary-700">Active</div>
+                        <div className="mt-1 text-2xl font-bold text-primary-900">{securityDiagnostic.devices?.summary?.active ?? securityDiagnostic.devices?.active ?? 0}</div>
+                        <div className="text-xs text-primary-700">Limită: {securityDiagnostic.devices?.maxDevices || '-'}</div>
+                      </div>
+                      <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                        <div className="text-xs font-semibold uppercase text-amber-700">De verificat</div>
+                        <div className="mt-1 text-2xl font-bold text-amber-900">{(securityDiagnostic.devices?.summary?.stale30d || 0) + (securityDiagnostic.devices?.summary?.pendingRequests || 0)}</div>
+                        <div className="text-xs text-amber-700">{securityDiagnostic.devices?.summary?.pendingRequests || 0} cereri noi</div>
+                      </div>
+                    </div>
+                    {securityDiagnostic.devices?.pendingRequests?.length ? (
+                      <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                        <strong>{securityDiagnostic.devices.pendingRequests.length} cereri de stații în așteptare.</strong>
+                        <div className="mt-1 text-xs">Intră în Administrare / Stații pentru aprobare sau respingere controlată.</div>
+                      </div>
+                    ) : null}
                     <Table
                       columns={[
-                        { key: 'name', label: 'Stație' },
+                        { key: 'riskLabel', label: 'Risc', render: row => <Badge tone={row.risk || 'neutral'}>{row.riskLabel || 'OK'}</Badge> },
+                        { key: 'name', label: 'Stație', render: row => (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-semibold text-slate-900">{row.name}</span>
+                            <span className="text-xs text-slate-500">{row.userAgent || row.id}</span>
+                          </div>
+                        ) },
                         { key: 'lastUserName', label: 'Ultimul user' },
-                        { key: 'ip', label: 'IP' },
+                        { key: 'lastIp', label: 'IP' },
+                        { key: 'activeSessions', label: 'Sesiuni', render: row => row.activeSessions ? <Badge tone="success">{row.activeSessions}</Badge> : <span className="text-xs text-slate-400">0</span> },
                         { key: 'lastSeenAt', label: 'Ultima activitate', render: row => row.lastSeenAt ? `${timeAgo(row.lastSeenAt)} · ${formatDateTime(row.lastSeenAt)}` : '-' },
+                        { key: 'recommendation', label: 'Recomandare', render: row => <span className="text-xs text-slate-600">{row.recommendation || '-'}</span> },
                       ]}
-                      data={securityDiagnostic.devices?.recent || []}
+                      data={securityDiagnostic.devices?.registry || securityDiagnostic.devices?.recent || []}
                       empty="Nu există stații autorizate."
                     />
                   </Card>

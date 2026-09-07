@@ -1,5 +1,15 @@
 # Changelog
 
+# v2.12.542 - 2026-09-07
+
+## Audit stații autorizate
+
+- Extinde diagnosticul de securitate cu registru de risc pentru stațiile autorizate.
+- Marchează stațiile cu sesiuni active, stații OK, stații fără activitate, stații nefolosite 30+ zile, 90+ zile și stații inactive.
+- Afișează în Setări → Securitate contoare pentru stații active, cereri pending și dispozitive de verificat.
+- Maschează IP-urile stațiilor și cererilor din diagnosticul public.
+- Adaugă recomandări scurte pentru administrator pe fiecare dispozitiv.
+
 # v2.12.541 - 2026-09-07
 
 ## Jurnal securitate filtrabil

@@ -362,6 +362,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       lastSeenAt: device?.lastSeenAt || "",
     };
   }).sort((a, b) => String(b.startedAt || "").localeCompare(String(a.startedAt || "")));
+  const deviceSecurity = buildDeviceSecurityRegistry(db, sessionStore, license);
 
   const networkMode = normalizeNetworkAccessMode(settings.networkAccessMode);
   const sessionIdleTimeoutMinutes = normalizeSessionIdleMinutes(settings.session_idle_timeout_min ?? settings.sessionIdleTimeoutMinutes, 480);
@@ -382,6 +383,8 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   if (networkMode === "open") warnings.push("Acces API permis din afara rețelei private. Folosește doar dacă există protecție HTTPS/VPN/tunnel.");
   if (!tunnelUrl) warnings.push("Nu este notat un URL public/tunnel în profilul organizației; pentru suport și audit va fi util să îl configurăm ulterior.");
   if ((db.devices || []).length > devices.length) warnings.push("Există stații dezactivate/arhivate în registru. Verifică periodic lista de dispozitive.");
+  if (deviceSecurity.summary.pendingRequests > 0) warnings.push(`Există ${deviceSecurity.summary.pendingRequests} cereri de stații în așteptare.`);
+  if (deviceSecurity.summary.stale30d > 0) warnings.push(`Există ${deviceSecurity.summary.stale30d} stații active fără activitate de peste 30 zile.`);
   if (license.status !== "active") warnings.push("Licența nu este semnată activ pentru client; pentru producție folosește licență comercială semnată.");
   if (!passwordPolicyStrong) warnings.push("Politica de parole este permisivă. Pentru date sensibile recomandăm minimum 10 caractere, litere mari/mici și cifre.");
   if (authenticationJournal.failed24h > 0) warnings.push(`Există ${authenticationJournal.failed24h} autentificări eșuate în ultimele 24h. Verifică jurnalul de acces.`);
@@ -451,6 +454,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       active: devices.length,
       registered: (db.devices || []).length,
       maxDevices: license.maxDevices,
+      summary: deviceSecurity.summary,
       recent: devices
         .slice()
         .sort((a, b) => String(b.lastSeenAt || "").localeCompare(String(a.lastSeenAt || "")))
@@ -462,6 +466,9 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
           lastUserName: device.lastUserName || device.lastUsername || "",
           ip: maskIp(device.lastIp || ""),
         })),
+      registry: deviceSecurity.registry,
+      pendingRequests: deviceSecurity.pendingRequests,
+      recentRequests: deviceSecurity.recentRequests,
     },
     checklist: [
       {
@@ -510,6 +517,7 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
       "Nu expune portul SQL Server la internet; doar serverul InfraFlow trebuie să vorbească cu baza.",
       "Pentru acces de la distanță, folosește HTTPS prin Cloudflare Tunnel sau VPN.",
       "Revizuiește periodic stațiile autorizate și închide sesiunile vechi când un dispozitiv pleacă din firmă.",
+      "Verifică stațiile fără activitate de peste 30 zile și elimină dispozitivele care nu mai aparțin organizației.",
       "Urmărește autentificările eșuate; mai multe încercări pe același cont/IP pot indica atac sau parolă compromisă.",
       "Pas ulterior: 2FA pentru rolurile sensibile.",
     ],
@@ -3366,6 +3374,127 @@ function maskIp(value) {
   }
   if (ip.includes(":")) return `${ip.split(":").slice(0, 3).join(":")}:…`;
   return ip;
+}
+
+function compactUserAgent(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const browser = text.includes("Edg/") ? "Edge"
+    : text.includes("Chrome/") ? "Chrome"
+      : text.includes("Firefox/") ? "Firefox"
+        : text.includes("Safari/") ? "Safari"
+          : "Browser";
+  const platform = text.includes("Windows") ? "Windows"
+    : text.includes("Android") ? "Android"
+      : text.includes("iPhone") || text.includes("iPad") ? "iOS"
+        : text.includes("Mac OS") ? "macOS"
+          : text.includes("Linux") ? "Linux"
+            : "";
+  return [browser, platform].filter(Boolean).join(" / ");
+}
+
+function deviceAgeDays(value) {
+  const timestamp = Date.parse(String(value || ""));
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 86400000));
+}
+
+function buildDeviceSecurityRegistry(db, sessionStore = new Map(), license = normalizeLicense(db.settings?.license || {})) {
+  const sessionCounts = new Map();
+  Array.from(sessionStore?.values?.() || []).forEach((session) => {
+    const key = String(session.deviceId || "");
+    if (!key) return;
+    sessionCounts.set(key, (sessionCounts.get(key) || 0) + 1);
+  });
+
+  const devices = Array.isArray(db.devices) ? db.devices : [];
+  const pendingRequests = (db.workstationRequests || [])
+    .filter((request) => request.status === "pending")
+    .map(maskedWorkstationRequest);
+  const recentRequests = (db.workstationRequests || [])
+    .filter((request) => request.status !== "pending")
+    .slice(-10)
+    .reverse()
+    .map(maskedWorkstationRequest);
+
+  const registry = devices
+    .map((device) => {
+      const active = device.active !== false;
+      const lastSeenDays = deviceAgeDays(device.lastSeenAt);
+      const activeSessions = sessionCounts.get(String(device.id || "")) || 0;
+      let risk = "ok";
+      let riskLabel = "OK";
+      let recommendation = activeSessions ? "Stație activă acum. Păstrează monitorizarea normală." : "Stație autorizată, fără sesiune activă.";
+
+      if (!active) {
+        risk = "neutral";
+        riskLabel = "inactivă";
+        recommendation = "Stația este eliminată/dezactivată. Păstrează doar pentru istoric.";
+      } else if (!device.lastSeenAt) {
+        risk = "warning";
+        riskLabel = "fără activitate";
+        recommendation = "Nu există ultimă activitate. Verifică dacă este o stație veche sau importată.";
+      } else if (lastSeenDays !== null && lastSeenDays > 90) {
+        risk = "danger";
+        riskLabel = "nefolosită 90+ zile";
+        recommendation = "Recomandat: elimină stația dacă nu mai aparține organizației.";
+      } else if (lastSeenDays !== null && lastSeenDays > 30) {
+        risk = "warning";
+        riskLabel = "nefolosită 30+ zile";
+        recommendation = "Verifică dacă dispozitivul mai este folosit.";
+      } else if (activeSessions > 0) {
+        risk = "success";
+        riskLabel = "sesiune activă";
+      }
+
+      return {
+        id: shortId(device.id || ""),
+        name: device.name || "Stație de lucru",
+        active,
+        risk,
+        riskLabel,
+        recommendation,
+        activeSessions,
+        createdAt: device.createdAt || "",
+        lastSeenAt: device.lastSeenAt || "",
+        lastSeenDays,
+        lastIp: maskIp(device.lastIp || ""),
+        lastUsername: device.lastUsername || "",
+        lastUserName: device.lastUserName || device.lastUsername || "",
+        userAgent: compactUserAgent(device.lastUserAgent || device.firstUserAgent || ""),
+      };
+    })
+    .sort((a, b) => {
+      const riskOrder = { danger: 0, warning: 1, success: 2, ok: 3, neutral: 4 };
+      const riskDiff = (riskOrder[a.risk] ?? 9) - (riskOrder[b.risk] ?? 9);
+      if (riskDiff !== 0) return riskDiff;
+      return String(b.lastSeenAt || "").localeCompare(String(a.lastSeenAt || ""));
+    });
+
+  const activeCount = registry.filter((device) => device.active).length;
+  return {
+    summary: {
+      total: registry.length,
+      active: activeCount,
+      inactive: registry.filter((device) => !device.active).length,
+      withActiveSession: registry.filter((device) => device.activeSessions > 0).length,
+      stale30d: registry.filter((device) => device.active && Number(device.lastSeenDays) > 30).length,
+      pendingRequests: pendingRequests.length,
+      overLicenseLimit: activeCount > Number(license.maxDevices || 1),
+    },
+    registry: registry.slice(0, 50),
+    pendingRequests,
+    recentRequests,
+  };
+}
+
+function maskedWorkstationRequest(request) {
+  const item = publicWorkstationRequest(request);
+  return {
+    ...item,
+    deviceId: shortId(item.deviceId || ""),
+    ip: maskIp(item.ip || ""),
+  };
 }
 
 function buildDeviceRegistry(db) {

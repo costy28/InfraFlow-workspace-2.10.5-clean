@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.541 — jurnal securitate filtrabil
+Ultimul pas executat: 2.12.542 — audit stații autorizate
 Status: backlog operațional activ
 
 ## Scop
@@ -37,9 +37,10 @@ Obiectiv: administratorul să vadă rapid încercări suspecte și schimbări cu
 Pași:
 
 - jurnal pentru login eșuat, login reușit și logout; ✅ `v2.12.540`
-- jurnal pentru stații noi sau sesiuni noi;
+- jurnal pentru stații noi sau sesiuni noi; ✅ `v2.12.542`
 - audit vizibil pentru modificări de roluri, permisiuni, utilizatori, stații și politici sensibile; ✅ `v2.12.541`
 - filtre în Setări → Securitate pentru evenimente critice. ✅ `v2.12.541`
+- registru de risc pentru stații autorizate, sesiuni active și dispozitive vechi; ✅ `v2.12.542`
 
 ### 3. Simplitate operațională pe fiecare modul
 

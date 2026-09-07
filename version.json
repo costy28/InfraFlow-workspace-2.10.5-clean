@@ -1,5 +1,5 @@
 {
   "date": "2026-09-07",
-  "version": "2.12.541",
-  "changelog": "## v2.12.541 - 2026-09-07\n### Jurnal securitate filtrabil\n- Setări → Securitate afișează acum un jurnal unificat pentru roluri, permisiuni, utilizatori, stații și setări sensibile.\n- Evenimentele sunt grupate pe filtre rapide: autentificări, roluri/permisiuni, utilizatori, stații și setări.\n- Diagnosticul server-side clasifică evenimentele existente din audit fără să expună parole sau token-uri.\n- Administratorul vede rapid câte evenimente de securitate au apărut în ultimele 24h.\n- Jurnalul de autentificări rămâne separat pentru login reușit/eșuat/logout."
+  "version": "2.12.542",
+  "changelog": "## v2.12.542 - 2026-09-07\n### Audit stații autorizate\n- Setări → Securitate afișează un audit operațional pentru stațiile autorizate.\n- Fiecare stație primește stare de risc: sesiune activă, OK, fără activitate, nefolosită 30+ zile, nefolosită 90+ zile sau inactivă.\n- Panoul arată câte stații sunt active, câte au sesiuni active, câte sunt vechi și câte cereri sunt în așteptare.\n- IP-urile stațiilor și cererilor sunt mascate în diagnostic.\n- Administratorul primește recomandare scurtă pe fiecare dispozitiv."
 }
