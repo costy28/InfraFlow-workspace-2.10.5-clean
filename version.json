@@ -1,5 +1,5 @@
 {
   "date": "2026-09-07",
-  "version": "2.12.543",
-  "changelog": "## v2.12.543 - 2026-09-07\n### Liste compacte pentru pagini aglomerate\n- Adaugă componenta reutilizabilă CompactTable pentru tabele lungi afișate compact implicit.\n- Setări → Securitate afișează compact sesiunile, auditul stațiilor, jurnalul de autentificări și jurnalul de securitate.\n- Checklist-ul rapid de securitate arată inițial doar verificările principale și poate fi extins la cerere.\n- Pagina păstrează sumarul și acțiunile importante la vedere, fără scroll inutil.\n- Pattern-ul poate fi refolosit ulterior în Documente, Contracte, HR, Mesaje și Audit."
+  "version": "2.12.544",
+  "changelog": "## v2.12.544 - 2026-09-07\n### Liste compacte în Documente și Contracte\n- Extinde pattern-ul CompactTable în Documente pentru lista de lucru și catalogul de template-uri.\n- Portofoliul Contracte afișează implicit primele contracte relevante și poate fi extins la cerere.\n- Schimbarea filtrelor în Contracte revine automat la afișarea compactă, ca pagina să rămână ușor de scanat.\n- Întărește componenta CompactTable ca să accepte corect atât data, cât și rows.\n- Reduce scroll-ul lung fără să elimine accesul la informațiile complete."
 }

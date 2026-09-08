@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.543 — liste compacte pentru pagini aglomerate
+Ultimul pas executat: 2.12.544 — liste compacte în Documente și Contracte
 Status: backlog operațional activ
 
 ## Scop
@@ -54,6 +54,7 @@ Pași:
 - buton principal unic pe fiecare ecran important;
 - mod compact pentru operatori.
 - pattern reutilizabil pentru tabele lungi compacte, aplicat inițial pe Setări → Securitate; ✅ `v2.12.543`
+- extindere liste compacte în Documente și Contracte, fără pierderea accesului la lista completă; ✅ `v2.12.544`
 
 Module prioritare: Documente, Contracte, HR, Parc & Resurse, Contabilitate.
 

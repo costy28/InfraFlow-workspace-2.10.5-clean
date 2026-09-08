@@ -1,5 +1,14 @@
 # Changelog
 
+# v2.12.544 - 2026-09-07
+
+## Liste compacte în Documente și Contracte
+- Extinde pattern-ul CompactTable în Documente pentru lista de lucru și catalogul de template-uri.
+- Portofoliul Contracte afișează implicit primele contracte relevante și poate fi extins la cerere.
+- Schimbarea filtrelor în Contracte revine automat la afișarea compactă, ca pagina să rămână ușor de scanat.
+- Întărește componenta CompactTable ca să accepte corect atât data, cât și rows.
+- Reduce scroll-ul lung fără să elimine accesul la informațiile complete.
+
 # v2.12.543 - 2026-09-07
 
 ## Liste compacte pentru pagini aglomerate

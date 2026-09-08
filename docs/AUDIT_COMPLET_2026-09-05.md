@@ -1,6 +1,6 @@
 # Audit complet InfraFlow ERP — 2026-09-05
 
-Versiune auditată: **2.12.543**
+Versiune auditată: **2.12.544**
 
 ## Verdict curent
 
@@ -76,4 +76,4 @@ Aplicația este funcțională pe fluxurile principale testate, dar are încă da
 
 ## Recomandarea pentru următorul update
 
-Backlog-ul acționabil este acum documentat în `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md`. Linkurile directe high din FisaVehicul/MyVehicle sunt rezolvate în v2.12.535, referințele text din Mecanizare sunt sanitizate în v2.12.536, Tichete nu mai expune path intern în v2.12.537, Secretariat nu mai folosește cale locală în UI în v2.12.538, iar schemele ANAF nu mai expun path intern în API în v2.12.539. Auditul `npm run audit:file-exposure` raportează 0 finding-uri. Auditul de autentificări a început în v2.12.540, v2.12.541 extinde Setări → Securitate cu jurnal filtrabil pentru roluri, permisiuni, utilizatori, stații și setări sensibile, v2.12.542 adaugă registru de risc pentru stații autorizate și cereri pending, iar v2.12.543 introduce pattern-ul de liste compacte pentru ecrane aglomerate. Următorul pas tehnic recomandat este aplicarea aceluiași model în Documente și Contracte.
+Backlog-ul acționabil este acum documentat în `docs/IMBUNATATIRI_PRIORITARE_COMERCIAL.md`. Linkurile directe high din FisaVehicul/MyVehicle sunt rezolvate în v2.12.535, referințele text din Mecanizare sunt sanitizate în v2.12.536, Tichete nu mai expune path intern în v2.12.537, Secretariat nu mai folosește cale locală în UI în v2.12.538, iar schemele ANAF nu mai expun path intern în API în v2.12.539. Auditul `npm run audit:file-exposure` raportează 0 finding-uri. Auditul de autentificări a început în v2.12.540, v2.12.541 extinde Setări → Securitate cu jurnal filtrabil pentru roluri, permisiuni, utilizatori, stații și setări sensibile, v2.12.542 adaugă registru de risc pentru stații autorizate și cereri pending, v2.12.543 introduce pattern-ul de liste compacte pentru ecrane aglomerate, iar v2.12.544 extinde modelul în Documente și Contracte. Următorul pas tehnic recomandat este aplicarea aceluiași model în HR, Mesaje și zonele de audit operațional.

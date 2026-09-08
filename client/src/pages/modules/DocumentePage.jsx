@@ -4,6 +4,7 @@ import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import CompactTable from '../../components/ui/CompactTable'
 import DropdownMenu from '../../components/ui/DropdownMenu'
 import DocumentTemplateEditor from '../../components/forms/DocumentTemplateEditor'
 import Modal from '../../components/ui/Modal'
@@ -1903,7 +1904,7 @@ export default function DocumentePage() {
             ))}
           </div>
           <div className="hidden md:block">
-            <Table
+            <CompactTable
               columns={[
                 { key: 'id', label: 'Cod' },
                 { key: 'denumire', label: 'Denumire' },
@@ -1929,6 +1930,9 @@ export default function DocumentePage() {
                 ) : null },
               ]}
               rows={templates}
+              initialLimit={6}
+              itemLabel="template-uri"
+              compactHint="Template-urile sunt afișate compact; cele folosite rar rămân la un click distanță."
               empty={loading ? 'Se încarcă...' : 'Nu există template-uri.'}
             />
           </div>
@@ -1991,7 +1995,7 @@ export default function DocumentePage() {
               ))}
             </div>
             <div className="hidden md:block">
-              <Table
+              <CompactTable
                 columns={[
                   { key: 'select', label: (
                     <input
@@ -2057,6 +2061,9 @@ export default function DocumentePage() {
                   ) },
                 ]}
                 rows={visibleDocuments}
+                initialLimit={8}
+                itemLabel="documente"
+                compactHint="Lista de lucru rămâne scurtă; filtrele și acțiunile importante stau la vedere."
                 empty={loading ? 'Se încarcă...' : 'Nu există documente.'}
               />
             </div>

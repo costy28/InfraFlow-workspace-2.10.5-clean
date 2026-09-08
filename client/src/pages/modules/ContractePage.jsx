@@ -452,6 +452,7 @@ export default function ContractePage() {
   const [dashboardFilterContext, setDashboardFilterContext] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
   const [contractAssistantExpanded, setContractAssistantExpanded] = useState(false)
+  const [portfolioTableExpanded, setPortfolioTableExpanded] = useState(false)
 
   const riskByContractId = useMemo(() => {
     const map = new Map()
@@ -464,6 +465,12 @@ export default function ContractePage() {
   const filteredContracts = useMemo(() => {
     return contracts.filter(contract => contractMatchesPortfolioFilters(contract, portfolioFilters, riskByContractId))
   }, [contracts, portfolioFilters, riskByContractId])
+
+  const portfolioTableLimit = 8
+  const visiblePortfolioContracts = portfolioTableExpanded
+    ? filteredContracts
+    : filteredContracts.slice(0, portfolioTableLimit)
+  const hiddenPortfolioContracts = Math.max(0, filteredContracts.length - visiblePortfolioContracts.length)
 
   const selectedContracts = useMemo(() => {
     const selected = new Set(selectedContractIds.map(String))
@@ -741,6 +748,7 @@ export default function ContractePage() {
 
   function updatePortfolioFilter(key, value) {
     setDashboardFilterContext(null)
+    setPortfolioTableExpanded(false)
     setPortfolioFilters(current => ({
       ...current,
       [key]: value,
@@ -749,12 +757,14 @@ export default function ContractePage() {
 
   function resetPortfolioFilters() {
     setDashboardFilterContext(null)
+    setPortfolioTableExpanded(false)
     setPortfolioFilters(emptyPortfolioFilters)
   }
 
   function applySavedPortfolioView(view) {
     if (!view) return
     setDashboardFilterContext(null)
+    setPortfolioTableExpanded(false)
     setPortfolioFilters({
       ...emptyPortfolioFilters,
       ...view.filters,
@@ -786,6 +796,7 @@ export default function ContractePage() {
 
   function applyQuickContractFilter(patch) {
     setDashboardFilterContext(null)
+    setPortfolioTableExpanded(false)
     setPortfolioFilters(current => ({
       ...current,
       ...patch,
@@ -2200,7 +2211,7 @@ export default function ContractePage() {
                     {filterTableEmptyText()}
                   </td>
                 </tr>
-              ) : filteredContracts.map(contract => (
+              ) : visiblePortfolioContracts.map(contract => (
                 <tr key={contract.id || contract.uuid} className="align-top hover:bg-slate-50">
                   <td className="px-3 py-3">
                     <input
@@ -2263,6 +2274,18 @@ export default function ContractePage() {
             </tbody>
           </table>
         </div>
+        {filteredContracts.length > portfolioTableLimit ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <span>
+              {portfolioTableExpanded
+                ? `Se afișează toate cele ${filteredContracts.length} contracte din filtrul curent.`
+                : `Portofoliul rămâne compact ca să vezi acțiunile importante. Încă ${hiddenPortfolioContracts} contracte ascunse.`}
+            </span>
+            <Button type="button" size="sm" variant="secondary" onClick={() => setPortfolioTableExpanded(value => !value)}>
+              {portfolioTableExpanded ? 'Arată compact' : `Vezi toate (${filteredContracts.length})`}
+            </Button>
+          </div>
+        ) : null}
       </Card>
 
       <Modal open={detailModalOpen} title="Dosar contract" size="xl" onClose={() => setDetailModalOpen(false)}>

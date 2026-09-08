@@ -4,7 +4,7 @@ import Table from './Table'
 
 export default function CompactTable({
   columns = [],
-  data = [],
+  data,
   rows,
   loading = false,
   onRowClick,
@@ -16,7 +16,7 @@ export default function CompactTable({
 }) {
   const [expanded, setExpanded] = useState(false)
   const allRows = useMemo(() => {
-    const source = data || rows || []
+    const source = Array.isArray(data) ? data : rows || []
     return Array.isArray(source) ? source : []
   }, [data, rows])
   const limit = Math.max(1, Number(initialLimit || 5))

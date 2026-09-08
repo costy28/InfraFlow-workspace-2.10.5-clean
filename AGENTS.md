@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.543**
-**Versiune în lucru: v2.12.543**
+**Versiune curentă sursă: v2.12.544**
+**Versiune în lucru: v2.12.544**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -281,6 +281,7 @@ Core System
   ✅ Jurnal securitate filtrabil pentru roluri și permisiuni (v2.12.541)
   ✅ Audit stații autorizate în securitate (v2.12.542)
   ✅ Liste compacte pentru pagini aglomerate (v2.12.543)
+  ✅ Liste compacte în Documente și Contracte (v2.12.544)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -922,6 +923,7 @@ PRIORITATE 3 — Infrastructură comercială:
       → Jurnal securitate filtrabil pentru roluri, permisiuni, utilizatori, stații și setări sensibile ✅ v2.12.541
       → Registru de risc pentru stații autorizate, sesiuni active și cereri pending ✅ v2.12.542
       → Liste compacte pentru jurnale și zone de audit aglomerate ✅ v2.12.543
+      → Liste compacte extinse în Documente și Contracte ✅ v2.12.544
       → 2FA pentru administratori și roluri sensibile
       → Audit securitate: revocări, schimbări permisiuni, acces remote
       → Remote access recomandat prin Cloudflare Tunnel/VPN; SQL Server nu se expune direct la internet
@@ -999,9 +1001,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.543
+VERSIUNE CURENTĂ SURSĂ: 2.12.544
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.543 ✅
+UPDATE ZIP CURENT: 2.12.544 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1353,6 +1355,7 @@ UPDATES ÎN LUCRU:
   2.12.541 → UPDATE 561 Audit roluri/permisiuni și filtre securitate ✅
   2.12.542 → UPDATE 562 Audit stații autorizate ✅
   2.12.543 → UPDATE 563 Liste compacte pentru pagini aglomerate ✅
+  2.12.544 → UPDATE 564 Liste compacte în Documente și Contracte ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1849,5 +1852,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 7 Septembrie 2026 | InfraFlow sursă v2.12.543*
+*AGENTS.md actualizat: 7 Septembrie 2026 | InfraFlow sursă v2.12.544*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
