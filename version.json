@@ -1,5 +1,5 @@
 {
   "date": "2026-09-11",
-  "version": "2.12.547",
-  "changelog": "## v2.12.547 - 2026-09-11\n### Curățare ieșiri sistem și limbaj tehnic generic\n- Backup-urile descărcate din aplicație folosesc nume de fișier `backup-infraflow-...`, fără branding istoric de client pilot.\n- Exporturile de diagnostic sistem folosesc nume de fișier `diagnostic-infraflow-...`.\n- Restore-ul păstrează compatibilitatea cu backup-urile vechi deja generate.\n- Catalogul de module descrie Tehnic ca lucrări, teren și output operațional, nu ca vânzări asfalt implicite.\n- Raportul tehnic afișează `Output vândut`, păstrând valorile și calculul existent."
+  "version": "2.12.548",
+  "changelog": "## v2.12.548 - 2026-09-11\n### Backlog NC, e-Transport și documente transport\n- Adaugă în backlog codurile NC ca nomenclator viitor pentru contabilitate, logistică și documente comerciale.\n- Notează e-Transport ca adaptor specific României, activ pe profil de țară și fără hardcodare pentru alte jurisdicții.\n- Planifică emiterea de CMR, bonuri de transport și avize de însoțire din modulele relevante.\n- Leagă direcția viitoare de fluxul comandă/livrare, contract, factură, stoc și traseu.\n- Înregistrează `LISTA-CODURI-NC-2024.ods` ca referință de lucru, cu obligația verificării unei surse oficiale mai actuale înainte de import."
 }

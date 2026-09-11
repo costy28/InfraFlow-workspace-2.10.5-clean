@@ -1,3 +1,12 @@
+# v2.12.548 - 2026-09-11
+
+## Backlog NC, e-Transport și documente transport
+- Adaugă în backlog codurile NC ca nomenclator viitor pentru contabilitate, logistică și documente comerciale.
+- Notează e-Transport ca adaptor specific României, activ pe profil de țară și fără hardcodare pentru alte jurisdicții.
+- Planifică emiterea de CMR, bonuri de transport și avize de însoțire din modulele relevante.
+- Leagă direcția viitoare de fluxul comandă/livrare, contract, factură, stoc și traseu.
+- Înregistrează `LISTA-CODURI-NC-2024.ods` ca referință de lucru, cu obligația verificării unei surse oficiale mai actuale înainte de import.
+
 # v2.12.547 - 2026-09-11
 
 ## Curățare ieșiri sistem și limbaj tehnic generic
