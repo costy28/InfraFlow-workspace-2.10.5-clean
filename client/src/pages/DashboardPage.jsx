@@ -62,7 +62,7 @@ const routes = {
   settingsModules: '/setari?tab=Module',
   settingsUsers: '/setari?tab=Utilizatori',
   settingsUpdates: '/setari?tab=Actualizări',
-  settingsIntegrations: '/setari?tab=Integrări',
+  settingsIntegrations: '/setari?tab=Surse%20externe',
   legacyImport: '/import-date-vechi',
 }
 
@@ -125,7 +125,7 @@ const firstSteps = [
     title: 'Leagă emailul organizațional',
     description: 'SMTP/IMAP transformă Mesaje în Inbox ERP real: emailuri, atașamente, task-uri și documente legate de dosare.',
     route: routes.settingsIntegrations,
-    cta: 'Configurează integrări',
+    cta: 'Configurează surse externe',
   },
   {
     key: 'import',
@@ -2049,7 +2049,7 @@ export default function DashboardPage() {
           <h3 className="mb-4 text-base font-semibold text-slate-900">Grafic activitate operațională ultimele 7 zile</h3>
           <SectionError error={errors.production7} />
           {loading ? <Skeleton className="h-72" /> : (
-            <div className="h-72">
+            <div className="h-72 min-h-72 min-w-0 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.production7}>
                   <XAxis dataKey="date" />

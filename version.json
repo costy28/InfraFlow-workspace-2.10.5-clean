@@ -1,5 +1,5 @@
 {
   "date": "2026-09-11",
-  "version": "2.12.545",
-  "changelog": "## v2.12.545 - 2026-09-11\n### Liste compacte în HR operațional\n- Inbox HR afișează implicit doar primele sarcini relevante, cu extindere manuală la lista completă.\n- Jurnalul operațional HR pornește compact și poate fi desfășurat doar când operatorul are nevoie de istoric complet.\n- Mesajele de sub liste explică faptul că datele rămân filtrate și accesibile, fără scroll lung.\n- Păstrează acțiunile existente pentru sarcini, încărcări documente, export și filtre.\n- Continuă direcția comercială: pagini complexe, dar ușor de urmărit la prima vedere."
+  "version": "2.12.546",
+  "changelog": "## v2.12.546 - 2026-09-11\n### Rafinare Setări integrări și curățare comercială\n- Setări grupează zona de conectări ca „Conectări”, cu taburi clare pentru „Surse externe” și „Mapări cântar”.\n- Taburile vechi Cântar/Integrări rămân compatibile prin alias-uri, ca linkurile existente să nu se rupă.\n- Cântarul nu mai apare ca dublură: sursa/adaptorul se setează în Surse externe, iar maparea produselor se face separat.\n- Dashboard-ul trimite configurarea emailului către Surse externe și stabilizează graficul operațional pe containere compacte.\n- Importul de date vechi folosește limbaj generic comercial, fără referință la Asfalt Pro."
 }

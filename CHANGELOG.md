@@ -1,3 +1,12 @@
+# v2.12.546 - 2026-09-11
+
+## Rafinare Setări integrări și curățare comercială
+- Setări grupează zona de conectări ca „Conectări”, cu taburi clare pentru „Surse externe” și „Mapări cântar”.
+- Taburile vechi Cântar/Integrări rămân compatibile prin alias-uri, ca linkurile existente să nu se rupă.
+- Cântarul nu mai apare ca dublură: sursa/adaptorul se setează în Surse externe, iar maparea produselor se face separat.
+- Dashboard-ul trimite configurarea emailului către Surse externe și stabilizează graficul operațional pe containere compacte.
+- Importul de date vechi folosește limbaj generic comercial, fără referință la Asfalt Pro.
+
 # v2.12.545 - 2026-09-11
 
 ## Liste compacte în HR operațional

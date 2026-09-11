@@ -127,7 +127,7 @@ export default function ImportLegacyPage() {
           <p className="text-xs font-semibold uppercase text-primary-600">Integrare legacy</p>
           <h1 className="text-2xl font-semibold text-slate-900">Import date vechi</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Importă backup-ul JSON din InfraFlow v1 / Asfalt Pro și mută datele reale în InfraFlow v2.
+            Importă backup-ul JSON dintr-o versiune InfraFlow veche sau dintr-un export compatibil și mută datele reale în InfraFlow v2.
           </p>
         </div>
         <Badge variant={step === 3 ? 'green' : step === 2 ? 'blue' : 'gray'}>Pasul {step} din 3</Badge>
@@ -152,7 +152,7 @@ export default function ImportLegacyPage() {
               </div>
               <h2 className="text-lg font-semibold text-slate-900">Trage backup-ul aici</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Acceptăm doar fișiere JSON, de tip `asfalt-pro-backup-YYYYMMDD.json`.
+                Acceptăm fișiere JSON de backup/export compatibil, de exemplu `infraflow-backup-YYYYMMDD.json`.
               </p>
               <input
                 ref={inputRef}

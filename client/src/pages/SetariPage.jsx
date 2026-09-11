@@ -15,11 +15,20 @@ import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import { formatDate, formatDateTime, formatMoney, timeAgo } from '../utils/format'
 
+const settingsTabAliases = {
+  'Cântar': 'Mapări cântar',
+  'Integrări': 'Surse externe',
+}
+
+function normalizeSettingsTab(tab) {
+  return settingsTabAliases[tab] || tab
+}
+
 const tabGroups = [
   { label: 'Sistem', tabs: ['General', 'Securitate', 'Bază date', 'Licență', 'Actualizări'] },
   { label: 'Administrare', tabs: ['Utilizatori', 'Roluri', 'Departamente', 'Module'] },
   { label: 'Interfață', tabs: ['Aspect', 'AI Assistant'] },
-  { label: 'Integrări', tabs: ['Cântar', 'Integrări'] },
+  { label: 'Conectări', tabs: ['Mapări cântar', 'Surse externe'] },
 ]
 const allModules = [
   'core', 'inventory', 'production', 'reports', 'system', 'fleet', 'hr',
@@ -306,7 +315,7 @@ const moduleFeatureCatalog = {
   ],
   technical: [
     { key: 'work_logs', label: 'Jurnale lucrări' },
-    { key: 'asphalt_sales', label: 'Vânzări asfalt' },
+    { key: 'asphalt_sales', label: 'Vânzări / output' },
     { key: 'field_reports', label: 'Rapoarte teren' },
   ],
   procurement: [
@@ -944,7 +953,7 @@ function SettingsSetupAssistant({ steps, done, percent, nextStep, loading, onOpe
 
 export default function SetariPage() {
   const [activeTab, setActiveTab] = useState(() => {
-    const tab = new URLSearchParams(window.location.search).get('tab')
+    const tab = normalizeSettingsTab(new URLSearchParams(window.location.search).get('tab'))
     return tabGroups.some(group => group.tabs.includes(tab)) ? tab : 'General'
   })
   const [settings, setSettings] = useState({})
@@ -2555,7 +2564,7 @@ export default function SetariPage() {
     <div className="grid gap-4">
       <PageHeader
         title="Setări"
-        subtitle="Configurare sistem, licență, aspect, AI, update, utilizatori și cântar."
+        subtitle="Configurare sistem, licență, aspect, AI, update, utilizatori și integrări."
         actions={[
           <DropdownMenu key="settings-actions" align="right" label="Actiuni" items={[
             { label: 'Reincarca', onClick: load },
@@ -4926,10 +4935,10 @@ export default function SetariPage() {
         </div>
       )}
 
-      {activeTab === 'Cântar' && (
-        <Card title="Cântar" subtitle="Configurare cale bază cântar și mapare produse.">
+      {activeTab === 'Mapări cântar' && (
+        <Card title="Mapări cântar" subtitle="Leagă produsele/codurile venite din cântar de materialele InfraFlow. Calea către sursa de date se setează în Surse externe.">
           <form className="grid gap-4" onSubmit={saveScale}>
-            <Input label="Adresă server cântar" placeholder="\\\\SERVER\\path\\cantare.db" value={settings.scaleDbPath || ''} onChange={event => setSettings(s => ({ ...s, scaleDbPath: event.target.value }))} />
+            <Input label="Cale sursă cântar" placeholder="\\\\SERVER\\path\\cantare.db" value={settings.scaleDbPath || ''} onChange={event => setSettings(s => ({ ...s, scaleDbPath: event.target.value, cantar_db_path: event.target.value }))} />
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="secondary" onClick={testScale}>Testează conexiunea</Button>
               <Button type="submit">Salvează cântar</Button>
@@ -4956,9 +4965,9 @@ export default function SetariPage() {
         </Card>
       )}
 
-      {activeTab === 'Integrări' && (
+      {activeTab === 'Surse externe' && (
         <div className="grid gap-4">
-          <Card title="🔌 Integrări externe" subtitle="Căi acces pentru surse externe. Setări simple, fără import la salvare.">
+          <Card title="🔌 Surse externe" subtitle="Adaptoare pentru aplicații sau fișiere folosite de client. Salvarea păstrează doar conexiunile, fără import automat.">
             <div className="grid gap-6">
               <section className="grid gap-3 border-b border-slate-200 pb-5">
                 <div>
@@ -4998,8 +5007,8 @@ export default function SetariPage() {
 
               <section className="grid gap-3 border-b border-slate-200 pb-5">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-900">⚖️ Cântar Poartă</h3>
-                  <p className="text-sm text-slate-500">Bază de date sau fișier export cântar.</p>
+                  <h3 className="text-lg font-semibold text-slate-900">⚖️ Cântar poartă · sursă date</h3>
+                  <p className="text-sm text-slate-500">Aici setezi calea/adaptorul. Maparea produselor către materiale este în tabul Mapări cântar.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
                   <Input
@@ -5055,8 +5064,8 @@ export default function SetariPage() {
               <section className="grid gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900">➕ Integrări custom</h3>
-                    <p className="text-sm text-slate-500">Căi suplimentare: MDB, SQLite, CSV sau Excel.</p>
+                    <h3 className="text-lg font-semibold text-slate-900">➕ Surse custom</h3>
+                    <p className="text-sm text-slate-500">Conectori suplimentari pentru aplicații client, exporturi MDB/SQLite, CSV sau Excel.</p>
                   </div>
                   <Button type="button" variant="secondary" onClick={addCustomIntegration}>➕ Adaugă integrare nouă</Button>
                 </div>
