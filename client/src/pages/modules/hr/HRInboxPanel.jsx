@@ -1,7 +1,26 @@
+import { useMemo, useState } from 'react'
 import Input from '../../../components/forms/Input'
 import Select from '../../../components/forms/Select'
 import Button from '../../../components/ui/Button'
 import Card from '../../../components/ui/Card'
+
+const COMPACT_TASK_LIMIT = 6
+const COMPACT_ACTIVITY_LIMIT = 8
+
+function CompactListFooter({ total, visible, expanded, onToggle, label }) {
+  if (total <= visible) return null
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      <span>
+        Se văd {visible} din {total} {label}. Restul rămân filtrate aici, fără scroll lung.
+      </span>
+      <Button size="sm" variant="secondary" onClick={onToggle}>
+        {expanded ? 'Restrânge lista' : `Arată toate (${total})`}
+      </Button>
+    </div>
+  )
+}
 
 function inboxFilters(summary = {}) {
   return [
@@ -85,14 +104,23 @@ function InboxTaskRow({ item, onOpenTask }) {
 }
 
 function InboxTasksCard({ rows, dossierReminderResult, onOpenTask }) {
+  const [expanded, setExpanded] = useState(false)
+  const visibleRows = useMemo(
+    () => (expanded ? rows : rows.slice(0, COMPACT_TASK_LIMIT)),
+    [expanded, rows]
+  )
+
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-slate-700">{rows.length} sarcini afișate</div>
+        <div>
+          <div className="text-sm font-semibold text-slate-700">{rows.length} sarcini afișate</div>
+          {rows.length > COMPACT_TASK_LIMIT ? <div className="text-xs text-slate-500">Primele {COMPACT_TASK_LIMIT} sunt afișate compact; lista completă se deschide doar la nevoie.</div> : null}
+        </div>
         {dossierReminderResult ? <div className="text-xs text-emerald-700">Ultimul reminder Kiosk: {dossierReminderResult.pending || 0} documente · {String(dossierReminderResult.sent_at || '').slice(0, 16).replace('T', ' ')}</div> : null}
       </div>
       <div className="grid gap-2">
-        {rows.slice(0, 80).map(item => (
+        {visibleRows.map(item => (
           <InboxTaskRow key={item.id} item={item} onOpenTask={onOpenTask} />
         ))}
         {!rows.length ? (
@@ -101,6 +129,13 @@ function InboxTasksCard({ rows, dossierReminderResult, onOpenTask }) {
           </div>
         ) : null}
       </div>
+      <CompactListFooter
+        total={rows.length}
+        visible={visibleRows.length}
+        expanded={expanded}
+        onToggle={() => setExpanded(current => !current)}
+        label="sarcini"
+      />
     </Card>
   )
 }
@@ -114,6 +149,13 @@ function HRActivityCard({
   onReload,
   onDownload,
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const activityRows = hrActivity.rows || []
+  const visibleActivityRows = useMemo(
+    () => (expanded ? activityRows : activityRows.slice(0, COMPACT_ACTIVITY_LIMIT)),
+    [activityRows, expanded]
+  )
+
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -137,7 +179,7 @@ function HRActivityCard({
         <Button size="sm" variant="secondary" onClick={onReload}>Aplică filtre</Button>
       </div>
       <div className="grid gap-2">
-        {(hrActivity.rows || []).slice(0, 40).map(item => (
+        {visibleActivityRows.map(item => (
           <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -152,8 +194,15 @@ function HRActivityCard({
             </div>
           </div>
         ))}
-        {!(hrActivity.rows || []).length ? <div className="rounded border border-slate-200 px-3 py-6 text-center text-sm text-slate-400">Nu există evenimente HR pentru filtrele selectate.</div> : null}
+        {!activityRows.length ? <div className="rounded border border-slate-200 px-3 py-6 text-center text-sm text-slate-400">Nu există evenimente HR pentru filtrele selectate.</div> : null}
       </div>
+      <CompactListFooter
+        total={activityRows.length}
+        visible={visibleActivityRows.length}
+        expanded={expanded}
+        onToggle={() => setExpanded(current => !current)}
+        label="evenimente"
+      />
     </Card>
   )
 }

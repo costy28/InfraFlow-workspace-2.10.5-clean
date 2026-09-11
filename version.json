@@ -1,5 +1,5 @@
 {
-  "date": "2026-09-07",
-  "version": "2.12.544",
-  "changelog": "## v2.12.544 - 2026-09-07\n### Liste compacte în Documente și Contracte\n- Extinde pattern-ul CompactTable în Documente pentru lista de lucru și catalogul de template-uri.\n- Portofoliul Contracte afișează implicit primele contracte relevante și poate fi extins la cerere.\n- Schimbarea filtrelor în Contracte revine automat la afișarea compactă, ca pagina să rămână ușor de scanat.\n- Întărește componenta CompactTable ca să accepte corect atât data, cât și rows.\n- Reduce scroll-ul lung fără să elimine accesul la informațiile complete."
+  "date": "2026-09-11",
+  "version": "2.12.545",
+  "changelog": "## v2.12.545 - 2026-09-11\n### Liste compacte în HR operațional\n- Inbox HR afișează implicit doar primele sarcini relevante, cu extindere manuală la lista completă.\n- Jurnalul operațional HR pornește compact și poate fi desfășurat doar când operatorul are nevoie de istoric complet.\n- Mesajele de sub liste explică faptul că datele rămân filtrate și accesibile, fără scroll lung.\n- Păstrează acțiunile existente pentru sarcini, încărcări documente, export și filtre.\n- Continuă direcția comercială: pagini complexe, dar ușor de urmărit la prima vedere."
 }

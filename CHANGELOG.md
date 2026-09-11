@@ -1,3 +1,10 @@
+# v2.12.545 - 2026-09-11
+
+## Liste compacte în HR operațional
+- Inbox HR afișează implicit primele 6 sarcini, cu buton pentru lista completă.
+- Jurnalul operațional HR afișează implicit primele 8 evenimente, cu extindere la nevoie.
+- Reduce scroll-ul pe paginile HR fără să ascundă accesul la acțiuni, filtre sau export.
+
 # Changelog
 
 # v2.12.544 - 2026-09-07
