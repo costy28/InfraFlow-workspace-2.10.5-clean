@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.544 — liste compacte în Documente și Contracte
+Ultimul pas executat: 2.12.548 — backlog NC/e-Transport și documente transport
 Status: backlog operațional activ
 
 ## Scop
@@ -135,10 +135,21 @@ Pași:
 
 ### Contabilitate
 
+- nomenclator coduri NC pentru operațiuni comerciale și raportări care îl cer;
+- e-Transport ca adaptor România, activ doar pe profil/jurisdicție România;
+- legare factură/aviz/transport cu documentele comerciale și fiscale;
 - reconciliere pe sursele ERP care alimentează contabilitatea;
 - explicații pentru blocaje fiscale/salarizare;
 - exporturi mai clare pentru dosarul lunar;
 - audit de modificări pe documente contabile importante.
+
+### Logistică / Transport
+
+- emitere CMR, bon de transport, aviz de însoțire și documente conexe din modulele relevante;
+- flux transport: comandă/livrare → document transport → atașamente/dovezi → factură/contract;
+- integrare coduri NC unde sunt necesare pentru mărfuri și raportări;
+- adaptoare pe țară: e-Transport pentru România, echivalente locale pentru alte jurisdicții când există;
+- pregătire pentru date din `LISTA-CODURI-NC-2024.ods` sau surse oficiale mai noi, validate înainte de import.
 
 ### Parc & Resurse / Mecanizare
 

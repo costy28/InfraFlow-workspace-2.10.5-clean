@@ -28,7 +28,7 @@ Regula de aur:
 | Operațional | servicii / teren | Fleet, mecanizare, foi parcurs, lucrări teren, GPS, echipamente |
 | Gestiune + Achiziții | depozite / administrativ | stocuri, comenzi, recepții, PAAP, referate, furnizori |
 | Warehouse / WMS | depozite mici-medii-mari | locații, rafturi, loturi, seriale, picking, packing, transferuri, inventariere mobilă |
-| Logistics | distribuție / transport | comenzi transport, rute, încărcări, livrări, POD, cost/km, integrare fleet |
+| Logistics | distribuție / transport | comenzi transport, rute, încărcări, livrări, CMR, bon transport, avize, POD, cost/km, integrare fleet |
 | Contabilitate | contabil intern | contabilitate, declarații, SAF-T, D112, salarizare, dosar fiscal |
 | Task Management | echipe mixte / management | task-uri personale, task-uri delegate, subordonați, scadențe, status, comentarii, legare la documente/contracte/module |
 | City Services | servicii publice | salubrizare, deszăpezire, siguranță circulație, mediu |
@@ -76,6 +76,17 @@ Etape recomandate:
 3. Separare traduceri UI de reguli legislative. ✅ Registry inițial reguli pe țară în v2.12.301; primele defaulturi fiscale consumate din registry în v2.12.302; declarațiile fiscale lunare citite din registry în v2.12.303.
 4. Separare template-uri documente pe țară și limbă.
 5. Validatoare locale pentru fiscal/HR doar când profilul țării este activ.
+6. Codurile NC și e-Transport se tratează ca reguli/adaptoare pe țară: România poate avea e-Transport și nomenclator NC local, iar alte țări primesc echivalentele lor când sunt documentate oficial.
+
+## Documente comerciale și transport
+
+Direcție viitoare pentru modulele Contabilitate, Contracte, Logistică, Achiziții și Gestiune:
+
+- emitere CMR, bonuri de transport, avize de însoțire și documente conexe direct din fluxul operațional;
+- legarea documentelor de transport de contract, comandă, factură, stoc și traseu;
+- coduri NC disponibile pentru mărfuri, facturi și raportări unde sunt obligatorii;
+- e-Transport activ doar pe profil România, cu posibilitatea de adaptoare echivalente pentru alte țări;
+- importul nomenclatoarelor se face doar din surse oficiale sau fișiere validate, cu versiune și dată vizibile în sistem.
 
 ## Elemente care cresc adopția
 

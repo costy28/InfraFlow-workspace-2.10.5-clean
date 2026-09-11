@@ -350,7 +350,7 @@ export default function TehnicPage() {
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-lg bg-slate-50 p-4"><div className="text-sm text-slate-500">Ore lucrate</div><div className="text-2xl font-semibold">{reportTotals.hours}</div></div>
-            <div className="rounded-lg bg-slate-50 p-4"><div className="text-sm text-slate-500">Asfalt vândut</div><div className="text-2xl font-semibold">{reportTotals.salesAmount} t</div></div>
+            <div className="rounded-lg bg-slate-50 p-4"><div className="text-sm text-slate-500">Output vândut</div><div className="text-2xl font-semibold">{reportTotals.salesAmount} t</div></div>
             <div className="rounded-lg bg-slate-50 p-4"><div className="text-sm text-slate-500">Valoare</div><div className="text-2xl font-semibold">{money(reportTotals.salesValue)} RON</div></div>
           </div>
         </Card>

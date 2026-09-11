@@ -23,7 +23,7 @@ const moduleCatalogGroups = [
     title: 'OPERAȚIONALE',
     modules: [
       { key: 'fleet', label: 'Flotă / Mecanizare', description: 'Vehicule, utilaje, foi parcurs, FAZ și GPS.' },
-      { key: 'technical', label: 'Tehnic', description: 'Lucrări, teren, vânzări asfalt și raport tehnic.' },
+      { key: 'technical', label: 'Tehnic', description: 'Lucrări, teren, output operațional și raport tehnic.' },
       { key: 'procurement', label: 'Achiziții', description: 'Comenzi, recepții, referate, PAAP și CPV.' },
       { key: 'contract_management', label: 'Contract Management', description: 'Contracte, consum valoric, CPV, manageri și alerte de prag/termen.' },
       { key: 'hr', label: 'HR', description: 'Angajați, pontaj, concedii, dosar personal și Kiosk.' },

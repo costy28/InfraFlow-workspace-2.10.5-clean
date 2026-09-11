@@ -1,5 +1,5 @@
 {
   "date": "2026-09-11",
-  "version": "2.12.546",
-  "changelog": "## v2.12.546 - 2026-09-11\n### Rafinare Setări integrări și curățare comercială\n- Setări grupează zona de conectări ca „Conectări”, cu taburi clare pentru „Surse externe” și „Mapări cântar”.\n- Taburile vechi Cântar/Integrări rămân compatibile prin alias-uri, ca linkurile existente să nu se rupă.\n- Cântarul nu mai apare ca dublură: sursa/adaptorul se setează în Surse externe, iar maparea produselor se face separat.\n- Dashboard-ul trimite configurarea emailului către Surse externe și stabilizează graficul operațional pe containere compacte.\n- Importul de date vechi folosește limbaj generic comercial, fără referință la Asfalt Pro."
+  "version": "2.12.547",
+  "changelog": "## v2.12.547 - 2026-09-11\n### Curățare ieșiri sistem și limbaj tehnic generic\n- Backup-urile descărcate din aplicație folosesc nume de fișier `backup-infraflow-...`, fără branding istoric de client pilot.\n- Exporturile de diagnostic sistem folosesc nume de fișier `diagnostic-infraflow-...`.\n- Restore-ul păstrează compatibilitatea cu backup-urile vechi deja generate.\n- Catalogul de module descrie Tehnic ca lucrări, teren și output operațional, nu ca vânzări asfalt implicite.\n- Raportul tehnic afișează `Output vândut`, păstrând valorile și calculul existent."
 }

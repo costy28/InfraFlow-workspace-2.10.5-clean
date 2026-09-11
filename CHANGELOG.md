@@ -1,3 +1,12 @@
+# v2.12.547 - 2026-09-11
+
+## Curățare ieșiri sistem și limbaj tehnic generic
+- Backup-urile descărcate din aplicație folosesc nume de fișier `backup-infraflow-...`, fără branding istoric de client pilot.
+- Exporturile de diagnostic sistem folosesc nume de fișier `diagnostic-infraflow-...`.
+- Restore-ul păstrează compatibilitatea cu backup-urile vechi deja generate.
+- Catalogul de module descrie Tehnic ca lucrări, teren și output operațional, nu ca vânzări asfalt implicite.
+- Raportul tehnic afișează `Output vândut`, păstrând valorile și calculul existent.
+
 # v2.12.546 - 2026-09-11
 
 ## Rafinare Setări integrări și curățare comercială

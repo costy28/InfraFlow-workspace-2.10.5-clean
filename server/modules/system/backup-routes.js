@@ -100,7 +100,7 @@ function createSystemBackupRouter(context) {
     if (!auth) return
     if (!requirePermission(auth, res, 'settings:manage')) return
     const backup = Buffer.from(JSON.stringify({ ...auth.db, backupCreatedAt: new Date().toISOString() }, null, 2), 'utf8')
-    sendBuffer(res, 200, backup, 'application/json; charset=utf-8', `backup-asfalt-pro-${localDate(new Date())}.json`)
+    sendBuffer(res, 200, backup, 'application/json; charset=utf-8', `backup-infraflow-${localDate(new Date())}.json`)
   })
 
   router.post('/backup', (req, res) => {
@@ -108,7 +108,7 @@ function createSystemBackupRouter(context) {
     if (!auth) return
     if (!requirePermission(auth, res, 'settings:manage')) return
     const backup = Buffer.from(JSON.stringify({ ...auth.db, backupCreatedAt: new Date().toISOString() }, null, 2), 'utf8')
-    sendBuffer(res, 200, backup, 'application/json; charset=utf-8', `backup-asfalt-pro-${localDate(new Date())}.json`)
+    sendBuffer(res, 200, backup, 'application/json; charset=utf-8', `backup-infraflow-${localDate(new Date())}.json`)
   })
 
   router.post('/restore', async (req, res, next) => {

@@ -269,7 +269,7 @@ router.get('/system/diagnostics/export', (req, res) => {
   if (!auth) return;
   if (!requirePermission(auth, res, "system:view")) return;
   const payload = Buffer.from(JSON.stringify(buildSupportDiagnostic(auth.db), null, 2), "utf8");
-  sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-asfalt-pro-${localDate(new Date())}.json`);
+  sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-infraflow-${localDate(new Date())}.json`);
 })
 
 router.post('/system/diagnostics/export', (req, res) => {
@@ -277,7 +277,7 @@ router.post('/system/diagnostics/export', (req, res) => {
   if (!auth) return;
   if (!requirePermission(auth, res, "system:view")) return;
   const payload = Buffer.from(JSON.stringify(buildSupportDiagnostic(auth.db), null, 2), "utf8");
-  sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-asfalt-pro-${localDate(new Date())}.json`);
+  sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-infraflow-${localDate(new Date())}.json`);
 })
 
 router.use(createSystemBackupRouter({
@@ -784,7 +784,7 @@ async function handleApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/backup") {
     if (!requirePermission(auth, res, "settings:manage")) return;
     const backup = Buffer.from(JSON.stringify({ ...auth.db, backupCreatedAt: new Date().toISOString() }, null, 2), "utf8");
-    sendBuffer(res, 200, backup, "application/json; charset=utf-8", `backup-asfalt-pro-${localDate(new Date())}.json`);
+    sendBuffer(res, 200, backup, "application/json; charset=utf-8", `backup-infraflow-${localDate(new Date())}.json`);
     return;
   }
 
@@ -1761,7 +1761,7 @@ async function handleApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/system/diagnostics/export") {
     if (!requirePermission(auth, res, "system:view")) return;
     const payload = Buffer.from(JSON.stringify(buildSupportDiagnostic(auth.db), null, 2), "utf8");
-    sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-asfalt-pro-${localDate(new Date())}.json`);
+    sendBuffer(res, 200, payload, "application/json; charset=utf-8", `diagnostic-infraflow-${localDate(new Date())}.json`);
     return;
   }
 
