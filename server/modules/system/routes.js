@@ -52,7 +52,7 @@ const { createSystemSettingsRouter } = require('./settings-routes')
 const { createSystemLicenseRouter } = require('./license-routes')
 const { createSystemDepartmentsRouter } = require('./departments-routes')
 const { createSystemDatabaseRouter } = require('./database-routes')
-const { getDefaultVatRate } = require('../../shared/countryRules')
+const { getDefaultVatRate, getVatRates } = require('../../shared/countryRules')
 const router = Router()
 
 const ROOT = path.resolve(__dirname, '../../..')
@@ -4500,6 +4500,86 @@ function normalizeSettingText(value, fallback = "") {
   return text || String(fallback || "").trim()
 }
 
+function normalizeVatRateNumber(value, fallback = 0) {
+  const number = Number(value)
+  return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : fallback
+}
+
+function normalizeVatRatesForSettings(country, current = {}, body = {}, defaultVatRate = 21) {
+  const explicitRates = body.vat_rates !== undefined
+  const source = explicitRates ? body.vat_rates : current.vat_rates
+  let rates = []
+
+  if (Array.isArray(source)) {
+    rates = source
+      .map((item, index) => {
+        const isObject = item && typeof item === 'object'
+        const rate = normalizeVatRateNumber(isObject ? (item.rate ?? item.percent ?? item.value) : item, NaN)
+        if (!Number.isFinite(rate)) return null
+        return {
+          id: normalizeSettingText(isObject ? item.id : '', `vat_${index + 1}`).slice(0, 40),
+          label: normalizeSettingText(isObject ? item.label : '', rate === defaultVatRate ? 'TVA standard' : `TVA ${rate}%`).slice(0, 80),
+          rate,
+          active: isObject ? item.active !== false : true,
+          default: isObject ? item.default === true : rate === defaultVatRate,
+        }
+      })
+      .filter(Boolean)
+  }
+
+  if (!rates.length) {
+    const countryRates = getVatRates(country)
+    if (Array.isArray(countryRates) && countryRates.length) {
+      rates = countryRates
+        .filter(rate => Number(rate) > 0)
+        .slice(0, 4)
+        .map((rate, index) => ({
+          id: index === 0 ? 'standard' : `rate_${String(rate).replace(/\D/g, '')}`,
+          label: index === 0 ? 'TVA standard' : `TVA redusă ${rate}%`,
+          rate: normalizeVatRateNumber(rate, defaultVatRate),
+          active: true,
+          default: index === 0,
+        }))
+    }
+  }
+
+  if (!rates.length) {
+    const standard = normalizeVatRateNumber(body.tva_implicit ?? body.cota_tva_standard ?? current.tva_implicit ?? current.cota_tva_standard, defaultVatRate)
+    const reducedFallback = String(country).toUpperCase() === 'RO' ? 11 : 0
+    const legacyReduced = body.cota_tva_redusa ?? current.cota_tva_redusa
+    const reduced = String(country).toUpperCase() === 'RO' && (legacyReduced === undefined || Number(legacyReduced) === 9)
+      ? 11
+      : normalizeVatRateNumber(legacyReduced, reducedFallback)
+    rates = [
+      { id: 'standard', label: 'TVA standard', rate: standard, active: true, default: true },
+      ...(reduced > 0 && reduced !== standard ? [{ id: 'reduced', label: 'TVA redusă', rate: reduced, active: true, default: false }] : []),
+    ]
+  }
+
+  const unique = []
+  const seen = new Set()
+  for (const rate of rates) {
+    const key = `${normalizeSettingText(rate.id, '').toLowerCase()}|${rate.rate}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(rate)
+  }
+
+  const activeRates = unique.length ? unique : [{ id: 'standard', label: 'TVA standard', rate: defaultVatRate, active: true, default: true }]
+  if (!activeRates.some(rate => rate.default)) activeRates[0].default = true
+  let defaultUsed = false
+  return activeRates.map((rate, index) => {
+    const isDefault = rate.default && !defaultUsed
+    if (isDefault) defaultUsed = true
+    return {
+      id: normalizeSettingText(rate.id, `vat_${index + 1}`).slice(0, 40),
+      label: normalizeSettingText(rate.label, rate.rate === defaultVatRate ? 'TVA standard' : `TVA ${rate.rate}%`).slice(0, 80),
+      rate: normalizeVatRateNumber(rate.rate, defaultVatRate),
+      active: rate.active !== false,
+      default: isDefault,
+    }
+  })
+}
 function normalizeUpperSetting(value, fallback = "") {
   return normalizeSettingText(value, fallback).toUpperCase()
 }
@@ -4508,6 +4588,10 @@ function updateSettings(current = {}, body = {}) {
   const license = current.license || {};
   const country = normalizeUpperSetting(body.country ?? current.country, "RO");
   const defaultVatRate = getDefaultVatRate(country, 21);
+  const vatRates = normalizeVatRatesForSettings(country, current, body, defaultVatRate);
+  const defaultVat = vatRates.find(rate => rate.default) || vatRates[0] || { rate: defaultVatRate };
+  const standardVat = vatRates.find(rate => rate.id === 'standard') || defaultVat;
+  const reducedVat = vatRates.find(rate => rate.id === 'reduced') || vatRates.find(rate => rate.rate !== standardVat.rate && rate.rate > 0);
   const passwordPolicy = passwordPolicyFromSettings({ ...current, ...body });
   const plan = String(body.licensePlan || license.plan || "internal-preview").trim();
   const trialDays = Math.max(1, Number(body.trialDays || license.trialDays || 30));

@@ -1,3 +1,10 @@
+## v2.12.551 - 2026-09-12
+### Setări generale pe carduri și TVA extensibil
+- Grupează Setări → General în carduri clare pentru identitate organizație, profil internațional, server/locație și TVA.
+- Înlocuiește câmpurile fixe TVA cu o listă extensibilă de cote active/implicite.
+- Actualizează profilul România la cote implicite 21% și 11% și elimină câmpul fix „TVA super-redus”.
+- Păstrează compatibilitatea cu tva_implicit/cota_tva_standard pentru facturarea existentă.
+
 ## v2.12.550 - 2026-09-12
 ### Separare Cântar de Conectări externe
 - Separă navigarea din Setări în două zone clare: Cântar și Conectări externe.

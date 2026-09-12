@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.550 — separare Cântar de Conectări externe
+Ultimul pas executat: 2.12.551 — Setări General pe carduri și TVA extensibil
 Status: backlog operațional activ
 
 ## Scop
@@ -51,6 +51,7 @@ Pași:
 - card „Următorul pas” pe modulele mari;
 - grupare acțiuni rare sub „Avansat”;
 - eliminare dubluri de navigare pentru integrări; Cântarul separat de Conectări externe ✅ `v2.12.550`;
+- Setări General rafinat pe carduri și TVA configurabil pe profil de țară ✅ `v2.12.551`;
 - explicații scurte pentru blocaje;
 - buton principal unic pe fiecare ecran important;
 - mod compact pentru operatori.

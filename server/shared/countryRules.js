@@ -73,7 +73,7 @@ const countryRules = {
       },
       accounting: {
         fiscal_profile: 'RO_ANAF',
-        vat_rates: [21, 19, 9, 5, 0],
+        vat_rates: [21, 11, 0],
         default_vat_rate: 21,
         declarations: ['D300', 'D394', 'D112', 'D205', 'D406_SAF_T'],
         e_invoice: {

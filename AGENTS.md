@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.550**
-**Versiune în lucru: v2.12.550**
+**Versiune curentă sursă: v2.12.551**
+**Versiune în lucru: v2.12.551**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -288,6 +288,7 @@ Core System
   ✅ Backlog NC, e-Transport și documente transport (v2.12.548)
   ✅ Roluri și permisiuni cu limbaj comercial generic (v2.12.549)
   ✅ Separare Cântar de Conectări externe (v2.12.550)
+  ✅ Setări generale pe carduri și TVA extensibil (v2.12.551)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1011,9 +1012,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.550
+VERSIUNE CURENTĂ SURSĂ: 2.12.551
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.550 ✅
+UPDATE ZIP CURENT: 2.12.551 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1372,6 +1373,7 @@ UPDATES ÎN LUCRU:
   2.12.548 → UPDATE 568 Backlog NC, e-Transport și documente transport ✅
   2.12.549 → UPDATE 569 Roluri și permisiuni cu limbaj comercial generic ✅
   2.12.550 → UPDATE 570 Separare Cântar de Conectări externe ✅
+  2.12.551 → UPDATE 571 Setări generale pe carduri și TVA extensibil ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1868,5 +1870,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 12 Septembrie 2026 | InfraFlow sursă v2.12.550*
+*AGENTS.md actualizat: 12 Septembrie 2026 | InfraFlow sursă v2.12.551*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

@@ -168,6 +168,64 @@ const emailRuleStatusOptions = [
   { value: 'archived', label: 'Arhivat' },
 ]
 
+const defaultVatRatesByCountry = {
+  RO: [
+    { id: 'standard', label: 'TVA standard', rate: 21, active: true, default: true },
+    { id: 'reduced', label: 'TVA redusă', rate: 11, active: true, default: false },
+  ],
+  GLOBAL: [
+    { id: 'standard', label: 'Cotă standard', rate: 0, active: true, default: true },
+  ],
+}
+
+function normalizeVatRateNumber(value, fallback = 0) {
+  const number = Number(value)
+  return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : fallback
+}
+
+function defaultVatRatesForCountry(country = 'RO') {
+  const code = String(country || 'RO').toUpperCase()
+  return (defaultVatRatesByCountry[code] || defaultVatRatesByCountry.GLOBAL).map(rate => ({ ...rate }))
+}
+
+function normalizeVatRatesClient(settings = {}) {
+  const country = String(settings.country || 'RO').toUpperCase()
+  const source = Array.isArray(settings.vat_rates) ? settings.vat_rates : []
+  let rates = source.map((item, index) => {
+    const isObject = item && typeof item === 'object'
+    const rate = normalizeVatRateNumber(isObject ? (item.rate ?? item.percent ?? item.value) : item, NaN)
+    if (!Number.isFinite(rate)) return null
+    const id = String(isObject ? (item.id || 'vat_' + (index + 1)) : 'vat_' + (index + 1)).trim() || 'vat_' + (index + 1)
+    return { id, label: String(isObject ? item.label || '' : '').trim() || 'TVA ' + rate + '%', rate, active: isObject ? item.active !== false : true, default: isObject ? item.default === true : false }
+  }).filter(Boolean)
+  if (!rates.length) {
+    const standard = normalizeVatRateNumber(settings.tva_implicit ?? settings.cota_tva_standard, country === 'RO' ? 21 : 0)
+    const legacyReduced = settings.cota_tva_redusa
+    const reduced = country === 'RO' && (legacyReduced === undefined || Number(legacyReduced) === 9) ? 11 : normalizeVatRateNumber(legacyReduced, 0)
+    rates = [
+      { id: 'standard', label: country === 'RO' ? 'TVA standard' : 'Cotă standard', rate: standard, active: true, default: true },
+      ...(reduced > 0 && reduced !== standard ? [{ id: 'reduced', label: 'TVA redusă', rate: reduced, active: true, default: false }] : []),
+    ]
+  }
+  if (!rates.length) rates = defaultVatRatesForCountry(country)
+  if (!rates.some(rate => rate.default)) rates[0].default = true
+  let defaultUsed = false
+  return rates.map((rate, index) => {
+    const isDefault = rate.default && !defaultUsed
+    if (isDefault) defaultUsed = true
+    return { ...rate, id: String(rate.id || 'vat_' + (index + 1)), rate: normalizeVatRateNumber(rate.rate, 0), active: rate.active !== false, default: isDefault }
+  })
+}
+
+function settingsWithVatRates(settings = {}, rates = []) {
+  const normalized = normalizeVatRatesClient({ ...settings, vat_rates: rates })
+  const activeRates = normalized.filter(rate => rate.active !== false)
+  const defaultRate = activeRates.find(rate => rate.default) || activeRates[0] || normalized[0] || { rate: 0 }
+  const standardRate = normalized.find(rate => rate.id === 'standard') || defaultRate
+  const reducedRate = normalized.find(rate => rate.id === 'reduced') || normalized.find(rate => rate.rate !== standardRate.rate && rate.rate > 0)
+  const { cota_tva_super_redusa: _removedSuperReduced, ...rest } = settings
+  return { ...rest, vat_rates: normalized, tva_implicit: Number(defaultRate.rate), cota_tva_standard: Number(standardRate.rate), cota_tva_redusa: reducedRate ? Number(reducedRate.rate) : 0 }
+}
 function emailRuleOptionLabel(options, value, fallback = '-') {
   return options.find(item => String(item.value) === String(value || ''))?.label || fallback
 }
@@ -1111,6 +1169,7 @@ export default function SetariPage() {
     return countryRules.countries?.find(item => item.country === code) || countryRules.current || fallbackCountryRules.current
   }, [countryRules, settings.country])
   const selectedLaborRegistry = selectedCountryRules?.rules?.modules?.hr?.employee_registry || {}
+  const vatRates = useMemo(() => normalizeVatRatesClient(settings), [settings])
   const availableLocales = useMemo(
     () => Array.from(new Set([...localeOptions, ...countryProfiles.map(profile => profile.locale).filter(Boolean)])),
     [countryProfiles]
@@ -1317,8 +1376,9 @@ export default function SetariPage() {
   async function saveSettings(event) {
     event.preventDefault()
     try {
-      const response = await api.post('/settings', settings)
-      setSettings({ ...(response.data.settings || settings), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      const payload = settingsWithVatRates(settings, vatRates)
+      const response = await api.post('/settings', payload)
+      setSettings({ ...(response.data.settings || payload), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
       const syncStatus = await api.get('/messaging/email/sync/status').catch(() => null)
       if (syncStatus?.data?.status) setEmailSyncStatus(syncStatus.data.status)
       notify('Setările generale au fost salvate.')
@@ -1327,6 +1387,25 @@ export default function SetariPage() {
     }
   }
 
+  function setVatRates(nextRates) {
+    setSettings(current => settingsWithVatRates(current, nextRates))
+  }
+
+  function updateVatRate(index, patch) {
+    setVatRates(vatRates.map((rate, itemIndex) => {
+      if (itemIndex === index) return patch.default ? { ...rate, ...patch, active: true } : { ...rate, ...patch }
+      return patch.default ? { ...rate, default: false } : rate
+    }))
+  }
+
+  function addVatRate() {
+    setVatRates([...vatRates, { id: 'custom_' + Date.now(), label: 'Cotă TVA ' + (vatRates.length + 1), rate: 0, active: true, default: false }])
+  }
+
+  function removeVatRate(index) {
+    const next = vatRates.filter((_, itemIndex) => itemIndex !== index)
+    setVatRates(next.length ? next : defaultVatRatesForCountry(settings.country || 'RO'))
+  }
   async function refreshSecurityDiagnostic() {
     try {
       const response = await api.get('/system/security')
@@ -2601,34 +2680,36 @@ export default function SetariPage() {
       </div>
 
       {activeTab === 'General' && (
-        <Card title="General" loading={loading}>
-          <form className="grid gap-3 md:grid-cols-2" onSubmit={saveSettings}>
-            <Input label="Nume companie" value={settings.companyName || ''} onChange={event => setSettings(s => ({ ...s, companyName: event.target.value }))} />
-            <Input label="CUI" value={settings.companyCui || settings.cui || ''} onChange={event => setSettings(s => ({ ...s, companyCui: event.target.value, cui: event.target.value }))} />
-            <Input label="Adresă" value={settings.address || ''} onChange={event => setSettings(s => ({ ...s, address: event.target.value }))} />
-            <Input label="Telefon" value={settings.phone || ''} onChange={event => setSettings(s => ({ ...s, phone: event.target.value }))} />
-            <Input label="Email" value={settings.email || ''} onChange={event => setSettings(s => ({ ...s, email: event.target.value }))} />
+        <Card title="General" subtitle="Setări grupate pe carduri, ca să modifici doar zona care te interesează." loading={loading}>
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={saveSettings}>
+            <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-slate-900">Identitate organizație</h3>
+                <p className="mt-1 text-xs text-slate-500">Datele care apar pe documente, facturi, rapoarte și în antetul aplicației.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input label="Nume organizație" value={settings.companyName || ''} onChange={event => setSettings(s => ({ ...s, companyName: event.target.value }))} />
+                <Input label="CUI / CIF" value={settings.companyCui || settings.cui || ''} onChange={event => setSettings(s => ({ ...s, companyCui: event.target.value, cui: event.target.value }))} />
+                <Input label="Adresă sediu" value={settings.address || ''} onChange={event => setSettings(s => ({ ...s, address: event.target.value }))} />
+                <Input label="Telefon" value={settings.phone || ''} onChange={event => setSettings(s => ({ ...s, phone: event.target.value }))} />
+                <Input label="Email organizațional" value={settings.email || ''} onChange={event => setSettings(s => ({ ...s, email: event.target.value }))} />
+                <Input label="Punct de lucru / locație" value={settings.stationName || ''} onChange={event => setSettings(s => ({ ...s, stationName: event.target.value }))} />
+              </div>
+            </div>
+
             <div className="md:col-span-2 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900">Profil internațional</h3>
-                  <p className="mt-1 text-xs text-slate-600">
-                    Baza pentru limbă, monedă, fus orar și reguli locale. România este activă; celelalte țări sunt pregătite pentru adaptări legislative viitoare.
-                  </p>
+                  <p className="mt-1 text-xs text-slate-600">Baza pentru limbă, monedă, fus orar și reguli locale. România este activă; celelalte țări sunt pregătite pentru adaptări legislative viitoare.</p>
                 </div>
-                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                  selectedCountryProfile?.legislation_status === 'activ'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-amber-100 text-amber-700'
-                }`}>
+                <Badge tone={selectedCountryProfile?.legislation_status === 'activ' ? 'success' : 'warning'}>
                   {selectedCountryProfile?.legislation_status === 'activ' ? 'Legislație activă' : 'Profil pregătit'}
-                </span>
+                </Badge>
               </div>
               <div className="grid gap-3 md:grid-cols-4">
                 <Select label="Țară / jurisdicție" value={settings.country || 'RO'} onChange={event => applyCountryProfile(event.target.value)}>
-                  {countryProfiles.map(profile => (
-                    <option key={profile.code} value={profile.code}>{profile.label}</option>
-                  ))}
+                  {countryProfiles.map(profile => <option key={profile.code} value={profile.code}>{profile.label}</option>)}
                 </Select>
                 <Select label="Limbă interfață" value={settings.locale || settings.language || 'ro-RO'} onChange={event => setSettings(s => ({ ...s, locale: event.target.value, language: event.target.value }))}>
                   {availableLocales.map(locale => <option key={locale} value={locale}>{locale}</option>)}
@@ -2641,48 +2722,26 @@ export default function SetariPage() {
                 </Select>
               </div>
               <div className="mt-3 grid gap-2 rounded-xl border border-white/70 bg-white/70 p-3 text-xs text-slate-600 md:grid-cols-4">
-                <div>
-                  <span className="block font-semibold text-slate-800">HR</span>
-                  Profil: {selectedCountryRules?.rules?.modules?.hr?.payroll_profile || 'generic'}
-                </div>
-                <div>
-                  <span className="block font-semibold text-slate-800">Raportare muncă</span>
-                  {selectedLaborRegistry?.label || 'Registru local'}
-                  <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                    selectedLaborRegistry?.enabled
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {selectedLaborRegistry?.enabled ? 'profil local' : 'generic'}
-                  </span>
-                  {selectedLaborRegistry?.current_export_status === 'internal_work_file' ? (
-                    <div className="mt-1 text-[11px] text-slate-500">Momentan: fișier intern de lucru, nu transmitere oficială.</div>
-                  ) : null}
-                </div>
-                <div>
-                  <span className="block font-semibold text-slate-800">Fiscal / contabil</span>
-                  Profil: {selectedCountryRules?.rules?.modules?.accounting?.fiscal_profile || 'generic'}
-                </div>
-                <div>
-                  <span className="block font-semibold text-slate-800">Documente</span>
-                  Limbă implicită: {selectedCountryRules?.rules?.modules?.documents?.default_language || 'generic'}
-                </div>
-                {selectedCountryRules?.rules?.warnings?.length > 0 && (
-                  <p className="md:col-span-4 rounded-lg bg-amber-50 px-3 py-2 text-amber-700">
-                    {selectedCountryRules.rules.warnings[0]}
-                  </p>
-                )}
-                {selectedLaborRegistry?.description ? (
-                  <p className="md:col-span-4 rounded-lg bg-slate-50 px-3 py-2 text-slate-600">
-                    {selectedLaborRegistry.description}
-                  </p>
-                ) : null}
+                <div><span className="block font-semibold text-slate-800">HR</span>Profil: {selectedCountryRules?.rules?.modules?.hr?.payroll_profile || 'generic'}</div>
+                <div><span className="block font-semibold text-slate-800">Raportare muncă</span>{selectedLaborRegistry?.label || 'Registru local'}</div>
+                <div><span className="block font-semibold text-slate-800">Fiscal / contabil</span>Profil: {selectedCountryRules?.rules?.modules?.accounting?.fiscal_profile || 'generic'}</div>
+                <div><span className="block font-semibold text-slate-800">Documente</span>Limbă implicită: {selectedCountryRules?.rules?.modules?.documents?.default_language || 'generic'}</div>
+                {selectedCountryRules?.rules?.warnings?.length > 0 && <p className="md:col-span-4 rounded-lg bg-amber-50 px-3 py-2 text-amber-700">{selectedCountryRules.rules.warnings[0]}</p>}
+                {selectedLaborRegistry?.description ? <p className="md:col-span-4 rounded-lg bg-slate-50 px-3 py-2 text-slate-600">{selectedLaborRegistry.description}</p> : null}
               </div>
             </div>
-            <Input label="Punct de lucru / locație" value={settings.stationName || ''} onChange={event => setSettings(s => ({ ...s, stationName: event.target.value }))} />
-            <Input label="GPS lat meteo" value={settings.weatherLat || ''} onChange={event => setSettings(s => ({ ...s, weatherLat: event.target.value }))} />
-            <Input label="GPS lng meteo" value={settings.weatherLng || ''} onChange={event => setSettings(s => ({ ...s, weatherLng: event.target.value }))} />
-            <Input label="Port server" type="number" value={settings.serverPort || ''} onChange={event => setSettings(s => ({ ...s, serverPort: event.target.value }))} />
+
+            <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-slate-900">Server și locație</h3>
+                <p className="mt-1 text-xs text-slate-500">Coordonate meteo și portul local al aplicației.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <Input label="GPS lat meteo" value={settings.weatherLat || ''} onChange={event => setSettings(s => ({ ...s, weatherLat: event.target.value }))} />
+                <Input label="GPS lng meteo" value={settings.weatherLng || ''} onChange={event => setSettings(s => ({ ...s, weatherLng: event.target.value }))} />
+                <Input label="Port server" type="number" value={settings.serverPort || ''} onChange={event => setSettings(s => ({ ...s, serverPort: event.target.value }))} />
+              </div>
+            </div>
             <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-sm font-semibold text-slate-900">Integrare GPS</h3>
@@ -2996,31 +3055,35 @@ export default function SetariPage() {
                 </div>
               ))}
             </div>
-            <div className="md:col-span-2 mt-2 border-t border-slate-200 pt-4">
-              <h3 className="text-sm font-semibold text-slate-900">Configurare TVA</h3>
-              <p className="mt-0.5 text-xs text-slate-500">Cotele TVA sunt folosite implicit în facturare (ANAF / e-Factură). Pot fi suprascrise per linie de factură.</p>
+            <div className="md:col-span-2 mt-2 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+              <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">TVA / fiscal</h3>
+                  <p className="mt-0.5 text-xs text-slate-600">Pentru România folosim implicit 21% și 11%. Lista rămâne editabilă pentru alte țări sau cazuri fiscale speciale.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={addVatRate}>➕ Adaugă cotă</Button>
+              </div>
+              <div className="grid gap-3">
+                {vatRates.map((rate, index) => (
+                  <div key={rate.id || index} className="grid gap-3 rounded-2xl border border-white/80 bg-white p-3 md:grid-cols-[1.4fr_0.7fr_auto_auto_auto] md:items-end">
+                    <Input label="Denumire cotă" value={rate.label || ''} onChange={event => updateVatRate(index, { label: event.target.value })} />
+                    <Input label="Procent (%)" type="number" min={0} max={100} value={rate.rate} onChange={event => updateVatRate(index, { rate: normalizeVatRateNumber(event.target.value, rate.rate) })} />
+                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                      <input type="checkbox" checked={rate.active !== false} onChange={event => updateVatRate(index, { active: event.target.checked })} />
+                      Activă
+                    </label>
+                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                      <input type="radio" name="vat_default" checked={rate.default === true} onChange={() => updateVatRate(index, { default: true })} />
+                      Implicită
+                    </label>
+                    <Button type="button" variant="ghost" onClick={() => removeVatRate(index)}>Șterge</Button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Cota implicită este folosită la facturi noi și e-Factură. Am eliminat câmpul fix „TVA super-redus”; dacă o jurisdicție cere o cotă suplimentară, o adaugi ca rând separat.
+              </div>
             </div>
-            <Input
-              label="TVA standard (%)"
-              type="number"
-              value={settings.tva_implicit ?? settings.cota_tva_standard ?? 21}
-              onChange={e => setSettings(s => ({ ...s, tva_implicit: Number(e.target.value), cota_tva_standard: Number(e.target.value) }))}
-              min={0} max={100}
-            />
-            <Input
-              label="TVA redus (%)"
-              type="number"
-              value={settings.cota_tva_redusa ?? 9}
-              onChange={e => setSettings(s => ({ ...s, cota_tva_redusa: Number(e.target.value) }))}
-              min={0} max={100}
-            />
-            <Input
-              label="TVA super-redus (%)"
-              type="number"
-              value={settings.cota_tva_super_redusa ?? 5}
-              onChange={e => setSettings(s => ({ ...s, cota_tva_super_redusa: Number(e.target.value) }))}
-              min={0} max={100}
-            />
             <div className="md:col-span-2"><Button type="submit">Salvează</Button></div>
           </form>
         </Card>

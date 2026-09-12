@@ -5,7 +5,7 @@ const childProcess = require("child_process");
 const os = require("os");
 const sql = require("mssql");
 const { splitSqlBatches, ensureMigrationTable, runTrackedMigrations } = require("./migrations");
-const { getDefaultVatRate } = require("../shared/countryRules");
+const { getDefaultVatRate, getVatRates } = require("../shared/countryRules");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 loadPreferredDatabaseEnv(ROOT);
@@ -1279,6 +1279,21 @@ function normalizeDb(db) {
   db.settings.timezone = String(db.settings.timezone || "Europe/Bucharest").trim();
   db.settings.jurisdiction_profile = String(db.settings.jurisdiction_profile || db.settings.jurisdictionProfile || db.settings.country || "RO").trim().toUpperCase();
   const defaultVatRate = getDefaultVatRate(db.settings.country, 21);
+  if (!Array.isArray(db.settings.vat_rates) || db.settings.vat_rates.length === 0) {
+    const countryVatRates = getVatRates(db.settings.country).filter(rate => Number(rate) > 0);
+    const baseRates = countryVatRates.length ? countryVatRates : [defaultVatRate];
+    db.settings.vat_rates = baseRates.slice(0, 4).map((rate, index) => ({
+      id: index === 0 ? "standard" : `rate_${String(rate).replace(/\D/g, "")}`,
+      label: index === 0 ? "TVA standard" : `TVA ${rate}%`,
+      rate: Number(rate),
+      active: true,
+      default: index === 0,
+    }));
+  }
+  if (String(db.settings.country || "RO").toUpperCase() === "RO" && (db.settings.cota_tva_redusa === undefined || Number(db.settings.cota_tva_redusa) === 9)) {
+    db.settings.cota_tva_redusa = 11;
+  }
+  db.settings.cota_tva_super_redusa = undefined;
   if (db.settings.ai_enabled === undefined) db.settings.ai_enabled = 0;
   if (db.settings.ai_model_default === undefined) db.settings.ai_model_default = "claude-haiku-4-5";
   if (db.settings.ai_monthly_budget === undefined) db.settings.ai_monthly_budget = 200;
