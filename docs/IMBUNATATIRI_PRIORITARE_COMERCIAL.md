@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.548 — backlog NC/e-Transport și documente transport
+Ultimul pas executat: 2.12.549 — roluri și permisiuni cu limbaj comercial generic
 Status: backlog operațional activ
 
 ## Scop
@@ -77,7 +77,7 @@ Obiectiv: aplicația să fie generală, configurabilă și pregătită pentru cl
 
 Pași:
 
-- eliminare referințe vizibile la client pilot din UI, demo și fallback-uri;
+- eliminare referințe vizibile la client pilot din UI, demo și fallback-uri; în progres: roluri și permisiuni genericizate ✅ `v2.12.549`;
 - păstrare termenilor de asfalt doar în profil/modul unde sunt relevanți;
 - mutare texte și reguli locale către profil de țară;
 - template-uri documente pe limbă și jurisdicție.

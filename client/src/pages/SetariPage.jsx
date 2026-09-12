@@ -82,7 +82,7 @@ const roleDescriptions = {
   mechanization: 'Parc auto/utilaje, foi parcurs.',
   technical: 'Departament tehnic — pontaj utilaj, rapoarte.',
   accounting: 'Rapoarte contabile, centre cost.',
-  operator: 'Operator stație — introduce consumuri.',
+  operator: 'Operator producție — introduce consumuri operaționale.',
   department: 'Angajat departament — solicitări.',
   viewer: 'Acces citire.',
 }

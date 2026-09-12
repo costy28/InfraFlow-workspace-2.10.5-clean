@@ -66,9 +66,9 @@ const allPermissions = Object.values(permissionGroups).flat();
 const permissionGroupLabels = {
   kiosk: "Kiosk angajat",
   dashboard: "Dashboard",
-  dailyReport: "Rapoarte productie",
+  dailyReport: "Rapoarte operaționale",
   accountingReport: "Raport contabil",
-  consumptions: "Productie asfalt",
+  consumptions: "Consumuri / producție",
   recipes: "Retete",
   materials: "Stocuri materiale",
   departmentRequests: "Solicitari departamente",
@@ -105,7 +105,7 @@ const permissionGroupLabels = {
   secretariat: "Secretariat",
   ai: "Asistent AI",
   snow_removal: "Deszapezire",
-  asternere: "Asternere asfalt",
+  asternere: "Execuție lucrări",
   anaf: "ANAF / e-Factură",
   system: "Sistem"
 };
@@ -194,7 +194,7 @@ const permissionLabels = {
   "fleet:faz_generate": "Genereaza FAZ lunar",
   "technical:view": "Vede raport tehnic",
   "technical:worklog": "Pontaj utilaj/lucrare",
-  "technical:sales": "Vanzari asfalt",
+  "technical:sales": "Vânzări / output operațional",
   "technical:export": "Exporta raport tehnic",
   "cost_accounting:view": "Vede costuri",
   "cost_accounting:manage": "Administreaza centre cost",
@@ -336,7 +336,7 @@ const roleInfo = {
     description: "Administrare utilizatori si operare completa, fara zona sensibila de licenta si backup."
   },
   manager: {
-    name: "Sef statie",
+    name: "Manager operațional",
     description: "Coordoneaza productia, planificarea, solicitarile si rapoartele."
   },
   inventory: {
@@ -357,19 +357,19 @@ const roleInfo = {
   },
   technical: {
     name: "Departament tehnic",
-    description: "Urmareste ore lucrate pe utilaje/lucrari si rapoarte de productie, vanzare si ramas asfalt."
+    description: "Urmărește ore lucrate pe resurse/lucrări și rapoarte de producție, vânzare și output rămas."
   },
   accounting: {
     name: "Contabilitate",
     description: "Consulta rapoarte, centre de cost, cheltuieli importate si costuri pe ora."
   },
   operator: {
-    name: "Operator statie",
+    name: "Operator producție",
     description: "Introduce consumuri si consulta informatiile necesare productiei."
   },
   department: {
     name: "Departament",
-    description: "Trimite solicitari de asfalt/materiale si consulta planificarea proprie."
+    description: "Trimite solicitări de materiale sau output operațional și consultă planificarea proprie."
   },
   viewer: {
     name: "Viewer",
@@ -715,8 +715,8 @@ const DEFAULT_CUSTOM_ROLES = [
   },
   {
     id: 'operator-statie',
-    name: 'Operator Stație',
-    description: 'Producție asfalt, consum zilnic, stocuri view.',
+    name: 'Operator producție',
+    description: 'Producție/servicii, consum zilnic și stocuri în citire.',
     tip: 'default',
     permissions: [
       'dashboard:view',
@@ -1179,13 +1179,13 @@ function roleModules(role, settings) {
   if (permissions.includes("technical:worklog") && !permissions.includes("technical:sales")) modules.push("pontaj utilaj/lucrare");
   if (permissions.includes("technical:sales") || permissions.includes("technical:view")) modules.push("departament tehnic");
   if (permissions.includes("cost_accounting:manage") || permissions.includes("cost_accounting:import")) modules.push("contabilitate costuri");
-  if (permissions.includes("consumptions:create")) modules.push("consum asfalt");
+  if (permissions.includes("consumptions:create")) modules.push("consumuri productie");
   if (permissions.includes("recipes:manage")) modules.push("retete");
   if (permissions.includes("audit:view")) modules.push("audit");
   if (permissions.includes("fleet:trip_log_view")) modules.push("foi de parcurs");
   if (permissions.includes("hr:leave_own") || permissions.includes("hr:view_own")) modules.push("kiosk angajat");
   if (permissions.includes("gestiune:view")) modules.push("gestiune/depozit");
-  if (permissions.includes("asternere:view")) modules.push("asternere asfalt");
+  if (permissions.includes("asternere:view")) modules.push("executie lucrari");
   if (permissions.includes("anaf:view")) modules.push("ANAF / e-Factura");
   if (permissions.includes("referate:view")) modules.push("referate");
   if (!modules.length) modules.push("citire");

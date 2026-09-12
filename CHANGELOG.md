@@ -1,3 +1,10 @@
+## v2.12.549 - 2026-09-11
+### Roluri și permisiuni cu limbaj comercial generic
+- Redenumește etichetele vizibile pentru rolurile operaționale: manager operațional și operator producție.
+- Generalizează grupurile de permisiuni pentru producție, consumuri, execuție lucrări și vânzări/output.
+- Păstrează permisiunile tehnice existente, astfel încât drepturile utilizatorilor să nu se schimbe.
+- Curăță descrierile afișate în Setări pentru organizații care nu folosesc stații/asfalt ca flux principal.
+
 # v2.12.548 - 2026-09-11
 
 ## Backlog NC, e-Transport și documente transport
