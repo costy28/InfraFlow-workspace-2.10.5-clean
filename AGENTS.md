@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.549**
-**Versiune în lucru: v2.12.549**
+**Versiune curentă sursă: v2.12.550**
+**Versiune în lucru: v2.12.550**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -287,6 +287,7 @@ Core System
   ✅ Curățare ieșiri sistem și limbaj tehnic generic (v2.12.547)
   ✅ Backlog NC, e-Transport și documente transport (v2.12.548)
   ✅ Roluri și permisiuni cu limbaj comercial generic (v2.12.549)
+  ✅ Separare Cântar de Conectări externe (v2.12.550)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1010,9 +1011,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.549
+VERSIUNE CURENTĂ SURSĂ: 2.12.550
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.549 ✅
+UPDATE ZIP CURENT: 2.12.550 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1370,6 +1371,7 @@ UPDATES ÎN LUCRU:
   2.12.547 → UPDATE 567 Curățare ieșiri sistem și limbaj tehnic generic ✅
   2.12.548 → UPDATE 568 Backlog NC, e-Transport și documente transport ✅
   2.12.549 → UPDATE 569 Roluri și permisiuni cu limbaj comercial generic ✅
+  2.12.550 → UPDATE 570 Separare Cântar de Conectări externe ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1866,5 +1868,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 11 Septembrie 2026 | InfraFlow sursă v2.12.549*
+*AGENTS.md actualizat: 12 Septembrie 2026 | InfraFlow sursă v2.12.550*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

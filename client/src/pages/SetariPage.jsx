@@ -28,7 +28,8 @@ const tabGroups = [
   { label: 'Sistem', tabs: ['General', 'Securitate', 'Bază date', 'Licență', 'Actualizări'] },
   { label: 'Administrare', tabs: ['Utilizatori', 'Roluri', 'Departamente', 'Module'] },
   { label: 'Interfață', tabs: ['Aspect', 'AI Assistant'] },
-  { label: 'Conectări', tabs: ['Mapări cântar', 'Surse externe'] },
+  { label: 'Cântar', tabs: ['Mapări cântar'] },
+  { label: 'Conectări externe', tabs: ['Surse externe'] },
 ]
 const allModules = [
   'core', 'inventory', 'production', 'reports', 'system', 'fleet', 'hr',
@@ -4936,7 +4937,7 @@ export default function SetariPage() {
       )}
 
       {activeTab === 'Mapări cântar' && (
-        <Card title="Mapări cântar" subtitle="Leagă produsele/codurile venite din cântar de materialele InfraFlow. Calea către sursa de date se setează în Surse externe.">
+        <Card title="Cântar" subtitle="Configurează o singură dată sursa de date și maparea produselor cântar către materialele InfraFlow.">
           <form className="grid gap-4" onSubmit={saveScale}>
             <Input label="Cale sursă cântar" placeholder="\\\\SERVER\\path\\cantare.db" value={settings.scaleDbPath || ''} onChange={event => setSettings(s => ({ ...s, scaleDbPath: event.target.value, cantar_db_path: event.target.value }))} />
             <div className="flex flex-wrap gap-2">
@@ -4967,7 +4968,7 @@ export default function SetariPage() {
 
       {activeTab === 'Surse externe' && (
         <div className="grid gap-4">
-          <Card title="🔌 Surse externe" subtitle="Adaptoare pentru aplicații sau fișiere folosite de client. Salvarea păstrează doar conexiunile, fără import automat.">
+          <Card title="🔌 Conectări externe" subtitle="Adaptoare pentru aplicații sau fișiere externe folosite de client. Cântarul are zonă separată, ca să nu fie dublat aici.">
             <div className="grid gap-6">
               <section className="grid gap-3 border-b border-slate-200 pb-5">
                 <div>
@@ -5002,34 +5003,6 @@ export default function SetariPage() {
                   Status: {pathStatus('piusi', settings.piusi_mdb_path || piusiConfig.mdb_path).text}
                   {integrationTests.piusi?.modified ? <span className="ml-2 text-slate-500">Modificat: {formatDate(integrationTests.piusi.modified)}</span> : null}
                   {integrationTests.piusi?.error ? <span className="ml-2 text-rose-600">{integrationTests.piusi.error}</span> : null}
-                </div>
-              </section>
-
-              <section className="grid gap-3 border-b border-slate-200 pb-5">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">⚖️ Cântar poartă · sursă date</h3>
-                  <p className="text-sm text-slate-500">Aici setezi calea/adaptorul. Maparea produselor către materiale este în tabul Mapări cântar.</p>
-                </div>
-                <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
-                  <Input
-                    label="Cale DB / fișier"
-                    value={settings.cantar_db_path || settings.scaleDbPath || ''}
-                    onChange={event => setSettings(s => ({ ...s, cantar_db_path: event.target.value, scaleDbPath: event.target.value }))}
-                    placeholder="\\\\CANTAR-PC\\Share\\cantar.mdb"
-                  />
-                  <Input
-                    label="Sync la (minute)"
-                    type="number"
-                    min="1"
-                    value={settings.cantar_sync_min || 5}
-                    onChange={event => setSettings(s => ({ ...s, cantar_sync_min: event.target.value }))}
-                  />
-                  <Button type="button" className="self-end" variant="secondary" onClick={() => testIntegrationPath('cantar', settings.cantar_db_path || settings.scaleDbPath)}>✅ Testează</Button>
-                </div>
-                <div className={`text-sm font-medium ${pathStatus('cantar', settings.cantar_db_path || settings.scaleDbPath).className}`}>
-                  Status: {pathStatus('cantar', settings.cantar_db_path || settings.scaleDbPath).text}
-                  {integrationTests.cantar?.modified ? <span className="ml-2 text-slate-500">Modificat: {formatDate(integrationTests.cantar.modified)}</span> : null}
-                  {integrationTests.cantar?.error ? <span className="ml-2 text-rose-600">{integrationTests.cantar.error}</span> : null}
                 </div>
               </section>
 

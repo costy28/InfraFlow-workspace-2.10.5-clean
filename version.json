@@ -1,5 +1,5 @@
 {
-  "version": "2.12.549",
-  "date": "2026-09-11",
-  "changelog": "## v2.12.549 - 2026-09-11\n### Roluri și permisiuni cu limbaj comercial generic\n- Redenumește etichetele vizibile pentru rolurile operaționale: manager operațional și operator producție.\n- Generalizează grupurile de permisiuni pentru producție, consumuri, execuție lucrări și vânzări/output.\n- Păstrează permisiunile tehnice existente, astfel încât drepturile utilizatorilor să nu se schimbe.\n- Curăță descrierile afișate în Setări pentru organizații care nu folosesc stații/asfalt ca flux principal."
+  "version": "2.12.550",
+  "date": "2026-09-12",
+  "changelog": "## v2.12.550 - 2026-09-12\n### Separare Cântar de Conectări externe\n- Separă navigarea din Setări în două zone clare: Cântar și Conectări externe.\n- Cântarul rămâne într-un singur loc pentru sursa de date, test conexiune și mapări produse către materiale.\n- Elimină secțiunea duplicată „Cântar poartă” din Surse externe.\n- Clarifică textul panoului de conectări externe pentru PIUSI, autoMinder și adaptoare viitoare."
 }

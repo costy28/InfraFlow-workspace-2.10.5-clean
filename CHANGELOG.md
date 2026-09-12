@@ -1,3 +1,10 @@
+## v2.12.550 - 2026-09-12
+### Separare Cântar de Conectări externe
+- Separă navigarea din Setări în două zone clare: Cântar și Conectări externe.
+- Cântarul rămâne într-un singur loc pentru sursa de date, test conexiune și mapări produse către materiale.
+- Elimină secțiunea duplicată „Cântar poartă” din Surse externe.
+- Clarifică textul panoului de conectări externe pentru PIUSI, autoMinder și adaptoare viitoare.
+
 ## v2.12.549 - 2026-09-11
 ### Roluri și permisiuni cu limbaj comercial generic
 - Redenumește etichetele vizibile pentru rolurile operaționale: manager operațional și operator producție.
