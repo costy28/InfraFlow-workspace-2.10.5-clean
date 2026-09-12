@@ -1,5 +1,5 @@
 {
-  "version": "2.12.551",
+  "version": "2.12.552",
   "date": "2026-09-12",
-  "changelog": "## v2.12.551 - 2026-09-12\n### Setări generale pe carduri și TVA extensibil\n- Grupează Setări → General în carduri clare pentru identitate organizație, profil internațional, server/locație și TVA.\n- Înlocuiește câmpurile fixe TVA cu o listă extensibilă de cote active/implicite.\n- Actualizează profilul România la cote implicite 21% și 11% și elimină câmpul fix „TVA super-redus”.\n- Păstrează compatibilitatea cu tva_implicit/cota_tva_standard pentru facturarea existentă."
+  "changelog": "## v2.12.552 - 2026-09-12\n### Setări General cu detalii pliabile pentru GPS și email\n- Mută integrarea GPS într-un panou pliabil, astfel încât Setări → General să afișeze implicit doar informațiile esențiale.\n- Mută configurarea email organizațional, IMAP și regulile automate într-un panou pliabil separat.\n- Păstrează câmpurile tehnice editabile fără să aglomereze pagina principală de setări.\n- Continuă direcția comercială: aplicația rămâne complexă în spate, dar interfața arată simplu și ghidat."
 }

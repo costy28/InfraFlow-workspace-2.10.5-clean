@@ -1,3 +1,10 @@
+## v2.12.552 - 2026-09-12
+### Setări General cu detalii pliabile pentru GPS și email
+- Mută integrarea GPS într-un panou pliabil, astfel încât Setări → General să afișeze implicit doar informațiile esențiale.
+- Mută configurarea email organizațional, IMAP și regulile automate într-un panou pliabil separat.
+- Păstrează câmpurile tehnice editabile fără să aglomereze pagina principală de setări.
+- Continuă direcția comercială: aplicația rămâne complexă în spate, dar interfața arată simplu și ghidat.
+
 ## v2.12.551 - 2026-09-12
 ### Setări generale pe carduri și TVA extensibil
 - Grupează Setări → General în carduri clare pentru identitate organizație, profil internațional, server/locație și TVA.

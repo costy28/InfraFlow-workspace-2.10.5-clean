@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.551 — Setări General pe carduri și TVA extensibil
+Ultimul pas executat: 2.12.552 — Setări General cu detalii pliabile pentru GPS și email
 Status: backlog operațional activ
 
 ## Scop
@@ -52,6 +52,7 @@ Pași:
 - grupare acțiuni rare sub „Avansat”;
 - eliminare dubluri de navigare pentru integrări; Cântarul separat de Conectări externe ✅ `v2.12.550`;
 - Setări General rafinat pe carduri și TVA configurabil pe profil de țară ✅ `v2.12.551`;
+- GPS și email organizațional mutate în panouri pliabile pentru o pagină General mai scurtă ✅ `v2.12.552`;
 - explicații scurte pentru blocaje;
 - buton principal unic pe fiecare ecran important;
 - mod compact pentru operatori.
