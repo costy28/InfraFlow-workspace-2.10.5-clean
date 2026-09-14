@@ -1,3 +1,10 @@
+## v2.12.553 - 2026-09-12
+### Jurnal securitate compact cu detalii la click
+- Transformă Jurnal securitate din Setări într-o listă compactă cu rezumat pe rând.
+- Deschide detaliile complete ale evenimentului într-un modal, la click pe rând.
+- Reduce aglomerarea vizuală pentru listele lungi de audit fără să ascundă informația necesară.
+- Continuă standardul UX: informațiile importante se văd rapid, iar detaliile apar doar când operatorul le cere.
+
 ## v2.12.552 - 2026-09-12
 ### Setări General cu detalii pliabile pentru GPS și email
 - Mută integrarea GPS într-un panou pliabil, astfel încât Setări → General să afișeze implicit doar informațiile esențiale.

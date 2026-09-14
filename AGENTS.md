@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.552**
-**Versiune în lucru: v2.12.552**
+**Versiune curentă sursă: v2.12.553**
+**Versiune în lucru: v2.12.553**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -290,6 +290,7 @@ Core System
   ✅ Separare Cântar de Conectări externe (v2.12.550)
   ✅ Setări generale pe carduri și TVA extensibil (v2.12.551)
   ✅ Setări General cu detalii pliabile pentru GPS și email (v2.12.552)
+  ✅ Jurnal securitate compact cu detalii la click (v2.12.553)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1013,9 +1014,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.552
+VERSIUNE CURENTĂ SURSĂ: 2.12.553
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.552 ✅
+UPDATE ZIP CURENT: 2.12.553 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1376,6 +1377,7 @@ UPDATES ÎN LUCRU:
   2.12.550 → UPDATE 570 Separare Cântar de Conectări externe ✅
   2.12.551 → UPDATE 571 Setări generale pe carduri și TVA extensibil ✅
   2.12.552 → UPDATE 572 Setări General cu detalii pliabile pentru GPS și email ✅
+  2.12.553 → UPDATE 573 Jurnal securitate compact cu detalii la click ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1872,5 +1874,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 12 Septembrie 2026 | InfraFlow sursă v2.12.552*
+*AGENTS.md actualizat: 12 Septembrie 2026 | InfraFlow sursă v2.12.553*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

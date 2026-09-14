@@ -1076,6 +1076,7 @@ export default function SetariPage() {
   const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
   const [securityDiagnostic, setSecurityDiagnostic] = useState(null)
   const [securityEventFilter, setSecurityEventFilter] = useState('all')
+  const [securityEventDetails, setSecurityEventDetails] = useState(null)
   const [securityChecklistExpanded, setSecurityChecklistExpanded] = useState(false)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
@@ -3398,16 +3399,25 @@ export default function SetariPage() {
                   <CompactTable
                     columns={[
                       { key: 'categoryLabel', label: 'Categorie', render: row => <Badge tone={row.tone || 'neutral'}>{row.categoryLabel}</Badge> },
-                      { key: 'actionLabel', label: 'Acțiune' },
+                      {
+                        key: 'actionLabel',
+                        label: 'Eveniment',
+                        render: row => (
+                          <div className="max-w-[520px]">
+                            <div className="font-medium text-slate-900">{row.actionLabel}</div>
+                            <div className="mt-1 truncate text-xs text-slate-500" title={row.details || ''}>{row.details || 'Fără detalii suplimentare.'}</div>
+                          </div>
+                        ),
+                      },
                       { key: 'actor', label: 'Operator' },
-                      { key: 'details', label: 'Detalii', render: row => row.details || '-' },
                       { key: 'at', label: 'Moment', render: row => row.at ? `${timeAgo(row.at)} · ${formatDateTime(row.at)}` : '-' },
                     ]}
                     data={visibleSecurityEvents}
+                    onRowClick={setSecurityEventDetails}
                     empty="Nu există evenimente pentru filtrul selectat."
                     initialLimit={6}
                     itemLabel="evenimente"
-                    compactHint="Jurnal compact: ultimele evenimente importante rămân la vedere."
+                    compactHint="Jurnal compact: vezi rezumatul, iar detaliile se deschid la click pe eveniment."
                   />
                 </Card>
 
@@ -5505,6 +5515,40 @@ export default function SetariPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal open={Boolean(securityEventDetails)} title="Detalii eveniment securitate" onClose={() => setSecurityEventDetails(null)} size="lg">
+        {securityEventDetails ? (
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={securityEventDetails.tone || 'neutral'}>{securityEventDetails.categoryLabel}</Badge>
+              <Badge tone={securityEventDetails.isRecent24h ? 'info' : 'neutral'}>{securityEventDetails.isRecent24h ? 'ultimele 24h' : 'istoric'}</Badge>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Eveniment</div>
+              <div className="mt-1 text-lg font-semibold text-slate-950">{securityEventDetails.actionLabel}</div>
+              <div className="mt-1 text-xs text-slate-500">Cod audit: {securityEventDetails.action || '-'}</div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Operator</div>
+                <div className="mt-1 font-medium text-slate-900">{securityEventDetails.actor || 'Sistem'}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Moment</div>
+                <div className="mt-1 font-medium text-slate-900">{securityEventDetails.at ? formatDateTime(securityEventDetails.at) : '-'}</div>
+                <div className="mt-1 text-xs text-slate-500">{securityEventDetails.at ? timeAgo(securityEventDetails.at) : ''}</div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Detalii audit</div>
+              <div className="mt-2 whitespace-pre-wrap break-words text-slate-800">{securityEventDetails.details || 'Nu există detalii suplimentare pentru acest eveniment.'}</div>
+            </div>
+            <div className="flex justify-end border-t border-slate-200 pt-3">
+              <Button type="button" variant="secondary" onClick={() => setSecurityEventDetails(null)}>Închide</Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
 
       <Modal open={Boolean(resetUser)} title="Resetare parolă" onClose={() => setResetUser(null)}>

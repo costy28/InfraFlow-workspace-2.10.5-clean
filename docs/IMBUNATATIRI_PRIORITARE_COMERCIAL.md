@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.552 — Setări General cu detalii pliabile pentru GPS și email
+Ultimul pas executat: 2.12.553 — Jurnal securitate compact cu detalii la click
 Status: backlog operațional activ
 
 ## Scop
@@ -57,6 +57,7 @@ Pași:
 - buton principal unic pe fiecare ecran important;
 - mod compact pentru operatori.
 - pattern reutilizabil pentru tabele lungi compacte, aplicat inițial pe Setări → Securitate; ✅ `v2.12.543`
+- Jurnal securitate compact cu detalii complete la click, fără tabel lung greu de urmărit; ✅ `v2.12.553`
 - extindere liste compacte în Documente și Contracte, fără pierderea accesului la lista completă; ✅ `v2.12.544`
 
 Module prioritare: Documente, Contracte, HR, Parc & Resurse, Contabilitate.
