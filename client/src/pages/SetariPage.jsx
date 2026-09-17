@@ -1080,6 +1080,7 @@ export default function SetariPage() {
   const [authenticationEventDetails, setAuthenticationEventDetails] = useState(null)
   const [deviceSecurityDetails, setDeviceSecurityDetails] = useState(null)
   const [activeSessionDetails, setActiveSessionDetails] = useState(null)
+  const [securityChecklistDetails, setSecurityChecklistDetails] = useState(null)
   const [securityChecklistExpanded, setSecurityChecklistExpanded] = useState(false)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
@@ -3158,15 +3159,18 @@ export default function SetariPage() {
                     </div>
                     <div className="grid gap-2">
                       {visibleSecurityChecklist.map((item, index) => (
-                        <div key={`${item.title}-${index}`} className={`rounded-xl border p-3 ${securityCardClass(item.status)}`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="font-semibold text-slate-900">{item.title}</div>
-                              <div className="mt-1 text-sm text-slate-600">{item.detail}</div>
-                            </div>
+                        <button
+                          key={`${item.title}-${index}`}
+                          type="button"
+                          onClick={() => setSecurityChecklistDetails(item)}
+                          className={`flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-primary-500 ${securityCardClass(item.status)}`}
+                        >
+                          <span className="font-semibold text-slate-900">{item.title}</span>
+                          <span className="flex shrink-0 items-center gap-2">
                             <Badge tone={securityTone(item.status)} size="sm">{item.status}</Badge>
-                          </div>
-                        </div>
+                            <span className="text-xs text-slate-500">Detalii</span>
+                          </span>
+                        </button>
                       ))}
                     </div>
                     {securityChecklistItems.length > 5 ? (
@@ -5507,6 +5511,31 @@ export default function SetariPage() {
         </div>
       </Modal>
 
+      <Modal open={Boolean(securityChecklistDetails)} title="Detalii verificare securitate" onClose={() => setSecurityChecklistDetails(null)} size="lg">
+        {securityChecklistDetails ? (
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={securityTone(securityChecklistDetails.status)}>{securityChecklistDetails.status || "necunoscut"}</Badge>
+              <span className="text-xs text-slate-500">Diagnostic generat: {securityDiagnostic?.generatedAt ? formatDateTime(securityDiagnostic.generatedAt) : "-"}</span>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verificare</div>
+              <div className="mt-1 text-lg font-semibold text-slate-950">{securityChecklistDetails.title || "Verificare securitate"}</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Detalii</div>
+              <div className="mt-2 whitespace-pre-wrap break-words text-slate-800">{securityChecklistDetails.detail || "Nu există detalii suplimentare pentru această verificare."}</div>
+            </div>
+            <div className={`rounded-xl border p-3 ${securityCardClass(securityChecklistDetails.status)}`}>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">Următorul pas</div>
+              <div className="mt-1 text-slate-800">{securityChecklistDetails.status === "ok" ? "Nu sunt necesare acțiuni suplimentare pentru această verificare." : "Verifică setarea indicată înainte de folosirea aplicației în producție."}</div>
+            </div>
+            <div className="flex justify-end border-t border-slate-200 pt-3">
+              <Button type="button" variant="secondary" onClick={() => setSecurityChecklistDetails(null)}>Închide</Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
       <Modal open={Boolean(securityEventDetails)} title="Detalii eveniment securitate" onClose={() => setSecurityEventDetails(null)} size="lg">
         {securityEventDetails ? (
           <div className="grid gap-4 text-sm text-slate-700">

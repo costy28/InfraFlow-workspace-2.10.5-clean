@@ -1,5 +1,5 @@
 {
-  "version": "2.12.556",
+  "version": "2.12.557",
   "date": "2026-09-17",
-  "changelog": "## v2.12.556 - 2026-09-17\\n### Sesiuni active compacte cu detalii la click\\n- Lista arată doar utilizatorul și momentul pornirii sesiunii.\\n- Stația, IP-ul, ultima activitate și acțiunea de închidere se deschid la click.\\n- Sesiunea curentă rămâne protejată și indică folosirea opțiunii Ieșire."
+  "changelog": "## v2.12.557 - 2026-09-17\\n### Checklist securitate compact cu detalii la click\\n- Checklistul arată doar verificarea și statutul.\\n- Detaliul și următorul pas se deschid la click.\\n- Păstrează controlul complet fără listă lungă pe pagina principală."
 }

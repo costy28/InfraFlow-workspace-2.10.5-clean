@@ -1,3 +1,9 @@
+## v2.12.557 - 2026-09-17
+### Checklist securitate compact cu detalii la click
+- Checklistul arată doar verificarea și statutul, într-o listă scurtă.
+- Detaliul complet și următorul pas se deschid la click.
+- Păstrează controlul complet fără să încarce pagina principală.
+
 ## v2.12.556 - 2026-09-17
 ### Sesiuni active compacte cu detalii la click
 - Lista sesiunilor arată doar utilizatorul și momentul pornirii.
