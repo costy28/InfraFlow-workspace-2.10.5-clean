@@ -1,3 +1,9 @@
+## v2.12.554 - 2026-09-17
+### Jurnal autentificări compact cu detalii la click
+- Jurnalul autentificărilor arată în listă doar rezultatul, utilizatorul și momentul.
+- IP-ul, stația și observația completă se deschid la click pe eveniment.
+- Auditul rămâne complet, într-o formă mai ușor de citit pe ecrane mici.
+
 ## v2.12.553 - 2026-09-12
 ### Jurnal securitate compact cu detalii la click
 - Transformă Jurnal securitate din Setări într-o listă compactă cu rezumat pe rând.

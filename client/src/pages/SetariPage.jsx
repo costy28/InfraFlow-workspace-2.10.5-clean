@@ -1077,6 +1077,7 @@ export default function SetariPage() {
   const [securityDiagnostic, setSecurityDiagnostic] = useState(null)
   const [securityEventFilter, setSecurityEventFilter] = useState('all')
   const [securityEventDetails, setSecurityEventDetails] = useState(null)
+  const [authenticationEventDetails, setAuthenticationEventDetails] = useState(null)
   const [securityChecklistExpanded, setSecurityChecklistExpanded] = useState(false)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
@@ -3366,15 +3367,14 @@ export default function SetariPage() {
                     columns={[
                       { key: 'result', label: 'Rezultat', render: row => <Badge tone={row.result === 'respins' ? 'danger' : row.result === 'acceptat' ? 'success' : 'default'}>{row.result}</Badge> },
                       { key: 'username', label: 'Utilizator' },
-                      { key: 'ip', label: 'IP' },
-                      { key: 'device', label: 'Stație' },
                       { key: 'at', label: 'Moment', render: row => row.at ? `${timeAgo(row.at)} · ${formatDateTime(row.at)}` : '-' },
-                      { key: 'reason', label: 'Observație', render: row => row.reason || '-' },
                     ]}
                     data={securityDiagnostic.authentication?.recent || []}
+                    onRowClick={setAuthenticationEventDetails}
                     empty="Nu există încă evenimente de autentificare în audit."
                     initialLimit={5}
                     itemLabel="evenimente"
+                    compactHint="Jurnal compact: selectează un eveniment pentru IP, stație și motivul complet."
                   />
                 </Card>
 
@@ -5546,6 +5546,44 @@ export default function SetariPage() {
             </div>
             <div className="flex justify-end border-t border-slate-200 pt-3">
               <Button type="button" variant="secondary" onClick={() => setSecurityEventDetails(null)}>Închide</Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(authenticationEventDetails)} title="Detalii autentificare" onClose={() => setAuthenticationEventDetails(null)} size="lg">
+        {authenticationEventDetails ? (
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={authenticationEventDetails.result === 'respins' ? 'danger' : authenticationEventDetails.result === 'acceptat' ? 'success' : 'neutral'}>
+                {authenticationEventDetails.result || 'necunoscut'}
+              </Badge>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Utilizator</div>
+              <div className="mt-1 text-lg font-semibold text-slate-950">{authenticationEventDetails.username || '-'}</div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Moment</div>
+                <div className="mt-1 font-medium text-slate-900">{authenticationEventDetails.at ? formatDateTime(authenticationEventDetails.at) : '-'}</div>
+                <div className="mt-1 text-xs text-slate-500">{authenticationEventDetails.at ? timeAgo(authenticationEventDetails.at) : ''}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Adresă IP</div>
+                <div className="mt-1 break-all font-medium text-slate-900">{authenticationEventDetails.ip || '-'}</div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stație</div>
+              <div className="mt-2 break-words text-slate-800">{authenticationEventDetails.device || '-'}</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Observație</div>
+              <div className="mt-2 whitespace-pre-wrap break-words text-slate-800">{authenticationEventDetails.reason || 'Nu există observații suplimentare pentru acest eveniment.'}</div>
+            </div>
+            <div className="flex justify-end border-t border-slate-200 pt-3">
+              <Button type="button" variant="secondary" onClick={() => setAuthenticationEventDetails(null)}>Închide</Button>
             </div>
           </div>
         ) : null}

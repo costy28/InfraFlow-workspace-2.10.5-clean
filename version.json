@@ -1,5 +1,5 @@
 {
-  "version": "2.12.553",
-  "date": "2026-09-12",
-  "changelog": "## v2.12.553 - 2026-09-12\n### Jurnal securitate compact cu detalii la click\n- Transformă Jurnal securitate din Setări într-o listă compactă cu rezumat pe rând.\n- Deschide detaliile complete ale evenimentului într-un modal, la click pe rând.\n- Reduce aglomerarea vizuală pentru listele lungi de audit fără să ascundă informația necesară.\n- Continuă standardul UX: informațiile importante se văd rapid, iar detaliile apar doar când operatorul le cere."
+  "version": "2.12.554",
+  "date": "2026-09-17",
+  "changelog": "## v2.12.554 - 2026-09-17\\n### Jurnal autentificări compact cu detalii la click\\n- Reduce Jurnalul autentificărilor la informațiile utile în listă: rezultat, utilizator și moment.\\n- Deschide IP-ul, stația și observația completă într-un modal la click pe eveniment.\\n- Păstrează auditul complet fără tabele late sau scroll orizontal inutil."
 }
