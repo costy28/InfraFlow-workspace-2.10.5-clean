@@ -1,5 +1,5 @@
 {
-  "version": "2.12.555",
+  "version": "2.12.556",
   "date": "2026-09-17",
-  "changelog": "## v2.12.555 - 2026-09-17\\n### Audit stații autorizate compact cu detalii la click\\n- Reduce registrul stațiilor la risc, stație și ultima activitate.\\n- Deschide utilizatorul, IP-ul, sesiunile, identificarea tehnică și recomandarea la click.\\n- Păstrează informația completă de audit fără tabel lat sau scroll orizontal inutil."
+  "changelog": "## v2.12.556 - 2026-09-17\\n### Sesiuni active compacte cu detalii la click\\n- Lista arată doar utilizatorul și momentul pornirii sesiunii.\\n- Stația, IP-ul, ultima activitate și acțiunea de închidere se deschid la click.\\n- Sesiunea curentă rămâne protejată și indică folosirea opțiunii Ieșire."
 }

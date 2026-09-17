@@ -1,3 +1,9 @@
+## v2.12.556 - 2026-09-17
+### Sesiuni active compacte cu detalii la click
+- Lista sesiunilor arată doar utilizatorul și momentul pornirii.
+- Stația, IP-ul, ultima activitate și acțiunea de închidere se deschid la click.
+- Sesiunea curentă rămâne protejată și indică folosirea opțiunii Ieșire.
+
 ## v2.12.555 - 2026-09-17
 ### Audit stații autorizate compact cu detalii la click
 - Registrul stațiilor arată în listă doar riscul, numele stației și ultima activitate.

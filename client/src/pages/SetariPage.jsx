@@ -1079,6 +1079,7 @@ export default function SetariPage() {
   const [securityEventDetails, setSecurityEventDetails] = useState(null)
   const [authenticationEventDetails, setAuthenticationEventDetails] = useState(null)
   const [deviceSecurityDetails, setDeviceSecurityDetails] = useState(null)
+  const [activeSessionDetails, setActiveSessionDetails] = useState(null)
   const [securityChecklistExpanded, setSecurityChecklistExpanded] = useState(false)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
@@ -3282,7 +3283,7 @@ export default function SetariPage() {
                 </Card>
 
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <Card title="Sesiuni active acum" subtitle="Nu afișăm tokenuri sau parole. Doar metadate utile pentru audit.">
+                  <Card title="Sesiuni active acum" subtitle="Selectează o sesiune pentru detalii și închidere controlată.">
                     <CompactTable
                       columns={[
                         { key: 'userName', label: 'Utilizator', render: row => (
@@ -3291,19 +3292,14 @@ export default function SetariPage() {
                             {row.isCurrent ? <Badge tone="success" size="sm">sesiunea ta</Badge> : null}
                           </div>
                         ) },
-                        { key: 'deviceName', label: 'Stație' },
-                        { key: 'ip', label: 'IP' },
                         { key: 'startedAt', label: 'Pornită', render: row => row.startedAt ? `${timeAgo(row.startedAt)} · ${formatDateTime(row.startedAt)}` : '-' },
-                        { key: 'actions', label: 'Acțiuni', render: row => row.isCurrent ? (
-                          <span className="text-xs text-slate-400">Folosește Ieșire</span>
-                        ) : (
-                          <Button size="sm" variant="danger" onClick={() => revokeSecuritySession(row)}>Închide</Button>
-                        ) },
                       ]}
                       data={securityDiagnostic.sessions?.recent || []}
+                      onRowClick={setActiveSessionDetails}
                       empty="Nu există sesiuni active."
                       initialLimit={4}
                       itemLabel="sesiuni"
+                      compactHint="Selectează o sesiune pentru stație, IP, activitate și închidere controlată."
                     />
                   </Card>
 
@@ -5591,6 +5587,57 @@ export default function SetariPage() {
         ) : null}
       </Modal>
 
+      <Modal open={Boolean(activeSessionDetails)} title="Detalii sesiune activă" onClose={() => setActiveSessionDetails(null)} size="lg">
+        {activeSessionDetails ? (
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={activeSessionDetails.isCurrent ? 'success' : 'info'}>
+                {activeSessionDetails.isCurrent ? 'sesiunea ta' : 'sesiune activă'}
+              </Badge>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Utilizator</div>
+              <div className="mt-1 text-lg font-semibold text-slate-950">{activeSessionDetails.userName || activeSessionDetails.username || '-'}</div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stație</div>
+                <div className="mt-1 font-medium text-slate-900">{activeSessionDetails.deviceName || '-'}</div>
+                {activeSessionDetails.deviceId ? <div className="mt-1 text-xs text-slate-500">ID: {activeSessionDetails.deviceId}</div> : null}
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Adresă IP</div>
+                <div className="mt-1 break-all font-medium text-slate-900">{activeSessionDetails.ip || '-'}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pornită</div>
+                <div className="mt-1 font-medium text-slate-900">{activeSessionDetails.startedAt ? formatDateTime(activeSessionDetails.startedAt) : '-'}</div>
+                <div className="mt-1 text-xs text-slate-500">{activeSessionDetails.startedAt ? timeAgo(activeSessionDetails.startedAt) : ''}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ultima activitate</div>
+                <div className="mt-1 font-medium text-slate-900">{activeSessionDetails.lastSeenAt ? formatDateTime(activeSessionDetails.lastSeenAt) : '-'}</div>
+                <div className="mt-1 text-xs text-slate-500">{activeSessionDetails.lastSeenAt ? timeAgo(activeSessionDetails.lastSeenAt) : 'Fără activitate înregistrată'}</div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-primary-100 bg-primary-50 p-3 text-primary-950">
+              {activeSessionDetails.isCurrent
+                ? 'Aceasta este sesiunea curentă. Folosește Ieșire pentru închiderea controlată a propriului acces.'
+                : 'Poți închide această sesiune dacă nu mai trebuie să rămână activă. Utilizatorul va trebui să se autentifice din nou.'}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+              <Button type="button" variant="secondary" onClick={() => setActiveSessionDetails(null)}>Închide</Button>
+              {!activeSessionDetails.isCurrent && activeSessionDetails.canRevoke !== false ? (
+                <Button type="button" variant="danger" onClick={() => {
+                  const session = activeSessionDetails
+                  setActiveSessionDetails(null)
+                  revokeSecuritySession(session)
+                }}>Închide sesiunea</Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
       <Modal open={Boolean(authenticationEventDetails)} title="Detalii autentificare" onClose={() => setAuthenticationEventDetails(null)} size="lg">
         {authenticationEventDetails ? (
           <div className="grid gap-4 text-sm text-slate-700">

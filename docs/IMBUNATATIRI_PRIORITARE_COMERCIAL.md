@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.555 — Audit stații autorizate compact cu detalii la click
+Ultimul pas executat: 2.12.556 — Sesiuni active compacte cu detalii și închidere controlată la click
 Status: backlog operațional activ
 
 ## Scop
@@ -60,6 +60,7 @@ Pași:
 - Jurnal securitate compact cu detalii complete la click, fără tabel lung greu de urmărit; ✅ `v2.12.553`
 - Jurnal autentificări compact cu IP, stație și observație completă deschise la click; ✅ `v2.12.554`
 - Audit stații autorizate compact cu utilizator, IP, sesiuni și recomandare deschise la click; ✅ `v2.12.555`
+- Sesiuni active compacte, cu date tehnice și închidere controlată doar la click; ✅ `v2.12.556`
 - extindere liste compacte în Documente și Contracte, fără pierderea accesului la lista completă; ✅ `v2.12.544`
 
 Module prioritare: Documente, Contracte, HR, Parc & Resurse, Contabilitate.
