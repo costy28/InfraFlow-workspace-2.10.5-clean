@@ -1,5 +1,5 @@
 {
-  "version": "2.12.559",
+  "version": "2.12.560",
   "date": "2026-09-17",
-  "changelog": "## v2.12.559 - 2026-09-17\n### Previzualizare update cu rânduri corecte\n- Transformă secvențele vechi `\\n` în rânduri reale în previzualizarea pachetului.\n- Changelog-ul pachetelor noi este generat cu delimitatori de rând corecți.\n- Păstrează compatibilitatea cu pachete create anterior."
+  "changelog": "## v2.12.560 - 2026-09-17\n### Istoric update-uri compact cu detalii la click\n- Lista păstrează versiunea și momentul aplicării.\n- Operatorul, versiunea anterioară și backup-ul se deschid la click.\n- Reduce spațiul ocupat de istoricul lung fără a pierde trasabilitatea."
 }

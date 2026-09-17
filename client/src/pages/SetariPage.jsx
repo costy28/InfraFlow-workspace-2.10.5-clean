@@ -1069,6 +1069,7 @@ export default function SetariPage() {
   const [updateInfo, setUpdateInfo] = useState(null)
   const [manualUpdate, setManualUpdate] = useState(null)
   const [updateHistory, setUpdateHistory] = useState([])
+  const [updateHistoryDetails, setUpdateHistoryDetails] = useState(null)
   const [updateStatus, setUpdateStatus] = useState(null)
   const [changelogModal, setChangelogModal] = useState(false)
   const [changelogText, setChangelogText] = useState('')
@@ -3849,23 +3850,19 @@ export default function SetariPage() {
             ) : null}
           </Card>
 
-          <Card title="Istoric update-uri">
-            <div className="overflow-hidden rounded-lg border border-slate-200">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                  <tr><th className="px-3 py-2">Versiune</th><th className="px-3 py-2">Dată aplicare</th><th className="px-3 py-2">Aplicat de</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {updateHistory.length ? updateHistory.map((item, index) => (
-                    <tr key={`${item.version}-${item.applied_at}-${index}`}>
-                      <td className="px-3 py-2 font-medium">{item.version}</td>
-                      <td className="px-3 py-2">{item.applied_at ? new Date(item.applied_at).toLocaleString('ro-RO') : '-'}</td>
-                      <td className="px-3 py-2">{item.applied_by || '-'}</td>
-                    </tr>
-                  )) : <tr><td colSpan="3" className="px-3 py-8 text-center text-sm text-slate-500">Nu există update-uri aplicate.</td></tr>}
-                </tbody>
-              </table>
-            </div>
+          <Card title="Istoric update-uri" subtitle="Selectează un update pentru versiunea anterioară, operator și backup.">
+            <CompactTable
+              columns={[
+                { key: 'version', label: 'Versiune', render: row => <span className="font-semibold text-slate-900">{row.version || '-'}</span> },
+                { key: 'applied_at', label: 'Aplicat', render: row => row.applied_at ? `${timeAgo(row.applied_at)} · ${formatDateTime(row.applied_at)}` : '-' },
+              ]}
+              data={updateHistory}
+              onRowClick={setUpdateHistoryDetails}
+              empty="Nu există update-uri aplicate."
+              initialLimit={5}
+              itemLabel="update-uri"
+              compactHint="Selectează un update pentru operator, versiunea anterioară și backup."
+            />
           </Card>
           <Card title="Catalog CPV" subtitle="Catalog inclus în aplicație: 9.454 coduri CPV RO/EN din fișierul seed SEAP. Importul rulează automat la pornirea serverului; butonul este doar pentru resincronizare administrativă.">
             <Button variant="secondary" onClick={reimportCpvCodes}>🔄 Resincronizează catalogul CPV inclus</Button>
@@ -5244,6 +5241,41 @@ export default function SetariPage() {
         </div>
       </Modal>
 
+      <Modal open={Boolean(updateHistoryDetails)} title="Detalii update aplicat" onClose={() => setUpdateHistoryDetails(null)} size="lg">
+        {updateHistoryDetails ? (
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Versiune instalată</div>
+              <div className="mt-1 text-lg font-semibold text-slate-950">{updateHistoryDetails.version || "-"}</div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Versiune anterioară</div>
+                <div className="mt-1 font-medium text-slate-900">{updateHistoryDetails.previous_version || "-"}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Aplicat la</div>
+                <div className="mt-1 font-medium text-slate-900">{updateHistoryDetails.applied_at ? formatDateTime(updateHistoryDetails.applied_at) : "-"}</div>
+                <div className="mt-1 text-xs text-slate-500">{updateHistoryDetails.applied_at ? timeAgo(updateHistoryDetails.applied_at) : ""}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Aplicat de</div>
+                <div className="mt-1 font-medium text-slate-900">{updateHistoryDetails.applied_by || "-"}</div>
+              </div>
+              <div className="rounded-xl border border-primary-100 bg-primary-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Backup creat</div>
+                <div className="mt-1 break-all font-medium text-primary-950">{updateHistoryDetails.backup || "Nu există referință de backup înregistrată."}</div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-primary-100 bg-primary-50 p-3 text-primary-950">
+              Un update aplicat este păstrat în istoric împreună cu versiunea anterioară și backup-ul de siguranță disponibil la momentul instalării.
+            </div>
+            <div className="flex justify-end border-t border-slate-200 pt-3">
+              <Button type="button" variant="secondary" onClick={() => setUpdateHistoryDetails(null)}>Închide</Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
       <Modal open={changelogModal} title="CHANGELOG.md" size="xl" onClose={() => setChangelogModal(false)}>
         <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-4 text-xs text-slate-700">{changelogText}</pre>
       </Modal>

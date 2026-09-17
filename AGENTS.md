@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.559**
-**Versiune în lucru: v2.12.559**
+**Versiune curentă sursă: v2.12.560**
+**Versiune în lucru: v2.12.560**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -297,6 +297,7 @@ Core System
   ✅ Checklist securitate compact cu detalii la click (v2.12.557)
   ✅ Recomandări securitate compacte cu detalii la click (v2.12.558)
   ✅ Previzualizare update cu rânduri corecte și compatibilitate pachete vechi (v2.12.559)
+  ✅ Istoric update-uri compact cu detalii la click (v2.12.560)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1020,9 +1021,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.559
+VERSIUNE CURENTĂ SURSĂ: 2.12.560
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.559 ✅
+UPDATE ZIP CURENT: 2.12.560 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1390,6 +1391,7 @@ UPDATES ÎN LUCRU:
   2.12.557 → UPDATE 577 Checklist securitate compact cu detalii la click ✅
   2.12.558 → UPDATE 578 Recomandări securitate compacte cu detalii la click ✅
   2.12.559 → UPDATE 579 Previzualizare update cu rânduri corecte și compatibilitate pachete vechi ✅
+  2.12.560 → UPDATE 580 Istoric update-uri compact cu detalii la click ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1886,5 +1888,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 17 Septembrie 2026 | InfraFlow sursă v2.12.559*
+*AGENTS.md actualizat: 17 Septembrie 2026 | InfraFlow sursă v2.12.560*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

@@ -1,3 +1,9 @@
+## v2.12.560 - 2026-09-17
+### Istoric update-uri compact cu detalii la click
+- Lista păstrează versiunea și momentul aplicării.
+- Operatorul, versiunea anterioară și backup-ul se deschid la click.
+- Reduce spațiul ocupat de istoricul lung fără a pierde trasabilitatea.
+
 ## v2.12.559 - 2026-09-17
 ### Previzualizare update cu rânduri corecte
 - Transformă secvențele vechi `\n` în rânduri reale în previzualizarea pachetului.

@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.559 — Previzualizare update cu rânduri corecte
+Ultimul pas executat: 2.12.560 — Istoric update-uri compact cu detalii la click
 Status: backlog operațional activ
 
 ## Scop
@@ -64,6 +64,7 @@ Pași:
 - Checklist securitate compact cu explicație și următorul pas disponibile la click; ✅ `v2.12.557`
 - Recomandări de securitate compacte, cu avertizări complete disponibile la click; ✅ `v2.12.558`
 - Previzualizare update compatibilă cu changelog-uri vechi și delimitatori de rând corecți; ✅ `v2.12.559`
+- Istoric update-uri compact, cu operator, versiunea anterioară și backup la click; ✅ `v2.12.560`
 - extindere liste compacte în Documente și Contracte, fără pierderea accesului la lista completă; ✅ `v2.12.544`
 
 Module prioritare: Documente, Contracte, HR, Parc & Resurse, Contabilitate.
