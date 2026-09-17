@@ -1,5 +1,5 @@
 {
-  "version": "2.12.554",
+  "version": "2.12.555",
   "date": "2026-09-17",
-  "changelog": "## v2.12.554 - 2026-09-17\\n### Jurnal autentificări compact cu detalii la click\\n- Reduce Jurnalul autentificărilor la informațiile utile în listă: rezultat, utilizator și moment.\\n- Deschide IP-ul, stația și observația completă într-un modal la click pe eveniment.\\n- Păstrează auditul complet fără tabele late sau scroll orizontal inutil."
+  "changelog": "## v2.12.555 - 2026-09-17\\n### Audit stații autorizate compact cu detalii la click\\n- Reduce registrul stațiilor la risc, stație și ultima activitate.\\n- Deschide utilizatorul, IP-ul, sesiunile, identificarea tehnică și recomandarea la click.\\n- Păstrează informația completă de audit fără tabel lat sau scroll orizontal inutil."
 }

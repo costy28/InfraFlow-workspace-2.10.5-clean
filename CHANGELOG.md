@@ -1,3 +1,9 @@
+## v2.12.555 - 2026-09-17
+### Audit stații autorizate compact cu detalii la click
+- Registrul stațiilor arată în listă doar riscul, numele stației și ultima activitate.
+- Utilizatorul, IP-ul, sesiunile, identificarea tehnică și recomandarea se deschid la click.
+- Păstrează auditul complet, într-o formă mai clară pe ecrane mici.
+
 ## v2.12.554 - 2026-09-17
 ### Jurnal autentificări compact cu detalii la click
 - Jurnalul autentificărilor arată în listă doar rezultatul, utilizatorul și momentul.

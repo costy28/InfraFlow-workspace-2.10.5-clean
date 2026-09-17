@@ -1078,6 +1078,7 @@ export default function SetariPage() {
   const [securityEventFilter, setSecurityEventFilter] = useState('all')
   const [securityEventDetails, setSecurityEventDetails] = useState(null)
   const [authenticationEventDetails, setAuthenticationEventDetails] = useState(null)
+  const [deviceSecurityDetails, setDeviceSecurityDetails] = useState(null)
   const [securityChecklistExpanded, setSecurityChecklistExpanded] = useState(false)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
@@ -3328,22 +3329,15 @@ export default function SetariPage() {
                     <CompactTable
                       columns={[
                         { key: 'riskLabel', label: 'Risc', render: row => <Badge tone={row.risk || 'neutral'}>{row.riskLabel || 'OK'}</Badge> },
-                        { key: 'name', label: 'Stație', render: row => (
-                          <div className="flex flex-col gap-1">
-                            <span className="font-semibold text-slate-900">{row.name}</span>
-                            <span className="text-xs text-slate-500">{row.userAgent || row.id}</span>
-                          </div>
-                        ) },
-                        { key: 'lastUserName', label: 'Ultimul user' },
-                        { key: 'lastIp', label: 'IP' },
-                        { key: 'activeSessions', label: 'Sesiuni', render: row => row.activeSessions ? <Badge tone="success">{row.activeSessions}</Badge> : <span className="text-xs text-slate-400">0</span> },
+                        { key: 'name', label: 'Stație', render: row => <span className="font-semibold text-slate-900">{row.name}</span> },
                         { key: 'lastSeenAt', label: 'Ultima activitate', render: row => row.lastSeenAt ? `${timeAgo(row.lastSeenAt)} · ${formatDateTime(row.lastSeenAt)}` : '-' },
-                        { key: 'recommendation', label: 'Recomandare', render: row => <span className="text-xs text-slate-600">{row.recommendation || '-'}</span> },
                       ]}
                       data={securityDiagnostic.devices?.registry || securityDiagnostic.devices?.recent || []}
+                      onRowClick={setDeviceSecurityDetails}
                       empty="Nu există stații autorizate."
                       initialLimit={4}
                       itemLabel="stații"
+                      compactHint="Selectează o stație pentru utilizator, IP, sesiuni și recomandarea completă."
                     />
                   </Card>
                 </div>
@@ -5546,6 +5540,52 @@ export default function SetariPage() {
             </div>
             <div className="flex justify-end border-t border-slate-200 pt-3">
               <Button type="button" variant="secondary" onClick={() => setSecurityEventDetails(null)}>Închide</Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(deviceSecurityDetails)} title="Detalii stație autorizată" onClose={() => setDeviceSecurityDetails(null)} size="lg">
+        {deviceSecurityDetails ? (
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={deviceSecurityDetails.risk || 'neutral'}>{deviceSecurityDetails.riskLabel || 'OK'}</Badge>
+              <Badge tone={deviceSecurityDetails.active ? 'success' : 'neutral'}>{deviceSecurityDetails.active ? 'activă' : 'inactivă'}</Badge>
+              {deviceSecurityDetails.activeSessions ? <Badge tone="info">{deviceSecurityDetails.activeSessions} sesiuni active</Badge> : null}
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stație</div>
+              <div className="mt-1 text-lg font-semibold text-slate-950">{deviceSecurityDetails.name || 'Stație de lucru'}</div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ultimul utilizator</div>
+                <div className="mt-1 font-medium text-slate-900">{deviceSecurityDetails.lastUserName || deviceSecurityDetails.lastUsername || '-'}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Adresă IP</div>
+                <div className="mt-1 break-all font-medium text-slate-900">{deviceSecurityDetails.lastIp || '-'}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ultima activitate</div>
+                <div className="mt-1 font-medium text-slate-900">{deviceSecurityDetails.lastSeenAt ? formatDateTime(deviceSecurityDetails.lastSeenAt) : '-'}</div>
+                <div className="mt-1 text-xs text-slate-500">{deviceSecurityDetails.lastSeenAt ? timeAgo(deviceSecurityDetails.lastSeenAt) : 'Fără activitate înregistrată'}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Înregistrată</div>
+                <div className="mt-1 font-medium text-slate-900">{deviceSecurityDetails.createdAt ? formatDateTime(deviceSecurityDetails.createdAt) : '-'}</div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Identificare tehnică</div>
+              <div className="mt-2 break-words text-slate-800">{deviceSecurityDetails.userAgent || deviceSecurityDetails.id || '-'}</div>
+            </div>
+            <div className="rounded-xl border border-primary-100 bg-primary-50 p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Recomandare</div>
+              <div className="mt-2 text-primary-950">{deviceSecurityDetails.recommendation || 'Nu sunt necesare acțiuni suplimentare.'}</div>
+            </div>
+            <div className="flex justify-end border-t border-slate-200 pt-3">
+              <Button type="button" variant="secondary" onClick={() => setDeviceSecurityDetails(null)}>Închide</Button>
             </div>
           </div>
         ) : null}
