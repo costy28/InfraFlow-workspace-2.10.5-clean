@@ -1,5 +1,5 @@
 {
-  "version": "2.12.558",
+  "version": "2.12.559",
   "date": "2026-09-17",
-  "changelog": "## v2.12.558 - 2026-09-17\\n### Recomandări securitate compacte cu detalii la click\\n- Pagina păstrează doar starea generală și numărul de avertizări.\\n- Recomandările pentru acces, bază de date și avertizările complete se deschid la click.\\n- Reduce scroll-ul fără a pierde informațiile de producție."
+  "changelog": "## v2.12.559 - 2026-09-17\n### Previzualizare update cu rânduri corecte\n- Transformă secvențele vechi `\\n` în rânduri reale în previzualizarea pachetului.\n- Changelog-ul pachetelor noi este generat cu delimitatori de rând corecți.\n- Păstrează compatibilitatea cu pachete create anterior."
 }

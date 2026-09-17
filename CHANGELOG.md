@@ -1,3 +1,9 @@
+## v2.12.559 - 2026-09-17
+### Previzualizare update cu rânduri corecte
+- Transformă secvențele vechi `\n` în rânduri reale în previzualizarea pachetului.
+- Changelog-ul pachetelor noi este generat cu delimitatori de rând corecți.
+- Păstrează compatibilitatea cu pachete create anterior.
+
 ## v2.12.558 - 2026-09-17
 ### Recomandări securitate compacte cu detalii la click
 - Pagina păstrează starea generală de acces și numărul de avertizări.

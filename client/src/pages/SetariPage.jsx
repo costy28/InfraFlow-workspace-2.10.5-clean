@@ -24,6 +24,12 @@ function normalizeSettingsTab(tab) {
   return settingsTabAliases[tab] || tab
 }
 
+function formatUpdateChangelog(value) {
+  return String(value || '')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+}
+
 const tabGroups = [
   { label: 'Sistem', tabs: ['General', 'Securitate', 'Bază date', 'Licență', 'Actualizări'] },
   { label: 'Administrare', tabs: ['Utilizatori', 'Roluri', 'Departamente', 'Module'] },
@@ -3830,7 +3836,7 @@ export default function SetariPage() {
                 <div className="mt-3 whitespace-pre-wrap rounded border border-primary-100 bg-white p-3 text-sm text-slate-700">
                   <strong>Noutăți:</strong>
                   <br />
-                  {manualUpdate.changelog || 'Fără changelog în pachet.'}
+                  {formatUpdateChangelog(manualUpdate.changelog) || 'Fără changelog în pachet.'}
                 </div>
                 <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   ⚠️ Backup automat înainte de aplicare. Aplicația repornește în aproximativ 5 secunde.
