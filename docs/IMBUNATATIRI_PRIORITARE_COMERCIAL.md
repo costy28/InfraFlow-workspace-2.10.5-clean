@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.557 — Checklist securitate compact cu detalii la click
+Ultimul pas executat: 2.12.558 — Recomandări securitate compacte cu detalii la click
 Status: backlog operațional activ
 
 ## Scop
@@ -62,6 +62,7 @@ Pași:
 - Audit stații autorizate compact cu utilizator, IP, sesiuni și recomandare deschise la click; ✅ `v2.12.555`
 - Sesiuni active compacte, cu date tehnice și închidere controlată doar la click; ✅ `v2.12.556`
 - Checklist securitate compact cu explicație și următorul pas disponibile la click; ✅ `v2.12.557`
+- Recomandări de securitate compacte, cu avertizări complete disponibile la click; ✅ `v2.12.558`
 - extindere liste compacte în Documente și Contracte, fără pierderea accesului la lista completă; ✅ `v2.12.544`
 
 Module prioritare: Documente, Contracte, HR, Parc & Resurse, Contabilitate.

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.557",
+  "version": "2.12.558",
   "date": "2026-09-17",
-  "changelog": "## v2.12.557 - 2026-09-17\\n### Checklist securitate compact cu detalii la click\\n- Checklistul arată doar verificarea și statutul.\\n- Detaliul și următorul pas se deschid la click.\\n- Păstrează controlul complet fără listă lungă pe pagina principală."
+  "changelog": "## v2.12.558 - 2026-09-17\\n### Recomandări securitate compacte cu detalii la click\\n- Pagina păstrează doar starea generală și numărul de avertizări.\\n- Recomandările pentru acces, bază de date și avertizările complete se deschid la click.\\n- Reduce scroll-ul fără a pierde informațiile de producție."
 }

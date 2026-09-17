@@ -1,3 +1,9 @@
+## v2.12.558 - 2026-09-17
+### Recomandări securitate compacte cu detalii la click
+- Pagina păstrează starea generală de acces și numărul de avertizări.
+- Recomandările pentru acces, bază de date și lista completă de avertizări se deschid la click.
+- Reduce scroll-ul fără a pierde informațiile necesare pentru producție.
+
 ## v2.12.557 - 2026-09-17
 ### Checklist securitate compact cu detalii la click
 - Checklistul arată doar verificarea și statutul, într-o listă scurtă.

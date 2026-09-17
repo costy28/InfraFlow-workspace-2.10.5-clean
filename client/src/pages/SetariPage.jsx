@@ -1081,6 +1081,7 @@ export default function SetariPage() {
   const [deviceSecurityDetails, setDeviceSecurityDetails] = useState(null)
   const [activeSessionDetails, setActiveSessionDetails] = useState(null)
   const [securityChecklistDetails, setSecurityChecklistDetails] = useState(null)
+  const [securityRecommendationOpen, setSecurityRecommendationOpen] = useState(false)
   const [securityChecklistExpanded, setSecurityChecklistExpanded] = useState(false)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
@@ -3187,21 +3188,27 @@ export default function SetariPage() {
                     ) : null}
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <h3 className="font-semibold text-slate-900">Recomandarea InfraFlow</h3>
-                    <p className="mt-2 text-sm text-slate-600">{securityDiagnostic.access?.recommendation}</p>
-                    <div className="mt-4 rounded-xl border border-primary-100 bg-primary-50 p-3 text-sm text-primary-900">
-                      {securityDiagnostic.database?.safetyNote}
-                    </div>
-                    {securityDiagnostic.warnings?.length ? (
-                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                        <div className="font-semibold text-amber-900">De urmărit</div>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
-                          {securityDiagnostic.warnings.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
-                        </ul>
+                  <button
+                    type="button"
+                    onClick={() => setSecurityRecommendationOpen(true)}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-primary-200 hover:bg-primary-50/30 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">Recomandări securitate</h3>
+                        <p className="mt-1 text-sm text-slate-600">Acces, bază de date și puncte care merită verificate.</p>
                       </div>
-                    ) : null}
-                  </div>
+                      {securityDiagnostic.warnings?.length ? (
+                        <Badge tone="warning">{securityDiagnostic.warnings.length} de urmărit</Badge>
+                      ) : (
+                        <Badge tone="success">fără alerte</Badge>
+                      )}
+                    </div>
+                    <div className="mt-4 flex items-center justify-between rounded-xl border border-primary-100 bg-primary-50 px-3 py-2 text-sm text-primary-900">
+                      <span>{securityDiagnostic.access?.localOnly ? "Acces limitat la rețea privată" : "Acces extern configurat"}</span>
+                      <span className="text-xs font-semibold">Vezi detalii</span>
+                    </div>
+                  </button>
                 </div>
 
                 <Card
@@ -5511,6 +5518,38 @@ export default function SetariPage() {
         </div>
       </Modal>
 
+      <Modal open={securityRecommendationOpen} title="Recomandări securitate" onClose={() => setSecurityRecommendationOpen(false)} size="lg">
+        {securityDiagnostic ? (
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Acces aplicație</div>
+                <div className="mt-2 text-slate-800">{securityDiagnostic.access?.recommendation || "Nu există recomandări suplimentare pentru acces."}</div>
+              </div>
+              <div className="rounded-xl border border-primary-100 bg-primary-50 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Bază de date</div>
+                <div className="mt-2 text-primary-950">{securityDiagnostic.database?.safetyNote || "Nu există recomandări suplimentare pentru baza de date."}</div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">De urmărit</div>
+                <Badge tone={securityDiagnostic.warnings?.length ? "warning" : "success"}>{securityDiagnostic.warnings?.length || 0}</Badge>
+              </div>
+              {securityDiagnostic.warnings?.length ? (
+                <ul className="mt-3 list-disc space-y-2 pl-5 text-slate-800">
+                  {securityDiagnostic.warnings.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                </ul>
+              ) : (
+                <div className="mt-3 text-slate-600">Nu există avertizări suplimentare în acest diagnostic.</div>
+              )}
+            </div>
+            <div className="flex justify-end border-t border-slate-200 pt-3">
+              <Button type="button" variant="secondary" onClick={() => setSecurityRecommendationOpen(false)}>Închide</Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
       <Modal open={Boolean(securityChecklistDetails)} title="Detalii verificare securitate" onClose={() => setSecurityChecklistDetails(null)} size="lg">
         {securityChecklistDetails ? (
           <div className="grid gap-4 text-sm text-slate-700">

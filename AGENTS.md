@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.557**
-**Versiune în lucru: v2.12.557**
+**Versiune curentă sursă: v2.12.558**
+**Versiune în lucru: v2.12.558**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -295,6 +295,7 @@ Core System
   ✅ Audit stații autorizate compact cu detalii la click (v2.12.555)
   ✅ Sesiuni active compacte cu detalii și închidere controlată la click (v2.12.556)
   ✅ Checklist securitate compact cu detalii la click (v2.12.557)
+  ✅ Recomandări securitate compacte cu detalii la click (v2.12.558)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1018,9 +1019,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.557
+VERSIUNE CURENTĂ SURSĂ: 2.12.558
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.557 ✅
+UPDATE ZIP CURENT: 2.12.558 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1386,6 +1387,7 @@ UPDATES ÎN LUCRU:
   2.12.555 → UPDATE 575 Audit stații autorizate compact cu detalii la click ✅
   2.12.556 → UPDATE 576 Sesiuni active compacte cu detalii și închidere controlată la click ✅
   2.12.557 → UPDATE 577 Checklist securitate compact cu detalii la click ✅
+  2.12.558 → UPDATE 578 Recomandări securitate compacte cu detalii la click ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1882,5 +1884,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 17 Septembrie 2026 | InfraFlow sursă v2.12.557*
+*AGENTS.md actualizat: 17 Septembrie 2026 | InfraFlow sursă v2.12.558*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
