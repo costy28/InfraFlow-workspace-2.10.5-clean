@@ -81,12 +81,17 @@ Promise.resolve()
 app.use((req, res, next) => {
   const start = Date.now()
   res.on('finish', () => {
-    console.log(`${req.method} ${req.path} ${res.statusCode} ${Date.now()-start}ms`)
+    // Tokenul unei oferte publice este o credențială temporară: nu îl lăsăm în logurile serverului.
+    const loggedPath = /^\/public\/quote\/[^/]+/.test(req.path)
+      ? req.path.replace(/(\/public\/quote\/)[^/]+/, '$1[redacted]')
+      : req.path
+    console.log(`${req.method} ${loggedPath} ${res.statusCode} ${Date.now()-start}ms`)
   })
   next()
 })
 
 // Routere module (placeholder — vor fi completate rând pe rând)
+app.use('/public', require('./modules/crm/public-routes'))
 app.use('/api', require('./core/auth-routes'))
 app.use('/api', require('./modules/referate/routes'))
 app.use('/api', require('./modules/nomenclator/routes'))
@@ -99,6 +104,7 @@ app.use('/api', require('./modules/fleet/trip-routes'))
 app.use('/api', require('./modules/fleet/fc-routes'))
 app.use('/api', require('./modules/fleet/faz-routes'))
 app.use('/api', require('./modules/fleet/asset-routes'))
+app.use('/api', require('./modules/fleet/import-routes'))
 app.use('/api', require('./modules/technical/routes'))
 app.use('/api', require('./modules/workflow/routes'))
 app.use('/api', require('./modules/system/routes'))
@@ -119,6 +125,7 @@ const piusiIntegration = require('./modules/integration/piusi')
 app.use('/api', piusiIntegration)
 app.use('/api', require('./modules/controlling/routes'))
 app.use('/api', require('./modules/contracts/routes'))
+app.use('/api', require('./modules/crm/routes'))
 app.use('/api', require('./modules/accounting/accounting-routes'))
 app.use('/api', require('./modules/hr/echipamente-routes'))
 app.use('/api', require('./modules/hr/payroll-routes'))
@@ -152,6 +159,16 @@ const clientDistPath = clientPaths.find(p =>
   fs.existsSync(path.join(p, 'index.html'))
 )
 if (clientDistPath) {
+  app.use('/oferta', (_req, res, next) => {
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      Pragma: 'no-cache',
+      'Referrer-Policy': 'no-referrer',
+      'X-Robots-Tag': 'noindex, nofollow, noarchive',
+      'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+    })
+    next()
+  })
   app.use(express.static(clientDistPath))
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next()

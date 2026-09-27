@@ -1,5 +1,5 @@
 {
-  "version": "2.12.560",
-  "date": "2026-09-17",
-  "changelog": "## v2.12.560 - 2026-09-17\n### Istoric update-uri compact cu detalii la click\n- Lista păstrează versiunea și momentul aplicării.\n- Operatorul, versiunea anterioară și backup-ul se deschid la click.\n- Reduce spațiul ocupat de istoricul lung fără a pierde trasabilitatea."
+  "version": "2.12.571",
+  "date": "2026-09-27",
+  "changelog": "## v2.12.571 - 2026-09-27\\n### Hotfix performanță Oferte CRM\\n- Pagina Oferte încarcă lista, clienții și fișa selectată într-o singură citire CRM.\\n- Fișa unei oferte citește oferta, pozițiile și reviziile într-o singură operație SQL.\\n- Executorul MSSQL păstrează integral răspunsurile JSON mari, inclusiv cele împărțite de SQL Server în fragmente."
 }

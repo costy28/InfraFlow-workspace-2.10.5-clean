@@ -108,6 +108,7 @@ const configurableModuleKeys = new Set([
   "technical",
   "procurement",
   "contract_management",
+  "crm",
   "hr",
   "controlling",
   "accounting",
@@ -2776,6 +2777,8 @@ function allowedModulesForLicense(license = {}) {
     ["contabilitate", "accounting"],
     ["contracts", "contract_management"],
     ["contracte", "contract_management"],
+    ["sales", "crm"],
+    ["sales_automation", "crm"],
     ["trafficsafety", "traffic_safety"],
     ["snowremoval", "snow_removal"],
     ["ai_assistant", "ai"]

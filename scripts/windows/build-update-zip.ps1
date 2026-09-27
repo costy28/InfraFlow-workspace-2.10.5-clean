@@ -40,6 +40,7 @@ try {
   Copy-Clean (Join-Path $Root "server") (Join-Path $Temp "server")
   Copy-Clean (Join-Path $Root "client\dist") (Join-Path $Temp "client\dist")
   Copy-Clean (Join-Path $Root "db") (Join-Path $Temp "db")
+  Copy-Clean (Join-Path $Root "docs") (Join-Path $Temp "docs")
   Copy-Clean (Join-Path $Root "scripts") (Join-Path $Temp "scripts")
   Copy-Clean (Join-Path $Root "updates") (Join-Path $Temp "updates")
   Copy-Item (Join-Path $Root "version.json"),(Join-Path $Root "CHANGELOG.md") $Temp -Force

@@ -13,6 +13,9 @@ const HRPage = lazy(() => import('./pages/modules/HRPage'))
 const TehnicPage = lazy(() => import('./pages/modules/TehnicPage'))
 const ControllingPage = lazy(() => import('./pages/modules/ControllingPage'))
 const ContractePage = lazy(() => import('./pages/modules/ContractePage'))
+const CrmPage = lazy(() => import('./pages/modules/CrmPage'))
+const CrmQuotesPage = lazy(() => import('./pages/modules/CrmQuotesPage'))
+const PublicQuotePage = lazy(() => import('./pages/PublicQuotePage'))
 const ContabilitateDashboard = lazy(() => import('./pages/accounting/ContabilitateDashboard'))
 const PlanConturi = lazy(() => import('./pages/accounting/PlanConturi'))
 const SolduriInitiale = lazy(() => import('./pages/accounting/SolduriInitiale'))
@@ -90,6 +93,7 @@ export default function App() {
         {isDemoBuild && <Route path="/start-demo" element={<StartDemoPage />} />}
         <Route path="/setup" element={<SetupWizardPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/oferta/:token" element={<PublicQuotePage />} />
         <Route path="/fleet/sign/:token" element={<FleetSignPage />} />
         <Route path="/fleet/verify/:uuid" element={<FleetVerifyPage />} />
         <Route path="/dashboard" element={<WithLayout><DashboardPage /></WithLayout>} />
@@ -100,6 +104,8 @@ export default function App() {
         <Route path="/tehnic/*" element={<WithLayout><TehnicPage /></WithLayout>} />
         <Route path="/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ControllingPage /></PermissionGuard></WithLayout>} />
         <Route path="/contracte/*" element={<WithLayout><PermissionGuard permission={['legal:contracts', 'procurement:view', 'accounting:view', 'controlling:view']}><ContractePage /></PermissionGuard></WithLayout>} />
+        <Route path="/crm/oferte/*" element={<WithLayout><PermissionGuard permission="crm:view"><CrmQuotesPage /></PermissionGuard></WithLayout>} />
+        <Route path="/crm/*" element={<WithLayout><PermissionGuard permission="crm:view"><CrmPage /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate" element={<WithLayout><PermissionGuard permission="accounting:view"><ContabilitateDashboard /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/plan-conturi" element={<WithLayout><PermissionGuard permission="accounting:view"><PlanConturi /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/solduri-initiale" element={<WithLayout><PermissionGuard permission="accounting:view"><SolduriInitiale /></PermissionGuard></WithLayout>} />

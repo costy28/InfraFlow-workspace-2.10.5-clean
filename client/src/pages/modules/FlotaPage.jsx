@@ -20,7 +20,8 @@ const TAB_REPORT = '📊 Raport zilnic'
 const TAB_GPS = '🗺️ GPS Live'
 const TAB_ALERTS = '⚠️ Alerte'
 const TAB_AUTOMINDER = '📥 Import Autominder'
-const tabs = [TAB_VEHICLES, TAB_EQUIPMENT, TAB_REQUESTS, TAB_REPORT, TAB_GPS, TAB_ALERTS, TAB_AUTOMINDER]
+const TAB_FLEET_IMPORT = '📥 Import parc & resurse'
+const tabs = [TAB_VEHICLES, TAB_EQUIPMENT, TAB_REQUESTS, TAB_REPORT, TAB_GPS, TAB_ALERTS, TAB_FLEET_IMPORT]
 const pageSize = 10
 const mapDefaultCenter = [46.9259, 26.3709]
 const DEFAULT_AUTOMINDER_CONNECTION = 'Server=.\\SQLEXPRESS;Database=autoMinder5;User Id=infraflow;Password=;Encrypt=False;TrustServerCertificate=True'
@@ -246,6 +247,9 @@ export default function FlotaPage() {
   const [autominderStage, setAutominderStage] = useState('')
   const [autominderProgress, setAutominderProgress] = useState(0)
   const [autominderConfirm, setAutominderConfirm] = useState(false)
+  const [fleetImportFile, setFleetImportFile] = useState(null)
+  const [fleetImportLoading, setFleetImportLoading] = useState(false)
+  const [fleetImportResult, setFleetImportResult] = useState(null)
   const [gpsData, setGpsData] = useState(null)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [gpsSearch, setGpsSearch] = useState('')
@@ -467,6 +471,47 @@ export default function FlotaPage() {
       setError(err.response?.data?.error || 'Importul Autominder nu a putut fi finalizat.')
     } finally {
       setAutominderLoading(false)
+    }
+  }
+
+  async function downloadFleetImportTemplate(format) {
+    setError('')
+    try {
+      const response = await api.get(`/fleet-import/templates/${format}`, { responseType: 'blob' })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `InfraFlow-model-import-parc-resurse.${format}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(cleanApiError(err, 'Modelul de import nu a putut fi descărcat.'))
+    }
+  }
+
+  async function submitFleetImport(event) {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    setFleetImportResult(null)
+    if (!fleetImportFile) {
+      setError('Selectează un fișier Excel sau XML completat după modelul InfraFlow.')
+      return
+    }
+    const formData = new FormData()
+    formData.append('file', fleetImportFile)
+    setFleetImportLoading(true)
+    try {
+      const response = await api.post('/fleet-import/file', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setFleetImportResult(response.data)
+      setMessage(`${response.data?.total || 0} resurse au fost procesate din fișierul ${response.data?.format || ''}.`)
+      await load()
+    } catch (err) {
+      setError(cleanApiError(err, 'Importul parcului nu a putut fi finalizat.'))
+    } finally {
+      setFleetImportLoading(false)
     }
   }
 
@@ -968,6 +1013,42 @@ export default function FlotaPage() {
             }) : (
               <div className="rounded-lg border border-slate-200 p-6 text-center text-sm text-slate-500">
                 {loading ? 'Se încarcă...' : 'Nu există alerte active pentru flotă.'}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {activeTab === TAB_FLEET_IMPORT && (
+        <Card title="Import parc & resurse" subtitle="Importă autovehicule și utilaje din modelul InfraFlow, indiferent de aplicația din care provin datele.">
+          <div className="grid gap-4">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+              <p className="font-medium">Începe prin descărcarea modelului.</p>
+              <p className="mt-1 text-blue-800">Completează foile „Autovehicule” și/sau „Utilaje” din Excel, ori respectă structura modelului XML. Identificatorul unic este numărul de înmatriculare pentru autovehicule și codul utilajului pentru utilaje.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" onClick={() => downloadFleetImportTemplate('xlsx')}>⬇️ Descarcă model Excel</Button>
+                <Button type="button" variant="secondary" onClick={() => downloadFleetImportTemplate('xml')}>⬇️ Descarcă model XML</Button>
+              </div>
+            </div>
+            <form className="grid gap-4" onSubmit={submitFleetImport}>
+              <Input type="file" label="Fișier completat" accept=".xlsx,.xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/xml,text/xml" onChange={event => setFleetImportFile(event.target.files?.[0] || null)} />
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="submit" loading={fleetImportLoading}>📥 Importă parcul</Button>
+                {fleetImportFile ? <span className="text-sm text-slate-600">Selectat: {fleetImportFile.name}</span> : null}
+              </div>
+            </form>
+            {fleetImportResult && (
+              <div className="rounded-lg border border-primary-200 bg-primary-50 p-4 text-sm text-primary-950">
+                <h3 className="font-semibold">Import finalizat</h3>
+                <div className="mt-2 grid gap-1 md:grid-cols-2">
+                  <div><strong>Autovehicule:</strong> {fleetImportResult.vehicles?.imported || 0} noi, {fleetImportResult.vehicles?.updated || 0} actualizate</div>
+                  <div><strong>Utilaje:</strong> {fleetImportResult.equipment?.imported || 0} noi, {fleetImportResult.equipment?.updated || 0} actualizate</div>
+                </div>
+                {[...(fleetImportResult.vehicles?.errors || []), ...(fleetImportResult.equipment?.errors || [])].length > 0 && (
+                  <ul className="mt-3 list-disc pl-5 text-amber-800">
+                    {[...(fleetImportResult.vehicles?.errors || []), ...(fleetImportResult.equipment?.errors || [])].map((item, index) => <li key={index}>Rând {item.row}: {item.reason}</li>)}
+                  </ul>
+                )}
               </div>
             )}
           </div>

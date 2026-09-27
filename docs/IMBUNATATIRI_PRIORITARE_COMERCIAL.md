@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.560 — Istoric update-uri compact cu detalii la click
+Ultimul pas executat: 2.12.571 — Hotfix performanță Oferte CRM și răspunsuri JSON MSSQL complete
 Status: backlog operațional activ
 
 ## Scop
@@ -113,6 +113,16 @@ Pași:
 - audit securitate vizibil: login, permisiuni, stații, remote access;
 - politici de sesiune diferențiate pe rol;
 - diagnostic update/restart mai explicit pentru instalări Windows.
+
+### CRM / Sales Automation
+
+- fundație relațională modulară, permisiuni și contracte de integrare; ✅ `v2.12.561`;
+- repository MSSQL pentru conturi, contacte și lead-uri, cu audit și anulare logică; ✅ `v2.12.562`;
+- activități comerciale și follow-up prin Task Management existent; ✅ `v2.12.562`;
+- oferte interne versionate, aprobare, document print-ready, email și audit; ✅ `v2.12.563`;
+- acceptare securizată prin link, după validarea nucleului;
+- comenzi din ofertă acceptată, verificare stoc și necesar aprovizionare;
+- adaptoare facturare Oblio/SmartBill, fără duplicarea contabilității lor.
 
 ### Dashboard
 

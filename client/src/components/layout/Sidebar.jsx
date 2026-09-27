@@ -26,6 +26,7 @@ const groups = [
       { to: '/asternere', icon: '🛣️', label: 'Lucrări / Execuție', moduleKey: 'asternere' },
       { to: '/achizitii', icon: '🛒', label: 'Achiziții', moduleKey: 'procurement' },
       { to: '/contracte', icon: '📑', label: 'Contracte', moduleKey: 'contract_management' },
+      { to: '/crm', icon: '🤝', label: 'CRM / Vânzări', moduleKey: 'crm' },
       { to: '/referate', icon: '📄', label: 'Referate', moduleKey: 'referate' },
       { to: '/teren', icon: '📍', label: 'Teren', moduleKey: 'field' },
       { to: '/salubrizare', icon: '🧹', label: 'Salubrizare', moduleKey: 'sanitation' },
@@ -61,6 +62,7 @@ const modulePermissionPrefixes = {
   referate: ['referate'],
   accounting: ['accounting', 'anaf', 'integration', 'cost_accounting', 'controlling'],
   task_management: ['tasks', 'dashboard'],
+  crm: ['crm'],
   mechanization: ['mechanization', 'fleet', 'technical'],
   asternere: ['technical', 'field'],
   anaf: ['anaf', 'integration'],
@@ -74,6 +76,7 @@ const moduleActiveAliases = {
   contract_management: ['contract_management', 'contracts', 'legal', 'procurement', 'accounting'],
   task_management: ['task_management', 'tasks'],
   referate: ['referate', 'procurement'],
+  crm: ['crm', 'sales', 'sales_automation'],
 }
 
 function normalizedRoles(user) {

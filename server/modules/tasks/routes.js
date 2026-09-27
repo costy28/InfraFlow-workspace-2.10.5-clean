@@ -29,6 +29,7 @@ const TASK_SOURCE_TYPES = [
   { value: 'accounting', label: 'Contabilitate', route: '/contabilitate' },
   { value: 'fleet', label: 'Mecanizare', route: '/mecanizare' },
   { value: 'email', label: 'Email ERP', route: '/mesaje' },
+  { value: 'crm_lead', label: 'Lead CRM', route: '/crm/leads' },
   { value: 'template', label: 'Șablon task', route: '/taskuri' },
 ]
 
@@ -142,6 +143,7 @@ function sourceUrl(sourceType, sourceId, explicitUrl = '') {
   if (sourceType === 'referat') return `${info.route}?referat=${param}`
   if (sourceType === 'hr_employee') return `${info.route}?employee=${param}`
   if (sourceType === 'ticket') return `${info.route}?ticket=${param}`
+  if (sourceType === 'crm_lead') return `${info.route}/${param}`
   return `${info.route}?source=${param}`
 }
 
@@ -383,6 +385,28 @@ function pushTaskNotification(db, task, actor, event = 'created') {
   })
 }
 
+// Port intern pentru modulele ERP. Păstrează task-ul în registrul unic și
+// aplică aceleași reguli de delegare/notificare ca ruta POST /api/tasks.
+function createLinkedTask({ db, user, permissions = [], payload = {} }) {
+  const store = ensureTasksDb(db)
+  const taskData = taskPayload(payload, userId(user), user, db)
+  if (!canAssignTo(db, user, permissions, taskData.assigned_to)) {
+    const error = new Error('Nu poți delega task-uri către acest utilizator.')
+    error.status = 403
+    throw error
+  }
+  const task = {
+    id: id('task'),
+    ...taskData,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  }
+  store.tasks.push(task)
+  pushTaskNotification(db, task, user, 'created')
+  addAudit(db, user, 'tasks:create', { taskId: task.id, assigned_to: task.assigned_to, title: task.title, source_type: task.source_type })
+  return enrichTask(task, userMap(db))
+}
+
 router.get('/tasks', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
@@ -494,23 +518,10 @@ router.get('/tasks/:id/attachments/:attachmentId/download', (req, res) => {
 router.post('/tasks', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  const store = ensureTasksDb(auth.db)
   try {
-    const payload = taskPayload(req.body || {}, userId(auth.user), auth.user, auth.db)
-    if (!canAssignTo(auth.db, auth.user, auth.permissions, payload.assigned_to)) {
-      return res.status(403).json({ error: 'Nu poți delega task-uri către acest utilizator.' })
-    }
-    const task = {
-      id: id('task'),
-      ...payload,
-      created_at: nowIso(),
-      updated_at: nowIso(),
-    }
-    store.tasks.push(task)
-    pushTaskNotification(auth.db, task, auth.user, 'created')
-    addAudit(auth.db, auth.user, 'tasks:create', { taskId: task.id, assigned_to: task.assigned_to, title: task.title })
+    const task = createLinkedTask({ db: auth.db, user: auth.user, permissions: auth.permissions, payload: req.body || {} })
     writeDb(auth.db)
-    res.status(201).json({ task: enrichTask(task, userMap(auth.db)) })
+    res.status(201).json({ task })
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message || 'Task-ul nu a putut fi creat.' })
   }
@@ -685,4 +696,5 @@ router.post('/tasks/:id/attachments', taskUpload.single('file'), (req, res) => {
   res.status(201).json({ attachment: { ...attachment, url: attachmentUrl(attachment) } })
 })
 
+router.createLinkedTask = createLinkedTask
 module.exports = router

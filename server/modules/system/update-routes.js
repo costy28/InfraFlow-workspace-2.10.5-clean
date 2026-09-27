@@ -280,6 +280,7 @@ function createSystemUpdateRouter(context) {
       copyDir(path.join(packageRoot, 'db', 'seeds'), path.join(ROOT, 'db', 'seeds'))
       copyDir(path.join(packageRoot, 'db', 'templates'), path.join(ROOT, 'db', 'templates'))
       copyDir(path.join(packageRoot, 'db', 'sqlserver'), path.join(ROOT, 'db', 'sqlserver'))
+      copyDir(path.join(packageRoot, 'docs'), path.join(ROOT, 'docs'))
       copyDir(path.join(packageRoot, 'scripts'), path.join(ROOT, 'scripts'))
       copyDir(path.join(packageRoot, 'updates'), path.join(ROOT, 'updates'))
       copyFileIfExists(path.join(packageRoot, 'version.json'), path.join(ROOT, 'version.json'))

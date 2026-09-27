@@ -138,4 +138,15 @@ async function sendEmail({ to, cc, bcc, subject, body, attachments }, dbInput) {
   }
 }
 
-module.exports = { sendEmail, getEmailSettings, describeSmtpError }
+function recordOutboundEmail(db, { to, cc, bcc, subject, body, source_type, source_id, source_label, source_url, attachments = [], category = 'general', importance = 'normal', created_by = null }) {
+  db.messaging = db.messaging || {}
+  db.messaging.emailMessages = Array.isArray(db.messaging.emailMessages) ? db.messaging.emailMessages : []
+  const settings = getEmailSettings(db)
+  const now = new Date().toISOString()
+  const id = db.messaging.emailMessages.reduce((max, item) => Math.max(max, Number(item?.id) || 0), 0) + 1
+  const message = { id, direction: 'outbound', status: 'read', from: settings.smtp_user || '', to: String(to || '').trim(), cc: String(cc || '').trim(), bcc: String(bcc || '').trim(), subject: String(subject || '').trim(), body: String(body || '').trim(), preview: String(body || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180), category, importance, attachments: attachments.map(item => ({ name: String(item?.filename || item?.name || 'atașament').slice(0, 255), source: 'crm_quote_document' })), has_attachments: attachments.length > 0, source_type: source_type || null, source_id: source_id == null ? null : String(source_id), source_label: source_label || null, source_url: String(source_url || '').startsWith('/') ? source_url : null, received_at: now, created_by, created_at: now }
+  db.messaging.emailMessages.push(message)
+  return message
+}
+
+module.exports = { sendEmail, getEmailSettings, describeSmtpError, recordOutboundEmail }

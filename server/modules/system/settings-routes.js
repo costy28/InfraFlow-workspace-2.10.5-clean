@@ -26,6 +26,7 @@ const moduleCatalogGroups = [
       { key: 'technical', label: 'Tehnic', description: 'Lucrări, teren, output operațional și raport tehnic.' },
       { key: 'procurement', label: 'Achiziții', description: 'Comenzi, recepții, referate, PAAP și CPV.' },
       { key: 'contract_management', label: 'Contract Management', description: 'Contracte, consum valoric, CPV, manageri și alerte de prag/termen.' },
+      { key: 'crm', label: 'CRM / Sales Automation', description: 'Solicitări comerciale, clienți potențiali, oferte și comenzi. Fundația tehnică este pregătită pentru activare graduală.' },
       { key: 'hr', label: 'HR', description: 'Angajați, pontaj, concedii, dosar personal și Kiosk.' },
       { key: 'controlling', label: 'Controlling', description: 'Centre cost/profit și costuri operaționale.' },
       { key: 'accounting', label: 'Contabilitate', description: 'Plan conturi, facturi, jurnale, declarații și SAF-T.' },
@@ -66,8 +67,9 @@ const commercialPackages = [
   { key: 'operational', label: 'Operațional', modules: ['fleet', 'technical', 'field', 'controlling', 'documents'], description: 'Flotă, lucrări, teren și controlling operațional.' },
   { key: 'gestiune_achizitii', label: 'Gestiune + Achiziții', modules: ['procurement', 'contract_management', 'documents', 'tickets'], description: 'Stocuri, referate, comenzi, recepții, PAAP, contracte și furnizori.' },
   { key: 'accounting', label: 'Contabilitate', modules: ['accounting', 'controlling', 'contract_management', 'documents'], description: 'Contabilitate, declarații, dosar fiscal, contracte și costuri.' },
+  { key: 'sales', label: 'Vânzări / CRM', modules: ['crm', 'documents', 'messaging', 'tickets'], description: 'Solicitări comerciale, oferte, comenzi și follow-up, conectate la documente și comunicare.' },
   { key: 'city_services', label: 'City Services', modules: ['sanitation', 'traffic_safety', 'snow_removal', 'environment', 'field', 'fleet', 'contract_management', 'tickets'], description: 'Servicii publice locale într-un pachet operațional.' },
-  { key: 'enterprise', label: 'Enterprise', modules: ['fleet', 'technical', 'procurement', 'contract_management', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'], description: 'Toate modulele pentru organizații mari.' },
+  { key: 'enterprise', label: 'Enterprise', modules: ['fleet', 'technical', 'procurement', 'contract_management', 'crm', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'], description: 'Toate modulele pentru organizații mari.' },
 ]
 
 function buildModulesCatalog(settings = {}, license = {}, allowedModulesForLicense) {

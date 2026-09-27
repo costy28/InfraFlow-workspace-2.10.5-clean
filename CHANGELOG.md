@@ -1,3 +1,57 @@
+## v2.12.571 - 2026-09-27
+### Hotfix performanță Oferte CRM
+- Pagina Oferte încarcă lista, clienții, contactele și fișa selectată într-o singură citire CRM.
+- Fișa ofertei citește oferta, pozițiile și reviziile într-o singură operație SQL.
+- Executorul MSSQL păstrează integral JSON-ul mare returnat fragmentat de SQL Server.
+
+## v2.12.570 - 2026-09-27
+### Hotfix persistență Oferte CRM
+- Lista ofertelor nu mai elimină toate rezultatele când filtrul „Doar expirate” nu este activ.
+- La pornire, MSSQL aplică și marchează explicit migrările CRM 070–073, inclusiv coloanele necesare linkurilor publice.
+- Detaliile unei oferte nu mai depind de încărcarea extensiei de linkuri publice.
+
+## v2.12.569 - 2026-09-27
+### Hotfix acces Oferte CRM
+- Dashboard-ul CRM afișează explicit acțiunea „Oferte comerciale”.
+- Crearea, aprobarea și trimiterea ofertelor nu mai depind de cunoașterea unei rute directe.
+
+## v2.12.568 - 2026-09-27
+### CRM Sprint 4 - ofertă publică securizată
+- Link public criptografic pentru o ofertă aprobată sau trimisă, păstrat doar ca hash în SQL Server.
+- Expirare, revocare, regenerare, limitare de cereri și protecție împotriva indexării/cachingului.
+- Pagină publică separată de shell-ul autentificat, cu detalii comerciale strict necesare.
+- Acceptare/refuz idempotent pe revizia exactă, audit CRM și notificare pentru responsabilul comercial.
+- Linkul securizat poate fi inclus opțional în emailul trimis din oferta aprobată; tokenul nu ajunge în audit sau în logurile HTTP.
+
+## v2.12.567 - 2026-09-27
+### Import parc & resurse generic
+- Parc & Resurse are un import neutru de autovehicule și utilaje, din modele InfraFlow Excel sau XML descărcabile direct din aplicație.
+- Importul actualizează resursele după numărul de înmatriculare sau codul utilajului și păstrează auditul operației.
+- Conectorii existenți de parc și alimentări sunt prezentați în interfață ca adaptoare opționale, fără nume de furnizor.
+
+## v2.12.566 - 2026-09-27
+### Hotfix follow-up CRM
+- Follow-up-ul normalizează activitatea înainte de salvare, inclusiv momentul obligatoriu al activității.
+- Răspunsurile CRM pentru erori interne nu mai expun detalii SQL; detaliul rămâne în jurnalul serverului.
+
+## v2.12.565 - 2026-09-27
+### Hotfix rute CRM
+- Fișa lead-ului primește corect identificatorul din ruta wildcard CRM și se deschide din listă.
+- Ofertele existente și acțiunea „Ofertă nouă” disting corect identificatorul de traseul routerului.
+- Test de regresie pentru parametrii rutelor CRM.
+
+## v2.12.564 - 2026-09-26
+### Hotfix migrări SQL Server CRM
+- Executorul MSSQL setează explicit opțiunile ANSI și `QUOTED_IDENTIFIER` cerute de SQL Server pentru indecși filtrați și unici.
+- Previne blocarea automată a migrărilor CRM pe instalații cu setări de conexiune restrictive.
+
+## v2.12.561 - 2026-09-26
+### Fundație CRM / Sales Automation relațională
+- Adaugă modul CRM activabil, cu permisiuni granularizate și diagnostic protejat.
+- Creează schema MSSQL versionată pentru date comerciale, versiuni de ofertă, comenzi și integrare.
+- Păstrează separarea față de terți contabili, task-uri și documente existente; fără CRUD sau UI comercial prematur.
+- Livrează documentația tehnică CRM odată cu pachetul de update.
+
 ## v2.12.560 - 2026-09-17
 ### Istoric update-uri compact cu detalii la click
 - Lista păstrează versiunea și momentul aplicării.
@@ -4205,3 +4259,20 @@
 - Pagina Arhivă completă
 - Pagina Secretariat completă
 - Pagina AI Assistant completă
+## v2.12.563 - 2026-09-26
+### CRM Sprint 3: Oferte interne versionate
+- Adaugă oferta internă versionată: editor de draft cu poziții, adăugare, editare, ștergere, reordonare, discount, TVA și validări.
+- Recalculează toate totalurile exclusiv pe server; o ofertă aprobată sau trimisă este imuabilă, iar modificările pornesc prin revizie nouă.
+- Adaugă fluxul draft → în aprobare → aprobată → trimisă, cu respingere internă și anulare logică auditate.
+- Generează document HTML print-ready păstrat controlat pe ofertă/revizie și îl atașează la trimiterea SMTP.
+- Înregistrează emailul trimis în Inbox ERP cu sursa CRM exactă și păstrează activitate/audit pentru ofertă și revizie.
+- Nu include încă link public, acceptare/refuz client, comenzi, stoc, achiziții sau facturare.
+
+## v2.12.562 - 2026-09-26
+### CRM: Lead-uri, prospecte și follow-up
+- Adaugă nucleul operațional CRM: lead-uri, prospecte, contacte și activități, exclusiv pe schema MSSQL relațională.
+- Leagă follow-up-ul de Task Management existent, cu `source_type=crm_lead`, notificările și drepturile lui deja existente.
+- Adaugă conversie tranzacțională Lead → prospect/contact, inclusiv legarea unei entități CRM existente, fără creare de terț contabil.
+- Expune Dashboard CRM, lista de lead-uri, fișa cu timeline, acțiuni de calificare/follow-up și registrul prospecte/contacte.
+- Păstrează anularea logică, validarea server-side, rolurile CRM și auditul pentru orice scriere.
+- Nu introduce oferte, comenzi, Oblio/SmartBill sau facturare: acestea rămân pentru Sprintul 3+.

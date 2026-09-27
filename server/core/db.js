@@ -456,6 +456,7 @@ function ensureMssqlDatabase() {
   `, { jsonInput: JSON.stringify(seed) });
   recoverEmptyMssqlAppStateFromLocalFile();
   ensureMigrationTable(runMssqlScalar);
+  ensureMssqlCrmSchema();
   ensureMssqlRelationalSchema();
 }
 
@@ -819,6 +820,31 @@ function runMssqlMigrationRepairFile(fileName) {
   `, { timeoutMs: 300000 });
 }
 
+// CRM folosește tabele relaționale și în instalările care păstrează restul
+// aplicației în app_state. Nu depindem de flag-ul global relațional: la
+// pornire aplicăm doar migrările CRM, idempotent și urmărit în schema_migrations.
+function ensureMssqlCrmSchema() {
+  if (!["mssql", "sqlserver"].includes(DB_MODE)) return [];
+  const migrations = [
+    "070_crm_sales_automation_foundation.sql",
+    "071_crm_sales_automation_sprint_2.sql",
+    "072_crm_quotes_sprint_3.sql",
+    "073_crm_quote_public_links_sprint_4.sql"
+  ];
+  const applied = [];
+  migrations.forEach((fileName) => {
+    const escapedName = fileName.replace(/'/g, "''");
+    const alreadyApplied = Number(runMssqlScalar(`
+      if exists (select 1 from dbo.schema_migrations where filename = N'${escapedName}') select 1;
+      else select 0;
+    `));
+    if (alreadyApplied) return;
+    runMssqlMigrationRepairFile(fileName);
+    applied.push(fileName);
+  });
+  return applied;
+}
+
 function applyMssqlMigrations() {
   if (!["mssql", "sqlserver"].includes(DB_MODE)) return [];
   const migrationsDir = path.join(ROOT, "db", "migrations");
@@ -961,14 +987,41 @@ try {
 $connection.Open()
   $command = $connection.CreateCommand()
   $command.CommandTimeout = [int]($env:ASFALT_MSSQL_COMMAND_TIMEOUT_SECONDS)
-  $command.CommandText = $sql
+  # Aceste opțiuni trebuie setate în fiecare sesiune: migrările pot crea
+  # indecși filtrați/UNIQUE, iar SQL Server refuză crearea lor dacă un client
+  # a deschis conexiunea cu QUOTED_IDENTIFIER sau ANSI_* dezactivate.
+  $command.CommandText = @"
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET NUMERIC_ROUNDABORT OFF;
+$sql
+"@
   if ($jsonPath) {
     $parameter = $command.Parameters.Add("@json", [System.Data.SqlDbType]::NVarChar, -1)
     $parameter.Value = $json
   }
-  $result = $command.ExecuteScalar()
-  if ($null -ne $result -and $result -ne [DBNull]::Value) {
-    [Console]::Write([string]$result)
+  # SQL Server poate împărți un FOR JSON mare în mai multe rânduri. ExecuteScalar
+  # lua numai primul fragment și transforma răspunsul valid în JSON trunchiat.
+  # Păstrăm primul result set care conține date, dar îi concatenăm toate fragmentele.
+  $reader = $command.ExecuteReader()
+  $parts = New-Object System.Collections.Generic.List[string]
+  $foundResult = $false
+  do {
+    while ($reader.Read()) {
+      if (-not $reader.IsDBNull(0)) {
+        $parts.Add([string]$reader.GetValue(0))
+        $foundResult = $true
+      }
+    }
+    if ($foundResult) { break }
+  } while ($reader.NextResult())
+  $reader.Close()
+  if ($parts.Count -gt 0) {
+    [Console]::Write([string]::Concat([string[]]$parts))
   }
 } finally {
   if ($connection.State -ne [System.Data.ConnectionState]::Closed) {

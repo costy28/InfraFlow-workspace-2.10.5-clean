@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.560**
-**Versiune în lucru: v2.12.560**
+**Versiune curentă sursă: v2.12.571**
+**Versiune în lucru: v2.12.571**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -298,6 +298,17 @@ Core System
   ✅ Recomandări securitate compacte cu detalii la click (v2.12.558)
   ✅ Previzualizare update cu rânduri corecte și compatibilitate pachete vechi (v2.12.559)
   ✅ Istoric update-uri compact cu detalii la click (v2.12.560)
+  ✅ Fundație CRM / Sales Automation relațională: modul, permisiuni, migrare, porturi și diagnostic; fără CRUD/UI (v2.12.561)
+  ✅ CRM Sprint 2: lead-uri, prospecte, contacte, activități și follow-up în Task Management, cu audit și conversie Lead → prospect/contact (v2.12.562)
+  ✅ CRM Sprint 3: oferte interne versionate, aprobare, document print-ready, email SMTP/Inbox ERP și audit pe revizie (v2.12.563)
+  ✅ Hotfix executor migrări MSSQL pentru opțiuni ANSI/QUOTED_IDENTIFIER și indecși CRM (v2.12.564)
+  ✅ Hotfix rute wildcard CRM pentru fișe lead și oferte (v2.12.565)
+  ✅ Hotfix follow-up CRM și răspunsuri sigure la erori interne (v2.12.566)
+  ✅ Import generic parc & resurse din modele Excel/XML și adaptoare externe neutre (v2.12.567)
+  ✅ CRM Sprint 4: ofertă publică securizată cu expirare/revocare, decizie client, audit și notificări (v2.12.568)
+  ✅ Acces vizibil la Oferte comerciale din pagina principală CRM (v2.12.569)
+  ✅ Hotfix listare oferte și bootstrap controlat migrări CRM MSSQL 070–073 (v2.12.570)
+  ✅ Hotfix performanță Oferte CRM și citire integrală JSON MSSQL (v2.12.571)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1021,9 +1032,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.560
+VERSIUNE CURENTĂ SURSĂ: 2.12.571
 BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.560 ✅
+UPDATE ZIP CURENT: 2.12.571 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1392,6 +1403,17 @@ UPDATES ÎN LUCRU:
   2.12.558 → UPDATE 578 Recomandări securitate compacte cu detalii la click ✅
   2.12.559 → UPDATE 579 Previzualizare update cu rânduri corecte și compatibilitate pachete vechi ✅
   2.12.560 → UPDATE 580 Istoric update-uri compact cu detalii la click ✅
+  2.12.561 → UPDATE 581 Fundație CRM / Sales Automation relațională ✅
+  2.12.562 → UPDATE 582 CRM Lead-uri, prospecte, contacte și follow-up ✅
+  2.12.563 → UPDATE 583 CRM Sprint 3 Oferte interne versionate ✅
+  2.12.564 → UPDATE 584 Hotfix migrări SQL Server CRM ✅
+  2.12.565 → UPDATE 585 Hotfix rute wildcard CRM ✅
+  2.12.566 → UPDATE 586 Hotfix follow-up CRM ✅
+  2.12.567 → UPDATE 587 Import parc & resurse generic ✅
+  2.12.568 → UPDATE 588 CRM Sprint 4 ofertă publică securizată ✅
+  2.12.569 → UPDATE 589 acces vizibil Oferte CRM ✅
+  2.12.570 → UPDATE 590 Hotfix persistență Oferte CRM ✅
+  2.12.571 → UPDATE 591 Hotfix performanță Oferte CRM ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1888,5 +1910,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 17 Septembrie 2026 | InfraFlow sursă v2.12.560*
+*AGENTS.md actualizat: 27 Septembrie 2026 | InfraFlow sursă v2.12.571*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

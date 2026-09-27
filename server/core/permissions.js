@@ -50,6 +50,7 @@ const permissionGroups = {
   ],
   asternere: ["asternere:view", "asternere:rapoarte", "asternere:manage"],
   anaf: ["anaf:view", "anaf:manage", "anaf:efactura"],
+  crm: ["crm:view", "crm:lead_create", "crm:lead_manage", "crm:quote_create", "crm:quote_approve", "crm:quote_send", "crm:order_manage", "crm:inventory_check", "crm:procurement_request", "crm:billing_request", "crm:reports", "crm:settings"],
   system: ["system:view", "system:update", "system:admin"]
 };
 
@@ -107,6 +108,7 @@ const permissionGroupLabels = {
   snow_removal: "Deszapezire",
   asternere: "Execuție lucrări",
   anaf: "ANAF / e-Factură",
+  crm: "CRM / Sales Automation",
   system: "Sistem"
 };
 
@@ -208,6 +210,18 @@ const permissionLabels = {
   "settings:manage": "Administreaza setari/licenta",
   "audit:view": "Vede audit",
   "audit:manage": "Curata audit",
+  "crm:view": "Vede CRM și tabloul comercial",
+  "crm:lead_create": "Creează solicitări și lead-uri CRM",
+  "crm:lead_manage": "Califică și administrează lead-uri CRM",
+  "crm:quote_create": "Creează oferte CRM",
+  "crm:quote_approve": "Aprobă oferte CRM",
+  "crm:quote_send": "Trimite oferte CRM",
+  "crm:order_manage": "Administrează comenzi clienți CRM",
+  "crm:inventory_check": "Verifică disponibilitatea pentru comenzi CRM",
+  "crm:procurement_request": "Creează necesar de aprovizionare din CRM",
+  "crm:billing_request": "Cere proformă sau factură din CRM",
+  "crm:reports": "Vede rapoarte CRM",
+  "crm:settings": "Configurează CRM și providerii de facturare",
   "messaging:view": "Vede canale chat",
   "messaging:send": "Trimite mesaje chat",
   "messaging:files": "Ataseaza fisiere in chat",
@@ -952,6 +966,10 @@ const licenseModulePermissions = {
   accounting: [
     "dashboard:view",
     ...permissionGroups.accountingCore
+  ],
+  crm: [
+    "dashboard:view",
+    ...permissionGroups.crm
   ]
 };
 
@@ -1187,6 +1205,7 @@ function roleModules(role, settings) {
   if (permissions.includes("gestiune:view")) modules.push("gestiune/depozit");
   if (permissions.includes("asternere:view")) modules.push("executie lucrari");
   if (permissions.includes("anaf:view")) modules.push("ANAF / e-Factura");
+  if (permissions.includes("crm:view")) modules.push("CRM / Sales Automation");
   if (permissions.includes("referate:view")) modules.push("referate");
   if (!modules.length) modules.push("citire");
   return modules;

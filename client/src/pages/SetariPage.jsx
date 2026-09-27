@@ -283,6 +283,7 @@ const moduleGroups = [
       { key: 'technical', icon: '⚙️', label: 'Tehnic' },
       { key: 'procurement', icon: '⚙️', label: 'Achiziții' },
       { key: 'contract_management', icon: '⚙️', label: 'Contracte' },
+      { key: 'crm', icon: '⚙️', label: 'CRM / Sales Automation' },
       { key: 'hr', icon: '⚙️', label: 'HR' },
       { key: 'controlling', icon: '⚙️', label: 'Controlling' },
       { key: 'accounting', icon: '⚙️', label: 'Contabilitate' },
@@ -354,6 +355,13 @@ const commercialModulePackages = [
     description: 'Contabilitate, declarații, dosar fiscal, contracte, SAF-T și costuri.',
   },
   {
+    key: 'sales',
+    label: 'Vânzări / CRM',
+    icon: '📈',
+    modules: ['crm', 'documents', 'messaging', 'tickets'],
+    description: 'Solicitări comerciale, oferte, comenzi și follow-up, conectate la documente și comunicare.',
+  },
+  {
     key: 'city_services',
     label: 'City Services',
     icon: '🏙️',
@@ -364,12 +372,18 @@ const commercialModulePackages = [
     key: 'enterprise',
     label: 'Enterprise',
     icon: '🚀',
-    modules: ['fleet', 'technical', 'procurement', 'contract_management', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'],
+    modules: ['fleet', 'technical', 'procurement', 'contract_management', 'crm', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'],
     description: 'Toate modulele, pentru organizații mari și fluxuri complete.',
   },
 ]
 
 const moduleFeatureCatalog = {
+  crm: [
+    { key: 'leads', label: 'Solicitări și lead-uri' },
+    { key: 'quotes', label: 'Oferte și versiuni' },
+    { key: 'orders', label: 'Comenzi clienți' },
+    { key: 'billing', label: 'Provider facturare' },
+  ],
   fleet: [
     { key: 'assets', label: 'Parc vehicule/utilaje' },
     { key: 'trip_logs', label: 'Foi de parcurs' },
@@ -2472,10 +2486,10 @@ export default function SetariPage() {
   async function savePiusiConfig() {
     try {
       await api.post('/integration/piusi/config', piusiConfig)
-      notify('Configurația PIUSI a fost salvată.')
+      notify('Configurația sursei de alimentări a fost salvată.')
       await reloadPiusi()
     } catch (err) {
-      fail(err, 'Configurația PIUSI nu a putut fi salvată.')
+      fail(err, 'Configurația sursei de alimentări nu a putut fi salvată.')
     }
   }
 
@@ -2483,10 +2497,10 @@ export default function SetariPage() {
     setPiusiSyncing(true)
     try {
       const res = await api.post('/integration/piusi/sync-now')
-      notify(`PIUSI sincronizat: ${res.data?.importate || 0} alimentări importate.`)
+      notify(`Sursa de alimentări a fost sincronizată: ${res.data?.importate || 0} alimentări importate.`)
       await reloadPiusi()
     } catch (err) {
-      fail(err, 'Sincronizarea PIUSI a eșuat.')
+      fail(err, 'Sincronizarea sursei de alimentări a eșuat.')
     } finally {
       setPiusiSyncing(false)
     }
@@ -2499,10 +2513,10 @@ export default function SetariPage() {
   async function savePiusiMapari() {
     try {
       await api.post('/integration/piusi/mapari', { mapari: piusiMapari })
-      notify('Mapările PIUSI au fost salvate.')
+      notify('Mapările sursei de alimentări au fost salvate.')
       await reloadPiusi()
     } catch (err) {
-      fail(err, 'Mapările PIUSI nu au putut fi salvate.')
+      fail(err, 'Mapările sursei de alimentări nu au putut fi salvate.')
     }
   }
 
@@ -5055,8 +5069,8 @@ export default function SetariPage() {
             <div className="grid gap-6">
               <section className="grid gap-3 border-b border-slate-200 pb-5">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-900">⛽ PIUSI Self-Service</h3>
-                  <p className="text-sm text-slate-500">Alimentări carburant din fișier MDB.</p>
+                  <h3 className="text-lg font-semibold text-slate-900">⛽ Import alimentări din MDB</h3>
+                  <p className="text-sm text-slate-500">Adaptor opțional pentru fișierul de alimentări al organizației. Nu este necesar dacă alimentările se introduc manual.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
                   <Input
@@ -5067,7 +5081,7 @@ export default function SetariPage() {
                       setSettings(s => ({ ...s, piusi_mdb_path: value }))
                       setPiusiConfig(c => ({ ...c, mdb_path: value }))
                     }}
-                    placeholder="\\\\GESTIONAR-PC\\PiusiData\\Self.mdb"
+                    placeholder="\\\\SERVER\\cale\\alimentari.mdb"
                   />
                   <Input
                     label="Sync la (minute)"
@@ -5091,15 +5105,15 @@ export default function SetariPage() {
 
               <section className="grid gap-3 border-b border-slate-200 pb-5">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-900">🚗 autoMinder</h3>
-                  <p className="text-sm text-slate-500">Import date mecanizare din folder sau bază externă.</p>
+                  <h3 className="text-lg font-semibold text-slate-900">🚗 Conector parc extern</h3>
+                  <p className="text-sm text-slate-500">Compatibilitate pentru o sursă externă existentă. Pentru import nou, folosește „Import parc & resurse” din Parc & Resurse.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
                   <Input
                     label="Cale DB"
                     value={settings.autominder_db_path || settings.autominderDbPath || ''}
                     onChange={event => setSettings(s => ({ ...s, autominder_db_path: event.target.value, autominderDbPath: event.target.value }))}
-                    placeholder="\\\\SERVER\\autoMinder5\\Data\\"
+                    placeholder="\\\\SERVER\\cale\\parc-extern\\"
                   />
                   <Input
                     label="Sync la (minute)"
@@ -5151,13 +5165,13 @@ export default function SetariPage() {
               </section>
 
               <div className="flex flex-wrap justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={reloadPiusi}>Reîncarcă status și mapări PIUSI</Button>
+                <Button type="button" variant="ghost" onClick={reloadPiusi}>Reîncarcă status și mapări alimentări</Button>
                 <Button type="button" onClick={saveExternalPaths}>💾 Salvează toate căile</Button>
               </div>
             </div>
           </Card>
 
-          <Card title="Status PIUSI" subtitle="Informații rapide pentru importul alimentărilor.">
+          <Card title="Status import alimentări" subtitle="Informații rapide pentru adaptorul opțional de alimentări.">
             <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-4">
               <span>Ultima sync: {piusiStatus?.ultima_sincronizare || 'niciodată'}</span>
               <span>Total importate: {piusiStatus?.inregistrari_totale ?? 0}</span>
@@ -5182,22 +5196,22 @@ export default function SetariPage() {
             <div className="mt-2 text-xs text-slate-500">
               {piusiStatus?.mdb_verificat
                 ? (piusiStatus?.mdb_accesibil ? 'MDB verificat: accesibil.' : 'MDB verificat: inaccesibil sau lipsă.')
-                : 'MDB neverificat la încărcarea paginii. Folosește „Reîncarcă status și mapări PIUSI” sau testul de cale pentru verificare reală.'}
+                : 'MDB neverificat la încărcarea paginii. Folosește „Reîncarcă status și mapări alimentări” sau testul de cale pentru verificare reală.'}
             </div>
           </Card>
 
-          <Card title="Mapare operatori PIUSI" subtitle="Leagă codurile PIUSI de vehiculele/utilajele InfraFlow.">
+          <Card title="Mapare identificatori alimentări" subtitle="Leagă identificatorii din sursa de alimentări de vehiculele/utilajele InfraFlow.">
             <div className="grid gap-3">
               {!piusiMapari.length ? (
                 <div className="rounded border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-                  Mapările PIUSI nu sunt încărcate automat la deschiderea Setărilor. Apasă „Reîncarcă status și mapări PIUSI” sau rulează o sincronizare.
+                  Mapările nu sunt încărcate automat la deschiderea Setărilor. Apasă „Reîncarcă status și mapări alimentări” sau rulează o sincronizare.
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-lg border border-slate-200">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                       <tr>
-                        <th className="px-3 py-2">Cod PIUSI</th>
+                        <th className="px-3 py-2">Identificator sursă</th>
                         <th className="px-3 py-2">Vehicul / Utilaj InfraFlow</th>
                         <th className="px-3 py-2">Status</th>
                       </tr>

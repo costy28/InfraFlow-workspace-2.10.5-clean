@@ -1,0 +1,60 @@
+{
+  "licenseId": "INFRAFLOW-2026-0443-750D",
+  "client": {
+    "nume": "SC PUBLISERV SA",
+    "cui": "RO12345678",
+    "localitate": "Piatra-Neamț",
+    "email": "contact@publiserv.ro"
+  },
+  "pachet": "ENTERPRISE",
+  "module": [
+    "core",
+    "inventory",
+    "production",
+    "reports",
+    "system",
+    "fleet",
+    "hr",
+    "controlling",
+    "accounting",
+    "procurement",
+    "contract_management",
+    "crm",
+    "documents",
+    "field",
+    "messaging",
+    "tickets",
+    "workflow",
+    "technical",
+    "sanitation",
+    "traffic_safety",
+    "snow_removal",
+    "environment",
+    "legal",
+    "archive",
+    "secretariat",
+    "integration",
+    "ai_assistant"
+  ],
+  "addons": [
+    "ai_assistant"
+  ],
+  "limite": {
+    "max_utilizatori": 50,
+    "max_dispozitive": 50,
+    "max_companii": 1
+  },
+  "valabilitate": {
+    "emis_la": "2026-09-26",
+    "expira_la": "2027-09-26",
+    "tip": "abonament_anual"
+  },
+  "update": {
+    "permise": true,
+    "canal": "stable",
+    "expira_la": "2027-09-26"
+  },
+  "emis_de": "InfraFlow Software",
+  "payload_hash": "771dc9b83e8efd189248fd1a8df5ea2943a785351dde5dc914c35f674cdeebb2",
+  "semnatura": "RPxP9lmzVgp2XlxUB6SYG2WFsO9HDv8pu92YHjKdgmhWgPBJ6IGq5bna3XgM49KfGAfZQ1oMiZfUCz5mNh0Uipb0ZTdMLffTJz5j5xOqXj0h9mLjTz2bPF26kr89fSMsX1ECd6e+A0+BuRBqWie/0MFNB4x2AXM9gtiio4CC4gVhbisTCTmP/CEEIN8QXYgyzI3tE+ncoNHxIkC/4aFAC1DqkFthrrWmsZLmVIYhavrvWKmY0OLhdSSFkXjAZHj7jM2cB/mFXEoUrf4hdizRmz7zfsyjqu07fXyPm+lUHY/+YOS7H9IFjXVtAvLOk+VsRHHE206WH/SJxVJVptiPPA=="
+}
