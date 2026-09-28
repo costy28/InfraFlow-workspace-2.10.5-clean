@@ -1096,6 +1096,7 @@ export default function SetariPage() {
   const [piusiSyncing, setPiusiSyncing] = useState(false)
   const [emailSyncStatus, setEmailSyncStatus] = useState(emptyEmailSyncStatus)
   const [securityDiagnostic, setSecurityDiagnostic] = useState(null)
+  const [hostedReadiness, setHostedReadiness] = useState(null)
   const [securityEventFilter, setSecurityEventFilter] = useState('all')
   const [securityEventDetails, setSecurityEventDetails] = useState(null)
   const [authenticationEventDetails, setAuthenticationEventDetails] = useState(null)
@@ -1104,6 +1105,7 @@ export default function SetariPage() {
   const [securityChecklistDetails, setSecurityChecklistDetails] = useState(null)
   const [securityRecommendationOpen, setSecurityRecommendationOpen] = useState(false)
   const [securityChecklistExpanded, setSecurityChecklistExpanded] = useState(false)
+  const [hostedReadinessExpanded, setHostedReadinessExpanded] = useState(false)
   const [emailRuleTests, setEmailRuleTests] = useState({})
   const [integrationTests, setIntegrationTests] = useState({})
   const [loading, setLoading] = useState(true)
@@ -1223,6 +1225,8 @@ export default function SetariPage() {
   )
   const securityChecklistItems = securityDiagnostic?.checklist || []
   const visibleSecurityChecklist = securityChecklistExpanded ? securityChecklistItems : securityChecklistItems.slice(0, 5)
+  const hostedReadinessItems = hostedReadiness?.items || []
+  const visibleHostedReadinessItems = hostedReadinessExpanded ? hostedReadinessItems : hostedReadinessItems.slice(0, 4)
   const onboardingSteps = useMemo(() => {
     const enabled = new Set(enabledModules)
     const hasCompany = Boolean(settings.companyName || settings.company_name || settings.firma || settings.nume_companie)
@@ -1276,7 +1280,7 @@ export default function SetariPage() {
     setLoading(true)
     setError('')
     try {
-      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes, emailSyncStatusRes, workflowAuditRes, securityRes] = await Promise.allSettled([
+      const [settingsRes, licenseRes, brandingRes, usersRes, aiRes, materialsRes, updateRes, historyRes, statusRes, hrEmpRes, piusiStatusRes, dbConfigRes, moduleCatalogRes, countryProfilesRes, countryRulesRes, emailSyncStatusRes, workflowAuditRes, securityRes, hostedReadinessRes] = await Promise.allSettled([
         api.get('/settings'),
         api.get('/license/status'),
         api.get('/admin/branding'),
@@ -1295,6 +1299,7 @@ export default function SetariPage() {
         api.get('/messaging/email/sync/status'),
         api.get('/settings/workflow-audit'),
         api.get('/system/security'),
+        api.get('/system/hosted-readiness'),
       ])
       if (settingsRes.status === 'fulfilled') {
         const nextSettings = settingsRes.value.data.settings || {}
@@ -1333,6 +1338,7 @@ export default function SetariPage() {
       if (emailSyncStatusRes.status === 'fulfilled') setEmailSyncStatus(emailSyncStatusRes.value.data?.status || emptyEmailSyncStatus)
       if (workflowAuditRes.status === 'fulfilled') setWorkflowAudit(arrayFrom(workflowAuditRes.value.data, ['audit', 'items']))
       if (securityRes.status === 'fulfilled') setSecurityDiagnostic(securityRes.value.data?.diagnostic || null)
+      if (hostedReadinessRes.status === 'fulfilled') setHostedReadiness(hostedReadinessRes.value.data?.diagnostic || null)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca setările.')
     } finally {
@@ -1440,6 +1446,29 @@ export default function SetariPage() {
       notify('Diagnostic securitate actualizat.')
     } catch (err) {
       fail(err, 'Diagnosticul de securitate nu a putut fi încărcat.')
+    }
+  }
+
+  async function refreshHostedReadiness() {
+    try {
+      const response = await api.get('/system/hosted-readiness')
+      setHostedReadiness(response.data?.diagnostic || null)
+      notify('Pregătirea pentru pilot a fost reverificată.')
+    } catch (err) {
+      fail(err, 'Pregătirea pentru pilot nu a putut fi încărcată.')
+    }
+  }
+
+  async function saveHostedReadinessSettings(event) {
+    event.preventDefault()
+    try {
+      const response = await api.post('/settings', settings)
+      const savedSettings = response.data.settings || settings
+      setSettings({ ...savedSettings, gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      await refreshHostedReadiness()
+      notify('Adresa publică pentru pilot a fost salvată.')
+    } catch (err) {
+      fail(err, 'Adresa publică nu a putut fi salvată.')
     }
   }
 
@@ -3241,6 +3270,69 @@ export default function SetariPage() {
                     </div>
                   </button>
                 </div>
+
+                <Card
+                  title="Pregătire pilot hosted"
+                  subtitle="Verifică ce este gata înainte să expui aplicația printr-un domeniu HTTPS. Nu pornește și nu modifică infrastructura."
+                  actions={[<Button key="refresh-hosted-readiness" variant="secondary" onClick={refreshHostedReadiness}>Reverifică</Button>]}
+                >
+                  {hostedReadiness ? (
+                    <div className="grid gap-4">
+                      <div className={`rounded-2xl border p-4 ${securityCardClass(hostedReadiness.verdict?.status)}`}>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verdict pilot</div>
+                            <div className="mt-1 text-lg font-bold text-slate-950">{hostedReadiness.verdict?.title || 'Neverificat'}</div>
+                            <p className="mt-1 text-sm text-slate-700">{hostedReadiness.verdict?.summary}</p>
+                          </div>
+                          <Badge tone={securityTone(hostedReadiness.verdict?.status)}>{hostedReadiness.generatedAt ? formatDateTime(hostedReadiness.generatedAt) : 'acum'}</Badge>
+                        </div>
+                      </div>
+
+                      <form className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1fr_auto]" onSubmit={saveHostedReadinessSettings}>
+                        <Input
+                          label="Adresă publică pentru pilot"
+                          type="url"
+                          placeholder="https://demo.infraflow.ro"
+                          value={settings.publicUrl || ''}
+                          onChange={event => setSettings(current => ({ ...current, publicUrl: event.target.value }))}
+                          helperText="Doar adresa finală HTTPS. Tunnel-ul, DNS-ul și certificatul se configurează separat pe server."
+                        />
+                        <div className="flex items-end">
+                          <Button type="submit">Salvează adresa</Button>
+                        </div>
+                      </form>
+
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {visibleHostedReadinessItems.map((item, index) => (
+                          <div key={`${item.title}-${index}`} className={`rounded-xl border p-3 ${securityCardClass(item.status)}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="font-semibold text-slate-900">{item.title}</span>
+                              <Badge tone={securityTone(item.status)} size="sm">{item.status}</Badge>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-700">{item.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {hostedReadinessItems.length > 4 ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                          <span>{hostedReadinessExpanded ? `Se afișează toate cele ${hostedReadinessItems.length} verificări.` : `Încă ${hostedReadinessItems.length - 4} verificări sunt ascunse pentru o vedere compactă.`}</span>
+                          <Button type="button" size="sm" variant="secondary" onClick={() => setHostedReadinessExpanded(value => !value)}>
+                            {hostedReadinessExpanded ? 'Arată compact' : `Vezi tot (${hostedReadinessItems.length})`}
+                          </Button>
+                        </div>
+                      ) : null}
+                      <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950">
+                        <div className="font-semibold">Înainte de un client real</div>
+                        <ul className="mt-2 grid gap-1 pl-4 text-sm">
+                          {(hostedReadiness.manualChecks || []).map((item, index) => <li key={index}>{item}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">Diagnosticul pentru pilot nu este încă disponibil. Apasă „Reverifică”.</div>
+                  )}
+                </Card>
 
                 <Card
                   title="Politică sesiuni"

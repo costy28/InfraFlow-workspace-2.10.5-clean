@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.584**
-**Versiune în lucru: v2.12.584**
+**Versiune curentă sursă: v2.12.586**
+**Versiune în lucru: v2.12.586**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -322,6 +322,8 @@ Core System
   ✅ CRM: flux comercial compact pe Dashboard cu etape explicate și deep-link spre oferte (v2.12.582)
   ✅ CRM: filtre rapide pe etapele fluxului comercial din Dashboard (v2.12.583)
   ✅ CRM: comandă client vizibilă în lista ofertelor și în filtrul de comenzi confirmate (v2.12.584)
+  ✅ CRM: filtre rapide compatibile cu filtrarea manuală a ofertelor (v2.12.585)
+  ✅ Hosted Readiness: diagnostic compact pentru pilot controlat, HTTPS, SQL Server, APP_KEY, backup, SMTP și integritate (v2.12.586)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1045,9 +1047,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.584
+VERSIUNE CURENTĂ SURSĂ: 2.12.586
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.584 ✅
+UPDATE ZIP CURENT: 2.12.586 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1440,6 +1442,8 @@ UPDATES ÎN LUCRU:
   2.12.582 → UPDATE 602 CRM flux comercial compact pe Dashboard ✅
   2.12.583 → UPDATE 603 CRM filtre rapide flux comercial ✅
   2.12.584 → UPDATE 604 CRM comandă vizibilă în lista ofertelor ✅
+  2.12.585 → UPDATE 605 CRM filtre rapide fără combinații confuze ✅
+  2.12.586 → UPDATE 606 Hosted Readiness pentru pilot controlat ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1936,5 +1940,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 28 Septembrie 2026 | InfraFlow sursă v2.12.584*
+*AGENTS.md actualizat: 28 Septembrie 2026 | InfraFlow sursă v2.12.586*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

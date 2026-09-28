@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.584 — CRM: comandă client vizibilă în lista ofertelor
+Ultimul pas executat: 2.12.586 — Hosted Readiness pentru pilot controlat
 Status: backlog operațional activ
 
 ## Scop
@@ -104,6 +104,7 @@ Pași:
 - listă „ce s-a schimbat” pe înțelesul clientului;
 - build EXE periodic după pachete mari de update-uri;
 - demo curat, resetabil, fără date istorice de client.
+- diagnostic Hosted Readiness pentru pilot: HTTPS, SQL Server, APP_KEY, backup, SMTP, integritate și pași manuali expliciți; ✅ `v2.12.586`
 
 ## Backlog pe module
 

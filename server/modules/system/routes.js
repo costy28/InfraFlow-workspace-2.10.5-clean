@@ -37,6 +37,7 @@ const {
 const {
   buildSystemDiagnostics,
   buildSecurityAccessDiagnostic,
+  buildHostedReadinessDiagnostic,
   publicSessionId,
   buildSupportDiagnostic,
   createServerBackup,
@@ -223,6 +224,13 @@ router.get('/system/security', (req, res) => {
   if (!auth) return;
   if (!requirePermission(auth, res, "settings:manage")) return;
   sendJson(res, 200, { diagnostic: buildSecurityAccessDiagnostic(auth.db, sessions, req) });
+})
+
+router.get('/system/hosted-readiness', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "settings:manage")) return;
+  sendJson(res, 200, { diagnostic: buildHostedReadinessDiagnostic(auth.db) });
 })
 
 router.post('/system/security/sessions/:sessionId/revoke', (req, res) => {
@@ -4630,6 +4638,7 @@ function updateSettings(current = {}, body = {}) {
     initialStockCompletedBy: current.initialStockCompletedBy || "",
     initialStockCompletedByName: current.initialStockCompletedByName || "",
     networkAccessMode: normalizeNetworkAccessMode(body.networkAccessMode || current.networkAccessMode),
+    publicUrl: normalizePublicUrlSetting(body.publicUrl ?? body.public_url ?? current.publicUrl ?? current.public_url ?? ""),
     session_idle_timeout_min: normalizeSessionIdleMinutes(body.session_idle_timeout_min ?? body.sessionIdleTimeoutMinutes ?? current.session_idle_timeout_min ?? current.sessionIdleTimeoutMinutes),
     session_absolute_timeout_hours: normalizeSessionAbsoluteHours(body.session_absolute_timeout_hours ?? body.sessionAbsoluteTimeoutHours ?? current.session_absolute_timeout_hours ?? current.sessionAbsoluteTimeoutHours),
     password_min_length: passwordPolicy.minLength,
@@ -4706,6 +4715,20 @@ function updateSettings(current = {}, body = {}) {
       trialStartedAt
     })
   };
+}
+
+function normalizePublicUrlSetting(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    if (!["http:", "https:"].includes(parsed.protocol)) return "";
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
 }
 
 function normalizeSessionIdleMinutes(value) {

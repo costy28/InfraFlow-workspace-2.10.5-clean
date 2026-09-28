@@ -111,6 +111,10 @@ export default function CrmQuotesPage() {
     })
   }
   function changeAccount(accountId) { setForm(current => ({ ...current, account_id: accountId, contact_id: selectedContacts.some(c => String(c.id) === String(current.contact_id) && String(c.account_id) === String(accountId)) ? current.contact_id : '' })) }
+  function changeStatusFilter(status) {
+    setFilters(current => ({ ...current, status }))
+    if (selectedStage) navigate('/crm/oferte')
+  }
 
   async function save(event) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('')
@@ -211,7 +215,7 @@ export default function CrmQuotesPage() {
 
   if (!id && !isNew) return <Card title="Oferte" subtitle="Drafturi, aprobări și oferte trimise. Detaliile se deschid doar la click." actions={<Link to="/crm/oferte/noua"><Button>+ Ofertă nouă</Button></Link>}>
     {selectedStage ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900"><span>Filtru rapid: <strong>{stageLabel[selectedStage] || 'Flux comercial'}</strong></span><Link to="/crm/oferte" className="font-medium underline">Șterge filtrul rapid</Link></div> : null}
-    <div className="mb-4 grid gap-2 md:grid-cols-4"><input value={filters.q} placeholder="Caută număr, titlu, client" onChange={event => setFilters(current => ({ ...current, q: event.target.value }))} onKeyDown={event => event.key === 'Enter' && load()} /><select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))}><option value="">Toate statusurile</option>{Object.entries(statusLabel).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={filters.expired} onChange={event => setFilters(current => ({ ...current, expired: event.target.checked }))} />Doar expirate</label><Button variant="secondary" onClick={load}>Aplică filtre</Button></div>
+    <div className="mb-4 grid gap-2 md:grid-cols-4"><input value={filters.q} placeholder="Caută număr, titlu, client" onChange={event => setFilters(current => ({ ...current, q: event.target.value }))} onKeyDown={event => event.key === 'Enter' && load()} /><select value={filters.status} onChange={event => changeStatusFilter(event.target.value)}><option value="">Toate statusurile</option>{Object.entries(statusLabel).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={filters.expired} onChange={event => setFilters(current => ({ ...current, expired: event.target.checked }))} />Doar expirate</label><Button variant="secondary" onClick={load}>Aplică filtre</Button></div>
     {error ? <p className="mb-3 text-red-600">{error}</p> : null}
     <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th>Număr</th><th>Rev.</th><th>Client</th><th>Valabilitate</th><th>Status</th><th>Comandă</th><th className="text-right">Total</th></tr></thead><tbody>{quotes.map(item => <tr className="cursor-pointer border-t hover:bg-slate-50" onClick={() => navigate(`/crm/oferte/${item.id}`)} key={item.id}><td>{item.quote_number}</td><td>{item.revision_number}</td><td>{item.account_name}</td><td>{item.valid_until || '—'}</td><td>{statusLabel[item.status] || item.status}</td><td>{item.customer_order_number ? <span className="font-medium text-emerald-800">{item.customer_order_number}{item.customer_order_status === 'confirmed' ? ' · confirmată' : ''}</span> : '—'}</td><td className="text-right">{money(item.total)} {item.currency}</td></tr>)}{!quotes.length ? <tr><td colSpan="7" className="py-6 text-center text-slate-500">Nu există oferte pentru filtrul selectat.</td></tr> : null}</tbody></table></div>
   </Card>

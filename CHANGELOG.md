@@ -1,3 +1,14 @@
+## v2.12.586 - 2026-09-28
+### Hosted Readiness - pilot controlat
+- Setări → Securitate verifică pregătirea pentru un pilot hosted: HTTPS, SQL Server, APP_KEY, backup, SMTP și integritatea pachetului.
+- Adresa publică se salvează explicit pentru linkurile comerciale, fără ca aplicația să modifice tunnel, DNS sau firewall.
+- Checklistul separă verificările automate de pașii manuali necesari înainte de un client real.
+
+## v2.12.585 - 2026-09-28
+### CRM - filtre fără combinații confuze
+- Alegerea manuală a unui status elimină automat filtrul rapid al fluxului comercial.
+- Căutarea și filtrul de expirare pot rămâne combinate cu etapa comercială aleasă.
+
 ## v2.12.584 - 2026-09-28
 ### CRM - comandă vizibilă în lista ofertelor
 - Lista ofertelor afișează numărul comenzii client asociate, împreună cu starea confirmată.

@@ -524,6 +524,124 @@ function buildSecurityAccessDiagnostic(db, sessionStore = new Map(), req = null)
   };
 }
 
+function buildHostedReadinessDiagnostic(db, context = {}) {
+  const settings = db.settings || {};
+  const databaseMode = String(context.databaseMode || DB_MODE || "").toLowerCase();
+  const sqlServerMode = databaseMode === "mssql" || databaseMode === "sqlserver";
+  const backupInfo = context.backupInfo || latestBackupInfo();
+  const integrity = context.integrity || integrityStatus();
+  const configuredPublicUrl = String(settings.publicUrl || settings.public_url || settings.cloudflareTunnelUrl || settings.cloudflare_tunnel_url || "").trim();
+  const publicUrl = parseHostedPublicUrl(configuredPublicUrl);
+  const appKeyConfigured = context.appKeyConfigured ?? hasProductionAppKey();
+  const smtpConfigured = Boolean(
+    String(settings.smtp_host || "").trim()
+    && String(settings.smtp_user || "").trim()
+    && String(settings.smtp_password_encrypted || "").includes(":"),
+  );
+  const latestBackupAgeHours = backupInfo.latest?.modifiedAt
+    ? (Date.now() - new Date(backupInfo.latest.modifiedAt).getTime()) / 36e5
+    : null;
+  const items = [];
+  const add = (status, title, detail) => items.push({ status, title, detail });
+
+  add(
+    !configuredPublicUrl ? "bad" : publicUrl?.protocol !== "https:" ? "bad" : "ok",
+    "Adresă publică HTTPS",
+    !configuredPublicUrl
+      ? "Lipsește adresa publică. Pentru pilot, notează subdomeniul HTTPS care va trece prin tunnel/proxy."
+      : !publicUrl
+        ? "Adresa publică nu este un URL valid."
+        : publicUrl.protocol !== "https:"
+          ? "Adresa publică trebuie să folosească HTTPS înainte de testul extern."
+          : `Configurată: ${publicUrl.toString().replace(/\/$/, "")}.`,
+  );
+  add(
+    settings.networkAccessMode === "open" ? "warn" : "ok",
+    "Expunere aplicație",
+    settings.networkAccessMode === "open"
+      ? "API-ul permite acces extern direct. Pentru pilot păstrează origine privată și publică doar HTTPS prin tunnel/VPN."
+      : "Aplicația rămâne limitată la localhost, rețea privată sau VPN; tunnel-ul/proxy-ul va face public doar HTTPS.",
+  );
+  add(
+    sqlServerMode ? "ok" : "bad",
+    "Bază de date server",
+    sqlServerMode
+      ? `SQL Server este runtime-ul de bază pentru pilot${MSSQL_RELATIONAL_MODE ? "; modul relațional este activ." : "."}`
+      : "Pilotul comercial trebuie rulat cu SQL Server, nu cu stocarea locală de dezvoltare.",
+  );
+  add(
+    appKeyConfigured ? "ok" : "bad",
+    "Cheie de protecție",
+    appKeyConfigured
+      ? "APP_KEY este furnizată de runtime; se poate cripta configurația sensibilă fără a o afișa."
+      : "Setează APP_KEY unică în mediul serverului înainte de producție. Nu utiliza cheia implicită.",
+  );
+  add(
+    !backupInfo.latest ? "bad" : latestBackupAgeHours <= 48 ? "ok" : latestBackupAgeHours <= 168 ? "warn" : "bad",
+    "Backup recuperabil",
+    !backupInfo.latest
+      ? "Nu există backup localizat. Creează unul și exersează restaurarea pe o instanță de test."
+      : `Ultimul backup: ${backupInfo.latest.name}, acum ${formatAgeHours(latestBackupAgeHours)}.`,
+  );
+  add(
+    smtpConfigured ? "ok" : "warn",
+    "Email operațional",
+    smtpConfigured
+      ? "SMTP este configurat. Trimite un email de test după mutarea pe pilot."
+      : "SMTP nu este complet configurat. Linkurile și documentele pot fi testate manual, dar notificările reale nu sunt gata.",
+  );
+  add(
+    !integrity.manifestExists ? "info" : integrity.valid === true ? "ok" : "bad",
+    "Integritate pachet",
+    !integrity.manifestExists
+      ? "Nu există manifest în sursa de dezvoltare. Verificarea devine obligatorie în pachetul instalat pentru pilot."
+      : integrity.valid === true
+        ? `Manifest verificat (${integrity.checkedFiles || 0} fișiere).`
+        : "Manifestul de integritate nu a putut fi validat. Reinstalează pachetul verificat înainte de pilot.",
+  );
+
+  const overall = items.some((item) => item.status === "bad")
+    ? "bad"
+    : items.some((item) => item.status === "warn")
+      ? "warn"
+      : "ok";
+  return {
+    generatedAt: new Date().toISOString(),
+    verdict: {
+      status: overall,
+      title: overall === "ok" ? "Pregătit pentru pilot" : overall === "warn" ? "Pregătit cu verificări" : "Nepregătit pentru expunere",
+      summary: overall === "ok"
+        ? "Condițiile verificabile sunt îndeplinite. Rulează apoi testul controlat din browser și clientul desktop."
+        : overall === "warn"
+          ? "Nu există un blocaj tehnic evident, dar punctele marcate trebuie validate înainte de un client real."
+          : "Pilotul nu trebuie expus încă. Rezolvă punctele obligatorii din checklist, apoi reverifică.",
+    },
+    publicUrl: publicUrl ? publicUrl.toString().replace(/\/$/, "") : "",
+    items,
+    manualChecks: [
+      "Instalează serverul pe o mașină Windows dedicată sau pe un Windows VPS; hostingul PHP/MariaDB partajat nu poate rula runtime-ul actual Node + SQL Server.",
+      "Păstrează SQL Server inaccesibil public; expune numai aplicația prin HTTPS, Cloudflare Tunnel sau VPN.",
+      "După configurarea domeniului, verifică același URL public din browser și din InfraFlow.exe, cu un cont de test separat.",
+      "Rulează un restore de probă din backup într-o instanță separată înainte de orice date de client.",
+    ],
+  };
+}
+
+function parseHostedPublicUrl(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasProductionAppKey() {
+  const appKey = String(process.env.APP_KEY || "").trim();
+  return appKey.length >= 32 && appKey !== "infraflow-default-key-32chars!!";
+}
+
 function buildAuthenticationJournal(db) {
   const now = Date.now();
   const events = (db.audit || [])
@@ -1347,7 +1465,7 @@ function integrityStatus() {
     const document = JSON.parse(fs.readFileSync(RELEASE_MANIFEST_FILE, "utf8"));
     const payload = verifyReleaseManifestDocument(document);
     status.checkedFiles = payload.files.length;
-    payload.files.forEach((item) => verifyManifestFile(item));
+    payload.files.forEach((item) => verifyManifestFile(ROOT, item));
     status.valid = true;
   } catch (error) {
     status.valid = false;
@@ -7799,6 +7917,7 @@ function httpError(status, message) {
 module.exports = {
   buildSystemDiagnostics,
   buildSecurityAccessDiagnostic,
+  buildHostedReadinessDiagnostic,
   publicSessionId,
   buildReadinessChecklist,
   buildSupportDiagnostic,
