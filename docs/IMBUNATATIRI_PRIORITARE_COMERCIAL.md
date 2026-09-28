@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.583 — CRM: filtre rapide din fluxul comercial
+Ultimul pas executat: 2.12.584 — CRM: comandă client vizibilă în lista ofertelor
 Status: backlog operațional activ
 
 ## Scop

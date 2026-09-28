@@ -1,3 +1,8 @@
+## v2.12.584 - 2026-09-28
+### CRM - comandă vizibilă în lista ofertelor
+- Lista ofertelor afișează numărul comenzii client asociate, împreună cu starea confirmată.
+- Filtrul rapid pentru comenzi confirmate arată astfel imediat legătura dintre ofertă și comandă.
+
 ## v2.12.583 - 2026-09-28
 ### CRM - filtre rapide pentru fluxul comercial
 - Cardurile de pe Dashboard CRM deschid direct etapa selectată: aprobări, așteptare client, acceptări sau comenzi confirmate.
