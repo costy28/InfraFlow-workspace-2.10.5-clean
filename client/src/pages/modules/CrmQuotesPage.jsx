@@ -15,6 +15,7 @@ const invoiceAccountingLink = (invoice) => {
   return `/contabilitate/facturi-iesire?${query.toString()}`
 }
 const statusLabel = { draft: 'Draft', pending_approval: 'În aprobare', approved: 'Aprobată', sent: 'Trimisă', accepted: 'Acceptată de client', declined: 'Refuzată de client', rejected_internal: 'Respinsă intern', cancelled: 'Anulată' }
+const stageLabel = { pending_approval: 'Oferte de aprobat', awaiting_customer: 'Oferte care așteaptă clientul', accepted: 'Oferte acceptate de client', confirmed_order: 'Oferte cu comandă confirmată' }
 const auditLabel = {
   'crm:quote_created': 'Ofertă creată', 'crm:quote_updated': 'Ofertă actualizată', 'crm:quote_lines_changed': 'Poziții ofertă modificate', 'crm:quote_submitted_approval': 'Ofertă trimisă spre aprobare', 'crm:quote_approved': 'Ofertă aprobată intern', 'crm:quote_rejected_internal': 'Ofertă respinsă intern', 'crm:quote_sent': 'Ofertă trimisă pe email', 'crm:quote_public_link_created': 'Link client generat', 'crm:quote_public_link_revoked': 'Link client revocat', 'crm:quote_public_decision': 'Decizie client înregistrată', 'crm:customer_order_created': 'Comandă client creată', 'crm:customer_order_inventory_checked': 'Stoc verificat', 'crm:customer_order_procurement_requested': 'Necesar trimis către Achiziții', 'crm:customer_order_proforma_created': 'Proformă creată', 'crm:customer_order_invoice_draft_created': 'Factură draft creată în Contabilitate', 'crm:oblio_invoice_issued': 'Factură emisă în Oblio'
 }
@@ -44,6 +45,7 @@ export default function CrmQuotesPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const isNew = wildcardPath === 'noua' || location.pathname.endsWith('/noua')
+  const selectedStage = new URLSearchParams(location.search).get('stage') || ''
   const [quotes, setQuotes] = useState([])
   const [accounts, setAccounts] = useState([])
   const [contacts, setContacts] = useState([])
@@ -71,7 +73,7 @@ export default function CrmQuotesPage() {
   async function load() {
     setError('')
     try {
-      const params = { ...(filters.q ? { q: filters.q } : {}), ...(filters.status ? { status: filters.status } : {}), ...(filters.expired ? { expired: 'true' } : {}) }
+      const params = { ...(filters.q ? { q: filters.q } : {}), ...(filters.status ? { status: filters.status } : {}), ...(selectedStage ? { stage: selectedStage } : {}), ...(filters.expired ? { expired: 'true' } : {}) }
       const workspaceResult = await api.get('/crm/quotes/workspace', { params: { ...params, ...(id ? { quote_id: id } : {}) } })
       const workspace = workspaceResult.data || {}
       setQuotes(workspace.quotes || [])
@@ -96,7 +98,7 @@ export default function CrmQuotesPage() {
       }
     } catch (requestError) { setError(requestError.response?.data?.error || 'CRM Oferte indisponibil.') }
   }
-  useEffect(() => { load() }, [id, filters.status, filters.expired])
+  useEffect(() => { load() }, [id, location.search, filters.status, filters.expired])
 
   function setLine(index, patch) { setForm(current => ({ ...current, lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line) })) }
   function removeLine(index) { setForm(current => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) })) }
@@ -208,6 +210,7 @@ export default function CrmQuotesPage() {
   }
 
   if (!id && !isNew) return <Card title="Oferte" subtitle="Drafturi, aprobări și oferte trimise. Detaliile se deschid doar la click." actions={<Link to="/crm/oferte/noua"><Button>+ Ofertă nouă</Button></Link>}>
+    {selectedStage ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900"><span>Filtru rapid: <strong>{stageLabel[selectedStage] || 'Flux comercial'}</strong></span><Link to="/crm/oferte" className="font-medium underline">Șterge filtrul rapid</Link></div> : null}
     <div className="mb-4 grid gap-2 md:grid-cols-4"><input value={filters.q} placeholder="Caută număr, titlu, client" onChange={event => setFilters(current => ({ ...current, q: event.target.value }))} onKeyDown={event => event.key === 'Enter' && load()} /><select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))}><option value="">Toate statusurile</option>{Object.entries(statusLabel).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={filters.expired} onChange={event => setFilters(current => ({ ...current, expired: event.target.checked }))} />Doar expirate</label><Button variant="secondary" onClick={load}>Aplică filtre</Button></div>
     {error ? <p className="mb-3 text-red-600">{error}</p> : null}
     <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th>Număr</th><th>Rev.</th><th>Client</th><th>Valabilitate</th><th>Status</th><th className="text-right">Total</th></tr></thead><tbody>{quotes.map(item => <tr className="cursor-pointer border-t hover:bg-slate-50" onClick={() => navigate(`/crm/oferte/${item.id}`)} key={item.id}><td>{item.quote_number}</td><td>{item.revision_number}</td><td>{item.account_name}</td><td>{item.valid_until || '—'}</td><td>{statusLabel[item.status] || item.status}</td><td className="text-right">{money(item.total)} {item.currency}</td></tr>)}{!quotes.length ? <tr><td colSpan="6" className="py-6 text-center text-slate-500">Nu există oferte pentru filtrul selectat.</td></tr> : null}</tbody></table></div>

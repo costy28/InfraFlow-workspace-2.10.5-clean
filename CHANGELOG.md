@@ -1,3 +1,8 @@
+## v2.12.583 - 2026-09-28
+### CRM - filtre rapide pentru fluxul comercial
+- Cardurile de pe Dashboard CRM deschid direct etapa selectată: aprobări, așteptare client, acceptări sau comenzi confirmate.
+- Lista ofertelor arată filtrul activ și permite revenirea imediată la toate ofertele.
+
 ## v2.12.582 - 2026-09-28
 ### CRM - flux comercial compact
 - Pagina principală CRM arată separat ofertele de aprobat, ofertele care așteaptă răspunsul clientului, ofertele acceptate și comenzile confirmate.

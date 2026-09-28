@@ -1,5 +1,5 @@
 {
-  "version": "2.12.582",
+  "version": "2.12.583",
   "date": "2026-09-28",
-  "changelog": "## v2.12.582 - 2026-09-28\\n### CRM - flux comercial compact\\n- Pagina principală CRM arată separat ofertele de aprobat, ofertele care așteaptă răspunsul clientului, ofertele acceptate și comenzile confirmate.\\n- Fiecare card explică următorul pas și deschide lista ofertelor, fără a încărca ecranul cu tabele lungi."
+  "changelog": "## v2.12.583 - 2026-09-28\\n### CRM - filtre rapide pentru fluxul comercial\\n- Cardurile de pe Dashboard CRM deschid direct etapa selectată: aprobări, așteptare client, acceptări sau comenzi confirmate.\\n- Lista ofertelor arată filtrul activ și permite revenirea imediată la toate ofertele."
 }

@@ -49,17 +49,17 @@ function CrmOverview({ leads, pipeline, onNavigate }) {
     ['Lead-uri noi', metrics.fresh, 'new'], ['De contactat', metrics.contact, 'contacted'], ['Follow-up-uri apropiate', metrics.followUp, 'all'], ['Fără responsabil', metrics.unassigned, 'unassigned'], ['Pierdute recent', metrics.lost, 'lost'],
   ]
   const commercialCards = [
-    ['Oferte de aprobat', pipeline.pending_approval, 'Aprobă sau respinge înainte de trimiterea către client.'],
-    ['Așteaptă client', pipeline.awaiting_customer, 'Oferta este pregătită sau trimisă; poți urmări decizia clientului.'],
-    ['Oferte acceptate', pipeline.accepted, 'Creează comanda client numai după acceptare.'],
-    ['Comenzi confirmate', pipeline.confirmed_orders, 'Deschide oferta sursă pentru stoc și documentele de facturare.'],
+    ['Oferte de aprobat', pipeline.pending_approval, 'Aprobă sau respinge înainte de trimiterea către client.', 'pending_approval'],
+    ['Așteaptă client', pipeline.awaiting_customer, 'Oferta este pregătită sau trimisă; poți urmări decizia clientului.', 'awaiting_customer'],
+    ['Oferte acceptate', pipeline.accepted, 'Creează comanda client numai după acceptare.', 'accepted'],
+    ['Comenzi confirmate', pipeline.confirmed_orders, 'Deschide oferta sursă pentru stoc și documentele de facturare.', 'confirmed_order'],
   ]
   return <div className="grid gap-4">
     <Card title="CRM / Sales Automation" subtitle="Solicitări, prospecte, contacte și următorul follow-up — fără să dubleze Task-uri sau Contabilitatea.">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{cards.map(([title, value, filter]) => <button key={title} type="button" onClick={() => onNavigate(filter)} className="rounded-lg border border-slate-200 p-4 text-left hover:border-primary-300 hover:bg-primary-50"><div className="text-sm text-slate-500">{title}</div><div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div></button>)}</div>
     </Card>
     <Card title="Flux comercial" subtitle="De la ofertă la comandă, stoc și facturare. Deschide doar etapa care cere atenție.">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{commercialCards.map(([title, value, description]) => <Link key={title} to="/crm/oferte" className="rounded-lg border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50"><div className="text-sm text-slate-500">{title}</div><div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div><p className="mt-2 text-xs leading-relaxed text-slate-500">{description}</p></Link>)}</div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{commercialCards.map(([title, value, description, stage]) => <Link key={title} to={`/crm/oferte?stage=${stage}`} className="rounded-lg border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50"><div className="text-sm text-slate-500">{title}</div><div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div><p className="mt-2 text-xs leading-relaxed text-slate-500">{description}</p></Link>)}</div>
     </Card>
     <Card title="Următorul pas" subtitle="Creează o solicitare, pregătește oferta pentru prospect și delegă follow-up-ul către persoana potrivită.">
       <div className="flex flex-wrap gap-2"><Link to="/crm/leads"><Button>Deschide lead-uri</Button></Link><Link to="/crm/clients"><Button variant="secondary">Prospecte și contacte</Button></Link><Link to="/crm/oferte"><Button variant="secondary">Oferte comerciale</Button></Link></div>

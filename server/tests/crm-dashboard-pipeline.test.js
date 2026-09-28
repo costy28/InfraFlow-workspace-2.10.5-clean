@@ -6,6 +6,8 @@ const path = require('path')
 const root = path.resolve(__dirname, '../..')
 const routes = fs.readFileSync(path.join(root, 'server/modules/crm/routes.js'), 'utf8')
 const page = fs.readFileSync(path.join(root, 'client/src/pages/modules/CrmPage.jsx'), 'utf8')
+const quotePage = fs.readFileSync(path.join(root, 'client/src/pages/modules/CrmQuotesPage.jsx'), 'utf8')
+const repository = fs.readFileSync(path.join(root, 'server/modules/crm/quote-repository.js'), 'utf8')
 
 test('dashboardul CRM expune doar sumarul sigur al fluxului comercial', () => {
   assert.match(routes, /router\.get\('\/crm\/dashboard'/)
@@ -24,5 +26,17 @@ test('pagina CRM încarcă și explică cele patru etape comerciale', () => {
   assert.match(page, /Așteaptă client/)
   assert.match(page, /Oferte acceptate/)
   assert.match(page, /Comenzi confirmate/)
-  assert.match(page, /to="\/crm\/oferte"/)
+  assert.match(page, /stage=\$\{stage\}/)
+})
+
+test('fiecare etapă deschide filtrat numai ofertele din contextul comercial ales', () => {
+  assert.match(repository, /function quoteListConditions\(\)/)
+  assert.match(repository, /stage'\)=N'pending_approval'/)
+  assert.match(repository, /stage'\)=N'awaiting_customer'/)
+  assert.match(repository, /stage'\)=N'accepted'/)
+  assert.match(repository, /stage'\)=N'confirmed_order'/)
+  assert.match(repository, /crm\.customer_orders co/)
+  assert.match(quotePage, /new URLSearchParams\(location\.search\)\.get\('stage'\)/)
+  assert.match(quotePage, /Filtru rapid/)
+  assert.match(quotePage, /Șterge filtrul rapid/)
 })
