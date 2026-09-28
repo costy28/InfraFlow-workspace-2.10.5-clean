@@ -8,6 +8,7 @@ const root = path.resolve(__dirname, '../..')
 const routes = fs.readFileSync(path.join(root, 'server/modules/crm/routes.js'), 'utf8')
 const repository = fs.readFileSync(path.join(root, 'server/modules/crm/quote-repository.js'), 'utf8')
 const dbCore = fs.readFileSync(path.join(root, 'server/core/db.js'), 'utf8')
+const quotePage = fs.readFileSync(path.join(root, 'client/src/pages/modules/CrmQuotesPage.jsx'), 'utf8')
 
 test('calculele ofertelor sunt server-side: discount înainte de TVA', () => {
   const result = calculateQuote([{ description: 'Serviciu', quantity: 2, unit_price: 100, discount_percent: 10, tax_percent: 21 }])
@@ -39,6 +40,15 @@ test('API protejează tranzițiile, auditul și emailul ofertelor', () => {
   assert.match(routes, /sendEmail/)
   assert.match(routes, /recordOutboundEmail/)
   assert.match(routes, /document_path/)
+})
+test('trimiterea ofertei folosește emailul contactului sau, în lipsă, al prospectului', () => {
+  assert.match(repository, /a\.email account_email/)
+  assert.match(routes, /quote\.contact_email \|\| quote\.account_email/)
+  assert.match(quotePage, /loaded\.contact_email \|\| loaded\.account_email/)
+})
+test('trimiterea ofertei păstrează activitatea CRM cu moment obligatoriu', () => {
+  assert.match(routes, /activity_type: 'email', occurred_at: new Date\(\)\.toISOString\(\)/)
+  assert.match(routes, /repository\.createActivity\(normalizeActivityPayload/)
 })
 test('documentul print-ready identifică exact oferta și revizia', () => {
   const quote = { quote_number: 'OF-2026-0001', revision_number: 2, account_name: 'Client test', currency: 'RON', lines: [{ position: 1, description: '<serviciu>', quantity: 1, unit_price: 100, discount_percent: 0, tax_percent: 21, line_total: 121 }] }

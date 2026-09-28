@@ -3282,6 +3282,9 @@ function publicSettings(settings = {}) {
   result.imap_password_set = !!(result.imap_password_encrypted && String(result.imap_password_encrypted).includes(":"))
   delete result.imap_password_encrypted
   result.imap_password = ""
+  result.oblio_client_secret_set = !!(result.oblio_client_secret_encrypted && String(result.oblio_client_secret_encrypted).includes(":"))
+  delete result.oblio_client_secret_encrypted
+  result.oblio_client_secret = ""
   delete result.gps_session
   delete result.gps_group
   return result
@@ -4673,6 +4676,15 @@ function updateSettings(current = {}, body = {}) {
     imap_password_encrypted: body.imap_password
       ? encryptSettingSecret(body.imap_password)
       : (body.imap_password_encrypted || current.imap_password_encrypted || ""),
+    oblio_enabled: body.oblio_enabled !== undefined ? Boolean(body.oblio_enabled) : Boolean(current.oblio_enabled),
+    oblio_client_id: String(body.oblio_client_id ?? current.oblio_client_id ?? "").trim(),
+    oblio_client_secret_encrypted: body.oblio_client_secret
+      ? encryptSettingSecret(body.oblio_client_secret)
+      : (body.oblio_client_secret_encrypted || current.oblio_client_secret_encrypted || ""),
+    oblio_company_cif: String(body.oblio_company_cif ?? current.oblio_company_cif ?? "").trim(),
+    oblio_invoice_series: String(body.oblio_invoice_series ?? current.oblio_invoice_series ?? "").trim(),
+    oblio_language: String(body.oblio_language ?? current.oblio_language ?? "RO").trim().toUpperCase().slice(0, 2),
+    oblio_use_stock: false,
     email_sync_enabled: body.email_sync_enabled !== undefined ? Boolean(body.email_sync_enabled) : Boolean(current.email_sync_enabled),
     email_sync_interval_min: Math.max(5, Math.min(1440, Number(body.email_sync_interval_min || current.email_sync_interval_min || 15))),
     email_sync_limit: Math.max(1, Math.min(50, Number(body.email_sync_limit || current.email_sync_limit || 20))),

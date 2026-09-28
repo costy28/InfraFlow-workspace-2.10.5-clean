@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.571**
-**Versiune în lucru: v2.12.571**
+**Versiune curentă sursă: v2.12.582**
+**Versiune în lucru: v2.12.582**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -309,6 +309,17 @@ Core System
   ✅ Acces vizibil la Oferte comerciale din pagina principală CRM (v2.12.569)
   ✅ Hotfix listare oferte și bootstrap controlat migrări CRM MSSQL 070–073 (v2.12.570)
   ✅ Hotfix performanță Oferte CRM și citire integrală JSON MSSQL (v2.12.571)
+  ✅ Hotfix trimitere ofertă și decizie publică explicită (v2.12.572)
+  ✅ Hotfix finalizare email ofertă și activitate CRM (v2.12.573)
+  ✅ CRM Sprint 5: ofertă acceptată → comandă client idempotentă, cu snapshot, revizie și decizie păstrate; fără stoc/facturare (v2.12.574)
+  ✅ Hotfix bootstrap migrare CRM pentru comenzi clienți (v2.12.575)
+  ✅ CRM Sprint 6: verificare informativă stoc și necesar idempotent către Achiziții, fără rezervare/comandă automată (v2.12.576)
+  ✅ CRM Sprint 7: proformă comercială și factură draft internă, cu audit și idempotentă; fără validare, e-Factura sau provider extern automat (v2.12.577)
+  ✅ CRM Sprint 7: legare simplă client CRM → terț contabil înainte de factura draft (v2.12.578)
+  ✅ CRM Sprint 7: deschidere exactă în Contabilitate a facturii draft CRM, cu perioada facturii păstrată (v2.12.579)
+  ✅ CRM Oblio: configurare securizată, test conexiune, emitere manuală idempotentă și audit explicat (v2.12.580)
+  ✅ CRM Oblio: confirmare standard explicită înainte de emiterea unei facturi reale (v2.12.581)
+  ✅ CRM: flux comercial compact pe Dashboard cu etape explicate și deep-link spre oferte (v2.12.582)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1032,9 +1043,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.571
-BUILD EXE EXISTENT: 2.12.459 ✅
-UPDATE ZIP CURENT: 2.12.571 ✅
+VERSIUNE CURENTĂ SURSĂ: 2.12.582
+BUILD EXE EXISTENT: 2.12.581 ✅
+UPDATE ZIP CURENT: 2.12.582 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1414,6 +1425,17 @@ UPDATES ÎN LUCRU:
   2.12.569 → UPDATE 589 acces vizibil Oferte CRM ✅
   2.12.570 → UPDATE 590 Hotfix persistență Oferte CRM ✅
   2.12.571 → UPDATE 591 Hotfix performanță Oferte CRM ✅
+  2.12.572 → UPDATE 592 Hotfix trimitere și decizie ofertă publică ✅
+  2.12.573 → UPDATE 593 Hotfix finalizare email ofertă CRM ✅
+  2.12.574 → UPDATE 594 CRM Sprint 5 comandă client din ofertă acceptată ✅
+  2.12.575 → UPDATE 595 Hotfix bootstrap migrare comandă client CRM ✅
+  2.12.576 → UPDATE 596 CRM Sprint 6 stoc și necesar de aprovizionare ✅
+  2.12.577 → UPDATE 597 CRM Sprint 7 proformă și factură draft internă ✅
+  2.12.578 → UPDATE 598 CRM Sprint 7 legare terț contabil pentru factura draft ✅
+  2.12.579 → UPDATE 599 CRM Sprint 7 deep-link exact factură draft contabilă ✅
+  2.12.580 → UPDATE 600 CRM Oblio emitere controlată și audit explicat ✅
+  2.12.581 → UPDATE 601 CRM Oblio confirmare explicită înainte de emitere ✅
+  2.12.582 → UPDATE 602 CRM flux comercial compact pe Dashboard ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1910,5 +1932,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 27 Septembrie 2026 | InfraFlow sursă v2.12.571*
+*AGENTS.md actualizat: 28 Septembrie 2026 | InfraFlow sursă v2.12.582*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

@@ -8,6 +8,7 @@ const repository = fs.readFileSync(path.join(root, 'server/modules/crm/quote-rep
 const publicRoutes = fs.readFileSync(path.join(root, 'server/modules/crm/public-routes.js'), 'utf8')
 const app = fs.readFileSync(path.join(root, 'server/app.js'), 'utf8')
 const migration = fs.readFileSync(path.join(root, 'db/migrations/073_crm_quote_public_links_sprint_4.sql'), 'utf8')
+const publicPage = fs.readFileSync(path.join(root, 'client/src/pages/PublicQuotePage.jsx'), 'utf8')
 
 test('tokenul public este aleator, se verifică doar prin hash și nu se confundă cu alt token', () => {
   const token = createPublicToken()
@@ -47,4 +48,9 @@ test('rutele publice sunt neautentificate, no-store și nu expun tokenul în log
   assert.match(publicRoutes, /Referrer-Policy/)
   assert.match(publicRoutes, /X-Robots-Tag/)
   assert.match(app, /\[redacted\]/)
+})
+test('pagina publică cere o confirmare explicită atât pentru acceptare, cât și pentru refuz', () => {
+  assert.match(publicPage, /setDecision\('accepted'\)/)
+  assert.match(publicPage, /Confirmă acceptarea/)
+  assert.match(publicPage, /Confirmă refuzul/)
 })

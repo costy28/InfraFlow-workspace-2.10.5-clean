@@ -829,7 +829,8 @@ function ensureMssqlCrmSchema() {
     "070_crm_sales_automation_foundation.sql",
     "071_crm_sales_automation_sprint_2.sql",
     "072_crm_quotes_sprint_3.sql",
-    "073_crm_quote_public_links_sprint_4.sql"
+    "073_crm_quote_public_links_sprint_4.sql",
+    "074_crm_customer_orders_sprint_5.sql"
   ];
   const applied = [];
   migrations.forEach((fileName) => {

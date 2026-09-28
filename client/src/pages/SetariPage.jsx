@@ -2655,7 +2655,7 @@ export default function SetariPage() {
         autominderDbPath: settings.autominder_db_path || settings.autominderDbPath || '',
       }
       const response = await api.post('/settings', payload)
-      setSettings({ ...(response.data.settings || payload), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '' })
+      setSettings({ ...(response.data.settings || payload), gps_api_key: '', gps_password: '', smtp_password: '', imap_password: '', oblio_client_secret: '' })
       await api.post('/integration/piusi/config', {
         mdb_path: payload.piusi_mdb_path || '',
         sync_interval_min: payload.piusi_sync_min || 30,
@@ -2664,6 +2664,16 @@ export default function SetariPage() {
       await reloadPiusi()
     } catch (err) {
       fail(err, 'Căile integrărilor nu au putut fi salvate.')
+    }
+  }
+
+  async function testOblio() {
+    try {
+      await saveExternalPaths()
+      const response = await api.post('/crm/billing/oblio/test')
+      notify(response.data?.message || 'Conexiunea Oblio este validă.')
+    } catch (err) {
+      fail(err, 'Conexiunea Oblio nu a putut fi verificată.')
     }
   }
 
@@ -5101,6 +5111,21 @@ export default function SetariPage() {
                   {integrationTests.piusi?.modified ? <span className="ml-2 text-slate-500">Modificat: {formatDate(integrationTests.piusi.modified)}</span> : null}
                   {integrationTests.piusi?.error ? <span className="ml-2 text-rose-600">{integrationTests.piusi.error}</span> : null}
                 </div>
+              </section>
+
+              <section className="grid gap-3 border-b border-slate-200 pb-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">🧾 Oblio — facturare externă</h3>
+                  <p className="text-sm text-slate-500">Conexiunea se testează fără emiterea unui document. Facturile se vor trimite ulterior doar manual, din comanda CRM confirmată.</p>
+                </div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={settings.oblio_enabled === true} onChange={event => setSettings(s => ({ ...s, oblio_enabled: event.target.checked }))} /> Activează providerul Oblio</label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input label="Email cont Oblio" type="email" value={settings.oblio_client_id || ''} onChange={event => setSettings(s => ({ ...s, oblio_client_id: event.target.value }))} />
+                  <Input label="Cheie API Oblio" type="password" value={settings.oblio_client_secret || ''} onChange={event => setSettings(s => ({ ...s, oblio_client_secret: event.target.value }))} placeholder={settings.oblio_client_secret_set && !settings.oblio_client_secret ? 'Salvată — completează doar pentru schimbare' : 'API secret'} />
+                  <Input label="CIF firmă emitentă" value={settings.oblio_company_cif || ''} onChange={event => setSettings(s => ({ ...s, oblio_company_cif: event.target.value }))} placeholder="RO12345678" />
+                  <Input label="Seria facturilor" value={settings.oblio_invoice_series || ''} onChange={event => setSettings(s => ({ ...s, oblio_invoice_series: event.target.value }))} placeholder="FCT" />
+                </div>
+                <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={testOblio}>Testează conexiunea Oblio</Button><Button type="button" onClick={saveExternalPaths}>Salvează configurația</Button></div>
               </section>
 
               <section className="grid gap-3 border-b border-slate-200 pb-5">

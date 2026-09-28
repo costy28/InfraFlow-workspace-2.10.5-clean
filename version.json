@@ -1,5 +1,5 @@
 {
-  "version": "2.12.571",
-  "date": "2026-09-27",
-  "changelog": "## v2.12.571 - 2026-09-27\\n### Hotfix performanță Oferte CRM\\n- Pagina Oferte încarcă lista, clienții și fișa selectată într-o singură citire CRM.\\n- Fișa unei oferte citește oferta, pozițiile și reviziile într-o singură operație SQL.\\n- Executorul MSSQL păstrează integral răspunsurile JSON mari, inclusiv cele împărțite de SQL Server în fragmente."
+  "version": "2.12.582",
+  "date": "2026-09-28",
+  "changelog": "## v2.12.582 - 2026-09-28\\n### CRM - flux comercial compact\\n- Pagina principală CRM arată separat ofertele de aprobat, ofertele care așteaptă răspunsul clientului, ofertele acceptate și comenzile confirmate.\\n- Fiecare card explică următorul pas și deschide lista ofertelor, fără a încărca ecranul cu tabele lungi."
 }

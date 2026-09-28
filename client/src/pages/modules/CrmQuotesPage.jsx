@@ -3,12 +3,26 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import api from '../../api/client'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const emptyLine = () => ({ item_type: 'custom', item_reference: '', description: '', quantity: 1, unit: 'buc', unit_price: 0, discount_percent: 0, tax_percent: 21, notes: '' })
 const newForm = () => ({ title: '', account_id: '', contact_id: '', currency: 'RON', issue_date: today(), valid_until: '', payment_terms: '', delivery_terms: '', notes_internal: '', notes_client: '', lines: [emptyLine()] })
 const money = (value) => Number(value || 0).toFixed(2)
+const invoiceAccountingLink = (invoice) => {
+  const query = new URLSearchParams({ q: String(invoice?.uuid || '') })
+  if (invoice?.an && invoice?.luna) query.set('luna', `${invoice.an}-${String(invoice.luna).padStart(2, '0')}`)
+  return `/contabilitate/facturi-iesire?${query.toString()}`
+}
 const statusLabel = { draft: 'Draft', pending_approval: 'În aprobare', approved: 'Aprobată', sent: 'Trimisă', accepted: 'Acceptată de client', declined: 'Refuzată de client', rejected_internal: 'Respinsă intern', cancelled: 'Anulată' }
+const auditLabel = {
+  'crm:quote_created': 'Ofertă creată', 'crm:quote_updated': 'Ofertă actualizată', 'crm:quote_lines_changed': 'Poziții ofertă modificate', 'crm:quote_submitted_approval': 'Ofertă trimisă spre aprobare', 'crm:quote_approved': 'Ofertă aprobată intern', 'crm:quote_rejected_internal': 'Ofertă respinsă intern', 'crm:quote_sent': 'Ofertă trimisă pe email', 'crm:quote_public_link_created': 'Link client generat', 'crm:quote_public_link_revoked': 'Link client revocat', 'crm:quote_public_decision': 'Decizie client înregistrată', 'crm:customer_order_created': 'Comandă client creată', 'crm:customer_order_inventory_checked': 'Stoc verificat', 'crm:customer_order_procurement_requested': 'Necesar trimis către Achiziții', 'crm:customer_order_proforma_created': 'Proformă creată', 'crm:customer_order_invoice_draft_created': 'Factură draft creată în Contabilitate', 'crm:oblio_invoice_issued': 'Factură emisă în Oblio'
+}
+function auditDescription(entry) {
+  const details = entry?.details || {}
+  const parts = [details.order_number ? `Comandă ${details.order_number}` : '', details.quote_number ? `Ofertă ${details.quote_number}` : '', details.revision ? `Revizia ${details.revision}` : '', details.providerDocumentId ? `Document ${details.providerDocumentId}` : '', Number.isFinite(Number(details.lines)) ? `${details.lines} poziții` : '', details.idempotent ? 'operațiune reluată fără duplicare' : ''].filter(Boolean)
+  return parts.join(' · ')
+}
 
 function localTotals(lines) {
   return (lines || []).reduce((total, line) => {
@@ -39,11 +53,17 @@ export default function CrmQuotesPage() {
   const [filters, setFilters] = useState({ q: '', status: '', expired: false })
   const [email, setEmail] = useState({ to: '', cc: '', bcc: '', subject: '', body: '', include_public_link: false, public_link_expires_in_days: 14 })
   const [publicLinks, setPublicLinks] = useState([])
+  const [customerOrder, setCustomerOrder] = useState(null)
+  const [inventoryCheck, setInventoryCheck] = useState(null)
+  const [procurementRequirements, setProcurementRequirements] = useState([])
+  const [billingDocuments, setBillingDocuments] = useState([])
+  const [billingClients, setBillingClients] = useState([])
   const [publicLinkDays, setPublicLinkDays] = useState(14)
   const [newPublicUrl, setNewPublicUrl] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [oblioInvoiceConfirmation, setOblioInvoiceConfirmation] = useState(false)
 
   const selectedContacts = useMemo(() => contacts.filter(contact => !form.account_id || String(contact.account_id) === String(form.account_id)), [contacts, form.account_id])
   const totals = useMemo(() => localTotals(form.lines), [form.lines])
@@ -62,10 +82,17 @@ export default function CrmQuotesPage() {
         setQuote(loaded)
         setAudit(workspace.audit || [])
         setForm({ ...newForm(), ...loaded, account_id: loaded.account_id || '', contact_id: loaded.contact_id || '', lines: loaded.lines?.length ? loaded.lines : [emptyLine()] })
-        setEmail({ to: loaded.contact_email || '', cc: '', bcc: '', subject: `Oferta ${loaded.quote_number} / Rev. ${loaded.revision_number}`, body: `<p>Bună ziua,</p><p>Vă transmitem oferta ${loaded.quote_number}.</p>`, include_public_link: false, public_link_expires_in_days: 14 })
+        setEmail({ to: loaded.contact_email || loaded.account_email || '', cc: '', bcc: '', subject: `Oferta ${loaded.quote_number} / Rev. ${loaded.revision_number}`, body: `<p>Bună ziua,</p><p>Vă transmitem oferta ${loaded.quote_number}.</p>`, include_public_link: false, public_link_expires_in_days: 14 })
         setPublicLinks(workspace.public_links || [])
+        setCustomerOrder(workspace.customer_order || null)
+        setInventoryCheck(workspace.inventory_check || null)
+        setProcurementRequirements(workspace.procurement_requirements || [])
+        if (workspace.customer_order) {
+          api.get(`/crm/customer-orders/${workspace.customer_order.id}/billing-documents`).then(result => setBillingDocuments(result.data.documents || [])).catch(() => setBillingDocuments([]))
+          api.get('/crm/billing/clients').then(result => setBillingClients(result.data.clients || [])).catch(() => setBillingClients([]))
+        } else { setBillingDocuments([]); setBillingClients([]) }
       } else {
-        setQuote(null); setAudit([]); setPublicLinks([]); setNewPublicUrl(''); if (isNew) setForm(newForm())
+        setQuote(null); setAudit([]); setPublicLinks([]); setCustomerOrder(null); setInventoryCheck(null); setProcurementRequirements([]); setBillingDocuments([]); setBillingClients([]); setNewPublicUrl(''); if (isNew) setForm(newForm())
       }
     } catch (requestError) { setError(requestError.response?.data?.error || 'CRM Oferte indisponibil.') }
   }
@@ -99,8 +126,65 @@ export default function CrmQuotesPage() {
         if (preview) { preview.document.open(); preview.document.write(result.data.html); preview.document.close(); preview.focus() }
         setNotice('Documentul print-ready a fost generat și legat de această revizie.')
       } else if (path === 'revision') navigate(`/crm/oferte/${result.data.quote.id}`)
+      else if (path === 'customer-order') {
+        setCustomerOrder(result.data.order)
+        setInventoryCheck(null); setProcurementRequirements([]); setBillingDocuments([])
+        setNotice(result.data.idempotent ? `Comanda ${result.data.order.order_number} exista deja pentru această ofertă acceptată.` : `Comanda client ${result.data.order.order_number} a fost creată din această ofertă acceptată.`)
+      }
       else { setNotice(path === 'send' ? 'Oferta a fost trimisă și înregistrată în Inbox ERP.' : 'Acțiunea a fost înregistrată.'); await load() }
     } catch (requestError) { setError(requestError.response?.data?.error || 'Acțiunea a eșuat.') } finally { setBusy(false) }
+  }
+  async function checkInventory() {
+    if (!customerOrder) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await api.post(`/crm/customer-orders/${customerOrder.id}/inventory-check`)
+      setInventoryCheck(result.data.check || null)
+      const summary = result.data.check?.result?.summary || {}
+      setNotice(summary.material_lines ? `Stoc verificat: ${summary.sufficient_lines || 0} poziții disponibile, ${summary.shortage_lines || 0} cu deficit. Stocul nu a fost modificat.` : 'Comanda nu conține poziții de tip material; stocul nu se aplică.')
+    } catch (requestError) { setError(requestError.response?.data?.error || 'Stocul nu a putut fi verificat.') } finally { setBusy(false) }
+  }
+  async function createProcurementRequirements() {
+    if (!customerOrder) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await api.post(`/crm/customer-orders/${customerOrder.id}/procurement-requirements`)
+      setProcurementRequirements(result.data.requirements || [])
+      setNotice(result.data.idempotent ? 'Necesarul activ pentru acest deficit există deja; nu a fost duplicat.' : `${result.data.created || 0} necesar(e) au fost create în Achiziții pentru deficitul confirmat.`)
+    } catch (requestError) { setError(requestError.response?.data?.error || 'Necesarul de aprovizionare nu a putut fi creat.') } finally { setBusy(false) }
+  }
+  async function createBillingDocument(kind) {
+    if (!customerOrder) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const path = kind === 'proforma' ? 'proforma' : 'invoice-draft'
+      const result = await api.post(`/crm/customer-orders/${customerOrder.id}/${path}`)
+      const document = result.data.document
+      setBillingDocuments(current => [document, ...current.filter(item => String(item.id) !== String(document.id))])
+      if (kind === 'proforma') setNotice(result.data.idempotent ? `Proforma ${document.provider_document_id} există deja pentru această comandă.` : `Proforma ${document.provider_document_id} a fost creată.`)
+      else setNotice(result.data.idempotent ? 'Factura draft există deja în Contabilitate.' : `Factura draft ${result.data.invoice?.serie || 'IF'}-${result.data.invoice?.numar || ''} a fost creată în Contabilitate. Valideaz-o separat, după controlul contabil.`)
+    } catch (requestError) { setError(requestError.response?.data?.error || 'Documentul de facturare nu a putut fi creat.') } finally { setBusy(false) }
+  }
+  async function emitInvoiceInOblio() {
+    if (!customerOrder) return
+    setOblioInvoiceConfirmation(false)
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await api.post(`/crm/customer-orders/${customerOrder.id}/oblio/invoice`, { confirmed: true })
+      const document = result.data.document
+      setBillingDocuments(current => [document, ...current.filter(item => String(item.id) !== String(document.id))])
+      setNotice(result.data.idempotent ? `Factura Oblio ${document.provider_document_id} există deja.` : `Factura Oblio ${document.provider_document_id} a fost emisă.`)
+      await load()
+    } catch (requestError) { setError(requestError.response?.data?.error || 'Factura nu a putut fi emisă în Oblio.') } finally { setBusy(false) }
+  }
+  async function linkAccountingClient(value) {
+    if (!customerOrder) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await api.patch(`/crm/accounts/${customerOrder.account_id}`, { accounting_third_party_id: value || '' })
+      setCustomerOrder(current => ({ ...current, accounting_third_party_id: value ? Number(value) : null }))
+      setNotice(value ? 'Terțul contabil a fost legat de clientul CRM. Poți crea factura draft.' : 'Legătura cu terțul contabil a fost eliminată.')
+    } catch (requestError) { setError(requestError.response?.data?.error || 'Terțul contabil nu a putut fi legat.') } finally { setBusy(false) }
   }
   async function createPublicLink() {
     setBusy(true); setError(''); setNotice(''); setNewPublicUrl('')
@@ -130,15 +214,35 @@ export default function CrmQuotesPage() {
   </Card>
 
   if (id && quote && quote.status !== 'draft') return <div className="grid gap-4">
-    <Card title={`${quote.quote_number} / Rev. ${quote.revision_number}`} subtitle={`${statusLabel[quote.status] || quote.status} · ${quote.account_name}`} actions={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={busy} onClick={() => action('generate-document')}>Print / PDF</Button>{quote.status === 'pending_approval' ? <><Button disabled={busy} onClick={() => action('approve')}>Aprobă</Button><Button variant="secondary" disabled={busy} onClick={() => action('reject', { reason: 'Respins intern' })}>Respinge</Button></> : null}{['approved', 'sent', 'accepted', 'declined', 'rejected_internal'].includes(quote.status) ? <Button variant="secondary" disabled={busy} onClick={() => action('revision')}>Creează revizie</Button> : null}</div>}>
+    <Card title={`${quote.quote_number} / Rev. ${quote.revision_number}`} subtitle={`${statusLabel[quote.status] || quote.status} · ${quote.account_name}`} actions={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={busy} onClick={() => action('generate-document')}>Print / PDF</Button>{quote.status === 'pending_approval' ? <><Button disabled={busy} onClick={() => action('approve')}>Aprobă</Button><Button variant="secondary" disabled={busy} onClick={() => action('reject', { reason: 'Respins intern' })}>Respinge</Button></> : null}{quote.status === 'accepted' ? <Button disabled={busy} onClick={() => action('customer-order')}>Creează comandă client</Button> : null}{['approved', 'sent', 'accepted', 'declined', 'rejected_internal'].includes(quote.status) ? <Button variant="secondary" disabled={busy} onClick={() => action('revision')}>Creează revizie</Button> : null}</div>}>
       {error ? <p className="mb-3 text-red-600">{error}</p> : null}{notice ? <p className="mb-3 text-emerald-700">{notice}</p> : null}
       <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th>#</th><th>Descriere</th><th>Cant.</th><th>Preț</th><th>Discount</th><th>TVA</th><th className="text-right">Total</th></tr></thead><tbody>{quote.lines.map(line => <tr className="border-t" key={line.id}><td>{line.position}</td><td>{line.description}</td><td>{line.quantity} {line.unit}</td><td>{money(line.unit_price)}</td><td>{money(line.discount_percent)}%</td><td>{money(line.tax_percent)}%</td><td className="text-right">{money(line.line_total)} {quote.currency}</td></tr>)}</tbody></table></div>
       <p className="mt-4 text-right font-bold">Total: {money(quote.total)} {quote.currency}</p>
       {quote.document_path ? <p className="mt-3 text-sm text-slate-600">Documentul este atașat acestei revizii în dosarul controlat al aplicației.</p> : null}
+      {customerOrder ? <div className="mt-3 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"><strong>Comandă client: {customerOrder.order_number}</strong><span className="ml-2">Creată din {quote.quote_number}, Rev. {quote.revision_number}.</span></div> : null}
     </Card>
+    {customerOrder ? <Card title="Stoc și aprovizionare" subtitle="Verificarea este un instantaneu informativ: nu rezervă și nu modifică stocul. Deficitul se trimite manual în Achiziții ca necesar, nu ca o comandă către furnizor." actions={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={busy} onClick={checkInventory}>Verifică stocul</Button><Button disabled={busy || !inventoryCheck?.result?.procurement_candidates?.length} onClick={createProcurementRequirements}>Creează necesar în Achiziții</Button></div>}>
+      {!inventoryCheck ? <p className="text-sm text-slate-500">Nu s-a făcut încă o verificare a stocului pentru comanda {customerOrder.order_number}.</p> : <div className="grid gap-3"><div className="rounded bg-slate-50 p-3 text-sm"><strong>{inventoryCheck.result?.check_status === 'sufficient' ? 'Stoc suficient' : inventoryCheck.result?.check_status === 'not_applicable' ? 'Stoc neaplicabil' : 'Necesită atenție'}</strong><span className="ml-2">Verificat la {inventoryCheck.checked_at ? new Date(inventoryCheck.checked_at).toLocaleString('ro-RO') : '—'} · fără rezervare automată.</span></div><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th>Poziție</th><th>Stare</th><th>Cerut</th><th>Disponibil</th><th>Deficit</th></tr></thead><tbody>{(inventoryCheck.result?.lines || []).map(line => <tr className="border-t" key={line.line_id}><td>{line.description}</td><td>{line.status === 'sufficient' ? 'Disponibil' : line.status === 'shortage' ? 'Deficit' : line.status === 'unmapped' ? 'Nemapat' : 'Neaplicabil'}</td><td>{line.requested_quantity} {line.unit}</td><td>{line.available_quantity == null ? '—' : `${line.available_quantity} ${line.unit}`}</td><td>{line.shortage_quantity == null ? '—' : `${line.shortage_quantity} ${line.unit}`}</td></tr>)}</tbody></table></div>{inventoryCheck.result?.summary?.unmapped_lines ? <p className="text-sm text-amber-700">Unele materiale nu sunt mapate sigur în catalog. Nu a fost creat automat niciun necesar pentru ele.</p> : null}</div>}
+      {procurementRequirements.length ? <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><strong>Necesare în Achiziții:</strong> {procurementRequirements.map(item => `${item.itemName} · ${item.amount} ${item.unit}`).join(' | ')}. Achizițiile aleg furnizorul și emit comanda separat.</div> : null}
+    </Card> : null}
+    {customerOrder ? <Card title="Proformă și facturare" subtitle="Proforma este comercială. Factura se creează numai ca draft în Contabilitate; validarea, nota contabilă și e-Factura rămân pași controlați acolo." actions={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={busy} onClick={() => createBillingDocument('proforma')}>Creează proformă</Button><Button disabled={busy} onClick={() => createBillingDocument('invoice')}>Creează factură draft</Button><Button variant="secondary" disabled={busy} onClick={() => setOblioInvoiceConfirmation(true)}>Emite factură în Oblio</Button></div>}>
+      <div className="mb-3 grid gap-1 text-sm"><label className="font-medium text-slate-700">Terț contabil pentru client</label><select value={customerOrder.accounting_third_party_id || ''} disabled={busy} onChange={event => linkAccountingClient(event.target.value)}><option value="">Alege terțul client din Contabilitate</option>{billingClients.map(client => <option key={client.id} value={client.id}>{client.denumire}{client.cui ? ` · ${client.cui}` : ''}</option>)}</select><p className="text-slate-500">Proforma poate fi creată independent. Factura draft folosește terțul ales și rămâne în controlul Contabilității.</p></div>
+      {billingDocuments.length ? <div className="grid gap-2">{billingDocuments.map(document => <div className="flex flex-wrap items-center justify-between gap-2 rounded border p-3 text-sm" key={document.id}><span><strong>{document.document_kind === 'proforma' ? 'Proformă' : document.provider_key === 'oblio' ? 'Factură Oblio' : 'Factură draft'}</strong><span className="ml-2">{document.provider_document_id || 'în pregătire'} · {document.status === 'issued' ? 'emisă' : document.status}</span></span>{document.document_kind === 'invoice_draft' && document.response?.invoice?.uuid ? <Link className="font-medium text-emerald-800 underline" to={invoiceAccountingLink(document.response.invoice)}>Deschide în Contabilitate</Link> : document.response?.link ? <a className="font-medium text-emerald-800 underline" href={document.response.link} target="_blank" rel="noreferrer">Deschide în Oblio</a> : null}</div>)}</div> : <p className="text-sm text-slate-500">Nu există încă proformă sau factură draft pentru această comandă.</p>}
+    </Card> : null}
     {['approved', 'sent'].includes(quote.status) ? <Card title="Link public securizat" subtitle="Clientul vede doar această ofertă și revizie. Linkul este o credențială temporară; valoarea lui se arată o singură dată, imediat după generare."><div className="flex flex-wrap items-end gap-3"><Field label="Valabilitate"><select value={publicLinkDays} onChange={event => setPublicLinkDays(event.target.value)}><option value="7">7 zile</option><option value="14">14 zile</option><option value="30">30 zile</option><option value="60">60 zile</option><option value="90">90 zile</option></select></Field><Button disabled={busy} onClick={createPublicLink}>Generează / regenerează link</Button></div>{newPublicUrl ? <div className="mt-4 rounded border border-emerald-200 bg-emerald-50 p-3"><p className="text-sm font-medium text-emerald-900">Link nou, copiat în clipboard:</p><div className="mt-2 flex flex-wrap gap-2"><input readOnly value={newPublicUrl} className="min-w-[280px] flex-1" /><Button type="button" variant="secondary" onClick={() => navigator.clipboard?.writeText(newPublicUrl)}>Copiază</Button></div></div> : null}<div className="mt-4 grid gap-2">{publicLinks.length ? publicLinks.map(link => <div className="flex flex-wrap items-center justify-between gap-2 rounded border p-3 text-sm" key={link.id}><span>Link #{link.id} · revizia {link.quote_revision} · <strong>{link.status === 'active' ? 'activ' : link.status === 'used' ? 'decizie înregistrată' : link.status === 'revoked' ? 'revocat' : link.status}</strong> · expiră {link.expires_at ? new Date(link.expires_at).toLocaleString('ro-RO') : '—'}</span>{link.status === 'active' ? <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => revokePublicLink(link.id)}>Revocă</Button> : null}</div>) : <p className="text-sm text-slate-500">Nu există încă link public pentru această revizie.</p>}</div></Card> : null}
     {quote.status === 'approved' ? <Card title="Trimite oferta prin email" subtitle="Oferta print-ready este atașată automat și mesajul rămâne legat de revizia exactă în Inbox ERP."><div className="grid gap-3 md:grid-cols-2"><Field label="Către"><input type="email" value={email.to} onChange={event => setEmail(current => ({ ...current, to: event.target.value }))} /></Field><Field label="CC"><input value={email.cc} onChange={event => setEmail(current => ({ ...current, cc: event.target.value }))} /></Field><Field label="BCC"><input value={email.bcc} onChange={event => setEmail(current => ({ ...current, bcc: event.target.value }))} /></Field><Field label="Subiect"><input value={email.subject} onChange={event => setEmail(current => ({ ...current, subject: event.target.value }))} /></Field></div><Field label="Mesaj"><textarea rows="5" value={email.body} onChange={event => setEmail(current => ({ ...current, body: event.target.value }))} /></Field><label className="mt-3 flex flex-wrap items-center gap-2 text-sm"><input type="checkbox" checked={email.include_public_link} onChange={event => setEmail(current => ({ ...current, include_public_link: event.target.checked }))} />Include linkul securizat pentru acceptare/refuz <select value={email.public_link_expires_in_days} disabled={!email.include_public_link} onChange={event => setEmail(current => ({ ...current, public_link_expires_in_days: Number(event.target.value) }))}><option value="7">7 zile</option><option value="14">14 zile</option><option value="30">30 zile</option></select></label><div className="mt-3"><Button disabled={busy || !email.to} onClick={() => action('send', email)}>Trimite oferta</Button></div></Card> : null}
-    <Card title="Activitate și audit" subtitle="Istoricul operațiunilor pentru această ofertă și revizie."><div className="grid gap-2">{audit.length ? audit.map(entry => <div className="rounded border p-3 text-sm" key={entry.id || `${entry.at}-${entry.action}`}><strong>{entry.action}</strong><span className="ml-2 text-slate-500">{entry.at || entry.created_at || ''}</span></div>) : <p className="text-slate-500">Nu există încă evenimente de audit pentru această revizie.</p>}</div></Card>
+    <Card title="Activitate și audit" subtitle="Istoricul explicat al operațiunilor pentru această ofertă și revizie."><div className="grid gap-2">{audit.length ? audit.map(entry => <div className="rounded border p-3 text-sm" key={entry.id || `${entry.at}-${entry.action}`}><div className="flex flex-wrap justify-between gap-2"><strong>{auditLabel[entry.action] || 'Activitate CRM'}</strong><span className="text-slate-500">{entry.at || entry.created_at ? new Date(entry.at || entry.created_at).toLocaleString('ro-RO') : '—'}</span></div>{auditDescription(entry) ? <p className="mt-1 text-slate-600">{auditDescription(entry)}</p> : null}<p className="mt-1 text-xs text-slate-400">Cod audit: {entry.action}</p></div>) : <p className="text-slate-500">Nu există încă evenimente de audit pentru această revizie.</p>}</div></Card>
+    <ConfirmDialog
+      open={oblioInvoiceConfirmation}
+      title="Emiți factura în Oblio?"
+      message="Va fi creată o factură reală în contul Oblio configurat."
+      details="InfraFlow cere mai întâi factura draft din Contabilitate, nu modifică stocul în Oblio și nu trimite automat documentul în SPV. Anularea sau corecția ulterioară se face conform regulilor din Oblio și Contabilitate."
+      confirmLabel="Emite factura"
+      tone="warning"
+      loading={busy}
+      onCancel={() => setOblioInvoiceConfirmation(false)}
+      onConfirm={emitInvoiceInOblio}
+    />
   </div>
 
   return <form onSubmit={save} className="grid gap-4">

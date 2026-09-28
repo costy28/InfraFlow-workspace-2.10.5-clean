@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.571 — Hotfix performanță Oferte CRM și răspunsuri JSON MSSQL complete
+Ultimul pas executat: 2.12.582 — CRM: flux comercial compact pe dashboard
 Status: backlog operațional activ
 
 ## Scop

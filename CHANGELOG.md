@@ -1,3 +1,65 @@
+## v2.12.582 - 2026-09-28
+### CRM - flux comercial compact
+- Pagina principală CRM arată separat ofertele de aprobat, ofertele care așteaptă răspunsul clientului, ofertele acceptate și comenzile confirmate.
+- Fiecare card explică următorul pas și deschide lista ofertelor, fără a încărca ecranul cu tabele lungi.
+
+## v2.12.581 - 2026-09-28
+### CRM Oblio - confirmare clară înainte de emitere
+- Emiterea unei facturi reale în Oblio folosește dialogul standard InfraFlow, cu efectele explicate înainte de confirmare.
+- Factura nu poate fi emisă accidental printr-o confirmare nativă de browser.
+
+## v2.12.580 - 2026-09-28
+### CRM Oblio - emitere controlată și audit clar
+- Configurare securizată, test de conexiune și emitere manuală, idempotentă, a facturii din comanda CRM către Oblio.
+- Stocul Oblio și trimiterea automată în SPV rămân dezactivate; auditul CRM arată acțiuni clare în română.
+
+## v2.12.579 - 2026-09-28
+### CRM Sprint 7 - deschidere exactă factură draft
+- Legătura din comanda CRM către Contabilitate păstrează luna și anul facturii create.
+- Factura draft se deschide exact chiar dacă utilizatorul a schimbat perioada contabilă curentă.
+
+## v2.12.578 - 2026-09-28
+### CRM Sprint 7 - legare simplă terț contabil
+- În pagina comenzii client poți selecta direct terțul client activ din Contabilitate.
+- Legătura este salvată pe clientul CRM și permite crearea controlată a facturii draft.
+
+## v2.12.577 - 2026-09-28
+### CRM Sprint 7 - proformă și factură draft internă
+- Proformă comercială idempotentă dintr-o comandă client confirmată, cu audit și snapshot al sursei.
+- Factură ieșire creată exclusiv ca draft prin mecanismul existent din Contabilitate; păstrează comanda, oferta și revizia sursă.
+- Fără validare automată, notă contabilă automată, e-Factura automată sau provider extern.
+
+## v2.12.576 - 2026-09-27
+### CRM Sprint 6 - stoc și necesar de aprovizionare
+- Comanda client confirmată poate primi o verificare de stoc auditată, păstrată ca snapshot pe comandă.
+- Verificarea este strict informativă: nu rezervă și nu modifică stocul existent.
+- Deficitul materialelor mapate creează necesare idempotente în fluxul existent de Achiziții; furnizorul și comanda de aprovizionare rămân decizii umane.
+- Pozițiile de servicii sunt excluse, iar materialele nemapate sunt semnalate explicit, fără potrivire aproximativă.
+
+## v2.12.575 - 2026-09-27
+### Hotfix bootstrap migrare comandă client CRM
+- Serverul aplică acum și migrarea `074_crm_customer_orders_sprint_5.sql` la pornire.
+- Conversia ofertei acceptate nu mai poate porni înainte ca SQL Server să aibă coloanele reviziei și deciziei clientului.
+
+## v2.12.574 - 2026-09-27
+### CRM Sprint 5 - comandă client din ofertă acceptată
+- Oferta acceptată poate fi convertită într-o comandă client confirmată.
+- Conversia este idempotentă: repetarea cererii reîntoarce aceeași comandă, fără linii duplicate.
+- Comanda păstrează oferta, revizia, decizia clientului și snapshot-ul comercial; anularea este logică și auditată.
+- Stocul, necesarul de aprovizionare și facturarea nu sunt declanșate în acest sprint.
+
+## v2.12.573 - 2026-09-27
+### Hotfix finalizare trimitere ofertă CRM
+- Activitatea CRM creată după trimiterea emailului primește momentul obligatoriu al operației.
+- Trimiterea nu mai poate eșua după expediere doar din cauza jurnalizării activității.
+- Auditul și Inbox ERP se finalizează pentru revizia exactă a ofertei.
+
+## v2.12.572 - 2026-09-27
+### Hotfix trimitere și decizie ofertă publică
+- Câmpul „Către” preia emailul contactului CRM sau, în lipsă, emailul prospectului/clientului.
+- Trimiterea server-side urmează aceeași ordine, astfel încât nu depinde exclusiv de contactul selectat.
+- Pagina publică permite selecția și confirmarea clară pentru acceptare sau refuz.
+
 ## v2.12.571 - 2026-09-27
 ### Hotfix performanță Oferte CRM
 - Pagina Oferte încarcă lista, clienții, contactele și fișa selectată într-o singură citire CRM.

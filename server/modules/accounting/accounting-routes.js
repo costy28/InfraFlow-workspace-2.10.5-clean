@@ -4171,5 +4171,14 @@ registerFiscalExtraRoutes(router, { requireAccountingReports, requireAccountingP
 
 router.periodCheck = periodCheck;
 router.buildClassicJournalsData = buildClassicJournalsData;
+// Interfață internă pentru modulele comerciale. Refolosește aceeași normalizare
+// și aceleași reguli ca endpoint-ul de facturi ieșire, fără a valida factura.
+router.crmPort = Object.freeze({
+  createInvoiceOutDraft(db, user, payload) {
+    const invoice = createInvoiceOut(db, user, payload)
+    addAudit(db, user, "accounting_invoice_out_create_from_crm", String(invoice.numar || ""))
+    return invoice
+  }
+});
 
 module.exports = router;

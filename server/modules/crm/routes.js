@@ -6,6 +6,11 @@ const { addAudit } = require('../../core/audit')
 const taskRouter = require('../tasks/routes')
 const repository = require('./repository')
 const quoteRepository = require('./quote-repository')
+const orderRepository = require('./order-repository')
+const inventoryCheckRepository = require('./inventory-check-repository')
+const { inventoryPort, procurementPort, billingPort } = require('./ports')
+const billingDocumentRepository = require('./billing-document-repository')
+const { testConnection: testOblioConnection, emitInvoice: emitOblioInvoice } = require('./ports/oblio')
 const { normalizeQuote } = require('./quote-service')
 const { sendEmail, recordOutboundEmail } = require('../messaging/email')
 const { persistQuoteDocument, readQuoteDocument } = require('./quote-document')
@@ -110,7 +115,7 @@ function leadAudit(db, leadId) {
 }
 function quoteAudit(db, quoteId) {
   return (Array.isArray(db?.audit) ? db.audit : [])
-    .filter(entry => String(entry?.action || '').startsWith('crm:quote') && String(JSON.stringify(entry?.details || {})).includes(`\"quoteId\":${Number(quoteId)}`))
+    .filter(entry => String(entry?.action || '').startsWith('crm:') && String(JSON.stringify(entry?.details || {})).includes(`\"quoteId\":${Number(quoteId)}`))
     .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))
     .slice(0, 50)
 }
@@ -123,6 +128,23 @@ router.get('/crm/health', (req, res) => {
   if (!health.module_enabled) return res.status(403).json({ error: 'Modulul CRM nu este activ pentru această organizație.', code: 'CRM_MODULE_DISABLED', ...health })
   if (!health.schema.ready) return res.status(503).json({ error: health.schema.reason, code: 'CRM_RELATIONAL_SCHEMA_UNAVAILABLE', ...health })
   return res.status(200).json({ ok: true, ...health })
+})
+
+router.get('/crm/dashboard', (req, res) => {
+  const auth = requireCrm(req, res)
+  if (!auth) return
+  try {
+    const quoteCounts = quoteRepository.listQuotes({}).reduce((counts, quote) => ({ ...counts, [quote.status]: (counts[quote.status] || 0) + 1 }), {})
+    const orderCounts = orderRepository.listOrders({}).reduce((counts, order) => ({ ...counts, [order.status]: (counts[order.status] || 0) + 1 }), {})
+    return res.json({
+      pipeline: {
+        pending_approval: quoteCounts.pending_approval || 0,
+        awaiting_customer: (quoteCounts.approved || 0) + (quoteCounts.sent || 0),
+        accepted: quoteCounts.accepted || 0,
+        confirmed_orders: orderCounts.confirmed || 0
+      }
+    })
+  } catch (error) { return apiError(res, error, 'Fluxul comercial nu a putut fi încărcat.') }
 })
 
 router.get('/crm/leads', (req, res) => {
@@ -369,12 +391,20 @@ router.get('/crm/quotes/workspace', (req, res) => {
   const auth = requireCrm(req, res); if (!auth) return
   try {
     const workspace = quoteRepository.quoteWorkspace(req.query || {})
+    const customerOrder = workspace.quote ? orderRepository.getOrderForQuote(workspace.quote.id) : null
+    const inventoryCheck = customerOrder ? inventoryCheckRepository.latestCheck(customerOrder.id) : null
+    const procurementRequirements = customerOrder
+      ? (auth.db.departmentRequests || []).filter(item => String(item.source_type) === 'crm_customer_order' && String(item.source_id) === String(customerOrder.id) && !item.cancelled_at && !item.cancelledAt)
+      : []
     return res.json({
       quotes: workspace.quotes || [],
       accounts: workspace.accounts || [],
       contacts: workspace.contacts || [],
       quote: workspace.quote || null,
       public_links: workspace.public_links || [],
+      customer_order: customerOrder,
+      inventory_check: inventoryCheck,
+      procurement_requirements: procurementRequirements,
       audit: workspace.quote ? quoteAudit(auth.db, workspace.quote.id) : []
     })
   } catch (error) { return apiError(res, error, 'Spațiul de lucru pentru oferte nu a putut fi încărcat.') }
@@ -491,13 +521,159 @@ router.post('/crm/quotes/:id/cancel', (req, res) => {
   try { const reason = compactText(req.body?.reason, 500); if (!reason) return res.status(422).json({ error: 'Motivul anulării este obligatoriu.' }); const result = quoteRepository.cancelQuote(req.params.id, reason, actorId(auth.user)); if (!result?.changed) return res.status(404).json({ error: 'Oferta nu a fost găsită.' }); auditWrite(auth, 'crm:quote_cancelled', { quoteId: req.params.id, reason }); return res.json({ ok: true }) } catch (error) { return apiError(res, error, 'Oferta nu a putut fi anulată.') }
 })
 
+// Sprint 5 păstrează comanda în CRM şi copiază numai snapshot-ul ofertei
+// acceptate. Stocul, aprovizionarea şi facturarea vor folosi porturi distincte.
+router.get('/crm/customer-orders', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:order_manage'); if (!auth) return
+  try { return res.json({ orders: orderRepository.listOrders(req.query || {}) }) } catch (error) { return apiError(res, error, 'Comenzile clienților nu au putut fi încărcate.') }
+})
+
+router.get('/crm/customer-orders/:id', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:order_manage'); if (!auth) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    return res.json({ order })
+  } catch (error) { return apiError(res, error, 'Comanda client nu a putut fi încărcată.') }
+})
+
+router.post('/crm/quotes/:id/customer-order', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:order_manage'); if (!auth) return
+  try {
+    const quote = quoteRepository.getQuote(req.params.id)
+    if (!quote) return res.status(404).json({ error: 'Oferta nu a fost găsită.' })
+    if (quote.status !== 'accepted') return res.status(409).json({ error: 'Comanda client poate fi creată numai dintr-o ofertă acceptată.' })
+    const order = orderRepository.createFromAcceptedQuote(quote.id, actorId(auth.user))
+    if (!order) throw new Error('Comanda client nu a fost creată.')
+    if (!order.already_created) auditWrite(auth, 'crm:customer_order_created', { orderId: order.id, order_number: order.order_number, quoteId: quote.id, revision: quote.revision_number, decisionId: order.source_decision_id })
+    return res.status(order.already_created ? 200 : 201).json({ order, idempotent: Boolean(order.already_created) })
+  } catch (error) { return apiError(res, error, 'Comanda client nu a putut fi creată.') }
+})
+
+router.post('/crm/customer-orders/:id/cancel', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:order_manage'); if (!auth) return
+  try {
+    const reason = compactText(req.body?.reason, 500)
+    if (!reason) return res.status(422).json({ error: 'Motivul anulării este obligatoriu.' })
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    const result = orderRepository.cancelOrder(order.id, reason, actorId(auth.user))
+    if (!result?.changed) return res.status(409).json({ error: 'Comanda client era deja anulată.' })
+    auditWrite(auth, 'crm:customer_order_cancelled', { orderId: order.id, order_number: order.order_number, quoteId: order.source_quote_id, revision: order.source_quote_revision, reason })
+    return res.json({ ok: true })
+  } catch (error) { return apiError(res, error, 'Comanda client nu a putut fi anulată.') }
+})
+
+// Sprint 6: verificarea este un snapshot informativ. Nu scade și nu rezervă
+// automat stocul; alegerea de rezervare rămâne în regulile Gestiunii.
+router.get('/crm/customer-orders/:id/inventory-check', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:inventory_check'); if (!auth) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    return res.json({ check: inventoryCheckRepository.latestCheck(order.id) })
+  } catch (error) { return apiError(res, error, 'Verificarea stocului nu a putut fi încărcată.') }
+})
+
+router.post('/crm/customer-orders/:id/inventory-check', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:inventory_check'); if (!auth) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    if (order.status !== 'confirmed') return res.status(409).json({ error: 'Stocul se verifică numai pentru o comandă client confirmată.' })
+    const result = inventoryPort.invoke({ order, db: auth.db })
+    const check = inventoryCheckRepository.recordCheck(order.id, result, actorId(auth.user))
+    auditWrite(auth, 'crm:customer_order_inventory_checked', { orderId: order.id, order_number: order.order_number, quoteId: order.source_quote_id, revision: order.source_quote_revision, inventoryCheckId: check.id, status: result.check_status, shortages: result.summary.shortage_lines, unmapped: result.summary.unmapped_lines, reservation: 'none' })
+    return res.status(201).json({ check })
+  } catch (error) { return apiError(res, error, 'Stocul nu a putut fi verificat.') }
+})
+
+router.post('/crm/customer-orders/:id/procurement-requirements', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:procurement_request'); if (!auth) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    const inventoryCheck = inventoryCheckRepository.latestCheck(order.id)
+    if (!inventoryCheck?.result) return res.status(409).json({ error: 'Rulează mai întâi verificarea stocului pentru această comandă.' })
+    if (!inventoryCheck.result.procurement_candidates?.length) return res.status(422).json({ error: 'Nu există deficit mapat pentru care să poată fi creat un necesar.' })
+    const result = procurementPort.invoke({ db: auth.db, user: auth.user, order, inventoryCheck })
+    auditWrite(auth, 'crm:customer_order_procurement_requested', { orderId: order.id, order_number: order.order_number, quoteId: order.source_quote_id, revision: order.source_quote_revision, inventoryCheckId: inventoryCheck.id, requirementIds: result.requirements.map(item => item.id), created: result.created || 0, idempotent: result.already_created })
+    return res.status(result.already_created ? 200 : 201).json({ ...result, inventory_check_id: inventoryCheck.id })
+  } catch (error) { return apiError(res, error, 'Necesarul de aprovizionare nu a putut fi creat.') }
+})
+
+// Sprint 7: proforma este document comercial; factura este doar draft în
+// Contabilitate. Nici validarea, nici e-Factura nu pornesc din CRM.
+router.get('/crm/customer-orders/:id/billing-documents', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:billing_request'); if (!auth) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    return res.json({ documents: billingDocumentRepository.listForOrder(order.id) })
+  } catch (error) { return apiError(res, error, 'Documentele de facturare nu au putut fi încărcate.') }
+})
+
+router.get('/crm/billing/clients', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:billing_request'); if (!auth) return
+  const clients = (auth.db.accounting?.thirdParties || [])
+    .filter(item => item.activ !== false && ['client', 'ambele'].includes(String(item.tip || '')))
+    .map(item => ({ id: item.id, denumire: item.denumire, cui: item.cui || '', cod: item.cod || '' }))
+    .sort((left, right) => String(left.denumire).localeCompare(String(right.denumire), 'ro'))
+  return res.json({ clients })
+})
+
+router.post('/crm/billing/oblio/test', async (req, res) => {
+  const auth = requireCrm(req, res, 'crm:settings'); if (!auth) return
+  try {
+    const result = await testOblioConnection(auth.db.settings || {})
+    auditWrite(auth, 'crm:oblio_connection_tested', { provider: 'oblio', ok: true })
+    return res.json(result)
+  } catch (error) { return apiError(res, error, 'Conexiunea Oblio nu a putut fi verificată.') }
+})
+
+router.post('/crm/customer-orders/:id/proforma', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:billing_request'); if (!auth) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    if (order.status !== 'confirmed') return res.status(409).json({ error: 'Proforma se poate crea numai pentru o comandă client confirmată.' })
+    const result = billingPort.createProforma({ order, actor: actorId(auth.user) })
+    auditWrite(auth, 'crm:customer_order_proforma_created', { orderId: order.id, order_number: order.order_number, quoteId: order.source_quote_id, revision: order.source_quote_revision, billingDocumentId: result.document.id, idempotent: result.idempotent })
+    return res.status(result.idempotent ? 200 : 201).json(result)
+  } catch (error) { return apiError(res, error, 'Proforma nu a putut fi creată.') }
+})
+
+router.post('/crm/customer-orders/:id/invoice-draft', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:billing_request'); if (!auth) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    if (order.status !== 'confirmed') return res.status(409).json({ error: 'Factura draft se poate crea numai pentru o comandă client confirmată.' })
+    const result = billingPort.createInvoiceDraft({ db: auth.db, user: auth.user, order, actor: actorId(auth.user) })
+    auditWrite(auth, 'crm:customer_order_invoice_draft_created', { orderId: order.id, order_number: order.order_number, quoteId: order.source_quote_id, revision: order.source_quote_revision, billingDocumentId: result.document.id, accountingInvoiceUuid: result.invoice?.uuid || result.document.response?.invoice?.uuid || null, idempotent: result.idempotent })
+    return res.status(result.idempotent ? 200 : 201).json(result)
+  } catch (error) { return apiError(res, error, 'Factura draft nu a putut fi creată.') }
+})
+
+router.post('/crm/customer-orders/:id/oblio/invoice', async (req, res) => {
+  const auth = requireCrm(req, res, 'crm:billing_request'); if (!auth) return
+  try {
+    if (req.body?.confirmed !== true) return res.status(422).json({ error: 'Confirmă emiterea facturii reale în Oblio.' })
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order || order.status !== 'confirmed') return res.status(409).json({ error: 'Factura Oblio se emite numai dintr-o comandă client confirmată.' })
+    const result = await emitOblioInvoice({ db: auth.db, order, actor: actorId(auth.user) })
+    auditWrite(auth, 'crm:oblio_invoice_issued', { orderId: order.id, billingDocumentId: result.document.id, providerDocumentId: result.document.provider_document_id, idempotent: result.idempotent })
+    return res.status(result.idempotent ? 200 : 201).json(result)
+  } catch (error) { return apiError(res, error, 'Factura nu a putut fi emisă în Oblio.') }
+})
+
 router.post('/crm/quotes/:id/send', async (req, res) => {
   const auth = requireCrm(req, res, 'crm:quote_send'); if (!auth) return
   try {
     const quote = quoteRepository.getQuote(req.params.id)
     if (!quote) return res.status(404).json({ error: 'Oferta nu a fost găsită.' })
     if (quote.status !== 'approved') return res.status(409).json({ error: 'Se trimit numai oferte aprobate.' })
-    const to = compactText(req.body?.to || quote.contact_email, 254)
+    const to = compactText(req.body?.to || quote.contact_email || quote.account_email, 254)
     if (!isValidEmail(to) || !to) return res.status(422).json({ error: 'Este necesar emailul valid al destinatarului.' })
     const subject = compactText(req.body?.subject || `Oferta ${quote.quote_number} / Rev. ${quote.revision_number}`, 300)
     let body = compactText(req.body?.body || `<p>Bună ziua,</p><p>Vă transmitem oferta ${quote.quote_number}.</p>`, 10000)
@@ -520,7 +696,7 @@ router.post('/crm/quotes/:id/send', async (req, res) => {
     }
     const result = quoteRepository.changeStatus(quote.id, 'sent', actorId(auth.user), { sent: true, lock: true })
     const email = recordOutboundEmail(auth.db, { to, cc: req.body?.cc, bcc: req.body?.bcc, subject, body, category: 'general', source_type: 'crm_quote', source_id: quote.id, source_label: `${quote.quote_number} / Rev. ${quote.revision_number}`, source_url: `/crm/oferte/${quote.id}`, attachments, created_by: actorId(auth.user) })
-    repository.createActivity({ account_id: quote.account_id, contact_id: quote.contact_id, activity_type: 'email', subject: `Ofertă trimisă: ${quote.quote_number}`, notes: subject, email_reference: String(email.id) }, actorId(auth.user))
+    repository.createActivity(normalizeActivityPayload({ account_id: quote.account_id, contact_id: quote.contact_id, activity_type: 'email', occurred_at: new Date().toISOString(), subject: `Ofertă trimisă: ${quote.quote_number}`, notes: subject, email_reference: String(email.id) }), actorId(auth.user))
     auditWrite(auth, 'crm:quote_sent', { quoteId: quote.id, revision: quote.revision_number, to, emailId: email.id, document_path: document.documentPath, publicLinkId: publicLink?.id || null })
     return res.json({ quote: result, email: { id: email.id, source_url: email.source_url } })
   } catch (error) { return apiError(res, error, 'Oferta nu a putut fi trimisă.') }

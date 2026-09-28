@@ -24,7 +24,8 @@ function Set-JsonVersion {
   $json = Get-Content $Path -Raw | ConvertFrom-Json
   if ($json.version -ne $BuildVersion) {
     $json.version = $BuildVersion
-    $json | ConvertTo-Json -Depth 20 | Set-Content $Path -Encoding UTF8
+    $content = $json | ConvertTo-Json -Depth 20
+    [System.IO.File]::WriteAllText($Path, $content, (New-Object System.Text.UTF8Encoding($false)))
   }
 }
 
