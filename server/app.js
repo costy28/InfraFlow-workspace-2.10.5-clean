@@ -6,6 +6,7 @@ const { requireAuth } = require('./core/auth')
 const { DB_MODE, ensureDatabase, readDb, writeDb, syncMssqlCpvCodes, getMssqlPool, closeMssqlPool, databaseHealth } = require('./core/db')
 const { incarcaLicenta } = require('./core/license')
 const { bootstrapCpvCatalog } = require('./modules/nomenclator/service')
+const { isIsolatedCommercialDemo } = require('./shared/commercialDemo')
 
 process.on('uncaughtException', (err) => {
   console.error('[CRASH] Uncaught exception:', err)
@@ -28,7 +29,9 @@ if (!licentaStatus.valida) {
   console.error('LICENȚĂ INVALIDĂ:', licentaStatus.eroare)
   process.exit(1)
 }
-if (licentaStatus.demo) {
+if (isIsolatedCommercialDemo(readDb())) {
+  console.log('InfraFlow pornit în DEMO comercial complet (date fictive, bază izolată).')
+} else if (licentaStatus.demo) {
   console.log('InfraFlow pornit în modul DEMO (3 utilizatori, module limitate)')
 }
 if (licentaStatus.in_gratie) {

@@ -7,6 +7,7 @@ const { requirePermission } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { verificaLicenta, incarcaLicenta } = require('../../core/license')
+const { isIsolatedCommercialDemo, commercialDemoLicense } = require('../../shared/commercialDemo')
 
 const licenseUpload = multer({
   storage: multer.memoryStorage(),
@@ -56,7 +57,10 @@ function createSystemLicenseRouter(context) {
     try {
       const auth = requireAuth(req, res)
       if (!auth) return
-      const status = incarcaLicenta()
+      const runtimeStatus = incarcaLicenta()
+      const status = isIsolatedCommercialDemo(auth.db)
+        ? { valida: true, demo: true, in_gratie: false, expirata: false, licenta: commercialDemoLicense(auth.db, runtimeStatus.licenta) }
+        : runtimeStatus
       sendJson(res, 200, { license: publicLicenseStatus(status) })
     } catch (error) {
       next(error)

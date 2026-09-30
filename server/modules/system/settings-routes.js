@@ -7,6 +7,7 @@ const { addAudit } = require('../../core/audit')
 const { sendEmail, describeSmtpError } = require('../messaging/email')
 const { testIncomingEmailConnection, describeImapError } = require('../messaging/imap')
 const { getAllCountryRules, getCountryProfiles, getCountryRules } = require('../../shared/countryRules')
+const { commercialDemoLicense } = require('../../shared/commercialDemo')
 
 const moduleCatalogGroups = [
   {
@@ -234,7 +235,7 @@ function createSystemSettingsRouter(context) {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'settings:manage')) return
-    const license = global.LICENTA || auth.db.settings?.license || {}
+    const license = commercialDemoLicense(auth.db, global.LICENTA || auth.db.settings?.license || {})
     sendJson(res, 200, {
       catalog: buildModulesCatalog(auth.db.settings || {}, license, allowedModulesForLicense)
     })
@@ -321,11 +322,12 @@ function createSystemSettingsRouter(context) {
       if (!auth) return
       if (!requirePermission(auth, res, 'settings:manage')) return
       const body = await readJsonBody(req)
-      const modules = sanitizeEnabledModules(body.modules_enabled, global.LICENTA || auth.db.settings?.license || {})
+      const license = commercialDemoLicense(auth.db, global.LICENTA || auth.db.settings?.license || {})
+      const modules = sanitizeEnabledModules(body.modules_enabled, license)
       auth.db.settings = auth.db.settings || {}
       auth.db.settings.modules_enabled = modules
       if (Object.prototype.hasOwnProperty.call(body, 'module_features')) {
-        auth.db.settings.module_features = sanitizeModuleFeatures(body.module_features, global.LICENTA || auth.db.settings?.license || {})
+        auth.db.settings.module_features = sanitizeModuleFeatures(body.module_features, license)
       }
       auth.db.settings.modules_enabled_updated_at = new Date().toISOString()
       auth.db.settings.modules_enabled_updated_by = auth.user.id
@@ -334,7 +336,7 @@ function createSystemSettingsRouter(context) {
       sendJson(res, 200, {
         settings: publicSettings(auth.db.settings),
         modules_enabled: modules,
-        modules_allowed: allowedModulesForLicense(global.LICENTA || auth.db.settings?.license || {})
+        modules_allowed: allowedModulesForLicense(license)
       })
     } catch (error) {
       next(error)

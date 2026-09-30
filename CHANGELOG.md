@@ -4415,3 +4415,25 @@
 - Păstrează anularea logică, validarea server-side, rolurile CRM și auditul pentru orice scriere.
 - Nu introduce oferte, comenzi, Oblio/SmartBill sau facturare: acestea rămân pentru Sprintul 3+.
 
+## v2.12.596 - 2026-09-30
+
+### Demo comercial complet
+
+- Instanța MSSQL demo izolată folosește licența vizibilă `Demo complet`; toate modulele pot fi activate, dezactivate și reactivate din Setări.
+- Seed-ul comercial pornește cu toate modulele configurabile active, fără să modifice licențierea instalărilor reale.
+- Garanția dublă `demo_profile` + nume de bază `INFRAFLOW_DEMO*` previne activarea accidentală în producție.
+
+## v2.12.597 - 2026-09-30
+
+### Mesaj corect pentru demo
+
+- Setări afișează explicit `Demo comercial — Acces complet` pentru baza demo izolată.
+- Pornirea serverului diferențiază demo-ul comercial complet de trial-ul generic cu module limitate.
+
+## v2.12.598 - 2026-09-30
+
+### Date operaționale demo
+
+- Seed-ul `Construct Demo SRL` include angajați, resurse flotă, rețetă și plan de producție, proiect, centru de cost, contract, task-uri și canal intern.
+- Datele folosesc aceiași clienți, furnizori și responsabili ca scenariile CRM, pentru a putea urmări firul comercial și operațional cap-coadă.
+

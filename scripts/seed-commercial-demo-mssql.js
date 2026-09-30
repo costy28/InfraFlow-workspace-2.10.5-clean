@@ -101,9 +101,14 @@ function prepareAppState() {
   db.users = (db.users || []).filter(user => user.username !== 'admin')
   db.users.push({ ...admin, active: true })
   db.settings = db.settings || {}
-  // Lista explicită este păstrată și în resetările repetate; CRM trebuie să
-  // fie demonstrabil imediat după pornirea instanței separate.
-  db.settings.modules_enabled = ['crm', 'accounting']
+  // Demo-ul comercial arată toate modulele. Limitările de date și resetarea
+  // protejează demonstrația; licența nu trebuie să blocheze explorarea.
+  db.settings.modules_enabled = [
+    'fleet', 'technical', 'procurement', 'contract_management', 'crm', 'hr',
+    'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment',
+    'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal',
+    'archive', 'secretariat', 'ai'
+  ]
   db.settings.demo_mode = true
   db.settings.demo_profile = 'commercial-mssql'
   db.settings.demo_seeded_at = new Date().toISOString()
@@ -113,6 +118,12 @@ function prepareAppState() {
   db.settings.license = { plan: 'internal', modules: ['all'], maxUsers: 50, maxDevices: 50, clientName: 'Construct Demo SRL', source: 'demo-seed' }
   db.settings.customRoles = [...(db.settings.customRoles || []).filter(role => !String(role.id || '').startsWith('demo-')), ...demoRoles()]
   db.company = { ...(db.company || {}), name: 'Construct Demo SRL', email: 'demo@infraflow-demo.ro', license_type: 'demo', demo_mode: true }
+  db.departments = [
+    { id: 'DEPT-DEMO-SALES', cod: 'vanzari', denumire: 'Vânzări', name: 'Vânzări', moduleKey: 'crm', active: true },
+    { id: 'DEPT-DEMO-PROC', cod: 'achizitii', denumire: 'Achiziții', name: 'Achiziții', moduleKey: 'achizitii', active: true },
+    { id: 'DEPT-DEMO-OPS', cod: 'operational', denumire: 'Operațional', name: 'Operațional', moduleKey: 'tehnic', active: true },
+    { id: 'DEPT-DEMO-ACCOUNTING', cod: 'contabilitate', denumire: 'Contabilitate', name: 'Contabilitate', moduleKey: 'contabilitate', active: true }
+  ]
   const materials = [
     { id: 'MAT-001', code: 'MAT-001', name: 'Bitum 50/70', unit: 'tone', stock: 12, category: 'Materiale asfaltice', active: true },
     { id: 'MAT-003', code: 'MAT-003', name: 'Criblura 4-8mm', unit: 'tone', stock: 5, category: 'Agregate', active: true },
@@ -130,6 +141,44 @@ function prepareAppState() {
   db.gestiune = { ...(db.gestiune || {}), materials, suppliers }
   db.inventory = { ...(db.inventory || {}), materials }
   db.departmentRequests = (db.departmentRequests || []).filter(item => item.source_type !== 'crm_customer_order')
+  db.hr = {
+    ...(db.hr || {}),
+    employees: [
+      { id: 'EMP-DEMO-001', nume: 'Marin', prenume: 'Ionuț', functie: 'Șef echipă', department_id: 'DEPT-DEMO-OPS', department: 'operational', activ: true, data_angajare: '2023-03-01', email: 'ionut.marin@construct-demo.example', telefon: '0722 410 101' },
+      { id: 'EMP-DEMO-002', nume: 'Popescu', prenume: 'Elena', functie: 'Operator utilaj', department_id: 'DEPT-DEMO-OPS', department: 'operational', activ: true, data_angajare: '2024-05-15', email: 'elena.popescu@construct-demo.example', telefon: '0722 410 102' },
+      { id: 'EMP-DEMO-003', nume: 'Rusu', prenume: 'Mihai', functie: 'Gestionar', department_id: 'dept-gestiune', department: 'gestiune', activ: true, data_angajare: '2022-09-01', email: 'mihai.rusu@construct-demo.example', telefon: '0722 410 103' }
+    ],
+    contracts: [
+      { id: 'HR-CIM-DEMO-001', employee_id: 'EMP-DEMO-001', status: 'activ', data_start: '2023-03-01', functie: 'Șef echipă' },
+      { id: 'HR-CIM-DEMO-002', employee_id: 'EMP-DEMO-002', status: 'activ', data_start: '2024-05-15', functie: 'Operator utilaj' }
+    ]
+  }
+  db.fleetAssets = [
+    { id: 'ASSET-DEMO-001', cod: 'UTIL-001', tip_asset: 'utilaj', marca: 'JCB', model: '3CX', name: 'Buldoexcavator JCB 3CX', nr_inventar: 'INV-DEMO-001', active: true, fuel_type: 'diesel', tank_capacity: 160, department_id: 'DEPT-DEMO-OPS' },
+    { id: 'ASSET-DEMO-002', cod: 'AUTO-001', tip_asset: 'autovehicul', marca: 'Ford', model: 'Transit', name: 'Autoutilitară intervenție', nr_inmatriculare: 'NT 01 DEM', active: true, fuel_type: 'diesel', tank_capacity: 70, department_id: 'DEPT-DEMO-OPS' }
+  ]
+  db.fleet = { ...(db.fleet || {}), assets: db.fleetAssets, assetDrivers: [{ id: 'DRV-DEMO-001', asset_id: 'ASSET-DEMO-002', employee_id: 'EMP-DEMO-001', activ: true, data_start: '2025-01-01' }] }
+  db.fleetAssetDrivers = db.fleet.assetDrivers
+  db.recipes = [{ id: 'REC-DEMO-001', name: 'Rețetă mixtură demonstrativă', version: 1, active: true, percentages: { 'MAT-001': 5, 'MAT-003': 45, 'MAT-005': 50 }, createdBy: ACTORS.procurement, createdAt: new Date().toISOString() }]
+  db.productionPlans = [{ id: 'PLAN-DEMO-001', recipeId: 'REC-DEMO-001', date: futureDate(2), quantity: 18, jobName: 'Amenajare acces Construct Demo', status: 'planned', createdBy: ACTORS.procurement, createdAt: new Date().toISOString() }]
+  db.projects = [{ id: 'PROJECT-DEMO-001', code: 'PRJ-DEMO-001', name: 'Amenajare acces sediu Nord Construct', clientName: 'Nord Construct Grup SRL', type: 'lucrari', status: 'active', location: 'Piatra-Neamț', createdAt: new Date().toISOString() }]
+  db.costCenters = [{ id: 'CC-DEMO-001', code: 'CC-OPER-01', name: 'Operațional - intervenții', active: true, managerId: ACTORS.procurement }]
+  db.technicalClients = [{ id: 'TECH-CLIENT-001', name: 'Nord Construct Grup SRL', cif: 'RO40123456', active: true }]
+  db.technicalWorkLogs = [{ id: 'TECH-LOG-001', date: futureDate(0), clientId: 'TECH-CLIENT-001', projectId: 'PROJECT-DEMO-001', title: 'Evaluare tehnică acces sediu', status: 'open', responsibleId: ACTORS.procurement, createdAt: new Date().toISOString() }]
+  db.contractManagement = {
+    ...(db.contractManagement || {}),
+    contracts: [{ id: 'CTR-DEMO-001', uuid: crypto.randomUUID(), numar: 'CTR-DEMO-2026-001', titlu: 'Aprovizionare materiale intervenții', tip: 'achizitie', status: 'activ', partener: 'Agregate Moldova SRL', partener_tip: 'furnizor', valoare_contract: 85000, moneda: 'RON', data_semnare: futureDate(-20), data_start: futureDate(-20), data_sfarsit: futureDate(180), responsabil_id: ACTORS.procurement, responsabil_nume: 'Oana Petrescu', departament_id: 'DEPT-DEMO-PROC', centru_cost_id: 'CC-DEMO-001', prag_avertizare: 80, prag_critic: 90, prag_depasire: 100, observatii: 'Contract fictiv pentru demonstrație.', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }],
+    consumptions: [{ id: 'CTR-CONS-DEMO-001', contract_id: 'CTR-DEMO-001', value: 24000, date: futureDate(-2), source_type: 'procurement', source_id: 'REQ-DEMO-001', created_at: new Date().toISOString() }],
+    alerts: []
+  }
+  db.taskManagement = {
+    ...(db.taskManagement || {}),
+    tasks: [
+      { id: 'TASK-DEMO-001', title: 'Califică solicitarea Atlas Servicii', description: 'Verifică datele solicitării și stabilește următorul pas comercial.', status: 'open', priority: 'high', due_date: futureDate(1), created_by: ACTORS.sales, assigned_to: ACTORS.sales, source_type: 'crm_lead', source_id: 'demo', source_label: 'Lead demonstrativ', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { id: 'TASK-DEMO-002', title: 'Verifică necesarul de Bitum 50/70', description: 'Analizează deficitul rezultat din comanda clientului și propune aprovizionarea.', status: 'in_progress', priority: 'high', due_date: futureDate(2), created_by: ACTORS.procurement, assigned_to: ACTORS.procurement, source_type: 'procurement', source_id: 'REQ-DEMO-001', source_label: 'Necesar aprovizionare demo', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+    ], comments: [], attachments: [], templates: []
+  }
+  db.messaging = { ...(db.messaging || {}), channels: [{ id: 'CHANNEL-DEMO-001', name: 'Operațional demo', description: 'Canal fictiv pentru coordonarea scenariului demonstrativ.', active: true, created_at: new Date().toISOString() }], messages: [] }
   addDemoUsers(db)
   return db
 }

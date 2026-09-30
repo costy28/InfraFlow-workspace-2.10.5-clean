@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.595**
-**Versiune în lucru: v2.12.595**
+**Versiune curentă sursă: v2.12.598**
+**Versiune în lucru: v2.12.598**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -334,6 +334,9 @@ Core System
   ✅ Hotfix Print / PDF ofertă CRM: fereastră de print compatibilă Chrome, fără pagină about:blank (v2.12.593)
   ✅ Ofertă CRM: acțiune vizibilă Print/Salvare PDF și întoarcere la lista ofertelor (v2.12.594)
   ✅ CRM: navigare rapidă Oferte → Lead-uri / Prospecte și contacte (v2.12.595)
+  ✅ Demo comercial: acces complet la module, activare reversibilă doar pe baza demo izolată (v2.12.596)
+  ✅ Demo comercial: mesaj explicit de acces complet și date fictive (v2.12.597)
+  ✅ Demo comercial: scenarii operaționale legate pentru HR, flotă, producție, contracte, task-uri și comunicare (v2.12.598)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1057,9 +1060,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.595
+VERSIUNE CURENTĂ SURSĂ: 2.12.598
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.595 ⏳
+UPDATE ZIP CURENT: 2.12.598 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1463,6 +1466,9 @@ UPDATES ÎN LUCRU:
   2.12.593 → UPDATE 613 hotfix Print / PDF ofertă CRM ⏳
   2.12.594 → UPDATE 614 print ofertă și navigare CRM ⏳
   2.12.595 → UPDATE 615 navigare rapidă CRM ⏳
+  2.12.596 → UPDATE 616 demo comercial acces complet ⏳
+  2.12.597 → UPDATE 617 mesaj demo comercial ⏳
+  2.12.598 → UPDATE 618 date operaționale demo ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1959,5 +1965,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 29 Septembrie 2026 | InfraFlow sursă v2.12.595*
+*AGENTS.md actualizat: 30 Septembrie 2026 | InfraFlow sursă v2.12.598*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

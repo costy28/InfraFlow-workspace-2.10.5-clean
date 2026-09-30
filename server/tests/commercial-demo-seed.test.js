@@ -25,6 +25,12 @@ test('seed-ul comercial folosește CRM relațional și scenariile comerciale cer
   assert.match(seedScript, /setupCompleted = true/)
 })
 
+test('seed-ul comercial oferă date operaționale legate, nu doar CRM', () => {
+  for (const marker of ['EMP-DEMO-001', 'ASSET-DEMO-001', 'REC-DEMO-001', 'PLAN-DEMO-001', 'CTR-DEMO-001', 'TASK-DEMO-001', 'CHANNEL-DEMO-001']) {
+    assert.ok(seedScript.includes(marker), `lipsește scenariul operațional ${marker}`)
+  }
+})
+
 test('adresa SMTP nu este hard-codată în seed-ul comercial', () => {
   assert.equal(seedScript.includes('demo.infraflow@gmail.com'), false)
   assert.match(guide, /App Password/)

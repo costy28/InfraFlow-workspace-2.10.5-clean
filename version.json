@@ -1,5 +1,5 @@
 {
-  "version": "2.12.595",
-  "date": "2026-09-29",
-  "changelog": "## v2.12.595 - 2026-09-29\\n### Navigare rapidă CRM\\n- Lista ofertelor are acces direct la Lead-uri și Prospecte și contacte.\\n- Nu mai este necesară revenirea prin meniul lateral pentru a continua fluxul comercial."
+  "version": "2.12.598",
+  "date": "2026-09-30",
+  "changelog": "## v2.12.598 - 2026-09-30\\n### Date operaționale demo\\n- Demo-ul comercial include scenarii legate pentru HR, flotă, producție, contracte, task-uri și comunicare internă."
 }

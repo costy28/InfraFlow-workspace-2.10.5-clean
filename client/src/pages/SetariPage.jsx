@@ -3712,8 +3712,10 @@ export default function SetariPage() {
         <Card title="Licență" loading={loading}>
           {license?.demo ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
-              <h2 className="text-xl font-semibold">MOD DEMO — Module limitate</h2>
-              <p className="mt-2 text-sm">Contact: contact@infraflow.ro pentru licență completă.</p>
+              <h2 className="text-xl font-semibold">DEMO COMERCIAL — Acces complet</h2>
+              <p className="mt-2 text-sm">
+                Toate modulele sunt disponibile pentru explorare. Datele sunt fictive și pot fi recreate controlat înaintea următoarei demonstrații.
+              </p>
             </div>
           ) : null}
           <div className="mt-4 rounded-lg border border-slate-200 p-4">
