@@ -39,6 +39,38 @@ router.get('/fleet-assets', (req, res) => {
   sendJson(res, 200, { assets: fleetAssetsView(auth.db, req.query) });
 })
 
+// Încărcarea inițială a Parc & Resurse avea nevoie de patru cereri independente
+// peste aceeași stare MSSQL. Le agregăm într-o singură citire, fără să schimbăm
+// contractele endpointurilor existente, pentru a nu afecta clienții mai vechi.
+router.get('/fleet/overview', (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth) return;
+  if (!requirePermission(auth, res, "mechanization:view")) return;
+  const db = auth.db;
+  const mechanization = db.mechanization && typeof db.mechanization === "object" ? db.mechanization : {};
+  const today = localDate(new Date());
+  const activeInterventions = new Set((mechanization.interventions || [])
+    .filter((item) => item.status === "in_lucru")
+    .map((item) => String(item.asset_id)));
+  const plannedToday = new Set((mechanization.plannings || [])
+    .filter((item) => item.date === today && item.status !== "anulat")
+    .map((item) => String(item.asset_id)));
+  const assetStatus = {};
+  fleetAssetsView(db).forEach((asset) => {
+    const key = String(asset.id);
+    assetStatus[asset.id] = activeInterventions.has(key) ? "service" : plannedToday.has(key) ? "alocat" : "liber";
+  });
+  const tripLogs = (db.fleetTripLogs || []).slice().sort((left, right) =>
+    String(right.data || right.created_at || "").localeCompare(String(left.data || left.created_at || "")) ||
+    String(right.nr_foaie || "").localeCompare(String(left.nr_foaie || "")));
+  sendJson(res, 200, {
+    assets: fleetAssetsView(db),
+    assetStatus,
+    requests: fleetRequestsView(db),
+    trip_logs: tripLogs
+  });
+})
+
 router.post('/fleet-assets', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);

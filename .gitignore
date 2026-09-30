@@ -10,6 +10,7 @@ server/asfalt-pro-backup*.json
 .env
 .env.demo
 .env.local
+runtime/*.env
 storage/
 _local-runtime-backup/
 logs/

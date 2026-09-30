@@ -2,7 +2,7 @@
 
 Data: `2026-09-06`  
 Versiune de pornire: `2.12.533`  
-Ultimul pas executat: 2.12.586 — Hosted Readiness pentru pilot controlat
+Ultimul pas executat: 2.12.588 — Hotfix ofertă CRM și pornire demo izolată
 Status: backlog operațional activ
 
 ## Scop
@@ -105,6 +105,8 @@ Pași:
 - build EXE periodic după pachete mari de update-uri;
 - demo curat, resetabil, fără date istorice de client.
 - diagnostic Hosted Readiness pentru pilot: HTTPS, SQL Server, APP_KEY, backup, SMTP, integritate și pași manuali expliciți; ✅ `v2.12.586`
+- demo comercial resetabil pe MSSQL separat, cu CRM, stoc, necesar și proformă în fluxul real; ✅ `v2.12.587`
+- hotfix pentru citirea fișei de ofertă cu comandă asociată și pornire demo izolată pe port separat; ✅ `v2.12.588`
 
 ## Backlog pe module
 

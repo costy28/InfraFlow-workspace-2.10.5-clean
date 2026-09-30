@@ -98,6 +98,7 @@ function Remove-DemoOnlyFiles {
   param([string]$PackageRoot)
   $relativePaths = @(
     "scripts\seed-demo.js",
+    "scripts\seed-commercial-demo-mssql.js",
     "scripts\generate-demo-hashes.js",
     "scripts\smoke-demo.js",
     "scripts\reset-demo-data.js",
@@ -106,7 +107,10 @@ function Remove-DemoOnlyFiles {
     "scripts\windows\reset-demo.ps1",
     "scripts\windows\status-demo.ps1",
     "scripts\windows\demo-reset-task.xml",
-    "server\modules\system\demo-routes.js"
+    "server\modules\system\demo-routes.js",
+    "scripts\windows\seed-commercial-demo-mssql.ps1",
+    "scripts\windows\start-commercial-demo-mssql.ps1",
+    "docs\DEMO_COMERCIAL_MSSQL.md"
   )
   foreach ($relativePath in $relativePaths) {
     $fullPath = Join-Path $PackageRoot $relativePath
@@ -123,6 +127,7 @@ function Assert-CleanPackageTree {
     "data\app-db.demo.json",
     "data\demo-seed.json",
     "scripts\seed-demo.js",
+    "scripts\seed-commercial-demo-mssql.js",
     "scripts\generate-demo-hashes.js",
     "scripts\smoke-demo.js",
     "scripts\reset-demo-data.js",
@@ -131,7 +136,10 @@ function Assert-CleanPackageTree {
     "scripts\windows\reset-demo.ps1",
     "scripts\windows\status-demo.ps1",
     "scripts\windows\demo-reset-task.xml",
-    "server\modules\system\demo-routes.js"
+    "server\modules\system\demo-routes.js",
+    "scripts\windows\seed-commercial-demo-mssql.ps1",
+    "scripts\windows\start-commercial-demo-mssql.ps1",
+    "docs\DEMO_COMERCIAL_MSSQL.md"
   )
   foreach ($relativePath in $blocked) {
     $fullPath = Join-Path $PackageRoot $relativePath

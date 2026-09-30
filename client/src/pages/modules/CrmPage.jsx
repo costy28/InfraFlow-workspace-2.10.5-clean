@@ -37,7 +37,7 @@ function LeadForm({ lead, users, accounts, onSave, onClose, saving }) {
   </form>
 }
 
-function CrmOverview({ leads, pipeline, onNavigate }) {
+function CrmOverview({ leads, pipeline, onNavigate, loading }) {
   const metrics = useMemo(() => ({
     fresh: leads.filter(item => item.status === 'new').length,
     contact: leads.filter(item => item.status === 'contacted').length,
@@ -56,10 +56,10 @@ function CrmOverview({ leads, pipeline, onNavigate }) {
   ]
   return <div className="grid gap-4">
     <Card title="CRM / Sales Automation" subtitle="Solicitări, prospecte, contacte și următorul follow-up — fără să dubleze Task-uri sau Contabilitatea.">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{cards.map(([title, value, filter]) => <button key={title} type="button" onClick={() => onNavigate(filter)} className="rounded-lg border border-slate-200 p-4 text-left hover:border-primary-300 hover:bg-primary-50"><div className="text-sm text-slate-500">{title}</div><div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div></button>)}</div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{cards.map(([title, value, filter]) => <button key={title} type="button" disabled={loading} onClick={() => onNavigate(filter)} className="rounded-lg border border-slate-200 p-4 text-left hover:border-primary-300 hover:bg-primary-50 disabled:cursor-wait disabled:opacity-70"><div className="text-sm text-slate-500">{title}</div><div className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '…' : value}</div></button>)}</div>
     </Card>
     <Card title="Flux comercial" subtitle="De la ofertă la comandă, stoc și facturare. Deschide doar etapa care cere atenție.">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{commercialCards.map(([title, value, description, stage]) => <Link key={title} to={`/crm/oferte?stage=${stage}`} className="rounded-lg border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50"><div className="text-sm text-slate-500">{title}</div><div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div><p className="mt-2 text-xs leading-relaxed text-slate-500">{description}</p></Link>)}</div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{commercialCards.map(([title, value, description, stage]) => <Link key={title} to={`/crm/oferte?stage=${stage}`} aria-disabled={loading} onClick={event => loading && event.preventDefault()} className={`rounded-lg border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50 ${loading ? 'pointer-events-none cursor-wait opacity-70' : ''}`}><div className="text-sm text-slate-500">{title}</div><div className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '…' : value}</div><p className="mt-2 text-xs leading-relaxed text-slate-500">{description}</p></Link>)}</div>
     </Card>
     <Card title="Următorul pas" subtitle="Creează o solicitare, pregătește oferta pentru prospect și delegă follow-up-ul către persoana potrivită.">
       <div className="flex flex-wrap gap-2"><Link to="/crm/leads"><Button>Deschide lead-uri</Button></Link><Link to="/crm/clients"><Button variant="secondary">Prospecte și contacte</Button></Link><Link to="/crm/oferte"><Button variant="secondary">Oferte comerciale</Button></Link></div>
@@ -141,11 +141,12 @@ export default function CrmPage() {
   const [users, setUsers] = useState([])
   const [pipeline, setPipeline] = useState({ pending_approval: 0, awaiting_customer: 0, accepted: 0, confirmed_orders: 0 })
   const [error, setError] = useState('')
-  async function load() { try { const [leadRes, accountRes, usersRes, dashboardRes] = await Promise.all([api.get('/crm/leads'), api.get('/crm/accounts'), api.get('/tasks/assignees'), api.get('/crm/dashboard')]); setLeads(leadRes.data.leads || []); setAccounts(accountRes.data.accounts || []); setUsers(usersRes.data.users || []); setPipeline(dashboardRes.data.pipeline || { pending_approval: 0, awaiting_customer: 0, accepted: 0, confirmed_orders: 0 }); setError('') } catch (err) { setError(apiError(err, 'CRM nu este disponibil. Verifică activarea modulului și migrarea MSSQL.')) } }
+  const [loading, setLoading] = useState(true)
+  async function load() { setLoading(true); try { const [leadRes, accountRes, usersRes, dashboardRes] = await Promise.all([api.get('/crm/leads'), api.get('/crm/accounts'), api.get('/tasks/assignees'), api.get('/crm/dashboard')]); setLeads(leadRes.data.leads || []); setAccounts(accountRes.data.accounts || []); setUsers(usersRes.data.users || []); setPipeline(dashboardRes.data.pipeline || { pending_approval: 0, awaiting_customer: 0, accepted: 0, confirmed_orders: 0 }); setError('') } catch (err) { setError(apiError(err, 'CRM nu este disponibil. Verifică activarea modulului și migrarea MSSQL.')) } finally { setLoading(false) } }
   useEffect(() => { load() }, [])
   if (error) return <Card title="CRM / Sales Automation"><p className="text-red-600">{error}</p></Card>
   if (/^\/crm\/leads\/[^/]+$/.test(location.pathname)) return <LeadDetails users={users} accounts={accounts} onRefresh={load} />
   if (location.pathname.startsWith('/crm/leads')) return <LeadsList leads={leads} users={users} accounts={accounts} onRefresh={load} />
   if (location.pathname.startsWith('/crm/clients')) return <Clients accounts={accounts} onRefresh={load} />
-  return <CrmOverview leads={leads} pipeline={pipeline} onNavigate={filter => navigate(filter === 'all' ? '/crm/leads' : `/crm/leads?filter=${filter}`)} />
+  return <CrmOverview leads={leads} pipeline={pipeline} loading={loading} onNavigate={filter => navigate(filter === 'all' ? '/crm/leads' : `/crm/leads?filter=${filter}`)} />
 }

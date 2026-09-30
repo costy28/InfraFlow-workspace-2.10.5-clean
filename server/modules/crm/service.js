@@ -1,5 +1,5 @@
 const CRM_MODULE_KEY = 'crm'
-const LEAD_SOURCES = ['web', 'email', 'manual', 'phone', 'import', 'api', 'referral']
+const LEAD_SOURCES = ['web', 'email', 'manual', 'phone', 'whatsapp', 'import', 'api', 'referral']
 const LEAD_STATUSES = ['new', 'contacted', 'qualified', 'unqualified', 'converted', 'lost']
 const QUALIFICATION_STATUSES = ['pending', 'qualified', 'unqualified']
 const ACTIVITY_TYPES = ['call', 'email', 'meeting', 'note', 'follow_up_result']
@@ -20,8 +20,19 @@ function licenseAllowsCrm(license = {}) {
   return !modules.length || modules.includes('all') || modules.includes('full') || modules.some(key => ['crm', 'sales', 'sales_automation'].includes(key))
 }
 
+// Instanța comercială de demonstrație este izolată într-o bază dedicată și
+// primește o licență demo din app_state. Nu lăsăm licența trial a workspace-ului
+// de dezvoltare să ascundă CRM-ul demonstrativ. Condiția dublă împiedică orice
+// efect asupra unei organizații operaționale.
+function commercialDemoLicense(db = {}, runtimeLicense = {}) {
+  const databaseName = String(process.env.DB_DATABASE || '').trim().toUpperCase()
+  const isCommercialDemo = db?.settings?.demo_profile === 'commercial-mssql'
+    && /^INFRAFLOW_DEMO(?:_[A-Z0-9_]+)?$/.test(databaseName)
+  return isCommercialDemo ? (db.settings?.license || runtimeLicense) : runtimeLicense
+}
+
 function isCrmModuleEnabled(db = {}, license = {}) {
-  if (!licenseAllowsCrm(license)) return false
+  if (!licenseAllowsCrm(commercialDemoLicense(db, license))) return false
   const configured = db?.settings?.modules_enabled
   if (!Array.isArray(configured) || !configured.length) return true
   return configured.map(value => String(value || '').trim().toLowerCase()).includes(CRM_MODULE_KEY)
@@ -210,4 +221,4 @@ function normalizeActivityPayload(body = {}) {
   }
 }
 
-module.exports = { CRM_MODULE_KEY, CRM_REQUIRED_TABLES, LEAD_SOURCES, LEAD_STATUSES, QUALIFICATION_STATUSES, ACTIVITY_TYPES, normalizedModuleKeys, licenseAllowsCrm, isCrmModuleEnabled, schemaStatus, buildCrmHealth, assertSoftCancellation, compactText, isValidEmail, normalizeLeadPayload, normalizeAccountPayload, normalizeContactPayload, normalizeActivityPayload }
+module.exports = { CRM_MODULE_KEY, CRM_REQUIRED_TABLES, LEAD_SOURCES, LEAD_STATUSES, QUALIFICATION_STATUSES, ACTIVITY_TYPES, normalizedModuleKeys, licenseAllowsCrm, commercialDemoLicense, isCrmModuleEnabled, schemaStatus, buildCrmHealth, assertSoftCancellation, compactText, isValidEmail, normalizeLeadPayload, normalizeAccountPayload, normalizeContactPayload, normalizeActivityPayload }

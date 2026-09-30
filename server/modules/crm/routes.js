@@ -622,6 +622,26 @@ router.get('/crm/billing/clients', (req, res) => {
   return res.json({ clients })
 })
 
+// Legarea terțului contabil ține de pregătirea facturării comenzii, nu de
+// administrarea generală a prospectului. Contabilitatea nu primește astfel
+// dreptul de a modifica celelalte date comerciale CRM.
+router.patch('/crm/customer-orders/:id/accounting-third-party', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:billing_request'); if (!auth) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    const requestedId = req.body?.accounting_third_party_id
+    const thirdPartyId = requestedId === '' || requestedId == null ? null : Number(requestedId)
+    if (requestedId !== '' && requestedId != null && (!Number.isInteger(thirdPartyId) || thirdPartyId <= 0)) return res.status(422).json({ error: 'Terțul contabil selectat nu este valid.' })
+    const thirdParty = thirdPartyId == null ? null : (auth.db.accounting?.thirdParties || []).find(item => Number(item.id) === thirdPartyId && item.activ !== false && ['client', 'ambele'].includes(String(item.tip || '')))
+    if (thirdPartyId != null && !thirdParty) return res.status(422).json({ error: 'Terțul contabil selectat nu este disponibil pentru facturare.' })
+    const account = repository.updateAccount(order.account_id, { accounting_third_party_id: thirdPartyId }, actorId(auth.user))
+    if (!account) return res.status(404).json({ error: 'Clientul CRM al comenzii nu a fost găsit.' })
+    auditWrite(auth, 'crm:customer_order_accounting_party_linked', { orderId: order.id, order_number: order.order_number, accountId: order.account_id, accounting_third_party_id: thirdPartyId, accounting_third_party_name: thirdParty?.denumire || null })
+    return res.json({ account_id: account.id, accounting_third_party_id: account.accounting_third_party_id || null })
+  } catch (error) { return apiError(res, error, 'Terțul contabil nu a putut fi legat de comandă.') }
+})
+
 router.post('/crm/billing/oblio/test', async (req, res) => {
   const auth = requireCrm(req, res, 'crm:settings'); if (!auth) return
   try {

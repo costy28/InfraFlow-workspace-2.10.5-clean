@@ -46,9 +46,10 @@ try {
   Copy-Item (Join-Path $Root "version.json"),(Join-Path $Root "CHANGELOG.md") $Temp -Force
   $blocked = @(
     "data\app-db.json", "data\app-db.demo.json", "data\demo-seed.json",
-    "server\modules\system\demo-routes.js", "scripts\seed-demo.js",
+    "server\modules\system\demo-routes.js", "scripts\seed-demo.js", "scripts\seed-commercial-demo-mssql.js",
     "scripts\reset-demo-data.js", "scripts\windows\start-demo.ps1",
-    "scripts\windows\restore-demo-app-state.ps1", "scripts\windows\reset-demo.ps1"
+    "scripts\windows\restore-demo-app-state.ps1", "scripts\windows\reset-demo.ps1", "scripts\windows\seed-commercial-demo-mssql.ps1", "scripts\windows\start-commercial-demo-mssql.ps1",
+    "docs\DEMO_COMERCIAL_MSSQL.md"
   )
   foreach ($relative in $blocked) {
     $candidate = Join-Path $Temp $relative

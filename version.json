@@ -1,5 +1,5 @@
 {
-  "version": "2.12.586",
-  "date": "2026-09-28",
-  "changelog": "## v2.12.586 - 2026-09-28\\n### Hosted Readiness - pilot controlat\\n- Setări → Securitate verifică HTTPS, SQL Server, APP_KEY, backup, SMTP și integritatea pachetului.\\n- Adresa publică este salvată explicit, fără modificări automate de tunnel, DNS sau firewall.\\n- Checklistul separă verificările automate de pașii manuali necesari înainte de client real."
+  "version": "2.12.595",
+  "date": "2026-09-29",
+  "changelog": "## v2.12.595 - 2026-09-29\\n### Navigare rapidă CRM\\n- Lista ofertelor are acces direct la Lead-uri și Prospecte și contacte.\\n- Nu mai este necesară revenirea prin meniul lateral pentru a continua fluxul comercial."
 }

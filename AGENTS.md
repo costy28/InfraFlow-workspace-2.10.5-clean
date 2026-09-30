@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.586**
-**Versiune în lucru: v2.12.586**
+**Versiune curentă sursă: v2.12.595**
+**Versiune în lucru: v2.12.595**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -151,7 +151,8 @@ fleet.*         — assets, requests, work_logs, odometer_readings
 accounting.*    — cost_centers, expenses
 
 integration.*   — scale_tickets, scale_product_map, nexus_map,
-                  autominder_sync, gps_credentials
+                  autominder_sync, gps_credentials, whatsapp_connections,
+                  whatsapp_events, whatsapp_messages
 
 work.*          — projects, work_items
 
@@ -324,6 +325,15 @@ Core System
   ✅ CRM: comandă client vizibilă în lista ofertelor și în filtrul de comenzi confirmate (v2.12.584)
   ✅ CRM: filtre rapide compatibile cu filtrarea manuală a ofertelor (v2.12.585)
   ✅ Hosted Readiness: diagnostic compact pentru pilot controlat, HTTPS, SQL Server, APP_KEY, backup, SMTP și integritate (v2.12.586)
+  ✅ Demo comercial MSSQL separat: Construct Demo SRL, seed idempotent controlat, CRM/stoc/achiziții/proformă/audit; fără parole SMTP în sursă (v2.12.587)
+  ✅ Hotfix CRM ofertă: detaliul ofertei citește corect comanda client asociată; demo MSSQL pornește izolat pe port separat (v2.12.588)
+  ✅ CRM nu afișează rezultate goale temporare: indicatorii și lista ofertelor arată încărcarea până la răspunsul serverului (v2.12.589)
+  ✅ Demo comercial pe roluri: acțiuni CRM filtrate după permisiuni și legare auditată terț contabil pentru facturare (v2.12.590)
+  ✅ Hotfix performanță Parc & Resurse: overview agregat, pool MSSQL pregătit la pornire și jurnal doar pentru erori/cereri lente (v2.12.591)
+  ✅ Fundație WhatsApp Business: configurare criptată, webhook Meta verificat, Inbox și creare manuală lead CRM (v2.12.592)
+  ✅ Hotfix Print / PDF ofertă CRM: fereastră de print compatibilă Chrome, fără pagină about:blank (v2.12.593)
+  ✅ Ofertă CRM: acțiune vizibilă Print/Salvare PDF și întoarcere la lista ofertelor (v2.12.594)
+  ✅ CRM: navigare rapidă Oferte → Lead-uri / Prospecte și contacte (v2.12.595)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1047,9 +1057,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.586
+VERSIUNE CURENTĂ SURSĂ: 2.12.595
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.586 ⏳
+UPDATE ZIP CURENT: 2.12.595 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1444,6 +1454,15 @@ UPDATES ÎN LUCRU:
   2.12.584 → UPDATE 604 CRM comandă vizibilă în lista ofertelor ✅
   2.12.585 → UPDATE 605 CRM filtre rapide fără combinații confuze ✅
   2.12.586 → UPDATE 606 Hosted Readiness pentru pilot controlat ⏳
+  2.12.587 → UPDATE 607 Demo comercial MSSQL separat ⏳
+  2.12.588 → UPDATE 608 Hotfix ofertă CRM și pornire demo izolată ⏳
+  2.12.589 → UPDATE 609 CRM încărcare clară în demo ⏳
+  2.12.590 → UPDATE 610 demo comercial pe roluri ⏳
+  2.12.591 → UPDATE 611 hotfix performanță Parc & Resurse ⏳
+  2.12.592 → UPDATE 612 fundație WhatsApp Business ⏳
+  2.12.593 → UPDATE 613 hotfix Print / PDF ofertă CRM ⏳
+  2.12.594 → UPDATE 614 print ofertă și navigare CRM ⏳
+  2.12.595 → UPDATE 615 navigare rapidă CRM ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1940,5 +1959,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 28 Septembrie 2026 | InfraFlow sursă v2.12.586*
+*AGENTS.md actualizat: 29 Septembrie 2026 | InfraFlow sursă v2.12.595*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

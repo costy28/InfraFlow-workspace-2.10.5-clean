@@ -271,19 +271,16 @@ export default function MecanizarePage() {
   async function loadAll() {
     setLoading(true); setError('')
     try {
-      const [assetsRes, statusRes, dashRes, reqRes, tripsRes] = await Promise.all([
-        api.get('/fleet-assets', { params: { tip: '' } }),
-        api.get('/mechanization/asset-status'),
+      const [overviewRes, dashRes] = await Promise.all([
+        api.get('/fleet/overview'),
         api.get('/mechanization/dashboard'),
-        api.get('/fleet-requests'),
-        api.get('/fleet/trip-logs'),
       ])
-      setAssets((assetsRes.data?.assets || []))
+      setAssets((overviewRes.data?.assets || []))
       api.get('/controlling/cost-centers').then(r => setCostCenters(Array.isArray(r.data) ? r.data : (r.data?.centers || []))).catch(() => setCostCenters([]))
-      setAssetStatus(statusRes.data || {})
+      setAssetStatus(overviewRes.data?.assetStatus || {})
       setDashboard(dashRes.data || {})
-      setRequests((reqRes.data?.requests || []))
-      setTripLogs(tripsRes.data?.trip_logs || [])
+      setRequests((overviewRes.data?.requests || []))
+      setTripLogs(overviewRes.data?.trip_logs || [])
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la încărcare.')
     } finally { setLoading(false) }

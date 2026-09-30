@@ -3,7 +3,7 @@ const express = require('express')
 const path = require('path')
 const fs = require('fs')
 const { requireAuth } = require('./core/auth')
-const { ensureDatabase, readDb, writeDb, syncMssqlCpvCodes, closeMssqlPool, databaseHealth } = require('./core/db')
+const { DB_MODE, ensureDatabase, readDb, writeDb, syncMssqlCpvCodes, getMssqlPool, closeMssqlPool, databaseHealth } = require('./core/db')
 const { incarcaLicenta } = require('./core/license')
 const { bootstrapCpvCatalog } = require('./modules/nomenclator/service')
 
@@ -37,6 +37,11 @@ if (licentaStatus.in_gratie) {
 global.LICENTA = licentaStatus.licenta
 
 const app = express()
+// Meta semnează corpul brut al webhook-ului WhatsApp. Ruta publică este montată
+// înaintea parserului general, astfel încât semnătura nu depinde de reserializare.
+const whatsappModule = require('./modules/messaging/whatsapp')
+const whatsappRouter = whatsappModule.router
+app.use('/webhooks/whatsapp', express.json({ limit: '10mb', verify: (req, _res, buffer) => { req.rawBody = Buffer.from(buffer) } }), whatsappModule.webhookRouter)
 app.use(express.json({ limit: '10mb' }))
 const STORAGE_ROOT = path.resolve(__dirname, '../storage')
 
@@ -73,11 +78,21 @@ app.get('/api/system/health', (_req, res) => {
   }
 })
 
+// Deschidem pool-ul la pornire, separat de fluxul cererii utilizatorului. Rutele
+// legacy care folosesc încă executorul sincron PowerShell rămân compatibile, iar
+// rutele relaționale/noi pot reutiliza imediat pool-ul MSSQL.
+if (["mssql", "sqlserver"].includes(DB_MODE)) {
+  getMssqlPool()
+    .then(() => console.log('[DB] Pool MSSQL pregătit.'))
+    .catch((error) => console.warn('[DB] Pool MSSQL indisponibil; compatibilitatea PowerShell rămâne activă:', error.message))
+}
+
 Promise.resolve()
   .then(() => require('./modules/messaging/routes').createDefaultChannels())
   .catch(err => console.warn('Canalele implicite nu au putut fi create:', err.message))
 
-// Logging simplu
+// Păstrăm în jurnal numai erorile și cererile lente. Logarea fiecărei încărcări
+// normale produce I/O inutil, mai ales în ecranele operaționale cu refresh-uri.
 app.use((req, res, next) => {
   const start = Date.now()
   res.on('finish', () => {
@@ -85,7 +100,11 @@ app.use((req, res, next) => {
     const loggedPath = /^\/public\/quote\/[^/]+/.test(req.path)
       ? req.path.replace(/(\/public\/quote\/)[^/]+/, '$1[redacted]')
       : req.path
-    console.log(`${req.method} ${loggedPath} ${res.statusCode} ${Date.now()-start}ms`)
+    const elapsedMs = Date.now() - start
+    const slowThresholdMs = Math.max(100, Number(process.env.INFRAFLOW_SLOW_REQUEST_MS || 500))
+    if (res.statusCode >= 400 || elapsedMs >= slowThresholdMs) {
+      console.log(`[${res.statusCode >= 400 ? 'HTTP' : 'SLOW'}] ${req.method} ${loggedPath} ${res.statusCode} ${elapsedMs}ms`)
+    }
   })
   next()
 })
@@ -112,6 +131,7 @@ if (process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo') {
   app.use('/api', require('./modules/system/demo-routes'))
 }
 app.use('/api', require('./modules/messaging/routes').router)
+app.use('/api', whatsappRouter)
 app.use('/api', require('./modules/tasks/routes'))
 app.use('/api', require('./modules/tickets/routes'))
 app.use('/api', require('./modules/documents/routes'))

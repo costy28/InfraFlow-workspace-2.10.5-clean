@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Download, FileText, Forward, Hash, Info, Mail, Paperclip, Plus, Reply, Search, Send, Trash2, Users, X } from 'lucide-react'
+import { Download, FileText, Forward, Hash, Info, Mail, MessageCircle, Paperclip, Plus, Reply, Search, Send, Trash2, Users, X } from 'lucide-react'
 import api from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -196,6 +196,13 @@ export default function MessagingPage() {
   const [emailError, setEmailError] = useState('')
   const [emailBulkLoading, setEmailBulkLoading] = useState(false)
   const [emailSyncLoading, setEmailSyncLoading] = useState(false)
+  const [whatsappRows, setWhatsappRows] = useState([])
+  const [whatsappStatus, setWhatsappStatus] = useState({ settings: {}, unread: 0, total: 0 })
+  const [whatsappLoading, setWhatsappLoading] = useState(false)
+  const [whatsappConfigOpen, setWhatsappConfigOpen] = useState(false)
+  const [whatsappConfig, setWhatsappConfig] = useState({ enabled: false, phone_number_id: '', display_phone_number: '', verify_token: '', app_secret: '', access_token: '' })
+  const [whatsappConfigError, setWhatsappConfigError] = useState('')
+  const [whatsappConfigSaving, setWhatsappConfigSaving] = useState(false)
   const [taskUsers, setTaskUsers] = useState([])
   const [taskEmail, setTaskEmail] = useState(null)
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', priority: 'normal', due_date: '' })
@@ -308,6 +315,56 @@ export default function MessagingPage() {
   useEffect(() => {
     if (activeTab === 'email') Promise.resolve().then(() => loadEmailInbox())
   }, [activeTab, loadEmailInbox])
+
+  const loadWhatsAppInbox = useCallback(async () => {
+    setWhatsappLoading(true)
+    setError('')
+    try {
+      const [inbox, status] = await Promise.all([api.get('/messaging/whatsapp/inbox'), api.get('/messaging/whatsapp/status')])
+      setWhatsappRows(arrayFrom(inbox.data, ['messages']))
+      setWhatsappStatus(status.data || { settings: inbox.data?.settings || {}, unread: 0, total: 0 })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Nu am putut încărca Inbox WhatsApp.')
+    } finally {
+      setWhatsappLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'whatsapp') Promise.resolve().then(() => loadWhatsAppInbox())
+  }, [activeTab, loadWhatsAppInbox])
+
+  function openWhatsAppConfig() {
+    const settings = whatsappStatus.settings || {}
+    setWhatsappConfig({ enabled: Boolean(settings.enabled), phone_number_id: settings.phone_number_id || '', display_phone_number: settings.display_phone_number || '', verify_token: '', app_secret: '', access_token: '' })
+    setWhatsappConfigError('')
+    setWhatsappConfigOpen(true)
+  }
+
+  async function saveWhatsAppConfig(event) {
+    event.preventDefault()
+    setWhatsappConfigSaving(true)
+    setWhatsappConfigError('')
+    try {
+      await api.put('/messaging/whatsapp/settings', whatsappConfig)
+      setWhatsappConfigOpen(false)
+      await loadWhatsAppInbox()
+    } catch (err) {
+      setWhatsappConfigError(err.response?.data?.error || 'Configurarea WhatsApp nu a putut fi salvată.')
+    } finally {
+      setWhatsappConfigSaving(false)
+    }
+  }
+
+  async function createLeadFromWhatsApp(message) {
+    try {
+      const response = await api.post(`/messaging/whatsapp/inbox/${message.id}/lead`, {})
+      const leadId = response.data?.lead?.id || response.data?.lead_id
+      setWhatsappRows(rows => rows.map(row => String(row.id) === String(message.id) ? { ...row, lead_id: leadId } : row))
+    } catch (err) {
+      setError(err.response?.data?.error || 'Lead-ul nu a putut fi creat din mesajul WhatsApp.')
+    }
+  }
 
   useEffect(() => {
     if (!pendingEmailParam || activeTab !== 'email' || emailLoading) return
@@ -939,10 +996,46 @@ export default function MessagingPage() {
           >
             <Mail size={15} /> Inbox ERP {emailStats.unread > 0 ? <Badge tone="danger">{emailStats.unread}</Badge> : null}
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('whatsapp')}
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${activeTab === 'whatsapp' ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <MessageCircle size={15} /> WhatsApp {whatsappStatus.unread > 0 ? <Badge tone="danger">{whatsappStatus.unread}</Badge> : null}
+          </button>
         </div>
       </Card>
 
-      {activeTab === 'email' ? (
+      {activeTab === 'whatsapp' ? (
+        <Card className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Inbox WhatsApp Business</h2>
+              <p className="text-sm text-slate-500">Mesaje primite prin API-ul oficial Meta. Fotografiile și fișierele se vor descărca securizat după conectarea contului.</p>
+            </div>
+            <div className="flex gap-2">
+              {isAdmin ? <Button variant="secondary" onClick={openWhatsAppConfig}>Configurează</Button> : null}
+              <Button variant="secondary" onClick={loadWhatsAppInbox} loading={whatsappLoading}>Reîncarcă</Button>
+            </div>
+          </div>
+          {!whatsappStatus.settings?.ready ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Integrarea nu este încă pregătită. Este necesar un număr WhatsApp Business, o aplicație Meta și URL-ul public al webhook-ului.</div>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs uppercase text-slate-500">Mesaje</div><div className="text-2xl font-bold">{whatsappStatus.total || 0}</div></div>
+            <div className="rounded-lg border border-rose-100 bg-rose-50 p-3"><div className="text-xs uppercase text-rose-600">Necitite</div><div className="text-2xl font-bold text-rose-700">{whatsappStatus.unread || 0}</div></div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs uppercase text-slate-500">Număr conectat</div><div className="truncate text-sm font-semibold">{whatsappStatus.settings?.display_phone_number || 'Neconfigurat'}</div></div>
+          </div>
+          {whatsappRows.length ? <div className="space-y-2">{whatsappRows.map(message => (
+            <div key={message.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex flex-wrap justify-between gap-2"><div className="font-semibold text-slate-900">{message.contact_name || message.from_phone || 'Contact necunoscut'}</div><div className="text-xs text-slate-500">{formatDate(message.received_at)}</div></div>
+              <div className="mt-1 text-sm text-slate-700">{message.body || 'Mesaj cu atașament'}</div>
+              {message.attachment ? <div className="mt-2 text-xs text-slate-500"><Paperclip size={13} className="mr-1 inline" />{message.attachment.filename || message.attachment.type} · în așteptarea descărcării securizate</div> : null}
+              <div className="mt-3 flex gap-2">{message.lead_id ? <Button size="sm" variant="secondary" onClick={() => { window.location.href = `/crm/leads/${message.lead_id}` }}>Deschide lead-ul</Button> : <Button size="sm" onClick={() => createLeadFromWhatsApp(message)}>Creează lead</Button>}</div>
+            </div>
+          ))}</div> : <div className="rounded-lg border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">Nu există încă mesaje WhatsApp importate.</div>}
+        </Card>
+      ) : activeTab === 'email' ? (
         <Card className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -1531,6 +1624,21 @@ export default function MessagingPage() {
       </Modal>
         </div>
       )}
+
+      <Modal open={whatsappConfigOpen} title="Configurare WhatsApp Business" onClose={() => setWhatsappConfigOpen(false)} size="lg">
+        <form className="grid gap-4" onSubmit={saveWhatsAppConfig}>
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">Conectează numai un număr WhatsApp Business al organizației. Valorile secrete sunt criptate și nu vor mai fi afișate după salvare.</div>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={whatsappConfig.enabled} onChange={event => setWhatsappConfig(form => ({ ...form, enabled: event.target.checked }))} /> Activează integrarea</label>
+          <Input label="Phone Number ID (Meta)" value={whatsappConfig.phone_number_id} onChange={event => setWhatsappConfig(form => ({ ...form, phone_number_id: event.target.value }))} required />
+          <Input label="Număr afișat" value={whatsappConfig.display_phone_number} onChange={event => setWhatsappConfig(form => ({ ...form, display_phone_number: event.target.value }))} placeholder="ex. +40 7xx xxx xxx" />
+          <Input label="Verify token webhook" type="password" value={whatsappConfig.verify_token} onChange={event => setWhatsappConfig(form => ({ ...form, verify_token: event.target.value }))} placeholder={whatsappStatus.settings?.verify_token_set ? 'Salvat — completează doar pentru schimbare' : ''} />
+          <Input label="App Secret Meta" type="password" value={whatsappConfig.app_secret} onChange={event => setWhatsappConfig(form => ({ ...form, app_secret: event.target.value }))} placeholder={whatsappStatus.settings?.app_secret_set ? 'Salvat — completează doar pentru schimbare' : ''} />
+          <Input label="Access token Meta" type="password" value={whatsappConfig.access_token} onChange={event => setWhatsappConfig(form => ({ ...form, access_token: event.target.value }))} placeholder={whatsappStatus.settings?.access_token_set ? 'Salvat — completează doar pentru schimbare' : ''} />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">Webhook de introdus în Meta: <code>/webhooks/whatsapp</code> pe domeniul public al instanței InfraFlow.</div>
+          {whatsappConfigError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{whatsappConfigError}</div> : null}
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setWhatsappConfigOpen(false)}>Renunță</Button><Button type="submit" loading={whatsappConfigSaving}>Salvează configurarea</Button></div>
+        </form>
+      </Modal>
 
       <Modal open={Boolean(emailDetails)} title="Detalii email" onClose={() => { setEmailDetails(null); setEmailError('') }} size="lg">
         {emailDetails ? (

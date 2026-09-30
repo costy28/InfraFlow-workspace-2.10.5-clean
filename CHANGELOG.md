@@ -1,3 +1,58 @@
+## v2.12.595 - 2026-09-29
+
+### Navigare rapidă CRM
+
+- Lista ofertelor include acces direct la `Lead-uri` și `Prospecte și contacte`.
+- Navigarea între etapele comerciale nu mai depinde de meniul lateral.
+
+## v2.12.594 - 2026-09-29
+
+### Print ofertă și navigare CRM
+
+- Documentul print-ready al unei oferte afișează acțiunile vizibile `Printează / Salvează PDF` și `Închide`; butoanele nu apar pe hârtie/PDF.
+- Fișa ofertei are buton explicit `Înapoi la oferte`, fără dependență de meniul lateral.
+
+## v2.12.593 - 2026-09-29
+
+### Hotfix Print / PDF ofertă CRM
+
+- Fereastra pentru print se deschide direct la click și afișează încărcarea până când documentul este generat.
+- Elimină pagina `about:blank` produsă de combinația popup asincron + `noopener` în Chrome.
+
+## v2.12.592 - 2026-09-29
+
+### Fundație WhatsApp Business
+
+- Configurare separată și criptată pentru datele Meta Business.
+- Webhook public verificat HMAC SHA-256; mesajele sunt preluate idempotent în Inbox.
+- Mesajele text și metadatele foto/PDF pot fi transformate manual în lead-uri CRM, cu audit.
+
+## v2.12.591 - 2026-09-29
+### Hotfix performanță Parc & Resurse
+- Încărcarea inițială a paginii agregă parc, status, cereri și foi de parcurs într-o singură cerere.
+- Pool-ul MSSQL este inițializat la pornire pentru rutele relaționale, iar serverul scrie în jurnal doar erorile și cererile lente.
+
+## v2.12.590 - 2026-09-29
+### Demo comercial - roluri clare
+- Acțiunile comerciale din fișa ofertei respectă permisiunile utilizatorului.
+- Contabilitatea poate lega terțul contabil de o comandă printr-un endpoint dedicat, cu audit, fără drept de modificare generală a prospectului.
+
+## v2.12.589 - 2026-09-28
+### CRM - încărcare clară în demo
+- Indicatorii CRM arată starea de încărcare în locul valorilor zero temporare.
+- Lista de oferte explică încărcarea înainte de a afișa un rezultat gol.
+
+## v2.12.588 - 2026-09-28
+### Hotfix ofertă CRM și pornire demo izolată
+- Fișa ofertei citește corect comanda client asociată, fără eroare SQL după creare.
+- Demo-ul comercial MSSQL pornește separat pe `localhost:4191`, cu scheduler oprit și fără a modifica instanța operațională.
+
+## v2.12.587 - 2026-09-28
+### Demo comercial MSSQL separat
+- Demo-ul comercial folosește o instanță MSSQL dedicată, nu copia JSON rezervată demo-ului tehnic.
+- `Construct Demo SRL` primește roluri comerciale, lead, ofertă draft, ofertă în aprobare, comandă cu deficit de stoc, necesar către Achiziții, proformă și audit.
+- Scriptul acceptă exclusiv baze `INFRAFLOW_DEMO...`; resetarea este explicită și SMTP rămâne configurare locală, fără parole în cod.
+
 ## v2.12.586 - 2026-09-28
 ### Hosted Readiness - pilot controlat
 - Setări → Securitate verifică pregătirea pentru un pilot hosted: HTTPS, SQL Server, APP_KEY, backup, SMTP și integritatea pachetului.
@@ -4359,3 +4414,4 @@
 - Expune Dashboard CRM, lista de lead-uri, fișa cu timeline, acțiuni de calificare/follow-up și registrul prospecte/contacte.
 - Păstrează anularea logică, validarea server-side, rolurile CRM și auditul pentru orice scriere.
 - Nu introduce oferte, comenzi, Oblio/SmartBill sau facturare: acestea rămân pentru Sprintul 3+.
+
