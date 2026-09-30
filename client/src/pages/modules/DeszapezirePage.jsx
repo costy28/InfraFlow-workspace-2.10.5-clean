@@ -570,7 +570,7 @@ export default function DeszapezirePage() {
     <div className="grid gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Deszăpezire</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Operațiuni sezoniere</h1>
           <p className="text-sm text-slate-600">Jurnale zilnice, fișe FAZ, timp la dispoziție și rapoarte oficiale.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -586,7 +586,7 @@ export default function DeszapezirePage() {
         <Card className="border-primary-200 bg-primary-50">
           <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">❄️ Modul Deszăpezire activ</h2>
+              <h2 className="text-xl font-semibold text-slate-900">❄️ Scenariu sezonier activ</h2>
               <p className="mt-1 text-sm text-slate-600">
                 Nu există niciun sezon configurat. Creează sezonul pentru a putea introduce jurnale, fișe traseu și rapoarte.
               </p>

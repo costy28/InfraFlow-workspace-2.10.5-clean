@@ -680,7 +680,7 @@ export default function AchizitiiPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Achiziții</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Aprovizionare & Achiziții</h1>
           <p className="text-sm text-slate-500">Comenzi, cerințe de aprovizionare și tichete de cântar.</p>
         </div>
         <Button onClick={() => setModalOpen(true)}>Comandă nouă</Button>

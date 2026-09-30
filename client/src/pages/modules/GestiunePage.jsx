@@ -755,7 +755,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">📦 Gestiune / Depozit</h1>
+          <h1 className="text-xl font-bold text-slate-900">📦 Stocuri & Depozite</h1>
           <p className="text-sm text-slate-500">Nomenclator, NIR, bonuri consum, inventar, furnizori, raport valoric</p>
         </div>
       </div>

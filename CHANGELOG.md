@@ -4437,3 +4437,10 @@
 - Seed-ul `Construct Demo SRL` include angajați, resurse flotă, rețetă și plan de producție, proiect, centru de cost, contract, task-uri și canal intern.
 - Datele folosesc aceiași clienți, furnizori și responsabili ca scenariile CRM, pentru a putea urmări firul comercial și operațional cap-coadă.
 
+## v2.12.599 - 2026-09-30
+
+### Terminologie comercială generică
+
+- Sidebar-ul, titlurile principale și catalogul de module folosesc termeni comerciali generici: `Stocuri & Depozite`, `Aprovizionare & Achiziții`, `Rute & Operațiuni teren`, `Semnalizare & Intervenții`, `Operațiuni sezoniere` și `Mediu & Conformitate`.
+- Rutele, permisiunile, schemele de date și funcțiile specifice rămân neschimbate.
+

@@ -23,9 +23,9 @@ const moduleCatalogGroups = [
   {
     title: 'OPERAȚIONALE',
     modules: [
-      { key: 'fleet', label: 'Flotă / Mecanizare', description: 'Vehicule, utilaje, foi parcurs, FAZ și GPS.' },
-      { key: 'technical', label: 'Tehnic', description: 'Lucrări, teren, output operațional și raport tehnic.' },
-      { key: 'procurement', label: 'Achiziții', description: 'Comenzi, recepții, referate, PAAP și CPV.' },
+      { key: 'fleet', label: 'Flotă, echipamente & resurse', description: 'Vehicule, utilaje, foi parcurs, FAZ și GPS.' },
+      { key: 'technical', label: 'Lucrări & execuție', description: 'Lucrări, teren, output operațional și raport tehnic.' },
+      { key: 'procurement', label: 'Aprovizionare & achiziții', description: 'Comenzi, recepții, cereri interne, PAAP și CPV.' },
       { key: 'contract_management', label: 'Contract Management', description: 'Contracte, consum valoric, CPV, manageri și alerte de prag/termen.' },
       { key: 'crm', label: 'CRM / Sales Automation', description: 'Solicitări comerciale, clienți potențiali, oferte și comenzi. Fundația tehnică este pregătită pentru activare graduală.' },
       { key: 'hr', label: 'HR', description: 'Angajați, pontaj, concedii, dosar personal și Kiosk.' },
@@ -36,10 +36,10 @@ const moduleCatalogGroups = [
   {
     title: 'SERVICII',
     modules: [
-      { key: 'sanitation', label: 'Salubrizare', description: 'Rute, colectări și rapoarte.' },
-      { key: 'traffic_safety', label: 'Siguranța Circulației', description: 'Indicatoare, marcaje și intervenții.' },
-      { key: 'environment', label: 'Protecția Mediului', description: 'Autorizații, deșeuri, emisii și incidente.' },
-      { key: 'snow_removal', label: 'Deszăpezire', description: 'Planuri, intervenții și consumuri sezoniere.' },
+      { key: 'sanitation', label: 'Rute & operațiuni teren', description: 'Rute, colectări și rapoarte.' },
+      { key: 'traffic_safety', label: 'Semnalizare & intervenții', description: 'Indicatoare, marcaje și intervenții.' },
+      { key: 'environment', label: 'Mediu & conformitate', description: 'Autorizații, deșeuri, emisii și incidente.' },
+      { key: 'snow_removal', label: 'Operațiuni sezoniere', description: 'Planuri, intervenții și consumuri sezoniere.' },
     ],
   },
   {
@@ -47,11 +47,11 @@ const moduleCatalogGroups = [
     modules: [
       { key: 'documents', label: 'Documente și aprobare', description: 'Șabloane, circuit documente și arhivare.' },
       { key: 'messaging', label: 'Mesaje interne', description: 'Canale, notificări și comunicare internă.' },
-      { key: 'tickets', label: 'Sesizări', description: 'Tichete, comentarii și urmărire rezolvare.' },
-      { key: 'field', label: 'Teren / Șantiere', description: 'Lucrări mobile, rapoarte și activitate teren.' },
+      { key: 'tickets', label: 'Solicitări & incidente', description: 'Tichete, comentarii și urmărire rezolvare.' },
+      { key: 'field', label: 'Proiecte & activitate în teren', description: 'Lucrări mobile, rapoarte și activitate teren.' },
       { key: 'legal', label: 'Juridic', description: 'Dosare, termene și documente juridice.' },
       { key: 'archive', label: 'Arhivă', description: 'Arhivare și regăsire documente.' },
-      { key: 'secretariat', label: 'Secretariat', description: 'Intrări/ieșiri documente și registre.' },
+      { key: 'secretariat', label: 'Registratură & corespondență', description: 'Intrări/ieșiri documente și registre.' },
     ],
   },
   {

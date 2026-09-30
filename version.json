@@ -1,5 +1,5 @@
 {
-  "version": "2.12.598",
+  "version": "2.12.599",
   "date": "2026-09-30",
-  "changelog": "## v2.12.598 - 2026-09-30\\n### Date operaționale demo\\n- Demo-ul comercial include scenarii legate pentru HR, flotă, producție, contracte, task-uri și comunicare internă."
+  "changelog": "## v2.12.599 - 2026-09-30\\n### Terminologie comercială generică\\n- Navigarea, titlurile și catalogul modulelor folosesc denumiri potrivite pentru firme generale, fără a schimba funcțiile existente."
 }

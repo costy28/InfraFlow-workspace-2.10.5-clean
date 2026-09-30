@@ -279,9 +279,9 @@ const moduleGroups = [
   {
     title: 'OPERAȚIONALE',
     modules: [
-      { key: 'fleet', icon: '⚙️', label: 'Parc & Resurse' },
-      { key: 'technical', icon: '⚙️', label: 'Tehnic' },
-      { key: 'procurement', icon: '⚙️', label: 'Achiziții' },
+      { key: 'fleet', icon: '⚙️', label: 'Flotă, echipamente & resurse' },
+      { key: 'technical', icon: '⚙️', label: 'Lucrări & execuție' },
+      { key: 'procurement', icon: '⚙️', label: 'Aprovizionare & achiziții' },
       { key: 'contract_management', icon: '⚙️', label: 'Contracte' },
       { key: 'crm', icon: '⚙️', label: 'CRM / Sales Automation' },
       { key: 'hr', icon: '⚙️', label: 'HR' },
@@ -292,10 +292,10 @@ const moduleGroups = [
   {
     title: 'SERVICII',
     modules: [
-      { key: 'sanitation', icon: '⚙️', label: 'Salubrizare' },
-      { key: 'traffic_safety', icon: '⚙️', label: 'Siguranța Circulației' },
-      { key: 'environment', icon: '⚙️', label: 'Protecția Mediului' },
-      { key: 'snow_removal', icon: '⚙️', label: 'Deszăpezire', badge: 'Sezonier 15.11-15.04' },
+      { key: 'sanitation', icon: '⚙️', label: 'Rute & operațiuni teren' },
+      { key: 'traffic_safety', icon: '⚙️', label: 'Semnalizare & intervenții' },
+      { key: 'environment', icon: '⚙️', label: 'Mediu & conformitate' },
+      { key: 'snow_removal', icon: '⚙️', label: 'Operațiuni sezoniere', badge: 'Sezonier 15.11-15.04' },
     ],
   },
   {
@@ -303,11 +303,11 @@ const moduleGroups = [
     modules: [
       { key: 'documents', icon: '⚙️', label: 'Documente și aprobare' },
       { key: 'messaging', icon: '⚙️', label: 'Mesaje interne' },
-      { key: 'tickets', icon: '⚙️', label: 'Sesizări' },
-      { key: 'field', icon: '⚙️', label: 'Teren / Șantiere' },
+      { key: 'tickets', icon: '⚙️', label: 'Solicitări & incidente' },
+      { key: 'field', icon: '⚙️', label: 'Proiecte & activitate în teren' },
       { key: 'legal', icon: '⚙️', label: 'Juridic' },
       { key: 'archive', icon: '⚙️', label: 'Arhivă' },
-      { key: 'secretariat', icon: '⚙️', label: 'Secretariat' },
+      { key: 'secretariat', icon: '⚙️', label: 'Registratură & corespondență' },
     ],
   },
   {

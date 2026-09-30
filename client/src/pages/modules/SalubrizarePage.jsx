@@ -242,7 +242,7 @@ export default function SalubrizarePage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Salubrizare</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Rute & Operațiuni teren</h1>
           <p className="text-sm text-slate-500">Colectări, rute, zone și raportare lunară ADI.</p>
         </div>
         <div className="flex flex-wrap gap-2">

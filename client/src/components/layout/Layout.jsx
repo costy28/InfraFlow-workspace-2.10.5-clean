@@ -9,23 +9,26 @@ import Sidebar from './Sidebar'
 const titles = {
   '/dashboard': 'Dashboard',
   '/departament': 'Departament',
-  '/productie': 'Producție',
-  '/stocuri': 'Stocuri',
-  '/achizitii': 'Achiziții',
-  '/flota': 'Flotă utilaje',
+  '/productie': 'Producție & Operațiuni',
+  '/gestiune': 'Stocuri & Depozite',
+  '/stocuri': 'Stocuri & Depozite',
+  '/achizitii': 'Aprovizionare & Achiziții',
+  '/flota': 'Flotă, Echipamente & Resurse',
+  '/mecanizare': 'Flotă, Echipamente & Resurse',
   '/hr': 'HR',
   '/controlling': 'Controlling',
   '/documente': 'Documente',
   '/mesaje': 'Mesaje',
-  '/sesizari': 'Sesizări',
-  '/teren': 'Teren',
-  '/salubrizare': 'Salubrizare',
-  '/siguranta-circulatiei': 'Siguranța circulației',
-  '/deszapezire': 'Deszăpezire',
-  '/mediu': 'Mediu',
+  '/sesizari': 'Solicitări & Incidente',
+  '/teren': 'Proiecte & Activitate în teren',
+  '/salubrizare': 'Rute & Operațiuni teren',
+  '/siguranta-circ': 'Semnalizare & Intervenții',
+  '/siguranta-circulatiei': 'Semnalizare & Intervenții',
+  '/deszapezire': 'Operațiuni sezoniere',
+  '/mediu': 'Mediu & Conformitate',
   '/juridic': 'Juridic',
   '/arhiva': 'Arhivă',
-  '/secretariat': 'Secretariat',
+  '/secretariat': 'Registratură & Corespondență',
   '/setari': 'Setări',
   '/ai': 'AI Assistant',
 }
@@ -121,7 +124,7 @@ export default function Layout({ children }) {
                 <span className="font-semibold">Mod prezentare</span>
                 <span>1. Dashboard</span>
                 <span>2. Referate</span>
-                <span>3. Mecanizare</span>
+                <span>3. Flotă & Resurse</span>
                 <span>4. Kiosk</span>
                 <span>5. Reset demo</span>
               </div>
