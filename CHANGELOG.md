@@ -4530,3 +4530,10 @@
 - Pachetele hosted care exclud rutele tehnice de reset demo nu mai blochează pornirea aplicației în `DEMO_MODE`.
 - Workerul păstrează rollback-ul automat când noua versiune nu trece health check-ul.
 
+## v2.12.611 - 2026-10-01
+
+### Finalizare sigură update Linux
+
+- Workerul Linux execută rollback numai când aplicarea pachetului eșuează.
+- La succes, serviciul nou rămâne pornit și versiunea instalată nu mai este restaurată accidental.
+

@@ -49,7 +49,7 @@ refresh_worker_for_next_update() {
 
 rollback() {
   local exit_code="$?"
-  if [[ "$CHANGED" -eq 1 && -n "$BACKUP_ARCHIVE" && -f "$BACKUP_ARCHIVE" ]]; then
+  if [[ "$exit_code" -ne 0 && "$CHANGED" -eq 1 && -n "$BACKUP_ARCHIVE" && -f "$BACKUP_ARCHIVE" ]]; then
     write_status "EROARE: update eșuat; se restaurează backupul anterior."
     systemctl stop infraflow.service || true
     tar -xzf "$BACKUP_ARCHIVE" -C "$ROLLBACK_DIR" --no-same-owner --no-same-permissions || true

@@ -63,6 +63,7 @@ test('update-ul Linux este primit controlat și aplicat exclusiv de systemd', ()
   assert.match(worker, /require\('mssql'\); require\('https-proxy-agent'\); require\('sprintf-js'\)/)
   assert.match(worker, /refresh_worker_for_next_update/)
   assert.match(worker, /Versiunea instalată \$INSTALLED_VERSION nu corespunde pachetului/)
+  assert.match(worker, /\[\[ "\$exit_code" -ne 0 && "\$CHANGED" -eq 1/)
   assert.match(installer, /systemctl enable --now infraflow-update\.path/)
 })
 
