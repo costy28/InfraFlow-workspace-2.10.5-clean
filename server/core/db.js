@@ -973,7 +973,10 @@ function isRetryableMssqlHelperError(error) {
     text.includes("server was not found or was not accessible");
 }
 
-// Ruleaza un script SQL Server prin PowerShell si intoarce prima valoare scalara.
+// Ruleaza un script SQL Server si intoarce prima valoare scalara.
+// Pe instalarea Windows pastram executorul istoric PowerShell/.NET. Pe Linux
+// folosim un copil Node.js cu acelasi driver `mssql`; rutele existente raman
+// sincrone, dar serverul nu mai depinde de powershell.exe.
 function runMssqlScalar(sql, options = {}) {
   const script = `
 $ErrorActionPreference = "Stop"
@@ -1050,6 +1053,16 @@ $sql
   try {
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
+        if (process.platform !== "win32") {
+          return childProcess.execFileSync(process.execPath, [path.join(ROOT, "server", "core", "mssql-executor.js")], {
+            cwd: ROOT,
+            env,
+            encoding: "utf8",
+            stdio: ["pipe", "pipe", "pipe"],
+            maxBuffer: 50 * 1024 * 1024,
+            timeout: timeoutMs
+          });
+        }
         return childProcess.execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodedCommand], {
           cwd: ROOT,
           env,
@@ -1086,7 +1099,7 @@ function mssqlDatabaseName() {
 }
 
 function configuredMssqlConnectionString() {
-  const server = process.env.DB_SERVER || ".\\SQLEXPRESS";
+  const server = process.env.DB_SERVER || (process.platform === "win32" ? ".\\SQLEXPRESS" : "127.0.0.1,1433");
   const database = process.env.DB_DATABASE || "INFRAFLOW";
   const trusted = String(process.env.DB_TRUSTED_CONNECTION || process.env.MSSQL_TRUSTED_CONNECTION || "").trim().toLowerCase();
   if (["1", "true", "yes", "sspi"].includes(trusted)) {

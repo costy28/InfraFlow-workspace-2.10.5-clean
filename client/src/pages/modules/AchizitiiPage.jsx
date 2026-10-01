@@ -153,6 +153,7 @@ export default function AchizitiiPage() {
     expectedDate: '',
     contract_id: '',
     note: '',
+    departmentRequestId: '',
   })
 
   async function load() {
@@ -235,14 +236,32 @@ export default function AchizitiiPage() {
         contract_id: form.contract_id || null,
         note: form.note,
         observatii: form.note,
+        department_request_id: form.departmentRequestId || null,
       })
-      setMessage('Comanda a fost salvată.')
+      setMessage(form.departmentRequestId ? 'Comanda a fost salvată, iar cerința a fost marcată comandată.' : 'Comanda a fost salvată.')
       setModalOpen(false)
-      setForm({ date: today(), supplier: '', materialId: '', amount: '', unitPrice: '', cpv_cod: '', orderNo: '', expectedDate: '', contract_id: '', note: '' })
+      setForm({ date: today(), supplier: '', materialId: '', amount: '', unitPrice: '', cpv_cod: '', orderNo: '', expectedDate: '', contract_id: '', note: '', departmentRequestId: '' })
       await load()
     } catch (err) {
       setError(err.response?.data?.error || 'Comanda nu a putut fi salvată.')
     }
+  }
+
+  function openOrderForRequirement(requirement) {
+    const materialId = requirement.materialId || requirement.mappedMaterialId || ''
+    if (!materialId) {
+      setError('Cerința nu are un material mapat. Corectează materialul înainte de a crea comanda.')
+      return
+    }
+    const material = materials.find(item => String(item.id) === String(materialId))
+    setError('')
+    setForm({
+      date: today(), supplier: '', materialId, amount: String(requirement.amount || requirement.required || requirement.needed || ''), unitPrice: '',
+      cpv_cod: material?.cpv_cod || material?.cod_cpv || '', orderNo: '', expectedDate: '', contract_id: '',
+      note: `Creată din ${requirement.source_label || 'cerință de aprovizionare'}${requirement.orderNo ? ` · ${requirement.orderNo}` : ''}.`,
+      departmentRequestId: requirement.id,
+    })
+    setModalOpen(true)
   }
 
   async function createMaterial(event) {
@@ -893,7 +912,7 @@ export default function AchizitiiPage() {
       )}
 
       {activeTab === 'Cerințe' && (
-        <Card title="Cerințe" subtitle="Materiale necesare pentru aprovizionare." loading={loading}>
+        <Card title="Cerințe" subtitle="Necesare din CRM și cerințe interne, plus alerte calculate de stoc. O cerință se marchează comandată numai după salvarea comenzii." loading={loading}>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
@@ -901,17 +920,21 @@ export default function AchizitiiPage() {
                   <th className="px-3 py-2">Material necesar</th>
                   <th className="px-3 py-2 text-right">Cantitate</th>
                   <th className="px-3 py-2">Urgent</th>
+                  <th className="px-3 py-2">Sursă</th>
+                  <th className="px-3 py-2 text-right">Acțiuni</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {pagedRequirements.length === 0 ? <EmptyRow colSpan={3} loading={loading} /> : pagedRequirements.map(item => {
+                {pagedRequirements.length === 0 ? <EmptyRow colSpan={5} loading={loading} /> : pagedRequirements.map(item => {
                   const urgency = urgentInfo(item)
-                  const quantity = item.required || item.needed || item.shortage || item.cantitate || item.quantity || 0
+                  const quantity = item.amount || item.required || item.needed || item.shortage || item.cantitate || item.quantity || 0
                   return (
                     <tr key={item.id || item.materialId || item.materialName} className="hover:bg-slate-50">
                       <td className="px-3 py-3 font-medium text-slate-800">{item.materialName || item.material || item.denumire || '-'}</td>
                       <td className="px-3 py-3 text-right">{Number(quantity || 0).toLocaleString('ro-RO')} {item.unit || item.um || ''}</td>
                       <td className="px-3 py-3"><Badge variant={urgency.variant}>{urgency.label}</Badge></td>
+                      <td className="px-3 py-3 text-xs text-slate-600">{item.source_label || '—'}</td>
+                      <td className="px-3 py-3 text-right">{item.actionable ? <Button size="sm" onClick={() => openOrderForRequirement(item)}>Creează comandă</Button> : <span className="text-xs text-slate-500">Verificare necesară</span>}</td>
                     </tr>
                   )
                 })}

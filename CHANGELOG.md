@@ -4444,3 +4444,89 @@
 - Sidebar-ul, titlurile principale și catalogul de module folosesc termeni comerciali generici: `Stocuri & Depozite`, `Aprovizionare & Achiziții`, `Rute & Operațiuni teren`, `Semnalizare & Intervenții`, `Operațiuni sezoniere` și `Mediu & Conformitate`.
 - Rutele, permisiunile, schemele de date și funcțiile specifice rămân neschimbate.
 
+## v2.12.600 - 2026-09-30
+
+### Fundație Hosted Linux
+
+- Executorul MSSQL folosește un proces Node.js portabil pe Linux, păstrând executorul PowerShell pe Windows.
+- Ubuntu 24.04 LTS primește șablon `systemd`, configurare separată de secrete și backup MSSQL controlat.
+- Ghidul hosted explică izolarea locală, Cloudflare Tunnel, backupul extern și limitele conectorilor Windows locali.
+
+## v2.12.601 - 2026-09-30
+
+### Hotfix service Linux
+
+- Serviciul systemd folosește `/usr/local/bin/node`, calea runtime-ului Node
+  instalat din arhiva oficială pentru serverul Ubuntu.
+- Ghidul hosted precizează SQL Server 2025 Express pentru Ubuntu 24.04.
+
+## v2.12.602 - 2026-09-30
+
+### Hotfix dependență Linux
+
+- `node-adodb` este dependență opțională: importul PIUSI MDB rămâne disponibil
+  pe Windows, iar pachetul exclusiv Windows nu mai oprește `npm ci` pe Ubuntu.
+
+## v2.12.603 - 2026-09-30
+
+### Hardening hosted Linux
+
+- Runtime-ul Linux ascultă implicit numai pe `127.0.0.1:4180`, pentru a putea
+  fi accesat exclusiv prin Cloudflare Tunnel sau printr-un proxy local.
+- Instalările Windows păstrează legarea existentă pe LAN dacă nu configurau
+  explicit o adresă de ascultare.
+
+## v2.12.604 - 2026-10-01
+
+### Actualizare hosted Linux controlată
+
+- Setări acceptă pachetul Linux `InfraFlow-update-vX.Y.Z-linux.tar.gz`; pachetul
+  este numai încărcat și verificat până la confirmarea explicită a administratorului.
+- Workerul `systemd` face backup înainte de aplicare, instalează dependențele de
+  producție, repornește serviciul și restaurează automat versiunea anterioară la eșec.
+- Există script separat pentru generarea arhivei Linux, fără date demo sau fișiere locale.
+
+## v2.12.605 - 2026-10-01
+
+### Corecție conturi demo
+
+- Bara galbenă de demo nu mai afișează conturi din scenariul demo vechi, care nu
+  există în demo-ul comercial MSSQL.
+- Mesajul îndrumă spre administrarea explicită a utilizatorilor și nu expune parole.
+
+## v2.12.606 - 2026-10-01
+
+### Hardening updater Linux
+
+- Pachetul poate fi copiat controlat între volume diferite, fără eroarea `EXDEV`.
+- Workerul respinge rulările paralele și verifică `/api/health` înainte de succes.
+- Un health check eșuat oprește versiunea nouă și declanșează rollbackul automat.
+
+## v2.12.607 - 2026-10-01
+
+### Dependențe Linux deterministe
+
+- `https-proxy-agent` este declarat explicit ca dependență de producție.
+- Instalarea curată cu `npm ci --omit=dev` păstrează modulul necesar driverului MSSQL.
+
+## v2.12.608 - 2026-10-01
+
+### CRM → Achiziții funcțional
+
+- Cerințele provenite dintr-un deficit confirmat pe comandă CRM sunt listate în Achiziții cu sursa și cantitatea corecte.
+- Utilizatorul poate deschide o comandă precompletată din cerință; cerința se marchează comandată doar după salvare, iar reluarea nu dublează comanda.
+
+## v2.12.609 - 2026-10-01
+
+### Update Linux verificat
+
+- Workerul systemd verifică versiunea pachetului, modulele Node necesare MSSQL și răspunsul health înainte să confirme update-ul.
+- După un update reușit, workerul root și unitățile systemd sunt reîmprospătate controlat pentru următoarea actualizare.
+
+## v2.12.610 - 2026-10-01
+
+### Pornire sigură pentru pachete demo hosted
+
+- Pachetele hosted care exclud rutele tehnice de reset demo nu mai blochează pornirea aplicației în `DEMO_MODE`.
+- Workerul păstrează rollback-ul automat când noua versiune nu trece health check-ul.
+

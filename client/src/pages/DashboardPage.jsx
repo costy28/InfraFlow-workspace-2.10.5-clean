@@ -670,6 +670,25 @@ function SectionError({ error }) {
   )
 }
 
+function CollapsibleDashboardSection({ title, description, badge, defaultOpen = false, children }) {
+  return (
+    <details className="group rounded-[var(--radius-panel)] border border-slate-200 bg-white" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:content-none">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-slate-900">{title}</div>
+          {description ? <div className="mt-0.5 truncate text-xs text-slate-500">{description}</div> : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {badge ? <Badge>{badge}</Badge> : null}
+          <span className="text-xs font-medium text-primary-700 group-open:hidden">Arată</span>
+          <span className="hidden text-xs font-medium text-primary-700 group-open:inline">Ascunde</span>
+        </div>
+      </summary>
+      <div className="border-t border-slate-100 p-4">{children}</div>
+    </details>
+  )
+}
+
 function KpiCard({ icon, label, value, loading, error, onClick }) {
   return (
     <button className="min-w-0 text-left" onClick={onClick}>
@@ -1982,35 +2001,26 @@ export default function DashboardPage() {
         onNavigate={navigate}
       />
 
-      <WatchedDocumentsPanel
-        documents={view.watchedDocuments}
-        notifications={view.watchedDocumentNotifications}
-        summary={view.watchedDocumentsSummary}
-        settings={view.settings}
-        loading={loading}
-        error={errors.watchedDocuments}
-        actionLoading={watchedActionLoading}
-        onCreateTask={createWatchedDocumentTask}
-        onOpenGroup={openWatchedGroup}
-        onNavigate={navigate}
-        onUnwatch={unwatchDashboardDocument}
-      />
+      <CollapsibleDashboardSection title="Documente urmărite" description="Activitate nouă, termene și acțiuni pentru documentele urmărite." badge={`${view.watchedDocuments.length}`}>
+        <WatchedDocumentsPanel documents={view.watchedDocuments} notifications={view.watchedDocumentNotifications} summary={view.watchedDocumentsSummary} settings={view.settings} loading={loading} error={errors.watchedDocuments} actionLoading={watchedActionLoading} onCreateTask={createWatchedDocumentTask} onOpenGroup={openWatchedGroup} onNavigate={navigate} onUnwatch={unwatchDashboardDocument} />
+      </CollapsibleDashboardSection>
 
-      <FirstStepsPanel checklist={view.firstStepsChecklist} loading={loading} onNavigate={navigate} />
-
-      <CommercialOnboardingPanel onNavigate={navigate} />
+      <CollapsibleDashboardSection title="Primii pași și configurare" description="Profil, module, utilizatori, email și backup." badge={`${view.firstStepsChecklist.done}/${view.firstStepsChecklist.total}`}>
+        <FirstStepsPanel checklist={view.firstStepsChecklist} loading={loading} onNavigate={navigate} />
+        <div className="mt-4"><CommercialOnboardingPanel onNavigate={navigate} /></div>
+      </CollapsibleDashboardSection>
 
       {user?.username === 'director' || user?.username === 'demo' || ['manager', 'superadmin'].includes(user?.role) ? (
-        <DirectorDemoPanel user={user} onNavigate={navigate} onResetDemo={resetDemo} resettingDemo={resettingDemo} />
+        <CollapsibleDashboardSection title="Scenariu demo" description="Ghid pe roluri și reset controlat al datelor fictive.">
+          <DirectorDemoPanel user={user} onNavigate={navigate} onResetDemo={resetDemo} resettingDemo={resettingDemo} />
+        </CollapsibleDashboardSection>
       ) : null}
 
-      <CommandCenterPanel
-        data={data}
-        loading={loading}
-        error={errors.commandCenter}
-        onNavigate={navigate}
-      />
+      <CollapsibleDashboardSection title="Monitorizare operațională" description="Documente, alerte, termene și indicatori de intervenție.">
+        <CommandCenterPanel data={data} loading={loading} error={errors.commandCenter} onNavigate={navigate} />
+      </CollapsibleDashboardSection>
 
+      <CollapsibleDashboardSection title="Detalii operaționale" description="Proiecte, grafice, stocuri, sesizări și activitatea recentă.">
       <Card className="cursor-pointer" onClick={() => navigate(routes.projects)}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-900">Proiecte / lucrări active</h3>
@@ -2145,6 +2155,7 @@ export default function DashboardPage() {
           ) : null}
         </Card>
       ) : null}
+      </CollapsibleDashboardSection>
 
       <ConfirmDialog
         open={Boolean(confirmAction)}

@@ -8,6 +8,7 @@ const seedScript = fs.readFileSync(path.join(root, 'scripts', 'seed-commercial-d
 const guide = fs.readFileSync(path.join(root, 'docs', 'DEMO_COMERCIAL_MSSQL.md'), 'utf8')
 const releaseScript = fs.readFileSync(path.join(root, 'scripts', 'windows', 'build-update-zip.ps1'), 'utf8')
 const startScript = fs.readFileSync(path.join(root, 'scripts', 'windows', 'start-commercial-demo-mssql.ps1'), 'utf8')
+const demoBanner = fs.readFileSync(path.join(root, 'client', 'index.html'), 'utf8')
 const { isCrmModuleEnabled } = require(path.join(root, 'server', 'modules', 'crm', 'service'))
 
 test('seed-ul comercial este limitat la baze demo MSSQL', () => {
@@ -29,6 +30,11 @@ test('seed-ul comercial oferă date operaționale legate, nu doar CRM', () => {
   for (const marker of ['EMP-DEMO-001', 'ASSET-DEMO-001', 'REC-DEMO-001', 'PLAN-DEMO-001', 'CTR-DEMO-001', 'TASK-DEMO-001', 'CHANNEL-DEMO-001']) {
     assert.ok(seedScript.includes(marker), `lipsește scenariul operațional ${marker}`)
   }
+})
+
+test('resetul demo păstrează parola aleasă de administrator', () => {
+  assert.match(seedScript, /existingAdmin/)
+  assert.match(seedScript, /passwordHash: existingAdmin\?\.passwordHash \|\| sourceAdmin\.passwordHash/)
 })
 
 test('adresa SMTP nu este hard-codată în seed-ul comercial', () => {
@@ -64,4 +70,11 @@ test('erorile de conectare SQL sunt explicate fără output PowerShell intern', 
   assert.match(seedScript, /safeErrorMessage/)
   assert.match(seedScript, /Nu am putut autentifica utilizatorul SQL Server/)
   assert.match(seedScript, /CLIXML/)
+})
+
+test('bannerul demo comercial nu afișează conturi din alt scenariu demo', () => {
+  assert.match(demoBanner, /Conturile demonstrative sunt administrate în Setări/)
+  for (const invalidCredential of ['Director: <strong>director</strong>', 'Admin demo: <strong>demo</strong>', 'Kiosk operator: <strong>sofer1</strong>']) {
+    assert.equal(demoBanner.includes(invalidCredential), false, `bannerul nu mai promite ${invalidCredential}`)
+  }
 })

@@ -1,0 +1,23 @@
+[Unit]
+Description=InfraFlow ERP application server
+After=network-online.target mssql-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=infraflow
+Group=infraflow
+WorkingDirectory=/opt/infraflow/app
+EnvironmentFile=/etc/infraflow/infraflow.env
+ExecStart=/usr/local/bin/node server/app.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/infraflow/app/storage /opt/infraflow/app/logs /opt/infraflow/app/runtime /var/backups/infraflow
+
+[Install]
+WantedBy=multi-user.target

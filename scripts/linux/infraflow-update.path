@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch the controlled inbox for an InfraFlow Linux update
+
+[Path]
+PathChanged=/opt/infraflow/app/runtime/update-inbox
+Unit=infraflow-update.service
+
+[Install]
+WantedBy=multi-user.target

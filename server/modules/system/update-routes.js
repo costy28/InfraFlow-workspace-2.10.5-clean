@@ -45,6 +45,23 @@ function createSystemUpdateRouter(context) {
     dest: updateUploadDir,
     limits: { fileSize: 500 * 1024 * 1024 }
   })
+  const isLinuxRuntime = process.platform === 'linux'
+  const linuxUpdateInbox = path.join(ROOT, 'runtime', 'update-inbox')
+
+  function linuxPackageVersion(fileName) {
+    const match = String(fileName || '').match(/^InfraFlow-update-v(\d+(?:\.\d+){2,})-linux\.tar\.gz$/i)
+    return match ? match[1] : ''
+  }
+
+  function moveUpdatePackage(sourcePath, targetPath) {
+    try {
+      fs.renameSync(sourcePath, targetPath)
+    } catch (error) {
+      if (error?.code !== 'EXDEV') throw error
+      fs.copyFileSync(sourcePath, targetPath, fs.constants.COPYFILE_EXCL)
+      fs.unlinkSync(sourcePath)
+    }
+  }
 
   function updateJsonVersionFile(filePath, version) {
     if (!fs.existsSync(filePath)) return
@@ -135,6 +152,19 @@ function createSystemUpdateRouter(context) {
     }
   }
 
+  function readLinuxUpdateStatus() {
+    const logPath = path.join(ROOT, 'runtime', 'update-last.log')
+    if (!fs.existsSync(logPath)) return null
+    const stat = fs.statSync(logPath)
+    const lines = fs.readFileSync(logPath, 'utf8').split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-40)
+    const text = lines.join('\n').toLowerCase()
+    return {
+      updated_at: stat.mtime.toISOString(),
+      status: text.includes('ok: update aplicat') ? 'ok' : text.includes('eroare:') ? 'warning' : 'running',
+      lines
+    }
+  }
+
   router.post('/system/update-package', express.raw({ type: ['application/zip', 'application/octet-stream'], limit: UPDATE_UPLOAD_MAX_BYTES }), async (req, res, next) => {
     try {
       const auth = requireAuth(req, res)
@@ -214,7 +244,33 @@ function createSystemUpdateRouter(context) {
       if (!auth) return
       if (!requirePermission(auth, res, 'system:update')) return
       if (!req.file) throwHttp(400, 'Fișierul de update este obligatoriu.')
-      if (!String(req.file.originalname || '').toLowerCase().endsWith('.zip')) {
+      const originalName = String(req.file.originalname || '')
+      if (isLinuxRuntime) {
+        const version = linuxPackageVersion(originalName)
+        if (!version) {
+          fs.unlink(req.file.path, () => {})
+          return sendJson(res, 400, { error: 'Pe Linux încarcă numai InfraFlow-update-vX.Y.Z-linux.tar.gz' })
+        }
+        const current = readRuntimeVersion()
+        if (compareVersions(version, current) <= 0) {
+          fs.unlink(req.file.path, () => {})
+          return sendJson(res, 400, { error: `Versiunea ${version} nu e mai nouă decât ${current}` })
+        }
+        const storedName = `${version}--${req.file.filename}`
+        fs.renameSync(req.file.path, path.join(updateUploadDir, storedName))
+        addAudit(auth.db, auth.user, 'update_linux_incarcat', `Pachet ${version} / ${originalName}`)
+        writeDb(auth.db)
+        return sendJson(res, 200, {
+          ok: true,
+          filename: storedName,
+          versiune_noua: version,
+          versiune_curenta: current,
+          changelog: 'Pachet Linux verificat. Backupul și repornirea se execută după confirmare.',
+          marime_mb: Math.round(req.file.size / 1024 / 1024 * 10) / 10,
+          linux_managed: true
+        })
+      }
+      if (!originalName.toLowerCase().endsWith('.zip')) {
         fs.unlink(req.file.path, () => {})
         return sendJson(res, 400, { error: 'Doar fișiere .zip sunt acceptate' })
       }
@@ -258,6 +314,16 @@ function createSystemUpdateRouter(context) {
       if (!filename) throwHttp(400, 'Numele fișierului de update este obligatoriu.')
       const archivePath = path.join(updateUploadDir, filename)
       if (!fs.existsSync(archivePath)) throwHttp(404, 'Pachetul de update nu a fost găsit.')
+      if (isLinuxRuntime) {
+        const version = String(filename).match(/^(\d+(?:\.\d+){2,})--/)?.[1]
+        if (!version) throwHttp(400, 'Pachet Linux invalid.')
+        fs.mkdirSync(linuxUpdateInbox, { recursive: true })
+        const target = path.join(linuxUpdateInbox, `InfraFlow-update-v${version}-linux.tar.gz`)
+        moveUpdatePackage(archivePath, target)
+        addAudit(auth.db, auth.user, 'update_linux_programat', `Update Linux programat: ${version}`)
+        writeDb(auth.db)
+        return sendJson(res, 202, { ok: true, versiune: version, restart_in: 20, message: 'Update Linux programat. Backupul și repornirea sunt gestionate de systemd.' })
+      }
       const zip = openUpdateZip(archivePath)
       const versionEntry = findUpdateVersionEntry(zip)
       if (!versionEntry) throwHttp(400, 'Fișier .zip invalid — lipsește version.json')
@@ -336,6 +402,7 @@ function createSystemUpdateRouter(context) {
         version: readRuntimeVersion(),
         last_update: history[0] || null,
         restart: readRestartLogStatus(),
+        linux_update: readLinuxUpdateStatus(),
         checked_at: new Date().toISOString()
       })
     } catch (error) {

@@ -131,7 +131,12 @@ app.use('/api', require('./modules/technical/routes'))
 app.use('/api', require('./modules/workflow/routes'))
 app.use('/api', require('./modules/system/routes'))
 if (process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo') {
-  app.use('/api', require('./modules/system/demo-routes'))
+  const demoRoutesPath = path.join(__dirname, 'modules', 'system', 'demo-routes.js')
+  if (fs.existsSync(demoRoutesPath)) {
+    app.use('/api', require('./modules/system/demo-routes'))
+  } else {
+    console.warn('[DEMO] Rutele tehnice demo nu sunt incluse în acest pachet.')
+  }
 }
 app.use('/api', require('./modules/messaging/routes').router)
 app.use('/api', whatsappRouter)
@@ -243,10 +248,16 @@ require('./scheduler')
 piusiIntegration.startPiusiScheduler()
 
 const PORT = Number(process.env.PORT || 4180) // port implicit 4180
+// Pe Linux hosted, aplicația rămâne în spatele tunnel-ului și nu ascultă pe
+// interfața publică. Instalările Windows existente își păstrează comportamentul
+// LAN dacă nu configurează explicit INFRAFLOW_HOST/HOST.
+const HOST = String(process.env.INFRAFLOW_HOST || process.env.HOST || (process.platform === 'win32' ? '' : '127.0.0.1')).trim()
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`InfraFlow app.js pornit pe portul ${PORT}`)
-  }).on('error', (err) => {
+  const onListen = () => {
+    console.log(`InfraFlow app.js pornit pe ${HOST || 'toate interfețele'}:${PORT}`)
+  }
+  const server = HOST ? app.listen(PORT, HOST, onListen) : app.listen(PORT, onListen)
+  server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       console.error(`Portul ${PORT} e ocupat. Incearca: $env:PORT=${PORT+1} ; node server/app.js`)
       return

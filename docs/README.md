@@ -23,3 +23,14 @@ Accesează `http://localhost:5175` dacă ai pornit clientul pe acel port.
 
 ## Suport
 contact@infraflow.ro
+
+## Hosted Linux
+
+Pentru pilotul hosted este disponibilă fundația de instalare pe Ubuntu 24.04 LTS:
+[INSTALARE_SERVER_UBUNTU_24_04.md](INSTALARE_SERVER_UBUNTU_24_04.md).
+
+Instalarea Windows rămâne fluxul stabil pentru serverele existente. Pentru Linux,
+prima instalare a workerului se face o singură dată prin `install-service.sh`;
+apoi administratorul poate încărca din Setări numai pachete
+`InfraFlow-update-vX.Y.Z-linux.tar.gz`. Aplicarea rămâne o acțiune explicită,
+cu backup și rollback automat prin systemd.

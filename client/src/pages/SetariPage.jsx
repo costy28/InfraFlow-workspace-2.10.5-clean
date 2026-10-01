@@ -3922,7 +3922,7 @@ export default function SetariPage() {
             )}
           </Card>
 
-          <Card title="Actualizare manuală" subtitle="Încarcă pachetul primit de la furnizor: InfraFlow-update-*.zip">
+          <Card title="Actualizare manuală" subtitle="Încarcă pachetul primit de la furnizor: ZIP pentru Windows sau TAR.GZ pentru Linux.">
             <label
               className="grid cursor-pointer place-items-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center transition hover:border-primary-300 hover:bg-primary-50"
               onDragOver={event => event.preventDefault()}
@@ -3933,12 +3933,12 @@ export default function SetariPage() {
             >
               <Upload className="mb-3 text-primary-600" size={36} />
               <div className="font-semibold text-slate-900">📦 Încarcă update manual</div>
-              <div className="mt-1 text-sm text-slate-600">Trage fișierul aici sau selectează InfraFlow-update-*.zip</div>
-              <div className="mt-1 text-sm text-slate-500">Acceptă doar: InfraFlow-update-*.zip</div>
+              <div className="mt-1 text-sm text-slate-600">Trage fișierul aici sau selectează pachetul InfraFlow primit.</div>
+              <div className="mt-1 text-sm text-slate-500">Windows: InfraFlow-update-*.zip · Linux: InfraFlow-update-vX.Y.Z-linux.tar.gz</div>
               <input
                 className="hidden"
                 type="file"
-                accept=".zip"
+                accept=".zip,.tar.gz"
                 onChange={event => uploadUpdatePackage(event.target.files?.[0])}
               />
             </label>
@@ -3958,7 +3958,7 @@ export default function SetariPage() {
                   {formatUpdateChangelog(manualUpdate.changelog) || 'Fără changelog în pachet.'}
                 </div>
                 <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  ⚠️ Backup automat înainte de aplicare. Aplicația repornește în aproximativ 5 secunde.
+                  ⚠️ Backup automat înainte de aplicare. Pe Linux, systemd aplică pachetul și repornește serviciul controlat.
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button onClick={() => setUpdateModal(true)}>✅ Aplică update-ul</Button>

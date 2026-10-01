@@ -66,6 +66,7 @@ function ensureProcurementExtensions(db) {
   db.procurementOrders = Array.isArray(db.procurementOrders) ? db.procurementOrders : []
   db.procurementReceipts = Array.isArray(db.procurementReceipts) ? db.procurementReceipts : []
   db.procurementReturns = Array.isArray(db.procurementReturns) ? db.procurementReturns : []
+  db.departmentRequests = Array.isArray(db.departmentRequests) ? db.departmentRequests : []
   db.deliveries = Array.isArray(db.deliveries) ? db.deliveries : []
   db.stockMovements = Array.isArray(db.stockMovements) ? db.stockMovements : []
   db.procurementPlans = Array.isArray(db.procurementPlans) ? db.procurementPlans : []
@@ -102,6 +103,15 @@ function normalizeOrderLines(db, body) {
 
 function createProcurementOrderV2(db, user, body) {
   ensureProcurementExtensions(db)
+  const departmentRequestId = String(body.department_request_id || body.departmentRequestId || '').trim()
+  const departmentRequest = departmentRequestId
+    ? db.departmentRequests.find(item => String(item.id) === departmentRequestId)
+    : null
+  if (departmentRequestId && !departmentRequest) throwHttp(404, 'Cerința de aprovizionare selectată nu mai există.')
+  if (departmentRequestId) {
+    const existing = db.procurementOrders.find(item => String(item.department_request_id || item.departmentRequestId || '') === departmentRequestId && !['canceled', 'anulata', 'respinsa'].includes(String(item.status || '').toLowerCase()))
+    if (existing) return { ...existing, already_created: true }
+  }
   const lines = normalizeOrderLines(db, body)
   const order = {
     id: id('po'),
@@ -127,6 +137,17 @@ function createProcurementOrderV2(db, user, body) {
     createdAt: new Date().toISOString()
   }
   applyContractLink(db, order, body)
+  if (departmentRequest) {
+    order.department_request_id = departmentRequest.id
+    order.departmentRequestId = departmentRequest.id
+    order.source_type = departmentRequest.source_type || 'department_request'
+    order.source_id = departmentRequest.source_id || departmentRequest.id
+    departmentRequest.status = 'ordered'
+    departmentRequest.procurement_order_id = order.id
+    departmentRequest.procurement_order_uuid = order.uuid
+    departmentRequest.ordered_at = order.createdAt
+    departmentRequest.ordered_by = user.id
+  }
   db.procurementOrders.push(order)
   return order
 }
@@ -398,6 +419,7 @@ router.post('/procurement-orders', async (req, res, next) => {
     if (!requirePermission(auth, res, "procurement_orders:create")) return;
     const body = await readJsonBody(req);
     const order = Array.isArray(body.materiale) || Array.isArray(body.lines) ? createProcurementOrderV2(auth.db, auth.user, body) : createProcurementOrder(auth.db, auth.user, { ...body, status: 'emisa' });
+    if (order.already_created) return sendJson(res, 200, { order, idempotent: true });
     if (!order.uuid) order.uuid = crypto.randomUUID();
     if (order.status === 'open') order.status = 'emisa';
     addAudit(auth.db, auth.user, "comanda_aprovizionare", `${order.orderNo || "-"} / ${order.materialName} / ${fmt(order.amount)} ${order.unit}`);
@@ -458,7 +480,7 @@ router.get('/procurement-orders/:uuid/pdf', (req, res) => {
 router.get('/procurement-requirements', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  requirePermission(auth, res, "planning:view") && sendJson(res, 200, { requirements: buildProcurementRequirements(auth.db) });
+  requireAnyPermission(auth, res, ['planning:view', 'department_requests:view']) && sendJson(res, 200, { requirements: buildProcurementRequirements(auth.db) });
 })
 
 router.get('/procurement/plan/generate', (req, res) => {
@@ -3469,7 +3491,7 @@ function buildStockAlerts(db) {
   });
 
   (db.departmentRequests || [])
-    .filter((request) => !["done", "rejected"].includes(request.status))
+    .filter((request) => !["done", "closed", "finalizata", "ordered", "rejected", "respinsa", "cancelled", "canceled", "anulata"].includes(String(request.status || '').toLowerCase()))
     .forEach((request) => {
       if (request.type === "asphalt" && request.planId) return;
       if (request.type === "material") {
@@ -3504,7 +3526,24 @@ function buildStockAlerts(db) {
 }
 
 function buildProcurementRequirements(db) {
-  return buildStockAlerts(db);
+  const closedStatuses = new Set(['done', 'closed', 'finalizata', 'ordered', 'rejected', 'respinsa', 'cancelled', 'canceled', 'anulata'])
+  const directRequests = (db.departmentRequests || [])
+    .filter(request => !closedStatuses.has(String(request.status || '').toLowerCase()))
+    .filter(request => String(request.type || '').toLowerCase() === 'material')
+    .map(request => ({
+      ...request,
+      materialId: request.materialId || request.mappedMaterialId || '',
+      materialName: request.materialName || request.mappedMaterialName || request.requestedMaterialName || request.itemName || 'Material neprecizat',
+      required: Number(request.amount || 0),
+      shortage: Number(request.source_type === 'crm_customer_order' ? request.amount || 0 : 0),
+      source_label: request.source_type === 'crm_customer_order' ? `CRM · ${request.orderNo || 'comandă client'}` : 'Cerință internă',
+      actionable: Boolean(request.materialId || request.mappedMaterialId)
+    }))
+  const directMaterialIds = new Set(directRequests.map(request => String(request.materialId)).filter(Boolean))
+  const stockAlerts = buildStockAlerts(db)
+    .filter(alert => !directMaterialIds.has(String(alert.materialId)))
+    .map(alert => ({ ...alert, source_label: 'Alertă calculată de stoc', actionable: false }))
+  return [...directRequests, ...stockAlerts]
 }
 
 function addDemand(demand, materialId, amountValue, source) {
@@ -8905,3 +8944,5 @@ process.on("uncaughtException", (error) => {
 module.exports = router
 module.exports.receiveProcurementOrderV2 = receiveProcurementOrderV2
 module.exports.returnProcurementReceipt = returnProcurementReceipt
+module.exports.buildProcurementRequirements = buildProcurementRequirements
+module.exports.createProcurementOrderV2 = createProcurementOrderV2

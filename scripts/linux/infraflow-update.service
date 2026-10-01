@@ -1,0 +1,8 @@
+[Unit]
+Description=Apply a verified InfraFlow Linux update package
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/lib/infraflow/apply-update.sh

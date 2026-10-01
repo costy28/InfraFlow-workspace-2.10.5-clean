@@ -75,7 +75,7 @@ function demoRoles() {
   return [
     { id: 'demo-sales', name: 'Vânzări demo', description: 'Califică solicitări și construiește oferte comerciale.', tip: 'demo', permissions: ['dashboard:view', 'crm:view', 'crm:lead_create', 'crm:lead_manage', 'crm:quote_create', 'crm:quote_send', 'crm:reports'] },
     { id: 'demo-approval', name: 'Aprobare demo', description: 'Aprobă ofertele comerciale înainte de transmitere.', tip: 'demo', permissions: ['dashboard:view', 'crm:view', 'crm:quote_approve', 'crm:reports', 'audit:view'] },
-    { id: 'demo-procurement', name: 'Achiziții demo', description: 'Verifică deficitul și primește necesarul din comenzile clienților.', tip: 'demo', permissions: ['dashboard:view', 'crm:view', 'crm:order_manage', 'crm:inventory_check', 'crm:procurement_request', 'procurement_orders:view', 'procurement_orders:create', 'department_requests:view'] },
+    { id: 'demo-procurement', name: 'Achiziții demo', description: 'Verifică deficitul și primește necesarul din comenzile clienților.', tip: 'demo', permissions: ['dashboard:view', 'crm:view', 'crm:order_manage', 'crm:inventory_check', 'crm:procurement_request', 'procurement_orders:view', 'procurement_orders:create', 'department_requests:view', 'planning:view'] },
     { id: 'demo-accounting', name: 'Contabilitate demo', description: 'Creează proforme și facturi draft din comenzile confirmate.', tip: 'demo', permissions: ['dashboard:view', 'crm:view', 'crm:billing_request', 'crm:reports', 'accounting_report:view', 'ledger:view'] }
   ]
 }
@@ -97,7 +97,15 @@ function prepareAppState() {
   // câmp JSON MSSQL poate bloca seed-ul, iar scenariile comerciale au nevoie
   // numai de identitate, catalogul demonstrativ și CRM-ul relațional de mai jos.
   const db = readDb()
-  const admin = loadDemoAdministrator()
+  const sourceAdmin = loadDemoAdministrator()
+  // Resetul reface exclusiv datele fictive. Administratorul poate avea deja
+  // o parolă proprie, pe care seed-ul nu are voie să o înlocuiască.
+  const existingAdmin = (db.users || []).find(user => user.username === 'admin')
+  const admin = {
+    ...sourceAdmin,
+    passwordHash: existingAdmin?.passwordHash || sourceAdmin.passwordHash,
+    active: existingAdmin?.active !== false
+  }
   db.users = (db.users || []).filter(user => user.username !== 'admin')
   db.users.push({ ...admin, active: true })
   db.settings = db.settings || {}

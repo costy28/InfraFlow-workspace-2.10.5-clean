@@ -6,8 +6,11 @@ const path = require('path')
 const root = path.resolve(__dirname, '../..')
 const { checkAvailability } = require('../modules/crm/ports/inventory')
 const { createRequirementsFromCrmOrder } = require('../modules/procurement/crm-port')
+const procurementRoutes = require('../modules/procurement/routes')
 const routes = fs.readFileSync(path.join(root, 'server/modules/crm/routes.js'), 'utf8')
+const procurementRouteSource = fs.readFileSync(path.join(root, 'server/modules/procurement/routes.js'), 'utf8')
 const quotePage = fs.readFileSync(path.join(root, 'client/src/pages/modules/CrmQuotesPage.jsx'), 'utf8')
+const procurementPage = fs.readFileSync(path.join(root, 'client/src/pages/modules/AchizitiiPage.jsx'), 'utf8')
 const ports = fs.readFileSync(path.join(root, 'server/modules/crm/ports/index.js'), 'utf8')
 
 function order(lines) { return { id: 44, order_number: 'CO-2026-0044', source_quote_id: 22, source_quote_revision: 1, lines } }
@@ -45,6 +48,19 @@ test('deficitul creează un necesar existent în Achiziții și este idempotent'
   assert.equal(db.departmentRequests.length, 1)
 })
 
+test('necesarul CRM este vizibil în Achiziții și devine comandat numai după crearea comenzii', () => {
+  const db = { materials: [{ id: 'material-1', code: 'MAT-1', name: 'Piatra', unit: 't', stock: 3, alert: 0 }], departmentRequests: [], procurementOrders: [] }
+  const checked = checkAvailability({ order: order([materialLine()]), db })
+  createRequirementsFromCrmOrder({ db, user: { id: 'admin', name: 'Admin' }, order: order([materialLine()]), inventoryCheck: { id: 7, result: checked } })
+  const requirements = procurementRoutes.buildProcurementRequirements(db)
+  assert.equal(requirements.length, 1)
+  assert.equal(requirements[0].source_label, 'CRM · CO-2026-0044')
+  const created = procurementRoutes.createProcurementOrderV2(db, { id: 'procurement', name: 'Achiziții' }, { materiale: [{ material_id: 'material-1', cantitate: 2, pret: 0 }], department_request_id: requirements[0].id })
+  assert.equal(created.already_created, undefined)
+  assert.equal(db.departmentRequests[0].status, 'ordered')
+  assert.equal(procurementRoutes.buildProcurementRequirements(db).length, 0)
+})
+
 test('Sprintul 6 are porturi explicite, permisiuni, audit și UI fără comandă automată la furnizor', () => {
   assert.match(ports, /inventory.*implemented: true/s)
   assert.match(ports, /procurement.*implemented: true/s)
@@ -56,4 +72,7 @@ test('Sprintul 6 are porturi explicite, permisiuni, audit și UI fără comandă
   assert.match(quotePage, /Verifică stocul/)
   assert.match(quotePage, /Creează necesar în Achiziții/)
   assert.match(quotePage, /nu rezervă și nu modifică stocul/)
+  assert.match(procurementRouteSource, /department_requests:view/)
+  assert.match(procurementPage, /Creează comandă/)
+  assert.match(procurementPage, /department_request_id/)
 })

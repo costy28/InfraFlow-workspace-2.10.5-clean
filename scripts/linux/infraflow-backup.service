@@ -1,0 +1,7 @@
+[Unit]
+Description=InfraFlow MSSQL backup
+After=mssql-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/infraflow/app/scripts/linux/backup-mssql.sh

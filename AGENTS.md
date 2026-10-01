@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.599**
-**Versiune în lucru: v2.12.599**
+**Versiune curentă sursă: v2.12.610**
+**Versiune în lucru: v2.12.610**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -338,6 +338,17 @@ Core System
   ✅ Demo comercial: mesaj explicit de acces complet și date fictive (v2.12.597)
   ✅ Demo comercial: scenarii operaționale legate pentru HR, flotă, producție, contracte, task-uri și comunicare (v2.12.598)
   ✅ Terminologie comercială generică în navigare, pagini și catalogul modulelor (v2.12.599)
+  ✅ Fundație Hosted Linux: executor MSSQL Node, systemd, backup și ghid Ubuntu 24.04 LTS (v2.12.600)
+  ✅ Hotfix service Hosted Linux: runtime Node explicit și ghid SQL Server 2025 pentru Ubuntu 24.04 (v2.12.601)
+  ✅ Hotfix dependență Hosted Linux: PIUSI ADODB opțional pe Ubuntu, păstrat pentru Windows (v2.12.602)
+  ✅ Hardening Hosted Linux: ascultare implicită doar pe loopback, înainte de Cloudflare Tunnel (v2.12.603)
+  ✅ Actualizare Hosted Linux controlată: pachet TAR.GZ, systemd, backup și rollback automat (v2.12.604)
+  ✅ Corecție demo comercial: bara nu mai afișează conturi inexistente sau parole (v2.12.605)
+  ✅ Hardening updater Linux: cross-volume, lock anti-rulare paralelă și health rollback (v2.12.606)
+  ✅ Dependințe Linux deterministe: https-proxy-agent direct pentru driverul MSSQL (v2.12.607)
+  ✅ CRM → Achiziții: necesar vizibil, comandă precompletată și legătură idempotentă (v2.12.608)
+  ✅ Update Linux verificat: versiune, module MSSQL, health și worker root reîmprospătat (v2.12.609)
+  ✅ Pornire sigură demo hosted când pachetul exclude rutele tehnice de reset demo (v2.12.610)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1061,9 +1072,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.599
+VERSIUNE CURENTĂ SURSĂ: 2.12.610
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.599 ⏳
+UPDATE ZIP CURENT: 2.12.610 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1471,6 +1482,17 @@ UPDATES ÎN LUCRU:
   2.12.597 → UPDATE 617 mesaj demo comercial ⏳
   2.12.598 → UPDATE 618 date operaționale demo ⏳
   2.12.599 → UPDATE 619 terminologie comercială generică ⏳
+  2.12.600 → UPDATE 620 fundație Hosted Linux ⏳
+  2.12.601 → UPDATE 621 hotfix service Hosted Linux ⏳
+  2.12.602 → UPDATE 622 hotfix dependență Hosted Linux ⏳
+  2.12.603 → UPDATE 623 hardening Hosted Linux loopback ⏳
+  2.12.604 → UPDATE 624 actualizare Hosted Linux controlată ⏳
+  2.12.605 → UPDATE 625 corecție conturi demo comercial ⏳
+  2.12.606 → UPDATE 626 hardening updater Linux ⏳
+  2.12.607 → UPDATE 627 dependențe Linux deterministe ⏳
+  2.12.608 → UPDATE 628 CRM → Achiziții necesar/comandă ⏳
+  2.12.609 → UPDATE 629 worker Linux verificat și auto-reîmprospătat ⏳
+  2.12.610 → UPDATE 630 pornire sigură demo hosted fără rute tehnice ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1967,5 +1989,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 30 Septembrie 2026 | InfraFlow sursă v2.12.599*
+*AGENTS.md actualizat: 1 Octombrie 2026 | InfraFlow sursă v2.12.610*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

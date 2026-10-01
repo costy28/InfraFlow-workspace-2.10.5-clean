@@ -1,5 +1,5 @@
 {
-  "version": "2.12.599",
-  "date": "2026-09-30",
-  "changelog": "## v2.12.599 - 2026-09-30\\n### Terminologie comercială generică\\n- Navigarea, titlurile și catalogul modulelor folosesc denumiri potrivite pentru firme generale, fără a schimba funcțiile existente."
+  "version": "2.12.610",
+  "date": "2026-10-01",
+  "changelog": "## v2.12.610 - 2026-10-01\\n### Pornire sigură pentru pachete demo hosted\\n- Pachetele hosted pot exclude rutele tehnice de reset demo fără să blocheze pornirea aplicației în DEMO_MODE.\\n- Workerul de update păstrează verificarea versiunii, a dependențelor și a health endpoint-ului înainte de confirmare."
 }
