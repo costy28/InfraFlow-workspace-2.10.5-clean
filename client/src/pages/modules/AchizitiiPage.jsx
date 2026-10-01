@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/client'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
@@ -114,7 +115,9 @@ function EmptyRow({ colSpan, loading }) {
 }
 
 export default function AchizitiiPage() {
-  const [activeTab, setActiveTab] = useState('Comenzi')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(() => tabs.includes(requestedTab) ? requestedTab : 'Comenzi')
   const [orders, setOrders] = useState([])
   const [receipts, setReceipts] = useState([])
   const [requirements, setRequirements] = useState([])
@@ -190,9 +193,22 @@ export default function AchizitiiPage() {
     load()
   }, [])
 
+  useEffect(() => {
+    if (tabs.includes(requestedTab) && requestedTab !== activeTab) {
+      setActiveTab(requestedTab)
+      setPage(1)
+    }
+  }, [activeTab, requestedTab])
+
   function selectTab(tab) {
     setActiveTab(tab)
     setPage(1)
+    setSearchParams(current => {
+      const next = new URLSearchParams(current)
+      if (tab === 'Comenzi') next.delete('tab')
+      else next.set('tab', tab)
+      return next
+    }, { replace: true })
   }
 
   const pagedOrders = useMemo(() => orders.slice((page - 1) * pageSize, page * pageSize), [orders, page])

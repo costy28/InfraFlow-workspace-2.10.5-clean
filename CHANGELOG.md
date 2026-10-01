@@ -4537,3 +4537,11 @@
 - Workerul Linux execută rollback numai când aplicarea pachetului eșuează.
 - La succes, serviciul nou rămâne pornit și versiunea instalată nu mai este restaurată accidental.
 
+## v2.12.612 - 2026-10-01
+
+### Notificări acționabile în bara de sus
+
+- Clopoțelul nu mai conține un punct roșu permanent: numărul apare numai pentru notificările active returnate de server.
+- La hover sau clic se afișează titlul, explicația și destinația fiecărei alerte; clicul deschide modulul relevant.
+- Alertele de necesar și solicitări deschid direct tabul „Cerințe” din Achiziții.
+

@@ -113,6 +113,7 @@ export default function Layout({ children }) {
           title={title}
           user={user}
           onLogout={handleLogout}
+          onNavigate={navigate}
           onToggleSidebar={() => setSidebarOpen(open => !open)}
           onToggleSidebarCollapsed={toggleSidebarCollapsed}
           sidebarCollapsed={sidebarCollapsed}

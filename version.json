@@ -1,5 +1,5 @@
 {
-  "version": "2.12.611",
+  "version": "2.12.612",
   "date": "2026-10-01",
-  "changelog": "## v2.12.611 - 2026-10-01\\n### Finalizare sigură update Linux\\n- Workerul face rollback numai când update-ul eșuează; la succes păstrează versiunea nouă și aplicația pornită.\\n- Verificarea versiunii, a dependențelor și a health endpoint-ului rămâne obligatorie."
+  "changelog": "## v2.12.612 - 2026-10-01\\n### Notificări acționabile în bara de sus\\n- Clopoțelul afișează numai notificările active, cu număr real și listă scurtă la hover sau clic.\\n- Fiecare notificare deschide modulul sau cerința relevantă, inclusiv tabul Cerințe din Achiziții."
 }
