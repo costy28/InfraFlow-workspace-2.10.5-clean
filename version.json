@@ -1,5 +1,5 @@
 {
-  "version": "2.12.612",
+  "version": "2.12.621",
   "date": "2026-10-01",
-  "changelog": "## v2.12.612 - 2026-10-01\\n### Notificări acționabile în bara de sus\\n- Clopoțelul afișează numai notificările active, cu număr real și listă scurtă la hover sau clic.\\n- Fiecare notificare deschide modulul sau cerința relevantă, inclusiv tabul Cerințe din Achiziții."
+  "changelog": "## v2.12.621 - 2026-10-02\\n### Validare finală actualizare online\\n- Pachet controlat pentru validarea end-to-end a fluxului catalog semnat, licență, ticket temporar, verificare SHA-256 și worker Linux.\\n- Nu modifică datele sau fluxurile operaționale ale organizației."
 }

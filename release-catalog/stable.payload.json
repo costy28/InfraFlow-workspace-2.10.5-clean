@@ -1,0 +1,136 @@
+﻿{
+    "format":  "infraflow-release-catalog-v1",
+    "generated_at":  null,
+    "releases":  [
+                     {
+                         "version":  "2.12.621",
+                         "channel":  "stable",
+                         "notes":  "Release InfraFlow 2.12.621",
+                         "mandatory":  {
+                                           "mode":  "none"
+                                       },
+                         "components":  [
+                                            {
+                                                "id":  "core",
+                                                "type":  "core",
+                                                "artifacts":  {
+                                                                  "server-windows":  {
+                                                                                         "url":  "https://updates.infraflow.ro/packages/2.12.621/InfraFlow-update-v2.12.621.zip",
+                                                                                         "sha256":  "2a9510631530cb69b0c6eb7be002b96bd646443b6599fb1319ab25679c7c9757",
+                                                                                         "size_bytes":  3600556
+                                                                                     },
+                                                                  "server-linux":  {
+                                                                                       "url":  "https://updates.infraflow.ro/packages/2.12.621/InfraFlow-update-v2.12.621-linux.tar.gz",
+                                                                                       "sha256":  "96afe0de435c29f63ccd810fe944c305141efce81d4dbee16ac8c8eaa693161b",
+                                                                                       "size_bytes":  3104361
+                                                                                   }
+                                                              }
+                                            }
+                                        ]
+                     },
+                     {
+                         "version":  "2.12.620",
+                         "channel":  "stable",
+                         "notes":  "Release InfraFlow 2.12.620",
+                         "mandatory":  {
+                                           "mode":  "none"
+                                       },
+                         "components":  [
+                                            {
+                                                "id":  "core",
+                                                "type":  "core",
+                                                "artifacts":  {
+                                                                  "server-windows":  {
+                                                                                         "url":  "https://updates.infraflow.ro/packages/2.12.620/InfraFlow-update-v2.12.620.zip",
+                                                                                         "sha256":  "0437c662259a6bfb1673022d01b4a40e637eec435b8de73b4c30012a46a3d052",
+                                                                                         "size_bytes":  3599821
+                                                                                     },
+                                                                  "server-linux":  {
+                                                                                       "url":  "https://updates.infraflow.ro/packages/2.12.620/InfraFlow-update-v2.12.620-linux.tar.gz",
+                                                                                       "sha256":  "7803c885c7e9d378a196862fea7a7259f53fbdda09506667bd0f041a5c0d07bd",
+                                                                                       "size_bytes":  3104155
+                                                                                   }
+                                                              }
+                                            }
+                                        ]
+                     },
+                     {
+                         "version":  "2.12.619",
+                         "channel":  "stable",
+                         "notes":  "Release InfraFlow 2.12.619",
+                         "mandatory":  {
+                                           "mode":  "none"
+                                       },
+                         "components":  [
+                                            {
+                                                "id":  "core",
+                                                "type":  "core",
+                                                "artifacts":  {
+                                                                  "server-windows":  {
+                                                                                         "url":  "https://updates.infraflow.ro/packages/2.12.619/InfraFlow-update-v2.12.619.zip",
+                                                                                         "sha256":  "c6d522ce4fd36a638578ab7e00a29d176aaaf8d7da492d23d41edc24159353cc",
+                                                                                         "size_bytes":  3598747
+                                                                                     },
+                                                                  "server-linux":  {
+                                                                                       "url":  "https://updates.infraflow.ro/packages/2.12.619/InfraFlow-update-v2.12.619-linux.tar.gz",
+                                                                                       "sha256":  "50a45da1e9765418b53027a368a5b438e848e1d20207aee7900b83d0bc84f92a",
+                                                                                       "size_bytes":  3103535
+                                                                                   }
+                                                              }
+                                            }
+                                        ]
+                     },
+                     {
+                         "version":  "2.12.617",
+                         "channel":  "stable",
+                         "notes":  "Release InfraFlow 2.12.617",
+                         "mandatory":  {
+                                           "mode":  "none"
+                                       },
+                         "components":  [
+                                            {
+                                                "id":  "core",
+                                                "type":  "core",
+                                                "artifacts":  {
+                                                                  "server-windows":  {
+                                                                                         "url":  "https://updates.infraflow.ro/packages/2.12.617/InfraFlow-update-v2.12.617.zip",
+                                                                                         "sha256":  "010abf23c28bbbed87e933fdf0933e68334b259a07e26fbfb2c809efc46901b1",
+                                                                                         "size_bytes":  3597402
+                                                                                     },
+                                                                  "server-linux":  {
+                                                                                       "url":  "https://updates.infraflow.ro/packages/2.12.617/InfraFlow-update-v2.12.617-linux.tar.gz",
+                                                                                       "sha256":  "77676628f9a6abec3d1e6c6ed0e672e7daa34eb90cacf15d71de9d9cd1b7e1ae",
+                                                                                       "size_bytes":  3102602
+                                                                                   }
+                                                              }
+                                            }
+                                        ]
+                     },
+                     {
+                         "version":  "2.12.615",
+                         "channel":  "stable",
+                         "notes":  "Release InfraFlow 2.12.615",
+                         "mandatory":  {
+                                           "mode":  "none"
+                                       },
+                         "components":  [
+                                            {
+                                                "id":  "core",
+                                                "type":  "core",
+                                                "artifacts":  {
+                                                                  "server-windows":  {
+                                                                                         "url":  "https://updates.infraflow.ro/packages/2.12.615/InfraFlow-update-v2.12.615.zip",
+                                                                                         "sha256":  "2d4fd75e83065794c3f647739ec8ce4146f205ecdd7f795da18beb1fdbc010dc",
+                                                                                         "size_bytes":  3588942
+                                                                                     },
+                                                                  "server-linux":  {
+                                                                                       "url":  "https://updates.infraflow.ro/packages/2.12.615/InfraFlow-update-v2.12.615-linux.tar.gz",
+                                                                                       "sha256":  "859145332a6f4b06899342cd8f9ff41d2d0a83697ab5a41f3f09e12014c3c2da",
+                                                                                       "size_bytes":  3097511
+                                                                                   }
+                                                              }
+                                            }
+                                        ]
+                     }
+                 ]
+}

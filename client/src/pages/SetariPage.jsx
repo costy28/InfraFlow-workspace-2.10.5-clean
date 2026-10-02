@@ -3922,6 +3922,35 @@ export default function SetariPage() {
             )}
           </Card>
 
+          <Card title="Actualizare online" subtitle="Verifică pachetul eligibil pentru licența și platforma acestei instalații.">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-slate-600">
+                {updateInfo?.eroare ? (
+                  <span className="text-rose-700">Nu se poate verifica acum: {updateInfo.eroare}</span>
+                ) : updateInfo?.disponibil ? (
+                  <span>
+                    Este disponibilă versiunea <strong className="text-slate-900">{updateInfo.versiune_noua}</strong>
+                    {updateInfo.obligatoriu ? ' · actualizare obligatorie' : ' · actualizare opțională'}.
+                  </span>
+                ) : (
+                  <span>Nu există o actualizare online eligibilă în acest moment.</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={checkUpdate} disabled={progress > 0}>🔄 Verifică actualizările</Button>
+                {updateInfo?.disponibil ? (
+                  <Button onClick={() => { setManualUpdate(null); setUpdateModal(true) }}>⬇️ Descarcă și aplică {updateInfo.versiune_noua}</Button>
+                ) : null}
+              </div>
+            </div>
+            {updateInfo?.disponibil && updateInfo?.changelog ? (
+              <div className="mt-3 whitespace-pre-wrap rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm text-slate-700">
+                <strong>Noutăți:</strong><br />
+                {formatUpdateChangelog(updateInfo.changelog)}
+              </div>
+            ) : null}
+          </Card>
+
           <Card title="Actualizare manuală" subtitle="Încarcă pachetul primit de la furnizor: ZIP pentru Windows sau TAR.GZ pentru Linux.">
             <label
               className="grid cursor-pointer place-items-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center transition hover:border-primary-300 hover:bg-primary-50"
@@ -5366,7 +5395,12 @@ export default function SetariPage() {
 
       <Modal open={updateModal} title="Confirmare update" onClose={() => setUpdateModal(false)}>
         <div className="grid gap-3">
-          <p className="text-sm text-slate-600">Ești sigur? Aplicația va reporni automat.</p>
+          <p className="text-sm text-slate-600">
+            {manualUpdate
+              ? `Aplici pachetul manual ${manualUpdate.versiune_noua}.`
+              : `Descarci și aplici actualizarea online ${updateInfo?.versiune_noua || ''}.`}
+            {' '}Aplicația va reporni automat.
+          </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setUpdateModal(false)}>Anulează</Button>
             <Button variant="danger" onClick={installUpdate}><CheckCircle size={16} /> Da, aplică</Button>

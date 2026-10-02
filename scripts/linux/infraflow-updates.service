@@ -1,0 +1,23 @@
+[Unit]
+Description=InfraFlow central update catalog and packages
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=infraflow-updates
+Group=infraflow-updates
+WorkingDirectory=/opt/infraflow-updates/app
+EnvironmentFile=/etc/infraflow-updates/infraflow-updates.env
+ExecStart=/usr/local/bin/node /opt/infraflow-updates/app/app.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/var/lib/infraflow-updates
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

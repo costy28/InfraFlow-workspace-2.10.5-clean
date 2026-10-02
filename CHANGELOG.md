@@ -4545,3 +4545,70 @@
 - La hover sau clic se afișează titlul, explicația și destinația fiecărei alerte; clicul deschide modulul relevant.
 - Alertele de necesar și solicitări deschid direct tabul „Cerințe” din Achiziții.
 
+## v2.12.613 - 2026-10-01
+
+### Confirmare de citire pentru notificări
+
+- Clicul pe o notificare o marchează citită pentru utilizatorul curent și actualizează imediat numărul din clopoțel.
+- Confirmarea este separată pentru fiecare utilizator; deschiderea unei alerte de către o persoană nu o ascunde celorlalți.
+- Dacă informația unei alerte operaționale se modifică, ea poate reapărea pentru utilizator ca alertă nouă.
+
+## v2.12.614 - 2026-10-01
+
+### Catalog central de actualizări
+
+- Fundație pentru catalog central semnat, cu artefacte separate pe platformă și componente Core/module filtrate după licență.
+- Endpoint read-only de diagnostic pentru verificarea catalogului; update-ul manual existent rămâne fallback-ul sigur până la activarea distribuției centrale.
+
+## v2.12.615 - 2026-10-02
+
+### Serviciu central de actualizări
+
+- Serviciu Node separat și read-only pentru catalogul semnat și arhivele de update, pregătit pentru `updates.infraflow.ro` prin Cloudflare Tunnel.
+- Unit systemd izolată, arhivă de instalare Linux și ghid complet de verificare; pachetele pot necesita token transmis numai în header HTTP.
+- Nu activează încă descărcarea automată per licență și nu modifică update-ul manual existent.
+
+## v2.12.616 - 2026-10-02
+
+### Ticket per licență pentru actualizări
+
+- Serviciul central poate emite ticket-uri HMAC cu durată scurtă, legate de o arhivă, o versiune și o platformă.
+- Registrul licențelor păstrează numai hash-uri SHA-256 ale credențialelor individuale și filtrează componentele modulare după drepturile clientului.
+- Pachetele nu acceptă ticket-uri în URL și nu sunt cache-uite; update-ul manual rămâne fluxul de instalare până la conectarea automată a instanțelor client.
+
+## v2.12.617 - 2026-10-02
+
+### Descărcare centrală verificată
+
+- Instanța InfraFlow poate cere server-side un ticket pentru componenta Core eligibilă, fără a trimite tokenul către browser.
+- Arhiva este verificată prin SHA-256 din catalogul semnat înainte de instalare sau programare.
+- Pe Linux, arhiva validată ajunge atomic în inbox-ul worker-ului systemd; pe Windows se păstrează instalarea verificată și restartul controlat.
+
+## v2.12.618 - 2026-10-02
+
+### Credenciale update în fișiere protejate
+
+- Cheia publică a catalogului poate fi citită dintr-un fișier configurat pentru serviciul aplicației.
+- Tokenul individual de update poate fi citit dintr-un fișier cu drepturi restrictive, fără valoare în clar în mediul systemd.
+
+## v2.12.621 - 2026-10-02
+
+### Validare finală actualizare online
+
+- Pachet controlat pentru validarea end-to-end a fluxului catalog semnat, licență, ticket temporar, verificare SHA-256 și worker Linux.
+- Nu modifică datele sau fluxurile operaționale ale organizației.
+
+## v2.12.620 - 2026-10-02
+
+### Actualizare online vizibilă
+
+- Pagina Setări afișează verificarea și aplicarea actualizării online eligibile.
+- Tokenul instalației citit din fișier protejat este recunoscut și la verificarea catalogului central.
+
+## v2.12.619 - 2026-10-02
+
+### Validare automată distribuție centrală
+
+- Release controlat pentru testarea completă catalog semnat → licență → ticket → SHA-256 → worker Linux.
+- Nu include schimbări ale fluxurilor operaționale sau ale datelor clientului.
+

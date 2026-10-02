@@ -69,6 +69,36 @@ router.get('/notifications', (req, res) => {
   requirePermission(auth, res, "dashboard:view") && sendJson(res, 200, buildNotifications(auth.db, auth.user));
 })
 
+router.post('/notifications/:id/read', (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'dashboard:view')) return
+
+    const notificationId = String(req.params.id || '').trim()
+    if (!notificationId) return sendJson(res, 400, { error: 'Notificarea nu este validă.' })
+
+    const receipts = notificationReadReceipts(auth.db)
+    const alreadyRead = receipts.some(item => String(item.user_id) === String(auth.user.id) && String(item.notification_id) === notificationId)
+    if (alreadyRead) return sendJson(res, 200, { ok: true, alreadyRead: true })
+
+    const notification = buildNotifications(auth.db, auth.user).notifications
+      .find(item => String(item.id) === notificationId)
+    if (!notification) return sendJson(res, 404, { error: 'Notificarea nu mai este activă.' })
+
+    receipts.push({
+      user_id: auth.user.id,
+      notification_id: notificationId,
+      notification_key: notificationReadKey(notification),
+      read_at: new Date().toISOString(),
+    })
+    writeDb(auth.db)
+    sendJson(res, 200, { ok: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/company-map', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
@@ -2745,7 +2775,7 @@ function buildNotifications(db, user) {
     });
   });
 
-  const visible = notifications.filter((item) => notificationVisibleForUser(item, user));
+  const visible = notifications.filter((item) => notificationVisibleForUser(item, user) && !notificationReadByUser(db, user, item));
   const bad = visible.filter((item) => item.severity === "bad").length;
   const warn = visible.filter((item) => item.severity === "warn").length;
   return {
@@ -2759,6 +2789,29 @@ function buildNotifications(db, user) {
     },
     notifications: visible.slice(0, 50)
   };
+}
+
+function notificationReadReceipts(db) {
+  db.notificationReads = Array.isArray(db.notificationReads) ? db.notificationReads : []
+  return db.notificationReads
+}
+
+function notificationReadKey(notification) {
+  return crypto.createHash('sha256')
+    .update(JSON.stringify({
+      id: String(notification?.id || ''),
+      severity: String(notification?.severity || ''),
+      title: String(notification?.title || ''),
+      detail: String(notification?.detail || ''),
+    }))
+    .digest('hex')
+}
+
+function notificationReadByUser(db, user, notification) {
+  const key = notificationReadKey(notification)
+  return notificationReadReceipts(db).some(item =>
+    String(item.user_id) === String(user?.id) && String(item.notification_key) === key
+  )
 }
 
 function notificationVisibleForRole(notification, role) {

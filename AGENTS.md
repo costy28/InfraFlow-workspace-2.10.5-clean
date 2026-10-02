@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.612**
-**Versiune în lucru: v2.12.612**
+**Versiune curentă sursă: v2.12.621**
+**Versiune în lucru: v2.12.621**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -351,6 +351,15 @@ Core System
   ✅ Pornire sigură demo hosted când pachetul exclude rutele tehnice de reset demo (v2.12.610)
   ✅ Worker Linux: rollback doar la eșec, fără restaurare accidentală după succes (v2.12.611)
   ✅ Notificări acționabile în bara de sus: listă reală, detalii și deep-link spre modulul relevant (v2.12.612)
+  ✅ Confirmare per utilizator pentru notificările din bara de sus, cu reapariție la schimbarea alertei (v2.12.613)
+  ✅ Catalog central semnat pentru update-uri Core/module, filtrat după licență și platformă (v2.12.614)
+  ✅ Serviciu central izolat pentru catalog și pachete update prin Cloudflare Tunnel (v2.12.615)
+  ✅ Ticket temporar per licență pentru pachetele centrale Core/module (v2.12.616)
+  ✅ Descărcare centrală Core verificată SHA-256, predată worker-ului Linux (v2.12.617)
+  ✅ Credenciale update citite din fișiere protejate, fără text în env (v2.12.618)
+  ✅ Validare controlată end-to-end pentru distribuția centrală (v2.12.619)
+  ✅ Actualizare online vizibilă și token protejat recunoscut la verificarea catalogului (v2.12.620)
+  ✅ Validare finală end-to-end a actualizării online pe Linux (v2.12.621)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1074,9 +1083,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.612
+VERSIUNE CURENTĂ SURSĂ: 2.12.621
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.612 ⏳
+UPDATE ZIP CURENT: 2.12.621 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1497,6 +1506,15 @@ UPDATES ÎN LUCRU:
   2.12.610 → UPDATE 630 pornire sigură demo hosted fără rute tehnice ⏳
   2.12.611 → UPDATE 631 rollback Linux exclusiv la eșec ⏳
   2.12.612 → UPDATE 632 notificări acționabile în bara de sus ⏳
+  2.12.613 → UPDATE 633 confirmare per utilizator pentru notificări ⏳
+  2.12.614 → UPDATE 634 catalog central actualizări Core/module ⏳
+  2.12.615 → UPDATE 635 serviciu central actualizări izolat ⏳
+  2.12.616 → UPDATE 636 ticket actualizări per licență ⏳
+  2.12.617 → UPDATE 637 descărcare centrală verificată ⏳
+  2.12.618 → UPDATE 638 credențiale update protejate ⏳
+  2.12.619 → UPDATE 639 validare distribuție centrală
+  2.12.620 → UPDATE 640 actualizare online vizibilă
+  2.12.621 → UPDATE 641 validare finală actualizare online ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -1993,5 +2011,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 1 Octombrie 2026 | InfraFlow sursă v2.12.612*
+*AGENTS.md actualizat: 2 Octombrie 2026 | InfraFlow sursă v2.12.621*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

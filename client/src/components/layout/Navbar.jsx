@@ -92,7 +92,12 @@ export default function Navbar({ title = 'Dashboard', user, onLogout, onNavigate
 
   function openNotification(notification) {
     setNotificationOpen(false)
+    setNotificationState(current => {
+      const notifications = current.notifications.filter(item => String(item.id) !== String(notification.id))
+      return { total: Math.max(0, current.total - 1), notifications }
+    })
     onNavigate?.(notificationRoute(notification))
+    api.post(`/notifications/${encodeURIComponent(String(notification.id))}/read`).catch(() => loadNotifications())
   }
 
   return (

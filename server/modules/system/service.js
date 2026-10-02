@@ -7,6 +7,13 @@ const coreDb = require('../../core/db')
 const { writeDb, DB_MODE, DB_FILE, MSSQL_APP_STATE_TABLE, MSSQL_RELATIONAL_MODE, DEFAULT_MSSQL_CONNECTION_STRING } = coreDb
 const { addAudit } = require('../../core/audit')
 const { assertPasswordPolicy, hashPassword, passwordPolicyFromSettings } = require('../../core/auth')
+const {
+  runtimePlatform,
+  publicKeyFromEnvironment,
+  verifyReleaseCatalog,
+  selectEligibleRelease
+} = require('./release-catalog')
+const { configuredCentralUpdate, downloadAuthorizedArtifact } = require('./central-update-client')
 
 const ROOT = path.resolve(__dirname, '../../..')
 const PORT = Number(process.env.INFRAFLOW_PORT || process.env.PORT || 4180)
@@ -1054,6 +1061,24 @@ function installUpdatePackage(db, user, archiveBuffer, options = {}) {
 
 async function verificaUpdateDisponibil(licenta) {
   const versiuneCurenta = readPackageVersion()
+  let central
+  try {
+    central = configuredCentralUpdate()
+  } catch (error) {
+    return { disponibil: false, versiune_curenta: versiuneCurenta, eroare: error.message }
+  }
+  if (central.configured) {
+    const info = await verificaCatalogCentralUpdate(licenta)
+    return {
+      disponibil: Boolean(info.available && info.download_configured),
+      versiune_curenta: versiuneCurenta,
+      versiune_noua: info.version || versiuneCurenta,
+      changelog: info.notes || '',
+      obligatoriu: info.mandatory?.mode === 'required',
+      sursa: info.source || 'signed-central-catalog',
+      eroare: info.error || (info.available && !info.download_configured ? 'Credențiala de update a instalației nu este configurată.' : undefined)
+    }
+  }
   try {
     const url = 'https://updates.infraflow.ro/api/check' +
       '?versiune=' + versiuneCurenta +
@@ -1076,11 +1101,72 @@ async function verificaUpdateDisponibil(licenta) {
   }
 }
 
+async function verificaCatalogCentralUpdate(licenta) {
+  let central
+  try {
+    central = configuredCentralUpdate()
+  } catch (error) {
+    return {
+      configured: false,
+      available: false,
+      current_version: readPackageVersion(),
+      platform: runtimePlatform(),
+      download_configured: false,
+      error: error.message
+    }
+  }
+  const catalogUrl = central.catalogUrl || ''
+  const publicKey = publicKeyFromEnvironment()
+  const downloadConfigured = Boolean(central.clientToken)
+  const currentVersion = readPackageVersion()
+  const platform = runtimePlatform()
+  if (!catalogUrl || !publicKey) {
+    return {
+      configured: false,
+      available: false,
+      current_version: currentVersion,
+      platform,
+      download_configured: downloadConfigured,
+      message: 'Catalogul central nu este configurat încă. Update-ul manual rămâne disponibil.'
+    }
+  }
+  try {
+    const response = await fetch(catalogUrl, { signal: AbortSignal.timeout(5000) })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const catalog = verifyReleaseCatalog(await response.json(), publicKey)
+    return {
+      configured: true,
+      current_version: currentVersion,
+      platform,
+      download_configured: downloadConfigured,
+      source: 'signed-central-catalog',
+      ...selectEligibleRelease(catalog, { currentVersion, platform, license: licenta })
+    }
+  } catch (error) {
+    return {
+      configured: true,
+      available: false,
+      current_version: currentVersion,
+      platform,
+      download_configured: downloadConfigured,
+      error: 'Catalogul central nu a putut fi verificat.',
+      detail: error.message
+    }
+  }
+}
+
 async function instaleazaUpdateOnline(db, user, licenta, versiune) {
   if (!licenta?.update?.permise) throwHttp(402, 'Update-uri neincluse în licență.')
   if (licenta.update.expira_la && new Date() > new Date(licenta.update.expira_la)) {
     throwHttp(402, 'Abonament update expirat.')
   }
+  let central
+  try {
+    central = configuredCentralUpdate()
+  } catch (error) {
+    throwHttp(503, error.message)
+  }
+  if (central.configured) return instaleazaUpdateCentral(db, user, licenta, versiune, central)
   const targetVersion = versiune || (await verificaUpdateDisponibil(licenta)).versiune_noua
   if (!targetVersion) throwHttp(400, 'Versiune update lipsă.')
   const currentVersion = readPackageVersion()
@@ -1095,6 +1181,50 @@ async function instaleazaUpdateOnline(db, user, licenta, versiune) {
   })
   scheduleApplicationRestart()
   return { ok: true, versiune: targetVersion, result }
+}
+
+async function instaleazaUpdateCentral(db, user, licenta, requestedVersion, central) {
+  const publicKey = publicKeyFromEnvironment()
+  if (!publicKey) throwHttp(503, 'Cheia publică pentru catalogul central nu este configurată.')
+  const platform = runtimePlatform()
+  if (!['server-linux', 'server-windows'].includes(platform)) throwHttp(400, 'Platforma serverului nu este suportată pentru update central.')
+  const catalogResponse = await fetch(central.catalogUrl, { redirect: 'error', signal: AbortSignal.timeout(15_000) })
+  if (!catalogResponse.ok) throwHttp(502, 'Catalogul central nu a putut fi descărcat.')
+  const catalog = verifyReleaseCatalog(await catalogResponse.json(), publicKey)
+  const currentVersion = readPackageVersion()
+  const selected = selectEligibleRelease(catalog, { currentVersion, platform, license: licenta })
+  if (!selected.available) throwHttp(404, 'Nu există un update central eligibil pentru această instalație.')
+  if (requestedVersion && String(requestedVersion) !== selected.version) throwHttp(400, `Versiunea cerută nu este eligibilă. Disponibilă: ${selected.version}.`)
+  const component = selected.components.find((item) => item.type === 'core' && item.artifacts?.[platform])
+  if (!component) throwHttp(403, 'Componenta Core nu este inclusă în licența curentă.')
+  let downloaded
+  try {
+    downloaded = await downloadAuthorizedArtifact({
+      catalogUrl: central.catalogUrl,
+      clientToken: central.clientToken,
+      version: selected.version,
+      componentId: component.id,
+      platform,
+      artifact: component.artifacts[platform]
+    })
+  } catch (error) {
+    throwHttp(502, `Pachetul central nu a putut fi verificat: ${error.message}`)
+  }
+  if (platform === 'server-linux') {
+    const inbox = path.join(ROOT, 'runtime', 'update-inbox')
+    const fileName = `InfraFlow-update-v${selected.version}-linux.tar.gz`
+    const target = path.join(inbox, fileName)
+    fs.mkdirSync(inbox, { recursive: true })
+    if (fs.existsSync(target)) throwHttp(409, `Există deja un update programat pentru versiunea ${selected.version}.`)
+    const temporary = path.join(inbox, `.${fileName}.${crypto.randomBytes(6).toString('hex')}.tmp`)
+    fs.writeFileSync(temporary, downloaded.archive, { mode: 0o640 })
+    fs.renameSync(temporary, target)
+    addAudit(db, user, 'update_central_programat', `Update central ${currentVersion} -> ${selected.version}; Core verificat SHA-256 și programat pentru Linux.`)
+    return { ok: true, versiune: selected.version, result: { linux_managed: true, restartRequired: true, message: 'Update central verificat și programat prin worker-ul Linux.' } }
+  }
+  const result = installUpdatePackage(db, user, downloaded.archive, { fileName: path.basename(new URL(component.artifacts[platform].url).pathname) })
+  scheduleApplicationRestart()
+  return { ok: true, versiune: selected.version, result }
 }
 
 function expandZipArchive(zipPath, destinationDir) {
@@ -7933,5 +8063,6 @@ module.exports = {
   scheduleApplicationRestart,
   verifyReleaseManifest,
   verificaUpdateDisponibil,
+  verificaCatalogCentralUpdate,
   instaleazaUpdateOnline
 }

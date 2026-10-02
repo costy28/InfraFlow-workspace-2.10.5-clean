@@ -12,6 +12,7 @@ const {
   installUpdatePackage,
   scheduleApplicationRestart,
   verificaUpdateDisponibil,
+  verificaCatalogCentralUpdate,
   instaleazaUpdateOnline
 } = require('./service')
 
@@ -197,6 +198,17 @@ function createSystemUpdateRouter(context) {
       }
       updateCheckCache.data.versiune_curenta = currentVersion
       sendJson(res, 200, updateCheckCache.data)
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/system/update/catalog-status', async (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requirePermission(auth, res, 'system:view')) return
+      sendJson(res, 200, await verificaCatalogCentralUpdate(global.LICENTA))
     } catch (error) {
       next(error)
     }
