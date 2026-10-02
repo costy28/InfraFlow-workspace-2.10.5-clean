@@ -6,7 +6,7 @@ const { requireAuth } = require('./core/auth')
 const { DB_MODE, ensureDatabase, readDb, writeDb, syncMssqlCpvCodes, getMssqlPool, closeMssqlPool, databaseHealth } = require('./core/db')
 const { incarcaLicenta } = require('./core/license')
 const { bootstrapCpvCatalog } = require('./modules/nomenclator/service')
-const { isIsolatedCommercialDemo } = require('./shared/commercialDemo')
+const { isIsolatedCommercialDemo, commercialDemoLicense } = require('./shared/commercialDemo')
 
 process.on('uncaughtException', (err) => {
   console.error('[CRASH] Uncaught exception:', err)
@@ -37,7 +37,7 @@ if (isIsolatedCommercialDemo(readDb())) {
 if (licentaStatus.in_gratie) {
   console.warn(`ATENȚIE: Licență expirată! ${licentaStatus.zile_gratie} zile grație rămase`)
 }
-global.LICENTA = licentaStatus.licenta
+global.LICENTA = commercialDemoLicense(readDb(), licentaStatus.licenta)
 
 const app = express()
 // Meta semnează corpul brut al webhook-ului WhatsApp. Ruta publică este montată

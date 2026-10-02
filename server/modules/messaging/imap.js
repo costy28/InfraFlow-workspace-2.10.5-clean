@@ -148,7 +148,7 @@ class SimpleImapClient {
       const onError = error => { cleanup(); reject(error) }
       const onData = chunk => {
         this.buffer += chunk.toString('utf8')
-        const done = new RegExp(`\\r?\\n${tag} (OK|NO|BAD)`, 'i').exec(this.buffer)
+        const done = new RegExp(`(?:^|\\r?\\n)${tag} (OK|NO|BAD)`, 'i').exec(this.buffer)
         if (!done) return
         cleanup()
         if (done[1].toUpperCase() === 'OK') resolve(this.buffer)
@@ -477,4 +477,4 @@ async function fetchIncomingEmails(db, { limit = 20 } = {}) {
   }
 }
 
-module.exports = { fetchIncomingEmails, testIncomingEmailConnection, describeImapError, classifyEmail }
+module.exports = { SimpleImapClient, fetchIncomingEmails, testIncomingEmailConnection, describeImapError, classifyEmail }

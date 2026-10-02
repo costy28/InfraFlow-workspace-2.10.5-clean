@@ -4591,6 +4591,34 @@
 - Cheia publică a catalogului poate fi citită dintr-un fișier configurat pentru serviciul aplicației.
 - Tokenul individual de update poate fi citit dintr-un fișier cu drepturi restrictive, fără valoare în clar în mediul systemd.
 
+## v2.12.626 - 2026-10-02
+
+### Corecție sincronizare IMAP
+
+- Răspunsul etichetat primit ca prim rând după `LOGIN` este recunoscut corect.
+- Elimină timeout-ul fals la autentificare pentru providerii IMAP compatibili.
+
+## v2.12.625 - 2026-10-02
+
+### Test final actualizare online
+
+- Pachet de validare pentru actualizarea completă prin catalogul central semnat.
+- Nu modifică datele sau fluxurile operaționale ale organizației.
+
+## v2.12.624 - 2026-10-02
+
+### Licență demo aplicată la runtime
+
+- Licența demo comercială izolată este aplicată și licenței runtime consumate de actualizări.
+- Instalațiile de producție păstrează exclusiv licența comercială încărcată.
+
+## v2.12.623 - 2026-10-02
+
+### Validare end-to-end actualizare online
+
+- Pachet controlat pentru prima instalare exclusiv prin catalogul central semnat.
+- Verifică licența demo, ticket-ul temporar, SHA-256 și worker-ul Linux fără modificări operaționale.
+
 ## v2.12.622 - 2026-10-02
 
 ### Licență demo și verificare actualizare
