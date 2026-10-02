@@ -190,7 +190,8 @@ function createSystemUpdateRouter(context) {
       if (!requirePermission(auth, res, 'system:view')) return
       const now = Date.now()
       const currentVersion = readRuntimeVersion()
-      if (!updateCheckCache.data || updateCheckCache.data.versiune_curenta !== currentVersion || now - updateCheckCache.at > 60 * 60 * 1000) {
+      const forceRefresh = ['1', 'true'].includes(String(req.query?.force || '').trim().toLowerCase())
+      if (forceRefresh || !updateCheckCache.data || updateCheckCache.data.versiune_curenta !== currentVersion || now - updateCheckCache.at > 60 * 60 * 1000) {
         updateCheckCache = {
           at: now,
           data: await verificaUpdateDisponibil(global.LICENTA)

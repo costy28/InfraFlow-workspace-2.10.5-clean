@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.621**
-**Versiune în lucru: v2.12.621**
+**Versiune curentă sursă: v2.12.622**
+**Versiune în lucru: v2.12.622**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -360,6 +360,7 @@ Core System
   ✅ Validare controlată end-to-end pentru distribuția centrală (v2.12.619)
   ✅ Actualizare online vizibilă și token protejat recunoscut la verificarea catalogului (v2.12.620)
   ✅ Validare finală end-to-end a actualizării online pe Linux (v2.12.621)
+  ✅ Licență demo cu update inclus și verificare manuală fără cache (v2.12.622)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1083,9 +1084,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.621
+VERSIUNE CURENTĂ SURSĂ: 2.12.622
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.621 ⏳
+UPDATE ZIP CURENT: 2.12.622 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1514,7 +1515,8 @@ UPDATES ÎN LUCRU:
   2.12.618 → UPDATE 638 credențiale update protejate ⏳
   2.12.619 → UPDATE 639 validare distribuție centrală
   2.12.620 → UPDATE 640 actualizare online vizibilă
-  2.12.621 → UPDATE 641 validare finală actualizare online ⏳
+  2.12.621 → UPDATE 641 validare finală actualizare online
+  2.12.622 → UPDATE 642 licență demo și verificare fără cache ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2011,5 +2013,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 2 Octombrie 2026 | InfraFlow sursă v2.12.621*
+*AGENTS.md actualizat: 2 Octombrie 2026 | InfraFlow sursă v2.12.622*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

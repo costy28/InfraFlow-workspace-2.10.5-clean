@@ -4591,6 +4591,13 @@
 - Cheia publică a catalogului poate fi citită dintr-un fișier configurat pentru serviciul aplicației.
 - Tokenul individual de update poate fi citit dintr-un fișier cu drepturi restrictive, fără valoare în clar în mediul systemd.
 
+## v2.12.622 - 2026-10-02
+
+### Licență demo și verificare actualizare
+
+- Demo-ul comercial izolat include explicit dreptul de actualizare până la 02.10.2027.
+- O verificare manuală a actualizărilor reîmprospătează catalogul central, fără a reutiliza rezultatul din cache.
+
 ## v2.12.621 - 2026-10-02
 
 ### Validare finală actualizare online

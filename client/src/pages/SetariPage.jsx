@@ -1625,7 +1625,7 @@ export default function SetariPage() {
   async function checkUpdate() {
     setProgress(25)
     try {
-      const response = await api.get('/system/update/check')
+      const response = await api.get('/system/update/check', { params: { force: 1 } })
       setUpdateInfo(response.data)
       setProgress(100)
       setTimeout(() => setProgress(0), 800)

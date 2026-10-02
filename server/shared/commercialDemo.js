@@ -20,6 +20,7 @@ function commercialDemoLicense(db = {}, runtimeLicense = {}) {
     modules: ['all'],
     addons: [],
     limite: { maxUsers: 50, maxDevices: 50, ...(seeded.limite || {}) },
+    update: { permise: true, expira_la: '2027-10-02' },
     valabilitate: { tip: 'demo' }
   }
 }

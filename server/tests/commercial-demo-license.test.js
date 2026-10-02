@@ -9,6 +9,7 @@ test('licența demo completă este disponibilă numai pe baza demo izolată', ()
     process.env.DB_DATABASE = 'INFRAFLOW_DEMO'
     assert.equal(isIsolatedCommercialDemo(db), true)
     assert.deepEqual(commercialDemoLicense(db, { module: ['inventory'] }).module, ['all'])
+    assert.equal(commercialDemoLicense(db, { module: ['inventory'] }).update.permise, true)
     process.env.DB_DATABASE = 'INFRAFLOW_PRODUCTIE'
     assert.equal(isIsolatedCommercialDemo(db), false)
     assert.deepEqual(commercialDemoLicense(db, { module: ['inventory'] }).module, ['inventory'])
