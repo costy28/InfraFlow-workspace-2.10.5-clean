@@ -39,6 +39,7 @@ const emptyState = {
   backupStatus: null,
   updateStatus: null,
   emailSyncStatus: null,
+  license: null,
 }
 
 const routes = {
@@ -61,6 +62,7 @@ const routes = {
   settingsGeneral: '/setari?tab=General',
   settingsModules: '/setari?tab=Module',
   settingsUsers: '/setari?tab=Utilizatori',
+  settingsLicense: '/setari?tab=Licență',
   settingsUpdates: '/setari?tab=Actualizări',
   settingsIntegrations: '/setari?tab=Surse%20externe',
   legacyImport: '/import-date-vechi',
@@ -89,6 +91,38 @@ const onboardingCards = [
     cta: 'Vezi contracte',
   },
 ]
+
+const moduleOnboardingCards = {
+  documents: { icon: '📑', title: 'Pune documentele în circuit', description: 'Configurează tipurile de documente și traseele de aprobare înainte de a porni lucrul real.', route: routes.documents, cta: 'Deschide Documente' },
+  messaging: { icon: '✉️', title: 'Leagă comunicarea organizației', description: 'Configurează Inbox ERP și notificările pentru ca mesajele, task-urile și dosarele să rămână legate.', route: routes.settingsIntegrations, cta: 'Configurează emailul' },
+  tickets: { icon: '🎫', title: 'Pregătește solicitările interne', description: 'Alege cum sunt urmărite solicitările, responsabilii și termenele de răspuns.', route: routes.tickets, cta: 'Deschide Solicitări' },
+  crm: { icon: '🤝', title: 'Pornește fluxul comercial', description: 'Creează primele lead-uri, prospecte și oferte; echipa vede clar următorul follow-up.', route: '/crm', cta: 'Deschide CRM' },
+  inventory: { icon: '📦', title: 'Pregătește gestiunea', description: 'Adaugă materialele, categoriile și stocul inițial înainte de primele intrări și consumuri.', route: '/gestiune', cta: 'Deschide Gestiune' },
+  procurement: { icon: '🛒', title: 'Configurează achizițiile', description: 'Începe cu furnizori, necesare și primele comenzi, apoi leagă recepțiile de stoc.', route: '/achizitii', cta: 'Deschide Achiziții' },
+  production: { icon: '🏭', title: 'Pregătește operațiunile', description: 'Definește rețetele sau fluxurile de lucru și datele de care are nevoie echipa din teren.', route: '/productie', cta: 'Deschide Operațiuni' },
+  fleet: { icon: '🚜', title: 'Configurează parcul și resursele', description: 'Adaugă utilajele și vehiculele active înainte de foi de parcurs, FAZ și intervenții.', route: '/flota', cta: 'Deschide Parc & resurse' },
+  controlling: { icon: '📊', title: 'Pregătește controllingul', description: 'Leagă centrele de cost de activitatea operațională pentru rapoarte utile încă de la început.', route: '/controlling', cta: 'Deschide Controlling' },
+  hr: { icon: '👥', title: 'Pornește Resurse Umane', description: 'Adaugă angajații, contractele și responsabilitățile înainte de pontaj și documente HR.', route: '/hr', cta: 'Deschide HR' },
+  accounting: { icon: '💼', title: 'Pregătește contabilitatea', description: 'Verifică profilul fiscal și structura contabilă înainte de primele documente financiare.', route: '/contabilitate', cta: 'Deschide Contabilitate' },
+  legal: { icon: '⚖️', title: 'Organizează zona juridică', description: 'Alege regulile și documentele juridice relevante organizației înainte de folosirea curentă.', route: '/juridic', cta: 'Deschide Juridic' },
+}
+
+const packageOnboardingOrder = {
+  start: ['documents', 'messaging', 'tickets'],
+  business: ['crm', 'inventory', 'procurement'],
+  operations: ['production', 'fleet', 'controlling'],
+  enterprise: ['hr', 'accounting', 'legal'],
+  demo: ['crm', 'fleet', 'hr'],
+}
+
+function onboardingCardsForProfile(profile) {
+  const preferredKeys = packageOnboardingOrder[profile?.key]
+    || (Array.isArray(profile?.modules) ? profile.modules : [])
+  const cards = preferredKeys
+    .map(key => moduleOnboardingCards[String(key).toLowerCase()])
+    .filter(Boolean)
+  return cards.length ? cards.slice(0, 3) : onboardingCards
+}
 
 const firstSteps = [
   {
@@ -1604,21 +1638,23 @@ function TodayActionsPanel({ actions, profile, loading, error, onNavigate }) {
   )
 }
 
-function CommercialOnboardingPanel({ onNavigate }) {
+function CommercialOnboardingPanel({ profile, onNavigate }) {
+  const cards = onboardingCardsForProfile(profile)
+  const profileLabel = profile?.label || null
   return (
     <Card className="border-slate-200 bg-white">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start rapid</div>
-          <h3 className="mt-1 text-lg font-bold text-slate-900">InfraFlow se adaptează pe firma clientului</h3>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{profileLabel ? `Start ghidat · ${profileLabel}` : 'Start rapid'}</div>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">{profileLabel ? `Pași relevanți pentru pachetul ${profileLabel}` : 'InfraFlow se adaptează pe firma clientului'}</h3>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            Prima pagină trebuie să arate următorul pas, nu domeniul implicit. Modulele pot acoperi producție, servicii, depozite, contracte, HR, contabilitate sau operațiuni de teren.
+            {profile?.description || 'Prima pagină trebuie să arate următorul pas, nu domeniul implicit. Modulele pot acoperi producție, servicii, depozite, contracte, HR, contabilitate sau operațiuni de teren.'}
           </p>
         </div>
-        <Badge tone="info">ERP modular</Badge>
+        <Badge tone="info">{profileLabel || 'ERP modular'}</Badge>
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        {onboardingCards.map(card => (
+        {cards.map(card => (
           <button
             key={card.title}
             className="rounded-[var(--radius-panel)] border border-slate-100 bg-slate-50/70 p-3 text-left transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-white hover:shadow-md"
@@ -1639,15 +1675,16 @@ function FirstStepsPanel({ checklist, loading, onNavigate }) {
   const steps = checklist?.steps || firstSteps
   const nextStep = checklist?.next
   const progress = checklist?.percent ?? 0
+  const profileLabel = checklist?.profile?.label || null
 
   return (
     <Card className="border-primary-100 bg-gradient-to-br from-white via-primary-50/40 to-white">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Primii pași după instalare</div>
-          <h3 className="mt-1 text-lg font-bold text-slate-900">Checklist de pornire pentru orice organizație</h3>
+          <h3 className="mt-1 text-lg font-bold text-slate-900">{profileLabel ? `Checklist de bază · ${profileLabel}` : 'Checklist de pornire pentru orice organizație'}</h3>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            InfraFlow poate fi mare, dar începutul trebuie să fie simplu: companie, module, oameni, email, date și siguranță. Parcurge pașii în ordine sau sari direct la zona care lipsește.
+            InfraFlow poate fi mare, dar începutul trebuie să fie simplu: companie, licență, oameni, email, date și siguranță. Recomandările operaționale de mai jos sunt filtrate după pachetul activ.
           </p>
         </div>
         <div className="min-w-[180px] rounded-[var(--radius-panel)] border border-primary-100 bg-white p-3">
@@ -1849,6 +1886,7 @@ export default function DashboardPage() {
         backupStatus: api.get('/system/backups'),
         updateStatus: api.get('/system/update/status'),
         emailSyncStatus: api.get('/messaging/email/sync/status'),
+        license: api.get('/license/status'),
       }
 
       const entries = await Promise.all(
@@ -1909,6 +1947,7 @@ export default function DashboardPage() {
     const blockedDocuments = arrayFrom(data.commandCenter?.documentsBlocked, ['documents', 'items'])
     const settings = data.settings?.settings || data.settings || {}
     const profile = dashboardProfile(user)
+    const commercialProfile = data.license?.license?.commercialProfile || data.license?.commercialProfile || null
 
     const nextView = {
       criticalStocks,
@@ -1930,7 +1969,8 @@ export default function DashboardPage() {
       leaveRequests,
       accountingSummary: data.accountingSummary || {},
       settings,
-      firstStepsChecklist: buildFirstStepsStatus(data, firstSteps),
+      firstStepsChecklist: { ...buildFirstStepsStatus(data, firstSteps), profile: commercialProfile },
+      commercialProfile,
     }
     return {
       ...nextView,
@@ -2007,7 +2047,7 @@ export default function DashboardPage() {
 
       <CollapsibleDashboardSection title="Primii pași și configurare" description="Profil, module, utilizatori, email și backup." badge={`${view.firstStepsChecklist.done}/${view.firstStepsChecklist.total}`}>
         <FirstStepsPanel checklist={view.firstStepsChecklist} loading={loading} onNavigate={navigate} />
-        <div className="mt-4"><CommercialOnboardingPanel onNavigate={navigate} /></div>
+        <div className="mt-4"><CommercialOnboardingPanel profile={view.commercialProfile} onNavigate={navigate} /></div>
       </CollapsibleDashboardSection>
 
       {user?.username === 'director' || user?.username === 'demo' || ['manager', 'superadmin'].includes(user?.role) ? (

@@ -4591,6 +4591,81 @@
 - Cheia publică a catalogului poate fi citită dintr-un fișier configurat pentru serviciul aplicației.
 - Tokenul individual de update poate fi citit dintr-un fișier cu drepturi restrictive, fără valoare în clar în mediul systemd.
 
+## v2.12.627 - 2026-10-03
+
+### Taburi interne de lucru
+
+- Fiecare pagină ERP deschisă devine o filă internă reactivabilă, fără a deschide taburi noi în browser.
+- Filele se închid manual, iar ultima filă rămâne disponibilă pentru a evita un spațiu de lucru gol.
+- Lista filelor este păstrată în sesiunea browserului după reîncărcare, inclusiv ruta și parametrii paginii.
+
+## v2.12.628 - 2026-10-03
+
+### Mesaje vizibile imediat în Setări
+
+- Confirmările și erorile afișate de pagina Setări apar într-un popup fix, vizibil fără derulare.
+- Popup-ul are buton de închidere manuală și semantica accesibilă potrivită pentru succes sau eroare.
+
+## v2.12.633 - 2026-10-03
+
+### Finalizare invitație Demo pentru email nou
+
+- Username-ul invitației este disponibil atât pentru creare, cât și pentru auditul de aprobare.
+- Un utilizator inactiv reutilizat primește username-ul invitației înainte de activare.
+
+## v2.12.634 - 2026-10-03
+
+### Valabilitate controlată pentru accesul Demo
+
+- Conturile create din solicitări Demo primesc 15 zile de acces de la activarea parolei, nu de la aprobarea leadului.
+- Superadminul poate modifica sau elimina termenul din Setări → Utilizatori; operațiunea este auditată.
+- După expirare, autentificarea și sesiunile deja deschise sunt blocate fără ștergerea sau dezactivarea contului.
+
+## v2.12.635 - 2026-10-03
+
+### Autentificare în doi pași pentru superadmin
+
+- Superadminul poate activa TOTP din Setări → Securitate, cu o aplicație Authenticator compatibilă.
+- Loginul cere parola și apoi codul temporar; codurile de recuperare sunt afișate o singură dată și pot fi regenerate după confirmare.
+- Secretul TOTP și codurile de recuperare sunt stocate numai criptat, respectiv sub formă de hash; evenimentele apar în jurnalul de securitate.
+
+## v2.12.636 - 2026-10-03
+
+### Profil comercial și avertizare licență utilizatori
+
+- Setări → Licență afișează profilul Start, Business, Operations sau Enterprise, modulele incluse și numărul real de utilizatori activi.
+- Atingerea sau depășirea limitei este o avertizare comercială; aplicația nu blochează crearea, reactivarea sau lucrul utilizatorilor.
+- Diagnosticele de pregătire afișează aceeași situație ca observație, nu ca blocaj.
+
+## v2.12.632 - 2026-10-03
+
+### Corecție conflict fals la invitațiile Demo
+
+- O solicitare cu o adresă fără utilizator Demo existent nu mai intră eronat pe ramura de conflict.
+- Un cont activ existent continuă să blocheze invitația și nu este modificat.
+
+## v2.12.631 - 2026-10-03
+
+### Citire curentă pentru aprobările Demo
+
+- Ruta semnată de aprobare Demo invalidează doar snapshot-ul MSSQL înainte de a verifica adresa de email.
+- Previne conflictele eronate produse de o copie veche a `dbo.app_state`, fără a modifica vreun cont activ existent.
+
+## v2.12.630 - 2026-10-03
+
+### Diagnostic sigur pentru invitațiile Demo
+
+- Un conflict de cont activ arată administratorului adresa normalizată și utilizatorul găsit de server.
+- Nu sunt afișate parole, tokenuri sau secrete; conturile active nu sunt suprascrise.
+
+## v2.12.629 - 2026-10-03
+
+### Acces Demo aprobat din lead
+
+- Un operator aprobă explicit un lead din site înainte ca Demo să creeze invitația.
+- Invitația este semnată între WordPress și Demo, expiră după 24 de ore, iar solicitantul își alege singur parola.
+- Contul nou folosește rolul limitat `Administrator Demo`, fără administrarea utilizatorilor, setărilor sensibile, auditului sau sistemului.
+
 ## v2.12.626 - 2026-10-02
 
 ### Corecție sincronizare IMAP
@@ -4646,4 +4721,13 @@
 
 - Release controlat pentru testarea completă catalog semnat → licență → ticket → SHA-256 → worker Linux.
 - Nu include schimbări ale fluxurilor operaționale sau ale datelor clientului.
+
+## v2.12.637 - 2026-10-03
+
+### Onboarding ghidat după pachet
+
+- Dashboard-ul folosește profilul comercial din licența activă pentru recomandări concise: Start, Business, Operations sau Enterprise.
+- Licența izolată `Demo complet` primește un traseu de test propriu, fără modificări ale accesului sau datelor demonstrative.
+- Pașii operaționali afișați duc numai la modulele relevante profilului; checklistul comun de instalare rămâne vizibil și scurt.
+- În Setări, pașii condiționați (HR, email, AI) se bazează pe pachetul licențiat când acesta este disponibil.
 

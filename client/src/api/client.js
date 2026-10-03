@@ -18,7 +18,7 @@ api.interceptors.response.use(
   err => {
     const requestUrl = String(err.config?.url || '').replace(/\/+$/, '')
     const isKioskPage = typeof window !== 'undefined' && window.location?.pathname?.startsWith('/kiosk')
-    const isPublicAuthRequest = requestUrl === '/login' || requestUrl === '/session' || requestUrl.startsWith('/setup/')
+    const isPublicAuthRequest = requestUrl === '/login' || requestUrl === '/login/2fa' || requestUrl === '/session' || requestUrl.startsWith('/setup/')
     if (err.response?.status === 401 && !isPublicAuthRequest) {
       // Kiosk poate folosi o sesiune separata. Un 401 al unui endpoint Kiosk
       // nu trebuie sa distruga sesiunea ERP din aceeasi fereastra Electron.

@@ -44,12 +44,21 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  const establishSession = (data) => {
+    localStorage.setItem('infraflow_token', data.token)
+    cacheUser(data.user)
+    setUser(data.user)
+    return data
+  }
+
   const login = async (username, password) => {
     const r = await api.post('/login', { username, password })
-    localStorage.setItem('infraflow_token', r.data.token)
-    cacheUser(r.data.user)
-    setUser(r.data.user)
-    return r.data
+    return r.data?.twoFactorRequired ? r.data : establishSession(r.data)
+  }
+
+  const verifyTwoFactor = async (challengeToken, code) => {
+    const r = await api.post('/login/2fa', { challengeToken, code })
+    return establishSession(r.data)
   }
 
   const logout = async () => {
@@ -60,7 +69,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, verifyTwoFactor, logout }}>
       {children}
     </AuthContext.Provider>
   )

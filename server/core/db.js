@@ -100,6 +100,7 @@ const DEFAULT_DB = {
   workflowTemplates: [],
   workflowRequests: [],
   workflowAudit: [],
+  demoInvites: [],
   audit: [],
   stockMovements: [],
   consumptions: [],
@@ -352,12 +353,12 @@ function ensureDatabase() {
 }
 
 // Citeste starea aplicatiei din backend-ul de baza de date activ.
-function readDb() {
+function readDb(options = {}) {
   if (DB_MODE === "postgres") {
     return readPostgresDb();
   }
   if (DB_MODE === "mssql" || DB_MODE === "sqlserver") {
-    return readMssqlDb();
+    return readMssqlDb(options);
   }
   return normalizeDb(JSON.parse(fs.readFileSync(DB_FILE, "utf8")));
 }
@@ -461,7 +462,8 @@ function ensureMssqlDatabase() {
 }
 
 // Citeste starea aplicatiei din SQL Server.
-function readMssqlDb() {
+function readMssqlDb(options = {}) {
+  if (options.fresh === true) mssqlDbCache = null;
   if (mssqlDbCache) return cloneDb(mssqlDbCache);
   const text = runMssqlScalar(`select data from dbo.${MSSQL_APP_STATE_TABLE} where id = 1;`).trim();
   if (!text) throw new Error("SQL Server nu contine starea aplicatiei in dbo.app_state.");
@@ -1330,6 +1332,7 @@ function normalizeDb(db) {
   if (!Array.isArray(db.workflowTemplates)) db.workflowTemplates = [];
   if (!Array.isArray(db.workflowRequests)) db.workflowRequests = [];
   if (!Array.isArray(db.workflowAudit)) db.workflowAudit = [];
+  if (!Array.isArray(db.demoInvites)) db.demoInvites = [];
   if (!Array.isArray(db.audit)) db.audit = [];
   if (!Array.isArray(db.stockMovements)) db.stockMovements = [];
   if (!Array.isArray(db.consumptions)) db.consumptions = [];

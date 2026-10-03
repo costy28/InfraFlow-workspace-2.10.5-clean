@@ -179,6 +179,12 @@ function requireAuth(req, res) {
     sendJson(res, 401, { error: "Sesiune invalida." });
     return null;
   }
+  const demoAccess = demoAccessExpiryStatus(user);
+  if (demoAccess.expired) {
+    sessions.delete(token);
+    sendJson(res, 401, { error: "Accesul Demo a expirat. Contactează administratorul pentru prelungire." });
+    return null;
+  }
   if (user.active === false || user.active === 0) {
     sessions.delete(token);
     sendJson(res, 401, { error: "Cont dezactivat" });
@@ -188,6 +194,16 @@ function requireAuth(req, res) {
   if (!session.loginAt && !session.createdAt) session.loginAt = now;
   session.lastSeenAt = new Date(now).toISOString();
   return { db, user, token, permissions: effectivePermissionsForUser(user, db) };
+}
+
+function demoAccessExpiryStatus(user = {}, now = Date.now()) {
+  const expiresAt = String(user.demoAccessExpiresAt || "").trim();
+  if (!expiresAt) return { expired: false, expiresAt: "" };
+  const timestamp = Date.parse(expiresAt);
+  // O valoare veche sau coruptă nu blochează un utilizator; doar datele scrise
+  // prin ruta administrativă validată pot produce expirarea accesului.
+  if (!Number.isFinite(timestamp)) return { expired: false, expiresAt, invalid: true };
+  return { expired: timestamp <= now, expiresAt };
 }
 
 function sessionExpiryStatus(session = {}, settings = {}) {
@@ -527,6 +543,7 @@ module.exports = {
   passwordPolicyFromSettings,
   validatePasswordPolicy,
   assertPasswordPolicy,
+  demoAccessExpiryStatus,
   registerClientDevice,
   registerWorkstationRequest,
   networkAccessAllowed

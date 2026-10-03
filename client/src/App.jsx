@@ -5,6 +5,7 @@ import { PermissionGuard } from './components/PermissionGuard'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
+const DemoInvitePage = lazy(() => import('./pages/DemoInvitePage'))
 const SetariPage = lazy(() => import('./pages/SetariPage'))
 const DepartamentPage = lazy(() => import('./pages/DepartamentPage'))
 const ProductiePage = lazy(() => import('./pages/modules/ProductiePage'))
@@ -93,6 +94,7 @@ export default function App() {
         {isDemoBuild && <Route path="/start-demo" element={<StartDemoPage />} />}
         <Route path="/setup" element={<SetupWizardPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/activare-demo" element={<DemoInvitePage />} />
         <Route path="/oferta/:token" element={<PublicQuotePage />} />
         <Route path="/fleet/sign/:token" element={<FleetSignPage />} />
         <Route path="/fleet/verify/:uuid" element={<FleetVerifyPage />} />

@@ -1659,7 +1659,7 @@ function buildReadinessChecklist(db, context = {}) {
   add(db.settings?.setupCompleted === true ? "ok" : "bad", "Configurare initiala", db.settings?.setupCompleted === true ? "Finalizata." : "Instalarea nu este configurata complet.");
   add(activeUsers.some((user) => user.role === "superadmin") ? "ok" : "bad", "Superadmin activ", activeUsers.some((user) => user.role === "superadmin") ? "Exista cel putin un Superadmin activ." : "Lipseste un Superadmin activ.");
   add(["active", "internal"].includes(license.status) ? (license.status === "internal" ? "warn" : "ok") : "bad", "Licenta", license.status === "active" ? "Licenta este activa." : license.status === "internal" ? "Licenta interna/trial local. Pentru client foloseste licenta semnata." : "Licenta expirata sau invalida.");
-  add(activeUsers.length <= Number(license.maxUsers || 1) ? "ok" : "bad", "Limita utilizatori", `${activeUsers.length} utilizatori activi / limita ${license.maxUsers || 1}.`);
+  add(activeUsers.length <= Number(license.maxUsers || 1) ? "ok" : "warn", "Limita utilizatori", `${activeUsers.length} utilizatori activi / limita ${license.maxUsers || 1}. Depășirea nu blochează lucrul; verifică licența comercială.`);
   add(devices.length <= Number(license.maxDevices || 1) ? "ok" : "bad", "Limita dispozitive", `${devices.length} statii autorizate / limita ${license.maxDevices || 1}.`);
   add(db.settings?.networkAccessMode === "open" ? "warn" : "ok", "Acces retea", db.settings?.networkAccessMode === "open" ? "Acces API permis si din afara retelei private. Foloseste doar temporar." : "Acces API limitat la localhost/retea privata/VPN.");
   add(DB_MODE === "postgres" || sqlServerMode || dataFile?.exists ? "ok" : "bad", "Baza de date", DB_MODE === "postgres" ? "Ruleaza in modul PostgreSQL." : sqlServerMode ? `Ruleaza in modul SQL Server (${mssqlDatabaseName()}).` : dataFile?.exists ? `Fisier JSON gasit: ${formatBytesServer(dataFile.size)}.` : "Fisierul bazei JSON lipseste.");
@@ -2494,8 +2494,10 @@ function enforceUserLimit(db, willBeActive) {
   if (license.status === "internal") return;
   const activeUsers = db.users.filter((user) => user.active !== false).length;
   if (activeUsers >= Number(license.maxUsers || 1)) {
-    throwHttp(400, `Licenta permite maxim ${license.maxUsers} utilizatori activi.`);
+    // Licențierea comercială avertizează; nu blochează crearea sau reactivarea.
+    return { overLimit: true, activeUsers, maxUsers: Number(license.maxUsers || 1) };
   }
+  return { overLimit: false, activeUsers, maxUsers: Number(license.maxUsers || 1) };
 }
 
 function readJsonBody(req, maxBytes = 1_000_000) {

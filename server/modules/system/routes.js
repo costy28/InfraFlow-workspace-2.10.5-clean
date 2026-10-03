@@ -3048,8 +3048,10 @@ function enforceUserLimit(db, willBeActive) {
   if (license.status === "internal") return;
   const activeUsers = db.users.filter((user) => user.active !== false).length;
   if (activeUsers >= Number(license.maxUsers || 1)) {
-    throwHttp(400, `Licenta permite maxim ${license.maxUsers} utilizatori activi.`);
+    // Licențierea comercială avertizează; nu blochează crearea sau reactivarea.
+    return { overLimit: true, activeUsers, maxUsers: Number(license.maxUsers || 1) };
   }
+  return { overLimit: false, activeUsers, maxUsers: Number(license.maxUsers || 1) };
 }
 
 function readJsonBody(req, maxBytes = 1_000_000) {

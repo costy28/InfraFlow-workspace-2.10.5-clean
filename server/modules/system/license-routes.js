@@ -14,7 +14,38 @@ const licenseUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 })
 
-function publicLicenseStatus(status) {
+// Catalog comercial vizibil în aplicație. Nu conține prețuri, costuri sau alte
+// informații interne; licența semnată rămâne sursa de adevăr pentru drepturi.
+const COMMERCIAL_PROFILES = [
+  { key: 'start', label: 'Start', maxUsers: 5, modules: ['core', 'documents', 'messaging', 'tickets'], description: 'Utilizatori, documente, aprobări, mesaje, solicitări și audit.' },
+  { key: 'business', label: 'Business', maxUsers: 10, modules: ['core', 'documents', 'messaging', 'tickets', 'crm', 'inventory', 'procurement', 'contract_management'], description: 'Start plus CRM, oferte, comenzi, stocuri, achiziții și contracte.' },
+  { key: 'operations', label: 'Operations', maxUsers: 20, modules: ['core', 'documents', 'messaging', 'tickets', 'crm', 'inventory', 'procurement', 'contract_management', 'production', 'fleet', 'technical', 'field', 'controlling'], description: 'Business plus producție, teren, flotă, echipamente și controlling.' },
+  { key: 'enterprise', label: 'Enterprise', maxUsers: 30, modules: ['core', 'documents', 'messaging', 'tickets', 'crm', 'inventory', 'procurement', 'contract_management', 'production', 'fleet', 'technical', 'field', 'controlling', 'hr', 'accounting', 'legal', 'archive', 'secretariat'], description: 'Operations plus HR, contabilitate, juridic, registratură și arhivă.' },
+]
+
+function commercialProfile(license = {}) {
+  const normalized = String(license.pachet || '').trim().toLowerCase()
+  if (normalized === 'demo complet') {
+    return {
+      key: 'demo',
+      label: 'Demo complet',
+      maxUsers: null,
+      modules: COMMERCIAL_PROFILES.find(profile => profile.key === 'enterprise')?.modules || [],
+      description: 'Mediu demonstrativ cu acces la modulele comerciale, operaționale și administrative.',
+    }
+  }
+  return COMMERCIAL_PROFILES.find(profile => profile.key === normalized) || null
+}
+
+function userUsage(db, license = {}) {
+  const active = (db?.users || []).filter(user => user.active !== false).length
+  const limit = Number(license.limite?.max_utilizatori || license.limite?.maxUsers || 0)
+  const remaining = limit > 0 ? Math.max(0, limit - active) : null
+  const status = limit <= 0 ? 'unknown' : active > limit ? 'over' : active === limit ? 'at_limit' : remaining <= 1 ? 'near_limit' : 'within'
+  return { active, limit, remaining, status, blocking: false }
+}
+
+function publicLicenseStatus(status, db) {
   const license = status.licenta || {}
   return {
     valida: !!status.valida,
@@ -39,7 +70,10 @@ function publicLicenseStatus(status) {
       tip: license.valabilitate?.tip || null
     },
     zile_pana_expirare: status.zile_pana_expirare ?? null,
-    zile_gratie: status.zile_gratie ?? null
+    zile_gratie: status.zile_gratie ?? null,
+    commercialProfile: commercialProfile(license),
+    commercialProfiles: COMMERCIAL_PROFILES,
+    usage: userUsage(db, license),
   }
 }
 
@@ -61,7 +95,7 @@ function createSystemLicenseRouter(context) {
       const status = isIsolatedCommercialDemo(auth.db)
         ? { valida: true, demo: true, in_gratie: false, expirata: false, licenta: commercialDemoLicense(auth.db, runtimeStatus.licenta) }
         : runtimeStatus
-      sendJson(res, 200, { license: publicLicenseStatus(status) })
+      sendJson(res, 200, { license: publicLicenseStatus(status, auth.db) })
     } catch (error) {
       next(error)
     }
@@ -93,7 +127,7 @@ function createSystemLicenseRouter(context) {
       global.LICENTA = status.licenta
       addAudit(auth.db, auth.user, 'licenta_importata', `${status.licenta.client?.nume || '-'} / ${status.licenta.pachet || '-'}`)
       writeDb(auth.db)
-      sendJson(res, 200, { license: publicLicenseStatus(status) })
+      sendJson(res, 200, { license: publicLicenseStatus(status, auth.db) })
     } catch (error) {
       next(error)
     }

@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.626**
-**Versiune în lucru: v2.12.626**
+**Versiune curentă sursă: v2.12.637**
+**Versiune în lucru: v2.12.637**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -365,6 +365,17 @@ Core System
   ✅ Licență demo izolată aplicată și la runtime-ul actualizărilor (v2.12.624)
   ✅ Pachet final pentru validarea actualizării online complete (v2.12.625)
   ✅ Corecție parser IMAP pentru răspuns LOGIN etichetat pe primul rând (v2.12.626)
+  ✅ Taburi interne de lucru reactivabile, cu închidere manuală și sesiune browser (v2.12.627)
+  ✅ Mesaje de succes și eroare vizibile imediat ca popup în Setări (v2.12.628)
+  ✅ Acces Demo aprobat din lead, cu invitație semnată și parolă aleasă de solicitant (v2.12.629)
+  ✅ Diagnostic administrativ sigur pentru conflictele invitațiilor Demo (v2.12.630)
+  ✅ Aprobare Demo cu citire curentă MSSQL, fără conflict din cache vechi (v2.12.631)
+  ✅ Corecție conflict fals pentru email Demo fără cont existent (v2.12.632)
+  ✅ Finalizare invitație Demo pentru email nou și reutilizare inactivă (v2.12.633)
+  ✅ Valabilitate acces Demo: 15 zile de la activare, modificabilă doar de superadmin (v2.12.634)
+  ✅ Autentificare în doi pași TOTP pentru superadmin, coduri de recuperare și audit (v2.12.635)
+  ✅ Profil comercial licență și avertizare neblocantă la limita utilizatorilor (v2.12.636)
+  ✅ Onboarding ghidat după pachetul comercial activ, fără pași irelevanți (v2.12.637)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1088,9 +1099,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.626
+VERSIUNE CURENTĂ SURSĂ: 2.12.637
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.626 ⏳
+UPDATE ZIP CURENT: 2.12.637 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1525,6 +1536,17 @@ UPDATES ÎN LUCRU:
   2.12.624 → UPDATE 644 licență demo aplicată la runtime
   2.12.625 → UPDATE 645 test final actualizare online
   2.12.626 → UPDATE 646 corecție sincronizare IMAP ⏳
+  2.12.627 → UPDATE 647 taburi interne de lucru ⏳
+  2.12.628 → UPDATE 648 popup mesaje Setări ⏳
+  2.12.629 → UPDATE 649 acces Demo aprobat din lead ⏳
+  2.12.630 → UPDATE 650 diagnostic conflict invitație Demo ✅
+  2.12.631 → UPDATE 651 citire curentă MSSQL la aprobare Demo ✅
+  2.12.632 → UPDATE 652 corecție conflict fals invitație Demo ✅
+  2.12.633 → UPDATE 653 finalizare invitație Demo email nou ⏳
+  2.12.634 → UPDATE 654 valabilitate acces Demo 15 zile ⏳
+  2.12.635 → UPDATE 655 autentificare în doi pași superadmin ⏳
+  2.12.636 → UPDATE 656 profil comercial licență și avertizare utilizatori ⏳
+  2.12.637 → UPDATE 657 onboarding ghidat după pachet comercial ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2021,5 +2043,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 2 Octombrie 2026 | InfraFlow sursă v2.12.626*
+*AGENTS.md actualizat: 3 Octombrie 2026 | InfraFlow sursă v2.12.637*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

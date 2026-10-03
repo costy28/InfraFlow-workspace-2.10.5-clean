@@ -684,7 +684,7 @@ const SECURITY_AUDIT_CATEGORIES = {
   auth: {
     label: "Autentificări",
     tone: "info",
-    actions: ["auth_login_esuat", "auth_login_reusit", "auth_logout", "login", "forgot_password", "password_reset"]
+    actions: ["auth_login_esuat", "auth_login_reusit", "auth_logout", "auth_login_2fa_cerut", "auth_login_2fa_respins", "auth_login_2fa_reusit", "auth_2fa_activat", "auth_2fa_coduri_regenerate", "login", "forgot_password", "password_reset"]
   },
   roles: {
     label: "Roluri & permisiuni",
@@ -694,7 +694,7 @@ const SECURITY_AUDIT_CATEGORIES = {
   users: {
     label: "Utilizatori",
     tone: "warning",
-    actions: ["utilizator_adaugat", "utilizator_modificat", "utilizator_rol_schimbat", "utilizator_roluri_schimbate", "parola_utilizator_resetata"]
+    actions: ["utilizator_adaugat", "utilizator_modificat", "utilizator_rol_schimbat", "utilizator_roluri_schimbate", "parola_utilizator_resetata", "utilizator_valabilitate_demo_modificata"]
   },
   devices: {
     label: "Stații",
@@ -712,6 +712,11 @@ const SECURITY_AUDIT_ACTION_LABELS = {
   auth_login_esuat: "Login respins",
   auth_login_reusit: "Login reușit",
   auth_logout: "Logout",
+  auth_login_2fa_cerut: "Pas 2FA cerut",
+  auth_login_2fa_respins: "Cod 2FA respins",
+  auth_login_2fa_reusit: "Cod 2FA acceptat",
+  auth_2fa_activat: "2FA activată",
+  auth_2fa_coduri_regenerate: "Coduri 2FA regenerate",
   login: "Login legacy",
   forgot_password: "Cod resetare parolă",
   password_reset: "Parolă resetată",
@@ -725,6 +730,7 @@ const SECURITY_AUDIT_ACTION_LABELS = {
   utilizator_rol_schimbat: "Rol utilizator schimbat",
   utilizator_roluri_schimbate: "Roluri utilizator schimbate",
   parola_utilizator_resetata: "Parolă utilizator resetată",
+  utilizator_valabilitate_demo_modificata: "Valabilitate acces Demo modificată",
   dispozitiv_autorizat: "Stație autorizată",
   dispozitiv_eliminat: "Stație eliminată",
   statie_aprobata: "Stație aprobată",
@@ -828,7 +834,7 @@ function buildReadinessChecklist(db, context = {}) {
   add(db.settings?.setupCompleted === true ? "ok" : "bad", "Configurare initiala", db.settings?.setupCompleted === true ? "Finalizata." : "Instalarea nu este configurata complet.");
   add(activeUsers.some((user) => user.role === "superadmin") ? "ok" : "bad", "Superadmin activ", activeUsers.some((user) => user.role === "superadmin") ? "Exista cel putin un Superadmin activ." : "Lipseste un Superadmin activ.");
   add(["active", "internal"].includes(license.status) ? (license.status === "internal" ? "warn" : "ok") : "bad", "Licenta", license.status === "active" ? "Licenta este activa." : license.status === "internal" ? "Licenta interna/trial local. Pentru client foloseste licenta semnata." : "Licenta expirata sau invalida.");
-  add(activeUsers.length <= Number(license.maxUsers || 1) ? "ok" : "bad", "Limita utilizatori", `${activeUsers.length} utilizatori activi / limita ${license.maxUsers || 1}.`);
+  add(activeUsers.length <= Number(license.maxUsers || 1) ? "ok" : "warn", "Limita utilizatori", `${activeUsers.length} utilizatori activi / limita ${license.maxUsers || 1}. Depășirea nu blochează lucrul; verifică licența comercială.`);
   add(devices.length <= Number(license.maxDevices || 1) ? "ok" : "bad", "Limita dispozitive", `${devices.length} statii autorizate / limita ${license.maxDevices || 1}.`);
   add(db.settings?.networkAccessMode === "open" ? "warn" : "ok", "Acces retea", db.settings?.networkAccessMode === "open" ? "Acces API permis si din afara retelei private. Foloseste doar temporar." : "Acces API limitat la localhost/retea privata/VPN.");
   add(DB_MODE === "postgres" || sqlServerMode || dataFile?.exists ? "ok" : "bad", "Baza de date", DB_MODE === "postgres" ? "Ruleaza in modul PostgreSQL." : sqlServerMode ? `Ruleaza in modul SQL Server (${mssqlDatabaseName()}).` : dataFile?.exists ? `Fisier JSON gasit: ${formatBytesServer(dataFile.size)}.` : "Fisierul bazei JSON lipseste.");
@@ -2245,8 +2251,10 @@ function enforceUserLimit(db, willBeActive) {
   if (license.status === "internal") return;
   const activeUsers = db.users.filter((user) => user.active !== false).length;
   if (activeUsers >= Number(license.maxUsers || 1)) {
-    throwHttp(400, `Licenta permite maxim ${license.maxUsers} utilizatori activi.`);
+    // Licențierea comercială avertizează; nu blochează crearea sau reactivarea.
+    return { overLimit: true, activeUsers, maxUsers: Number(license.maxUsers || 1) };
   }
+  return { overLimit: false, activeUsers, maxUsers: Number(license.maxUsers || 1) };
 }
 
 function readJsonBody(req, maxBytes = 1_000_000) {

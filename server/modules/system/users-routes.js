@@ -261,6 +261,52 @@ function createSystemUsersRouter(context) {
     }
   })
 
+  router.patch('/users/:id/demo-access-expiry', async (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requirePermission(auth, res, 'users:manage')) return
+      if (auth.user.role !== 'superadmin') {
+        sendJson(res, 403, { error: 'Doar superadminul poate modifica valabilitatea accesului Demo.' })
+        return
+      }
+      const body = await readJsonBody(req)
+      const user = (auth.db.users || []).find(item => String(item.id) === String(req.params.id))
+      if (!user) { sendJson(res, 404, { error: 'Utilizatorul nu a fost găsit.' }); return }
+      if (user.createdBy !== 'demo-leads-webhook') {
+        sendJson(res, 400, { error: 'Valabilitatea se poate configura doar pentru conturile create din solicitări Demo.' })
+        return
+      }
+
+      const requestedDate = String(body.expiresAt || '').trim()
+      if (!requestedDate) {
+        delete user.demoAccessExpiresAt
+        delete user.demoAccessDurationDays
+        user.updatedAt = new Date().toISOString()
+        addAudit(auth.db, auth.user, 'utilizator_valabilitate_demo_modificata', `${user.username}: termen eliminat`)
+        writeDb(auth.db)
+        sendJson(res, 200, { user: adminUser(user) })
+        return
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+        sendJson(res, 400, { error: 'Data de expirare trebuie să fie în format AAAA-LL-ZZ.' })
+        return
+      }
+      const expiresAt = new Date(`${requestedDate}T23:59:59.999Z`)
+      if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+        sendJson(res, 400, { error: 'Data de expirare trebuie să fie în viitor.' })
+        return
+      }
+      user.demoAccessExpiresAt = expiresAt.toISOString()
+      user.updatedAt = new Date().toISOString()
+      addAudit(auth.db, auth.user, 'utilizator_valabilitate_demo_modificata', `${user.username}: valabil până la ${requestedDate}`)
+      writeDb(auth.db)
+      sendJson(res, 200, { user: adminUser(user) })
+    } catch (error) {
+      next(error)
+    }
+  })
+
   router.patch('/users/:id/reset-password', async (req, res, next) => {
     try {
       const auth = requireAuth(req, res)

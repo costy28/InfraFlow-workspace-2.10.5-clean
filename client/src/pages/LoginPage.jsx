@@ -34,9 +34,9 @@ function InputField({ label, id, type = 'text', value, onChange, autoComplete, i
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login } = useAuth()
+  const { login, verifyTwoFactor } = useAuth()
 
-  const [view, setView] = useState('login') // 'login' | 'forgot' | 'reset'
+  const [view, setView] = useState('login') // 'login' | 'two-factor' | 'forgot' | 'reset'
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -44,6 +44,8 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
+  const [twoFactorChallengeToken, setTwoFactorChallengeToken] = useState('')
+  const [twoFactorCode, setTwoFactorCode] = useState('')
 
   // Forgot password state
   const [forgotUsername, setForgotUsername] = useState('')
@@ -55,6 +57,10 @@ export default function LoginPage() {
   useEffect(() => {
     if (location.state?.setupDone) {
       setInfo('✅ Configurare finalizată! Logați-vă cu contul de administrator creat.')
+    }
+    if (location.state?.demoInviteActivated) {
+      setUsername(location.state.username || '')
+      setInfo('Accesul Demo a fost activat. Te poți autentifica acum.')
     }
   }, [location.state])
 
@@ -79,15 +85,37 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(username.trim(), password)
+      const result = await login(username.trim(), password)
       if (rememberMe) {
         localStorage.setItem(LS_REMEMBER, username.trim())
       } else {
         localStorage.removeItem(LS_REMEMBER)
       }
+      if (result.twoFactorRequired) {
+        setTwoFactorChallengeToken(result.challengeToken)
+        setTwoFactorCode('')
+        setPassword('')
+        setInfo('Introdu codul din aplicația Authenticator sau unul dintre codurile de recuperare.')
+        setView('two-factor')
+        return
+      }
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.error || 'Autentificare eșuată. Verificați datele.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleTwoFactor(event) {
+    event.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await verifyTwoFactor(twoFactorChallengeToken, twoFactorCode)
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Codul de autentificare nu a putut fi verificat.')
     } finally {
       setLoading(false)
     }
@@ -220,6 +248,32 @@ export default function LoginPage() {
                   className="mt-1 w-full rounded-lg bg-primary-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 active:bg-primary-700 disabled:opacity-60"
                 >
                   {loading ? 'Se autentifică...' : 'Autentificare'}
+                </button>
+              </form>
+            </>
+          )}
+
+          {view === 'two-factor' && (
+            <>
+              <button onClick={() => { setView('login'); setError(''); setInfo(''); setTwoFactorChallengeToken('') }} className="mb-4 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
+                ← Înapoi la autentificare
+              </button>
+              <h2 className="mb-2 text-lg font-semibold text-slate-900">Autentificare în doi pași</h2>
+              <p className="mb-6 text-sm text-slate-500">Deschide aplicația Authenticator și introdu codul curent. Poți folosi și un cod de recuperare salvat.</p>
+              <form className="grid gap-4" onSubmit={handleTwoFactor}>
+                <InputField
+                  label="Cod de autentificare"
+                  id="two-factor-code"
+                  value={twoFactorCode}
+                  onChange={event => setTwoFactorCode(event.target.value)}
+                  autoComplete="one-time-code"
+                  icon={Lock}
+                  required
+                />
+                {error && <p className="rounded-lg bg-rose-50 px-3 py-2.5 text-sm text-rose-700">{error}</p>}
+                {info && <p className="rounded-lg bg-primary-50 px-3 py-2.5 text-sm text-primary-700">{info}</p>}
+                <button type="submit" disabled={loading} className="w-full rounded-lg bg-primary-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60">
+                  {loading ? 'Se verifică...' : 'Continuă'}
                 </button>
               </form>
             </>

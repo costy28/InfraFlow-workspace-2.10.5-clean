@@ -8,12 +8,14 @@ import CompactTable from '../components/ui/CompactTable'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import ContextHelp from '../components/ui/ContextHelp'
 import DropdownMenu from '../components/ui/DropdownMenu'
+import FeedbackToast from '../components/ui/FeedbackToast'
 import Input from '../components/ui/Input'
 import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
 import Select from '../components/ui/Select'
 import Table from '../components/ui/Table'
 import { formatDate, formatDateTime, formatMoney, timeAgo } from '../utils/format'
+import { useAuth } from '../hooks/useAuth'
 
 const settingsTabAliases = {
   'Cântar': 'Mapări cântar',
@@ -52,6 +54,15 @@ function getUserManagerId(user) {
 
 function userDisplayName(user) {
   return user?.name || user?.username || user?.id || '-'
+}
+
+function isWebsiteDemoUser(user) {
+  return user?.createdBy === 'demo-leads-webhook'
+}
+
+function demoAccessDateInputValue(value) {
+  const timestamp = Date.parse(String(value || ''))
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(0, 10) : ''
 }
 
 function securityTone(status) {
@@ -1031,6 +1042,7 @@ function SettingsSetupAssistant({ steps, done, percent, nextStep, loading, onOpe
 }
 
 export default function SetariPage() {
+  const { user: currentUser } = useAuth()
   const [activeTab, setActiveTab] = useState(() => {
     const tab = normalizeSettingsTab(new URLSearchParams(window.location.search).get('tab'))
     return tabGroups.some(group => group.tabs.includes(tab)) ? tab : 'General'
@@ -1117,6 +1129,15 @@ export default function SetariPage() {
   const [editingUser, setEditingUser] = useState(null)
   const [resetUser, setResetUser] = useState(null)
   const [resetPassword, setResetPassword] = useState('')
+  const [demoAccessUser, setDemoAccessUser] = useState(null)
+  const [demoAccessExpiresAt, setDemoAccessExpiresAt] = useState('')
+  const [demoAccessSaving, setDemoAccessSaving] = useState(false)
+  const [twoFactorStatus, setTwoFactorStatus] = useState(null)
+  const [twoFactorSetup, setTwoFactorSetup] = useState(null)
+  const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [twoFactorRecoveryCodes, setTwoFactorRecoveryCodes] = useState([])
+  const [twoFactorRecoveryInput, setTwoFactorRecoveryInput] = useState('')
+  const [twoFactorSaving, setTwoFactorSaving] = useState(false)
   const [userForm, setUserForm] = useState(emptyUserForm)
   const [aiKey, setAiKey] = useState('')
   const [aiForm, setAiForm] = useState({ model_default: 'claude-haiku-4-5', monthly_budget: 200, limit_per_user: 30 })
@@ -1229,6 +1250,8 @@ export default function SetariPage() {
   const visibleHostedReadinessItems = hostedReadinessExpanded ? hostedReadinessItems : hostedReadinessItems.slice(0, 4)
   const onboardingSteps = useMemo(() => {
     const enabled = new Set(enabledModules)
+    const packageModules = new Set((license?.commercialProfile?.modules || []).map(module => String(module).toLowerCase()))
+    const relevantModules = packageModules.size ? packageModules : enabled
     const hasCompany = Boolean(settings.companyName || settings.company_name || settings.firma || settings.nume_companie)
       && Boolean(settings.companyCif || settings.company_cif || settings.cui || settings.cif)
     const hasCountryProfile = Boolean(settings.country && settings.locale && settings.currency && settings.timezone)
@@ -1241,9 +1264,9 @@ export default function SetariPage() {
       { key: 'license', label: 'Licență / trial', done: hasLicenseSignal && !license?.expirata, hint: 'Importă licența sau rulează în demo/trial controlat.', tab: 'Licență' },
       { key: 'users', label: 'Utilizatori', done: users.filter(user => user.active !== false).length > 1, hint: 'Adaugă utilizatorii cheie.', tab: 'Utilizatori' },
       { key: 'departments', label: 'Departamente', done: departments.length > 0, hint: 'Definește structura organizației.', tab: 'Departamente' },
-      { key: 'hr', label: 'Angajați HR', done: !enabled.has('hr') || hrEmployees.length > 0, hint: 'Importă sau adaugă primii angajați.', tab: 'Module', optional: !enabled.has('hr') },
-      { key: 'smtp', label: 'Email notificări', done: hasSmtp || !enabled.has('messaging'), hint: 'Configurează SMTP pentru notificări reale.', tab: 'General', optional: !enabled.has('messaging') },
-      { key: 'ai', label: 'AI Assistant', done: !enabled.has('ai') || Boolean(aiStatus?.configured || aiStatus?.hasKey), hint: 'Adaugă cheia API pentru helperul AI.', tab: 'AI Assistant', optional: !enabled.has('ai') },
+      { key: 'hr', label: 'Angajați HR', done: !relevantModules.has('hr') || hrEmployees.length > 0, hint: 'Importă sau adaugă primii angajați.', tab: 'Module', optional: !relevantModules.has('hr') },
+      { key: 'smtp', label: 'Email notificări', done: hasSmtp || !relevantModules.has('messaging'), hint: 'Configurează SMTP pentru notificări reale.', tab: 'General', optional: !relevantModules.has('messaging') },
+      { key: 'ai', label: 'AI Assistant', done: !relevantModules.has('ai') || Boolean(aiStatus?.configured || aiStatus?.hasKey), hint: 'Adaugă cheia API pentru helperul AI.', tab: 'AI Assistant', optional: !relevantModules.has('ai') },
     ].filter(step => !step.optional || !step.done)
   }, [settings, enabledModules, activeConfigurableModules.length, license, users, departments, hrEmployees, aiStatus])
   const onboardingDone = onboardingSteps.filter(step => step.done).length
@@ -1376,6 +1399,11 @@ export default function SetariPage() {
   }, [])
 
   useEffect(() => {
+    if (currentUser?.role !== 'superadmin') return
+    api.get('/auth/2fa/status').then(response => setTwoFactorStatus(response.data)).catch(() => setTwoFactorStatus(null))
+  }, [currentUser?.role])
+
+  useEffect(() => {
     document.documentElement.dataset.theme = appearance.theme
     document.documentElement.dataset.density = appearance.density
     document.documentElement.dataset.radius = appearance.radius
@@ -1391,6 +1419,53 @@ export default function SetariPage() {
   function fail(err, fallback) {
     setError(err.response?.data?.error || err.response?.data?.eroare || fallback)
     setMessage('')
+  }
+
+  async function beginTwoFactorSetup() {
+    setTwoFactorSaving(true)
+    try {
+      const response = await api.post('/auth/2fa/setup')
+      setTwoFactorSetup(response.data)
+      setTwoFactorCode('')
+      setTwoFactorRecoveryCodes([])
+    } catch (err) {
+      fail(err, 'Nu am putut începe configurarea autentificării în doi pași.')
+    } finally {
+      setTwoFactorSaving(false)
+    }
+  }
+
+  async function confirmTwoFactorSetup(event) {
+    event.preventDefault()
+    setTwoFactorSaving(true)
+    try {
+      const response = await api.post('/auth/2fa/confirm', { setupToken: twoFactorSetup?.setupToken, code: twoFactorCode })
+      setTwoFactorSetup(null)
+      setTwoFactorCode('')
+      setTwoFactorRecoveryCodes(response.data.recoveryCodes || [])
+      setTwoFactorStatus({ enabled: true, enabledAt: new Date().toISOString(), recoveryCodesRemaining: (response.data.recoveryCodes || []).length })
+      notify('Autentificarea în doi pași este activă. Salvează codurile de recuperare înainte să închizi fereastra.')
+    } catch (err) {
+      fail(err, 'Codul din aplicația Authenticator nu a putut fi confirmat.')
+    } finally {
+      setTwoFactorSaving(false)
+    }
+  }
+
+  async function regenerateTwoFactorRecoveryCodes(event) {
+    event.preventDefault()
+    setTwoFactorSaving(true)
+    try {
+      const response = await api.post('/auth/2fa/recovery-codes', { code: twoFactorRecoveryInput })
+      setTwoFactorRecoveryInput('')
+      setTwoFactorRecoveryCodes(response.data.recoveryCodes || [])
+      setTwoFactorStatus(current => ({ ...current, recoveryCodesRemaining: (response.data.recoveryCodes || []).length }))
+      notify('Au fost generate coduri noi de recuperare. Cele vechi nu mai sunt valabile.')
+    } catch (err) {
+      fail(err, 'Nu am putut regenera codurile de recuperare.')
+    } finally {
+      setTwoFactorSaving(false)
+    }
   }
 
   function applyCountryProfile(countryCode) {
@@ -1749,6 +1824,27 @@ export default function SetariPage() {
     setVerifyHr(false)
     setVerifyResult(null)
     setUserModal(true)
+  }
+
+  function openDemoAccessExpiry(user) {
+    setDemoAccessUser(user)
+    setDemoAccessExpiresAt(demoAccessDateInputValue(user.demoAccessExpiresAt))
+  }
+
+  async function saveDemoAccessExpiry(event) {
+    event.preventDefault()
+    if (!demoAccessUser) return
+    setDemoAccessSaving(true)
+    try {
+      const response = await api.patch(`/users/${demoAccessUser.id}/demo-access-expiry`, { expiresAt: demoAccessExpiresAt })
+      setUsers(current => current.map(item => item.id === demoAccessUser.id ? response.data.user : item))
+      setDemoAccessUser(null)
+      notify(demoAccessExpiresAt ? 'Valabilitatea accesului Demo a fost actualizată.' : 'Termenul de expirare al accesului Demo a fost eliminat.')
+    } catch (err) {
+      fail(err, 'Valabilitatea accesului Demo nu a putut fi actualizată.')
+    } finally {
+      setDemoAccessSaving(false)
+    }
   }
 
   async function verifyEmployee() {
@@ -2718,8 +2814,8 @@ export default function SetariPage() {
         ]}
       />
 
-      {message && <Card className="border-primary-100 bg-primary-50 text-sm text-primary-700">{message}</Card>}
-      {error && <Card className="whitespace-pre-line border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
+      {message && <FeedbackToast onClose={() => setMessage('')}>{message}</FeedbackToast>}
+      {error && <FeedbackToast tone="error" onClose={() => setError('')}>{error}</FeedbackToast>}
 
       <SettingsSetupAssistant
         steps={onboardingSteps}
@@ -3163,6 +3259,29 @@ export default function SetariPage() {
 
       {activeTab === 'Securitate' && (
         <div className="grid gap-4">
+          {currentUser?.role === 'superadmin' ? (
+            <Card
+              title="Autentificare în doi pași"
+              subtitle="Protejează contul de superadmin cu un cod temporar din Google Authenticator, Microsoft Authenticator, 1Password sau o aplicație compatibilă."
+              actions={twoFactorStatus?.enabled
+                ? [<Button key="2fa-recovery" variant="secondary" onClick={() => { setTwoFactorRecoveryInput(''); setTwoFactorRecoveryCodes([]); setTwoFactorSetup({ recoveryOnly: true }) }}>Generează coduri noi</Button>]
+                : [<Button key="2fa-setup" disabled={twoFactorSaving} onClick={beginTwoFactorSetup}>{twoFactorSaving ? 'Se pregătește...' : 'Configurează 2FA'}</Button>]}
+            >
+              {twoFactorStatus?.enabled ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+                  <div>
+                    <div className="font-semibold">2FA este activă pentru acest cont</div>
+                    <div className="mt-1 text-xs text-emerald-800">Activată: {twoFactorStatus.enabledAt ? formatDateTime(twoFactorStatus.enabledAt) : '-'} · Coduri de recuperare rămase: {twoFactorStatus.recoveryCodesRemaining ?? 0}</div>
+                  </div>
+                  {(twoFactorStatus.recoveryCodesRemaining ?? 0) < 3 ? <Badge tone="warning">Generează coduri noi</Badge> : <Badge tone="success">Protejat</Badge>}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                  2FA nu este încă activă. După configurare, parola singură nu va mai putea deschide contul de superadmin.
+                </div>
+              )}
+            </Card>
+          ) : null}
           <Card
             title="Securitate & acces"
             subtitle="Diagnostic pentru acces local, acces remote, sesiuni active, stații autorizate și protecția bazei de date."
@@ -3719,15 +3838,30 @@ export default function SetariPage() {
             </div>
           ) : null}
           <div className="mt-4 rounded-lg border border-slate-200 p-4">
-            <h2 className="text-xl font-semibold text-slate-900">INFRAFLOW {license?.pachet || '-'}</h2>
+            <h2 className="text-xl font-semibold text-slate-900">INFRAFLOW {license?.commercialProfile?.label || license?.pachet || '-'}</h2>
+            {license?.commercialProfile ? <p className="mt-1 text-sm text-slate-600">{license.commercialProfile.description}</p> : null}
             <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
               <div>ID licență: <strong>{license?.licenseId || '-'}</strong></div>
               <div>Client: <strong>{license?.client?.nume || '-'}</strong></div>
               <div>Valabil până la: <strong>{formatDate(license?.valabilitate?.expira_la)}</strong></div>
               <div>Zile rămase: <strong>{licenseDays ?? license?.zile_pana_expirare ?? '-'}</strong></div>
-              <div>Utilizatori: <strong>{users.length}/{userLimit || '-'}</strong></div>
+              <div>Utilizatori activi: <strong>{license?.usage?.active ?? users.filter(user => user.active !== false).length}/{license?.usage?.limit || userLimit || '-'}</strong></div>
             </div>
           </div>
+          {license?.usage?.status && license.usage.status !== 'within' && license.usage.status !== 'unknown' ? (
+            <div className={`mt-4 rounded-lg border p-4 text-sm ${license.usage.status === 'over' || license.usage.status === 'at_limit' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-sky-200 bg-sky-50 text-sky-900'}`}>
+              <strong>{license.usage.status === 'over' ? 'Limită de utilizatori depășită' : license.usage.status === 'at_limit' ? 'Limita de utilizatori a fost atinsă' : 'Mai este disponibil un singur loc'}</strong>
+              <div className="mt-1">Aplicația rămâne funcțională: nu sunt blocate conturi, sesiuni sau activități. Verifică pachetul/licența înainte să extinzi echipa.</div>
+            </div>
+          ) : null}
+          {license?.commercialProfile ? (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="font-semibold text-slate-900">Pachet comercial inclus</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {license.commercialProfile.modules.map(module => <span key={module} className="rounded-full border border-primary-100 bg-white px-3 py-1 text-xs font-medium text-primary-800">{module.replaceAll('_', ' ')}</span>)}
+              </div>
+            </div>
+          ) : null}
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {allModules.map(mod => (
               <div key={mod} className="flex items-center gap-2 rounded border border-slate-200 p-2 text-sm">
@@ -4131,6 +4265,13 @@ export default function SetariPage() {
                 )
               } },
               { key: 'department', label: 'Departament', render: row => row.department || row.departmentId || row.department_id || '-' },
+              { key: 'demo_access', label: 'Acces Demo', render: row => {
+                if (!isWebsiteDemoUser(row)) return '-'
+                if (row.demoInvitePending) return <span className="text-amber-700">În așteptare activare</span>
+                if (!row.demoAccessExpiresAt) return <span className="text-slate-600">Fără termen</span>
+                const expired = Date.parse(row.demoAccessExpiresAt) <= Date.now()
+                return <span className={expired ? 'font-medium text-rose-700' : 'font-medium text-primary-700'}>{expired ? 'Expirat: ' : 'Până la: '}{formatDate(row.demoAccessExpiresAt)}</span>
+              } },
               { key: 'manager', label: 'Manager', render: row => users.find(u => String(u.id) === String(row.manager_id || row.managerId))?.name || '-' },
               { key: 'kiosk_access', label: 'Acces Kiosk', render: row => (
                 <span
@@ -4153,6 +4294,7 @@ export default function SetariPage() {
               { key: 'actions', label: '', render: row => (
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="secondary" onClick={() => openEditUser(row)}>Editează</Button>
+                  {currentUser?.role === 'superadmin' && isWebsiteDemoUser(row) ? <Button size="sm" variant="secondary" onClick={() => openDemoAccessExpiry(row)}>Valabilitate Demo</Button> : null}
                   <Button size="sm" variant="ghost" onClick={() => { setResetUser(row); setResetPassword('') }}>Resetează parola</Button>
                 </div>
               ) },
@@ -4531,7 +4673,7 @@ export default function SetariPage() {
 
           <Card
             title="Onboarding organizație"
-            subtitle="Transformă configurarea inițială într-un traseu clar: module, utilizatori, departamente, notificări și date companie."
+            subtitle={`Transformă configurarea inițială într-un traseu clar${license?.commercialProfile?.label ? ` pentru pachetul ${license.commercialProfile.label}` : ''}: module, utilizatori, departamente, notificări și date companie.`}
           >
             <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
               <div>
@@ -5576,6 +5718,74 @@ export default function SetariPage() {
           </label>
           <Button type="submit">Salvează</Button>
         </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(twoFactorSetup || twoFactorRecoveryCodes.length)}
+        title={twoFactorRecoveryCodes.length ? 'Coduri de recuperare 2FA' : twoFactorSetup?.recoveryOnly ? 'Generează coduri noi de recuperare' : 'Configurează autentificarea în doi pași'}
+        onClose={() => { if (!twoFactorSaving) { setTwoFactorSetup(null); setTwoFactorRecoveryCodes([]); setTwoFactorCode(''); setTwoFactorRecoveryInput('') } }}
+        size="lg"
+      >
+        {twoFactorRecoveryCodes.length ? (
+          <div className="grid gap-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+              Salvează aceste coduri într-un loc sigur. Fiecare poate fi folosit o singură dată când nu ai acces la aplicația Authenticator. Nu le vom mai afișa după închiderea ferestrei.
+            </div>
+            <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm sm:grid-cols-2">
+              {twoFactorRecoveryCodes.map(code => <div key={code} className="rounded bg-white px-3 py-2 text-slate-900">{code}</div>)}
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setTwoFactorRecoveryCodes([])}>Am salvat codurile</Button>
+            </div>
+          </div>
+        ) : twoFactorSetup?.recoveryOnly ? (
+          <form className="grid gap-4" onSubmit={regenerateTwoFactorRecoveryCodes}>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              Codurile vechi vor deveni invalide imediat. Confirmă cu un cod curent din Authenticator sau cu un cod de recuperare rămas.
+            </div>
+            <Input label="Cod de confirmare" value={twoFactorRecoveryInput} onChange={event => setTwoFactorRecoveryInput(event.target.value)} autoComplete="one-time-code" required />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" disabled={twoFactorSaving} onClick={() => setTwoFactorSetup(null)}>Anulează</Button>
+              <Button type="submit" disabled={twoFactorSaving}>{twoFactorSaving ? 'Se generează...' : 'Generează coduri noi'}</Button>
+            </div>
+          </form>
+        ) : twoFactorSetup ? (
+          <form className="grid gap-4" onSubmit={confirmTwoFactorSetup}>
+            <div className="rounded-xl border border-primary-100 bg-primary-50 p-3 text-sm text-primary-950">
+              În aplicația Authenticator, alege adăugare cont manual, tip <strong>TOTP / bazat pe timp</strong>, apoi introdu cheia de mai jos. Această cheie expiră în 10 minute și nu va fi stocată până nu confirmi codul.
+            </div>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Cheie secretă
+              <code className="select-all break-all rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-900">{twoFactorSetup.secret}</code>
+            </label>
+            <Input label="Codul curent din Authenticator" value={twoFactorCode} onChange={event => setTwoFactorCode(event.target.value)} autoComplete="one-time-code" required />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" disabled={twoFactorSaving} onClick={() => setTwoFactorSetup(null)}>Anulează</Button>
+              <Button type="submit" disabled={twoFactorSaving}>{twoFactorSaving ? 'Se confirmă...' : 'Activează 2FA'}</Button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(demoAccessUser)} title="Valabilitate acces Demo" onClose={() => { if (!demoAccessSaving) setDemoAccessUser(null) }}>
+        {demoAccessUser ? (
+          <form className="grid gap-4" onSubmit={saveDemoAccessExpiry}>
+            <div className="rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm text-primary-950">
+              <strong>{demoAccessUser.name || demoAccessUser.username}</strong> · {demoAccessUser.email || demoAccessUser.username}
+              <div className="mt-1 text-xs text-primary-800">Cont creat dintr-o solicitare de pe site. Termenul standard este de 15 zile de la activarea contului.</div>
+            </div>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Valabil până la
+              <input type="date" value={demoAccessExpiresAt} onChange={event => setDemoAccessExpiresAt(event.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
+              <span className="text-xs font-normal text-slate-500">Accesul se oprește automat după această dată, fără a șterge sau dezactiva contul.</span>
+            </label>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="secondary" disabled={demoAccessSaving} onClick={() => setDemoAccessExpiresAt('')}>Fără termen</Button>
+              <Button type="button" variant="secondary" disabled={demoAccessSaving} onClick={() => setDemoAccessUser(null)}>Anulează</Button>
+              <Button type="submit" disabled={demoAccessSaving}>{demoAccessSaving ? 'Se salvează...' : 'Salvează valabilitatea'}</Button>
+            </div>
+          </form>
+        ) : null}
       </Modal>
 
       <Modal open={Boolean(moduleConfig)} onClose={() => setModuleConfig(null)} title={moduleConfig ? `Configurează ${moduleConfig.label}` : 'Configurează modul'} size="lg">

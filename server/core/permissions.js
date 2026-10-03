@@ -582,6 +582,16 @@ const rolePermissions = {
 
 const DEFAULT_CUSTOM_ROLES = [
   {
+    id: 'demo-admin',
+    name: 'Administrator Demo',
+    description: 'Explorează Demo comercial fără acces la utilizatori, setări sensibile, audit sau administrarea sistemului.',
+    tip: 'default',
+    permissions: allPermissions.filter(permission => ![
+      'users:manage', 'settings:manage', 'audit:view', 'audit:manage',
+      'system:view', 'system:update', 'system:admin', 'integration:intersoft_import',
+    ].includes(permission)),
+  },
+  {
     id: 'sofer',
     name: 'Șofer',
     description: 'Primește și completează foi de parcurs. Acces la Kiosk și PWA /sofer.',
@@ -1129,6 +1139,10 @@ function adminUser(user) {
     implicitRoles: user.active !== false && user.active !== 0 ? ["angajat"] : [],
     employee_id: user.employee_id || "",
     verified_from_hr: Boolean(user.verified_from_hr),
+    createdBy: user.createdBy || "",
+    demoInvitePending: Boolean(user.demoInvitePending),
+    demoAccessExpiresAt: user.demoAccessExpiresAt || "",
+    demoAccessDurationDays: Number(user.demoAccessDurationDays || 0) || 0,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };

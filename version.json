@@ -1,5 +1,5 @@
 {
-  "version": "2.12.626",
-  "date": "2026-10-01",
-  "changelog": "## v2.12.626 - 2026-10-02\\n### Corecție sincronizare IMAP\\n- Răspunsul etichetat primit ca prim rând după LOGIN este recunoscut corect.\\n- Elimină timeout-ul fals la autentificare pentru providerii IMAP compatibili."
+  "version": "2.12.637",
+  "date": "2026-10-03",
+  "changelog": "## v2.12.637 - 2026-10-03\\n### Onboarding ghidat după pachet\\n- Dashboard-ul citește profilul comercial activ și afișează trei recomandări operaționale relevante pentru Start, Business, Operations sau Enterprise.\\n- Demo complet are propriul traseu de test, fără a schimba accesul ori datele demo.\\n- Checklistul universal rămâne scurt, iar Setări nu mai propune pași HR sau AI care nu aparțin pachetului licențiat.\\n- Modificarea este doar de ghidaj: nu schimbă licența, modulele active sau permisiunile."
 }

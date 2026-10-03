@@ -5,6 +5,7 @@ import { useGlobalNotifications } from '../../hooks/useGlobalNotifications'
 import { SettingsProvider } from '../../hooks/useSettings'
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
+import WorkspaceTabs from './WorkspaceTabs'
 
 const titles = {
   '/dashboard': 'Dashboard',
@@ -31,6 +32,11 @@ const titles = {
   '/secretariat': 'Registratură & Corespondență',
   '/setari': 'Setări',
   '/ai': 'AI Assistant',
+  '/contabilitate': 'Contabilitate',
+  '/contracte': 'Contracte',
+  '/crm': 'CRM / Vânzări',
+  '/taskuri': 'Task-uri',
+  '/kiosk': 'Kiosk Angajat',
 }
 
 export default function Layout({ children }) {
@@ -118,6 +124,7 @@ export default function Layout({ children }) {
           onToggleSidebarCollapsed={toggleSidebarCollapsed}
           sidebarCollapsed={sidebarCollapsed}
         />
+        <WorkspaceTabs location={location} label={title} onNavigate={navigate} />
         {presentationMode ? (
           <div className="border-b border-primary-100 bg-primary-50 px-4 py-2 text-sm text-primary-900">
             <div className="flex flex-wrap items-center justify-between gap-3">
