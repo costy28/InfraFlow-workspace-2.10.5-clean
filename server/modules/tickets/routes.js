@@ -9,6 +9,7 @@ const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = requ
 const { addAudit } = require('../../core/audit')
 const { notifyUser } = require('../messaging/routes')
 const { supportInfo } = require('./support-levels')
+const { supportPolicyForLicense, supportPolicyForPackage } = require('../../shared/commercialSupport')
 const router = Router()
 const TICKETS_STORAGE = path.join(__dirname, '../../../storage/tickets')
 
@@ -100,7 +101,12 @@ function canViewTicket(auth, ticket) {
   return ticket.asignat_la === auth.user.id
 }
 
-function publicTicket(ticket) {
+function supportPolicy(db) {
+  return supportPolicyForLicense(global.LICENTA || db?.settings?.license || {})
+}
+
+function publicTicket(ticket, policy = supportPolicy()) {
+  const ticketPolicy = ticket.support_package ? supportPolicyForPackage(ticket.support_package) : policy
   return {
     id: ticket.id,
     uuid: ticket.uuid,
@@ -118,9 +124,10 @@ function publicTicket(ticket) {
     termen_limita: ticket.termen_limita || null,
     entitate_tip: ticket.entitate_tip || null,
     entitate_id: ticket.entitate_id || null,
+    support_package: ticket.support_package || null,
     created_at: ticket.created_at,
     updated_at: ticket.updated_at || null,
-    support: supportInfo(ticket)
+    support: { ...supportInfo(ticket), service: ticketPolicy }
   }
 }
 
@@ -189,7 +196,7 @@ function mssqlTicket(uuid) {
   return mssqlArray(`
 DECLARE @uuid char(36) = JSON_VALUE(@p, '$.uuid');
 SELECT TOP 1 id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id,
-  asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, created_at, updated_at
+  asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
 FROM tickets.tickets
 WHERE uuid = @uuid
 FOR JSON PATH;
@@ -203,7 +210,7 @@ DECLARE @ticketId int;
 SELECT @ticketId = id FROM tickets.tickets WHERE uuid = @uuid;
 SELECT
   JSON_QUERY((SELECT TOP 1 id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id,
-    asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, created_at, updated_at
+    asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
     FROM tickets.tickets WHERE id = @ticketId FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS ticket,
   JSON_QUERY((SELECT id, ticket_id, user_id, tip, continut, vizibil_pentru_autor, created_at
     FROM tickets.comments WHERE ticket_id = @ticketId ORDER BY created_at ASC, id ASC FOR JSON PATH)) AS comments,
@@ -334,17 +341,19 @@ router.get('/tickets/my-open', (req, res, next) => {
       const tickets = mssqlArray(`
 DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
 SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id,
-  asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, created_at, updated_at
+  asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
 FROM tickets.tickets
 WHERE creat_de = @userId AND status NOT IN (N'rezolvat', N'inchis', N'respins')
 ORDER BY created_at DESC
 FOR JSON PATH;
 `, { userId: auth.user.id })
-      sendJson(res, 200, { tickets: tickets.map(publicTicket) })
+      const policy = supportPolicy(auth.db)
+      sendJson(res, 200, { tickets: tickets.map(ticket => publicTicket(ticket, policy)), support: policy })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
-    sendJson(res, 200, { tickets: ticketsDb.tickets.filter(ticket => ticket.creat_de === auth.user.id && !closedStatuses.has(ticket.status)).map(publicTicket) })
+    const policy = supportPolicy(auth.db)
+    sendJson(res, 200, { tickets: ticketsDb.tickets.filter(ticket => ticket.creat_de === auth.user.id && !closedStatuses.has(ticket.status)).map(ticket => publicTicket(ticket, policy)), support: policy })
   } catch (error) {
     next(error)
   }
@@ -368,7 +377,7 @@ DECLARE @status nvarchar(40) = NULLIF(JSON_VALUE(@p, '$.status'), N'');
 DECLARE @prioritate nvarchar(30) = NULLIF(JSON_VALUE(@p, '$.prioritate'), N'');
 DECLARE @dept nvarchar(64) = NULLIF(JSON_VALUE(@p, '$.dept'), N'');
 SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id,
-  asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, created_at, updated_at
+  asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
 FROM tickets.tickets
 WHERE (@canAll = 1 OR creat_de = @userId OR asignat_la = @userId OR (@canDept = 1 AND (dept_sursa_id = @deptId OR dept_responsabil_id = @deptId)))
   AND (@tip IS NULL OR tip = @tip)
@@ -378,12 +387,14 @@ WHERE (@canAll = 1 OR creat_de = @userId OR asignat_la = @userId OR (@canDept = 
 ORDER BY created_at DESC
 FOR JSON PATH;
 `, { userId: auth.user.id, deptId: auth.user.departmentId || '', canAll, canDept, tip: req.query.tip || '', status: req.query.status || '', prioritate: req.query.prioritate || '', dept: req.query.dept || '' })
-      sendJson(res, 200, { tickets: tickets.map(publicTicket) })
+      const policy = supportPolicy(auth.db)
+      sendJson(res, 200, { tickets: tickets.map(ticket => publicTicket(ticket, policy)), support: policy })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
-    const tickets = ticketsDb.tickets.filter(ticket => canViewTicket(auth, ticket) && ticketMatchesQuery(ticket, req.query)).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).map(publicTicket)
-    sendJson(res, 200, { tickets })
+    const policy = supportPolicy(auth.db)
+    const tickets = ticketsDb.tickets.filter(ticket => canViewTicket(auth, ticket) && ticketMatchesQuery(ticket, req.query)).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).map(ticket => publicTicket(ticket, policy))
+    sendJson(res, 200, { tickets, support: policy })
   } catch (error) {
     next(error)
   }
@@ -406,23 +417,23 @@ router.post('/tickets', upload.array('attachments'), (req, res, next) => {
       const ticket = mssqlJson(`
 DECLARE @created table (id int);
 INSERT INTO tickets.tickets (uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id,
-  asignat_la, creat_de, termen_limita, entitate_tip, entitate_id, updated_at)
+  asignat_la, creat_de, termen_limita, entitate_tip, entitate_id, support_package, updated_at)
 OUTPUT inserted.id INTO @created
 VALUES (JSON_VALUE(@p, '$.uuid'), JSON_VALUE(@p, '$.tip'), JSON_VALUE(@p, '$.prioritate'), N'deschis',
   JSON_VALUE(@p, '$.titlu'), JSON_VALUE(@p, '$.descriere'), NULLIF(JSON_VALUE(@p, '$.deptSursaId'), N''),
   NULLIF(JSON_VALUE(@p, '$.deptResponsabilId'), N''), NULLIF(JSON_VALUE(@p, '$.asignatLa'), N''),
   JSON_VALUE(@p, '$.creatDe'), TRY_CONVERT(datetime2, NULLIF(JSON_VALUE(@p, '$.termenLimita'), N'')),
-  NULLIF(JSON_VALUE(@p, '$.entitateTip'), N''), NULLIF(JSON_VALUE(@p, '$.entitateId'), N''), sysdatetime());
+  NULLIF(JSON_VALUE(@p, '$.entitateTip'), N''), NULLIF(JSON_VALUE(@p, '$.entitateId'), N''), NULLIF(JSON_VALUE(@p, '$.supportPackage'), N''), sysdatetime());
 SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id, asignat_la,
-  creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, created_at, updated_at
+  creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
 FROM tickets.tickets WHERE id = (SELECT TOP 1 id FROM @created)
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`, { uuid, tip, prioritate, titlu, descriere: body.descriere || '', deptSursaId: body.dept_sursa_id || auth.user.departmentId || '', deptResponsabilId: body.dept_responsabil_id || '', asignatLa: body.asignat_la || '', creatDe: auth.user.id, termenLimita: body.termen_limita || '', entitateTip: body.entitate_tip || '', entitateId: body.entitate_id || '' })
+`, { uuid, tip, prioritate, titlu, descriere: body.descriere || '', deptSursaId: body.dept_sursa_id || auth.user.departmentId || '', deptResponsabilId: body.dept_responsabil_id || '', asignatLa: body.asignat_la || '', creatDe: auth.user.id, termenLimita: body.termen_limita || '', entitateTip: body.entitate_tip || '', entitateId: body.entitate_id || '', supportPackage: supportPolicy(auth.db).key })
       addAudit(auth.db, auth.user, 'ticket_creat', titlu)
       const attachments = (req.files || []).map(file => createAttachmentRecord(auth.db, ticket, file, auth.user.id))
       if (attachments.length) addAudit(auth.db, auth.user, 'ticket_atasamente', `${titlu}: ${attachments.length} fisiere`)
       if (prioritate === 'critica' || prioritate === 'urgenta') notifyAdmins(auth.db, 'ticket_urgent', { ticket })
-      sendJson(res, 201, { ticket: publicTicket(ticket), attachments: publicTicketAttachments(attachments, ticket) })
+      sendJson(res, 201, { ticket: publicTicket(ticket, supportPolicy(auth.db)), attachments: publicTicketAttachments(attachments, ticket) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
@@ -443,6 +454,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
       termen_limita: body.termen_limita || null,
       entitate_tip: body.entitate_tip || null,
       entitate_id: body.entitate_id || null,
+      support_package: supportPolicy(auth.db).key,
       created_at: nowIso(),
       updated_at: nowIso()
     }
@@ -452,7 +464,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     if (attachments.length) addAudit(auth.db, auth.user, 'ticket_atasamente', `${titlu}: ${attachments.length} fisiere`)
     writeDb(auth.db)
     if (prioritate === 'critica' || prioritate === 'urgenta') notifyAdmins(auth.db, 'ticket_urgent', { ticket: publicTicket(ticket) })
-    sendJson(res, 201, { ticket: publicTicket(ticket), attachments: publicTicketAttachments(attachments, ticket) })
+    sendJson(res, 201, { ticket: publicTicket(ticket, supportPolicy(auth.db)), attachments: publicTicketAttachments(attachments, ticket) })
   } catch (error) {
     next(error)
   }
@@ -558,7 +570,7 @@ WHERE id = @ticketId;
 INSERT INTO tickets.comments (ticket_id, user_id, tip, continut, vizibil_pentru_autor)
 VALUES (@ticketId, @userId, N'statuschange', JSON_VALUE(@p, '$.comentariu'), 1);
 SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id, asignat_la,
-  creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, created_at, updated_at
+  creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
 FROM tickets.tickets WHERE id = @ticketId
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { ticketId: ticket.id, status, userId: auth.user.id, comentariu })
@@ -603,7 +615,7 @@ UPDATE tickets.tickets SET asignat_la = JSON_VALUE(@p, '$.asignatLa'), updated_a
 INSERT INTO tickets.comments (ticket_id, user_id, tip, continut, vizibil_pentru_autor)
 VALUES (@ticketId, JSON_VALUE(@p, '$.userId'), N'actiune', CONCAT(N'Asignat catre ', JSON_VALUE(@p, '$.asignatLa')), 1);
 SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id, asignat_la,
-  creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, created_at, updated_at
+  creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
 FROM tickets.tickets WHERE id = @ticketId
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { ticketId: ticket.id, asignatLa, userId: auth.user.id })

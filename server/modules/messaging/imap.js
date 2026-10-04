@@ -102,6 +102,20 @@ class SimpleImapClient {
     this.tag = 0
     this.socket = null
     this.buffer = ''
+    this.socketError = null
+    this.socketErrorListener = null
+  }
+
+  attachSocketErrorListener(socket) {
+    this.socketError = null
+    this.socketErrorListener = error => {
+      // Un socket IMAP poate fi închis de provider chiar după răspunsul la o
+      // comandă. Păstrăm un listener pe întreaga durată a conexiunii pentru ca
+      // ECONNRESET să fie tratat de următoarea comandă/sincronizare, nu ca o
+      // excepție globală care oprește serverul ERP.
+      this.socketError = error
+    }
+    socket.on('error', this.socketErrorListener)
   }
 
   connect() {
@@ -110,6 +124,7 @@ class SimpleImapClient {
         ? tls.connect({ host: this.host, port: this.port, servername: this.host, timeout: this.timeoutMs })
         : net.connect({ host: this.host, port: this.port, timeout: this.timeoutMs })
       this.socket = socket
+      this.attachSocketErrorListener(socket)
       const cleanup = () => {
         socket.off('error', onError)
         socket.off('timeout', onTimeout)
@@ -136,6 +151,14 @@ class SimpleImapClient {
     this.buffer = ''
     return new Promise((resolve, reject) => {
       const socket = this.socket
+      if (!socket) {
+        reject(new Error('Conexiunea IMAP nu este deschisă.'))
+        return
+      }
+      if (this.socketError) {
+        reject(this.socketError)
+        return
+      }
       const timer = setTimeout(() => {
         cleanup()
         reject(new Error(`Timeout IMAP la comanda ${commandText.split(' ')[0]}.`))

@@ -7,6 +7,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const DemoInvitePage = lazy(() => import('./pages/DemoInvitePage'))
 const SetariPage = lazy(() => import('./pages/SetariPage'))
+const CommercialOfferPage = lazy(() => import('./pages/CommercialOfferPage'))
 const DepartamentPage = lazy(() => import('./pages/DepartamentPage'))
 const ProductiePage = lazy(() => import('./pages/modules/ProductiePage'))
 const StocuriPage = lazy(() => import('./pages/modules/StocuriPage'))
@@ -154,6 +155,7 @@ export default function App() {
         <Route path="/taskuri/*" element={<WithLayout><TasksPage /></WithLayout>} />
         <Route path="/sesizari/*" element={<WithLayout><TicketsPage /></WithLayout>} />
         <Route path="/setari/*" element={<WithLayout><SetariPage /></WithLayout>} />
+        <Route path="/ofertare-interna" element={<WithLayout><CommercialOfferPage /></WithLayout>} />
         <Route path="/ai" element={<WithLayout><AiPage /></WithLayout>} />
         <Route path="/ai-assistant" element={<WithLayout><AiPage /></WithLayout>} />
         <Route path="/import-legacy" element={<WithLayout><ImportLegacyPage /></WithLayout>} />

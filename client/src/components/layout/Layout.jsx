@@ -31,6 +31,7 @@ const titles = {
   '/arhiva': 'Arhivă',
   '/secretariat': 'Registratură & Corespondență',
   '/setari': 'Setări',
+  '/ofertare-interna': 'Ofertare internă',
   '/ai': 'AI Assistant',
   '/contabilitate': 'Contabilitate',
   '/contracte': 'Contracte',

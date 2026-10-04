@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.641**
-**Versiune în lucru: v2.12.641**
+**Versiune curentă sursă: v2.12.649**
+**Versiune în lucru: v2.12.649**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -380,6 +380,14 @@ Core System
   ✅ Promovare internă controlată Preview → Stable, cu confirmare și istoric local (v2.12.639)
   ✅ Suport P1–P4 în Tichete, ținte operaționale și urmărire până la rezolvare (v2.12.640)
   ✅ Termene de răspuns suport în ore lucrătoare L–V 09:00–17:00 (v2.12.641)
+  ✅ Suport comercial afișat și păstrat pe tichet după pachetul licenței (v2.12.642)
+  ✅ Stabilitate IMAP: ECONNRESET nu mai oprește serverul local Windows (v2.12.643)
+  ✅ Ofertare internă separată de Setări, protejată pentru Superadmin (v2.12.644)
+  ✅ Fișă orientativă printabilă/PDF din ofertarea internă, fără persistare sau emitere (v2.12.645)
+  ✅ Draft email editabil din ofertarea internă, cu expediere manuală separată (v2.12.646)
+  ✅ Ofertare contractuală 1–12 luni, TVA/discount configurabile, curs BNR și proformă Oblio manuală (v2.12.647)
+  ✅ Catalog administrabil pentru tarifele pachetelor, extensiilor, implementării și utilizatorilor (v2.12.648)
+  ✅ Ofertare internă izolată implicit și creare controlată draft ofertă CRM (v2.12.649)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1103,9 +1111,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.641
+VERSIUNE CURENTĂ SURSĂ: 2.12.649
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.641 ⏳
+UPDATE ZIP CURENT: 2.12.649 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1555,6 +1563,14 @@ UPDATES ÎN LUCRU:
   2.12.639 → UPDATE 659 promovare controlată Preview spre Stable ⏳
   2.12.640 → UPDATE 660 suport P1–P4 în Tichete ⏳
   2.12.641 → UPDATE 661 termene răspuns suport în program de lucru ⏳
+  2.12.642 → UPDATE 662 suport comercial pe pachet licență ⏳
+  2.12.643 → UPDATE 663 stabilitate sincronizare IMAP Windows ⏳
+  2.12.644 → UPDATE 664 ofertare internă Superadmin ⏳
+  2.12.645 → UPDATE 665 fișă printabilă ofertare internă Superadmin ⏳
+  2.12.646 → UPDATE 666 draft email ofertare internă Superadmin ⏳
+  2.12.647 → UPDATE 667 ofertare contractuală, curs BNR și proformă Oblio ⏳
+  2.12.648 → UPDATE 668 catalog tarife administrabil ⏳
+  2.12.649 → UPDATE 669 ofertare internă izolată și predare CRM ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2051,5 +2067,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.641*
+*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.649*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

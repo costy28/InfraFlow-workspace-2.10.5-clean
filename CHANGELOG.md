@@ -4731,6 +4731,66 @@
 - Pașii operaționali afișați duc numai la modulele relevante profilului; checklistul comun de instalare rămâne vizibil și scurt.
 - În Setări, pașii condiționați (HR, email, AI) se bazează pe pachetul licențiat când acesta este disponibil.
 
+## v2.12.649 - 2026-10-04
+
+### Ofertare internă izolată și predare în CRM
+
+- Instrumentul de ofertare internă este invizibil și inaccesibil implicit, inclusiv în Demo; se activează doar local prin `INFRAFLOW_INTERNAL_OFFERING=1`.
+- O simulare poate crea, numai la cerere, un draft CRM cu liniile, moneda, discountul, TVA-ul și cursul BNR păstrate editabil.
+- Trimiterea, acceptarea, comanda și proforma Oblio rămân pași separați, controlați manual.
+
+## v2.12.648 - 2026-10-04
+
+### Catalog de tarife administrabil
+
+- Pachetele, implementarea, utilizatorii incluși/suplimentari și extensiile au tarife standard editabile din Ofertare internă.
+- Catalogul se salvează în configurația organizației, este validat pe server și are audit; simulările noi folosesc valorile salvate.
+- Oferta CRM finală păstrează editarea individuală a prețului, discountului și TVA-ului pe poziție.
+
+## v2.12.647 - 2026-10-04
+
+### Ofertare contractuală, curs BNR și proformă Oblio
+- Calculatorul intern include perioada contractată, discountul comercial și TVA configurabil, inclusiv 0%.
+- Pentru RON, cursul EUR/RON este citit din XML-ul oficial BNR și păstrat cu data emiterii.
+- Proforma Oblio se emite manual și idempotent dintr-o comandă CRM confirmată; linkul Oblio poate conduce la plata Netopia.
+
+## v2.12.646 - 2026-10-04
+
+### Draft email din ofertarea internă
+
+- Calculatorul poate crea un draft în Mesaje cu pachetul, extensiile, utilizatorii, implementarea și valabilitatea simulării.
+- Draftul se deschide pentru editare; nu se trimite automat și nu păstrează fișa PDF ca atașament.
+
+## v2.12.645 - 2026-10-04
+
+### Fișă printabilă ofertare internă
+
+- Simularea poate genera o fișă orientativă pregătită pentru tipărire sau salvare PDF direct din browser.
+- Clientul, persoana de contact și valabilitatea sunt opționale și rămân locale în ecran; nu se salvează, nu se trimite email și nu se emite licență.
+
+## v2.12.644 - 2026-10-04
+
+### Ofertare internă
+
+- Superadmin poate simula pachete, extensii, utilizatori nominali, Hosted/On-Premise și implementare într-un ecran separat de Setări.
+- Calculatorul păstrează separat abonamentul lunar și costul inițial; Enterprise și dezvoltările personalizate sunt marcate pentru ofertă contractuală.
+- Prețurile sunt servite exclusiv prin endpointuri protejate pentru Superadmin; nu sunt expuse în catalogul de licență.
+
+## v2.12.643 - 2026-10-04
+
+### Stabilitate sincronizare IMAP
+
+- O întrerupere tranzitorie a conexiunii IMAP, inclusiv `ECONNRESET`, nu mai poate opri serverul local Windows.
+- Sincronizarea emailului păstrează eroarea ca diagnostic și se reia la execuția programată următoare.
+
+## v2.12.642 - 2026-10-04
+
+### Suport comercial pe pachet
+
+- Licența afișează canalul și regula de prioritate pentru Start, Business, Operations sau Enterprise.
+- Tichetele noi păstrează pachetul comercial activ la creare, inclusiv în SQL Server; cele istorice rămân intacte.
+- Enterprise indică SLA numai ca regulă contractuală, fără promisiuni automate neconfigurate.
+
 ## v2.12.641 - 2026-10-04
 
 ### Termene de răspuns suport în program de lucru

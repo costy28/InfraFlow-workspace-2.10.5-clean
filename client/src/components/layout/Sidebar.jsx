@@ -46,6 +46,7 @@ const groups = [
     label: 'SISTEM',
     items: [
       { to: '/setari', icon: '⚙️', label: 'Setări', adminOnly: true },
+      { to: '/ofertare-interna', icon: '🧾', label: 'Ofertare internă', superadminOnly: true, internalOnly: true },
       { to: '/import-date-vechi', icon: '📥', label: 'Import date vechi', adminOnly: true },
       { to: '/ai-assistant', icon: '🤖', label: 'AI Assistant', moduleKey: 'ai', adminOnly: true, ai: true, badge: aiEnabled => aiEnabled ? 'BETA' : 'INACTIV' },
       { to: '/ajutor', icon: '❓', label: 'Ajutor', adminOnly: true },
@@ -93,6 +94,7 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
   const { user } = useAuth()
   const [departments, setDepartments] = useState([])
   const [hasMyVehicle, setHasMyVehicle] = useState(false)
+  const [internalCommercialOffering, setInternalCommercialOffering] = useState(false)
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : []
   const userRoles = normalizedRoles(user)
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
@@ -112,6 +114,8 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
   }
   const isVisible = item =>
     (!item.adminOnly || isAdmin) &&
+    (!item.superadminOnly || userRoles.includes('superadmin')) &&
+    (!item.internalOnly || internalCommercialOffering) &&
     (!item.myVehicleOnly || hasMyVehicle) &&
     hasItemPermission(item) &&
     moduleIsActive(item) &&
@@ -124,7 +128,14 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
     api.get('/fleet/my-vehicle')
       .then(() => setHasMyVehicle(true))
       .catch(() => setHasMyVehicle(false))
-  }, [])
+    if (userRoles.includes('superadmin')) {
+      api.get('/commercial/offers/status')
+        .then(response => setInternalCommercialOffering(response.data?.enabled === true))
+        .catch(() => setInternalCommercialOffering(false))
+    } else {
+      setInternalCommercialOffering(false)
+    }
+  }, [user?.role])
 
   function renderGroup(label, items) {
     const visibleItems = items.filter(isVisible)

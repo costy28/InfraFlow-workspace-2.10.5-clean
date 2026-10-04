@@ -11,6 +11,7 @@ function configFromSettings(settings = {}) {
     clientSecret: decryptSettingSecret(settings.oblio_client_secret_encrypted || ''),
     cif: String(settings.oblio_company_cif || '').trim(),
     invoiceSeries: String(settings.oblio_invoice_series || '').trim(),
+    proformaSeries: String(settings.oblio_proforma_series || settings.oblio_invoice_series || '').trim(),
     language: String(settings.oblio_language || 'RO').trim().toUpperCase(),
     useStock: false
   }
@@ -90,9 +91,17 @@ function buildInvoicePayload({ config, order, client, document }) {
   }
 }
 
+function buildProformaPayload({ config, order, client, document }) {
+  const payload = buildInvoicePayload({ config: { ...config, invoiceSeries: config.proformaSeries }, order, client, document })
+  delete payload.deliveryDate
+  delete payload.spvExtern
+  payload.internalNote = `InfraFlow CRM proformă ${order.order_number}`
+  return payload
+}
+
 function clientFromAccounting(db, order) {
   const client = ensureAccounting(db).thirdParties.find(item => String(item.id) === String(order.accounting_third_party_id))
-  if (!client) throw Object.assign(new Error('Factura draft nu are terț contabil valid.'), { status: 422 })
+  if (!client) throw Object.assign(new Error('Comanda nu are terț contabil valid pentru documentul Oblio.'), { status: 422 })
   return { cif: client.cui || client.cif || '', name: client.denumire, address: client.adresa || '', city: client.localitate || '', state: client.judet || '', country: client.tara || 'RO', email: client.email || '', phone: client.telefon || '', vatPayer: client.platitor_tva ? 1 : 0, save: 0 }
 }
 async function emitInvoice({ db, order, actor, fetchImpl = global.fetch }) {
@@ -112,4 +121,20 @@ async function emitInvoice({ db, order, actor, fetchImpl = global.fetch }) {
   return { document: completed, idempotent: false }
 }
 
-module.exports = { configFromSettings, authorize, testConnection, buildInvoicePayload, emitInvoice }
+async function emitProforma({ db, order, actor, fetchImpl = global.fetch }) {
+  const config = configFromSettings(db.settings || {})
+  assertConfigured(config)
+  if (!config.proformaSeries) throw Object.assign(new Error('Completează seria de proforme Oblio înainte de emitere.'), { status: 422 })
+  if (order.status !== 'confirmed') throw Object.assign(new Error('Proforma Oblio se poate emite numai pentru o comandă confirmată.'), { status: 409 })
+  const document = billingDocuments.createOrGet({ orderId: order.id, documentKind: 'proforma', providerKey: 'oblio', idempotencyKey: `crm-oblio:order:${order.id}:proforma`, request: { order_number: order.order_number, total: order.total, currency: order.currency }, actor })
+  if (document.provider_document_id) return { document, idempotent: true }
+  const token = await authorize(config, fetchImpl)
+  const payload = buildProformaPayload({ config, order, client: clientFromAccounting(db, order), document })
+  const response = await fetchImpl('https://www.oblio.eu/api/docs/proforma', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(20000) })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok || !result?.data?.number) throw Object.assign(new Error(result.statusMessage || result.message || 'Oblio nu a emis proforma.'), { status: 422 })
+  const completed = billingDocuments.completeInternal(document.id, { providerDocumentId: `${result.data.seriesName}-${result.data.number}`, status: 'issued', response: { provider: 'oblio', series: result.data.seriesName, number: result.data.number, link: result.data.link || '', order_number: order.order_number, payment_provider: 'netopia_via_oblio' }, actor })
+  return { document: completed, idempotent: false }
+}
+
+module.exports = { configFromSettings, authorize, testConnection, buildInvoicePayload, buildProformaPayload, emitInvoice, emitProforma }

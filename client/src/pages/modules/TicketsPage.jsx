@@ -144,6 +144,7 @@ export default function TicketsPage() {
   const [activeTab, setActiveTab] = useState('Ale mele')
   const [supportFilter, setSupportFilter] = useState('toate')
   const [tickets, setTickets] = useState([])
+  const [supportPolicy, setSupportPolicy] = useState(null)
   const [selected, setSelected] = useState(null)
   const [details, setDetails] = useState({ ticket: null, comments: [], attachments: [], escalations: [] })
   const [newOpen, setNewOpen] = useState(false)
@@ -167,6 +168,7 @@ export default function TicketsPage() {
     try {
       const response = await api.get('/tickets')
       setTickets(arrayFrom(response.data, ['tickets']))
+      setSupportPolicy(response.data?.support || null)
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut încărca sesizările.')
     } finally {
@@ -325,6 +327,14 @@ export default function TicketsPage() {
           <h2 className="font-semibold text-slate-900">Suport și urmărire până la rezolvare</h2>
           <p className="mt-1 text-sm text-slate-600">Răspuns inițial: P1 2h, P2 4h, P3 1 zi, P4 2 zile lucrătoare; L–V, 09:00–17:00. Nu reprezintă timp garantat de rezolvare.</p>
         </div>
+        {supportPolicy ? (
+          <div className="grid gap-2 rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm text-primary-950 md:grid-cols-3">
+            <div><span className="block text-xs font-medium uppercase tracking-wide text-primary-700">Pachet</span><strong>{supportPolicy.label}</strong></div>
+            <div><span className="block text-xs font-medium uppercase tracking-wide text-primary-700">Canal</span><strong>{supportPolicy.channel}</strong></div>
+            <div><span className="block text-xs font-medium uppercase tracking-wide text-primary-700">Prioritate</span><strong>{supportPolicy.priority}</strong></div>
+            <p className="md:col-span-3">{supportPolicy.summary}</p>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           {[['toate', 'Toate'], ['P1', `P1 · ${supportCounts.P1}`], ['P2', `P2 · ${supportCounts.P2}`], ['P3', `P3 · ${supportCounts.P3}`], ['P4', `P4 · ${supportCounts.P4}`], ['depasite', `Depășite · ${supportCounts.depasite}`]].map(([value, text]) => (
             <Button key={value} variant={supportFilter === value ? 'primary' : 'secondary'} onClick={() => setSupportFilter(value)}>{text}</Button>
@@ -444,6 +454,7 @@ export default function TicketsPage() {
 
       <Modal open={newOpen} title="Ticket nou" onClose={() => setNewOpen(false)}>
         <form className="grid gap-3" onSubmit={createTicket}>
+          {supportPolicy ? <div className="rounded-md border border-primary-100 bg-primary-50 p-3 text-sm text-primary-900"><strong>{supportPolicy.label}: {supportPolicy.channel}.</strong><div className="mt-1">{supportPolicy.client_notice}</div></div> : null}
           <div className="grid gap-3 md:grid-cols-2">
             <Select label="Tip" value={form.tip} onChange={event => setForm(current => ({ ...current, tip: event.target.value }))} options={ticketTypes} />
             <Select label="Prioritate" value={form.prioritate} onChange={event => setForm(current => ({ ...current, prioritate: event.target.value }))} options={priorities} />

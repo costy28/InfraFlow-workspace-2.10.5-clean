@@ -10,7 +10,7 @@ const orderRepository = require('./order-repository')
 const inventoryCheckRepository = require('./inventory-check-repository')
 const { inventoryPort, procurementPort, billingPort } = require('./ports')
 const billingDocumentRepository = require('./billing-document-repository')
-const { testConnection: testOblioConnection, emitInvoice: emitOblioInvoice } = require('./ports/oblio')
+const { testConnection: testOblioConnection, emitInvoice: emitOblioInvoice, emitProforma: emitOblioProforma } = require('./ports/oblio')
 const { normalizeQuote } = require('./quote-service')
 const { sendEmail, recordOutboundEmail } = require('../messaging/email')
 const { persistQuoteDocument, readQuoteDocument } = require('./quote-document')
@@ -685,6 +685,19 @@ router.post('/crm/customer-orders/:id/oblio/invoice', async (req, res) => {
     auditWrite(auth, 'crm:oblio_invoice_issued', { orderId: order.id, billingDocumentId: result.document.id, providerDocumentId: result.document.provider_document_id, idempotent: result.idempotent })
     return res.status(result.idempotent ? 200 : 201).json(result)
   } catch (error) { return apiError(res, error, 'Factura nu a putut fi emisă în Oblio.') }
+})
+
+router.post('/crm/customer-orders/:id/oblio/proforma', async (req, res) => {
+  const auth = requireCrm(req, res, 'crm:billing_request')
+  if (!auth) return
+  try {
+    if (req.body?.confirmed !== true) return res.status(422).json({ error: 'Confirmă emiterea proformei Oblio.' })
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    const result = await emitOblioProforma({ db: auth.db, order, actor: actorId(auth.user) })
+    auditWrite(auth, 'crm:oblio_proforma_issued', { orderId: order.id, billingDocumentId: result.document.id, providerDocumentId: result.document.provider_document_id, idempotent: result.idempotent })
+    return res.status(result.idempotent ? 200 : 201).json(result)
+  } catch (error) { return apiError(res, error, 'Proforma Oblio nu a putut fi emisă.') }
 })
 
 router.post('/crm/quotes/:id/send', async (req, res) => {

@@ -3877,6 +3877,16 @@ export default function SetariPage() {
               </div>
             </div>
           ) : null}
+          {license?.support ? (
+            <div className="mt-4 rounded-lg border border-primary-100 bg-primary-50 p-4 text-sm text-primary-950">
+              <div className="font-semibold">Suport inclus în pachetul {license.support.label}</div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                <div><span className="text-primary-700">Canal: </span><strong>{license.support.channel}</strong></div>
+                <div><span className="text-primary-700">Prioritate: </span><strong>{license.support.priority}</strong></div>
+              </div>
+              <p className="mt-2">{license.support.summary}</p>
+            </div>
+          ) : null}
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {allModules.map(mod => (
               <div key={mod} className="flex items-center gap-2 rounded border border-slate-200 p-2 text-sm">

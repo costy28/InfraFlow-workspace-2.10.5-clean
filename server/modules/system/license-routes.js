@@ -3,11 +3,14 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, requireSuperadmin } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { verificaLicenta, incarcaLicenta } = require('../../core/license')
 const { isIsolatedCommercialDemo, commercialDemoLicense } = require('../../shared/commercialDemo')
+const { supportPolicyForLicense } = require('../../shared/commercialSupport')
+const { commercialOfferCatalog, calculateCommercialOffer, validateCommercialOfferCatalog } = require('../../shared/commercialOffer')
+const { eurRonRateForDate } = require('../../shared/bnrRates')
 
 const licenseUpload = multer({
   storage: multer.memoryStorage(),
@@ -22,6 +25,10 @@ const COMMERCIAL_PROFILES = [
   { key: 'operations', label: 'Operations', maxUsers: 20, modules: ['core', 'documents', 'messaging', 'tickets', 'crm', 'inventory', 'procurement', 'contract_management', 'production', 'fleet', 'technical', 'field', 'controlling'], description: 'Business plus producție, teren, flotă, echipamente și controlling.' },
   { key: 'enterprise', label: 'Enterprise', maxUsers: 30, modules: ['core', 'documents', 'messaging', 'tickets', 'crm', 'inventory', 'procurement', 'contract_management', 'production', 'fleet', 'technical', 'field', 'controlling', 'hr', 'accounting', 'legal', 'archive', 'secretariat'], description: 'Operations plus HR, contabilitate, juridic, registratură și arhivă.' },
 ]
+
+function internalCommercialOfferingEnabled(db) {
+  return process.env.INFRAFLOW_INTERNAL_OFFERING === '1' && !isIsolatedCommercialDemo(db)
+}
 
 function commercialProfile(license = {}) {
   const normalized = String(license.pachet || '').trim().toLowerCase()
@@ -72,6 +79,7 @@ function publicLicenseStatus(status, db) {
     zile_pana_expirare: status.zile_pana_expirare ?? null,
     zile_gratie: status.zile_gratie ?? null,
     commercialProfile: commercialProfile(license),
+    support: supportPolicyForLicense(license),
     commercialProfiles: COMMERCIAL_PROFILES,
     usage: userUsage(db, license),
   }
@@ -96,6 +104,62 @@ function createSystemLicenseRouter(context) {
         ? { valida: true, demo: true, in_gratie: false, expirata: false, licenta: commercialDemoLicense(auth.db, runtimeStatus.licenta) }
         : runtimeStatus
       sendJson(res, 200, { license: publicLicenseStatus(status, auth.db) })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/commercial/offers/catalog', (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requireSuperadmin(auth, res)) return
+      if (!internalCommercialOfferingEnabled(auth.db)) throwHttp(404, 'Instrumentul intern de ofertare nu este activ pentru această instalație.')
+      sendJson(res, 200, commercialOfferCatalog(auth.db.settings))
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/commercial/offers/status', (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requireSuperadmin(auth, res)) return
+      sendJson(res, 200, { enabled: internalCommercialOfferingEnabled(auth.db) })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.put('/commercial/offers/catalog', async (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requireSuperadmin(auth, res)) return
+      if (!internalCommercialOfferingEnabled(auth.db)) throwHttp(404, 'Instrumentul intern de ofertare nu este activ pentru această instalație.')
+      const catalog = validateCommercialOfferCatalog(await readJsonBody(req))
+      if (!auth.db.settings || typeof auth.db.settings !== 'object') auth.db.settings = {}
+      auth.db.settings.commercial_offer_catalog = catalog
+      addAudit(auth.db, auth.user, 'catalog_ofertare_comercial_actualizat', `Pachete: ${catalog.packages.map(item => item.label).join(', ')}; extensii: ${catalog.addons.length}`)
+      writeDb(auth.db)
+      sendJson(res, 200, commercialOfferCatalog(auth.db.settings))
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.post('/commercial/offers/preview', async (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requireSuperadmin(auth, res)) return
+      if (!internalCommercialOfferingEnabled(auth.db)) throwHttp(404, 'Instrumentul intern de ofertare nu este activ pentru această instalație.')
+      const body = await readJsonBody(req)
+      if (String(body.currency || 'EUR').toUpperCase() === 'RON') {
+        body.exchangeRate = await eurRonRateForDate(body.issueDate || new Date().toISOString().slice(0, 10))
+      }
+      sendJson(res, 200, { offer: calculateCommercialOffer(body, auth.db.settings) })
     } catch (error) {
       next(error)
     }

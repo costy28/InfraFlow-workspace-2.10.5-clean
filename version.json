@@ -1,5 +1,5 @@
 {
-  "version": "2.12.641",
-  "date": "2026-10-03",
-  "changelog": "## v2.12.641 - 2026-10-04\\n### Termene de răspuns suport în program de lucru\\n- P1/P2/P3/P4 respectă răspunsul inițial intern: 2 ore, 4 ore, 1 zi și 2 zile lucrătoare.\\n- Calculul folosește luni–vineri, 09:00–17:00, Europe/Bucharest; weekendul este exclus.\\n- Escaladarea unui P1 fără responsabil este reevaluată după 2 ore lucrătoare."
+  "version": "2.12.649",
+  "date": "2026-10-04",
+  "changelog": "## v2.12.649 - 2026-10-04\\n### Ofertare internă izolată și predare în CRM\\n- Instrumentul de ofertare internă este invizibil și inaccesibil implicit, inclusiv în Demo; se activează doar local prin INFRAFLOW_INTERNAL_OFFERING=1.\\n- O simulare poate crea, numai la cerere, un draft CRM cu liniile, moneda, discountul, TVA-ul și cursul BNR păstrate editabil.\\n- Trimiterea, acceptarea, comanda și proforma Oblio rămân pași separați, controlați manual."
 }
