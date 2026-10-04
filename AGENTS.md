@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.637**
-**Versiune în lucru: v2.12.637**
+**Versiune curentă sursă: v2.12.639**
+**Versiune în lucru: v2.12.639**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -376,6 +376,8 @@ Core System
   ✅ Autentificare în doi pași TOTP pentru superadmin, coduri de recuperare și audit (v2.12.635)
   ✅ Profil comercial licență și avertizare neblocantă la limita utilizatorilor (v2.12.636)
   ✅ Onboarding ghidat după pachetul comercial activ, fără pași irelevanți (v2.12.637)
+  ✅ Canale update Stable și Preview, controlate pe licență (v2.12.638)
+  ✅ Promovare internă controlată Preview → Stable, cu confirmare și istoric local (v2.12.639)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1099,9 +1101,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.637
+VERSIUNE CURENTĂ SURSĂ: 2.12.639
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.637 ⏳
+UPDATE ZIP CURENT: 2.12.639 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1547,6 +1549,8 @@ UPDATES ÎN LUCRU:
   2.12.635 → UPDATE 655 autentificare în doi pași superadmin ⏳
   2.12.636 → UPDATE 656 profil comercial licență și avertizare utilizatori ⏳
   2.12.637 → UPDATE 657 onboarding ghidat după pachet comercial ⏳
+  2.12.638 → UPDATE 658 canale update Stable și Preview ⏳
+  2.12.639 → UPDATE 659 promovare controlată Preview spre Stable ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2043,5 +2047,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 3 Octombrie 2026 | InfraFlow sursă v2.12.637*
+*AGENTS.md actualizat: 3 Octombrie 2026 | InfraFlow sursă v2.12.639*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

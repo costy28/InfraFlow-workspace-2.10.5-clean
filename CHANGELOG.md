@@ -4731,3 +4731,19 @@
 - Pașii operaționali afișați duc numai la modulele relevante profilului; checklistul comun de instalare rămâne vizibil și scurt.
 - În Setări, pașii condiționați (HR, email, AI) se bazează pe pachetul licențiat când acesta este disponibil.
 
+## v2.12.639 - 2026-10-03
+
+### Promovare controlată Preview spre Stable
+
+- Utilitar intern pentru promovarea unei versiuni exacte din payload-ul Preview în payload-ul Stable, cu confirmare explicită.
+- Promovarea păstrează un istoric local cu nota aprobării.
+- Scriptul nu semnează și nu publică nimic; acestea rămân operațiuni separate, controlate.
+
+## v2.12.638 - 2026-10-03
+
+### Canale update Stable și Preview
+
+- Stable rămâne canalul implicit pentru instalațiile client.
+- Preview poate fi selectat numai de superadmin, în Demo sau pe licențe autorizate explicit pentru testare.
+- Catalogul semnat este filtrat după canal la verificare și instalare; acest update nu publică un release Preview.
+

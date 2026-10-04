@@ -12,6 +12,7 @@ const {
   installUpdatePackage,
   scheduleApplicationRestart,
   verificaUpdateDisponibil,
+  updateChannelStatus,
   verificaCatalogCentralUpdate,
   instaleazaUpdateOnline
 } = require('./service')
@@ -194,7 +195,7 @@ function createSystemUpdateRouter(context) {
       if (forceRefresh || !updateCheckCache.data || updateCheckCache.data.versiune_curenta !== currentVersion || now - updateCheckCache.at > 60 * 60 * 1000) {
         updateCheckCache = {
           at: now,
-          data: await verificaUpdateDisponibil(global.LICENTA)
+          data: await verificaUpdateDisponibil(global.LICENTA, auth.db)
         }
       }
       updateCheckCache.data.versiune_curenta = currentVersion
@@ -209,7 +210,39 @@ function createSystemUpdateRouter(context) {
       const auth = requireAuth(req, res)
       if (!auth) return
       if (!requirePermission(auth, res, 'system:view')) return
-      sendJson(res, 200, await verificaCatalogCentralUpdate(global.LICENTA))
+      sendJson(res, 200, await verificaCatalogCentralUpdate(global.LICENTA, auth.db))
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.get('/system/update/channel', (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requirePermission(auth, res, 'system:view')) return
+      sendJson(res, 200, updateChannelStatus(global.LICENTA, auth.db))
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.post('/system/update/channel', async (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requireSuperadmin(auth, res)) return
+      const body = await readJsonBody(req)
+      const requested = String(body.channel || '').trim().toLowerCase()
+      if (!['stable', 'preview'].includes(requested)) throwHttp(400, 'Canalul de update trebuie să fie Stable sau Preview.')
+      const current = updateChannelStatus(global.LICENTA, auth.db)
+      if (requested === 'preview' && !current.preview_allowed) throwHttp(403, 'Canalul Preview nu este permis pentru această licență.')
+      auth.db.settings = auth.db.settings || {}
+      auth.db.settings.update_channel = requested
+      addAudit(auth.db, auth.user, 'update_channel_setat', `Canal actualizări: ${requested}.`)
+      writeDb(auth.db)
+      updateCheckCache = { at: 0, data: null }
+      sendJson(res, 200, updateChannelStatus(global.LICENTA, auth.db))
     } catch (error) {
       next(error)
     }

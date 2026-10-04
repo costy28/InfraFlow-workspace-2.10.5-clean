@@ -14,6 +14,7 @@ const {
   selectEligibleRelease
 } = require('./release-catalog')
 const { configuredCentralUpdate, downloadAuthorizedArtifact } = require('./central-update-client')
+const { isIsolatedCommercialDemo } = require('../../shared/commercialDemo')
 
 const ROOT = path.resolve(__dirname, '../../..')
 const PORT = Number(process.env.INFRAFLOW_PORT || process.env.PORT || 4180)
@@ -1065,7 +1066,14 @@ function installUpdatePackage(db, user, archiveBuffer, options = {}) {
   }
 }
 
-async function verificaUpdateDisponibil(licenta) {
+function updateChannelStatus(licenta = {}, db = {}) {
+  const previewAllowed = Boolean(licenta?.update?.preview || licenta?.update?.preview_permis || isIsolatedCommercialDemo(db))
+  const requested = String(db?.settings?.update_channel || 'stable').trim().toLowerCase()
+  const channel = previewAllowed && requested === 'preview' ? 'preview' : 'stable'
+  return { channel, preview_allowed: previewAllowed }
+}
+
+async function verificaUpdateDisponibil(licenta, db = {}) {
   const versiuneCurenta = readPackageVersion()
   let central
   try {
@@ -1074,7 +1082,7 @@ async function verificaUpdateDisponibil(licenta) {
     return { disponibil: false, versiune_curenta: versiuneCurenta, eroare: error.message }
   }
   if (central.configured) {
-    const info = await verificaCatalogCentralUpdate(licenta)
+    const info = await verificaCatalogCentralUpdate(licenta, db)
     return {
       disponibil: Boolean(info.available && info.download_configured),
       versiune_curenta: versiuneCurenta,
@@ -1082,6 +1090,7 @@ async function verificaUpdateDisponibil(licenta) {
       changelog: info.notes || '',
       obligatoriu: info.mandatory?.mode === 'required',
       sursa: info.source || 'signed-central-catalog',
+      canal: info.channel || 'stable',
       eroare: info.error || (info.available && !info.download_configured ? 'Credențiala de update a instalației nu este configurată.' : undefined)
     }
   }
@@ -1107,7 +1116,7 @@ async function verificaUpdateDisponibil(licenta) {
   }
 }
 
-async function verificaCatalogCentralUpdate(licenta) {
+async function verificaCatalogCentralUpdate(licenta, db = {}) {
   let central
   try {
     central = configuredCentralUpdate()
@@ -1126,12 +1135,14 @@ async function verificaCatalogCentralUpdate(licenta) {
   const downloadConfigured = Boolean(central.clientToken)
   const currentVersion = readPackageVersion()
   const platform = runtimePlatform()
+  const channelStatus = updateChannelStatus(licenta, db)
   if (!catalogUrl || !publicKey) {
     return {
       configured: false,
       available: false,
       current_version: currentVersion,
       platform,
+      ...channelStatus,
       download_configured: downloadConfigured,
       message: 'Catalogul central nu este configurat încă. Update-ul manual rămâne disponibil.'
     }
@@ -1146,7 +1157,8 @@ async function verificaCatalogCentralUpdate(licenta) {
       platform,
       download_configured: downloadConfigured,
       source: 'signed-central-catalog',
-      ...selectEligibleRelease(catalog, { currentVersion, platform, license: licenta })
+      ...channelStatus,
+      ...selectEligibleRelease(catalog, { currentVersion, platform, license: licenta, channel: channelStatus.channel })
     }
   } catch (error) {
     return {
@@ -1154,6 +1166,7 @@ async function verificaCatalogCentralUpdate(licenta) {
       available: false,
       current_version: currentVersion,
       platform,
+      ...channelStatus,
       download_configured: downloadConfigured,
       error: 'Catalogul central nu a putut fi verificat.',
       detail: error.message
@@ -1173,7 +1186,7 @@ async function instaleazaUpdateOnline(db, user, licenta, versiune) {
     throwHttp(503, error.message)
   }
   if (central.configured) return instaleazaUpdateCentral(db, user, licenta, versiune, central)
-  const targetVersion = versiune || (await verificaUpdateDisponibil(licenta)).versiune_noua
+  const targetVersion = versiune || (await verificaUpdateDisponibil(licenta, db)).versiune_noua
   if (!targetVersion) throwHttp(400, 'Versiune update lipsă.')
   const currentVersion = readPackageVersion()
   createServerBackup(db, user, `Backup automat înainte de update online ${currentVersion} -> ${targetVersion}`)
@@ -1198,7 +1211,8 @@ async function instaleazaUpdateCentral(db, user, licenta, requestedVersion, cent
   if (!catalogResponse.ok) throwHttp(502, 'Catalogul central nu a putut fi descărcat.')
   const catalog = verifyReleaseCatalog(await catalogResponse.json(), publicKey)
   const currentVersion = readPackageVersion()
-  const selected = selectEligibleRelease(catalog, { currentVersion, platform, license: licenta })
+  const channelStatus = updateChannelStatus(licenta, db)
+  const selected = selectEligibleRelease(catalog, { currentVersion, platform, license: licenta, channel: channelStatus.channel })
   if (!selected.available) throwHttp(404, 'Nu există un update central eligibil pentru această instalație.')
   if (requestedVersion && String(requestedVersion) !== selected.version) throwHttp(400, `Versiunea cerută nu este eligibilă. Disponibilă: ${selected.version}.`)
   const component = selected.components.find((item) => item.type === 'core' && item.artifacts?.[platform])
@@ -8071,6 +8085,7 @@ module.exports = {
   scheduleApplicationRestart,
   verifyReleaseManifest,
   verificaUpdateDisponibil,
+  updateChannelStatus,
   verificaCatalogCentralUpdate,
   instaleazaUpdateOnline
 }

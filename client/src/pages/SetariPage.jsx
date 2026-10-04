@@ -1097,6 +1097,7 @@ export default function SetariPage() {
   const [updateHistory, setUpdateHistory] = useState([])
   const [updateHistoryDetails, setUpdateHistoryDetails] = useState(null)
   const [updateStatus, setUpdateStatus] = useState(null)
+  const [updateChannel, setUpdateChannel] = useState({ channel: 'stable', preview_allowed: false })
   const [changelogModal, setChangelogModal] = useState(false)
   const [changelogText, setChangelogText] = useState('')
   const [uploadingUpdate, setUploadingUpdate] = useState(false)
@@ -1338,6 +1339,8 @@ export default function SetariPage() {
       if (updateRes.status === 'fulfilled') setUpdateInfo(updateRes.value.data)
       if (historyRes.status === 'fulfilled') setUpdateHistory(arrayFrom(historyRes.value.data, ['history', 'items']))
       if (statusRes.status === 'fulfilled') setUpdateStatus(statusRes.value.data || null)
+      const channelRes = await api.get('/system/update/channel').catch(() => null)
+      if (channelRes?.data) setUpdateChannel(channelRes.data)
       if (hrEmpRes.status === 'fulfilled') setHrEmployees(arrayFrom(hrEmpRes.value.data, ['employees', 'items', 'data']))
       if (piusiStatusRes.status === 'fulfilled') {
         const status = piusiStatusRes.value.data || {}
@@ -1707,6 +1710,18 @@ export default function SetariPage() {
     } catch (err) {
       setProgress(0)
       fail(err, 'Nu am putut verifica actualizările.')
+    }
+  }
+
+  async function changeUpdateChannel(channel) {
+    try {
+      const response = await api.post('/system/update/channel', { channel })
+      setUpdateChannel(response.data || { channel: 'stable', preview_allowed: false })
+      const check = await api.get('/system/update/check', { params: { force: 1 } })
+      setUpdateInfo(check.data)
+      notify(channel === 'preview' ? 'Canalul Preview a fost activat.' : 'Canalul Stable a fost activat.')
+    } catch (err) {
+      fail(err, 'Canalul de actualizare nu a putut fi modificat.')
     }
   }
 
@@ -4057,6 +4072,18 @@ export default function SetariPage() {
           </Card>
 
           <Card title="Actualizare online" subtitle="Verifică pachetul eligibil pentru licența și platforma acestei instalații.">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">Canal actualizări: {updateChannel.channel === 'preview' ? 'Preview' : 'Stable'}</div>
+                <div className="mt-1 text-xs text-slate-500">Stable este canalul standard. Preview este disponibil numai pentru demo sau licențe autorizate explicit pentru testare.</div>
+              </div>
+              {currentUser?.role === 'superadmin' ? (
+                <div className="flex gap-2">
+                  <Button size="sm" variant={updateChannel.channel === 'stable' ? 'primary' : 'secondary'} onClick={() => changeUpdateChannel('stable')}>Stable</Button>
+                  {updateChannel.preview_allowed ? <Button size="sm" variant={updateChannel.channel === 'preview' ? 'primary' : 'secondary'} onClick={() => changeUpdateChannel('preview')}>Preview</Button> : null}
+                </div>
+              ) : null}
+            </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="text-sm text-slate-600">
                 {updateInfo?.eroare ? (

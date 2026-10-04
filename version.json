@@ -1,5 +1,5 @@
 {
-  "version": "2.12.637",
+  "version": "2.12.639",
   "date": "2026-10-03",
-  "changelog": "## v2.12.637 - 2026-10-03\\n### Onboarding ghidat după pachet\\n- Dashboard-ul citește profilul comercial activ și afișează trei recomandări operaționale relevante pentru Start, Business, Operations sau Enterprise.\\n- Demo complet are propriul traseu de test, fără a schimba accesul ori datele demo.\\n- Checklistul universal rămâne scurt, iar Setări nu mai propune pași HR sau AI care nu aparțin pachetului licențiat.\\n- Modificarea este doar de ghidaj: nu schimbă licența, modulele active sau permisiunile."
+  "changelog": "## v2.12.639 - 2026-10-03\\n### Promovare controlată Preview spre Stable\\n- Utilitarul intern promovează o versiune exactă din payload-ul Preview în payload-ul Stable doar după confirmare explicită.\\n- Fiecare promovare are o notă de aprobare și intrare locală de istoric.\\n- Semnarea și publicarea catalogului rămân pași separați și manuali."
 }

@@ -121,6 +121,7 @@ module.exports = {
   compareVersions,
   runtimePlatform,
   publicKeyFromEnvironment,
+  assertCatalogPayload,
   verifyReleaseCatalog,
   licensedModules,
   selectEligibleRelease
