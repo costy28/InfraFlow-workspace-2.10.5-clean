@@ -59,7 +59,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $AppDir "logs"))) {
 
 $bat = @(
   "@echo off",
-  "setlocal"
+  "setlocal",
+  "set `"PSModulePath=%SystemRoot%\System32\WindowsPowerShell\v1.0\Modules;%PSModulePath%`""
 )
 foreach ($key in $settings.Keys | Sort-Object) {
   $bat += "set `"$key=$(Escape-BatchValue ([string]$settings[$key]))`""

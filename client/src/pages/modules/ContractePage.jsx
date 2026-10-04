@@ -29,6 +29,14 @@ const emptyContractForm = {
   observatii: '',
 }
 
+const emptyDraftCompletionForm = {
+  data_semnare: '',
+  data_start: '',
+  data_sfarsit: '',
+  responsabil_nume: '',
+  observatii: '',
+}
+
 const emptyConsumptionForm = {
   data: new Date().toISOString().slice(0, 10),
   sursa: 'manual',
@@ -414,6 +422,7 @@ export default function ContractePage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [contractModalOpen, setContractModalOpen] = useState(false)
+  const [draftCompletionModalOpen, setDraftCompletionModalOpen] = useState(false)
   const [consumptionModalOpen, setConsumptionModalOpen] = useState(false)
   const [sourceModalOpen, setSourceModalOpen] = useState(false)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
@@ -426,6 +435,7 @@ export default function ContractePage() {
   const [relatedEmailsLoading, setRelatedEmailsLoading] = useState(false)
   const [deepLinkedContractId, setDeepLinkedContractId] = useState('')
   const [contractForm, setContractForm] = useState(emptyContractForm)
+  const [draftCompletionForm, setDraftCompletionForm] = useState(emptyDraftCompletionForm)
   const [consumptionForm, setConsumptionForm] = useState(emptyConsumptionForm)
   const [sourceForm, setSourceForm] = useState(emptySourceForm)
   const [attachmentForm, setAttachmentForm] = useState(emptyAttachmentForm)
@@ -1408,6 +1418,53 @@ export default function ContractePage() {
     }
   }
 
+  function openDraftCompletion(contract = contractDetails) {
+    if (!contract?.id) return
+    setSelectedContract(contract)
+    setDraftCompletionForm({ data_semnare: contract.data_semnare || '', data_start: contract.data_start || '', data_sfarsit: contract.data_sfarsit || '', responsabil_nume: contract.responsabil_nume || '', observatii: contract.observatii || '' })
+    setDraftCompletionModalOpen(true)
+    setError('')
+    setNotice('')
+  }
+
+  async function saveDraftCompletion(event) {
+    event.preventDefault()
+    const contract = selectedContract || contractDetails
+    if (!contract?.id) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await api.patch(`/contracts/${contract.id}`, draftCompletionForm)
+      setContractDetails(current => current?.id === contract.id ? { ...current, ...(response.data.contract || {}) } : current)
+      setSelectedContract(current => current?.id === contract.id ? { ...current, ...(response.data.contract || {}) } : current)
+      setDraftCompletionModalOpen(false)
+      setNotice('Datele Draft-ului au fost completate. Încarcă documentul semnat, apoi activează contractul.')
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Draft-ul contractual nu a putut fi actualizat.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function activateDraftContract() {
+    if (!contractDetails?.id) return
+    setConfirmAction({
+      title: 'Activează contractul',
+      message: 'Confirmi trecerea contractului din Draft în activ?',
+      details: 'Serverul verifică obligatoriu perioada, responsabilul și documentul semnat. Acțiunea nu emite facturi, nu activează licențe și nu pornește plăți.',
+      confirmLabel: 'Activează contractul',
+      tone: 'warning',
+      run: async () => {
+        const response = await api.post(`/contracts/${contractDetails.id}/activate`)
+        setContractDetails(response.data.contract || contractDetails)
+        setNotice('Contractul a fost activat controlat. Nu au fost emise documente financiare.')
+        await load()
+      },
+    })
+  }
+
   async function saveConsumption(event) {
     event.preventDefault()
     if (!selectedContract) return
@@ -2301,6 +2358,8 @@ export default function ContractePage() {
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="secondary" onClick={() => printContract(contractDetails)}>Fișă print</Button>
                   <Button size="sm" variant="secondary" onClick={() => openErpTaskModal(contractDetails)}>+ Task ERP</Button>
+                  {contractDetails.status === 'draft' ? <Button size="sm" variant="secondary" onClick={() => openDraftCompletion(contractDetails)}>Completează Draft</Button> : null}
+                  {contractDetails.status === 'draft' ? <Button size="sm" variant="primary" onClick={activateDraftContract} loading={saving}>Activează contract</Button> : null}
                   {contractDetails.status !== 'inchis' && contractDetails.status !== 'anulat' ? (
                     <Button size="sm" variant={contractDetails.cockpit?.close_readiness?.can_close ? 'primary' : 'secondary'} onClick={() => closeContract(false)} loading={saving}>
                       Închide contract
@@ -2341,6 +2400,20 @@ export default function ContractePage() {
                   <div className="font-semibold text-slate-900">{formatPercent(contractDetails.procent_consum || 0)}</div>
                 </div>
               </div>
+              {contractDetails.source_type === 'crm_customer_order' ? (
+                <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="info">CRM</Badge>
+                    <span className="font-semibold">Draft pregătit din comandă client confirmată</span>
+                  </div>
+                  <div className="mt-2 grid gap-1 text-xs text-blue-900 md:grid-cols-3">
+                    <span>Comandă: <strong>{contractDetails.source_customer_order_number || contractDetails.source_customer_order_id || 'nesetată'}</strong></span>
+                    <span>Ofertă: <strong>{contractDetails.source_quote_number || contractDetails.source_quote_id || 'nesetată'}</strong></span>
+                    <span>Revizie: <strong>{contractDetails.source_quote_revision || 'nesetată'}</strong></span>
+                  </div>
+                  <p className="mt-2 text-xs text-blue-800">Referințele sunt păstrate pentru audit. Completează perioada, condițiile agreate și documentul semnat înainte de activare.</p>
+                </div>
+              ) : null}
             </div>
 
             {contractDetails.status === 'anulat' ? (
@@ -3139,6 +3212,17 @@ export default function ContractePage() {
             <Button type="button" variant="secondary" onClick={() => setContractModalOpen(false)}>Renunță</Button>
             <Button type="submit" loading={saving}>Salvează contractul</Button>
           </div>
+        </form>
+      </Modal>
+
+      <Modal open={draftCompletionModalOpen} title="Completează contract Draft" onClose={() => setDraftCompletionModalOpen(false)}>
+        <form className="grid gap-4" onSubmit={saveDraftCompletion}>
+          {selectedContract ? <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"><div className="font-semibold">{selectedContract.numar} — {selectedContract.titlu}</div><div className="mt-1 text-xs text-blue-800">Completezi datele comerciale agreate. Clauzele juridice rămân în documentul semnat atașat dosarului.</div></div> : null}
+          <div className="grid gap-3 md:grid-cols-2"><Input label="Data semnare" type="date" value={draftCompletionForm.data_semnare} onChange={event => setDraftCompletionForm({ ...draftCompletionForm, data_semnare: event.target.value })} /><Input label="Manager / responsabil" value={draftCompletionForm.responsabil_nume} required onChange={event => setDraftCompletionForm({ ...draftCompletionForm, responsabil_nume: event.target.value })} /></div>
+          <div className="grid gap-3 md:grid-cols-2"><Input label="Data început" type="date" value={draftCompletionForm.data_start} required onChange={event => setDraftCompletionForm({ ...draftCompletionForm, data_start: event.target.value })} /><Input label="Data sfârșit" type="date" value={draftCompletionForm.data_sfarsit} required onChange={event => setDraftCompletionForm({ ...draftCompletionForm, data_sfarsit: event.target.value })} /></div>
+          <Input label="Observații comerciale" value={draftCompletionForm.observatii} onChange={event => setDraftCompletionForm({ ...draftCompletionForm, observatii: event.target.value })} />
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">După salvare, încarcă documentul la categoria „Contract semnat”. Activarea este blocată până când toate aceste condiții sunt îndeplinite.</div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setDraftCompletionModalOpen(false)}>Renunță</Button><Button type="submit" loading={saving}>Salvează Draft-ul</Button></div>
         </form>
       </Modal>
 

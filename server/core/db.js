@@ -984,6 +984,9 @@ function runMssqlScalar(sql, options = {}) {
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+# Task Scheduler poate porni sub SYSTEM cu PSModulePath incomplet. Importul
+# explicit păstrează helperul SQL funcțional și în acel context non-interactiv.
+Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 Add-Type -AssemblyName System.Data
 $connectionString = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:ASFALT_MSSQL_CONNECTION_B64))
 $sql = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:ASFALT_MSSQL_SQL_B64))
@@ -1042,6 +1045,9 @@ $sql
     ? path.join(os.tmpdir(), `infraflow-mssql-${process.pid}-${Date.now()}-${crypto.randomBytes(6).toString("hex")}.json`)
     : "";
   if (jsonFile) fs.writeFileSync(jsonFile, options.jsonInput || "", "utf8");
+  const inheritedPsModulePath = String(process.env.PSModulePath || "").trim();
+  const systemRoot = process.env.SystemRoot || process.env.windir || "C:\\Windows";
+  const windowsPsModules = path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules");
   const env = {
     ...process.env,
     ASFALT_MSSQL_CONNECTION_B64: Buffer.from(options.connectionString || mssqlConnectionString(), "utf8").toString("base64"),
@@ -1049,6 +1055,9 @@ $sql
     ASFALT_MSSQL_JSON_FILE: jsonFile,
     ASFALT_MSSQL_COMMAND_TIMEOUT_SECONDS: String(options.commandTimeoutSeconds || Math.max(60, Math.ceil(mssqlHelperTimeoutMs(options) / 1000) - 15))
   };
+  if (process.platform === "win32") {
+    env.PSModulePath = [windowsPsModules, inheritedPsModulePath].filter(Boolean).join(";");
+  }
   const timeoutMs = mssqlHelperTimeoutMs(options);
   const retries = mssqlHelperRetries(options);
   let lastError = null;

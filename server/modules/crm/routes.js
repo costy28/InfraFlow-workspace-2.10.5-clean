@@ -1,6 +1,7 @@
 const { Router } = require('express')
+const crypto = require('crypto')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, requireAnyPermission } = require('../../core/permissions')
 const { DB_MODE, getMssqlRelationalStatus, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const taskRouter = require('../tasks/routes')
@@ -78,6 +79,96 @@ function ensureLeadRelations(payload) {
 function auditWrite(auth, action, details) {
   addAudit(auth.db, auth.user, action, details)
   writeDb(auth.db)
+}
+
+const CONTRACT_MANAGE_PERMISSIONS = [
+  'legal:manage',
+  'procurement_orders:create',
+  'accounting:manage',
+  'controlling:budget_manage',
+  'system:admin'
+]
+
+function requireCommercialContractManage(auth, res) {
+  return requireAnyPermission(auth, res, CONTRACT_MANAGE_PERMISSIONS)
+}
+
+function commercialContractStore(db) {
+  if (!db.contractManagement || typeof db.contractManagement !== 'object') db.contractManagement = {}
+  db.contractManagement.contracts = Array.isArray(db.contractManagement.contracts) ? db.contractManagement.contracts : []
+  return db.contractManagement.contracts
+}
+
+function commercialContractNumber(order) {
+  return `CTR-${String(order?.order_number || order?.id || '').replace(/[^a-zA-Z0-9-]/g, '')}`.slice(0, 80)
+}
+
+function commercialContractTitle(order) {
+  const accountName = compactText(order?.account_name, 180)
+  return compactText(`Furnizare servicii InfraFlow${accountName ? ` — ${accountName}` : ''}`, 240)
+}
+
+function commercialContractForOrder(db, orderId) {
+  return commercialContractStore(db).find(contract =>
+    !contract.cancelled_at && !contract.cancelledAt &&
+    String(contract.source_customer_order_id || '') === String(orderId)
+  ) || null
+}
+
+function createCommercialContractFromOrder(db, order, user) {
+  const existing = commercialContractForOrder(db, order.id)
+  if (existing) return { contract: existing, idempotent: true }
+
+  const contracts = commercialContractStore(db)
+  const number = commercialContractNumber(order)
+  const duplicateNumber = contracts.find(contract =>
+    !contract.cancelled_at && !contract.cancelledAt &&
+    String(contract.numar || '').trim().toLowerCase() === number.toLowerCase()
+  )
+  if (duplicateNumber) {
+    throw Object.assign(new Error(`Numărul de contract ${number} este deja utilizat. Completează manual contractul existent sau schimbă numărul înainte de generare.`), { status: 409 })
+  }
+
+  const now = new Date().toISOString()
+  const actor = actorId(user)
+  const contract = {
+    id: `ctr-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
+    uuid: crypto.randomUUID(),
+    numar: number,
+    titlu: commercialContractTitle(order),
+    tip: 'servicii',
+    status: 'draft',
+    partener: compactText(order.account_name, 240),
+    partener_tip: 'client',
+    valoare_contract: Number(order.total || 0),
+    moneda: String(order.currency || 'RON').trim().toUpperCase() || 'RON',
+    data_semnare: null,
+    data_start: null,
+    data_sfarsit: null,
+    responsabil_id: actor || null,
+    responsabil_nume: user?.name || user?.username || actor,
+    prag_avertizare: 80,
+    prag_critic: 90,
+    prag_depasire: 100,
+    observatii: [
+      'Draft comercial generat dintr-o comandă client confirmată.',
+      `Comandă sursă: ${order.order_number || order.id}.`,
+      `Ofertă sursă: ${order.quote_number || order.source_quote_id || '-' }${order.quote_revision ? ` / revizia ${order.quote_revision}` : ''}.`,
+      'Completează datele contractuale și atașează documentul semnat înainte de activare.'
+    ].join('\n'),
+    source_type: 'crm_customer_order',
+    source_customer_order_id: order.id,
+    source_customer_order_number: order.order_number || '',
+    source_quote_id: order.source_quote_id || null,
+    source_quote_revision: order.source_quote_revision || order.quote_revision || null,
+    source_decision_id: order.source_decision_id || null,
+    created_by: actor,
+    created_by_name: user?.name || user?.username || actor,
+    created_at: now,
+    updated_at: now
+  }
+  contracts.push(contract)
+  return { contract, idempotent: false }
 }
 
 function publicBaseUrl(req, db) {
@@ -535,6 +626,40 @@ router.get('/crm/customer-orders/:id', (req, res) => {
     if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
     return res.json({ order })
   } catch (error) { return apiError(res, error, 'Comanda client nu a putut fi încărcată.') }
+})
+
+// Contractul comercial este un dosar draft, nu un document juridic semnat.
+// Datele contractuale și fișierul semnat sunt completate controlat în Contracte.
+router.get('/crm/customer-orders/:id/commercial-contract', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:order_manage'); if (!auth) return
+  if (!requireCommercialContractManage(auth, res)) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    return res.json({ contract: commercialContractForOrder(auth.db, order.id) })
+  } catch (error) { return apiError(res, error, 'Contractul comercial nu a putut fi încărcat.') }
+})
+
+router.post('/crm/customer-orders/:id/commercial-contract', (req, res) => {
+  const auth = requireCrm(req, res, 'crm:order_manage'); if (!auth) return
+  if (!requireCommercialContractManage(auth, res)) return
+  try {
+    const order = orderRepository.getOrder(req.params.id)
+    if (!order) return res.status(404).json({ error: 'Comanda client nu a fost găsită.' })
+    if (order.status !== 'confirmed') return res.status(409).json({ error: 'Contractul comercial poate fi pregătit numai dintr-o comandă client confirmată.' })
+    const result = createCommercialContractFromOrder(auth.db, order, auth.user)
+    if (!result.idempotent) {
+      auditWrite(auth, 'crm:commercial_contract_prepared', {
+        contractId: result.contract.id,
+        contract_number: result.contract.numar,
+        orderId: order.id,
+        order_number: order.order_number,
+        quoteId: order.source_quote_id,
+        revision: order.source_quote_revision
+      })
+    }
+    return res.status(result.idempotent ? 200 : 201).json({ ...result })
+  } catch (error) { return apiError(res, error, 'Contractul comercial nu a putut fi pregătit.') }
 })
 
 router.post('/crm/quotes/:id/customer-order', (req, res) => {

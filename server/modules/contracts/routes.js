@@ -1210,6 +1210,7 @@ function contractPrintHtml(db, contract, user) {
       <tbody>
         <tr><th>Tip</th><td>${escapeHtml(decorated.tip || '-')}</td><th>CPV</th><td>${escapeHtml(decorated.cpv_cod || '-')} ${escapeHtml(decorated.cpv_denumire || '')}</td></tr>
         <tr><th>Data semnare</th><td>${formatPrintDate(decorated.data_semnare)}</td><th>Centru cost</th><td>${escapeHtml(decorated.centru_cost_id || '-')}</td></tr>
+        ${decorated.source_type === 'crm_customer_order' ? `<tr><th>Origine CRM</th><td>${escapeHtml(decorated.source_customer_order_number || decorated.source_customer_order_id || '-')}</td><th>Ofertă / revizie</th><td>${escapeHtml(decorated.source_quote_number || decorated.source_quote_id || '-')} / ${escapeHtml(decorated.source_quote_revision || '-')}</td></tr>` : ''}
         <tr><th>Observații</th><td colspan="3">${escapeHtml(decorated.observatii || '-')}</td></tr>
       </tbody>
     </table>
@@ -2375,6 +2376,35 @@ function reactivateContractControlled(db, contractId, user, body = {}) {
   return { contract: decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) }
 }
 
+function activateDraftContractControlled(db, contractId, user) {
+  const cm = ensureContractsDb(db)
+  const contract = cm.contracts.find(item => String(item.id) === String(contractId) && !item.cancelled_at && !item.cancelledAt)
+  if (!contract) return { error: 'Contract inexistent.', status: 404 }
+  if (String(contract.status || '').toLowerCase() !== 'draft') return { error: 'Doar un contract Draft poate fi activat.', status: 409 }
+
+  const missing = []
+  if (!String(contract.numar || '').trim()) missing.push('număr contract')
+  if (!String(contract.titlu || '').trim()) missing.push('titlu')
+  if (!String(contract.partener || '').trim()) missing.push('partener')
+  if (numberValue(contract.valoare_contract) <= 0) missing.push('valoare')
+  if (!contract.data_start || !contract.data_sfarsit) missing.push('perioadă contract')
+  if (!String(contract.responsabil_nume || contract.responsabil_id || '').trim()) missing.push('manager / responsabil')
+  const hasSignedContract = contractAttachments(db, contract).some(item => String(item.categorie || '').toLowerCase().includes('contract semnat'))
+  if (!hasSignedContract) missing.push('document semnat')
+  if (missing.length) return { error: `Draft-ul nu poate fi activat. Completează: ${missing.join(', ')}.`, status: 422 }
+
+  const activatedAt = nowIso()
+  contract.status = 'activ'
+  contract.activated_at = activatedAt
+  contract.activated_by = user.id
+  contract.activated_by_name = user.name || user.username
+  contract.lifecycle_history = Array.isArray(contract.lifecycle_history) ? contract.lifecycle_history : []
+  contract.lifecycle_history.push({ action: 'activated', at: activatedAt, by: user.id, by_name: contract.activated_by_name, reason: 'Draft contractual completat și activat controlat' })
+  contract.updated_by = user.id
+  contract.updated_at = activatedAt
+  return { contract: decorateContract(db, contract, { includeConsumptions: true, includeSources: true, includeAttachments: true, includeAddenda: true, includeCockpit: true }) }
+}
+
 function canView(auth, res) {
   return requireAnyPermission(auth, res, VIEW_PERMISSIONS)
 }
@@ -2866,6 +2896,17 @@ router.post('/contracts/:id/reactivate', (req, res) => {
   const result = reactivateContractControlled(auth.db, req.params.id, auth.user, req.body || {})
   if (result.error) return sendJson(res, result.status || 422, { error: result.error })
   addAudit(auth.db, auth.user, 'contract_reactivated', `${result.contract.numar} / ${result.contract.reactivated_reason}`)
+  writeDb(auth.db)
+  sendJson(res, 200, { ok: true, ...result })
+})
+
+router.post('/contracts/:id/activate', (req, res) => {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!canManage(auth, res)) return
+  const result = activateDraftContractControlled(auth.db, req.params.id, auth.user)
+  if (result.error) return sendJson(res, result.status || 422, { error: result.error })
+  addAudit(auth.db, auth.user, 'contract_activated', `${result.contract.numar} / activat din Draft`)
   writeDb(auth.db)
   sendJson(res, 200, { ok: true, ...result })
 })

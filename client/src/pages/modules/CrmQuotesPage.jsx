@@ -18,7 +18,7 @@ const invoiceAccountingLink = (invoice) => {
 const statusLabel = { draft: 'Draft', pending_approval: 'În aprobare', approved: 'Aprobată', sent: 'Trimisă', accepted: 'Acceptată de client', declined: 'Refuzată de client', rejected_internal: 'Respinsă intern', cancelled: 'Anulată' }
 const stageLabel = { pending_approval: 'Oferte de aprobat', awaiting_customer: 'Oferte care așteaptă clientul', accepted: 'Oferte acceptate de client', confirmed_order: 'Oferte cu comandă confirmată' }
 const auditLabel = {
-  'crm:quote_created': 'Ofertă creată', 'crm:quote_updated': 'Ofertă actualizată', 'crm:quote_lines_changed': 'Poziții ofertă modificate', 'crm:quote_submitted_approval': 'Ofertă trimisă spre aprobare', 'crm:quote_approved': 'Ofertă aprobată intern', 'crm:quote_rejected_internal': 'Ofertă respinsă intern', 'crm:quote_sent': 'Ofertă trimisă pe email', 'crm:quote_public_link_created': 'Link client generat', 'crm:quote_public_link_revoked': 'Link client revocat', 'crm:quote_public_decision': 'Decizie client înregistrată', 'crm:customer_order_created': 'Comandă client creată', 'crm:customer_order_inventory_checked': 'Stoc verificat', 'crm:customer_order_procurement_requested': 'Necesar trimis către Achiziții', 'crm:customer_order_accounting_party_linked': 'Terț contabil legat de comandă', 'crm:customer_order_proforma_created': 'Proformă creată', 'crm:customer_order_invoice_draft_created': 'Factură draft creată în Contabilitate', 'crm:oblio_invoice_issued': 'Factură emisă în Oblio', 'crm:oblio_proforma_issued': 'Proformă emisă în Oblio'
+  'crm:quote_created': 'Ofertă creată', 'crm:quote_updated': 'Ofertă actualizată', 'crm:quote_lines_changed': 'Poziții ofertă modificate', 'crm:quote_submitted_approval': 'Ofertă trimisă spre aprobare', 'crm:quote_approved': 'Ofertă aprobată intern', 'crm:quote_rejected_internal': 'Ofertă respinsă intern', 'crm:quote_sent': 'Ofertă trimisă pe email', 'crm:quote_public_link_created': 'Link client generat', 'crm:quote_public_link_revoked': 'Link client revocat', 'crm:quote_public_decision': 'Decizie client înregistrată', 'crm:customer_order_created': 'Comandă client creată', 'crm:commercial_contract_prepared': 'Contract comercial pregătit', 'crm:customer_order_inventory_checked': 'Stoc verificat', 'crm:customer_order_procurement_requested': 'Necesar trimis către Achiziții', 'crm:customer_order_accounting_party_linked': 'Terț contabil legat de comandă', 'crm:customer_order_proforma_created': 'Proformă creată', 'crm:customer_order_invoice_draft_created': 'Factură draft creată în Contabilitate', 'crm:oblio_invoice_issued': 'Factură emisă în Oblio', 'crm:oblio_proforma_issued': 'Proformă emisă în Oblio'
 }
 function auditDescription(entry) {
   const details = entry?.details || {}
@@ -58,6 +58,7 @@ export default function CrmQuotesPage() {
   const [email, setEmail] = useState({ to: '', cc: '', bcc: '', subject: '', body: '', include_public_link: false, public_link_expires_in_days: 14 })
   const [publicLinks, setPublicLinks] = useState([])
   const [customerOrder, setCustomerOrder] = useState(null)
+  const [commercialContract, setCommercialContract] = useState(null)
   const [inventoryCheck, setInventoryCheck] = useState(null)
   const [procurementRequirements, setProcurementRequirements] = useState([])
   const [billingDocuments, setBillingDocuments] = useState([])
@@ -80,6 +81,7 @@ export default function CrmQuotesPage() {
   const canCheckInventory = can('crm:inventory_check')
   const canRequestProcurement = can('crm:procurement_request')
   const canRequestBilling = can('crm:billing_request')
+  const canManageCommercialContract = isAdmin || can('legal:manage') || can('procurement_orders:create') || can('accounting:manage') || can('controlling:budget_manage') || can('system:admin')
 
   const selectedContacts = useMemo(() => contacts.filter(contact => !form.account_id || String(contact.account_id) === String(form.account_id)), [contacts, form.account_id])
   const totals = useMemo(() => localTotals(form.lines), [form.lines])
@@ -102,14 +104,18 @@ export default function CrmQuotesPage() {
         setEmail({ to: loaded.contact_email || loaded.account_email || '', cc: '', bcc: '', subject: `Oferta ${loaded.quote_number} / Rev. ${loaded.revision_number}`, body: `<p>Bună ziua,</p><p>Vă transmitem oferta ${loaded.quote_number}.</p>`, include_public_link: false, public_link_expires_in_days: 14 })
         setPublicLinks(workspace.public_links || [])
         setCustomerOrder(workspace.customer_order || null)
+        setCommercialContract(null)
         setInventoryCheck(workspace.inventory_check || null)
         setProcurementRequirements(workspace.procurement_requirements || [])
         if (workspace.customer_order && canRequestBilling) {
           api.get(`/crm/customer-orders/${workspace.customer_order.id}/billing-documents`).then(result => setBillingDocuments(result.data.documents || [])).catch(() => setBillingDocuments([]))
           api.get('/crm/billing/clients').then(result => setBillingClients(result.data.clients || [])).catch(() => setBillingClients([]))
         } else { setBillingDocuments([]); setBillingClients([]) }
+        if (workspace.customer_order && canManageCommercialContract) {
+          api.get(`/crm/customer-orders/${workspace.customer_order.id}/commercial-contract`).then(result => setCommercialContract(result.data.contract || null)).catch(() => setCommercialContract(null))
+        }
       } else {
-        setQuote(null); setAudit([]); setPublicLinks([]); setCustomerOrder(null); setInventoryCheck(null); setProcurementRequirements([]); setBillingDocuments([]); setBillingClients([]); setNewPublicUrl(''); if (isNew) setForm(newForm())
+        setQuote(null); setAudit([]); setPublicLinks([]); setCustomerOrder(null); setCommercialContract(null); setInventoryCheck(null); setProcurementRequirements([]); setBillingDocuments([]); setBillingClients([]); setNewPublicUrl(''); if (isNew) setForm(newForm())
       }
     } catch (requestError) { setError(requestError.response?.data?.error || 'CRM Oferte indisponibil.') } finally { setLoading(false) }
   }
@@ -167,7 +173,7 @@ export default function CrmQuotesPage() {
       } else if (path === 'revision') navigate(`/crm/oferte/${result.data.quote.id}`)
       else if (path === 'customer-order') {
         setCustomerOrder(result.data.order)
-        setInventoryCheck(null); setProcurementRequirements([]); setBillingDocuments([])
+        setCommercialContract(null); setInventoryCheck(null); setProcurementRequirements([]); setBillingDocuments([])
         setNotice(result.data.idempotent ? `Comanda ${result.data.order.order_number} exista deja pentru această ofertă acceptată.` : `Comanda client ${result.data.order.order_number} a fost creată din această ofertă acceptată.`)
       }
       else { setNotice(path === 'send' ? 'Oferta a fost trimisă și înregistrată în Inbox ERP.' : 'Acțiunea a fost înregistrată.'); await load() }
@@ -175,6 +181,16 @@ export default function CrmQuotesPage() {
       if (preview && !preview.closed) preview.close()
       setError(requestError.response?.data?.error || requestError.message || 'Acțiunea a eșuat.')
     } finally { setBusy(false) }
+  }
+  async function prepareCommercialContract() {
+    if (!customerOrder) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await api.post(`/crm/customer-orders/${customerOrder.id}/commercial-contract`)
+      const contract = result.data.contract
+      setCommercialContract(contract)
+      setNotice(result.data.idempotent ? `Contractul comercial ${contract.numar} este deja pregătit.` : `Contractul comercial ${contract.numar} a fost pregătit ca draft. Completează datele și atașează documentul semnat în Contracte.`)
+    } catch (requestError) { setError(requestError.response?.data?.error || 'Contractul comercial nu a putut fi pregătit.') } finally { setBusy(false) }
   }
   async function checkInventory() {
     if (!customerOrder) return
@@ -275,6 +291,7 @@ export default function CrmQuotesPage() {
       <p className="mt-4 text-right font-bold">Total: {money(quote.total)} {quote.currency}</p>
       {quote.document_path ? <p className="mt-3 text-sm text-slate-600">Documentul este atașat acestei revizii în dosarul controlat al aplicației.</p> : null}
       {customerOrder ? <div className="mt-3 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"><strong>Comandă client: {customerOrder.order_number}</strong><span className="ml-2">Creată din {quote.quote_number}, Rev. {quote.revision_number}.</span></div> : null}
+      {customerOrder && canManageCommercialContract ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"><div><strong>Contract comercial</strong><p className="mt-1">{commercialContract ? `${commercialContract.numar} este Draft. Completează perioada, condițiile juridice și încarcă documentul semnat înainte de activare.` : 'Poți pregăti un dosar Draft din această comandă confirmată. Nu se semnează, nu activează licențe și nu emite facturi.'}</p></div>{commercialContract ? <Link to={`/contracte?contract=${encodeURIComponent(commercialContract.id)}`}><Button variant="secondary">Deschide Contracte</Button></Link> : <Button variant="secondary" disabled={busy} onClick={prepareCommercialContract}>Pregătește contract Draft</Button>}</div> : null}
     </Card>
     {customerOrder && (canCheckInventory || canRequestProcurement) ? <Card title="Stoc și aprovizionare" subtitle="Verificarea este un instantaneu informativ: nu rezervă și nu modifică stocul. Deficitul se trimite manual în Achiziții ca necesar, nu ca o comandă către furnizor." actions={<div className="flex flex-wrap gap-2">{canCheckInventory ? <Button variant="secondary" disabled={busy} onClick={checkInventory}>Verifică stocul</Button> : null}{canRequestProcurement ? <Button disabled={busy || !inventoryCheck?.result?.procurement_candidates?.length} onClick={createProcurementRequirements}>Creează necesar în Achiziții</Button> : null}</div>}>
       {!inventoryCheck ? <p className="text-sm text-slate-500">Nu s-a făcut încă o verificare a stocului pentru comanda {customerOrder.order_number}.</p> : <div className="grid gap-3"><div className="rounded bg-slate-50 p-3 text-sm"><strong>{inventoryCheck.result?.check_status === 'sufficient' ? 'Stoc suficient' : inventoryCheck.result?.check_status === 'not_applicable' ? 'Stoc neaplicabil' : 'Necesită atenție'}</strong><span className="ml-2">Verificat la {inventoryCheck.checked_at ? new Date(inventoryCheck.checked_at).toLocaleString('ro-RO') : '—'} · fără rezervare automată.</span></div><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th>Poziție</th><th>Stare</th><th>Cerut</th><th>Disponibil</th><th>Deficit</th></tr></thead><tbody>{(inventoryCheck.result?.lines || []).map(line => <tr className="border-t" key={line.line_id}><td>{line.description}</td><td>{line.status === 'sufficient' ? 'Disponibil' : line.status === 'shortage' ? 'Deficit' : line.status === 'unmapped' ? 'Nemapat' : 'Neaplicabil'}</td><td>{line.requested_quantity} {line.unit}</td><td>{line.available_quantity == null ? '—' : `${line.available_quantity} ${line.unit}`}</td><td>{line.shortage_quantity == null ? '—' : `${line.shortage_quantity} ${line.unit}`}</td></tr>)}</tbody></table></div>{inventoryCheck.result?.summary?.unmapped_lines ? <p className="text-sm text-amber-700">Unele materiale nu sunt mapate sigur în catalog. Nu a fost creat automat niciun necesar pentru ele.</p> : null}</div>}

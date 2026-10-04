@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.649**
-**Versiune în lucru: v2.12.649**
+**Versiune curentă sursă: v2.12.653**
+**Versiune în lucru: v2.12.653**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -388,6 +388,10 @@ Core System
   ✅ Ofertare contractuală 1–12 luni, TVA/discount configurabile, curs BNR și proformă Oblio manuală (v2.12.647)
   ✅ Catalog administrabil pentru tarifele pachetelor, extensiilor, implementării și utilizatorilor (v2.12.648)
   ✅ Ofertare internă izolată implicit și creare controlată draft ofertă CRM (v2.12.649)
+  ✅ Stabilitate helper SQL Server Windows în Task Scheduler/SYSTEM (v2.12.650)
+  ✅ Contract comercial Draft pregătit din comanda CRM confirmată (v2.12.651)
+  ✅ Trasabilitate CRM vizibilă în dosarul și fișa printabilă a contractului Draft (v2.12.652)
+  ✅ Activare controlată a contractului Draft după completare și document semnat (v2.12.653)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1111,9 +1115,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.649
+VERSIUNE CURENTĂ SURSĂ: 2.12.653
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.649 ⏳
+UPDATE ZIP CURENT: 2.12.653 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1571,6 +1575,10 @@ UPDATES ÎN LUCRU:
   2.12.647 → UPDATE 667 ofertare contractuală, curs BNR și proformă Oblio ⏳
   2.12.648 → UPDATE 668 catalog tarife administrabil ⏳
   2.12.649 → UPDATE 669 ofertare internă izolată și predare CRM ⏳
+  2.12.650 → UPDATE 670 stabilitate SQL Server Windows ⏳
+  2.12.651 → UPDATE 671 contract comercial Draft din CRM ⏳
+  2.12.652 → UPDATE 672 trasabilitate CRM contract Draft ⏳
+  2.12.653 → UPDATE 673 activare controlată contract Draft ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2067,5 +2075,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.649*
+*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.653*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

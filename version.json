@@ -1,5 +1,5 @@
 {
-  "version": "2.12.649",
+  "version": "2.12.653",
   "date": "2026-10-04",
-  "changelog": "## v2.12.649 - 2026-10-04\\n### Ofertare internă izolată și predare în CRM\\n- Instrumentul de ofertare internă este invizibil și inaccesibil implicit, inclusiv în Demo; se activează doar local prin INFRAFLOW_INTERNAL_OFFERING=1.\\n- O simulare poate crea, numai la cerere, un draft CRM cu liniile, moneda, discountul, TVA-ul și cursul BNR păstrate editabil.\\n- Trimiterea, acceptarea, comanda și proforma Oblio rămân pași separați, controlați manual."
+  "changelog": "## v2.12.653 - 2026-10-04\\n### Activare controlată a contractului Draft\\n- Un contract comercial Draft se activează numai după completarea perioadei, responsabilului și încărcarea documentului semnat.\\n- Activarea este verificată server-side și păstrată în audit.\\n- Nu emite facturi, nu activează licențe și nu inițiază plăți."
 }

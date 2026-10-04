@@ -64,6 +64,7 @@ function Escape-BatchValue {
 $bat = @(
   "@echo off",
   "setlocal",
+  "set `"PSModulePath=%SystemRoot%\System32\WindowsPowerShell\v1.0\Modules;%PSModulePath%`"",
   "set PORT=4180",
   "set INFRAFLOW_PORT=4180",
   "set NODE_ENV=production",

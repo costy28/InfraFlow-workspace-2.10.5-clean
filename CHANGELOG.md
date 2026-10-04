@@ -4731,6 +4731,37 @@
 - Pașii operaționali afișați duc numai la modulele relevante profilului; checklistul comun de instalare rămâne vizibil și scurt.
 - În Setări, pașii condiționați (HR, email, AI) se bazează pe pachetul licențiat când acesta este disponibil.
 
+## v2.12.653 - 2026-10-04
+
+### Activare controlată a contractului Draft
+
+- Un contract comercial Draft se activează numai după completarea perioadei, responsabilului și încărcarea documentului semnat.
+- Activarea este verificată server-side și păstrată în audit.
+- Nu emite facturi, nu activează licențe și nu inițiază plăți.
+
+## v2.12.652 - 2026-10-04
+
+### Trasabilitate CRM în dosarul contractual
+
+- Dosarul contractual Draft arată explicit comanda client, oferta și revizia CRM care l-au generat.
+- Referințele CRM se regăsesc și în fișa printabilă/PDF a contractului, pentru verificare și audit.
+- Nu schimbă condițiile juridice, semnarea, licențele sau facturarea.
+
+## v2.12.651 - 2026-10-04
+
+### Contract comercial Draft din comanda CRM
+
+- Dintr-o comandă client confirmată se poate pregăti o singură dată, idempotent, un dosar contractual Draft cu oferta și comanda sursă păstrate.
+- Dosarul precompletează clientul, moneda, valoarea și responsabilul, dar perioada și condițiile juridice se completează controlat în Contracte.
+- Acțiunea nu reprezintă semnare, nu activează licențe și nu emite documente de facturare.
+
+## v2.12.650 - 2026-10-04
+
+### Stabilitate SQL Server la pornirea Windows
+
+- Helperul SQL Server primește explicit calea standard a modulelor Windows PowerShell atunci când InfraFlow pornește prin Task Scheduler/SYSTEM.
+- Sincronizările programate nu mai trebuie să oprească serverul local din cauza unui `PSModulePath` incomplet.
+
 ## v2.12.649 - 2026-10-04
 
 ### Ofertare internă izolată și predare în CRM
