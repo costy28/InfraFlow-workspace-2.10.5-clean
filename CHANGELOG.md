@@ -4731,6 +4731,14 @@
 - Pașii operaționali afișați duc numai la modulele relevante profilului; checklistul comun de instalare rămâne vizibil și scurt.
 - În Setări, pașii condiționați (HR, email, AI) se bazează pe pachetul licențiat când acesta este disponibil.
 
+## v2.12.641 - 2026-10-04
+
+### Termene de răspuns suport în program de lucru
+
+- P1/P2/P3/P4 respectă răspunsul inițial intern: 2 ore, 4 ore, 1 zi și 2 zile lucrătoare.
+- Calculul folosește luni–vineri, 09:00–17:00, Europe/Bucharest; weekendul este exclus.
+- Escaladarea unui P1 fără responsabil este reevaluată după 2 ore lucrătoare; termenele nu reprezintă timp garantat de rezolvare.
+
 ## v2.12.640 - 2026-10-04
 
 ### Suport P1–P4 în Tichete

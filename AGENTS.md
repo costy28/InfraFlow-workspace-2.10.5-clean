@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.640**
-**Versiune în lucru: v2.12.640**
+**Versiune curentă sursă: v2.12.641**
+**Versiune în lucru: v2.12.641**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -379,6 +379,7 @@ Core System
   ✅ Canale update Stable și Preview, controlate pe licență (v2.12.638)
   ✅ Promovare internă controlată Preview → Stable, cu confirmare și istoric local (v2.12.639)
   ✅ Suport P1–P4 în Tichete, ținte operaționale și urmărire până la rezolvare (v2.12.640)
+  ✅ Termene de răspuns suport în ore lucrătoare L–V 09:00–17:00 (v2.12.641)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1102,9 +1103,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.640
+VERSIUNE CURENTĂ SURSĂ: 2.12.641
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.640 ⏳
+UPDATE ZIP CURENT: 2.12.641 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1553,6 +1554,7 @@ UPDATES ÎN LUCRU:
   2.12.638 → UPDATE 658 canale update Stable și Preview ⏳
   2.12.639 → UPDATE 659 promovare controlată Preview spre Stable ⏳
   2.12.640 → UPDATE 660 suport P1–P4 în Tichete ⏳
+  2.12.641 → UPDATE 661 termene răspuns suport în program de lucru ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2049,5 +2051,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.640*
+*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.641*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

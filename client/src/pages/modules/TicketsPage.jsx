@@ -21,10 +21,10 @@ const ticketTypes = [
 ]
 
 const priorities = [
-  { value: 'normala', label: 'P4 — planificat (țintă 5 zile)' },
-  { value: 'ridicata', label: 'P3 — ridicat (țintă 3 zile)' },
-  { value: 'urgenta', label: 'P2 — urgent (țintă 24 ore)' },
-  { value: 'critica', label: 'P1 — critic (țintă 4 ore)' },
+  { value: 'normala', label: 'P4 — cerere (răspuns: 2 zile lucrătoare)' },
+  { value: 'ridicata', label: 'P3 — normal (răspuns: 1 zi lucrătoare)' },
+  { value: 'urgenta', label: 'P2 — major (răspuns: 4 ore lucrătoare)' },
+  { value: 'critica', label: 'P1 — critic (răspuns: 2 ore lucrătoare)' },
 ]
 
 const statuses = [
@@ -74,16 +74,17 @@ function priorityTone(priority) {
 function supportFor(ticket) {
   if (ticket.support) return ticket.support
   const byPriority = {
-    critica: ['P1', 'P1 — critic', 4],
-    urgenta: ['P2', 'P2 — urgent', 24],
-    ridicata: ['P3', 'P3 — ridicat', 72],
-    normala: ['P4', 'P4 — planificat', 120],
-    scazuta: ['P4', 'P4 — planificat', 120],
+    critica: ['P1', 'P1 — critic', 2],
+    urgenta: ['P2', 'P2 — major', 4],
+    ridicata: ['P3', 'P3 — normal', 8],
+    normala: ['P4', 'P4 — cerere', 16],
+    scazuta: ['P4', 'P4 — cerere', 16],
   }
   const [code, labelText, hours] = byPriority[ticket.prioritate] || byPriority.normala
+  const targetLabels = { 2: '2 ore lucrătoare', 4: '4 ore lucrătoare', 8: '1 zi lucrătoare', 16: '2 zile lucrătoare' }
   const deadline = new Date(new Date(ticket.created_at || Date.now()).getTime() + hours * 3600000)
   const closed = ['rezolvat', 'inchis', 'respins'].includes(ticket.status)
-  return { code, label: labelText, target_hours: hours, deadline_at: deadline.toISOString(), state: closed ? 'rezolvat_in_termen' : deadline < new Date() ? 'depasit' : 'in_termen', closed }
+  return { code, label: labelText, target_hours: hours, target_label: targetLabels[hours], deadline_at: deadline.toISOString(), state: closed ? 'rezolvat_in_termen' : deadline < new Date() ? 'depasit' : 'in_termen', closed }
 }
 
 function supportTone(support) {
@@ -322,7 +323,7 @@ export default function TicketsPage() {
       <Card className="grid gap-3">
         <div>
           <h2 className="font-semibold text-slate-900">Suport și urmărire până la rezolvare</h2>
-          <p className="mt-1 text-sm text-slate-600">P1 4h, P2 24h, P3 3 zile, P4 5 zile. Țintele sunt operaționale, nu promisiuni contractuale SLA.</p>
+          <p className="mt-1 text-sm text-slate-600">Răspuns inițial: P1 2h, P2 4h, P3 1 zi, P4 2 zile lucrătoare; L–V, 09:00–17:00. Nu reprezintă timp garantat de rezolvare.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {[['toate', 'Toate'], ['P1', `P1 · ${supportCounts.P1}`], ['P2', `P2 · ${supportCounts.P2}`], ['P3', `P3 · ${supportCounts.P3}`], ['P4', `P4 · ${supportCounts.P4}`], ['depasite', `Depășite · ${supportCounts.depasite}`]].map(([value, text]) => (
@@ -370,7 +371,7 @@ export default function TicketsPage() {
               </div>
 
               <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm sm:grid-cols-3">
-                <div><span className="block text-xs text-slate-500">Țintă suport</span><span className="font-medium text-slate-800">{supportFor(details.ticket).target_hours} ore</span></div>
+                <div><span className="block text-xs text-slate-500">Răspuns inițial</span><span className="font-medium text-slate-800">{supportFor(details.ticket).target_label || `${supportFor(details.ticket).target_hours} ore lucrătoare`}</span></div>
                 <div><span className="block text-xs text-slate-500">Termen urmărit</span><span className="font-medium text-slate-800">{formatDate(supportFor(details.ticket).deadline_at)}</span></div>
                 <div><span className="block text-xs text-slate-500">Verdict</span><Badge tone={supportTone(supportFor(details.ticket))}>{supportStateLabel(supportFor(details.ticket).state)}</Badge></div>
               </div>

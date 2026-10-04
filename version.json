@@ -1,5 +1,5 @@
 {
-  "version": "2.12.640",
+  "version": "2.12.641",
   "date": "2026-10-03",
-  "changelog": "## v2.12.640 - 2026-10-04\\n### Suport P1–P4 în Tichete\\n- Tichetele existente sunt încadrate compatibil în P1–P4 după prioritate, fără migrare de date.\\n- Lista afișează ținta operațională, depășirile și verdictul la rezolvare.\\n- Escaladarea existentă pentru tichet critic este explicată ca P1 după patru ore fără asignare."
+  "changelog": "## v2.12.641 - 2026-10-04\\n### Termene de răspuns suport în program de lucru\\n- P1/P2/P3/P4 respectă răspunsul inițial intern: 2 ore, 4 ore, 1 zi și 2 zile lucrătoare.\\n- Calculul folosește luni–vineri, 09:00–17:00, Europe/Bucharest; weekendul este exclus.\\n- Escaladarea unui P1 fără responsabil este reevaluată după 2 ore lucrătoare."
 }

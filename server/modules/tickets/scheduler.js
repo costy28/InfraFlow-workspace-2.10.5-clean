@@ -1,5 +1,6 @@
 const { notifyUser } = require('../messaging/routes')
 const { runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
+const { supportInfo } = require('./support-levels')
 
 const closedStatuses = new Set(['rezolvat', 'inchis', 'respins'])
 
@@ -64,7 +65,6 @@ FROM tickets.tickets t
 WHERE t.status NOT IN (N'rezolvat', N'inchis', N'respins')
   AND t.prioritate = N'critica'
   AND t.asignat_la IS NULL
-  AND DATEDIFF(hour, t.created_at, @now) >= 4
   AND NOT EXISTS (SELECT 1 FROM tickets.escalations e WHERE e.ticket_id = t.id AND CHARINDEX(N'[auto:critic_neasignat]', e.motiv) > 0)
 UNION ALL
 SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id,
@@ -86,9 +86,9 @@ WHERE t.status NOT IN (N'rezolvat', N'inchis', N'respins')
   AND NOT EXISTS (SELECT 1 FROM tickets.escalations e WHERE e.ticket_id = t.id AND CHARINDEX(N'[auto:termen_depasit]', e.motiv) > 0)
 FOR JSON PATH;
 `)
-  const escalations = alerts.map(ticket => {
+  const escalations = alerts.filter(ticket => ticket.alert_type !== 'critic_neasignat' || supportInfo(ticket).state === 'depasit').map(ticket => {
     const motiv = ticket.alert_type === 'critic_neasignat'
-      ? '[auto:critic_neasignat] Ticket P1 critic fara asignare dupa 4h'
+      ? '[auto:critic_neasignat] Ticket P1 critic fara asignare după 2 ore lucrătoare'
       : ticket.alert_type === 'fara_update_48h'
         ? '[auto:fara_update_48h] Ticket in lucru fara update dupa 48h'
         : '[auto:termen_depasit] Termen limita depasit'
@@ -126,8 +126,8 @@ function checkTicketAlerts(db) {
   const created = []
   ticketsDb.tickets.forEach(ticket => {
     if (closedStatuses.has(ticket.status)) return
-    if (ticket.prioritate === 'critica' && !ticket.asignat_la && hoursSince(ticket.created_at) >= 4 && !escalationExists(ticketsDb, ticket.id, '[auto:critic_neasignat]')) {
-      const escalation = { id: ticketsDb.escalations.length + 1, ticket_id: ticket.id, de_la_user_id: null, catre_user_id: null, motiv: '[auto:critic_neasignat] Ticket P1 critic fara asignare dupa 4h', created_at: new Date().toISOString() }
+    if (ticket.prioritate === 'critica' && !ticket.asignat_la && supportInfo(ticket).state === 'depasit' && !escalationExists(ticketsDb, ticket.id, '[auto:critic_neasignat]')) {
+      const escalation = { id: ticketsDb.escalations.length + 1, ticket_id: ticket.id, de_la_user_id: null, catre_user_id: null, motiv: '[auto:critic_neasignat] Ticket P1 critic fara asignare după 2 ore lucrătoare', created_at: new Date().toISOString() }
       ticketsDb.escalations.push(escalation)
       created.push(escalation)
       notifyAdmins(db, 'ticket_alerta', { ticket, escalation })
