@@ -157,7 +157,7 @@ router.post('/integration/intersoft/projects', (req, res, next) => {
     if (!requirePermission(auth, res, 'integration:intersoft_import')) return
 
     const body = req.body || {}
-    if (!body.santier_id || !body.denumire_intersoft) throwHttp(400, 'Santierul si denumirea Intersoft sunt obligatorii.')
+    if (!body.santier_id || !body.denumire_intersoft) throwHttp(400, 'Șantierul și denumirea devizului sunt obligatorii.')
 
     if (isMssqlMode()) {
       const project = mssqlObject(`
@@ -253,7 +253,7 @@ SELECT 1 AS ok FOR JSON PATH;
     const db = readDb()
     const integration = ensureIntegrationDb(db)
     const project = integration.intersoftProjects.find(item => Number(item.id) === projectId)
-    if (!project) throwHttp(404, 'Proiectul Intersoft nu exista.')
+    if (!project) throwHttp(404, 'Proiectul de deviz nu există.')
 
     integration.intersoftArticles = integration.intersoftArticles.filter(article => Number(article.project_id) !== projectId)
     const startId = nextId(integration.intersoftArticles)
@@ -361,7 +361,7 @@ SELECT 1 AS ok FOR JSON PATH;
     const db = readDb()
     const integration = ensureIntegrationDb(db)
     const project = integration.intersoftProjects.find(item => Number(item.id) === projectId)
-    if (!project) throwHttp(404, 'Proiectul Intersoft nu exista.')
+    if (!project) throwHttp(404, 'Proiectul de deviz nu există.')
     const articles = integration.intersoftArticles.filter(article => Number(article.project_id) === projectId)
     const realizari = calculateJsonRealizari(db, project.santier_id, de_la, pana_la)
     const buffer = generateCantitatiExcel(articles, realizari, { de_la, pana_la })
@@ -470,7 +470,7 @@ FOR JSON PATH;
     const docs = ensureDocumentsDb(db)
     if (!docs.documentTypes.some(item => item.id === 'SITLUC')) throwHttp(404, 'Tipul de document SITLUC nu exista.')
     const project = integration.intersoftProjects.find(item => Number(item.id) === projectId)
-    if (!project) throwHttp(404, 'Proiectul Intersoft nu exista.')
+    if (!project) throwHttp(404, 'Proiectul de deviz nu există.')
 
     const situatieImport = {
       id: nextId(integration.situationImports),
@@ -606,7 +606,7 @@ FOR JSON PATH;
     const db = readDb()
     const integration = ensureIntegrationDb(db)
     const project = integration.intersoftProjects.find(item => Number(item.id) === projectId)
-    if (!project) throwHttp(404, 'Proiectul Intersoft nu exista.')
+    if (!project) throwHttp(404, 'Proiectul de deviz nu există.')
     const rows = progressRowsJson(db, project, integration.intersoftArticles.filter(article => Number(article.project_id) === projectId))
     sendJson(res, 200, buildProgress(rows))
   } catch (error) {

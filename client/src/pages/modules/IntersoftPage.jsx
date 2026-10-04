@@ -28,7 +28,7 @@ function formData(file) {
   return data
 }
 
-function ProjectSelect({ projects, value, onChange, label = 'Proiect Intersoft' }) {
+function ProjectSelect({ projects, value, onChange, label = 'Proiect de deviz' }) {
   return (
     <Select label={label} value={value} onChange={event => onChange(event.target.value)}>
       <option value="">Selectează proiect</option>
@@ -87,7 +87,7 @@ export default function IntersoftPage() {
         setProgressProjectId(String(rows[0].id))
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Nu am putut încărca proiectele Intersoft.')
+      setError(err.response?.data?.error || 'Nu am putut încărca proiectele de devize.')
     } finally {
       setLoading(false)
     }
@@ -248,9 +248,9 @@ export default function IntersoftPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase text-primary-600">Integrare</p>
-          <h1 className="text-2xl font-semibold text-slate-900">Intersoft</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Devize — integrare</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Devize F3, cantități realizate din teren și situații de plată în circuit digital.
+            Import și export de fișiere pentru aplicații externe de devize, cu cantități realizate din teren și situații de plată.
           </p>
         </div>
         <Button icon={<Plus size={18} />} onClick={() => setProjectModalOpen(true)}>Proiect nou</Button>
@@ -273,11 +273,11 @@ export default function IntersoftPage() {
       </div>
 
       {activeTab === 'Proiecte' && (
-        <Card title="Proiecte Intersoft" subtitle="Legătura dintre șantierele InfraFlow și devizele Intersoft.">
+        <Card title="Proiecte de devize" subtitle="Legătura dintre șantierele InfraFlow și fișierele de devize importate.">
           <Table
             loading={loading}
             columns={[
-              { key: 'denumire_intersoft', label: 'Denumire Intersoft' },
+              { key: 'denumire_intersoft', label: 'Denumire deviz' },
               { key: 'santier_id', label: 'Șantier legat' },
               { key: 'nr_articole', label: 'Nr articole' },
               { key: 'data_import', label: 'Data import', render: row => formatDate(row.data_import) },
@@ -295,7 +295,7 @@ export default function IntersoftPage() {
       )}
 
       {activeTab === 'Import deviz' && (
-        <Card title="Import deviz F3" subtitle="Excel exportat din Intersoft C5/F3.">
+        <Card title="Import deviz" subtitle="Fișier Excel exportat dintr-o aplicație externă de devize.">
           <div className="grid gap-4 lg:grid-cols-3">
             <ProjectSelect projects={projects} value={projectOptionsId} onChange={setSelectedProjectId} />
             <Input type="file" label="Fișier Excel" accept=".xlsx,.xls" onChange={event => previewDeviz(event.target.files?.[0])} />
@@ -335,7 +335,7 @@ export default function IntersoftPage() {
       )}
 
       {activeTab === 'Export cantități' && (
-        <Card title="Export cantități realizate" subtitle="Cantități din jurnalele de teren, generate în Excel pentru Intersoft.">
+        <Card title="Export cantități realizate" subtitle="Cantități din jurnalele de teren, generate în Excel pentru un fișier de deviz extern.">
           <div className="grid gap-4 lg:grid-cols-4">
             <ProjectSelect projects={projects} value={projectOptionsId} onChange={setSelectedProjectId} />
             <Input type="date" label="De la" value={exportRange.de_la} onChange={event => setExportRange({ ...exportRange, de_la: event.target.value })} />
@@ -362,7 +362,7 @@ export default function IntersoftPage() {
       )}
 
       {activeTab === 'Import situații' && (
-        <Card title="Import situație de plată" subtitle="Excel situație de plată din Intersoft, cu document SITLUC creat automat.">
+        <Card title="Import situație de plată" subtitle="Fișier Excel de situație de plată, cu document SITLUC creat automat.">
           <div className="grid gap-4 lg:grid-cols-3">
             <ProjectSelect projects={projects} value={projectOptionsId} onChange={setSelectedProjectId} />
             <Input type="file" label="Fișier Excel situație" accept=".xlsx,.xls" onChange={event => previewSituatie(event.target.files?.[0])} />
@@ -403,7 +403,7 @@ export default function IntersoftPage() {
       )}
 
       {activeTab === 'Progres' && (
-        <Card title="Progres fizic Intersoft" subtitle={selectedProject?.denumire_intersoft || 'Cantitate deviz vs. realizată per articol.'}>
+        <Card title="Progres fizic deviz" subtitle={selectedProject?.denumire_intersoft || 'Cantitate deviz vs. realizată per articol.'}>
           <div className="mb-4 grid gap-4 lg:grid-cols-[1fr_auto]">
             <ProjectSelect projects={projects} value={progressProjectId} onChange={setProgressProjectId} />
             <div className="flex items-end">
@@ -454,10 +454,10 @@ export default function IntersoftPage() {
         </Card>
       )}
 
-      <Modal open={projectModalOpen} onClose={() => setProjectModalOpen(false)} title="Proiect Intersoft nou">
+      <Modal open={projectModalOpen} onClose={() => setProjectModalOpen(false)} title="Proiect de deviz nou">
         <form className="grid gap-4" onSubmit={createProject}>
           <Input label="ID șantier InfraFlow" value={projectForm.santier_id} onChange={event => setProjectForm({ ...projectForm, santier_id: event.target.value })} required />
-          <Input label="Denumire Intersoft" value={projectForm.denumire_intersoft} onChange={event => setProjectForm({ ...projectForm, denumire_intersoft: event.target.value })} required />
+          <Input label="Denumire deviz" value={projectForm.denumire_intersoft} onChange={event => setProjectForm({ ...projectForm, denumire_intersoft: event.target.value })} required />
           <Input label="Versiune deviz" value={projectForm.versiune_deviz} onChange={event => setProjectForm({ ...projectForm, versiune_deviz: event.target.value })} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setProjectModalOpen(false)}>Renunță</Button>

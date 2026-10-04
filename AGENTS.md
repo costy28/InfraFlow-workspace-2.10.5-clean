@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.653**
-**Versiune în lucru: v2.12.653**
+**Versiune curentă sursă: v2.12.657**
+**Versiune în lucru: v2.12.657**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -392,6 +392,10 @@ Core System
   ✅ Contract comercial Draft pregătit din comanda CRM confirmată (v2.12.651)
   ✅ Trasabilitate CRM vizibilă în dosarul și fișa printabilă a contractului Draft (v2.12.652)
   ✅ Activare controlată a contractului Draft după completare și document semnat (v2.12.653)
+  ✅ APP_KEY locală Windows și migrare controlată a secretelor existente (v2.12.654)
+  ✅ Denumire generică Devize — integrare și taburi de lucru contextuale (v2.12.655)
+  ✅ Noutăți update compacte pe versiunea instalată și arhive Windows/Linux (v2.12.656)
+  ✅ Administrare module compactă: rezumat, secțiuni navigabile și categorii pliabile (v2.12.657)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1115,9 +1119,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.653
+VERSIUNE CURENTĂ SURSĂ: 2.12.657
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.653 ⏳
+UPDATE ZIP CURENT: 2.12.657 ⏳
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1579,6 +1583,10 @@ UPDATES ÎN LUCRU:
   2.12.651 → UPDATE 671 contract comercial Draft din CRM ⏳
   2.12.652 → UPDATE 672 trasabilitate CRM contract Draft ⏳
   2.12.653 → UPDATE 673 activare controlată contract Draft ⏳
+  2.12.654 → UPDATE 674 APP_KEY locală Windows și migrare controlată ⏳
+  2.12.655 → UPDATE 675 Devize — integrare și taburi contextuale ⏳
+  2.12.656 → UPDATE 676 noutăți compacte și arhive Windows/Linux ⏳
+  2.12.657 → UPDATE 677 administrare module compactă ⏳
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2075,5 +2083,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.653*
+*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.657*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

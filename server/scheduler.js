@@ -190,7 +190,7 @@ FOR JSON PATH;
 `)
     rows.forEach(row => notifyUser(row.responsabil_id, 'intersoft_export_pending', {
       project_id: row.id,
-      message: `Există cantități noi din teren pentru ${row.denumire_intersoft} ce pot fi exportate spre Intersoft`
+      message: `Există cantități noi din teren pentru ${row.denumire_intersoft} ce pot fi exportate într-un fișier de deviz.`
     }))
     return { rows: rows.length }
   }
@@ -219,7 +219,7 @@ FOR JSON PATH;
 
   rows.forEach(project => responsabili.forEach(user => notifyUser(user.id, 'intersoft_export_pending', {
     project_id: project.id,
-    message: `Există cantități noi din teren pentru ${project.denumire_intersoft} ce pot fi exportate spre Intersoft`
+    message: `Există cantități noi din teren pentru ${project.denumire_intersoft} ce pot fi exportate într-un fișier de deviz.`
   })))
   return { rows: rows.length }
 }

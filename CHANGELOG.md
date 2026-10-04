@@ -4854,3 +4854,35 @@
 - Preview poate fi selectat numai de superadmin, în Demo sau pe licențe autorizate explicit pentru testare.
 - Catalogul semnat este filtrat după canal la verificare și instalare; acest update nu publică un release Preview.
 
+## v2.12.654 - 2026-10-04
+
+### APP_KEY controlată pe Windows
+
+- Criptarea setărilor, AI și configurației sistem folosește același helper, păstrând formatul compatibil cu datele existente.
+- Instalările Windows care au rulat fără `APP_KEY` pot folosi o migrare explicită: se generează o cheie locală, iar secretele cunoscute se recriptează fără a fi afișate.
+- Migrarea nu pornește automat, nu schimbă parola utilizatorilor și nu atinge datele care nu sunt secrete configurate.
+
+## v2.12.655 - 2026-10-04
+
+### Devize — integrare și taburi contextuale
+
+- Integrarea existentă este afișată generic ca `Devize — integrare`; proiectele, importurile, exporturile și notificările nu mai expun numele furnizorului istoric.
+- Rutele, cheile de permisiuni, datele și fișierele existente rămân compatibile; modulul profesional de devize rămâne un produs separat, pentru dezvoltarea ulterioară.
+- Filele interne folosesc titluri specifice pentru paginile comerciale, contabile și de integrare, de exemplu `Oferte CRM` în loc de eticheta generică a serviciului.
+
+## v2.12.656 - 2026-10-04
+
+### Noutăți compacte și arhive pe platformă
+
+- Panoul `Noutăți` arată numai secțiunea versiunii care urmează să fie instalată, chiar dacă pachetul conține istoricul complet al produsului.
+- Istoricul complet rămâne disponibil separat prin `Vezi CHANGELOG`.
+- Release-ul este pregătit atât ca ZIP pentru Windows, cât și ca TAR.GZ pentru Linux.
+
+## v2.12.657 - 2026-10-04
+
+### Administrare module compactă
+
+- Setări → Module arată implicit rezumatul și catalogul de module, fără onboarding, fluxuri și pachete deschise simultan.
+- Onboarding, fluxuri documente și pachete comerciale se deschid individual la click; toate controalele existente sunt păstrate.
+- Categoriile catalogului sunt pliabile independent; activarea, funcțiile și salvarea modulelor rămân identice.
+

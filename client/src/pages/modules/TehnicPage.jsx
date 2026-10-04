@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Badge from '../../components/ui/Badge'
 import IntersoftPage from './IntersoftPage'
 
-const tabs = ['Lucrări', 'Comenzi de lucru', 'Vânzări / Output', 'Clienți', 'Rapoarte', 'Intersoft']
+const tabs = ['Lucrări', 'Comenzi de lucru', 'Vânzări / Output', 'Clienți', 'Rapoarte', 'Devize — integrare']
 const pageSize = 10
 
 function today() {
@@ -268,7 +268,7 @@ export default function TehnicPage() {
           <h2 className="text-xl font-semibold text-slate-900">Tehnic</h2>
           <p className="text-sm text-slate-500">Lucrări, output operațional, clienți și rapoarte.</p>
         </div>
-        {!['Rapoarte', 'Intersoft'].includes(activeTab) && <Button onClick={() => setModal(activeTab)}>{activeTab === 'Lucrări' ? 'Lucrare nouă' : activeTab === 'Comenzi de lucru' ? 'Comandă nouă' : activeTab === 'Vânzări / Output' ? 'Vânzare nouă' : 'Client nou'}</Button>}
+        {!['Rapoarte', 'Devize — integrare'].includes(activeTab) && <Button onClick={() => setModal(activeTab)}>{activeTab === 'Lucrări' ? 'Lucrare nouă' : activeTab === 'Comenzi de lucru' ? 'Comandă nouă' : activeTab === 'Vânzări / Output' ? 'Vânzare nouă' : 'Client nou'}</Button>}
       </div>
 
       {message && <div className="rounded-md bg-primary-50 px-3 py-2 text-sm text-primary-700">{message}</div>}
@@ -356,7 +356,7 @@ export default function TehnicPage() {
         </Card>
       )}
 
-      {activeTab === 'Intersoft' && <IntersoftPage />}
+      {activeTab === 'Devize — integrare' && <IntersoftPage />}
 
       <Modal open={modal === 'Lucrări'} title="Lucrare nouă" onClose={() => setModal('')}>
         <form className="grid gap-3" onSubmit={submitWork}>

@@ -32,6 +32,20 @@ function formatUpdateChangelog(value) {
     .replace(/\\n/g, '\n')
 }
 
+function updateChangelogSummary(value, version) {
+  const source = formatUpdateChangelog(value)
+  const normalizedVersion = String(version || '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const heading = normalizedVersion
+    ? new RegExp(`^##\\s+v${normalizedVersion}\\b.*$`, 'm')
+    : /^##\s+v\d+(?:\.\d+){2}\b.*$/m
+  const match = heading.exec(source)
+  if (!match || match.index === undefined) return source
+
+  const section = source.slice(match.index)
+  const nextHeading = section.slice(1).search(/\n##\s+v\d+(?:\.\d+){2}\b/m)
+  return nextHeading >= 0 ? section.slice(0, nextHeading + 1).trim() : section.trim()
+}
+
 const tabGroups = [
   { label: 'Sistem', tabs: ['General', 'Securitate', 'Bază date', 'Licență', 'Actualizări'] },
   { label: 'Administrare', tabs: ['Utilizatori', 'Roluri', 'Departamente', 'Module'] },
@@ -1051,6 +1065,8 @@ export default function SetariPage() {
   const [moduleConfig, setModuleConfig] = useState(null)
   const [moduleFeatureDraft, setModuleFeatureDraft] = useState({})
   const [moduleCatalog, setModuleCatalog] = useState(null)
+  const [moduleSectionsOpen, setModuleSectionsOpen] = useState({ onboarding: false, workflow: false, packages: false })
+  const [moduleGroupsOpen, setModuleGroupsOpen] = useState({ OPERAȚIONALE: true })
   const [countryProfiles, setCountryProfiles] = useState(fallbackCountryProfiles)
   const [countryRules, setCountryRules] = useState(fallbackCountryRules)
   const [databaseConfig, setDatabaseConfig] = useState({ server: '.\\SQLEXPRESS', database: 'INFRAFLOW', authMode: 'windows', user: 'infraflow', password: '', encrypt: 'false', relational: false })
@@ -4116,8 +4132,8 @@ export default function SetariPage() {
             </div>
             {updateInfo?.disponibil && updateInfo?.changelog ? (
               <div className="mt-3 whitespace-pre-wrap rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm text-slate-700">
-                <strong>Noutăți:</strong><br />
-                {formatUpdateChangelog(updateInfo.changelog)}
+                <strong>Noutăți {updateInfo.versiune_noua ? `v${updateInfo.versiune_noua}` : ''}:</strong><br />
+                {updateChangelogSummary(updateInfo.changelog, updateInfo.versiune_noua)}
               </div>
             ) : null}
           </Card>
@@ -4153,9 +4169,9 @@ export default function SetariPage() {
                   <div>Mărime: <strong>{manualUpdate.marime_mb} MB</strong></div>
                 </div>
                 <div className="mt-3 whitespace-pre-wrap rounded border border-primary-100 bg-white p-3 text-sm text-slate-700">
-                  <strong>Noutăți:</strong>
+                  <strong>Noutăți v{manualUpdate.versiune_noua}:</strong>
                   <br />
-                  {formatUpdateChangelog(manualUpdate.changelog) || 'Fără changelog în pachet.'}
+                  {updateChangelogSummary(manualUpdate.changelog, manualUpdate.versiune_noua) || 'Fără changelog în pachet.'}
                 </div>
                 <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   ⚠️ Backup automat înainte de aplicare. Pe Linux, systemd aplică pachetul și repornește serviciul controlat.
@@ -4681,6 +4697,45 @@ export default function SetariPage() {
 
       {activeTab === 'Module' && (
         <div className="grid gap-4">
+          <Card title="Administrare module" subtitle="Alege rapid zona pe care vrei să o configurezi. Detaliile rămân disponibile la click, fără o pagină foarte lungă.">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm">
+                <div className="text-xs text-primary-700">Module configurabile active</div>
+                <strong className="text-2xl text-primary-950">{activeConfigurableModules.length}</strong>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                <div className="text-xs text-slate-500">Module de bază</div>
+                <strong className="text-2xl text-slate-900">{alwaysOnModuleKeys.length}</strong>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                <div className="text-xs text-slate-500">Categorii</div>
+                <strong className="text-2xl text-slate-900">{moduleGroups.length}</strong>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                <div className="text-xs text-slate-500">Ultima salvare</div>
+                <strong className="text-sm text-slate-900">{moduleCatalog?.updated_at ? formatDate(moduleCatalog.updated_at) : 'nesalvat'}</strong>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                { key: 'onboarding', label: 'Onboarding și ghid' },
+                { key: 'workflow', label: 'Fluxuri documente' },
+                { key: 'packages', label: 'Pachete comerciale' },
+              ].map(section => (
+                <Button
+                  key={section.key}
+                  size="sm"
+                  variant={moduleSectionsOpen[section.key] ? 'primary' : 'secondary'}
+                  onClick={() => setModuleSectionsOpen(current => ({ ...current, [section.key]: !current[section.key] }))}
+                  aria-expanded={Boolean(moduleSectionsOpen[section.key])}
+                >
+                  {moduleSectionsOpen[section.key] ? 'Ascunde' : 'Arată'}: {section.label}
+                </Button>
+              ))}
+            </div>
+          </Card>
+
+          {moduleSectionsOpen.onboarding ? <>
           <ContextHelp
             eyebrow="Configurare comercială"
             icon="🧭"
@@ -4753,6 +4808,9 @@ export default function SetariPage() {
             </div>
           </Card>
 
+          </> : null}
+
+          {moduleSectionsOpen.workflow ? <>
           <Card
             title="Fluxuri documente configurabile"
             subtitle="Definește trasee diferite de aprobare pe tip de document. Șabloanele implicite sunt punct de pornire și pot fi adaptate de fiecare organizație."
@@ -5223,6 +5281,9 @@ export default function SetariPage() {
             </div>
           </Card>
 
+          </> : null}
+
+          {moduleSectionsOpen.packages ? <>
           <Card
             title="Pachete comerciale"
             subtitle="Alege rapid un profil de produs. Se modifică selecția locală; salvarea se face cu butonul „Salvează module”."
@@ -5259,34 +5320,32 @@ export default function SetariPage() {
             </div>
           </Card>
 
+          </> : null}
+
           <Card
             title="Module active"
             subtitle="Modulele dezactivate sunt ascunse din sidebar. Modulele de bază rămân mereu active; licențierea strictă se va lega peste acest catalog."
             actions={[<Button key="save-modules" onClick={saveModules}>Salvează module</Button>]}
           >
-            <div className="mb-4 grid gap-3 md:grid-cols-4">
-              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
-                <div className="text-xs text-slate-500">Module active</div>
-                <strong className="text-lg text-slate-900">{activeConfigurableModules.length}</strong>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
-                <div className="text-xs text-slate-500">Module de bază</div>
-                <strong className="text-lg text-slate-900">{alwaysOnModuleKeys.length}</strong>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
-                <div className="text-xs text-slate-500">Pachete definite</div>
-                <strong className="text-lg text-slate-900">{visibleCommercialPackages.length}</strong>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
-                <div className="text-xs text-slate-500">Ultima salvare</div>
-                <strong className="text-sm text-slate-900">{moduleCatalog?.updated_at ? formatDate(moduleCatalog.updated_at) : 'nesalvat'}</strong>
-              </div>
-            </div>
+            <p className="mb-4 text-sm text-slate-500">Deschide o categorie pentru activare, dezactivare sau configurarea funcțiilor unui modul. Modificările se aplică numai după „Salvează module”.</p>
             <div className="grid gap-4">
               {moduleGroups.map(group => (
-                <div key={group.title} className="grid gap-3">
-                  <h3 className="text-xs font-semibold uppercase text-slate-500">{group.title}</h3>
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <section key={group.title} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setModuleGroupsOpen(current => ({ ...current, [group.title]: !current[group.title] }))}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
+                    aria-expanded={Boolean(moduleGroupsOpen[group.title])}
+                  >
+                    <span>
+                      <span className="block text-xs font-semibold uppercase text-slate-500">{group.title}</span>
+                      <span className="mt-1 block text-sm text-slate-600">
+                        {group.modules.filter(mod => group.locked || enabledModules.includes(mod.key)).length}/{group.modules.length} active
+                      </span>
+                    </span>
+                    <span className="text-lg text-slate-500">{moduleGroupsOpen[group.title] ? '⌃' : '⌄'}</span>
+                  </button>
+                  {moduleGroupsOpen[group.title] ? <div className="grid gap-3 border-t border-slate-200 p-3 md:grid-cols-2 xl:grid-cols-3">
                     {group.modules.map(mod => {
                       const locked = group.locked
                       const enabled = locked || enabledModules.includes(mod.key)
@@ -5337,8 +5396,8 @@ export default function SetariPage() {
                         </div>
                       )
                     })}
-                  </div>
-                </div>
+                  </div> : null}
+                </section>
               ))}
             </div>
           </Card>

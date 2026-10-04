@@ -28,6 +28,7 @@ const {
   databaseHealth: coreDatabaseHealth,
 } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
+const { encryptSettingSecret, decryptSettingSecret } = require('../../core/settings-crypto')
 const {
   ensureUserInGeneralChannel,
   ensureUserInDepartmentChannel,
@@ -4743,25 +4744,6 @@ function normalizeSessionAbsoluteHours(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 24;
   return Math.max(1, Math.min(168, Math.round(n)));
-}
-
-function settingSecretKey() {
-  const raw = Buffer.from(process.env.APP_KEY || "infraflow-default-key-32chars!!", "utf8");
-  return Buffer.concat([raw, Buffer.alloc(32)]).subarray(0, 32);
-}
-
-function encryptSettingSecret(value) {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv("aes-256-cbc", settingSecretKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(String(value), "utf8"), cipher.final()]);
-  return `${iv.toString("hex")}:${encrypted.toString("hex")}`;
-}
-
-function decryptSettingSecret(value) {
-  if (!value || !String(value).includes(":")) return String(value || "");
-  const [ivHex, encryptedHex] = String(value).split(":");
-  const decipher = crypto.createDecipheriv("aes-256-cbc", settingSecretKey(), Buffer.from(ivHex, "hex"));
-  return Buffer.concat([decipher.update(Buffer.from(encryptedHex, "hex")), decipher.final()]).toString("utf8");
 }
 
 function completeInitialStock(db, user, body) {

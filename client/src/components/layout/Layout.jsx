@@ -40,6 +40,27 @@ const titles = {
   '/kiosk': 'Kiosk Angajat',
 }
 
+const workspaceTitles = {
+  '/crm/oferte': 'Oferte CRM',
+  '/crm/lead-uri': 'Lead-uri CRM',
+  '/crm/prospecte': 'Prospecte și contacte',
+  '/intersoft': 'Devize — integrare',
+  '/contabilitate/facturi-intrare': 'Facturi intrare',
+  '/contabilitate/facturi-iesire': 'Facturi ieșire',
+  '/contabilitate/operatiuni': 'Operațiuni contabile',
+  '/contabilitate/trezorerie': 'Trezorerie',
+  '/contabilitate/registru-jurnal': 'Registru jurnal',
+  '/contabilitate/plan-conturi': 'Plan de conturi',
+  '/contracte/dosar': 'Dosar contractual',
+}
+
+function titleForPath(pathname, source) {
+  const match = Object.keys(source)
+    .sort((a, b) => b.length - a.length)
+    .find(path => pathname.startsWith(path))
+  return source[match] || 'InfraFlow'
+}
+
 export default function Layout({ children }) {
   const { user, loading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -73,11 +94,13 @@ export default function Layout({ children }) {
   }, [])
 
   const title = useMemo(() => {
-    const match = Object.keys(titles)
-      .sort((a, b) => b.length - a.length)
-      .find(path => location.pathname.startsWith(path))
-    return titles[match] || 'InfraFlow'
+    return titleForPath(location.pathname, titles)
   }, [location.pathname])
+
+  const workspaceTitle = useMemo(() => {
+    const specificTitle = titleForPath(location.pathname, workspaceTitles)
+    return specificTitle === 'InfraFlow' ? title : specificTitle
+  }, [location.pathname, title])
 
   async function handleLogout() {
     await logout()
@@ -125,7 +148,7 @@ export default function Layout({ children }) {
           onToggleSidebarCollapsed={toggleSidebarCollapsed}
           sidebarCollapsed={sidebarCollapsed}
         />
-        <WorkspaceTabs location={location} label={title} onNavigate={navigate} />
+        <WorkspaceTabs location={location} label={workspaceTitle} onNavigate={navigate} />
         {presentationMode ? (
           <div className="border-b border-primary-100 bg-primary-50 px-4 py-2 text-sm text-primary-900">
             <div className="flex flex-wrap items-center justify-between gap-3">

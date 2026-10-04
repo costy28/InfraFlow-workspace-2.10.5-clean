@@ -37,7 +37,7 @@ const MODULE_MAP = [
   { prefix: 'documents',          label: 'Documente',            icon: '🗃️', route: '/documente' },
   { prefix: 'messaging',          label: 'Mesaje',               icon: '💬', route: '/mesaje' },
   { prefix: 'tickets',            label: 'Sesizări',             icon: '🎫', route: '/sesizari' },
-  { prefix: 'integration',        label: 'Integrare Intersoft',  icon: '🔗', route: '/intersoft' },
+  { prefix: 'integration',        label: 'Devize — integrare',  icon: '🔗', route: '/intersoft' },
   { prefix: 'ai',                 label: 'AI Assistant',         icon: '🤖', route: '/ai' },
   { prefix: 'users',              label: 'Utilizatori',          icon: '👤', route: '/setari' },
   { prefix: 'settings',           label: 'Setări sistem',        icon: '⚙️', route: '/setari' },
@@ -71,8 +71,8 @@ const ACTION_LABELS = {
   trip_log_close: 'Închidere foi parcurs', trip_log_edit: 'Editare foi parcurs',
   fc_view: 'Vezi FC', fc_create: 'Creare FC', fc_edit: 'Editare FC',
   fc_complete: 'Completare FC', faz_generate: 'Generare FAZ',
-  intersoft_view: 'Vizualizare Intersoft', intersoft_import: 'Import Intersoft',
-  intersoft_export: 'Export Intersoft', data_query: 'Interogare date', help: 'Ajutor',
+  intersoft_view: 'Vizualizare devize', intersoft_import: 'Import devize',
+  intersoft_export: 'Export cantități', data_query: 'Interogare date', help: 'Ajutor',
   use: 'Utilizare', update: 'Update', appointments: 'Programări', registry: 'Registratură',
 }
 

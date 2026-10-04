@@ -70,7 +70,8 @@ $versionObj = @{
     date      = (Get-Date -Format "yyyy-MM-dd")
     changelog = $changelog
 }
-$versionJson = $versionObj | ConvertTo-Json -Depth 3
+# Păstrăm separatorul JSON compatibil cu release-check și cu pachetele vechi.
+$versionJson = ($versionObj | ConvertTo-Json -Depth 3) -replace '":\s{2}', '": '
 [System.IO.File]::WriteAllText((Join-Path $ProjectDir "version.json"), $versionJson, [System.Text.UTF8Encoding]::new($false))
 Write-Host "  version.json creat" -ForegroundColor Green
 
@@ -85,6 +86,7 @@ if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 New-Item -ItemType Directory -Path "$tmp\server" -Force | Out-Null
 New-Item -ItemType Directory -Path "$tmp\client\dist" -Force | Out-Null
 New-Item -ItemType Directory -Path "$tmp\db\migrations" -Force | Out-Null
+New-Item -ItemType Directory -Path "$tmp\updates" -Force | Out-Null
 
 # Copiaza server (fara node_modules, .env, data)
 robocopy "$ProjectDir\server" "$tmp\server" /E `
@@ -98,6 +100,11 @@ robocopy "$ProjectDir\client\dist" "$tmp\client\dist" /E `
 
 # Copiaza migratii
 robocopy "$ProjectDir\db\migrations" "$tmp\db\migrations" /E `
+    /NFL /NDL /NJH /NJS | Out-Null
+
+# Notele de update sunt parte din trasabilitatea pachetului și sunt verificate
+# de release-check împreună cu versiunea curentă.
+robocopy "$ProjectDir\updates" "$tmp\updates" /E `
     /NFL /NDL /NJH /NJS | Out-Null
 
 # Copiaza fisiere radacina

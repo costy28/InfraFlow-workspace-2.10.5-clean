@@ -8,6 +8,7 @@ const { splitSqlBatches, ensureMigrationTable, runTrackedMigrations } = require(
 const { getDefaultVatRate, getVatRates } = require("../shared/countryRules");
 
 const ROOT = path.resolve(__dirname, "..", "..");
+loadApplicationKeyEnv(ROOT);
 loadPreferredDatabaseEnv(ROOT);
 const DATA_DIR = path.join(ROOT, "data");
 const DEFAULT_MSSQL_HELPER_TIMEOUT_MS = 180000;
@@ -311,6 +312,31 @@ const rolePermissions = {
 };
 let mssqlDbCache = null;
 let mssqlPool = null;
+
+// APP_KEY este citită separat de conexiunea DB, pentru ca serviciul Windows
+// pornit de Task Scheduler să nu depindă de variabilele sesiunii utilizatorului.
+function loadApplicationKeyEnv(root) {
+  if (String(process.env.APP_KEY || "").trim()) return;
+  const candidates = [
+    path.join(root, "runtime", "app.key"),
+    path.join(root, ".env")
+  ];
+  for (const file of candidates) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      const raw = fs.readFileSync(file, "utf8");
+      const value = file.endsWith(".env")
+        ? (raw.match(/(?:^|\r?\n)APP_KEY\s*=\s*([^\r\n#]+)/) || [])[1]
+        : raw.trim();
+      if (String(value || "").trim()) {
+        process.env.APP_KEY = String(value).trim();
+        return;
+      }
+    } catch {
+      // Configurația explicită de proces rămâne sursa de adevăr; nu blocăm pornirea.
+    }
+  }
+}
 
 // Incarca automat configuratia bazei preferate din runtime, daca exista.
 function loadPreferredDatabaseEnv(root) {
