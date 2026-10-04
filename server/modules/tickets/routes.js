@@ -8,6 +8,7 @@ const { requirePermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { notifyUser } = require('../messaging/routes')
+const { supportInfo } = require('./support-levels')
 const router = Router()
 const TICKETS_STORAGE = path.join(__dirname, '../../../storage/tickets')
 
@@ -118,7 +119,8 @@ function publicTicket(ticket) {
     entitate_tip: ticket.entitate_tip || null,
     entitate_id: ticket.entitate_id || null,
     created_at: ticket.created_at,
-    updated_at: ticket.updated_at || null
+    updated_at: ticket.updated_at || null,
+    support: supportInfo(ticket)
   }
 }
 
@@ -338,7 +340,7 @@ WHERE creat_de = @userId AND status NOT IN (N'rezolvat', N'inchis', N'respins')
 ORDER BY created_at DESC
 FOR JSON PATH;
 `, { userId: auth.user.id })
-      sendJson(res, 200, { tickets })
+      sendJson(res, 200, { tickets: tickets.map(publicTicket) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
@@ -376,7 +378,7 @@ WHERE (@canAll = 1 OR creat_de = @userId OR asignat_la = @userId OR (@canDept = 
 ORDER BY created_at DESC
 FOR JSON PATH;
 `, { userId: auth.user.id, deptId: auth.user.departmentId || '', canAll, canDept, tip: req.query.tip || '', status: req.query.status || '', prioritate: req.query.prioritate || '', dept: req.query.dept || '' })
-      sendJson(res, 200, { tickets })
+      sendJson(res, 200, { tickets: tickets.map(publicTicket) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
@@ -420,7 +422,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
       const attachments = (req.files || []).map(file => createAttachmentRecord(auth.db, ticket, file, auth.user.id))
       if (attachments.length) addAudit(auth.db, auth.user, 'ticket_atasamente', `${titlu}: ${attachments.length} fisiere`)
       if (prioritate === 'critica' || prioritate === 'urgenta') notifyAdmins(auth.db, 'ticket_urgent', { ticket })
-      sendJson(res, 201, { ticket, attachments: publicTicketAttachments(attachments, ticket) })
+      sendJson(res, 201, { ticket: publicTicket(ticket), attachments: publicTicketAttachments(attachments, ticket) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
@@ -561,8 +563,8 @@ FROM tickets.tickets WHERE id = @ticketId
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { ticketId: ticket.id, status, userId: auth.user.id, comentariu })
       addAudit(auth.db, auth.user, 'ticket_status_schimbat', `${ticket.titlu}: ${ticket.status} -> ${status}`)
-      notifyUser(ticket.creat_de, 'ticket_actualizat', { ticket: updated, status, comentariu })
-      sendJson(res, 200, { ticket: updated })
+      notifyUser(ticket.creat_de, 'ticket_actualizat', { ticket: publicTicket(updated), status, comentariu })
+      sendJson(res, 200, { ticket: publicTicket(updated) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
@@ -605,8 +607,8 @@ SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_
 FROM tickets.tickets WHERE id = @ticketId
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `, { ticketId: ticket.id, asignatLa, userId: auth.user.id })
-      notifyUser(asignatLa, 'ticket_asignat', { ticket: updated })
-      sendJson(res, 200, { ticket: updated })
+      notifyUser(asignatLa, 'ticket_asignat', { ticket: publicTicket(updated) })
+      sendJson(res, 200, { ticket: publicTicket(updated) })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)

@@ -4731,6 +4731,14 @@
 - Pașii operaționali afișați duc numai la modulele relevante profilului; checklistul comun de instalare rămâne vizibil și scurt.
 - În Setări, pașii condiționați (HR, email, AI) se bazează pe pachetul licențiat când acesta este disponibil.
 
+## v2.12.640 - 2026-10-04
+
+### Suport P1–P4 în Tichete
+
+- Prioritățile existente sunt prezentate consecvent ca P1 critic, P2 urgent, P3 ridicat sau P4 planificat, fără modificarea tichetelor existente.
+- Lista de Tichete are filtre rapide P1–P4 și „Depășite”, precum și ținta operațională urmărită până la rezolvare.
+- Detaliul unui ticket arată termenul calculat, verdictul și dacă rezolvarea a fost în termen; escaladarea automată pentru critic este marcată explicit P1.
+
 ## v2.12.639 - 2026-10-03
 
 ### Promovare controlată Preview spre Stable

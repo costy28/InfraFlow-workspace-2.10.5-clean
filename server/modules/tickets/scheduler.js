@@ -88,7 +88,7 @@ FOR JSON PATH;
 `)
   const escalations = alerts.map(ticket => {
     const motiv = ticket.alert_type === 'critic_neasignat'
-      ? '[auto:critic_neasignat] Ticket critic fara asignare dupa 4h'
+      ? '[auto:critic_neasignat] Ticket P1 critic fara asignare dupa 4h'
       : ticket.alert_type === 'fara_update_48h'
         ? '[auto:fara_update_48h] Ticket in lucru fara update dupa 48h'
         : '[auto:termen_depasit] Termen limita depasit'
@@ -127,7 +127,7 @@ function checkTicketAlerts(db) {
   ticketsDb.tickets.forEach(ticket => {
     if (closedStatuses.has(ticket.status)) return
     if (ticket.prioritate === 'critica' && !ticket.asignat_la && hoursSince(ticket.created_at) >= 4 && !escalationExists(ticketsDb, ticket.id, '[auto:critic_neasignat]')) {
-      const escalation = { id: ticketsDb.escalations.length + 1, ticket_id: ticket.id, de_la_user_id: null, catre_user_id: null, motiv: '[auto:critic_neasignat] Ticket critic fara asignare dupa 4h', created_at: new Date().toISOString() }
+      const escalation = { id: ticketsDb.escalations.length + 1, ticket_id: ticket.id, de_la_user_id: null, catre_user_id: null, motiv: '[auto:critic_neasignat] Ticket P1 critic fara asignare dupa 4h', created_at: new Date().toISOString() }
       ticketsDb.escalations.push(escalation)
       created.push(escalation)
       notifyAdmins(db, 'ticket_alerta', { ticket, escalation })

@@ -21,11 +21,10 @@ const ticketTypes = [
 ]
 
 const priorities = [
-  { value: 'scazuta', label: 'Scăzută' },
-  { value: 'normala', label: 'Normală' },
-  { value: 'ridicata', label: 'Ridicată' },
-  { value: 'urgenta', label: 'Urgentă' },
-  { value: 'critica', label: 'Critică' },
+  { value: 'normala', label: 'P4 — planificat (țintă 5 zile)' },
+  { value: 'ridicata', label: 'P3 — ridicat (țintă 3 zile)' },
+  { value: 'urgenta', label: 'P2 — urgent (țintă 24 ore)' },
+  { value: 'critica', label: 'P1 — critic (țintă 4 ore)' },
 ]
 
 const statuses = [
@@ -72,6 +71,37 @@ function priorityTone(priority) {
   return 'neutral'
 }
 
+function supportFor(ticket) {
+  if (ticket.support) return ticket.support
+  const byPriority = {
+    critica: ['P1', 'P1 — critic', 4],
+    urgenta: ['P2', 'P2 — urgent', 24],
+    ridicata: ['P3', 'P3 — ridicat', 72],
+    normala: ['P4', 'P4 — planificat', 120],
+    scazuta: ['P4', 'P4 — planificat', 120],
+  }
+  const [code, labelText, hours] = byPriority[ticket.prioritate] || byPriority.normala
+  const deadline = new Date(new Date(ticket.created_at || Date.now()).getTime() + hours * 3600000)
+  const closed = ['rezolvat', 'inchis', 'respins'].includes(ticket.status)
+  return { code, label: labelText, target_hours: hours, deadline_at: deadline.toISOString(), state: closed ? 'rezolvat_in_termen' : deadline < new Date() ? 'depasit' : 'in_termen', closed }
+}
+
+function supportTone(support) {
+  if (support.state === 'depasit' || support.state === 'rezolvat_dupa_termen') return 'danger'
+  if (support.code === 'P1') return 'danger'
+  if (support.code === 'P2' || support.code === 'P3') return 'warning'
+  return support.closed ? 'success' : 'neutral'
+}
+
+function supportStateLabel(state) {
+  return {
+    in_termen: 'În termen',
+    depasit: 'Depășit',
+    rezolvat_in_termen: 'Rezolvat în termen',
+    rezolvat_dupa_termen: 'Rezolvat după termen',
+  }[state] || '-'
+}
+
 function statusTone(status) {
   if (['rezolvat', 'inchis'].includes(status)) return 'success'
   if (['in_lucru', 'in_asteptare'].includes(status)) return 'warning'
@@ -111,6 +141,7 @@ function downloadNameFromResponse(response, fallback) {
 export default function TicketsPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('Ale mele')
+  const [supportFilter, setSupportFilter] = useState('toate')
   const [tickets, setTickets] = useState([])
   const [selected, setSelected] = useState(null)
   const [details, setDetails] = useState({ ticket: null, comments: [], attachments: [], escalations: [] })
@@ -149,10 +180,23 @@ export default function TicketsPage() {
   const visibleTickets = useMemo(() => {
     const uid = String(userId(user))
     const dept = String(departmentId(user))
-    if (activeTab === 'Ale mele') return tickets.filter(ticket => String(ticket.creat_de) === uid || String(ticket.asignat_la) === uid)
-    if (activeTab === 'Departament') return tickets.filter(ticket => String(ticket.dept_sursa_id) === dept || String(ticket.dept_responsabil_id) === dept)
-    return tickets
-  }, [activeTab, tickets, user])
+    const scoped = activeTab === 'Ale mele'
+      ? tickets.filter(ticket => String(ticket.creat_de) === uid || String(ticket.asignat_la) === uid)
+      : activeTab === 'Departament'
+        ? tickets.filter(ticket => String(ticket.dept_sursa_id) === dept || String(ticket.dept_responsabil_id) === dept)
+        : tickets
+    return scoped.filter(ticket => {
+      const support = supportFor(ticket)
+      return supportFilter === 'toate' || support.code === supportFilter || (supportFilter === 'depasite' && support.state === 'depasit')
+    })
+  }, [activeTab, supportFilter, tickets, user])
+
+  const supportCounts = useMemo(() => tickets.reduce((counts, ticket) => {
+    const support = supportFor(ticket)
+    if (!support.closed) counts[support.code] = (counts[support.code] || 0) + 1
+    if (support.state === 'depasit') counts.depasite = (counts.depasite || 0) + 1
+    return counts
+  }, { P1: 0, P2: 0, P3: 0, P4: 0, depasite: 0 }), [tickets])
 
   async function openDetails(ticket) {
     setSelected(ticket)
@@ -275,16 +319,29 @@ export default function TicketsPage() {
         ))}
       </div>
 
+      <Card className="grid gap-3">
+        <div>
+          <h2 className="font-semibold text-slate-900">Suport și urmărire până la rezolvare</h2>
+          <p className="mt-1 text-sm text-slate-600">P1 4h, P2 24h, P3 3 zile, P4 5 zile. Țintele sunt operaționale, nu promisiuni contractuale SLA.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[['toate', 'Toate'], ['P1', `P1 · ${supportCounts.P1}`], ['P2', `P2 · ${supportCounts.P2}`], ['P3', `P3 · ${supportCounts.P3}`], ['P4', `P4 · ${supportCounts.P4}`], ['depasite', `Depășite · ${supportCounts.depasite}`]].map(([value, text]) => (
+            <Button key={value} variant={supportFilter === value ? 'primary' : 'secondary'} onClick={() => setSupportFilter(value)}>{text}</Button>
+          ))}
+        </div>
+      </Card>
+
       <div className="grid gap-4 xl:grid-cols-[1.05fr_1fr]">
         <Card>
           <Table
             columns={[
               { key: 'tip', label: 'Tip', render: row => typeBadge(row) },
-              { key: 'prioritate', label: 'Prioritate', render: row => <Badge tone={priorityTone(row.prioritate)}>{label(row.prioritate)}</Badge> },
+              { key: 'prioritate', label: 'Suport', render: row => <Badge tone={supportTone(supportFor(row))}>{supportFor(row).label}</Badge> },
               { key: 'titlu', label: 'Titlu' },
               { key: 'entitate_tip', label: 'Sursă', render: row => entityLabel(row) ? <Badge tone="neutral">{entityLabel(row)}</Badge> : '-' },
               { key: 'status', label: 'Status', render: row => <Badge tone={statusTone(row.status)}>{label(row.status)}</Badge> },
               { key: 'created_at', label: 'Timp scurs', render: row => <span className="inline-flex items-center gap-1"><Clock size={13} /> {age(row.created_at)}</span> },
+              { key: 'target', label: 'Țintă', render: row => <Badge tone={supportTone(supportFor(row))}>{supportStateLabel(supportFor(row).state)}</Badge> },
               { key: 'actions', label: '', render: row => <Button variant="ghost" onClick={() => openDetails(row)}>Detalii</Button> },
             ]}
             rows={visibleTickets}
@@ -299,7 +356,7 @@ export default function TicketsPage() {
                 <div>
                   <div className="flex flex-wrap gap-2">
                     {typeBadge(details.ticket)}
-                    <Badge tone={priorityTone(details.ticket.prioritate)}>{label(details.ticket.prioritate)}</Badge>
+                    <Badge tone={supportTone(supportFor(details.ticket))}>{supportFor(details.ticket).label}</Badge>
                   </div>
                   <h2 className="mt-2 text-xl font-semibold text-slate-900">{details.ticket.titlu}</h2>
                   <p className="mt-1 text-sm text-slate-600">{details.ticket.descriere || 'Fără descriere.'}</p>
@@ -310,6 +367,12 @@ export default function TicketsPage() {
                   ) : null}
                 </div>
                 <Badge tone={statusTone(details.ticket.status)}>{label(details.ticket.status)}</Badge>
+              </div>
+
+              <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm sm:grid-cols-3">
+                <div><span className="block text-xs text-slate-500">Țintă suport</span><span className="font-medium text-slate-800">{supportFor(details.ticket).target_hours} ore</span></div>
+                <div><span className="block text-xs text-slate-500">Termen urmărit</span><span className="font-medium text-slate-800">{formatDate(supportFor(details.ticket).deadline_at)}</span></div>
+                <div><span className="block text-xs text-slate-500">Verdict</span><Badge tone={supportTone(supportFor(details.ticket))}>{supportStateLabel(supportFor(details.ticket).state)}</Badge></div>
               </div>
 
               <div className="grid gap-2">
