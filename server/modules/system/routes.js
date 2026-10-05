@@ -109,6 +109,7 @@ const configurableModuleKeys = new Set([
   "fleet",
   "technical",
   "procurement",
+  "logistics",
   "contract_management",
   "crm",
   "hr",

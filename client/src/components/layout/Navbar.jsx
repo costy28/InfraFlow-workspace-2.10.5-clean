@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import api from '../../api/client'
 import Button from '../ui/Button'
 import Badge from '../ui/Badge'
+import GlobalSearch from './GlobalSearch'
 
 const notificationRoutes = {
   planning: '/achizitii?tab=Cerin%C8%9Be',
@@ -119,6 +120,7 @@ export default function Navbar({ title = 'Dashboard', user, onLogout, onNavigate
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-1.5 md:gap-3">
+        <GlobalSearch onNavigate={onNavigate} />
         <div className="hidden items-center rounded-[var(--radius-control)] border border-slate-200 bg-white p-1 shadow-sm lg:flex">
           <button
             type="button"

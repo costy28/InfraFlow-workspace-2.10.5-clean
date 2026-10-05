@@ -1,3 +1,33 @@
+## v2.12.666 - 2026-10-05
+
+### Monitorizare operațională Logistică
+
+- Lista curselor semnalează plecările și sosirile neînregistrate după momentul planificat, folosind doar datele locale ale cursei.
+- Sosirile efective fără confirmare de primire/livrare apar separat și pot fi filtrate din panoul compact de monitorizare.
+- Semnalările sunt informative: nu trimit notificări, nu schimbă statusuri și nu folosesc GPS, foi de parcurs sau servicii externe.
+
+## v2.12.665 - 2026-10-05
+
+### Execuție cursă cu timpi reali
+
+- Operatorul înregistrează manual plecarea și sosirea efective ale cursei, cu statusurile `În cursă` și `Sosită` și jurnal de audit.
+- Sosirea se acceptă numai după plecarea efectivă și nu poate fi anterioară acesteia; confirmarea de livrare rămâne pas separat.
+- Momentele nu provin din GPS sau alte sisteme externe și pot fi însoțite de observații operaționale.
+
+## v2.12.661 - 2026-10-05
+
+### Hotfix catalog Logistică
+
+- Logistică & transport apare în Setări → Administrare module și poate fi activată/salvată prin fluxul standard.
+
+## v2.12.660 - 2026-10-05
+
+### Logistică & Transport
+
+- Modul activabil pentru avize de însoțire, CMR, bonuri de transport și dovezi de livrare, cu număr intern, poziții, traseu și tipărire PDF-ready.
+- Un document poate fi legat manual, cu audit, la o comandă de aprovizionare și/sau un contract existent; anularea păstrează istoricul.
+- Nu transmite automat către RO e-Transport, ANAF sau alt serviciu extern; codul NC rămâne un câmp opțional, fără nomenclator fiscal ori declarație automată.
+
 ## v2.12.595 - 2026-09-29
 
 ### Navigare rapidă CRM
@@ -4885,4 +4915,52 @@
 - Setări → Module arată implicit rezumatul și catalogul de module, fără onboarding, fluxuri și pachete deschise simultan.
 - Onboarding, fluxuri documente și pachete comerciale se deschid individual la click; toate controalele existente sunt păstrate.
 - Categoriile catalogului sunt pliabile independent; activarea, funcțiile și salvarea modulelor rămân identice.
+
+## v2.12.658 - 2026-10-04
+
+### Căutare rapidă globală
+
+- Bara de sus include căutare globală prin click sau `Ctrl+K`, cu toleranță la diacritice și sinonime uzuale.
+- Rezultatele includ paginile/modulele accesibile și filele de lucru deschise recent; selecția se face cu tastele săgeți și Enter.
+- Nu indexează încă înregistrările operaționale sau datele personale; aceasta va fi o etapă server-side separată, filtrată pe permisiuni.
+
+## v2.12.659 - 2026-10-04
+
+### Restart Windows și surse contractuale
+
+- După un update Windows, restartul așteaptă explicit oprirea task-ului permanent și eliberarea portului înainte de relansare; jurnalul de restart arată fiecare etapă sau eroare.
+- În Contracte se pot lega acum și comenzile de achiziții, respectiv recepțiile din Depozit, ca documente-sursă ale dosarului.
+- Comenzile sunt urmărite ca angajamente; consumul valoric continuă să fie calculat numai din facturi, NIR-uri/recepții și înregistrări manuale, fără estimări premature.
+
+## v2.12.662 - 2026-10-05
+
+### Curse și documente de transport legate
+
+- Modulul Logistică pornește de la o cursă planificată: traseu, interval, vehicul, șofer, transportator, comandă, contract și poziții.
+- Dintr-o cursă se poate pregăti un aviz, CMR, bon de transport sau dovadă de livrare, cu datele și pozițiile precompletate; documentele păstrează legătura cu cursa.
+- Vehiculele și șoferii disponibili sunt propuși din modulele existente Parc & Resurse și HR; transmiterea către sisteme externe rămâne neimplementată.
+
+## v2.12.663 - 2026-10-05
+
+### Confirmare livrare și dovezi cursă
+
+- O cursă poate fi confirmată ca livrată cu persoana care a primit, momentul și observațiile relevante.
+- PDF-urile și fotografiile JPG, PNG sau WEBP, de maximum 20 MB, se atașează controlat la cursă și se descarcă numai cu permisiune.
+- Istoricul cursei păstrează planificarea, alocarea, documentele, confirmarea de livrare și operațiile asupra dovezilor.
+
+## v2.12.664 - 2026-10-05
+
+### Planificare asistată și cost cursă
+
+- Planificarea unei curse verifică suprapunerile de interval pentru același vehicul sau șofer deja alocat în InfraFlow și le semnalează operatorului fără blocare automată.
+- O cursă poate păstra manual costul estimat, costul realizat, moneda RON/EUR și observațiile aferente.
+- Verificarea nu pretinde date GPS, disponibilitate din foi de parcurs sau costuri calculate automat.
+
+## v2.12.667 - 2026-10-05
+
+### Raport operațional Logistică
+
+- Raportul compact centralizează cursele, livrările, cursele în desfășurare, întârzierile și sosirile fără confirmare pe interval ales.
+- Costurile estimate și realizate sunt comparate exclusiv din valorile introduse manual și sunt păstrate separat pe RON și EUR.
+- Exportul Excel include sinteza și lista curselor; nu calculează TVA, cost/km sau înregistrări contabile și nu modifică operațiunile existente.
 

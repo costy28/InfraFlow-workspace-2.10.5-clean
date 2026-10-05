@@ -26,6 +26,7 @@ const moduleCatalogGroups = [
       { key: 'fleet', label: 'Flotă, echipamente & resurse', description: 'Vehicule, utilaje, foi parcurs, FAZ și GPS.' },
       { key: 'technical', label: 'Lucrări & execuție', description: 'Lucrări, teren, output operațional și raport tehnic.' },
       { key: 'procurement', label: 'Aprovizionare & achiziții', description: 'Comenzi, recepții, cereri interne, PAAP și CPV.' },
+      { key: 'logistics', label: 'Logistică & transport', description: 'Avize, CMR, bonuri de transport și dovezi de livrare, legate la comenzi și contracte.' },
       { key: 'contract_management', label: 'Contract Management', description: 'Contracte, consum valoric, CPV, manageri și alerte de prag/termen.' },
       { key: 'crm', label: 'CRM / Sales Automation', description: 'Solicitări comerciale, clienți potențiali, oferte și comenzi. Fundația tehnică este pregătită pentru activare graduală.' },
       { key: 'hr', label: 'HR', description: 'Angajați, pontaj, concedii, dosar personal și Kiosk.' },
@@ -65,12 +66,12 @@ const moduleCatalogGroups = [
 const commercialPackages = [
   { key: 'core', label: 'Core', modules: ['documents', 'messaging', 'tickets'], description: 'Baza pentru documente, notificări, utilizatori și audit.' },
   { key: 'hr', label: 'HR', modules: ['hr', 'documents', 'messaging'], description: 'Angajați, pontaj, dosar personal, concedii și Kiosk.' },
-  { key: 'operational', label: 'Operațional', modules: ['fleet', 'technical', 'field', 'controlling', 'documents'], description: 'Flotă, lucrări, teren și controlling operațional.' },
-  { key: 'gestiune_achizitii', label: 'Gestiune + Achiziții', modules: ['procurement', 'contract_management', 'documents', 'tickets'], description: 'Stocuri, referate, comenzi, recepții, PAAP, contracte și furnizori.' },
+  { key: 'operational', label: 'Operațional', modules: ['fleet', 'technical', 'field', 'logistics', 'controlling', 'documents'], description: 'Flotă, lucrări, teren, transport și controlling operațional.' },
+  { key: 'gestiune_achizitii', label: 'Gestiune + Achiziții', modules: ['procurement', 'logistics', 'contract_management', 'documents', 'tickets'], description: 'Stocuri, referate, comenzi, recepții, transport, PAAP, contracte și furnizori.' },
   { key: 'accounting', label: 'Contabilitate', modules: ['accounting', 'controlling', 'contract_management', 'documents'], description: 'Contabilitate, declarații, dosar fiscal, contracte și costuri.' },
   { key: 'sales', label: 'Vânzări / CRM', modules: ['crm', 'documents', 'messaging', 'tickets'], description: 'Solicitări comerciale, oferte, comenzi și follow-up, conectate la documente și comunicare.' },
   { key: 'city_services', label: 'City Services', modules: ['sanitation', 'traffic_safety', 'snow_removal', 'environment', 'field', 'fleet', 'contract_management', 'tickets'], description: 'Servicii publice locale într-un pachet operațional.' },
-  { key: 'enterprise', label: 'Enterprise', modules: ['fleet', 'technical', 'procurement', 'contract_management', 'crm', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'], description: 'Toate modulele pentru organizații mari.' },
+  { key: 'enterprise', label: 'Enterprise', modules: ['fleet', 'technical', 'procurement', 'logistics', 'contract_management', 'crm', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'], description: 'Toate modulele pentru organizații mari.' },
 ]
 
 function buildModulesCatalog(settings = {}, license = {}, allowedModulesForLicense) {

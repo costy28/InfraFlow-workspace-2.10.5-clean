@@ -15,6 +15,7 @@ const HRPage = lazy(() => import('./pages/modules/HRPage'))
 const TehnicPage = lazy(() => import('./pages/modules/TehnicPage'))
 const ControllingPage = lazy(() => import('./pages/modules/ControllingPage'))
 const ContractePage = lazy(() => import('./pages/modules/ContractePage'))
+const LogisticsPage = lazy(() => import('./pages/modules/LogisticsPage'))
 const CrmPage = lazy(() => import('./pages/modules/CrmPage'))
 const CrmQuotesPage = lazy(() => import('./pages/modules/CrmQuotesPage'))
 const PublicQuotePage = lazy(() => import('./pages/PublicQuotePage'))
@@ -107,6 +108,7 @@ export default function App() {
         <Route path="/tehnic/*" element={<WithLayout><TehnicPage /></WithLayout>} />
         <Route path="/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ControllingPage /></PermissionGuard></WithLayout>} />
         <Route path="/contracte/*" element={<WithLayout><PermissionGuard permission={['legal:contracts', 'procurement:view', 'accounting:view', 'controlling:view']}><ContractePage /></PermissionGuard></WithLayout>} />
+        <Route path="/logistica/*" element={<WithLayout><PermissionGuard permission={['logistics:view', 'procurement:view', 'legal:contracts']}><LogisticsPage /></PermissionGuard></WithLayout>} />
         <Route path="/crm/oferte/*" element={<WithLayout><PermissionGuard permission="crm:view"><CrmQuotesPage /></PermissionGuard></WithLayout>} />
         <Route path="/crm/*" element={<WithLayout><PermissionGuard permission="crm:view"><CrmPage /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate" element={<WithLayout><PermissionGuard permission="accounting:view"><ContabilitateDashboard /></PermissionGuard></WithLayout>} />

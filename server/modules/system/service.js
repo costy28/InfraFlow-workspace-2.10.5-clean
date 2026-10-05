@@ -1367,6 +1367,42 @@ function Wait-InfraFlowHealth {
   }
   Write-RestartLog "AVERTISMENT: serverul nu a raspuns la /api/health dupa restart."
 }
+function Wait-InfraFlowPortReleased {
+  for ($i = 1; $i -le 20; $i++) {
+    $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    if (-not $listener) {
+      Write-RestartLog "Portul $port este liber dupa $i incercari."
+      return $true
+    }
+    Start-Sleep -Seconds 1
+  }
+  Write-RestartLog "AVERTISMENT: portul $port este inca ocupat; continui pornirea controlata."
+  return $false
+}
+function Wait-InfraFlowTaskStopped {
+  for ($i = 1; $i -le 25; $i++) {
+    $currentTask = Get-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
+    if (-not $currentTask -or $currentTask.State -ne "Running") {
+      Write-RestartLog "Task-ul InfraFlow ERP este oprit dupa $i incercari."
+      return $true
+    }
+    Start-Sleep -Seconds 1
+  }
+  Write-RestartLog "AVERTISMENT: task-ul InfraFlow ERP nu a confirmat oprirea; continui cu verificarea portului."
+  return $false
+}
+function Start-InfraFlowTask {
+  Start-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction Stop
+  for ($i = 1; $i -le 10; $i++) {
+    Start-Sleep -Seconds 1
+    $currentTask = Get-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
+    if ($currentTask -and $currentTask.State -eq "Running") {
+      Write-RestartLog "Task-ul InfraFlow ERP ruleaza dupa $i incercari."
+      return
+    }
+  }
+  throw "Task-ul InfraFlow ERP nu a pornit dupa 10 secunde."
+}
 try {
   "[$(Get-Date -Format o)] Restart helper pornit." | Set-Content -LiteralPath $logPath -Encoding UTF8
   Start-Sleep -Seconds 3
@@ -1380,10 +1416,10 @@ try {
     if ($task) {
       Write-RestartLog "Restart task InfraFlow ERP."
       Stop-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction SilentlyContinue
-      Start-Sleep -Seconds 2
+      Wait-InfraFlowTaskStopped | Out-Null
       Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue
-      Start-Sleep -Seconds 2
-      Start-ScheduledTask -TaskName "InfraFlow ERP" -ErrorAction Stop
+      Wait-InfraFlowPortReleased | Out-Null
+      Start-InfraFlowTask
     } else {
       Write-RestartLog "Restart fallback proces direct."
       Stop-Process -Id ${process.pid} -Force -ErrorAction SilentlyContinue

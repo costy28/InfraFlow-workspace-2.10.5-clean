@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.657**
-**Versiune în lucru: v2.12.657**
+**Versiune curentă sursă: v2.12.667**
+**Versiune în lucru: v2.12.667**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -396,6 +396,17 @@ Core System
   ✅ Denumire generică Devize — integrare și taburi de lucru contextuale (v2.12.655)
   ✅ Noutăți update compacte pe versiunea instalată și arhive Windows/Linux (v2.12.656)
   ✅ Administrare module compactă: rezumat, secțiuni navigabile și categorii pliabile (v2.12.657)
+  ✅ Căutare rapidă globală prin pagini, module accesibile și file recente (v2.12.658)
+  ✅ Restart Windows controlat: așteaptă oprirea task-ului și eliberarea portului înainte de relansare (v2.12.659)
+  ✅ Contracte: comenzi achiziții și recepții depozit legabile ca documente-sursă, fără consum estimat prematur (v2.12.659)
+  ✅ Logistică & Transport: avize, CMR, bonuri transport și dovezi de livrare, cu legături manuale la comenzi și contracte; fără transmitere automată e-Transport/ANAF (v2.12.660)
+  ✅ Hotfix Logistică: modulul apare în Setări → Administrare module și poate fi activat/salvat (v2.12.661)
+  ✅ Logistică: cursă planificată, alocare resurse și documente de transport legate (v2.12.662)
+  ✅ Logistică: confirmare livrare, dovezi PDF/foto controlate și istoric cursă (v2.12.663)
+  ✅ Logistică: planificare asistată pentru vehicul/șofer și cost cursă manual (v2.12.664)
+  ✅ Logistică: execuție manuală cu plecare/sosire efective și audit (v2.12.665)
+  ✅ Logistică: monitorizare informativă întârzieri și livrări neconfirmate (v2.12.666)
+  ✅ Logistică: raport operațional și export Excel cu costuri separate pe monedă (v2.12.667)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1119,9 +1130,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.657
+VERSIUNE CURENTĂ SURSĂ: 2.12.667
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.657 ⏳
+UPDATE ZIP CURENT: 2.12.667 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1587,6 +1598,16 @@ UPDATES ÎN LUCRU:
   2.12.655 → UPDATE 675 Devize — integrare și taburi contextuale ⏳
   2.12.656 → UPDATE 676 noutăți compacte și arhive Windows/Linux ⏳
   2.12.657 → UPDATE 677 administrare module compactă ⏳
+  2.12.658 → UPDATE 678 căutare rapidă globală ⏳
+  2.12.659 → UPDATE 679 restart Windows și surse contract ✅
+  2.12.660 → UPDATE 680 Logistică & Transport ✅
+  2.12.661 → UPDATE 681 hotfix catalog Logistică ✅
+  2.12.662 → UPDATE 682 curse și documente Logistică ✅
+  2.12.663 → UPDATE 683 dovadă livrare Logistică ✅
+  2.12.664 → UPDATE 684 planificare și cost Logistică ✅
+  2.12.665 → UPDATE 685 execuție cursă Logistică ✅
+  2.12.666 → UPDATE 686 monitorizare Logistică ✅
+  2.12.667 → UPDATE 687 raport operațional Logistică ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2083,5 +2104,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 4 Octombrie 2026 | InfraFlow sursă v2.12.657*
+*AGENTS.md actualizat: 5 Octombrie 2026 | InfraFlow sursă v2.12.667*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

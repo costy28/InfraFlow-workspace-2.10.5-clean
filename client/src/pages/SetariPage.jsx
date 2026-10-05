@@ -307,6 +307,7 @@ const moduleGroups = [
       { key: 'fleet', icon: '⚙️', label: 'Flotă, echipamente & resurse' },
       { key: 'technical', icon: '⚙️', label: 'Lucrări & execuție' },
       { key: 'procurement', icon: '⚙️', label: 'Aprovizionare & achiziții' },
+      { key: 'logistics', icon: '🚚', label: 'Logistică & transport', description: 'Avize, CMR, bonuri transport și dovezi de livrare' },
       { key: 'contract_management', icon: '⚙️', label: 'Contracte' },
       { key: 'crm', icon: '⚙️', label: 'CRM / Sales Automation' },
       { key: 'hr', icon: '⚙️', label: 'HR' },
@@ -362,14 +363,14 @@ const commercialModulePackages = [
     key: 'operational',
     label: 'Operațional',
     icon: '🚜',
-    modules: ['fleet', 'technical', 'field', 'controlling', 'documents'],
+    modules: ['fleet', 'technical', 'field', 'logistics', 'controlling', 'documents'],
     description: 'Flotă, utilaje, lucrări, teren și controlling operațional.',
   },
   {
     key: 'gestiune_achizitii',
     label: 'Gestiune + Achiziții',
     icon: '🛒',
-    modules: ['procurement', 'contract_management', 'documents', 'tickets'],
+    modules: ['procurement', 'logistics', 'contract_management', 'documents', 'tickets'],
     description: 'Stocuri, comenzi, recepții, referate, PAAP, contracte și furnizori.',
   },
   {
@@ -397,7 +398,7 @@ const commercialModulePackages = [
     key: 'enterprise',
     label: 'Enterprise',
     icon: '🚀',
-    modules: ['fleet', 'technical', 'procurement', 'contract_management', 'crm', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'],
+    modules: ['fleet', 'technical', 'procurement', 'logistics', 'contract_management', 'crm', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'],
     description: 'Toate modulele, pentru organizații mari și fluxuri complete.',
   },
 ]

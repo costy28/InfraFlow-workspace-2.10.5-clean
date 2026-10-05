@@ -2418,8 +2418,10 @@ function sourceCollections(db) {
     { type: 'factura_intrare', label: 'Factură intrare', rows: db.accounting?.invoicesIn || [] },
     { type: 'factura_iesire', label: 'Factură ieșire', rows: db.accounting?.invoicesOut || [] },
     { type: 'factura_anaf', label: 'Factură ANAF', rows: db.anafInvoices || [] },
+    { type: 'comanda_achizitie', label: 'Comandă achiziție', rows: db.procurementOrders || [] },
     { type: 'nir', label: 'NIR / recepție', rows: db.procurementReceipts || [] },
-    { type: 'nir_gestiune', label: 'NIR gestiune', rows: db.gestiune?.nir || [] }
+    { type: 'nir_gestiune', label: 'NIR gestiune', rows: db.gestiune?.nir || [] },
+    { type: 'nir_depozit', label: 'Recepție depozit', rows: db.inventory?.receipts || [] }
   ]
 }
 

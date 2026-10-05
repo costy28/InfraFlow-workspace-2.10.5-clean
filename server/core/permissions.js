@@ -51,6 +51,7 @@ const permissionGroups = {
   asternere: ["asternere:view", "asternere:rapoarte", "asternere:manage"],
   anaf: ["anaf:view", "anaf:manage", "anaf:efactura"],
   crm: ["crm:view", "crm:lead_create", "crm:lead_manage", "crm:quote_create", "crm:quote_approve", "crm:quote_send", "crm:order_manage", "crm:inventory_check", "crm:procurement_request", "crm:billing_request", "crm:reports", "crm:settings"],
+  logistics: ["logistics:view", "logistics:manage", "logistics:print"],
   system: ["system:view", "system:update", "system:admin"]
 };
 
@@ -109,6 +110,7 @@ const permissionGroupLabels = {
   asternere: "Execuție lucrări",
   anaf: "ANAF / e-Factură",
   crm: "CRM / Sales Automation",
+  logistics: "Logistică & transport",
   system: "Sistem"
 };
 

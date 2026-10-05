@@ -14,6 +14,7 @@ const titles = {
   '/gestiune': 'Stocuri & Depozite',
   '/stocuri': 'Stocuri & Depozite',
   '/achizitii': 'Aprovizionare & Achiziții',
+  '/logistica': 'Logistică & Transport',
   '/flota': 'Flotă, Echipamente & Resurse',
   '/mecanizare': 'Flotă, Echipamente & Resurse',
   '/hr': 'HR',
@@ -52,6 +53,7 @@ const workspaceTitles = {
   '/contabilitate/registru-jurnal': 'Registru jurnal',
   '/contabilitate/plan-conturi': 'Plan de conturi',
   '/contracte/dosar': 'Dosar contractual',
+  '/logistica': 'Documente transport',
 }
 
 function titleForPath(pathname, source) {

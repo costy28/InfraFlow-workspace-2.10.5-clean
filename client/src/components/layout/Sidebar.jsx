@@ -25,6 +25,7 @@ const groups = [
       { to: '/mecanizare', icon: '⚙️', label: 'Flotă, Echipamente & Resurse', moduleKey: 'mechanization' },
       { to: '/asternere', icon: '🛣️', label: 'Lucrări / Execuție', moduleKey: 'asternere' },
       { to: '/achizitii', icon: '🛒', label: 'Aprovizionare & Achiziții', moduleKey: 'procurement' },
+      { to: '/logistica', icon: '🚚', label: 'Logistică & Transport', moduleKey: 'logistics' },
       { to: '/contracte', icon: '📑', label: 'Contracte', moduleKey: 'contract_management' },
       { to: '/crm', icon: '🤝', label: 'CRM / Vânzări', moduleKey: 'crm' },
       { to: '/referate', icon: '📄', label: 'Cereri interne & Aprobări', moduleKey: 'referate' },
@@ -59,6 +60,7 @@ const modulePermissionPrefixes = {
   inventory: ['inventory', 'gestiune', 'materials', 'stock_operations', 'ledger', 'deliveries'],
   production: ['production', 'consumptions', 'recipes', 'planning', 'daily_report'],
   procurement: ['procurement', 'procurement_orders'],
+  logistics: ['logistics', 'procurement', 'legal'],
   contract_management: ['legal', 'procurement', 'accounting', 'controlling', 'cost_accounting'],
   referate: ['referate'],
   accounting: ['accounting', 'anaf', 'integration', 'cost_accounting', 'controlling'],
@@ -78,6 +80,7 @@ const moduleActiveAliases = {
   task_management: ['task_management', 'tasks'],
   referate: ['referate', 'procurement'],
   crm: ['crm', 'sales', 'sales_automation'],
+  logistics: ['logistics', 'procurement', 'contract_management'],
 }
 
 function normalizedRoles(user) {
