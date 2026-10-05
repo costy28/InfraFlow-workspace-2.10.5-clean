@@ -1,0 +1,50 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const test = require('node:test')
+
+const root = path.join(__dirname, '..')
+const routes = fs.readFileSync(path.join(root, 'modules/system/help-routes.js'), 'utf8')
+const page = fs.readFileSync(path.join(root, '..', 'client/src/pages/HelpPage.jsx'), 'utf8')
+
+test('Ajutorul este consultabil autentificat, iar editarea rămâne exclusiv Superadmin', () => {
+  assert.match(routes, /router\.get\('\/help'/)
+  assert.match(routes, /if \(!isSuperadmin\(auth\.user\)\)/)
+  assert.match(routes, /Doar superadminul poate modifica Ajutorul/)
+  assert.match(routes, /ajutor_articol_creat/)
+  assert.match(routes, /ajutor_articol_actualizat/)
+  assert.match(routes, /ajutor_articol_sters/)
+})
+
+test('Ajutorul acceptă doar imagini mici validate și le servește numai autentificat', () => {
+  assert.match(routes, /MAX_IMAGE_BYTES = 3 \* 1024 \* 1024/)
+  assert.match(routes, /image\/png/)
+  assert.match(routes, /image\/jpeg/)
+  assert.match(routes, /image\/webp/)
+  assert.match(routes, /hasValidImageSignature/)
+  assert.match(routes, /router\.get\('\/help\/images\/:id'/)
+  assert.match(routes, /requireAuth\(req, res\)/)
+  assert.match(routes, /Cache-Control', 'private, max-age=300'/)
+})
+
+test('biblioteca Ajutor se transferă explicit între instalații prin export și import ZIP', () => {
+  assert.match(routes, /const \{ writeDb \} = require\('\.\.\/\.\.\/core\/db'\)/)
+  assert.match(routes, /router\.get\('\/help\/export'/)
+  assert.match(routes, /packageHelpLibrary/)
+  assert.match(routes, /infraflow-help-library-v1/)
+  assert.match(routes, /router\.post\('\/help\/import'/)
+  assert.match(routes, /Confirmarea de înlocuire a bibliotecii este obligatorie/)
+  assert.match(routes, /Pachetul Ajutor depășește limitele admise/)
+  assert.match(routes, /ajutor_exportat/)
+  assert.match(routes, /ajutor_importat/)
+})
+
+test('pagina Ajutor are căutare, editor și preluare autentificată a imaginilor', () => {
+  assert.match(page, /Caută în Ajutor/)
+  assert.match(page, /\+ Articol nou/)
+  assert.match(page, /api\.get\('\/help'\)/)
+  assert.match(page, /api\.post\('\/help\/images'/)
+  assert.match(page, /Exportă Ajutor/)
+  assert.match(page, /Importă Ajutor/)
+  assert.match(page, /responseType: 'blob'/)
+})

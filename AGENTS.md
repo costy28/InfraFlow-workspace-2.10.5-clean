@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.667**
-**Versiune în lucru: v2.12.667**
+**Versiune curentă sursă: v2.12.671**
+**Versiune în lucru: v2.12.671**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -407,6 +407,10 @@ Core System
   ✅ Logistică: execuție manuală cu plecare/sosire efective și audit (v2.12.665)
   ✅ Logistică: monitorizare informativă întârzieri și livrări neconfirmate (v2.12.666)
   ✅ Logistică: raport operațional și export Excel cu costuri separate pe monedă (v2.12.667)
+  ✅ Logistică: CRM confirmat, pregătire stoc manuală, trasabilitate completă, evidență RO e-Transport și adaptor GPS neutru (v2.12.668)
+  ✅ Ajutor administrabil: articole căutabile, editor exclusiv Superadmin și capturi încărcate controlat (v2.12.669)
+  ✅ Ajutor portabil: export/import ZIP controlat între Demo și instalații client (v2.12.670)
+  ✅ Hotfix Ajutor: exportul bibliotecii salvează auditul fără eroare de server (v2.12.671)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1130,9 +1134,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.667
+VERSIUNE CURENTĂ SURSĂ: 2.12.671
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.667 ✅
+UPDATE ZIP CURENT: 2.12.671 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1608,6 +1612,10 @@ UPDATES ÎN LUCRU:
   2.12.665 → UPDATE 685 execuție cursă Logistică ✅
   2.12.666 → UPDATE 686 monitorizare Logistică ✅
   2.12.667 → UPDATE 687 raport operațional Logistică ✅
+  2.12.670 → UPDATE 690 transfer bibliotecă Ajutor între instalații ✅
+  2.12.671 → UPDATE 691 hotfix export bibliotecă Ajutor ✅
+  2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
+  2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
 NEXT BUILD: la cerere sau după o serie majoră de update-uri
   → InfraFlow-Server-Setup-v[package.version].exe
@@ -2104,5 +2112,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 5 Octombrie 2026 | InfraFlow sursă v2.12.667*
+*AGENTS.md actualizat: 5 Octombrie 2026 | InfraFlow sursă v2.12.671*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

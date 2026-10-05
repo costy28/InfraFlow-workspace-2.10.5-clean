@@ -5,9 +5,10 @@ const path = require('path')
 const multer = require('multer')
 const xlsx = require('xlsx')
 const { requireAuth } = require('../../core/auth')
-const { requireAnyPermission } = require('../../core/permissions')
+const { requireAnyPermission, authHasPermission } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
+const crmOrderRepository = require('../crm/order-repository')
 
 const router = Router()
 const ROOT = path.resolve(__dirname, '../../..')
@@ -22,6 +23,8 @@ const DOCUMENT_TYPES = new Set(['aviz', 'cmr', 'bon_transport', 'pod'])
 const DOCUMENT_STATUSES = new Set(['draft', 'emis', 'predat', 'livrat', 'anulat'])
 const TRIP_STATUSES = new Set(['planificata', 'alocata', 'in_cursa', 'sosita', 'livrata', 'anulata'])
 const COST_CURRENCIES = new Set(['RON', 'EUR'])
+const ETRANSPORT_STATUSES = new Set(['neanalizat', 'verificat_fara_declarare', 'declarare_necesara', 'declarat_manual'])
+const GPS_ADAPTER_STATUSES = new Set(['neconectat', 'configurat_fara_date_live'])
 
 function nowIso() { return new Date().toISOString() }
 function todayIso() { return nowIso().slice(0, 10) }
@@ -100,6 +103,9 @@ function normalizeInput(body = {}, existing = {}, documents = []) {
     referinta_externa: clean(body.referinta_externa || body.cmr_reference, 120),
     comanda_id: clean(body.comanda_id || body.procurement_order_id, 120) || null,
     comanda_numar: clean(body.comanda_numar || body.procurement_order_number, 120) || null,
+    crm_comanda_id: clean(body.crm_comanda_id || body.customer_order_id, 120) || null,
+    crm_comanda_numar: clean(body.crm_comanda_numar || body.customer_order_number, 120) || null,
+    crm_client: clean(body.crm_client || body.customer_name, 240) || null,
     contract_id: clean(body.contract_id, 120) || null,
     contract_numar: clean(body.contract_numar, 120) || null,
     cursa_id: clean(body.cursa_id || body.trip_id, 120) || null,
@@ -129,6 +135,9 @@ function normalizeTrip(body = {}, existing = {}, trips = []) {
     sofer: clean(body.sofer, 160),
     comanda_id: clean(body.comanda_id || body.procurement_order_id, 120) || null,
     comanda_numar: clean(body.comanda_numar || body.procurement_order_number, 120) || null,
+    crm_comanda_id: clean(body.crm_comanda_id || body.customer_order_id, 120) || null,
+    crm_comanda_numar: clean(body.crm_comanda_numar || body.customer_order_number, 120) || null,
+    crm_client: clean(body.crm_client || body.customer_name, 240) || null,
     contract_id: clean(body.contract_id, 120) || null,
     contract_numar: clean(body.contract_numar, 120) || null,
     cost_moneda: COST_CURRENCIES.has(clean(body.cost_moneda || body.cost_currency, 10).toUpperCase()) ? clean(body.cost_moneda || body.cost_currency, 10).toUpperCase() : (existing.cost_moneda || 'RON'),
@@ -138,6 +147,7 @@ function normalizeTrip(body = {}, existing = {}, trips = []) {
     plecare_efectiva: clean(body.plecare_efectiva || body.actual_departure_at || existing.plecare_efectiva, 40),
     sosire_efectiva: clean(body.sosire_efectiva || body.actual_arrival_at || existing.sosire_efectiva, 40),
     executie_observatii: clean(body.executie_observatii || body.execution_notes || existing.executie_observatii, 1000),
+    etransport: existing.etransport || null,
     observatii: clean(body.observatii || body.notes, 2000),
     linii: normalizeLines(body.linii || body.lines || existing.linii),
   }
@@ -183,6 +193,26 @@ function validateTrip(payload, db, currentId = '') {
   if (duplicate) return 'Există deja o cursă activă cu acest număr.'
   return ''
 }
+function resolveConfirmedCrmOrder(auth, payload) {
+  if (!payload.crm_comanda_id) return { order: null }
+  if (!authHasPermission(auth, 'crm:order_manage')) return { error: 'Nu ai permisiunea CRM necesară pentru a lega o comandă client.' }
+  try {
+    const order = crmOrderRepository.getOrder(payload.crm_comanda_id)
+    if (!order || order.status !== 'confirmed') return { error: 'Poți lega numai o comandă client CRM confirmată.' }
+    return { order }
+  } catch (error) {
+    return { error: 'Comanda client CRM nu a putut fi verificată.' }
+  }
+}
+function applyConfirmedCrmOrder(payload, order) {
+  if (!order) return payload
+  return {
+    ...payload,
+    crm_comanda_id: String(order.id),
+    crm_comanda_numar: clean(order.order_number || order.id, 120),
+    crm_client: clean(order.account_name || order.contact_name, 240) || null,
+  }
+}
 function buildOperationalMonitoring(trip, referenceTime = Date.now()) {
   const now = Number(referenceTime) || Date.now()
   const plannedDeparture = timeValue(trip.plecare_planificata)
@@ -200,6 +230,71 @@ function buildOperationalMonitoring(trip, referenceTime = Date.now()) {
     alerts.push({ code: 'livrare_neconfirmata', level: 'informare', label: 'Cursa a sosit, dar primirea/livrarea nu este încă confirmată.' })
   }
   return { alerts, has_delay: alerts.some(item => item.level === 'atentie'), pending_delivery_confirmation: alerts.some(item => item.code === 'livrare_neconfirmata') }
+}
+function stockKey(value) {
+  return clean(value, 240).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+function stockMaterialLabel(material) {
+  return clean(material?.name || material?.denumire || material?.description || material?.code || material?.cod || material?.id, 240)
+}
+function stockAvailable(material) {
+  const value = Number(material?.stock ?? material?.stoc_curent ?? material?.current_stock ?? material?.currentStock ?? 0)
+  return Number.isFinite(value) ? Math.round(value * 1000) / 1000 : 0
+}
+function buildStockPreparation(db, trip) {
+  const materials = Array.isArray(db.materials) ? db.materials : []
+  const rows = (trip.linii || []).map(line => {
+    const requested = Number(line.cantitate || 0)
+    const match = materials.find(material => stockKey(stockMaterialLabel(material)) && stockKey(stockMaterialLabel(material)) === stockKey(line.denumire))
+    const available = match ? stockAvailable(match) : null
+    return {
+      line_id: clean(line.id, 100),
+      denumire: clean(line.denumire, 240),
+      um: clean(line.um, 30),
+      cantitate: Number.isFinite(requested) ? requested : 0,
+      material_id: match?.id || null,
+      material_denumire: match ? stockMaterialLabel(match) : null,
+      disponibil: available,
+      suficient: Boolean(match) && available >= requested,
+      verdict: !match ? 'neidentificat' : available >= requested ? 'disponibil' : 'insuficient',
+    }
+  })
+  const neidentificate = rows.filter(row => row.verdict === 'neidentificat').length
+  const insuficiente = rows.filter(row => row.verdict === 'insuficient').length
+  return {
+    verificat_la: nowIso(),
+    linii: rows,
+    total_linii: rows.length,
+    neidentificate,
+    insuficiente,
+    pregatibil: Boolean(rows.length) && !neidentificate && !insuficiente,
+    nota: 'Verificarea este informativă. Nu rezervă și nu scade stocul; ieșirea din gestiune se înregistrează separat.',
+  }
+}
+function buildTraceability(db, trip) {
+  const logistics = ensureLogisticsDb(db)
+  const documents = logistics.documents
+    .filter(document => String(document.cursa_id) === String(trip.id))
+    .map(document => ({ id: document.id, numar: document.numar, tip: document.tip, status: document.status }))
+  return {
+    cursa: { id: trip.id, numar: trip.numar },
+    comanda_client: trip.crm_comanda_id ? { id: trip.crm_comanda_id, numar: trip.crm_comanda_numar || trip.crm_comanda_id, client: trip.crm_client || '' } : null,
+    comanda_aprovizionare: trip.comanda_id ? { id: trip.comanda_id, numar: trip.comanda_numar || trip.comanda_id } : null,
+    contract: trip.contract_id ? { id: trip.contract_id, numar: trip.contract_numar || trip.contract_id } : null,
+    documente: documents,
+  }
+}
+function buildGpsAdapterLink(db, trip) {
+  const asset = (db.fleetAssets || db.fleet?.assets || []).find(item => String(item.id) === String(trip.vehicul_id))
+  return {
+    status: trip.gps_adapter?.status || 'neconectat',
+    adaptor: trip.gps_adapter?.adaptor || null,
+    device_reference: trip.gps_adapter?.device_reference || asset?.gps_device_id || asset?.gpsDeviceId || null,
+    observatii: trip.gps_adapter?.observatii || '',
+    actualizat_la: trip.gps_adapter?.actualizat_la || null,
+    actualizat_de_nume: trip.gps_adapter?.actualizat_de_nume || null,
+    note: 'Legătura este numai de configurare. Acest modul nu citește poziții GPS și nu contactează niciun furnizor.',
+  }
 }
 function decorateTrip(db, trip) {
   const logistics = ensureLogisticsDb(db)
@@ -223,6 +318,9 @@ function decorateTrip(db, trip) {
       duration_minutes: departureAt && arrivalAt && arrivalAt >= departureAt ? Math.round((arrivalAt - departureAt) / 60000) : null,
     },
     monitoring: buildOperationalMonitoring(trip),
+    stock_preparation: trip.stock_preparation || null,
+    traceability: buildTraceability(db, trip),
+    gps_adapter: buildGpsAdapterLink(db, trip),
   }
 }
 function reportDate(value) {
@@ -328,12 +426,13 @@ function decorate(db, document) {
     status_label: statusLabel(document.status),
     contract: contract ? { id: contract.id, numar: contract.numar, titlu: contract.titlu } : null,
     cursa: trip ? { id: trip.id, numar: trip.numar, status: trip.status } : null,
+    crm_comanda: document.crm_comanda_id ? { id: document.crm_comanda_id, numar: document.crm_comanda_numar || document.crm_comanda_id, client: document.crm_client || '' } : null,
   }
 }
 function printHtml(db, document, user) {
   const company = db.settings?.companyName || db.settings?.company_name || 'Organizație InfraFlow'
   const rows = (document.linii || []).map((line, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(line.denumire)}</td><td>${escapeHtml(line.um || '-')}</td><td>${escapeHtml(line.cantitate || '-')}</td><td>${escapeHtml(line.cod_nc || '-')}</td></tr>`).join('') || '<tr><td colspan="5">Nu sunt poziții declarate.</td></tr>'
-  return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>${escapeHtml(document.numar)}</title><style>body{font:14px Arial;color:#172033;margin:30px}h1{margin:0 0 4px;font-size:24px}.muted{color:#58677d}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:24px 0}.box{border:1px solid #cbd5e1;border-radius:6px;padding:12px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #94a3b8;padding:8px;text-align:left}th{background:#eef2f7}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:25px;margin-top:55px}.sign div{border-top:1px solid #64748b;padding-top:7px}@media print{body{margin:12mm}}</style></head><body><h1>${escapeHtml(typeLabel(document.tip))} ${escapeHtml(document.numar)}</h1><div class="muted">${escapeHtml(company)} · Data: ${escapeHtml(document.data)} · Status: ${escapeHtml(statusLabel(document.status))}</div><div class="grid"><div class="box"><b>Expeditor</b><br>${escapeHtml(document.expeditor)}<br>${escapeHtml(document.adresa_incarcare || '')}</div><div class="box"><b>Destinatar</b><br>${escapeHtml(document.destinatar)}<br>${escapeHtml(document.adresa_livrare || '')}</div><div class="box"><b>Transport</b><br>Transportator: ${escapeHtml(document.transportator || '-')}<br>Vehicul: ${escapeHtml(document.vehicul || '-')} ${escapeHtml(document.remorca || '')}<br>Șofer: ${escapeHtml(document.sofer || '-')}</div><div class="box"><b>Legături</b><br>Comandă: ${escapeHtml(document.comanda_numar || '-')}<br>Contract: ${escapeHtml(document.contract_numar || '-')}<br>Referință externă: ${escapeHtml(document.referinta_externa || '-')}</div></div><table><thead><tr><th>#</th><th>Denumire</th><th>UM</th><th>Cantitate</th><th>Cod NC (opțional)</th></tr></thead><tbody>${rows}</tbody></table>${document.observatii ? `<p><b>Observații:</b> ${escapeHtml(document.observatii)}</p>` : ''}<div class="sign"><div>Predare / expeditor</div><div>Transportator</div><div>Primire / destinatar</div></div><p class="muted">Generat de ${escapeHtml(currentUserLabel(user))} la ${escapeHtml(nowIso())}. Document intern; obligațiile fiscale și declarative se verifică separat pentru jurisdicția aplicabilă.</p></body></html>`
+  return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>${escapeHtml(document.numar)}</title><style>body{font:14px Arial;color:#172033;margin:30px}h1{margin:0 0 4px;font-size:24px}.muted{color:#58677d}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:24px 0}.box{border:1px solid #cbd5e1;border-radius:6px;padding:12px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #94a3b8;padding:8px;text-align:left}th{background:#eef2f7}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:25px;margin-top:55px}.sign div{border-top:1px solid #64748b;padding-top:7px}@media print{body{margin:12mm}}</style></head><body><h1>${escapeHtml(typeLabel(document.tip))} ${escapeHtml(document.numar)}</h1><div class="muted">${escapeHtml(company)} · Data: ${escapeHtml(document.data)} · Status: ${escapeHtml(statusLabel(document.status))}</div><div class="grid"><div class="box"><b>Expeditor</b><br>${escapeHtml(document.expeditor)}<br>${escapeHtml(document.adresa_incarcare || '')}</div><div class="box"><b>Destinatar</b><br>${escapeHtml(document.destinatar)}<br>${escapeHtml(document.adresa_livrare || '')}</div><div class="box"><b>Transport</b><br>Transportator: ${escapeHtml(document.transportator || '-')}<br>Vehicul: ${escapeHtml(document.vehicul || '-')} ${escapeHtml(document.remorca || '')}<br>Șofer: ${escapeHtml(document.sofer || '-')}</div><div class="box"><b>Legături</b><br>Comandă client: ${escapeHtml(document.crm_comanda_numar || '-')}<br>Comandă aprovizionare: ${escapeHtml(document.comanda_numar || '-')}<br>Contract: ${escapeHtml(document.contract_numar || '-')}<br>Cursă: ${escapeHtml(document.cursa_numar || '-')}<br>Referință externă: ${escapeHtml(document.referinta_externa || '-')}</div></div><table><thead><tr><th>#</th><th>Denumire</th><th>UM</th><th>Cantitate</th><th>Cod NC (opțional)</th></tr></thead><tbody>${rows}</tbody></table>${document.observatii ? `<p><b>Observații:</b> ${escapeHtml(document.observatii)}</p>` : ''}<div class="sign"><div>Predare / expeditor</div><div>Transportator</div><div>Primire / destinatar</div></div><p class="muted">Generat de ${escapeHtml(currentUserLabel(user))} la ${escapeHtml(nowIso())}. Document intern; obligațiile fiscale și declarative se verifică separat pentru jurisdicția aplicabilă.</p></body></html>`
 }
 
 router.get('/logistics/documents', (req, res) => {
@@ -342,7 +441,7 @@ router.get('/logistics/documents', (req, res) => {
   const documents = ensureLogisticsDb(auth.db).documents.map(item => decorate(auth.db, item))
     .filter(item => !filters.tip || item.tip === filters.tip)
     .filter(item => !filters.status || item.status === filters.status)
-    .filter(item => !filters.q || `${item.numar} ${item.expeditor} ${item.destinatar} ${item.comanda_numar} ${item.contract_numar}`.toLowerCase().includes(String(filters.q).toLowerCase()))
+    .filter(item => !filters.q || `${item.numar} ${item.expeditor} ${item.destinatar} ${item.comanda_numar} ${item.crm_comanda_numar} ${item.crm_client} ${item.contract_numar}`.toLowerCase().includes(String(filters.q).toLowerCase()))
     .sort((a, b) => `${b.data} ${b.created_at}`.localeCompare(`${a.data} ${a.created_at}`))
   res.json({ documents })
 })
@@ -352,7 +451,7 @@ router.get('/logistics/trips', (req, res) => {
   const filters = req.query || {}
   const trips = ensureLogisticsDb(auth.db).trips.map(item => decorateTrip(auth.db, item))
     .filter(item => !filters.status || item.status === filters.status)
-    .filter(item => !filters.q || `${item.numar} ${item.expeditor} ${item.destinatar} ${item.vehicul} ${item.sofer} ${item.comanda_numar} ${item.contract_numar}`.toLowerCase().includes(String(filters.q).toLowerCase()))
+    .filter(item => !filters.q || `${item.numar} ${item.expeditor} ${item.destinatar} ${item.vehicul} ${item.sofer} ${item.comanda_numar} ${item.crm_comanda_numar} ${item.crm_client} ${item.contract_numar}`.toLowerCase().includes(String(filters.q).toLowerCase()))
     .sort((a, b) => `${b.data} ${b.created_at}`.localeCompare(`${a.data} ${a.created_at}`))
   res.json({ trips })
 })
@@ -367,11 +466,15 @@ router.get('/logistics/reports/operational', (req, res) => {
 router.get('/logistics/context', (req, res) => {
   const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, VIEW_PERMISSIONS)) return
   const orders = (auth.db.procurementOrders || []).filter(item => !item.cancelled_at && !item.cancelledAt).map(item => ({ id: item.id, numar: item.numar || item.number || item.id, partener: item.furnizor || item.supplier || item.partener || '' }))
+  let customerOrders = []
+  if (authHasPermission(auth, 'crm:order_manage')) {
+    try { customerOrders = crmOrderRepository.listOrders({ status: 'confirmed' }).map(item => ({ id: item.id, numar: item.order_number || item.id, client: item.account_name || item.contact_name || '', currency: item.currency || '' })) } catch (_) { customerOrders = [] }
+  }
   const contracts = (auth.db.contractManagement?.contracts || []).filter(item => !item.cancelled_at && !item.cancelledAt).map(item => ({ id: item.id, numar: item.numar || item.id, titlu: item.titlu || '' }))
   const assets = (auth.db.fleetAssets || auth.db.fleet?.assets || []).filter(item => item.active !== false).map(item => ({ id: item.id, label: item.registration || item.nr_inmatriculare || item.code || item.cod || item.name || item.denumire || item.id }))
   const drivers = (auth.db.hr?.employees || auth.db.employees || []).filter(item => item.active !== false && item.inactive !== true).map(item => ({ id: item.id, label: item.fullName || item.name || [item.firstName, item.lastName].filter(Boolean).join(' ') || item.username || item.id }))
   const trips = ensureLogisticsDb(auth.db).trips.filter(item => item.status !== 'anulata').map(item => ({ id: item.id, numar: item.numar, expeditor: item.expeditor, destinatar: item.destinatar, status: item.status, linii: item.linii || [] }))
-  res.json({ orders, contracts, assets, drivers, trips, types: Array.from(DOCUMENT_TYPES), statuses: Array.from(DOCUMENT_STATUSES), trip_statuses: Array.from(TRIP_STATUSES), integration: { etransport: 'neconfigurat', note: 'Nu există transmitere automată către RO e-Transport sau ANAF în acest modul.' } })
+  res.json({ orders, customer_orders: customerOrders, crm_orders_available: authHasPermission(auth, 'crm:order_manage'), contracts, assets, drivers, trips, types: Array.from(DOCUMENT_TYPES), statuses: Array.from(DOCUMENT_STATUSES), trip_statuses: Array.from(TRIP_STATUSES), integration: { etransport: 'neconfigurat', note: 'Nu există transmitere automată către RO e-Transport sau ANAF în acest modul.' } })
 })
 
 router.post('/logistics/trips/planning-check', (req, res) => {
@@ -383,7 +486,7 @@ router.post('/logistics/trips/planning-check', (req, res) => {
 
 router.post('/logistics/trips', (req, res) => {
   const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, MANAGE_PERMISSIONS)) return
-  const logistics = ensureLogisticsDb(auth.db); const payload = normalizeTrip(req.body || {}, {}, logistics.trips); const error = validateTrip(payload, auth.db)
+  const logistics = ensureLogisticsDb(auth.db); let payload = normalizeTrip(req.body || {}, {}, logistics.trips); const crmLink = resolveConfirmedCrmOrder(auth, payload); if (crmLink.error) return res.status(422).json({ error: crmLink.error }); payload = applyConfirmedCrmOrder(payload, crmLink.order); const error = validateTrip(payload, auth.db)
   if (error) return res.status(422).json({ error })
   const trip = { id: `cur-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`, uuid: crypto.randomUUID(), ...payload, created_at: nowIso(), created_by: auth.user.id, created_by_name: currentUserLabel(auth.user), updated_at: nowIso(), timeline: [] }
   recordTripEvent(trip, 'created', 'Cursa a fost planificată.', auth.user)
@@ -395,7 +498,7 @@ router.patch('/logistics/trips/:id', (req, res) => {
   const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, MANAGE_PERMISSIONS)) return
   const logistics = ensureLogisticsDb(auth.db); const trip = logistics.trips.find(item => String(item.id) === String(req.params.id))
   if (!trip) return res.status(404).json({ error: 'Cursa nu a fost găsită.' })
-  const payload = normalizeTrip(req.body || {}, trip, logistics.trips); const error = validateTrip(payload, auth.db, trip.id)
+  let payload = normalizeTrip(req.body || {}, trip, logistics.trips); const crmLink = resolveConfirmedCrmOrder(auth, payload); if (crmLink.error) return res.status(422).json({ error: crmLink.error }); payload = applyConfirmedCrmOrder(payload, crmLink.order); const error = validateTrip(payload, auth.db, trip.id)
   if (error) return res.status(422).json({ error })
   const previousStatus = trip.status
   Object.assign(trip, payload, { updated_at: nowIso(), updated_by: auth.user.id, updated_by_name: currentUserLabel(auth.user) })
@@ -410,6 +513,84 @@ router.post('/logistics/trips/:id/cancel', (req, res) => {
   if (!trip) return res.status(404).json({ error: 'Cursa nu a fost găsită.' })
   if (trip.status === 'anulata') return res.json({ ok: true, trip: decorateTrip(auth.db, trip) })
   trip.status = 'anulata'; trip.cancelled_at = nowIso(); trip.cancelled_by = auth.user.id; trip.cancelled_reason = clean(req.body?.motiv || req.body?.reason || 'Anulată controlat', 500); recordTripEvent(trip, 'cancelled', `Cursa a fost anulată: ${trip.cancelled_reason}`, auth.user); addAudit(auth.db, auth.user, 'logistics_trip_cancelled', trip.numar); writeDb(auth.db)
+  res.json({ ok: true, trip: decorateTrip(auth.db, trip) })
+})
+
+router.post('/logistics/trips/:id/stock-preparation/check', (req, res) => {
+  const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, MANAGE_PERMISSIONS)) return
+  const trip = ensureLogisticsDb(auth.db).trips.find(item => String(item.id) === String(req.params.id))
+  if (!trip) return res.status(404).json({ error: 'Cursa nu a fost găsită.' })
+  if (trip.status === 'anulata') return res.status(422).json({ error: 'O cursă anulată nu poate fi pregătită pentru livrare.' })
+  res.json({ preparation: buildStockPreparation(auth.db, trip) })
+})
+
+router.post('/logistics/trips/:id/stock-preparation/confirm', (req, res) => {
+  const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, MANAGE_PERMISSIONS)) return
+  const trip = ensureLogisticsDb(auth.db).trips.find(item => String(item.id) === String(req.params.id))
+  if (!trip) return res.status(404).json({ error: 'Cursa nu a fost găsită.' })
+  if (trip.status === 'anulata') return res.status(422).json({ error: 'O cursă anulată nu poate fi pregătită pentru livrare.' })
+  if (req.body?.confirmare !== true) return res.status(422).json({ error: 'Confirmă explicit pregătirea înainte de salvare.' })
+  const preparation = buildStockPreparation(auth.db, trip)
+  if (!preparation.linii.length) return res.status(422).json({ error: 'Cursa nu are poziții care pot fi verificate în stoc.' })
+  if (!preparation.pregatibil) return res.status(422).json({ error: 'Pregătirea nu poate fi confirmată cât timp există poziții neidentificate sau stoc insuficient.' })
+  trip.stock_preparation = {
+    ...preparation,
+    status: 'pregatit',
+    confirmat_la: nowIso(),
+    confirmat_de: auth.user.id,
+    confirmat_de_nume: currentUserLabel(auth.user),
+    observatii: clean(req.body?.observatii, 1000),
+  }
+  trip.updated_at = nowIso(); trip.updated_by = auth.user.id; trip.updated_by_name = currentUserLabel(auth.user)
+  recordTripEvent(trip, 'stock_preparation_confirmed', `Pregătirea pentru livrare a fost confirmată (${preparation.total_linii} poziții). Stocul nu a fost modificat automat.`, auth.user)
+  addAudit(auth.db, auth.user, 'logistics_trip_stock_preparation_confirmed', trip.numar); writeDb(auth.db)
+  res.json({ ok: true, trip: decorateTrip(auth.db, trip) })
+})
+
+router.post('/logistics/trips/:id/etransport', (req, res) => {
+  const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, MANAGE_PERMISSIONS)) return
+  const trip = ensureLogisticsDb(auth.db).trips.find(item => String(item.id) === String(req.params.id))
+  if (!trip) return res.status(404).json({ error: 'Cursa nu a fost găsită.' })
+  if (trip.status === 'anulata') return res.status(422).json({ error: 'O cursă anulată nu poate primi o evidență RO e-Transport.' })
+  const status = clean(req.body?.status, 50) || 'neanalizat'
+  if (!ETRANSPORT_STATUSES.has(status)) return res.status(422).json({ error: 'Starea RO e-Transport nu este validă.' })
+  const uit = clean(req.body?.uit, 80)
+  if (status === 'declarat_manual' && !uit) return res.status(422).json({ error: 'Introdu UIT-ul primit înainte de a marca declarația ca înregistrată manual.' })
+  trip.etransport = {
+    status,
+    uit: uit || null,
+    referinta_interna: clean(req.body?.referinta_interna, 120) || null,
+    observatii: clean(req.body?.observatii, 1000),
+    actualizat_la: nowIso(),
+    actualizat_de: auth.user.id,
+    actualizat_de_nume: currentUserLabel(auth.user),
+    sursa: 'evidenta_manuala',
+  }
+  trip.updated_at = nowIso(); trip.updated_by = auth.user.id; trip.updated_by_name = currentUserLabel(auth.user)
+  recordTripEvent(trip, 'etransport_updated', `Evidența RO e-Transport a fost actualizată: ${status}.${uit ? ` UIT: ${uit}.` : ''}`, auth.user)
+  addAudit(auth.db, auth.user, 'logistics_trip_etransport_updated', trip.numar); writeDb(auth.db)
+  res.json({ ok: true, trip: decorateTrip(auth.db, trip) })
+})
+
+router.post('/logistics/trips/:id/gps-adapter', (req, res) => {
+  const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, MANAGE_PERMISSIONS)) return
+  const trip = ensureLogisticsDb(auth.db).trips.find(item => String(item.id) === String(req.params.id))
+  if (!trip) return res.status(404).json({ error: 'Cursa nu a fost găsită.' })
+  if (trip.status === 'anulata') return res.status(422).json({ error: 'O cursă anulată nu poate primi o legătură GPS.' })
+  const status = clean(req.body?.status, 50) || 'neconectat'
+  if (!GPS_ADAPTER_STATUSES.has(status)) return res.status(422).json({ error: 'Starea adaptorului GPS nu este validă.' })
+  trip.gps_adapter = {
+    status,
+    adaptor: clean(req.body?.adaptor, 120) || null,
+    device_reference: clean(req.body?.device_reference, 160) || null,
+    observatii: clean(req.body?.observatii, 1000),
+    actualizat_la: nowIso(),
+    actualizat_de: auth.user.id,
+    actualizat_de_nume: currentUserLabel(auth.user),
+  }
+  trip.updated_at = nowIso(); trip.updated_by = auth.user.id; trip.updated_by_name = currentUserLabel(auth.user)
+  recordTripEvent(trip, 'gps_adapter_updated', `Legătura GPS/telematică a fost actualizată: ${status}. Nu s-au citit date live.`, auth.user)
+  addAudit(auth.db, auth.user, 'logistics_trip_gps_adapter_updated', trip.numar); writeDb(auth.db)
   res.json({ ok: true, trip: decorateTrip(auth.db, trip) })
 })
 
@@ -507,7 +688,7 @@ router.delete('/logistics/trips/:id/attachments/:attachmentId', (req, res) => {
 
 router.post('/logistics/documents', (req, res) => {
   const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, MANAGE_PERMISSIONS)) return
-  const logistics = ensureLogisticsDb(auth.db); const payload = normalizeInput(req.body || {}, {}, logistics.documents); const error = validate(payload, auth.db)
+  const logistics = ensureLogisticsDb(auth.db); let payload = normalizeInput(req.body || {}, {}, logistics.documents); const crmLink = resolveConfirmedCrmOrder(auth, payload); if (crmLink.error) return res.status(422).json({ error: crmLink.error }); payload = applyConfirmedCrmOrder(payload, crmLink.order); const error = validate(payload, auth.db)
   if (error) return res.status(422).json({ error })
   const document = { id: id(), uuid: crypto.randomUUID(), ...payload, created_at: nowIso(), created_by: auth.user.id, created_by_name: currentUserLabel(auth.user), updated_at: nowIso() }
   logistics.documents.push(document)
@@ -521,7 +702,7 @@ router.patch('/logistics/documents/:id', (req, res) => {
   const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, MANAGE_PERMISSIONS)) return
   const logistics = ensureLogisticsDb(auth.db); const document = logistics.documents.find(item => String(item.id) === String(req.params.id))
   if (!document) return res.status(404).json({ error: 'Documentul de transport nu a fost găsit.' })
-  const payload = normalizeInput(req.body || {}, document, logistics.documents); const error = validate(payload, auth.db, document.id)
+  let payload = normalizeInput(req.body || {}, document, logistics.documents); const crmLink = resolveConfirmedCrmOrder(auth, payload); if (crmLink.error) return res.status(422).json({ error: crmLink.error }); payload = applyConfirmedCrmOrder(payload, crmLink.order); const error = validate(payload, auth.db, document.id)
   if (error) return res.status(422).json({ error })
   Object.assign(document, payload, { updated_at: nowIso(), updated_by: auth.user.id, updated_by_name: currentUserLabel(auth.user) })
   const linkedTrip = logistics.trips.find(item => String(item.id) === String(document.cursa_id))

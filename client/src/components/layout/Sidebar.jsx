@@ -50,7 +50,7 @@ const groups = [
       { to: '/ofertare-interna', icon: '🧾', label: 'Ofertare internă', superadminOnly: true, internalOnly: true },
       { to: '/import-date-vechi', icon: '📥', label: 'Import date vechi', adminOnly: true },
       { to: '/ai-assistant', icon: '🤖', label: 'AI Assistant', moduleKey: 'ai', adminOnly: true, ai: true, badge: aiEnabled => aiEnabled ? 'BETA' : 'INACTIV' },
-      { to: '/ajutor', icon: '❓', label: 'Ajutor', adminOnly: true },
+      { to: '/ajutor', icon: '❓', label: 'Ajutor' },
     ],
   },
 ]

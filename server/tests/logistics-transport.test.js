@@ -87,3 +87,37 @@ test('raportul logistic păstrează costurile separate pe monedă și permite ex
   assert.match(routes, /router\.get\('\/logistics\/reports\/operational'/)
   assert.match(routes, /format.*xlsx/)
 })
+
+test('cursa poate lega numai o comandă client CRM confirmată', () => {
+  assert.match(routes, /const crmOrderRepository = require\('\.\.\/crm\/order-repository'\)/)
+  assert.match(routes, /function resolveConfirmedCrmOrder/)
+  assert.match(routes, /order\.status !== 'confirmed'/)
+  assert.match(routes, /crm_comanda_numar/)
+  assert.match(routes, /crm_orders_available/)
+})
+
+test('pregătirea din stoc este verificată și confirmată manual, fără scădere automată', () => {
+  assert.match(routes, /function buildStockPreparation/)
+  assert.match(routes, /stock-preparation\/check/)
+  assert.match(routes, /stock-preparation\/confirm/)
+  assert.match(routes, /Pregătirea nu poate fi confirmată cât timp există poziții neidentificate sau stoc insuficient/)
+  assert.match(routes, /Stocul nu a fost modificat automat/)
+  assert.doesNotMatch(routes, /material\.stock\s*=/)
+})
+
+test('RO e-Transport rămâne evidență manuală până la configurarea autorizată', () => {
+  assert.match(routes, /ETRANSPORT_STATUSES/)
+  assert.match(routes, /router\.post\('\/logistics\/trips\/:id\/etransport'/)
+  assert.match(routes, /declarat_manual/)
+  assert.match(routes, /Introdu UIT-ul primit înainte de a marca declarația ca înregistrată manual/)
+  assert.match(routes, /sursa: 'evidenta_manuala'/)
+  assert.doesNotMatch(routes, /api\.anaf\.ro/)
+})
+
+test('legătura GPS este un adaptor neutru fără apeluri live', () => {
+  assert.match(routes, /GPS_ADAPTER_STATUSES/)
+  assert.match(routes, /router\.post\('\/logistics\/trips\/:id\/gps-adapter'/)
+  assert.match(routes, /Nu s-au citit date live/)
+  assert.match(routes, /nu contactează niciun furnizor/)
+  assert.doesNotMatch(routes, /urmariregps\.ro/)
+})

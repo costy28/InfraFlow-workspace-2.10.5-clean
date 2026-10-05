@@ -26,7 +26,7 @@ const navigationItems = [
   { label: 'Referate & aprobări', to: '/referate', icon: '📄', moduleKey: 'referate', keywords: 'cereri interne avizare cfp' },
   { label: 'Proiecte & activitate în teren', to: '/teren', icon: '📍', moduleKey: 'field', keywords: 'șantier proiect lucrări' },
   { label: 'Setări', to: '/setari', icon: '⚙️', adminOnly: true, keywords: 'administrare utilizatori module integrare securitate' },
-  { label: 'Ajutor', to: '/ajutor', icon: '❓', adminOnly: true, keywords: 'ghid suport documentație' },
+  { label: 'Ajutor', to: '/ajutor', icon: '❓', keywords: 'ghid suport documentație' },
 ]
 
 const moduleAliases = {

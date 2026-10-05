@@ -25,6 +25,9 @@ const initialDocument = {
   referinta_externa: "",
   comanda_id: "",
   comanda_numar: "",
+  crm_comanda_id: "",
+  crm_comanda_numar: "",
+  crm_client: "",
   contract_id: "",
   contract_numar: "",
   cursa_id: "",
@@ -50,6 +53,9 @@ const initialTrip = {
   sofer: "",
   comanda_id: "",
   comanda_numar: "",
+  crm_comanda_id: "",
+  crm_comanda_numar: "",
+  crm_client: "",
   contract_id: "",
   contract_numar: "",
   cost_moneda: "RON",
@@ -96,6 +102,19 @@ const statusTone = {
   livrata: "success",
   anulata: "danger",
 };
+const etransportStatusOptions = [
+  { value: "neanalizat", label: "Neanalizat" },
+  { value: "verificat_fara_declarare", label: "Verificat – fără declarare" },
+  { value: "declarare_necesara", label: "Necesită declarare" },
+  { value: "declarat_manual", label: "Declarat manual (UIT înregistrat)" },
+];
+const gpsAdapterStatusOptions = [
+  { value: "neconectat", label: "Neconectat" },
+  {
+    value: "configurat_fara_date_live",
+    label: "Configurat – fără date live în Logistică",
+  },
+];
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const formFrom = (source, initial) =>
   source
@@ -186,6 +205,7 @@ export default function LogisticsPage() {
   const [trips, setTrips] = useState([]);
   const [context, setContext] = useState({
     orders: [],
+    customer_orders: [],
     contracts: [],
     assets: [],
     drivers: [],
@@ -225,6 +245,26 @@ export default function LogisticsPage() {
   const [executionAction, setExecutionAction] = useState("start");
   const [executionForm, setExecutionForm] = useState({
     moment: new Date().toISOString().slice(0, 16),
+    observatii: "",
+  });
+  const [stockPreparationModal, setStockPreparationModal] = useState(false);
+  const [stockPreparationTrip, setStockPreparationTrip] = useState(null);
+  const [stockPreparation, setStockPreparation] = useState(null);
+  const [stockPreparationNote, setStockPreparationNote] = useState("");
+  const [etransportModal, setEtransportModal] = useState(false);
+  const [etransportTrip, setEtransportTrip] = useState(null);
+  const [etransportForm, setEtransportForm] = useState({
+    status: "neanalizat",
+    uit: "",
+    referinta_interna: "",
+    observatii: "",
+  });
+  const [gpsAdapterModal, setGpsAdapterModal] = useState(false);
+  const [gpsAdapterTrip, setGpsAdapterTrip] = useState(null);
+  const [gpsAdapterForm, setGpsAdapterForm] = useState({
+    status: "neconectat",
+    adaptor: "",
+    device_reference: "",
     observatii: "",
   });
 
@@ -344,6 +384,13 @@ export default function LogisticsPage() {
       label: `${item.numar}${item.partener ? ` — ${item.partener}` : ""}`,
     })),
   ];
+  const customerOrderOptions = [
+    { value: "", label: "Fără comandă client CRM legată" },
+    ...(context.customer_orders || []).map((item) => ({
+      value: item.id,
+      label: `${item.numar}${item.client ? ` — ${item.client}` : ""}`,
+    })),
+  ];
   const contractOptions = [
     { value: "", label: "Fără contract legat" },
     ...(context.contracts || []).map((item) => ({
@@ -361,6 +408,18 @@ export default function LogisticsPage() {
       comanda_id: value,
       comanda_numar: item?.numar || "",
       destinatar: current.destinatar || item?.partener || "",
+    }));
+  }
+  function applyCustomerOrder(value) {
+    const item = (context.customer_orders || []).find(
+      (order) => String(order.id) === String(value),
+    );
+    setTripForm((current) => ({
+      ...current,
+      crm_comanda_id: value,
+      crm_comanda_numar: item?.numar || "",
+      crm_client: item?.client || "",
+      destinatar: current.destinatar || item?.client || "",
     }));
   }
   function applyContract(target, value) {
@@ -413,6 +472,10 @@ export default function LogisticsPage() {
       sofer: item?.sofer || current.sofer,
       comanda_id: item?.comanda_id || current.comanda_id,
       comanda_numar: item?.comanda_numar || current.comanda_numar,
+      crm_comanda_id: item?.crm_comanda_id || current.crm_comanda_id,
+      crm_comanda_numar:
+        item?.crm_comanda_numar || current.crm_comanda_numar,
+      crm_client: item?.crm_client || current.crm_client,
       contract_id: item?.contract_id || current.contract_id,
       contract_numar: item?.contract_numar || current.contract_numar,
       linii: item?.linii?.length ? item.linii : current.linii,
@@ -573,6 +636,109 @@ export default function LogisticsPage() {
     });
     setError("");
     setExecutionModal(true);
+  }
+  async function openStockPreparation(item) {
+    setSaving(true);
+    setError("");
+    try {
+      const response = await api.post(
+        `/logistics/trips/${item.id}/stock-preparation/check`,
+      );
+      setStockPreparationTrip(item);
+      setStockPreparation(response.data?.preparation || null);
+      setStockPreparationNote("");
+      setStockPreparationModal(true);
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.error ||
+          "Stocul nu a putut fi verificat pentru această cursă.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function confirmStockPreparation() {
+    if (!stockPreparationTrip) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api.post(
+        `/logistics/trips/${stockPreparationTrip.id}/stock-preparation/confirm`,
+        { confirmare: true, observatii: stockPreparationNote },
+      );
+      setNotice(
+        "Pregătirea pentru livrare a fost confirmată. Stocul nu a fost scăzut automat.",
+      );
+      setStockPreparationModal(false);
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.error ||
+          "Pregătirea pentru livrare nu a putut fi confirmată.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  function openEtransport(item) {
+    setEtransportTrip(item);
+    setEtransportForm({
+      status: item.etransport?.status || "neanalizat",
+      uit: item.etransport?.uit || "",
+      referinta_interna: item.etransport?.referinta_interna || "",
+      observatii: item.etransport?.observatii || "",
+    });
+    setError("");
+    setEtransportModal(true);
+  }
+  async function saveEtransport(event) {
+    event.preventDefault();
+    if (!etransportTrip) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api.post(`/logistics/trips/${etransportTrip.id}/etransport`, etransportForm);
+      setNotice("Evidența RO e-Transport a fost salvată manual, fără transmitere către ANAF.");
+      setEtransportModal(false);
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.error ||
+          "Evidența RO e-Transport nu a putut fi salvată.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  function openGpsAdapter(item) {
+    setGpsAdapterTrip(item);
+    setGpsAdapterForm({
+      status: item.gps_adapter?.status || "neconectat",
+      adaptor: item.gps_adapter?.adaptor || "",
+      device_reference: item.gps_adapter?.device_reference || "",
+      observatii: item.gps_adapter?.observatii || "",
+    });
+    setError("");
+    setGpsAdapterModal(true);
+  }
+  async function saveGpsAdapter(event) {
+    event.preventDefault();
+    if (!gpsAdapterTrip) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api.post(`/logistics/trips/${gpsAdapterTrip.id}/gps-adapter`, gpsAdapterForm);
+      setNotice("Legătura GPS/telematică a fost salvată. Nu s-au citit date live.");
+      setGpsAdapterModal(false);
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.error ||
+          "Legătura GPS nu a putut fi salvată.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
   async function saveExecution(event) {
     event.preventDefault();
@@ -937,6 +1103,9 @@ export default function LogisticsPage() {
                           {item.comanda_numar
                             ? ` · Comandă ${item.comanda_numar}`
                             : ""}
+                          {item.crm_comanda_numar
+                            ? ` · Client ${item.crm_comanda_numar}`
+                            : ""}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -974,6 +1143,23 @@ export default function LogisticsPage() {
                             item.transportator ||
                             "Șofer/transportator nealocat"}
                         </div>
+                        {item.stock_preparation?.confirmat_la ? (
+                          <div className="mt-1 text-emerald-700">
+                            Pregătire stoc confirmată
+                          </div>
+                        ) : null}
+                        {item.etransport?.status &&
+                        item.etransport.status !== "neanalizat" ? (
+                          <div className="mt-1 text-slate-600">
+                            RO e-Transport: {item.etransport.status.replaceAll("_", " ")}
+                          </div>
+                        ) : null}
+                        {item.gps_adapter?.status ===
+                        "configurat_fara_date_live" ? (
+                          <div className="mt-1 text-slate-600">
+                            GPS/telematică configurat
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-xs">
                         {item.documente_count
@@ -1013,6 +1199,33 @@ export default function LogisticsPage() {
                           >
                             Dovadă
                           </Button>
+                          {item.status !== "anulata" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openStockPreparation(item)}
+                            >
+                              Stoc
+                            </Button>
+                          ) : null}
+                          {item.status !== "anulata" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openGpsAdapter(item)}
+                            >
+                              GPS
+                            </Button>
+                          ) : null}
+                          {item.status !== "anulata" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEtransport(item)}
+                            >
+                              RO e-Transport
+                            </Button>
+                          ) : null}
                           <Button
                             size="sm"
                             variant="outline"
@@ -1097,6 +1310,12 @@ export default function LogisticsPage() {
                             : item.contract_numar
                               ? `Contract ${item.contract_numar}`
                               : "—"}
+                          {item.crm_comanda_numar ? (
+                            <div className="text-slate-500">
+                              Client {item.crm_comanda_numar}
+                              {item.crm_client ? ` · ${item.crm_client}` : ""}
+                            </div>
+                          ) : null}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -1293,6 +1512,13 @@ export default function LogisticsPage() {
               value={tripForm.comanda_id}
               onChange={(event) => applyOrder(setTripForm, event.target.value)}
               options={orderOptions}
+            />
+            <Select
+              label="Comandă client CRM"
+              value={tripForm.crm_comanda_id}
+              onChange={(event) => applyCustomerOrder(event.target.value)}
+              options={customerOrderOptions}
+              disabled={!context.crm_orders_available}
             />
             <Select
               label="Contract"
@@ -1541,6 +1767,278 @@ export default function LogisticsPage() {
         </form>
       </Modal>
       <Modal
+        open={gpsAdapterModal}
+        onClose={() => setGpsAdapterModal(false)}
+        title={`GPS / telematică — ${gpsAdapterTrip?.numar || ""}`}
+        size="md"
+      >
+        <form className="space-y-4" onSubmit={saveGpsAdapter}>
+          <p className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+            Acesta este un punct de legătură pentru un adaptor configurat
+            explicit. Nu presupune un furnizor, nu păstrează credențiale și nu
+            citește poziții sau trasee live.
+          </p>
+          <Select
+            label="Stare adaptor"
+            value={gpsAdapterForm.status}
+            onChange={(event) =>
+              setGpsAdapterForm((current) => ({
+                ...current,
+                status: event.target.value,
+              }))
+            }
+            options={gpsAdapterStatusOptions}
+          />
+          <Input
+            label="Nume adaptor (opțional)"
+            value={gpsAdapterForm.adaptor}
+            placeholder="De exemplu: adaptor GPS configurat de organizație"
+            onChange={(event) =>
+              setGpsAdapterForm((current) => ({
+                ...current,
+                adaptor: event.target.value,
+              }))
+            }
+          />
+          <Input
+            label="Identificator vehicul în sistemul GPS (opțional)"
+            value={gpsAdapterForm.device_reference}
+            onChange={(event) =>
+              setGpsAdapterForm((current) => ({
+                ...current,
+                device_reference: event.target.value,
+              }))
+            }
+          />
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Observații
+            <textarea
+              className="min-h-24 rounded-[var(--radius-control)] border border-slate-300 p-2 text-sm"
+              value={gpsAdapterForm.observatii}
+              onChange={(event) =>
+                setGpsAdapterForm((current) => ({
+                  ...current,
+                  observatii: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setGpsAdapterModal(false)}
+            >
+              Renunță
+            </Button>
+            <Button type="submit" loading={saving}>
+              Salvează legătura
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={etransportModal}
+        onClose={() => setEtransportModal(false)}
+        title={`RO e-Transport — ${etransportTrip?.numar || ""}`}
+        size="md"
+      >
+        <form className="space-y-4" onSubmit={saveEtransport}>
+          <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Aceasta este numai evidență internă. Nu transmite date, nu generează
+            UIT și nu verifică obligația legală de declarare. Înainte de orice
+            declarare, verifică documentația oficială și lucrează în SPV/API
+            doar cu credențialele autorizate.
+          </p>
+          <a
+            className="text-sm font-medium text-emerald-800 underline"
+            href="https://mfinante.gov.ro/ro/web/etransport"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Deschide documentația oficială RO e-Transport
+          </a>
+          <Select
+            label="Stare internă"
+            value={etransportForm.status}
+            onChange={(event) =>
+              setEtransportForm((current) => ({
+                ...current,
+                status: event.target.value,
+              }))
+            }
+            options={etransportStatusOptions}
+          />
+          <Input
+            label="UIT (doar dacă l-ai primit)"
+            value={etransportForm.uit}
+            onChange={(event) =>
+              setEtransportForm((current) => ({
+                ...current,
+                uit: event.target.value,
+              }))
+            }
+          />
+          <Input
+            label="Referință internă (opțional)"
+            value={etransportForm.referinta_interna}
+            onChange={(event) =>
+              setEtransportForm((current) => ({
+                ...current,
+                referinta_interna: event.target.value,
+              }))
+            }
+          />
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Observații
+            <textarea
+              className="min-h-24 rounded-[var(--radius-control)] border border-slate-300 p-2 text-sm"
+              value={etransportForm.observatii}
+              onChange={(event) =>
+                setEtransportForm((current) => ({
+                  ...current,
+                  observatii: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setEtransportModal(false)}
+            >
+              Renunță
+            </Button>
+            <Button type="submit" loading={saving}>
+              Salvează evidența
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={stockPreparationModal}
+        onClose={() => setStockPreparationModal(false)}
+        title={`Pregătire pentru livrare — ${stockPreparationTrip?.numar || ""}`}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Această etapă verifică pozițiile exact după denumirea din cursă și
+            păstrează un snapshot al disponibilității. Nu rezervă și nu scade
+            stocul; ieșirea din gestiune se înregistrează separat, controlat.
+          </p>
+          {stockPreparation ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Card className="p-3">
+                  <div className="text-xs text-slate-500">Poziții</div>
+                  <div className="text-lg font-semibold">
+                    {stockPreparation.total_linii}
+                  </div>
+                </Card>
+                <Card className="p-3">
+                  <div className="text-xs text-slate-500">Neidentificate</div>
+                  <div className="text-lg font-semibold text-amber-700">
+                    {stockPreparation.neidentificate}
+                  </div>
+                </Card>
+                <Card className="p-3">
+                  <div className="text-xs text-slate-500">Stoc insuficient</div>
+                  <div className="text-lg font-semibold text-rose-700">
+                    {stockPreparation.insuficiente}
+                  </div>
+                </Card>
+              </div>
+              <div className="overflow-x-auto rounded-md border border-slate-200">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Poziție cursă</th>
+                      <th className="px-3 py-2">Necesar</th>
+                      <th className="px-3 py-2">Disponibil</th>
+                      <th className="px-3 py-2">Verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(stockPreparation.linii || []).map((line) => (
+                      <tr key={line.line_id} className="border-t border-slate-100">
+                        <td className="px-3 py-2">
+                          <div>{line.denumire || "Poziție fără denumire"}</div>
+                          {line.material_denumire ? (
+                            <div className="text-xs text-slate-500">
+                              Material: {line.material_denumire}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2">
+                          {line.cantitate} {line.um}
+                        </td>
+                        <td className="px-3 py-2">
+                          {line.disponibil === null
+                            ? "—"
+                            : `${line.disponibil} ${line.um}`}
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge
+                            variant={
+                              line.verdict === "disponibil"
+                                ? "success"
+                                : line.verdict === "insuficient"
+                                  ? "danger"
+                                  : "warning"
+                            }
+                          >
+                            {line.verdict === "disponibil"
+                              ? "Disponibil"
+                              : line.verdict === "insuficient"
+                                ? "Insuficient"
+                                : "Neidentificat"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Observații pregătire (opțional)
+                <textarea
+                  className="min-h-20 rounded-[var(--radius-control)] border border-slate-300 p-2 text-sm"
+                  value={stockPreparationNote}
+                  onChange={(event) => setStockPreparationNote(event.target.value)}
+                />
+              </label>
+              {!stockPreparation.pregatibil ? (
+                <p className="text-sm text-rose-700">
+                  Corectează denumirile pozițiilor sau stocul în Gestiune înainte
+                  de a confirma pregătirea.
+                </p>
+              ) : null}
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setStockPreparationModal(false)}
+                >
+                  Închide
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!stockPreparation.pregatibil}
+                  loading={saving}
+                  onClick={confirmStockPreparation}
+                >
+                  Confirmă pregătirea
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="text-slate-500">Nu există poziții de verificat.</p>
+          )}
+        </div>
+      </Modal>
+      <Modal
         open={evidenceModal}
         onClose={() => setEvidenceModal(false)}
         title={
@@ -1643,6 +2141,35 @@ export default function LogisticsPage() {
               ) : (
                 <p className="text-slate-500">Nu există fișiere atașate.</p>
               )}
+            </div>
+          </section>
+          <section className="rounded-md border border-slate-200 p-3">
+            <h3 className="font-semibold text-slate-900">Legături cursă</h3>
+            <div className="mt-2 grid gap-2 text-sm md:grid-cols-2">
+              <div>
+                <span className="text-slate-500">Comandă client:</span>{" "}
+                {evidenceTrip?.traceability?.comanda_client?.numar || "—"}
+                {evidenceTrip?.traceability?.comanda_client?.client
+                  ? ` · ${evidenceTrip.traceability.comanda_client.client}`
+                  : ""}
+              </div>
+              <div>
+                <span className="text-slate-500">Comandă aprovizionare:</span>{" "}
+                {evidenceTrip?.traceability?.comanda_aprovizionare?.numar ||
+                  "—"}
+              </div>
+              <div>
+                <span className="text-slate-500">Contract:</span>{" "}
+                {evidenceTrip?.traceability?.contract?.numar || "—"}
+              </div>
+              <div>
+                <span className="text-slate-500">Documente transport:</span>{" "}
+                {evidenceTrip?.traceability?.documente?.length
+                  ? evidenceTrip.traceability.documente
+                      .map((document) => document.numar)
+                      .join(", ")
+                  : "—"}
+              </div>
             </div>
           </section>
           <section>

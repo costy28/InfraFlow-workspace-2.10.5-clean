@@ -1,3 +1,34 @@
+## v2.12.671 - 2026-10-05
+
+### Hotfix export Ajutor
+
+- Exportul bibliotecii Ajutor poate acum salva corect evenimentul de audit și livra arhiva ZIP; elimină eroarea generică afișată pe instalațiile locale.
+
+## v2.12.670 - 2026-10-05
+
+### Transfer controlat al bibliotecii Ajutor
+
+- Butonul „Articol nou” este afișat corect pentru Superadmin.
+- Biblioteca Ajutor, inclusiv capturile atașate, poate fi exportată din Demo într-o arhivă ZIP și importată explicit într-o instalație client.
+- Importul înlocuiește biblioteca locală numai după confirmare; pachetul, dimensiunile imaginilor și structura sa sunt validate înainte de salvare.
+
+## v2.12.669 - 2026-10-05
+
+### Ajutor administrabil direct în aplicație
+
+- Ajutorul devine o bază de cunoștințe compactă, căutabilă și consultabilă de orice utilizator autentificat, fără manuale separate.
+- Superadminul poate crea, edita, publica sau ascunde articole și poate ordona conținutul pe categorii; fiecare modificare este păstrată în audit.
+- Capturile PNG, JPG și WEBP de maximum 3 MB se încarcă controlat și se servesc numai printr-un endpoint autentificat, fără expunere publică a fișierelor.
+
+## v2.12.668 - 2026-10-05
+
+### Logistică: închidere etapă operațională
+
+- O cursă poate fi legată numai la o comandă client CRM confirmată; clientul, numărul comenzii, documentele și contractul sunt păstrate în traseul auditabil și în tipărirea documentelor de transport.
+- Pregătirea din stoc verifică exact pozițiile și disponibilitatea curentă, se confirmă explicit și nu rezervă sau scade automat stocul. Ieșirea din Gestiune rămâne un pas separat, controlat.
+- RO e-Transport este doar evidență manuală: operatorul poate păstra verdictul intern, UIT-ul și observațiile, fără apel ANAF, SPV, token sau transmitere automată.
+- Legătura GPS/telematică este un adaptor neutru per cursă, fără furnizor presupus, credențiale sau citire live; configurarea efectivă rămâne separată.
+
 ## v2.12.666 - 2026-10-05
 
 ### Monitorizare operațională Logistică

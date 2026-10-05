@@ -54,6 +54,7 @@ const { createSystemSettingsRouter } = require('./settings-routes')
 const { createSystemLicenseRouter } = require('./license-routes')
 const { createSystemDepartmentsRouter } = require('./departments-routes')
 const { createSystemDatabaseRouter } = require('./database-routes')
+const { createHelpRouter } = require('./help-routes')
 const { getDefaultVatRate, getVatRates } = require('../../shared/countryRules')
 const router = Router()
 
@@ -395,6 +396,12 @@ router.use(createSystemSettingsRouter({
   allowedModulesForLicense,
   decryptSettingSecret,
   buildDeviceRegistry
+}))
+
+router.use(createHelpRouter({
+  readJsonBody,
+  sendJson,
+  throwHttp,
 }))
 
 router.use(createSystemDatabaseRouter({
