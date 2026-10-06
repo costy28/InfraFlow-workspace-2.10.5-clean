@@ -1150,6 +1150,9 @@ export default function SetariPage() {
   const [demoAccessUser, setDemoAccessUser] = useState(null)
   const [demoAccessExpiresAt, setDemoAccessExpiresAt] = useState('')
   const [demoAccessSaving, setDemoAccessSaving] = useState(false)
+  const [demoDeleteUser, setDemoDeleteUser] = useState(null)
+  const [demoDeleteConfirmation, setDemoDeleteConfirmation] = useState('')
+  const [demoDeleteSaving, setDemoDeleteSaving] = useState(false)
   const [twoFactorStatus, setTwoFactorStatus] = useState(null)
   const [twoFactorSetup, setTwoFactorSetup] = useState(null)
   const [twoFactorCode, setTwoFactorCode] = useState('')
@@ -1876,6 +1879,28 @@ export default function SetariPage() {
       fail(err, 'Valabilitatea accesului Demo nu a putut fi actualizată.')
     } finally {
       setDemoAccessSaving(false)
+    }
+  }
+
+  function openDemoDeleteUser(user) {
+    setDemoDeleteUser(user)
+    setDemoDeleteConfirmation('')
+  }
+
+  async function deleteDemoUser(event) {
+    event.preventDefault()
+    if (!demoDeleteUser) return
+    setDemoDeleteSaving(true)
+    try {
+      const response = await api.delete(`/users/${demoDeleteUser.id}/demo-account`, { data: { confirmation: demoDeleteConfirmation } })
+      setUsers(current => current.filter(item => item.id !== demoDeleteUser.id))
+      setDemoDeleteUser(null)
+      const removed = Number(response.data?.cleanup?.removed || 0)
+      notify(`Contul Demo a fost șters. ${removed} înregistrări asociate au fost eliminate.`)
+    } catch (err) {
+      fail(err, 'Contul Demo nu a putut fi șters.')
+    } finally {
+      setDemoDeleteSaving(false)
     }
   }
 
@@ -4349,6 +4374,7 @@ export default function SetariPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="secondary" onClick={() => openEditUser(row)}>Editează</Button>
                   {currentUser?.role === 'superadmin' && isWebsiteDemoUser(row) ? <Button size="sm" variant="secondary" onClick={() => openDemoAccessExpiry(row)}>Valabilitate Demo</Button> : null}
+                  {currentUser?.role === 'superadmin' && isWebsiteDemoUser(row) ? <Button size="sm" variant="danger" onClick={() => openDemoDeleteUser(row)}>Șterge Demo</Button> : null}
                   <Button size="sm" variant="ghost" onClick={() => { setResetUser(row); setResetPassword('') }}>Resetează parola</Button>
                 </div>
               ) },
@@ -5880,6 +5906,22 @@ export default function SetariPage() {
               <Button type="button" variant="secondary" disabled={demoAccessSaving} onClick={() => setDemoAccessExpiresAt('')}>Fără termen</Button>
               <Button type="button" variant="secondary" disabled={demoAccessSaving} onClick={() => setDemoAccessUser(null)}>Anulează</Button>
               <Button type="submit" disabled={demoAccessSaving}>{demoAccessSaving ? 'Se salvează...' : 'Salvează valabilitatea'}</Button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(demoDeleteUser)} title="Șterge cont Demo și date asociate" onClose={() => { if (!demoDeleteSaving) setDemoDeleteUser(null) }}>
+        {demoDeleteUser ? (
+          <form className="grid gap-4" onSubmit={deleteDemoUser}>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+              <strong>{demoDeleteUser.name || demoDeleteUser.username}</strong> · {demoDeleteUser.email || demoDeleteUser.username}
+              <div className="mt-2 text-xs">Contul va fi șters, iar sesiunile sale se închid imediat. Se elimină numai înregistrările create de acest cont și marcate după instalarea acestei actualizări. Datele Demo istorice, comune sau create înainte de actualizare nu sunt atinse.</div>
+            </div>
+            <Input label="Scrie STERGE pentru confirmare" value={demoDeleteConfirmation} onChange={event => setDemoDeleteConfirmation(event.target.value)} required />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="secondary" disabled={demoDeleteSaving} onClick={() => setDemoDeleteUser(null)}>Anulează</Button>
+              <Button type="submit" variant="danger" disabled={demoDeleteSaving || demoDeleteConfirmation !== 'STERGE'}>{demoDeleteSaving ? 'Se șterge...' : 'Șterge contul Demo'}</Button>
             </div>
           </form>
         ) : null}

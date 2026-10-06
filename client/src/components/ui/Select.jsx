@@ -6,7 +6,8 @@ export default function Select({ label, error, options = [], className = '', id,
       {label}
       <select
         id={selectId}
-        className={`h-[var(--control-height)] w-full rounded-[var(--radius-control)] border bg-white px-[var(--control-px)] text-sm outline-none transition hover:border-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-100 disabled:text-slate-500 ${
+        aria-invalid={error ? true : undefined}
+        className={`ui-control h-[var(--control-height)] w-full rounded-[var(--radius-control)] border bg-white px-[var(--control-px)] text-sm outline-none transition hover:border-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-100 disabled:text-slate-500 ${
           error ? 'border-rose-400' : 'border-slate-300'
         } ${className}`}
         {...props}

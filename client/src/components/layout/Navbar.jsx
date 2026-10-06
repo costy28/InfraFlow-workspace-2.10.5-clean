@@ -102,7 +102,7 @@ export default function Navbar({ title = 'Dashboard', user, onLogout, onNavigate
   }
 
   return (
-    <header className="flex h-14 min-w-0 items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-3 backdrop-blur md:px-4">
+    <header className="app-navbar flex h-16 min-w-0 items-center justify-between gap-2 border-b border-slate-200 px-3 md:px-5">
       <div className="flex min-w-0 items-center gap-3">
         <Button variant="ghost" className="px-2 md:hidden" onClick={onToggleSidebar} aria-label="Deschide meniul">
           <Menu size={20} />

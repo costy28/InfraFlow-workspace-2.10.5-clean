@@ -1,4 +1,4 @@
-const { readDb, writeDb } = require('./db')
+const { readDb, writeDb, cloneDb } = require('./db')
 const { addAudit } = require('./audit')
 const { effectivePermissionsForUser } = require('./permissions')
 const crypto = require("crypto");
@@ -189,6 +189,15 @@ function requireAuth(req, res) {
     sessions.delete(token);
     sendJson(res, 401, { error: "Cont dezactivat" });
     return null;
+  }
+  // Datele Demo sunt comune în această etapă. Păstrăm un owner doar pentru
+  // înregistrările noi create de acest utilizator, astfel încât ștergerea
+  // administrativă a contului să nu atingă datele istorice sau ale altora.
+  if (user.createdBy === 'demo-leads-webhook') {
+    Object.defineProperties(db, {
+      __infraflowDemoOwnerId: { value: user.id, enumerable: false, configurable: true },
+      __infraflowDemoOwnershipBaseline: { value: cloneDb(db), enumerable: false, configurable: true }
+    })
   }
   const now = Date.now();
   if (!session.loginAt && !session.createdAt) session.loginAt = now;

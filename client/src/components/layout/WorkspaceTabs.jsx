@@ -64,7 +64,7 @@ export default function WorkspaceTabs({ location, label, onNavigate }) {
               key={tab.url}
               className={`group flex max-w-56 flex-none items-center rounded-[var(--radius-control)] border text-sm transition ${
                 active
-                  ? 'border-primary-200 bg-primary-50 font-semibold text-primary-800'
+                  ? 'workspace-tab-active border-primary-200 bg-primary-50 font-semibold text-primary-800'
                   : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50'
               }`}
               title={tab.label}

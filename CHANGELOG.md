@@ -1,3 +1,46 @@
+## v2.12.676 - 2026-10-06
+
+### Tema vizuală în Stocuri și Achiziții
+
+- Anteturi, formulare și tabele aliniate cu tema comună în Stocuri & Depozite și Aprovizionare & Achiziții.
+- Tabele cu derulare locală și coloane lizibile pe mobil; indicatorii depozitului păstrează accentul verde.
+- Contrast îmbunătățit pentru recomandări și formulare în tema întunecată.
+- Fără modificări la stoc, comenzi, recepții, permisiuni sau documente printabile.
+
+## v2.12.675 - 2026-10-06
+
+### Tema vizuală în Contracte și Documente
+
+- Controalele native și formularele celor două module folosesc suprafețele, razele și densitatea temei comune.
+- Antet Documente unificat, indicatori Contracte cu accent verde și tabele native aliniate vizual.
+- Coloanele Documente păstrează o lățime lizibilă cu derulare în tabel, fără comprimarea excesivă a textului.
+- Suprafețe informative și anteturi de modal cu contrast corect în tema întunecată.
+- Fără modificări în requesturi, permisiuni, salvare, circuit sau documente printabile.
+
+## v2.12.674 - 2026-10-06
+
+### Meniu lateral pe toată înălțimea ferestrei
+
+- Fixare desktop corectă pe toată înălțimea vizibilă la derularea paginilor lungi.
+- Eliminare derulare orizontală provocată de etichetele lungi; numele complet este disponibil la trecerea cursorului.
+- Navigarea verticală independentă și comportamentul mobil sunt păstrate, fără modificări de module sau permisiuni.
+
+## v2.12.673 - 2026-10-06
+
+### Tema vizuală InfraFlow — etapă pilot
+
+- Paletă verde și componente comune rafinate, cu suport pentru tema întunecată și densitate compactă.
+- Sidebar cu iconițe uniforme, căutare vizibilă pe desktop și taburi existente păstrate.
+- Dashboard și Oferte CRM primesc stilul nou fără schimbarea fluxurilor operaționale; adaptarea paginilor legacy continuă gradual.
+
+## v2.12.672 - 2026-10-06
+
+### Date Demo persistente și ștergere controlată
+
+- Bara galbenă Demo este eliminată, iar șablonul de reset Demo este dezactivat; resetarea rămâne numai manuală.
+- Un cont Demo activ își păstrează lucrul până la expirarea configurată; Superadminul îl poate șterge controlat, împreună cu înregistrările noi marcate ale acelui cont.
+- Datele istorice sau comune nu sunt șterse automat. Pentru un job de reset existent pe server, verifică ghidul `docs/DEMO_DATE_PERSISTENTE.md`.
+
 ## v2.12.671 - 2026-10-05
 
 ### Hotfix export Ajutor

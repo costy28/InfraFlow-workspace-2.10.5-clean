@@ -5,6 +5,7 @@ import api from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import { useSettings } from '../../hooks/useSettings'
 import Badge from '../ui/Badge'
+import ModuleIcon from '../ui/ModuleIcon'
 
 const groups = [
   {
@@ -145,23 +146,23 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
     if (!visibleItems.length) return null
     return (
       <div key={label} className="mb-5">
-        <div className={`mb-2 px-3 text-[11px] font-semibold uppercase text-slate-400 ${collapsed ? 'md:hidden' : ''}`}>
+        <div className={`sidebar-group-label mb-2 px-3 text-[11px] font-semibold uppercase text-slate-400 ${collapsed ? 'md:hidden' : ''}`}>
           {label}
         </div>
-        <div className="grid gap-1">
+        <div className="grid min-w-0 grid-cols-1 gap-1">
           {visibleItems.map(item => (
             <NavLink
               key={item.to}
               to={item.to}
-              title={collapsed ? item.label : undefined}
+              title={item.label}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${collapsed ? 'md:justify-center md:px-2' : ''} ${
+                `sidebar-link flex min-w-0 items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 text-sm font-medium transition ${collapsed ? 'md:justify-center md:px-2' : ''} ${
                   isActive ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-100'
                 }`
               }
             >
-              <span className="w-5 text-center text-base" aria-hidden="true">{item.icon}</span>
+              <ModuleIcon route={item.to} />
               <span className={`min-w-0 flex-1 truncate ${collapsed ? 'md:hidden' : ''}`}>{item.label}</span>
               {item.ai ? <span className={collapsed ? 'md:hidden' : ''}><Badge tone={aiEnabled ? 'warning' : 'gray'}>{item.badge?.(aiEnabled) || 'INACTIV'}</Badge></span> : null}
             </NavLink>
@@ -199,7 +200,7 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
         onClick={onClose}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-[width,transform] duration-200 md:static md:translate-x-0 ${collapsed ? 'md:w-20' : 'md:w-64'} ${
+        className={`app-sidebar fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col border-r border-slate-200 transition-[width,transform] duration-200 md:sticky md:top-0 md:h-dvh md:translate-x-0 ${collapsed ? 'md:w-20' : 'md:w-64'} ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -222,7 +223,7 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
           </button>
         </div>
 
-        <nav className={`min-h-0 flex-1 overflow-y-auto py-4 ${collapsed ? 'px-2' : 'px-3'}`}>
+        <nav className={`min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto py-4 ${collapsed ? 'px-2' : 'px-3'}`}>
           {groups.map(group => (
             <Fragment key={group.label}>
               {renderGroup(group.label, group.items)}

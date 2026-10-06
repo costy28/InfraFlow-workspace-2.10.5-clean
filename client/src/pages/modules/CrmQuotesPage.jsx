@@ -3,6 +3,10 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import api from '../../api/client'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
+import Input from '../../components/ui/Input'
+import Select from '../../components/ui/Select'
+import Table from '../../components/ui/Table'
+import Badge from '../../components/ui/Badge'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -35,7 +39,7 @@ function localTotals(lines) {
   }, { subtotal: 0, discount: 0, tax: 0, total: 0 })
 }
 
-function Field({ label, children }) { return <label className="grid gap-1 text-sm font-medium text-slate-700">{label}{children}</label> }
+function Field({ label, children }) { return <label className="crm-field grid gap-1 text-sm font-medium text-slate-700">{label}{children}</label> }
 
 export default function CrmQuotesPage() {
   const { user } = useAuth()
@@ -279,9 +283,22 @@ export default function CrmQuotesPage() {
 
   if (!id && !isNew) return <Card title="Oferte" subtitle="Drafturi, aprobări și oferte trimise. Detaliile se deschid doar la click." actions={<div className="flex flex-wrap gap-2"><Link to="/crm/leads"><Button variant="secondary">Lead-uri</Button></Link><Link to="/crm/clients"><Button variant="secondary">Prospecte și contacte</Button></Link>{canCreateQuote ? <Link to="/crm/oferte/noua"><Button>+ Ofertă nouă</Button></Link> : null}</div>}>
     {selectedStage ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900"><span>Filtru rapid: <strong>{stageLabel[selectedStage] || 'Flux comercial'}</strong></span><Link to="/crm/oferte" className="font-medium underline">Șterge filtrul rapid</Link></div> : null}
-    <div className="mb-4 grid gap-2 md:grid-cols-4"><input value={filters.q} placeholder="Caută număr, titlu, client" onChange={event => setFilters(current => ({ ...current, q: event.target.value }))} onKeyDown={event => event.key === 'Enter' && load()} /><select value={filters.status} onChange={event => changeStatusFilter(event.target.value)}><option value="">Toate statusurile</option>{Object.entries(statusLabel).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={filters.expired} onChange={event => setFilters(current => ({ ...current, expired: event.target.checked }))} />Doar expirate</label><Button variant="secondary" onClick={load}>Aplică filtre</Button></div>
+    <div className="mb-4 grid items-end gap-3 md:grid-cols-4">
+      <Input label="Caută oferte" value={filters.q} placeholder="Număr, titlu sau client" onChange={event => setFilters(current => ({ ...current, q: event.target.value }))} onKeyDown={event => event.key === 'Enter' && load()} />
+      <Select label="Status" value={filters.status} onChange={event => changeStatusFilter(event.target.value)} options={[{ value: '', label: 'Toate statusurile' }, ...Object.entries(statusLabel).map(([value, label]) => ({ value, label }))]} />
+      <label className="flex min-h-[var(--control-height)] items-center gap-2 text-sm"><input type="checkbox" checked={filters.expired} onChange={event => setFilters(current => ({ ...current, expired: event.target.checked }))} />Doar expirate</label>
+      <Button variant="secondary" onClick={load}>Aplică filtre</Button>
+    </div>
     {error ? <p className="mb-3 text-red-600">{error}</p> : null}
-    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th>Număr</th><th>Rev.</th><th>Client</th><th>Valabilitate</th><th>Status</th><th>Comandă</th><th className="text-right">Total</th></tr></thead><tbody>{quotes.map(item => <tr className="cursor-pointer border-t hover:bg-slate-50" onClick={() => navigate(`/crm/oferte/${item.id}`)} key={item.id}><td>{item.quote_number}</td><td>{item.revision_number}</td><td>{item.account_name}</td><td>{item.valid_until || '—'}</td><td>{statusLabel[item.status] || item.status}</td><td>{item.customer_order_number ? <span className="font-medium text-emerald-800">{item.customer_order_number}{item.customer_order_status === 'confirmed' ? ' · confirmată' : ''}</span> : '—'}</td><td className="text-right">{money(item.total)} {item.currency}</td></tr>)}{loading ? <tr><td colSpan="7" className="py-6 text-center text-slate-500">Se încarcă ofertele…</td></tr> : (!quotes.length ? <tr><td colSpan="7" className="py-6 text-center text-slate-500">Nu există oferte pentru filtrul selectat.</td></tr> : null)}</tbody></table></div>
+    <Table data={quotes} loading={loading} empty="Nu există oferte pentru filtrul selectat." onRowClick={item => navigate(`/crm/oferte/${item.id}`)} columns={[
+      { key: 'quote_number', label: 'Număr', render: item => <Link className="whitespace-nowrap font-semibold text-primary-700 hover:underline" onClick={event => event.stopPropagation()} to={`/crm/oferte/${item.id}`}>{item.quote_number}</Link> },
+      { key: 'revision_number', label: 'Rev.' },
+      { key: 'account_name', label: 'Client' },
+      { key: 'valid_until', label: 'Valabilitate', render: item => item.valid_until || '—' },
+      { key: 'status', label: 'Status', render: item => <Badge tone={['accepted', 'approved'].includes(item.status) ? 'success' : ['declined', 'rejected_internal', 'cancelled'].includes(item.status) ? 'danger' : item.status === 'pending_approval' ? 'warning' : item.status === 'sent' ? 'info' : 'neutral'}>{statusLabel[item.status] || item.status}</Badge> },
+      { key: 'customer_order_number', label: 'Comandă', render: item => item.customer_order_number ? <span className="font-medium">{item.customer_order_number}{item.customer_order_status === 'confirmed' ? ' · confirmată' : ''}</span> : '—' },
+      { key: 'total', label: 'Total', render: item => <span className="block whitespace-nowrap text-right font-semibold">{money(item.total)} {item.currency}</span> },
+    ]} />
   </Card>
 
   if (id && quote && quote.status !== 'draft') return <div className="grid gap-4">

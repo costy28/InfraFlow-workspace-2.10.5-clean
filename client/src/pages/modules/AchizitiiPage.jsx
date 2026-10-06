@@ -5,6 +5,7 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import PageHeader from '../../components/ui/PageHeader'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
@@ -712,14 +713,8 @@ export default function AchizitiiPage() {
   }, [orders, requirements, materials, planRows, productMap, tickets, contracts.length])
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Aprovizionare & Achiziții</h1>
-          <p className="text-sm text-slate-500">Comenzi, cerințe de aprovizionare și tichete de cântar.</p>
-        </div>
-        <Button onClick={() => setModalOpen(true)}>Comandă nouă</Button>
-      </div>
+    <div className="module-workspace procurement-workspace min-w-0 space-y-5">
+      <PageHeader title="Aprovizionare & Achiziții" subtitle="Comenzi, cerințe de aprovizionare și tichete de cântar." actions={[<Button key="create" onClick={() => setModalOpen(true)}>Comandă nouă</Button>]} />
 
       <Card
         title="Flux simplu achiziții"
@@ -863,8 +858,8 @@ export default function AchizitiiPage() {
           loading={loading}
           actions={<Button size="sm" onClick={() => setModalOpen(true)}>Comandă nouă</Button>}
         >
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Dată</th>
@@ -901,8 +896,8 @@ export default function AchizitiiPage() {
 
       {activeTab === 'Recepții' && (
         <Card title="Recepții furnizori" subtitle="NIR-uri, legătura cu factura și retururile către furnizor." loading={loading}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                 <tr><th className="px-3 py-2">Data</th><th className="px-3 py-2">NIR / Aviz</th><th className="px-3 py-2">Furnizor</th><th className="px-3 py-2">Contract</th><th className="px-3 py-2 text-right">Valoare</th><th className="px-3 py-2">Contabilitate</th><th className="px-3 py-2">Retur</th><th className="px-3 py-2 text-right">Acțiuni</th></tr>
               </thead>
@@ -929,8 +924,8 @@ export default function AchizitiiPage() {
 
       {activeTab === 'Cerințe' && (
         <Card title="Cerințe" subtitle="Necesare din CRM și cerințe interne, plus alerte calculate de stoc. O cerință se marchează comandată numai după salvarea comenzii." loading={loading}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Material necesar</th>
@@ -989,8 +984,8 @@ export default function AchizitiiPage() {
           </Card>
 
           <Card title="Ultimele tichete cântar" loading={loading}>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Nr tichet</th>
@@ -1021,8 +1016,8 @@ export default function AchizitiiPage() {
           </Card>
 
           <Card title="Mapare produse" subtitle="Cod produs cântar → material InfraFlow" loading={loading}>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Cod produs cântar</th>
@@ -1051,8 +1046,8 @@ export default function AchizitiiPage() {
             <Button type="button" onClick={generatePlan}>Generează plan din istoric</Button>
             <Button type="button" variant="secondary" onClick={exportPaap}>Exportă Excel</Button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th className="px-3 py-2">CPV</th><th className="px-3 py-2">Material</th><th className="px-3 py-2">UM</th><th className="px-3 py-2 text-right">Cant.</th><th className="px-3 py-2 text-right">Val.Plan</th><th className="px-3 py-2 text-right">Executat</th><th className="px-3 py-2 text-right">Rămas</th><th className="px-3 py-2">%</th><th className="px-3 py-2">Procedură</th><th className="px-3 py-2">Trim.</th><th className="px-3 py-2">Acțiuni</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {planRows.length === 0 ? <EmptyRow colSpan={11} loading={false} /> : planRows.map(row => (

@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.671**
-**Versiune în lucru: v2.12.671**
+**Versiune curentă sursă: v2.12.676**
+**Versiune în lucru: v2.12.676**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -411,6 +411,11 @@ Core System
   ✅ Ajutor administrabil: articole căutabile, editor exclusiv Superadmin și capturi încărcate controlat (v2.12.669)
   ✅ Ajutor portabil: export/import ZIP controlat între Demo și instalații client (v2.12.670)
   ✅ Hotfix Ajutor: exportul bibliotecii salvează auditul fără eroare de server (v2.12.671)
+  ✅ Demo: date persistente, bară informativă eliminată și ștergere controlată a contului cu datele noi marcate (v2.12.672)
+  ✅ Tema vizuală pilot: componente comune, navigare, Dashboard și Oferte CRM (v2.12.673)
+  ✅ Meniu lateral desktop pe toată înălțimea vizibilă, fără derulare orizontală (v2.12.674)
+  ✅ Tema vizuală în Contracte și Documente: controale, tabele și contrast dark (v2.12.675)
+  ✅ Tema vizuală în Stocuri și Achiziții: anteturi, formulare și tabele responsive (v2.12.676)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1134,9 +1139,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.671
+VERSIUNE CURENTĂ SURSĂ: 2.12.676
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.671 ✅
+UPDATE ZIP CURENT: 2.12.676 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1614,6 +1619,11 @@ UPDATES ÎN LUCRU:
   2.12.667 → UPDATE 687 raport operațional Logistică ✅
   2.12.670 → UPDATE 690 transfer bibliotecă Ajutor între instalații ✅
   2.12.671 → UPDATE 691 hotfix export bibliotecă Ajutor ✅
+  2.12.672 → UPDATE 692 date Demo persistente și ștergere controlată ✅
+  2.12.673 → UPDATE 693 temă vizuală pilot Dashboard și Oferte CRM ✅
+  2.12.674 → UPDATE 694 meniu lateral fixat pe toată înălțimea vizibilă ✅
+  2.12.675 → UPDATE 695 temă vizuală Contracte și Documente ✅
+  2.12.676 → UPDATE 696 temă vizuală Stocuri și Achiziții ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2112,5 +2122,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 5 Octombrie 2026 | InfraFlow sursă v2.12.671*
+*AGENTS.md actualizat: 6 Octombrie 2026 | InfraFlow sursă v2.12.676*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

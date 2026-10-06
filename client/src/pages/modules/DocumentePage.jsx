@@ -8,6 +8,7 @@ import CompactTable from '../../components/ui/CompactTable'
 import DropdownMenu from '../../components/ui/DropdownMenu'
 import DocumentTemplateEditor from '../../components/forms/DocumentTemplateEditor'
 import Modal from '../../components/ui/Modal'
+import PageHeader from '../../components/ui/PageHeader'
 import Table from '../../components/ui/Table'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatDate } from '../../utils/format'
@@ -1596,20 +1597,18 @@ export default function DocumentePage() {
   ])
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Documente</h1>
-          <p className="text-sm text-slate-600">Circuit electronic, aprobări și template-uri de documente.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <Button className="w-full sm:w-auto" onClick={openDocumentModal}>+ Document nou</Button>
-          <DropdownMenu className="w-full sm:w-auto" align="right" label="Actiuni" items={[
+    <div className="module-workspace documents-workspace grid min-w-0 gap-4">
+      <PageHeader
+        title="Documente"
+        subtitle="Circuit electronic, aprobări și template-uri de documente."
+        actions={[
+          <Button key="new" onClick={openDocumentModal}>+ Document nou</Button>,
+          <DropdownMenu key="actions" align="right" label="Actiuni" items={[
             { label: 'Reincarca', onClick: load },
             isAdmin ? { label: 'Template nou', onClick: () => openTemplateModal() } : null,
-          ]} />
-        </div>
-      </div>
+          ]} />,
+        ]}
+      />
 
       {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
 

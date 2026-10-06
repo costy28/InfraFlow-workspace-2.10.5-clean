@@ -2,6 +2,7 @@ import { Clock3, CornerDownLeft, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useSettings } from '../../hooks/useSettings'
+import ModuleIcon from '../ui/ModuleIcon'
 
 const WORKSPACE_STORAGE_KEY = 'infraflow_workspace_tabs_v1'
 
@@ -146,7 +147,7 @@ export default function GlobalSearch({ onNavigate }) {
   return <>
     <button
       type="button"
-      className="grid h-9 w-9 place-items-center rounded-[var(--radius-control)] text-slate-600 hover:bg-slate-100"
+      className="global-search-trigger flex h-9 items-center justify-center gap-2 rounded-[var(--radius-control)] px-2 text-slate-500 xl:min-w-64 xl:justify-start xl:px-3"
       title="Caută în InfraFlow (Ctrl+K)"
       aria-label="Caută în InfraFlow"
       aria-haspopup="dialog"
@@ -154,6 +155,8 @@ export default function GlobalSearch({ onNavigate }) {
       onClick={() => setOpen(true)}
     >
       <Search size={18} />
+      <span className="hidden text-sm xl:inline">Caută în InfraFlow…</span>
+      <kbd className="ml-auto hidden rounded border border-slate-200 px-1 text-[10px] xl:inline">Ctrl+K</kbd>
     </button>
     {open ? <div className="fixed inset-0 z-[70] grid place-items-start bg-slate-950/35 px-3 pt-[12vh] sm:pt-[16vh]" role="presentation" onMouseDown={() => setOpen(false)}>
       <section className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-label="Caută în InfraFlow" onMouseDown={event => event.stopPropagation()}>
@@ -179,7 +182,7 @@ export default function GlobalSearch({ onNavigate }) {
               onClick={() => choose(item)}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left ${index === activeIndex ? 'bg-primary-50 text-primary-950' : 'text-slate-700 hover:bg-slate-50'}`}
             >
-              <span className="grid h-8 w-8 place-items-center rounded-md bg-white text-base shadow-sm ring-1 ring-slate-100" aria-hidden="true">{item.icon}</span>
+              <span className="grid h-8 w-8 place-items-center rounded-md bg-white text-primary-700 shadow-sm ring-1 ring-slate-100"><ModuleIcon route={item.to} size={17} /></span>
               <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.label}</span><span className="mt-0.5 block truncate text-xs text-slate-500">{item.recent ? 'Filă deschisă recent' : item.to}</span></span>
               {item.recent ? <Clock3 size={15} className="text-slate-400" aria-label="Recent" /> : <CornerDownLeft size={15} className="text-slate-400" aria-hidden="true" />}
             </button>

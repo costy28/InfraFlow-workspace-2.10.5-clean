@@ -4,6 +4,7 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import PageHeader from '../../components/ui/PageHeader'
 import Badge from '../../components/ui/Badge'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Modal from '../../components/ui/Modal'
@@ -752,13 +753,8 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">📦 Stocuri & Depozite</h1>
-          <p className="text-sm text-slate-500">Nomenclator, NIR, bonuri consum, inventar, furnizori, raport valoric</p>
-        </div>
-      </div>
+    <div className="module-workspace inventory-workspace min-w-0 space-y-5">
+      <PageHeader title="Stocuri & Depozite" subtitle="Nomenclator, NIR, bonuri consum, inventar, furnizori, raport valoric" />
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
 
@@ -894,7 +890,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
       {/* ── DASHBOARD ─────────────────────────────────────────────────────────── */}
       {activeTab === 'Dashboard' ? (
         <div className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="module-metrics grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {[
               { label: 'Total materiale', value: dashboard?.stats?.totalMateriale ?? '…', icon: '📋' },
               { label: 'Valoare stoc total', value: dashboard?.stats?.valoareTotal != null ? `${fmt(dashboard.stats.valoareTotal)} RON` : '…', icon: '💰', big: true },
@@ -979,8 +975,8 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
             </div>
           </Card>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Cod</th>
@@ -1046,8 +1042,8 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
             </div>
           </Card>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Nr.</th><th className="px-3 py-2">Data</th>
@@ -1103,8 +1099,8 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
             </div>
           </Card>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Nr.</th><th className="px-3 py-2">Data</th>
@@ -1171,7 +1167,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                 </div>
               </div>
               <div className="overflow-auto rounded-lg border border-slate-200">
-                <table className="min-w-full text-sm">
+                <table className="ui-table min-w-full text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2 text-left">Material</th>
@@ -1207,8 +1203,8 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
           ) : null}
 
           {/* inventare list */}
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Nr.</th><th className="px-3 py-2">Data</th>
@@ -1317,8 +1313,8 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
           </Card>
 
           {raportValoric ? (
-            <div className="overflow-hidden rounded-lg border border-slate-200">
-              <table className="w-full text-sm">
+            <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="ui-table w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Cod</th><th className="px-3 py-2">Denumire</th>
@@ -1541,7 +1537,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
               {nirView.nr_aviz ? <div>Aviz: <strong>{nirView.nr_aviz}</strong></div> : null}
               <div>Status: <Badge tone={statusTone(nirView.status)}>{nirView.status}</Badge></div>
             </div>
-            <table className="w-full text-xs border-collapse">
+            <table className="ui-table w-full text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-500">
                 <tr><th className="border border-slate-200 px-2 py-1 text-left">Material</th><th className="border border-slate-200 px-2 py-1 text-right">Cant.</th><th className="border border-slate-200 px-2 py-1">UM</th><th className="border border-slate-200 px-2 py-1 text-right">Preț</th><th className="border border-slate-200 px-2 py-1 text-right">Valoare</th></tr>
               </thead>
@@ -1571,7 +1567,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
               {bcView.aprobat_de ? <div>Aprobat de: <strong>{bcView.aprobat_de}</strong></div> : null}
               {bcView.motiv_respingere ? <div className="col-span-2 text-rose-700">Motiv respingere: {bcView.motiv_respingere}</div> : null}
             </div>
-            <table className="w-full text-xs border-collapse">
+            <table className="ui-table w-full text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-500">
                 <tr><th className="border border-slate-200 px-2 py-1 text-left">Material</th><th className="border border-slate-200 px-2 py-1 text-right">Cant.</th><th className="border border-slate-200 px-2 py-1">UM</th></tr>
               </thead>

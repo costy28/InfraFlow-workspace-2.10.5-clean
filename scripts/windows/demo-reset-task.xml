@@ -5,13 +5,13 @@ schtasks /Create /XML "scripts\windows\demo-reset-task.xml" /TN "\InfraFlow\Demo
 -->
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>InfraFlow Demo - Reset date tranzactionale zilnic la 03:00</Description>
+    <Description>InfraFlow Demo - reset manual, păstrat dezactivat pentru continuitatea conturilor Demo</Description>
     <URI>\InfraFlow\DemoReset</URI>
   </RegistrationInfo>
   <Triggers>
     <CalendarTrigger>
       <StartBoundary>2026-01-01T03:00:00</StartBoundary>
-      <Enabled>true</Enabled>
+      <Enabled>false</Enabled>
       <ScheduleByDay>
         <DaysInterval>1</DaysInterval>
       </ScheduleByDay>

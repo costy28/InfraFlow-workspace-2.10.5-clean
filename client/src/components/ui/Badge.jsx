@@ -21,7 +21,7 @@ export default function Badge({ variant, tone, size = 'md', className = '', ...p
 
   return (
     <span
-      className={`inline-flex items-center rounded-[calc(var(--radius-control)-0.05rem)] border font-semibold leading-none ${sizes[size] || sizes.md} ${variants[color] || variants.gray} ${className}`}
+      className={`ui-badge-${color} inline-flex items-center rounded-[calc(var(--radius-control)-0.05rem)] border font-semibold leading-none ${sizes[size] || sizes.md} ${variants[color] || variants.gray} ${className}`}
       {...props}
     />
   )

@@ -80,7 +80,7 @@ export default function Modal({ open, title, children, onClose, size = 'md', res
           maxHeight: 'calc(100dvh - 1rem)'
         }}
       >
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+        <div className="ui-modal-header flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3">
           <h2 className="min-w-0 truncate text-base font-semibold text-slate-900">{title}</h2>
           <Button variant="ghost" onClick={onClose}>Închide</Button>
         </div>

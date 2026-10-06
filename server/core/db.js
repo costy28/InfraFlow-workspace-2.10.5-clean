@@ -392,6 +392,7 @@ function readDb(options = {}) {
 
 // Scrie starea aplicatiei in backend-ul de baza de date activ.
 function writeDb(db) {
+  stampNewDemoOwnedRecords(db);
   if (DB_MODE === "postgres") {
     writePostgresDb(db);
     return;
@@ -401,6 +402,50 @@ function writeDb(db) {
     return;
   }
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
+
+const DEMO_OWNERSHIP_PROTECTED_ROOTS = new Set([
+  "users", "departments", "devices", "workstationRequests", "settings", "audit", "demoInvites"
+]);
+
+function recordIdentity(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const id = String(value.id || "").trim();
+  return id ? `id:${id}` : "";
+}
+
+function stampNewDemoOwnedRecords(db) {
+  const ownerId = String(db?.__infraflowDemoOwnerId || "").trim();
+  const baseline = db?.__infraflowDemoOwnershipBaseline;
+  if (!ownerId || !baseline || typeof db !== "object") return;
+
+  const stampedAt = new Date().toISOString();
+  const walk = (current, previous, path = []) => {
+    if (Array.isArray(current)) {
+      const previousById = new Map(
+        (Array.isArray(previous) ? previous : [])
+          .map(item => [recordIdentity(item), item])
+          .filter(([key]) => Boolean(key))
+      );
+      current.forEach(item => {
+        if (!item || typeof item !== "object") return;
+        const identity = recordIdentity(item);
+        const oldItem = identity ? previousById.get(identity) : undefined;
+        if (identity && !oldItem && !DEMO_OWNERSHIP_PROTECTED_ROOTS.has(String(path[0] || ""))) {
+          if (!item.demoOwnerId) item.demoOwnerId = ownerId;
+          if (!item.demoOwnedAt) item.demoOwnedAt = stampedAt;
+        }
+        walk(item, oldItem, path);
+      });
+      return;
+    }
+    if (!current || typeof current !== "object") return;
+    Object.entries(current).forEach(([key, value]) => {
+      if (key === "__infraflowDemoOwnerId" || key === "__infraflowDemoOwnershipBaseline") return;
+      walk(value, previous?.[key], [...path, key]);
+    });
+  };
+  walk(db, baseline);
 }
 
 function ensurePostgresDatabase() {

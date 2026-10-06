@@ -22,9 +22,9 @@ export default function Table({
   const tableRows = data || rows || []
 
   return (
-    <div className="overflow-hidden rounded-[var(--radius-panel)] border border-slate-200 bg-white shadow-[var(--shadow-card)]">
+    <div className="ui-table-shell overflow-hidden rounded-[var(--radius-panel)] border border-slate-200 bg-white shadow-[var(--shadow-card)]">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50/90">
             <tr>
               {columns.map(column => (

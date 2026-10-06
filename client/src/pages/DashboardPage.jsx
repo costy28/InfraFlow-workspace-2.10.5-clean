@@ -13,6 +13,7 @@ import Badge from '../components/ui/Badge'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
+import ModuleIcon from '../components/ui/ModuleIcon'
 import { useAuth } from '../hooks/useAuth'
 import { formatMoney } from '../utils/format'
 
@@ -726,16 +727,16 @@ function CollapsibleDashboardSection({ title, description, badge, defaultOpen = 
 function KpiCard({ icon, label, value, loading, error, onClick }) {
   return (
     <button className="min-w-0 text-left" onClick={onClick}>
-      <Card className="h-full border-slate-200/90 transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md">
+      <Card className="dashboard-kpi h-full border-slate-200/90 transition hover:border-primary-200 hover:shadow-md">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
             {loading ? <Skeleton className="mt-3 h-8 w-16" /> : (
-              <div className="mt-1 text-2xl font-bold text-slate-950">{value}</div>
+              <div className="dashboard-kpi-value mt-1 text-2xl font-bold">{value}</div>
             )}
           </div>
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-panel)] border border-primary-100 bg-primary-50 text-lg">
-            {icon}
+            <ModuleIcon symbol={icon} size={22} className="text-primary-700" />
           </div>
         </div>
         {error ? <p className="mt-3 text-xs text-rose-600">Date indisponibile.</p> : null}

@@ -695,7 +695,7 @@ const SECURITY_AUDIT_CATEGORIES = {
   users: {
     label: "Utilizatori",
     tone: "warning",
-    actions: ["utilizator_adaugat", "utilizator_modificat", "utilizator_rol_schimbat", "utilizator_roluri_schimbate", "parola_utilizator_resetata", "utilizator_valabilitate_demo_modificata"]
+    actions: ["utilizator_adaugat", "utilizator_modificat", "utilizator_rol_schimbat", "utilizator_roluri_schimbate", "parola_utilizator_resetata", "utilizator_valabilitate_demo_modificata", "cont_demo_sters_cu_date"]
   },
   devices: {
     label: "Stații",
@@ -732,6 +732,7 @@ const SECURITY_AUDIT_ACTION_LABELS = {
   utilizator_roluri_schimbate: "Roluri utilizator schimbate",
   parola_utilizator_resetata: "Parolă utilizator resetată",
   utilizator_valabilitate_demo_modificata: "Valabilitate acces Demo modificată",
+  cont_demo_sters_cu_date: "Cont Demo și date asociate șterse",
   dispozitiv_autorizat: "Stație autorizată",
   dispozitiv_eliminat: "Stație eliminată",
   statie_aprobata: "Stație aprobată",

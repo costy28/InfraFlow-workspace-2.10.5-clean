@@ -1735,7 +1735,7 @@ export default function ContractePage() {
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="module-workspace contracts-workspace grid min-w-0 gap-5">
       <PageHeader
         title="Contract Management"
         subtitle="Urmărește valoarea contractată, consumul din facturi/documente și alertele de prag sau termen."
@@ -1752,7 +1752,7 @@ export default function ContractePage() {
       {notice ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div> : null}
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="module-metrics grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Card density="compact" loading={loading}>
           <div className="text-xs font-semibold uppercase text-slate-500">Contracte active</div>
           <div className="mt-2 text-2xl font-semibold text-slate-900">{dashboard?.contracts_active || 0}</div>
@@ -2238,8 +2238,8 @@ export default function ContractePage() {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+        <div className="module-table-scroll overflow-x-auto rounded-[var(--radius-control)] border border-slate-200">
+          <table className="ui-table min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-3 py-2">
@@ -2881,8 +2881,8 @@ export default function ContractePage() {
 
             <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
               <Card title="Consumuri care scad contractul" subtitle="Manual + facturi/NIR-uri legate, fără dublare între NIR și factura generată.">
-                <div className="max-h-80 overflow-auto">
-                  <table className="min-w-full text-sm">
+                <div className="module-table-scroll max-h-80 overflow-auto rounded-[var(--radius-control)] border border-slate-200">
+                  <table className="ui-table min-w-full text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                       <tr><th className="px-3 py-2">Data</th><th className="px-3 py-2">Sursa</th><th className="px-3 py-2">Document</th><th className="px-3 py-2 text-right">Valoare</th></tr>
                     </thead>

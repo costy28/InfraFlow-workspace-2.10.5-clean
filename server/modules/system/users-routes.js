@@ -1,8 +1,9 @@
 const { Router } = require('express')
-const { requireAuth } = require('../../core/auth')
+const { requireAuth, sessions } = require('../../core/auth')
 const { requirePermission } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
+const { purgeDemoOwnedData } = require('../../core/demo-data-lifecycle')
 const {
   DEFAULT_CUSTOM_ROLES,
   rolePermissionCatalog,
@@ -302,6 +303,47 @@ function createSystemUsersRouter(context) {
       addAudit(auth.db, auth.user, 'utilizator_valabilitate_demo_modificata', `${user.username}: valabil până la ${requestedDate}`)
       writeDb(auth.db)
       sendJson(res, 200, { user: adminUser(user) })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  router.delete('/users/:id/demo-account', async (req, res, next) => {
+    try {
+      const auth = requireAuth(req, res)
+      if (!auth) return
+      if (!requirePermission(auth, res, 'users:manage')) return
+      if (auth.user.role !== 'superadmin') {
+        sendJson(res, 403, { error: 'Doar superadminul poate șterge un cont Demo.' })
+        return
+      }
+      const body = await readJsonBody(req)
+      if (String(body.confirmation || '').trim() !== 'STERGE') {
+        sendJson(res, 400, { error: 'Confirmă operațiunea scriind exact STERGE.' })
+        return
+      }
+      const user = (auth.db.users || []).find(item => String(item.id) === String(req.params.id))
+      if (!user) { sendJson(res, 404, { error: 'Utilizatorul nu a fost găsit.' }); return }
+      if (String(user.id) === String(auth.user.id)) {
+        sendJson(res, 400, { error: 'Nu poți șterge propriul cont din această acțiune.' })
+        return
+      }
+      if (user.createdBy !== 'demo-leads-webhook') {
+        sendJson(res, 400, { error: 'Această acțiune este disponibilă numai pentru conturile create din solicitări Demo.' })
+        return
+      }
+
+      const cleanup = purgeDemoOwnedData(auth.db, user.id)
+      auth.db.users = (auth.db.users || []).filter(item => String(item.id) !== String(user.id))
+      auth.db.demoInvites = (auth.db.demoInvites || []).filter(item => String(item.userId || '') !== String(user.id))
+      auth.db.devices = (auth.db.devices || []).filter(item => String(item.userId || item.user_id || '') !== String(user.id))
+      auth.db.workstationRequests = (auth.db.workstationRequests || []).filter(item => String(item.userId || item.user_id || '') !== String(user.id))
+      for (const [token, session] of sessions.entries()) {
+        if (String(session?.userId || '') === String(user.id)) sessions.delete(token)
+      }
+      addAudit(auth.db, auth.user, 'cont_demo_sters_cu_date', `${user.username}: ${cleanup.removed} înregistrări Demo eliminate`)
+      writeDb(auth.db)
+      sendJson(res, 200, { ok: true, cleanup })
     } catch (error) {
       next(error)
     }

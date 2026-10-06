@@ -1,4 +1,4 @@
-# Reset date tranzactionale demo - rulat zilnic la 03:00
+# Reset date tranzactionale demo - numai acțiune manuală, explicită
 
 $ErrorActionPreference = "Stop"
 $projectRoot = "E:\CODEX 1\InfraFlow-workspace-2.10.5-clean"

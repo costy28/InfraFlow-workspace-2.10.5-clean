@@ -25,8 +25,9 @@ export default function Button({
 
   return (
     <button
-      className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-semibold tracking-normal transition duration-150 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-55 ${sizes[size] || sizes.md} ${variants[variant] || variants.primary} ${className}`}
+      className={`ui-button ui-button-${variants[variant] ? variant : 'primary'} inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-semibold tracking-normal transition duration-150 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${sizes[size] || sizes.md} ${variants[variant] || variants.primary} ${className}`}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
       {loading ? (
