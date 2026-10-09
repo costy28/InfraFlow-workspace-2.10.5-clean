@@ -317,7 +317,7 @@ export function PlanConturi() {
           <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
             {editing ? 'Simbolul ramane neschimbat pentru a pastra legatura cu notele si facturile existente.' : 'Contul va fi disponibil imediat in facturi, trezorerie si note contabile.'}
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button>
             <Button type="submit" loading={saving}>{editing ? 'Salveaza cont' : 'Creeaza cont'}</Button>
           </div>

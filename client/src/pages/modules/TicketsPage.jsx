@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Modal from '../../components/ui/Modal'
 import Table from '../../components/ui/Table'
+import PageHeader from '../../components/ui/PageHeader'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatDate } from '../../utils/format'
@@ -303,18 +304,16 @@ export default function TicketsPage() {
   ].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Sesizări și idei</h1>
-          <p className="text-sm text-slate-600">Ticketing intern pentru probleme operaționale, idei și suport tehnic.</p>
-        </div>
-        <Button onClick={() => setNewOpen(true)}><Plus size={16} /> Ticket nou</Button>
-      </div>
+    <div className="module-workspace tickets-workspace min-w-0 grid gap-5">
+      <PageHeader
+        title="Sesizări și idei"
+        subtitle="Ticketing intern pentru probleme operaționale, idei și suport tehnic."
+        actions={[<Button key="new" onClick={() => setNewOpen(true)}><Plus size={16} /> Ticket nou</Button>]}
+      />
 
       {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="module-tabs">
         {tabs.map(tab => (
           <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>
             {tab}
@@ -342,8 +341,8 @@ export default function TicketsPage() {
         </div>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[1.05fr_1fr]">
-        <Card>
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[1.05fr_1fr]">
+        <div className="min-w-0">
           <Table
             columns={[
               { key: 'tip', label: 'Tip', render: row => typeBadge(row) },
@@ -358,7 +357,7 @@ export default function TicketsPage() {
             rows={visibleTickets}
             empty={loading ? 'Se încarcă...' : 'Nu există tickets.'}
           />
-        </Card>
+        </div>
 
         <Card className="grid gap-4">
           {details.ticket ? (

@@ -23,7 +23,7 @@ export function HREmployeeProfileHeader({
   onStartEdit,
 }) {
   return (
-    <div className="flex items-start gap-4">
+    <div className="flex min-w-0 flex-wrap items-start gap-4">
       <div className="relative flex-shrink-0">
         {photoPreview || employee.photo_url
           ? <img src={photoPreview || employee.photo_url} alt="Fotografie" className="h-20 w-20 rounded-xl object-cover ring-2 ring-primary-200" onError={e => { e.target.style.display='none' }} />
@@ -48,11 +48,11 @@ export function HREmployeeProfileHeader({
           }}
         />
       </div>
-      <div className="flex-1">
+      <div className="min-w-0 flex-1 basis-48">
         <div className="text-lg font-bold text-slate-900">{displayName}</div>
         <div className="text-sm text-slate-500">{employee.functia || '-'} · {employee.department_name || '-'}</div>
         <div className="mt-1 text-xs text-slate-400">Marcă: {employee.marca || '-'} · Vechime: {employee.zile_vechime ?? '-'} zile</div>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={onPrint}>🖨️ Fișă angajat</Button>
           {editMode
             ? <>
@@ -141,16 +141,17 @@ export function HREmployeeProfileActivity({ items, onReload }) {
 
 export function HREmployeeProfileTabs({ activeTab, onTabChange }) {
   return (
-    <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+    <div className="hr-profile-tabs flex min-w-0 flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
       {PROFILE_TABS.map(([value, label]) => (
-        <button
+        <Button
           key={value}
           type="button"
           onClick={() => onTabChange(value)}
-          className={`rounded-md px-3 py-1.5 text-xs font-semibold ${activeTab === value ? 'bg-primary-700 text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+          size="sm"
+          variant={activeTab === value ? 'primary' : 'secondary'}
         >
           {label}
-        </button>
+        </Button>
       ))}
     </div>
   )

@@ -5,6 +5,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Modal from '../../components/ui/Modal'
+import PageHeader from '../../components/ui/PageHeader'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 
@@ -321,14 +322,12 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">Task-uri</h2>
-          <p className="text-sm text-slate-500">Task-uri personale și task-uri delegate în echipă.</p>
-        </div>
-        <Button onClick={() => setFormOpen(true)}>+ Task nou</Button>
-      </div>
+    <div className="module-workspace tasks-workspace min-w-0 grid gap-5">
+      <PageHeader
+        title="Task-uri"
+        subtitle="Task-uri personale și task-uri delegate în echipă."
+        actions={[<Button key="new" onClick={() => setFormOpen(true)}>+ Task nou</Button>]}
+      />
 
       <Card className="border-primary-100 bg-primary-50/40">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-700">
@@ -409,7 +408,7 @@ export default function TasksPage() {
       </div>
 
       <Card>
-        <div className="mb-4 flex flex-wrap gap-2">
+        <div className="module-tabs mb-4">
           {visibleTabs.map(tab => (
             <button
               key={tab.id}
@@ -424,8 +423,8 @@ export default function TasksPage() {
         {loading ? (
           <p className="py-8 text-sm text-slate-500">Se încarcă task-urile...</p>
         ) : tasks.length ? (
-          <div className="overflow-hidden rounded-md border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table task-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Task</th>
@@ -454,8 +453,8 @@ export default function TasksPage() {
                     <td className="px-3 py-2"><Badge tone={statusTone(task.status)}>{label(task.status)}</Badge></td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-2">
-                        <Button variant="secondary" onClick={() => updateTask(task, { status: 'in_progress' })}>În lucru</Button>
-                        <Button onClick={() => updateTask(task, { status: 'done' })}>Finalizat</Button>
+                        <Button size="sm" variant="secondary" onClick={() => updateTask(task, { status: 'in_progress' })}>În lucru</Button>
+                        <Button size="sm" onClick={() => updateTask(task, { status: 'done' })}>Finalizat</Button>
                       </div>
                     </td>
                   </tr>
@@ -501,7 +500,7 @@ export default function TasksPage() {
             </div>
             <p className="mt-2 text-xs text-slate-500">Linkul trebuie să fie intern și să înceapă cu `/`. Dacă lipsește, aplicația îl construiește din tip și ID când poate.</p>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>Renunță</Button>
             <Button type="submit">Salvează task</Button>
           </div>
@@ -533,7 +532,7 @@ export default function TasksPage() {
           <div className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             Șablonul va fi disponibil în lista rapidă pentru coordonatori. Nu creează task-uri singur; doar standardizează task-urile repetitive.
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setTemplateFormOpen(false)}>Renunță</Button>
             <Button type="submit">Salvează șablon</Button>
           </div>
@@ -628,8 +627,8 @@ export default function TasksPage() {
                   </div>
                 )) : <p className="text-sm text-slate-500">Nu există comentarii.</p>}
               </div>
-              <form className="mt-3 flex gap-2" onSubmit={addComment}>
-                <Input value={comment} onChange={event => setComment(event.target.value)} placeholder="Adaugă un comentariu..." />
+              <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={addComment}>
+                <div className="min-w-0 flex-1"><Input value={comment} onChange={event => setComment(event.target.value)} placeholder="Adaugă un comentariu..." /></div>
                 <Button type="submit">Trimite</Button>
               </form>
             </div>

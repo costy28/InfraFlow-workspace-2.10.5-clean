@@ -5,6 +5,7 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
 import DropdownMenu from '../../components/ui/DropdownMenu'
 import ContextHelp from '../../components/ui/ContextHelp'
+import PageHeader from '../../components/ui/PageHeader'
 
 export { default as DropdownMenu } from '../../components/ui/DropdownMenu'
 
@@ -218,6 +219,7 @@ export function AccountSelect({ label, value, onChange, accounts = [], recommend
 
 export function AccountingShell({ active, title, subtitle, children, actions }) {
   const navigate = useNavigate()
+  const headerActions = actions ? (Array.isArray(actions) ? actions : [actions]) : []
   const accountingHelp = useMemo(() => {
     const stages = [
       {
@@ -271,16 +273,10 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
   }, [active, navigate])
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
-          <p className="text-sm text-slate-500">{subtitle}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">{actions}</div>
-      </div>
-      <Card density="compact">
-        <div className="flex flex-wrap gap-2">
+    <div className="module-workspace accounting-workspace grid min-w-0 gap-5">
+      <PageHeader title={title} subtitle={subtitle} actions={headerActions} />
+      <Card density="compact" className="min-w-0">
+        <div className="module-tabs accounting-nav">
           <Link to="/contabilitate" className={`inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border px-[var(--control-px)] text-sm font-semibold transition ${active === 'dashboard' ? 'border-primary-700 bg-primary-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'}`}>
             Dashboard
           </Link>
@@ -322,10 +318,11 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
 }
 
 export function Table({ headers, children }) {
+  const minWidthRem = Math.max(48, headers.length * 7)
   return (
-    <Card>
-      <div className="overflow-x-auto rounded-[var(--radius-panel)] border border-slate-200">
-        <table className="min-w-full text-sm">
+    <Card className="min-w-0">
+      <div className="module-table-scroll min-w-0 overflow-x-auto rounded-[var(--radius-panel)] border border-slate-200">
+        <table className="ui-table accounting-table w-full text-sm" style={{ minWidth: `${minWidthRem}rem` }}>
           <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
             <tr>{headers.map(header => <th key={header} className="px-3 py-2 font-semibold">{header}</th>)}</tr>
           </thead>

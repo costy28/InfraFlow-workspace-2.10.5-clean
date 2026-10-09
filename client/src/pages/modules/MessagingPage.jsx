@@ -7,6 +7,7 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import Modal from '../../components/ui/Modal'
+import PageHeader from '../../components/ui/PageHeader'
 import { formatDate } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
 import { notifyMessage, permissionGranted, requestPermission } from '../../utils/notifications'
@@ -975,13 +976,11 @@ export default function MessagingPage() {
   const allVisibleEmailsSelected = selectableEmailRows.length > 0 && selectedVisibleEmailIds.length === selectableEmailRows.length
 
   return (
-    <div className="space-y-4">
-      <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Comunicare</h1>
-          <p className="text-sm text-slate-500">Chat intern, notificări și fundația Inbox ERP organizațional.</p>
-        </div>
-        <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+    <div className="module-workspace messaging-workspace min-w-0 space-y-5">
+      <PageHeader
+        title="Comunicare"
+        subtitle="Chat intern, notificări și Inbox ERP organizațional."
+        actions={[<div key="tabs" className="module-tabs messaging-tabs rounded-xl border border-slate-200 bg-slate-50 p-1">
           <button
             type="button"
             onClick={() => setActiveTab('chat')}
@@ -1003,8 +1002,8 @@ export default function MessagingPage() {
           >
             <MessageCircle size={15} /> WhatsApp {whatsappStatus.unread > 0 ? <Badge tone="danger">{whatsappStatus.unread}</Badge> : null}
           </button>
-        </div>
-      </Card>
+        </div>]}
+      />
 
       {activeTab === 'whatsapp' ? (
         <Card className="space-y-4">
@@ -1013,7 +1012,7 @@ export default function MessagingPage() {
               <h2 className="text-base font-semibold text-slate-900">Inbox WhatsApp Business</h2>
               <p className="text-sm text-slate-500">Mesaje primite prin API-ul oficial Meta. Fotografiile și fișierele se vor descărca securizat după conectarea contului.</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {isAdmin ? <Button variant="secondary" onClick={openWhatsAppConfig}>Configurează</Button> : null}
               <Button variant="secondary" onClick={loadWhatsAppInbox} loading={whatsappLoading}>Reîncarcă</Button>
             </div>
@@ -1289,7 +1288,7 @@ export default function MessagingPage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <div className="flex w-full flex-wrap justify-start gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
                       {email.direction === 'draft' ? (
                         <Button size="sm" onClick={() => openDraftEmail(email)}>Editează draft</Button>
                       ) : (
@@ -1329,7 +1328,7 @@ export default function MessagingPage() {
           </div>
         </Card>
       ) : (
-        <div className="grid h-[calc(100vh-13rem)] gap-4 lg:grid-cols-[300px_1fr]">
+        <div className="grid min-w-0 gap-4 lg:h-[calc(100vh-13rem)] lg:grid-cols-[300px_minmax(0,1fr)]">
 
       {/* ── SIDEBAR CANALE ── */}
       <Card className="flex min-h-0 flex-col p-0">
@@ -1524,7 +1523,7 @@ export default function MessagingPage() {
 
             {/* Input mesaj */}
             {canWrite ? (
-              <form className="flex items-end gap-2 border-t border-slate-200 p-3" onSubmit={sendMessage}>
+              <form className="flex flex-col gap-2 border-t border-slate-200 p-3 sm:flex-row sm:items-end" onSubmit={sendMessage}>
                 <div className="flex-1">
                   <Input
                     label=""

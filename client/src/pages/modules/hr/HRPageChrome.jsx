@@ -1,19 +1,14 @@
 import Input from '../../../components/forms/Input'
 import Select from '../../../components/forms/Select'
 import Button from '../../../components/ui/Button'
+import PageHeader from '../../../components/ui/PageHeader'
 
 export function HRPageHeader({ onImport, onNewEmployee }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900">HR</h2>
-        <p className="text-sm text-slate-500">Angajați, pontaj, concedii și autorizații.</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="secondary" onClick={onImport}>📥 Import din CSV/Excel</Button>
-        <Button onClick={onNewEmployee}>+ Angajat nou</Button>
-      </div>
-    </div>
+    <PageHeader title="Resurse Umane" subtitle="Angajați, pontaj, concedii și autorizații." actions={[
+      <Button key="import" variant="secondary" onClick={onImport}>📥 Import din CSV/Excel</Button>,
+      <Button key="new" onClick={onNewEmployee}>+ Angajat nou</Button>,
+    ]} />
   )
 }
 

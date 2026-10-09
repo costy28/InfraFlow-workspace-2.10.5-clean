@@ -834,7 +834,7 @@ export default function LogisticsPage() {
       </Button>
     );
   return (
-    <div className="space-y-4">
+    <div className="module-workspace logistics-workspace min-w-0 space-y-5">
       <PageHeader
         title="Logistică & Transport"
         subtitle="Planifică o cursă, alocă resursele, apoi creează și păstrează documentele de transport."
@@ -947,8 +947,8 @@ export default function LogisticsPage() {
                     </div>
                   ))}
                 </div>
-                <div className="overflow-x-auto rounded-md border border-slate-200">
-                  <table className="min-w-full text-sm">
+                <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="ui-table min-w-full text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                       <tr>
                         <th className="px-3 py-2">Monedă</th>
@@ -1070,8 +1070,8 @@ export default function LogisticsPage() {
       </Card>
       {view === "trips" ? (
         <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto">
+            <table className="ui-table min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Cursă</th>
@@ -1262,8 +1262,8 @@ export default function LogisticsPage() {
         </Card>
       ) : (
         <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto">
+            <table className="ui-table min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Document</th>
@@ -1950,8 +1950,8 @@ export default function LogisticsPage() {
                   </div>
                 </Card>
               </div>
-              <div className="overflow-x-auto rounded-md border border-slate-200">
-                <table className="min-w-full text-sm">
+              <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+                <table className="ui-table min-w-full text-sm">
                   <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Poziție cursă</th>

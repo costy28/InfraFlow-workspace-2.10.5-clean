@@ -41,6 +41,7 @@ Pași:
 - audit vizibil pentru modificări de roluri, permisiuni, utilizatori, stații și politici sensibile; ✅ `v2.12.541`
 - filtre în Setări → Securitate pentru evenimente critice. ✅ `v2.12.541`
 - registru de risc pentru stații autorizate, sesiuni active și dispozitive vechi; ✅ `v2.12.542`
+- audit granular rol → subfuncție → rută/API: un utilizator cu acces la o singură funcție nu trebuie să vadă sau să poată folosi restul modulului; verificare după finalizarea uniformizării vizuale.
 
 ### 3. Simplitate operațională pe fiecare modul
 

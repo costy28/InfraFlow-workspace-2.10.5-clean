@@ -80,8 +80,8 @@ function DossierDashboardSection({
           </button>
         ))}
       </div>
-      <div className="overflow-auto">
-        <table className="min-w-full text-sm">
+      <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+        <table className="ui-table hr-detail-table min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr><th className="px-3 py-2">Angajat</th><th className="px-3 py-2">Dosar</th><th className="px-3 py-2">Lipsuri</th><th className="px-3 py-2">Kiosk</th><th className="px-3 py-2">Scadență</th><th className="px-3 py-2 text-right">Acțiuni</th></tr>
           </thead>
@@ -196,8 +196,8 @@ function DossierChecklistSection({ employees, dossierChecklist, onLoadChecklist,
         <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm"><div className="text-xs text-amber-700">Incomplete</div><strong>{dossierChecklist.summary?.incomplete || 0}</strong></div>
         <div className="rounded border border-rose-200 bg-rose-50 p-2 text-sm"><div className="text-xs text-rose-700">Cu lipsuri obligatorii</div><strong>{dossierChecklist.summary?.critical_missing || 0}</strong></div>
       </div>
-      <div className="overflow-auto">
-        <table className="min-w-full text-sm">
+      <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+        <table className="ui-table hr-detail-table min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Angajat</th><th className="px-3 py-2">Complet</th><th className="px-3 py-2">Lipsesc</th><th className="px-3 py-2">Status documente</th><th className="px-3 py-2"></th></tr></thead>
           <tbody>
             {rows.slice().sort((a, b) => a.percent - b.percent || String(a.nume_complet).localeCompare(String(b.nume_complet))).map(row => (

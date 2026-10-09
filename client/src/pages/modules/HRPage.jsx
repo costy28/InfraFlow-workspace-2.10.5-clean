@@ -175,7 +175,7 @@ function OrgChart({ employees, departments, onClickEmployee }) {
 function MedicalRegisterCard({ month, register, onExport, onPayroll }) {
   const totals = register?.totals || {}
   const rows = register?.rows || []
-  return <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="font-semibold">Registru concedii medicale · {month}</div><div className="text-xs text-slate-500">Calcul propus; baza zilnica se confirma din media ultimelor 6 luni.</div></div><Button size="sm" variant="secondary" onClick={onExport}>📊 Export Excel</Button></div><div className="mb-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Certificate', totals.certificates || 0], ['Zile calendaristice', totals.calendar_days || 0], ['Zile lucratoare', totals.workdays || 0], ['Angajator', totals.employer_days || 0], ['FNUASS', totals.fund_days || 0], ['Neindemnizate', totals.unpaid_days || 0]].map(([label, value]) => <div key={label} className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">{label}</div><strong>{value}</strong></div>)}</div><div className="overflow-auto"><table className="min-w-full text-sm"><thead><tr className="border-b text-left text-xs text-slate-500"><th className="p-2">Angajat</th><th className="p-2">Certificat</th><th className="p-2">Perioada</th><th className="p-2">Cod / %</th><th className="p-2">Zile</th><th className="p-2">Sume</th><th className="p-2">Stare</th><th className="p-2">Actiuni</th></tr></thead><tbody>{rows.map(row => <tr key={row.uuid} className="border-b border-slate-100"><td className="p-2">{row.nume} {row.prenume}</td><td className="p-2">{row.serie}/{row.numar}<div className="text-xs text-slate-400">{row.tip_certificat}</div></td><td className="p-2">{String(row.data_start).slice(0, 10)} — {String(row.data_sfarsit).slice(0, 10)}<div className="text-xs text-slate-400">episod {row.episode_days} zile</div></td><td className="p-2">{row.cod_indemnizatie} / {row.indemnity_percent}%</td><td className="p-2">{row.workdays} lucr.<div className="text-xs text-slate-400">A:{row.employer_days} · F:{row.fund_days} · N:{row.unpaid_days}</div></td><td className="p-2">{row.calculation_status === 'calculat' ? `${Number(row.total_amount).toFixed(2)} lei` : 'Baza lipsa'}<div className="text-xs text-slate-400">A:{Number(row.employer_amount).toFixed(2)} · F:{Number(row.fund_amount).toFixed(2)}</div></td><td className="p-2"><Badge tone={row.status_verificare === 'verificat' ? 'success' : 'warning'}>{row.status_verificare}</Badge>{row.payroll_synced_at ? <div className="mt-1 text-xs text-emerald-700">Trimis salarizare</div> : null}</td><td className="p-2">{row.status_verificare === 'verificat' && !row.payroll_synced_at ? <Button size="sm" onClick={() => onPayroll(row)}>Trimite salarizare</Button> : null}</td></tr>)}{!rows.length ? <tr><td colSpan="8" className="p-6 text-center text-slate-400">Nu exista certificate in luna selectata.</td></tr> : null}</tbody></table></div></Card>
+  return <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="font-semibold">Registru concedii medicale · {month}</div><div className="text-xs text-slate-500">Calcul propus; baza zilnica se confirma din media ultimelor 6 luni.</div></div><Button size="sm" variant="secondary" onClick={onExport}>📊 Export Excel</Button></div><div className="mb-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{[['Certificate', totals.certificates || 0], ['Zile calendaristice', totals.calendar_days || 0], ['Zile lucratoare', totals.workdays || 0], ['Angajator', totals.employer_days || 0], ['FNUASS', totals.fund_days || 0], ['Neindemnizate', totals.unpaid_days || 0]].map(([label, value]) => <div key={label} className="rounded border border-slate-200 p-2 text-sm"><div className="text-xs text-slate-500">{label}</div><strong>{value}</strong></div>)}</div><div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200"><table className="ui-table hr-detail-table min-w-full text-sm"><thead><tr className="border-b text-left text-xs text-slate-500"><th className="p-2">Angajat</th><th className="p-2">Certificat</th><th className="p-2">Perioada</th><th className="p-2">Cod / %</th><th className="p-2">Zile</th><th className="p-2">Sume</th><th className="p-2">Stare</th><th className="p-2">Actiuni</th></tr></thead><tbody>{rows.map(row => <tr key={row.uuid} className="border-b border-slate-100"><td className="p-2">{row.nume} {row.prenume}</td><td className="p-2">{row.serie}/{row.numar}<div className="text-xs text-slate-400">{row.tip_certificat}</div></td><td className="p-2">{String(row.data_start).slice(0, 10)} — {String(row.data_sfarsit).slice(0, 10)}<div className="text-xs text-slate-400">episod {row.episode_days} zile</div></td><td className="p-2">{row.cod_indemnizatie} / {row.indemnity_percent}%</td><td className="p-2">{row.workdays} lucr.<div className="text-xs text-slate-400">A:{row.employer_days} · F:{row.fund_days} · N:{row.unpaid_days}</div></td><td className="p-2">{row.calculation_status === 'calculat' ? `${Number(row.total_amount).toFixed(2)} lei` : 'Baza lipsa'}<div className="text-xs text-slate-400">A:{Number(row.employer_amount).toFixed(2)} · F:{Number(row.fund_amount).toFixed(2)}</div></td><td className="p-2"><Badge tone={row.status_verificare === 'verificat' ? 'success' : 'warning'}>{row.status_verificare}</Badge>{row.payroll_synced_at ? <div className="mt-1 text-xs text-emerald-700">Trimis salarizare</div> : null}</td><td className="p-2">{row.status_verificare === 'verificat' && !row.payroll_synced_at ? <Button size="sm" onClick={() => onPayroll(row)}>Trimite salarizare</Button> : null}</td></tr>)}{!rows.length ? <tr><td colSpan="8" className="p-6 text-center text-slate-400">Nu exista certificate in luna selectata.</td></tr> : null}</tbody></table></div></Card>
 }
 
 export default function HRPage() {
@@ -2070,7 +2070,7 @@ export default function HRPage() {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="module-workspace hr-workspace grid min-w-0 gap-5">
       <HRPageHeader
         onImport={() => setImportModal(true)}
         onNewEmployee={() => setEmployeeModal(true)}
@@ -2318,8 +2318,8 @@ export default function HRPage() {
             <div className="flex items-end"><Button variant="secondary" onClick={setDeadline}>📅 Setează termen limită</Button></div>
             <div className="flex items-end"><Button onClick={sendReminder}>🔔 Trimite reminder nedefinalizați</Button></div>
           </div>
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table hr-detail-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr><th className="px-3 py-2">Departament</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Completat la</th><th className="px-3 py-2">Procent</th></tr>
               </thead>
@@ -2356,7 +2356,7 @@ export default function HRPage() {
                   {item.medical_certificate_uuid ? <div className="mt-1 text-xs text-slate-500">Certificat {item.certificat_serie}/{item.certificat_numar} · {item.zile_calendaristice} zile calendaristice · cod indemnizatie {item.cod_indemnizatie} · {item.medic_nume} · {item.unitate_emitenta}</div> : null}
                   {item.medical_rejection_reason ? <div className="mt-1 text-xs font-medium text-rose-700">Respins: {item.medical_rejection_reason}</div> : null}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={item.status === 'aprobata' ? 'success' : item.status === 'respinsa' ? 'danger' : 'warning'}>{item.status || 'cerut'}</Badge>
                   {item.medical_certificate_uuid ? <><Badge tone={item.status_verificare === 'verificat' ? 'success' : item.status_verificare === 'respinsa' ? 'danger' : 'warning'}>{item.status_verificare || 'in_verificare'}</Badge><Button size="sm" variant="secondary" onClick={() => downloadMedicalLeave(item)}>📎 Document</Button>{item.status_verificare === 'in_verificare' ? <><Button size="sm" onClick={() => reviewMedicalLeave(item, 'verify')}>Verifica</Button><Button size="sm" variant="secondary" onClick={() => reviewMedicalLeave(item, 'reject')}>Respinge document</Button></> : null}</> : null}
                   {(item.status === 'cerut' || item.status === 'pending') ? (
@@ -2389,8 +2389,8 @@ export default function HRPage() {
               `Autorizatii_${new Date().toISOString().slice(0,10)}`
             )}>📊 Export Excel</Button>
           </div>
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table hr-detail-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr><th className="px-3 py-2">Angajat</th><th className="px-3 py-2">Tip autorizație</th><th className="px-3 py-2">Nr</th><th className="px-3 py-2">Expiră la</th><th className="px-3 py-2">Status</th></tr>
               </thead>

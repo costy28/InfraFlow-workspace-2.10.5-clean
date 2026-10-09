@@ -1,5 +1,5 @@
 {
-  "version": "2.12.676",
-  "date": "2026-10-06",
-  "changelog": "## v2.12.676 - 2026-10-06\n\n### Tema vizuală în Stocuri și Achiziții\n\n- Anteturi, formulare și tabele aliniate cu tema comună în Stocuri & Depozite și Aprovizionare & Achiziții.\n- Tabele cu derulare locală și coloane lizibile pe mobil; indicatorii depozitului păstrează accentul verde.\n- Contrast îmbunătățit pentru recomandări și formulare în tema întunecată.\n- Fără modificări la stoc, comenzi, recepții, permisiuni sau documente printabile.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "version": "2.12.683",
+  "date": "2026-10-08",
+  "changelog": "## v2.12.683 - 2026-10-08\n\n### Tema vizuală pentru Contabilitate avansată\n\n- Planul de conturi, soldurile, jurnalele, rapoartele, centrul fiscal și închiderea lunii folosesc aceeași temă responsive.\n- Detaliile notelor contabile și acțiunile fiscale păstrează toate informațiile pe mobil prin rearanjare și derulare locală.\n- Testul vizual contabil acoperă acum fluxurile de bază și avansate, light/dark, fără scrieri în API.\n- Fără schimbări la API, date, calcule, permisiuni, exporturi sau fluxurile de salvare.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

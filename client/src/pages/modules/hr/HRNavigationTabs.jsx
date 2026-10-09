@@ -31,7 +31,7 @@ export default function HRNavigationTabs({
   inboxTotal = 0
 }) {
   return (
-    <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+    <div className="hr-navigation flex min-w-0 flex-wrap gap-2 border-b border-slate-200 pb-3">
       {tabs.map(tab => (
         <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => onTabChange(tab)}>
           {tab === 'Dashboard HR' && dashboardAlertsCount > 0 ? `${tab} 🔴` : tab}

@@ -385,7 +385,22 @@ html[data-theme="dark"] textarea::placeholder {
 }
 .module-table-scroll { background: var(--surface-panel); }
 .inventory-workspace .module-table-scroll .ui-table,
-.procurement-workspace .module-table-scroll .ui-table { min-width: 48rem; }
+.procurement-workspace .module-table-scroll .ui-table,
+.production-workspace .module-table-scroll .ui-table,
+.requisitions-workspace .module-table-scroll .ui-table { min-width: 48rem; }
+.requisitions-workspace form .module-table-scroll .ui-table { min-width: 68.75rem; }
+.fleet-workspace .module-table-scroll .ui-table,
+.logistics-workspace .module-table-scroll .ui-table { min-width: 48rem; }
+.logistics-workspace .ui-table td:first-child { white-space: nowrap; }
+.tasks-workspace .task-table { min-width: 48rem; }
+.tickets-workspace .ui-table { min-width: 52rem; }
+.messaging-workspace .messaging-tabs { max-width: min(100%, 34rem); }
+.messaging-workspace .messaging-tabs button { white-space: nowrap; }
+.help-workspace article { background: var(--surface-panel); }
+.accounting-workspace .accounting-nav { padding-bottom: 0; }
+.accounting-workspace .accounting-table td:first-child { white-space: nowrap; }
+.accounting-workspace .module-table-scroll { max-width: 100%; }
+html[data-theme="dark"] .logistics-workspace .ui-card.bg-amber-50\/60 { background-color: #3b2c16 !important; border-color: #785a22 !important; }
 .module-workspace .ui-modal-header { background: var(--surface-soft); }
 .documents-workspace .ui-table { min-width: 56rem; }
 .module-table-scroll th { white-space: nowrap; font-size: 0.6875rem; letter-spacing: 0.035em; }
@@ -396,14 +411,19 @@ html[data-theme="dark"] .module-workspace :is(input, select, textarea):not([type
 /* Preserve the warning/success semantics without pale panels in dark mode. */
 html[data-theme="dark"] .module-workspace :is(.bg-emerald-50, .bg-emerald-50\/70, .bg-emerald-50\/80) { background-color: #123a31; border-color: #26574a; }
 html[data-theme="dark"] .module-workspace :is(.text-emerald-700, .text-emerald-800, .text-emerald-900, .text-emerald-950) { color: #78dbb7; }
-html[data-theme="dark"] .module-workspace :is(.bg-amber-50, .bg-amber-50\/80, .bg-yellow-50) { background-color: #3b2c16; border-color: #785a22; }
+html[data-theme="dark"] .module-workspace :is(.bg-amber-50, .bg-amber-50\/60, .bg-amber-50\/80, .bg-yellow-50) { background-color: #3b2c16; border-color: #785a22; }
 html[data-theme="dark"] .module-workspace :is(.text-amber-700, .text-amber-800, .text-amber-900, .text-amber-950, .text-yellow-800) { color: #fcd34d; }
 html[data-theme="dark"] .module-workspace :is(.bg-rose-50, .bg-red-50) { background-color: #3f202c; border-color: #803546; }
 html[data-theme="dark"] .module-workspace :is(.text-rose-700, .text-rose-800, .text-rose-900, .text-rose-950, .text-red-700, .text-red-800, .text-red-900, .text-red-950) { color: #fda4af; }
-html[data-theme="dark"] .module-workspace .bg-blue-50 { background-color: #152e4a; border-color: #315a86; }
+html[data-theme="dark"] .module-workspace :is(.bg-blue-50, .bg-blue-50\/70, .bg-blue-100) { background-color: #152e4a; border-color: #315a86; }
+html[data-theme="dark"] .module-workspace .border-blue-100 { border-color: #315a86; }
 html[data-theme="dark"] .module-workspace .bg-sky-50 { background-color: #152e4a; border-color: #315a86; }
 html[data-theme="dark"] .module-workspace :is(.text-sky-700, .text-sky-800, .text-sky-900) { color: #93c5fd; }
 html[data-theme="dark"] .module-workspace :is(.text-primary-600, .text-primary-700, .text-primary-800) { color: #6ee7b7; }
+html[data-theme="dark"] .module-workspace :is(.bg-white\/70, .bg-white\/80) { background-color: var(--surface-panel); border-color: var(--border-subtle); }
+html[data-theme="dark"] .module-workspace :is(.bg-primary-50, .bg-primary-50\/40, .bg-primary-50\/70, .bg-primary-100) { background-color: #123a31; border-color: #26574a; }
+html[data-theme="dark"] .module-workspace :is(.text-primary-950, .text-primary-700\/80) { color: #6ee7b7; }
+html[data-theme="dark"] .module-workspace .text-amber-800\/80 { color: #fcd34d; }
 html[data-theme="dark"] .module-workspace :is(.text-blue-700, .text-blue-800, .text-blue-900, .text-blue-950) { color: #93c5fd; }
 html[data-theme="dark"] .ui-button-primary { color: #fff !important; }
 html[data-theme="dark"] .ui-control { background-color: var(--surface-panel); }
@@ -450,3 +470,15 @@ html[data-theme="dark"] .global-search-trigger kbd { border-color: var(--border-
 @media (prefers-reduced-motion: reduce) {
   .ui-button, .sidebar-link, .dashboard-kpi { transition: none; }
 }
+.hr-workspace .hr-employees-table { min-width: 48rem; }
+.hr-workspace .hr-detail-table { min-width: 48rem; }
+.hr-workspace .hr-schedule-table { min-width: 110rem; }
+.hr-workspace .hr-detail-table :is(th, td).sticky { min-width: 12rem; }
+html[data-theme="dark"] .hr-workspace .hr-detail-table .bg-amber-100 { background-color: #3b2c16; color: #fcd34d; }
+html[data-theme="dark"] .hr-workspace .hr-detail-table .bg-rose-100 { background-color: #3f202c; color: #fda4af; }
+html[data-theme="dark"] .hr-workspace .bg-violet-50 { background-color: #302344; border-color: #65478a; }
+.hr-workspace .hr-timesheet-table { min-width: 80rem; }
+.hr-workspace .hr-timesheet-table :is(th, td):first-child { min-width: 12rem; z-index: 1; }
+.hr-workspace .hr-timesheet-table button { white-space: nowrap; }
+html[data-theme="dark"] .hr-workspace .hr-timesheet-table .bg-amber-100 { background-color: #3b2c16; color: #fcd34d; }
+html[data-theme="dark"] .hr-workspace .hr-timesheet-table .bg-rose-100 { background-color: #3f202c; color: #fda4af; }

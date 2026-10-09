@@ -4,6 +4,7 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import PageHeader from '../../components/ui/PageHeader'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
@@ -337,14 +338,8 @@ export default function ProductiePage() {
   }, [consumptions, plans, raportLuna, raportZilnic, recipes])
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">Producție / Operațiuni</h2>
-          <p className="text-sm text-slate-500">Consumuri, rețete, fluxuri și planuri de activitate operațională.</p>
-        </div>
-        <Button onClick={() => setModalOpen(true)}>Adaugă nou</Button>
-      </div>
+    <div className="module-workspace production-workspace min-w-0 grid gap-5">
+      <PageHeader title="Producție / Operațiuni" subtitle="Consumuri, rețete, fluxuri și planuri de activitate operațională." actions={[<Button key="create" onClick={() => setModalOpen(true)}>Adaugă nou</Button>]} />
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
 
@@ -474,8 +469,8 @@ export default function ProductiePage() {
               <Button onClick={() => setModalOpen(true)}>+ Adaugă</Button>
             </div>
           </div>
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Dată</th>
@@ -544,8 +539,8 @@ export default function ProductiePage() {
               `Planuri_Productie_${new Date().toISOString().slice(0,7)}`
             )}>📊 Export Excel</Button>
           </div>
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Dată</th>
@@ -596,8 +591,8 @@ export default function ProductiePage() {
           {raportLoading ? (
             <div className="text-center py-8 text-sm text-slate-400">Se încarcă...</div>
           ) : raportZilnic ? (
-            <div className="overflow-hidden rounded-lg border border-slate-200">
-              <table className="w-full text-sm">
+            <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="ui-table w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Data</th>
@@ -642,8 +637,8 @@ export default function ProductiePage() {
           <Card>
             <div className="mb-3 text-sm font-semibold text-slate-700">🔗 Consumuri — Legare stoc Gestiune</div>
             <p className="mb-3 text-xs text-slate-400">Apasă „Leagă Gestiune" pentru a scădea automat materiile prime din stocul Gestiune/Depozit.</p>
-            <div className="overflow-hidden rounded-lg border border-slate-200">
-              <table className="w-full text-sm">
+            <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="ui-table w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Data</th>

@@ -54,8 +54,8 @@ export default function HRTrainingPanel({
           <div className="text-sm font-semibold text-slate-700">📋 Evaluări angajați ({evaluations.length})</div>
           <Button size="sm" onClick={onNewEvaluation}>+ Evaluare nouă</Button>
         </div>
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <table className="w-full text-sm">
+        <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+          <table className="ui-table hr-detail-table w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-3 py-2">Angajat</th>
@@ -83,7 +83,7 @@ export default function HRTrainingPanel({
                     <td className="px-3 py-2">{ev.punctaj ?? '—'}</td>
                     <td className="px-3 py-2 max-w-xs truncate text-slate-500">{ev.observatii || '—'}</td>
                     <td className="px-3 py-2">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button className="text-xs text-primary-600 hover:underline" onClick={() => onEditEvaluation(ev)}>✏️</button>
                         <button className="text-xs text-rose-500 hover:underline" onClick={() => onDeleteEvaluation(ev.id)}>🗑️</button>
                       </div>

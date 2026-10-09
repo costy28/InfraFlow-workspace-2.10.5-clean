@@ -16,7 +16,7 @@ export default function HREmployeeEquipmentSection({
 }) {
   return (
     <div className="rounded-lg border border-primary-100 bg-primary-50/40 p-3">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs font-semibold uppercase text-primary-700">🦺 Echipamente și inventar în răspundere</div>
         {canManageEquipment ? <Button size="sm" onClick={onOpenDotare}>+ Înregistrează dotare nouă</Button> : null}
       </div>
@@ -40,8 +40,8 @@ export default function HREmployeeEquipmentSection({
             return (
               <div key={title} className="mt-4">
                 <div className="mb-1 text-xs font-semibold uppercase text-slate-600">{title}</div>
-                <div className="overflow-auto">
-                  <table className="min-w-full text-xs">
+                <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+                  <table className="ui-table hr-detail-table min-w-full text-xs">
                     <thead>
                       <tr className="text-left text-slate-500">
                         <th className="py-1">Obiect</th>

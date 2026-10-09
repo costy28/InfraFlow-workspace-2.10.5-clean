@@ -639,7 +639,7 @@ export function TertiContab({ type = 'furnizor' }) {
               Analitice: furnizor {editing.cont_analitic_furnizor || '-'} / client {editing.cont_analitic_client || '-'}.
             </div>
           ) : null}
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button>
             <Button type="submit" loading={saving}>Salveaza</Button>
           </div>
@@ -866,7 +866,7 @@ export function TertiContab({ type = 'furnizor' }) {
           <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
             Diferenta calculata: <strong>{formatMoney(Number(receiveForm.confirmed_sold || 0) - Number(receiveTarget?.sold ?? detail?.totals?.rest ?? 0))}</strong>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => { setReceiveModal(false); setReceiveTarget(null) }}>Renunta</Button>
             <Button type="submit" loading={confirmationSaving.startsWith('received-')}>Salveaza confirmarea</Button>
           </div>

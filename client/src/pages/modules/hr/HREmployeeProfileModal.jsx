@@ -38,7 +38,7 @@ export default function HREmployeeProfileModal({
   return (
     <Modal open={open} title={title} onClose={onClose} size="lg">
       {employee ? (
-        <div className="grid gap-4">
+        <div className="hr-profile min-w-0 grid gap-4">
           <HREmployeeProfileHeader
             employee={employee}
             displayName={displayName}

@@ -81,7 +81,7 @@ export default function HREmployeesPanel({ employees, loading, onOpenEmployee })
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-semibold text-slate-700">{employees.length} angajați</span>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => exportExcel(
             employeeExportRows(employees),
             `Angajati_${new Date().toISOString().slice(0, 10)}`
@@ -100,8 +100,8 @@ export default function HREmployeesPanel({ employees, loading, onOpenEmployee })
           })}>🖨️ PDF</Button>
         </div>
       </div>
-      <div className="overflow-hidden rounded-lg border border-slate-200">
-        <table className="w-full text-sm">
+      <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+        <table className="ui-table hr-employees-table w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
               <th className="px-3 py-2">Nume</th>

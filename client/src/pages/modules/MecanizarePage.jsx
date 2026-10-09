@@ -5,6 +5,7 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import PageHeader from '../../components/ui/PageHeader'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
@@ -1143,21 +1144,18 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
   const completedDemoTrips = tripLogs.filter(trip => ['completata', 'semnata_sofer', 'semnata_responsabil'].includes(trip.status))
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">⚙️ Parc & Resurse</h1>
-          <p className="text-sm text-slate-500">Vehicule, utilaje, echipamente, planificare, bonuri de lucru și intervenții.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => navigate('/foi-parcurs')}>Foi Parcurs</Button>
-          <DropdownMenu align="right" label="Meniu" items={[
+    <div className="module-workspace fleet-workspace min-w-0 space-y-5">
+      <PageHeader
+        title="Parc & Resurse"
+        subtitle="Vehicule, utilaje, echipamente, planificare, bonuri de lucru și intervenții."
+        actions={[
+          <Button key="trip-sheets" onClick={() => navigate('/foi-parcurs')}>Foi Parcurs</Button>,
+          <DropdownMenu key="menu" align="right" label="Meniu" items={[
             { label: 'Registru FAZ utilaje', onClick: () => navigate('/faz-utilaje') },
             { label: 'Kiosk operator', onClick: () => window.open('/kiosk', '_blank') },
-          ]} />
-        </div>
-      </div>
+          ]} />,
+        ]}
+      />
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
 
@@ -1433,8 +1431,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 Nu există resurse în filtrul selectat. Pentru moment, partea asta arată curat.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="module-table-scroll min-w-0 overflow-x-auto">
+                <table className="ui-table w-full text-sm">
                   <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Resursă</th>
@@ -1771,7 +1769,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                       </div>
                     ) : null}
                   </div>
-                  <div className="mt-2 flex gap-2">
+                  <div className="fleet-asset-actions mt-2 flex flex-wrap gap-2">
                     <button
                       className="rounded bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
                       onClick={() => openAssetEditModal(asset)}
@@ -1838,8 +1836,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               Nicio planificare pentru {planDate}. Apasă + Planificare nouă.
             </div>
           ) : (
-            <div className="overflow-hidden rounded-lg border border-slate-200">
-              <table className="w-full text-sm">
+            <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="ui-table w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Utilaj</th>
@@ -1904,8 +1902,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             </div>
           </Card>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Data</th>
@@ -1973,8 +1971,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             </div>
           </Card>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Data</th>
@@ -2066,8 +2064,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             </div>
           ) : null}
 
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Data / Ora</th>
@@ -2129,8 +2127,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             </div>
           </Card>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Utilaj</th>
@@ -2186,8 +2184,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               <DropdownMenu label="Actiuni" items={[{ label: 'Reincarca', onClick: loadRevisions }]} />
             </div>
           </Card>
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Utilaj</th>
@@ -2242,8 +2240,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               <DropdownMenu label="Actiuni" items={[{ label: 'Reincarca', onClick: loadMechanizationAlerts }]} />
             </div>
           </Card>
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Utilaj</th>
@@ -2434,8 +2432,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   </Card>
                 ))}
               </div>
-              <div className="overflow-hidden rounded-lg border border-slate-200">
-                <table className="w-full text-sm">
+              <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+                <table className="ui-table w-full text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2 text-left">Utilaj</th>
@@ -2541,8 +2539,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 </div>
               </Card>
 
-              <div className="overflow-hidden rounded-lg border border-slate-200">
-                <table className="w-full text-sm">
+              <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+                <table className="ui-table w-full text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2 text-left">Data</th>
@@ -2641,8 +2639,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 ))}
               </div>
 
-              <div className="overflow-hidden rounded-lg border border-slate-200">
-                <table className="w-full text-sm">
+              <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+                <table className="ui-table w-full text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2 text-left">Utilaj / Vehicul</th>
@@ -2691,8 +2689,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               {raport.interventionsInMonth.length > 0 ? (
                 <Card>
                   <div className="mb-3 text-sm font-semibold text-slate-700">🔧 Intervenții în {raportLuna} — total: {raport.costService.toFixed(2)} RON</div>
-                  <div className="overflow-hidden rounded-lg border border-slate-200">
-                    <table className="w-full text-sm">
+                  <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="ui-table w-full text-sm">
                       <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                         <tr>
                           <th className="px-3 py-2 text-left">Utilaj</th>

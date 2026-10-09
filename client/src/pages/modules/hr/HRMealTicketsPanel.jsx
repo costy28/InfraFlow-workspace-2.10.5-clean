@@ -37,8 +37,8 @@ export default function HRMealTicketsPanel({
           <Select label="Departament" value={mealDept} onChange={e => onMealDeptChange(e.target.value)} options={[{ value: '', label: 'Toate departamentele' }, ...(departments || [])]} />
           <div className="flex items-end"><Button variant="secondary" onClick={onExportCsv}>📥 Export CSV furnizor</Button></div>
         </div>
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <table className="w-full text-sm">
+        <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+          <table className="ui-table hr-detail-table w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr><th className="px-3 py-2">Angajat</th><th className="px-3 py-2 text-right">Zile lucrate</th><th className="px-3 py-2 text-right">Zile CO</th><th className="px-3 py-2 text-right">Zile CM</th><th className="px-3 py-2 text-right">Tichete</th><th className="px-3 py-2 text-right">Valoare</th></tr>
             </thead>

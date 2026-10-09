@@ -30,15 +30,15 @@ export default function HREquipmentPanel({
             </Button>
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={onExportEquipmentOrder}>📥 Export Excel</Button>
           <Button size="sm" onClick={onCreateEquipmentReferat}>🛒 Creează Referat Aprovizionare</Button>
         </div>
       </div>
 
       {equipmentTab === 'Necesar per Departament' ? (
-        <div className="overflow-auto">
-          <table className="min-w-full text-sm">
+        <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+          <table className="ui-table hr-detail-table min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-3 py-2">Departament</th>
@@ -83,8 +83,8 @@ export default function HREquipmentPanel({
       ) : null}
 
       {equipmentTab === 'Comandă Furnizor' ? (
-        <div className="overflow-auto">
-          <table className="min-w-full text-sm">
+        <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+          <table className="ui-table hr-detail-table min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-3 py-2">Cod articol</th>
@@ -116,8 +116,8 @@ export default function HREquipmentPanel({
           <div className="mb-3 flex justify-end">
             {canManageEquipment ? <Button size="sm" onClick={() => onOpenCatalogModal()}>+ Obiect nou</Button> : null}
           </div>
-          <div className="overflow-auto">
-            <table className="min-w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+            <table className="ui-table hr-detail-table min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Denumire</th>

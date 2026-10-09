@@ -677,7 +677,7 @@ export function OperatiuniContabile() {
           </div>
           <label className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700"><input className="mt-1" type="checkbox" checked={batchForm.distribute_difference} onChange={event => setBatchForm({ ...batchForm, distribute_difference: event.target.checked })} /><span><strong>Distribuie diferența pe liniile facturii</strong><br />Păstrează cotele TVA și ajustează proporțional valorile liniilor pentru ca totalul să corespundă facturii.</span></label>
           <div className="max-h-48 overflow-auto rounded-md border border-slate-200">{selectedReceiptRows.map(row => <div key={row.id} className="flex justify-between gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-0"><span>{row.nr_nir || row.document} · {row.date}</span><strong>{formatMoney(row.total)}</strong></div>)}</div>
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setBatchModal(false)}>Renunță</Button><Button type="submit" disabled={busy === 'receipt-batch'}>Creează factura draft</Button></div>
+          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setBatchModal(false)}>Renunță</Button><Button type="submit" disabled={busy === 'receipt-batch'}>Creează factura draft</Button></div>
         </form>
       </Modal>
 
@@ -687,7 +687,7 @@ export function OperatiuniContabile() {
           <Input label="Număr notă de credit" value={creditForm.nr_document} onChange={event => setCreditForm({ ...creditForm, nr_document: event.target.value })} required />
           <Input label="Data notei" type="date" value={creditForm.data} onChange={event => setCreditForm({ ...creditForm, data: event.target.value })} required />
           <Input label="Observații" value={creditForm.observatii} onChange={event => setCreditForm({ ...creditForm, observatii: event.target.value })} />
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreditModal(false)}>Renunță</Button><Button type="submit" disabled={busy === 'credit-note'}>Salvează draft</Button></div>
+          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreditModal(false)}>Renunță</Button><Button type="submit" disabled={busy === 'credit-note'}>Salvează draft</Button></div>
         </form>
       </Modal>
 

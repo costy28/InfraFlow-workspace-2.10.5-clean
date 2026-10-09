@@ -13,6 +13,20 @@ Referință: macheta Dashboard din PDF-ul UX Pilot furnizat de utilizator la 6 o
 
 ## Validare și extindere
 
+Etapa v2.12.683: Contabilitate avansată — plan de conturi, solduri, jurnale, balanță, fișă de cont, Cartea Mare, rezultate, situații financiare, centru fiscal, declarații, audit și închidere lună. Tabelele detaliate derulează local, acțiunile se rearanjează pe mobil, iar testul contabil verifică acum atât fluxurile de bază, cât și pe cele avansate fără operațiuni de scriere.
+
+Etapa v2.12.682: Contabilitate de bază — antet și navigare comună pentru Dashboard, terți, facturi, trezorerie și operațiuni contabile; tabele cu derulare locală și formulare/acțiuni responsive. Ghidul contabil și stările semantice sunt lizibile în dark. Test vizual izolat pe desktop/mobil, light/dark, fără salvare sau modificarea calculelor și fluxurilor existente.
+
+Etapa v2.12.681: Task-uri, Tichete, Mesaje și Ajutor — anteturi și taburi comune, tabele cu derulare locală și formulare/acțiuni care se rearanjează pe mobil. Inbox ERP păstrează toate filtrele și acțiunile, iar editorul Ajutor rămâne exclusiv Superadmin. Test vizual izolat pe desktop/mobil, light/dark, fără salvare sau modificarea fluxurilor existente.
+
+Etapa v2.12.680: HR avansat — taburi comune și antet responsive în fișa angajatului; tabele tematizate cu derulare locală în ture, dosare, echipamente, pontaj avansat, tichete masă, evaluări și autorizații. Test vizual izolat pentru fișă, formular concediu/tură, program, echipamente, documente și pontaj avansat. Calculele și documentele printabile rămân neschimbate.
+
+Etapa v2.12.679: antet comun și controale tematizate în HR; lista angajaților și pontajul lunar adoptă tabelul comun cu derulare locală. Coloana angajatului rămâne fixată în pontaj. Test izolat pentru listă, formular Angajat nou și pontaj pe desktop/mobil, light/dark, fără salvare sau validare reală. Panourile HR avansate rămân pentru o etapă separată.
+
+Etapa v2.12.678: Parc & Resurse și Logistică adoptă controale tematizate și tabele cu derulare locală. Antetul parcului este comun; avertismentul privind lipsa transmiterii e-Transport/ANAF rămâne vizibil în dark. Testele izolate verifică listele și formularele Autovehicul nou/Cursă nouă pe desktop și mobil, fără salvare reală.
+
+Etapa v2.12.677: Producție / Operațiuni și Referate adoptă anteturi comune, controale tematizate și tabele cu derulare locală. Ghidul Referate și filtrele au suprafețe lizibile dark. Testul izolat verifică listele, formularele Consum nou/Referat nou și derularea pozițiilor pe mobil, fără consum sau aprobare reală.
+
 Etapa v2.12.676: Stocuri & Depozite și Aprovizionare & Achiziții folosesc anteturi comune, controale tematizate, tabele cu derulare locală și suprafețe informative lizibile în dark. Testul izolat acoperă nomenclatorul, lista comenzilor și formularele Material nou/Comandă nouă pe desktop și mobil, fără salvare sau mișcări de stoc.
 
 Etapa v2.12.675: Contracte și Documente folosesc controale native tematizate în pagină și modal, tabele și anteturi aliniate, indicatori cu accent verde și suprafețe informative adaptate dark. Se păstrează toate filtrele, acțiunile, alertele și secțiunile detaliate; tipărirea nu este modificată. Testul browser include filtrarea Contracte, dosarul contractului și formularele ambelor module, fără salvare.

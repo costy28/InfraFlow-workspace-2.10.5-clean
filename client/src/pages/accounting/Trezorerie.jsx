@@ -1011,7 +1011,7 @@ export function Trezorerie() {
               ? `${form.cont_trezorerie || '5121'} = ${form.cont_corespondent || '4111'}`
               : `${form.cont_corespondent || '401'} = ${form.cont_trezorerie || '5121'}`} · {formatMoney(form.suma || 0)}
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button>
             <Button type="submit" loading={savingMode === 'save'}>{editing ? 'Salveaza modificari' : 'Salveaza draft'}</Button>
             <Button type="button" loading={savingMode === 'save-validate'} onClick={(event) => submit(event, true)}>Salveaza si valideaza</Button>
@@ -1060,7 +1060,7 @@ export function Trezorerie() {
                 <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={5}>Nota nu are linii disponibile.</td></tr>
               )}
             </Table>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <Link className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" to={`/contabilitate/registru-jurnal?luna=${journalData?.data?.slice(0, 7) || month}&note=${journalData?.uuid || ''}`}>Deschide in registru</Link>
               <Button variant="secondary" onClick={() => setJournalModal(false)}>Inchide</Button>
             </div>
@@ -1124,7 +1124,7 @@ export function Trezorerie() {
                 </Table>
               </div>
             ) : null}
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" variant="secondary" onClick={() => setSettlementModal(false)}>Închide</Button>
               <Button type="button" loading={settlementLoading} disabled={!settlementData.totals.available || !(settlementData.invoices || []).length} onClick={submitSettlement}>Salvează stingerea</Button>
             </div>

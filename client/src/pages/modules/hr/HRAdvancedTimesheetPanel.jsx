@@ -63,7 +63,7 @@ export default function HRAdvancedTimesheetPanel({
               {timesheetLock?.locked ? 'Luna este inchisa. Modificarile sunt blocate.' : 'Luna este deschisa pentru completare si validare.'}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={onCheckLock}>Verifica stare</Button>
             {canValidateTimesheet ? (
               <Button variant={timesheetLock?.locked ? 'secondary' : 'primary'} onClick={onToggleLock}>
@@ -90,7 +90,7 @@ export default function HRAdvancedTimesheetPanel({
                   <div className="text-xs text-slate-500">{String(item.data).slice(0, 10)} · {Number(item.ore_suplimentare_s1 || 0) + Number(item.ore_suplimentare_s2 || 0)} ore</div>
                 </div>
                 {canApproveOvertime ? (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={() => onDecideOvertime(item, 'approve')}>Aproba</Button>
                     <Button size="sm" variant="secondary" onClick={() => onDecideOvertime(item, 'reject')}>Respinge</Button>
                   </div>
@@ -159,8 +159,8 @@ export default function HRAdvancedTimesheetPanel({
             ))}
           </div>
 
-          <div className="overflow-auto rounded-lg border border-slate-200">
-            <table className="min-w-full text-xs">
+          <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+            <table className="ui-table hr-detail-table min-w-full text-xs">
               <thead className="bg-slate-50 text-left uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Data</th>
@@ -208,8 +208,8 @@ export default function HRAdvancedTimesheetPanel({
               <Button size="sm" onClick={onOpenCompensate}>Compensare</Button>
             </div>
           </div>
-          <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full text-sm">
+          <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="ui-table hr-detail-table w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr><th className="px-3 py-2">Luna</th><th className="px-3 py-2 text-right">Ore supl.</th><th className="px-3 py-2 text-right">Compensate</th><th className="px-3 py-2 text-right">Sold</th></tr>
               </thead>

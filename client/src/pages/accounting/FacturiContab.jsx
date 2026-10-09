@@ -742,7 +742,7 @@ export function FacturiContab({ direction = 'in' }) {
           </div>
           <Input label="Explicatie" value={form.explicatie || ''} onChange={event => setForm({ ...form, explicatie: event.target.value })} />
           <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">Preview nota: {isIn ? `linii debit + 4426 = 401.x` : `4111.x = linii venit + 4427`} · Baza {formatMoney(baseValue)} · TVA {formatMoney(tvaLines)} · Total {formatMoney(total)}</div>
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button><Button type="submit">{editing ? 'Salveaza modificari' : 'Salveaza draft'}</Button></div>
+          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setModal(false)}>Renunta</Button><Button type="submit">{editing ? 'Salveaza modificari' : 'Salveaza draft'}</Button></div>
         </form>
       </Modal>
       <Modal open={journalModal} title="Nota contabila generata" onClose={() => setJournalModal(false)}>
@@ -793,7 +793,7 @@ export function FacturiContab({ direction = 'in' }) {
               ? `${thirdPartyById.get(String(paymentRow?.furnizor_id))?.cont_analitic_furnizor || '401.x'} = ${paymentForm.cont_trezorerie || '5121'}`
               : `${paymentForm.cont_trezorerie || '5121'} = ${thirdPartyById.get(String(paymentRow?.client_id))?.cont_analitic_client || '4111.x'}`}
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setPaymentModal(false)}>Renunta</Button>
             <Button type="submit" loading={actionLoading === `payment-${paymentRow?.uuid}`}>{isIn ? 'Inregistreaza plata' : 'Inregistreaza incasarea'}</Button>
           </div>
@@ -813,7 +813,7 @@ export function FacturiContab({ direction = 'in' }) {
               required
             />
           </label>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setDevalidateModal(false)}>Renunta</Button>
             <Button type="submit" disabled={!devalidateReason.trim()}>Devalideaza</Button>
           </div>

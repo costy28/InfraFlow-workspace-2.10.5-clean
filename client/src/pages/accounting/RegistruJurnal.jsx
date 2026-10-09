@@ -471,8 +471,8 @@ export function RegistruJurnal() {
                 <Info label="Credit" value={formatMoney(selected.total_credit)} />
                 <Info label="Diferenta" value={formatMoney(difference)} />
               </div>
-              <div className="overflow-hidden rounded-md border border-slate-200">
-                <table className="w-full text-sm">
+              <div className="module-table-scroll overflow-x-auto rounded-md border border-slate-200">
+                <table className="ui-table min-w-[36rem] w-full text-sm">
                   <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Cont</th>

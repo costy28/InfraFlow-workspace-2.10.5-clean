@@ -71,8 +71,8 @@ export default function HRTimesheetPanel({
           </div>
         </div>
       </div>
-      <div className="overflow-auto rounded-lg border border-slate-200">
-        <table className="min-w-full text-xs">
+      <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+        <table className="ui-table hr-timesheet-table min-w-full text-xs">
           <thead className="bg-slate-50 text-left uppercase text-slate-500">
             <tr><th className="sticky left-0 bg-slate-50 px-3 py-2">Angajat</th>{monthDays.map(day => <th key={day} className="px-2 py-2 text-center">{day.slice(-2)}</th>)}</tr>
           </thead>

@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.676**
-**Versiune în lucru: v2.12.676**
+**Versiune curentă sursă: v2.12.683**
+**Versiune în lucru: v2.12.683**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -416,6 +416,13 @@ Core System
   ✅ Meniu lateral desktop pe toată înălțimea vizibilă, fără derulare orizontală (v2.12.674)
   ✅ Tema vizuală în Contracte și Documente: controale, tabele și contrast dark (v2.12.675)
   ✅ Tema vizuală în Stocuri și Achiziții: anteturi, formulare și tabele responsive (v2.12.676)
+  ✅ Tema vizuală în Producție și Referate: liste, formulare și ghiduri dark (v2.12.677)
+  ✅ Tema vizuală în Parc & Resurse și Logistică: formulare și tabele responsive (v2.12.678)
+  ✅ Tema vizuală HR: antet, angajați și pontaj lunar responsive (v2.12.679)
+  ✅ Tema vizuală HR avansat: fișă, concedii, ture, echipamente și documente (v2.12.680)
+  ✅ Tema vizuală pentru lucru și suport: Task-uri, Tichete, Mesaje și Ajutor (v2.12.681)
+  ✅ Tema vizuală Contabilitate de bază: Dashboard, terți, facturi, trezorerie și operațiuni (v2.12.682)
+  ✅ Tema vizuală Contabilitate avansată: plan, jurnale, rapoarte, fiscal și închidere (v2.12.683)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1139,9 +1146,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.676
+VERSIUNE CURENTĂ SURSĂ: 2.12.683
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.676 ✅
+UPDATE ZIP CURENT: 2.12.683 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1624,6 +1631,13 @@ UPDATES ÎN LUCRU:
   2.12.674 → UPDATE 694 meniu lateral fixat pe toată înălțimea vizibilă ✅
   2.12.675 → UPDATE 695 temă vizuală Contracte și Documente ✅
   2.12.676 → UPDATE 696 temă vizuală Stocuri și Achiziții ✅
+  2.12.677 → UPDATE 697 temă vizuală Producție și Referate ✅
+  2.12.678 → UPDATE 698 temă vizuală Parc & Resurse și Logistică ✅
+  2.12.679 → UPDATE 699 temă vizuală HR: angajați și pontaj ✅
+  2.12.680 → UPDATE 700 temă vizuală HR avansat ✅
+  2.12.681 → UPDATE 701 temă vizuală Task-uri, Tichete, Mesaje și Ajutor ✅
+  2.12.682 → UPDATE 702 temă vizuală Contabilitate de bază ✅
+  2.12.683 → UPDATE 703 temă vizuală Contabilitate avansată ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2122,5 +2136,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 6 Octombrie 2026 | InfraFlow sursă v2.12.676*
+*AGENTS.md actualizat: 8 Octombrie 2026 | InfraFlow sursă v2.12.683*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

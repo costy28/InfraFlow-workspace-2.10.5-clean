@@ -1,3 +1,69 @@
+## v2.12.683 - 2026-10-08
+
+### Tema vizuală pentru Contabilitate avansată
+
+- Planul de conturi, soldurile, jurnalele, balanța, fișa de cont, Cartea Mare și situațiile financiare folosesc aceeași temă responsive.
+- Centrul fiscal, declarațiile, auditul și închiderea lunii păstrează toate controalele și informațiile pe mobil.
+- Detaliile notei contabile folosesc tabelul comun cu derulare locală; acțiunile fiscale se rearanjează pe ecrane înguste.
+- Smoke-ul vizual contabil acoperă acum fluxurile de bază și avansate, desktop/mobil și light/dark, fără scrieri în API.
+- Fără schimbări la API, date, calcule, permisiuni, exporturi sau fluxurile de salvare.
+
+## v2.12.682 - 2026-10-08
+
+### Tema vizuală pentru Contabilitate de bază
+
+- Dashboard-ul contabil, terții, facturile, trezoreria și operațiunile contabile folosesc antetul și navigarea comună.
+- Tabelele au derulare locală pe mobil, iar formularele și acțiunile se rearanjează pe ecrane înguste.
+- Ghidul contabil și stările semantice au contrast corect în tema dark.
+- Test vizual izolat pe desktop/mobil și light/dark, fără salvare în baza de date.
+- Fără schimbări la API, date, calcule, permisiuni, exporturi sau fluxurile de salvare.
+
+## v2.12.681 - 2026-10-08
+
+### Tema vizuală pentru lucru și suport
+
+- Task-uri și Tichete folosesc anteturi comune, filtre care se rearanjează și tabele cu derulare locală pe mobil.
+- Mesaje păstrează Chat intern, Inbox ERP și WhatsApp într-o navigare compactă, cu conversații și acțiuni email responsive.
+- Ajutor folosește suprafețele și contrastul temei light/dark, inclusiv editorul exclusiv Superadmin.
+- Test vizual izolat pentru liste și formulare, fără salvare în baza de date.
+- Fără schimbări la API, date, permisiuni, termene P1-P4, atașamente sau fluxurile de salvare.
+
+## v2.12.680 - 2026-10-06
+
+### Tema vizuală HR avansat
+
+- Fișa angajatului are taburi comune și acțiuni care se rearanjează pe mobil.
+- Tabele HR avansate tematizate, cu derulare locală: ture, dosare, echipamente, pontaj avansat, tichete masă, evaluări și autorizații.
+- Acțiunile pentru concedii se rearanjează pe ecrane înguste.
+- Fără schimbări la API, calcule, validări, permisiuni, salvare sau tipărire.
+
+## v2.12.679 - 2026-10-06
+
+### Tema vizuală HR: angajați și pontaj
+
+- Antet comun și controale tematizate în Resurse Umane.
+- Lista angajaților și pontajul lunar au tabele cu derulare locală pe mobil.
+- Coloana angajatului rămâne fixă în pontaj; culorile absențelor sunt lizibile în dark.
+- Fără schimbări la calcule, salvare, permisiuni, exporturi sau documente printabile.
+
+## v2.12.678 - 2026-10-06
+
+### Tema vizuală în Parc & Resurse și Logistică
+
+- Antet comun în Parc & Resurse și formulare tematizate în ambele module.
+- Tabele cu derulare locală pe mobil, fără eliminarea coloanelor sau acțiunilor.
+- Avertismentele logistice păstrează contrastul în tema întunecată.
+- Fără schimbări la planificare, costuri, salvare, permisiuni sau tipărire.
+
+## v2.12.677 - 2026-10-06
+
+### Tema vizuală în Producție și Referate
+
+- Anteturi comune, formulare tematizate și tabele cu derulare locală în Producție / Operațiuni și Referate.
+- Contrast corectat pentru ghiduri și filtre în tema întunecată.
+- Formularul referatului păstrează toate coloanele și permite derulare pe mobil.
+- Fără schimbări la consumuri, aprobări, salvare, permisiuni sau documente printabile.
+
 ## v2.12.676 - 2026-10-06
 
 ### Tema vizuală în Stocuri și Achiziții

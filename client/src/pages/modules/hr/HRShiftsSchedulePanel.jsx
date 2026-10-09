@@ -48,7 +48,7 @@ export default function HRShiftsSchedulePanel({
               <div className="font-semibold text-slate-900">{tura.nume}</div>
               <div className="text-sm text-slate-500">{tura.ora_start}–{tura.ora_sfarsit}</div>
               <div className="text-xs text-slate-400">{tura.ore_normale || 8} ore normale</div>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => onEditShift(tura)}>Editeaza</Button>
                 <Button size="sm" variant="secondary" onClick={() => onDeactivateShift(tura)}>Dezactiveaza</Button>
               </div>
@@ -63,8 +63,8 @@ export default function HRShiftsSchedulePanel({
           <Select label="Departament" value={scheduleDept} onChange={e => onScheduleDeptChange(e.target.value)} options={[{ value: '', label: 'Toate departamentele' }, ...(departments || [])]} />
           <div className="flex items-end"><Button variant="secondary" onClick={onRefreshSchedule}>↺ Actualizează</Button></div>
         </div>
-        <div className="overflow-auto rounded-lg border border-slate-200">
-          <table className="min-w-full text-xs">
+        <div className="module-table-scroll min-w-0 overflow-auto rounded-xl border border-slate-200">
+          <table className="ui-table hr-detail-table hr-schedule-table min-w-full text-xs">
             <thead className="bg-slate-50 text-left uppercase text-slate-500">
               <tr>
                 <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2">Angajat</th>

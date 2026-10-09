@@ -170,7 +170,7 @@ export default function HelpPage() {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="module-workspace help-workspace min-w-0 grid gap-5">
       <PageHeader
         title="Ajutor"
         subtitle="Răspunsuri scurte pentru activitățile uzuale, actualizate direct în aplicație."
@@ -190,14 +190,14 @@ export default function HelpPage() {
       {!loading && groupedArticles.map(([category, categoryArticles]) => {
         const expanded = normalizedQuery || openCategory === category
         return (
-          <Card key={category}>
+          <Card key={category} className="overflow-hidden">
             <button type="button" className="flex w-full items-center justify-between gap-4 text-left" onClick={() => setOpenCategory(expanded && !normalizedQuery ? '' : category)}>
               <span className="text-lg font-semibold text-slate-900">{category}</span><span className="text-sm text-slate-400">{expanded ? '−' : '+'}</span>
             </button>
             {expanded ? <div className="mt-4 grid gap-3">
-              {categoryArticles.map(article => <article key={article.id} className={`rounded-lg border p-4 ${article.active === false ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200'}`}>
+              {categoryArticles.map(article => <article key={article.id} className={`rounded-xl border p-4 ${article.active === false ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200'}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold text-slate-900">{article.title}</h2>{article.active === false ? <span className="mt-1 inline-block text-xs font-medium text-amber-700">Ascuns pentru utilizatori</span> : null}</div>
-                  {isSuperadmin ? <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => { setForm(articleToForm(article)); setEditorOpen(true) }}>Editează</Button><Button size="sm" variant="ghost" onClick={() => deleteArticle(article)}>Șterge</Button></div> : null}
+                  {isSuperadmin ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => { setForm(articleToForm(article)); setEditorOpen(true) }}>Editează</Button><Button size="sm" variant="ghost" onClick={() => deleteArticle(article)}>Șterge</Button></div> : null}
                 </div>
                 {article.summary ? <p className="mt-2 text-sm leading-6 text-slate-600">{article.summary}</p> : null}
                 {article.steps?.length ? <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm leading-6 text-slate-700">{article.steps.map((step, index) => <li key={`${article.id}-${index}`}>{step}</li>)}</ol> : null}
@@ -217,7 +217,7 @@ export default function HelpPage() {
           <div className="grid gap-4 md:grid-cols-2"><label className="grid gap-1 text-sm font-medium text-slate-700">Captură sau fotografie (PNG, JPG, WEBP; max. 3 MB)<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={event => uploadImage(event.target.files?.[0])} /><span className="text-xs font-normal text-slate-500">{uploading ? 'Se încarcă…' : form.image_id ? 'Imagine selectată pentru articol.' : 'Imaginea este opțională.'}</span></label><Input label="Explicație captură" value={form.image_caption} onChange={event => setForm({ ...form, image_caption: event.target.value })} placeholder="Ce trebuie să observe utilizatorul" /></div>
           {form.image_id ? <HelpImage imageId={form.image_id} alt={form.image_caption || form.title || 'Previzualizare imagine'} /> : null}
           <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={form.active} onChange={event => setForm({ ...form, active: event.target.checked })} /> Publicat pentru utilizatori</label>
-          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4"><Button type="button" variant="secondary" onClick={() => setEditorOpen(false)}>Anulează</Button><Button type="submit" loading={saving}>{form.id ? 'Salvează articolul' : 'Publică articolul'}</Button></div>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4"><Button type="button" variant="secondary" onClick={() => setEditorOpen(false)}>Anulează</Button><Button type="submit" loading={saving}>{form.id ? 'Salvează articolul' : 'Publică articolul'}</Button></div>
         </form>
       </Modal>
       {feedback ? <FeedbackToast tone={feedback.tone} onClose={() => setFeedback(null)}>{feedback.text}</FeedbackToast> : null}
