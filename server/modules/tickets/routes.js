@@ -4,7 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, authHasPermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { notifyUser } = require('../messaging/routes')
@@ -74,15 +74,11 @@ function rolePermissions(db, role) {
 }
 
 function userHasPermission(db, user, permission) {
-  if (!user) return false
-  if (user.role === 'superadmin' || user.role === 'admin') return true
-  if ((user.permissions || []).includes(permission)) return true
-  if (rolePermissions(db, user.role).has(permission)) return true
-  const dept = (db.departments || []).find(item => item.id === user.departmentId)
-  return Array.isArray(dept?.permissions) && dept.permissions.includes(permission)
+  return Boolean(user && authHasPermission({ db, user }, permission))
 }
 
 function requireTicketPermission(auth, res, permission) {
+  if (permission === 'tickets:view_own' && ['tickets:view_own', 'tickets:view_dept', 'tickets:view_all'].some(right => userHasPermission(auth.db, auth.user, right))) return true
   if (userHasPermission(auth.db, auth.user, permission)) return true
   if (requirePermission(auth, { writeHead() {}, end() {} }, permission)) return true
   sendJson(res, 403, { error: 'Nu ai permisiune pentru aceasta actiune.' })
@@ -297,36 +293,48 @@ router.get('/tickets/stats', (req, res, next) => {
     if (!requireTicketPermission(auth, res, 'tickets:admin')) return
     if (isMssqlMode()) {
       const stats = mssqlJson(`
+;WITH visibleTickets AS (
+  SELECT * FROM tickets.tickets
+  WHERE JSON_VALUE(@p, '$.canAll') = N'true'
+    OR (JSON_VALUE(@p, '$.canOwn') = N'true' AND creat_de = JSON_VALUE(@p, '$.userId'))
+    OR asignat_la = JSON_VALUE(@p, '$.userId')
+    OR (JSON_VALUE(@p, '$.canDept') = N'true'
+      AND (dept_sursa_id = NULLIF(JSON_VALUE(@p, '$.deptId'), N'')
+        OR dept_responsabil_id = NULLIF(JSON_VALUE(@p, '$.deptId'), N'')))
+)
 SELECT
-  (SELECT COUNT(1) FROM tickets.tickets WHERE status NOT IN (N'rezolvat', N'inchis', N'respins')) AS total_deschise,
+  (SELECT COUNT(1) FROM visibleTickets WHERE status NOT IN (N'rezolvat', N'inchis', N'respins')) AS total_deschise,
   JSON_QUERY((SELECT
     SUM(CASE WHEN tip = N'sesizare' THEN 1 ELSE 0 END) AS sesizare,
     SUM(CASE WHEN tip = N'idee' THEN 1 ELSE 0 END) AS idee,
     SUM(CASE WHEN tip = N'tehnic' THEN 1 ELSE 0 END) AS tehnic,
     SUM(CASE WHEN tip = N'admin' THEN 1 ELSE 0 END) AS admin
-    FROM tickets.tickets FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS pe_tip,
+    FROM visibleTickets FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS pe_tip,
   JSON_QUERY((SELECT
     SUM(CASE WHEN prioritate = N'critica' THEN 1 ELSE 0 END) AS critica,
     SUM(CASE WHEN prioritate = N'urgenta' THEN 1 ELSE 0 END) AS urgenta,
     SUM(CASE WHEN prioritate = N'ridicata' THEN 1 ELSE 0 END) AS ridicata,
     SUM(CASE WHEN prioritate = N'normala' THEN 1 ELSE 0 END) AS normala,
     SUM(CASE WHEN prioritate = N'scazuta' THEN 1 ELSE 0 END) AS scazuta
-    FROM tickets.tickets FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS pe_prioritate,
+    FROM visibleTickets FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS pe_prioritate,
   JSON_QUERY((SELECT COALESCE(t.dept_responsabil_id, t.dept_sursa_id, N'neasignat') AS dept, COUNT(1) AS count
-    FROM tickets.tickets t
+    FROM visibleTickets t
     WHERE t.status NOT IN (N'rezolvat', N'inchis', N'respins')
     GROUP BY COALESCE(t.dept_responsabil_id, t.dept_sursa_id, N'neasignat')
     FOR JSON PATH)) AS pe_departament,
   COALESCE(AVG(CASE WHEN rezolvat_la IS NOT NULL THEN DATEDIFF(minute, created_at, rezolvat_la) / 60.0 END), 0) AS timp_mediu_rezolvare_ore,
-  (SELECT COUNT(1) FROM tickets.tickets WHERE status NOT IN (N'rezolvat', N'inchis', N'respins') AND asignat_la IS NULL) AS fara_responsabil
-FROM tickets.tickets
+  (SELECT COUNT(1) FROM visibleTickets WHERE status NOT IN (N'rezolvat', N'inchis', N'respins') AND asignat_la IS NULL) AS fara_responsabil
+FROM visibleTickets
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`)
+`, { userId: auth.user.id, deptId: auth.user.departmentId || '',
+        canAll: userHasPermission(auth.db, auth.user, 'tickets:view_all'),
+        canOwn: userHasPermission(auth.db, auth.user, 'tickets:view_own'),
+        canDept: userHasPermission(auth.db, auth.user, 'tickets:view_dept') })
       sendJson(res, 200, stats || ticketStats([], auth.db))
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
-    sendJson(res, 200, ticketStats(ticketsDb.tickets, auth.db))
+    sendJson(res, 200, ticketStats(ticketsDb.tickets.filter(ticket => canViewTicket(auth, ticket)), auth.db))
   } catch (error) {
     next(error)
   }
@@ -343,17 +351,21 @@ DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
 SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id,
   asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
 FROM tickets.tickets
-WHERE creat_de = @userId AND status NOT IN (N'rezolvat', N'inchis', N'respins')
+WHERE creat_de = @userId
+  AND (JSON_VALUE(@p, '$.canOwn') = N'true' OR asignat_la = @userId
+    OR (JSON_VALUE(@p, '$.canDept') = N'true' AND
+      (dept_sursa_id = NULLIF(JSON_VALUE(@p, '$.deptId'), N'') OR dept_responsabil_id = NULLIF(JSON_VALUE(@p, '$.deptId'), N''))))
+  AND status NOT IN (N'rezolvat', N'inchis', N'respins')
 ORDER BY created_at DESC
 FOR JSON PATH;
-`, { userId: auth.user.id })
+`, { userId: auth.user.id, deptId: auth.user.departmentId || '', canDept: userHasPermission(auth.db, auth.user, 'tickets:view_dept'), canOwn: userHasPermission(auth.db, auth.user, 'tickets:view_own') || userHasPermission(auth.db, auth.user, 'tickets:view_all') })
       const policy = supportPolicy(auth.db)
       sendJson(res, 200, { tickets: tickets.map(ticket => publicTicket(ticket, policy)), support: policy })
       return
     }
     const ticketsDb = ensureTicketsDb(auth.db)
     const policy = supportPolicy(auth.db)
-    sendJson(res, 200, { tickets: ticketsDb.tickets.filter(ticket => ticket.creat_de === auth.user.id && !closedStatuses.has(ticket.status)).map(ticket => publicTicket(ticket, policy)), support: policy })
+    sendJson(res, 200, { tickets: ticketsDb.tickets.filter(ticket => ticket.creat_de === auth.user.id && canViewTicket(auth, ticket) && !closedStatuses.has(ticket.status)).map(ticket => publicTicket(ticket, policy)), support: policy })
   } catch (error) {
     next(error)
   }
@@ -366,11 +378,13 @@ router.get('/tickets', (req, res, next) => {
     if (!requireTicketPermission(auth, res, 'tickets:view_own')) return
     if (isMssqlMode()) {
       const canAll = userHasPermission(auth.db, auth.user, 'tickets:view_all')
+      const canOwn = userHasPermission(auth.db, auth.user, 'tickets:view_own')
       const canDept = userHasPermission(auth.db, auth.user, 'tickets:view_dept')
       const tickets = mssqlArray(`
 DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
-DECLARE @deptId nvarchar(64) = JSON_VALUE(@p, '$.deptId');
+DECLARE @deptId nvarchar(64) = NULLIF(JSON_VALUE(@p, '$.deptId'), N'');
 DECLARE @canAll bit = CASE WHEN JSON_VALUE(@p, '$.canAll') = N'true' THEN 1 ELSE 0 END;
+DECLARE @canOwn bit = CASE WHEN JSON_VALUE(@p, '$.canOwn') = N'true' THEN 1 ELSE 0 END;
 DECLARE @canDept bit = CASE WHEN JSON_VALUE(@p, '$.canDept') = N'true' THEN 1 ELSE 0 END;
 DECLARE @tip nvarchar(30) = NULLIF(JSON_VALUE(@p, '$.tip'), N'');
 DECLARE @status nvarchar(40) = NULLIF(JSON_VALUE(@p, '$.status'), N'');
@@ -379,14 +393,14 @@ DECLARE @dept nvarchar(64) = NULLIF(JSON_VALUE(@p, '$.dept'), N'');
 SELECT id, uuid, tip, prioritate, status, titlu, descriere, dept_sursa_id, dept_responsabil_id,
   asignat_la, creat_de, rezolvat_de, rezolvat_la, termen_limita, entitate_tip, entitate_id, support_package, created_at, updated_at
 FROM tickets.tickets
-WHERE (@canAll = 1 OR creat_de = @userId OR asignat_la = @userId OR (@canDept = 1 AND (dept_sursa_id = @deptId OR dept_responsabil_id = @deptId)))
+WHERE (@canAll = 1 OR (@canOwn = 1 AND creat_de = @userId) OR asignat_la = @userId OR (@canDept = 1 AND (dept_sursa_id = @deptId OR dept_responsabil_id = @deptId)))
   AND (@tip IS NULL OR tip = @tip)
   AND (@status IS NULL OR status = @status)
   AND (@prioritate IS NULL OR prioritate = @prioritate)
   AND (@dept IS NULL OR dept_sursa_id = @dept OR dept_responsabil_id = @dept)
 ORDER BY created_at DESC
 FOR JSON PATH;
-`, { userId: auth.user.id, deptId: auth.user.departmentId || '', canAll, canDept, tip: req.query.tip || '', status: req.query.status || '', prioritate: req.query.prioritate || '', dept: req.query.dept || '' })
+`, { userId: auth.user.id, deptId: auth.user.departmentId || '', canAll, canOwn, canDept, tip: req.query.tip || '', status: req.query.status || '', prioritate: req.query.prioritate || '', dept: req.query.dept || '' })
       const policy = supportPolicy(auth.db)
       sendJson(res, 200, { tickets: tickets.map(ticket => publicTicket(ticket, policy)), support: policy })
       return
@@ -557,6 +571,7 @@ router.patch('/tickets/:uuid/status', (req, res, next) => {
     if (isMssqlMode()) {
       const ticket = mssqlTicket(req.params.uuid)
       if (!ticket) throwHttp(404, 'Ticket inexistent.')
+      if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
       const updated = mssqlJson(`
 DECLARE @ticketId int = TRY_CONVERT(int, JSON_VALUE(@p, '$.ticketId'));
 DECLARE @status nvarchar(40) = JSON_VALUE(@p, '$.status');
@@ -582,6 +597,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     const ticketsDb = ensureTicketsDb(auth.db)
     const ticket = ticketsDb.tickets.find(item => item.uuid === req.params.uuid)
     if (!ticket) throwHttp(404, 'Ticket inexistent.')
+      if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
     const oldStatus = ticket.status
     ticket.status = status
     ticket.updated_at = nowIso()
@@ -609,6 +625,7 @@ router.patch('/tickets/:uuid/assign', (req, res, next) => {
     if (isMssqlMode()) {
       const ticket = mssqlTicket(req.params.uuid)
       if (!ticket) throwHttp(404, 'Ticket inexistent.')
+      if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
       const updated = mssqlJson(`
 DECLARE @ticketId int = TRY_CONVERT(int, JSON_VALUE(@p, '$.ticketId'));
 UPDATE tickets.tickets SET asignat_la = JSON_VALUE(@p, '$.asignatLa'), updated_at = sysdatetime() WHERE id = @ticketId;
@@ -626,6 +643,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     const ticketsDb = ensureTicketsDb(auth.db)
     const ticket = ticketsDb.tickets.find(item => item.uuid === req.params.uuid)
     if (!ticket) throwHttp(404, 'Ticket inexistent.')
+      if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
     ticket.asignat_la = asignatLa
     ticket.updated_at = nowIso()
     ticketsDb.comments.push({ id: nextId(ticketsDb.comments), ticket_id: ticket.id, user_id: auth.user.id, tip: 'actiune', continut: `Asignat catre ${asignatLa}`, vizibil_pentru_autor: true, created_at: nowIso() })
@@ -650,6 +668,7 @@ router.post('/tickets/:uuid/escalate', (req, res, next) => {
     if (isMssqlMode()) {
       const ticket = mssqlTicket(req.params.uuid)
       if (!ticket) throwHttp(404, 'Ticket inexistent.')
+      if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
       const escalation = mssqlJson(`
 DECLARE @created table (id int);
 INSERT INTO tickets.escalations (ticket_id, de_la_user_id, catre_user_id, motiv)
@@ -667,6 +686,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     const ticketsDb = ensureTicketsDb(auth.db)
     const ticket = ticketsDb.tickets.find(item => item.uuid === req.params.uuid)
     if (!ticket) throwHttp(404, 'Ticket inexistent.')
+      if (!canViewTicket(auth, ticket)) throwHttp(403, 'Nu ai acces la acest ticket.')
     const escalation = { id: nextId(ticketsDb.escalations), ticket_id: ticket.id, de_la_user_id: auth.user.id, catre_user_id: catreUserId, motiv, created_at: nowIso() }
     ticketsDb.escalations.push(escalation)
     ticket.updated_at = nowIso()

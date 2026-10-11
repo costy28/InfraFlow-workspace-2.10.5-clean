@@ -208,6 +208,7 @@ function HRActivityCard({
 }
 
 export default function HRInboxPanel({
+  canReadActivity = false,
   hrInbox,
   hrInboxFilter,
   onInboxFilterChange,
@@ -236,7 +237,7 @@ export default function HRInboxPanel({
         dossierReminderResult={dossierReminderResult}
         onOpenTask={onOpenHrInboxTask}
       />
-      <HRActivityCard
+      {canReadActivity ? <HRActivityCard
         hrActivity={hrActivity}
         activityFilter={hrActivityFilter}
         onActivityFilterChange={onHrActivityFilterChange}
@@ -244,7 +245,7 @@ export default function HRInboxPanel({
         employeeOptions={employeeOptions}
         onReload={onLoadHrActivity}
         onDownload={onDownloadHrActivity}
-      />
+      /> : null}
     </div>
   )
 }

@@ -16,8 +16,10 @@ const LOGISTICS_STORAGE_DIR = path.join(ROOT, 'storage', 'logistics')
 const LOGISTICS_UPLOAD_BYTES = 20 * 1024 * 1024
 const LOGISTICS_ALLOWED_EXT = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.webp'])
 const logisticsUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: LOGISTICS_UPLOAD_BYTES } })
-const VIEW_PERMISSIONS = ['logistics:view', 'procurement:view', 'legal:contracts', 'system:view']
-const MANAGE_PERMISSIONS = ['logistics:manage', 'procurement_orders:create', 'legal:manage', 'system:admin']
+// Logistics is its own module. A related procurement or contract permission
+// may expose the linked record, but must never grant transport administration.
+const VIEW_PERMISSIONS = ['logistics:view', 'system:view']
+const MANAGE_PERMISSIONS = ['logistics:manage', 'system:admin']
 const PRINT_PERMISSIONS = ['logistics:print', ...VIEW_PERMISSIONS]
 const DOCUMENT_TYPES = new Set(['aviz', 'cmr', 'bon_transport', 'pod'])
 const DOCUMENT_STATUSES = new Set(['draft', 'emis', 'predat', 'livrat', 'anulat'])

@@ -2,6 +2,7 @@
 
 const { Router } = require('express')
 const { requireAuth } = require('../../../core/auth')
+const { requirePermission } = require('../../../core/permissions')
 const { decryptSettingSecret } = require('../../../core/settings-crypto')
 
 const router = Router()
@@ -486,6 +487,7 @@ router.get('/integration/gps/live', async (req, res) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requirePermission(auth, res, 'mechanization:view')) return
 
     const settings = auth.db.settings || {}
     if (isCustomProvider(settings)) {

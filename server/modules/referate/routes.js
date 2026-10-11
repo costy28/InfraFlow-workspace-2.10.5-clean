@@ -286,7 +286,9 @@ router.post('/referate/:id/inainteaza', (req, res, next) => {
     const referat = findReferat(auth.db, req.params.id)
     if (!referat) return sendJson(res, 404, { error: 'Referatul nu exista.' })
     if (['aprobat', 'respins'].includes(referat.status)) return sendJson(res, 409, { error: 'Referatul are deja fluxul inchis.' })
-    if (!requirePermission(auth, res, STEP_PERMISSIONS[referat.status] || 'referate:view')) return
+    const stepPermission = Object.hasOwn(STEP_PERMISSIONS, referat.status) ? STEP_PERMISSIONS[referat.status] : null
+    if (!stepPermission) throwHttp(409, 'Pasul curent al fluxului este invalid.')
+    if (!requirePermission(auth, res, stepPermission)) return
     const body = req.body || {}
     const action = body.actiune === 'respinge' ? 'respins' : 'inainteaza'
     if (action === 'respins') {

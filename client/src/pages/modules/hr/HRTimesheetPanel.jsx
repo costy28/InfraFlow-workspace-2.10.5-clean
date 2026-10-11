@@ -46,6 +46,10 @@ export default function HRTimesheetPanel({
   rows,
   monthDays,
   loading,
+  canFill = false,
+  canSubmit = false,
+  canValidate = false,
+  canEditRow = () => false,
   onFillWorkingDays,
   onSubmitDepartmentTimesheet,
   onValidateMonth,
@@ -62,12 +66,12 @@ export default function HRTimesheetPanel({
             <div>Termen limită: {deadlineDate || 'nesetat'}</div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" disabled={timesheetLock?.locked} onClick={onFillWorkingDays}>Completeaza zilele lucratoare</Button>
-            <Button size="sm" onClick={onSubmitDepartmentTimesheet}>✅ Marchează ca Finalizat</Button>
-            <Button size="sm" variant="secondary" onClick={onValidateMonth}>Validează luna</Button>
-            <Button size="sm" variant="secondary" onClick={onInvalidateMonth}>Devalideaza</Button>
+            {canFill && <Button size="sm" variant="secondary" disabled={timesheetLock?.locked} onClick={onFillWorkingDays}>Completeaza zilele lucratoare</Button>}
+            {canSubmit && <Button size="sm" onClick={onSubmitDepartmentTimesheet}>✅ Marchează ca Finalizat</Button>}
+            {canValidate && <Button size="sm" variant="secondary" onClick={onValidateMonth}>Validează luna</Button>}
+            {canValidate && <Button size="sm" variant="secondary" onClick={onInvalidateMonth}>Devalideaza</Button>}
             <Button size="sm" variant="secondary" onClick={() => exportTimesheet(rows, monthDays, filters)}>📊 Excel</Button>
-            <Button size="sm" variant="secondary" onClick={onOpenNexusExport}>📥 Export Nexus</Button>
+            {onOpenNexusExport && <Button size="sm" variant="secondary" onClick={onOpenNexusExport}>📥 Export Nexus</Button>}
           </div>
         </div>
       </div>
@@ -85,7 +89,7 @@ export default function HRTimesheetPanel({
                     <button
                       type="button"
                       title={`Editeaza ${fullName(row)} - ${day}`}
-                      disabled={timesheetLock?.locked}
+                      disabled={timesheetLock?.locked || !canEditRow(row)}
                       onClick={() => onOpenTimesheetCell(row, day)}
                       className={`inline-flex min-w-8 justify-center rounded px-1 py-1 transition hover:ring-2 hover:ring-primary-300 disabled:cursor-not-allowed disabled:opacity-60 ${timesheetTone(row.zile?.[day])}`}
                     >

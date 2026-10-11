@@ -4,6 +4,7 @@ private-key.pem
 licenta.iflic
 node_modules/
 client/dist/
+client/.permission-build-check*/
 data/app-db.json
 data/app-db.demo.json
 server/asfalt-pro-backup*.json

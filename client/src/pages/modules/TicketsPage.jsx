@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Clock, Plus } from 'lucide-react'
 import api from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -142,6 +143,11 @@ function downloadNameFromResponse(response, fallback) {
 
 export default function TicketsPage() {
   const { user } = useAuth()
+  const canCreateTicket = canAccess(user, 'tickets:create')
+  const canViewDepartment = canAccess(user, 'tickets:view_dept')
+  const canViewAll = canAccess(user, 'tickets:view_all')
+  const canResolveTicket = canAccess(user, 'tickets:resolve')
+  const visibleTabs = tabs.filter(tab => tab === 'Ale mele' || (tab === 'Departament' && canViewDepartment) || (tab === 'Toate' && canViewAll))
   const [activeTab, setActiveTab] = useState('Ale mele')
   const [supportFilter, setSupportFilter] = useState('toate')
   const [tickets, setTickets] = useState([])
@@ -308,13 +314,13 @@ export default function TicketsPage() {
       <PageHeader
         title="Sesizări și idei"
         subtitle="Ticketing intern pentru probleme operaționale, idei și suport tehnic."
-        actions={[<Button key="new" onClick={() => setNewOpen(true)}><Plus size={16} /> Ticket nou</Button>]}
+        actions={canCreateTicket ? [<Button key="new" onClick={() => setNewOpen(true)}><Plus size={16} /> Ticket nou</Button>] : []}
       />
 
       {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
 
       <div className="module-tabs">
-        {tabs.map(tab => (
+        {visibleTabs.map(tab => (
           <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>
             {tab}
           </Button>
@@ -441,7 +447,7 @@ export default function TicketsPage() {
                 </label>
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={!comment.trim()}>Adaugă comentariu</Button>
-                  <Button type="button" variant="secondary" onClick={() => setStatusOpen(true)}>Schimbă status</Button>
+                  {canResolveTicket ? <Button type="button" variant="secondary" onClick={() => setStatusOpen(true)}>Schimbă status</Button> : null}
                 </div>
               </form>
             </>

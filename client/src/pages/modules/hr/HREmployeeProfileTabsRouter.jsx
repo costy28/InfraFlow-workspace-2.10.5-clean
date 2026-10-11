@@ -23,6 +23,14 @@ export default function HREmployeeProfileTabsRouter({
   amendments,
   transferHistory,
   canManageHr,
+  canManageContracts = false,
+  canWriteField = () => false,
+  canGenerateWord = false,
+  canArchiveWord = false,
+  canReadWorkflow = false,
+  canReadDossier = false,
+  canAccessFileType = () => false,
+  canManageWorkflow = false,
   documentTemplates,
   leaves,
   dossierSummary,
@@ -62,6 +70,7 @@ export default function HREmployeeProfileTabsRouter({
   if (activeTab === 'date') {
     return (
       <HREmployeePersonalTab
+        canWriteField={canWriteField}
         employee={employee}
         editMode={editMode}
         editForm={editForm}
@@ -90,15 +99,15 @@ export default function HREmployeeProfileTabsRouter({
         amendments={amendments}
         transferHistory={transferHistory}
         departments={departments}
-        canManage={canManageHr}
+        canManage={canManageContracts}
         onReload={onReloadContracts}
         onError={onError}
-        onPrintContract={onPrintContract}
-        onPrintAmendment={onPrintAmendment}
-        onGenerateContractWord={onGenerateContractWord}
-        onGenerateAmendmentWord={onGenerateAmendmentWord}
-        onArchiveContractWord={onArchiveContractWord}
-        onArchiveAmendmentWord={onArchiveAmendmentWord}
+        onPrintContract={canGenerateWord ? onPrintContract : null}
+        onPrintAmendment={canGenerateWord ? onPrintAmendment : null}
+        onGenerateContractWord={canGenerateWord ? onGenerateContractWord : null}
+        onGenerateAmendmentWord={canGenerateWord ? onGenerateAmendmentWord : null}
+        onArchiveContractWord={canArchiveWord ? onArchiveContractWord : null}
+        onArchiveAmendmentWord={canArchiveWord ? onArchiveAmendmentWord : null}
         documentTemplates={documentTemplates}
         guidedIssue={guidedIssue}
       />
@@ -113,6 +122,7 @@ export default function HREmployeeProfileTabsRouter({
     return (
       <HREmployeeFilesTab
         employeeId={employee.id}
+        canAccessFileType={canAccessFileType}
         canManage={canManageHr}
         onError={onError}
         suggestedUpload={suggestedUpload}
@@ -124,9 +134,10 @@ export default function HREmployeeProfileTabsRouter({
   if (activeTab === 'kiosk') {
     return (
       <HREmployeeKioskTab
+        canRead={canReadDossier}
         dossierSummary={dossierSummary}
         expirations={expirations}
-        onSendReminder={onSendDossierReminder}
+        onSendReminder={canManageHr && canReadWorkflow ? onSendDossierReminder : null}
       />
     )
   }
@@ -134,6 +145,8 @@ export default function HREmployeeProfileTabsRouter({
   if (activeTab === 'flux') {
     return (
       <HREmployeeWorkflowTab
+        canRead={canReadWorkflow}
+        canManage={canManageWorkflow}
         workflow={workflow}
         busy={workflowBusy}
         guidedStep={guidedWorkflowStep}

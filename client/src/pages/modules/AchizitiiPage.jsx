@@ -11,8 +11,17 @@ import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import CPVSelector from '../../components/forms/CPVSelector'
 import { downloadApiFile, openApiFile } from '../../utils/download'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 const tabs = ['Comenzi', 'Recepții', 'Cerințe', 'Cântar', 'Plan anual']
+const tabAccess = {
+  Comenzi: { anyOf: ['procurement_orders:view', 'procurement_orders:create', 'procurement_orders:receive'] },
+  Recepții: { anyOf: ['procurement_orders:view', 'procurement_orders:receive'] },
+  Cerințe: { anyOf: ['planning:view', 'department_requests:view'] },
+  Cântar: 'procurement_orders:receive',
+  'Plan anual': { anyOf: ['procurement_orders:view', 'procurement:view', 'procurement_orders:create', 'procurement:receive'] },
+}
 const pageSize = 10
 
 function today() {
@@ -116,6 +125,7 @@ function EmptyRow({ colSpan, loading }) {
 }
 
 export default function AchizitiiPage() {
+  const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState(() => tabs.includes(requestedTab) ? requestedTab : 'Comenzi')
@@ -159,19 +169,32 @@ export default function AchizitiiPage() {
     note: '',
     departmentRequestId: '',
   })
+  const visibleTabs = useMemo(() => tabs.filter(tab => canAccess(user, tabAccess[tab])), [user])
+  const canCreateOrder = canAccess(user, 'procurement_orders:create')
+  const canReceiveOrder = canAccess(user, 'procurement_orders:receive')
+  const canManagePlan = canAccess(user, { anyOf: ['procurement_orders:create', 'procurement:receive'] })
+  const canReadMaterials = canAccess(user, { anyOf: ['materials:view', 'materials:edit'] })
+  const canManageMaterials = canAccess(user, 'materials:edit')
+
+  useEffect(() => {
+    if (visibleTabs.length && !visibleTabs.includes(activeTab)) selectTab(visibleTabs[0])
+  }, [activeTab, visibleTabs])
 
   async function load() {
     setLoading(true)
     setError('')
     try {
+      const canReadOrders = canAccess(user, tabAccess.Comenzi)
+      const canReadRequirements = canAccess(user, tabAccess.Cerințe)
+      const canReadScale = canAccess(user, tabAccess.Cântar)
       const [ordersRes, requirementsRes, scaleRes, ticketsRes, productMapRes, materialsRes, contractsRes] = await Promise.all([
-        api.get('/procurement-orders'),
-        api.get('/procurement-requirements'),
-        api.get('/scale/status'),
-        api.get('/scale/tickets').catch(() => ({ data: { tickets: [] } })),
-        api.get('/scale/product-map').catch(() => ({ data: { productMap: {} } })),
-        api.get('/materials').catch(() => ({ data: {} })),
-        api.get('/contracts').catch(() => ({ data: { contracts: [] } })),
+        canReadOrders ? api.get('/procurement-orders') : Promise.resolve({ data: {} }),
+        canReadRequirements ? api.get('/procurement-requirements') : Promise.resolve({ data: {} }),
+        canReadScale ? api.get('/scale/status') : Promise.resolve({ data: null }),
+        canReadScale ? api.get('/scale/tickets').catch(() => ({ data: { tickets: [] } })) : Promise.resolve({ data: { tickets: [] } }),
+        canReadScale ? api.get('/scale/product-map').catch(() => ({ data: { productMap: {} } })) : Promise.resolve({ data: { productMap: {} } }),
+        canReadMaterials ? api.get('/materials').catch(() => ({ data: {} })) : Promise.resolve({ data: {} }),
+        canAccess(user, { anyOf: ['legal:contracts', 'legal:manage'] }) ? api.get('/contracts').catch(() => ({ data: { contracts: [] } })) : Promise.resolve({ data: { contracts: [] } }),
       ])
 
       setOrders(arrayFrom(ordersRes.data, ['orders', 'items', 'data']))
@@ -192,16 +215,17 @@ export default function AchizitiiPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
-  }, [])
+  }, [user])
 
   useEffect(() => {
-    if (tabs.includes(requestedTab) && requestedTab !== activeTab) {
+    if (visibleTabs.includes(requestedTab) && requestedTab !== activeTab) {
       setActiveTab(requestedTab)
       setPage(1)
     }
-  }, [activeTab, requestedTab])
+  }, [activeTab, requestedTab, visibleTabs])
 
   function selectTab(tab) {
+    if (!visibleTabs.includes(tab)) return
     setActiveTab(tab)
     setPage(1)
     setSearchParams(current => {
@@ -714,7 +738,7 @@ export default function AchizitiiPage() {
 
   return (
     <div className="module-workspace procurement-workspace min-w-0 space-y-5">
-      <PageHeader title="Aprovizionare & Achiziții" subtitle="Comenzi, cerințe de aprovizionare și tichete de cântar." actions={[<Button key="create" onClick={() => setModalOpen(true)}>Comandă nouă</Button>]} />
+      <PageHeader title="Aprovizionare & Achiziții" subtitle="Comenzi, cerințe de aprovizionare și tichete de cântar." actions={canCreateOrder ? [<Button key="create" onClick={() => setModalOpen(true)}>Comandă nouă</Button>] : []} />
 
       <Card
         title="Flux simplu achiziții"
@@ -837,7 +861,7 @@ export default function AchizitiiPage() {
       </Card>
 
       <div className="flex flex-wrap gap-2">
-        {tabs.map(tab => (
+        {visibleTabs.map(tab => (
           <Button
             key={tab}
             variant={activeTab === tab ? 'primary' : 'secondary'}
@@ -856,7 +880,7 @@ export default function AchizitiiPage() {
           title="Comenzi"
           subtitle="Lista comenzilor de aprovizionare."
           loading={loading}
-          actions={<Button size="sm" onClick={() => setModalOpen(true)}>Comandă nouă</Button>}
+          actions={canCreateOrder ? <Button size="sm" onClick={() => setModalOpen(true)}>Comandă nouă</Button> : null}
         >
           <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
             <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
@@ -883,7 +907,7 @@ export default function AchizitiiPage() {
                       <td className="px-3 py-3 text-xs">{order.contract_numar ? <Badge tone="info">{order.contract_numar}</Badge> : '—'}</td>
                       <td className="px-3 py-3"><Badge variant={status.variant}>{status.label}</Badge></td>
                       <td className="px-3 py-3 text-right">{money(value)} RON</td>
-                      <td className="px-3 py-3 text-right"><div className="flex justify-end gap-1"><Button size="sm" variant="secondary" onClick={() => printOrder(order)}>🖨️ Tipărește</Button>{['emisa', 'partial', 'open'].includes(String(order.status)) ? <Button size="sm" variant="secondary" onClick={() => openReceive(order)}>📦 Recepționează</Button> : null}</div></td>
+                      <td className="px-3 py-3 text-right"><div className="flex justify-end gap-1"><Button size="sm" variant="secondary" onClick={() => printOrder(order)}>🖨️ Tipărește</Button>{canReceiveOrder && ['emisa', 'partial', 'open'].includes(String(order.status)) ? <Button size="sm" variant="secondary" onClick={() => openReceive(order)}>📦 Recepționează</Button> : null}</div></td>
                     </tr>
                   )
                 })}
@@ -912,7 +936,7 @@ export default function AchizitiiPage() {
                     <td className="px-3 py-3 text-right">{money(receipt.total)} RON</td>
                     <td className="px-3 py-3"><Badge variant={receipt.accounting_invoice_id ? 'green' : 'yellow'}>{receipt.accounting_invoice_id ? 'Factură legată' : 'Factură în așteptare'}</Badge></td>
                     <td className="px-3 py-3"><Badge variant={receipt.return_status ? 'yellow' : 'gray'}>{receipt.return_status === 'returnata_integral' ? 'Integral' : receipt.return_status === 'returnata_partial' ? 'Parțial' : 'Fără retur'}</Badge></td>
-                    <td className="px-3 py-3 text-right">{hasAvailable ? <Button size="sm" variant="secondary" onClick={() => openReturn(receipt)}>Înregistrează retur</Button> : <span className="text-xs text-slate-500">Nimic disponibil</span>}</td>
+                    <td className="px-3 py-3 text-right">{canReceiveOrder && hasAvailable ? <Button size="sm" variant="secondary" onClick={() => openReturn(receipt)}>Înregistrează retur</Button> : <span className="text-xs text-slate-500">{hasAvailable ? 'Fără drept de retur' : 'Nimic disponibil'}</span>}</td>
                   </tr>
                 })}
               </tbody>
@@ -945,7 +969,7 @@ export default function AchizitiiPage() {
                       <td className="px-3 py-3 text-right">{Number(quantity || 0).toLocaleString('ro-RO')} {item.unit || item.um || ''}</td>
                       <td className="px-3 py-3"><Badge variant={urgency.variant}>{urgency.label}</Badge></td>
                       <td className="px-3 py-3 text-xs text-slate-600">{item.source_label || '—'}</td>
-                      <td className="px-3 py-3 text-right">{item.actionable ? <Button size="sm" onClick={() => openOrderForRequirement(item)}>Creează comandă</Button> : <span className="text-xs text-slate-500">Verificare necesară</span>}</td>
+                      <td className="px-3 py-3 text-right">{item.actionable && canCreateOrder ? <Button size="sm" onClick={() => openOrderForRequirement(item)}>Creează comandă</Button> : <span className="text-xs text-slate-500">{item.actionable ? 'Fără drept de creare' : 'Verificare necesară'}</span>}</td>
                     </tr>
                   )
                 })}
@@ -1042,8 +1066,8 @@ export default function AchizitiiPage() {
         <Card title="Plan anual achiziții" subtitle="Plan PAAP pe coduri CPV, cu execuție și praguri de alertare.">
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <Input label="An" type="number" value={planYear} onChange={event => setPlanYear(Number(event.target.value))} />
-            <Button type="button" onClick={() => openPaap()}>+ Adaugă poziție</Button>
-            <Button type="button" onClick={generatePlan}>Generează plan din istoric</Button>
+            {canManagePlan ? <Button type="button" onClick={() => openPaap()}>+ Adaugă poziție</Button> : null}
+            {canManagePlan ? <Button type="button" onClick={generatePlan}>Generează plan din istoric</Button> : null}
             <Button type="button" variant="secondary" onClick={exportPaap}>Exportă Excel</Button>
           </div>
           <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
@@ -1057,7 +1081,7 @@ export default function AchizitiiPage() {
                     <td className="px-3 py-2">{row.um}</td>
                     <td className="px-3 py-2 text-right">{numberValue(row.cantitate)}</td><td className="px-3 py-2 text-right">{money(row.valoare_estimata)}</td><td className="px-3 py-2 text-right">{money(row.valoare_executata)}</td><td className="px-3 py-2 text-right">{money(row.valoare_ramasa)}</td>
                     <td className="min-w-28 px-3 py-2"><div className="mb-1 text-xs font-medium">{row.procent}% {row.procent > 100 ? '⚠️' : ''}</div><div className="h-2 overflow-hidden rounded bg-slate-100"><div className={`h-full ${progressClass(row.procent)}`} style={{ width: `${Math.min(100, Number(row.procent || 0))}%` }} /></div></td>
-                    <td className="px-3 py-2">{row.procedura}</td><td className="px-3 py-2">T{row.trimestru}</td><td className="px-3 py-2"><div className="flex gap-1"><Button size="sm" variant="secondary" onClick={() => openPaap(row)}>Editează</Button><Button size="sm" variant="danger" onClick={() => removePaap(row)}>Anulează</Button></div></td>
+                    <td className="px-3 py-2">{row.procedura}</td><td className="px-3 py-2">T{row.trimestru}</td><td className="px-3 py-2">{canManagePlan ? <div className="flex gap-1"><Button size="sm" variant="secondary" onClick={() => openPaap(row)}>Editează</Button><Button size="sm" variant="danger" onClick={() => removePaap(row)}>Anulează</Button></div> : null}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1082,7 +1106,7 @@ export default function AchizitiiPage() {
                   </option>
                 ))}
               </Select>
-              <div className="flex items-end"><Button type="button" variant="secondary" onClick={() => setMaterialModal(true)}>+ Material nou</Button></div>
+              {canManageMaterials ? <div className="flex items-end"><Button type="button" variant="secondary" onClick={() => setMaterialModal(true)}>+ Material nou</Button></div> : null}
             </div>
             <Input label="Cantitate" type="number" min="0" step="0.001" value={form.amount} onChange={event => setForm({ ...form, amount: event.target.value })} />
             <Input label="Preț unitar estimat (lei)" type="number" min="0" step="0.01" value={form.unitPrice} onChange={event => setForm({ ...form, unitPrice: event.target.value })} />

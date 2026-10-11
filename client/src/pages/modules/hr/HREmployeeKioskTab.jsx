@@ -7,9 +7,11 @@ function expirationClass(item) {
   return 'bg-blue-50 text-blue-800'
 }
 
-export default function HREmployeeKioskTab({ dossierSummary, expirations, onSendReminder }) {
+export default function HREmployeeKioskTab({ canRead = false, dossierSummary, expirations, onSendReminder }) {
   const expirationRows = Array.isArray(expirations) ? expirations : []
   const missingRequired = dossierSummary?.missing_required || []
+  if (!canRead) return <div role="status" className="text-sm text-slate-500">Sumarul dosarului necesită drepturi pentru date personale și medicale.</div>
+  if (!dossierSummary) return <div role="status" className="text-sm text-slate-500">Sumarul dosarului nu este disponibil. Nu se poate confirma completitudinea documentelor.</div>
 
   return (
     <div className="grid gap-4">
@@ -28,7 +30,7 @@ export default function HREmployeeKioskTab({ dossierSummary, expirations, onSend
         </div>
       </div>
 
-      {dossierSummary?.pending_ack ? <Button size="sm" onClick={onSendReminder}>Trimite reminder Kiosk</Button> : null}
+      {dossierSummary?.pending_ack && onSendReminder ? <Button size="sm" onClick={onSendReminder}>Trimite reminder Kiosk</Button> : null}
 
       <div className="rounded-lg border border-slate-200 p-3">
         <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Lipsuri obligatorii & scadențe</div>

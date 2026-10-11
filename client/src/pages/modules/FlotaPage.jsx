@@ -12,6 +12,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { useAuth } from '../../hooks/useAuth'
 import { exportExcel } from '../../utils/export'
+import { canAccess } from '../../lib/permission-access'
 
 const TAB_VEHICLES = '🚗 Autovehicule'
 const TAB_EQUIPMENT = '🔧 Utilaje'
@@ -192,6 +193,10 @@ function Pager({ page, total, onPage }) {
 export default function FlotaPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const canManageFleet = canAccess(user, 'mechanization:manage')
+  const canRequestFleet = canAccess(user, 'mechanization:request')
+  const canWriteWorkLog = canAccess(user, 'technical:worklog')
+  const canUseGps = canAccess(user, 'mechanization:view')
   const [activeTab, setActiveTab] = useState(TAB_VEHICLES)
   const [assets, setAssets] = useState([])
   const [requests, setRequests] = useState([])
@@ -302,7 +307,7 @@ export default function FlotaPage() {
   }
 
   useEffect(() => {
-    if (activeTab !== TAB_GPS) return undefined
+    if (activeTab !== TAB_GPS || !canUseGps) return undefined
     fetchGPS()
     const refreshInterval = setInterval(fetchGPS, 30000)
     const countdownInterval = setInterval(() => {
@@ -313,7 +318,7 @@ export default function FlotaPage() {
       clearInterval(countdownInterval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab])
+  }, [activeTab, canUseGps])
 
   useEffect(() => {
     if (activeTab !== TAB_AUTOMINDER) return
@@ -706,9 +711,9 @@ export default function FlotaPage() {
           <h2 className="text-xl font-semibold text-slate-900">Parc & Resurse mobile</h2>
           <p className="text-sm text-slate-500">Autovehicule, utilaje, echipamente mobile, solicitări, rapoarte zilnice și alerte.</p>
         </div>
-        {activeTab === TAB_VEHICLES && <Button onClick={() => openAssetModal('autovehicul')}>Autovehicul nou</Button>}
-        {activeTab === TAB_EQUIPMENT && <Button onClick={() => openAssetModal('utilaj')}>Utilaj nou</Button>}
-        {activeTab === TAB_REQUESTS && <Button onClick={() => setRequestModal(true)}>Solicitare nouă</Button>}
+        {activeTab === TAB_VEHICLES && canManageFleet ? <Button onClick={() => openAssetModal('autovehicul')}>Autovehicul nou</Button> : null}
+        {activeTab === TAB_EQUIPMENT && canManageFleet ? <Button onClick={() => openAssetModal('utilaj')}>Utilaj nou</Button> : null}
+        {activeTab === TAB_REQUESTS && canRequestFleet ? <Button onClick={() => setRequestModal(true)}>Solicitare nouă</Button> : null}
       </div>
 
       {message ? <div className="rounded-md bg-primary-50 px-3 py-2 text-sm text-primary-700">{message}</div> : null}
@@ -716,7 +721,7 @@ export default function FlotaPage() {
 
       <Card>
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-          {tabs.map(tab => (
+          {tabs.filter(tab => tab !== TAB_FLEET_IMPORT || canManageFleet).map(tab => (
             <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>
               {tab}
             </Button>
@@ -797,9 +802,9 @@ export default function FlotaPage() {
                 })),
                 `${activeTab === TAB_VEHICLES ? 'Autovehicule' : 'Utilaje'}_${new Date().toISOString().slice(0,10)}`
               )}>📊 Excel</Button>
-              <Button onClick={() => openAssetModal(activeTab === TAB_VEHICLES ? 'autovehicul' : 'utilaj')}>
+              {canManageFleet ? <Button onClick={() => openAssetModal(activeTab === TAB_VEHICLES ? 'autovehicul' : 'utilaj')}>
                 {activeTab === TAB_VEHICLES ? '+ Autovehicul' : '+ Utilaj'}
-              </Button>
+              </Button> : null}
             </div>
           </div>
           {viewMode === 'list' ? renderAssetList() : renderAssetCards()}
@@ -811,7 +816,7 @@ export default function FlotaPage() {
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-semibold text-slate-900">Solicitări</h3>
-            <Button onClick={() => setRequestModal(true)}>Solicitare nouă</Button>
+            {canRequestFleet ? <Button onClick={() => setRequestModal(true)}>Solicitare nouă</Button> : null}
           </div>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-sm">
@@ -854,7 +859,7 @@ export default function FlotaPage() {
             <Input label="Combustibil litri" type="number" min="0" step="0.1" value={reportForm.fuelLiters} onChange={event => setReportForm({ ...reportForm, fuelLiters: event.target.value })} />
             <Input label="Șantier" value={reportForm.jobName} onChange={event => setReportForm({ ...reportForm, jobName: event.target.value })} required />
             <Input label="Operator" value={reportForm.operatorName} onChange={event => setReportForm({ ...reportForm, operatorName: event.target.value })} />
-            <div className="md:col-span-2"><Button type="submit">Salvează raport</Button></div>
+            <div className="md:col-span-2">{canWriteWorkLog ? <Button type="submit">Salvează raport</Button> : <p className="text-sm text-slate-500">Ai drept doar de consultare pentru raportare.</p>}</div>
           </form>
         </Card>
       )}
@@ -1019,7 +1024,7 @@ export default function FlotaPage() {
         </Card>
       )}
 
-      {activeTab === TAB_FLEET_IMPORT && (
+      {activeTab === TAB_FLEET_IMPORT && canManageFleet && (
         <Card title="Import parc & resurse" subtitle="Importă autovehicule și utilaje din modelul InfraFlow, indiferent de aplicația din care provin datele.">
           <div className="grid gap-4">
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">

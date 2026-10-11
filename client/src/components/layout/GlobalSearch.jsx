@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useSettings } from '../../hooks/useSettings'
 import ModuleIcon from '../ui/ModuleIcon'
+import { canAccess, moduleAccess, modulePermissionPrefixes } from '../../lib/permission-access'
 
 const WORKSPACE_STORAGE_KEY = 'infraflow_workspace_tabs_v1'
 
@@ -82,6 +83,11 @@ export default function GlobalSearch({ onNavigate }) {
     const enabled = Array.isArray(modules) && modules.length ? new Set(modules) : null
     const visibleNavigation = navigationItems.filter(item => {
       if (item.adminOnly && !isAdmin) return false
+      if (item.moduleKey) {
+        const accessKey = item.moduleKey === 'contract_management' ? 'contractManagement' : item.moduleKey
+        const prefixes = modulePermissionPrefixes[accessKey] || [item.moduleKey]
+        if (!canAccess(user, moduleAccess[accessKey] || { anyPrefix: prefixes })) return false
+      }
       if (!item.moduleKey || !enabled) return true
       return (moduleAliases[item.moduleKey] || [item.moduleKey]).some(key => enabled.has(key))
     })

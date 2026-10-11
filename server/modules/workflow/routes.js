@@ -9,6 +9,7 @@ const { requireAuth } = require('../../core/auth')
 const { requirePermission, requireAnyPermission, authHasPermission } = require('../../core/permissions')
 const { readDb, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
+const { canReadHrNotification } = require('../hr/notification-access')
 const { syncWorkflowForDepartmentRequest, syncWorkflowForFleetRequest, moduleKeyForDepartmentName } = require('./engine')
 const router = Router()
 
@@ -2832,6 +2833,7 @@ function persistedNotificationsForUser(db, user) {
   return (Array.isArray(db.notifications) ? db.notifications : [])
     .filter((notification) => notification && notification.read !== true && !notification.read_at)
     .filter((notification) => notificationVisibleForUser(notification, user))
+    .filter((notification) => canReadHrNotification(db, user, notification))
     .sort((a, b) => String(b.createdAt || b.created_at || "").localeCompare(String(a.createdAt || a.created_at || "")))
     .slice(0, 25);
 }

@@ -9,6 +9,7 @@
     "audit:advisory": "node scripts/audit-local.js --advisory",
     "test:accounting": "node --test server/tests/accounting-regression.test.js",
     "test:hr": "node --test server/tests/hr-regression.test.js",
+    "test:permissions": "node --test server/tests/permissions-regression.test.js",
     "test:release": "node scripts/release-accounting-acceptance.js",
     "test:backup": "node scripts/verify-backup-roundtrip.js",
     "test:commercial-demo": "node --test server/tests/commercial-demo-seed.test.js",

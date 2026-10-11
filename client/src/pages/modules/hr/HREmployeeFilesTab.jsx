@@ -18,7 +18,7 @@ const fileTypes = [
   {value:'altul',label:'Altul'}
 ]
 
-export default function HREmployeeFilesTab({ employeeId, canManage, onError, suggestedUpload = null, onSuggestionUsed = () => {} }) {
+export default function HREmployeeFilesTab({ employeeId, canManage, canAccessFileType = () => false, onError, suggestedUpload = null, onSuggestionUsed = () => {} }) {
   const [items, setItems] = useState([])
   const [file, setFile] = useState(null)
   const [type, setType] = useState('contract')
@@ -26,6 +26,12 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
   const [busy, setBusy] = useState(false)
   const [cancelTarget, setCancelTarget] = useState(null)
   const [cancelBusy, setCancelBusy] = useState(false)
+  const allowedTypes = fileTypes.filter(item => canAccessFileType(item.value))
+  const canModify = item => canManage && canAccessFileType(item.tip)
+  const allowedTypeKey = allowedTypes.map(item => item.value).join(',')
+  useEffect(() => {
+    if (!allowedTypes.some(item => item.value === type)) setType(allowedTypes[0]?.value || '')
+  }, [allowedTypeKey, type])
 
   async function loadFiles() {
     try { const response = await api.get(`/hr/employees/${employeeId}/files`); setItems(response.data?.items || []) } catch (error) { onError(error.response?.data?.error || 'Dosarul electronic nu a putut fi incarcat.') }
@@ -34,7 +40,7 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
   useEffect(() => { if (employeeId) loadFiles() }, [employeeId])
 
   useEffect(() => {
-    if (!suggestedUpload?.type) return
+    if (!suggestedUpload?.type || !canAccessFileType(suggestedUpload.type)) return
     setType(suggestedUpload.type)
   }, [suggestedUpload?.type])
 
@@ -48,7 +54,7 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
   }, [employeeId])
 
   async function uploadFile() {
-    if (!file) return
+    if (!file || !canManage || !canAccessFileType(type)) return
     try {
       setBusy(true)
       const form = new FormData(); form.append('file', file); form.append('tip', type); form.append('denumire', file.name)
@@ -84,6 +90,8 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
 
   async function saveFileMeta(event) {
     event.preventDefault()
+    const original = items.find(item => item.id === editing?.id)
+    if (!original || !canModify(original) || !canModify(editing)) return
     try {
       await api.patch(`/hr/employees/${employeeId}/files/${editing.id}`, editing)
       setEditing(null)
@@ -92,11 +100,12 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
   }
 
   async function cancelFile(item) {
+    if (!canModify(item)) return
     setCancelTarget(item)
   }
 
   async function confirmCancelFile(motiv) {
-    if (!cancelTarget) return
+    if (!cancelTarget || !canModify(cancelTarget)) return
     try {
       setCancelBusy(true)
       await api.delete(`/hr/employees/${employeeId}/files/${cancelTarget.id}`, { data: { motiv } })
@@ -115,7 +124,7 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
         </div>
         <Button size="sm" variant="secondary" onClick={loadFiles}>Reincarca</Button>
       </div>
-      {canManage ? (
+      {canManage && allowedTypes.length ? (
         <>
           {suggestedUpload ? (
             <div className="mb-3 rounded border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-800">
@@ -124,9 +133,9 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
             </div>
           ) : null}
           <div className="mb-3 grid gap-2 sm:grid-cols-[180px_1fr_auto]">
-            <Select value={type} onChange={event => setType(event.target.value)} options={fileTypes} />
+            <Select value={type} onChange={event => setType(event.target.value)} options={allowedTypes} />
             <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" onChange={event => setFile(event.target.files?.[0] || null)} />
-            <Button onClick={async () => { await uploadFile(); onSuggestionUsed() }} disabled={!file || busy}>{busy ? 'Se incarca...' : 'Incarca'}</Button>
+            <Button onClick={async () => { await uploadFile(); onSuggestionUsed() }} disabled={!file || busy || !canAccessFileType(type)}>{busy ? 'Se incarca...' : 'Incarca'}</Button>
           </div>
         </>
       ) : null}
@@ -138,10 +147,10 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
               <div className="text-xs text-slate-500">{item.tip}{item.generated ? ' · generat electronic' : ' · incarcat'}{item.requires_ack ? ' · cere confirmare Kiosk' : ''}{item.acknowledged_at ? ` · confirmat ${String(item.acknowledged_at).slice(0, 10)}` : ''} · {Math.ceil(Number(item.file_size || 0) / 1024)} KB · {item.data_document || item.created_at?.slice?.(0, 10) || '-'}</div>
             </div>
             <div className="flex gap-2">
-              {canManage ? <Button size="sm" variant="secondary" onClick={() => setEditing({ ...item })}>Editeaza</Button> : null}
+              {canModify(item) ? <Button size="sm" variant="secondary" onClick={() => setEditing({ ...item })}>Editeaza</Button> : null}
               {item.generated || item.mime_type === 'text/html' ? <Button size="sm" variant="secondary" onClick={() => previewFile(item)}>Deschide</Button> : null}
               <Button size="sm" variant="secondary" onClick={() => downloadFile(item)}>Descarca</Button>
-              {canManage ? <Button size="sm" variant="secondary" onClick={() => cancelFile(item)}>Anuleaza</Button> : null}
+              {canModify(item) ? <Button size="sm" variant="secondary" onClick={() => cancelFile(item)}>Anuleaza</Button> : null}
             </div>
           </div>
         ))}
@@ -150,7 +159,7 @@ export default function HREmployeeFilesTab({ employeeId, canManage, onError, sug
       <Modal open={Boolean(editing)} title="Editeaza document dosar" onClose={() => setEditing(null)} size="md">
         <form className="grid gap-3" onSubmit={saveFileMeta}>
           <Input label="Denumire" value={editing?.denumire || ''} onChange={event => setEditing(current => ({ ...current, denumire: event.target.value }))} required />
-          <Select label="Tip document" value={editing?.tip || 'altul'} onChange={event => setEditing(current => ({ ...current, tip: event.target.value }))} options={fileTypes} />
+          <Select label="Tip document" value={editing?.tip || 'altul'} onChange={event => setEditing(current => ({ ...current, tip: event.target.value }))} options={allowedTypes} />
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label="Data document" type="date" value={editing?.data_document || ''} onChange={event => setEditing(current => ({ ...current, data_document: event.target.value }))} />
             <Input label="Expira la" type="date" value={editing?.data_expirare || ''} onChange={event => setEditing(current => ({ ...current, data_expirare: event.target.value }))} />

@@ -82,10 +82,8 @@ function auditWrite(auth, action, details) {
 }
 
 const CONTRACT_MANAGE_PERMISSIONS = [
+  'legal:contracts',
   'legal:manage',
-  'procurement_orders:create',
-  'accounting:manage',
-  'controlling:budget_manage',
   'system:admin'
 ]
 

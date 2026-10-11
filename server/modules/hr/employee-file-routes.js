@@ -9,6 +9,7 @@ const { requirePermission, authHasPermission } = require("../../core/permissions
 const kioskSessions = require("../../core/kiosk-sessions");
 const { readDb, writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
+const { canReadEmployeeFile } = require('./file-access');
 
 const router = Router();
 const root = path.join(__dirname, "../../../storage/hr-files");
@@ -17,18 +18,18 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 fs.mkdirSync(root, { recursive: true });
 
 router.get("/hr/employees/:id/files", authorize("hr:view"), (req, res) => {
-  const files = ensureFiles(req.auth.db).filter((item) => String(item.employee_id) === String(req.params.id) && !item.cancelled_at);
+  const files = ensureFiles(req.auth.db).filter((item) => String(item.employee_id) === String(req.params.id) && !item.cancelled_at && canReadEmployeeFile(req.auth, item));
   res.json({ items: files });
 });
 
-router.get("/hr/employees/:id/workflow", authorize("hr:view"), (req, res) => {
+router.get("/hr/employees/:id/workflow", authorize("hr:view"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const employee = findEmployeeForWorkflow(req.auth.db, req.params.id);
   if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
   const workflow = currentEmployeeWorkflow(req.auth.db, employee.id);
   res.json({ workflow: workflow ? enrichEmployeeWorkflow(req.auth.db, employee, workflow) : null, suggestions: workflowSuggestions(req.auth.db, employee) });
 });
 
-router.post("/hr/employees/:id/workflow/start", authorize("hr:manage"), (req, res) => {
+router.post("/hr/employees/:id/workflow/start", authorize("hr:manage"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const employee = findEmployeeForWorkflow(req.auth.db, req.params.id);
   if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
   const type = String(req.body?.type || "").toLowerCase();
@@ -56,7 +57,7 @@ router.post("/hr/employees/:id/workflow/start", authorize("hr:manage"), (req, re
   res.status(existing ? 200 : 201).json({ workflow: enrichEmployeeWorkflow(req.auth.db, employee, workflow) });
 });
 
-router.patch("/hr/employees/:id/workflow/steps/:stepKey", authorize("hr:manage"), (req, res) => {
+router.patch("/hr/employees/:id/workflow/steps/:stepKey", authorize("hr:manage"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const employee = findEmployeeForWorkflow(req.auth.db, req.params.id);
   if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
   const workflow = currentEmployeeWorkflow(req.auth.db, employee.id);
@@ -89,7 +90,7 @@ router.patch("/hr/employees/:id/workflow/steps/:stepKey", authorize("hr:manage")
   res.json({ workflow: enrichEmployeeWorkflow(req.auth.db, employee, workflow) });
 });
 
-router.post("/hr/employees/:id/workflow/close", authorize("hr:manage"), (req, res) => {
+router.post("/hr/employees/:id/workflow/close", authorize("hr:manage"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const employee = findEmployeeForWorkflow(req.auth.db, req.params.id);
   if (!employee) return res.status(404).json({ error: "Angajatul nu a fost gasit.", code: "HR_EMPLOYEE_NOT_FOUND" });
   const workflow = currentEmployeeWorkflow(req.auth.db, employee.id);
@@ -109,7 +110,7 @@ router.post("/hr/employees/:id/workflow/close", authorize("hr:manage"), (req, re
   res.json({ workflow: enrichEmployeeWorkflow(req.auth.db, employee, workflow) });
 });
 
-router.get("/hr/dossier-checklist", authorize("hr:view"), (req, res) => {
+router.get("/hr/dossier-checklist", authorize("hr:view"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), (req, res) => {
   const hr = req.auth.db.hr || {};
   const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
   const files = ensureFiles(req.auth.db).filter((item) => !item.cancelled_at);
@@ -119,19 +120,19 @@ router.get("/hr/dossier-checklist", authorize("hr:view"), (req, res) => {
   res.json({ rows, summary: { total: rows.length, complete, incomplete: rows.length - complete, critical_missing: criticalMissing } });
 });
 
-router.get("/hr/dossier-dashboard", authorize("hr:view"), (req, res) => {
+router.get("/hr/dossier-dashboard", authorize("hr:view"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), (req, res) => {
   res.json(buildDossierDashboard(req.auth.db));
 });
 
-router.get("/hr/inbox", authorize("hr:view"), (req, res) => {
+router.get("/hr/inbox", authorize("hr:view"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), (req, res) => {
   res.json(buildHrInbox(req.auth.db));
 });
 
-router.get("/hr/activity", authorize("hr:view"), (req, res) => {
+router.get("/hr/activity", authorize("hr:view"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   res.json(buildHrActivity(req.auth.db, req.query || {}));
 });
 
-router.get("/hr/activity.xlsx", authorize("hr:view"), (req, res) => {
+router.get("/hr/activity.xlsx", authorize("hr:view"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const data = buildHrActivity(req.auth.db, req.query || {});
   const workbook = xlsx.utils.book_new();
   appendSheet(workbook, "Jurnal HR", data.rows.map((item) => ({
@@ -150,11 +151,11 @@ router.get("/hr/activity.xlsx", authorize("hr:view"), (req, res) => {
   res.end(buffer);
 });
 
-router.get("/hr/management-report", authorize("hr:view"), (req, res) => {
+router.get("/hr/management-report", authorize("hr:view"), authorize("hr:reports"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), (req, res) => {
   res.json(buildHrManagementReport(req.auth.db, req.query || {}));
 });
 
-router.get("/hr/management-report.xlsx", authorize("hr:view"), (req, res) => {
+router.get("/hr/management-report.xlsx", authorize("hr:view"), authorize("hr:reports"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), (req, res) => {
   const report = buildHrManagementReport(req.auth.db, req.query || {});
   const workbook = xlsx.utils.book_new();
   appendSheet(workbook, "KPI", [
@@ -176,12 +177,12 @@ router.get("/hr/management-report.xlsx", authorize("hr:view"), (req, res) => {
   res.end(buffer);
 });
 
-router.get("/hr/advanced-expirations", authorize("hr:view"), (req, res) => {
+router.get("/hr/advanced-expirations", authorize("hr:view"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), (req, res) => {
   const relevant = collectAdvancedExpirations(req.auth.db);
   res.json({ rows: relevant, summary: summarizeExpirations(relevant) });
 });
 
-router.post("/hr/dossier-dashboard/:employeeId/reminder", authorize("hr:manage"), (req, res) => {
+router.post("/hr/dossier-dashboard/:employeeId/reminder", authorize("hr:manage"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const files = ensureFiles(req.auth.db);
   const hr = req.auth.db.hr || {};
   const employee = (Array.isArray(hr.employees) ? hr.employees : []).find((item) => String(item.id) === String(req.params.employeeId));
@@ -228,7 +229,7 @@ router.post("/hr/dossier-dashboard/:employeeId/reminder", authorize("hr:manage")
   res.json({ employee_id: employee.id, pending: pending.length, notified_user: targetUser ? targetUser.id : null, sent_at: now, dashboard: buildDossierDashboard(req.auth.db) });
 });
 
-router.post("/hr/advanced-expirations/notify", authorize("hr:manage"), (req, res) => {
+router.post("/hr/advanced-expirations/notify", authorize("hr:manage"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const rows = collectAdvancedExpirations(req.auth.db);
   const urgentRows = rows.filter((item) => item.severity === "expired" || item.severity === "critical");
   const users = hrNotificationUsers(req.auth.db, req.auth.user);
@@ -273,7 +274,7 @@ router.post("/hr/advanced-expirations/notify", authorize("hr:manage"), (req, res
   res.json({ created, skipped, targets: users.length, rows: urgentRows.length });
 });
 
-router.post("/hr/notifications/generate", authorize("hr:manage"), (req, res) => {
+router.post("/hr/notifications/generate", authorize("hr:manage"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const result = generateHrInboxNotifications(req.auth.db, req.auth.user);
   if (result.created) {
     addAudit(req.auth.db, req.auth.user, "hr_notificari_automate_generate", `${result.created} create / ${result.skipped} existente / ${result.tasks} sarcini`);
@@ -282,7 +283,7 @@ router.post("/hr/notifications/generate", authorize("hr:manage"), (req, res) => 
   res.json(result);
 });
 
-router.get("/hr/advanced-expirations/notifications", authorize("hr:manage"), (req, res) => {
+router.get("/hr/advanced-expirations/notifications", authorize("hr:manage"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   const notifications = hrExpirationNotifications(req.auth.db);
   const open = notifications.filter((item) => item.read !== true && !item.read_at && !item.resolved_at).length;
   res.json({
@@ -295,7 +296,7 @@ router.get("/hr/advanced-expirations/notifications", authorize("hr:manage"), (re
   });
 });
 
-router.post("/hr/advanced-expirations/notifications/:id/resolve", authorize("hr:manage"), (req, res) => {
+router.post("/hr/advanced-expirations/notifications/:id/resolve", authorize("hr:manage"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), authorize("hr:salary_view"), (req, res) => {
   req.auth.db.notifications = Array.isArray(req.auth.db.notifications) ? req.auth.db.notifications : [];
   const notification = req.auth.db.notifications.find((item) => String(item.id) === String(req.params.id));
   if (!notification || notification.event !== "hr_expiration") return res.status(404).json({ error: "Notificarea HR nu a fost gasita.", code: "HR_NOTIFICATION_NOT_FOUND" });
@@ -310,7 +311,7 @@ router.post("/hr/advanced-expirations/notifications/:id/resolve", authorize("hr:
   res.json({ notification });
 });
 
-router.get("/hr/dossier-report.xlsx", authorize("hr:view"), (req, res) => {
+router.get("/hr/dossier-report.xlsx", authorize("hr:view"), authorize("hr:reports"), authorize("hr:personal_sensitive"), authorize("hr:medical_view"), (req, res) => {
   const hr = req.auth.db.hr || {};
   const employees = (Array.isArray(hr.employees) ? hr.employees : []).filter((employee) => employee.activ !== false && employee.activ !== 0);
   const files = ensureFiles(req.auth.db).filter((item) => !item.cancelled_at);
@@ -385,6 +386,7 @@ router.get("/hr/kiosk/my-documents", (req, res) => {
 
 router.post("/hr/employees/:id/files", authorize("hr:manage"), upload.single("file"), (req, res, next) => {
   try {
+    if (!canReadEmployeeFile(req.auth, { employee_id: req.params.id, tip: req.body?.tip || 'altul' })) return res.status(403).json({ error: 'Nu ai acces la această categorie de documente HR.', code: 'HR_FILE_ACCESS_DENIED' });
     if (!req.file || !allowed.has(req.file.mimetype)) return res.status(422).json({ error: "Acceptam PDF, JPG, PNG, DOCX sau XLSX, maximum 10 MB.", code: "HR_FILE_TYPE_INVALID" });
     const employeeId = String(req.params.id);
     const folder = path.join(root, `employee_${safeSegment(employeeId)}`);
@@ -404,6 +406,7 @@ router.post("/hr/employees/:id/files", authorize("hr:manage"), upload.single("fi
 
 router.post("/hr/employees/:id/files/generated", authorize("hr:manage"), (req, res, next) => {
   try {
+    if (!canReadEmployeeFile(req.auth, { employee_id: req.params.id, tip: req.body?.tip || 'altul' })) return res.status(403).json({ error: 'Nu ai acces la această categorie de documente HR.', code: 'HR_FILE_ACCESS_DENIED' });
     const employeeId = String(req.params.id);
     const html = String(req.body?.html || "").trim();
     if (!html || !/^<!DOCTYPE html>|<html[\s>]/i.test(html)) return res.status(422).json({ error: "Documentul generat nu contine HTML valid.", code: "HR_GENERATED_DOCUMENT_INVALID" });
@@ -444,6 +447,7 @@ router.post("/hr/employees/:id/files/generated", authorize("hr:manage"), (req, r
 router.get("/hr/employees/:id/files/:fileId/download", authorize("hr:view"), (req, res) => {
   const item = ensureFiles(req.auth.db).find((file) => String(file.id) === String(req.params.fileId) && String(file.employee_id) === String(req.params.id) && !file.cancelled_at);
   if (!item) return res.status(404).json({ error: "Documentul nu a fost gasit.", code: "HR_FILE_NOT_FOUND" });
+  if (!canReadEmployeeFile(req.auth, item)) return res.status(403).json({ error: 'Nu ai acces la acest document HR.', code: 'HR_FILE_ACCESS_DENIED' });
   const filePath = path.join(root, `employee_${safeSegment(item.employee_id)}`, item.stored_name);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Fisierul nu mai exista in storage.", code: "HR_FILE_STORAGE_MISSING" });
   if (item.mime_type) res.type(item.mime_type);
@@ -480,6 +484,7 @@ router.post("/hr/kiosk/my-documents/:fileId/ack", (req, res) => {
 router.patch("/hr/employees/:id/files/:fileId", authorize("hr:manage"), (req, res) => {
   const item = ensureFiles(req.auth.db).find((file) => String(file.id) === String(req.params.fileId) && String(file.employee_id) === String(req.params.id) && !file.cancelled_at);
   if (!item) return res.status(404).json({ error: "Documentul nu a fost gasit.", code: "HR_FILE_NOT_FOUND" });
+  if (!canReadEmployeeFile(req.auth, item) || !canReadEmployeeFile(req.auth, { ...item, tip: req.body.tip === undefined ? item.tip : req.body.tip })) return res.status(403).json({ error: 'Nu ai acces la categoria curentă sau nouă a documentului.', code: 'HR_FILE_ACCESS_DENIED' });
   if (req.body.tip !== undefined) item.tip = String(req.body.tip || "altul").slice(0, 50);
   if (req.body.denumire !== undefined) item.denumire = String(req.body.denumire || item.file_name || "Document").slice(0, 200);
   if (req.body.data_document !== undefined) item.data_document = req.body.data_document || null;
@@ -496,6 +501,7 @@ router.patch("/hr/employees/:id/files/:fileId", authorize("hr:manage"), (req, re
 router.delete("/hr/employees/:id/files/:fileId", authorize("hr:manage"), (req, res) => {
   const item = ensureFiles(req.auth.db).find((file) => String(file.id) === String(req.params.fileId) && String(file.employee_id) === String(req.params.id) && !file.cancelled_at);
   if (!item) return res.status(404).json({ error: "Documentul nu a fost gasit.", code: "HR_FILE_NOT_FOUND" });
+  if (!canReadEmployeeFile(req.auth, item)) return res.status(403).json({ error: 'Nu ai acces la acest document HR.', code: 'HR_FILE_ACCESS_DENIED' });
   const reason = String(req.body?.motiv || "Anulare document din dosarul angajatului").trim();
   Object.assign(item, { cancelled_at: new Date().toISOString(), cancelled_by: req.auth.user.id, cancelled_reason: reason });
   addAudit(req.auth.db, req.auth.user, "hr_employee_file_cancel", `${item.employee_id} / ${item.id} / ${reason}`);
@@ -1104,9 +1110,11 @@ function hrNotificationUsers(db, fallbackUser) {
     || authHasPermission({ db, user }, "hr:authorizations_manage")
     || authHasPermission({ db, user }, "hr:contracts_manage")
   ));
+  const canReadDetails = user => ['hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view']
+    .every(permission => authHasPermission({ db, user }, permission));
   const unique = [];
   const seen = new Set();
-  [...targets, fallbackUser].filter(Boolean).forEach((user) => {
+  [...targets, fallbackUser].filter(user => user && canReadDetails(user)).forEach((user) => {
     if (seen.has(String(user.id))) return;
     seen.add(String(user.id));
     unique.push(user);

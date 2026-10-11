@@ -2,6 +2,24 @@ const assert = require('node:assert/strict')
 const test = require('node:test')
 const { addBusinessHours, supportInfo, supportLevelForPriority } = require('../modules/tickets/support-levels')
 
+test('termenul SQL NULL nu devine epoch și nu marchează tichetul nou depășit', () => {
+  const created = '2026-10-09T06:00:00.000Z'
+  for (const missing of [null, undefined, '', '   ']) {
+    const result = supportInfo({ prioritate: 'normala', status: 'deschis', created_at: created, termen_limita: missing }, new Date(created))
+    assert.equal(result.deadline_at, '2026-10-12T14:00:00.000Z')
+    assert.equal(result.deadline_source, 'tinta_raspuns_initial')
+    assert.equal(result.state, 'in_termen')
+  }
+  const resolved = supportInfo({ prioritate: 'normala', status: 'rezolvat', created_at: created, termen_limita: null, rezolvat_la: '2026-10-09T08:00:00.000Z' })
+  assert.equal(resolved.state, 'rezolvat_in_termen')
+})
+
+test('un termen explicit valid continuă să limiteze ținta de răspuns', () => {
+  const result = supportInfo({ created_at: '2026-10-09T07:00:00.000Z', termen_limita: '2026-10-09T08:00:00.000Z', status: 'deschis' }, new Date('2026-10-09T08:01:00.000Z'))
+  assert.equal(result.deadline_source, 'termen_explicit')
+  assert.equal(result.state, 'depasit')
+})
+
 test('nivelurile de suport P1-P4 păstrează prioritățile existente ale tichetelor', () => {
   assert.equal(supportLevelForPriority('critica').code, 'P1')
   assert.equal(supportLevelForPriority('urgenta').code, 'P2')

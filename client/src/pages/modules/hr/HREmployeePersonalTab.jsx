@@ -53,10 +53,12 @@ export default function HREmployeePersonalTab({
   onLoadAdeverinta,
   onPrintAdeverinta,
   guidedIssue,
+  canWriteField = () => false,
 }) {
   if (editMode) {
     return (
       <HREmployeePersonalEditForm
+        canWriteField={canWriteField}
         departments={departments}
         editForm={editForm}
         employee={employee}
@@ -83,7 +85,7 @@ export default function HREmployeePersonalTab({
   )
 }
 
-function HREmployeePersonalEditForm({ departments, editForm, employee, linkableUsers, onEditFormChange, guidedIssue }) {
+function HREmployeePersonalEditForm({ departments, editForm, employee, linkableUsers, onEditFormChange, guidedIssue, canWriteField }) {
   const patchForm = values => onEditFormChange({ ...editForm, ...values })
   const guidedFields = new Set((guidedIssue?.issue_details || []).filter(item => item.target_tab === 'date').map(item => String(item.field || '').toLowerCase()))
   const highlightClass = field => guidedFields.has(field) ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''
@@ -100,65 +102,65 @@ function HREmployeePersonalEditForm({ departments, editForm, employee, linkableU
       <div className="rounded-lg border border-slate-200 p-3">
         <div className="mb-3 text-xs font-semibold uppercase text-slate-500">📋 Date personale</div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Nume" value={editForm.nume || ''} onChange={event => patchForm({ nume: event.target.value })} className={nameHighlighted ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''} />
-          <Input label="Prenume" value={editForm.prenume || ''} onChange={event => patchForm({ prenume: event.target.value })} className={nameHighlighted ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''} />
+          <Input label="Nume" disabled={!canWriteField('nume')} value={editForm.nume || ''} onChange={event => patchForm({ nume: event.target.value })} className={nameHighlighted ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''} />
+          <Input label="Prenume" disabled={!canWriteField('prenume')} value={editForm.prenume || ''} onChange={event => patchForm({ prenume: event.target.value })} className={nameHighlighted ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : ''} />
           <Input
             label="CNP *"
             maxLength={13}
-            value={editForm.cnp || ''}
+            disabled={!canWriteField('cnp')} value={editForm.cnp || ''}
             onChange={event => patchForm({ cnp: event.target.value })}
             className={highlightClass('cnp') || (!editForm.cnp ? 'border-yellow-400 bg-yellow-50' : '')}
             placeholder={!editForm.cnp ? 'Completează CNP (obligatoriu)' : ''}
           />
-          <Input label="Nr. marcă" value={editForm.marca || ''} onChange={event => patchForm({ marca: event.target.value })} />
+          <Input label="Nr. marcă" disabled={!canWriteField('marca')} value={editForm.marca || ''} onChange={event => patchForm({ marca: event.target.value })} />
           <Input
             label="Email"
             type="email"
-            value={editForm.email || ''}
+            disabled={!canWriteField('email')} value={editForm.email || ''}
             onChange={event => patchForm({ email: event.target.value })}
             className={!editForm.email ? 'border-yellow-300 bg-yellow-50' : ''}
             placeholder={!editForm.email ? 'Completează email' : ''}
           />
           <Input
             label="Telefon"
-            value={editForm.telefon || ''}
+            disabled={!canWriteField('telefon')} value={editForm.telefon || ''}
             onChange={event => patchForm({ telefon: event.target.value })}
             className={!editForm.telefon ? 'border-yellow-300 bg-yellow-50' : ''}
             placeholder={!editForm.telefon ? 'Completează telefon' : ''}
           />
-          <Input label="Adresă" value={editForm.adresa || ''} onChange={event => patchForm({ adresa: event.target.value })} />
-          <Select label="Stare civilă" value={editForm.stare_civila || ''} onChange={event => patchForm({ stare_civila: event.target.value })} options={civilStatusOptions} />
-          <Input label="Copii în întreținere" type="number" value={editForm.nr_copii_intretinere ?? 0} onChange={event => patchForm({ nr_copii_intretinere: Number(event.target.value) })} />
-          <Input label="Casa de sănătate" value={editForm.casa_sanatate || ''} onChange={event => patchForm({ casa_sanatate: event.target.value })} />
+          <Input label="Adresă" disabled={!canWriteField('adresa')} value={editForm.adresa || ''} onChange={event => patchForm({ adresa: event.target.value })} />
+          <Select label="Stare civilă" disabled={!canWriteField('stare_civila')} value={editForm.stare_civila || ''} onChange={event => patchForm({ stare_civila: event.target.value })} options={civilStatusOptions} />
+          <Input label="Copii în întreținere" type="number" disabled={!canWriteField('nr_copii_intretinere')} value={editForm.nr_copii_intretinere ?? 0} onChange={event => patchForm({ nr_copii_intretinere: Number(event.target.value) })} />
+          <Input label="Casa de sănătate" disabled={!canWriteField('casa_sanatate')} value={editForm.casa_sanatate || ''} onChange={event => patchForm({ casa_sanatate: event.target.value })} />
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <Select label="Tip act" value={editForm.act_identitate_tip || 'CI'} onChange={event => patchForm({ act_identitate_tip: event.target.value })} options={identityTypeOptions} />
-          <Input label="Serie" maxLength={5} placeholder="NT" value={editForm.act_identitate_serie || ''} onChange={event => patchForm({ act_identitate_serie: event.target.value.toUpperCase().slice(0, 5) })} />
-          <Input label="Număr" maxLength={10} placeholder="123456" value={editForm.act_identitate_numar || ''} onChange={event => patchForm({ act_identitate_numar: event.target.value.slice(0, 10) })} />
+          <Select label="Tip act" disabled={!canWriteField('act_identitate_tip')} value={editForm.act_identitate_tip || 'CI'} onChange={event => patchForm({ act_identitate_tip: event.target.value })} options={identityTypeOptions} />
+          <Input label="Serie" maxLength={5} placeholder="NT" disabled={!canWriteField('act_identitate_serie')} value={editForm.act_identitate_serie || ''} onChange={event => patchForm({ act_identitate_serie: event.target.value.toUpperCase().slice(0, 5) })} />
+          <Input label="Număr" maxLength={10} placeholder="123456" disabled={!canWriteField('act_identitate_numar')} value={editForm.act_identitate_numar || ''} onChange={event => patchForm({ act_identitate_numar: event.target.value.slice(0, 10) })} />
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Input label="Eliberat de" value={editForm.act_identitate_eliberat_de || ''} onChange={event => patchForm({ act_identitate_eliberat_de: event.target.value })} />
-          <Input label="Data eliberării" type="date" value={editForm.act_identitate_data_eliberare || ''} onChange={event => patchForm({ act_identitate_data_eliberare: event.target.value })} />
+          <Input label="Eliberat de" disabled={!canWriteField('act_identitate_eliberat_de')} value={editForm.act_identitate_eliberat_de || ''} onChange={event => patchForm({ act_identitate_eliberat_de: event.target.value })} />
+          <Input label="Data eliberării" type="date" disabled={!canWriteField('act_identitate_data_eliberare')} value={editForm.act_identitate_data_eliberare || ''} onChange={event => patchForm({ act_identitate_data_eliberare: event.target.value })} />
         </div>
-        <Input className="mt-3" label="Valabil până" type="date" value={editForm.act_identitate_valabil_pana || ''} onChange={event => patchForm({ act_identitate_valabil_pana: event.target.value })} />
+        <Input className="mt-3" label="Valabil până" type="date" disabled={!canWriteField('act_identitate_valabil_pana')} value={editForm.act_identitate_valabil_pana || ''} onChange={event => patchForm({ act_identitate_valabil_pana: event.target.value })} />
       </div>
 
       <div className="rounded-lg border border-slate-200 p-3">
         <div className="mb-3 text-xs font-semibold uppercase text-slate-500">💼 Date angajare</div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Funcția" value={editForm.functia || ''} onChange={event => patchForm({ functia: event.target.value })} />
-          <Input label="Cod COR" value={editForm.functie_cor || ''} onChange={event => patchForm({ functie_cor: event.target.value })} />
+          <Input label="Funcția" disabled={!canWriteField('functia')} value={editForm.functia || ''} onChange={event => patchForm({ functia: event.target.value })} />
+          <Input label="Cod COR" disabled={!canWriteField('functie_cor')} value={editForm.functie_cor || ''} onChange={event => patchForm({ functie_cor: event.target.value })} />
           <Select label="Departament" value={String(editForm.department_id || '')} onChange={event => patchForm({ department_id: event.target.value })} options={[{ value: '', label: 'Alege departament' }, ...departments]} />
-          <Select label="Cont aplicatie / Kiosk" value={String(editForm.user_id || '')} onChange={event => patchForm({ user_id: event.target.value })} options={[{ value: '', label: 'Fara cont asociat' }, ...linkableUsers.map(account => ({ value: String(account.id), label: `${account.name || account.username} (${account.username})` }))]} />
-          <Select label="Nivel studii" value={editForm.nivel_studii || ''} onChange={event => patchForm({ nivel_studii: event.target.value })} options={educationOptions} />
-          <Input label="Normă ore/zi" type="number" value={editForm.norma_ore_zi ?? 8} onChange={event => patchForm({ norma_ore_zi: Number(event.target.value) })} />
-          <Input label="Zile CO / an" type="number" value={editForm.zile_co_drept ?? 21} onChange={event => patchForm({ zile_co_drept: Number(event.target.value) })} />
-          <Input label="Expiră contract" type="date" value={editForm.data_expirare_contract || ''} onChange={event => patchForm({ data_expirare_contract: event.target.value })} />
+          <Select label="Cont aplicatie / Kiosk" disabled={!canWriteField('user_id')} value={String(editForm.user_id || '')} onChange={event => patchForm({ user_id: event.target.value })} options={[{ value: '', label: 'Fara cont asociat' }, ...linkableUsers.map(account => ({ value: String(account.id), label: `${account.name || account.username} (${account.username})` }))]} />
+          <Select label="Nivel studii" disabled={!canWriteField('nivel_studii')} value={editForm.nivel_studii || ''} onChange={event => patchForm({ nivel_studii: event.target.value })} options={educationOptions} />
+          <Input label="Normă ore/zi" type="number" disabled={!canWriteField('norma_ore_zi')} value={editForm.norma_ore_zi ?? 8} onChange={event => patchForm({ norma_ore_zi: Number(event.target.value) })} />
+          <Input label="Zile CO / an" type="number" disabled={!canWriteField('zile_co_drept')} value={editForm.zile_co_drept ?? 21} onChange={event => patchForm({ zile_co_drept: Number(event.target.value) })} />
+          <Input label="Expiră contract" type="date" disabled={!canWriteField('data_expirare_contract')} value={editForm.data_expirare_contract || ''} onChange={event => patchForm({ data_expirare_contract: event.target.value })} />
         </div>
         {String(editForm.department_id || '') !== String(employee.department_id || '') ? (
           <div className="mt-3 grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 sm:grid-cols-2">
-            <Input label="Data transferului" type="date" value={editForm.department_transfer_date || ''} onChange={event => patchForm({ department_transfer_date: event.target.value })} required />
-            <Input label="Motiv transfer" value={editForm.department_transfer_reason || ''} onChange={event => patchForm({ department_transfer_reason: event.target.value })} placeholder="Transfer intern, reorganizare..." required />
+            <Input label="Data transferului" type="date" disabled={!canWriteField('department_transfer_date')} value={editForm.department_transfer_date || ''} onChange={event => patchForm({ department_transfer_date: event.target.value })} required />
+            <Input label="Motiv transfer" disabled={!canWriteField('department_transfer_reason')} value={editForm.department_transfer_reason || ''} onChange={event => patchForm({ department_transfer_reason: event.target.value })} placeholder="Transfer intern, reorganizare..." required />
           </div>
         ) : null}
       </div>
@@ -168,23 +170,23 @@ function HREmployeePersonalEditForm({ departments, editForm, employee, linkableU
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
             label="IBAN"
-            value={editForm.iban || ''}
+            disabled={!canWriteField('iban')} value={editForm.iban || ''}
             onChange={event => patchForm({ iban: event.target.value })}
             className={!editForm.iban ? 'border-yellow-300 bg-yellow-50' : ''}
             placeholder={!editForm.iban ? 'RO49AAAA1B31007593840000' : ''}
           />
-          <Input label="Salariu bază (RON)" type="number" value={editForm.salariu_baza || ''} onChange={event => patchForm({ salariu_baza: event.target.value })} />
-          <Input label="Deducere personală" type="number" value={editForm.deducere_personala || ''} onChange={event => patchForm({ deducere_personala: event.target.value })} />
+          <Input label="Salariu bază (RON)" type="number" disabled={!canWriteField('salariu_baza')} value={editForm.salariu_baza || ''} onChange={event => patchForm({ salariu_baza: event.target.value })} />
+          <Input label="Deducere personală" type="number" disabled={!canWriteField('deducere_personala')} value={editForm.deducere_personala || ''} onChange={event => patchForm({ deducere_personala: event.target.value })} />
         </div>
       </div>
 
       <div className="rounded-lg border border-slate-200 p-3">
         <div className="mb-3 text-xs font-semibold uppercase text-slate-500">📄 Documente & Expirări</div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Categorii permis" value={editForm.permis_conducere_categorii || ''} onChange={event => patchForm({ permis_conducere_categorii: event.target.value })} />
-          <Input label="Permis expiră" type="date" value={editForm.permis_conducere_expira || editForm.data_expirare_permis || ''} onChange={event => patchForm({ permis_conducere_expira: event.target.value, data_expirare_permis: event.target.value })} />
-          <Input label="Expiră ISCIR" type="date" value={editForm.data_expirare_iscir || ''} onChange={event => patchForm({ data_expirare_iscir: event.target.value })} />
-          <Input label="Apt medical expiră" type="date" value={editForm.apt_medical_expira || editForm.adeverinta_medicala || ''} onChange={event => patchForm({ apt_medical_expira: event.target.value, adeverinta_medicala: event.target.value })} />
+          <Input label="Categorii permis" disabled={!canWriteField('permis_conducere_categorii')} value={editForm.permis_conducere_categorii || ''} onChange={event => patchForm({ permis_conducere_categorii: event.target.value })} />
+          <Input label="Permis expiră" type="date" disabled={!canWriteField('permis_conducere_expira')} value={editForm.permis_conducere_expira || editForm.data_expirare_permis || ''} onChange={event => patchForm({ permis_conducere_expira: event.target.value, data_expirare_permis: event.target.value })} />
+          <Input label="Expiră ISCIR" type="date" disabled={!canWriteField('data_expirare_iscir')} value={editForm.data_expirare_iscir || ''} onChange={event => patchForm({ data_expirare_iscir: event.target.value })} />
+          <Input label="Apt medical expiră" type="date" disabled={!canWriteField('apt_medical_expira')} value={editForm.apt_medical_expira || editForm.adeverinta_medicala || ''} onChange={event => patchForm({ apt_medical_expira: event.target.value, adeverinta_medicala: event.target.value })} />
         </div>
       </div>
 
@@ -195,7 +197,7 @@ function HREmployeePersonalEditForm({ departments, editForm, employee, linkableU
             <input type="checkbox" checked={Boolean(editForm.acord_gdpr)} onChange={event => patchForm({ acord_gdpr: event.target.checked, data_acord_gdpr: event.target.checked ? (editForm.data_acord_gdpr || new Date().toISOString().slice(0,10)) : '' })} />
             Acord GDPR
           </label>
-          <Input label="Data acord GDPR" type="date" value={editForm.data_acord_gdpr || ''} onChange={event => patchForm({ data_acord_gdpr: event.target.value })} />
+          <Input label="Data acord GDPR" type="date" disabled={!canWriteField('data_acord_gdpr')} value={editForm.data_acord_gdpr || ''} onChange={event => patchForm({ data_acord_gdpr: event.target.value })} />
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={editForm.activ !== false} onChange={event => patchForm({ activ: event.target.checked })} />
             Angajat activ

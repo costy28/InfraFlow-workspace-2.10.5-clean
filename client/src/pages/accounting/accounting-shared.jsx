@@ -6,6 +6,8 @@ import Input from '../../components/forms/Input'
 import DropdownMenu from '../../components/ui/DropdownMenu'
 import ContextHelp from '../../components/ui/ContextHelp'
 import PageHeader from '../../components/ui/PageHeader'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 export { default as DropdownMenu } from '../../components/ui/DropdownMenu'
 
@@ -56,6 +58,16 @@ const navGroups = [
 ]
 
 const navByKey = Object.fromEntries(nav.map(([key, to, label]) => [key, { key, to, label }]))
+const navAccess = {
+  dashboard: 'accounting:view',
+  plan: 'accounting:view', solduri: 'accounting:view', furnizori: 'accounting:view', clienti: 'accounting:view',
+  intrare: 'accounting:view', iesire: 'accounting:view', trezorerie: 'accounting:view', operatiuni: 'accounting:view',
+  jurnale: 'accounting:reports', jurnal: 'accounting:view', 'cartea-mare': 'accounting:reports',
+  tva: 'accounting:reports', 'declaratii-diverse': 'accounting:reports', balanta: 'accounting:reports',
+  'profit-pierdere': 'accounting:reports', 'situatii-financiare': 'accounting:reports', 'audit-fiscal': 'accounting:reports',
+  controlling: 'cost_accounting:view', salarizare: 'hr:salary_view', anaf: 'anaf:view', inchidere: 'accounting:close',
+  sabloane: 'accounting:view', alerte: 'accounting:view',
+}
 
 export function today() {
   return new Date().toISOString().slice(0, 10)
@@ -219,6 +231,8 @@ export function AccountSelect({ label, value, onChange, accounts = [], recommend
 
 export function AccountingShell({ active, title, subtitle, children, actions }) {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const canOpenNav = key => canAccess(user, navAccess[key])
   const headerActions = actions ? (Array.isArray(actions) ? actions : [actions]) : []
   const accountingHelp = useMemo(() => {
     const stages = [
@@ -256,7 +270,7 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
     const recommended = stages[Math.min(Math.max(safeIndex + 1, 0), stages.length - 1)]
 
     return {
-      steps: stages.map((stage, index) => ({
+      steps: stages.filter(stage => stage.keys.some(canOpenNav)).map((stage, index) => ({
         key: stage.key,
         label: stage.label,
         hint: stage.hint,
@@ -270,21 +284,23 @@ export function AccountingShell({ active, title, subtitle, children, actions }) 
       } : null,
       tone: safeIndex >= stages.length - 1 ? 'success' : 'info',
     }
-  }, [active, navigate])
+  }, [active, navigate, user])
 
   return (
     <div className="module-workspace accounting-workspace grid min-w-0 gap-5">
       <PageHeader title={title} subtitle={subtitle} actions={headerActions} />
       <Card density="compact" className="min-w-0">
         <div className="module-tabs accounting-nav">
-          <Link to="/contabilitate" className={`inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border px-[var(--control-px)] text-sm font-semibold transition ${active === 'dashboard' ? 'border-primary-700 bg-primary-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'}`}>
+          {canOpenNav('dashboard') ? <Link to="/contabilitate" className={`inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border px-[var(--control-px)] text-sm font-semibold transition ${active === 'dashboard' ? 'border-primary-700 bg-primary-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'}`}>
             Dashboard
-          </Link>
+          </Link> : null}
           {navGroups.map(group => {
             const items = group.keys
               .map(key => navByKey[key])
               .filter(Boolean)
+              .filter(item => canOpenNav(item.key))
               .map(item => ({ ...item, active: active === item.key }))
+            if (!items.length) return null
             const activeItem = items.find(item => item.active)
             return (
               <DropdownMenu

@@ -27,6 +27,14 @@ test("angajatul isi poate vedea propriile date", () => {
   assert.equal(value.salariu_baza, 5000);
 });
 
+test('costul orar respectă dreptul salarial fără modificarea datelor originale', () => {
+  const employee = { id: 1, salariu_baza: 5000, cost_ora: 42 };
+  assert.equal(sanitizeEmployee(employee).cost_ora, undefined);
+  assert.equal(sanitizeEmployee(employee, { salary: true }).cost_ora, 42);
+  assert.equal(sanitizeEmployee(employee, { own: true }).cost_ora, 42);
+  assert.equal(employee.cost_ora, 42);
+});
+
 test("luna de pontaj blocata refuza modificari", () => {
   const db = { hr: { timesheetLocks: [{ id: 1, luna: "2026-07", locked_at: "2026-08-01" }] } };
   assert.ok(findTimesheetLock(db, "2026-07"));

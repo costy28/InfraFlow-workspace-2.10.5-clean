@@ -16,6 +16,7 @@ export function HREmployeeProfileHeader({
   editMode,
   photoInputRef,
   photoPreview,
+  canUploadPhoto = false,
   onCancelEdit,
   onPhotoSelected,
   onPrint,
@@ -29,7 +30,7 @@ export function HREmployeeProfileHeader({
           ? <img src={photoPreview || employee.photo_url} alt="Fotografie" className="h-20 w-20 rounded-xl object-cover ring-2 ring-primary-200" onError={e => { e.target.style.display='none' }} />
           : <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-100 text-4xl">👤</div>
         }
-        {editMode ? (
+        {editMode && canUploadPhoto ? (
           <button
             type="button"
             className="absolute -bottom-1 -right-1 rounded-full bg-primary-600 p-1 text-white shadow hover:bg-primary-700"
@@ -44,7 +45,7 @@ export function HREmployeeProfileHeader({
           className="hidden"
           onChange={event => {
             const file = event.target.files?.[0]
-            if (file) onPhotoSelected(file)
+            if (file && canUploadPhoto) onPhotoSelected(file)
           }}
         />
       </div>
@@ -59,7 +60,7 @@ export function HREmployeeProfileHeader({
                 <Button size="sm" onClick={onSave}>💾 Salvează</Button>
                 <Button size="sm" variant="secondary" onClick={onCancelEdit}>Renunță</Button>
               </>
-            : <Button size="sm" variant="secondary" onClick={onStartEdit}>✏️ Editează</Button>
+            : onStartEdit ? <Button size="sm" variant="secondary" onClick={onStartEdit}>✏️ Editează</Button> : null
           }
         </div>
       </div>

@@ -1,6 +1,8 @@
 import Button from '../../../components/ui/Button'
 
 export default function HREmployeeWorkflowTab({
+  canRead = false,
+  canManage = false,
   workflow,
   busy,
   guidedStep,
@@ -12,6 +14,7 @@ export default function HREmployeeWorkflowTab({
 }) {
   const steps = Array.isArray(workflow?.steps) ? workflow.steps : []
   const progress = workflow?.progress || {}
+  if (!canRead) return <div role="status" className="rounded-lg border border-slate-200 p-4 text-sm text-slate-500">Fluxul complet HR necesită acces la date personale, medicale și salariale.</div>
 
   return (
     <div className="grid gap-4">
@@ -23,8 +26,8 @@ export default function HREmployeeWorkflowTab({
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={onReload}>Reîncarcă</Button>
-            <Button size="sm" loading={busy} onClick={() => onStartWorkflow('onboarding')}>Pornește onboarding</Button>
-            <Button size="sm" variant="secondary" loading={busy} onClick={() => onStartWorkflow('offboarding')}>Pornește offboarding</Button>
+            {canManage ? <><Button size="sm" loading={busy} onClick={() => onStartWorkflow('onboarding')}>Pornește onboarding</Button>
+            <Button size="sm" variant="secondary" loading={busy} onClick={() => onStartWorkflow('offboarding')}>Pornește offboarding</Button></> : null}
           </div>
         </div>
 
@@ -43,11 +46,11 @@ export default function HREmployeeWorkflowTab({
 
             <div className="grid gap-2">
               {steps.map(step => {
-                const actions = getStepActions(step)
+                const actions = canManage ? getStepActions(step) : []
                 return (
                   <div key={step.key} className={`flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm ${guidedStep && guidedStep === step.key ? 'ring-2 ring-primary-300' : ''} ${step.done ? 'border-emerald-200 bg-emerald-50' : step.required ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
                     <label className="flex min-w-0 flex-1 items-start gap-2">
-                      <input type="checkbox" className="mt-1" checked={Boolean(step.done)} onChange={event => onToggleStep(step, event.target.checked)} />
+                      <input type="checkbox" className="mt-1" disabled={!canManage} checked={Boolean(step.done)} onChange={event => onToggleStep(step, event.target.checked)} />
                       <span>
                         <span className="font-semibold text-slate-800">{step.done ? '✅' : step.required ? '⬜' : '▫️'} {step.label}</span>
                         {step.required ? <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">obligatoriu</span> : <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">opțional</span>}
@@ -76,10 +79,10 @@ export default function HREmployeeWorkflowTab({
               })}
             </div>
 
-            <div className="mt-3 flex flex-wrap justify-end gap-2">
+            {canManage ? <div className="mt-3 flex flex-wrap justify-end gap-2">
               {workflow.status !== 'completed' ? <Button size="sm" onClick={() => onCloseWorkflow(false)}>Închide ca finalizat</Button> : null}
               {!['completed','cancelled'].includes(workflow.status) ? <Button size="sm" variant="secondary" onClick={() => onCloseWorkflow(true)}>Anulează flux</Button> : null}
-            </div>
+            </div> : null}
           </>
         ) : (
           <div className="rounded border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">

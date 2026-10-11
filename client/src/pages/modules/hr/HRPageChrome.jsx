@@ -6,8 +6,8 @@ import PageHeader from '../../../components/ui/PageHeader'
 export function HRPageHeader({ onImport, onNewEmployee }) {
   return (
     <PageHeader title="Resurse Umane" subtitle="Angajați, pontaj, concedii și autorizații." actions={[
-      <Button key="import" variant="secondary" onClick={onImport}>📥 Import din CSV/Excel</Button>,
-      <Button key="new" onClick={onNewEmployee}>+ Angajat nou</Button>,
+      onImport ? <Button key="import" variant="secondary" onClick={onImport}>📥 Import din CSV/Excel</Button> : null,
+      onNewEmployee ? <Button key="new" onClick={onNewEmployee}>+ Angajat nou</Button> : null,
     ]} />
   )
 }

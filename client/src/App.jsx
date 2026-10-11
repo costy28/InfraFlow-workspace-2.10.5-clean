@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import { PermissionGuard } from './components/PermissionGuard'
+import { moduleAccess } from './lib/permission-access'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
@@ -102,13 +103,13 @@ export default function App() {
         <Route path="/fleet/verify/:uuid" element={<FleetVerifyPage />} />
         <Route path="/dashboard" element={<WithLayout><DashboardPage /></WithLayout>} />
         <Route path="/departament/:id" element={<WithLayout><DepartamentPage /></WithLayout>} />
-        <Route path="/productie/*" element={<WithLayout><PermissionGuard permission="consumptions:view"><ProductiePage /></PermissionGuard></WithLayout>} />
-        <Route path="/stocuri/*" element={<WithLayout><PermissionGuard permission="materials:view"><StocuriPage /></PermissionGuard></WithLayout>} />
-        <Route path="/hr/*" element={<WithLayout><PermissionGuard permission={['hr:view', 'echipamente:gestionar']}><HRPage /></PermissionGuard></WithLayout>} />
-        <Route path="/tehnic/*" element={<WithLayout><TehnicPage /></WithLayout>} />
+        <Route path="/productie/*" element={<WithLayout><PermissionGuard permission={moduleAccess.production}><ProductiePage /></PermissionGuard></WithLayout>} />
+        <Route path="/stocuri/*" element={<WithLayout><PermissionGuard permission={moduleAccess.inventory}><StocuriPage /></PermissionGuard></WithLayout>} />
+        <Route path="/hr/*" element={<WithLayout><PermissionGuard permission={moduleAccess.hr}><HRPage /></PermissionGuard></WithLayout>} />
+        <Route path="/tehnic/*" element={<WithLayout><PermissionGuard permission={moduleAccess.technical}><TehnicPage /></PermissionGuard></WithLayout>} />
         <Route path="/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ControllingPage /></PermissionGuard></WithLayout>} />
-        <Route path="/contracte/*" element={<WithLayout><PermissionGuard permission={['legal:contracts', 'procurement:view', 'accounting:view', 'controlling:view']}><ContractePage /></PermissionGuard></WithLayout>} />
-        <Route path="/logistica/*" element={<WithLayout><PermissionGuard permission={['logistics:view', 'procurement:view', 'legal:contracts']}><LogisticsPage /></PermissionGuard></WithLayout>} />
+        <Route path="/contracte/*" element={<WithLayout><PermissionGuard permission={moduleAccess.contractManagement}><ContractePage /></PermissionGuard></WithLayout>} />
+        <Route path="/logistica/*" element={<WithLayout><PermissionGuard permission={moduleAccess.logistics}><LogisticsPage /></PermissionGuard></WithLayout>} />
         <Route path="/crm/oferte/*" element={<WithLayout><PermissionGuard permission="crm:view"><CrmQuotesPage /></PermissionGuard></WithLayout>} />
         <Route path="/crm/*" element={<WithLayout><PermissionGuard permission="crm:view"><CrmPage /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate" element={<WithLayout><PermissionGuard permission="accounting:view"><ContabilitateDashboard /></PermissionGuard></WithLayout>} />
@@ -136,41 +137,41 @@ export default function App() {
         <Route path="/contabilitate/inchidere-luna" element={<WithLayout><PermissionGuard permission="accounting:close"><InchidereLuna /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/alerte" element={<WithLayout><PermissionGuard permission="accounting:view"><AlerteLegislative /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/sabloane-note" element={<WithLayout><PermissionGuard permission="accounting:view"><SabloaneNote /></PermissionGuard></WithLayout>} />
-        <Route path="/flota/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FlotaPage /></PermissionGuard></WithLayout>} />
+        <Route path="/flota/*" element={<WithLayout><PermissionGuard permission="mechanization:view"><FlotaPage /></PermissionGuard></WithLayout>} />
         <Route path="/foi-parcurs/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FoaieParcursPage /></PermissionGuard></WithLayout>} />
         <Route path="/fc-utilaje/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FcUtilajePage /></PermissionGuard></WithLayout>} />
         <Route path="/faz-utilaje/*" element={<WithLayout><PermissionGuard permission={['fleet:faz_view', 'fleet:fc_view']}><FAZUtilaje /></PermissionGuard></WithLayout>} />
         <Route path="/fleet/asset/:id" element={<WithLayout><PermissionGuard permission={['mechanization:view', 'fleet:trip_log_view', 'fleet:faz_view']}><FisaVehicul /></PermissionGuard></WithLayout>} />
-        <Route path="/achizitii/*" element={<WithLayout><PermissionGuard permission="procurement:view"><AchizitiiPage /></PermissionGuard></WithLayout>} />
+        <Route path="/achizitii/*" element={<WithLayout><PermissionGuard permission={moduleAccess.procurement}><AchizitiiPage /></PermissionGuard></WithLayout>} />
         <Route path="/referate/*" element={<WithLayout><PermissionGuard permission="referate:view"><ReferatePage /></PermissionGuard></WithLayout>} />
-        <Route path="/teren/*" element={<WithLayout><TerenPage /></WithLayout>} />
-        <Route path="/salubrizare/*" element={<WithLayout><SalubrizarePage /></WithLayout>} />
-        <Route path="/siguranta-circ/*" element={<WithLayout><SigurantaCircPage /></WithLayout>} />
+        <Route path="/teren/*" element={<WithLayout><PermissionGuard permission={moduleAccess.field}><TerenPage /></PermissionGuard></WithLayout>} />
+        <Route path="/salubrizare/*" element={<WithLayout><PermissionGuard permission={moduleAccess.sanitation}><SalubrizarePage /></PermissionGuard></WithLayout>} />
+        <Route path="/siguranta-circ/*" element={<WithLayout><PermissionGuard permission={moduleAccess.trafficSafety}><SigurantaCircPage /></PermissionGuard></WithLayout>} />
         <Route path="/siguranta-circulatiei/*" element={<Navigate to="/siguranta-circ" replace />} />
-        <Route path="/mediu/*" element={<WithLayout><MediuPage /></WithLayout>} />
-        <Route path="/juridic/*" element={<WithLayout><JuridicPage /></WithLayout>} />
-        <Route path="/arhiva/*" element={<WithLayout><ArhivaPage /></WithLayout>} />
-        <Route path="/secretariat/*" element={<WithLayout><SecretariatPage /></WithLayout>} />
-        <Route path="/deszapezire/*" element={<WithLayout><DeszapezirePage /></WithLayout>} />
-        <Route path="/documente/*" element={<WithLayout><DocumentePage /></WithLayout>} />
-        <Route path="/mesaje/*" element={<WithLayout><MessagingPage /></WithLayout>} />
+        <Route path="/mediu/*" element={<WithLayout><PermissionGuard permission={moduleAccess.environment}><MediuPage /></PermissionGuard></WithLayout>} />
+        <Route path="/juridic/*" element={<WithLayout><PermissionGuard permission={moduleAccess.legal}><JuridicPage /></PermissionGuard></WithLayout>} />
+        <Route path="/arhiva/*" element={<WithLayout><PermissionGuard permission={moduleAccess.archive}><ArhivaPage /></PermissionGuard></WithLayout>} />
+        <Route path="/secretariat/*" element={<WithLayout><PermissionGuard permission={moduleAccess.secretariat}><SecretariatPage /></PermissionGuard></WithLayout>} />
+        <Route path="/deszapezire/*" element={<WithLayout><PermissionGuard permission={moduleAccess.snowRemoval}><DeszapezirePage /></PermissionGuard></WithLayout>} />
+        <Route path="/documente/*" element={<WithLayout><PermissionGuard permission={moduleAccess.documents}><DocumentePage /></PermissionGuard></WithLayout>} />
+        <Route path="/mesaje/*" element={<WithLayout><PermissionGuard permission={moduleAccess.messaging}><MessagingPage /></PermissionGuard></WithLayout>} />
         <Route path="/taskuri/*" element={<WithLayout><TasksPage /></WithLayout>} />
-        <Route path="/sesizari/*" element={<WithLayout><TicketsPage /></WithLayout>} />
+        <Route path="/sesizari/*" element={<WithLayout><PermissionGuard permission={moduleAccess.tickets}><TicketsPage /></PermissionGuard></WithLayout>} />
         <Route path="/setari/*" element={<WithLayout><SetariPage /></WithLayout>} />
         <Route path="/ofertare-interna" element={<WithLayout><CommercialOfferPage /></WithLayout>} />
-        <Route path="/ai" element={<WithLayout><AiPage /></WithLayout>} />
-        <Route path="/ai-assistant" element={<WithLayout><AiPage /></WithLayout>} />
+        <Route path="/ai" element={<WithLayout><PermissionGuard permission={moduleAccess.ai}><AiPage /></PermissionGuard></WithLayout>} />
+        <Route path="/ai-assistant" element={<WithLayout><PermissionGuard permission={moduleAccess.ai}><AiPage /></PermissionGuard></WithLayout>} />
         <Route path="/import-legacy" element={<WithLayout><ImportLegacyPage /></WithLayout>} />
         <Route path="/import-date-vechi" element={<WithLayout><ImportLegacyPage /></WithLayout>} />
-        <Route path="/intersoft/*" element={<WithLayout><IntersoftPage /></WithLayout>} />
+        <Route path="/intersoft/*" element={<WithLayout><PermissionGuard permission={moduleAccess.integration}><IntersoftPage /></PermissionGuard></WithLayout>} />
         <Route path="/ajutor" element={<WithLayout><HelpPage /></WithLayout>} />
         <Route path="/anaf/*" element={<WithLayout><PermissionGuard permission="anaf:view"><AnafPage /></PermissionGuard></WithLayout>} />
-        <Route path="/mecanizare/*" element={<WithLayout><PermissionGuard permission="mechanization:view"><MecanizarePage /></PermissionGuard></WithLayout>} />
-        <Route path="/gestiune/*" element={<WithLayout><PermissionGuard permission="gestiune:view"><GestiunePage /></PermissionGuard></WithLayout>} />
+        <Route path="/mecanizare/*" element={<WithLayout><PermissionGuard permission={moduleAccess.mechanization}><MecanizarePage /></PermissionGuard></WithLayout>} />
+        <Route path="/gestiune/*" element={<WithLayout><PermissionGuard permission={moduleAccess.inventory}><GestiunePage /></PermissionGuard></WithLayout>} />
         <Route path="/kiosk" element={<KioskPage />} />
         <Route path="/my-vehicle" element={<WithLayout><MyVehicle /></WithLayout>} />
         <Route path="/sofer/*" element={<SoferPage />} />
-        <Route path="/asternere/*" element={<WithLayout><PermissionGuard permission="asternere:view"><AsternerePage /></PermissionGuard></WithLayout>} />
+        <Route path="/asternere/*" element={<WithLayout><PermissionGuard permission={moduleAccess.asternere}><AsternerePage /></PermissionGuard></WithLayout>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>

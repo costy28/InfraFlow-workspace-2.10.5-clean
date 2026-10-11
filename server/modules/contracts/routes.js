@@ -16,19 +16,17 @@ const CONTRACT_UPLOAD_BYTES = 20 * 1024 * 1024
 const CONTRACT_ALLOWED_EXT = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp'])
 const contractUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: CONTRACT_UPLOAD_BYTES } })
 
+// Linked invoices/orders may show their contract reference in the source module,
+// but they must not open or administer the full Contract Management dossier.
 const VIEW_PERMISSIONS = [
   'legal:contracts',
-  'procurement:view',
-  'accounting:view',
-  'controlling:view',
+  'legal:manage',
   'system:view'
 ]
 
 const MANAGE_PERMISSIONS = [
+  'legal:contracts',
   'legal:manage',
-  'procurement_orders:create',
-  'accounting:manage',
-  'controlling:budget_manage',
   'system:admin'
 ]
 
@@ -1937,7 +1935,7 @@ function contractMatchesPortfolioFilters(db, contract, filters = {}) {
   const missingManagerOnly = isTruthyFilter(filters.missing_manager || filters.fara_manager)
   const missingSignedOnly = isTruthyFilter(filters.missing_signed || filters.fara_semnat)
   const statusValue = normalizeContractFilter(contract.status || 'activ')
-  const riskItem = contractRiskItem(db, contract, contract, listContractTasks(db, { status: 'deschise', contract_id: contract.id }))
+  const riskItem = contractRiskItem(db, contract, contract, contractTasks(db, { status: 'deschise', contract_id: contract.id }))
   const riskCodes = new Set((riskItem?.reasons || []).map(item => normalizeContractFilter(item.code)))
   const searchable = [
     contract.numar,

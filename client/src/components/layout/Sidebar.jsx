@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useSettings } from '../../hooks/useSettings'
 import Badge from '../ui/Badge'
 import ModuleIcon from '../ui/ModuleIcon'
+import { canAccess, moduleAccess, modulePermissionPrefixes } from '../../lib/permission-access'
 
 const groups = [
   {
@@ -56,22 +57,6 @@ const groups = [
   },
 ]
 
-const modulePermissionPrefixes = {
-  hr: ['hr', 'echipamente'],
-  inventory: ['inventory', 'gestiune', 'materials', 'stock_operations', 'ledger', 'deliveries'],
-  production: ['production', 'consumptions', 'recipes', 'planning', 'daily_report'],
-  procurement: ['procurement', 'procurement_orders'],
-  logistics: ['logistics', 'procurement', 'legal'],
-  contract_management: ['legal', 'procurement', 'accounting', 'controlling', 'cost_accounting'],
-  referate: ['referate'],
-  accounting: ['accounting', 'anaf', 'integration', 'cost_accounting', 'controlling'],
-  task_management: ['tasks', 'dashboard'],
-  crm: ['crm'],
-  mechanization: ['mechanization', 'fleet', 'technical'],
-  asternere: ['technical', 'field'],
-  anaf: ['anaf', 'integration'],
-}
-
 const moduleActiveAliases = {
   mechanization: ['mechanization', 'fleet'],
   inventory: ['inventory', 'reports'],
@@ -87,10 +72,6 @@ const moduleActiveAliases = {
 function normalizedRoles(user) {
   const roles = Array.isArray(user?.roles) ? user.roles : []
   return Array.from(new Set([...roles, user?.role].filter(Boolean).map(String)))
-}
-
-function permissionMatches(permission, prefix) {
-  return permission === prefix || permission.startsWith(`${prefix}:`) || permission.startsWith(`${prefix}_`)
 }
 
 export default function Sidebar({ open, onClose, collapsed = false, onToggleCollapsed, aiEnabled = false }) {
@@ -113,8 +94,9 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
   }
   const canSeeModule = moduleKey => {
     if (!moduleKey || isAdmin) return true
-    const prefixes = modulePermissionPrefixes[moduleKey] || [moduleKey]
-    return userPermissions.some(permission => prefixes.some(prefix => permissionMatches(permission, prefix)))
+    const accessKey = moduleKey === 'contract_management' ? 'contractManagement' : moduleKey
+    const prefixes = modulePermissionPrefixes[accessKey] || [moduleKey]
+    return canAccess(user, moduleAccess[accessKey] || { anyPrefix: prefixes })
   }
   const isVisible = item =>
     (!item.adminOnly || isAdmin) &&

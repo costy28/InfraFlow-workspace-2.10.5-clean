@@ -23,6 +23,7 @@ function supportLevelForPriority(priority) {
 }
 
 function validDate(value) {
+  if (value == null || (typeof value === 'string' && !value.trim())) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
 }

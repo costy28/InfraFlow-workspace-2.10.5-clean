@@ -9,8 +9,19 @@ import Badge from '../../components/ui/Badge'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Modal from '../../components/ui/Modal'
 import { exportExcel } from '../../utils/export'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 const tabs = ['Dashboard', 'Nomenclator', 'Recepție (NIR)', 'Bon Consum', 'Inventar', 'Furnizori', 'Raport Valoric']
+const tabAccess = {
+  Dashboard: { anyOf: ['materials:view', 'stock_operations:view'] },
+  Nomenclator: { anyOf: ['materials:view', 'materials:edit'] },
+  'Recepție (NIR)': { anyOf: ['materials:view', 'stock_operations:view', 'procurement_orders:view'] },
+  'Bon Consum': { anyOf: ['stock_operations:view', 'materials:view'] },
+  Inventar: { anyOf: ['materials:view', 'stock_operations:view'] },
+  Furnizori: { anyOf: ['materials:view', 'procurement_orders:view', 'stock_operations:view'] },
+  'Raport Valoric': { anyOf: ['materials:view', 'stock_operations:view', 'cost_accounting:view'] },
+}
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function currentMonth() { return new Date().toISOString().slice(0, 7) }
@@ -37,7 +48,18 @@ const emptyBcForm   = { data: today(), department: '', lucrare: '', observatii: 
 const emptyLine     = { material_id: '', cantitate: '', pret_unitar: '' }
 
 export default function GestiunePage() {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('Dashboard')
+  const visibleTabs = useMemo(() => tabs.filter(tab => canAccess(user, tabAccess[tab])), [user])
+  const canManageMaterials = canAccess(user, 'materials:edit')
+  const canManageSuppliers = canAccess(user, { anyOf: ['materials:edit', 'procurement_orders:create'] })
+  const canCreateNir = canAccess(user, { anyOf: ['stock_operations:create', 'procurement_orders:receive'] })
+  const canCreateConsumption = canAccess(user, { anyOf: ['stock_operations:create', 'consumptions:create'] })
+  const canManageInventory = canAccess(user, 'stock_operations:create')
+
+  useEffect(() => {
+    if (visibleTabs.length && !visibleTabs.includes(activeTab)) setActiveTab(visibleTabs[0])
+  }, [activeTab, visibleTabs])
 
   // data
   const [dashboard, setDashboard] = useState(null)
@@ -92,11 +114,14 @@ export default function GestiunePage() {
   async function loadBase() {
     setLoading(true); setError('')
     try {
+      const canReadMaterials = canAccess(user, { anyOf: ['materials:view', 'materials:edit'] })
+      const canReadDashboard = canAccess(user, tabAccess.Dashboard)
+      const canReadSuppliers = canAccess(user, tabAccess.Furnizori)
       const [matsRes, dashRes, furRes, contractsRes] = await Promise.all([
-        api.get('/materials'),
-        api.get('/gestiune/dashboard'),
-        api.get('/gestiune/furnizori'),
-        api.get('/contracts').catch(() => ({ data: { contracts: [] } })),
+        canReadMaterials ? api.get('/materials') : Promise.resolve({ data: { materials: [] } }),
+        canReadDashboard ? api.get('/gestiune/dashboard') : Promise.resolve({ data: {} }),
+        canReadSuppliers ? api.get('/gestiune/furnizori') : Promise.resolve({ data: [] }),
+        canAccess(user, { anyOf: ['legal:contracts', 'legal:manage'] }) ? api.get('/contracts').catch(() => ({ data: { contracts: [] } })) : Promise.resolve({ data: { contracts: [] } }),
       ])
       setMaterials(matsRes.data?.materials || [])
       setDashboard(dashRes.data || {})
@@ -135,7 +160,7 @@ export default function GestiunePage() {
     } catch { setRaportValoric(null) }
   }
 
-  useEffect(() => { loadBase() }, [])
+  useEffect(() => { loadBase() }, [user])
   useEffect(() => { if (activeTab === 'Recepție (NIR)')  loadNir()       }, [activeTab, nirLuna, nirStatus])
   useEffect(() => { if (activeTab === 'Bon Consum')      loadBc()        }, [activeTab, bcLuna, bcStatus])
   useEffect(() => { if (activeTab === 'Inventar')        loadInventare() }, [activeTab])
@@ -880,7 +905,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-1 border-b border-slate-200">
-        {tabs.map(tab => (
+        {visibleTabs.map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 text-sm font-medium rounded-t-md -mb-px border border-b-0 transition ${activeTab === tab ? 'border-slate-200 bg-white text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
           >{tab}</button>
@@ -961,7 +986,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
               <Input label="Caută" value={matSearch} onChange={e => setMatSearch(e.target.value)} placeholder="Nume, cod, categorie…" />
               <Select label="Categorie" value={matCategorie} onChange={e => setMatCategorie(e.target.value)}
                 options={[{ value: '', label: 'Toate categoriile' }, ...matCategorii.map(c => ({ value: c, label: c }))]} />
-              <Button onClick={() => { setMatEditing(null); setMatForm(emptyMatForm); setMatModal(true) }}>+ Material nou</Button>
+              {canManageMaterials ? <Button onClick={() => { setMatEditing(null); setMatForm(emptyMatForm); setMatModal(true) }}>+ Material nou</Button> : null}
               <Button variant="secondary" onClick={() => exportExcel(
                 filteredMats.map(m => ({
                   'Cod intern': m.cod_intern || '', 'Denumire': m.name || m.denumire, 'UM': m.unit || m.um,
@@ -1009,12 +1034,12 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                       <td className="px-3 py-2"><Badge tone={sb.tone}>{sb.label}</Badge></td>
                       <td className="px-3 py-2">
                         <div className="flex gap-2">
-                          <button className="text-xs text-primary-600 hover:underline" onClick={() => {
+                          {canManageMaterials ? <button className="text-xs text-primary-600 hover:underline" onClick={() => {
                             setMatEditing(m)
                             setMatForm({ name: m.name || m.denumire || '', unit: m.unit || m.um || '', categorie: m.categorie || m.category || 'general', cod_intern: m.cod_intern || '', stoc_minim: String(m.alert || m.stoc_minim || ''), pret_achizitie: String(m.pret_achizitie || ''), locatie_depozit: m.locatie_depozit || '', furnizor_preferat: m.furnizor_preferat || '' })
                             setMatModal(true)
-                          }}>✏️</button>
-                          <button className="text-xs text-rose-500 hover:underline" onClick={() => deleteMaterial(m.id)}>🗑️</button>
+                          }}>✏️</button> : null}
+                          {canManageMaterials ? <button className="text-xs text-rose-500 hover:underline" onClick={() => deleteMaterial(m.id)}>🗑️</button> : null}
                         </div>
                       </td>
                     </tr>
@@ -1038,7 +1063,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                 { value: '', label: 'Toate' }, { value: 'draft', label: 'Draft' },
                 { value: 'confirmat', label: 'Confirmat' }, { value: 'anulat', label: 'Anulat' },
               ]} />
-              <Button onClick={() => { setNirForm({ ...emptyNirForm, linii: [{ ...emptyLine }] }); setNirModal(true) }}>+ NIR nou</Button>
+              {canCreateNir ? <Button onClick={() => { setNirForm({ ...emptyNirForm, linii: [{ ...emptyLine }] }); setNirModal(true) }}>+ NIR nou</Button> : null}
             </div>
           </Card>
 
@@ -1069,8 +1094,8 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                         <button className="rounded bg-slate-50 px-2 py-1 text-xs hover:bg-slate-100" onClick={() => printNir(n)}>🖨️</button>
                         {n.status === 'draft' ? (
                           <>
-                            <button className="rounded bg-green-50 px-2 py-1 text-xs text-green-700 hover:bg-green-100" onClick={() => confirmNir(n.id)}>✅ Confirmă</button>
-                            <button className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 hover:bg-rose-100" onClick={() => cancelNir(n.id)}>❌</button>
+                            {canCreateNir ? <button className="rounded bg-green-50 px-2 py-1 text-xs text-green-700 hover:bg-green-100" onClick={() => confirmNir(n.id)}>✅ Confirmă</button> : null}
+                            {canCreateNir ? <button className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 hover:bg-rose-100" onClick={() => cancelNir(n.id)}>❌</button> : null}
                           </>
                         ) : null}
                       </div>
@@ -1095,7 +1120,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                 { value: '', label: 'Toate' }, { value: 'draft', label: 'Draft' },
                 { value: 'aprobat', label: 'Aprobat' }, { value: 'respins', label: 'Respins' },
               ]} />
-              <Button onClick={() => { setBcForm({ ...emptyBcForm, linii: [{ ...emptyLine }] }); setBcModal(true) }}>+ Bon Consum nou</Button>
+              {canCreateConsumption ? <Button onClick={() => { setBcForm({ ...emptyBcForm, linii: [{ ...emptyLine }] }); setBcModal(true) }}>+ Bon Consum nou</Button> : null}
             </div>
           </Card>
 
@@ -1125,9 +1150,9 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                         <button className="rounded bg-slate-50 px-2 py-1 text-xs hover:bg-slate-100" onClick={() => printBc(b)}>🖨️</button>
                         {b.status === 'draft' ? (
                           <>
-                            <button className="rounded bg-green-50 px-2 py-1 text-xs text-green-700 hover:bg-green-100" onClick={() => approveBc(b.id)}>✅ Aprobă</button>
-                            <button className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 hover:bg-rose-100" onClick={() => { setBcRejectId(b.id); setBcRejectMotiv('') }}>❌ Respinge</button>
-                            <button className="text-xs text-rose-400 hover:underline" onClick={() => deleteBc(b.id)}>🗑️</button>
+                            {canCreateConsumption ? <button className="rounded bg-green-50 px-2 py-1 text-xs text-green-700 hover:bg-green-100" onClick={() => approveBc(b.id)}>✅ Aprobă</button> : null}
+                            {canCreateConsumption ? <button className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 hover:bg-rose-100" onClick={() => { setBcRejectId(b.id); setBcRejectMotiv('') }}>❌ Respinge</button> : null}
+                            {canAccess(user, { anyOf: ['stock_operations:cancel', 'consumptions:cancel'] }) ? <button className="text-xs text-rose-400 hover:underline" onClick={() => deleteBc(b.id)}>🗑️</button> : null}
                           </>
                         ) : null}
                       </div>
@@ -1147,7 +1172,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
         <div className="grid gap-4">
           <Card>
             <div className="flex flex-wrap items-end gap-3">
-              <Button onClick={createInventar}>+ Inventar nou</Button>
+              {canManageInventory ? <Button onClick={createInventar}>+ Inventar nou</Button> : null}
               <span className="text-sm text-slate-500">{inventare.length} inventare înregistrate</span>
             </div>
           </Card>
@@ -1161,8 +1186,8 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                   <div className="text-xs text-slate-500">Completează stocul faptic pentru fiecare material</div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="secondary" onClick={saveInvLines}>💾 Salvează</Button>
-                  <Button onClick={() => finalizeInventar(invActive.id)}>✅ Finalizează</Button>
+                  {canManageInventory ? <Button variant="secondary" onClick={saveInvLines}>💾 Salvează</Button> : null}
+                  {canManageInventory ? <Button onClick={() => finalizeInventar(invActive.id)}>✅ Finalizează</Button> : null}
                   <button className="text-xs text-slate-400 hover:underline" onClick={() => setInvActive(null)}>Închide</button>
                 </div>
               </div>
@@ -1184,12 +1209,12 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                         <td className="px-3 py-1">{l.unit}</td>
                         <td className="px-3 py-1 text-right">{l.stoc_scriptic}</td>
                         <td className="px-3 py-1 text-right">
-                          <input
+                          {canManageInventory ? <input
                             type="number" step="0.001" min="0"
                             value={l.stoc_faptic}
                             onChange={e => updateInvLine(invActive.id, l.material_id, e.target.value)}
                             className="w-24 rounded border border-slate-300 px-2 py-0.5 text-right text-sm focus:border-primary-500 focus:outline-none"
-                          />
+                          /> : <span>{l.stoc_faptic}</span>}
                         </td>
                         <td className={`px-3 py-1 text-right font-semibold ${l.diferenta > 0 ? 'text-green-700' : l.diferenta < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                           {l.diferenta > 0 ? '+' : ''}{l.diferenta}
@@ -1223,7 +1248,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                     <td className="px-3 py-2 text-xs text-slate-500">{inv.created_by}</td>
                     <td className="px-3 py-2 text-xs text-slate-500">{inv.finalizat_de || '—'}</td>
                     <td className="px-3 py-2">
-                      {inv.status === 'in_curs' ? (
+                      {inv.status === 'in_curs' && canManageInventory ? (
                         <button className="rounded bg-primary-50 px-2 py-1 text-xs text-primary-700 hover:bg-primary-100" onClick={() => setInvActive(inv)}>✏️ Completează</button>
                       ) : null}
                     </td>
@@ -1243,7 +1268,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
           <Card>
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Caută" value={furSearch} onChange={e => setFurSearch(e.target.value)} placeholder="Nume, CUI, email…" />
-              <Button onClick={() => { setFurEditing(null); setFurForm(emptyFurForm); setFurModal(true) }}>+ Furnizor nou</Button>
+              {canManageSuppliers ? <Button onClick={() => { setFurEditing(null); setFurForm(emptyFurForm); setFurModal(true) }}>+ Furnizor nou</Button> : null}
               <Button variant="secondary" onClick={() => exportExcel(
                 filteredFur.map(f => ({ 'Nume': f.nume, 'CUI': f.cui, 'Nr. Reg. Com.': f.nr_reg_com, 'Adresă': f.adresa, 'Tel': f.telefon, 'Email': f.email, 'IBAN': f.iban, 'Bancă': f.banca, 'Persoană contact': f.pers_contact })),
                 'Furnizori'
@@ -1261,7 +1286,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                     {f.adresa ? <div className="mt-1 text-xs text-slate-400">{f.adresa}</div> : null}
                   </div>
                   <div className="flex gap-1">
-                    <button className="text-xs text-primary-600 hover:underline" onClick={() => { setFurEditing(f); setFurForm({ ...f }); setFurModal(true) }}>✏️</button>
+                    {canManageSuppliers ? <button className="text-xs text-primary-600 hover:underline" onClick={() => { setFurEditing(f); setFurForm({ ...f }); setFurModal(true) }}>✏️</button> : null}
                     <button className="text-xs text-rose-500 hover:underline" onClick={() => deleteFurnizor(f.id)}>🗑️</button>
                   </div>
                 </div>

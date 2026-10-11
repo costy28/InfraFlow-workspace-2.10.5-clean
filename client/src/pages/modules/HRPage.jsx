@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import api from '../../api/client'
+import { canWriteEmployeeField, employeeWritePayload } from '../../lib/hr-employee-write.mjs'
+import { canAccessHrFileType } from '../../lib/hr-file-access.mjs'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import Button from '../../components/ui/Button'
@@ -310,9 +312,17 @@ export default function HRPage() {
   const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
   const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
   const hasPermission = permission => isAdmin || userPermissions.includes(permission)
-  const isHRPontaj = hasPermission('hr:manage') || hasPermission('hr:timesheets_manage')
+  const canReadDossier = hasPermission('hr:view') && hasPermission('hr:personal_sensitive') && hasPermission('hr:medical_view')
+  const canReadWorkflow = canReadDossier && hasPermission('hr:salary_view')
+  const canManageSensitiveNotifications = hasPermission('hr:manage') && canReadWorkflow
+  const canManageWorkflow = canReadWorkflow && hasPermission('hr:manage')
+  const canManageEmployees = hasPermission('hr:manage') || hasPermission('hr:employees_manage')
+  const canImportEmployees = canManageEmployees && hasPermission('hr:personal_sensitive')
+  const canExportLaborRegistry = hasPermission('hr:reges_export') && hasPermission('hr:personal_sensitive') && hasPermission('hr:salary_view')
+  const canWriteField = field => canManageEmployees && canWriteEmployeeField(field, hasPermission)
+  const isHRPontaj = hasPermission('hr:timesheets_manage')
   const isSefPontaj = hasPermission('hr:timesheet_dept')
-  const canUsePontaj = isHRPontaj || isSefPontaj
+  const canUsePontaj = isHRPontaj || isSefPontaj || hasPermission('hr:timesheet') || hasPermission('hr:timesheets_view')
   const canManageEquipment = isAdmin || hasPermission('echipamente:gestionar') || hasPermission('hr:manage')
   const ownDepartmentKey = user?.departmentId || user?.department_id || user?.dept_id || user?.department || user?.departament || ''
 
@@ -339,22 +349,22 @@ export default function HRPage() {
       const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, managementRes, countryRulesRes, laborRegistryHistoryRes, laborRegistryDiagnosticRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
         api.get('/hr/employees'),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
-        api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })),
+        canUsePontaj ? api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         api.get('/hr/leave-requests').catch(() => ({ data: [] })),
         api.get('/hr/authorizations').catch(() => ({ data: [] })),
         api.get('/hr/stats').catch(() => ({ data: {} })),
-        api.get('/hr/linkable-users').catch(() => ({ data: [] })),
+        canManageEmployees && hasPermission('users:manage') ? api.get('/hr/linkable-users').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         api.get('/hr/document-templates').catch(() => ({ data: { templates: [] } })),
-        api.get('/hr/dossier-checklist').catch(() => ({ data: { rows: [], summary: {} } })),
-        api.get('/hr/dossier-dashboard').catch(() => ({ data: { rows: [], summary: {}, expirations_summary: {} } })),
-        api.get('/hr/inbox').catch(() => ({ data: { rows: [], summary: {} } })),
-        api.get('/hr/activity').catch(() => ({ data: { rows: [], summary: {} } })),
-        api.get('/hr/management-report', { params: hrManagementPeriod }).catch(() => ({ data: null })),
+        (canReadDossier) ? api.get('/hr/dossier-checklist').catch(() => ({ data: { rows: [], summary: {} } })) : Promise.resolve({ data: { rows: [], summary: {} } }),
+        (canReadDossier) ? api.get('/hr/dossier-dashboard').catch(() => ({ data: { rows: [], summary: {}, expirations_summary: {} } })) : Promise.resolve({ data: { rows: [], summary: {} } }),
+        (canReadDossier) ? api.get('/hr/inbox').catch(() => ({ data: { rows: [], summary: {} } })) : Promise.resolve({ data: { rows: [], summary: {} } }),
+        (canReadWorkflow) ? api.get('/hr/activity').catch(() => ({ data: { rows: [], summary: {} } })) : Promise.resolve({ data: { rows: [], summary: {} } }),
+        (canReadDossier && hasPermission('hr:reports')) ? api.get('/hr/management-report', { params: hrManagementPeriod }).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
         api.get('/hr/country-rules').catch(() => ({ data: { current: null } })),
-        hasPermission('hr:reges_export') ? api.get('/hr/reges/history').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-        hasPermission('hr:reges_export') ? api.get('/hr/reges/work-register/diagnostic').catch(() => ({ data: null })) : Promise.resolve({ data: null }),
-        api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })),
-        api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })),
+        canExportLaborRegistry ? api.get('/hr/reges/history').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        canExportLaborRegistry ? api.get('/hr/reges/work-register/diagnostic').catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+        (canReadDossier) ? api.get('/hr/advanced-expirations').catch(() => ({ data: { rows: [], summary: {} } })) : Promise.resolve({ data: { rows: [], summary: {} } }),
+        canManageSensitiveNotifications ? api.get('/hr/advanced-expirations/notifications').catch(() => ({ data: { notifications: [], summary: {} } })) : Promise.resolve({ data: { notifications: [], summary: {} } }),
       ])
       setEmployees(arrayFrom(employeesRes.data, ['employees', 'items']))
       setConfiguredDepartments(arrayFrom(departmentsRes.data, ['departments', 'items']))
@@ -374,7 +384,7 @@ export default function HRPage() {
       setLaborRegistryDiagnostic(laborRegistryDiagnosticRes.data || null)
       setAdvancedExpirations({ rows: arrayFrom(expirationsRes.data, ['rows', 'items']), summary: expirationsRes.data?.summary || {} })
       setExpirationNotifications({ notifications: arrayFrom(expirationNotificationsRes.data, ['notifications', 'items']), summary: expirationNotificationsRes.data?.summary || {} })
-      const overviewRes = await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] }))
+      const overviewRes = hasPermission('hr:timesheet_approve') ? await api.get('/hr/timesheets/overview', { params: { luna: filters.luna } }).catch(() => ({ data: [] })) : { data: [] }
       setTimesheetOverview(arrayFrom(overviewRes.data, ['overview', 'items']))
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut incarca datele HR.')
@@ -449,7 +459,7 @@ export default function HRPage() {
         api.get(`/hr/employees/${employee.id}/transfers`).catch(() => ({ data: [] })),
         api.get(`/hr/employees/${employee.id}/contracts`).catch(() => ({ data: [] })),
         api.get(`/hr/employees/${employee.id}/contract-amendments`).catch(() => ({ data: [] })),
-        api.get(`/hr/employees/${employee.id}/workflow`).catch(() => ({ data: { workflow: null } })),
+        canReadWorkflow ? api.get(`/hr/employees/${employee.id}/workflow`).catch(() => ({ data: { workflow: null } })) : Promise.resolve({ data: { workflow: null } }),
       ])
       setEmployeeDetails(detailsRes.data)
       setEditForm({ ...detailsRes.data, department_transfer_date: new Date().toISOString().slice(0, 10), department_transfer_reason: '' })
@@ -466,6 +476,7 @@ export default function HRPage() {
   }
 
   async function loadDossierChecklist() {
+    if (!(canReadDossier)) return
     try {
       const response = await api.get('/hr/dossier-checklist')
       setDossierChecklist({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
@@ -475,6 +486,7 @@ export default function HRPage() {
   }
 
   async function loadDossierDashboard() {
+    if (!(canReadDossier)) return
     try {
       const response = await api.get('/hr/dossier-dashboard')
       setDossierDashboard({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {}, expirations_summary: response.data?.expirations_summary || {} })
@@ -484,6 +496,7 @@ export default function HRPage() {
   }
 
   async function loadHrInbox() {
+    if (!(canReadDossier)) return
     try {
       const response = await api.get('/hr/inbox')
       setHrInbox({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
@@ -493,6 +506,7 @@ export default function HRPage() {
   }
 
   async function loadHrActivity(extra = {}) {
+    if (!(canReadWorkflow)) return
     try {
       const params = { ...hrActivityFilter, ...extra }
       Object.keys(params).forEach(key => { if (!params[key]) delete params[key] })
@@ -504,6 +518,7 @@ export default function HRPage() {
   }
 
   async function downloadHrActivity() {
+    if (!(canReadWorkflow)) return
     try {
       const params = { ...hrActivityFilter }
       Object.keys(params).forEach(key => { if (!params[key]) delete params[key] })
@@ -520,6 +535,7 @@ export default function HRPage() {
   }
 
   async function loadHrManagementReport() {
+    if (!(canReadDossier && hasPermission('hr:reports'))) return
     try {
       const response = await api.get('/hr/management-report', { params: hrManagementPeriod })
       setHrManagementReport(response.data || null)
@@ -529,6 +545,7 @@ export default function HRPage() {
   }
 
   async function downloadHrManagementReport() {
+    if (!(canReadDossier && hasPermission('hr:reports'))) return
     try {
       const response = await api.get('/hr/management-report.xlsx', { params: hrManagementPeriod, responseType: 'blob' })
       const url = URL.createObjectURL(response.data)
@@ -543,6 +560,7 @@ export default function HRPage() {
   }
 
   async function sendDossierReminder(employeeId) {
+    if (!canManageSensitiveNotifications) return
     try {
       const response = await api.post(`/hr/dossier-dashboard/${employeeId}/reminder`)
       setDossierReminderResult(response.data || {})
@@ -569,6 +587,7 @@ export default function HRPage() {
   }
 
   async function startEmployeeWorkflow(type) {
+    if (!canManageWorkflow) return
     if (!employeeDetails?.id) return
     try {
       setEmployeeWorkflowBusy(true)
@@ -583,6 +602,7 @@ export default function HRPage() {
   }
 
   async function toggleEmployeeWorkflowStep(step, done) {
+    if (!canManageWorkflow) return
     if (!employeeDetails?.id || !employeeWorkflow?.uuid) return
     try {
       const response = await api.patch(`/hr/employees/${employeeDetails.id}/workflow/steps/${step.key}`, { done })
@@ -598,6 +618,7 @@ export default function HRPage() {
   }
 
   async function closeEmployeeWorkflow(cancel = false) {
+    if (!canManageWorkflow) return
     if (!employeeDetails?.id || !employeeWorkflow?.uuid) return
     if (cancel) {
       setConfirmAction({
@@ -619,6 +640,7 @@ export default function HRPage() {
   }
 
   async function closeEmployeeWorkflowRequest(cancel = false, note = '') {
+    if (!canManageWorkflow) return
     if (!employeeDetails?.id || !employeeWorkflow?.uuid) return
     try {
       const response = await api.post(`/hr/employees/${employeeDetails.id}/workflow/close`, { cancel, note })
@@ -694,6 +716,7 @@ export default function HRPage() {
   }
 
   async function downloadDossierReport() {
+    if (!(canReadDossier && hasPermission('hr:reports'))) return
     try {
       const response = await api.get('/hr/dossier-report.xlsx', { responseType: 'blob' })
       const url = URL.createObjectURL(response.data)
@@ -708,6 +731,7 @@ export default function HRPage() {
   }
 
   async function downloadLaborWorkRegister() {
+    if (!canExportLaborRegistry) return
     try {
       if (Number(laborRegistryDiagnostic?.summary?.blocker || 0) > 0) {
         setError('Rezolvă blocajele din diagnosticul registrului intern înainte de descărcare.')
@@ -729,6 +753,7 @@ export default function HRPage() {
   }
 
   async function downloadLaborRegistryDiagnostic() {
+    if (!canExportLaborRegistry) return
     try {
       const response = await api.get('/hr/reges/work-register/diagnostic.xlsx', { responseType: 'blob' })
       const url = URL.createObjectURL(response.data)
@@ -744,7 +769,7 @@ export default function HRPage() {
   }
 
   async function loadLaborRegistryHistory() {
-    if (!hasPermission('hr:reges_export')) return
+    if (!canExportLaborRegistry) return
     try {
       const response = await api.get('/hr/reges/history')
       setLaborRegistryHistory(arrayFrom(response.data, ['exports', 'history', 'items']))
@@ -754,7 +779,7 @@ export default function HRPage() {
   }
 
   async function loadLaborRegistryDiagnostic() {
-    if (!hasPermission('hr:reges_export')) return
+    if (!canExportLaborRegistry) return
     try {
       const response = await api.get('/hr/reges/work-register/diagnostic')
       setLaborRegistryDiagnostic(response.data || null)
@@ -764,7 +789,7 @@ export default function HRPage() {
   }
 
   async function refreshGuidedLaborRegistryIssue(employeeId = selectedEmployee?.id) {
-    if (!employeeId || !guidedProfileIssue || !hasPermission('hr:reges_export')) return
+    if (!employeeId || !guidedProfileIssue || !canExportLaborRegistry) return
     try {
       const response = await api.get('/hr/reges/work-register/diagnostic')
       const diagnostic = response.data || null
@@ -792,6 +817,7 @@ export default function HRPage() {
   }
 
   async function loadAdvancedExpirations() {
+    if (!(canReadDossier)) return
     try {
       const response = await api.get('/hr/advanced-expirations')
       setAdvancedExpirations({ rows: arrayFrom(response.data, ['rows', 'items']), summary: response.data?.summary || {} })
@@ -801,6 +827,7 @@ export default function HRPage() {
   }
 
   async function loadExpirationNotifications() {
+    if (!canManageSensitiveNotifications) return
     try {
       const response = await api.get('/hr/advanced-expirations/notifications')
       setExpirationNotifications({ notifications: arrayFrom(response.data, ['notifications', 'items']), summary: response.data?.summary || {} })
@@ -810,6 +837,7 @@ export default function HRPage() {
   }
 
   async function notifyAdvancedExpirations() {
+    if (!canManageSensitiveNotifications) return
     try {
       const response = await api.post('/hr/advanced-expirations/notify')
       setExpirationNoticeResult(response.data || {})
@@ -821,6 +849,7 @@ export default function HRPage() {
   }
 
   async function generateHrNotifications() {
+    if (!canManageSensitiveNotifications) return
     try {
       const response = await api.post('/hr/notifications/generate')
       setHrNotificationResult(response.data || {})
@@ -833,6 +862,7 @@ export default function HRPage() {
   }
 
   async function resolveExpirationNotification(id) {
+    if (!canManageSensitiveNotifications) return
     try {
       await api.post(`/hr/advanced-expirations/notifications/${id}/resolve`)
       await loadExpirationNotifications()
@@ -1203,6 +1233,7 @@ export default function HRPage() {
 
   async function exportNexusTimesheet(event) {
     event.preventDefault()
+    if (!hasPermission('hr:timesheet')) return
     try {
       const deptId = (!isHRPontaj && isSefPontaj ? ownDepartmentKey : nexusExportForm.dept_id) || undefined
       const response = await api.get('/hr/timesheets/export-nexus', {
@@ -1362,8 +1393,9 @@ export default function HRPage() {
   }
 
   async function saveEmployeeEdit() {
+    if (!canManageEmployees) return
     try {
-      const payload = { ...editForm }
+      const payload = employeeWritePayload(editForm, hasPermission)
       delete payload.photo_url
       delete payload.department_transfer_date
       delete payload.department_transfer_reason
@@ -1384,6 +1416,7 @@ export default function HRPage() {
       }
 
       if (photoFile) {
+        if (!hasPermission('hr:manage') || !hasPermission('hr:personal_sensitive')) throw new Error('Nu ai dreptul de a modifica fotografia angajatului.')
         const fd = new FormData()
         fd.append('photo', photoFile)
         const photoRes = await api.post(`/hr/employees/${selectedEmployee.id}/photo`, fd)
@@ -1519,9 +1552,10 @@ export default function HRPage() {
 
   async function createEmployee(event) {
     event.preventDefault()
+    if (!canManageEmployees) return
     setError('')
     try {
-      await api.post('/hr/employees', employeeForm)
+      await api.post('/hr/employees', employeeWritePayload(employeeForm, hasPermission))
       setEmployeeModal(false)
       setEmployeeForm(emptyEmployeeForm)
       await load()
@@ -1532,6 +1566,7 @@ export default function HRPage() {
 
   async function importEmployees(event) {
     event.preventDefault()
+    if (!canImportEmployees) return
     if (!importFile) return
     const data = new FormData()
     data.append('file', importFile)
@@ -2072,13 +2107,14 @@ export default function HRPage() {
   return (
     <div className="module-workspace hr-workspace grid min-w-0 gap-5">
       <HRPageHeader
-        onImport={() => setImportModal(true)}
-        onNewEmployee={() => setEmployeeModal(true)}
+        onImport={canImportEmployees ? () => setImportModal(true) : null}
+        onNewEmployee={canManageEmployees ? () => setEmployeeModal(true) : null}
       />
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
       {notice ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div> : null}
 
+      {canManageWorkflow ? <>
       <Card
         title="Flux simplu HR"
         subtitle="Angajat → contract → pontaj → concedii/medicale → dosar/Kiosk → salarizare."
@@ -2208,6 +2244,7 @@ export default function HRPage() {
           ) : null}
         </div>
       </Card>
+      </> : null}
 
       <Card>
         <HRNavigationTabs
@@ -2229,6 +2266,10 @@ export default function HRPage() {
       {/* ─── DASHBOARD HR ─────────────────────────────────── */}
       {activeTab === 'Dashboard HR' ? (
         <HRDashboardPanel
+          canReadDossier={canReadDossier}
+          canReadManagement={canReadDossier && hasPermission('hr:reports')}
+          canManageLeaves={hasPermission('hr:leave_manage')}
+          canManageHr={canManageSensitiveNotifications}
           stats={stats}
           hrManagementPeriod={hrManagementPeriod}
           onHrManagementPeriodChange={setHrManagementPeriod}
@@ -2240,7 +2281,7 @@ export default function HRPage() {
           countryRules={countryRules}
           laborRegistryHistory={laborRegistryHistory}
           laborRegistryDiagnostic={laborRegistryDiagnostic}
-          canExportLaborRegistry={hasPermission('hr:reges_export')}
+          canExportLaborRegistry={canExportLaborRegistry}
           onExportLaborRegistry={downloadLaborWorkRegister}
           onExportLaborRegistryDiagnostic={downloadLaborRegistryDiagnostic}
           onReloadLaborRegistryDiagnostic={loadLaborRegistryDiagnostic}
@@ -2261,8 +2302,9 @@ export default function HRPage() {
       ) : null}
 
       {/* ─── INBOX HR ─────────────────────────────────────── */}
-      {activeTab === 'Inbox HR' ? (
+      {activeTab === 'Inbox HR' && canReadDossier ? (
         <HRInboxPanel
+          canReadActivity={canReadWorkflow}
           hrInbox={hrInbox}
           hrInboxFilter={hrInboxFilter}
           onInboxFilterChange={setHrInboxFilter}
@@ -2299,14 +2341,24 @@ export default function HRPage() {
           monthDays={monthDays}
           loading={loading}
           onFillWorkingDays={fillWorkingDays}
+          canFill={hasPermission('hr:timesheet')}
+          canSubmit={isHRPontaj || (isSefPontaj && Boolean(ownDepartmentKey))}
+          canValidate={hasPermission('hr:timesheet_approve')}
+          canEditRow={row => {
+            if (!hasPermission('hr:timesheet')) return false
+            if (isHRPontaj || (isSefPontaj && ownDepartmentKey)) return true
+            const employee = employees.find(item => String(item.id) === String(row.employee_id || row.id))
+            return Boolean(employee?.user_id && String(employee.user_id) === String(user?.id))
+              || Boolean((user?.employee_id || user?.employeeId) && String(row.employee_id || row.id) === String(user.employee_id || user.employeeId))
+          }}
           onSubmitDepartmentTimesheet={submitDepartmentTimesheet}
           onValidateMonth={validateMonth}
           onInvalidateMonth={invalidateMonth}
           onOpenTimesheetCell={openTimesheetCell}
-          onOpenNexusExport={() => {
+          onOpenNexusExport={hasPermission('hr:timesheet') ? () => {
             setNexusExportForm({ luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || '' })
             setNexusExportModal(true)
-          }}
+          } : null}
         />
       ) : null}
 
@@ -2314,8 +2366,8 @@ export default function HRPage() {
       {activeTab === 'Overview pontaje' ? (
         <Card>
           <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto_auto]">
-            <Input label="Termen limită" type="date" value={deadlineDate} onChange={event => setDeadlineDate(event.target.value)} />
-            <div className="flex items-end"><Button variant="secondary" onClick={setDeadline}>📅 Setează termen limită</Button></div>
+            <Input label="Termen limită" type="date" disabled={!isHRPontaj} value={deadlineDate} onChange={event => setDeadlineDate(event.target.value)} />
+            {isHRPontaj && <div className="flex items-end"><Button variant="secondary" onClick={setDeadline}>📅 Setează termen limită</Button></div>}
             <div className="flex items-end"><Button onClick={sendReminder}>🔔 Trimite reminder nedefinalizați</Button></div>
           </div>
           <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
@@ -2358,7 +2410,7 @@ export default function HRPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={item.status === 'aprobata' ? 'success' : item.status === 'respinsa' ? 'danger' : 'warning'}>{item.status || 'cerut'}</Badge>
-                  {item.medical_certificate_uuid ? <><Badge tone={item.status_verificare === 'verificat' ? 'success' : item.status_verificare === 'respinsa' ? 'danger' : 'warning'}>{item.status_verificare || 'in_verificare'}</Badge><Button size="sm" variant="secondary" onClick={() => downloadMedicalLeave(item)}>📎 Document</Button>{item.status_verificare === 'in_verificare' ? <><Button size="sm" onClick={() => reviewMedicalLeave(item, 'verify')}>Verifica</Button><Button size="sm" variant="secondary" onClick={() => reviewMedicalLeave(item, 'reject')}>Respinge document</Button></> : null}</> : null}
+                  {item.medical_certificate_uuid ? <><Badge tone={item.status_verificare === 'verificat' ? 'success' : item.status_verificare === 'respinsa' ? 'danger' : 'warning'}>{item.status_verificare || 'in_verificare'}</Badge><Button size="sm" variant="secondary" onClick={() => downloadMedicalLeave(item)}>📎 Document</Button>{item.status_verificare === 'in_verificare' && hasPermission('hr:leave_manage') && hasPermission('hr:medical_view') ? <><Button size="sm" onClick={() => reviewMedicalLeave(item, 'verify')}>Verifica</Button><Button size="sm" variant="secondary" onClick={() => reviewMedicalLeave(item, 'reject')}>Respinge document</Button></> : null}</> : null}
                   {(item.status === 'cerut' || item.status === 'pending') ? (
                     <>
                       <Button size="sm" disabled={item.tip === 'CM' && item.status_verificare !== 'verificat'} onClick={() => approveLeave(item.uuid || item.id)}>✅ Aprobă</Button>
@@ -2602,6 +2654,7 @@ export default function HRPage() {
         editMode={editMode}
         photoInputRef={photoInputRef}
         photoPreview={photoPreview}
+        canUploadPhoto={hasPermission('hr:manage') && hasPermission('hr:personal_sensitive')}
         contracts={employeeContracts}
         dossierSummary={selectedDossierSummary}
         expirations={selectedEmployeeExpirations}
@@ -2619,7 +2672,7 @@ export default function HRPage() {
         }}
         onPrint={printEmployeeProfile}
         onSave={saveEmployeeEdit}
-        onStartEdit={() => { setEmployeeProfileTab('date'); setEditMode(true) }}
+        onStartEdit={canManageEmployees ? () => { setEmployeeProfileTab('date'); setEditMode(true) } : null}
         onReloadActivity={() => employeeDetails ? loadHrActivity({ employee_id: employeeDetails.id }) : null}
         onTabChange={setEmployeeProfileTab}
         onRefreshGuidedIssue={() => refreshGuidedLaborRegistryIssue(employeeDetails?.id || selectedEmployee?.id)}
@@ -2642,6 +2695,14 @@ export default function HRPage() {
             amendments={employeeAmendments}
             transferHistory={transferHistory}
             canManageHr={hasPerm('hr:manage')}
+            canWriteField={canWriteField}
+            canManageContracts={(hasPerm('hr:manage') || hasPerm('hr:contracts_manage')) && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
+            canGenerateWord={hasPerm('hr:view') && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
+            canArchiveWord={hasPerm('hr:manage') && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
+            canReadWorkflow={canReadWorkflow}
+            canReadDossier={canReadDossier}
+            canAccessFileType={type => canAccessHrFileType(user, employeeDetails || selectedEmployee, type, hasPermission)}
+            canManageWorkflow={canManageWorkflow}
             documentTemplates={hrDocumentTemplates}
             leaves={selectedEmployeeLeaves}
             dossierSummary={selectedDossierSummary}
@@ -2698,6 +2759,7 @@ export default function HRPage() {
       />
 
       <HREmployeeModal
+        canWriteField={canWriteField}
         open={employeeModal}
         form={employeeForm}
         departments={departments}

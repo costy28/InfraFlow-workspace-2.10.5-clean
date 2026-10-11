@@ -6,7 +6,7 @@ const multer = require('multer')
 const xlsx = require('xlsx')
 const AdmZip = require('adm-zip')
 const { requireAuth, hashPassword, verifyPassword } = require('../../core/auth')
-const { requirePermission, authHasPermission } = require('../../core/permissions')
+const { requirePermission, requireAnyPermission, authHasPermission } = require('../../core/permissions')
 const kioskSessions = require('../../core/kiosk-sessions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
@@ -14,11 +14,12 @@ const { valideazaCNP, infoCNP } = require('../../shared/cnp-validator')
 const { registerPontaj, reversePontajRegistration } = require('../controlling/auto-register')
 const { notifyUser, createDepartmentChannel } = require('../messaging/routes')
 const { sendEmail } = require('../messaging/email')
-const { sanitizeEmployee } = require('./data-policy')
+const { sanitizeEmployee, sanitizeContract, sanitizeLeave, employeeWritePermissions } = require('./data-policy')
 const payrollRoutes = require('./payroll-routes')
 const { assertTimesheetOpen } = require('./timesheet-locks')
 const { analyzeRegesWorkRegister, assertRegesWorkRegisterExportable, buildRegesWorkRow, buildRegesWorkbook, buildRegesDiagnosticWorkbook, buildInternalXml } = require('./reges-work-register')
 const { dailyOvertime } = require('./overtime-policy')
+const { timesheetScope, employeeInScope, timesheetSqlAccess, overtimeApprovalScope, canSubmitDepartment, canApproveEmployees } = require('./timesheet-access')
 const { weeklyControls } = require('./working-time-policy')
 const { calendarDays, missingMedicalField } = require('./medical-leave-policy')
 const { buildMedicalRegister } = require('./medical-leave-register')
@@ -275,6 +276,24 @@ function identityText(employee = {}) {
   return `posesor/posesoare al/a ${tip} seria ${serie || '____'} nr. ${numar || '__________'}${eliberatDe ? `, eliberat/ă de ${eliberatDe}` : ''}`
 }
 
+function requireTimesheetEmployeeAccess(auth, res, db, employeeId, write = false) {
+  const employee = isMssqlMode()
+    ? mssqlObject(`SELECT TOP 1 e.*,d.denumire AS department_name FROM hr.employees e LEFT JOIN core.departments d ON d.id=e.department_id WHERE e.id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) FOR JSON PATH;`, { employee_id: employeeId })
+    : ensureHrDb(db).employees.find(item => String(item.id) === String(employeeId))
+  if (employeeInScope(auth, employee, timesheetScope(auth, write))) return true
+  sendJson(res, 403, { error: 'Nu ai acces la pontajul acestui angajat.' })
+  return false
+}
+
+function requireTimesheetBatchApproval(auth, res, db, employeeIds) {
+  const employees = isMssqlMode()
+    ? mssqlArray(`SELECT e.id,e.department_id,d.denumire AS department_name FROM hr.employees e LEFT JOIN core.departments d ON d.id=e.department_id WHERE e.id IN (SELECT TRY_CONVERT(int,value) FROM OPENJSON(JSON_QUERY(@p,'$.employeeIds'))) FOR JSON PATH;`, { employeeIds })
+    : ensureHrDb(db).employees
+  if (canApproveEmployees(auth, employeeIds, employees)) return true
+  sendJson(res, 403, { error: 'Selecția conține angajați pentru care nu ai drept de validare.' })
+  return false
+}
+
 function publicEmployee(employee, auth, db) {
   const result = sanitizeEmployee({
     ...employee,
@@ -288,6 +307,24 @@ function publicEmployee(employee, auth, db) {
     salary: authHasPermission(auth, 'hr:salary_view')
   })
   return result
+}
+
+function publicEmployeeContract(contract, employee, auth) {
+  return sanitizeContract(contract, {
+    own: Boolean(employee?.user_id && String(employee.user_id) === String(auth.user.id)),
+    salary: authHasPermission(auth, 'hr:salary_view'),
+  })
+}
+
+function publicLeaveDecision(leave, auth, db) {
+  if (!leave) return leave
+  const employee = isMssqlMode()
+    ? mssqlObject(`SELECT TOP 1 id,user_id FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, { id: leave.employee_id })
+    : (db.hr?.employees || []).find(item => String(item.id) === String(leave.employee_id))
+  return sanitizeLeave(leave, {
+    own: employeeInScope(auth, employee, { type: 'own' }),
+    medical: authHasPermission(auth, 'hr:medical_view'),
+  })
 }
 
 function activeContractFor(hr, employeeId) {
@@ -500,11 +537,16 @@ FOR JSON PATH;
   }
 }
 
-function buildNexusTimesheetWorkbook(db, user, luna, deptId) {
+function buildNexusTimesheetWorkbook(db, user, luna, deptId, auth) {
   const workbook = xlsx.readFile(NEXUS_TIMESHEET_TEMPLATE, { cellStyles: true })
   const sourceSheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[sourceSheetName]
-  const { employees, timesheets, leaves } = nexusTimesheetRows(db, luna, deptId)
+  const source = nexusTimesheetRows(db, luna, deptId)
+  const scope = timesheetScope(auth)
+  const employees = source.employees.filter(employee => employeeInScope(auth, employee, scope))
+  const allowedIds = new Set(employees.map(employee => String(employee.id)))
+  const timesheets = source.timesheets.filter(item => allowedIds.has(String(item.employee_id)))
+  const leaves = source.leaves.filter(item => allowedIds.has(String(item.employee_id)))
   const [year, month] = luna.split('-').map(Number)
   const dates = monthDates(luna)
   const holidays = legalHolidays(year)
@@ -1096,6 +1138,7 @@ router.post('/hr/schedule', (req, res, next) => {
     const body = req.body || {}
     if (!body.employee_id || !body.data) return sendJson(res, 422, { error: 'Angajatul si data sunt obligatorii.' })
     const db = readDb()
+    if (!requireTimesheetEmployeeAccess(auth, res, db, body.employee_id, true)) return
     if (isMssqlMode()) {
       const item = mssqlObject(`
 DECLARE @id int;
@@ -1139,6 +1182,7 @@ router.post('/hr/schedule/bulk', (req, res, next) => {
     const dates = dateRange(body.data_start, body.data_sfarsit)
     if (!body.employee_id || !dates.length) return sendJson(res, 422, { error: 'Angajatul si intervalul sunt obligatorii.' })
     const db = readDb()
+    if (!requireTimesheetEmployeeAccess(auth, res, db, body.employee_id, true)) return
     if (isMssqlMode()) {
       dates.forEach((data) => {
         mssqlObject(`
@@ -1388,6 +1432,7 @@ router.get('/hr/overtime-bank', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:timesheet')) return
     if (!req.query.employee_id) return sendJson(res, 422, { error: 'employee_id este obligatoriu.' })
     const db = readDb()
+    if (!requireTimesheetEmployeeAccess(auth, res, db, req.query.employee_id)) return
     if (isMssqlMode()) {
       const rows = mssqlArray(`
 SELECT FORMAT(ts.data,'yyyy-MM') AS luna,
@@ -1434,6 +1479,7 @@ router.post('/hr/overtime-bank/compensate', (req, res, next) => {
     const body = req.body || {}
     if (!body.employee_id || !numberValue(body.ore)) return sendJson(res, 422, { error: 'Angajatul si orele sunt obligatorii.' })
     const db = readDb()
+    if (!requireTimesheetEmployeeAccess(auth, res, db, body.employee_id, true)) return
     const data = body.data || todayIso()
     const tip = body.tip || 'timp_liber'
     const updatesTimesheet = tip === 'timp_liber'
@@ -1489,7 +1535,8 @@ SELECT TOP 1 * FROM hr.overtime_compensations WHERE id=@compId FOR JSON PATH;`, 
 router.get('/hr/linkable-users', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requirePermission(auth, res, 'hr:manage')) return
+    if (!auth || !requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+    if (!requirePermission(auth, res, 'users:manage')) return
     const db = readDb()
     const users = (db.users || []).filter((item) => item.active !== false).map((item) => ({ id: item.id, username: item.username, name: item.name || item.fullName || item.username, role: item.role }))
     sendJson(res, 200, users)
@@ -1526,7 +1573,7 @@ WHERE (NULLIF(JSON_VALUE(@p, '$.activ'), '') IS NULL OR e.activ = TRY_CONVERT(bi
 AND (NULLIF(JSON_VALUE(@p, '$.dept_id'), '') IS NULL OR e.department_id = JSON_VALUE(@p, '$.dept_id'))
 AND (NULLIF(JSON_VALUE(@p, '$.functia'), '') IS NULL OR e.functia LIKE N'%' + JSON_VALUE(@p, '$.functia') + N'%')
 ${!hasFullView && hasDeptTimesheet && ownDept ? `AND (e.department_id = JSON_VALUE(@p, '$.ownDept') OR d.denumire = JSON_VALUE(@p, '$.ownDept'))` : ''}
-${!hasFullView && !hasDeptTimesheet && !hasEquipmentView ? `AND e.user_id = JSON_VALUE(@p, '$.userId')` : ''}
+${!hasFullView && !(hasDeptTimesheet && ownDept) && !hasEquipmentView ? `AND e.user_id = JSON_VALUE(@p, '$.userId')` : ''}
 ORDER BY e.nume, e.prenume
 FOR JSON PATH;
 `, { ...req.query, ownDept, userId: String(auth.user.id) })
@@ -1554,8 +1601,9 @@ router.post('/hr/employees', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
     const body = req.body || {}
+    for (const permission of employeeWritePermissions(body)) if (!requirePermission(auth, res, permission)) return
     const cnpInfo = body.cnp ? valideazaCNP(body.cnp) : null
     if (body.cnp && !cnpInfo.valid) return sendJson(res, 422, { error: cnpInfo.eroare || 'CNP invalid.' })
     if (!isValidRomanianIban(body.iban)) return sendJson(res, 422, { error: 'IBAN invalid. Folosește formatul RO urmat de 22 caractere.' })
@@ -1632,7 +1680,7 @@ SELECT TOP 1 * FROM hr.employees WHERE id = SCOPE_IDENTITY() FOR JSON PATH;
 `, { ...body, uuid: crypto.randomUUID(), company_id: body.company_id || auth.user.company_id || 1, sex: cnpInfo?.sex || '', data_nasterii: cnpInfo?.data_nasterii || '', varsta: cnpInfo?.varsta ?? '', department_cod: departmentCod(db, body.department_cod || body.departament || body.department_id || body.dept_id) })
       addAudit(db, auth.user, 'hr_employee_created', `${body.nume || ''} ${body.prenume || ''}`.trim())
       writeDb(db)
-      return sendJson(res, 201, created)
+      return sendJson(res, 201, publicEmployee(created, auth, db))
     }
 
     const hr = ensureHrDb(db)
@@ -1693,7 +1741,7 @@ SELECT TOP 1 * FROM hr.employees WHERE id = SCOPE_IDENTITY() FOR JSON PATH;
     hr.employees.push(employee)
     addAudit(db, auth.user, 'hr_employee_created', `${employee.nume} ${employee.prenume}`)
     writeDb(db)
-    sendJson(res, 201, employee)
+    sendJson(res, 201, publicEmployee(employee, auth, db))
   } catch (error) {
     next(error)
   }
@@ -1703,7 +1751,7 @@ router.get('/hr/employees/template', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
     const worksheet = xlsx.utils.aoa_to_sheet([
       ['CNP', 'Nume', 'Prenume', 'Nr.marca', 'Functia', 'Departament', 'Data angajarii'],
       ['1800101221144', 'Popescu', 'Ion', '1001', 'Muncitor calificat', 'Mecanizare', todayIso()]
@@ -1719,11 +1767,20 @@ router.get('/hr/employees/template', (req, res, next) => {
   }
 })
 
-router.post('/hr/employees/import', upload.single('file'), (req, res, next) => {
+function authorizeEmployeeImport(req, res, next) {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+  if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+  next()
+}
+
+router.post('/hr/employees/import', authorizeEmployeeImport, upload.single('file'), (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!req.file) return sendJson(res, 400, { error: 'Fisierul este obligatoriu.' })
     const db = readDb()
     const rows = parseEmployeeImport(req.file.path, req.file.originalname).map(normalizeEmployeeImportRow)
@@ -1846,7 +1903,7 @@ FROM hr.time_sheets
 WHERE employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id'))
 FOR JSON PATH;
 `, req.params) || {}
-      return sendJson(res, 200, { ...publicEmployee(employee, auth, auth.db), contracte_active: contracts, autorizatii: authorizations.map(authorizationView), statistici_pontaj: stats })
+      return sendJson(res, 200, { ...publicEmployee(employee, auth, auth.db), contracte_active: contracts.map(contract => publicEmployeeContract(contract, employee, auth)), autorizatii: authorizations.map(authorizationView), statistici_pontaj: stats })
     }
 
     const db = readDb()
@@ -1856,7 +1913,7 @@ FOR JSON PATH;
     const timeSheets = hr.timeSheets.filter((item) => String(item.employee_id) === String(employee.id))
     sendJson(res, 200, {
       ...publicEmployee(employeeWithSalary(hr, employee), auth, db),
-      contracte_active: hr.contracts.filter((item) => String(item.employee_id) === String(employee.id) && item.status !== 'incetat'),
+      contracte_active: hr.contracts.filter((item) => String(item.employee_id) === String(employee.id) && item.status !== 'incetat').map(contract => publicEmployeeContract(contract, employee, auth)),
       autorizatii: hr.authorizations.filter((item) => String(item.employee_id) === String(employee.id)).map(authorizationView),
       statistici_pontaj: {
         zile_pontate: timeSheets.length,
@@ -1873,8 +1930,9 @@ router.patch('/hr/employees/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
     const body = req.body || {}
+    for (const permission of employeeWritePermissions(body)) if (!requirePermission(auth, res, permission)) return
     if (body.iban !== undefined && !isValidRomanianIban(body.iban)) return sendJson(res, 422, { error: 'IBAN invalid. Folosește formatul RO urmat de 22 caractere.' })
     const db = readDb()
     if (body.user_id) {
@@ -1980,11 +2038,28 @@ const photoUpload = multer({
   }
 })
 
-router.post('/hr/employees/:id/photo', photoUpload.single('photo'), (req, res, next) => {
+function authorizeEmployeePhotoUpload(req, res, next) {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!/^\d+$/.test(String(req.params.id || ''))) return sendJson(res, 400, { error: 'Identificator angajat invalid.' })
+    const db = readDb()
+    const employee = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 id FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, req.params)
+      : ensureHrDb(db).employees.find(item => String(item.id) === String(req.params.id))
+    if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost gasit.' })
+    next()
+  } catch (error) { next(error) }
+}
+
+router.post('/hr/employees/:id/photo', authorizeEmployeePhotoUpload, photoUpload.single('photo'), (req, res, next) => {
+  try {
+    const auth = requireAuth(req, res)
+    if (!auth) return
+    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!req.file) return sendJson(res, 400, { error: 'Fotografia este obligatorie.' })
     const db = readDb()
     const hr = ensureHrDb(db)
@@ -2012,13 +2087,23 @@ router.get('/hr/employees/:id/photo', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!/^\d+$/.test(String(req.params.id || ''))) return sendJson(res, 400, { error: 'Identificator angajat invalid.' })
+    const db = readDb()
+    const employee = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 id,user_id FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, req.params)
+      : ensureHrDb(db).employees.find(item => String(item.id) === String(req.params.id))
+    if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost gasit.' })
+    if (!employeeInScope(auth, employee, { type: 'own' })) {
+      if (!requirePermission(auth, res, 'hr:view')) return
+      if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    }
     const dir = path.join(__dirname, '../../../storage/angajati', String(req.params.id))
     for (const ext of ['.jpg','.png','.webp']) {
       const filePath = path.join(dir, `photo${ext}`)
       if (fs.existsSync(filePath)) {
         const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg'
         res.setHeader('Content-Type', mime)
-        res.setHeader('Cache-Control', 'public, max-age=3600')
+        res.setHeader('Cache-Control', 'private, no-store')
         return res.sendFile(filePath)
       }
     }
@@ -2038,7 +2123,7 @@ router.post('/hr/leave-requests/:uuid/reject', (req, res, next) => {
       const item = mssqlObject(`UPDATE hr.leave_requests SET status=N'respinsa', aprobat_de=JSON_VALUE(@p,'$.userId'), aprobat_la=sysdatetime(), motiv_respingere=NULLIF(JSON_VALUE(@p,'$.motiv'),''), updated_at=sysdatetime() WHERE uuid=JSON_VALUE(@p,'$.uuid'); SELECT TOP 1 * FROM hr.leave_requests WHERE uuid=JSON_VALUE(@p,'$.uuid') FOR JSON PATH;`, { uuid: req.params.uuid, userId: auth.user.id, motiv: req.body.motiv || '' })
       addAudit(db, auth.user, 'hr_leave_rejected', req.params.uuid)
       writeDb(db)
-      return sendJson(res, 200, item)
+      return sendJson(res, 200, publicLeaveDecision(item, auth, db))
     }
     const hr = ensureHrDb(db)
     const item = hr.leaveRequests.find((leave) => leave.uuid === req.params.uuid)
@@ -2050,7 +2135,7 @@ router.post('/hr/leave-requests/:uuid/reject', (req, res, next) => {
     item.updated_at = nowIso()
     addAudit(db, auth.user, 'hr_leave_rejected', item.uuid)
     writeDb(db)
-    sendJson(res, 200, item)
+    sendJson(res, 200, publicLeaveDecision(item, auth, db))
   } catch (error) {
     next(error)
   }
@@ -2080,23 +2165,24 @@ router.post('/hr/employees/:id/transfer', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
     const db = readDb()
-    const paymentAdjustment = body.tip === 'plata' ? registerOvertimePayment(db, body, auth.user) : null
     if (isMssqlMode()) {
       const rawDepartment = req.body.department_nou || req.body.dept_nou || req.body.departament_nou
-      const newDept = departmentCod(db, rawDepartment)
-      if (!newDept) return sendJson(res, 400, { error: 'Departamentul nou este obligatoriu.' })
+      const department = mssqlObject(`SELECT TOP 1 id,cod FROM core.departments WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.department')) OR LOWER(cod)=LOWER(JSON_VALUE(@p,'$.department')) OR LOWER(denumire)=LOWER(JSON_VALUE(@p,'$.department')) FOR JSON PATH;`, { department: String(rawDepartment || '').trim() })
+      if (!department) return sendJson(res, 400, { error: 'Departamentul selectat nu există.', code: 'HR_TRANSFER_DEPARTMENT_INVALID' })
+      const newDept = String(department.cod || department.id).toLowerCase()
       const result = mssqlObject(`
         DECLARE @employeeId int=TRY_CONVERT(int,JSON_VALUE(@p,'$.id'));
+        IF NOT EXISTS (SELECT 1 FROM hr.employees WHERE id=@employeeId) BEGIN RAISERROR(N'Angajatul selectat nu exista.',16,1); RETURN; END;
         DECLARE @old nvarchar(80)=(SELECT COALESCE(NULLIF(department_cod,N''),CONVERT(nvarchar(80),department_id)) FROM hr.employees WHERE id=@employeeId);
         DECLARE @newId int=TRY_CONVERT(int,JSON_VALUE(@p,'$.department_id'));
         IF @newId IS NULL SELECT TOP 1 @newId=id FROM core.departments WHERE LOWER(cod)=LOWER(JSON_VALUE(@p,'$.dept_nou'));
-        IF @newId IS NULL BEGIN RAISERROR(N'Departamentul selectat nu exista.',16,1); RETURN; END;
+        IF @newId IS NULL OR NOT EXISTS (SELECT 1 FROM core.departments WHERE id=@newId) BEGIN RAISERROR(N'Departamentul selectat nu exista.',16,1); RETURN; END;
         UPDATE hr.employees SET department_id=@newId,department_cod=JSON_VALUE(@p,'$.dept_nou'),updated_at=sysdatetime() WHERE id=@employeeId;
         INSERT INTO hr.department_transfers (uuid,employee_id,dept_vechi,dept_nou,data_transfer,motiv,aprobat_de)
         VALUES (JSON_VALUE(@p,'$.uuid'),@employeeId,@old,JSON_VALUE(@p,'$.dept_nou'),TRY_CONVERT(date,JSON_VALUE(@p,'$.data_transfer')),NULLIF(JSON_VALUE(@p,'$.motiv'),''),JSON_VALUE(@p,'$.aprobat_de'));
-        SELECT TOP 1 * FROM hr.department_transfers WHERE id=SCOPE_IDENTITY() FOR JSON PATH;`, { id: req.params.id, uuid: crypto.randomUUID(), department_id: rawDepartment, dept_nou: newDept, data_transfer: req.body.data_transfer || todayIso(), motiv: req.body.motiv || '', aprobat_de: auth.user.id })
+        SELECT TOP 1 * FROM hr.department_transfers WHERE id=SCOPE_IDENTITY() FOR JSON PATH;`, { id: req.params.id, uuid: crypto.randomUUID(), department_id: department.id, dept_nou: newDept, data_transfer: req.body.data_transfer || todayIso(), motiv: req.body.motiv || '', aprobat_de: auth.user.id })
       addAudit(db, auth.user, 'hr_employee_transferred', `${req.params.id}: ${newDept}`)
       writeDb(db)
       return sendJson(res, 200, { transfer: result })
@@ -2105,7 +2191,10 @@ router.post('/hr/employees/:id/transfer', (req, res, next) => {
     const employee = hr.employees.find((item) => String(item.id) === String(req.params.id))
     if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost gasit.' })
     const oldDept = employeeDepartment(employee, db)
-    const newDept = departmentCod(db, req.body.department_nou || req.body.dept_nou || req.body.departament_nou)
+    const rawDepartment = String(req.body.department_nou || req.body.dept_nou || req.body.departament_nou || '').trim()
+    const department = departmentsList(db).find(item => String(item.id) === rawDepartment || String(item.cod || item.code || '').toLowerCase() === rawDepartment.toLowerCase() || String(item.denumire || item.name || '').toLowerCase() === rawDepartment.toLowerCase())
+    if (!department) return sendJson(res, 400, { error: 'Departamentul selectat nu există.', code: 'HR_TRANSFER_DEPARTMENT_INVALID' })
+    const newDept = departmentCod(db, department.id)
     if (!newDept) return sendJson(res, 400, { error: 'Departamentul nou este obligatoriu.' })
     const transfer = {
       id: nextId(hr.departmentTransfers),
@@ -2120,11 +2209,11 @@ router.post('/hr/employees/:id/transfer', (req, res, next) => {
     }
     hr.departmentTransfers.push(transfer)
     employee.department_cod = newDept
-    employee.department_id = req.body.department_nou || req.body.dept_nou || req.body.departament_nou || employee.department_id
+    employee.department_id = department.id
     employee.updated_at = nowIso()
     addAudit(db, auth.user, 'hr_employee_transferred', `${employee.nume || ''} ${employee.prenume || ''}: ${oldDept} -> ${newDept}`)
     writeDb(db)
-    sendJson(res, 200, { employee, transfer })
+    sendJson(res, 200, { employee: publicEmployee(employee, auth, db), transfer })
   } catch (error) {
     next(error)
   }
@@ -2135,9 +2224,13 @@ router.get('/hr/employees/:id/contracts', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:view')) return
-    if (isMssqlMode()) return sendJson(res, 200, mssqlArray(`SELECT * FROM hr.contracts WHERE employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id')) ORDER BY data_start DESC FOR JSON PATH;`, req.params))
+    if (isMssqlMode()) {
+      const employee = mssqlObject(`SELECT TOP 1 id,user_id FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, req.params)
+      return sendJson(res, 200, mssqlArray(`SELECT * FROM hr.contracts WHERE employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id')) ORDER BY data_start DESC FOR JSON PATH;`, req.params).map(contract => publicEmployeeContract(contract, employee, auth)))
+    }
     const hr = ensureHrDb(readDb())
-    sendJson(res, 200, hr.contracts.filter((item) => String(item.employee_id) === String(req.params.id)))
+    const employee = hr.employees.find(item => String(item.id) === String(req.params.id))
+    sendJson(res, 200, hr.contracts.filter((item) => String(item.employee_id) === String(req.params.id)).map(contract => publicEmployeeContract(contract, employee, auth)))
   } catch (error) {
     next(error)
   }
@@ -2147,7 +2240,9 @@ router.post('/hr/employees/:id/contracts', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:contracts_manage'])) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const year = new Date().getFullYear()
     const db = readDb()
 
@@ -2213,28 +2308,32 @@ router.get('/hr/timesheets', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:timesheet')) return
     const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
     const dates = monthDates(luna)
+    const scope = timesheetScope(auth)
 
     if (isMssqlMode()) {
       const rows = mssqlArray(`
 SELECT ts.*, e.nume, e.prenume, e.department_id
 FROM hr.time_sheets ts
 JOIN hr.employees e ON e.id = ts.employee_id
+LEFT JOIN core.departments d ON d.id = e.department_id
 WHERE FORMAT(ts.data, 'yyyy-MM') = JSON_VALUE(@p, '$.luna')
+${scope.type === 'department' ? `AND (e.department_id = JSON_VALUE(@p, '$.scopeDepartment') OR d.denumire = JSON_VALUE(@p, '$.scopeDepartment'))` : ''}
+${scope.type === 'own' ? `AND (e.user_id = JSON_VALUE(@p, '$.scopeUser') OR CONVERT(nvarchar(100), e.id) = NULLIF(JSON_VALUE(@p, '$.scopeEmployee'), ''))` : ''}
 AND (NULLIF(JSON_VALUE(@p, '$.dept_id'), '') IS NULL OR e.department_id = JSON_VALUE(@p, '$.dept_id'))
 AND (NULLIF(JSON_VALUE(@p, '$.employee_id'), '') IS NULL OR ts.employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.employee_id')))
 ORDER BY e.nume, e.prenume, ts.data
 FOR JSON PATH;
-`, { ...req.query, luna })
+`, { ...req.query, luna, scopeDepartment: scope.department || '', scopeUser: String(auth.user.id || ''), scopeEmployee: String(auth.user.employee_id || auth.user.employeeId || '') })
       return sendJson(res, 200, { luna, zile: dates, pontaje: rows })
     }
 
     const db = readDb()
     const hr = ensureHrDb(db)
-    let employees = hr.employees
+    let employees = hr.employees.filter(employee => employeeInScope(auth, employee, scope))
     if (req.query.dept_id) employees = employees.filter((item) => String(item.department_id) === String(req.query.dept_id))
     if (req.query.employee_id) employees = employees.filter((item) => String(item.id) === String(req.query.employee_id))
     const rows = employees.map((employee) => ({
-      employee,
+      employee: publicEmployee(employee, auth, db),
       zile: dates.map((date) => hr.timeSheets.find((item) => String(item.employee_id) === String(employee.id) && item.data === date) || { employee_id: employee.id, data: date, ore_lucrate: 0, tip: 'lucru' })
     }))
     sendJson(res, 200, { luna, zile: dates, pontaje: rows })
@@ -2250,6 +2349,10 @@ router.post('/hr/timesheets', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:timesheet')) return
     const body = req.body || {}
     const db = readDb()
+    const employee = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 e.*, d.denumire AS department_name FROM hr.employees e LEFT JOIN core.departments d ON d.id=e.department_id WHERE e.id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) FOR JSON PATH;`, body)
+      : ensureHrDb(db).employees.find(item => String(item.id) === String(body.employee_id))
+    if (!employeeInScope(auth, employee, timesheetScope(auth, true))) return sendJson(res, 403, { error: 'Nu ai dreptul să modifici pontajul acestui angajat.' })
     assertTimesheetOpen(db, String(body.data || '').slice(0, 7))
 
     if (isMssqlMode()) {
@@ -2333,19 +2436,23 @@ router.get('/hr/overtime/pending', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:timesheet')) return
+    const access = timesheetSqlAccess(auth)
     if (isMssqlMode()) return sendJson(res, 200, mssqlArray(`
 SELECT ts.id,ts.employee_id,ts.data,ts.ore_lucrate,ts.ore_suplimentare_s1,ts.ore_suplimentare_s2,ts.overtime_status,
   LTRIM(RTRIM(COALESCE(e.prenume,N'')+N' '+COALESCE(e.nume,N''))) AS employee_name,e.department_id
 FROM hr.time_sheets ts JOIN hr.employees e ON e.id=ts.employee_id
+LEFT JOIN core.departments d ON d.id=e.department_id
 WHERE ts.overtime_status=N'propus'
+${access.condition}
   AND (NULLIF(JSON_VALUE(@p,'$.luna'),'') IS NULL OR CONVERT(char(7),ts.data,126)=JSON_VALUE(@p,'$.luna'))
   AND (NULLIF(JSON_VALUE(@p,'$.dept_id'),'') IS NULL OR CONVERT(nvarchar(100),e.department_id)=JSON_VALUE(@p,'$.dept_id'))
-ORDER BY ts.data,e.nume,e.prenume FOR JSON PATH;`, req.query))
+ORDER BY ts.data,e.nume,e.prenume FOR JSON PATH;`, { ...req.query, ...access.params }))
     const db = readDb(); const hr = ensureHrDb(db)
     const rows = hr.timeSheets.filter((item) => item.overtime_status === 'propus' && (!req.query.luna || String(item.data).startsWith(req.query.luna))).map((item) => {
       const employee = hr.employees.find((entry) => String(entry.id) === String(item.employee_id)) || {}
+      if (!employeeInScope(auth, employee, access.scope)) return null
       return { ...item, employee_name: `${employee.prenume || ''} ${employee.nume || ''}`.trim(), department_id: employee.department_id }
-    }).filter((item) => !req.query.dept_id || String(item.department_id) === String(req.query.dept_id))
+    }).filter((item) => item && (!req.query.dept_id || String(item.department_id) === String(req.query.dept_id)))
     sendJson(res, 200, rows)
   } catch (error) { next(error) }
 })
@@ -2360,6 +2467,15 @@ function updateOvertimeApproval(req, res, next, status) {
     const reason = String(req.body?.reason || '').trim()
     if (status === 'respins' && reason.length < 5) return sendJson(res, 422, { error: 'Motivul respingerii trebuie sa aiba minimum 5 caractere.' })
     const db = readDb()
+    const targetEmployee = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 e.*,d.denumire AS department_name FROM hr.time_sheets ts JOIN hr.employees e ON e.id=ts.employee_id LEFT JOIN core.departments d ON d.id=e.department_id WHERE ts.id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) AND ts.overtime_status=N'propus' FOR JSON PATH;`, { id: req.params.timesheetId })
+      : (() => {
+        const hr = ensureHrDb(db)
+        const item = hr.timeSheets.find(entry => String(entry.id) === String(req.params.timesheetId) && entry.overtime_status === 'propus')
+        return item && hr.employees.find(employee => String(employee.id) === String(item.employee_id))
+      })()
+    if (!targetEmployee) return sendJson(res, 404, { error: 'Propunerea de ore suplimentare nu a fost gasita.' })
+    if (!employeeInScope(auth, targetEmployee, overtimeApprovalScope(auth))) return sendJson(res, 403, { error: 'Nu ai dreptul să aprobi orele suplimentare din acest departament.' })
     if (isMssqlMode()) {
       const item = mssqlObject(`UPDATE hr.time_sheets SET overtime_status=JSON_VALUE(@p,'$.status'),overtime_approved_by=JSON_VALUE(@p,'$.userId'),overtime_approved_at=SYSDATETIME(),overtime_rejection_reason=NULLIF(JSON_VALUE(@p,'$.reason'),'') WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) AND overtime_status=N'propus'; SELECT TOP 1 * FROM hr.time_sheets WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, { id: req.params.timesheetId, status, userId: auth.user.id, reason })
       if (!item) return sendJson(res, 404, { error: 'Propunerea de ore suplimentare nu a fost gasita.' })
@@ -2377,15 +2493,17 @@ router.get('/hr/timesheets/weekly-controls', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:timesheet')) return
     const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
+    const access = timesheetSqlAccess(auth)
     if (isMssqlMode()) {
-      const entries = mssqlArray(`SELECT ts.*,LTRIM(RTRIM(COALESCE(e.prenume,N'')+N' '+COALESCE(e.nume,N''))) AS employee_name FROM hr.time_sheets ts JOIN hr.employees e ON e.id=ts.employee_id WHERE CONVERT(char(7),ts.data,126)=JSON_VALUE(@p,'$.luna') AND (NULLIF(JSON_VALUE(@p,'$.dept_id'),'') IS NULL OR CONVERT(nvarchar(100),e.department_id)=JSON_VALUE(@p,'$.dept_id')) ORDER BY ts.data FOR JSON PATH;`, { ...req.query, luna })
+      const entries = mssqlArray(`SELECT ts.*,LTRIM(RTRIM(COALESCE(e.prenume,N'')+N' '+COALESCE(e.nume,N''))) AS employee_name FROM hr.time_sheets ts JOIN hr.employees e ON e.id=ts.employee_id LEFT JOIN core.departments d ON d.id=e.department_id WHERE CONVERT(char(7),ts.data,126)=JSON_VALUE(@p,'$.luna') ${access.condition} AND (NULLIF(JSON_VALUE(@p,'$.dept_id'),'') IS NULL OR CONVERT(nvarchar(100),e.department_id)=JSON_VALUE(@p,'$.dept_id')) ORDER BY ts.data FOR JSON PATH;`, { ...req.query, luna, ...access.params })
       return sendJson(res, 200, weeklyControls(entries))
     }
     const db = readDb(); const hr = ensureHrDb(db)
     const entries = hr.timeSheets.filter((item) => String(item.data).startsWith(luna)).map((item) => {
       const employee = hr.employees.find((entry) => String(entry.id) === String(item.employee_id)) || {}
+      if (!employeeInScope(auth, employee, access.scope)) return null
       return { ...item, employee_name: `${employee.prenume || ''} ${employee.nume || ''}`.trim(), department_id: employee.department_id }
-    }).filter((item) => !req.query.dept_id || String(item.department_id) === String(req.query.dept_id))
+    }).filter((item) => item && (!req.query.dept_id || String(item.department_id) === String(req.query.dept_id)))
     sendJson(res, 200, weeklyControls(entries))
   } catch (error) { next(error) }
 })
@@ -2400,11 +2518,12 @@ router.get('/hr/timesheets/my-department', (req, res, next) => {
     if (isMssqlMode()) return sendJson(res, 200, { luna, department: auth.user.department_id || null, pontaje: [] })
     const hr = ensureHrDb(db)
     const dept = userDepartment(auth, db)
-    const employees = hr.employees.filter((employee) => employeeDepartment(employee, db) === dept)
+    const scope = timesheetScope(auth)
+    const employees = hr.employees.filter((employee) => employeeInScope(auth, employee, scope) && (!dept || employeeDepartment(employee, db) === dept))
     const employeeIds = new Set(employees.map((employee) => String(employee.id)))
     const pontaje = hr.timeSheets.filter((entry) => employeeIds.has(String(entry.employee_id)) && String(entry.data || '').startsWith(luna))
     const status = hr.timesheetDepartments.find((item) => item.luna === luna && item.department_cod === dept) || null
-    sendJson(res, 200, { luna, department: dept, employees, pontaje, status })
+    sendJson(res, 200, { luna, department: dept, employees: employees.map(employee => publicEmployee(employee, auth, db)), pontaje, status })
   } catch (error) {
     next(error)
   }
@@ -2416,10 +2535,13 @@ router.post('/hr/timesheets/submit-department', (req, res, next) => {
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:timesheet')) return
     const db = readDb()
+    const ownDepartment = userDepartment(auth, db)
+    const requestedDepartment = departmentCod(db, req.body.department_cod || ownDepartment)
+    if (!canSubmitDepartment(auth, requestedDepartment, ownDepartment)) return sendJson(res, 403, { error: 'Nu ai dreptul să finalizezi pontajul acestui departament.' })
     assertTimesheetOpen(db, String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7))
     if (isMssqlMode()) {
       const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
-      const department = String(req.body.department_cod || auth.user.department_cod || auth.user.department_id || '').toLowerCase()
+      const department = requestedDepartment
       const item = mssqlObject(`DECLARE @id int; SELECT @id=id FROM hr.timesheet_departments WHERE luna=JSON_VALUE(@p,'$.luna') AND department_cod=JSON_VALUE(@p,'$.department'); IF @id IS NULL BEGIN INSERT INTO hr.timesheet_departments (luna,department_cod,status,completat_la,completat_de) VALUES (JSON_VALUE(@p,'$.luna'),JSON_VALUE(@p,'$.department'),JSON_VALUE(@p,'$.status'),sysdatetime(),JSON_VALUE(@p,'$.userId')); SET @id=SCOPE_IDENTITY(); END ELSE UPDATE hr.timesheet_departments SET status=JSON_VALUE(@p,'$.status'), completat_la=sysdatetime(), completat_de=JSON_VALUE(@p,'$.userId'), updated_at=sysdatetime() WHERE id=@id; SELECT TOP 1 * FROM hr.timesheet_departments WHERE id=@id FOR JSON PATH;`, { luna, department, status: req.body.status || 'finalizat', userId: auth.user.id })
       addAudit(db, auth.user, 'hr_timesheet_department_submitted', `${department}/${luna}`)
       writeDb(db)
@@ -2427,7 +2549,7 @@ router.post('/hr/timesheets/submit-department', (req, res, next) => {
     }
     const hr = ensureHrDb(db)
     const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
-    const department = departmentCod(db, req.body.department_cod || userDepartment(auth, db))
+    const department = requestedDepartment
     let item = hr.timesheetDepartments.find((entry) => entry.luna === luna && entry.department_cod === department)
     if (!item) {
       item = { id: nextId(hr.timesheetDepartments), luna, department_cod: department, created_at: nowIso() }
@@ -2455,10 +2577,13 @@ router.get('/hr/timesheets/overview', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:timesheet_approve')) return
     const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
     const db = readDb()
-    if (isMssqlMode()) return sendJson(res, 200, mssqlArray(`SELECT d.denumire AS department, COALESCE(td.department_cod,d.cod) AS department_cod, COALESCE(td.status,N'necompletat') AS status, td.completat_la, 0 AS procent FROM core.departments d LEFT JOIN hr.timesheet_departments td ON td.department_cod=d.cod AND td.luna=JSON_VALUE(@p,'$.luna') WHERE d.activ=1 ORDER BY d.denumire FOR JSON PATH;`, { luna }))
+    const scope = overtimeApprovalScope(auth)
+    const ownDepartment = userDepartment(auth, db)
+    if (scope.type === 'none') return sendJson(res, 200, [])
+    if (isMssqlMode()) return sendJson(res, 200, mssqlArray(`SELECT d.denumire AS department, COALESCE(td.department_cod,d.cod) AS department_cod, COALESCE(td.status,N'necompletat') AS status, td.completat_la, 0 AS procent FROM core.departments d LEFT JOIN hr.timesheet_departments td ON td.department_cod=d.cod AND td.luna=JSON_VALUE(@p,'$.luna') WHERE d.activ=1 ${scope.type === 'department' ? `AND (CONVERT(nvarchar(100),d.id)=JSON_VALUE(@p,'$.department') OR d.cod=JSON_VALUE(@p,'$.department') OR d.denumire=JSON_VALUE(@p,'$.department') OR d.cod=JSON_VALUE(@p,'$.departmentCod'))` : ''} ORDER BY d.denumire FOR JSON PATH;`, { luna, department: scope.department || '', departmentCod: ownDepartment }))
     const hr = ensureHrDb(db)
     const dates = monthDates(luna)
-    const rows = departmentsList(db).map((dept) => {
+    const rows = departmentsList(db).filter(dept => scope.type === 'all' || departmentCod(db, dept.cod || dept.id || dept.denumire || dept.name) === ownDepartment).map((dept) => {
       const department = departmentCod(db, dept.cod || dept.id || dept.denumire || dept.name)
       const employees = hr.employees.filter((employee) => employeeDepartment(employee, db) === department && employee.activ !== false)
       const employeeIds = new Set(employees.map((employee) => String(employee.id)))
@@ -2484,6 +2609,7 @@ router.post('/hr/timesheets/set-deadline', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:timesheet_approve')) return
+    if (!requirePermission(auth, res, 'hr:timesheets_manage')) return
     const db = readDb()
     const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
     db.settings = db.settings || {}
@@ -2508,6 +2634,9 @@ router.post('/hr/timesheets/send-reminder', async (req, res, next) => {
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:timesheet_approve')) return
     const db = readDb()
+    const scope = overtimeApprovalScope(auth)
+    const ownDepartment = userDepartment(auth, db)
+    if (scope.type === 'none') return sendJson(res, 403, { error: 'Asociază un departament înainte de trimiterea reminderelor.' })
     if (isMssqlMode()) return sendJson(res, 200, { sent: 0 })
     const hr = ensureHrDb(db)
     const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
@@ -2516,6 +2645,7 @@ router.post('/hr/timesheets/send-reminder', async (req, res, next) => {
     let sent = 0
     for (const dept of departmentsList(db)) {
       const deptCod = departmentCod(db, dept.cod || dept.id || dept.denumire || dept.name)
+      if (scope.type === 'department' && deptCod !== ownDepartment) continue
       if (!deptCod || done.has(deptCod)) continue
       const message = `Termen limita pontaj ${luna}: ${deadline || 'nesetat'}. Departamentul vostru nu a finalizat completarea.`
       const users = (db.users || []).filter((user) => departmentCod(db, user.department || user.department_cod || user.departmentId || user.department_id) === deptCod)
@@ -2540,9 +2670,11 @@ router.post('/hr/timesheets/validate', async (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:timesheet_approve')) return
-    const employeeIds = (req.body.employee_ids || []).map(String)
+    if (!Array.isArray(req.body.employee_ids) || !req.body.employee_ids.length) return sendJson(res, 422, { error: 'Selectează angajații pentru validare.' })
+    const employeeIds = [...new Set(req.body.employee_ids.map(String))]
     const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
     const db = readDb()
+    if (!requireTimesheetBatchApproval(auth, res, db, employeeIds)) return
     assertTimesheetOpen(db, luna)
 
     if (isMssqlMode()) {
@@ -2597,12 +2729,14 @@ router.post('/hr/timesheets/invalidate', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:timesheet_approve')) return
-    const employeeIds = (req.body.employee_ids || []).map(String)
+    if (!Array.isArray(req.body.employee_ids)) return sendJson(res, 422, { error: 'Selecția angajaților este invalidă.' })
+    const employeeIds = [...new Set(req.body.employee_ids.map(String))]
     const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
     const reason = String(req.body.reason || '').trim()
     if (!employeeIds.length) return sendJson(res, 422, { error: 'Nu exista angajati selectati pentru devalidare.' })
     if (reason.length < 5) return sendJson(res, 422, { error: 'Motivul devalidarii trebuie sa aiba minimum 5 caractere.' })
     const db = readDb()
+    if (!requireTimesheetBatchApproval(auth, res, db, employeeIds)) return
     assertTimesheetOpen(db, luna)
     if (isMssqlMode()) {
       const result = mssqlObject(`
@@ -2687,6 +2821,7 @@ router.get('/hr/timesheets/monthly-sheet', (req, res, next) => {
     const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
     const dates = monthDates(luna)
     const db = readDb()
+    const access = timesheetSqlAccess(auth)
 
     if (isMssqlMode()) {
       const rows = mssqlArray(`
@@ -2695,10 +2830,11 @@ FROM hr.employees e
 LEFT JOIN core.departments d ON d.id = e.department_id
 LEFT JOIN hr.time_sheets ts ON ts.employee_id = e.id AND FORMAT(ts.data, 'yyyy-MM') = JSON_VALUE(@p, '$.luna')
 WHERE e.activ = 1
+${access.condition}
 AND (NULLIF(JSON_VALUE(@p, '$.dept_id'), '') IS NULL OR e.department_id = JSON_VALUE(@p, '$.dept_id'))
 ORDER BY e.nume, e.prenume, ts.data
 FOR JSON PATH;
-`, { ...req.query, luna })
+`, { ...req.query, luna, ...access.params })
       const byEmployee = new Map()
       rows.forEach((row) => {
         if (!byEmployee.has(row.id)) byEmployee.set(row.id, { employee_id: row.id, nume: row.nume, prenume: row.prenume, department_id: row.department_id, department_name: row.department_name, zile: {} })
@@ -2708,7 +2844,7 @@ FOR JSON PATH;
     }
 
     const hr = ensureHrDb(db)
-    let employees = hr.employees.filter((item) => item.activ !== false)
+    let employees = hr.employees.filter((item) => item.activ !== false && employeeInScope(auth, item, access.scope))
     if (req.query.dept_id) employees = employees.filter((item) => String(item.department_id) === String(req.query.dept_id))
     const sheet = employees.map((employee) => {
       const zile = {}
@@ -2733,6 +2869,7 @@ router.post('/hr/overtime-bank/adjustment', (req, res, next) => {
     if (!['sold_initial', 'avans_timp_liber'].includes(body.tip)) return sendJson(res, 422, { error: 'Tipul ajustarii bancii de ore este invalid.' })
     const storedHours = ore
     const db = readDb()
+    if (!requireTimesheetBatchApproval(auth, res, db, [body.employee_id])) return
     if (isMssqlMode()) {
       const item = mssqlObject(`INSERT INTO hr.overtime_compensations(uuid,employee_id,ore,tip,data,created_by) VALUES(JSON_VALUE(@p,'$.uuid'),TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')),TRY_CONVERT(decimal(6,2),JSON_VALUE(@p,'$.storedHours')),JSON_VALUE(@p,'$.tip'),TRY_CONVERT(date,JSON_VALUE(@p,'$.data')),JSON_VALUE(@p,'$.created_by')); SELECT TOP 1 * FROM hr.overtime_compensations WHERE id=SCOPE_IDENTITY() FOR JSON PATH;`, { ...body, uuid: crypto.randomUUID(), storedHours, data: body.data || todayIso(), created_by: auth.user.id })
       addAudit(db, auth.user, 'hr_overtime_adjustment', `${body.employee_id}/${body.tip}/${ore}`); writeDb(db); return sendJson(res, 201, item)
@@ -2751,6 +2888,7 @@ router.post('/hr/timesheets/fill-month', (req, res, next) => {
     const departmentId = String(req.body.dept_id || '').trim()
     const hours = Math.max(0, Math.min(24, numberValue(req.body.ore_lucrate, 8)))
     const db = readDb()
+    const access = timesheetSqlAccess(auth, true)
     assertTimesheetOpen(db, luna)
     if (isMssqlMode()) {
       const result = mssqlObject(`
@@ -2761,8 +2899,9 @@ DECLARE @finish date=DATEADD(day,-1,DATEADD(month,1,@start));
   UNION ALL SELECT DATEADD(day,1,data) FROM calendar WHERE data<@finish
 ), targets AS (
   SELECT e.id AS employee_id,c.data
-  FROM hr.employees e CROSS JOIN calendar c
+  FROM hr.employees e LEFT JOIN core.departments d ON d.id=e.department_id CROSS JOIN calendar c
   WHERE ISNULL(e.activ,1)=1
+    ${access.condition}
     AND DATEDIFF(day,0,c.data)%7 BETWEEN 0 AND 4
     AND (NULLIF(JSON_VALUE(@p,'$.dept_id'),'') IS NULL OR CONVERT(nvarchar(100),e.department_id)=JSON_VALUE(@p,'$.dept_id'))
 )
@@ -2771,13 +2910,13 @@ SELECT t.employee_id,t.data,TRY_CONVERT(decimal(5,2),JSON_VALUE(@p,'$.hours')),N
 FROM targets t
 WHERE NOT EXISTS(SELECT 1 FROM hr.time_sheets ts WHERE ts.employee_id=t.employee_id AND ts.data=t.data)
 OPTION (MAXRECURSION 40);
-SELECT @@ROWCOUNT AS inserted FOR JSON PATH;`, { luna, dept_id: departmentId, hours })
+SELECT @@ROWCOUNT AS inserted FOR JSON PATH;`, { luna, dept_id: departmentId, hours, ...access.params })
       addAudit(db, auth.user, 'hr_timesheet_month_filled', `${luna}/${departmentId || 'toate'}/${result?.inserted || 0}`)
       writeDb(db)
       return sendJson(res, 201, { inserted: result?.inserted || 0 })
     }
     const hr = ensureHrDb(db)
-    const employees = hr.employees.filter((item) => item.activ !== false && (!departmentId || String(item.department_id) === departmentId))
+    const employees = hr.employees.filter((item) => item.activ !== false && employeeInScope(auth, item, access.scope) && (!departmentId || String(item.department_id) === departmentId))
     let inserted = 0
     for (const employee of employees) for (const data of monthDates(luna)) {
       const weekday = new Date(`${data}T12:00:00`).getDay()
@@ -2805,7 +2944,7 @@ router.get('/hr/timesheets/export-nexus', (req, res, next) => {
     const monthName = new Intl.DateTimeFormat('ro-RO', { month: 'long' }).format(new Date(year, month - 1, 1)).toUpperCase()
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     res.setHeader('Content-Disposition', `attachment; filename=Pontaj_${safeDepartment}_${monthName}_${year}.xlsx`)
-    res.end(buildNexusTimesheetWorkbook(db, auth.user, luna, deptId))
+    res.end(buildNexusTimesheetWorkbook(db, auth.user, luna, deptId, auth))
   } catch (error) {
     next(error)
   }
@@ -2815,7 +2954,9 @@ router.patch('/hr/employees/:id/contracts/:contractId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:contracts_manage'])) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const db = readDb()
     const body = req.body || {}
 
@@ -3148,6 +3289,14 @@ router.get('/hr/employees/:id/contract-amendments', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:view')) return
+    const employee = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 id,user_id FROM hr.employees WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, req.params)
+      : ensureHrDb(readDb()).employees.find(item => String(item.id) === String(req.params.id))
+    const publicAmendment = item => {
+      const result = publicEmployeeContract(item, employee, auth)
+      if (!authHasPermission(auth, 'hr:salary_view') && !(employee?.user_id && String(employee.user_id) === String(auth.user.id))) delete result.observatii
+      return result
+    }
     if (isMssqlMode()) {
       return sendJson(res, 200, mssqlArray(`
 SELECT a.*, c.numar_contract
@@ -3157,13 +3306,13 @@ WHERE a.employee_id = TRY_CONVERT(int, JSON_VALUE(@p, '$.id'))
   AND a.cancelled_at IS NULL
 ORDER BY a.data_efect DESC, a.created_at DESC
 FOR JSON PATH;
-`, req.params))
+`, req.params).map(publicAmendment))
     }
     const hr = ensureHrDb(readDb())
     const rows = hr.contractAmendments
       .filter((item) => String(item.employee_id) === String(req.params.id) && !item.cancelled_at)
       .sort((a, b) => String(b.data_efect || b.created_at || '').localeCompare(String(a.data_efect || a.created_at || '')))
-    sendJson(res, 200, rows)
+    sendJson(res, 200, rows.map(publicAmendment))
   } catch (error) {
     next(error)
   }
@@ -3173,7 +3322,9 @@ router.post('/hr/employees/:id/contracts/:contractId/amendments', (req, res, nex
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:contracts_manage'])) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const db = readDb()
     const body = normalizeContractAmendment(req.body || {})
     if (!body.data_efect) return sendJson(res, 400, { error: 'Data de efect a actului aditional este obligatorie.' })
@@ -3343,6 +3494,14 @@ FROM hr.document_templates WHERE id=JSON_VALUE(@p,'$.id') FOR JSON PATH;`, { id 
 }
 
 function renderHrWordDocument(auth, templateId, params = {}, options = {}) {
+  // Șabloanele contractuale pot folosi orice câmp personal sau salarial,
+  // inclusiv text liber din acte adiționale. Nu genera documente parțial mascate.
+  if (!authHasPermission(auth, 'hr:personal_sensitive') || !authHasPermission(auth, 'hr:salary_view')) {
+    const error = new Error('Generarea documentelor Word HR necesită acces la date personale și salarii.')
+    error.status = 403
+    error.code = 'HR_DOCUMENT_SENSITIVE_ACCESS_REQUIRED'
+    throw error
+  }
   const db = readDb()
   const hr = ensureHrDb(db)
   const template = findHrDocumentTemplateForRender(db, templateId)
@@ -3678,7 +3837,7 @@ router.get('/hr/medical-leaves/:uuid/document', (req, res, next) => {
     if (!auth) return
     const db = readDb()
     const ownEmployeeId = String(auth.user.employee_id || auth.user.employeeId || '')
-    const fullAccess = authHasPermission(auth, 'hr:leave_manage') || authHasPermission(auth, 'hr:manage')
+    const fullAccess = authHasPermission(auth, 'hr:medical_view')
     const item = isMssqlMode()
       ? mssqlObject(`SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, req.params)
       : ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid))
@@ -3695,6 +3854,7 @@ router.post('/hr/medical-leaves/:uuid/verify', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:leave_manage')) return
+    if (!requirePermission(auth, res, 'hr:medical_view')) return
     const db = readDb()
     let item
     if (isMssqlMode()) item = mssqlObject(`UPDATE hr.medical_leave_certificates SET status_verificare=N'verificat',verificat_de=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.userId')),verificat_la=SYSDATETIME(),motiv_respingere=NULL,updated_at=SYSDATETIME() WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')); SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, { uuid: req.params.uuid, userId: auth.user.id })
@@ -3708,6 +3868,7 @@ router.post('/hr/medical-leaves/:uuid/reject', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:leave_manage')) return
+    if (!requirePermission(auth, res, 'hr:medical_view')) return
     const reason = String(req.body?.motiv || '').trim()
     if (reason.length < 5) return sendJson(res, 422, { error: 'Motivul respingerii trebuie sa aiba minimum 5 caractere.' })
     const db = readDb(); let item
@@ -3735,6 +3896,8 @@ router.get('/hr/medical-leaves/register', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:leave_manage')) return
+    if (!requirePermission(auth, res, 'hr:medical_view')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const luna = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.luna || '')) ? String(req.query.luna) : todayIso().slice(0, 7)
     const rows = monthlyMedicalRegister(readDb(), luna)
     sendJson(res, 200, { luna, rows, totals: rows.reduce((sum, row) => ({ certificates: sum.certificates + 1, calendar_days: sum.calendar_days + numberValue(row.zile_calendaristice), workdays: sum.workdays + row.workdays, employer_days: sum.employer_days + row.employer_days, fund_days: sum.fund_days + row.fund_days, unpaid_days: sum.unpaid_days + row.unpaid_days, employer_amount: sum.employer_amount + row.employer_amount, fund_amount: sum.fund_amount + row.fund_amount }), { certificates: 0, calendar_days: 0, workdays: 0, employer_days: 0, fund_days: 0, unpaid_days: 0, employer_amount: 0, fund_amount: 0 }) })
@@ -3745,6 +3908,8 @@ router.post('/hr/medical-leaves/:uuid/payroll', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:medical_view')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const dailyBase = numberValue(req.body?.baza_calcul_zilnica)
     if (!(dailyBase > 0)) return sendJson(res, 422, { error: 'Baza de calcul zilnica din media ultimelor 6 luni este obligatorie.' })
     const db = readDb(); const raw = isMssqlMode() ? mssqlObject(`SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, req.params) : ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid))
@@ -3771,6 +3936,8 @@ router.get('/hr/medical-leaves/register.xlsx', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:leave_manage')) return
+    if (!requirePermission(auth, res, 'hr:medical_view')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const luna = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.luna || '')) ? String(req.query.luna) : todayIso().slice(0, 7)
     const rows = monthlyMedicalRegister(readDb(), luna).map((row) => ({ 'Marca': row.marca || '', 'Angajat': `${row.nume || ''} ${row.prenume || ''}`.trim(), 'Serie': row.serie, 'Numar': row.numar, 'Initial/Continuare': row.tip_certificat, 'Data acordarii': row.data_acordarii, 'De la': row.data_start, 'Pana la': row.data_sfarsit, 'Zile calendaristice': row.zile_calendaristice, 'Cod indemnizatie': row.cod_indemnizatie, 'Procent': row.indemnity_percent, 'Zile lucratoare': row.workdays, 'Zi neindemnizata': row.unpaid_days, 'Zile angajator': row.employer_days, 'Zile FNUASS': row.fund_days, 'Baza zilnica': row.baza_calcul_zilnica || '', 'Suma angajator': row.employer_amount, 'Suma FNUASS': row.fund_amount, 'Status verificare': row.status_verificare, 'Trimis salarizare': row.payroll_synced_at || '' }))
     const sheet = xlsx.utils.json_to_sheet(rows); const workbook = xlsx.utils.book_new(); xlsx.utils.book_append_sheet(workbook, sheet, 'Registru CM')
@@ -3794,7 +3961,8 @@ router.get('/hr/leave-requests', (req, res, next) => {
       } else {
         rows = mssqlArray(`SELECT lr.*,mc.uuid AS medical_certificate_uuid,mc.status_verificare,mc.serie AS certificat_serie,mc.numar AS certificat_numar,mc.zile_calendaristice,mc.cod_indemnizatie,mc.medic_nume,mc.unitate_emitenta,mc.motiv_respingere AS medical_rejection_reason FROM hr.leave_requests lr LEFT JOIN hr.medical_leave_certificates mc ON mc.leave_request_uuid=lr.uuid ORDER BY lr.created_at DESC FOR JSON PATH;`)
       }
-      return sendJson(res, 200, rows)
+      const ownIds = new Set(mssqlArray(`SELECT id FROM hr.employees WHERE user_id=JSON_VALUE(@p,'$.userId') OR id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) FOR JSON PATH;`, { userId: auth.user.id, employeeId: auth.user.employee_id || auth.user.employeeId || '' }).map(item => String(item.id)))
+      return sendJson(res, 200, rows.map(leave => sanitizeLeave(leave, { own: ownIds.has(String(leave.employee_id)), medical: authHasPermission(auth, 'hr:medical_view') })))
     }
     const db = readDb()
     const hr = ensureHrDb(db)
@@ -3806,7 +3974,9 @@ router.get('/hr/leave-requests', (req, res, next) => {
     }
     sendJson(res, 200, leaves.map((leave) => {
       const certificate = hr.medicalLeaveCertificates.find((item) => String(item.leave_request_uuid) === String(leave.uuid))
-      return certificate ? { ...leave, medical_certificate_uuid: certificate.uuid, status_verificare: certificate.status_verificare, certificat_serie: certificate.serie, certificat_numar: certificate.numar, zile_calendaristice: certificate.zile_calendaristice, cod_indemnizatie: certificate.cod_indemnizatie, medic_nume: certificate.medic_nume, unitate_emitenta: certificate.unitate_emitenta, medical_rejection_reason: certificate.motiv_respingere } : leave
+      const result = certificate ? { ...leave, medical_certificate_uuid: certificate.uuid, status_verificare: certificate.status_verificare, certificat_serie: certificate.serie, certificat_numar: certificate.numar, zile_calendaristice: certificate.zile_calendaristice, cod_indemnizatie: certificate.cod_indemnizatie, medic_nume: certificate.medic_nume, unitate_emitenta: certificate.unitate_emitenta, medical_rejection_reason: certificate.motiv_respingere } : leave
+      const employee = hr.employees.find(item => String(item.id) === String(leave.employee_id))
+      return sanitizeLeave(result, { own: employeeInScope(auth, employee, { type: 'own' }), medical: authHasPermission(auth, 'hr:medical_view') })
     }))
   } catch (error) {
     next(error)
@@ -3923,6 +4093,7 @@ router.post('/hr/leave-requests', (req, res, next) => {
     const body = req.body || {}
     const zile = businessDays(body.data_start, body.data_sfarsit)
     const db = readDb()
+    if (!requireTimesheetEmployeeAccess(auth, res, db, body.employee_id, true)) return
 
     if (isMssqlMode()) {
       const overlap = mssqlObject(`SELECT TOP 1 uuid,data_start,data_sfarsit FROM hr.leave_requests WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND status IN (N'cerut',N'aprobat',N'aprobata') AND data_start<=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_sfarsit')) AND data_sfarsit>=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_start')) FOR JSON PATH;`, body)
@@ -3991,7 +4162,7 @@ SELECT TOP 1 * FROM hr.leave_requests WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR 
 `, { uuid: req.params.uuid, userId: auth.user.id, employee_id: leave.employee_id, start: leave.data_start, end: leave.data_sfarsit, timesheetType: leaveTimesheetType(leave.tip) })
       addAudit(db, auth.user, 'hr_leave_approved', req.params.uuid)
       writeDb(db)
-      return sendJson(res, 200, item)
+      return sendJson(res, 200, publicLeaveDecision(item, auth, db))
     }
     const hr = ensureHrDb(db)
     const item = hr.leaveRequests.find((leave) => leave.uuid === req.params.uuid)
@@ -4024,7 +4195,7 @@ SELECT TOP 1 * FROM hr.leave_requests WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR 
     }
     addAudit(db, auth.user, 'hr_leave_approved', item.uuid)
     writeDb(db)
-    sendJson(res, 200, item)
+    sendJson(res, 200, publicLeaveDecision(item, auth, db))
   } catch (error) {
     next(error)
   }
@@ -4067,6 +4238,8 @@ router.post('/hr/reges/export', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:reges_export')) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const body = req.body || {}
     const db = readDb()
     let employee
@@ -4083,6 +4256,7 @@ router.post('/hr/reges/export', (req, res, next) => {
     if (!employee || !contract) return sendJson(res, 404, { error: 'Angajatul sau contractul nu a fost gasit.' })
 
     const uuid = crypto.randomUUID()
+    if (String(contract.employee_id) !== String(employee.id)) return sendJson(res, 422, { error: 'Contractul nu aparține angajatului selectat.', code: 'HR_REGISTRY_CONTRACT_MISMATCH' })
     const xml = regesXml(db, employee, contract)
     const filePath = saveRegesFile(uuid, xml)
 
@@ -4119,6 +4293,8 @@ router.get('/hr/reges/history', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:reges_export')) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     if (isMssqlMode()) return sendJson(res, 200, mssqlArray(`SELECT TOP 50 * FROM hr.reges_exports ORDER BY created_at DESC FOR JSON PATH;`))
     sendJson(res, 200, [...ensureHrDb(readDb()).regesExports].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 50))
   } catch (error) {
@@ -4499,6 +4675,7 @@ router.get('/hr/timesheets/raport-lunar/:employeeId', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:timesheet')) return
     const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
     const db = readDb()
+    if (!requireTimesheetEmployeeAccess(auth, res, db, req.params.employeeId)) return
     const hr = ensureHrDb(db)
     const employee = hr.employees.find(e => String(e.id) === String(req.params.employeeId))
     if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost gasit.' })
@@ -4539,11 +4716,11 @@ router.get('/hr/timesheets/raport-lunar/:employeeId', (req, res, next) => {
     sendJson(res, 200, {
       luna, employee: publicEmployee(employee, auth, db),
       zile: zileleLunii, totals,
-      sporuri: {
+      sporuri: (authHasPermission(auth, 'hr:salary_view') || Boolean(employee.user_id && String(employee.user_id) === String(auth.user.id))) ? {
         spor_s1: Math.round(totals.ore_suplimentare_s1 * costOra * 0.75 * 100) / 100,
         spor_s2: Math.round(totals.ore_suplimentare_s2 * costOra * 1.0 * 100) / 100,
         spor_noapte: Math.round(totals.ore_noapte * costOra * 0.25 * 100) / 100,
-      },
+      } : null,
     })
   } catch (error) { next(error) }
 })
@@ -4848,6 +5025,8 @@ router.get('/hr/reges/work-register.xlsx', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:reges_export')) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const db = readDb()
     const hr = ensureHrDb(db)
     const uuid = crypto.randomUUID()
@@ -4895,6 +5074,8 @@ router.get('/hr/reges/work-register/diagnostic', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:reges_export')) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const db = readDb()
     const hr = ensureHrDb(db)
     const employees = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.employees WHERE activ=1 FOR JSON PATH;`) : hr.employees.filter((item) => item.activ !== false)
@@ -4907,6 +5088,8 @@ router.get('/hr/reges/work-register/diagnostic.xlsx', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth || !requirePermission(auth, res, 'hr:reges_export')) return
+    if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
+    if (!requirePermission(auth, res, 'hr:salary_view')) return
     const db = readDb()
     const hr = ensureHrDb(db)
     const employees = isMssqlMode() ? mssqlArray(`SELECT * FROM hr.employees WHERE activ=1 FOR JSON PATH;`) : hr.employees.filter((item) => item.activ !== false)

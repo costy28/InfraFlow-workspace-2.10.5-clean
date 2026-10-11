@@ -15,6 +15,7 @@ export default function HREmployeeProfileModal({
   editMode,
   photoInputRef,
   photoPreview,
+  canUploadPhoto = false,
   contracts,
   dossierSummary,
   expirations,
@@ -45,6 +46,7 @@ export default function HREmployeeProfileModal({
             editMode={editMode}
             photoInputRef={photoInputRef}
             photoPreview={photoPreview}
+            canUploadPhoto={canUploadPhoto}
             onCancelEdit={onCancelEdit}
             onPhotoSelected={onPhotoSelected}
             onPrint={onPrint}

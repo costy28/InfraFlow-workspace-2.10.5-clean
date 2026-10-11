@@ -265,7 +265,7 @@ function HRManagementReportCard({
           <Input type="date" value={period.to} onChange={event => onPeriodChange(current => ({ ...current, to: event.target.value }))} />
           <Button size="sm" variant="secondary" onClick={onReload}>Recalculează</Button>
           <Button size="sm" onClick={onDownload}>📊 Export Excel</Button>
-          <Button size="sm" onClick={onGenerateNotifications}>🔔 Generează notificări HR</Button>
+          {onGenerateNotifications ? <Button size="sm" onClick={onGenerateNotifications}>🔔 Generează notificări HR</Button> : null}
         </div>
       </div>
       {notificationResult ? (
@@ -373,7 +373,7 @@ function HRExpirationsCard({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={onReload}>Reîncarcă scadențe</Button>
-          <Button size="sm" onClick={onNotify}>🔔 Notifică HR critic</Button>
+          {onNotify ? <Button size="sm" onClick={onNotify}>🔔 Notifică HR critic</Button> : null}
         </div>
       </div>
       {notificationResult ? (
@@ -463,6 +463,10 @@ function HRExpirationNotificationsCard({
 }
 
 export default function HRDashboardPanel({
+  canReadDossier = false,
+  canReadManagement = false,
+  canManageLeaves = false,
+  canManageHr = false,
   stats,
   hrManagementPeriod,
   onHrManagementPeriodChange,
@@ -503,34 +507,34 @@ export default function HRDashboardPanel({
         onReloadLaborRegistryDiagnostic={onReloadLaborRegistryDiagnostic}
         onOpenLaborRegistryIssue={onOpenLaborRegistryIssue}
       />
-      <HRManagementReportCard
+      {canReadManagement ? <HRManagementReportCard
         period={hrManagementPeriod}
         onPeriodChange={onHrManagementPeriodChange}
         onReload={onLoadHrManagementReport}
         onDownload={onDownloadHrManagementReport}
-        onGenerateNotifications={onGenerateHrNotifications}
+        onGenerateNotifications={canManageHr ? onGenerateHrNotifications : null}
         notificationResult={hrNotificationResult}
         report={hrManagementReport}
-      />
-      <PendingLeavesCard
+      /> : null}
+      {canManageLeaves ? <PendingLeavesCard
         pendingLeaves={pendingLeaves}
         onApprove={onApproveLeave}
         onReject={onRejectLeave}
-      />
-      <HRExpirationsCard
+      /> : null}
+      {canReadDossier ? <HRExpirationsCard
         advancedExpirations={advancedExpirations}
         dashboardAlerts={dashboardAlerts}
         onReload={onLoadAdvancedExpirations}
-        onNotify={onNotifyAdvancedExpirations}
+        onNotify={canManageHr ? onNotifyAdvancedExpirations : null}
         notificationResult={expirationNoticeResult}
         onOpenEmployee={onOpenExpirationEmployee}
-      />
-      <HRExpirationNotificationsCard
+      /> : null}
+      {canManageHr ? <HRExpirationNotificationsCard
         notifications={expirationNotifications}
         onReload={onLoadExpirationNotifications}
         onOpenEmployee={onOpenExpirationEmployee}
         onResolve={onResolveExpirationNotification}
-      />
+      /> : null}
     </div>
   )
 }

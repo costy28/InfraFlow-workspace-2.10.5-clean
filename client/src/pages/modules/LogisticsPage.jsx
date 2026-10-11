@@ -7,6 +7,8 @@ import Input from "../../components/ui/Input";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import Select from "../../components/ui/Select";
+import { useAuth } from "../../hooks/useAuth";
+import { canAccess } from "../../lib/permission-access";
 
 const initialLine = { denumire: "", um: "buc", cantitate: "", cod_nc: "" };
 const initialDocument = {
@@ -201,6 +203,9 @@ function LineEditor({ lines, onChange }) {
 }
 
 export default function LogisticsPage() {
+  const { user } = useAuth();
+  const canManage = canAccess(user, "logistics:manage");
+  const canPrint = canAccess(user, ["logistics:print", "logistics:view"]);
   const [documents, setDocuments] = useState([]);
   const [trips, setTrips] = useState([]);
   const [context, setContext] = useState({
@@ -823,7 +828,7 @@ export default function LogisticsPage() {
     }
   }
 
-  const action =
+  const action = canManage ? (
     view === "trips" ? (
       <Button key="new-trip" onClick={() => openTrip()}>
         + Cursă nouă
@@ -832,13 +837,14 @@ export default function LogisticsPage() {
       <Button key="new-document" onClick={() => openDocument()}>
         + Document transport
       </Button>
-    );
+    )
+  ) : null;
   return (
     <div className="module-workspace logistics-workspace min-w-0 space-y-5">
       <PageHeader
         title="Logistică & Transport"
         subtitle="Planifică o cursă, alocă resursele, apoi creează și păstrează documentele de transport."
-        actions={[action]}
+        actions={action ? [action] : []}
       />
       <Card className="border-amber-200 bg-amber-50/60">
         <div className="text-sm text-amber-950">
@@ -1175,31 +1181,31 @@ export default function LogisticsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          {!item.plecare_efectiva && item.status !== "anulata" ? (
+                          {canManage && !item.plecare_efectiva && item.status !== "anulata" ? (
                             <Button size="sm" variant="secondary" onClick={() => openExecution(item, "start")}>
                               Plecare
                             </Button>
                           ) : null}
-                          {item.plecare_efectiva && !item.sosire_efectiva && item.status !== "anulata" ? (
+                          {canManage && item.plecare_efectiva && !item.sosire_efectiva && item.status !== "anulata" ? (
                             <Button size="sm" variant="secondary" onClick={() => openExecution(item, "arrival")}>
                               Sosire
                             </Button>
                           ) : null}
-                          <Button
+                          {canManage ? <Button
                             size="sm"
                             variant="secondary"
                             onClick={() => openDocument(null, item)}
                           >
                             Document
-                          </Button>
-                          <Button
+                          </Button> : null}
+                          {canManage ? <Button
                             size="sm"
                             variant="outline"
                             onClick={() => openEvidence(item)}
                           >
                             Dovadă
-                          </Button>
-                          {item.status !== "anulata" ? (
+                          </Button> : null}
+                          {canManage && item.status !== "anulata" ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -1208,7 +1214,7 @@ export default function LogisticsPage() {
                               Stoc
                             </Button>
                           ) : null}
-                          {item.status !== "anulata" ? (
+                          {canManage && item.status !== "anulata" ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -1217,7 +1223,7 @@ export default function LogisticsPage() {
                               GPS
                             </Button>
                           ) : null}
-                          {item.status !== "anulata" ? (
+                          {canManage && item.status !== "anulata" ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -1226,14 +1232,14 @@ export default function LogisticsPage() {
                               RO e-Transport
                             </Button>
                           ) : null}
-                          <Button
+                          {canManage ? <Button
                             size="sm"
                             variant="outline"
                             onClick={() => openTrip(item)}
                           >
                             Editează
-                          </Button>
-                          {item.status !== "anulata" ? (
+                          </Button> : null}
+                          {canManage && item.status !== "anulata" ? (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1325,21 +1331,21 @@ export default function LogisticsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          <Button
+                          {canPrint ? <Button
                             size="sm"
                             variant="secondary"
                             onClick={() => printDocument(item)}
                           >
                             Tipărește
-                          </Button>
-                          <Button
+                          </Button> : null}
+                          {canManage ? <Button
                             size="sm"
                             variant="outline"
                             onClick={() => openDocument(item)}
                           >
                             Editează
-                          </Button>
-                          {item.status !== "anulat" ? (
+                          </Button> : null}
+                          {canManage && item.status !== "anulat" ? (
                             <Button
                               size="sm"
                               variant="ghost"

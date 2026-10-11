@@ -2,13 +2,13 @@ import Button from '../../../components/ui/Button'
 
 export const ALL_HR_TABS = [
   { id: 'Dashboard HR',       perm: 'hr:view' },
-  { id: 'Inbox HR',           perm: 'hr:view' },
+  { id: 'Inbox HR',           perm: 'hr:view', allPerm: ['hr:personal_sensitive', 'hr:medical_view'] },
   { id: 'Angajați',           perm: 'hr:employees_manage' },
-  { id: 'Pontaj',             perm: 'hr:timesheets_view' },
+  { id: 'Pontaj',             perm: 'hr:timesheets_view', anyPerm: ['hr:timesheet', 'hr:timesheet_dept', 'hr:timesheets_manage'] },
   { id: 'Pontaj Avansat',     perm: 'hr:timesheets_view' },
   { id: 'Ture & Program',     perm: 'hr:timesheets_view' },
   { id: 'Tichete masă',       perm: 'hr:manage' },
-  { id: 'Overview pontaje',   perm: 'hr:timesheets_manage' },
+  { id: 'Overview pontaje',   perm: 'hr:timesheet_approve' },
   { id: 'Concedii',           perm: 'hr:leave_manage' },
   { id: 'Autorizații',        perm: 'hr:authorizations_manage' },
   { id: '🦺 Echipamente',      perm: 'echipamente:gestionar', fallbackPerm: 'hr:view' },
@@ -19,7 +19,7 @@ export const ALL_HR_TABS = [
 
 export function getVisibleHrTabs(hasPerm) {
   return ALL_HR_TABS
-    .filter(tab => hasPerm(tab.perm) || (tab.fallbackPerm && hasPerm(tab.fallbackPerm)))
+    .filter(tab => (hasPerm(tab.perm) || (tab.fallbackPerm && hasPerm(tab.fallbackPerm)) || tab.anyPerm?.some(hasPerm)) && (!tab.allPerm || tab.allPerm.every(hasPerm)))
     .map(tab => tab.id)
 }
 
