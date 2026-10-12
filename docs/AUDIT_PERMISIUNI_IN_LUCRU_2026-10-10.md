@@ -3,6 +3,26 @@
 Acest document nu certifică închiderea auditului și nu reprezintă o versiune livrată.
 Modificările sunt locale; instalațiile active nu au fost actualizate sau repornite.
 
+## Kiosk HR — identitate MSSQL și resetare protejată — 12 octombrie
+
+- Activarea, loginul, solicitarea de resetare, profilul propriu și identificarea pentru foile de parcurs citesc acum angajatul activ din `hr.employees` când providerul relațional este activ; nu mai depind de copia angajatului din snapshot-ul JSON.
+- Loginul Kiosk refuză un cont a cărui fișă de angajat a fost dezactivată. Profilul propriu citește din MSSQL pontajele lunii, concediile și autorizațiile angajatului autentificat, păstrând sanitizarea pentru acces propriu.
+- Confirmarea resetării este limitată după trei combinații greșite, la fel ca activarea/loginul. Codurile noi nu mai dublează CNP-ul în stocarea temporară; codurile vechi care conțin CNP rămân compatibile până la expirare.
+- Solicitarea de resetare notifică numai conturile HR active. Regresia izolată a trecut cu 80 teste active și un test SQL opțional omis.
+- Proba SQL Server reală a trecut pe baza sintetică păstrată `INFRAFLOW_TEST_HR_7FA0231190A9`, inclusiv activare Kiosk, login, refuz după dezactivarea angajatului și profil relațional cu pontaj și autorizație.
+- Baza intermediară `INFRAFLOW_TEST_HR_A2C892EA1DAE` este păstrată: a expus că fixture-ul vechi nu reproducea coloana oficială `created_at` din `hr.leave_requests`; fixture-ul a fost aliniat la migrarea existentă.
+- Credencialele Kiosk rămân în stocarea aplicației în această etapă; mutarea lor cere o migrare versionată separată. Sincronizarea offline și cererile Kiosk rămân de verificat relațional în lotul următor.
+- Nu s-au făcut deployment, restart, versiune nouă sau pachete și nu a fost atinsă instalația activă.
+
+## Depunere pontaj cu notificare persistentă — 12 octombrie
+
+- Finalizarea pontajului de departament creează acum aceeași notificare persistentă pentru HR atât în JSON, cât și în MSSQL, emite evenimentul live și deschide direct `/hr?section=overview`.
+- Conturile HR inactive sunt excluse, luna este validată strict înainte de scriere, iar controlul existent pentru departamentul propriu sau administrarea globală rămâne neschimbat.
+- Regresia izolată a trecut cu 77 teste active și un test SQL opțional omis. Proba SQL Server reală a trecut pe baza sintetică păstrată `INFRAFLOW_TEST_HR_B4A58BF27210`.
+- Baza intermediară `INFRAFLOW_TEST_HR_86EF5E8F2394` este păstrată: a expus doar o aserțiune veche care amesteca notificările de depunere cu reminderele; filtrul testului a fost restrâns la tipul verificat.
+- Fluxul HTTP/browser cu autentificare reală a confirmat depunerea, notificarea superadminului, respingerea lunii invalide și deschiderea tabului „Overview pontaje”. Capturile și baza JSON izolată sunt păstrate în `C:\Users\costy\AppData\Local\Temp\infraflow-hr-http-auudok`, inclusiv `timesheet-overview-deep-link-real-api.png`.
+- Nu s-au făcut deployment, restart, versiune nouă sau pachete și nu a fost atinsă instalația activă.
+
 ## Remindere pontaj persistente în MSSQL — 12 octombrie
 
 - Ruta de reminder nu mai întoarce artificial `sent: 0` în modul relațional. Destinatarii sunt angajații activi cu utilizator activ asociat, grupați pe departamente active care nu au pontajul marcat `finalizat` pentru luna cerută.
@@ -10,7 +30,8 @@ Modificările sunt locale; instalațiile active nu au fost actualizate sau repor
 - Pentru fiecare destinatar se creează o notificare persistentă în aplicație, se emite evenimentul live și se încearcă separat emailul de pe fișa angajatului. Un eșec SMTP nu anulează notificarea; răspunsul diferențiază `sent` de `emailed`.
 - Notificarea deschide `/hr?section=pontaj`; pagina HR interpretează acum parametrul și deschide direct tabul permis, cu fallback la primul tab accesibil.
 - Regresia politicii a trecut 10/10, regresia rutelor JSON 66/66 cu testul SQL opțional omis, build-ul React a trecut în `.permission-build-check-5`, iar proba SQL reală a trecut pe `INFRAFLOW_TEST_HR_E97127704B39` cu doi destinatari și două notificări persistente.
-- Baza sintetică este păstrată pentru audit. Nu s-au făcut deployment, restart, versiune nouă sau pachete; livrarea SMTP reală și click-ul într-un browser autentificat nu au fost testate pe instalația activă.
+- Verificarea reală HTTP/browser a trecut cu autentificare pe rol dedicat pontajului: aria proprie, overview-ul global, reminderul persistent, refuzul lunii invalide și deep-link-ul spre tabul Pontaj au fost confirmate. Capturile și baza JSON izolată sunt păstrate în `C:\Users\costy\AppData\Local\Temp\infraflow-hr-http-ds0Gyf`, inclusiv `timesheet-deep-link-real-api.png`.
+- Baza SQL sintetică este păstrată pentru audit. Nu s-au făcut deployment, restart, versiune nouă sau pachete; livrarea SMTP reală nu a fost testată pe instalația activă.
 
 ## Pontaj pe departament în MSSQL — 11 octombrie
 
@@ -458,6 +479,113 @@ iar componentele nu afișează acțiuni fără callback autorizat.
 Verificare locală: 86 teste trecute, 0 eșecuri; build Vite reușit în directorul
 temporar `.permission-build-check-3`. Aceste verificări nu înlocuiesc proba
 HTTP/UI cu roluri reale și proba MSSQL izolată. Nu s-a făcut deploy sau restart.
+
+### Kiosk HR — sincronizare offline concedii
+
+Sincronizarea nu mai acceptă identitatea angajatului din payload pentru un cont
+Kiosk sau un utilizator cu acces propriu: angajatul este rezolvat server-side din
+sesiunea curentă și reverificat ca activ la fiecare lot. Un token rămas deschis nu
+mai poate crea cereri după dezactivarea angajatului. Administratorii HR păstrează
+posibilitatea existentă de a lucra pentru un angajat indicat, dar numai dacă acesta
+există și este activ.
+
+UUID-ul unei cereri existente este idempotent numai pentru același angajat; un UUID
+aparținând altei persoane produce un refuz generic, fără revendicare sau divulgarea
+cererii. Un lot este limitat la 100 de operațiuni, iar loturile fără inserări nu mai
+produc scrieri inutile în app_state. Încărcarea și descărcarea documentelor medicale
+reverifică de asemenea angajatul activ înainte de accesul la certificat sau storage.
+Verificări: 74/74 teste JSON active trecute și 75/75 teste trecute pe SQL Server real
+în baza sintetică izolată `INFRAFLOW_TEST_HR_6B39C4C57ED1`, păstrată pentru inspecție.
+Fluxul HTTP real cu autentificare Kiosk a trecut separat pe provider JSON izolat:
+activare, login, identitate server-side, repetare idempotentă, limită de lot și refuz
+după dezactivarea angajatului. Datele probei sunt păstrate în
+`C:\Users\costy\AppData\Local\Temp\infraflow-hr-http-Drzdwc`. Nu s-a făcut deploy,
+restart, versiune sau pachet de update.
+
+### Kiosk HR — certificat medical și storage
+
+Autentificarea Kiosk rulează înaintea parserului multipart, iar fișierele declarate
+PDF/JPEG/PNG sunt validate și după semnătura binară. Numele original folosit la
+download este neutralizat, iar numele intern acceptă strict forma UUID plus extensia
+permisă și trebuie să rămână în directorul angajatului. Suprapunerea concediilor este
+verificată înainte de scrierea pe disk. Dacă tranzacția MSSQL eșuează după scriere,
+fișierul temporar este șters și tranzacția nu lasă cererea sau certificatul parțial.
+
+Verificări: 79/79 teste JSON active trecute; 80/80 teste pe SQL Server real în baza
+sintetică izolată `INFRAFLOW_TEST_HR_1D188EAA8F84`, inclusiv inserare validă și
+rollback provocat controlat. Regresiile generale HR sunt 20/20, politica centrală de
+permisiuni 3/3, iar auditul de expunere a analizat 387 fișiere cu 0 constatări.
+Uploadul HTTP multipart real nu a fost executat deoarece storage-ul acelei rute nu
+este încă izolat de workspace. Nu s-a făcut deploy, restart, versiune sau pachet.
+
+### Kiosk HR — curse, task-uri și dovezi
+
+Cursele, profilul Kiosk și acțiunile pe task-uri reverifică la fiecare cerere
+angajatul relațional activ asociat sesiunii. Un token rămas deschis nu mai poate
+citi profilul sau cursele și nu mai poate modifica task-uri după dezactivarea
+angajatului. Task-ul poate fi actualizat numai dacă utilizatorul ERP activ asociat
+angajatului este destinatarul lui; identitatea din payload nu este folosită.
+
+Autentificarea pentru dovezile de task rulează înaintea parserului multipart.
+PDF/JPEG/PNG sunt validate și după semnătura binară, iar fișierul intern primește
+un UUID independent de ID-ul task-ului și de numele încărcat. Dacă persistarea
+eșuează, statusul, comentariul și atașamentul revin la starea inițială, iar fișierul
+temporar sau mutat este șters.
+
+Verificări: 86/86 teste JSON active trecute, cu testul SQL opțional omis implicit;
+87/87 teste trecute pe SQL Server real în baza sintetică izolată
+`INFRAFLOW_TEST_HR_1384699CF7E4`, păstrată pentru inspecție. Proba SQL include
+task propriu, refuzul task-ului străin și invalidarea imediată după dezactivarea
+angajatului. Regresia generală HR este 20/20, politica centrală de permisiuni 3/3,
+iar auditul de expunere a analizat 387 fișiere cu 0 constatări. Verificările de
+sintaxă și `git diff --check` au trecut. Fluxul HTTP real pe provider JSON izolat a
+confirmat profilul și task-ul propriu, refuzul task-ului străin, apoi blocarea
+profilului, curselor și actualizării task-ului după dezactivarea angajatului. Nu s-a
+făcut deploy, restart, versiune sau pachet de update.
+
+### UI HR — roluri restrictive și încărcare contextuală
+
+Frontendul curent a fost reconstruit și verificat în browser împotriva unui API
+real izolat pentru patru roluri: pontaj propriu, vizualizare HR, instruiri și
+instruiri cu acces la date personale. Listele rămân filtrate, CRM este blocat,
+scadențarul nominal nu este cerut fără dreptul personal, iar evaluările și
+acțiunile lor nu apar fără combinația de permisiuni necesară.
+
+Inspecția capturilor a identificat un apel inutil la lista angajaților pentru rolul
+dedicat exclusiv instruirilor. Serverul îl refuza corect, dar interfața afișa o
+alertă roșie generică deși pagina autorizată funcționa. Încărcarea listei este acum
+condiționată de unul dintre drepturile acceptate de ruta serverului, iar regresia
+browser verifică atât absența apelului neautorizat, cât și absența alertei false.
+
+Build-ul Vite curent a trecut în `.permission-build-check-7`. Fluxul browser/API,
+instruirile, pontajul și Kiosk au trecut fără erori JavaScript; capturile probei
+sunt păstrate în `C:\Users\costy\AppData\Local\Temp\infraflow-hr-http-CI3ZCq`.
+Nu s-a făcut deploy, restart, versiune sau pachet de update.
+
+### HR — administrarea operațională a angajaților
+
+Dreptul dedicat `hr:employees_manage` este aliniat între meniu, listă, fișa
+angajatului și server. Rolul poate lista și deschide toate fișele necesare pentru
+administrarea operațională, precum și folosi acțiunea „Angajat nou”, fără să primească
+implicit acces la CNP, adresă, salariu, cost orar sau observațiile libere din contract.
+Aceste date rămân condiționate separat de `hr:personal_sensitive` și
+`hr:salary_view`. Sanitizarea observațiilor contractuale este centralizată în aceeași
+politică folosită de răspunsurile JSON și MSSQL. În fișa angajatului, taburile,
+rezumatele și cererile pentru Contracte, Pontaj, Dosar, Kiosk, Flux și Echipamente
+sunt construite numai din drepturile efective. Dreptul de autoservire
+`kiosk:documents_own` afișează adeverința numai pe profilul propriu și nu devine
+acces la adeverința colegului.
+
+Verificări: 88/88 teste JSON active trecute, cu testul SQL opțional omis implicit;
+89/89 teste trecute pe SQL Server real în baza sintetică izolată
+`INFRAFLOW_TEST_HR_CDF699A34205`, păstrată pentru inspecție. Fluxul HTTP/browser cu
+cinci roluri a trecut fără erori JavaScript, iar captura managerului după încărcarea
+completă a fișei este păstrată în
+`C:\Users\costy\AppData\Local\Temp\infraflow-hr-http-MlBl3R`.
+Build-ul Vite curent a trecut în `.permission-build-check-12`. Regresiile generale
+HR sunt 20/20, politica centrală de permisiuni 3/3, iar auditul de expunere a
+analizat 387 fișiere cu 0 constatări. Nu s-a făcut deploy,
+restart, versiune sau pachet de update.
 
 1. Revizuire finală a tuturor rutelor HR rămase, inclusiv ajustări bancă de ore,
    documente medicale, fișiere, rapoarte și drepturile administrative distincte.

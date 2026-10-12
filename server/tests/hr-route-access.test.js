@@ -22,17 +22,45 @@ function fixture(options = {}) {
   let writes = 0
   let storageChecks = 0
   let photoDownloads = 0
+  let medicalWrites = 0
+  let medicalDeletes = 0
+  let medicalDownloads = 0
+  const medicalFiles = new Map()
+  let taskRenames = 0
+  let taskDeletes = 0
+  const taskFiles = new Map()
+  if (options.taskFile?.path) taskFiles.set(String(options.taskFile.path), Buffer.from(options.taskFile.buffer || ''))
+  let kioskFailures = 0
+  let kioskBlocked = false
   const headers = {}
   vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
     module: { exports: {} }, __dirname: path.dirname(filename), console, Buffer, process,
     require(name) {
-      if (name === 'fs' && options.photo) return { ...fs, existsSync() { storageChecks++; return true } }
+      if (name === 'fs' && (options.photo || options.medicalFs || options.taskFs)) return {
+        ...fs,
+        mkdirSync(target, settings) { if (!options.medicalFs && !options.taskFs) return fs.mkdirSync(target, settings) },
+        writeFileSync(target, value) { if (!options.medicalFs) return fs.writeFileSync(target, value); medicalWrites++; medicalFiles.set(String(target), Buffer.from(value)) },
+        readFileSync(target, settings) { if (options.taskFs && taskFiles.has(String(target))) return taskFiles.get(String(target)); return fs.readFileSync(target, settings) },
+        renameSync(source, target) { if (!options.taskFs) return fs.renameSync(source, target); const value = taskFiles.get(String(source)); if (!value) throw new Error('Fișier temporar lipsă'); taskFiles.delete(String(source)); taskFiles.set(String(target), value); taskRenames++ },
+        unlinkSync(target) { if (options.taskFs && taskFiles.has(String(target))) { taskDeletes++; taskFiles.delete(String(target)); return }; if (!options.medicalFs) return fs.unlinkSync(target); medicalDeletes++; medicalFiles.delete(String(target)) },
+        existsSync(target) { if (options.taskFs && taskFiles.has(String(target))) return true; if (options.medicalFs && String(target).includes('hr-medical-leaves')) return medicalFiles.has(String(target)); storageChecks++; return true },
+      }
       if (name === 'express') return { Router: () => router }
-      if (name === '../../core/auth') return { requireAuth: () => auth }
-      if (name === '../../core/db') return { DB_MODE: options.sql ? 'mssql' : 'json', MSSQL_RELATIONAL_MODE: Boolean(options.sql), runMssqlScalar: options.sql, readDb: () => db, writeDb: () => { writes++ } }
+      if (name === '../../core/auth') return { requireAuth: (req, res) => { if (!options.noAuth) return auth; res.status(401).json({ error: 'Autentificare necesară.' }); return null } }
+      if (name === '../../core/db') return { DB_MODE: options.sql ? 'mssql' : 'json', MSSQL_RELATIONAL_MODE: Boolean(options.sql), runMssqlScalar: options.sql, readDb: () => db, writeDb: () => { if (options.writeError) throw new Error('Scriere simulată eșuată'); writes++ } }
       if (name === '../../core/audit') return { addAudit() {} }
       if (name === '../messaging/routes') return { notifyUser() {}, createDepartmentChannel() {} }
       if (name === '../messaging/email') return { sendEmail() {} }
+      if (name === '../../core/kiosk-sessions') return {
+        clientIp: () => 'test-kiosk-ip',
+        isBlocked: () => kioskBlocked,
+        recordFailure: () => { kioskFailures += 1; if (kioskFailures >= 3) kioskBlocked = true },
+        clearLimit: () => { kioskFailures = 0; kioskBlocked = false },
+        createSession: () => 'test-kiosk-token',
+        requireKioskAuth: (req, res) => { if (options.kioskSession) return options.kioskSession; res.status(401).json({ error: 'Autentificare Kiosk necesară.' }); return null },
+        getSession: () => options.kioskSession || null,
+        tokenFromRequest: () => 'test-kiosk-token',
+      }
       if (name === './payroll-routes') return {}
       return localRequire(name)
     },
@@ -42,9 +70,9 @@ function fixture(options = {}) {
     let code; let continued = false
     firstHandlers.get(route)({ params }, { status(value) { code = value; return this }, json() {}, writeHead(value) { code = value }, end() {} }, error => { if (error) throw error; continued = true })
     return { code, continued }
-  }, storageChecks: () => storageChecks, photoDownloads: () => photoDownloads, writes: () => writes, async invoke(route, body = {}, query = {}, params = {}) {
+  }, storageChecks: () => storageChecks, photoDownloads: () => photoDownloads, medicalWrites: () => medicalWrites, medicalDeletes: () => medicalDeletes, medicalDownloads: () => medicalDownloads, medicalFiles, taskRenames: () => taskRenames, taskDeletes: () => taskDeletes, taskFiles, writes: () => writes, kioskFailures: () => kioskFailures, kioskBlocked: () => kioskBlocked, async invoke(route, body = {}, query = {}, params = {}) {
     let code; let data; let error
-    await handlers.get(route)({ body, query, params }, { status(value) { code = value; return this }, json(value) { data = value }, send(value) { data = value }, writeHead(value) { code = value }, end(value) { if (value) data = Buffer.isBuffer(value) ? value : JSON.parse(value) }, setHeader(key, value) { headers[key] = value }, sendFile() { photoDownloads++ } }, value => { error = value })
+    await handlers.get(route)({ body, query, params, file: options.taskFile || options.medicalFile, hrKioskAuth: options.preAuthenticated ? auth : undefined }, { status(value) { code = value; return this }, json(value) { data = value }, send(value) { data = value }, writeHead(value) { code = value }, end(value) { if (value) data = Buffer.isBuffer(value) ? value : JSON.parse(value) }, setHeader(key, value) { headers[key] = value }, sendFile() { photoDownloads++ }, download(filePath, fileName) { medicalDownloads++; data = { filePath, fileName } } }, value => { error = value })
     if (error) throw error
     return { code, data }
   } }
@@ -54,6 +82,60 @@ test('rutele HR relaționale execută SQL real într-o bază sintetică izolată
   const { createSqlFixture } = require('./support/hr-sql-fixture')
   const sql = createSqlFixture()
   const f = fixture({ sql })
+  const activatedKiosk = await f.invoke('post /hr/kiosk/activate', { cnp: 'secret1', act_tip: 'CI', act_serie: 'NT', act_numar: '111111', functia: 'operator', username: 'operator.sql', password: 'Parola-test-1' })
+  assert.equal(activatedKiosk.code, 201)
+  assert.equal((await f.invoke('post /hr/kiosk/login', { username: 'operator.sql', password: 'Parola-test-1' })).code, 200)
+  sql('UPDATE hr.employees SET activ=0 WHERE id=1; SELECT 1;')
+  assert.equal((await f.invoke('post /hr/kiosk/login', { username: 'operator.sql', password: 'Parola-test-1' })).code, 401)
+  const inactiveKioskFixture = fixture({ sql, kioskSession: { employee_id: 1, username: 'operator.sql' } })
+  assert.equal((await inactiveKioskFixture.invoke('get /hr/medical-leaves/:uuid/document', {}, {}, { uuid: '00000000-0000-0000-0000-000000000001' })).code, 401)
+  sql('UPDATE hr.employees SET activ=1 WHERE id=1; SELECT 1;')
+  const medicalBody = { serie: 'NT', numar: 'SQL-1', data_acordarii: '2026-12-01', data_start: '2026-12-01', data_sfarsit: '2026-12-02', cod_indemnizatie: '01', medic_nume: 'Medic SQL', cod_parafa: 'P-SQL', unitate_emitenta: 'Unitate SQL' }
+  const sqlMedicalFixture = fixture({ sql, kioskSession: { employee_id: 1, username: 'operator.sql' }, medicalFs: true, medicalFile: { mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7 SQL'), originalname: '../certificat-sql.pdf', size: 12 } })
+  const sqlMedical = await sqlMedicalFixture.invoke('post /hr/kiosk/medical-leave', medicalBody)
+  assert.equal(sqlMedical.code, 201)
+  assert.equal(sqlMedicalFixture.medicalWrites(), 1)
+  assert.equal(sqlMedicalFixture.medicalDeletes(), 0)
+  assert.equal(sql("SELECT COUNT(*) FROM hr.medical_leave_certificates WHERE employee_id=1 AND numar=N'SQL-1';").trim(), '1')
+  const failedMedicalFixture = fixture({ sql, kioskSession: { employee_id: 1, username: 'operator.sql' }, medicalFs: true, medicalFile: { mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7 SQL fail'), originalname: 'invalid.pdf', size: 17 } })
+  await assert.rejects(failedMedicalFixture.invoke('post /hr/kiosk/medical-leave', { ...medicalBody, serie: 'X'.repeat(40), numar: 'SQL-FAIL', data_start: '2026-12-10', data_sfarsit: '2026-12-10' }))
+  assert.equal(failedMedicalFixture.medicalWrites(), 1)
+  assert.equal(failedMedicalFixture.medicalDeletes(), 1)
+  assert.equal(sql("SELECT COUNT(*) FROM hr.leave_requests WHERE motiv IS NULL AND data_start='2026-12-10';").trim(), '0')
+  assert.equal(sql("SELECT COUNT(*) FROM hr.medical_leave_certificates WHERE numar=N'SQL-FAIL';").trim(), '0')
+  const kioskProfileFixture = fixture({ sql, kioskSession: { employee_id: 1, username: 'operator.sql' } })
+  const kioskProfile = await kioskProfileFixture.invoke('get /hr/kiosk/me')
+  assert.equal(kioskProfile.code, 200)
+  assert.equal(kioskProfile.data.angajat.id, 1)
+  assert.equal(kioskProfile.data.pontaj_luna.ore_total, 10)
+  assert.equal(kioskProfile.data.autorizatii.length, 1)
+  const kioskSync = await kioskProfileFixture.invoke('post /hr/kiosk/sync', { operations: [{ id: 'sql-kiosk-own', type: 'leave_request', data: { uuid: 'sql-kiosk-own', employee_id: 2, tip: 'CO', data_start: '2026-11-02', data_sfarsit: '2026-11-02' } }] })
+  assert.equal(kioskSync.code, 200)
+  assert.equal(kioskSync.data.synced.length, 1)
+  assert.equal(sql("SELECT employee_id FROM hr.leave_requests WHERE uuid='sql-kiosk-own';").trim(), '1')
+  assert.equal((await kioskProfileFixture.invoke('post /hr/kiosk/sync', { operations: [{ id: 'sql-kiosk-own', type: 'leave_request', data: { uuid: 'sql-kiosk-own', employee_id: 2, tip: 'CO', data_start: '2026-11-02', data_sfarsit: '2026-11-02' } }] })).data.synced[0].duplicate, true)
+  kioskProfileFixture.db.users = [{ id: 'u1', active: true, employee_id: 1 }]
+  kioskProfileFixture.db.taskManagement = {
+    tasks: [{ id: 'sql-task-own', assigned_to: 'u1', status: 'open' }, { id: 'sql-task-other', assigned_to: 'u2', status: 'open' }],
+    comments: [],
+    attachments: [],
+  }
+  const sqlOwnTask = await kioskProfileFixture.invoke('patch /hr/kiosk/tasks/:id', { status: 'done', note: 'Finalizat SQL' }, {}, { id: 'sql-task-own' })
+  assert.equal(sqlOwnTask.code, 200)
+  assert.equal(kioskProfileFixture.db.taskManagement.tasks[0].status, 'done')
+  assert.equal(kioskProfileFixture.db.taskManagement.comments.length, 1)
+  assert.equal((await kioskProfileFixture.invoke('patch /hr/kiosk/tasks/:id', { status: 'done' }, {}, { id: 'sql-task-other' })).code, 404)
+  assert.equal(kioskProfileFixture.db.taskManagement.tasks[1].status, 'open')
+  sql('UPDATE hr.employees SET activ=0 WHERE id=1; SELECT 1;')
+  const inactiveSync = await kioskProfileFixture.invoke('post /hr/kiosk/sync', { operations: [{ id: 'sql-kiosk-inactive', type: 'leave_request', data: { uuid: 'sql-kiosk-inactive', employee_id: 1, tip: 'CO', data_start: '2026-11-03', data_sfarsit: '2026-11-03' } }] })
+  assert.equal(inactiveSync.data.synced.length, 0)
+  assert.match(inactiveSync.data.failed[0].error, /nu este activ/i)
+  assert.equal(sql("SELECT COUNT(*) FROM hr.leave_requests WHERE uuid='sql-kiosk-inactive';").trim(), '0')
+  const inactiveSqlTask = await kioskProfileFixture.invoke('patch /hr/kiosk/tasks/:id', { status: 'in_progress' }, {}, { id: 'sql-task-own' })
+  assert.equal(inactiveSqlTask.code, 401)
+  assert.equal(inactiveSqlTask.data.code, 'HR_KIOSK_EMPLOYEE_INACTIVE')
+  assert.equal(kioskProfileFixture.db.taskManagement.tasks[0].status, 'done')
+  sql('UPDATE hr.employees SET activ=1 WHERE id=1; SELECT 1;')
   f.db.settings.customRoles[0].permissions = ['hr:view_own']
   const own = await f.invoke('get /hr/employees')
   assert.equal(own.code, 200)
@@ -64,6 +146,19 @@ test('rutele HR relaționale execută SQL real într-o bază sintetică izolată
   const colleague = colleagues.data.find(row => row.id === 2)
   assert.equal(colleague.cnp, undefined)
   assert.equal(colleague.salariu_baza, undefined)
+  f.db.settings.customRoles[0].permissions = ['hr:employees_manage']
+  const managedEmployees = await f.invoke('get /hr/employees')
+  assert.equal(managedEmployees.code, 200)
+  assert.equal(managedEmployees.data.length, 2)
+  assert.equal(managedEmployees.data.find(row => row.id === 2).cnp, undefined)
+  assert.equal(managedEmployees.data.find(row => row.id === 2).salariu_baza, undefined)
+  const managedEmployee = await f.invoke('get /hr/employees/:id', {}, {}, { id: 2 })
+  assert.equal(managedEmployee.code, 200)
+  assert.equal(managedEmployee.data.id, 2)
+  assert.equal(managedEmployee.data.cnp, undefined)
+  assert.equal(managedEmployee.data.salariu_baza, undefined)
+  assert.equal(managedEmployee.data.contracte_active[0].salariu_baza, undefined)
+  f.db.settings.customRoles[0].permissions = ['hr:view']
   const mealTickets = await f.invoke('get /hr/meal-tickets', {}, { luna: '2026-10' })
   const colleagueMealTickets = mealTickets.data.rows.find(row => row.employee_id === 2)
   assert.equal(colleagueMealTickets.zile_lucrate, 2)
@@ -110,6 +205,14 @@ test('rutele HR relaționale execută SQL real într-o bază sintetică izolată
   assert.equal(departmentTimesheets.data.pontaje.length, 4)
   assert.equal(departmentTimesheets.data.status.status, 'finalizat')
   assert.equal(departmentTimesheets.data.employees.find(employee => employee.id === 2).cnp, undefined)
+  f.db.users = [{ id: 'hr1', role: 'hr', active: true }]
+  assert.equal((await f.invoke('post /hr/timesheets/submit-department', { luna: '2026-13', department_cod: 'd1' })).code, 422)
+  const submittedDepartment = await f.invoke('post /hr/timesheets/submit-department', { luna: '2026-10', department_cod: 'd1', status: 'finalizat' })
+  assert.equal(submittedDepartment.code, 200)
+  assert.equal(submittedDepartment.data.status, 'finalizat')
+  assert.equal(sql("SELECT status FROM hr.timesheet_departments WHERE luna='2026-10' AND department_cod='D1';").trim(), 'finalizat')
+  assert.equal(f.db.notifications.filter(item => item.type === 'hr_timesheet_submitted').length, 1)
+  assert.equal(f.db.notifications.find(item => item.type === 'hr_timesheet_submitted').target_view, '/hr?section=overview')
   f.db.settings.customRoles[0].permissions = ['hr:timesheet_approve', 'hr:timesheet_dept']
   const overview = await f.invoke('get /hr/timesheets/overview', {}, { luna: '2026-10' })
   assert.equal(overview.code, 200)
@@ -123,7 +226,7 @@ test('rutele HR relaționale execută SQL real într-o bază sintetică izolată
   assert.equal(sqlReminder.data.sent, 2)
   assert.equal(sqlReminder.data.emailed, 2)
   assert.equal(f.db.notifications.filter(item => item.type === 'hr_timesheet_reminder').length, 2)
-  assert.deepEqual(Array.from(f.db.notifications, item => item.user_id).sort(), ['u1', 'u2'])
+  assert.deepEqual(Array.from(f.db.notifications.filter(item => item.type === 'hr_timesheet_reminder'), item => item.user_id).sort(), ['u1', 'u2'])
   f.db.settings.customRoles[0].permissions = ['hr:employees_manage']
   const transfer = await f.invoke('post /hr/employees/:id/transfer', { department_nou: '2' }, {}, { id: 2 })
   assert.equal(transfer.code, 200)
@@ -560,6 +663,38 @@ test('dreptul dedicat angajaților permite editarea operațională fără admini
   assert.equal(f.db.hr.employees[1].adresa, 'Secret')
 })
 
+test('dreptul dedicat angajaților listează toate fișele fără date sensibile', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:employees_manage']
+  f.db.hr.employees[1].cnp = 'secret-coleg'
+  f.db.hr.employees[1].adresa = 'Adresă secretă'
+  f.db.hr.employees[1].salariu_baza = 7000
+  const result = await f.invoke('get /hr/employees')
+  assert.equal(result.code, 200)
+  assert.deepEqual(Array.from(result.data, employee => employee.id), [1, 2])
+  assert.equal(result.data[1].cnp, undefined)
+  assert.equal(result.data[1].adresa, undefined)
+  assert.equal(result.data[1].salariu_baza, undefined)
+  assert.equal(f.writes(), 0)
+})
+
+test('dreptul dedicat angajaților deschide fișa operațională fără date sensibile', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:employees_manage']
+  f.db.hr.employees[1].cnp = 'secret-coleg'
+  f.db.hr.employees[1].adresa = 'Adresă secretă'
+  f.db.hr.contracts = [{ id: 2, employee_id: 2, status: 'activ', salariu_baza: 7000, observatii: 'Secret salarial' }]
+  const result = await f.invoke('get /hr/employees/:id', {}, {}, { id: 2 })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.id, 2)
+  assert.equal(result.data.cnp, undefined)
+  assert.equal(result.data.adresa, undefined)
+  assert.equal(result.data.salariu_baza, undefined)
+  assert.equal(result.data.contracte_active[0].salariu_baza, undefined)
+  assert.equal(result.data.contracte_active[0].observatii, undefined)
+  assert.equal(f.writes(), 0)
+})
+
 test('editarea sensibilă autorizată păstrează actualizarea normală', async () => {
   const f = fixture()
   f.db.settings.customRoles[0].permissions = ['hr:employees_manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view']
@@ -922,6 +1057,248 @@ test('reminderul pontajului persistă notificări doar pentru utilizatorii activ
   assert.equal(f.db.notifications[0].target_view, '/hr?section=pontaj')
   assert.equal(f.writes(), 1)
   assert.equal((await f.invoke('post /hr/timesheets/send-reminder', { luna: '2026-13' })).code, 422)
+})
+
+test('finalizarea pontajului persistă notificarea HR și exclude conturile inactive', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:timesheet', 'hr:timesheet_dept']
+  f.auth.user.department_id = 'd1'
+  f.db.users = [
+    { id: 'hr-active', role: 'hr', active: true },
+    { id: 'hr-inactive', role: 'hr', active: false },
+  ]
+  assert.equal((await f.invoke('post /hr/timesheets/submit-department', { luna: '2026-13', department_cod: 'd1' })).code, 422)
+  assert.equal(f.writes(), 0)
+  const result = await f.invoke('post /hr/timesheets/submit-department', { luna: '2026-10', department_cod: 'd1', status: 'finalizat' })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.status, 'finalizat')
+  assert.equal(f.db.notifications.length, 1)
+  assert.equal(f.db.notifications[0].user_id, 'hr-active')
+  assert.equal(f.db.notifications[0].target_view, '/hr?section=overview')
+  assert.equal(f.writes(), 1)
+})
+
+test('resetarea Kiosk nu dublează CNP-ul și notifică doar conturile HR active', async () => {
+  const f = fixture()
+  Object.assign(f.db.hr.employees[0], { cnp: '1234567890123', act_identitate_serie: 'NT', act_identitate_numar: '123456', functia: 'Operator' })
+  f.db.hr.kioskUsers = [{ id: 1, employee_id: 1, username: 'operator', passwordHash: 'existent', activ: true }]
+  f.db.users = [{ id: 'hr-active', role: 'hr', active: true }, { id: 'hr-inactive', role: 'hr', active: false }]
+  const result = await f.invoke('post /hr/kiosk/reset-request', { cnp: '1234567890123', act_serie: 'NT', act_numar: '123456' })
+  assert.equal(result.code, 200)
+  assert.equal(f.db.hr.kioskResetCodes.length, 1)
+  assert.equal(f.db.hr.kioskResetCodes[0].cnp, undefined)
+  assert.equal(f.db.notifications.length, 1)
+  assert.equal(f.db.notifications[0].user_id, 'hr-active')
+  assert.equal(f.writes(), 1)
+})
+
+test('confirmarea resetării Kiosk este blocată după trei coduri greșite', async () => {
+  const f = fixture()
+  Object.assign(f.db.hr.employees[0], { cnp: '1234567890123' })
+  f.db.hr.kioskUsers = [{ id: 1, employee_id: 1, username: 'operator', passwordHash: 'existent', activ: true }]
+  f.db.hr.kioskResetCodes = [{ employee_id: 1, cod: '654321', expires_at: '2099-01-01T00:00:00.000Z' }]
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    assert.equal((await f.invoke('post /hr/kiosk/reset-confirm', { cnp: '1234567890123', cod: '000000', password_nou: 'Parola-noua' })).code, 422)
+  }
+  assert.equal(f.kioskBlocked(), true)
+  assert.equal((await f.invoke('post /hr/kiosk/reset-confirm', { cnp: '1234567890123', cod: '654321', password_nou: 'Parola-noua' })).code, 429)
+  assert.equal(f.db.hr.kioskUsers[0].passwordHash, 'existent')
+  assert.equal(f.writes(), 0)
+})
+
+test('confirmarea validă a resetării Kiosk schimbă parola și consumă codul', async () => {
+  const f = fixture()
+  Object.assign(f.db.hr.employees[0], { cnp: '1234567890123' })
+  f.db.hr.kioskUsers = [{ id: 1, employee_id: 1, username: 'operator', passwordHash: 'existent', activ: true }]
+  f.db.hr.kioskResetCodes = [{ employee_id: 1, cod: '654321', expires_at: '2099-01-01T00:00:00.000Z' }]
+  const result = await f.invoke('post /hr/kiosk/reset-confirm', { cnp: '1234567890123', cod: '654321', password_nou: 'Parola-noua' })
+  assert.equal(result.code, 200)
+  assert.match(f.db.hr.kioskUsers[0].passwordHash, /^scrypt:/)
+  assert.equal(f.db.hr.kioskResetCodes.length, 0)
+  assert.equal(f.kioskBlocked(), false)
+  assert.equal(f.writes(), 1)
+})
+
+test('sincronizarea Kiosk ignoră angajatul din payload și folosește titularul sesiunii', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' } })
+  const result = await f.invoke('post /hr/kiosk/sync', { operations: [{ id: 'own-kiosk-leave', type: 'leave_request', data: { uuid: 'own-kiosk-leave', employee_id: 2, tip: 'CO', data_start: '2026-11-02', data_sfarsit: '2026-11-02' } }] })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.failed.length, 0)
+  assert.equal(f.db.hr.leaveRequests[0].employee_id, 1)
+  assert.equal(f.writes(), 1)
+})
+
+test('sincronizarea Kiosk refuză sesiunea unui angajat dezactivat', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' } })
+  f.db.hr.employees[0].activ = false
+  const result = await f.invoke('post /hr/kiosk/sync', { operations: [{ id: 'inactive-kiosk-leave', type: 'leave_request', data: { uuid: 'inactive-kiosk-leave', employee_id: 1, tip: 'CO', data_start: '2026-11-03', data_sfarsit: '2026-11-03' } }] })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.synced.length, 0)
+  assert.match(result.data.failed[0].error, /nu este activ/i)
+  assert.equal(f.db.hr.leaveRequests.length, 0)
+  assert.equal(f.writes(), 0)
+})
+
+test('sincronizarea Kiosk nu revendică UUID-ul altui angajat și limitează lotul', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' } })
+  f.db.hr.leaveRequests = [{ uuid: 'foreign-uuid', employee_id: 2, data_start: '2026-11-04', data_sfarsit: '2026-11-04', status: 'cerut' }]
+  const conflict = await f.invoke('post /hr/kiosk/sync', { operations: [{ id: 'foreign-uuid', type: 'leave_request', data: { uuid: 'foreign-uuid', employee_id: 1, tip: 'CO', data_start: '2026-11-05', data_sfarsit: '2026-11-05' } }] })
+  assert.equal(conflict.data.synced.length, 0)
+  assert.equal(conflict.data.failed[0].error, 'Operațiunea nu poate fi sincronizată.')
+  assert.equal(f.writes(), 0)
+  const oversized = await f.invoke('post /hr/kiosk/sync', { operations: Array.from({ length: 101 }, (_, index) => ({ id: `op-${index}`, type: 'leave_request', data: {} })) })
+  assert.equal(oversized.code, 422)
+  assert.match(oversized.data.error, /maximum 100/i)
+  assert.equal(f.writes(), 0)
+})
+
+test('documentele medicale Kiosk reverifică angajatul activ din sesiune', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' } })
+  f.db.hr.employees[0].activ = false
+  const result = await f.invoke('get /hr/medical-leaves/:uuid/document', {}, {}, { uuid: 'certificate-own' })
+  assert.equal(result.code, 401)
+  assert.equal(result.data.code, 'HR_KIOSK_EMPLOYEE_INACTIVE')
+  assert.equal(f.writes(), 0)
+})
+
+test('uploadul medical cere autentificarea înainte de middleware-ul multipart', () => {
+  const f = fixture({ noAuth: true, medicalFs: true })
+  const result = f.preflight('post /hr/kiosk/medical-leave')
+  assert.equal(result.code, 401)
+  assert.equal(result.continued, false)
+  assert.equal(f.medicalWrites(), 0)
+})
+
+test('uploadul medical refuză semnătura falsă și nu scrie în storage', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' }, medicalFs: true, medicalFile: { mimetype: 'application/pdf', buffer: Buffer.from('nu este pdf'), originalname: 'certificat.pdf', size: 12 } })
+  const result = await f.invoke('post /hr/kiosk/medical-leave', {})
+  assert.equal(result.code, 422)
+  assert.equal(result.data.code, 'HR_MEDICAL_FILE_REQUIRED')
+  assert.equal(f.medicalWrites(), 0)
+  assert.equal(f.writes(), 0)
+})
+
+test('uploadul medical verifică suprapunerea înainte de scrierea fișierului', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' }, medicalFs: true, medicalFile: { mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7 test'), originalname: 'certificat.pdf', size: 13 } })
+  f.db.hr.leaveRequests = [{ uuid: 'existing', employee_id: 1, status: 'cerut', data_start: '2026-11-02', data_sfarsit: '2026-11-04' }]
+  const result = await f.invoke('post /hr/kiosk/medical-leave', { serie: 'NT', numar: '1', data_acordarii: '2026-11-02', data_start: '2026-11-03', data_sfarsit: '2026-11-03', cod_indemnizatie: '01', medic_nume: 'Medic', cod_parafa: 'P1', unitate_emitenta: 'Unitate' })
+  assert.equal(result.code, 409)
+  assert.equal(result.data.code, 'HR_LEAVE_OVERLAP')
+  assert.equal(f.medicalWrites(), 0)
+  assert.equal(f.medicalDeletes(), 0)
+  assert.equal(f.writes(), 0)
+})
+
+test('uploadul medical valid scrie o singură dată și sanitizează numele original', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' }, medicalFs: true, medicalFile: { mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7 test'), originalname: '../certificat\r\n.pdf', size: 13 } })
+  const result = await f.invoke('post /hr/kiosk/medical-leave', { serie: 'NT', numar: '2', data_acordarii: '2026-11-05', data_start: '2026-11-05', data_sfarsit: '2026-11-05', cod_indemnizatie: '01', medic_nume: 'Medic', cod_parafa: 'P1', unitate_emitenta: 'Unitate' })
+  assert.equal(result.code, 201)
+  assert.equal(result.data.employee_id, '1')
+  assert.equal(f.medicalWrites(), 1)
+  assert.equal(f.medicalDeletes(), 0)
+  assert.equal(f.writes(), 1)
+  assert.equal(f.db.hr.medicalLeaveCertificates[0].file_name.includes('\r'), false)
+  assert.equal(f.db.hr.medicalLeaveCertificates[0].file_name.includes('\n'), false)
+  assert.equal(f.db.hr.medicalLeaveCertificates[0].file_name.includes('..'), false)
+})
+
+test('downloadul medical refuză numele intern care poate ieși din storage', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' }, medicalFs: true })
+  f.db.hr.medicalLeaveCertificates = [{ uuid: 'certificate-own', employee_id: 1, stored_name: '../outside.pdf', file_name: 'outside.pdf' }]
+  const result = await f.invoke('get /hr/medical-leaves/:uuid/document', {}, {}, { uuid: 'certificate-own' })
+  assert.equal(result.code, 404)
+  assert.equal(result.data.code, 'HR_MEDICAL_STORAGE_MISSING')
+  assert.equal(f.medicalDownloads(), 0)
+  assert.equal(f.writes(), 0)
+})
+
+test('taskul Kiosk poate fi modificat numai de angajatul activ căruia îi este alocat', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' } })
+  f.db.users = [{ id: 'u1', active: true, employee_id: 1 }]
+  f.db.taskManagement = { tasks: [{ id: 'task-own', assigned_to: 'u1', status: 'open' }, { id: 'task-other', assigned_to: 'u2', status: 'open' }], comments: [], attachments: [] }
+  const own = await f.invoke('patch /hr/kiosk/tasks/:id', { status: 'done', note: 'Finalizat din teren' }, {}, { id: 'task-own' })
+  assert.equal(own.code, 200)
+  assert.equal(f.db.taskManagement.tasks[0].status, 'done')
+  assert.equal(f.db.taskManagement.comments.length, 1)
+  assert.equal(f.writes(), 1)
+  const foreign = await f.invoke('patch /hr/kiosk/tasks/:id', { status: 'done' }, {}, { id: 'task-other' })
+  assert.equal(foreign.code, 404)
+  assert.equal(f.db.taskManagement.tasks[1].status, 'open')
+  assert.equal(f.writes(), 1)
+})
+
+test('eroarea de persistare a taskului Kiosk revine asupra statusului și comentariului', async () => {
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' }, writeError: true })
+  f.db.users = [{ id: 'u1', active: true, employee_id: 1 }]
+  f.db.taskManagement = { tasks: [{ id: 'task-own', assigned_to: 'u1', status: 'open' }], comments: [], attachments: [] }
+  await assert.rejects(
+    f.invoke('patch /hr/kiosk/tasks/:id', { status: 'done', note: 'Nu trebuie păstrat' }, {}, { id: 'task-own' }),
+    /Scriere simulată eșuată/,
+  )
+  assert.equal(f.db.taskManagement.tasks[0].status, 'open')
+  assert.equal(f.db.taskManagement.tasks[0].completed_at, undefined)
+  assert.equal(f.db.taskManagement.tasks[0].updated_at, undefined)
+  assert.equal(f.db.taskManagement.comments.length, 0)
+})
+
+test('taskurile și cursele Kiosk refuză sesiunea angajatului dezactivat', async () => {
+  for (const route of ['get /hr/kiosk/my-trips', 'get /hr/kiosk/me', 'patch /hr/kiosk/tasks/:id']) {
+    const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' } })
+    f.db.hr.employees[0].activ = false
+    const result = await f.invoke(route, { status: 'done' }, {}, { id: 'task-own' })
+    assert.equal(result.code, 401, route)
+    assert.equal(result.data.code, 'HR_KIOSK_EMPLOYEE_INACTIVE')
+    assert.equal(f.writes(), 0)
+  }
+})
+
+test('uploadul dovezii Kiosk cere autentificare înainte de multipart', () => {
+  const f = fixture({ taskFs: true })
+  const result = f.preflight('post /hr/kiosk/tasks/:id/evidence', { id: 'task-own' })
+  assert.equal(result.code, 401)
+  assert.equal(result.continued, false)
+  assert.equal(f.taskRenames(), 0)
+})
+
+test('dovada Kiosk cu semnătură falsă este ștearsă fără modificarea taskului', async () => {
+  const taskFile = { path: 'C:\\temp\\kiosk-invalid.tmp', mimetype: 'application/pdf', buffer: Buffer.from('nu este pdf'), originalname: 'dovada.pdf', size: 12 }
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' }, taskFs: true, taskFile })
+  f.db.users = [{ id: 'u1', active: true, employee_id: 1 }]
+  f.db.taskManagement = { tasks: [{ id: 'task-own', assigned_to: 'u1', status: 'open' }], comments: [], attachments: [] }
+  const result = await f.invoke('post /hr/kiosk/tasks/:id/evidence', {}, {}, { id: 'task-own' })
+  assert.equal(result.code, 422)
+  assert.equal(result.data.code, 'TASK_EVIDENCE_FILE_INVALID')
+  assert.equal(f.taskDeletes(), 1)
+  assert.equal(f.db.taskManagement.attachments.length, 0)
+  assert.equal(f.writes(), 0)
+})
+
+test('eroarea de persistare a dovezii Kiosk curăță fișierul și revine asupra memoriei', async () => {
+  const taskFile = { path: 'C:\\temp\\kiosk-valid.tmp', mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7 dovada'), originalname: '../../dovada.pdf', size: 15 }
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' }, taskFs: true, taskFile, writeError: true })
+  f.db.users = [{ id: 'u1', active: true, employee_id: 1 }]
+  f.db.taskManagement = { tasks: [{ id: '../task-own', assigned_to: 'u1', status: 'open' }], comments: [], attachments: [] }
+  await assert.rejects(f.invoke('post /hr/kiosk/tasks/:id/evidence', { note: 'Probă' }, {}, { id: '../task-own' }), /Scriere simulată eșuată/)
+  assert.equal(f.taskRenames(), 1)
+  assert.equal(f.taskDeletes(), 1)
+  assert.equal(f.taskFiles.size, 0)
+  assert.equal(f.db.taskManagement.attachments.length, 0)
+  assert.equal(f.db.taskManagement.comments.length, 0)
+  assert.equal(f.db.taskManagement.tasks[0].updated_at, undefined)
+})
+
+test('dovada Kiosk validă primește nume intern UUID independent de ID-ul taskului', async () => {
+  const taskFile = { path: 'C:\\temp\\kiosk-valid-2.tmp', mimetype: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]), originalname: '../../dovada.png', size: 9 }
+  const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' }, taskFs: true, taskFile })
+  f.db.users = [{ id: 'u1', active: true, employee_id: 1 }]
+  f.db.taskManagement = { tasks: [{ id: '../task-own', assigned_to: 'u1', status: 'open' }], comments: [], attachments: [] }
+  const result = await f.invoke('post /hr/kiosk/tasks/:id/evidence', {}, {}, { id: '../task-own' })
+  assert.equal(result.code, 201)
+  assert.match(result.data.attachment.stored_name, /^[a-f0-9-]{36}\.png$/i)
+  assert.equal(result.data.attachment.stored_name.includes('task-own'), false)
+  assert.equal(f.taskRenames(), 1)
+  assert.equal(f.taskDeletes(), 0)
+  assert.equal(f.writes(), 1)
 })
 
 test('ajustarea băncii de ore refuză angajatul din alt departament fără scriere', async () => {

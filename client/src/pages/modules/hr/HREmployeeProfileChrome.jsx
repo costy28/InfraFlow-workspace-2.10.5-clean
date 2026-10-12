@@ -1,6 +1,6 @@
 import Button from '../../../components/ui/Button'
 
-const PROFILE_TABS = [
+export const PROFILE_TABS = [
   ['date', 'Date personale'],
   ['contracte', 'Contracte'],
   ['pontaj', 'Pontaj & concedii'],
@@ -75,6 +75,8 @@ export function HREmployeeProfileStatusCards({
   employee,
   expirations,
   workflow,
+  showDossierSummary = false,
+  showWorkflowSummary = false,
 }) {
   const nextExpiration = expirations[0]
   const workflowActive = workflow && !['completed','cancelled'].includes(workflow.status)
@@ -86,26 +88,26 @@ export function HREmployeeProfileStatusCards({
         <strong>{employee.tip_contract || contracts[0]?.tip || 'activ'}</strong>
         <div className="text-xs text-slate-400">{employee.data_angajare || contracts[0]?.data_start || '-'}</div>
       </div>
-      <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm">
+      {showDossierSummary ? <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm">
         <div className="text-xs text-primary-700">Dosar HR</div>
         <strong>{dossierSummary?.percent ?? 0}%</strong>
         <div className="text-xs text-primary-600">{dossierSummary?.required_done ?? 0}/{dossierSummary?.required_total ?? 0} obligatorii</div>
-      </div>
-      <div className={`rounded-lg border p-3 text-sm ${dossierSummary?.pending_ack ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+      </div> : null}
+      {showDossierSummary ? <div className={`rounded-lg border p-3 text-sm ${dossierSummary?.pending_ack ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
         <div className="text-xs">Confirmări Kiosk</div>
         <strong>{dossierSummary?.pending_ack ?? 0}</strong>
         <div className="text-xs">neconfirmate</div>
-      </div>
-      <div className={`rounded-lg border p-3 text-sm ${nextExpiration?.severity === 'expired' ? 'border-rose-200 bg-rose-50' : nextExpiration ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+      </div> : null}
+      {showDossierSummary ? <div className={`rounded-lg border p-3 text-sm ${nextExpiration?.severity === 'expired' ? 'border-rose-200 bg-rose-50' : nextExpiration ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
         <div className="text-xs">Următoarea scadență</div>
         <strong>{nextExpiration?.date || '—'}</strong>
         <div className="text-xs">{nextExpiration?.label || 'fără scadențe apropiate'}</div>
-      </div>
-      <div className={`rounded-lg border p-3 text-sm ${workflowActive ? 'border-violet-200 bg-violet-50' : 'border-slate-200'}`}>
+      </div> : null}
+      {showWorkflowSummary ? <div className={`rounded-lg border p-3 text-sm ${workflowActive ? 'border-violet-200 bg-violet-50' : 'border-slate-200'}`}>
         <div className="text-xs text-slate-500">Flux HR</div>
         <strong>{workflow ? `${workflow.progress?.percent || 0}%` : 'nepornit'}</strong>
         <div className="text-xs text-slate-400">{workflow?.type || `CO: ${coBalance ? `${coBalance.zile_ramase} zile` : `${employee.zile_co_drept ?? 21} / an`}`}</div>
-      </div>
+      </div> : null}
     </div>
   )
 }
@@ -140,10 +142,10 @@ export function HREmployeeProfileActivity({ items, onReload }) {
   )
 }
 
-export function HREmployeeProfileTabs({ activeTab, onTabChange }) {
+export function HREmployeeProfileTabs({ activeTab, onTabChange, tabs = PROFILE_TABS }) {
   return (
     <div className="hr-profile-tabs flex min-w-0 flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
-      {PROFILE_TABS.map(([value, label]) => (
+      {tabs.map(([value, label]) => (
         <Button
           key={value}
           type="button"

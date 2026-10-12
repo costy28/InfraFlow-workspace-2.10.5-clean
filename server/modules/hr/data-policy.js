@@ -6,10 +6,11 @@ const PERSONAL_FIELDS = [
 const MEDICAL_FIELDS = ["casa_sanatate", "apt_medical_expira", "adeverinta_medicala"];
 const CONTACT_FIELDS = ["email", "telefon"];
 const SALARY_FIELDS = ["salariu_baza", "cost_ora"];
+const CONTRACT_SENSITIVE_FIELDS = [...SALARY_FIELDS, "observatii"];
 
 function sanitizeContract(contract, access = {}) {
   const result = { ...contract };
-  if (!access.own && !access.salary) SALARY_FIELDS.forEach(field => delete result[field]);
+  if (!access.own && !access.salary) CONTRACT_SENSITIVE_FIELDS.forEach(field => delete result[field]);
   return result;
 }
 

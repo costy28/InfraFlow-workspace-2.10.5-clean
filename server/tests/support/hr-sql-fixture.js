@@ -30,14 +30,16 @@ function createSqlFixture() {
     INSERT core.users VALUES('u1',1),('u2',1);
     CREATE TABLE hr.employees(id int PRIMARY KEY,user_id nvarchar(80),nume nvarchar(80),prenume nvarchar(80),activ bit,department_id int,department_cod nvarchar(80),data_angajare date,cnp nvarchar(80),email nvarchar(200),updated_at datetime2);
     INSERT hr.employees VALUES(1,'u1','Propriu','',1,1,'D1','2026-01-01','secret1','propriu@example.test',NULL),(2,'u2','Altul','',1,1,'D1','2026-01-01','secret2','altul@example.test',NULL);
-    ALTER TABLE hr.employees ADD functia nvarchar(100) NULL;
+    ALTER TABLE hr.employees ADD functia nvarchar(100) NULL,act_identitate_tip nvarchar(30) NULL,act_identitate_serie nvarchar(5) NULL,act_identitate_numar nvarchar(10) NULL,zile_co_drept int NULL;
+    UPDATE hr.employees SET functia=N'Operator',act_identitate_tip=N'CI',act_identitate_serie=N'NT',act_identitate_numar=CASE WHEN id=1 THEN N'111111' ELSE N'222222' END,zile_co_drept=21;
     CREATE TABLE hr.contracts(id int PRIMARY KEY,employee_id int,salariu_baza decimal(15,2),status nvarchar(80),data_start date);
     INSERT hr.contracts VALUES(1,1,1000,'activ','2026-01-01'),(2,2,2000,'activ','2026-01-01');
-    CREATE TABLE hr.leave_requests(id int IDENTITY PRIMARY KEY,employee_id int,tip nvarchar(40),data_start date,data_sfarsit date,zile decimal(6,2),status nvarchar(30));
+    CREATE TABLE hr.leave_requests(id int IDENTITY PRIMARY KEY,uuid nvarchar(80),employee_id int,tip nvarchar(40),data_start date,data_sfarsit date,zile decimal(6,2),motiv nvarchar(max),status nvarchar(30) DEFAULT N'cerut',created_at datetime2 DEFAULT sysdatetime());
     INSERT hr.leave_requests(employee_id,tip,data_start,data_sfarsit,zile,status) VALUES
       (1,'CM','2026-09-01','2026-09-03',3,'aprobat'),
       (2,'CM','2026-09-10','2026-09-13',4,'aprobata'),
       (2,'CO','2026-10-02','2026-10-02',1,'aprobat');
+    CREATE TABLE hr.medical_leave_certificates(id bigint IDENTITY PRIMARY KEY,uuid uniqueidentifier NOT NULL UNIQUE,leave_request_uuid nvarchar(80) NOT NULL UNIQUE,employee_id int NOT NULL,serie nvarchar(20) NOT NULL,numar nvarchar(30) NOT NULL,tip_certificat nvarchar(20) NOT NULL,data_acordarii date NOT NULL,data_start date NOT NULL,data_sfarsit date NOT NULL,zile_calendaristice int NOT NULL,cod_indemnizatie nvarchar(10) NOT NULL,cod_diagnostic nvarchar(30),medic_nume nvarchar(200) NOT NULL,cod_parafa nvarchar(50) NOT NULL,unitate_emitenta nvarchar(250) NOT NULL,file_name nvarchar(255) NOT NULL,stored_name nvarchar(255) NOT NULL,mime_type nvarchar(100) NOT NULL,file_size bigint NOT NULL,status_verificare nvarchar(20) NOT NULL DEFAULT N'in_verificare',verificat_de uniqueidentifier,verificat_la datetime2,motiv_respingere nvarchar(500),created_by uniqueidentifier,created_at datetime2 NOT NULL DEFAULT sysdatetime(),updated_at datetime2);
     CREATE TABLE hr.tures(id int PRIMARY KEY,ore_normale decimal(4,2));
     INSERT hr.tures VALUES(1,8);
     CREATE TABLE hr.schedules(id int IDENTITY PRIMARY KEY,employee_id int,data date,tura_id int);
@@ -56,6 +58,8 @@ function createSqlFixture() {
     CREATE TABLE hr.training(id int IDENTITY PRIMARY KEY,denumire nvarchar(200) NOT NULL,tip nvarchar(80),furnizor nvarchar(200),data_start date,data_sfarsit date,valabil_pana_la date,cost_total decimal(15,2),created_at datetime2 DEFAULT sysdatetime(),updated_at datetime2);
     INSERT hr.training(denumire,tip) VALUES('SSM test','SSM');
     CREATE TABLE hr.training_employees(training_id int NOT NULL REFERENCES hr.training(id),employee_id int NOT NULL REFERENCES hr.employees(id),status nvarchar(30),CONSTRAINT uq_test_training_employee UNIQUE(training_id,employee_id));
+    CREATE TABLE hr.authorizations(id int IDENTITY PRIMARY KEY,employee_id int,tip nvarchar(80),denumire nvarchar(200),numar_document nvarchar(100),emitent nvarchar(200),data_emitere date,data_expirare date,fisier_path nvarchar(500),alertat_la datetime2,activ bit,status nvarchar(30),created_at datetime2,updated_at datetime2);
+    INSERT hr.authorizations(employee_id,tip,denumire,data_expirare,activ,status,created_at) VALUES(1,N'SSM',N'Autorizare test','2027-10-12',1,N'activ',sysdatetime());
   `)
   const evaluationMigration = fs.readFileSync(path.resolve(__dirname, '../../../db/migrations/077_hr_evaluations.sql'), 'utf8')
   for (let pass = 0; pass < 2; pass += 1) splitSqlBatches(evaluationMigration).forEach(batch => run(database, `${batch}\nSELECT 1;`))

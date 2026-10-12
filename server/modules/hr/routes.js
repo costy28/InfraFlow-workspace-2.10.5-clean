@@ -818,20 +818,29 @@ function canUseKioskSync(auth) {
     || authHasPermission(auth, 'hr:timesheet')
 }
 
-function canSyncLeaveForEmployee(auth, hr, employeeId) {
-  if (authHasPermission(auth, 'hr:view') || authHasPermission(auth, 'hr:manage')) return true
+function kioskSyncEmployee(db, auth, requestedEmployeeId) {
+  const canManageOthers = authHasPermission(auth, 'hr:view') || authHasPermission(auth, 'hr:manage')
+  if (canManageOthers) return requestedEmployeeId ? kioskEmployeeById(db, requestedEmployeeId) : null
+
   const linkedEmployeeId = auth.user.employee_id || auth.user.employeeId || ''
-  const ownEmployee = hr.employees.find((employee) => (
-    String(employee.user_id || '') === String(auth.user.id) ||
-    (linkedEmployeeId && String(employee.id) === String(linkedEmployeeId))
-  ))
-  return ownEmployee && String(ownEmployee.id) === String(employeeId)
+  if (linkedEmployeeId) return kioskEmployeeById(db, linkedEmployeeId)
+  if (isMssqlMode()) {
+    return mssqlObject(`
+SELECT TOP 1 e.*,d.cod AS department_lookup_cod,d.denumire AS department_name
+FROM hr.employees e
+LEFT JOIN core.departments d ON d.id=e.department_id
+WHERE e.user_id=JSON_VALUE(@p,'$.userId') AND ISNULL(e.activ,1)=1
+FOR JSON PATH;`, { userId: auth.user.id })
+  }
+  return ensureHrDb(db).employees.find((employee) => (
+    String(employee.user_id || '') === String(auth.user.id) && employee.activ !== false && employee.activ !== 0
+  )) || null
 }
 
-function buildKioskLeave(body, auth, hr, fallbackUuid) {
-  const employeeId = body.employee_id
-  if (!employeeId) return { error: 'Angajat lipsă pentru cererea de concediu.' }
-  if (!canSyncLeaveForEmployee(auth, hr, employeeId)) return { error: 'Nu poți trimite cereri pentru alt angajat.' }
+function buildKioskLeave(body, auth, db, fallbackUuid) {
+  const employee = kioskSyncEmployee(db, auth, body.employee_id)
+  if (!employee) return { error: 'Angajatul asociat nu este activ sau nu există.' }
+  const employeeId = employee.id
   if (!body.data_start || !body.data_sfarsit) return { error: 'Completează perioada concediului.' }
   const zile = businessDays(body.data_start, body.data_sfarsit)
   if (zile <= 0) return { error: 'Perioada concediului nu este validă.' }
@@ -1122,10 +1131,33 @@ function normalizeEmployeeImportRow(row) {
 
 function hrUsers(db) {
   return (db.users || db.core?.users || []).filter((user) => {
+    if (user.active === false || user.active === 0) return false
     const role = String(user.role || user.rol || '').toLowerCase()
     const dept = String(user.department || user.department_cod || user.departmentName || '').toLowerCase()
     return role === 'hr' || dept === 'hr' || authHasPermission({ user, db }, 'hr:manage')
   })
+}
+
+function notifyTimesheetSubmission(db, luna, department) {
+  if (!Array.isArray(db.notifications)) db.notifications = []
+  const message = `Pontajul departamentului ${department} pentru ${luna} a fost finalizat.`
+  const recipients = hrUsers(db)
+  recipients.forEach((user) => {
+    db.notifications.push({
+      id: crypto.randomUUID(),
+      type: 'hr_timesheet_submitted',
+      event: 'hr_timesheet_submitted',
+      user_id: user.id,
+      title: `Pontaj finalizat ${luna}`,
+      message,
+      target_view: '/hr?section=overview',
+      entity_key: `hr_timesheet_department:${luna}:${department}`,
+      created_at: nowIso(),
+      read: false,
+    })
+    notifyUser(user.id, 'hr_timesheet_submitted', { luna, department, message })
+  })
+  return recipients.length
 }
 
 // ─── TURE & PROGRAM ─────────────────────────────────────────────────────────
@@ -1688,10 +1720,12 @@ router.get('/hr/employees', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     const hasFullView = authHasPermission(auth, 'hr:view')
+    const hasEmployeeManage = authHasPermission(auth, 'hr:employees_manage') || authHasPermission(auth, 'hr:manage')
+    const hasFullScope = hasFullView || hasEmployeeManage
     const hasEquipmentView = authHasPermission(auth, 'echipamente:gestionar')
     const hasDeptTimesheet = authHasPermission(auth, 'hr:timesheet_dept')
     const hasOwnView = authHasPermission(auth, 'hr:view_own')
-    if (!hasFullView && !hasOwnView && !hasDeptTimesheet && !hasEquipmentView) return requirePermission(auth, res, 'hr:view')
+    if (!hasFullScope && !hasOwnView && !hasDeptTimesheet && !hasEquipmentView) return requirePermission(auth, res, 'hr:view')
     const ownDept = auth.user.departmentId || auth.user.department_id || auth.user.dept_id || auth.user.department || auth.user.departament || ''
 
     if (isMssqlMode()) {
@@ -1712,8 +1746,8 @@ OUTER APPLY (
 WHERE (NULLIF(JSON_VALUE(@p, '$.activ'), '') IS NULL OR e.activ = TRY_CONVERT(bit, JSON_VALUE(@p, '$.activ')))
 AND (NULLIF(JSON_VALUE(@p, '$.dept_id'), '') IS NULL OR e.department_id = JSON_VALUE(@p, '$.dept_id'))
 AND (NULLIF(JSON_VALUE(@p, '$.functia'), '') IS NULL OR e.functia LIKE N'%' + JSON_VALUE(@p, '$.functia') + N'%')
-${!hasFullView && hasDeptTimesheet && ownDept ? `AND (e.department_id = JSON_VALUE(@p, '$.ownDept') OR d.denumire = JSON_VALUE(@p, '$.ownDept'))` : ''}
-${!hasFullView && !(hasDeptTimesheet && ownDept) && !hasEquipmentView ? `AND e.user_id = JSON_VALUE(@p, '$.userId')` : ''}
+${!hasFullScope && hasDeptTimesheet && ownDept ? `AND (e.department_id = JSON_VALUE(@p, '$.ownDept') OR d.denumire = JSON_VALUE(@p, '$.ownDept'))` : ''}
+${!hasFullScope && !(hasDeptTimesheet && ownDept) && !hasEquipmentView ? `AND e.user_id = JSON_VALUE(@p, '$.userId')` : ''}
 ORDER BY e.nume, e.prenume
 FOR JSON PATH;
 `, { ...req.query, ownDept, userId: String(auth.user.id) })
@@ -1723,9 +1757,9 @@ FOR JSON PATH;
     const db = readDb()
     const hr = ensureHrDb(db)
     let employees = hr.employees.map((employee) => employeeWithSalary(hr, employee))
-    if (!hasFullView && hasDeptTimesheet && ownDept) {
+    if (!hasFullScope && hasDeptTimesheet && ownDept) {
       employees = employees.filter((emp) => [emp.department_id, emp.dept_id, emp.department_name, emp.department].some(value => String(value || '') === String(ownDept)))
-    } else if (!hasFullView && !hasEquipmentView) {
+    } else if (!hasFullScope && !hasEquipmentView) {
       employees = employees.filter((emp) => String(emp.user_id) === String(auth.user.id))
     }
     if (req.query.activ !== undefined) employees = employees.filter((item) => String(item.activ ? 1 : 0) === String(req.query.activ))
@@ -2034,7 +2068,7 @@ router.get('/hr/employees/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!authHasPermission(auth, 'hr:view') && !authHasPermission(auth, 'echipamente:gestionar')) {
+    if (!authHasPermission(auth, 'hr:view') && !authHasPermission(auth, 'hr:employees_manage') && !authHasPermission(auth, 'hr:manage') && !authHasPermission(auth, 'echipamente:gestionar')) {
       if (!requirePermission(auth, res, 'hr:view')) return
     }
 
@@ -2718,17 +2752,18 @@ router.post('/hr/timesheets/submit-department', (req, res, next) => {
     const ownDepartment = userDepartment(auth, db)
     const requestedDepartment = departmentCod(db, req.body.department_cod || ownDepartment)
     if (!canSubmitDepartment(auth, requestedDepartment, ownDepartment)) return sendJson(res, 403, { error: 'Nu ai dreptul să finalizezi pontajul acestui departament.' })
-    assertTimesheetOpen(db, String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7))
+    const luna = String(req.body.luna || todayIso().slice(0, 7)).trim()
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(luna)) return sendJson(res, 422, { error: 'Luna pontajului nu este validă.', code: 'HR_TIMESHEET_MONTH_INVALID' })
+    assertTimesheetOpen(db, luna)
     if (isMssqlMode()) {
-      const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
       const department = requestedDepartment
       const item = mssqlObject(`DECLARE @id int; SELECT @id=id FROM hr.timesheet_departments WHERE luna=JSON_VALUE(@p,'$.luna') AND department_cod=JSON_VALUE(@p,'$.department'); IF @id IS NULL BEGIN INSERT INTO hr.timesheet_departments (luna,department_cod,status,completat_la,completat_de) VALUES (JSON_VALUE(@p,'$.luna'),JSON_VALUE(@p,'$.department'),JSON_VALUE(@p,'$.status'),sysdatetime(),JSON_VALUE(@p,'$.userId')); SET @id=SCOPE_IDENTITY(); END ELSE UPDATE hr.timesheet_departments SET status=JSON_VALUE(@p,'$.status'), completat_la=sysdatetime(), completat_de=JSON_VALUE(@p,'$.userId'), updated_at=sysdatetime() WHERE id=@id; SELECT TOP 1 * FROM hr.timesheet_departments WHERE id=@id FOR JSON PATH;`, { luna, department, status: req.body.status || 'finalizat', userId: auth.user.id })
+      notifyTimesheetSubmission(db, luna, department)
       addAudit(db, auth.user, 'hr_timesheet_department_submitted', `${department}/${luna}`)
       writeDb(db)
       return sendJson(res, 200, item)
     }
     const hr = ensureHrDb(db)
-    const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
     const department = requestedDepartment
     let item = hr.timesheetDepartments.find((entry) => entry.luna === luna && entry.department_cod === department)
     if (!item) {
@@ -2741,7 +2776,7 @@ router.post('/hr/timesheets/submit-department', (req, res, next) => {
       completat_de: auth.user.id,
       updated_at: nowIso()
     })
-    hrUsers(db).forEach((user) => notifyUser(user.id, 'hr_timesheet_submitted', { luna, department }))
+    notifyTimesheetSubmission(db, luna, department)
     addAudit(db, auth.user, 'hr_timesheet_department_submitted', `${department}/${luna}`)
     writeDb(db)
     sendJson(res, 200, item)
@@ -4002,19 +4037,53 @@ fs.mkdirSync(medicalLeaveRoot, { recursive: true })
 function kioskOrAppAuth(req, res) {
   const session = kioskSessions.getSession(kioskSessions.tokenFromRequest(req))
   if (!session) return requireAuth(req, res)
-  return { db: readDb(), user: { id: `kiosk-${session.employee_id}`, username: session.username, role: 'kiosk', employee_id: session.employee_id, permissions: ['hr:view_own', 'hr:leave_own', 'kiosk:leave_request'] } }
+  const db = readDb()
+  if (!kioskEmployeeById(db, session.employee_id)) {
+    sendJson(res, 401, { error: 'Sesiunea Kiosk nu mai este asociată unui angajat activ.', code: 'HR_KIOSK_EMPLOYEE_INACTIVE' })
+    return null
+  }
+  return { db, user: { id: `kiosk-${session.employee_id}`, username: session.username, role: 'kiosk', employee_id: session.employee_id, permissions: ['hr:view_own', 'hr:leave_own', 'kiosk:leave_request'] } }
+}
+
+function kioskOrAppAuthMiddleware(req, res, next) {
+  const auth = kioskOrAppAuth(req, res)
+  if (!auth) return
+  req.hrKioskAuth = auth
+  next()
 }
 
 function safeMedicalFile(value) { return String(value || '').replace(/[^a-zA-Z0-9._-]/g, '_') }
 
-router.post('/hr/kiosk/medical-leave', medicalLeaveUpload.single('file'), (req, res, next) => {
+function medicalFileSignatureMatches(file) {
+  const buffer = file?.buffer
+  if (!Buffer.isBuffer(buffer)) return false
+  if (file.mimetype === 'application/pdf') return buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-'
+  if (file.mimetype === 'image/jpeg') return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+  if (file.mimetype === 'image/png') return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  return false
+}
+
+function safeMedicalDownloadName(value, extension) {
+  const name = path.basename(String(value || `certificat${extension}`)).replace(/[\x00-\x1f\x7f"\\/]/g, '_').slice(0, 255)
+  return name || `certificat${extension}`
+}
+
+function storedMedicalFilePath(employeeId, storedName) {
+  const name = String(storedName || '')
+  if (!/^[a-f0-9-]{36}\.(?:pdf|png|jpg)$/i.test(name)) return ''
+  const folder = path.resolve(medicalLeaveRoot, `employee_${safeMedicalFile(employeeId)}`)
+  const candidate = path.resolve(folder, name)
+  return candidate.startsWith(`${folder}${path.sep}`) ? candidate : ''
+}
+
+router.post('/hr/kiosk/medical-leave', kioskOrAppAuthMiddleware, medicalLeaveUpload.single('file'), (req, res, next) => {
   let storedPath = ''
   try {
-    const auth = kioskOrAppAuth(req, res)
+    const auth = req.hrKioskAuth || kioskOrAppAuth(req, res)
     if (!auth) return
     if (!canUseKioskSync(auth)) return requirePermission(auth, res, 'hr:view_own')
-    if (!req.file || !medicalLeaveMime.has(req.file.mimetype)) return sendJson(res, 422, { error: 'Pentru concediul medical este obligatoriu un fisier PDF, JPG sau PNG de maximum 10 MB.', code: 'HR_MEDICAL_FILE_REQUIRED' })
-    const db = readDb()
+    if (!req.file || !medicalLeaveMime.has(req.file.mimetype) || !medicalFileSignatureMatches(req.file)) return sendJson(res, 422, { error: 'Pentru concediul medical este obligatoriu un fisier PDF, JPG sau PNG valid, de maximum 10 MB.', code: 'HR_MEDICAL_FILE_REQUIRED' })
+    const db = auth.db || readDb()
     const hr = ensureHrDb(db)
     const employeeId = String(auth.user.employee_id || auth.user.employeeId || '').trim()
     const body = req.body || {}
@@ -4027,15 +4096,19 @@ router.post('/hr/kiosk/medical-leave', medicalLeaveUpload.single('file'), (req, 
     const certificateUuid = crypto.randomUUID()
     const extension = req.file.mimetype === 'application/pdf' ? '.pdf' : req.file.mimetype === 'image/png' ? '.png' : '.jpg'
     const folder = path.join(medicalLeaveRoot, `employee_${safeMedicalFile(employeeId)}`)
-    fs.mkdirSync(folder, { recursive: true })
     const storedName = `${certificateUuid}${extension}`
     storedPath = path.join(folder, storedName)
+    const payload = { ...body, employee_id: employeeId, leave_uuid: leaveUuid, certificate_uuid: certificateUuid, zile_lucratoare: businessDays(body.data_start, body.data_sfarsit), zile_calendaristice: zileCalendaristice, file_name: safeMedicalDownloadName(req.file.originalname, extension), stored_name: storedName, mime_type: req.file.mimetype, file_size: req.file.size, created_by: auth.user.id }
+
+    const overlap = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 uuid,data_start,data_sfarsit FROM hr.leave_requests WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND status IN (N'cerut',N'aprobat',N'aprobata') AND data_start<=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_sfarsit')) AND data_sfarsit>=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_start')) FOR JSON PATH;`, payload)
+      : hr.leaveRequests.find((entry) => String(entry.employee_id) === employeeId && ['cerut','aprobat','aprobata'].includes(entry.status) && entry.data_start <= body.data_sfarsit && entry.data_sfarsit >= body.data_start)
+    if (overlap) return sendJson(res, 409, { error: `Exista deja o cerere activa care se suprapune (${overlap.data_start} - ${overlap.data_sfarsit}).`, code: 'HR_LEAVE_OVERLAP' })
+
+    fs.mkdirSync(folder, { recursive: true })
     fs.writeFileSync(storedPath, req.file.buffer)
-    const payload = { ...body, employee_id: employeeId, leave_uuid: leaveUuid, certificate_uuid: certificateUuid, zile_lucratoare: businessDays(body.data_start, body.data_sfarsit), zile_calendaristice: zileCalendaristice, file_name: String(req.file.originalname || `certificat${extension}`).slice(0, 255), stored_name: storedName, mime_type: req.file.mimetype, file_size: req.file.size, created_by: auth.user.id }
 
     if (isMssqlMode()) {
-      const overlap = mssqlObject(`SELECT TOP 1 uuid,data_start,data_sfarsit FROM hr.leave_requests WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND status IN (N'cerut',N'aprobat',N'aprobata') AND data_start<=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_sfarsit')) AND data_sfarsit>=TRY_CONVERT(date,JSON_VALUE(@p,'$.data_start')) FOR JSON PATH;`, payload)
-      if (overlap) { fs.unlinkSync(storedPath); storedPath = ''; return sendJson(res, 409, { error: `Exista deja o cerere activa care se suprapune (${overlap.data_start} - ${overlap.data_sfarsit}).`, code: 'HR_LEAVE_OVERLAP' }) }
       const item = mssqlObject(`
 SET XACT_ABORT ON; BEGIN TRANSACTION;
 INSERT INTO hr.leave_requests(uuid,employee_id,tip,data_start,data_sfarsit,zile,motiv,status)
@@ -4048,8 +4121,6 @@ SELECT TOP 1 lr.*,mc.status_verificare,mc.uuid AS medical_certificate_uuid,mc.zi
       return sendJson(res, 201, item)
     }
 
-    const overlap = hr.leaveRequests.find((entry) => String(entry.employee_id) === employeeId && ['cerut','aprobat','aprobata'].includes(entry.status) && entry.data_start <= body.data_sfarsit && entry.data_sfarsit >= body.data_start)
-    if (overlap) { fs.unlinkSync(storedPath); storedPath = ''; return sendJson(res, 409, { error: `Exista deja o cerere activa care se suprapune (${overlap.data_start} - ${overlap.data_sfarsit}).`, code: 'HR_LEAVE_OVERLAP' }) }
     const leave = { id: nextId(hr.leaveRequests), uuid: leaveUuid, employee_id: employeeId, tip: 'CM', data_start: body.data_start, data_sfarsit: body.data_sfarsit, zile: payload.zile_lucratoare, motiv: body.motiv || '', status: 'cerut', created_at: nowIso() }
     const certificate = { id: nextId(hr.medicalLeaveCertificates), uuid: certificateUuid, leave_request_uuid: leaveUuid, employee_id: employeeId, serie: body.serie, numar: body.numar, tip_certificat: body.tip_certificat || 'initial', data_acordarii: body.data_acordarii, data_start: body.data_start, data_sfarsit: body.data_sfarsit, zile_calendaristice: zileCalendaristice, cod_indemnizatie: body.cod_indemnizatie, cod_diagnostic: body.cod_diagnostic || '', medic_nume: body.medic_nume, cod_parafa: body.cod_parafa, unitate_emitenta: body.unitate_emitenta, file_name: payload.file_name, stored_name: storedName, mime_type: req.file.mimetype, file_size: req.file.size, status_verificare: 'in_verificare', created_by: auth.user.id, created_at: nowIso() }
     hr.leaveRequests.push(leave); hr.medicalLeaveCertificates.push(certificate)
@@ -4073,10 +4144,10 @@ router.get('/hr/medical-leaves/:uuid/document', (req, res, next) => {
       : ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid))
     if (!item) return sendJson(res, 404, { error: 'Certificatul medical nu a fost gasit.', code: 'HR_MEDICAL_NOT_FOUND' })
     if (!fullAccess && String(item.employee_id) !== ownEmployeeId) return sendJson(res, 403, { error: 'Nu ai acces la acest document medical.' })
-    const filePath = path.join(medicalLeaveRoot, `employee_${safeMedicalFile(item.employee_id)}`, safeMedicalFile(item.stored_name))
-    if (!fs.existsSync(filePath)) return sendJson(res, 404, { error: 'Fisierul certificatului nu exista in storage.', code: 'HR_MEDICAL_STORAGE_MISSING' })
+    const filePath = storedMedicalFilePath(item.employee_id, item.stored_name)
+    if (!filePath || !fs.existsSync(filePath)) return sendJson(res, 404, { error: 'Fisierul certificatului nu exista in storage.', code: 'HR_MEDICAL_STORAGE_MISSING' })
     addAudit(db, auth.user, 'hr_medical_leave_document_viewed', String(item.uuid)); writeDb(db)
-    res.download(filePath, item.file_name)
+    res.download(filePath, safeMedicalDownloadName(item.file_name, path.extname(filePath)))
   } catch (error) { next(error) }
 })
 
@@ -4236,6 +4307,7 @@ router.post('/hr/kiosk/sync', (req, res, next) => {
 
     const operations = Array.isArray(req.body?.operations) ? req.body.operations : []
     if (!operations.length) return sendJson(res, 200, { ok: true, synced: [], failed: [], remaining: 0 })
+    if (operations.length > 100) return sendJson(res, 422, { error: 'Poți sincroniza maximum 100 de operațiuni într-o cerere.' })
 
     const db = readDb()
     const hr = ensureHrDb(db)
@@ -4251,7 +4323,7 @@ router.post('/hr/kiosk/sync', (req, res, next) => {
           continue
         }
 
-        const normalized = buildKioskLeave(operation.data || {}, auth, hr, operationId)
+        const normalized = buildKioskLeave(operation.data || {}, auth, db, operationId)
         if (normalized.error) {
           failed.push({ id: operationId, error: normalized.error })
           continue
@@ -4265,6 +4337,10 @@ WHERE uuid = JSON_VALUE(@p, '$.uuid')
 FOR JSON PATH;
 `, { uuid: leave.uuid })
           if (existing) {
+            if (String(existing.employee_id) !== String(leave.employee_id)) {
+              failed.push({ id: operationId, error: 'Operațiunea nu poate fi sincronizată.' })
+              continue
+            }
             synced.push({ id: operationId, uuid: existing.uuid, duplicate: true })
             continue
           }
@@ -4293,6 +4369,10 @@ FOR JSON PATH;
 
         const existing = hr.leaveRequests.find((item) => String(item.uuid) === String(leave.uuid))
         if (existing) {
+          if (String(existing.employee_id) !== String(leave.employee_id)) {
+            failed.push({ id: operationId, error: 'Operațiunea nu poate fi sincronizată.' })
+            continue
+          }
           synced.push({ id: operationId, uuid: existing.uuid, duplicate: true })
           continue
         }
@@ -4308,7 +4388,7 @@ FOR JSON PATH;
       }
     }
 
-    if (createdCount > 0 || !isMssqlMode()) writeDb(db)
+    if (createdCount > 0) writeDb(db)
     sendJson(res, 200, { ok: failed.length === 0, synced, failed, remaining: failed.length })
   } catch (error) {
     next(error)
@@ -5108,6 +5188,31 @@ function verifyPasswordKiosk(kioskUser, password) {
   } catch { return false }
 }
 
+function kioskEmployeeById(db, employeeId, activeOnly = true) {
+  if (isMssqlMode()) {
+    return mssqlObject(`
+SELECT TOP 1 e.*,d.cod AS department_lookup_cod,d.denumire AS department_name
+FROM hr.employees e
+LEFT JOIN core.departments d ON d.id=e.department_id
+WHERE CONVERT(nvarchar(100),e.id)=JSON_VALUE(@p,'$.employeeId')
+  AND (JSON_VALUE(@p,'$.activeOnly')<>N'true' OR ISNULL(e.activ,1)=1)
+FOR JSON PATH;`, { employeeId, activeOnly: Boolean(activeOnly) })
+  }
+  return ensureHrDb(db).employees.find((employee) => String(employee.id) === String(employeeId) && (!activeOnly || employee.activ !== false && employee.activ !== 0)) || null
+}
+
+function kioskEmployeeByCnp(db, cnp) {
+  if (isMssqlMode()) {
+    return mssqlObject(`
+SELECT TOP 1 e.*,d.cod AS department_lookup_cod,d.denumire AS department_name
+FROM hr.employees e
+LEFT JOIN core.departments d ON d.id=e.department_id
+WHERE e.cnp=JSON_VALUE(@p,'$.cnp') AND ISNULL(e.activ,1)=1
+FOR JSON PATH;`, { cnp })
+  }
+  return ensureHrDb(db).employees.find((employee) => employee.cnp === cnp && employee.activ !== false && employee.activ !== 0) || null
+}
+
 // POST /hr/kiosk/activate
 router.post('/hr/kiosk/activate', (req, res, next) => {
   try {
@@ -5138,7 +5243,7 @@ router.post('/hr/kiosk/activate', (req, res, next) => {
     const db = readDb()
     const hr = ensureHrDb(db)
 
-    const emp = hr.employees.find(e => e.cnp === cnp && e.activ !== false)
+    const emp = kioskEmployeeByCnp(db, cnp)
     if (!emp) { kioskSessions.recordFailure(ip); return sendJson(res, 422, { error: GENERIC_ERR }) }
 
     const empSerie = String(emp.act_identitate_serie || emp.ci_serie || '').toUpperCase()
@@ -5192,10 +5297,14 @@ router.post('/hr/kiosk/login', (req, res, next) => {
       kioskSessions.recordFailure(ip)
       return sendJson(res, 401, { error: 'Username sau parolă incorectă.' })
     }
+    const emp = kioskEmployeeById(db, kioskUser.employee_id)
+    if (!emp) {
+      kioskSessions.recordFailure(ip)
+      return sendJson(res, 401, { error: 'Username sau parolă incorectă.' })
+    }
     kioskSessions.clearLimit(ip)
 
     const token = kioskSessions.createSession(kioskUser.employee_id, username)
-    const emp = hr.employees.find(e => String(e.id) === String(kioskUser.employee_id))
     return sendJson(res, 200, {
       token,
       employee_id: kioskUser.employee_id,
@@ -5222,7 +5331,7 @@ router.post('/hr/kiosk/reset-request', (req, res, next) => {
     const db = readDb()
     const hr = ensureHrDb(db)
 
-    const emp = hr.employees.find(e => e.cnp === cnp && e.activ !== false)
+    const emp = kioskEmployeeByCnp(db, cnp)
     if (!emp) { kioskSessions.recordFailure(ip); return sendJson(res, 422, { error: GENERIC_ERR }) }
 
     const empSerie = String(emp.act_identitate_serie || emp.ci_serie || '').toUpperCase()
@@ -5238,7 +5347,7 @@ router.post('/hr/kiosk/reset-request', (req, res, next) => {
     const cod = String(Math.floor(100000 + Math.random() * 900000))
     const expires_at = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
     hr.kioskResetCodes = hr.kioskResetCodes.filter(c => String(c.employee_id) !== String(emp.id))
-    hr.kioskResetCodes.push({ employee_id: emp.id, cnp, cod, expires_at, created_at: nowIso() })
+    hr.kioskResetCodes.push({ employee_id: emp.id, cod, expires_at, created_at: nowIso() })
 
     // Notificare HR (useri cu rol hr)
     const hrUsers = (db.users || []).filter(u => u.active &&
@@ -5264,6 +5373,10 @@ router.post('/hr/kiosk/reset-request', (req, res, next) => {
 // POST /hr/kiosk/reset-confirm
 router.post('/hr/kiosk/reset-confirm', (req, res, next) => {
   try {
+    const ip = kioskSessions.clientIp(req)
+    if (kioskSessions.isBlocked(ip)) {
+      return sendJson(res, 429, { error: 'Prea multe încercări. Încearcă din nou peste 30 de minute.' })
+    }
     const body = req.body || {}
     const cnp = String(body.cnp || '').trim()
     const cod = String(body.cod || '').trim()
@@ -5273,30 +5386,57 @@ router.post('/hr/kiosk/reset-confirm', (req, res, next) => {
 
     const db = readDb()
     const hr = ensureHrDb(db)
-    const resetEntry = hr.kioskResetCodes.find(c => c.cnp === cnp && c.cod === cod)
-    if (!resetEntry) return sendJson(res, 422, { error: 'Cod de resetare invalid sau CNP incorect.' })
+    const employee = kioskEmployeeByCnp(db, cnp)
+    const resetEntry = hr.kioskResetCodes.find(c => c.cod === cod && (
+      employee && String(c.employee_id) === String(employee.id) || c.cnp === cnp
+    ))
+    if (!resetEntry) {
+      kioskSessions.recordFailure(ip)
+      return sendJson(res, 422, { error: 'Cod de resetare invalid sau CNP incorect.' })
+    }
     if (new Date(resetEntry.expires_at) < new Date()) {
+      kioskSessions.recordFailure(ip)
       return sendJson(res, 422, { error: 'Codul a expirat. Solicită un cod nou.' })
     }
     const kioskUser = hr.kioskUsers.find(u => String(u.employee_id) === String(resetEntry.employee_id))
-    if (!kioskUser) return sendJson(res, 422, { error: 'Contul Kiosk nu a fost găsit.' })
+    if (!kioskUser) {
+      kioskSessions.recordFailure(ip)
+      return sendJson(res, 422, { error: 'Contul Kiosk nu a fost găsit.' })
+    }
     kioskUser.passwordHash = hashPasswordKiosk(password_nou)
     kioskUser.updated_at = nowIso()
     hr.kioskResetCodes = hr.kioskResetCodes.filter(c => c !== resetEntry)
     writeDb(db)
+    kioskSessions.clearLimit(ip)
     return sendJson(res, 200, { ok: true, message: 'Parola a fost schimbată cu succes. Te poți loga cu noua parolă.' })
   } catch (err) { next(err) }
 })
 
+function kioskActiveEmployeeContext(req, res) {
+  const session = kioskSessions.requireKioskAuth(req, res)
+  if (!session) return null
+  const db = readDb()
+  const employee = kioskEmployeeById(db, session.employee_id)
+  if (!employee) {
+    sendJson(res, 401, { error: 'Sesiunea Kiosk nu mai este asociată unui angajat activ.', code: 'HR_KIOSK_EMPLOYEE_INACTIVE' })
+    return null
+  }
+  return { session, db, employee }
+}
+
+function kioskActiveEmployeeMiddleware(req, res, next) {
+  const context = kioskActiveEmployeeContext(req, res)
+  if (!context) return
+  req.hrKioskContext = context
+  next()
+}
+
 // GET /hr/kiosk/my-trips
-router.get('/hr/kiosk/my-trips', (req, res, next) => {
+router.get('/hr/kiosk/my-trips', kioskActiveEmployeeMiddleware, (req, res, next) => {
   try {
-    const session = kioskSessions.requireKioskAuth(req, res)
-    if (!session) return
-    const db = readDb()
-    const hr = ensureHrDb(db)
-    const emp = hr.employees.find(e => String(e.id) === String(session.employee_id))
-    if (!emp) return sendJson(res, 404, { error: 'Angajatul nu a fost găsit.' })
+    const context = req.hrKioskContext || kioskActiveEmployeeContext(req, res)
+    if (!context) return
+    const { db, employee: emp } = context
 
     const trips = Array.isArray(db.fleetTripLogs) ? db.fleetTripLogs : []
     const firstName = (emp.prenume || '').toLowerCase()
@@ -5424,21 +5564,28 @@ router.get('/hr/reges/work-register/diagnostic.xlsx', (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-router.get('/hr/kiosk/me', (req, res, next) => {
+router.get('/hr/kiosk/me', kioskActiveEmployeeMiddleware, (req, res, next) => {
   try {
-    const session = kioskSessions.requireKioskAuth(req, res)
-    if (!session) return
-    const db = readDb()
+    const context = req.hrKioskContext || kioskActiveEmployeeContext(req, res)
+    if (!context) return
+    const { db, employee } = context
     const hr = ensureHrDb(db)
-    const employee = hr.employees.find(e => String(e.id) === String(session.employee_id) && e.activ !== false)
-    if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost găsit.' })
 
     const month = todayIso().slice(0, 7)
-    const timeSheets = hr.timeSheets.filter((item) => String(item.employee_id) === String(employee.id) && String(item.data || '').startsWith(month))
-    const leaves = hr.leaveRequests
+    const timeSheets = isMssqlMode() ? mssqlArray(`
+SELECT * FROM hr.time_sheets
+WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) AND CONVERT(char(7),data,126)=JSON_VALUE(@p,'$.month')
+ORDER BY data FOR JSON PATH;`, { employeeId: employee.id, month }) : hr.timeSheets.filter((item) => String(item.employee_id) === String(employee.id) && String(item.data || '').startsWith(month))
+    const leaves = (isMssqlMode() ? mssqlArray(`
+SELECT * FROM hr.leave_requests
+WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId'))
+ORDER BY COALESCE(created_at,data_start) DESC FOR JSON PATH;`, { employeeId: employee.id }) : hr.leaveRequests)
       .filter((item) => String(item.employee_id) === String(employee.id))
       .sort((a, b) => String(b.created_at || b.data_start || '').localeCompare(String(a.created_at || a.data_start || '')))
-    const authorizations = hr.authorizations
+    const authorizations = (isMssqlMode() ? mssqlArray(`
+SELECT * FROM hr.authorizations
+WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employeeId')) AND ISNULL(activ,1)=1
+ORDER BY data_expirare FOR JSON PATH;`, { employeeId: employee.id }) : hr.authorizations)
       .filter((item) => String(item.employee_id) === String(employee.id))
       .map(authorizationView)
       .sort((a, b) => String(a.data_expirare || '').localeCompare(String(b.data_expirare || '')))
@@ -5474,14 +5621,12 @@ router.get('/hr/kiosk/me', (req, res, next) => {
 })
 
 // PATCH /hr/kiosk/tasks/:id — acțiuni rapide task din contul Kiosk
-router.patch('/hr/kiosk/tasks/:id', (req, res, next) => {
+router.patch('/hr/kiosk/tasks/:id', kioskActiveEmployeeMiddleware, (req, res, next) => {
+  let rollback = null
   try {
-    const session = kioskSessions.requireKioskAuth(req, res)
-    if (!session) return
-    const db = readDb()
-    const hr = ensureHrDb(db)
-    const employee = hr.employees.find(e => String(e.id) === String(session.employee_id) && e.activ !== false)
-    if (!employee) return sendJson(res, 404, { error: 'Angajatul nu a fost găsit.' })
+    const context = req.hrKioskContext || kioskActiveEmployeeContext(req, res)
+    if (!context) return
+    const { db, employee } = context
 
     const linkedUser = linkedUserForEmployee(db, employee)
     const linkedUserId = linkedUser ? userIdValue(linkedUser) : ''
@@ -5496,6 +5641,13 @@ router.patch('/hr/kiosk/tasks/:id', (req, res, next) => {
     const status = kioskTaskStatus(req.body?.status)
     const note = String(req.body?.note || req.body?.comment || '').trim().slice(0, 1500)
     if (!status && !note) return sendJson(res, 400, { error: 'Alege o acțiune sau completează un comentariu.' })
+    const taskSnapshot = { ...task }
+    const commentsLength = store.comments.length
+    rollback = () => {
+      Object.keys(task).forEach(key => { delete task[key] })
+      Object.assign(task, taskSnapshot)
+      store.comments.length = commentsLength
+    }
 
     if (status) {
       task.status = status
@@ -5518,20 +5670,39 @@ router.patch('/hr/kiosk/tasks/:id', (req, res, next) => {
 
     addAudit(db, kioskTaskActor(employee, linkedUser), 'tasks:kiosk_update', { taskId: task.id, status: task.status, note: Boolean(note) })
     writeDb(db)
+    rollback = null
     return sendJson(res, 200, { task })
-  } catch (err) { next(err) }
+  } catch (err) {
+    if (rollback) rollback()
+    next(err)
+  }
 })
 
-// POST /hr/kiosk/tasks/:id/evidence — atașament dovadă pe task din Kiosk
-router.post('/hr/kiosk/tasks/:id/evidence', upload.single('file'), (req, res, next) => {
+const taskEvidenceMime = new Map([
+  ['application/pdf', '.pdf'],
+  ['image/jpeg', '.jpg'],
+  ['image/png', '.png'],
+])
+
+function taskEvidenceFileValid(file) {
+  if (!file?.path || !taskEvidenceMime.has(file.mimetype)) return false
   try {
-    const cleanup = () => { if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path) }
-    const session = kioskSessions.requireKioskAuth(req, res)
-    if (!session) { cleanup(); return }
-    const db = readDb()
-    const hr = ensureHrDb(db)
-    const employee = hr.employees.find(e => String(e.id) === String(session.employee_id) && e.activ !== false)
-    if (!employee) { cleanup(); return sendJson(res, 404, { error: 'Angajatul nu a fost găsit.' }) }
+    const buffer = fs.readFileSync(file.path)
+    return medicalFileSignatureMatches({ mimetype: file.mimetype, buffer })
+  } catch { return false }
+}
+
+// POST /hr/kiosk/tasks/:id/evidence — atașament dovadă pe task din Kiosk
+router.post('/hr/kiosk/tasks/:id/evidence', kioskActiveEmployeeMiddleware, upload.single('file'), (req, res, next) => {
+  let uploadedPath = ''
+  let storedPath = ''
+  let rollback = null
+  try {
+    uploadedPath = String(req.file?.path || '')
+    const cleanup = () => { if (uploadedPath && fs.existsSync(uploadedPath)) fs.unlinkSync(uploadedPath) }
+    const context = req.hrKioskContext || kioskActiveEmployeeContext(req, res)
+    if (!context) { cleanup(); return }
+    const { db, employee } = context
 
     const linkedUser = linkedUserForEmployee(db, employee)
     const linkedUserId = linkedUser ? userIdValue(linkedUser) : ''
@@ -5544,10 +5715,25 @@ router.post('/hr/kiosk/tasks/:id/evidence', upload.single('file'), (req, res, ne
       return sendJson(res, 404, { error: 'Task-ul nu a fost găsit pentru acest angajat.' })
     }
     if (!req.file) return sendJson(res, 400, { error: 'Fișierul dovadă este obligatoriu.' })
+    if (!taskEvidenceFileValid(req.file)) {
+      cleanup()
+      return sendJson(res, 422, { error: 'Dovada trebuie să fie un fișier PDF, JPG sau PNG valid, de maximum 10 MB.', code: 'TASK_EVIDENCE_FILE_INVALID' })
+    }
 
-    const ext = path.extname(req.file.originalname || '') || ''
-    const storedName = `${task.id}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`
-    fs.renameSync(req.file.path, path.join(TASK_EVIDENCE_ROOT, storedName))
+    const ext = taskEvidenceMime.get(req.file.mimetype)
+    const storedName = `${crypto.randomUUID()}${ext}`
+    storedPath = path.join(TASK_EVIDENCE_ROOT, storedName)
+    fs.renameSync(req.file.path, storedPath)
+    uploadedPath = ''
+    const taskUpdatedAt = task.updated_at
+    const attachmentsLength = store.attachments.length
+    const commentsLength = store.comments.length
+    rollback = () => {
+      store.attachments.length = attachmentsLength
+      store.comments.length = commentsLength
+      if (taskUpdatedAt === undefined) delete task.updated_at
+      else task.updated_at = taskUpdatedAt
+    }
     const attachment = {
       id: `task-file-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
       task_id: task.id,
@@ -5575,8 +5761,15 @@ router.post('/hr/kiosk/tasks/:id/evidence', upload.single('file'), (req, res, ne
     task.updated_at = nowIso()
     addAudit(db, kioskTaskActor(employee, linkedUser), 'tasks:kiosk_attachment', { taskId: task.id, attachmentId: attachment.id, file: attachment.file_name })
     writeDb(db)
+    rollback = null
+    storedPath = ''
     return sendJson(res, 201, { attachment: { ...attachment, url: taskEvidenceUrl(attachment) } })
-  } catch (err) { next(err) }
+  } catch (err) {
+    if (rollback) rollback()
+    if (uploadedPath && fs.existsSync(uploadedPath)) fs.unlinkSync(uploadedPath)
+    if (storedPath && fs.existsSync(storedPath)) fs.unlinkSync(storedPath)
+    next(err)
+  }
 })
 
 // ── POST /hr/verify-employee — verifică angajat din HR (pentru creare cont) ──

@@ -22,7 +22,11 @@ export default function HREmployeeProfileModal({
   workflow,
   coBalance,
   activityItems,
+  showDossierSummary = false,
+  showWorkflowSummary = false,
+  showActivity = false,
   activeTab,
+  visibleTabs,
   guidedIssue,
   editForm,
   children,
@@ -61,9 +65,11 @@ export default function HREmployeeProfileModal({
             expirations={expirations}
             workflow={workflow}
             coBalance={coBalance}
+            showDossierSummary={showDossierSummary}
+            showWorkflowSummary={showWorkflowSummary}
           />
 
-          {guidedIssue ? (
+          {showDossierSummary && guidedIssue ? (
             <HREmployeeGuidedIssue
               issue={guidedIssue}
               employee={employee}
@@ -74,14 +80,17 @@ export default function HREmployeeProfileModal({
             />
           ) : null}
 
-          <HREmployeeProfileActivity
-            items={activityItems}
-            onReload={onReloadActivity}
-          />
+          {showActivity ? (
+            <HREmployeeProfileActivity
+              items={activityItems}
+              onReload={onReloadActivity}
+            />
+          ) : null}
 
           <HREmployeeProfileTabs
             activeTab={activeTab}
             onTabChange={onTabChange}
+            tabs={visibleTabs}
           />
 
           {children}

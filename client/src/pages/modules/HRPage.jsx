@@ -327,7 +327,22 @@ export default function HRPage() {
   const isHRPontaj = hasPermission('hr:timesheets_manage')
   const isSefPontaj = hasPermission('hr:timesheet_dept')
   const canUsePontaj = isHRPontaj || isSefPontaj || hasPermission('hr:timesheet') || hasPermission('hr:timesheets_view')
+  const canListEmployees = hasPermission('hr:view') || hasPermission('hr:view_own') || canManageEmployees || isSefPontaj || hasPermission('echipamente:gestionar')
   const canManageEquipment = isAdmin || hasPermission('echipamente:gestionar') || hasPermission('hr:manage')
+  const canReadEmployeeHistory = hasPermission('hr:view')
+  const canReadEmployeeLeaveBalance = hasPermission('hr:view') || hasPermission('hr:view_own') || hasPermission('hr:leave_own')
+  const canGenerateEmployeeCertificate = hasPermission('hr:view') || (
+    hasPermission('kiosk:documents_own') &&
+    String(employeeDetails?.user_id || selectedEmployee?.user_id || '') === String(user?.id || '')
+  )
+  const employeeProfileTabs = [
+    ['date', 'Date personale'],
+    ...(canReadEmployeeHistory ? [['contracte', 'Contracte']] : []),
+    ...(canUsePontaj || hasPermission('hr:view_own') || hasPermission('hr:leave_own') ? [['pontaj', 'Pontaj & concedii']] : []),
+    ...(canReadDossier ? [['dosar', 'Dosar documente'], ['kiosk', 'Scadențe & Kiosk']] : []),
+    ...(canReadWorkflow ? [['flux', 'Onboarding / Offboarding']] : []),
+    ...(canManageEquipment ? [['echipamente', 'Echipamente']] : []),
+  ]
   const ownDepartmentKey = user?.departmentId || user?.department_id || user?.dept_id || user?.department || user?.departament || ''
 
   async function runConfirmAction(reason) {
@@ -351,7 +366,7 @@ export default function HRPage() {
     setNotice('')
     try {
       const [employeesRes, departmentsRes, sheetRes, leavesRes, authRes, statsRes, usersRes, templatesRes, checklistRes, dossierDashboardRes, inboxRes, activityRes, managementRes, countryRulesRes, laborRegistryHistoryRes, laborRegistryDiagnosticRes, expirationsRes, expirationNotificationsRes] = await Promise.all([
-        api.get('/hr/employees'),
+        canListEmployees ? api.get('/hr/employees') : Promise.resolve({ data: [] }),
         api.get('/departments').catch(() => ({ data: { departments: [] } })),
         canUsePontaj ? api.get('/hr/timesheets/monthly-sheet', { params: { luna: filters.luna, dept_id: (!isHRPontaj && isSefPontaj ? ownDepartmentKey : filters.dept_id) || undefined } }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         api.get('/hr/leave-requests').catch(() => ({ data: [] })),
@@ -458,11 +473,11 @@ export default function HRPage() {
     try {
       const [detailsRes, coRes, equipmentRes, transfersRes, contractsRes, amendmentsRes, workflowRes] = await Promise.all([
         api.get(`/hr/employees/${employee.id}`),
-        api.get(`/hr/employees/${employee.id}/co-balance`).catch(() => ({ data: null })),
-        api.get(`/hr/echipamente/angajat/${employee.id}`).catch(() => ({ data: null })),
-        api.get(`/hr/employees/${employee.id}/transfers`).catch(() => ({ data: [] })),
-        api.get(`/hr/employees/${employee.id}/contracts`).catch(() => ({ data: [] })),
-        api.get(`/hr/employees/${employee.id}/contract-amendments`).catch(() => ({ data: [] })),
+        canReadEmployeeLeaveBalance ? api.get(`/hr/employees/${employee.id}/co-balance`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+        canManageEquipment ? api.get(`/hr/echipamente/angajat/${employee.id}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+        canReadEmployeeHistory ? api.get(`/hr/employees/${employee.id}/transfers`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        canReadEmployeeHistory ? api.get(`/hr/employees/${employee.id}/contracts`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        canReadEmployeeHistory ? api.get(`/hr/employees/${employee.id}/contract-amendments`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         canReadWorkflow ? api.get(`/hr/employees/${employee.id}/workflow`).catch(() => ({ data: { workflow: null } })) : Promise.resolve({ data: { workflow: null } }),
       ])
       setEmployeeDetails(detailsRes.data)
@@ -2674,7 +2689,11 @@ export default function HRPage() {
         workflow={employeeWorkflow}
         coBalance={coBalance}
         activityItems={selectedEmployeeActivity}
+        showDossierSummary={canReadDossier}
+        showWorkflowSummary={canReadWorkflow}
+        showActivity={canReadWorkflow}
         activeTab={employeeProfileTab}
+        visibleTabs={employeeProfileTabs}
         guidedIssue={guidedProfileIssue}
         editForm={editForm}
         onClose={() => { setSelectedEmployee(null); setGuidedProfileIssue(null) }}
@@ -2709,6 +2728,7 @@ export default function HRPage() {
             transferHistory={transferHistory}
             canManageHr={hasPerm('hr:manage')}
             canWriteField={canWriteField}
+            canGenerateCertificate={canGenerateEmployeeCertificate}
             canManageContracts={(hasPerm('hr:manage') || hasPerm('hr:contracts_manage')) && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
             canGenerateWord={hasPerm('hr:view') && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
             canArchiveWord={hasPerm('hr:manage') && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}

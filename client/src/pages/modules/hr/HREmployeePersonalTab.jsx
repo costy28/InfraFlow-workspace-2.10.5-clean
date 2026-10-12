@@ -53,6 +53,7 @@ export default function HREmployeePersonalTab({
   onLoadAdeverinta,
   onPrintAdeverinta,
   guidedIssue,
+  canGenerateCertificate = false,
   canWriteField = () => false,
 }) {
   if (editMode) {
@@ -81,6 +82,7 @@ export default function HREmployeePersonalTab({
       onAdeverintaTipChange={onAdeverintaTipChange}
       onLoadAdeverinta={onLoadAdeverinta}
       onPrintAdeverinta={onPrintAdeverinta}
+      canGenerateCertificate={canGenerateCertificate}
     />
   )
 }
@@ -219,6 +221,7 @@ function HREmployeePersonalSummary({
   onAdeverintaTipChange,
   onLoadAdeverinta,
   onPrintAdeverinta,
+  canGenerateCertificate,
 }) {
   const requiredDocuments = [
     { label: 'Permis conducere', date: employee.permis_conducere_expira || employee.data_expirare_permis },
@@ -258,9 +261,11 @@ function HREmployeePersonalSummary({
             </div>
           </div>
         ) : null}
-        <div className="mt-2 flex gap-2">
-          <Button size="sm" variant="secondary" onClick={() => onLoadAdeverinta(employee.id)}>📄 Generează adeverință</Button>
-        </div>
+        {canGenerateCertificate ? (
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => onLoadAdeverinta(employee.id)}>📄 Generează adeverință</Button>
+          </div>
+        ) : null}
         {adeverintaData && String(adeverintaData.angajat?.id) === String(employee.id) ? (
           <div className="mt-2 flex flex-wrap gap-2">
             <Select label="" value={adeverintaTip} onChange={event => onAdeverintaTipChange(event.target.value)} options={adeverintaOptions} />

@@ -24,6 +24,7 @@ export default function HREmployeeProfileTabsRouter({
   transferHistory,
   canManageHr,
   canManageContracts = false,
+  canGenerateCertificate = false,
   canWriteField = () => false,
   canGenerateWord = false,
   canArchiveWord = false,
@@ -86,6 +87,7 @@ export default function HREmployeeProfileTabsRouter({
         onLoadAdeverinta={onLoadAdeverinta}
         onAdeverintaTipChange={onAdeverintaTipChange}
         onPrintAdeverinta={onPrintAdeverinta}
+        canGenerateCertificate={canGenerateCertificate}
         guidedIssue={guidedIssue}
       />
     )
