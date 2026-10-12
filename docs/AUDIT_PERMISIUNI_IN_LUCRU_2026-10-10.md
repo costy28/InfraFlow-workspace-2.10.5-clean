@@ -3,6 +3,180 @@
 Acest document nu certifică închiderea auditului și nu reprezintă o versiune livrată.
 Modificările sunt locale; instalațiile active nu au fost actualizate sau repornite.
 
+## Remindere pontaj persistente în MSSQL — 12 octombrie
+
+- Ruta de reminder nu mai întoarce artificial `sent: 0` în modul relațional. Destinatarii sunt angajații activi cu utilizator activ asociat, grupați pe departamente active care nu au pontajul marcat `finalizat` pentru luna cerută.
+- Sunt respectate aria globală și aria propriului departament. Luna este validată strict; un aprobator de departament fără departament asociat rămâne refuzat.
+- Pentru fiecare destinatar se creează o notificare persistentă în aplicație, se emite evenimentul live și se încearcă separat emailul de pe fișa angajatului. Un eșec SMTP nu anulează notificarea; răspunsul diferențiază `sent` de `emailed`.
+- Notificarea deschide `/hr?section=pontaj`; pagina HR interpretează acum parametrul și deschide direct tabul permis, cu fallback la primul tab accesibil.
+- Regresia politicii a trecut 10/10, regresia rutelor JSON 66/66 cu testul SQL opțional omis, build-ul React a trecut în `.permission-build-check-5`, iar proba SQL reală a trecut pe `INFRAFLOW_TEST_HR_E97127704B39` cu doi destinatari și două notificări persistente.
+- Baza sintetică este păstrată pentru audit. Nu s-au făcut deployment, restart, versiune nouă sau pachete; livrarea SMTP reală și click-ul într-un browser autentificat nu au fost testate pe instalația activă.
+
+## Pontaj pe departament în MSSQL — 11 octombrie
+
+- Filtrul comun de acces recunoaște acum și `department_cod`/codul din nomenclator, fără diferență între litere mari și mici. Filtrul SQL verifică ID-ul, codul și denumirea departamentului; dreptul pe un departament nu se extinde în altul.
+- `timesheets/my-department` returnează în MSSQL angajații din aria permisă, pontajele lunii și starea finalizării departamentului, cu fișele angajaților trecute prin sanitizarea existentă. Luna este validată strict.
+- Overview-ul MSSQL calculează procentul din pontajele existente raportate la angajații activi și zilele lunii, păstrând statusul depus sau derivând `în_lucru`/`necompletat`. Aprobatorul de departament primește numai departamentul asociat.
+- Regresia politicii a trecut 10/10, iar regresia rutelor JSON a trecut 65/65 cu testul SQL opțional omis. Proba SQL reală a trecut pe `INFRAFLOW_TEST_HR_CB201861AED9`, inclusiv status `finalizat`, patru pontaje și procent 6%.
+- Bazele intermediare `INFRAFLOW_TEST_HR_7A4FAAD36573` și `INFRAFLOW_TEST_HR_173195CAD95F` sunt păstrate; ele au expus doar două aserțiuni fragile ale testului (ordinea alfabetică și verificarea titularului în locul colegului), corectate fără schimbarea politicii aplicației.
+- Nu s-au făcut deployment, restart, versiune nouă sau pachete. Nu este încă o probă browser/login HTTP pentru aceste două vederi.
+
+## Tichete de masă și protecția CNP — 11 octombrie
+
+- Lista tichetelor de masă folosește aceeași agregare pentru JSON și MSSQL relațional, inclusiv pontajele validate și zilele CO/CM aprobate care se suprapun lunii selectate. Luna este validată strict în forma `AAAA-LL`.
+- CNP-ul nu mai este returnat în lista folosită de interfață. Exportul CSV care conține CNP cere explicit atât `hr:view`, cât și `hr:personal_sensitive`; configurarea valorii tichetului rămâne disponibilă numai cu `hr:manage`.
+- Interfața ascunde exportul fără acces la date personale și dezactivează configurarea fără drept de administrare. Regresia JSON a trecut cu 65/65 teste, un test SQL opțional omis, iar build-ul React a trecut în directorul temporar `.permission-build-check-4`.
+- Proba relațională SQL Server reală a trecut integral pe baza sintetică `INFRAFLOW_TEST_HR_CBDB942039B5`: două zile lucrate, o zi CO, un tichet rezultat, listă fără CNP, refuz 403 fără drept sensibil și export autorizat cu CNP. Baza este păstrată pentru audit.
+- Nu s-au făcut deployment, restart, versiune nouă sau pachete. Nu este încă o probă browser/login HTTP pentru această secțiune.
+
+## Raport lunar pontaj pe MSSQL relațional — 11 octombrie
+
+- Ruta `raport-lunar` citește acum angajatul, pontajele, programările/turele și contractul activ din tabelele relaționale atunci când MSSQL este activ; ramura JSON păstrează fluxul existent.
+- Luna este validată strict în forma `AAAA-LL` înainte de accesarea datelor. Accesul propriu/departament/global rămâne controlat de politica pontajului, iar sporurile salariale sunt returnate numai titularului sau rolului cu `hr:salary_view`.
+- Proba relațională verifică un pontaj de 10 ore într-o tură de 8 ore, calculul a 2 ore suplimentare, 2 ore de noapte, o zi CO, observația Unicode și sporurile calculate din contractul SQL. Regresia JSON a trecut 63/63, cu testul SQL opțional omis.
+- Prima probă SQL a identificat exclusiv un literal fără prefix Unicode în fixture și a păstrat baza `INFRAFLOW_TEST_HR_A60417BE0FEA`. După corectarea fixture-ului fără relaxarea aserțiunii, proba relațională a trecut pe `INFRAFLOW_TEST_HR_D2B9197BCF76`.
+- Bazele sunt păstrate pentru audit; nu s-au făcut deployment, restart, versiune nouă sau pachete.
+
+## CIM și adeverințe HR pe stocare relațională — 11 octombrie
+
+- Ruta CIM citește acum contractul activ din `hr.contracts` în modul MSSQL, nu din snapshot-ul `app_state`. Contractul și angajatul trec prin politica salarială înainte de răspuns: titularul sau rolul cu `hr:salary_view` păstrează valorile, iar simplul `hr:view` nu mai vede salariul ori costul orar al colegului.
+- Ruta de adeverințe folosește același contract relațional, validează lista tipurilor acceptate și refuză adeverința de venit/medicală fără accesul sensibil necesar. Textul actului de identitate este construit numai din angajatul deja sanitizat.
+- Numărul zilelor de concediu medical din ultimele 12 luni este citit din `hr.leave_requests` în MSSQL și este returnat numai titularului sau rolului cu `hr:medical_view`. Pentru celelalte tipuri, utilizatorul limitat nu primește nici măcar agregatul medical.
+- Regresia JSON finală a trecut cu 62/62 teste și un test SQL opțional omis. Proba SQL integrală pentru CIM a trecut 61/61 pe `INFRAFLOW_TEST_HR_F6F10084669A`; proba relațională țintită după extinderea adeverințelor a trecut pe `INFRAFLOW_TEST_HR_1983EF0D79C9`.
+- Bazele sintetice sunt păstrate pentru audit. Nu s-au făcut deployment, restart, versiune nouă sau pachete; testul nu folosește baza activă.
+
+## Evaluări HR pe MSSQL relațional — 11 octombrie
+
+- Migrarea idempotentă `077_hr_evaluations.sql` adaugă tabelul relațional, constrângeri pentru tip/calificativ/punctaj/status și indexul angajat-dată.
+- La prima aplicare într-o instalație relațională, evaluările vechi valide din `dbo.app_state` sunt importate numai pentru angajați existenți. Testul a aplicat migrarea de două ori și a confirmat o singură înregistrare importată; evaluarea cu angajat inexistent a fost ignorată.
+- Listarea, crearea, editarea și ștergerea folosesc SQL parametrizat în modul relațional. Evaluatorul este derivat exclusiv din sesiunea autentificată; payload-ul nu poate schimba evaluatorul sau angajatul unei evaluări existente.
+- Sunt validate angajatul, data, tipul, calificativul, punctajul 0–100, statusul, lungimea textelor și filtrele `employee_id`/`year`. Câmpurile necunoscute sunt eliminate înainte de scriere.
+- Regresia JSON a trecut cu 58 teste și un test SQL omis. Proba SQL Server reală finală a trecut 59/59 pe `INFRAFLOW_TEST_HR_0E462146BF6A`. Prima încercare a expus doar permisiunea lipsă din fixture și a păstrat baza `INFRAFLOW_TEST_HR_D600E80882DF`.
+- Auth și app-state sunt fixture VM pentru proba relațională; nu este test pe baza activă. Fără deployment, restart, versiune nouă sau pachete.
+
+## Scadențar instruiri pe MSSQL relațional — 11 octombrie
+
+- Ruta scadențarului citește acum explicit din `hr.employees`, `hr.training`, `hr.training_employees` și `core.departments` când modul relațional este activ; nu mai folosește snapshot-ul JSON în acea configurație.
+- JSON și SQL folosesc același evaluator pentru cursurile obligatorii, datele de expirare, stări și forma publică a răspunsului. Angajații cu `activ: false` sau `activ: 0` sunt excluși consecvent.
+- Regresia JSON a trecut cu 57 teste și un test SQL opțional omis. Proba SQL Server reală a trecut cu 58/58 teste pe baza sintetică nouă `INFRAFLOW_TEST_HR_3D68308DDC16`, inclusiv denumirea departamentului citită din SQL.
+- Mesajul SQL despre angajatul inexistent este proba negativă controlată a transferului; testul complet s-a încheiat cu cod 0. Baza sintetică este păstrată, fără ștergere.
+- Auth și app-state rămân fixture VM în această probă relațională; nu este test pe baza activă și nu s-au făcut deployment, restart sau pachete.
+
+## Validarea catalogului de instruiri — 11 octombrie
+
+- Crearea unui curs validează înainte de scriere denumirea și limitele text, datele calendaristice, ordinea perioadei, valabilitatea și costul pozitiv cu maximum două zecimale.
+- Payload-ul este normalizat și limitat la câmpurile persistabile; proprietățile străine nu mai ajung în JSON și nici în parametrul SQL.
+- Regresia JSON a trecut cu 56 teste și un test SQL opțional omis. Proba SQL Server reală a trecut cu 57/57 teste pe baza sintetică nouă `INFRAFLOW_TEST_HR_4266D79781B7`, inclusiv refuz fără INSERT și inserare validă normalizată.
+- Mesajul SQL intermediar despre angajatul inexistent aparține probei negative a transferului și este prins de test; procesul s-a încheiat cu cod 0. Baza sintetică este păstrată, fără ștergere.
+- Nu s-au făcut deployment, restart sau pachete; nu este încă probă HTTP/browser pentru formularul de creare a cursului.
+
+## Instruiri prin browser și API real — 11 octombrie
+
+- `verify-hr-http-permissions.js --ui --training` a trecut pe server temporar și bază JSON izolată, cu patru roluri verificate prin autentificare reală.
+- Rolul dedicat `hr:training`, fără acces la date personale, vede explicația pentru scadențarul nominal și nu trimite cererea interzisă către `/api/hr/training/scadentar`.
+- Rolul cu `hr:training` și `hr:personal_sensitive` vede scadențarul, iar cererea autorizată răspunde cu succes. Ambele roluri fără `hr:view` primesc explicația pentru evaluări și nu solicită `/api/hr/evaluations`.
+- Nu au apărut erori JavaScript și acțiunea „Evaluare nouă” rămâne ascunsă. Capturile probei sunt păstrate în `C:\Users\costy\AppData\Local\Temp\infraflow-hr-http-33ZxLe`.
+- Aceasta este o probă browser pe JSON; API-ul pe MSSQL standard a fost verificat separat. Nu s-au făcut deployment, restart sau pachete.
+
+## Instruiri prin login și HTTP real — 11 octombrie
+
+- `verify-hr-http-permissions.js --training` a trecut pe JSON izolat și pe baza MSSQL standard nouă `INFRAFLOW_TEST_PERMISSIONS_25B9696BF951` (`dbo.app_state`).
+- Rolul `hr:training` poate vedea și crea cursuri, dar primește 403 la scadențarul nominal și înscriere fără `hr:personal_sensitive`.
+- Rolul complet a confirmat curs inexistent 404, lot mixt 422, două înscrieri după deduplicare și repetare cu `added: 0`. Scadențarul autorizat răspunde 200.
+- Loginul, sanitizarea angajaților și cele patru refuzuri restrictive existente continuă să treacă. Procesele temporare sunt oprite; baza MSSQL și fixture-ul JSON sunt păstrate.
+- Nu este probă browser a noilor reguli și nici schema HR relațională completă. Fără acces la baza activă, deployment, restart sau pachete.
+
+## Înscrieri cursuri pe SQL real — 11 octombrie
+
+- 56/56 teste de rute HR trecute, inclusiv SQL Express real pe baza sintetică nouă `INFRAFLOW_TEST_HR_04A2F2E47680`.
+- Verificate în SQL: curs inexistent, lot mixt cu angajat inexistent fără INSERT, deduplicarea ID-urilor, două înscrieri valide și repetarea idempotentă cu zero rânduri noi.
+- Numărul `added` este numărul real de INSERT-uri. Tabelul final conține exact două legături curs-angajat.
+- Schema rămâne sintetică minimală, auth/app_state sunt fixture VM; nu este login HTTP, browser sau schema completă de producție. Baza este păstrată, fără ștergeri.
+- Fără acces la baza activă, deployment, restart sau pachete.
+
+## Validare lot înscrieri curs — 11 octombrie
+
+- Înainte de scriere sunt verificate forma listei, ID-uri întregi pozitive, existența cursului și a tuturor angajaților. Un angajat absent refuză întregul lot; nu se înscrie parțial.
+- Identificatorii repetați sunt deduplicați; înscrierile existente nu se duplică. SQL returnează numărul real de rânduri adăugate, nu dimensiunea cererii.
+- 75 teste rute/regresii HR trecute, zero eșecuri, un SQL opțional omis. Regresia nouă verifică JSON: selecții invalide, curs absent, lot mixt, deduplicare și repetarea cererii.
+- Ramura SQL modificată necesită încă probă SQL real; verificările nu certifică concurența. Fără deployment/restart/pachete.
+
+## Instruiri și scadențar nominal — 11 octombrie
+
+- Catalogul cursurilor acceptă vizualizare HR sau dreptul dedicat `hr:training`; crearea cursurilor acceptă administrare HR sau administrarea formărilor. Dreptul dedicat nu acordă alte operații HR.
+- Înscrierea angajaților și scadențarul nominal cer suplimentar `hr:personal_sensitive`. UI nu solicită scadențarul fără acest drept și afișează explicație, nu o concluzie falsă că instruirile sunt la zi.
+- Încărcarea evaluărilor verifică și `hr:view`, pentru ca rolul dedicat formărilor să nu trimită cererea interzisă.
+- 74 teste rute/regresii HR trecute, zero eșecuri, un SQL opțional omis; build temporar trecut. Noile reguli nu au fost încă probate prin HTTP/browser sau SQL real.
+- Rămân de verificat validitatea cursului/angajaților la înscriere și comportamentul complet al scadențarului în mod relațional. Fără deployment/restart/pachete.
+
+## Evaluări individuale HR — 11 octombrie
+
+- Lista evaluărilor cere `hr:view` și `hr:personal_sensitive`; creare/editare/ștergere cer `hr:manage` și acces personal. Observațiile/punctajele/recomandările nu mai sunt disponibile cu simpla vizualizare HR.
+- UI nu solicită evaluările fără acces personal, afișează explicație în locul unei liste goale înșelătoare și ascunde acțiunile administrative. Handler-ele de salvare/ștergere au verificare explicită.
+- 73 teste rute/regresie HR trecute, zero eșecuri, un test SQL opțional omis. Build temporar trecut. Nu este probă browser/HTTP a noilor reguli.
+- Scadențarele și instruirile rămân de revizuit separat; nu au fost declarate închise. Fără deployment/restart/pachete.
+
+## Validări asociere prin HTTP real MSSQL — 11 octombrie
+
+- `verify-hr-http-permissions.js --mssql --links` trecut pe baza nouă izolată `INFRAFLOW_TEST_PERMISSIONS_E64B963338F8`.
+- Opt refuzuri POST/PATCH fără modificarea angajaților; asociere și dezasociere autorizate confirmate prin login nou. Cele patru refuzuri restrictive și sanitizarea existente au trecut de asemenea.
+- MSSQL standard `dbo.app_state`, nu HR relațional. Browserul nu a fost rerulat pentru noile validări. Scheduler oprit, proces temporar închis, baza fictivă păstrată.
+- Următoarea zonă de audit: evaluări și instruiri HR, inclusiv informații individuale în liste și scadențare.
+- Fără acces la baza activă, deployment, restart sau pachete.
+
+## Asociere/dezasociere prin API real — 11 octombrie
+
+- `node scripts/verify-hr-http-permissions.js --links` trecut pe server temporar, bază JSON fictivă, login real, scheduler oprit.
+- Opt refuzuri POST/PATCH pentru cont absent, inactiv, legat invers sau ocupat direct. Lista integrală a angajaților este identică înainte/după refuzuri.
+- Crearea autorizată a unui angajat cu cont liber este confirmată prin login și `user.employee_id`; dezasocierea este verificată prin login nou fără acea referință.
+- Cele patru refuzuri restrictive și sanitizarea existente continuă să treacă. Nu este probă UI sau MSSQL pentru noile validări, nici test de concurență.
+- Procesul temporar este oprit; fără deployment/restart/pachete.
+
+## Validare cont selectat în HR — 11 octombrie
+
+- Crearea și editarea refuză conturi inexistente/inactive înainte de scriere; starea inactivă acceptă atât `false`, cât și `0`.
+- Legătura inversă `users.employee_id` către alt angajat produce 409, chiar dacă legătura directă HR lipsește. Nu se repară sau șterg automat legături istorice.
+- Lista conturilor asociabile exclude și inactivitatea numerică. Eliminarea autorizată a unei legături rămâne permisă.
+- Rute și regresii HR: 72 trecute, zero eșecuri, un test SQL opțional omis. Testele includ refuzuri fără scriere și păstrează probele pozitive de asociere/dezasociere. Concurența și proba HTTP a noilor validări rămân de verificat.
+- Fără deployment/restart/pachete.
+
+## Asociere cont la crearea angajatului — 11 octombrie
+
+- Crearea refuză contul deja asociat cu 409, înainte de INSERT/scriere JSON, la fel ca editarea. Crearea autorizată sincronizează `users.employee_id` prin helper-ul existent.
+- Regresii pentru refuz fără scriere, creare pozitivă JSON cu legătură inversă și refuz SQL înainte de INSERT (SQL simulat în fixture VM).
+- Rute HR și regresie HR: 71 trecute, zero eșecuri, un test SQL real opțional omis. Nu validează concurența a două cereri sau existența/activitatea contului selectat; acestea rămân de revizuit.
+- Fără deployment/restart/pachete; versiunea nu a fost schimbată.
+
+## Browser și login real pe MSSQL standard — 11 octombrie
+
+- `verify-hr-http-permissions.js --mssql --ui` a trecut pe baza nouă izolată `INFRAFLOW_TEST_PERMISSIONS_4EE9EBA22DFF`, cu scheduler oprit și port loopback separat.
+- Login real pentru roluri restrictive, listă proprie filtrată, CNP/salariu coleg sanitizate, patru refuzuri HTTP și angajați identici înainte/după: trecute.
+- Browser Chrome cu API real pentru două roluri: panouri administrative ascunse, listă filtrată, CRM blocat, fără erori JavaScript. Capturi: `C:\Users\costy\AppData\Local\Temp\infraflow-hr-http-DlCMTz`.
+- Configurația standard este MSSQL `dbo.app_state`, `INFRAFLOW_SQL_RELATIONAL=0`, conform comentariului din executorul migrărilor. Nu validează schema HR relațională integrală sau toate ecranele HR.
+- Procesele temporare sunt oprite; baza și capturile sunt păstrate. Instalațiile active nu au fost repornite. Pachetele finale nu au fost generate.
+
+## Reverificare SQL real și istoric exporturi — 11 octombrie
+
+- 50/50 teste de rute HR trecute, inclusiv proba SQL real opțională, pe baza sintetică nouă `INFRAFLOW_TEST_HR_1C469CE9D0C9`.
+- Istoricul autorizat păstrează mesajul și elimină calea internă; calea rămâne în baza SQL. Dreptul de export singur este refuzat (403).
+- Prima încercare a identificat escaping greșit în calea fictivă din fixture, corectat înainte de rerulare; baza intermediară `INFRAFLOW_TEST_HR_3E7D6E3BB832` este păstrată.
+- Limite: schemă sintetică minimală, auth/app_state simulate; nu certifică migrările complete sau browser/login pe HR relațional. Fără acces la baza activă, restart sau pachete.
+
+## Istoric registru HR fără căi interne — 11 octombrie
+
+- Istoricul exporturilor returnează numai metadatele folosite de interfață, fără `fisier_path` sau câmpuri suplimentare necunoscute. Fișierele și referințele persistate rămân neschimbate.
+- Interogarea SQL selectează explicit câmpurile publice; serializer-ul comun filtrează și ramura JSON.
+- Regresia acoperă ambele ramuri cu fixture VM (SQL simulat, nu SQL real), metadatele păstrate și zero scrieri. Drepturile de export/personal/salarial rămân obligatorii.
+- Suite rute HR: 49 trecute, zero eșecuri, un test SQL real opțional omis. Fără restart/deployment/pachete.
+
+## Pontaj numai pentru vizualizare — 11 octombrie
+
+- Exportul Nexus este disponibil în UI numai cu `hr:timesheet`, aceeași permisiune cerută de API; handler-ul client are și verificare explicită.
+- Regresia API confirmă că `hr:timesheets_view` nu permite exportul Nexus sau completarea lunii, fără scrieri ori acces storage.
+- Build temporar trecut. Proba browser cu API-uri simulate a trecut pentru trei roluri restrictive, inclusiv cititorul pontajului: fără export, completare zile sau validare lună.
+- Verificare cumulată: 127 teste trecute, zero eșecuri, un test SQL opțional omis. Această rulare nu validează MSSQL sau întregul flux live; proba SQL anterioară este documentată separat mai jos.
+- Fără deployment, restart al instalațiilor active sau pachete noi.
+
 ## SQL real pentru rute HR relaționale — 11 octombrie
 
 - `INFRAFLOW_TEST_HR_SQL=1` activează proba opțională din `hr-route-access.test.js`: handler-ele reale execută SQL pe o bază SQL Express nouă cu schemă sintetică minimală. Auth/app_state sunt fixture VM, nu login HTTP real în acest test.

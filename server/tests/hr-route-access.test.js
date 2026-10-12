@@ -44,7 +44,7 @@ function fixture(options = {}) {
     return { code, continued }
   }, storageChecks: () => storageChecks, photoDownloads: () => photoDownloads, writes: () => writes, async invoke(route, body = {}, query = {}, params = {}) {
     let code; let data; let error
-    await handlers.get(route)({ body, query, params }, { status(value) { code = value; return this }, json(value) { data = value }, writeHead(value) { code = value }, end(value) { if (value) data = JSON.parse(value) }, setHeader(key, value) { headers[key] = value }, sendFile() { photoDownloads++ } }, value => { error = value })
+    await handlers.get(route)({ body, query, params }, { status(value) { code = value; return this }, json(value) { data = value }, send(value) { data = value }, writeHead(value) { code = value }, end(value) { if (value) data = Buffer.isBuffer(value) ? value : JSON.parse(value) }, setHeader(key, value) { headers[key] = value }, sendFile() { photoDownloads++ } }, value => { error = value })
     if (error) throw error
     return { code, data }
   } }
@@ -64,6 +64,66 @@ test('rutele HR relaționale execută SQL real într-o bază sintetică izolată
   const colleague = colleagues.data.find(row => row.id === 2)
   assert.equal(colleague.cnp, undefined)
   assert.equal(colleague.salariu_baza, undefined)
+  const mealTickets = await f.invoke('get /hr/meal-tickets', {}, { luna: '2026-10' })
+  const colleagueMealTickets = mealTickets.data.rows.find(row => row.employee_id === 2)
+  assert.equal(colleagueMealTickets.zile_lucrate, 2)
+  assert.equal(colleagueMealTickets.zile_co, 1)
+  assert.equal(colleagueMealTickets.tichete, 1)
+  assert.equal(colleagueMealTickets.cnp, undefined)
+  assert.equal((await f.invoke('get /hr/meal-tickets/export', {}, { luna: '2026-10' })).code, 403)
+  f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:personal_sensitive']
+  const mealExport = await f.invoke('get /hr/meal-tickets/export', {}, { luna: '2026-10' })
+  assert.match(mealExport.data, /secret2/)
+  assert.match(mealExport.data, /;"1";"40"/)
+  f.db.settings.customRoles[0].permissions = ['hr:view']
+  const colleagueCim = await f.invoke('get /hr/employees/:id/cim', {}, {}, { id: 2 })
+  assert.equal(colleagueCim.code, 200)
+  assert.equal(colleagueCim.data.contract.id, 2)
+  assert.equal(colleagueCim.data.contract.salariu_baza, undefined)
+  assert.equal(colleagueCim.data.angajat.salariu_baza, undefined)
+  const ownCim = await f.invoke('get /hr/employees/:id/cim', {}, {}, { id: 1 })
+  assert.equal(ownCim.data.contract.id, 1)
+  assert.equal(ownCim.data.contract.salariu_baza, 1000)
+  assert.equal(ownCim.data.angajat.salariu_baza, 1000)
+  assert.equal((await f.invoke('get /hr/employees/:id/adeverinta', {}, { tip: 'concediu_medical' }, { id: 2 })).code, 403)
+  const ownCertificate = await f.invoke('get /hr/employees/:id/adeverinta', {}, { tip: 'concediu_medical' }, { id: 1 })
+  assert.equal(ownCertificate.code, 200)
+  assert.equal(ownCertificate.data.zile_concediu_medical_12_luni, 3)
+  assert.equal(ownCertificate.data.contract.id, 1)
+  assert.equal(ownCertificate.data.contract.salariu_baza, 1000)
+  f.db.settings.customRoles[0].permissions = ['hr:timesheet']
+  const monthlyReport = await f.invoke('get /hr/timesheets/raport-lunar/:employeeId', {}, { luna: '2026-10' }, { employeeId: 1 })
+  assert.equal(monthlyReport.code, 200)
+  assert.equal(monthlyReport.data.employee.id, 1)
+  assert.equal(monthlyReport.data.totals.ore_lucru, 10)
+  assert.equal(monthlyReport.data.totals.ore_suplimentare_s1, 2)
+  assert.equal(monthlyReport.data.totals.ore_noapte, 2)
+  assert.equal(monthlyReport.data.totals.zile_co, 1)
+  assert.equal(monthlyReport.data.sporuri.spor_s1, 150)
+  assert.equal(monthlyReport.data.sporuri.spor_noapte, 50)
+  assert.equal(monthlyReport.data.zile.find(day => day.date === '2026-10-01').observatii, 'Tura extinsă')
+  f.db.settings.customRoles[0].permissions = ['hr:timesheet', 'hr:timesheet_dept']
+  f.auth.user.department_id = 'd1'
+  const departmentTimesheets = await f.invoke('get /hr/timesheets/my-department', {}, { luna: '2026-10' })
+  assert.equal(departmentTimesheets.code, 200)
+  assert.deepEqual(Array.from(departmentTimesheets.data.employees, employee => employee.id).sort((left, right) => left - right), [1, 2])
+  assert.equal(departmentTimesheets.data.pontaje.length, 4)
+  assert.equal(departmentTimesheets.data.status.status, 'finalizat')
+  assert.equal(departmentTimesheets.data.employees.find(employee => employee.id === 2).cnp, undefined)
+  f.db.settings.customRoles[0].permissions = ['hr:timesheet_approve', 'hr:timesheet_dept']
+  const overview = await f.invoke('get /hr/timesheets/overview', {}, { luna: '2026-10' })
+  assert.equal(overview.code, 200)
+  assert.deepEqual(Array.from(overview.data, row => row.department_cod), ['D1'])
+  assert.equal(overview.data[0].status, 'finalizat')
+  assert.equal(overview.data[0].procent, 6)
+  assert.equal((await f.invoke('get /hr/timesheets/overview', {}, { luna: '2026-13' })).code, 422)
+  sql("UPDATE hr.timesheet_departments SET status=N'in_lucru' WHERE luna='2026-10' AND department_cod='D1'; SELECT 1;")
+  f.db.settings.customRoles[0].permissions = ['hr:timesheet_approve', 'hr:timesheets_manage']
+  const sqlReminder = await f.invoke('post /hr/timesheets/send-reminder', { luna: '2026-10', deadline_date: '2026-10-05' })
+  assert.equal(sqlReminder.data.sent, 2)
+  assert.equal(sqlReminder.data.emailed, 2)
+  assert.equal(f.db.notifications.filter(item => item.type === 'hr_timesheet_reminder').length, 2)
+  assert.deepEqual(Array.from(f.db.notifications, item => item.user_id).sort(), ['u1', 'u2'])
   f.db.settings.customRoles[0].permissions = ['hr:employees_manage']
   const transfer = await f.invoke('post /hr/employees/:id/transfer', { department_nou: '2' }, {}, { id: 2 })
   assert.equal(transfer.code, 200)
@@ -75,6 +135,65 @@ test('rutele HR relaționale execută SQL real într-o bază sintetică izolată
   f.db.settings.customRoles[0].permissions = ['hr:reges_export', 'hr:personal_sensitive', 'hr:salary_view']
   const mismatch = await f.invoke('post /hr/reges/export', { employee_id: 2, contract_id: 1 })
   assert.equal(mismatch.code, 422)
+  const history = await f.invoke('get /hr/reges/history')
+  assert.equal(history.code, 200)
+  assert.equal(history.data[0].mesaj, 'Export intern')
+  assert.equal(history.data[0].fisier_path, undefined)
+  assert.ok(sql('SELECT fisier_path FROM hr.reges_exports WHERE id=1;').includes('registry.xml'))
+  f.db.settings.customRoles[0].permissions = ['hr:reges_export']
+  assert.equal((await f.invoke('get /hr/reges/history')).code, 403)
+  f.db.settings.customRoles[0].permissions = ['hr:training', 'hr:personal_sensitive']
+  assert.equal((await f.invoke('post /hr/training', { denumire: 'Invalid', data_start: '2026-10-12', data_sfarsit: '2026-10-11' })).code, 422)
+  assert.equal(sql('SELECT COUNT(*) FROM hr.training;').trim(), '1')
+  const createdTraining = await f.invoke('post /hr/training', {
+    denumire: '  PSI real  ', tip: ' PSI ', furnizor: ' Furnizor test ',
+    data_start: '2026-10-11', data_sfarsit: '2026-10-12', valabil_pana_la: '2027-10-12', cost_total: '99.50', ignored: 'secret',
+  })
+  assert.equal(createdTraining.code, 201)
+  assert.equal(createdTraining.data.denumire, 'PSI real')
+  assert.equal(createdTraining.data.cost_total, 99.5)
+  assert.equal(createdTraining.data.ignored, undefined)
+  assert.equal(sql('SELECT COUNT(*) FROM hr.training;').trim(), '2')
+  const enrollment = 'post /hr/training/:id/employees'
+  assert.equal((await f.invoke(enrollment, { employee_ids: [1] }, {}, { id: 999 })).code, 404)
+  assert.equal((await f.invoke(enrollment, { employee_ids: [1, 999] }, {}, { id: 1 })).code, 422)
+  assert.equal(sql('SELECT COUNT(*) FROM hr.training_employees;').trim(), '0')
+  assert.equal((await f.invoke(enrollment, { employee_ids: [1, '1', 2] }, {}, { id: 1 })).data.added, 2)
+  assert.equal((await f.invoke(enrollment, { employee_ids: [1, 2] }, {}, { id: 1 })).data.added, 0)
+  assert.equal(sql('SELECT COUNT(*) FROM hr.training_employees;').trim(), '2')
+  const schedule = await f.invoke('get /hr/training/scadentar')
+  assert.equal(schedule.code, 200)
+  assert.equal(schedule.data.length, 8)
+  assert.ok(schedule.data.some(item => item.employee_id === 1 && item.department === 'Unu' && item.tip_curs === 'SSM'))
+  assert.ok(schedule.data.some(item => item.employee_id === 2 && item.department === 'Doi'))
+  f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:manage', 'hr:personal_sensitive']
+  f.auth.user.name = 'Evaluator SQL'
+  assert.equal(sql('SELECT COUNT(*) FROM hr.evaluations;').trim(), '1')
+  const importedEvaluation = await f.invoke('get /hr/evaluations', {}, { employee_id: 2, year: '2026' })
+  assert.equal(importedEvaluation.data.length, 1)
+  assert.equal(importedEvaluation.data[0].evaluator_name, 'Evaluator vechi')
+  assert.equal(importedEvaluation.data[0].observatii, 'Import app state')
+  assert.equal((await f.invoke('post /hr/evaluations', { employee_id: 999, data_evaluare: '2026-10-11' })).code, 422)
+  assert.equal(sql('SELECT COUNT(*) FROM hr.evaluations;').trim(), '1')
+  const createdEvaluation = await f.invoke('post /hr/evaluations', {
+    employee_id: 1, evaluator_id: 'spoof', evaluator_name: 'Spoof', data_evaluare: '2026-10-11',
+    tip: 'anuala', calificativ: 'FB', punctaj: '98.50', observatii: 'SQL real',
+  })
+  assert.equal(createdEvaluation.code, 201)
+  assert.equal(createdEvaluation.data.evaluator_id, 'u1')
+  assert.equal(createdEvaluation.data.evaluator_name, 'Evaluator SQL')
+  assert.equal(createdEvaluation.data.punctaj, 98.5)
+  assert.equal((await f.invoke('get /hr/evaluations', {}, { employee_id: 1, year: '2026' })).data.length, 1)
+  assert.equal((await f.invoke('get /hr/evaluations', {}, { year: '20x6' })).code, 422)
+  const patchedEvaluation = await f.invoke('patch /hr/evaluations/:id', {
+    employee_id: 2, evaluator_id: 'spoof', punctaj: 87, status: 'draft', observatii: 'Actualizat',
+  }, {}, { id: createdEvaluation.data.id })
+  assert.equal(patchedEvaluation.code, 200)
+  assert.equal(patchedEvaluation.data.employee_id, 1)
+  assert.equal(patchedEvaluation.data.evaluator_id, 'u1')
+  assert.equal(patchedEvaluation.data.punctaj, 87)
+  assert.equal((await f.invoke('delete /hr/evaluations/:id', {}, {}, { id: createdEvaluation.data.id })).code, 200)
+  assert.equal(sql('SELECT COUNT(*) FROM hr.evaluations;').trim(), '1')
 })
 
 test('citirea pontajului nu acordă export Nexus sau completare automată', async () => {
@@ -96,7 +215,7 @@ test('lista conturilor asociabile cere ambele drepturi și nu expune secrete', a
   }
   const f = fixture()
   f.db.settings.customRoles[0].permissions = ['hr:employees_manage', 'users:manage']
-  f.db.users = [{ id: 'u2', username: 'test', password: 'secret', totpSecret: 'secret' }, { id: 'inactive', active: false }]
+  f.db.users = [{ id: 'u2', username: 'test', password: 'secret', totpSecret: 'secret' }, { id: 'inactive', active: false }, { id: 'inactive-numeric', active: 0 }]
   const result = await f.invoke('get /hr/linkable-users')
   assert.equal(result.code, 200)
   assert.equal(result.data.length, 1)
@@ -125,6 +244,20 @@ test('administratorul autorizat păstrează verificarea contului deja asociat', 
   assert.equal(f.writes(), 0)
 })
 
+test('crearea angajatului nu reutilizează un cont asociat și sincronizează contul liber', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:employees_manage', 'users:manage']
+  const conflict = await f.invoke('post /hr/employees', { nume: 'Nou', user_id: 'u1' })
+  assert.equal(conflict.code, 409)
+  assert.equal(f.writes(), 0)
+  assert.equal(f.db.hr.employees.length, 2)
+  f.db.users = [{ id: 'u3' }]
+  const created = await f.invoke('post /hr/employees', { nume: 'Nou', user_id: 'u3' })
+  assert.equal(created.code, 201)
+  assert.equal(f.db.users[0].employee_id, String(created.data.id))
+  assert.equal(f.writes(), 1)
+})
+
 test('asocierea autorizată sincronizează contul și permite eliminarea legăturii', async () => {
   const f = fixture()
   f.db.settings.customRoles[0].permissions = ['hr:employees_manage', 'users:manage']
@@ -139,6 +272,33 @@ test('asocierea autorizată sincronizează contul și permite eliminarea legătu
   assert.equal(f.writes(), 2)
 })
 
+test('crearea relațională refuză contul ocupat înainte de INSERT', async () => {
+  const queries = []
+  const f = fixture({ sql(query) { queries.push(query); return JSON.stringify([{ id: 1 }]) } })
+  f.db.settings.customRoles[0].permissions = ['hr:employees_manage', 'users:manage']
+  const result = await f.invoke('post /hr/employees', { nume: 'Nou', user_id: 'u1' })
+  assert.equal(result.code, 409)
+  assert.equal(f.writes(), 0)
+  assert.equal(queries.length, 1)
+  assert.doesNotMatch(queries[0], /INSERT/i)
+})
+
+test('contul inexistent, inactiv sau legat invers este refuzat fără scrieri', async () => {
+  for (const route of ['post /hr/employees', 'patch /hr/employees/:id']) {
+    for (const [user, status, code] of [[null, 422, 'HR_USER_NOT_FOUND'], [{ id: 'u3', active: false }, 422, 'HR_USER_INACTIVE'], [{ id: 'u3', active: 0 }, 422, 'HR_USER_INACTIVE'], [{ id: 'u3', employee_id: '99' }, 409, 'HR_USER_ALREADY_LINKED']]) {
+      const f = fixture()
+      f.db.settings.customRoles[0].permissions = ['hr:employees_manage', 'users:manage']
+      f.db.users = user ? [user] : []
+      const result = await f.invoke(route, { nume: 'Nou', user_id: 'u3' }, {}, { id: 2 })
+      assert.equal(result.code, status)
+      assert.equal(result.data.code, code)
+      assert.equal(f.writes(), 0)
+      assert.equal(f.db.hr.employees.length, 2)
+      assert.equal(f.db.hr.employees[1].user_id, 'u2')
+    }
+  }
+})
+
 test('registrul HR cere export, acces personal și salarial înainte de scriere', async () => {
   for (const route of ['post /hr/reges/export', 'get /hr/reges/history', 'get /hr/reges/work-register.xlsx', 'get /hr/reges/work-register/diagnostic', 'get /hr/reges/work-register/diagnostic.xlsx']) {
     for (const missing of ['hr:reges_export', 'hr:personal_sensitive', 'hr:salary_view']) {
@@ -147,6 +307,183 @@ test('registrul HR cere export, acces personal și salarial înainte de scriere'
       assert.equal((await f.invoke(route)).code, 403)
       assert.equal(f.writes(), 0)
     }
+  }
+})
+
+test('evaluările individuale cer acces personal și dreptul operației', async () => {
+  for (const route of ['get /hr/evaluations', 'post /hr/evaluations', 'patch /hr/evaluations/:id', 'delete /hr/evaluations/:id']) {
+    const f = fixture()
+    f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:manage']
+    f.db.hr.evaluations = [{ id: 1, employee_id: 2, observatii: 'Confidențial' }]
+    assert.equal((await f.invoke(route, { employee_id: 2 }, {}, { id: 1 })).code, 403)
+    assert.equal(f.writes(), 0)
+    assert.equal(f.db.hr.evaluations.length, 1)
+  }
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:personal_sensitive']
+  f.db.hr.evaluations = [{ id: 1, employee_id: 2, observatii: 'Confidențial' }]
+  assert.equal((await f.invoke('get /hr/evaluations')).data[0].observatii, 'Confidențial')
+  assert.equal((await f.invoke('post /hr/evaluations', { employee_id: 2 })).code, 403)
+  f.db.settings.customRoles[0].permissions.push('hr:manage')
+  assert.equal((await f.invoke('post /hr/evaluations', { employee_id: 2 })).code, 201)
+  assert.equal(f.writes(), 1)
+})
+
+test('evaluările validează angajatul și câmpurile fără a permite falsificarea evaluatorului', async () => {
+  const invalid = [
+    {},
+    { employee_id: 0 },
+    { employee_id: 1, data_evaluare: '2026-02-30' },
+    { employee_id: 1, tip: 'inventat' },
+    { employee_id: 1, calificativ: 'excelent' },
+    { employee_id: 1, punctaj: -1 },
+    { employee_id: 1, punctaj: 101 },
+    { employee_id: 1, status: 'publicata' },
+    { employee_id: 1, observatii: 'x'.repeat(5001) },
+  ]
+  for (const body of invalid) {
+    const f = fixture()
+    f.db.settings.customRoles[0].permissions = ['hr:manage', 'hr:personal_sensitive']
+    const result = await f.invoke('post /hr/evaluations', body)
+    assert.equal(result.code, 422)
+    assert.equal(result.data.code, 'HR_EVALUATION_INVALID')
+    assert.equal(f.writes(), 0)
+    assert.equal((f.db.hr.evaluations || []).length, 0)
+  }
+
+  const missing = fixture()
+  missing.db.settings.customRoles[0].permissions = ['hr:manage', 'hr:personal_sensitive']
+  assert.equal((await missing.invoke('post /hr/evaluations', { employee_id: 999, data_evaluare: '2026-10-11' })).data.code, 'HR_EVALUATION_EMPLOYEE_NOT_FOUND')
+  assert.equal(missing.writes(), 0)
+
+  const f = fixture()
+  f.auth.user.name = 'Evaluator Real'
+  f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:manage', 'hr:personal_sensitive']
+  const created = await f.invoke('post /hr/evaluations', {
+    employee_id: 1, evaluator_id: 'spoof', evaluator_name: 'Spoof', data_evaluare: '2026-10-11',
+    tip: ' ANUALA ', calificativ: 'fb', punctaj: '97.25', observatii: '  Bun  ', extra: 'secret',
+  })
+  assert.equal(created.code, 201)
+  assert.equal(created.data.evaluator_id, 'u1')
+  assert.equal(created.data.evaluator_name, 'Evaluator Real')
+  assert.equal(created.data.tip, 'anuala')
+  assert.equal(created.data.calificativ, 'FB')
+  assert.equal(created.data.punctaj, 97.25)
+  assert.equal(created.data.observatii, 'Bun')
+  assert.equal(created.data.extra, undefined)
+  const patched = await f.invoke('patch /hr/evaluations/:id', {
+    employee_id: 2, evaluator_id: 'spoof', evaluator_name: 'Spoof', punctaj: 80, status: 'draft',
+  }, {}, { id: created.data.id })
+  assert.equal(patched.code, 200)
+  assert.equal(patched.data.employee_id, 1)
+  assert.equal(patched.data.evaluator_id, 'u1')
+  assert.equal(patched.data.evaluator_name, 'Evaluator Real')
+  assert.equal(patched.data.punctaj, 80)
+  assert.equal((await f.invoke('get /hr/evaluations', {}, { year: '20x6' })).code, 422)
+  assert.equal((await f.invoke('get /hr/evaluations', {}, { employee_id: '1 OR 1=1' })).code, 422)
+})
+
+test('formările au administrare dedicată, dar datele nominale cer acces personal', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:training']
+  assert.equal((await f.invoke('get /hr/training')).code, 200)
+  assert.equal((await f.invoke('post /hr/training', { denumire: 'SSM', tip: 'SSM' })).code, 201)
+  const writes = f.writes()
+  assert.equal((await f.invoke('get /hr/training/scadentar')).code, 403)
+  assert.equal((await f.invoke('post /hr/training/:id/employees', { employee_ids: [1] }, {}, { id: 1 })).code, 403)
+  assert.equal(f.writes(), writes)
+  f.db.settings.customRoles[0].permissions.push('hr:personal_sensitive')
+  assert.equal((await f.invoke('get /hr/training/scadentar')).code, 200)
+  assert.equal((await f.invoke('post /hr/training/:id/employees', { employee_ids: [1] }, {}, { id: 1 })).code, 200)
+  assert.equal(f.db.hr.trainingEmployees.length, 1)
+})
+
+test('crearea cursului validează și normalizează aceleași câmpuri înainte de scriere', async () => {
+  const invalid = [
+    {},
+    { denumire: '   ' },
+    { denumire: 'x'.repeat(201) },
+    { denumire: 'SSM', tip: 'x'.repeat(81) },
+    { denumire: 'SSM', furnizor: 'x'.repeat(201) },
+    { denumire: 'SSM', data_start: '2026-02-30' },
+    { denumire: 'SSM', data_start: '11.10.2026' },
+    { denumire: 'SSM', data_start: '2026-10-12', data_sfarsit: '2026-10-11' },
+    { denumire: 'SSM', data_sfarsit: '2026-10-12', valabil_pana_la: '2026-10-11' },
+    { denumire: 'SSM', cost_total: -1 },
+    { denumire: 'SSM', cost_total: '12.345' },
+  ]
+  for (const body of invalid) {
+    const f = fixture()
+    f.db.settings.customRoles[0].permissions = ['hr:training']
+    const result = await f.invoke('post /hr/training', body)
+    assert.equal(result.code, 422)
+    assert.equal(result.data.code, 'HR_TRAINING_INVALID')
+    assert.equal(f.writes(), 0)
+    assert.equal((f.db.hr.training || []).length, 0)
+  }
+
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:training']
+  const result = await f.invoke('post /hr/training', {
+    denumire: '  Instruire SSM  ', tip: ' SSM ', furnizor: ' Furnizor ',
+    data_start: '2026-10-11', data_sfarsit: '2026-10-12', valabil_pana_la: '2027-10-12',
+    cost_total: '120.50', camp_nepermis: 'secret',
+  })
+  assert.equal(result.code, 201)
+  assert.equal(result.data.denumire, 'Instruire SSM')
+  assert.equal(result.data.tip, 'SSM')
+  assert.equal(result.data.cost_total, 120.5)
+  assert.equal(result.data.camp_nepermis, undefined)
+  assert.equal(f.writes(), 1)
+})
+
+test('scadențarul ignoră angajații inactivi și cursurile încă valabile', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:training', 'hr:personal_sensitive']
+  f.db.hr.employees.push({ id: 3, nume: 'Inactiv', activ: 0 })
+  f.db.hr.training = [{ id: 1, tip: 'SSM', data_sfarsit: '2026-10-10', valabil_pana_la: '2099-12-31' }]
+  f.db.hr.trainingEmployees = [{ training_id: 1, employee_id: 1 }]
+  const result = await f.invoke('get /hr/training/scadentar')
+  assert.equal(result.code, 200)
+  assert.equal(result.data.length, 7)
+  assert.equal(result.data.some(item => item.employee_id === 1 && item.tip_curs === 'SSM'), false)
+  assert.equal(result.data.some(item => item.employee_id === 3), false)
+  assert.equal(f.writes(), 0)
+})
+
+test('înscrierea validează întregul lot și nu dublează persoanele', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:training', 'hr:personal_sensitive']
+  f.db.hr.training = [{ id: 1 }]
+  f.db.hr.trainingEmployees = []
+  for (const employee_ids of [[], '1', [0], ['1x'], [1, 999]]) {
+    assert.equal((await f.invoke('post /hr/training/:id/employees', { employee_ids }, {}, { id: 1 })).code, 422)
+    assert.equal(f.writes(), 0)
+    assert.equal(f.db.hr.trainingEmployees.length, 0)
+  }
+  assert.equal((await f.invoke('post /hr/training/:id/employees', { employee_ids: [1] }, {}, { id: 999 })).code, 404)
+  assert.equal(f.writes(), 0)
+  assert.equal((await f.invoke('post /hr/training/:id/employees', { employee_ids: [1, '1', 2] }, {}, { id: 1 })).data.added, 2)
+  assert.equal((await f.invoke('post /hr/training/:id/employees', { employee_ids: [1, 2] }, {}, { id: 1 })).data.added, 0)
+  assert.equal(f.db.hr.trainingEmployees.length, 2)
+})
+
+test('istoricul registrului păstrează metadatele fără căi interne în JSON și SQL', async () => {
+  for (const relational of [false, true]) {
+    let query = ''
+    const row = { id: 1, uuid: 'export-test', tip: 'registru', status: 'generat', generat_de: 'u1', mesaj: 'Export intern', created_at: '2026-10-11', fisier_path: 'C:\\private\\registry.xml', extra_secret: 'secret' }
+    const f = fixture(relational ? { sql(sql) { query = sql; return JSON.stringify([row]) } } : {})
+    f.db.settings.customRoles[0].permissions = ['hr:reges_export', 'hr:personal_sensitive', 'hr:salary_view']
+    f.db.hr.regesExports = [row]
+    const result = await f.invoke('get /hr/reges/history')
+    assert.equal(result.code, 200)
+    assert.equal(result.data[0].mesaj, 'Export intern')
+    assert.equal(result.data[0].id, 1)
+    assert.equal(result.data[0].fisier_path, undefined)
+    assert.equal(result.data[0].extra_secret, undefined)
+    assert.equal(f.writes(), 0)
+    assert.equal(f.db.hr.regesExports[0].fisier_path, row.fisier_path)
+    if (relational) assert.doesNotMatch(query, /SELECT TOP 50 \*|fisier_path/i)
   }
 })
 
@@ -417,6 +754,46 @@ test('raportul lunar al colegului este refuzat', async () => {
   assert.equal(result.code, 403)
 })
 
+test('raportul lunar validează luna înainte de citirea datelor', async () => {
+  const f = fixture()
+  const result = await f.invoke('get /hr/timesheets/raport-lunar/:employeeId', {}, { luna: '2026-13' }, { employeeId: 1 })
+  assert.equal(result.code, 422)
+  assert.equal(result.data.code, 'HR_TIMESHEET_MONTH_INVALID')
+})
+
+test('tichetele de masă nu expun CNP-ul în listă și scad concediile din aceeași lună', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:view']
+  f.db.hr.employees[1].cnp = 'secret-cnp'
+  f.db.hr.timeSheets = [
+    { employee_id: 2, data: '2026-10-01', tip: 'lucru', validat: true },
+    { employee_id: 2, data: '2026-10-02', tip: 'lucru', validat: 1 },
+    { employee_id: 2, data: '2026-10-03', tip: 'lucru', validat: false },
+  ]
+  f.db.hr.leaveRequests = [{ employee_id: 2, tip: 'CO', status: 'aprobat', data_start: '2026-10-02', data_sfarsit: '2026-10-02' }]
+  const result = await f.invoke('get /hr/meal-tickets', {}, { luna: '2026-10' })
+  const row = result.data.rows.find(item => item.employee_id === 2)
+  assert.equal(row.zile_lucrate, 2)
+  assert.equal(row.zile_co, 1)
+  assert.equal(row.tichete, 1)
+  assert.equal(row.valoare, 40)
+  assert.equal(row.cnp, undefined)
+})
+
+test('exportul tichetelor cere acces personal și validează luna', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:view']
+  assert.equal((await f.invoke('get /hr/meal-tickets/export', {}, { luna: '2026-10' })).code, 403)
+  f.db.settings.customRoles[0].permissions.push('hr:personal_sensitive')
+  const invalid = await f.invoke('get /hr/meal-tickets/export', {}, { luna: '2026-13' })
+  assert.equal(invalid.code, 422)
+  assert.equal(invalid.data.code, 'HR_MEAL_TICKET_MONTH_INVALID')
+  f.db.hr.employees[0].cnp = 'cnp-propriu'
+  f.db.hr.timeSheets = [{ employee_id: 1, data: '2026-10-01', tip: 'lucru', validat: true }]
+  const exported = await f.invoke('get /hr/meal-tickets/export', {}, { luna: '2026-10' })
+  assert.match(exported.data, /cnp-propriu/)
+})
+
 test('hr:view nu expune salariul și costul orar prin contractele angajatului', async () => {
   const f = fixture()
   f.db.settings.customRoles[0].permissions = ['hr:view']
@@ -426,6 +803,66 @@ test('hr:view nu expune salariul și costul orar prin contractele angajatului', 
   assert.equal(result.data[0].salariu_baza, undefined)
   assert.equal(result.data[0].cost_ora, undefined)
   assert.equal(result.data[0].status, 'activ')
+})
+
+test('CIM folosește contractul activ fără a expune salariul colegului', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:view']
+  f.db.hr.contracts = [
+    { id: 1, employee_id: 2, status: 'incetat', data_start: '2026-05-01', salariu_baza: 9000, cost_ora: 60 },
+    { id: 2, employee_id: 2, status: 'activ', data_start: '2026-01-01', numar_contract: 'CIM-2', salariu_baza: 6000, cost_ora: 40 },
+  ]
+  const result = await f.invoke('get /hr/employees/:id/cim', {}, {}, { id: 2 })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.nr_cim, 'CIM-2')
+  assert.equal(result.data.contract.id, 2)
+  assert.equal(result.data.contract.salariu_baza, undefined)
+  assert.equal(result.data.contract.cost_ora, undefined)
+  assert.equal(result.data.angajat.salariu_baza, undefined)
+})
+
+test('CIM propriu păstrează datele salariale ale titularului', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:view']
+  f.db.hr.contracts = [{ id: 1, employee_id: 1, status: 'activ', salariu_baza: 5000, cost_ora: 35 }]
+  const result = await f.invoke('get /hr/employees/:id/cim', {}, {}, { id: 1 })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.contract.salariu_baza, 5000)
+  assert.equal(result.data.contract.cost_ora, 35)
+  assert.equal(result.data.angajat.salariu_baza, 5000)
+})
+
+test('adeverința validează tipul și nu expune date personale, salariale sau medicale ale colegului', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:view']
+  Object.assign(f.db.hr.employees[1], { act_identitate_tip: 'CI', act_identitate_serie: 'NT', act_identitate_numar: 'secret' })
+  f.db.hr.contracts = [{ id: 2, employee_id: 2, status: 'activ', salariu_baza: 6000, cost_ora: 40 }]
+  f.db.hr.leaveRequests = [{ employee_id: 2, tip: 'CM', status: 'aprobat', data_start: '2026-09-01', data_sfarsit: '2026-09-03', zile: 3 }]
+  assert.equal((await f.invoke('get /hr/employees/:id/adeverinta', {}, { tip: 'inventata' }, { id: 2 })).code, 422)
+  assert.equal((await f.invoke('get /hr/employees/:id/adeverinta', {}, { tip: 'venit' }, { id: 2 })).code, 403)
+  assert.equal((await f.invoke('get /hr/employees/:id/adeverinta', {}, { tip: 'concediu_medical' }, { id: 2 })).code, 403)
+  const result = await f.invoke('get /hr/employees/:id/adeverinta', {}, { tip: 'salariat' }, { id: 2 })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.identitate_text, '')
+  assert.equal(result.data.zile_concediu_medical_12_luni, null)
+  assert.equal(result.data.angajat.act_identitate_numar, undefined)
+  assert.equal(result.data.angajat.salariu_baza, null)
+  assert.equal(result.data.contract.salariu_baza, undefined)
+  assert.equal(result.data.contract.cost_ora, undefined)
+})
+
+test('adeverința proprie folosește contractul și concediile titularului', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['kiosk:documents_own']
+  Object.assign(f.db.hr.employees[0], { act_identitate_tip: 'CI', act_identitate_serie: 'NT', act_identitate_numar: '123456' })
+  f.db.hr.contracts = [{ id: 1, employee_id: 1, status: 'activ', salariu_baza: 5000, cost_ora: 35 }]
+  f.db.hr.leaveRequests = [{ employee_id: 1, tip: 'CM', status: 'aprobat', data_start: '2026-09-01', data_sfarsit: '2026-09-03', zile: 3 }]
+  const result = await f.invoke('get /hr/employees/:id/adeverinta', {}, { tip: 'concediu_medical' }, { id: 1 })
+  assert.equal(result.code, 200)
+  assert.match(result.data.identitate_text, /NT/)
+  assert.equal(result.data.zile_concediu_medical_12_luni, 3)
+  assert.equal(result.data.angajat.salariu_baza, 5000)
+  assert.equal(result.data.contract.salariu_baza, 5000)
 })
 
 test('citirea globală a pontajului nu include datele personale sau salariul colegilor', async () => {
@@ -465,6 +902,26 @@ test('aprobatorul fără departament nu vede overview și nu trimite remindere',
   const reminder = await f.invoke('post /hr/timesheets/send-reminder', { luna: '2026-10' })
   assert.equal(reminder.code, 403)
   assert.equal(f.writes(), 0)
+})
+
+test('reminderul pontajului persistă notificări doar pentru utilizatorii activi din departamente nefinalizate', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:timesheet_approve', 'hr:timesheets_manage']
+  f.db.departments = [{ id: 'd1', cod: 'd1', name: 'Finalizat' }, { id: 'd2', cod: 'd2', name: 'Restant' }]
+  f.db.users = [
+    { id: 'done', department_id: 'd1', active: true },
+    { id: 'target', department_id: 'd2', active: true, email: 'target@example.test' },
+    { id: 'inactive', department_id: 'd2', active: false },
+  ]
+  f.db.hr.timesheetDepartments = [{ luna: '2026-10', department_cod: 'd1', status: 'finalizat' }]
+  const result = await f.invoke('post /hr/timesheets/send-reminder', { luna: '2026-10', deadline_date: '2026-10-05' })
+  assert.equal(result.data.sent, 1)
+  assert.equal(result.data.emailed, 1)
+  assert.equal(f.db.notifications.length, 1)
+  assert.equal(f.db.notifications[0].user_id, 'target')
+  assert.equal(f.db.notifications[0].target_view, '/hr?section=pontaj')
+  assert.equal(f.writes(), 1)
+  assert.equal((await f.invoke('post /hr/timesheets/send-reminder', { luna: '2026-13' })).code, 422)
 })
 
 test('ajustarea băncii de ore refuză angajatul din alt departament fără scriere', async () => {

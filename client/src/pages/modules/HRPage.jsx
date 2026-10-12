@@ -190,7 +190,11 @@ export default function HRPage() {
 
   const tabs = getVisibleHrTabs(hasPerm)
 
-  const [activeTab, setActiveTab] = useState(() => tabs[0] || 'Dashboard HR')
+  const [activeTab, setActiveTab] = useState(() => {
+    const section = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('section')
+    const requestedTab = { pontaj: 'Pontaj', overview: 'Overview pontaje', concedii: 'Concedii', angajati: 'Angajați' }[String(section || '').toLowerCase()]
+    return requestedTab && tabs.includes(requestedTab) ? requestedTab : tabs[0] || 'Dashboard HR'
+  })
   const [employees, setEmployees] = useState([])
   const [configuredDepartments, setConfiguredDepartments] = useState([])
   const [linkableUsers, setLinkableUsers] = useState([])
@@ -1185,6 +1189,7 @@ export default function HRPage() {
   }
 
   async function saveMealConfig() {
+    if (!hasPermission('hr:manage')) return
     try {
       await api.post('/hr/meal-tickets/config', mealConfig)
       await loadMealTickets()
@@ -1194,6 +1199,7 @@ export default function HRPage() {
   }
 
   async function exportMealTicketsCsv() {
+    if (!hasPermission('hr:personal_sensitive')) return
     const response = await api.get('/hr/meal-tickets/export', {
       params: { luna: mealMonth, department: mealDept || undefined },
       responseType: 'blob',
@@ -1347,8 +1353,8 @@ export default function HRPage() {
   async function loadTrainingData() {
     try {
       const [evalsRes, scadRes] = await Promise.all([
-        api.get('/hr/evaluations'),
-        api.get('/hr/training/scadentar'),
+        hasPermission('hr:view') && hasPermission('hr:personal_sensitive') ? api.get('/hr/evaluations') : Promise.resolve({ data: [] }),
+        hasPermission('hr:personal_sensitive') ? api.get('/hr/training/scadentar') : Promise.resolve({ data: [] }),
       ])
       setEvaluations(Array.isArray(evalsRes.data) ? evalsRes.data : [])
       setScadentar(Array.isArray(scadRes.data) ? scadRes.data : [])
@@ -1357,6 +1363,7 @@ export default function HRPage() {
 
   async function saveEvaluation(event) {
     event.preventDefault()
+    if (!hasPermission('hr:manage') || !hasPermission('hr:personal_sensitive')) return
     setError('')
     try {
       if (evalEditing) {
@@ -1386,6 +1393,7 @@ export default function HRPage() {
   }
 
   async function deleteEvaluationRequest(id) {
+    if (!hasPermission('hr:manage') || !hasPermission('hr:personal_sensitive')) return
     try {
       await api.delete(`/hr/evaluations/${id}`)
       await loadTrainingData()
@@ -2516,6 +2524,8 @@ export default function HRPage() {
           mealDept={mealDept}
           mealRows={mealRows}
           departments={departments}
+          canManage={hasPermission('hr:manage')}
+          canExport={hasPermission('hr:personal_sensitive')}
           onMealConfigChange={setMealConfig}
           onSaveMealConfig={saveMealConfig}
           onMealMonthChange={setMealMonth}
@@ -2527,6 +2537,9 @@ export default function HRPage() {
       {/* ─── TRAINING & EVALUĂRI ──────────────────────────── */}
       {activeTab === 'Training & Evaluări' ? (
         <HRTrainingPanel
+          canViewTrainingSchedule={hasPermission('hr:personal_sensitive') && (hasPermission('hr:view') || hasPermission('hr:training'))}
+          canViewEvaluations={hasPermission('hr:view') && hasPermission('hr:personal_sensitive')}
+          canManageEvaluations={hasPermission('hr:manage') && hasPermission('hr:personal_sensitive')}
           scadentar={scadentar}
           evaluations={evaluations}
           employees={employees}

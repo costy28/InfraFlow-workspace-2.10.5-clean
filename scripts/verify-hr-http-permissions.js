@@ -12,10 +12,18 @@ const file = path.join(dir, 'db.json')
 const password = crypto.randomBytes(24).toString('hex')
 const salt = crypto.randomBytes(16).toString('hex')
 const passwordHash = `scrypt:${salt}:${crypto.scryptSync(password, salt, 64).toString('hex')}`
-const roles = { own: ['hr:view_own', 'hr:timesheet'], viewer: ['hr:view'], editor: ['hr:view', 'hr:employees_manage'] }
-const db = { settings: { setupCompleted: true, customRoles: Object.entries(roles).map(([id, permissions]) => ({ id, name: id, permissions })) }, users: Object.keys(roles).map(id => ({ id, username: id, role: id, active: true, passwordHash })), departments: [{ id: 'd1', cod: 'D1', name: 'Test' }], hr: { employees: [{ id: 1, user_id: 'own', nume: 'Propriu', activ: true, cnp: 'secret-own', salariu_baza: 1234 }, { id: 2, user_id: 'other', nume: 'Colegul', activ: true, cnp: 'secret-other', salariu_baza: 5678 }], timeSheets: [], contracts: [], leaveRequests: [] } }
+const roles = {
+  own: ['dashboard:view', 'hr:view_own', 'hr:timesheet'],
+  viewer: ['hr:view'],
+  editor: ['hr:view', 'hr:employees_manage'],
+  trainer: ['hr:training'],
+  trainerPersonal: ['hr:training', 'hr:personal_sensitive'],
+  timesheetManager: ['hr:view', 'hr:timesheet', 'hr:timesheet_approve', 'hr:timesheets_manage'],
+}
+const db = { settings: { setupCompleted: true, customRoles: Object.entries(roles).map(([id, permissions]) => ({ id, name: id, permissions })) }, users: Object.keys(roles).map(id => ({ id, username: id, role: id, active: true, passwordHash, ...(id === 'own' ? { department_id: 'd1', email: 'own@example.test' } : {}) })), departments: [{ id: 'd1', cod: 'D1', name: 'Test' }], hr: { employees: [{ id: 1, user_id: 'own', nume: 'Propriu', activ: true, department_id: 'd1', cnp: 'secret-own', salariu_baza: 1234 }, { id: 2, user_id: 'other', nume: 'Colegul', activ: true, department_id: 'd1', cnp: 'secret-other', salariu_baza: 5678 }], timeSheets: [], timesheetDepartments: [], contracts: [], leaveRequests: [] } }
 // Normalization promotes the first account when no superadmin exists.
 db.users.push({ id: 'test-admin', username: 'test-admin', role: 'superadmin', active: true, passwordHash })
+db.users.push(...[{ id: 'link-free', active: true }, { id: 'link-inactive', active: false }, { id: 'link-reverse', active: true, employee_id: '99' }].map(user => ({ ...user, username: user.id, role: 'viewer', passwordHash })))
 fs.writeFileSync(file, JSON.stringify(db))
 const port = 47000 + crypto.randomInt(1000)
 const base = `http://127.0.0.1:${port}`
@@ -75,6 +83,9 @@ async function main() {
     ]) assert.equal((await request(url, tokens.editor, method, body)).status, 403, url)
     assert.deepEqual((await request('/api/hr/employees', adminLogin.data.token)).data, before)
     if (process.argv.includes('--ui')) await verifyBrowser(tokens)
+    if (process.argv.includes('--links')) await verifyLinks(adminLogin.data.token)
+    if (process.argv.includes('--training')) await verifyTraining(tokens)
+    if (process.argv.includes('--timesheet')) await verifyTimesheet(tokens)
     assert.ok(!/scheduler\s+check[A-Za-z]+\s+start/i.test(logs))
     console.log(`OK: autentificare reală, acces propriu, sanitizare și 4 refuzuri HTTP fără modificarea angajaților. Provider ${mssql ? 'MSSQL app_state izolat (HR relațional nevalidat)' : 'JSON izolat'}. UI real: ${process.argv.includes('--ui') ? 'verificat' : 'neexecutat'}.`)
   } finally {
@@ -83,10 +94,79 @@ async function main() {
     // Keep the temporary evidence database; never remove any active workspace data.
   }
 }
+async function verifyTimesheet(tokens) {
+  const department = await request('/api/hr/timesheets/my-department?luna=2026-10', tokens.own)
+  assert.equal(department.status, 200)
+  assert.deepEqual(department.data.employees.map(employee => employee.id), [1])
+  const overview = await request('/api/hr/timesheets/overview?luna=2026-10', tokens.timesheetManager)
+  assert.equal(overview.status, 200)
+  assert.ok(overview.data.some(item => String(item.department_cod).toLowerCase() === 'd1'))
+  const reminder = await request('/api/hr/timesheets/send-reminder', tokens.timesheetManager, 'POST', { luna: '2026-10', deadline_date: '2026-10-31' })
+  assert.equal(reminder.status, 200)
+  assert.equal(reminder.data.sent, 1)
+  assert.equal((await request('/api/hr/timesheets/send-reminder', tokens.timesheetManager, 'POST', { luna: '2026-13' })).status, 422)
+  const notifications = await request('/api/notifications', tokens.own)
+  assert.equal(notifications.status, 200)
+  const persisted = notifications.data.notifications.find(item => item.type === 'hr_timesheet_reminder')
+  assert.ok(persisted)
+  assert.equal(persisted.targetView, '/hr?section=pontaj')
+  console.log('OK pontaj HTTP real: aria proprie, overview, reminder persistent, lună invalidă refuzată și deep-link expus.')
+}
+async function verifyTraining(tokens) {
+  assert.equal((await request('/api/hr/training', tokens.trainer)).status, 200)
+  const course = await request('/api/hr/training', tokens.trainer, 'POST', { denumire: 'SSM API test', tip: 'SSM', data_start: '2026-10-11' })
+  assert.equal(course.status, 201)
+  assert.ok(course.data.id)
+  assert.equal((await request('/api/hr/training/scadentar', tokens.trainer)).status, 403)
+  assert.equal((await request(`/api/hr/training/${course.data.id}/employees`, tokens.trainer, 'POST', { employee_ids: [1] })).status, 403)
+  const before = await request('/api/hr/training/scadentar', tokens.trainerPersonal)
+  assert.equal(before.status, 200)
+  const missingCourse = await request('/api/hr/training/999999/employees', tokens.trainerPersonal, 'POST', { employee_ids: [1] })
+  assert.equal(missingCourse.status, 404)
+  assert.equal(missingCourse.data.code, 'HR_TRAINING_NOT_FOUND')
+  const mixed = await request(`/api/hr/training/${course.data.id}/employees`, tokens.trainerPersonal, 'POST', { employee_ids: [1, 999999] })
+  assert.equal(mixed.status, 422)
+  assert.equal(mixed.data.code, 'HR_TRAINING_EMPLOYEE_NOT_FOUND')
+  const enrolled = await request(`/api/hr/training/${course.data.id}/employees`, tokens.trainerPersonal, 'POST', { employee_ids: [1, '1', 2] })
+  assert.equal(enrolled.status, 200)
+  assert.equal(enrolled.data.added, 2)
+  const repeated = await request(`/api/hr/training/${course.data.id}/employees`, tokens.trainerPersonal, 'POST', { employee_ids: [1, 2] })
+  assert.equal(repeated.status, 200)
+  assert.equal(repeated.data.added, 0)
+  assert.equal((await request('/api/hr/training/scadentar', tokens.trainerPersonal)).status, 200)
+  console.log('OK instruiri HTTP reale: rol dedicat, protecție date personale, lot invalid refuzat, înscriere și repetare idempotentă.')
+}
+async function verifyLinks(token) {
+  const snapshot = (await request('/api/hr/employees', token)).data
+  for (const [user_id, status, code] of [
+    ['link-missing', 422, 'HR_USER_NOT_FOUND'],
+    ['link-inactive', 422, 'HR_USER_INACTIVE'],
+    ['link-reverse', 409, 'HR_USER_ALREADY_LINKED'],
+    ['own', 409, 'HR_USER_ALREADY_LINKED'],
+  ]) {
+    for (const [url, method] of [['/api/hr/employees', 'POST'], ['/api/hr/employees/2', 'PATCH']]) {
+      const result = await request(url, token, method, { nume: 'Test', user_id })
+      assert.equal(result.status, status, `${method} ${user_id}`)
+      assert.equal(result.data.code, code)
+    }
+  }
+  assert.deepEqual((await request('/api/hr/employees', token)).data, snapshot)
+  const created = await request('/api/hr/employees', token, 'POST', { nume: 'Legatura', prenume: 'Test', user_id: 'link-free' })
+  assert.equal(created.status, 201)
+  const login = await request('/api/login', null, 'POST', { username: 'link-free', password })
+  assert.equal(login.status, 200)
+  assert.equal(String(login.data.user.employee_id), String(created.data.id))
+  const unlinked = await request(`/api/hr/employees/${created.data.id}`, token, 'PATCH', { user_id: '' })
+  assert.equal(unlinked.status, 200)
+  const relogin = await request('/api/login', null, 'POST', { username: 'link-free', password })
+  assert.equal(relogin.status, 200)
+  assert.ok(!relogin.data.user.employee_id)
+  console.log('OK legături HTTP reale: 8 refuzuri fără modificarea angajaților, creare și dezasociere, legătură inversă verificată prin login.')
+}
 async function verifyBrowser(tokens) {
   const { chromium } = require(process.env.INFRAFLOW_PLAYWRIGHT_MODULE || 'playwright')
   const http = require('node:http')
-  const dist = path.join(root, 'client/.permission-build-check-3')
+  const dist = process.env.INFRAFLOW_UI_DIST || path.join(root, 'client/.permission-build-check-5')
   const proxy = http.createServer(async (req, res) => {
     if (req.url.startsWith('/api/')) {
       try {
@@ -133,7 +213,53 @@ async function verifyBrowser(tokens) {
       assert.deepEqual(errors, [])
       await context.close()
     }
-    console.log(`OK browser/API real: două roluri, liste filtrate, panouri ascunse, CRM blocat, fără erori JavaScript. Capturi: ${dir}`)
+    for (const name of ['trainer', 'trainerPersonal']) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
+      await context.addInitScript(token => localStorage.setItem('infraflow_token', token), tokens[name])
+      const page = await context.newPage()
+      const errors = []
+      const apiPaths = []
+      page.on('pageerror', error => errors.push(error.message))
+      page.on('request', request => {
+        const pathname = new URL(request.url()).pathname
+        if (pathname.startsWith('/api/')) apiPaths.push(pathname)
+      })
+      await page.goto(url + '/hr')
+      await page.waitForSelector('.hr-navigation')
+      const trainingTab = page.getByRole('button', { name: 'Training & Evaluări', exact: true })
+      await trainingTab.waitFor()
+      await trainingTab.click()
+      if (name === 'trainer') {
+        await page.getByText('Scadențarul nominal necesită acces la date personale HR.', { exact: true }).waitFor()
+        assert.equal(apiPaths.includes('/api/hr/training/scadentar'), false)
+      } else {
+        await page.getByText(/Scadențar cursuri obligatorii/).waitFor()
+        assert.equal(apiPaths.includes('/api/hr/training/scadentar'), true)
+      }
+      await page.getByText('Evaluările individuale necesită acces la date personale HR.', { exact: true }).waitFor()
+      assert.equal(apiPaths.includes('/api/hr/evaluations'), false)
+      assert.equal(await page.getByRole('button', { name: '+ Evaluare nouă', exact: true }).count(), 0)
+      assert.deepEqual(errors, [])
+      await page.screenshot({ path: path.join(dir, `${name}-training-real-api.png`), fullPage: true })
+      await context.close()
+    }
+    if (process.argv.includes('--timesheet')) {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' })
+      await context.addInitScript(token => localStorage.setItem('infraflow_token', token), tokens.timesheetManager)
+      const page = await context.newPage()
+      const errors = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.goto(url + '/hr?section=pontaj')
+      await page.waitForSelector('.hr-navigation')
+      const pontajTab = page.getByRole('button', { name: 'Pontaj', exact: true })
+      await pontajTab.waitFor()
+      assert.match(await pontajTab.getAttribute('class'), /ui-button-primary/)
+      await page.getByText(/Pontaj 2026-/).first().waitFor()
+      assert.deepEqual(errors, [])
+      await page.screenshot({ path: path.join(dir, 'timesheet-deep-link-real-api.png'), fullPage: true })
+      await context.close()
+    }
+    console.log(`OK browser/API real: patru roluri, liste filtrate, instruiri protejate, CRM blocat, fără erori JavaScript. Capturi: ${dir}`)
   } finally {
     if (browser) await browser.close()
     await new Promise(resolve => proxy.close(resolve))

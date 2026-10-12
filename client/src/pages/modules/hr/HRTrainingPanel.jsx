@@ -7,6 +7,9 @@ function employeeName(item) {
 }
 
 export default function HRTrainingPanel({
+  canViewTrainingSchedule = false,
+  canViewEvaluations = false,
+  canManageEvaluations = false,
   scadentar,
   evaluations,
   employees,
@@ -18,7 +21,7 @@ export default function HRTrainingPanel({
 }) {
   return (
     <div className="grid gap-4">
-      {scadentar.length === 0 && !loading ? null : (
+      {!canViewTrainingSchedule ? <Card>Scadențarul nominal necesită acces la date personale HR.</Card> : scadentar.length === 0 && !loading ? null : (
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <div className="text-sm font-semibold text-slate-700">⚠️ Scadențar cursuri obligatorii (SSM / PSI / ISCIR)</div>
@@ -49,10 +52,10 @@ export default function HRTrainingPanel({
         </Card>
       )}
 
-      <Card>
+      {canViewEvaluations ? <Card>
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-700">📋 Evaluări angajați ({evaluations.length})</div>
-          <Button size="sm" onClick={onNewEvaluation}>+ Evaluare nouă</Button>
+          {canManageEvaluations && <Button size="sm" onClick={onNewEvaluation}>+ Evaluare nouă</Button>}
         </div>
         <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
           <table className="ui-table hr-detail-table w-full text-sm">
@@ -84,8 +87,8 @@ export default function HRTrainingPanel({
                     <td className="px-3 py-2 max-w-xs truncate text-slate-500">{ev.observatii || '—'}</td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-2">
-                        <button className="text-xs text-primary-600 hover:underline" onClick={() => onEditEvaluation(ev)}>✏️</button>
-                        <button className="text-xs text-rose-500 hover:underline" onClick={() => onDeleteEvaluation(ev.id)}>🗑️</button>
+                        {canManageEvaluations && <button className="text-xs text-primary-600 hover:underline" onClick={() => onEditEvaluation(ev)}>✏️</button>}
+                        {canManageEvaluations && <button className="text-xs text-rose-500 hover:underline" onClick={() => onDeleteEvaluation(ev.id)}>🗑️</button>}
                       </div>
                     </td>
                   </tr>
@@ -94,7 +97,7 @@ export default function HRTrainingPanel({
             </tbody>
           </table>
         </div>
-      </Card>
+      </Card> : <Card>Evaluările individuale necesită acces la date personale HR.</Card>}
     </div>
   )
 }

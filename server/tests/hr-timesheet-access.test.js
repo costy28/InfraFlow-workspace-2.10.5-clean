@@ -38,6 +38,12 @@ test('aprobatorul pe departament nu poate aproba în alt departament sau fără 
   assert.equal(employeeInScope(authFor(rights), own, overtimeApprovalScope(authFor(rights))), false)
 })
 
+test('codul departamentului este comparat fără diferență între litere mari și mici', () => {
+  const auth = authFor(['hr:timesheet', 'hr:timesheet_dept'], { department_id: 'd1' })
+  assert.equal(employeeInScope(auth, { id: 2, department_cod: 'D1' }, timesheetScope(auth)), true)
+  assert.equal(employeeInScope(auth, { id: 3, department_cod: 'D2' }, timesheetScope(auth)), false)
+})
+
 test('filtrul SQL folosește parametri de acces calculați din utilizator', () => {
   const access = timesheetSqlAccess(authFor(['hr:timesheet']))
   assert.match(access.condition, /accessUser/)
@@ -45,6 +51,8 @@ test('filtrul SQL folosește parametri de acces calculați din utilizator', () =
   assert.equal(access.params.accessEmployee, '')
   const department = timesheetSqlAccess(authFor(['hr:timesheet_dept'], { department_id: 'd1' }))
   assert.match(department.condition, /accessDepartment/)
+  assert.match(department.condition, /department_cod/)
+  assert.match(department.condition, /d\.cod/)
   assert.equal(department.params.accessDepartment, 'd1')
 })
 

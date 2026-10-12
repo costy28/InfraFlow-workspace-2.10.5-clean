@@ -9,6 +9,8 @@ export default function HRMealTicketsPanel({
   mealDept,
   mealRows,
   departments,
+  canManage = false,
+  canExport = false,
   onMealConfigChange,
   onSaveMealConfig,
   onMealMonthChange,
@@ -25,17 +27,18 @@ export default function HRMealTicketsPanel({
           <Input
             label="💰 Valoare tichet (lei)"
             type="number"
+            disabled={!canManage}
             value={mealConfig.valoare_tichet || 40}
             onChange={e => onMealConfigChange({ ...mealConfig, valoare_tichet: Number(e.target.value) })}
           />
-          <Button onClick={onSaveMealConfig}>Salvează</Button>
+          {canManage ? <Button onClick={onSaveMealConfig}>Salvează</Button> : null}
         </div>
       </Card>
       <Card>
         <div className="mb-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
           <Input label="Luna" type="month" value={mealMonth} onChange={e => onMealMonthChange(e.target.value)} />
           <Select label="Departament" value={mealDept} onChange={e => onMealDeptChange(e.target.value)} options={[{ value: '', label: 'Toate departamentele' }, ...(departments || [])]} />
-          <div className="flex items-end"><Button variant="secondary" onClick={onExportCsv}>📥 Export CSV furnizor</Button></div>
+          {canExport ? <div className="flex items-end"><Button variant="secondary" onClick={onExportCsv}>📥 Export CSV furnizor</Button></div> : null}
         </div>
         <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
           <table className="ui-table hr-detail-table w-full text-sm">

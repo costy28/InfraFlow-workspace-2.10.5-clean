@@ -15,8 +15,9 @@ function employeeInScope(auth, employee, scope) {
   if (scope.type === 'none') return false
   if (scope.type === 'all') return true
   if (scope.type === 'department') {
-    return [employee.department_id, employee.dept_id, employee.department_name, employee.department]
-      .some(value => value != null && String(value) === scope.department)
+    const expected = String(scope.department || '').trim().toLowerCase()
+    return Boolean(expected) && [employee.department_id, employee.department_cod, employee.dept_id, employee.dept_cod, employee.department_name, employee.department]
+      .some(value => value != null && String(value).trim().toLowerCase() === expected)
   }
   const userId = String(auth.user.id || '')
   const linkedId = String(auth.user.employee_id || auth.user.employeeId || '')
@@ -28,7 +29,7 @@ function timesheetSqlAccess(auth, write = false) {
   const scope = timesheetScope(auth, write)
   const params = { accessDepartment: scope.department || '', accessUser: String(auth.user.id || ''), accessEmployee: String(auth.user.employee_id || auth.user.employeeId || '') }
   const condition = scope.type === 'department'
-    ? `AND (CONVERT(nvarchar(100),e.department_id)=JSON_VALUE(@p,'$.accessDepartment') OR d.denumire=JSON_VALUE(@p,'$.accessDepartment'))`
+    ? `AND (CONVERT(nvarchar(100),e.department_id)=JSON_VALUE(@p,'$.accessDepartment') OR e.department_cod=JSON_VALUE(@p,'$.accessDepartment') OR d.cod=JSON_VALUE(@p,'$.accessDepartment') OR d.denumire=JSON_VALUE(@p,'$.accessDepartment'))`
     : scope.type === 'own'
       ? `AND (e.user_id=JSON_VALUE(@p,'$.accessUser') OR CONVERT(nvarchar(100),e.id)=NULLIF(JSON_VALUE(@p,'$.accessEmployee'),''))`
       : ''
