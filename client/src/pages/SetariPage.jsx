@@ -4499,7 +4499,7 @@ export default function SetariPage() {
                     </div>
                   </div>
                   <div className="mt-0.5 text-xs text-slate-400 line-clamp-1">{data.description || roleDescriptions[data.id] || ''}</div>
-                  {!isSistem && (
+                  {isCustom && (
                     <button
                       type="button"
                       onClick={e => { e.stopPropagation(); setRoleDeleteConfirm(data) }}

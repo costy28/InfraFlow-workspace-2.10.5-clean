@@ -1,3 +1,5 @@
+const { licenseModuleKeys } = require('./module-catalog');
+
 const permissionGroups = {
   kiosk: ["kiosk:view", "kiosk:pontaj_own", "kiosk:leave_request", "kiosk:documents_own", "kiosk:profile_view"],
   dashboard: ["dashboard:view"],
@@ -741,7 +743,7 @@ const DEFAULT_CUSTOM_ROLES = [
   },
   {
     id: 'operator-statie',
-    name: 'Operator producție',
+    name: 'Operator stație / servicii',
     description: 'Producție/servicii, consum zilnic și stocuri în citire.',
     tip: 'default',
     permissions: [
@@ -771,9 +773,21 @@ function legacyDefaultRoles() {
     }));
 }
 
+function defaultRoleDefinition(roleId) {
+  return [...legacyDefaultRoles(), ...DEFAULT_CUSTOM_ROLES].find(role => role.id === roleId) || null;
+}
+
+function samePermissionSet(left, right) {
+  const a = new Set(Array.isArray(left) ? left : []);
+  const b = new Set(Array.isArray(right) ? right : []);
+  return a.size === b.size && [...a].every(permission => b.has(permission));
+}
+
 /**
  * Populează settings.customRoles cu rolurile default dacă nu există.
- * Apelată la fiecare GET /roles — scrie în DB doar dacă s-a adăugat ceva.
+ * Un rol existent nu este completat automat: o actualizare nu trebuie să
+ * reacorde permisiuni eliminate explicit de client. Revenirea la definiția
+ * livrată de aplicație se face numai prin acțiunea explicită de resetare.
  */
 function ensureDefaultCustomRoles(settings) {
   if (!Array.isArray(settings.customRoles)) settings.customRoles = [];
@@ -783,13 +797,11 @@ function ensureDefaultCustomRoles(settings) {
     if (!existing) {
       settings.customRoles.push({ ...def, permissions: [...def.permissions] });
       changed = true;
-    } else if (existing.tip === 'default' && Array.isArray(existing.permissions)) {
-      def.permissions.forEach(permission => {
-        if (!existing.permissions.includes(permission)) {
-          existing.permissions.push(permission);
-          changed = true;
-        }
-      });
+    } else if (def.id === 'operator-statie' && existing.name === 'Operator producție') {
+      // Corecție exclusiv de etichetă pentru a diferenția cele două roluri
+      // istorice; permisiunile și descrierea clientului nu sunt atinse.
+      existing.name = def.name;
+      changed = true;
     }
   });
   return changed;
@@ -897,7 +909,7 @@ const licenseModulePermissions = {
     "stock_operations:export",
     "ledger:export"
   ],
-  stock: [
+  inventory: [
     "materials:view",
     "materials:edit",
     "stock_operations:view",
@@ -909,14 +921,6 @@ const licenseModulePermissions = {
     "deliveries:cancel",
     "ledger:view",
     "ledger:export"
-  ],
-  planning: [
-    "planning:view",
-    "planning:manage",
-    "department_requests:view",
-    "department_requests:create",
-    "department_requests:manage",
-    "department_requests:plan"
   ],
   procurement: [
     "dashboard:view",
@@ -934,7 +938,7 @@ const licenseModulePermissions = {
     "department_requests:view",
     ...permissionGroups.referate
   ],
-  mechanization: [
+  fleet: [
     "dashboard:view",
     "mechanization:view",
     "mechanization:manage",
@@ -958,7 +962,7 @@ const licenseModulePermissions = {
     "planning:view",
     "department_requests:view"
   ],
-  cost_accounting: [
+  controlling: [
     "dashboard:view",
     "cost_accounting:view",
     "cost_accounting:manage",
@@ -977,12 +981,29 @@ const licenseModulePermissions = {
   ],
   accounting: [
     "dashboard:view",
-    ...permissionGroups.accountingCore
+    ...permissionGroups.accountingCore,
+    ...permissionGroups.anaf
   ],
   crm: [
     "dashboard:view",
     ...permissionGroups.crm
-  ]
+  ],
+  logistics: ["dashboard:view", ...permissionGroups.logistics],
+  contract_management: ["dashboard:view", "legal:view", "legal:manage", "legal:contracts"],
+  hr: ["dashboard:view", ...permissionGroups.hr, ...permissionGroups.echipamente],
+  sanitation: ["dashboard:view", ...permissionGroups.sanitation],
+  traffic_safety: ["dashboard:view", ...permissionGroups.traffic_safety],
+  environment: ["dashboard:view", ...permissionGroups.environment],
+  snow_removal: ["dashboard:view", ...permissionGroups.snow_removal],
+  documents: ["dashboard:view", ...permissionGroups.documents],
+  messaging: ["dashboard:view", ...permissionGroups.messaging],
+  tickets: ["dashboard:view", ...permissionGroups.tickets],
+  field: ["dashboard:view", ...permissionGroups.field],
+  legal: ["dashboard:view", ...permissionGroups.legal],
+  archive: ["dashboard:view", ...permissionGroups.archive],
+  secretariat: ["dashboard:view", ...permissionGroups.secretariat],
+  ai: ["dashboard:view", ...permissionGroups.ai],
+  system: [...permissionGroups.system]
 };
 
 function requirePermission(auth, res, permission) {
@@ -1011,7 +1032,7 @@ function requireAnyPermission(auth, res, permissions) {
 
 function authHasPermission(auth, permission) {
   if (userHasRole(auth.user, "superadmin")) return true;
-  const rolePermissions = effectivePermissionsForUser(auth.user, auth.db);
+  const rolePermissions = effectivePermissionsForUser(auth.user, auth.db, auth.entitlements);
   if (!rolePermissions.includes(permission)) return false;
   if ([...ANGAJAT_PERMISSIONS, "hr:view_own", "hr:leave_own", "hr:timesheet", "hr:timesheet_dept"].includes(permission)) return true;
   if (auth.user.departmentId) {
@@ -1041,14 +1062,14 @@ function permissionsFor(role, settings = {}) {
   return Array.from(expanded);
 }
 
-function effectivePermissionsFor(role, settings) {
-  return permissionsFor(role, settings).filter((permission) => permissionAllowedByLicense(permission, settings?.license));
+function effectivePermissionsFor(role, settings, entitlements = null) {
+  return permissionsFor(role, settings).filter((permission) => permissionAllowedByLicense(permission, settings?.license, entitlements));
 }
 
-function effectivePermissionsForUser(user, db) {
+function effectivePermissionsForUser(user, db, entitlements = null) {
   const roles = normalizedUserRoles(user);
   const employeePermissions = user?.active !== false && user?.active !== 0 ? ANGAJAT_PERMISSIONS : [];
-  const permissions = Array.from(new Set([...roles.flatMap((role) => effectivePermissionsFor(role, db.settings)), ...employeePermissions]));
+  const permissions = Array.from(new Set([...roles.flatMap((role) => effectivePermissionsFor(role, db.settings, entitlements)), ...employeePermissions]));
   if (roles.includes("superadmin") || !user.departmentId) return permissions;
   const department = (db.departments || []).find((item) => item.id === user.departmentId);
   if (!department || !Array.isArray(department.permissions)) return permissions;
@@ -1065,13 +1086,15 @@ function userHasRole(user, role) {
   return normalizedUserRoles(user).includes(role);
 }
 
-function permissionAllowedByLicense(permission, licenseInput) {
+function permissionAllowedByLicense(permission, licenseInput, entitlements = null) {
   const license = normalizeLicense(licenseInput || {});
-  if (license.status === "internal") return true;
+  if (!entitlements && license.status === "internal") return true;
   if (license.status === "expired") return licenseAdminPermissions.has(permission);
   if (licenseAdminPermissions.has(permission) || permission === "users:manage") return true;
-  const modules = normalizedLicenseModules(license);
-  if (!modules.length || modules.includes("all") || modules.includes("full")) return true;
+  const modules = Array.isArray(entitlements?.effective_modules)
+    ? entitlements.effective_modules
+    : normalizedLicenseModules(license);
+  if (!entitlements && (!modules.length || modules.includes("all") || modules.includes("full"))) return true;
   const granular = legacyPermissionAliases[permission] || [permission];
   const allowed = new Set();
   modules.forEach((module) => {
@@ -1081,9 +1104,7 @@ function permissionAllowedByLicense(permission, licenseInput) {
 }
 
 function normalizedLicenseModules(license) {
-  return Array.isArray(license.modules)
-    ? license.modules.map((item) => String(item).trim().toLowerCase()).filter(Boolean)
-    : [];
+  return licenseModuleKeys(license || {});
 }
 
 function normalizeRolePermissionOverrides(input) {
@@ -1165,6 +1186,7 @@ function adminDepartment(dept) {
 
 function rolesList(settings) {
   const customRoles = Array.isArray(settings?.customRoles) ? settings.customRoles : [];
+  const catalogPermissions = new Set(allPermissions);
 
   const systemRoles = ['superadmin', 'admin'].map((id) => {
     const permissions = rolePermissions[id] || [];
@@ -1175,7 +1197,7 @@ function rolesList(settings) {
       description: roleInfo[id]?.description || "",
       tip: 'sistem',
       modules: roleModules(id, settings),
-      permissions: effective,
+      permissions: effective.filter(permission => catalogPermissions.has(permission)),
       basePermissions: permissions,
       customized: false
     };
@@ -1183,15 +1205,18 @@ function rolesList(settings) {
 
   const custom = customRoles.map(cr => {
     const effective = effectivePermissionsFor(cr.id, settings);
+    const defaultRole = cr.tip === 'default' ? defaultRoleDefinition(cr.id) : null;
     return {
       id: cr.id,
       name: cr.name || cr.id,
       description: cr.description || "",
       tip: cr.tip || 'custom',
       modules: roleModules(cr.id, settings),
-      permissions: effective,
+      permissions: effective.filter(permission => catalogPermissions.has(permission)),
       basePermissions: Array.isArray(cr.permissions) ? cr.permissions : [],
-      customized: false,
+      customized: cr.tip === 'default' && (
+        cr.customized === true || (defaultRole && !samePermissionSet(cr.permissions, defaultRole.permissions))
+      ),
     };
   });
 
@@ -1235,10 +1260,16 @@ function updateRolePermissions(db, user, roleId, body) {
   const customRole = db.settings.customRoles.find((item) => item.id === role);
   if (customRole) {
     if (body.reset === true) {
-      const defaultRole = [...legacyDefaultRoles(), ...DEFAULT_CUSTOM_ROLES].find((item) => item.id === role);
-      if (defaultRole) customRole.permissions = [...defaultRole.permissions];
+      const defaultRole = defaultRoleDefinition(role);
+      if (!defaultRole) throwHttp(400, "Numai rolurile implicite pot fi resetate.");
+      customRole.name = defaultRole.name;
+      customRole.description = defaultRole.description;
+      customRole.tip = 'default';
+      customRole.permissions = [...defaultRole.permissions];
+      customRole.customized = false;
     } else {
       customRole.permissions = sanitizeRolePermissions(body.permissions);
+      if (customRole.tip === 'default') customRole.customized = true;
     }
     return rolesList(db.settings).find((item) => item.id === role);
   }

@@ -1161,6 +1161,35 @@ test('documentele medicale Kiosk reverifică angajatul activ din sesiune', async
   assert.equal(f.writes(), 0)
 })
 
+test('documentul medical al unui coleg cere simultan vedere HR și acces medical', async () => {
+  for (const permissions of [[], ['hr:view'], ['hr:medical_view']]) {
+    const f = fixture({ medicalFs: true })
+    f.db.settings.customRoles[0].permissions = permissions
+    f.db.hr.medicalLeaveCertificates = [{
+      uuid: 'certificate-colleague',
+      employee_id: 2,
+      stored_name: '00000000-0000-0000-0000-000000000002.pdf',
+      file_name: 'certificat-coleg.pdf',
+    }]
+    const result = await f.invoke('get /hr/medical-leaves/:uuid/document', {}, {}, { uuid: 'certificate-colleague' })
+    assert.equal(result.code, 403)
+    assert.equal(f.medicalDownloads(), 0)
+    assert.equal(f.writes(), 0)
+  }
+
+  const authorized = fixture({ medicalFs: true })
+  authorized.db.settings.customRoles[0].permissions = ['hr:view', 'hr:medical_view']
+  authorized.db.hr.medicalLeaveCertificates = [{
+    uuid: 'certificate-colleague',
+    employee_id: 2,
+    stored_name: '00000000-0000-0000-0000-000000000002.pdf',
+    file_name: 'certificat-coleg.pdf',
+  }]
+  const result = await authorized.invoke('get /hr/medical-leaves/:uuid/document', {}, {}, { uuid: 'certificate-colleague' })
+  assert.equal(result.code, 404)
+  assert.equal(result.data.code, 'HR_MEDICAL_STORAGE_MISSING')
+})
+
 test('uploadul medical cere autentificarea înainte de middleware-ul multipart', () => {
   const f = fixture({ noAuth: true, medicalFs: true })
   const result = f.preflight('post /hr/kiosk/medical-leave')
@@ -1405,6 +1434,24 @@ test('generarea și arhivarea Word nu ocolesc drepturile personale și salariale
       assert.equal(f.writes(), 0)
     }
   }
+})
+
+test('uploadul șablonului Word verifică autentificarea și administrarea HR înainte de multipart', () => {
+  const unauthenticated = fixture({ noAuth: true })
+  const unauthenticatedResult = unauthenticated.preflight('post /hr/document-templates/:id/word-template', { id: 'cim' })
+  assert.equal(unauthenticatedResult.code, 401)
+  assert.equal(unauthenticatedResult.continued, false)
+
+  const unauthorized = fixture()
+  unauthorized.db.settings.customRoles[0].permissions = ['hr:view']
+  const unauthorizedResult = unauthorized.preflight('post /hr/document-templates/:id/word-template', { id: 'cim' })
+  assert.equal(unauthorizedResult.code, 403)
+  assert.equal(unauthorizedResult.continued, false)
+
+  const authorized = fixture()
+  authorized.db.settings.customRoles[0].permissions = ['hr:manage']
+  const authorizedResult = authorized.preflight('post /hr/document-templates/:id/word-template', { id: 'cim' })
+  assert.equal(authorizedResult.continued, true)
 })
 
 test('drepturile complete pentru Word trec de controlul sensibil fără a simula un fișier', async () => {

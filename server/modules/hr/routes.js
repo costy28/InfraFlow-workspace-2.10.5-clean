@@ -3359,7 +3359,14 @@ FROM hr.document_templates WHERE id = @id FOR JSON PATH;
   }
 })
 
-router.post('/hr/document-templates/:id/word-template', upload.single('file'), (req, res, next) => {
+function authorizeHrWordTemplateUpload(req, res, next) {
+  const auth = requireAuth(req, res)
+  if (!auth) return
+  if (!requirePermission(auth, res, 'hr:manage')) return
+  next()
+}
+
+router.post('/hr/document-templates/:id/word-template', authorizeHrWordTemplateUpload, upload.single('file'), (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
@@ -4138,7 +4145,7 @@ router.get('/hr/medical-leaves/:uuid/document', (req, res, next) => {
     if (!auth) return
     const db = readDb()
     const ownEmployeeId = String(auth.user.employee_id || auth.user.employeeId || '')
-    const fullAccess = authHasPermission(auth, 'hr:medical_view')
+    const fullAccess = authHasPermission(auth, 'hr:view') && authHasPermission(auth, 'hr:medical_view')
     const item = isMssqlMode()
       ? mssqlObject(`SELECT TOP 1 * FROM hr.medical_leave_certificates WHERE uuid=TRY_CONVERT(uniqueidentifier,JSON_VALUE(@p,'$.uuid')) FOR JSON PATH;`, req.params)
       : ensureHrDb(db).medicalLeaveCertificates.find((row) => String(row.uuid) === String(req.params.uuid))

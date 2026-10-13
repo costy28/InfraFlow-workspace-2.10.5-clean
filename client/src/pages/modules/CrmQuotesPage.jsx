@@ -142,7 +142,12 @@ export default function CrmQuotesPage() {
   }
 
   async function save(event) {
-    event.preventDefault(); setBusy(true); setError(''); setNotice('')
+    event.preventDefault()
+    if (!canCreateQuote) {
+      setError('Nu ai permisiunea necesară pentru a crea sau modifica oferte.')
+      return
+    }
+    setBusy(true); setError(''); setNotice('')
     try {
       const result = id ? await api.patch(`/crm/quotes/${id}`, form) : await api.post('/crm/quotes', form)
       navigate(`/crm/oferte/${result.data.quote.id}`)
@@ -301,7 +306,12 @@ export default function CrmQuotesPage() {
     ]} />
   </Card>
 
-  if (id && quote && quote.status !== 'draft') return <div className="grid gap-4">
+  if (isNew && !canCreateQuote) return <Card title="Ofertă nouă" subtitle="Acces restricționat">
+    <p className="text-sm text-slate-600">Ai acces la consultarea ofertelor, dar nu ai permisiunea necesară pentru a crea una nouă.</p>
+    <Link className="mt-4 inline-block" to="/crm/oferte"><Button variant="secondary">Înapoi la oferte</Button></Link>
+  </Card>
+
+  if (id && quote && (quote.status !== 'draft' || !canCreateQuote)) return <div className="grid gap-4">
     <Card title={`${quote.quote_number} / Rev. ${quote.revision_number}`} subtitle={`${statusLabel[quote.status] || quote.status} · ${quote.account_name}`} actions={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={busy} onClick={() => navigate('/crm/oferte')}>← Înapoi la oferte</Button>{canCreateQuote ? <Button variant="secondary" disabled={busy} onClick={() => action('generate-document')}>Print / PDF</Button> : null}{quote.status === 'pending_approval' && canApproveQuote ? <><Button disabled={busy} onClick={() => action('approve')}>Aprobă</Button><Button variant="secondary" disabled={busy} onClick={() => action('reject', { reason: 'Respins intern' })}>Respinge</Button></> : null}{quote.status === 'accepted' && canManageOrder ? <Button disabled={busy} onClick={() => action('customer-order')}>Creează comandă client</Button> : null}{['approved', 'sent', 'accepted', 'declined', 'rejected_internal'].includes(quote.status) && canCreateQuote ? <Button variant="secondary" disabled={busy} onClick={() => action('revision')}>Creează revizie</Button> : null}</div>}>
       {error ? <p className="mb-3 text-red-600">{error}</p> : null}{notice ? <p className="mb-3 text-emerald-700">{notice}</p> : null}
       <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th>#</th><th>Descriere</th><th>Cant.</th><th>Preț</th><th>Discount</th><th>TVA</th><th className="text-right">Total</th></tr></thead><tbody>{quote.lines.map(line => <tr className="border-t" key={line.id}><td>{line.position}</td><td>{line.description}</td><td>{line.quantity} {line.unit}</td><td>{money(line.unit_price)}</td><td>{money(line.discount_percent)}%</td><td>{money(line.tax_percent)}%</td><td className="text-right">{money(line.line_total)} {quote.currency}</td></tr>)}</tbody></table></div>

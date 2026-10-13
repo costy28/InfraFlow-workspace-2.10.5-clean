@@ -41,7 +41,7 @@ test('fiecare etapă deschide filtrat numai ofertele din contextul comercial ale
   assert.match(quotePage, /new URLSearchParams\(location\.search\)\.get\('stage'\)/)
   assert.match(quotePage, /Filtru rapid/)
   assert.match(quotePage, /Șterge filtrul rapid/)
-  assert.match(quotePage, /Comandă<\/th>/)
+  assert.match(quotePage, /key: 'customer_order_number', label: 'Comandă'/)
   assert.match(quotePage, /customer_order_status === 'confirmed'/)
   assert.match(quotePage, /function changeStatusFilter\(status\)/)
   assert.match(quotePage, /if \(selectedStage\) navigate\('\/crm\/oferte'\)/)

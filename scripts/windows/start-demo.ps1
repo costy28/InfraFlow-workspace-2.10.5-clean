@@ -58,4 +58,4 @@ Write-Host "Pornire server pe http://localhost:$($env:PORT) ..." -ForegroundColo
 Write-Host "Apasa Ctrl+C pentru a opri." -ForegroundColor Gray
 Write-Host ""
 Set-Location $projectRoot
-& $nodePath server/src/server.js
+& $nodePath server/app.js

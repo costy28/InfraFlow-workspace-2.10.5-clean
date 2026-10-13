@@ -5,7 +5,7 @@ const path = require('path')
 
 const root = path.resolve(__dirname, '..', '..')
 const sidebar = fs.readFileSync(path.join(root, 'client', 'src', 'components', 'layout', 'Sidebar.jsx'), 'utf8')
-const catalog = fs.readFileSync(path.join(root, 'server', 'modules', 'system', 'settings-routes.js'), 'utf8')
+const catalog = fs.readFileSync(path.join(root, 'server', 'core', 'module-catalog.js'), 'utf8')
 
 test('terminologia comercială implicită este generică în navigare și catalog', () => {
   for (const label of ['Stocuri & Depozite', 'Aprovizionare & Achiziții', 'Rute & Operațiuni teren', 'Semnalizare & Intervenții', 'Operațiuni sezoniere', 'Mediu & Conformitate']) {

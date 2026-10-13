@@ -2,7 +2,6 @@
 const express = require('express')
 const path = require('path')
 const fs = require('fs')
-const { requireAuth } = require('./core/auth')
 const { DB_MODE, ensureDatabase, readDb, writeDb, syncMssqlCpvCodes, getMssqlPool, closeMssqlPool, databaseHealth } = require('./core/db')
 const { incarcaLicenta } = require('./core/license')
 const { bootstrapCpvCatalog } = require('./modules/nomenclator/service')
@@ -46,31 +45,10 @@ const whatsappModule = require('./modules/messaging/whatsapp')
 const whatsappRouter = whatsappModule.router
 app.use('/webhooks/whatsapp', express.json({ limit: '10mb', verify: (req, _res, buffer) => { req.rawBody = Buffer.from(buffer) } }), whatsappModule.webhookRouter)
 app.use(express.json({ limit: '10mb' }))
-const STORAGE_ROOT = path.resolve(__dirname, '../storage')
-
-function sendProtectedStorageFile(req, res) {
-  const auth = requireAuth(req, res)
-  if (!auth) return
-  let relativePath = ''
-  try {
-    relativePath = decodeURIComponent(String(req.path || '')).replace(/^[/\\]+/, '')
-  } catch {
-    res.status(400).json({ error: 'Cale fisier invalida.' })
-    return
-  }
-  const diskPath = path.resolve(STORAGE_ROOT, relativePath)
-  if (!diskPath.startsWith(STORAGE_ROOT + path.sep) && diskPath !== STORAGE_ROOT) {
-    res.status(403).json({ error: 'Acces interzis la fisier.' })
-    return
-  }
-  if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
-    res.status(404).json({ error: 'Fisier inexistent.' })
-    return
-  }
-  res.sendFile(diskPath)
-}
-
-app.use('/storage', sendProtectedStorageFile)
+// Folderul storage nu este o zonă publică. Fiecare categorie de fișier se
+// descarcă numai prin endpoint-ul modulului, după verificarea sesiunii,
+// permisiunii și entității asociate. Blocarea explicită evită și fallback-ul SPA.
+app.use('/storage', (_req, res) => res.status(404).json({ error: 'Resursa nu este disponibilă.' }))
 app.get('/api/v1/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
 app.get('/api/health', (_req, res) => res.json({ ok: true, status: 'healthy' }))
 app.get('/api/system/health', (_req, res) => {
@@ -248,23 +226,32 @@ try {
 require('./scheduler')
 piusiIntegration.startPiusiScheduler()
 
-const PORT = Number(process.env.PORT || 4180) // port implicit 4180
+const PORT = Number(process.env.INFRAFLOW_PORT || process.env.PORT || 4180) // port implicit 4180
 // Pe Linux hosted, aplicația rămâne în spatele tunnel-ului și nu ascultă pe
 // interfața publică. Instalările Windows existente își păstrează comportamentul
 // LAN dacă nu configurează explicit INFRAFLOW_HOST/HOST.
 const HOST = String(process.env.INFRAFLOW_HOST || process.env.HOST || (process.platform === 'win32' ? '' : '127.0.0.1')).trim()
-if (require.main === module) {
+let activeServer = null
+
+function startServer() {
+  if (activeServer) return activeServer
   const onListen = () => {
     console.log(`InfraFlow app.js pornit pe ${HOST || 'toate interfețele'}:${PORT}`)
   }
-  const server = HOST ? app.listen(PORT, HOST, onListen) : app.listen(PORT, onListen)
-  server.on('error', (err) => {
+  activeServer = HOST ? app.listen(PORT, HOST, onListen) : app.listen(PORT, onListen)
+  activeServer.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       console.error(`Portul ${PORT} e ocupat. Incearca: $env:PORT=${PORT+1} ; node server/app.js`)
       return
     }
     console.error('[SERVER] Listener error:', err)
   })
+  return activeServer
+}
+
+if (require.main === module) {
+  startServer()
 }
 
 module.exports = app
+module.exports.startServer = startServer

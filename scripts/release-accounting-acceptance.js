@@ -10,7 +10,7 @@ async function main() {
   const dbFile = path.join(tempDir, "app-db.json");
   fs.copyFileSync(path.join(root, "data", "app-db.seed.json"), dbFile);
   const port = 45180 + Math.floor(Math.random() * 500);
-  const child = spawn(process.execPath, [path.join(root, "server", "src", "server.js")], {
+  const child = spawn(process.execPath, [path.join(root, "server", "app.js")], {
     cwd: root, env: { ...process.env, DB_MODE: "json", INFRAFLOW_DB_PROVIDER: "json", INFRAFLOW_DB_FILE: dbFile, INFRAFLOW_PORT: String(port), PORT: String(port), INFRAFLOW_SCHEDULER_DISABLED: "1" }, stdio: ["ignore", "pipe", "pipe"]
   });
   let output = "";

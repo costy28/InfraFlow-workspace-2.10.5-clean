@@ -70,8 +70,10 @@ function completeLogin(req, db, user, auditSuffix = '') {
   const device = registerClientDevice(db, user, req.body || {}, req)
   sessions.set(token, { userId: user.id, deviceId: device.id, loginAt: Date.now() })
   addAudit(db, user, 'auth_login_reusit', authAuditDetails(req, user.username, 'acceptat', `${device.name || 'statie autorizata'}${auditSuffix}`))
-  const permissions = effectivePermissionsForUser(user, db)
-  return { token, user: { ...publicUser(user), permissions }, permissions }
+  const { entitlementsForDb } = require('./module-catalog')
+  const entitlements = entitlementsForDb(db)
+  const permissions = effectivePermissionsForUser(user, db, entitlements)
+  return { token, user: { ...publicUser(user), permissions, entitlements }, permissions, entitlements }
 }
 
 function demoInviteSecret() {
@@ -179,11 +181,14 @@ router.post('/setup/complete', async (req, res) => {
     const device = registerClientDevice(result.db, result.user, req.body || {}, req)
     sessions.set(token, { userId: result.user.id, deviceId: device.id, loginAt: Date.now() })
     await writeDb(result.db)
-    const permissions = effectivePermissionsForUser(result.user, result.db)
+    const { entitlementsForDb } = require('./module-catalog')
+    const entitlements = entitlementsForDb(result.db)
+    const permissions = effectivePermissionsForUser(result.user, result.db, entitlements)
     res.status(201).json({
       token,
-      user: { ...publicUser(result.user), permissions },
+      user: { ...publicUser(result.user), permissions, entitlements },
       permissions,
+      entitlements,
       settings: result.db.settings
     })
   } catch(e) { res.status(e.status || 500).json({ error: e.message }) }
@@ -459,8 +464,7 @@ router.post('/logout', async (req, res) => {
 router.get('/session', async (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  const permissions = effectivePermissionsForUser(auth.user, auth.db)
-  res.json({ user: { ...publicUser(auth.user), permissions }, permissions })
+  res.json({ user: { ...publicUser(auth.user), permissions: auth.permissions, entitlements: auth.entitlements }, permissions: auth.permissions, entitlements: auth.entitlements })
 })
 
 module.exports = router

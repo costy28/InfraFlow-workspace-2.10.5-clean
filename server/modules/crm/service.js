@@ -1,4 +1,5 @@
 const CRM_MODULE_KEY = 'crm'
+const { licenseModuleKeys } = require('../../core/module-catalog')
 const LEAD_SOURCES = ['web', 'email', 'manual', 'phone', 'whatsapp', 'import', 'api', 'referral']
 const LEAD_STATUSES = ['new', 'contacted', 'qualified', 'unqualified', 'converted', 'lost']
 const QUALIFICATION_STATUSES = ['pending', 'qualified', 'unqualified']
@@ -10,14 +11,12 @@ const CRM_REQUIRED_TABLES = [
 ]
 
 function normalizedModuleKeys(license = {}) {
-  return [...(Array.isArray(license.module) ? license.module : []), ...(Array.isArray(license.modules) ? license.modules : []), ...(Array.isArray(license.addons) ? license.addons : [])]
-    .map(value => String(value || '').trim().toLowerCase())
-    .filter(Boolean)
+  return licenseModuleKeys(license)
 }
 
 function licenseAllowsCrm(license = {}) {
   const modules = normalizedModuleKeys(license)
-  return !modules.length || modules.includes('all') || modules.includes('full') || modules.some(key => ['crm', 'sales', 'sales_automation'].includes(key))
+  return !modules.length || modules.includes('all') || modules.includes('full') || modules.includes('crm')
 }
 
 // Instanța comercială de demonstrație este izolată într-o bază dedicată și

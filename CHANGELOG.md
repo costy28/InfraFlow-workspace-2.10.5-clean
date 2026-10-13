@@ -1,3 +1,48 @@
+## v2.12.687 - 2026-10-13
+
+### Catalog canonic module și drepturi efective
+
+- Catalogul modulelor, pachetele comerciale și aliasurile backend sunt definite într-o singură sursă.
+- Formatele de licență `module`, `modules` și `addons` sunt normalizate prin aceeași funcție.
+- Aliasurile legacy precum `mechanization`, `sales_automation`, `contracts` și `contabilitate` sunt mapate la cheile canonice.
+- Noul `effectiveEntitlements` calculează explicit modulele permise, configurate și efective.
+- Setări → Administrare module și fundația CRM folosesc catalogul comun, fără migrare și fără schimbarea datelor existente.
+
+## v2.12.686 - 2026-10-13
+
+### Storage închis și descărcări autorizate
+
+- Ruta generică `/storage` răspunde numai cu 404 și nu mai poate servi fișiere, nici după autentificare.
+- Descărcările rămân disponibile exclusiv prin endpoint-urile API ale modulelor, cu verificarea sesiunii, permisiunii și entității asociate.
+- Fișierele noi din Parc & Resurse și modelele Documente păstrează numai referințe interne, fără URL public direct.
+- Referințele legacy cu `/storage/` rămân citibile prin endpoint-urile autorizate, fără migrare de date.
+- Auditul automat semnalează ca eroare critică reapariția unei rute generale care ar servi folderul storage.
+
+## v2.12.685 - 2026-10-13
+
+### Entry point unic pentru server
+
+- `server/app.js` este entry point-ul canonic pentru comenzile NPM, deployment Windows/Linux, demo și testele de acceptanță.
+- Smoke-ul modular și testul de release pornesc exact runtime-ul livrat clienților.
+- `server/src/server.js` rămâne adaptor de compatibilitate, fără listener HTTP sau handlere de proces duplicate.
+- Runtime-ul canonic respectă atât `INFRAFLOW_PORT`, cât și `PORT`.
+- O regresie dedicată împiedică reapariția lansatoarelor active pe entry point-ul legacy.
+
+## v2.12.684 - 2026-10-13
+
+### Permisiuni granulare HR, CRM și roluri persistente
+
+- Rutele HR pentru angajați, pontaje, fișiere și documente medicale verifică drepturile punctuale, aria departamentală și identitatea titularului înaintea operațiilor sau accesului la storage.
+- Interfața HR încarcă și afișează numai datele, taburile și acțiunile permise rolului curent, fără alerte false provenite din cereri neautorizate.
+- Ofertele CRM separă vizualizarea, crearea și editarea; accesul direct la formular este blocat fără dreptul dedicat, iar drafturile rămân consultabile read-only.
+- Inboxul WhatsApp afișează crearea sau deschiderea unui lead numai când utilizatorul are permisiunea CRM corespunzătoare.
+- Editarea unei oferte pe SQL Server arhivează pozițiile liniilor înlocuite înainte de inserarea noii revizii, fără conflict cu indexul unic.
+- Permisiunile eliminate dintr-un rol implicit nu mai sunt reacordate automat la citirea listei de roluri; restaurarea setului livrat se face numai prin resetare explicită.
+- Administrarea rolurilor folosește un singur traseu central, totalurile corespund catalogului vizibil, iar rolurile implicite nu pot fi șterse accidental.
+- Rolurile istorice cu aceeași denumire sunt diferențiate fără modificarea drepturilor existente.
+- Manifestele clientului desktop Electron sunt sincronizate cu versiunea sursei, iar release check verifică de acum și această concordanță.
+- Modelul real de implementare, autostart și update Windows/Linux/Electron este clarificat într-un document operațional verificat în sursă.
+
 ## v2.12.683 - 2026-10-08
 
 ### Tema vizuală pentru Contabilitate avansată

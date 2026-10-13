@@ -10,6 +10,7 @@ import Modal from '../../components/ui/Modal'
 import PageHeader from '../../components/ui/PageHeader'
 import { formatDate } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 import { notifyMessage, permissionGranted, requestPermission } from '../../utils/notifications'
 import { createMessagingEventSource } from '../../utils/sse'
 
@@ -247,6 +248,8 @@ export default function MessagingPage() {
   const listRef = useRef(null)
   const currentUserId = userId(user)
   const isAdmin = isAdminUser(user)
+  const canViewCrm = canAccess(user, 'crm:view')
+  const canCreateCrmLead = canAccess(user, 'crm:lead_create')
 
   // ─── Load canale ─────────────────────────────────────────────────────────────
   const loadChannels = useCallback(async () => {
@@ -1030,7 +1033,11 @@ export default function MessagingPage() {
               <div className="flex flex-wrap justify-between gap-2"><div className="font-semibold text-slate-900">{message.contact_name || message.from_phone || 'Contact necunoscut'}</div><div className="text-xs text-slate-500">{formatDate(message.received_at)}</div></div>
               <div className="mt-1 text-sm text-slate-700">{message.body || 'Mesaj cu atașament'}</div>
               {message.attachment ? <div className="mt-2 text-xs text-slate-500"><Paperclip size={13} className="mr-1 inline" />{message.attachment.filename || message.attachment.type} · în așteptarea descărcării securizate</div> : null}
-              <div className="mt-3 flex gap-2">{message.lead_id ? <Button size="sm" variant="secondary" onClick={() => { window.location.href = `/crm/leads/${message.lead_id}` }}>Deschide lead-ul</Button> : <Button size="sm" onClick={() => createLeadFromWhatsApp(message)}>Creează lead</Button>}</div>
+              <div className="mt-3 flex gap-2">
+                {message.lead_id && canViewCrm ? <Button size="sm" variant="secondary" onClick={() => { window.location.href = `/crm/leads/${message.lead_id}` }}>Deschide lead-ul</Button> : null}
+                {!message.lead_id && canCreateCrmLead ? <Button size="sm" onClick={() => createLeadFromWhatsApp(message)}>Creează lead</Button> : null}
+                {message.lead_id && !canViewCrm ? <span className="text-xs text-slate-500">Lead CRM asociat</span> : null}
+              </div>
             </div>
           ))}</div> : <div className="rounded-lg border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">Nu există încă mesaje WhatsApp importate.</div>}
         </Card>

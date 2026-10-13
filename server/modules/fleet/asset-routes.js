@@ -512,8 +512,8 @@ function safeFileName(name) {
   return path.basename(String(name || 'fisier').replace(/[^\w.\- ]+/g, '_')).slice(0, 180)
 }
 
-function publicFilePath(filePath) {
-  return `/storage/${path.relative(path.join(ROOT, 'storage'), filePath).replace(/\\/g, '/')}`
+function internalFilePath(filePath) {
+  return `storage/${path.relative(path.join(ROOT, 'storage'), filePath).replace(/\\/g, '/')}`
 }
 
 function requireFleetRead(auth, res) {
@@ -624,8 +624,7 @@ router.post('/fleet/assets/:id/files', raw({ type: () => true, limit: MAX_UPLOAD
       asset_id: asset.id,
       tip: String(fields.tip || 'altul').trim(),
       denumire: String(fields.denumire || upload.filename).trim(),
-      file_path: publicFilePath(fullPath),
-      local_path: fullPath,
+      file_path: internalFilePath(fullPath),
       file_name: safeFileName(upload.filename),
       file_size: upload.buffer.length,
       mime_type: upload.mime,

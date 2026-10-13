@@ -24,6 +24,7 @@ test('oferta păstrează revizia, tranzacția și imutabilitatea în repository'
   assert.match(repository, /MAX\(revision\)\+1/)
   assert.match(repository, /status=N'draft'/)
   assert.match(repository, /Oferta nu poate fi editată/)
+  assert.match(repository, /SET line_no=-id,cancelled_at=SYSUTCDATETIME\(\)/)
 })
 test('lista ofertelor păstrează rezultatele când filtrul expirate nu este setat', () => {
   assert.match(repository, /COALESCE\(JSON_VALUE\(@p,'\$\.expired'\), N'false'\)<>N'true'/)
@@ -49,6 +50,12 @@ test('trimiterea ofertei folosește emailul contactului sau, în lipsă, al pros
 test('trimiterea ofertei păstrează activitatea CRM cu moment obligatoriu', () => {
   assert.match(routes, /activity_type: 'email', occurred_at: new Date\(\)\.toISOString\(\)/)
   assert.match(routes, /repository\.createActivity\(normalizeActivityPayload/)
+})
+test('interfața nu deschide editorul de ofertă fără dreptul de creare', () => {
+  assert.match(quotePage, /if \(isNew && !canCreateQuote\) return <Card/)
+  assert.match(quotePage, /quote\.status !== 'draft' \|\| !canCreateQuote/)
+  assert.match(quotePage, /if \(!canCreateQuote\) \{/)
+  assert.match(quotePage, /Nu ai permisiunea necesară pentru a crea sau modifica oferte/)
 })
 test('documentul print-ready identifică exact oferta și revizia', () => {
   const quote = { quote_number: 'OF-2026-0001', revision_number: 2, account_name: 'Client test', currency: 'RON', lines: [{ position: 1, description: '<serviciu>', quantity: 1, unit_price: 100, discount_percent: 0, tax_percent: 21, line_total: 121 }] }

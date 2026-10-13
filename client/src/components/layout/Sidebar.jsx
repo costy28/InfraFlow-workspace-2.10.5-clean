@@ -24,13 +24,13 @@ const groups = [
       { to: '/hr', icon: '👥', label: 'Resurse Umane', moduleKey: 'hr' },
       { to: '/gestiune', icon: '📦', label: 'Stocuri & Depozite', moduleKey: 'inventory' },
       { to: '/productie', icon: '🏭', label: 'Producție & Operațiuni', moduleKey: 'production' },
-      { to: '/mecanizare', icon: '⚙️', label: 'Flotă, Echipamente & Resurse', moduleKey: 'mechanization' },
-      { to: '/asternere', icon: '🛣️', label: 'Lucrări / Execuție', moduleKey: 'asternere' },
+      { to: '/mecanizare', icon: '⚙️', label: 'Flotă, Echipamente & Resurse', moduleKey: 'fleet', accessKey: 'mechanization' },
+      { to: '/asternere', icon: '🛣️', label: 'Lucrări / Execuție', moduleKey: 'technical', accessKey: 'asternere' },
       { to: '/achizitii', icon: '🛒', label: 'Aprovizionare & Achiziții', moduleKey: 'procurement' },
       { to: '/logistica', icon: '🚚', label: 'Logistică & Transport', moduleKey: 'logistics' },
       { to: '/contracte', icon: '📑', label: 'Contracte', moduleKey: 'contract_management' },
       { to: '/crm', icon: '🤝', label: 'CRM / Vânzări', moduleKey: 'crm' },
-      { to: '/referate', icon: '📄', label: 'Cereri interne & Aprobări', moduleKey: 'referate' },
+      { to: '/referate', icon: '📄', label: 'Cereri interne & Aprobări', moduleKey: 'procurement', accessKey: 'referate' },
       { to: '/teren', icon: '📍', label: 'Proiecte & Activitate în teren', moduleKey: 'field' },
       { to: '/salubrizare', icon: '🧹', label: 'Rute & Operațiuni teren', moduleKey: 'sanitation' },
       { to: '/siguranta-circ', icon: '🚦', label: 'Semnalizare & Intervenții', moduleKey: 'traffic_safety' },
@@ -57,18 +57,6 @@ const groups = [
   },
 ]
 
-const moduleActiveAliases = {
-  mechanization: ['mechanization', 'fleet'],
-  inventory: ['inventory', 'reports'],
-  ai: ['ai', 'ai_assistant'],
-  accounting: ['accounting', 'contabilitate', 'anaf', 'controlling'],
-  contract_management: ['contract_management', 'contracts', 'legal', 'procurement', 'accounting'],
-  task_management: ['task_management', 'tasks'],
-  referate: ['referate', 'procurement'],
-  crm: ['crm', 'sales', 'sales_automation'],
-  logistics: ['logistics', 'procurement', 'contract_management'],
-}
-
 function normalizedRoles(user) {
   const roles = Array.isArray(user?.roles) ? user.roles : []
   return Array.from(new Set([...roles, user?.role].filter(Boolean).map(String)))
@@ -89,13 +77,12 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
   const hasItemPermission = item => !item.permissions || isAdmin || item.permissions.some(permission => userPermissions.includes(permission))
   const moduleIsActive = item => {
     if (!item.moduleKey || !Array.isArray(modules) || modules.length === 0) return true
-    const aliases = moduleActiveAliases[item.moduleKey] || [item.moduleKey]
-    return aliases.some(key => modules.includes(key))
+    return modules.includes(item.moduleKey)
   }
-  const canSeeModule = moduleKey => {
-    if (!moduleKey || isAdmin) return true
-    const accessKey = moduleKey === 'contract_management' ? 'contractManagement' : moduleKey
-    const prefixes = modulePermissionPrefixes[accessKey] || [moduleKey]
+  const canSeeModule = item => {
+    if (!item.moduleKey || isAdmin) return true
+    const accessKey = item.accessKey || (item.moduleKey === 'contract_management' ? 'contractManagement' : item.moduleKey)
+    const prefixes = modulePermissionPrefixes[accessKey] || [accessKey]
     return canAccess(user, moduleAccess[accessKey] || { anyPrefix: prefixes })
   }
   const isVisible = item =>
@@ -105,7 +92,7 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
     (!item.myVehicleOnly || hasMyVehicle) &&
     hasItemPermission(item) &&
     moduleIsActive(item) &&
-    canSeeModule(item.moduleKey)
+    canSeeModule(item)
 
   useEffect(() => {
     api.get('/departments')

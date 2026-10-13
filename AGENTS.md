@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.683**
-**Versiune în lucru: v2.12.683**
+**Versiune curentă sursă: v2.12.687**
+**Versiune în lucru: v2.12.687**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -423,6 +423,10 @@ Core System
   ✅ Tema vizuală pentru lucru și suport: Task-uri, Tichete, Mesaje și Ajutor (v2.12.681)
   ✅ Tema vizuală Contabilitate de bază: Dashboard, terți, facturi, trezorerie și operațiuni (v2.12.682)
   ✅ Tema vizuală Contabilitate avansată: plan, jurnale, rapoarte, fiscal și închidere (v2.12.683)
+  ✅ Permisiuni granulare HR/CRM și roluri implicite persistente (v2.12.684)
+  ✅ Entry point unic `server/app.js` pentru dezvoltare, teste și deployment (v2.12.685)
+  ✅ Storage închis și descărcări autorizate exclusiv pe entitate (v2.12.686)
+  ✅ Catalog canonic module, aliasuri și calcul `effectiveEntitlements` (v2.12.687)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1148,7 +1152,7 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ```
 VERSIUNE CURENTĂ SURSĂ: 2.12.683
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.683 ✅
+UPDATE ZIP CURENT: 2.12.687 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1638,6 +1642,10 @@ UPDATES ÎN LUCRU:
   2.12.681 → UPDATE 701 temă vizuală Task-uri, Tichete, Mesaje și Ajutor ✅
   2.12.682 → UPDATE 702 temă vizuală Contabilitate de bază ✅
   2.12.683 → UPDATE 703 temă vizuală Contabilitate avansată ✅
+  2.12.684 → UPDATE 704 permisiuni HR, CRM și roluri persistente ✅
+  2.12.685 → UPDATE 705 entry point unic server ✅
+  2.12.686 → UPDATE 706 storage închis și descărcări autorizate ✅
+  2.12.687 → UPDATE 707 catalog canonic module și drepturi efective ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2136,5 +2144,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 8 Octombrie 2026 | InfraFlow sursă v2.12.683*
+*AGENTS.md actualizat: 13 Octombrie 2026 | InfraFlow sursă v2.12.687*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

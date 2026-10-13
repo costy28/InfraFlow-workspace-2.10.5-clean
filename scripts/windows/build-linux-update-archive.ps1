@@ -16,7 +16,7 @@ $Archive = Join-Path $Output "InfraFlow-update-v$Version-linux.tar.gz"
 
 function Copy-Clean([string]$Source, [string]$Destination) {
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-  & robocopy (Resolve-Path $Source).Path $Destination /E /XD node_modules .git /XF *.log .env /NFL /NDL /NJH /NJS /NP | Out-Null
+  & robocopy (Resolve-Path $Source).Path $Destination /E /XD node_modules .git logs storage /XF *.log .env /NFL /NDL /NJH /NJS /NP | Out-Null
   if ($LASTEXITCODE -ge 8) { throw "Copiere eșuată: $Source" }
 }
 

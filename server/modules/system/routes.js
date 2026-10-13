@@ -56,6 +56,12 @@ const { createSystemDepartmentsRouter } = require('./departments-routes')
 const { createSystemDatabaseRouter } = require('./database-routes')
 const { createHelpRouter } = require('./help-routes')
 const { getDefaultVatRate, getVatRates } = require('../../shared/countryRules')
+const {
+  BASE_MODULE_KEYS: baseModuleKeys,
+  CONFIGURABLE_MODULE_KEYS: configurableModuleKeys,
+  allowedModulesForLicense: canonicalAllowedModulesForLicense,
+  canonicalModuleKey,
+} = require('../../core/module-catalog')
 const router = Router()
 
 const ROOT = path.resolve(__dirname, '../../..')
@@ -104,31 +110,6 @@ function readRuntimeVersionInfo() {
 function readRuntimeVersion() {
   return readRuntimeVersionInfo().version;
 }
-
-const baseModuleKeys = new Set(["core", "inventory", "production", "reports", "system"])
-const configurableModuleKeys = new Set([
-  "fleet",
-  "technical",
-  "procurement",
-  "logistics",
-  "contract_management",
-  "crm",
-  "hr",
-  "controlling",
-  "accounting",
-  "sanitation",
-  "traffic_safety",
-  "environment",
-  "snow_removal",
-  "documents",
-  "messaging",
-  "tickets",
-  "field",
-  "legal",
-  "archive",
-  "secretariat",
-  "ai"
-])
 
 function makeUrl(req) {
   return new URL(req.originalUrl || req.url, `http://${req.headers.host || 'localhost'}`)
@@ -2775,44 +2756,15 @@ function updateRolePermissions(db, user, roleId, body) {
   return rolesList(db.settings).find((item) => item.id === role);
 }
 
-function licenseModuleNames(license = {}) {
-  const modules = [
-    ...(Array.isArray(license.module) ? license.module : []),
-    ...(Array.isArray(license.modules) ? license.modules : []),
-    ...(Array.isArray(license.addons) ? license.addons : [])
-  ];
-  return new Set(modules.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean));
-}
-
 function allowedModulesForLicense(license = {}) {
-  const licensed = licenseModuleNames(license);
-  if (!licensed.size || licensed.has("all") || licensed.has("full")) {
-    return Array.from(new Set([...baseModuleKeys, ...configurableModuleKeys]));
-  }
-  const normalizedAliases = new Map([
-    ["technical_plus", "technical"],
-    ["contabilitate", "accounting"],
-    ["contracts", "contract_management"],
-    ["contracte", "contract_management"],
-    ["sales", "crm"],
-    ["sales_automation", "crm"],
-    ["trafficsafety", "traffic_safety"],
-    ["snowremoval", "snow_removal"],
-    ["ai_assistant", "ai"]
-  ]);
-  const allowed = new Set([...baseModuleKeys]);
-  for (const key of configurableModuleKeys) {
-    const aliases = [key, key.replaceAll("_", ""), [...normalizedAliases.entries()].find(([, value]) => value === key)?.[0]].filter(Boolean);
-    if (aliases.some((alias) => licensed.has(alias))) allowed.add(key);
-  }
-  return Array.from(allowed);
+  return canonicalAllowedModulesForLicense(license);
 }
 
 function sanitizeEnabledModules(input, license) {
   const requested = Array.isArray(input) ? input : [];
   const allowed = new Set(allowedModulesForLicense(license));
   return Array.from(new Set(requested
-    .map((item) => String(item || "").trim().toLowerCase())
+    .map(canonicalModuleKey)
     .filter((item) => configurableModuleKeys.has(item) && allowed.has(item))));
 }
 

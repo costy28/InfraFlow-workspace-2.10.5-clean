@@ -46,7 +46,7 @@ function addFinding(severity, file, line, kind, evidence, recommendation) {
 
 function isAllowedStorageLine(file, line) {
   const rel = relative(file)
-  if (rel === 'server/app.js' && /app\.use\(['"`]\/storage['"`]/.test(line)) return true
+  if (rel === 'server/app.js' && /app\.use\(['"`]\/storage['"`].*status\(404\)/.test(line)) return true
   if (/path\.join|path\.resolve|multer|dest:|STORAGE|storageRoot|ROOT|TICKETS_STORAGE|TASK_EVIDENCE_ROOT/i.test(line)) return true
   if (/download_url|downloadUrl|download-model|download\/|res\.download|sendProtectedStorageFile/i.test(line)) return true
   if (rel === 'server/modules/accounting/accounting-control-routes.js' && /storage\/anaf-schemas/.test(line)) return true
@@ -72,6 +72,17 @@ function scanFile(file) {
         'direct-storage-url',
         compact,
         'Folosește endpoint API dedicat, cu requireAuth și verificare pe entitate.'
+      )
+    }
+
+    if (/app\.use\(['"`]\/storage['"`]/.test(line) && !/status\(404\)/.test(line)) {
+      addFinding(
+        'high',
+        file,
+        lineNo,
+        'generic-storage-route',
+        compact,
+        'Elimină servirea generică și folosește numai endpoint-uri API dedicate, autorizate pe entitate.'
       )
     }
 

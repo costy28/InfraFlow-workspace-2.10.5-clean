@@ -8,75 +8,11 @@ const { sendEmail, describeSmtpError } = require('../messaging/email')
 const { testIncomingEmailConnection, describeImapError } = require('../messaging/imap')
 const { getAllCountryRules, getCountryProfiles, getCountryRules } = require('../../shared/countryRules')
 const { commercialDemoLicense } = require('../../shared/commercialDemo')
-
-const moduleCatalogGroups = [
-  {
-    title: 'PRINCIPALE',
-    locked: true,
-    modules: [
-      { key: 'core', label: 'Core', description: 'Autentificare, roluri, audit, backup și update.' },
-      { key: 'production', label: 'Producție', description: 'Rețete, consumuri și planificare producție.' },
-      { key: 'inventory', label: 'Stocuri', description: 'Materiale, intrări, ieșiri și gestiune.' },
-      { key: 'reports', label: 'Rapoarte', description: 'Rapoarte standard și exporturi.' },
-    ],
-  },
-  {
-    title: 'OPERAȚIONALE',
-    modules: [
-      { key: 'fleet', label: 'Flotă, echipamente & resurse', description: 'Vehicule, utilaje, foi parcurs, FAZ și GPS.' },
-      { key: 'technical', label: 'Lucrări & execuție', description: 'Lucrări, teren, output operațional și raport tehnic.' },
-      { key: 'procurement', label: 'Aprovizionare & achiziții', description: 'Comenzi, recepții, cereri interne, PAAP și CPV.' },
-      { key: 'logistics', label: 'Logistică & transport', description: 'Avize, CMR, bonuri de transport și dovezi de livrare, legate la comenzi și contracte.' },
-      { key: 'contract_management', label: 'Contract Management', description: 'Contracte, consum valoric, CPV, manageri și alerte de prag/termen.' },
-      { key: 'crm', label: 'CRM / Sales Automation', description: 'Solicitări comerciale, clienți potențiali, oferte și comenzi. Fundația tehnică este pregătită pentru activare graduală.' },
-      { key: 'hr', label: 'HR', description: 'Angajați, pontaj, concedii, dosar personal și Kiosk.' },
-      { key: 'controlling', label: 'Controlling', description: 'Centre cost/profit și costuri operaționale.' },
-      { key: 'accounting', label: 'Contabilitate', description: 'Plan conturi, facturi, jurnale, declarații și SAF-T.' },
-    ],
-  },
-  {
-    title: 'SERVICII',
-    modules: [
-      { key: 'sanitation', label: 'Rute & operațiuni teren', description: 'Rute, colectări și rapoarte.' },
-      { key: 'traffic_safety', label: 'Semnalizare & intervenții', description: 'Indicatoare, marcaje și intervenții.' },
-      { key: 'environment', label: 'Mediu & conformitate', description: 'Autorizații, deșeuri, emisii și incidente.' },
-      { key: 'snow_removal', label: 'Operațiuni sezoniere', description: 'Planuri, intervenții și consumuri sezoniere.' },
-    ],
-  },
-  {
-    title: 'SUPORT',
-    modules: [
-      { key: 'documents', label: 'Documente și aprobare', description: 'Șabloane, circuit documente și arhivare.' },
-      { key: 'messaging', label: 'Mesaje interne', description: 'Canale, notificări și comunicare internă.' },
-      { key: 'tickets', label: 'Solicitări & incidente', description: 'Tichete, comentarii și urmărire rezolvare.' },
-      { key: 'field', label: 'Proiecte & activitate în teren', description: 'Lucrări mobile, rapoarte și activitate teren.' },
-      { key: 'legal', label: 'Juridic', description: 'Dosare, termene și documente juridice.' },
-      { key: 'archive', label: 'Arhivă', description: 'Arhivare și regăsire documente.' },
-      { key: 'secretariat', label: 'Registratură & corespondență', description: 'Intrări/ieșiri documente și registre.' },
-    ],
-  },
-  {
-    title: 'OPȚIONAL',
-    modules: [
-      { key: 'ai', label: 'AI Assistant', description: 'Asistent contextual peste datele organizației.' },
-    ],
-  },
-]
-
-const commercialPackages = [
-  { key: 'core', label: 'Core', modules: ['documents', 'messaging', 'tickets'], description: 'Baza pentru documente, notificări, utilizatori și audit.' },
-  { key: 'hr', label: 'HR', modules: ['hr', 'documents', 'messaging'], description: 'Angajați, pontaj, dosar personal, concedii și Kiosk.' },
-  { key: 'operational', label: 'Operațional', modules: ['fleet', 'technical', 'field', 'logistics', 'controlling', 'documents'], description: 'Flotă, lucrări, teren, transport și controlling operațional.' },
-  { key: 'gestiune_achizitii', label: 'Gestiune + Achiziții', modules: ['procurement', 'logistics', 'contract_management', 'documents', 'tickets'], description: 'Stocuri, referate, comenzi, recepții, transport, PAAP, contracte și furnizori.' },
-  { key: 'accounting', label: 'Contabilitate', modules: ['accounting', 'controlling', 'contract_management', 'documents'], description: 'Contabilitate, declarații, dosar fiscal, contracte și costuri.' },
-  { key: 'sales', label: 'Vânzări / CRM', modules: ['crm', 'documents', 'messaging', 'tickets'], description: 'Solicitări comerciale, oferte, comenzi și follow-up, conectate la documente și comunicare.' },
-  { key: 'city_services', label: 'City Services', modules: ['sanitation', 'traffic_safety', 'snow_removal', 'environment', 'field', 'fleet', 'contract_management', 'tickets'], description: 'Servicii publice locale într-un pachet operațional.' },
-  { key: 'enterprise', label: 'Enterprise', modules: ['fleet', 'technical', 'procurement', 'logistics', 'contract_management', 'crm', 'hr', 'controlling', 'accounting', 'sanitation', 'traffic_safety', 'environment', 'snow_removal', 'documents', 'messaging', 'tickets', 'field', 'legal', 'archive', 'secretariat', 'ai'], description: 'Toate modulele pentru organizații mari.' },
-]
+const { MODULE_GROUPS, COMMERCIAL_PACKAGES, effectiveEntitlements } = require('../../core/module-catalog')
 
 function buildModulesCatalog(settings = {}, license = {}, allowedModulesForLicense) {
   const allowed = new Set(allowedModulesForLicense(license))
-  const configurableKeys = moduleCatalogGroups
+  const configurableKeys = MODULE_GROUPS
     .flatMap(group => group.modules)
     .filter(module => module.key && !['core', 'inventory', 'production', 'reports'].includes(module.key))
     .map(module => module.key)
@@ -86,7 +22,7 @@ function buildModulesCatalog(settings = {}, license = {}, allowedModulesForLicen
   const enabledSet = new Set(enabled)
 
   return {
-    groups: moduleCatalogGroups.map(group => ({
+    groups: MODULE_GROUPS.map(group => ({
       ...group,
       modules: group.modules.map(module => ({
         ...module,
@@ -96,7 +32,8 @@ function buildModulesCatalog(settings = {}, license = {}, allowedModulesForLicen
         features_configurable: module.key && module.key !== 'core',
       })),
     })),
-    packages: commercialPackages,
+    packages: COMMERCIAL_PACKAGES,
+    aliases: effectiveEntitlements({ license, settings }).aliases,
     allowed_modules: Array.from(allowed),
     enabled_modules: enabled,
     updated_at: settings.modules_enabled_updated_at || null,

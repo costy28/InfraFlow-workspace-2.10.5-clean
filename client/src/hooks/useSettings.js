@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
+import { useAuth } from './useAuth'
 
 const SettingsContext = createContext({
   settings: {},
@@ -9,6 +10,7 @@ const SettingsContext = createContext({
 })
 
 export function SettingsProvider({ children }) {
+  const { user } = useAuth()
   const [settings, setSettings] = useState({})
   const [loading, setLoading] = useState(true)
 
@@ -31,9 +33,11 @@ export function SettingsProvider({ children }) {
   }, [])
 
   const modules = useMemo(() => {
+    const effective = user?.entitlements?.effective_modules
+    if (Array.isArray(effective)) return effective
     const enabled = settings.modules_enabled
     return Array.isArray(enabled) && enabled.length > 0 ? enabled : null
-  }, [settings.modules_enabled])
+  }, [settings.modules_enabled, user?.entitlements?.effective_modules])
 
   return (
     <SettingsContext.Provider value={{ settings, modules, loading, reloadSettings }}>

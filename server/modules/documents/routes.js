@@ -288,12 +288,14 @@ function safeFileName(value) {
   return `${base}${ext}`
 }
 
-function templatePublicFilePath(templateId, fileName) {
-  return `/storage/document-templates/${safeTemplateId(templateId)}/${fileName}`
+function templateInternalFilePath(templateId, fileName) {
+  return `storage/document-templates/${safeTemplateId(templateId)}/${fileName}`
 }
 
-function resolveTemplateFilePath(publicPath) {
-  const clean = String(publicPath || '').replace(/^\/+storage\/+/, '').replace(/\\/g, '/')
+function resolveTemplateFilePath(internalPath) {
+  // Acceptăm și valorile legacy „/storage/...”, dar salvăm noile referințe
+  // exclusiv ca path intern, fără a sugera un URL public.
+  const clean = String(internalPath || '').replace(/\\/g, '/').replace(/^\/?storage\/+/, '')
   const diskPath = path.resolve(path.dirname(TEMPLATE_STORAGE_ROOT), clean)
   const root = path.resolve(TEMPLATE_STORAGE_ROOT)
   if (!diskPath.startsWith(root + path.sep) && diskPath !== root) {
@@ -718,11 +720,11 @@ router.post('/documents/templates/:id/upload-model', uploadTemplateModel.single(
     const fileName = `${Date.now()}-${safeFileName(req.file.originalname)}`
     const diskPath = path.join(dir, fileName)
     fs.writeFileSync(diskPath, req.file.buffer)
-    const publicPath = templatePublicFilePath(id, fileName)
+    const internalPath = templateInternalFilePath(id, fileName)
     const uploadedAt = nowIso()
     const file = {
       template_id: id,
-      file_path: publicPath,
+      file_path: internalPath,
       file_name: req.file.originalname,
       file_size: req.file.size,
       file_ext: ext.replace(/^\./, ''),
@@ -744,7 +746,7 @@ VALUES (JSON_VALUE(@p, '$.id'), JSON_VALUE(@p, '$.filePath'), JSON_VALUE(@p, '$.
 SELECT id, denumire, template_html, workflow_template_id, serie_prefix, nr_curent, activ, categorie, descriere, tip_document, template_format, fisier_model_path, fisier_model_name, fisier_model_size, uploaded_at, created_at
 FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id')
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`, { id, filePath: publicPath, fileName: req.file.originalname, fileSize: req.file.size, fileExt: ext.replace(/^\./, ''), uploadedBy: auth.user.id })
+`, { id, filePath: internalPath, fileName: req.file.originalname, fileSize: req.file.size, fileExt: ext.replace(/^\./, ''), uploadedBy: auth.user.id })
       if (!template) throwHttp(404, 'Template-ul nu a fost găsit.')
       sendJson(res, 200, { file: publicTemplateUploadFile(file), template: publicTemplate(template) })
       return
@@ -754,13 +756,13 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     if (!template) throwHttp(404, 'Template-ul nu a fost găsit.')
     docs.templateFiles.push({ id: nextId(docs.templateFiles), uuid: crypto.randomUUID(), ...file })
     Object.assign(template, {
-      fisier_model_path: publicPath,
+      fisier_model_path: internalPath,
       fisier_model_name: req.file.originalname,
       fisier_model_size: req.file.size,
       template_format: ext.replace(/^\./, ''),
       uploaded_at: uploadedAt,
       atasament_model: {
-        path: publicPath,
+        path: internalPath,
         file_name: req.file.originalname,
         file_size: req.file.size,
         file_ext: ext.replace(/^\./, ''),

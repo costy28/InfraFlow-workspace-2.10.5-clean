@@ -89,7 +89,7 @@ function findUpdateNote(updateNumber) {
 }
 
 function checkVersions() {
-  const files = ['package.json', 'server/package.json', 'client/package.json', 'version.json']
+  const files = ['package.json', 'server/package.json', 'client/package.json', 'electron/package.json', 'electron/package-lock.json', 'version.json']
   const versions = files.map((file) => ({ file, version: readJson(file).version }))
   const expected = versions[0].version
   versions.forEach(({ file, version }) => assert(version === expected, `${file} version=${version}`))

@@ -803,27 +803,6 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  if (req.method === "GET" && url.pathname === "/api/roles") {
-    if (!requirePermission(auth, res, "users:manage")) return;
-    sendJson(res, 200, { roles: rolesList(auth.db.settings), catalog: rolePermissionCatalog() });
-    return;
-  }
-
-  const rolePermissionMatch = url.pathname.match(/^\/api\/roles\/([^/]+)\/permissions$/);
-  if (req.method === "PATCH" && rolePermissionMatch) {
-    if (!requirePermission(auth, res, "users:manage")) return;
-    if (!["superadmin", "admin"].includes(auth.user.role)) {
-      sendJson(res, 403, { error: "Doar Adminul sau Superadminul poate modifica accesul pe roluri." });
-      return;
-    }
-    const body = await readJsonBody(req);
-    const role = updateRolePermissions(auth.db, auth.user, rolePermissionMatch[1], body);
-    addAudit(auth.db, auth.user, "rol_permisiuni_modificate", `${role.name} / ${role.customized ? "custom" : "reset"}`);
-    writeDb(auth.db);
-    sendJson(res, 200, { role, roles: rolesList(auth.db.settings), catalog: rolePermissionCatalog() });
-    return;
-  }
-
   if (req.method === "GET" && url.pathname === "/api/departments") {
     sendJson(res, 200, { departments: (auth.db.departments || []).map(adminDepartment) });
     return;

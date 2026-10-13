@@ -10,7 +10,7 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const seedPath = path.join(ROOT, "data", "app-db.seed.json");
-const serverEntry = path.join(ROOT, "server", "src", "server.js");
+const serverEntry = path.join(ROOT, "server", "app.js");
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "infraflow-commercial-smoke-"));
 const dbFile = path.join(tempDir, "app-db.audit.json");
@@ -286,12 +286,18 @@ async function runChecks(user) {
     expectTruthy(data.user?.username === username, "Sesiunea validă nu întoarce utilizatorul de audit.");
     expectTruthy(Array.isArray(data.permissions) && data.permissions.includes("settings:manage"), "Permisiunile superadmin nu sunt complete.");
   });
-  await check("Storage: fișierele nu sunt servite public și blochează traversal", async () => {
+  await check("Storage: ruta generică este închisă inclusiv pentru sesiuni valide", async () => {
     const noAuth = await httpRequest(`${baseOrigin}/storage/audit-missing.txt`, {
       method: "GET",
       headers: { Accept: "application/json", Connection: "close" },
     });
-    expectStatus(noAuth, 401, "storage fără sesiune");
+    expectStatus(noAuth, 404, "storage fără sesiune");
+
+    const authenticated = await httpRequest(`${baseOrigin}/storage/audit-missing.txt?token=${encodeURIComponent(token)}`, {
+      method: "GET",
+      headers: { Accept: "application/json", Connection: "close" },
+    });
+    expectStatus(authenticated, 404, "storage cu sesiune");
 
     const traversal = await httpRequest(`${baseOrigin}/storage/%2e%2e%2fpackage.json?token=${encodeURIComponent(token)}`, {
       method: "GET",

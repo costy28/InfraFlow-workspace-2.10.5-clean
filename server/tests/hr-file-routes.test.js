@@ -74,6 +74,18 @@ test('Kiosk nu poate descărca documentul altui angajat prin schimbarea ID-ului'
   assert.equal(f.downloads(), 0)
 })
 
+test('descărcările HR și Kiosk refuză numele intern care poate ieși din storage', () => {
+  const f = fixture(['hr:view', 'hr:personal_sensitive', 'hr:salary_view'])
+  f.db.hr.employeeFiles[0].stored_name = '../outside.docx'
+  for (const route of ['get /hr/employees/:id/files/:fileId/download', 'get /hr/kiosk/my-documents/:fileId/download']) {
+    const result = f.invoke(route, route.includes('/kiosk/') ? { fileId: 1 } : { id: 1, fileId: 1 })
+    assert.equal(result.code, 404)
+    assert.equal(result.data.code, 'HR_FILE_STORAGE_MISSING')
+  }
+  assert.equal(f.storageChecks(), 0)
+  assert.equal(f.downloads(), 0)
+})
+
 test('administrarea HR nu permite generarea sau anularea contractului inaccesibil', () => {
   for (const route of ['post /hr/employees/:id/files/generated', 'delete /hr/employees/:id/files/:fileId']) {
     const f = fixture(['hr:manage'])

@@ -502,6 +502,36 @@ după dezactivarea angajatului. Datele probei sunt păstrate în
 `C:\Users\costy\AppData\Local\Temp\infraflow-hr-http-Drzdwc`. Nu s-a făcut deploy,
 restart, versiune sau pachet de update.
 
+### HR — upload șabloane Word înainte de multipart
+
+Încărcarea șablonului Word verifică acum autentificarea și `hr:manage` înainte ca
+parserul multipart să accepte fișierul temporar. Cererile anonime sau rolurile fără
+administrare HR sunt respinse fără a porni uploadul. Regresia verifică separat
+anonimul, rolul limitat și administratorul autorizat.
+
+Verificări: 90/90 teste JSON active trecute, cu testul SQL opțional omis implicit;
+`git diff --check` a trecut. Proba SQL anterioară 90/90 rămâne valabilă pentru
+rutele relaționale și documentele medicale; noul control este anterior parserului și
+nu accesează baza de date. Nu s-a făcut deploy, restart, versiune sau pachet de update.
+
+### HR — închiderea revizuirii fișierelor și rapoartelor
+
+Descărcarea dosarului electronic rezolvă acum fișierul exclusiv în directorul
+angajatului. Un `stored_name` vechi, importat sau alterat care conține traversare de
+directoare este refuzat înainte de accesul la storage, atât pe ruta HR, cât și pe
+ruta proprie Kiosk. Numele oferit browserului este redus la un nume de fișier sigur.
+
+Rutele de raportare completă, jurnal, dosar, scadențe și notificări au fost reverificate:
+ele păstrează combinațiile cumulative pentru raportare și date personale, medicale
+sau salariale, iar interfața cere aceleași drepturi înainte să încarce sau să afișeze
+acțiunile. Nu au fost necesare modificări suplimentare pentru rapoarte.
+
+Verificări finale pentru acest lot: 107/107 teste active de rute și fișiere HR trecute,
+cu testul SQL opțional omis în rularea combinată; 20/20 regresii generale HR, 3/3
+regresii ale politicii centrale, 17/17 teste dedicate fișierelor, audit pe 387 fișiere
+cu 0 constatări și build Vite reușit. Proba relațională anterioară a trecut 90/90 pe
+`INFRAFLOW_TEST_HR_EBB67B2CF842`. Nu s-a făcut deploy, restart, versiune sau pachet.
+
 ### Kiosk HR — certificat medical și storage
 
 Autentificarea Kiosk rulează înaintea parserului multipart, iar fișierele declarate
@@ -587,18 +617,106 @@ HR sunt 20/20, politica centrală de permisiuni 3/3, iar auditul de expunere a
 analizat 387 fișiere cu 0 constatări. Nu s-a făcut deploy,
 restart, versiune sau pachet de update.
 
-1. Revizuire finală a tuturor rutelor HR rămase, inclusiv ajustări bancă de ore,
+### HR — descărcarea documentelor medicale ale colegilor
+
+Ruta de descărcare a certificatului medical folosește aceeași regulă cumulativă ca
+lista concediilor: accesul la documentul altui angajat cere simultan `hr:view` și
+`hr:medical_view`. Nici vizualizarea HR generală, nici dreptul medical acordat
+singur nu deschid storage-ul medical. Titularul autentificat își păstrează accesul
+la propriul document.
+
+Verificări: 89/89 teste JSON active trecute, cu testul SQL opțional omis implicit;
+90/90 teste trecute pe SQL Server real în baza sintetică izolată
+`INFRAFLOW_TEST_HR_EBB67B2CF842`, păstrată pentru inspecție. Regresiile generale
+HR sunt 20/20, politica centrală de permisiuni 3/3, auditul de expunere a analizat
+387 fișiere cu 0 constatări, iar build-ul Vite curent a trecut. Nu s-a făcut deploy,
+restart, versiune sau pachet de update.
+
+1. **Închis local:** revizuire finală a tuturor rutelor HR rămase, inclusiv ajustări bancă de ore,
    documente medicale, fișiere, rapoarte și drepturile administrative distincte.
 
    Ajustarea băncii de ore este acum protejată prin aria aprobatorului înainte de orice
    INSERT sau scriere JSON. Trei regresii verifică refuzul altui departament, succesul
-   în departamentul autorizat și refuzul unui angajat inexistent. Documentele medicale,
-   fișierele și restul rapoartelor rămân în revizuire.
-2. Alinierea acțiunilor CRM și a celorlalte pagini modificate cu permisiunile serverului.
-3. Test HTTP și UI cu roluri restrictive, apoi probă pe o bază MSSQL de test izolată.
+   în departamentul autorizat și refuzul unui angajat inexistent. Descărcarea
+   documentelor medicale ale colegilor este aliniată cu lista concediilor și cere
+   simultan vizualizare HR plus drept medical. Uploadul șabloanelor Word verifică
+   autentificarea și administrarea HR înainte de multipart. Revizuirea celorlalte rute
+   de fișiere și rapoarte a fost încheiată local. Mai rămâne proba HTTP/UI din punctul 3 înainte
+   de livrare.
+2. **Închis local:** alinierea acțiunilor CRM și a celorlalte pagini modificate cu
+   permisiunile serverului. În Oferte CRM, accesul direct la ruta „Ofertă nouă”
+   este acum refuzat explicit fără `crm:quote_create`, iar un draft existent
+   rămâne consultabil în mod citire în loc să fie afișat ca formular editabil.
+   Salvarea are și o protecție locală suplimentară; serverul continuă să fie
+   autoritatea finală pentru permisiune. În Inbox WhatsApp, acțiunea de creare
+   lead apare numai cu `crm:lead_create`, iar deschiderea lead-ului asociat numai
+   cu `crm:view`, în acord cu protecțiile deja existente pe server.
+
+   Suita CRM completă a identificat și un test static rămas pe vechiul markup
+   HTML al tabelului de oferte. Verificarea urmărește acum coloana declarativă
+   `customer_order_number` din componenta comună `Table`, fără schimbarea
+   comportamentului funcțional.
+
+   Verificări: 50/50 teste din întreaga suită CRM trecute; 7/7 teste pentru
+   politica comună și integrarea WhatsApp trecute; build-ul Vite și
+   `git diff --check` trecute. Nu s-a făcut deploy, restart, versiune sau pachet.
+3. **Închis local:** test HTTP și UI cu roluri restrictive, apoi probă pe o bază MSSQL de test izolată.
    Nu se folosesc scrieri de test în baza activă a utilizatorului.
-4. Revizuirea configurațiilor de roluri semnalate în rapoartele utilizatorului;
-   drepturile existente nu au fost rescrise automat.
-5. Abia după verificări: versiune, note de update și pachete Windows/Linux împreună.
-6. După încheierea verificărilor începute: analiza conversației furnizate de utilizator
-   la https://chatgpt.com/share/6aca0fad-d514-83ed-8f73-5a31e0c720fa.
+
+   Prima probă CRM relațională a confirmat refuzurile rolului read-only, apoi a
+   identificat un conflict real la editarea autorizată a unui draft: liniile
+   anulate logic păstrau pozițiile ocupate în indexul unic
+   `(quote_id, line_no)`. Repository-ul arhivează acum pozițiile vechi pe cheia
+   negativă unică a liniei, în aceeași tranzacție, înainte de inserarea
+   pozițiilor curente. Bazele intermediare de diagnostic sunt păstrate și nu au
+   fost folosite baze active.
+
+   Rularea finală a trecut pe baza izolată
+   `INFRAFLOW_DEMO_PERMISSIONS_85652096E8D4`: login real, viewer read-only,
+   refuz 403 la creare/editare/trimitere spre aprobare, creator separat pentru
+   lead/ofertă și manager separat pentru prospecte. Actualizarea draftului a
+   trecut pe SQL Server după corecție. Chrome headless a confirmat că URL-ul
+   direct „Ofertă nouă” este refuzat pentru viewer, draftul este consultabil fără
+   controale de editare, iar creatorul vede formularul. Capturile și seed-ul sunt
+   păstrate în `C:\Users\costy\AppData\Local\Temp\infraflow-crm-http-xcSeuc`.
+4. **Închis local:** revizuirea configurațiilor de roluri semnalate în rapoartele
+   utilizatorului, fără rescrierea automată a drepturilor existente.
+
+   Auditul a confirmat cauza pentru permisiunile care reapăreau după restrângerea
+   unui rol implicit: deschiderea listei completa din nou rolul cu toate drepturile
+   definiției livrate. Rolurile existente nu mai primesc automat permisiuni noi;
+   revenirea la setul aplicației se face exclusiv prin „Resetează implicit”. O
+   modificare explicită marchează rolul implicit ca personalizat, iar resetarea este
+   completă și reversibilă inclusiv pentru rolurile legacy.
+
+   Endpointurile `GET/PATCH /roles`, duplicate în șase module operaționale montate
+   înaintea modulului Sistem, au fost eliminate din acele module. Administrarea
+   rolurilor urmează acum un singur traseu central, independent de ordinea routerelor.
+   Rolurile implicite nu mai pot fi șterse și reapărute automat; numai rolurile custom
+   pot fi șterse. Aliasurile tehnice invizibile nu mai umflă totalul afișat în editor.
+   Cele două roluri istorice numite „Operator producție” sunt diferențiate prin
+   eticheta „Operator stație / servicii”, fără modificarea permisiunilor existente.
+
+   Verificări focalizate: 12/12 teste ale politicii centrale și filtrului UI trecute,
+   verificări de sintaxă și `git diff --check` trecute. Nu s-a făcut deploy, restart,
+   versiune sau pachet de update.
+5. **Închis local:** versiune, note de update și pachete Windows/Linux generate
+   împreună numai după încheierea verificărilor.
+
+   Versiunea sursei este `2.12.684`, documentată în `CHANGELOG.md`, `version.json`,
+   `AGENTS.md` și `updates/UPDATE_704_permisiuni_hr_crm_roluri.md`. Au trecut:
+   release check complet, auditul de expunere (387 fișiere, 0 constatări), build-ul
+   Vite, smoke-ul read-only (69 verificări), testul de release, suita CRM (50/50),
+   suita HR (150 trecute, un test MSSQL opțional omis), permisiuni și WhatsApp
+   (16/16), precum și contabilitatea pe provider JSON izolat (82/82).
+
+   Arhivele rezultate sunt `installer/output/InfraFlow-update-v2.12.684.zip` și
+   `installer/output/InfraFlow-update-v2.12.684-linux.tar.gz`. ZIP-ul a trecut
+   verificarea structurală din release check, iar arhiva Linux a fost verificată
+   pentru fișierele obligatorii și pentru absența directoarelor/datelelor locale
+   excluse. Nu s-a făcut deploy sau restart pe instalațiile active.
+6. **Închis local:** conversația furnizată de utilizator a fost analizată și
+   răspunsurile au fost confruntate cu implementarea curentă. Clarificările pentru
+   SQL Server partajat, autostart/recovery Windows și Linux, update server,
+   diferența de rollback și lipsa auto-update-ului Electron sunt documentate în
+   `docs/CLARIFICARI_IMPLEMENTARE_SUPORT_2026-10-13.md`.

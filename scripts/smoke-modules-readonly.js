@@ -56,7 +56,7 @@ function assertSchedulerStayedDisabled() {
   }
 }
 function spawnServer() {
-  child = spawn(process.execPath, [path.join(root, 'server', 'src', 'server.js')], {
+  child = spawn(process.execPath, [path.join(root, 'server', 'app.js')], {
     cwd: root,
     env: {
       ...process.env,

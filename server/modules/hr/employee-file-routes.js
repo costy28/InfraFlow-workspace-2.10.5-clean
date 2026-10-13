@@ -448,10 +448,7 @@ router.get("/hr/employees/:id/files/:fileId/download", authorize("hr:view"), (re
   const item = ensureFiles(req.auth.db).find((file) => String(file.id) === String(req.params.fileId) && String(file.employee_id) === String(req.params.id) && !file.cancelled_at);
   if (!item) return res.status(404).json({ error: "Documentul nu a fost gasit.", code: "HR_FILE_NOT_FOUND" });
   if (!canReadEmployeeFile(req.auth, item)) return res.status(403).json({ error: 'Nu ai acces la acest document HR.', code: 'HR_FILE_ACCESS_DENIED' });
-  const filePath = path.join(root, `employee_${safeSegment(item.employee_id)}`, item.stored_name);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Fisierul nu mai exista in storage.", code: "HR_FILE_STORAGE_MISSING" });
-  if (item.mime_type) res.type(item.mime_type);
-  res.download(filePath, item.file_name);
+  sendFileDownload(res, item);
 });
 
 router.get("/hr/kiosk/my-documents/:fileId/download", (req, res) => {
@@ -515,11 +512,21 @@ function authorize(permission) { return (req, res, next) => { const auth = requi
 function safeSegment(value) { return String(value).replace(/[^a-zA-Z0-9_-]/g, "_"); }
 function nextId(items) { return items.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1; }
 function clientIp(req) { return kioskSessions.clientIp ? kioskSessions.clientIp(req) : String(req.socket?.remoteAddress || ""); }
+function storedEmployeeFilePath(item) {
+  const storedName = String(item?.stored_name || "");
+  if (!storedName || path.basename(storedName) !== storedName) return "";
+  const folder = path.resolve(root, `employee_${safeSegment(item.employee_id)}`);
+  const candidate = path.resolve(folder, storedName);
+  return candidate.startsWith(`${folder}${path.sep}`) ? candidate : "";
+}
+function safeEmployeeDownloadName(value) {
+  return path.basename(String(value || "document")).replace(/[\x00-\x1f\x7f"\\/]/g, "_").slice(0, 255) || "document";
+}
 function sendFileDownload(res, item) {
-  const filePath = path.join(root, `employee_${safeSegment(item.employee_id)}`, item.stored_name);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Fisierul nu mai exista in storage.", code: "HR_FILE_STORAGE_MISSING" });
+  const filePath = storedEmployeeFilePath(item);
+  if (!filePath || !fs.existsSync(filePath)) return res.status(404).json({ error: "Fisierul nu mai exista in storage.", code: "HR_FILE_STORAGE_MISSING" });
   if (item.mime_type) res.type(item.mime_type);
-  return res.download(filePath, item.file_name);
+  return res.download(filePath, safeEmployeeDownloadName(item.file_name));
 }
 function publicFileForKiosk(item) {
   return {

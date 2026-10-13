@@ -36,4 +36,4 @@ Write-Host "Adresă: http://localhost:$Port" -ForegroundColor Green
 Write-Host 'Scheduler-ul este oprit în demo. Apasă Ctrl+C pentru închidere.' -ForegroundColor Gray
 
 Set-Location $projectRoot
-& $nodePath 'server/src/server.js'
+& $nodePath 'server/app.js'

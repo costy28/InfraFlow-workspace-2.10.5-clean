@@ -13,7 +13,7 @@ const navigationItems = [
   { label: 'Resurse Umane', to: '/hr', icon: '👥', moduleKey: 'hr', keywords: 'angajați concedii pontaj dosar' },
   { label: 'Stocuri & Depozite', to: '/gestiune', icon: '📦', moduleKey: 'inventory', keywords: 'gestiune materiale nir inventar' },
   { label: 'Producție & Operațiuni', to: '/productie', icon: '🏭', moduleKey: 'production', keywords: 'rețete plan consumuri' },
-  { label: 'Flotă, Echipamente & Resurse', to: '/mecanizare', icon: '⚙️', moduleKey: 'mechanization', keywords: 'utilaje vehicule foi parcurs faz' },
+  { label: 'Flotă, Echipamente & Resurse', to: '/mecanizare', icon: '⚙️', moduleKey: 'fleet', accessKey: 'mechanization', keywords: 'utilaje vehicule foi parcurs faz' },
   { label: 'Aprovizionare & Achiziții', to: '/achizitii', icon: '🛒', moduleKey: 'procurement', keywords: 'comenzi furnizori recepții paap' },
   { label: 'Logistică & Transport', to: '/logistica', icon: '🚚', moduleKey: 'logistics', keywords: 'aviz cmr bon transport dovadă livrare trasabilitate' },
   { label: 'Contracte', to: '/contracte', icon: '📑', moduleKey: 'contract_management', keywords: 'dosar contractual alerte consum' },
@@ -25,21 +25,11 @@ const navigationItems = [
   { label: 'Mesaje', to: '/mesaje', icon: '💬', moduleKey: 'messaging', keywords: 'chat email inbox comunicare' },
   { label: 'Solicitări & Incidente', to: '/sesizari', icon: '🎫', moduleKey: 'tickets', keywords: 'tichete suport p1 p2 p3 p4' },
   { label: 'Contabilitate', to: '/contabilitate', icon: '🏦', moduleKey: 'accounting', keywords: 'facturi fiscal balanță trezorerie' },
-  { label: 'Referate & aprobări', to: '/referate', icon: '📄', moduleKey: 'referate', keywords: 'cereri interne avizare cfp' },
+  { label: 'Referate & aprobări', to: '/referate', icon: '📄', moduleKey: 'procurement', accessKey: 'referate', keywords: 'cereri interne avizare cfp' },
   { label: 'Proiecte & activitate în teren', to: '/teren', icon: '📍', moduleKey: 'field', keywords: 'șantier proiect lucrări' },
   { label: 'Setări', to: '/setari', icon: '⚙️', adminOnly: true, keywords: 'administrare utilizatori module integrare securitate' },
   { label: 'Ajutor', to: '/ajutor', icon: '❓', keywords: 'ghid suport documentație' },
 ]
-
-const moduleAliases = {
-  mechanization: ['mechanization', 'fleet'],
-  inventory: ['inventory', 'reports'],
-  accounting: ['accounting', 'contabilitate', 'anaf', 'controlling'],
-  contract_management: ['contract_management', 'contracts', 'legal', 'procurement', 'accounting'],
-  referate: ['referate', 'procurement'],
-  crm: ['crm', 'sales', 'sales_automation'],
-  logistics: ['logistics', 'procurement', 'contract_management'],
-}
 
 function normalizedText(value) {
   return String(value || '')
@@ -84,12 +74,12 @@ export default function GlobalSearch({ onNavigate }) {
     const visibleNavigation = navigationItems.filter(item => {
       if (item.adminOnly && !isAdmin) return false
       if (item.moduleKey) {
-        const accessKey = item.moduleKey === 'contract_management' ? 'contractManagement' : item.moduleKey
-        const prefixes = modulePermissionPrefixes[accessKey] || [item.moduleKey]
+        const accessKey = item.accessKey || (item.moduleKey === 'contract_management' ? 'contractManagement' : item.moduleKey)
+        const prefixes = modulePermissionPrefixes[accessKey] || [accessKey]
         if (!canAccess(user, moduleAccess[accessKey] || { anyPrefix: prefixes })) return false
       }
       if (!item.moduleKey || !enabled) return true
-      return (moduleAliases[item.moduleKey] || [item.moduleKey]).some(key => enabled.has(key))
+      return enabled.has(item.moduleKey)
     })
     const recent = recentWorkspaceTabs().map(tab => ({
       label: tab.label,

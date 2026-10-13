@@ -5,7 +5,6 @@ const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { purgeDemoOwnedData } = require('../../core/demo-data-lifecycle')
 const {
-  DEFAULT_CUSTOM_ROLES,
   rolePermissionCatalog,
   rolesList,
   adminUser,
@@ -104,7 +103,7 @@ function createSystemUsersRouter(context) {
       if (customRole) {
         if (body.name) customRole.name = String(body.name).trim()
         if (body.description !== undefined) customRole.description = String(body.description).trim()
-        if (body.permissions) customRole.permissions = coreSanitizeRolePermissions(body.permissions)
+        if (Array.isArray(body.permissions)) coreUpdateRolePermissions(auth.db, auth.user, roleId, body)
       } else {
         coreUpdateRolePermissions(auth.db, auth.user, roleId, body)
       }
@@ -136,6 +135,9 @@ function createSystemUsersRouter(context) {
       if (!Array.isArray(auth.db.settings.customRoles)) auth.db.settings.customRoles = []
       const idx = auth.db.settings.customRoles.findIndex(r => r.id === roleId)
       if (idx === -1) { sendJson(res, 404, { error: 'Rol inexistent.' }); return }
+      if (auth.db.settings.customRoles[idx].tip !== 'custom') {
+        sendJson(res, 409, { error: 'Rolurile implicite nu se șterg. Le poți personaliza sau reseta.' }); return
+      }
       auth.db.settings.customRoles.splice(idx, 1)
       if (auth.db.settings.rolePermissionOverrides) {
         delete auth.db.settings.rolePermissionOverrides[roleId]
@@ -160,20 +162,10 @@ function createSystemUsersRouter(context) {
       const body = await readJsonBody(req)
       if (!auth.db.settings) auth.db.settings = {}
       if (!Array.isArray(auth.db.settings.customRoles)) auth.db.settings.customRoles = []
-      const customRole = auth.db.settings.customRoles.find(r => r.id === roleId)
       if (body.reset) {
-        if (customRole) {
-          const defaultDef = DEFAULT_CUSTOM_ROLES.find(r => r.id === roleId)
-          if (defaultDef) customRole.permissions = [...defaultDef.permissions]
-        } else if (auth.db.settings.rolePermissionOverrides) {
-          delete auth.db.settings.rolePermissionOverrides[roleId]
-        }
-      } else if (body.permissions) {
-        if (customRole) {
-          customRole.permissions = coreSanitizeRolePermissions(body.permissions)
-        } else {
-          coreUpdateRolePermissions(auth.db, auth.user, roleId, body)
-        }
+        coreUpdateRolePermissions(auth.db, auth.user, roleId, { reset: true })
+      } else if (Array.isArray(body.permissions)) {
+        coreUpdateRolePermissions(auth.db, auth.user, roleId, body)
       }
       addAudit(auth.db, auth.user, 'rol_permisiuni_salvate', roleId)
       writeDb(auth.db)

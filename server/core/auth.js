@@ -1,6 +1,7 @@
 const { readDb, writeDb, cloneDb } = require('./db')
 const { addAudit } = require('./audit')
 const { effectivePermissionsForUser } = require('./permissions')
+const { entitlementsForDb } = require('./module-catalog')
 const crypto = require("crypto");
 
 const sessions = new Map();
@@ -202,7 +203,8 @@ function requireAuth(req, res) {
   const now = Date.now();
   if (!session.loginAt && !session.createdAt) session.loginAt = now;
   session.lastSeenAt = new Date(now).toISOString();
-  return { db, user, token, permissions: effectivePermissionsForUser(user, db) };
+  const entitlements = entitlementsForDb(db)
+  return { db, user, token, entitlements, permissions: effectivePermissionsForUser(user, db, entitlements) };
 }
 
 function demoAccessExpiryStatus(user = {}, now = Date.now()) {
