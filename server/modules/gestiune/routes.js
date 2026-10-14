@@ -100,7 +100,7 @@ function addStockMovement(db, payload) {
 router.get('/gestiune/dashboard', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requireAnyPermission(auth, res, ['materials:view', 'stock_operations:view'])) return
+  if (!requireAnyPermission(auth, res, ['gestiune:view', 'gestiune:reports', 'materials:view', 'stock_operations:view'])) return
 
   const db = auth.db
   const g = ensureDb(db)
@@ -152,7 +152,7 @@ router.patch('/materials/:matId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'materials:edit')) return
+    if (!requireAnyPermission(auth, res, ['gestiune:manage', 'materials:edit'])) return
 
     const m = (auth.db.materials || []).find(x => String(x.id) === req.params.matId)
     if (!m) throwHttp(404, 'Material inexistent.')
@@ -178,7 +178,7 @@ router.delete('/materials/:matId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'materials:edit')) return
+    if (!requireAnyPermission(auth, res, ['gestiune:manage', 'materials:edit'])) return
 
     const idx = (auth.db.materials || []).findIndex(x => String(x.id) === req.params.matId)
     if (idx === -1) throwHttp(404, 'Material inexistent.')
@@ -195,7 +195,7 @@ router.delete('/materials/:matId', (req, res, next) => {
 router.get('/gestiune/furnizori', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requireAnyPermission(auth, res, ['materials:view', 'procurement_orders:view', 'stock_operations:view'])) return
+  if (!requireAnyPermission(auth, res, ['gestiune:view', 'gestiune:manage', 'gestiune:nir', 'materials:view', 'procurement_orders:view', 'stock_operations:view'])) return
   const g = ensureDb(auth.db)
   const search = String(req.query.search || '').toLowerCase()
   let list = g.furnizori
@@ -207,7 +207,7 @@ router.post('/gestiune/furnizori', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['materials:edit', 'procurement_orders:create'])) return
+    if (!requireAnyPermission(auth, res, ['gestiune:manage', 'materials:edit', 'procurement_orders:create'])) return
 
     const body = req.body || {}
     const g = ensureDb(auth.db)
@@ -240,7 +240,7 @@ router.patch('/gestiune/furnizori/:furId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['materials:edit', 'procurement_orders:create'])) return
+    if (!requireAnyPermission(auth, res, ['gestiune:manage', 'materials:edit', 'procurement_orders:create'])) return
 
     const g = ensureDb(auth.db)
     const item = g.furnizori.find(f => f.id === req.params.furId)
@@ -259,7 +259,7 @@ router.delete('/gestiune/furnizori/:furId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'materials:edit')) return
+    if (!requireAnyPermission(auth, res, ['gestiune:manage', 'materials:edit'])) return
 
     const g = ensureDb(auth.db)
     const idx = g.furnizori.findIndex(f => f.id === req.params.furId)
@@ -275,7 +275,7 @@ router.delete('/gestiune/furnizori/:furId', (req, res, next) => {
 router.get('/gestiune/nir', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requireAnyPermission(auth, res, ['materials:view', 'stock_operations:view', 'procurement_orders:view'])) return
+  if (!requireAnyPermission(auth, res, ['gestiune:view', 'gestiune:nir', 'materials:view', 'stock_operations:view', 'procurement_orders:view'])) return
 
   const g = ensureDb(auth.db)
   let list = [...g.nir]
@@ -293,7 +293,7 @@ router.post('/gestiune/nir', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['stock_operations:create', 'procurement_orders:receive'])) return
+    if (!requireAnyPermission(auth, res, ['gestiune:nir', 'stock_operations:create', 'procurement_orders:receive'])) return
 
     const body = req.body || {}
     const g = ensureDb(auth.db)
@@ -350,7 +350,7 @@ router.patch('/gestiune/nir/:nirId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['stock_operations:create', 'procurement_orders:receive'])) return
+    if (!requireAnyPermission(auth, res, ['gestiune:nir', 'stock_operations:create', 'procurement_orders:receive'])) return
 
     const g = ensureDb(auth.db)
     const nir = g.nir.find(n => n.id === req.params.nirId)
@@ -416,7 +416,7 @@ router.patch('/gestiune/nir/:nirId', (req, res, next) => {
 router.get('/gestiune/bonuri-consum', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requireAnyPermission(auth, res, ['stock_operations:view', 'materials:view'])) return
+  if (!requireAnyPermission(auth, res, ['gestiune:view', 'gestiune:bon_consum', 'stock_operations:view', 'materials:view'])) return
 
   const g = ensureDb(auth.db)
   let list = [...g.bonuri_consum]
@@ -434,7 +434,7 @@ router.post('/gestiune/bonuri-consum', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['stock_operations:create', 'consumptions:create'])) return
+    if (!requireAnyPermission(auth, res, ['gestiune:bon_consum', 'stock_operations:create', 'consumptions:create'])) return
 
     const body = req.body || {}
     const g = ensureDb(auth.db)
@@ -480,7 +480,7 @@ router.patch('/gestiune/bonuri-consum/:bcId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['stock_operations:create', 'consumptions:create'])) return
+    if (!requireAnyPermission(auth, res, ['gestiune:bon_consum', 'stock_operations:create', 'consumptions:create'])) return
 
     const g = ensureDb(auth.db)
     const bc = g.bonuri_consum.find(b => b.id === req.params.bcId)
@@ -544,7 +544,7 @@ router.delete('/gestiune/bonuri-consum/:bcId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['stock_operations:cancel', 'consumptions:cancel'])) return
+    if (!requireAnyPermission(auth, res, ['gestiune:bon_consum', 'stock_operations:cancel', 'consumptions:cancel'])) return
 
     const g = ensureDb(auth.db)
     const idx = g.bonuri_consum.findIndex(b => b.id === req.params.bcId)
@@ -561,7 +561,7 @@ router.delete('/gestiune/bonuri-consum/:bcId', (req, res, next) => {
 router.get('/gestiune/inventare', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requireAnyPermission(auth, res, ['materials:view', 'stock_operations:view'])) return
+  if (!requireAnyPermission(auth, res, ['gestiune:view', 'gestiune:inventar', 'materials:view', 'stock_operations:view'])) return
 
   const g = ensureDb(auth.db)
   sendJson(res, 200, [...g.inventare].sort((a, b) => (b.data || '').localeCompare(a.data || '')))
@@ -571,7 +571,7 @@ router.post('/gestiune/inventare', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'stock_operations:create')) return
+    if (!requireAnyPermission(auth, res, ['gestiune:inventar', 'stock_operations:create'])) return
 
     const body = req.body || {}
     const g = ensureDb(auth.db)
@@ -627,7 +627,7 @@ router.patch('/gestiune/inventare/:invId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'stock_operations:create')) return
+    if (!requireAnyPermission(auth, res, ['gestiune:inventar', 'stock_operations:create'])) return
 
     const g = ensureDb(auth.db)
     const inventar = g.inventare.find(i => i.id === req.params.invId)
@@ -683,7 +683,7 @@ router.patch('/gestiune/inventare/:invId', (req, res, next) => {
 router.get('/gestiune/raport-valoric', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requireAnyPermission(auth, res, ['materials:view', 'stock_operations:view', 'cost_accounting:view'])) return
+  if (!requireAnyPermission(auth, res, ['gestiune:reports', 'materials:view', 'stock_operations:view', 'cost_accounting:view'])) return
 
   const db = auth.db
   const { categorie } = req.query

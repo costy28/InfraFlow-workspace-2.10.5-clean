@@ -4872,7 +4872,7 @@ export default function SetariPage() {
                   </div>
                 </div>
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  Acest panou configurează șabloanele. Documentele deja lansate vor trebui să păstreze versiunea de flux activă la pornire când legăm engine-ul avansat.
+                  Acest panou configurează șabloanele. Referatele și documentele lansate păstrează o copie a versiunii active, astfel încât schimbarea șablonului nu le modifică traseul în curs.
                 </div>
                 <div className="mt-3 rounded-xl border border-primary-100 bg-white/80 p-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">Audit configurare</div>

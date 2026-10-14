@@ -813,6 +813,7 @@ SELECT 1 AS ok FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 }
 
 module.exports = {
+  buildWorkflowSnapshot,
   generateDocumentNumber,
   generateDocumentHtml,
   launchDocument,

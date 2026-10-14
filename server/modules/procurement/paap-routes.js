@@ -199,7 +199,7 @@ router.get('/paap', (req, res) => {
 router.post('/paap', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:create', 'procurement:receive'])) return
+    if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:create', 'procurement_orders:receive', 'procurement:receive'])) return
     ensurePaap(auth.db)
     const item = { id: `paap-${crypto.randomUUID()}`, ...normalizeItem(auth.db, req.body || {}), created_at: new Date().toISOString(), created_by: auth.user.id }
     if (!item.material) throwHttp(422, 'Materialul sau obiectul achizitiei este obligatoriu.')
@@ -214,7 +214,7 @@ router.post('/paap', (req, res, next) => {
 router.post('/paap/genereaza-din-istoric', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:create', 'procurement:receive'])) return
+    if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:create', 'procurement_orders:receive', 'procurement:receive'])) return
     ensurePaap(auth.db)
     const year = Number(req.body?.an || new Date().getFullYear() + 1)
     const rows = generateFromHistory(auth.db, year, auth.user)
@@ -227,7 +227,7 @@ router.post('/paap/genereaza-din-istoric', (req, res, next) => {
 router.put('/paap/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:create', 'procurement:receive'])) return
+    if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:create', 'procurement_orders:receive', 'procurement:receive'])) return
     ensurePaap(auth.db)
     const index = auth.db.paap.findIndex(item => String(item.id) === String(req.params.id) && !item.cancelled_at)
     if (index < 0) throwHttp(404, 'Pozitia PAAP nu exista.')
@@ -242,7 +242,7 @@ router.put('/paap/:id', (req, res, next) => {
 router.delete('/paap/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:create', 'procurement:receive'])) return
+    if (!auth || !requireAnyPermission(auth, res, ['procurement_orders:create', 'procurement_orders:receive', 'procurement:receive'])) return
     ensurePaap(auth.db)
     const item = auth.db.paap.find(row => String(row.id) === String(req.params.id) && !row.cancelled_at)
     if (!item) throwHttp(404, 'Pozitia PAAP nu exista.')

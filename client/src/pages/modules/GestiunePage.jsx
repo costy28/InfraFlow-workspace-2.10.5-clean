@@ -14,13 +14,13 @@ import { canAccess } from '../../lib/permission-access'
 
 const tabs = ['Dashboard', 'Nomenclator', 'Recepție (NIR)', 'Bon Consum', 'Inventar', 'Furnizori', 'Raport Valoric']
 const tabAccess = {
-  Dashboard: { anyOf: ['materials:view', 'stock_operations:view'] },
-  Nomenclator: { anyOf: ['materials:view', 'materials:edit'] },
-  'Recepție (NIR)': { anyOf: ['materials:view', 'stock_operations:view', 'procurement_orders:view'] },
-  'Bon Consum': { anyOf: ['stock_operations:view', 'materials:view'] },
-  Inventar: { anyOf: ['materials:view', 'stock_operations:view'] },
-  Furnizori: { anyOf: ['materials:view', 'procurement_orders:view', 'stock_operations:view'] },
-  'Raport Valoric': { anyOf: ['materials:view', 'stock_operations:view', 'cost_accounting:view'] },
+  Dashboard: { anyOf: ['gestiune:view', 'gestiune:reports', 'materials:view', 'stock_operations:view'] },
+  Nomenclator: { anyOf: ['gestiune:view', 'gestiune:manage', 'materials:view', 'materials:edit'] },
+  'Recepție (NIR)': { anyOf: ['gestiune:view', 'gestiune:nir', 'materials:view', 'stock_operations:view', 'procurement_orders:view'] },
+  'Bon Consum': { anyOf: ['gestiune:view', 'gestiune:bon_consum', 'stock_operations:view', 'materials:view'] },
+  Inventar: { anyOf: ['gestiune:view', 'gestiune:inventar', 'materials:view', 'stock_operations:view'] },
+  Furnizori: { anyOf: ['gestiune:view', 'gestiune:manage', 'gestiune:nir', 'materials:view', 'procurement_orders:view', 'stock_operations:view'] },
+  'Raport Valoric': { anyOf: ['gestiune:reports', 'materials:view', 'stock_operations:view', 'cost_accounting:view'] },
 }
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -51,11 +51,14 @@ export default function GestiunePage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('Dashboard')
   const visibleTabs = useMemo(() => tabs.filter(tab => canAccess(user, tabAccess[tab])), [user])
-  const canManageMaterials = canAccess(user, 'materials:edit')
-  const canManageSuppliers = canAccess(user, { anyOf: ['materials:edit', 'procurement_orders:create'] })
-  const canCreateNir = canAccess(user, { anyOf: ['stock_operations:create', 'procurement_orders:receive'] })
-  const canCreateConsumption = canAccess(user, { anyOf: ['stock_operations:create', 'consumptions:create'] })
-  const canManageInventory = canAccess(user, 'stock_operations:create')
+  const canManageMaterials = canAccess(user, { anyOf: ['gestiune:manage', 'materials:edit'] })
+  const canManageSuppliers = canAccess(user, { anyOf: ['gestiune:manage', 'materials:edit', 'procurement_orders:create'] })
+  const canDeleteSuppliers = canAccess(user, { anyOf: ['gestiune:manage', 'materials:edit'] })
+  const canCreateNir = canAccess(user, { anyOf: ['gestiune:nir', 'stock_operations:create', 'procurement_orders:receive'] })
+  const canCreateConsumption = canAccess(user, { anyOf: ['gestiune:bon_consum', 'stock_operations:create', 'consumptions:create'] })
+  const canCancelConsumption = canAccess(user, { anyOf: ['gestiune:bon_consum', 'stock_operations:cancel', 'consumptions:cancel'] })
+  const canManageInventory = canAccess(user, { anyOf: ['gestiune:inventar', 'stock_operations:create'] })
+  const canExportReports = canAccess(user, { anyOf: ['gestiune:reports', 'stock_operations:export', 'ledger:export'] })
 
   useEffect(() => {
     if (visibleTabs.length && !visibleTabs.includes(activeTab)) setActiveTab(visibleTabs[0])
@@ -114,7 +117,7 @@ export default function GestiunePage() {
   async function loadBase() {
     setLoading(true); setError('')
     try {
-      const canReadMaterials = canAccess(user, { anyOf: ['materials:view', 'materials:edit'] })
+      const canReadMaterials = canAccess(user, { anyOf: ['gestiune:view', 'gestiune:nir', 'gestiune:bon_consum', 'gestiune:inventar', 'gestiune:manage', 'gestiune:reports', 'materials:view', 'materials:edit'] })
       const canReadDashboard = canAccess(user, tabAccess.Dashboard)
       const canReadSuppliers = canAccess(user, tabAccess.Furnizori)
       const [matsRes, dashRes, furRes, contractsRes] = await Promise.all([
@@ -341,23 +344,23 @@ export default function GestiunePage() {
     const openMaterial = () => {
       setMatEditing(null)
       setMatForm(emptyMatForm)
-      setMatModal(true)
+      if (canManageMaterials) setMatModal(true)
       setActiveTab('Nomenclator')
     }
     const openSupplier = () => {
       setFurEditing(null)
       setFurForm(emptyFurForm)
-      setFurModal(true)
+      if (canManageSuppliers) setFurModal(true)
       setActiveTab('Furnizori')
     }
     const openNir = () => {
       setNirForm({ ...emptyNirForm, linii: [{ ...emptyLine }] })
-      setNirModal(true)
+      if (canCreateNir) setNirModal(true)
       setActiveTab('Recepție (NIR)')
     }
     const openBc = () => {
       setBcForm({ ...emptyBcForm, linii: [{ ...emptyLine }] })
-      setBcModal(true)
+      if (canCreateConsumption) setBcModal(true)
       setActiveTab('Bon Consum')
     }
 
@@ -369,7 +372,7 @@ export default function GestiunePage() {
         status: materialsCount ? `${materialsCount} materiale` : 'lipsește',
         done: materialsCount > 0 && materialsWithoutMinimum === 0,
         tone: !materialsCount ? 'danger' : materialsWithoutMinimum ? 'warning' : 'success',
-        actionLabel: materialsCount ? 'Verifică nomenclator' : '+ Material nou',
+        actionLabel: materialsCount || !canManageMaterials ? 'Verifică nomenclator' : '+ Material nou',
         onClick: materialsCount ? () => setActiveTab('Nomenclator') : openMaterial,
       },
       {
@@ -379,7 +382,7 @@ export default function GestiunePage() {
         status: suppliersCount ? `${suppliersCount} furnizori` : 'neconfigurat',
         done: suppliersCount > 0,
         tone: suppliersCount ? 'success' : 'warning',
-        actionLabel: suppliersCount ? 'Vezi furnizori' : '+ Furnizor nou',
+        actionLabel: suppliersCount || !canManageSuppliers ? 'Vezi furnizori' : '+ Furnizor nou',
         onClick: suppliersCount ? () => setActiveTab('Furnizori') : openSupplier,
       },
       {
@@ -389,7 +392,7 @@ export default function GestiunePage() {
         status: incomingValue ? `${fmt(incomingValue)} RON luna curentă` : 'fără intrări luna curentă',
         done: incomingValue > 0 || stockedMaterials > 0,
         tone: incomingValue > 0 || stockedMaterials > 0 ? 'success' : 'info',
-        actionLabel: '+ NIR nou',
+        actionLabel: canCreateNir ? '+ NIR nou' : 'Vezi recepții',
         onClick: openNir,
       },
       {
@@ -399,7 +402,7 @@ export default function GestiunePage() {
         status: pendingBc ? `${pendingBc} bonuri de aprobat` : outgoingValue ? `${fmt(outgoingValue)} RON ieșiri` : 'fără blocaje',
         done: pendingBc === 0,
         tone: pendingBc ? 'warning' : 'success',
-        actionLabel: pendingBc ? 'Aprobă bonuri' : '+ Bon consum',
+        actionLabel: pendingBc ? 'Vezi bonuri' : canCreateConsumption ? '+ Bon consum' : 'Vezi bonuri',
         onClick: pendingBc ? () => setActiveTab('Bon Consum') : openBc,
       },
       {
@@ -409,8 +412,8 @@ export default function GestiunePage() {
         status: materialsWithoutLocation ? `${materialsWithoutLocation} fără locație` : 'pregătit',
         done: materialsCount > 0 && materialsWithoutLocation === 0,
         tone: materialsWithoutLocation ? 'warning' : materialsCount ? 'success' : 'info',
-        actionLabel: materialsWithoutLocation ? 'Completează locații' : '+ Inventar nou',
-        onClick: materialsWithoutLocation ? () => setActiveTab('Nomenclator') : createInventar,
+        actionLabel: materialsWithoutLocation ? 'Vezi locații' : canManageInventory ? '+ Inventar nou' : 'Vezi inventare',
+        onClick: materialsWithoutLocation ? () => setActiveTab('Nomenclator') : canManageInventory ? createInventar : () => setActiveTab('Inventar'),
       },
       {
         key: 'report',
@@ -425,9 +428,9 @@ export default function GestiunePage() {
     ]
 
     const primary = !materialsCount
-      ? { title: 'Începe cu primul material', description: 'Fără catalog, depozitul nu are pe ce face NIR, bon sau inventar.', label: '+ Material nou', tone: 'danger', onClick: openMaterial }
+      ? { title: 'Începe cu primul material', description: 'Fără catalog, depozitul nu are pe ce face NIR, bon sau inventar.', label: canManageMaterials ? '+ Material nou' : 'Vezi nomenclator', tone: 'danger', onClick: openMaterial }
       : suppliersCount === 0
-        ? { title: 'Adaugă furnizorii principali', description: 'Recepțiile devin mai clare când NIR-ul are furnizor și, unde există, contract.', label: '+ Furnizor nou', tone: 'warning', onClick: openSupplier }
+        ? { title: 'Adaugă furnizorii principali', description: 'Recepțiile devin mai clare când NIR-ul are furnizor și, unde există, contract.', label: canManageSuppliers ? '+ Furnizor nou' : 'Vezi furnizori', tone: 'warning', onClick: openSupplier }
         : lowStock > 0
           ? { title: 'Rezolvă stocurile sub minim', description: 'Depozitul are alerte active. Verifică dacă trebuie NIR, comandă sau ajustare de prag.', label: 'Vezi alerte', tone: 'danger', onClick: () => setActiveTab('Dashboard') }
           : pendingBc > 0
@@ -437,7 +440,7 @@ export default function GestiunePage() {
               : { title: 'Depozitul poate fi raportat', description: 'Fluxul de bază este sănătos. Următorul pas util este raportul valoric sau inventarul periodic.', label: 'Raport valoric', tone: 'success', onClick: () => setActiveTab('Raport Valoric') }
 
     return { steps, primary }
-  }, [materials, furnizori.length, dashboard])
+  }, [materials, furnizori.length, dashboard, canManageMaterials, canManageSuppliers, canCreateNir, canCreateConsumption, canManageInventory])
 
   // ── material CRUD ────────────────────────────────────────────────────────────
   async function saveMaterial(ev) {
@@ -987,7 +990,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
               <Select label="Categorie" value={matCategorie} onChange={e => setMatCategorie(e.target.value)}
                 options={[{ value: '', label: 'Toate categoriile' }, ...matCategorii.map(c => ({ value: c, label: c }))]} />
               {canManageMaterials ? <Button onClick={() => { setMatEditing(null); setMatForm(emptyMatForm); setMatModal(true) }}>+ Material nou</Button> : null}
-              <Button variant="secondary" onClick={() => exportExcel(
+              {canExportReports ? <Button variant="secondary" onClick={() => exportExcel(
                 filteredMats.map(m => ({
                   'Cod intern': m.cod_intern || '', 'Denumire': m.name || m.denumire, 'UM': m.unit || m.um,
                   'Categorie': m.categorie || m.category, 'Stoc curent': m.stock ?? m.stoc_curent,
@@ -995,7 +998,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                   'Locație depozit': m.locatie_depozit || '',
                 })),
                 'Nomenclator_materiale'
-              )}>📊 Export Excel</Button>
+              )}>📊 Export Excel</Button> : null}
               <span className="ml-auto text-sm text-slate-500">{filteredMats.length} materiale</span>
             </div>
           </Card>
@@ -1152,7 +1155,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                           <>
                             {canCreateConsumption ? <button className="rounded bg-green-50 px-2 py-1 text-xs text-green-700 hover:bg-green-100" onClick={() => approveBc(b.id)}>✅ Aprobă</button> : null}
                             {canCreateConsumption ? <button className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 hover:bg-rose-100" onClick={() => { setBcRejectId(b.id); setBcRejectMotiv('') }}>❌ Respinge</button> : null}
-                            {canAccess(user, { anyOf: ['stock_operations:cancel', 'consumptions:cancel'] }) ? <button className="text-xs text-rose-400 hover:underline" onClick={() => deleteBc(b.id)}>🗑️</button> : null}
+                            {canCancelConsumption ? <button className="text-xs text-rose-400 hover:underline" onClick={() => deleteBc(b.id)}>🗑️</button> : null}
                           </>
                         ) : null}
                       </div>
@@ -1269,10 +1272,10 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Caută" value={furSearch} onChange={e => setFurSearch(e.target.value)} placeholder="Nume, CUI, email…" />
               {canManageSuppliers ? <Button onClick={() => { setFurEditing(null); setFurForm(emptyFurForm); setFurModal(true) }}>+ Furnizor nou</Button> : null}
-              <Button variant="secondary" onClick={() => exportExcel(
+              {canExportReports ? <Button variant="secondary" onClick={() => exportExcel(
                 filteredFur.map(f => ({ 'Nume': f.nume, 'CUI': f.cui, 'Nr. Reg. Com.': f.nr_reg_com, 'Adresă': f.adresa, 'Tel': f.telefon, 'Email': f.email, 'IBAN': f.iban, 'Bancă': f.banca, 'Persoană contact': f.pers_contact })),
                 'Furnizori'
-              )}>📊 Export Excel</Button>
+              )}>📊 Export Excel</Button> : null}
             </div>
           </Card>
 
@@ -1287,7 +1290,7 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
                   </div>
                   <div className="flex gap-1">
                     {canManageSuppliers ? <button className="text-xs text-primary-600 hover:underline" onClick={() => { setFurEditing(f); setFurForm({ ...f }); setFurModal(true) }}>✏️</button> : null}
-                    <button className="text-xs text-rose-500 hover:underline" onClick={() => deleteFurnizor(f.id)}>🗑️</button>
+                    {canDeleteSuppliers ? <button className="text-xs text-rose-500 hover:underline" onClick={() => deleteFurnizor(f.id)}>🗑️</button> : null}
                   </div>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
@@ -1317,15 +1320,15 @@ th{background:#f0f0f0;text-align:center}.n{text-align:right}.total{font-weight:b
               <Button onClick={loadRaport}>↺ Actualizează</Button>
               {raportValoric ? (
                 <>
-                  <Button variant="secondary" onClick={printRaportValoric}>🖨️ Print / PDF</Button>
-                  <Button variant="secondary" onClick={() => exportExcel(
+                  {canExportReports ? <Button variant="secondary" onClick={printRaportValoric}>🖨️ Print / PDF</Button> : null}
+                  {canExportReports ? <Button variant="secondary" onClick={() => exportExcel(
                     (raportValoric.rows || []).map(r => ({
                       'Cod': r.cod_intern, 'Denumire': r.name, 'Categorie': r.categorie, 'UM': r.unit,
                       'Stoc': r.stoc, 'Stoc minim': r.stoc_minim, 'Preț (RON)': r.pret_achizitie, 'Valoare (RON)': r.valoare,
                       'Locație': r.locatie, 'Status': r.status,
                     })),
                     `RaportValoric_${today()}`
-                  )}>📊 Export Excel</Button>
+                  )}>📊 Export Excel</Button> : null}
                 </>
               ) : null}
               {raportValoric ? (

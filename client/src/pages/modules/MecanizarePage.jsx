@@ -11,9 +11,11 @@ import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import DropdownMenu from '../../components/ui/DropdownMenu'
 import { exportExcel } from '../../utils/export'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 const tabGroups = [
-  { label: 'Parc', tabs: ['Parc Utilaje', 'Planificare'] },
+  { label: 'Parc', tabs: ['Parc Utilaje', 'Planificare', 'Solicitări'] },
   { label: 'Operatiuni', tabs: ['Bonuri Lucru', 'Alimentări', 'Import carburant', 'Intervenții'] },
   { label: 'Scadente', tabs: ['Revizii predictive', 'Alerte & ISCIR', 'Scadențe & Asigurări'] },
   { label: 'Rapoarte', tabs: ['Cost/oră', 'FAZ Lunar', 'Raport Lunar'] },
@@ -177,7 +179,49 @@ const emptyFleetDocForm = {
 }
 
 export default function MecanizarePage() {
+  const { user } = useAuth()
   const navigate = useNavigate()
+  const has = (...permissions) => permissions.some(permission => canAccess(user, permission))
+  const canLegacyView = has('mechanization:view')
+  const canLegacyManage = has('mechanization:manage')
+  const canDashboard = canLegacyView
+  const canAssetsView = canLegacyView || has('mechanization:assets_view')
+  const canAssetsManage = canLegacyManage || has('mechanization:assets_manage')
+  const canPlanningView = canLegacyView || has('mechanization:planning_view')
+  const canPlanningManage = canLegacyManage || has('mechanization:planning_manage')
+  const canWorkOrdersView = canLegacyView || has('mechanization:work_orders_view')
+  const canWorkOrdersManage = canLegacyManage || has('mechanization:work_orders_manage')
+  const canFuelView = canLegacyView || has('mechanization:fuel_view')
+  const canFuelManage = canLegacyManage || has('mechanization:fuel_manage')
+  const canImport = canLegacyManage || has('mechanization:import')
+  const canMaintenanceView = canLegacyView || has('mechanization:maintenance_view')
+  const canMaintenanceManage = canLegacyManage || has('mechanization:maintenance_manage')
+  const canComplianceView = canLegacyView || has('mechanization:compliance_view')
+  const canComplianceManage = canLegacyManage || has('mechanization:compliance_manage')
+  const canReportsView = canLegacyView || has('mechanization:reports_view')
+  const canReportsExport = canLegacyView || has('mechanization:reports_export')
+  const canRequest = has('mechanization:request')
+  const canApproveRequests = has('mechanization:approve')
+  const canGenerateFaz = has('fleet:faz_generate')
+  const tabPermission = {
+    'Parc Utilaje': canAssetsView,
+    Planificare: canPlanningView,
+    Solicitări: canRequest || canApproveRequests,
+    'Bonuri Lucru': canWorkOrdersView,
+    Alimentări: canFuelView,
+    'Import carburant': canImport || canFuelView,
+    Intervenții: canMaintenanceView,
+    'Revizii predictive': canComplianceView,
+    'Alerte & ISCIR': canComplianceView,
+    'Scadențe & Asigurări': canComplianceView,
+    'Cost/oră': canReportsView,
+    'FAZ Lunar': canReportsView,
+    'Raport Lunar': canReportsView,
+  }
+  const visibleTabGroups = tabGroups
+    .map(group => ({ ...group, tabs: group.tabs.filter(tab => tabPermission[tab]) }))
+    .filter(group => group.tabs.length)
+  const availableTabs = [canDashboard ? 'Dashboard' : null, ...visibleTabGroups.flatMap(group => group.tabs)].filter(Boolean)
   const [activeTab, setActiveTab] = useState('Dashboard')
   const [assets, setAssets] = useState([])
   const [costCenters, setCostCenters] = useState([])
@@ -272,16 +316,27 @@ export default function MecanizarePage() {
   async function loadAll() {
     setLoading(true); setError('')
     try {
-      const [overviewRes, dashRes] = await Promise.all([
-        api.get('/fleet/overview'),
-        api.get('/mechanization/dashboard'),
-      ])
-      setAssets((overviewRes.data?.assets || []))
-      api.get('/controlling/cost-centers').then(r => setCostCenters(Array.isArray(r.data) ? r.data : (r.data?.centers || []))).catch(() => setCostCenters([]))
-      setAssetStatus(overviewRes.data?.assetStatus || {})
-      setDashboard(dashRes.data || {})
-      setRequests((overviewRes.data?.requests || []))
-      setTripLogs(overviewRes.data?.trip_logs || [])
+      if (canDashboard) {
+        const [overviewRes, dashRes] = await Promise.all([
+          api.get('/fleet/overview'),
+          api.get('/mechanization/dashboard'),
+        ])
+        setAssets(overviewRes.data?.assets || [])
+        setAssetStatus(overviewRes.data?.assetStatus || {})
+        setDashboard(dashRes.data || {})
+        setRequests(overviewRes.data?.requests || [])
+        setTripLogs(overviewRes.data?.trip_logs || [])
+      } else {
+        const assetsRes = await api.get('/fleet-assets')
+        setAssets(assetsRes.data?.assets || [])
+        if (canApproveRequests || has('mechanization:request')) {
+          const requestsRes = await api.get('/fleet-requests')
+          setRequests(requestsRes.data?.requests || [])
+        }
+      }
+      if (canLegacyManage || canPlanningManage || canWorkOrdersManage || canFuelManage || canMaintenanceManage) {
+        api.get('/controlling/cost-centers').then(r => setCostCenters(Array.isArray(r.data) ? r.data : (r.data?.centers || []))).catch(() => setCostCenters([]))
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Eroare la încărcare.')
     } finally { setLoading(false) }
@@ -373,18 +428,19 @@ export default function MecanizarePage() {
     } catch { setScadente(null) }
   }
 
+  useEffect(() => { if (availableTabs.length && !availableTabs.includes(activeTab)) setActiveTab(availableTabs[0]) }, [activeTab, availableTabs.join('|')])
   useEffect(() => { loadAll() }, [])
-  useEffect(() => { if (activeTab === 'Planificare')  loadPlannings() }, [activeTab, planDate])
-  useEffect(() => { if (activeTab === 'Bonuri Lucru') loadWorkOrders() }, [activeTab, woLuna])
-  useEffect(() => { if (activeTab === 'Alimentări') loadFuelLogs() }, [activeTab, fuelLuna])
-  useEffect(() => { if (activeTab === 'Import carburant') loadPiusiFuelRows() }, [activeTab, piusiFilters])
-  useEffect(() => { if (activeTab === 'Intervenții')  loadInterventions() }, [activeTab])
-  useEffect(() => { if (activeTab === 'Revizii predictive') loadRevisions() }, [activeTab])
-  useEffect(() => { if (activeTab === 'Alerte & ISCIR') loadMechanizationAlerts() }, [activeTab])
-  useEffect(() => { if (activeTab === 'Scadențe & Asigurări') loadScadente() }, [activeTab])
-  useEffect(() => { if (activeTab === 'Cost/oră') loadCostHour() }, [activeTab, costLuna])
-  useEffect(() => { if (activeTab === 'FAZ Lunar') loadFazReport() }, [activeTab, fazLuna, fazAssetId])
-  useEffect(() => { if (activeTab === 'Raport Lunar') loadRaport() }, [activeTab, raportLuna])
+  useEffect(() => { if (activeTab === 'Planificare' && canPlanningView) loadPlannings() }, [activeTab, planDate])
+  useEffect(() => { if (activeTab === 'Bonuri Lucru' && canWorkOrdersView) loadWorkOrders() }, [activeTab, woLuna])
+  useEffect(() => { if (activeTab === 'Alimentări' && canFuelView) loadFuelLogs() }, [activeTab, fuelLuna])
+  useEffect(() => { if (activeTab === 'Import carburant' && (canImport || canFuelView)) loadPiusiFuelRows() }, [activeTab, piusiFilters])
+  useEffect(() => { if (activeTab === 'Intervenții' && canMaintenanceView) loadInterventions() }, [activeTab])
+  useEffect(() => { if (activeTab === 'Revizii predictive' && canComplianceView) loadRevisions() }, [activeTab])
+  useEffect(() => { if (activeTab === 'Alerte & ISCIR' && canComplianceView) loadMechanizationAlerts() }, [activeTab])
+  useEffect(() => { if (activeTab === 'Scadențe & Asigurări' && canComplianceView) loadScadente() }, [activeTab])
+  useEffect(() => { if (activeTab === 'Cost/oră' && canReportsView) loadCostHour() }, [activeTab, costLuna])
+  useEffect(() => { if (activeTab === 'FAZ Lunar' && canReportsView) loadFazReport() }, [activeTab, fazLuna, fazAssetId])
+  useEffect(() => { if (activeTab === 'Raport Lunar' && canReportsView) loadRaport() }, [activeTab, raportLuna])
 
   // ── computed ────────────────────────────────────────────────────────────────
   const equipment = useMemo(() => assets.filter(a => a.category === 'equipment'), [assets])
@@ -422,6 +478,7 @@ export default function MecanizarePage() {
 
   // ── actions ─────────────────────────────────────────────────────────────────
   function openAssetModal(category = 'vehicle') {
+    if (!canAssetsManage) return
     setAssetEditing(null)
     setAssetForm({
       ...emptyAssetForm,
@@ -433,6 +490,7 @@ export default function MecanizarePage() {
   }
 
   function openAssetEditModal(asset) {
+    if (!canAssetsManage) return
     setAssetEditing(asset)
     setAssetForm({
       ...emptyAssetForm,
@@ -460,6 +518,7 @@ export default function MecanizarePage() {
 
   async function saveFleetAsset(ev) {
     ev.preventDefault(); setError('')
+    if (!canAssetsManage) return
     try {
       const payload = {
         ...assetForm,
@@ -480,6 +539,7 @@ export default function MecanizarePage() {
   }
 
   function openAssetTechnicalModal(row) {
+    if (!canAssetsManage && !canFuelManage) return
     const asset = assets.find(item => String(item.id) === String(row.asset_id)) || {}
     setAssetTechnicalForm({
       asset_id: String(row.asset_id || asset.id || ''),
@@ -493,6 +553,7 @@ export default function MecanizarePage() {
 
   async function saveAssetTechnical(ev) {
     ev.preventDefault(); setError('')
+    if (!canAssetsManage && !canFuelManage) return
     if (!assetTechnicalForm.asset_id) return
     setAssetTechnicalSaving(true)
     try {
@@ -512,6 +573,7 @@ export default function MecanizarePage() {
   }
 
   function confirmAssetActiveChange(asset, nextActive) {
+    if (!canAssetsManage) return
     const label = [asset.name, asset.registration].filter(Boolean).join(' / ') || 'resursa selectată'
     setConfirmAction({
       title: nextActive ? 'Reactivează resursa?' : 'Arhivează resursa?',
@@ -547,6 +609,7 @@ export default function MecanizarePage() {
   }
 
   async function saveFuelStockSettings() {
+    if (!canFuelManage) return
     if (!dashboard?.fuelStockEstimate?.settings) return
     setError('')
     setFuelStockSettingsSaving(true)
@@ -562,6 +625,7 @@ export default function MecanizarePage() {
 
   async function savePlanning(ev) {
     ev.preventDefault(); setError('')
+    if (!canPlanningManage) return
     try {
       if (planEditing) {
         await api.patch(`/mechanization/plannings/${planEditing.id}`, planForm)
@@ -574,6 +638,7 @@ export default function MecanizarePage() {
   }
 
   async function deletePlanning(id) {
+    if (!canPlanningManage) return
     setConfirmAction({
       title: 'Șterge planificarea',
       message: 'Ștergi această planificare?',
@@ -591,12 +656,14 @@ export default function MecanizarePage() {
   }
 
   async function updatePlanStatus(id, status) {
+    if (!canPlanningManage) return
     try { await api.patch(`/mechanization/plannings/${id}`, { status }); await loadPlannings() }
     catch { setError('Eroare la actualizare status.') }
   }
 
   async function saveWorkOrder(ev) {
     ev.preventDefault(); setError('')
+    if (!canWorkOrdersManage) return
     try {
       if (woEditing) {
         await api.patch(`/mechanization/work-orders/${woEditing.id}`, woForm)
@@ -609,6 +676,7 @@ export default function MecanizarePage() {
   }
 
   async function deleteWorkOrder(id) {
+    if (!canWorkOrdersManage) return
     setConfirmAction({
       title: 'Șterge bon de lucru',
       message: 'Ștergi acest bon de lucru?',
@@ -626,12 +694,14 @@ export default function MecanizarePage() {
   }
 
   async function closeWorkOrder(id) {
+    if (!canWorkOrdersManage) return
     try { await api.patch(`/mechanization/work-orders/${id}`, { status: 'inchis' }); await loadWorkOrders() }
     catch { setError('Eroare.') }
   }
 
   async function saveFuelLog(ev) {
     ev.preventDefault(); setError('')
+    if (!canFuelManage) return
     try {
       if (fuelEditing) {
         await api.patch(`/mechanization/fuel-logs/${fuelEditing.id}`, fuelForm)
@@ -645,6 +715,7 @@ export default function MecanizarePage() {
   }
 
   async function deleteFuelLog(id) {
+    if (!canFuelManage) return
     setConfirmAction({
       title: 'Șterge alimentare',
       message: 'Ștergi această alimentare?',
@@ -663,6 +734,7 @@ export default function MecanizarePage() {
 
   async function saveIntervention(ev) {
     ev.preventDefault(); setError('')
+    if (!canMaintenanceManage) return
     try {
       if (intEditing) {
         await api.patch(`/mechanization/interventions/${intEditing.id}`, intForm)
@@ -676,6 +748,7 @@ export default function MecanizarePage() {
   }
 
   async function closeIntervention(id) {
+    if (!canMaintenanceManage) return
     try {
       await api.patch(`/mechanization/interventions/${id}`, { data_iesire: today(), status: 'finalizat' })
       await loadInterventions(); await loadAll()
@@ -684,6 +757,7 @@ export default function MecanizarePage() {
 
   async function saveRequest(ev) {
     ev.preventDefault(); setError('')
+    if (!canApproveRequests) return
     try {
       await api.patch(`/mechanization/requests/${reqItem.id}`, reqForm)
       setReqModal(false); setReqItem(null)
@@ -692,6 +766,7 @@ export default function MecanizarePage() {
   }
 
   async function importPiusiInFaz() {
+    if (!canImport) return
     const count = piusiFuelRows.filter(row => row.asset_id && row.procesat !== true).length
     if (!count) { setError('Nu există alimentări importate, mapate și neprocesate.'); return }
     setConfirmAction({
@@ -734,6 +809,7 @@ export default function MecanizarePage() {
   }
 
   function openFleetDoc(kind, preset = {}) {
+    if (!canComplianceManage) return
     const next = {
       ...emptyFleetDocForm,
       ...preset,
@@ -749,6 +825,7 @@ export default function MecanizarePage() {
 
   async function saveFleetDoc(ev) {
     ev.preventDefault(); setError('')
+    if (!canComplianceManage) return
     try {
       const documentReference = normalizeFleetDocumentReference(fleetDocForm.document_reference)
       if (fleetDocKind === 'asigurare') {
@@ -822,6 +899,7 @@ export default function MecanizarePage() {
   }
 
   async function downloadFleetReport(path, filename) {
+    if (!canReportsExport) return
     try {
       const res = await api.get(path, { params: { an: new Date().getFullYear(), format: 'xlsx' }, responseType: 'blob' })
       const url = URL.createObjectURL(new Blob([res.data]))
@@ -836,6 +914,7 @@ export default function MecanizarePage() {
   }
 
   function exportFuelStockByAsset() {
+    if (!canReportsExport) return
     const rows = (filteredFuelStockRows.length ? filteredFuelStockRows : fuelStockRows).map(row => ({
       'Resursă': row.asset_name,
       'Tip': row.category === 'equipment' ? 'utilaj' : row.category === 'vehicle' ? 'autovehicul' : 'resursă',
@@ -853,6 +932,7 @@ export default function MecanizarePage() {
   }
 
   async function generateMechanizationFaz() {
+    if (!canGenerateFaz) return
     setConfirmAction({
       title: 'Generează FAZ mecanizare',
       message: `Generezi FAZ mecanizare pentru ${fazLuna}?`,
@@ -1149,17 +1229,17 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
         title="Parc & Resurse"
         subtitle="Vehicule, utilaje, echipamente, planificare, bonuri de lucru și intervenții."
         actions={[
-          <Button key="trip-sheets" onClick={() => navigate('/foi-parcurs')}>Foi Parcurs</Button>,
-          <DropdownMenu key="menu" align="right" label="Meniu" items={[
-            { label: 'Registru FAZ utilaje', onClick: () => navigate('/faz-utilaje') },
-            { label: 'Kiosk operator', onClick: () => window.open('/kiosk', '_blank') },
-          ]} />,
-        ]}
+          has('fleet:trip_log_view') ? <Button key="trip-sheets" onClick={() => navigate('/foi-parcurs')}>Foi Parcurs</Button> : null,
+          (has('fleet:faz_view', 'fleet:fc_view') || has('kiosk:view')) ? <DropdownMenu key="menu" align="right" label="Meniu" items={[
+            has('fleet:faz_view', 'fleet:fc_view') ? { label: 'Registru FAZ utilaje', onClick: () => navigate('/faz-utilaje') } : null,
+            has('kiosk:view') ? { label: 'Kiosk operator', onClick: () => window.open('/kiosk', '_blank') } : null,
+          ].filter(Boolean)} /> : null,
+        ].filter(Boolean)}
       />
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</div> : null}
 
-      <Card
+      {canDashboard ? <><Card
         title="Flux simplu Parc & Resurse"
         subtitle="Parc → cereri → planificare → bonuri/FAZ → combustibil/intervenții → scadențe/raport."
         actions={<Badge tone={mechanizationSimpleFlow.tone}>{mechanizationSimpleFlow.doneCount}/{mechanizationSimpleFlow.totalCount} pași în regulă</Badge>}
@@ -1284,11 +1364,11 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             </div>
           ) : null}
         </div>
-      </Card>
+      </Card></> : null}
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        <button
+        {canDashboard ? <button
           type="button"
           onClick={() => setActiveTab('Dashboard')}
           className={`inline-flex h-[var(--control-height)] items-center rounded-[var(--radius-control)] border px-[var(--control-px)] text-sm font-semibold transition ${
@@ -1296,8 +1376,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           }`}
         >
           Dashboard
-        </button>
-        {tabGroups.map(group => {
+        </button> : null}
+        {visibleTabGroups.map(group => {
           const items = group.tabs.map(tab => ({ label: tab, active: activeTab === tab, onClick: () => setActiveTab(tab) }))
           const activeItem = items.find(item => item.active)
           return (
@@ -1362,9 +1442,9 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                       value={dashboard.fuelStockEstimate.settings?.warning_percent ?? 10}
                       onChange={event => updateFuelStockSetting('warning_percent', event.target.value)}
                     />
-                    <Button className="self-end" size="sm" variant="secondary" onClick={saveFuelStockSettings} disabled={fuelStockSettingsSaving}>
+                    {canFuelManage ? <Button className="self-end" size="sm" variant="secondary" onClick={saveFuelStockSettings} disabled={fuelStockSettingsSaving}>
                       {fuelStockSettingsSaving ? 'Se salvează…' : 'Salvează prag'}
-                    </Button>
+                    </Button> : null}
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
                     Prag atenție calculat: {Number(dashboard.fuelStockEstimate.prag_atentie_litri || 0).toFixed(2)} L.
@@ -1395,7 +1475,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             subtitle="Alimentări introduse/importate minus consumul din bonuri, grupate pe fiecare resursă."
             actions={
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={exportFuelStockByAsset} disabled={!fuelStockRows.length}>Excel</Button>
+                {canReportsExport ? <Button size="sm" variant="secondary" onClick={exportFuelStockByAsset} disabled={!fuelStockRows.length}>Excel</Button> : null}
                 <Button size="sm" variant="secondary" onClick={() => setActiveTab('Alimentări')}>Vezi alimentări</Button>
               </div>
             }
@@ -1482,9 +1562,9 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap gap-1">
-                            <button className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100" onClick={() => { setFuelForm({ ...emptyFuelForm, asset_id: String(row.asset_id) }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare</button>
-                            <button className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100" onClick={() => { setWoForm({ ...emptyWoForm, asset_id: String(row.asset_id) }); setWoEditing(null); setWoModal(true) }}>+ Bon</button>
-                            {Number(row.tank_capacity_litri || 0) <= 0 ? (
+                            {canFuelManage ? <button className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100" onClick={() => { setFuelForm({ ...emptyFuelForm, asset_id: String(row.asset_id) }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare</button> : null}
+                            {canWorkOrdersManage ? <button className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100" onClick={() => { setWoForm({ ...emptyWoForm, asset_id: String(row.asset_id) }); setWoEditing(null); setWoModal(true) }}>+ Bon</button> : null}
+                            {canFuelManage && Number(row.tank_capacity_litri || 0) <= 0 ? (
                               <button className="rounded bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100" onClick={() => openAssetTechnicalModal(row)}>Setează rezervor</button>
                             ) : null}
                             <button className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100" onClick={() => navigate(`/fleet/asset/${row.asset_id}`)}>Fișă</button>
@@ -1569,7 +1649,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                       <span className="ml-2 text-slate-500">{r.department}</span>
                       <span className="ml-2 text-xs text-slate-400">{r.date} {r.startTime}–{r.endTime}</span>
                     </div>
-                    <Button size="sm" onClick={() => { setReqItem(r); setReqForm({ status: 'approved', asset_id: '', observatii: '' }); setReqModal(true) }}>Procesează</Button>
+                    {canApproveRequests ? <Button size="sm" onClick={() => { setReqItem(r); setReqForm({ status: 'approved', asset_id: '', observatii: '' }); setReqModal(true) }}>Procesează</Button> : null}
                   </div>
                 ))
               }
@@ -1680,6 +1760,46 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
         </div>
       ) : null}
 
+      {/* ── SOLICITĂRI ───────────────────────────────────────────────────────── */}
+      {activeTab === 'Solicitări' ? (
+        <div className="grid gap-4">
+          <Card title="Solicitări parc și resurse" subtitle="Cererile sunt vizibile separat de administrarea parcului; procesarea rămâne disponibilă doar aprobatorilor.">
+            <div className="module-table-scroll min-w-0 overflow-x-auto">
+              <table className="ui-table w-full text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Data</th>
+                    <th className="px-3 py-2">Resursă / categorie</th>
+                    <th className="px-3 py-2">Departament</th>
+                    <th className="px-3 py-2">Interval</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Acțiune</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {requests.length ? requests.map(request => (
+                    <tr key={request.id}>
+                      <td className="px-3 py-2">{request.date || request.data || '—'}</td>
+                      <td className="px-3 py-2 font-medium text-slate-800">{request.assetName || request.asset_name || request.category || 'Resursă nespecificată'}</td>
+                      <td className="px-3 py-2">{request.department || request.departament || '—'}</td>
+                      <td className="px-3 py-2">{[request.startTime || request.ora_start, request.endTime || request.ora_sfarsit].filter(Boolean).join(' – ') || '—'}</td>
+                      <td className="px-3 py-2"><Badge tone={statusTone(request.status)}>{statusLabel(request.status)}</Badge></td>
+                      <td className="px-3 py-2">
+                        {canApproveRequests && ['new', 'nou', 'pending', 'trimisa'].includes(String(request.status || '').toLowerCase()) ? (
+                          <Button size="sm" onClick={() => { setReqItem(request); setReqForm({ status: 'approved', asset_id: '', observatii: '' }); setReqModal(true) }}>Procesează</Button>
+                        ) : <span className="text-xs text-slate-400">Doar vizualizare</span>}
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan="6" className="px-3 py-8 text-center text-sm text-slate-400">Nu există solicitări de parc și resurse.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
       {/* ── PARC UTILAJE ─────────────────────────────────────────────────────── */}
       {activeTab === 'Parc Utilaje' ? (
         <div className="grid gap-4">
@@ -1693,8 +1813,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => openAssetModal('vehicle')}>+ Autovehicul</Button>
-                <Button variant="secondary" onClick={() => openAssetModal('equipment')}>+ Utilaj</Button>
+                {canAssetsManage ? <Button onClick={() => openAssetModal('vehicle')}>+ Autovehicul</Button> : null}
+                {canAssetsManage ? <Button variant="secondary" onClick={() => openAssetModal('equipment')}>+ Utilaj</Button> : null}
               </div>
             </div>
           </Card>
@@ -1770,43 +1890,43 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                     ) : null}
                   </div>
                   <div className="fleet-asset-actions mt-2 flex flex-wrap gap-2">
-                    <button
+                    {canAssetsManage ? <button
                       className="rounded bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
                       onClick={() => openAssetEditModal(asset)}
-                    >Editează</button>
+                    >Editează</button> : null}
                     <button
                       className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
                       onClick={() => navigate(`/fleet/asset/${asset.id}`)}
                     >Fișă completă</button>
-                    {isArchived ? (
+                    {canAssetsManage && isArchived ? (
                       <button
                         className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
                         onClick={() => confirmAssetActiveChange(asset, true)}
                       >Reactivează</button>
-                    ) : (
+                    ) : canAssetsManage || canPlanningManage || canWorkOrdersManage || canFuelManage || canMaintenanceManage ? (
                       <>
-                        <button
+                        {canPlanningManage ? <button
                           className="rounded bg-primary-50 px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-100"
                           onClick={() => { setPlanForm({ ...emptyPlanForm, asset_id: String(asset.id) }); setPlanEditing(null); setPlanModal(true) }}
-                        >📋 Planifică</button>
-                        <button
+                        >📋 Planifică</button> : null}
+                        {canWorkOrdersManage ? <button
                           className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
                           onClick={() => { setWoForm({ ...emptyWoForm, asset_id: String(asset.id) }); setWoEditing(null); setWoModal(true) }}
-                        >🧾 Bon lucru</button>
-                        <button
+                        >🧾 Bon lucru</button> : null}
+                        {canFuelManage ? <button
                           className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
                           onClick={() => { setFuelForm({ ...emptyFuelForm, asset_id: String(asset.id) }); setFuelEditing(null); setFuelModal(true) }}
-                        >⛽ Alimentare</button>
-                        <button
+                        >⛽ Alimentare</button> : null}
+                        {canMaintenanceManage ? <button
                           className="rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
                           onClick={() => { setIntForm({ ...emptyIntForm, asset_id: String(asset.id) }); setIntEditing(null); setIntModal(true) }}
-                        >🔧 Intervenție</button>
-                        <button
+                        >🔧 Intervenție</button> : null}
+                        {canAssetsManage ? <button
                           className="rounded bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
                           onClick={() => confirmAssetActiveChange(asset, false)}
-                        >Arhivează</button>
+                        >Arhivează</button> : null}
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </Card>
               )
@@ -1826,7 +1946,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <Card>
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Data" type="date" value={planDate} onChange={e => setPlanDate(e.target.value)} />
-              <Button onClick={() => { setPlanForm({ ...emptyPlanForm, date: planDate }); setPlanEditing(null); setPlanModal(true) }}>+ Planificare nouă</Button>
+              {canPlanningManage ? <Button onClick={() => { setPlanForm({ ...emptyPlanForm, date: planDate }); setPlanEditing(null); setPlanModal(true) }}>+ Planificare nouă</Button> : null}
               <span className="ml-auto text-sm text-slate-500">{plannings.length} planificări în {planDate}</span>
             </div>
           </Card>
@@ -1860,6 +1980,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                       <td className="px-3 py-2 text-slate-600">{p.ora_start} – {p.ora_sfarsit}</td>
                       <td className="px-3 py-2"><Badge tone={statusTone(p.status)}>{statusLabel(p.status)}</Badge></td>
                       <td className="px-3 py-2">
+                        {canPlanningManage ? (
                         <div className="flex gap-1">
                           {p.status === 'planificat' ? (
                             <>
@@ -1872,6 +1993,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                           <button className="text-xs text-primary-600 hover:underline" onClick={() => { setPlanEditing(p); setPlanForm({ ...p }); setPlanModal(true) }}>✏️</button>
                           <button className="text-xs text-rose-500 hover:underline" onClick={() => deletePlanning(p.id)}>🗑️</button>
                         </div>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -1888,8 +2010,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <Card>
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Luna" type="month" value={woLuna} onChange={e => setWoLuna(e.target.value)} />
-              <Button onClick={() => { setWoForm({ ...emptyWoForm }); setWoEditing(null); setWoModal(true) }}>+ Bon nou</Button>
-              <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
+              {canWorkOrdersManage ? <Button onClick={() => { setWoForm({ ...emptyWoForm }); setWoEditing(null); setWoModal(true) }}>+ Bon nou</Button> : null}
+              {canReportsExport ? <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
                 workOrders.map(w => ({
                   'Data': w.date, 'Utilaj': w.asset_name, 'Operator': w.operator,
                   'Activitate': w.activitate, 'Locație': w.locatie,
@@ -1898,7 +2020,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   'Status': w.status,
                 })),
                 `BonuriLucru_${woLuna}`
-              ) }]} />
+              ) }]} /> : null}
             </div>
           </Card>
 
@@ -1932,11 +2054,11 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                     <td className="px-3 py-2 text-right">{wo.consum_carburant || '—'}</td>
                     <td className="px-3 py-2"><Badge tone={statusTone(wo.status)}>{statusLabel(wo.status)}</Badge></td>
                     <td className="px-3 py-2">
-                      <div className="flex gap-1">
+                      {canWorkOrdersManage ? <div className="flex gap-1">
                         {wo.status === 'deschis' ? <button className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100" onClick={() => closeWorkOrder(wo.id)}>✅ Închide</button> : null}
                         <button className="text-xs text-primary-600 hover:underline" onClick={() => { setWoEditing(wo); setWoForm({ ...wo }); setWoModal(true) }}>✏️</button>
                         <button className="text-xs text-rose-500 hover:underline" onClick={() => deleteWorkOrder(wo.id)}>🗑️</button>
-                      </div>
+                      </div> : null}
                     </td>
                   </tr>
                 )) : (
@@ -1954,15 +2076,15 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           <Card>
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Luna" type="month" value={fuelLuna} onChange={e => setFuelLuna(e.target.value)} />
-              <Button onClick={() => { setFuelForm({ ...emptyFuelForm }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare</Button>
-              <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
+              {canFuelManage ? <Button onClick={() => { setFuelForm({ ...emptyFuelForm }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare</Button> : null}
+              {canReportsExport ? <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
                 fuelLogs.map(f => ({
                   'Data': f.data, 'Utilaj': f.asset_name, 'Document': f.nr_document,
                   'Furnizor': f.furnizor, 'Litri': f.cantitate_litri, 'Preț/l': f.pret_litru,
                   'Valoare': f.valoare_totala, 'Km/Ore': f.km_ore, 'Operator': f.sofer_operator,
                 })),
                 `Alimentari_${fuelLuna}`
-              ) }]} />
+              ) }]} /> : null}
               <div className="ml-auto text-sm text-slate-500">
                 Total: <strong className="text-slate-800">{Number(fuelTotals.cantitate_litri || 0).toFixed(2)} L</strong>
                 <span className="mx-2">·</span>
@@ -2001,10 +2123,10 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                     <td className="px-3 py-2 text-right">{f.km_ore || '—'}</td>
                     <td className="px-3 py-2">{f.sofer_operator || '—'}</td>
                     <td className="px-3 py-2">
-                      <div className="flex gap-1">
+                      {canFuelManage ? <div className="flex gap-1">
                         <button className="text-xs text-primary-600 hover:underline" onClick={() => { setFuelEditing(f); setFuelForm({ ...f }); setFuelModal(true) }}>✏️</button>
                         <button className="text-xs text-rose-500 hover:underline" onClick={() => deleteFuelLog(f.id)}>🗑️</button>
-                      </div>
+                      </div> : null}
                     </td>
                   </tr>
                 )) : (
@@ -2028,7 +2150,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   Momentan avem adaptor compatibil PIUSI. Direcția corectă este să putem adăuga și alți furnizori sau fișiere CSV/Excel, iar alimentările manuale rămân mereu disponibile.
                 </p>
               </div>
-              <Button variant="secondary" onClick={() => { setFuelForm({ ...emptyFuelForm }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare manuală</Button>
+              {canFuelManage ? <Button variant="secondary" onClick={() => { setFuelForm({ ...emptyFuelForm }); setFuelEditing(null); setFuelModal(true) }}>+ Alimentare manuală</Button> : null}
             </div>
           </Card>
 
@@ -2042,7 +2164,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 { value: 'false', label: 'Neprocesate' },
                 { value: 'true', label: 'Procesate' },
               ]} />
-              <Button onClick={importPiusiInFaz}>📥 Import în FAZ</Button>
+              {canImport ? <Button onClick={importPiusiInFaz}>📥 Import în FAZ</Button> : null}
               <DropdownMenu label="Actiuni" items={[{ label: 'Reincarca', onClick: loadPiusiFuelRows }]} />
             </div>
           </Card>
@@ -2109,8 +2231,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
         <div className="grid gap-4">
           <Card>
             <div className="flex flex-wrap items-end gap-3">
-              <Button onClick={() => { setIntForm({ ...emptyIntForm }); setIntEditing(null); setIntModal(true) }}>+ Intervenție nouă</Button>
-              <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
+              {canMaintenanceManage ? <Button onClick={() => { setIntForm({ ...emptyIntForm }); setIntEditing(null); setIntModal(true) }}>+ Intervenție nouă</Button> : null}
+              {canReportsExport ? <DropdownMenu label="Export" items={[{ label: 'Export Excel', onClick: () => exportExcel(
                 interventions.map(i => ({
                   'Utilaj': i.asset_name, 'Tip': i.tip, 'Dată intrare': i.data_intrare,
                   'Dată ieșire': i.data_iesire || '—', 'Descriere': i.descriere,
@@ -2119,7 +2241,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   'Furnizor': i.furnizor, 'Factură': i.nr_factura, 'Mecanic': i.mecanic, 'Status': i.status,
                 })),
                 `Interventii_${currentMonth()}`
-              ) }]} />
+              ) }]} /> : null}
               <div className="flex gap-2 ml-auto text-sm text-slate-500 items-end">
                 <span>Total service: <strong className="text-slate-800">{interventions.reduce((s, i) => s + (Number(i.cost_total || i.cost) || 0), 0).toFixed(2)} RON</strong></span>
                 <span>În lucru: <strong className="text-rose-600">{interventions.filter(i => i.status === 'in_lucru').length}</strong></span>
@@ -2157,10 +2279,10 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                     </td>
                     <td className="px-3 py-2"><Badge tone={statusTone(i.status)}>{statusLabel(i.status)}</Badge></td>
                     <td className="px-3 py-2">
-                      <div className="flex gap-1">
+                      {canMaintenanceManage ? <div className="flex gap-1">
                         {i.status === 'in_lucru' ? <button className="rounded bg-green-50 px-2 py-1 text-xs text-green-700 hover:bg-green-100" onClick={() => closeIntervention(i.id)}>✅ Finalizat</button> : null}
                         <button className="text-xs text-primary-600 hover:underline" onClick={() => { setIntEditing(i); setIntForm({ ...i }); setIntModal(true) }}>✏️</button>
-                      </div>
+                      </div> : null}
                     </td>
                   </tr>
                 )) : (
@@ -2285,14 +2407,14 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                 <div className="text-sm text-slate-500">RCA/CASCO, ITP, taxe, rovignete și autorizații ISCIR pentru autovehicule și utilaje.</div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => openFleetDoc('asigurare')}>+ RCA/CASCO</Button>
-                <DropdownMenu align="right" label="Actiuni" items={[
+                {canComplianceManage ? <Button onClick={() => openFleetDoc('asigurare')}>+ RCA/CASCO</Button> : null}
+                {canComplianceManage ? <DropdownMenu align="right" label="Actiuni" items={[
                   { label: 'Adauga ITP', onClick: () => openFleetDoc('itp') },
                   { label: 'Adauga taxa', onClick: () => openFleetDoc('taxa') },
                   { label: 'Adauga ISCIR', onClick: () => openFleetDoc('iscir') },
                   { separator: true },
                   { label: 'Reincarca', onClick: loadScadente },
-                ]} />
+                ]} /> : null}
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-1 border-t border-slate-100 pt-3">
@@ -2337,13 +2459,13 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                           {item.asigurator ? <span> · {item.asigurator}</span> : null}
                           {item.furnizor ? <span> · {item.furnizor}</span> : null}
                         </div>
-                        <button
+                        {canComplianceManage ? <button
                           type="button"
                           className="mt-3 text-xs font-semibold text-primary-700 hover:underline"
                           onClick={() => openFleetDoc(item.category === 'asigurare' ? 'asigurare' : item.category, { asset_id: item.asset_id, tip: item.tip })}
                         >
                           Reînnoiește
-                        </button>
+                        </button> : null}
                       </div>
                     )) : (
                       <div className="rounded-lg border border-dashed border-white/80 bg-white/70 p-4 text-center text-sm text-slate-400">Nicio scadență.</div>
@@ -2361,12 +2483,12 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                   <div className="font-semibold text-slate-800">{scadenteSubtab}</div>
                   <div className="text-sm text-slate-500">Adaugă rapid documente noi. Lista completă apare în panoul de expirări în funcție de scadență.</div>
                 </div>
-                <Button onClick={() => openFleetDoc(scadenteSubtab === 'RCA/CASCO' ? 'asigurare' : scadenteSubtab === 'ITP' ? 'itp' : scadenteSubtab === 'Taxe' ? 'taxa' : 'iscir')}>
+                {canComplianceManage ? <Button onClick={() => openFleetDoc(scadenteSubtab === 'RCA/CASCO' ? 'asigurare' : scadenteSubtab === 'ITP' ? 'itp' : scadenteSubtab === 'Taxe' ? 'taxa' : 'iscir')}>
                   + Înregistrare nouă
-                </Button>
+                </Button> : null}
               </div>
               <div className="grid gap-3 md:grid-cols-4">
-                {assets.slice(0, 8).map(asset => (
+                {canComplianceManage ? assets.slice(0, 8).map(asset => (
                   <button
                     key={asset.id}
                     type="button"
@@ -2376,7 +2498,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
                     <div className="font-semibold text-slate-800">{asset.name || asset.registration || asset.cod}</div>
                     <div className="text-xs text-slate-500">{asset.registration || asset.cod || 'Fără număr'}</div>
                   </button>
-                ))}
+                )) : null}
               </div>
             </Card>
           ) : null}
@@ -2384,11 +2506,11 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
           {scadenteSubtab === 'Raport' ? (
             <Card>
               <div className="mb-3 font-semibold text-slate-800">Rapoarte autoMinder</div>
-              <DropdownMenu label="Export" items={[
+              {canReportsExport ? <DropdownMenu label="Export" items={[
                 { label: 'Export asigurari', onClick: () => downloadFleetReport('/fleet/raport-asigurari', `Raport_asigurari_${new Date().getFullYear()}.xlsx`) },
                 { label: 'Export ITP', onClick: () => downloadFleetReport('/fleet/raport-itp', `Raport_ITP_${new Date().getFullYear()}.xlsx`) },
                 { label: 'Plan reinnoire anual', onClick: () => downloadFleetReport('/fleet/raport-scadente-anuale', `Plan_reinnoire_${new Date().getFullYear()}.xlsx`) },
-              ]} />
+              ]} /> : <p className="text-sm text-slate-500">Ai acces la raport, fără drept de export.</p>}
             </Card>
           ) : null}
         </div>
@@ -2401,7 +2523,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Luna" type="month" value={costLuna} onChange={e => setCostLuna(e.target.value)} />
               <Button onClick={loadCostHour}>Calculează</Button>
-              {costHour ? (
+              {costHour && canReportsExport ? (
                 <DropdownMenu label="Export" items={[{
                   label: 'Export Excel',
                   onClick: () => exportExcel(
@@ -2477,7 +2599,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
               <Button onClick={loadFazReport}>Previzualizează</Button>
               {fazReport ? (
                 <>
-                  <Button onClick={generateMechanizationFaz}>🖨️ Generează / Print</Button>
+                  {canGenerateFaz ? <Button onClick={generateMechanizationFaz}>🖨️ Generează / Print</Button> : null}
                 </>
               ) : null}
               <DropdownMenu label="Actiuni" items={[
@@ -2594,7 +2716,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
             <div className="flex flex-wrap items-end gap-3">
               <Input label="Luna" type="month" value={raportLuna} onChange={e => setRaportLuna(e.target.value)} />
               <Button onClick={loadRaport}>📊 Generează</Button>
-              {raport ? (
+              {raport && canReportsExport ? (
                 <DropdownMenu label="Actiuni raport" items={[
                   { label: 'Print / PDF', onClick: printRaport },
                   {
@@ -2725,7 +2847,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       ) : null}
 
       {/* ── MODAL DOCUMENT FLOTĂ ─────────────────────────────────────────────── */}
-      <Modal open={fleetDocModal} title={
+      <Modal open={fleetDocModal && canComplianceManage} title={
         fleetDocKind === 'asigurare' ? 'Poliță asigurare nouă' :
         fleetDocKind === 'itp' ? 'Inspecție ITP nouă' :
         fleetDocKind === 'taxa' ? 'Taxă / Rovignetă nouă' :
@@ -2829,7 +2951,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </Modal>
 
       {/* ── MODAL ASSET PARC ────────────────────────────────────────────────── */}
-      <Modal open={assetModal} title={assetEditing ? 'Editează resursă parc' : (assetForm.category === 'equipment' ? 'Adaugă utilaj' : 'Adaugă autovehicul')} onClose={() => { setAssetModal(false); setAssetEditing(null); setAssetForm(emptyAssetForm) }} size="lg">
+      <Modal open={assetModal && canAssetsManage} title={assetEditing ? 'Editează resursă parc' : (assetForm.category === 'equipment' ? 'Adaugă utilaj' : 'Adaugă autovehicul')} onClose={() => { setAssetModal(false); setAssetEditing(null); setAssetForm(emptyAssetForm) }} size="lg">
         <form className="grid gap-3" onSubmit={saveFleetAsset}>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-slate-700">
             Completează doar ce știi acum. Fișa completă poate fi îmbogățită ulterior cu scadențe, alimentări, intervenții și documente.
@@ -2875,7 +2997,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
         </form>
       </Modal>
 
-      <Modal open={assetTechnicalModal} title="Date tehnice carburant" onClose={() => { setAssetTechnicalModal(false); setAssetTechnicalForm(emptyAssetTechnicalForm) }} size="md">
+      <Modal open={assetTechnicalModal && (canAssetsManage || canFuelManage)} title="Date tehnice carburant" onClose={() => { setAssetTechnicalModal(false); setAssetTechnicalForm(emptyAssetTechnicalForm) }} size="md">
         <form className="grid gap-3" onSubmit={saveAssetTechnical}>
           <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-800">
             Completezi doar ce ajută calculul carburantului pentru <strong>{assetTechnicalForm.asset_name}</strong>.
@@ -2917,7 +3039,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </Modal>
 
       {/* ── MODAL PLANIFICARE ────────────────────────────────────────────────── */}
-      <Modal open={planModal} title={planEditing ? 'Editează planificare' : 'Planificare nouă'} onClose={() => { setPlanModal(false); setPlanEditing(null) }} size="lg">
+      <Modal open={planModal && canPlanningManage} title={planEditing ? 'Editează planificare' : 'Planificare nouă'} onClose={() => { setPlanModal(false); setPlanEditing(null) }} size="lg">
         <form className="grid gap-3" onSubmit={savePlanning}>
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Data" type="date" value={planForm.date} onChange={e => setPlanForm({ ...planForm, date: e.target.value })} required />
@@ -2942,7 +3064,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </Modal>
 
       {/* ── MODAL BON LUCRU ──────────────────────────────────────────────────── */}
-      <Modal open={woModal} title={woEditing ? 'Editează bon de lucru' : 'Bon de lucru nou'} onClose={() => { setWoModal(false); setWoEditing(null) }} size="lg">
+      <Modal open={woModal && canWorkOrdersManage} title={woEditing ? 'Editează bon de lucru' : 'Bon de lucru nou'} onClose={() => { setWoModal(false); setWoEditing(null) }} size="lg">
         <form className="grid gap-3" onSubmit={saveWorkOrder}>
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Data" type="date" value={woForm.date} onChange={e => setWoForm({ ...woForm, date: e.target.value })} required />
@@ -2968,7 +3090,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </Modal>
 
       {/* ── MODAL ALIMENTARE ─────────────────────────────────────────────────── */}
-      <Modal open={fuelModal} title={fuelEditing ? 'Editează alimentare' : 'Alimentare carburant'} onClose={() => { setFuelModal(false); setFuelEditing(null) }} size="lg">
+      <Modal open={fuelModal && canFuelManage} title={fuelEditing ? 'Editează alimentare' : 'Alimentare carburant'} onClose={() => { setFuelModal(false); setFuelEditing(null) }} size="lg">
         <form className="grid gap-3" onSubmit={saveFuelLog}>
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Data" type="date" value={fuelForm.data} onChange={e => setFuelForm({ ...fuelForm, data: e.target.value })} required />
@@ -2994,7 +3116,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </Modal>
 
       {/* ── MODAL INTERVENȚIE ────────────────────────────────────────────────── */}
-      <Modal open={intModal} title={intEditing ? 'Editează intervenție' : 'Intervenție nouă'} onClose={() => { setIntModal(false); setIntEditing(null) }} size="lg">
+      <Modal open={intModal && canMaintenanceManage} title={intEditing ? 'Editează intervenție' : 'Intervenție nouă'} onClose={() => { setIntModal(false); setIntEditing(null) }} size="lg">
         <form className="grid gap-3" onSubmit={saveIntervention}>
           <div className="grid gap-3 md:grid-cols-2">
             <Select label="Utilaj / Vehicul" value={intForm.asset_id} onChange={e => setIntForm({ ...intForm, asset_id: e.target.value })} options={assetOptions} required />
@@ -3033,7 +3155,7 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4p
       </Modal>
 
       {/* ── MODAL PROCESARE SOLICITARE ───────────────────────────────────────── */}
-      <Modal open={reqModal} title="Procesează solicitare mecanizare" onClose={() => { setReqModal(false); setReqItem(null) }}>
+      <Modal open={reqModal && canApproveRequests} title="Procesează solicitare mecanizare" onClose={() => { setReqModal(false); setReqItem(null) }}>
         {reqItem ? (
           <form className="grid gap-3" onSubmit={saveRequest}>
             <div className="rounded-lg bg-slate-50 p-3 text-sm">

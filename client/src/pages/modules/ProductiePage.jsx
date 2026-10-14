@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 import { exportExcel, exportPdf } from '../../utils/export'
 
 const tabs = ['Consumuri', 'Rețete', 'Planuri', 'Raport Zilnic']
@@ -33,13 +34,13 @@ function recipeStatus(recipe) {
   return recipe?.approved || recipe?.aprobat || recipe?.status === 'aprobat'
 }
 
-function componentRows(recipe, asphalt = 1) {
+function componentRows(recipe, outputQuantity = 1) {
   const percentages = recipe?.percentages || recipe?.components || recipe?.componente || {}
   if (Array.isArray(percentages)) return percentages
   return Object.entries(percentages).map(([materialId, value]) => ({
     materialId,
     percent: Number(value || 0),
-    amount: Number(asphalt || 0) * Number(value || 0) / 100,
+    amount: Number(outputQuantity || 0) * Number(value || 0) / 100,
   }))
 }
 
@@ -68,6 +69,20 @@ function EmptyRow({ colSpan, loading }) {
 
 export default function ProductiePage() {
   const { user } = useAuth()
+  const canViewConsumptions = canAccess(user, ['consumptions:view', 'consumptions:create', 'consumptions:export'])
+  const canCreateConsumption = canAccess(user, 'consumptions:create')
+  const canExportConsumptions = canAccess(user, 'consumptions:export')
+  const canViewRecipes = canAccess(user, ['recipes:view', 'recipes:manage'])
+  const canViewPlans = canAccess(user, ['planning:view', 'planning:manage'])
+  const canViewDailyReport = canAccess(user, ['consumptions:view', 'consumptions:export'])
+  const canLinkInventory = canAccess(user, ['consumptions:create', 'stock_operations:create'])
+  const visibleTabs = tabs.filter(tab => {
+    if (tab === 'Consumuri') return canViewConsumptions
+    if (tab === 'Rețete') return canViewRecipes
+    if (tab === 'Planuri') return canViewPlans
+    if (tab === 'Raport Zilnic') return canViewDailyReport
+    return false
+  })
   const [activeTab, setActiveTab] = useState('Consumuri')
   const [consumptions, setConsumptions] = useState([])
   const [recipes, setRecipes] = useState([])
@@ -104,9 +119,9 @@ export default function ProductiePage() {
     setError('')
     try {
       const [consumptionsResponse, recipesResponse, plansResponse] = await Promise.all([
-        api.get('/consumptions'),
-        api.get('/recipes'),
-        api.get('/plans').catch(() => ({ data: { plans: [] } })),
+        canAccess(user, 'consumptions:view') ? api.get('/consumptions') : Promise.resolve({ data: { consumptions: [] } }),
+        canViewRecipes ? api.get('/recipes') : Promise.resolve({ data: { recipes: [] } }),
+        canViewPlans ? api.get('/plans').catch(() => ({ data: { plans: [] } })) : Promise.resolve({ data: { plans: [] } }),
       ])
       const nextRecipes = arrayFrom(recipesResponse.data, ['recipes'])
       setConsumptions(arrayFrom(consumptionsResponse.data, ['consumptions']))
@@ -127,6 +142,10 @@ export default function ProductiePage() {
   useEffect(() => {
     Promise.resolve().then(() => setPage(1))
   }, [activeTab, filters])
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) setActiveTab(visibleTabs[0] || '')
+  }, [activeTab, canViewConsumptions, canViewRecipes, canViewPlans, canViewDailyReport])
 
   const filteredConsumptions = useMemo(() => {
     return consumptions.filter(item => {
@@ -214,7 +233,7 @@ export default function ProductiePage() {
     const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="UTF-8"><title>Raport Zilnic Producție</title>
 <style>body{font-family:Arial,sans-serif;font-size:10pt;margin:1.5cm}h2{text-align:center}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px 6px}th{background:#f0f0f0;text-align:center}.total{font-weight:bold;background:#e8e8e8}@media print{body{margin:1cm}}</style></head><body>
 <h2>RAPORT ZILNIC PRODUCȚIE / OPERAȚIUNI</h2>
-<p style="text-align:center">Luna: <strong>${raportZilnic.luna}</strong> · Total: <strong>${raportZilnic.totals?.tone_total} tone</strong> în <strong>${raportZilnic.totals?.zile_productie} zile</strong></p>
+<p style="text-align:center">Luna: <strong>${raportZilnic.luna}</strong> · Total: <strong>${raportZilnic.totals?.tone_total} unități</strong> în <strong>${raportZilnic.totals?.zile_productie} zile</strong></p>
 <table><thead><tr><th>Data</th><th>Output</th><th>Nr. operațiuni</th><th>Rețete / fluxuri</th><th>Consum resurse</th></tr></thead>
 <tbody>${rows}<tr class="total"><td colspan="1">TOTAL</td><td style="text-align:right">${raportZilnic.totals?.tone_total}</td><td style="text-align:right">${raportZilnic.totals?.productii_total}</td><td colspan="2"></td></tr></tbody></table>
 </body></html>`
@@ -261,7 +280,7 @@ export default function ProductiePage() {
         tone: recipes.length && approvedRecipes ? 'success' : recipes.length ? 'warning' : 'danger',
         done: recipes.length > 0 && approvedRecipes > 0,
         actionLabel: 'Vezi rețete',
-        action: () => setActiveTab('Rețete'),
+        action: canViewRecipes ? () => setActiveTab('Rețete') : null,
       },
       {
         key: 'plans',
@@ -273,7 +292,7 @@ export default function ProductiePage() {
         tone: plans.length ? (openPlans ? 'warning' : 'success') : 'neutral',
         done: plans.length > 0,
         actionLabel: 'Vezi planuri',
-        action: () => setActiveTab('Planuri'),
+        action: canViewPlans ? () => setActiveTab('Planuri') : null,
       },
       {
         key: 'consumption',
@@ -285,7 +304,9 @@ export default function ProductiePage() {
         tone: monthConsumptions.length ? 'success' : 'warning',
         done: monthConsumptions.length > 0,
         actionLabel: monthConsumptions.length ? 'Vezi consumuri' : '+ Adaugă consum',
-        action: monthConsumptions.length ? () => setActiveTab('Consumuri') : () => setModalOpen(true),
+        action: canViewConsumptions
+          ? (monthConsumptions.length || !canCreateConsumption ? () => setActiveTab('Consumuri') : () => setModalOpen(true))
+          : null,
       },
       {
         key: 'inventory',
@@ -297,7 +318,7 @@ export default function ProductiePage() {
         tone: unlinkedConsumptions ? 'warning' : 'success',
         done: unlinkedConsumptions === 0,
         actionLabel: 'Legare Gestiune',
-        action: () => setActiveTab('Raport Zilnic'),
+        action: canViewDailyReport ? () => setActiveTab('Raport Zilnic') : null,
       },
       {
         key: 'report',
@@ -309,10 +330,10 @@ export default function ProductiePage() {
         tone: reportReady ? 'success' : 'neutral',
         done: reportReady,
         actionLabel: reportReady ? 'Vezi raport' : 'Generează raport',
-        action: () => {
+        action: canViewDailyReport ? () => {
           setActiveTab('Raport Zilnic')
           if (!reportReady) Promise.resolve().then(() => loadRaportZilnic())
-        },
+        } : null,
       },
       {
         key: 'control',
@@ -322,24 +343,25 @@ export default function ProductiePage() {
         tone: monthConsumptions.length && unlinkedConsumptions === 0 ? 'success' : 'neutral',
         done: monthConsumptions.length > 0 && unlinkedConsumptions === 0,
         actionLabel: 'Export / raport',
-        action: () => setActiveTab('Consumuri'),
+        action: canViewConsumptions ? () => setActiveTab('Consumuri') : null,
       },
     ]
 
-    const next = steps.find(step => !step.done && step.action) || steps.find(step => step.action)
+    const accessibleSteps = steps.filter(step => step.action)
+    const next = accessibleSteps.find(step => !step.done) || accessibleSteps[0]
     return {
-      steps,
+      steps: accessibleSteps,
       next,
-      doneCount: steps.filter(step => step.done).length,
-      totalCount: steps.length,
+      doneCount: accessibleSteps.filter(step => step.done).length,
+      totalCount: accessibleSteps.length,
       tone: next && !next.done ? next.tone : 'success',
       currentMonth,
     }
-  }, [consumptions, plans, raportLuna, raportZilnic, recipes])
+  }, [canCreateConsumption, canViewConsumptions, canViewDailyReport, canViewPlans, canViewRecipes, consumptions, plans, raportLuna, raportZilnic, recipes])
 
   return (
     <div className="module-workspace production-workspace min-w-0 grid gap-5">
-      <PageHeader title="Producție / Operațiuni" subtitle="Consumuri, rețete, fluxuri și planuri de activitate operațională." actions={[<Button key="create" onClick={() => setModalOpen(true)}>Adaugă nou</Button>]} />
+      <PageHeader title="Producție / Operațiuni" subtitle="Consumuri, rețete, fluxuri și planuri de activitate operațională." actions={canCreateConsumption ? [<Button key="create" onClick={() => setModalOpen(true)}>Adaugă nou</Button>] : []} />
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
 
@@ -357,7 +379,7 @@ export default function ProductiePage() {
                   <div className="font-semibold text-slate-900">{productionFlow.next?.title || 'Fluxul de producție este pregătit.'}</div>
                 </div>
                 <p className="mt-2 text-sm text-slate-700">{productionFlow.next?.detail || 'Poți continua cu planificare, realizare sau raportare.'}</p>
-                <p className="mt-1 text-xs text-slate-500">Panoul este generic: poate descrie asfalt, beton, mobilier, atelier sau orice producție unde ai rețetă, consum, output și cost.</p>
+                <p className="mt-1 text-xs text-slate-500">Panoul este generic și poate descrie orice producție sau operațiune cu rețetă, consum, output și cost.</p>
               </div>
               {productionFlow.next?.action ? (
                 <Button size="sm" variant={productionFlow.next.done ? 'secondary' : 'primary'} onClick={productionFlow.next.action}>
@@ -395,7 +417,7 @@ export default function ProductiePage() {
 
       <Card>
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-          {tabs.map(tab => (
+          {visibleTabs.map(tab => (
             <Button
               key={tab}
               variant={activeTab === tab ? 'primary' : 'secondary'}
@@ -438,7 +460,7 @@ export default function ProductiePage() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-base font-semibold text-slate-900">Consumuri</h3>
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => exportExcel(
+              {canExportConsumptions ? <Button variant="secondary" onClick={() => exportExcel(
                 filteredConsumptions.map(item => ({
                   'Dată': item.date || item.data || '',
                   'Rețetă': item.recipeName || item.reteta || '',
@@ -447,26 +469,26 @@ export default function ProductiePage() {
                   'Lucrare': item.jobName || item.lucrare || '',
                 })),
                 `Consumuri_Productie_${filters.from || filters.date || new Date().toISOString().slice(0,10)}`
-              )}>📊 Excel</Button>
-              <Button variant="secondary" onClick={() => exportPdf({
+              )}>📊 Excel</Button> : null}
+              {canExportConsumptions ? <Button variant="secondary" onClick={() => exportPdf({
                 title: 'Raport Consumuri Producție',
                 subtitle: `Perioadă: ${filters.from || '-'} → ${filters.to || '-'} · ${filteredConsumptions.length} înregistrări`,
                 columns: [
                   { key: 'Dată', label: 'Dată' },
                   { key: 'Rețetă', label: 'Rețetă' },
-                  { key: 'Tone', label: 'Tone', align: 'right' },
+                  { key: 'Cantitate', label: 'Cantitate', align: 'right' },
                   { key: 'Operator', label: 'Operator' },
                   { key: 'Lucrare', label: 'Lucrare' },
                 ],
                 rows: filteredConsumptions.map(item => ({
                   'Dată': item.date || item.data || '',
                   'Rețetă': item.recipeName || item.reteta || '',
-                  'Tone': Number(item.asphalt || item.tone || 0).toLocaleString('ro-RO'),
+                  'Cantitate': Number(item.asphalt || item.tone || 0).toLocaleString('ro-RO'),
                   'Operator': item.operatorName || item.operator || '',
                   'Lucrare': item.jobName || item.lucrare || '',
                 })),
-              })}>🖨️ PDF</Button>
-              <Button onClick={() => setModalOpen(true)}>+ Adaugă</Button>
+              })}>🖨️ PDF</Button> : null}
+              {canCreateConsumption ? <Button onClick={() => setModalOpen(true)}>+ Adaugă</Button> : null}
             </div>
           </div>
           <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
@@ -475,7 +497,7 @@ export default function ProductiePage() {
                 <tr>
                   <th className="px-3 py-2">Dată</th>
                   <th className="px-3 py-2">Rețetă</th>
-                  <th className="px-3 py-2">Tone</th>
+                  <th className="px-3 py-2">Cantitate</th>
                   <th className="px-3 py-2">Operator</th>
                   <th className="px-3 py-2">Lucrare</th>
                 </tr>
@@ -533,7 +555,7 @@ export default function ProductiePage() {
               filteredPlans.map(plan => ({
                 'Dată': plan.date || plan.data || '',
                 'Rețetă': plan.recipeName || plan.reteta || '',
-                'Tone planificate': Number(plan.asphalt || plan.tone || 0),
+                'Cantitate planificată': Number(plan.asphalt || plan.tone || 0),
                 'Status': plan.status || 'planificat',
               })),
               `Planuri_Productie_${new Date().toISOString().slice(0,7)}`
@@ -545,7 +567,7 @@ export default function ProductiePage() {
                 <tr>
                   <th className="px-3 py-2">Dată</th>
                   <th className="px-3 py-2">Rețetă</th>
-                  <th className="px-3 py-2">Tone</th>
+                  <th className="px-3 py-2">Cantitate</th>
                   <th className="px-3 py-2">Status</th>
                 </tr>
               </thead>
@@ -580,7 +602,7 @@ export default function ProductiePage() {
               {raportZilnic ? <Button variant="secondary" onClick={printRaportZilnic}>🖨️ Print</Button> : null}
               {raportZilnic ? (
                 <div className="ml-auto flex gap-4 rounded-lg bg-primary-50 px-4 py-2 text-sm">
-                  <span>🏭 <strong>{raportZilnic.totals?.tone_total}</strong> t produse</span>
+                  <span>🏭 <strong>{raportZilnic.totals?.tone_total}</strong> unități produse</span>
                   <span>📅 <strong>{raportZilnic.totals?.zile_productie}</strong> zile</span>
                   <span>🔄 <strong>{raportZilnic.totals?.productii_total}</strong> producții</span>
                 </div>
@@ -596,7 +618,7 @@ export default function ProductiePage() {
                 <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Data</th>
-                    <th className="px-3 py-2 text-right">Tone produse</th>
+                    <th className="px-3 py-2 text-right">Cantitate produsă</th>
                     <th className="px-3 py-2 text-right">Nr. producții</th>
                     <th className="px-3 py-2">Rețete</th>
                     <th className="px-3 py-2">Consum materii prime</th>
@@ -606,7 +628,7 @@ export default function ProductiePage() {
                   {(raportZilnic.zile || []).length ? (raportZilnic.zile || []).map(z => (
                     <tr key={z.data} className="hover:bg-slate-50">
                       <td className="px-3 py-2 font-medium">{z.data}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-primary-700">{z.tone_total} t</td>
+                      <td className="px-3 py-2 text-right font-semibold text-primary-700">{z.tone_total}</td>
                       <td className="px-3 py-2 text-right">{z.productii}</td>
                       <td className="px-3 py-2 text-slate-600 text-xs">{z.retete || '—'}</td>
                       <td className="px-3 py-2 text-xs text-slate-500">
@@ -620,7 +642,7 @@ export default function ProductiePage() {
                   )}
                   <tr className="bg-slate-100 font-bold">
                     <td className="px-3 py-2">TOTAL</td>
-                    <td className="px-3 py-2 text-right text-primary-700">{raportZilnic.totals?.tone_total} t</td>
+                    <td className="px-3 py-2 text-right text-primary-700">{raportZilnic.totals?.tone_total}</td>
                     <td className="px-3 py-2 text-right">{raportZilnic.totals?.productii_total}</td>
                     <td colSpan="2" />
                   </tr>
@@ -643,7 +665,7 @@ export default function ProductiePage() {
                   <tr>
                     <th className="px-3 py-2">Data</th>
                     <th className="px-3 py-2">Rețetă</th>
-                    <th className="px-3 py-2 text-right">Tone</th>
+                    <th className="px-3 py-2 text-right">Cantitate</th>
                     <th className="px-3 py-2">Lucrare</th>
                     <th className="px-3 py-2">Gestiune</th>
                     <th className="px-3 py-2"></th>
@@ -662,7 +684,7 @@ export default function ProductiePage() {
                           : <Badge tone="neutral">Nelegat</Badge>}
                       </td>
                       <td className="px-3 py-2">
-                        {!c.gestiune_linked ? (
+                        {!c.gestiune_linked && canLinkInventory ? (
                           <button
                             className="rounded bg-primary-50 px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-100 disabled:opacity-50"
                             disabled={linkingId === c.id}
@@ -682,7 +704,7 @@ export default function ProductiePage() {
         </div>
       ) : null}
 
-      <Modal open={modalOpen} title="Adaugă consum nou" onClose={() => setModalOpen(false)}>
+      <Modal open={modalOpen && canCreateConsumption} title="Adaugă consum nou" onClose={() => setModalOpen(false)}>
         <form className="grid gap-4" onSubmit={submitConsumption}>
           <Select
             label="Rețetă"
@@ -691,7 +713,7 @@ export default function ProductiePage() {
             options={recipes.map(recipe => ({ value: recipe.id, label: recipeName(recipe) }))}
             required
           />
-          <Input label="Cantitate tone" type="number" min="0" step="0.01" value={form.asphalt} onChange={event => setForm({ ...form, asphalt: event.target.value })} required />
+          <Input label="Cantitate produsă" type="number" min="0" step="0.01" value={form.asphalt} onChange={event => setForm({ ...form, asphalt: event.target.value })} required />
           <Input label="Lucrare/destinație" value={form.jobName} onChange={event => setForm({ ...form, jobName: event.target.value })} />
           <Input label="Operator" value={user?.name || user?.nume || user?.username || 'Utilizator curent'} readOnly />
           <div className="rounded-md bg-slate-50 p-3">
@@ -717,7 +739,7 @@ export default function ProductiePage() {
           <div className="grid gap-3 text-sm text-slate-700">
             <div><b>Raport:</b> {selectedConsumption.reportNo || selectedConsumption.id}</div>
             <div><b>Rețetă:</b> {selectedConsumption.recipeName}</div>
-            <div><b>Tone:</b> {selectedConsumption.asphalt}</div>
+            <div><b>Cantitate produsă:</b> {selectedConsumption.asphalt}</div>
             <div><b>Lucrare:</b> {selectedConsumption.jobName || '-'}</div>
             <div className="rounded-md bg-slate-50 p-3">
               {(selectedConsumption.materials || []).map(item => (

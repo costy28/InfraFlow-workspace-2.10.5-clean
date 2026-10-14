@@ -517,7 +517,12 @@ function internalFilePath(filePath) {
 }
 
 function requireFleetRead(auth, res) {
-  return requireAnyPermission(auth, res, ['mechanization:view', 'fleet:trip_log_view', 'fleet:faz_view'])
+  return requireAnyPermission(auth, res, [
+    'mechanization:view', 'mechanization:assets_view', 'mechanization:planning_view',
+    'mechanization:work_orders_view', 'mechanization:fuel_view', 'mechanization:maintenance_view',
+    'mechanization:compliance_view', 'mechanization:reports_view',
+    'fleet:trip_log_view', 'fleet:faz_view'
+  ])
 }
 
 router.get('/fleet/assets/:id/full', (req, res) => {
@@ -542,7 +547,7 @@ router.post('/fleet/assets/:id/drivers', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireAnyPermission(auth, res, ['mechanization:assets_manage', 'mechanization:manage'])) return
     ensureAssetDb(auth.db)
     const asset = assetById(auth.db, req.params.id)
     if (!asset) return sendJson(res, 404, { error: 'Vehiculul/utilajul nu a fost gasit.' })
@@ -574,7 +579,7 @@ router.delete('/fleet/assets/:id/drivers/:driverId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireAnyPermission(auth, res, ['mechanization:assets_manage', 'mechanization:manage'])) return
     ensureAssetDb(auth.db)
     const row = auth.db.fleetAssetDrivers.find(item => String(item.id) === String(req.params.driverId) && String(item.asset_id) === String(req.params.id))
     if (!row) return sendJson(res, 404, { error: 'Alocarea nu a fost gasita.' })
@@ -604,7 +609,7 @@ router.post('/fleet/assets/:id/files', raw({ type: () => true, limit: MAX_UPLOAD
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireAnyPermission(auth, res, ['mechanization:assets_manage', 'mechanization:manage'])) return
     ensureAssetDb(auth.db)
     const asset = assetById(auth.db, req.params.id)
     if (!asset) return sendJson(res, 404, { error: 'Vehiculul/utilajul nu a fost gasit.' })
@@ -665,7 +670,7 @@ router.delete('/fleet/assets/:id/files/:fileId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireAnyPermission(auth, res, ['mechanization:assets_manage', 'mechanization:manage'])) return
     ensureAssetDb(auth.db)
     const file = auth.db.fleetAssetFiles.find(item => String(item.id) === String(req.params.fileId) && String(item.asset_id) === String(req.params.id))
     if (!file) return sendJson(res, 404, { error: 'Fisierul nu a fost gasit.' })

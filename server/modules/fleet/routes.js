@@ -12,6 +12,20 @@ const { readDb, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const router = Router()
 
+const FLEET_ASSET_READ_PERMISSIONS = [
+  'mechanization:assets_view', 'mechanization:planning_view', 'mechanization:work_orders_view',
+  'mechanization:fuel_view', 'mechanization:maintenance_view', 'mechanization:compliance_view',
+  'mechanization:reports_view', 'mechanization:request', 'mechanization:approve', 'mechanization:view'
+]
+
+function requireFleetAssetRead(auth, res) {
+  return requireAnyPermission(auth, res, FLEET_ASSET_READ_PERMISSIONS)
+}
+
+function requireFleetArea(auth, res, permission, legacyPermission) {
+  return requireAnyPermission(auth, res, [permission, legacyPermission])
+}
+
 const ROOT = path.resolve(__dirname, '../../..')
 const PORT = Number(process.env.PORT || 4174)
 const PUBLIC_DIR = path.join(ROOT, 'public')
@@ -35,7 +49,7 @@ async function readJsonBody(req) {
 router.get('/fleet-assets', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "mechanization:view")) return;
+  if (!requireFleetAssetRead(auth, res)) return;
   sendJson(res, 200, { assets: fleetAssetsView(auth.db, req.query) });
 })
 
@@ -75,7 +89,7 @@ router.post('/fleet-assets', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:assets_manage', 'mechanization:manage')) return;
     const body = await readJsonBody(req);
     const asset = createFleetAsset(auth.db, auth.user, body);
     addAudit(auth.db, auth.user, "utilaj_adaugat", `${asset.registration || "-"} / ${asset.name}`);
@@ -90,7 +104,7 @@ router.patch('/fleet-assets/:id', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:assets_manage', 'mechanization:manage')) return;
     const body = await readJsonBody(req);
     const asset = updateFleetAsset(auth.db, auth.user, req.params.id, body);
     addAudit(auth.db, auth.user, "utilaj_actualizat", `${asset.registration || "-"} / ${asset.name || "-"}`);
@@ -105,7 +119,7 @@ router.patch('/fleet-assets/:id/active', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:assets_manage', 'mechanization:manage')) return;
     const body = await readJsonBody(req);
     const asset = setFleetAssetActive(auth.db, auth.user, req.params.id, body);
     addAudit(auth.db, auth.user, asset.active === false ? "resursa_parc_arhivata" : "resursa_parc_reactivata", `${asset.registration || "-"} / ${asset.name || "-"} / ${asset.activeReason || "-"}`);
@@ -120,7 +134,7 @@ router.patch('/fleet-assets/:id/technical', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireAnyPermission(auth, res, ['mechanization:assets_manage', 'mechanization:fuel_manage', 'mechanization:manage'])) return;
     const body = await readJsonBody(req);
     const asset = updateFleetAssetTechnical(auth.db, auth.user, req.params.id, body);
     addAudit(auth.db, auth.user, "date_tehnice_carburant_actualizate", `${asset.registration || "-"} / ${asset.name || "-"} / rezervor ${fmt(asset.tankCapacity)} L`);
@@ -134,7 +148,7 @@ router.patch('/fleet-assets/:id/technical', async (req, res, next) => {
 router.get('/fleet-requests', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "mechanization:view")) return;
+  if (!requireAnyPermission(auth, res, ['mechanization:view', 'mechanization:request', 'mechanization:approve'])) return;
   sendJson(res, 200, { requests: (auth.db.fleetRequests || []).slice().sort(sortNewest) });
 })
 
@@ -156,21 +170,21 @@ router.post('/fleet-requests', async (req, res, next) => {
 router.get('/fleet-alerts', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "mechanization:view")) return;
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return;
   sendJson(res, 200, { alerts: buildFleetAlerts(auth.db) });
 })
 
 router.get('/fleet/assets/:id/asigurari', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, { asigurari: fleetRecords(auth.db, 'asigurari').filter(item => String(item.asset_id) === String(req.params.id)) })
 })
 
 router.get('/fleet/asigurari/expirari', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, groupFleetDueItems(buildFleetScadente(auth.db, Number(req.query.zile || 30)).filter(item => item.category === 'asigurare'), Number(req.query.zile || 30)))
 })
 
@@ -178,7 +192,7 @@ router.post('/fleet/asigurari', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = upsertFleetRecord(auth.db, auth.user, 'asigurari', null, normalizeAsigurare(req.body || {}))
     addAudit(auth.db, auth.user, 'fleet_asigurare_created', `${item.tip} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
     writeDb(auth.db)
@@ -190,7 +204,7 @@ router.put('/fleet/asigurari/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = upsertFleetRecord(auth.db, auth.user, 'asigurari', req.params.id, normalizeAsigurare(req.body || {}))
     addAudit(auth.db, auth.user, 'fleet_asigurare_updated', `${item.tip} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
     writeDb(auth.db)
@@ -202,7 +216,7 @@ router.post('/fleet/asigurari/:id/plata', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const asigurare = fleetRecords(auth.db, 'asigurari').find(item => String(item.id) === String(req.params.id))
     if (!asigurare) return sendJson(res, 404, { error: 'Asigurarea nu a fost găsită.' })
     const body = req.body || {}
@@ -226,14 +240,14 @@ router.post('/fleet/asigurari/:id/plata', (req, res, next) => {
 router.get('/fleet/assets/:id/itp', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, { itp: fleetRecords(auth.db, 'itp').filter(item => String(item.asset_id) === String(req.params.id)) })
 })
 
 router.get('/fleet/itp/expirari', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, groupFleetDueItems(buildFleetScadente(auth.db, Number(req.query.zile || 30)).filter(item => item.category === 'itp'), Number(req.query.zile || 30)))
 })
 
@@ -241,7 +255,7 @@ router.post('/fleet/itp', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = upsertFleetRecord(auth.db, auth.user, 'itp', null, normalizeItp(req.body || {}))
     addAudit(auth.db, auth.user, 'fleet_itp_created', fleetAssetNameById(auth.db, item.asset_id))
     writeDb(auth.db)
@@ -253,7 +267,7 @@ router.put('/fleet/itp/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = upsertFleetRecord(auth.db, auth.user, 'itp', req.params.id, normalizeItp(req.body || {}))
     addAudit(auth.db, auth.user, 'fleet_itp_updated', fleetAssetNameById(auth.db, item.asset_id))
     writeDb(auth.db)
@@ -265,7 +279,7 @@ router.post('/fleet/itp/:id/marcheaza-executat', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = fleetRecords(auth.db, 'itp').find(row => String(row.id) === String(req.params.id))
     if (!item) return sendJson(res, 404, { error: 'ITP-ul nu a fost găsit.' })
     Object.assign(item, normalizeItp({ ...item, ...(req.body || {}), executat: true, executat_pe: req.body?.executat_pe || localDate(new Date()) }), { updated_at: new Date().toISOString() })
@@ -278,14 +292,14 @@ router.post('/fleet/itp/:id/marcheaza-executat', (req, res, next) => {
 router.get('/fleet/assets/:id/taxe', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, { taxe: fleetRecords(auth.db, 'taxe').filter(item => String(item.asset_id) === String(req.params.id)) })
 })
 
 router.get('/fleet/taxe/expirari', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, groupFleetDueItems(buildFleetScadente(auth.db, Number(req.query.zile || 7)).filter(item => item.category === 'taxa'), Number(req.query.zile || 7)))
 })
 
@@ -293,7 +307,7 @@ router.post('/fleet/taxe', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = upsertFleetRecord(auth.db, auth.user, 'taxe', null, normalizeTaxa(req.body || {}))
     addAudit(auth.db, auth.user, 'fleet_taxa_created', `${item.tip} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
     writeDb(auth.db)
@@ -305,7 +319,7 @@ router.put('/fleet/taxe/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = upsertFleetRecord(auth.db, auth.user, 'taxe', req.params.id, normalizeTaxa(req.body || {}))
     addAudit(auth.db, auth.user, 'fleet_taxa_updated', `${item.tip} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
     writeDb(auth.db)
@@ -316,14 +330,14 @@ router.put('/fleet/taxe/:id', (req, res, next) => {
 router.get('/fleet/assets/:id/iscir', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, { iscir: fleetRecords(auth.db, 'iscir').filter(item => String(item.asset_id) === String(req.params.id)) })
 })
 
 router.get('/fleet/iscir/expirari', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, groupFleetDueItems(buildFleetScadente(auth.db, Number(req.query.zile || 30)).filter(item => item.category === 'iscir'), Number(req.query.zile || 30)))
 })
 
@@ -331,7 +345,7 @@ router.post('/fleet/iscir', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = upsertFleetRecord(auth.db, auth.user, 'iscir', null, normalizeIscir(req.body || {}))
     addAudit(auth.db, auth.user, 'fleet_iscir_created', `${item.tip_autorizare} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
     writeDb(auth.db)
@@ -343,7 +357,7 @@ router.put('/fleet/iscir/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_manage', 'mechanization:manage')) return
     const item = upsertFleetRecord(auth.db, auth.user, 'iscir', req.params.id, normalizeIscir(req.body || {}))
     addAudit(auth.db, auth.user, 'fleet_iscir_updated', `${item.tip_autorizare} / ${fleetAssetNameById(auth.db, item.asset_id)}`)
     writeDb(auth.db)
@@ -354,14 +368,14 @@ router.put('/fleet/iscir/:id', (req, res, next) => {
 router.get('/fleet/scadente', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return
   sendJson(res, 200, buildFleetScadenteDashboard(auth.db))
 })
 
 router.get('/fleet/raport-asigurari', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:reports_export', 'mechanization:view')) return
   const report = buildFleetAsigurariReport(auth.db, Number(req.query.an || new Date().getFullYear()))
   if (String(req.query.format || '').toLowerCase() === 'xlsx') return sendFleetWorkbook(res, report.rows, `Raport_Asigurari_${report.an}.xlsx`)
   sendJson(res, 200, report)
@@ -370,7 +384,7 @@ router.get('/fleet/raport-asigurari', (req, res) => {
 router.get('/fleet/raport-itp', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:reports_export', 'mechanization:view')) return
   const report = buildFleetItpReport(auth.db, Number(req.query.an || new Date().getFullYear()))
   if (String(req.query.format || '').toLowerCase() === 'xlsx') return sendFleetWorkbook(res, report.rows, `Raport_ITP_${report.an}.xlsx`)
   sendJson(res, 200, report)
@@ -379,7 +393,7 @@ router.get('/fleet/raport-itp', (req, res) => {
 router.get('/fleet/raport-scadente-anuale', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireFleetArea(auth, res, 'mechanization:reports_export', 'mechanization:view')) return
   const report = buildFleetAnnualDueReport(auth.db, Number(req.query.an || new Date().getFullYear()))
   if (String(req.query.format || '').toLowerCase() === 'xlsx') return sendFleetWorkbook(res, report.rows, `Plan_Reinnoire_${report.an}.xlsx`)
   sendJson(res, 200, report)
@@ -389,7 +403,7 @@ router.post('/fleet-assets/import-xml', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:import', 'mechanization:manage')) return;
     const body = await readJsonBody(req, 20_000_000);
     const result = importFleetAssetsFromXml(auth.db, auth.user, body);
     addAudit(auth.db, auth.user, "import_xml_mecanizare", `${result.imported} adaugate, ${result.updated} actualizate, ${result.skipped} sarite`);
@@ -404,7 +418,7 @@ router.get('/fleet-assets/import-preview', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:import', 'mechanization:manage')) return;
     const body = await readJsonBody(req, 20_000_000);
     sendJson(res, 200, previewFleetAssetXmlImport(auth.db, body));
   } catch (error) {
@@ -416,7 +430,7 @@ router.post('/fleet-assets/import-preview', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:import', 'mechanization:manage')) return;
     const body = await readJsonBody(req, 20_000_000);
     sendJson(res, 200, previewFleetAssetXmlImport(auth.db, body));
   } catch (error) {
@@ -427,7 +441,7 @@ router.post('/fleet-assets/import-preview', async (req, res, next) => {
 router.get('/exports/fleet.xlsx', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "mechanization:view")) return;
+  if (!requireFleetArea(auth, res, 'mechanization:reports_export', 'mechanization:view')) return;
   const workbook = buildFleetWorkbook(auth.db);
   sendBuffer(res, 200, workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `mecanizare-${localDate(new Date())}.xlsx`);
 })
@@ -435,7 +449,7 @@ router.get('/exports/fleet.xlsx', (req, res) => {
 router.get('/reports/fleet', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "mechanization:view")) return;
+  if (!requireFleetArea(auth, res, 'mechanization:reports_view', 'mechanization:view')) return;
   sendHtml(res, 200, buildFleetReport(auth.db));
 })
 
@@ -1384,26 +1398,26 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/fleet-assets") {
-    if (!requirePermission(auth, res, "mechanization:view")) return;
+    if (!requireFleetAssetRead(auth, res)) return;
     sendJson(res, 200, { assets: fleetAssetsView(auth.db, Object.fromEntries(url.searchParams.entries())) });
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/api/fleet-alerts") {
-    if (!requirePermission(auth, res, "mechanization:view")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:compliance_view', 'mechanization:view')) return;
     sendJson(res, 200, { alerts: buildFleetAlerts(auth.db) });
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/fleet-assets/import-preview") {
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:import', 'mechanization:manage')) return;
     const body = await readJsonBody(req, 20_000_000);
     sendJson(res, 200, previewFleetAssetXmlImport(auth.db, body));
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/fleet-assets/import-xml") {
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:import', 'mechanization:manage')) return;
     const body = await readJsonBody(req, 20_000_000);
     const result = importFleetAssetsFromXml(auth.db, auth.user, body);
     addAudit(auth.db, auth.user, "import_xml_mecanizare", `${result.imported} adaugate, ${result.updated} actualizate, ${result.skipped} sarite`);
@@ -1413,7 +1427,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/fleet-assets") {
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:assets_manage', 'mechanization:manage')) return;
     const body = await readJsonBody(req);
     const asset = createFleetAsset(auth.db, auth.user, body);
     addAudit(auth.db, auth.user, "utilaj_adaugat", `${asset.registration || "-"} / ${asset.name}`);
@@ -1424,7 +1438,7 @@ async function handleApi(req, res, url) {
 
   const fleetAssetEditMatch = url.pathname.match(/^\/api\/fleet-assets\/([^/]+)$/);
   if ((req.method === "PATCH" || req.method === "PUT") && fleetAssetEditMatch) {
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:assets_manage', 'mechanization:manage')) return;
     const body = await readJsonBody(req);
     const asset = updateFleetAsset(auth.db, auth.user, fleetAssetEditMatch[1], body);
     addAudit(auth.db, auth.user, "utilaj_actualizat", `${asset.registration || "-"} / ${asset.name || "-"}`);
@@ -1435,7 +1449,7 @@ async function handleApi(req, res, url) {
 
   const fleetAssetActiveMatch = url.pathname.match(/^\/api\/fleet-assets\/([^/]+)\/active$/);
   if ((req.method === "PATCH" || req.method === "POST") && fleetAssetActiveMatch) {
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:assets_manage', 'mechanization:manage')) return;
     const body = await readJsonBody(req);
     const asset = setFleetAssetActive(auth.db, auth.user, fleetAssetActiveMatch[1], body);
     addAudit(auth.db, auth.user, asset.active === false ? "resursa_parc_arhivata" : "resursa_parc_reactivata", `${asset.registration || "-"} / ${asset.name || "-"} / ${asset.activeReason || "-"}`);
@@ -1446,7 +1460,7 @@ async function handleApi(req, res, url) {
 
   const fleetAssetTechnicalMatch = url.pathname.match(/^\/api\/fleet-assets\/([^/]+)\/technical$/);
   if ((req.method === "PATCH" || req.method === "POST") && fleetAssetTechnicalMatch) {
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireAnyPermission(auth, res, ['mechanization:assets_manage', 'mechanization:fuel_manage', 'mechanization:manage'])) return;
     const body = await readJsonBody(req);
     const asset = updateFleetAssetTechnical(auth.db, auth.user, fleetAssetTechnicalMatch[1], body);
     addAudit(auth.db, auth.user, "date_tehnice_carburant_actualizate", `${asset.registration || "-"} / ${asset.name || "-"} / rezervor ${fmt(asset.tankCapacity)} L`);
@@ -1457,7 +1471,7 @@ async function handleApi(req, res, url) {
 
   const fleetAssetMeterMatch = url.pathname.match(/^\/api\/fleet-assets\/([^/]+)\/meter$/);
   if (req.method === "POST" && fleetAssetMeterMatch) {
-    if (!requirePermission(auth, res, "mechanization:manage")) return;
+    if (!requireFleetArea(auth, res, 'mechanization:assets_manage', 'mechanization:manage')) return;
     const body = await readJsonBody(req);
     const asset = updateFleetAssetMeter(auth.db, auth.user, fleetAssetMeterMatch[1], body);
     addAudit(auth.db, auth.user, "rulaj_utilaj_actualizat", `${asset.registration || "-"} / ${asset.name || "-"} / ${fmt(asset.currentMeter)} ${fleetMeterUnitLabel(asset.meterUnit)}`);
@@ -1467,7 +1481,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/fleet-requests") {
-    if (!requirePermission(auth, res, "mechanization:view")) return;
+    if (!requireAnyPermission(auth, res, ['mechanization:view', 'mechanization:request', 'mechanization:approve'])) return;
     sendJson(res, 200, { requests: (auth.db.fleetRequests || []).slice().sort(sortNewest) });
     return;
   }

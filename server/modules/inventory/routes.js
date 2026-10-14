@@ -268,7 +268,7 @@ router.post('/initial-stock/complete', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "materials:edit")) return;
+    if (!requireAnyPermission(auth, res, ["gestiune:manage", "materials:edit"])) return;
     const body = await readJsonBody(req);
     const settings = completeInitialStock(auth.db, auth.user, body);
     writeDb(auth.db);
@@ -281,13 +281,13 @@ router.post('/initial-stock/complete', async (req, res, next) => {
 router.get('/materials', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  requirePermission(auth, res, "materials:view") && sendJson(res, 200, { materials: auth.db.materials });
+  requireAnyPermission(auth, res, ["gestiune:view", "gestiune:nir", "gestiune:bon_consum", "gestiune:inventar", "gestiune:manage", "gestiune:reports", "materials:view"]) && sendJson(res, 200, { materials: auth.db.materials });
 })
 
 router.get('/material-options', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requireAnyPermission(auth, res, ["materials:view", "department_requests:create", "department_requests:manage", "technical:worklog"])) return;
+  if (!requireAnyPermission(auth, res, ["gestiune:nir", "gestiune:bon_consum", "gestiune:inventar", "materials:view", "department_requests:create", "department_requests:manage", "technical:worklog", "procurement_orders:create", "procurement_orders:receive", "procurement:receive", "referate:create"])) return;
   sendJson(res, 200, {
     materials: auth.db.materials.map((material) => ({
       id: material.id,
@@ -303,7 +303,7 @@ router.post('/materials', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "materials:edit")) return;
+    if (!requireAnyPermission(auth, res, ["gestiune:manage", "materials:edit"])) return;
     const body = await readJsonBody(req);
     const material = createMaterial(auth.db, auth.user, body);
     addAudit(auth.db, auth.user, "material_adaugat", material.name + " / " + material.unit);
@@ -826,12 +826,26 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/materials") {
-    requirePermission(auth, res, "materials:view") && sendJson(res, 200, { materials: auth.db.materials });
+    requireAnyPermission(auth, res, ["gestiune:view", "gestiune:nir", "gestiune:bon_consum", "gestiune:inventar", "gestiune:manage", "gestiune:reports", "materials:view"]) && sendJson(res, 200, { materials: auth.db.materials });
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/api/material-options") {
-    if (!requireAnyPermission(auth, res, ["materials:view", "department_requests:create", "department_requests:manage", "technical:worklog"])) return;
+    if (!requireAnyPermission(auth, res, [
+      "materials:view",
+      "department_requests:create",
+      "department_requests:manage",
+      "technical:worklog",
+      "deliveries:create",
+      "stock_operations:create",
+      "inventory:entries",
+      "inventory:exits",
+      "inventory:transfers",
+      "referate:create",
+      "gestiune:nir",
+      "gestiune:bon_consum",
+      "gestiune:inventar"
+    ])) return;
     sendJson(res, 200, {
       materials: auth.db.materials.map((material) => ({
         id: material.id,
@@ -979,7 +993,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/materials") {
-    if (!requirePermission(auth, res, "materials:edit")) return;
+    if (!requireAnyPermission(auth, res, ["gestiune:manage", "materials:edit"])) return;
     const body = await readJsonBody(req);
     const material = createMaterial(auth.db, auth.user, body);
     addAudit(auth.db, auth.user, "material_adaugat", `${material.name} / ${material.unit}`);

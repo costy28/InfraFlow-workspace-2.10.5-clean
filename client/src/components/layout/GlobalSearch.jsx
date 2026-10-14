@@ -14,6 +14,7 @@ const navigationItems = [
   { label: 'Stocuri & Depozite', to: '/gestiune', icon: '📦', moduleKey: 'inventory', keywords: 'gestiune materiale nir inventar' },
   { label: 'Producție & Operațiuni', to: '/productie', icon: '🏭', moduleKey: 'production', keywords: 'rețete plan consumuri' },
   { label: 'Flotă, Echipamente & Resurse', to: '/mecanizare', icon: '⚙️', moduleKey: 'fleet', accessKey: 'mechanization', keywords: 'utilaje vehicule foi parcurs faz' },
+  { label: 'Lucrări / Execuție', to: '/asternere', icon: '🛣️', moduleKey: 'technical', accessKey: 'asternere', keywords: 'lucrări execuție rapoarte progres' },
   { label: 'Aprovizionare & Achiziții', to: '/achizitii', icon: '🛒', moduleKey: 'procurement', keywords: 'comenzi furnizori recepții paap' },
   { label: 'Logistică & Transport', to: '/logistica', icon: '🚚', moduleKey: 'logistics', keywords: 'aviz cmr bon transport dovadă livrare trasabilitate' },
   { label: 'Contracte', to: '/contracte', icon: '📑', moduleKey: 'contract_management', keywords: 'dosar contractual alerte consum' },

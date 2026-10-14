@@ -1,9 +1,10 @@
 const { Router } = require('express')
 const crypto = require('crypto')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, authHasPermission } = require('../../core/permissions')
 const { writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
+const { buildWorkflowSnapshot } = require('../documents/engine')
 
 const router = Router()
 const FLOW = [
@@ -23,6 +24,74 @@ const STEP_PERMISSIONS = {
   dir_general: 'referate:dir_general',
   secretariat_final: 'referate:secretariat',
   achizitii_final: 'referate:achizitii',
+}
+
+const ACTOR_PERMISSION_ALIASES = {
+  achizitii: 'referate:achizitii',
+  aprovizionare: 'referate:achizitii',
+  procurement: 'referate:achizitii',
+  gestionar: 'referate:gestionar',
+  gestiune: 'referate:gestionar',
+  secretariat: 'referate:secretariat',
+  cfp: 'referate:cfp',
+  economist: 'referate:cfp',
+  contabilitate: 'referate:contabil_sef',
+  contabil_sef: 'referate:contabil_sef',
+  director_adjunct: 'referate:dir_adjunct',
+  manager: 'referate:dir_general',
+  manager_direct: 'referate:dir_general',
+  director_general: 'referate:dir_general',
+}
+
+function compactKey(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+}
+
+function workflowSnapshotForReferat(db, referat) {
+  return buildWorkflowSnapshot(db, {
+    tip_document: 'referat',
+    tip_id: 'referat',
+    titlu: `Referat ${referat.serie}/${referat.numar}`,
+    dept_initiatoare: referat.departament_id,
+    creat_de: referat.intocmit_de,
+    valoare: referat.valoare_referat,
+    date_json: JSON.stringify({
+      estimated_value: referat.valoare_referat,
+      department: referat.departament_id,
+      source: 'referate',
+      country: db.settings?.country || 'RO',
+    }),
+  }, { id: 'referat', tip_document: 'referat', denumire: 'Referat / necesar intern' })
+}
+
+function configuredStep(referat) {
+  const steps = referat.workflow_snapshot?.steps || []
+  const index = Number(referat.workflow_step_index)
+  return index >= 0 && index < steps.length ? steps[index] : null
+}
+
+function userRoles(user) {
+  return [...(Array.isArray(user?.roles) ? user.roles : []), user?.role].map(compactKey).filter(Boolean)
+}
+
+function canActOnConfiguredStep(auth, referat, step) {
+  if (!step) return false
+  if (auth.user.role === 'superadmin') return true
+  const actorType = String(step.actor_type || 'role')
+  if (actorType === 'department') {
+    const userDepartment = auth.user.departmentId || auth.user.department_id || auth.user.department
+    if (String(userDepartment || '') === String(referat.departament_id || '')) return true
+    return String(step.user_responsabil || '') === String(auth.user.id)
+  }
+  if (['user', 'manager'].includes(actorType)) {
+    return String(step.user_responsabil || '') === String(auth.user.id)
+  }
+  const expectedRole = compactKey(step.rol_responsabil || step.actor_ref)
+  if (expectedRole && userRoles(auth.user).includes(expectedRole)) return true
+  if (String(step.user_responsabil || '') === String(auth.user.id)) return true
+  const permission = ACTOR_PERMISSION_ALIASES[expectedRole]
+    || ACTOR_PERMISSION_ALIASES[compactKey(step.name)]
+  return permission ? authHasPermission(auth, permission) : false
 }
 
 function ensureReferate(db) {
@@ -123,13 +192,21 @@ function fluxFor(db, referatId) {
   return db.referateFlux.filter(item => item.referat_id === referatId).sort((a, b) => String(a.data_actiune).localeCompare(String(b.data_actiune)))
 }
 
-function referatView(db, referat) {
+function referatView(db, referat, auth = null) {
   const department = (db.departments || []).find(item => String(item.id) === String(referat.departament_id))
+  const currentWorkflowStep = configuredStep(referat)
   return {
     ...referat,
     departament: department?.name || department?.denumire || '',
     diferenta_prc: differencePercent(referat),
     flux: fluxFor(db, referat.id),
+    workflow_configured: !!referat.workflow_snapshot,
+    workflow_snapshot: referat.workflow_snapshot || null,
+    current_workflow_step: currentWorkflowStep,
+    workflow_label: referat.workflow_snapshot?.label || '',
+    can_advance: auth ? (referat.status === 'draft'
+      ? authHasPermission(auth, 'referate:create')
+      : canActOnConfiguredStep(auth, referat, currentWorkflowStep)) : false,
   }
 }
 
@@ -217,7 +294,7 @@ router.get('/referate', (req, res) => {
   const status = String(req.query.status || '')
   if (status === 'in_aprobare') rows = rows.filter(item => !['draft', 'aprobat', 'respins'].includes(item.status))
   else if (status) rows = rows.filter(item => item.status === status)
-  sendJson(res, 200, { referate: rows.map(item => referatView(auth.db, item)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))) })
+  sendJson(res, 200, { referate: rows.map(item => referatView(auth.db, item, auth)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))) })
 })
 
 router.post('/referate', (req, res, next) => {
@@ -250,11 +327,13 @@ router.post('/referate', (req, res, next) => {
       created_at: new Date().toISOString(),
     }
     applyContractLink(auth.db, referat, body)
+    referat.workflow_snapshot = workflowSnapshotForReferat(auth.db, referat)
+    referat.workflow_step_index = -1
     auth.db.referate.push(referat)
     addFlux(auth.db, referat, auth.user, 'draft', 'creat', referat.observatii)
     addAudit(auth.db, auth.user, 'referat_creat', `${referat.serie}/${referat.numar} / ${referat.tip}`)
     writeDb(auth.db)
-    sendJson(res, 201, { referat: referatView(auth.db, referat) })
+    sendJson(res, 201, { referat: referatView(auth.db, referat, auth) })
   } catch (error) {
     next(error)
   }
@@ -275,7 +354,7 @@ router.get('/referate/:id', (req, res) => {
   ensureReferate(auth.db)
   const referat = findReferat(auth.db, req.params.id)
   if (!referat) return sendJson(res, 404, { error: 'Referatul nu exista.' })
-  sendJson(res, 200, { referat: referatView(auth.db, referat) })
+  sendJson(res, 200, { referat: referatView(auth.db, referat, auth) })
 })
 
 router.post('/referate/:id/inainteaza', (req, res, next) => {
@@ -286,6 +365,36 @@ router.post('/referate/:id/inainteaza', (req, res, next) => {
     const referat = findReferat(auth.db, req.params.id)
     if (!referat) return sendJson(res, 404, { error: 'Referatul nu exista.' })
     if (['aprobat', 'respins'].includes(referat.status)) return sendJson(res, 409, { error: 'Referatul are deja fluxul inchis.' })
+    if (referat.workflow_snapshot?.steps?.length) {
+      const body = req.body || {}
+      const action = body.actiune === 'respinge' ? 'respins' : 'inainteaza'
+      const currentStep = configuredStep(referat)
+      if (referat.status === 'draft') {
+        if (!requirePermission(auth, res, 'referate:create')) return
+        referat.nr_inregistrare = String(body.nr_inregistrare || `${referat.serie}-${referat.numar}`).trim()
+        referat.data_inregistrare = new Date().toISOString()
+      } else if (!canActOnConfiguredStep(auth, referat, currentStep)) {
+        return sendJson(res, 403, { error: 'Nu ești responsabilul pasului curent din circuit.' })
+      }
+      if (action === 'respins') {
+        referat.status = 'respins'
+      } else if (referat.status === 'draft') {
+        referat.workflow_step_index = 0
+        referat.status = 'in_aprobare'
+      } else if (Number(referat.workflow_step_index) >= referat.workflow_snapshot.steps.length - 1) {
+        referat.status = 'aprobat'
+        createOrder(auth.db, auth.user, referat)
+      } else {
+        referat.workflow_step_index = Number(referat.workflow_step_index) + 1
+        referat.status = 'in_aprobare'
+      }
+      referat.updated_at = new Date().toISOString()
+      const nextStep = configuredStep(referat)
+      addFlux(auth.db, referat, auth.user, nextStep?.name || referat.status, action, body.observatii)
+      addAudit(auth.db, auth.user, `referat_${action}`, `${referat.serie}/${referat.numar} -> ${nextStep?.name || referat.status}`)
+      writeDb(auth.db)
+      return sendJson(res, 200, { referat: referatView(auth.db, referat, auth) })
+    }
     const stepPermission = Object.hasOwn(STEP_PERMISSIONS, referat.status) ? STEP_PERMISSIONS[referat.status] : null
     if (!stepPermission) throwHttp(409, 'Pasul curent al fluxului este invalid.')
     if (!requirePermission(auth, res, stepPermission)) return
@@ -307,7 +416,7 @@ router.post('/referate/:id/inainteaza', (req, res, next) => {
     addFlux(auth.db, referat, auth.user, referat.status, action, body.observatii)
     addAudit(auth.db, auth.user, `referat_${action}`, `${referat.serie}/${referat.numar} -> ${referat.status}`)
     writeDb(auth.db)
-    sendJson(res, 200, { referat: referatView(auth.db, referat) })
+    sendJson(res, 200, { referat: referatView(auth.db, referat, auth) })
   } catch (error) {
     next(error)
   }
@@ -342,7 +451,7 @@ router.post('/referate/:id/receptie', (req, res, next) => {
     }
     addAudit(auth.db, auth.user, 'referat_receptie', `${referat.serie}/${referat.numar} / factura ${value} RON / diferenta ${difference}%`)
     writeDb(auth.db)
-    sendJson(res, 200, { referat: referatView(auth.db, referat), necesita_reaprobare: difference > 5 })
+    sendJson(res, 200, { referat: referatView(auth.db, referat, auth), necesita_reaprobare: difference > 5 })
   } catch (error) {
     next(error)
   }
@@ -355,7 +464,10 @@ function findReferat(db, value) {
 function buildPdfHtml(db, referat) {
   const view = referatView(db, referat)
   const rows = referat.items.map(item => `<tr><td>${item.nr_crt}</td><td>${html(item.denumire)}</td><td>${html(item.caracteristici)}</td><td>${html(item.um)}</td><td class="num">${item.cantitate}</td><td class="num">${item.stoc_magazie}</td><td class="num">${round(item.cantitate * item.pret_unitar + item.valoare_tva)}</td></tr>`).join('')
-  const signatures = ['Intocmit', 'Achizitii', 'Gestionar', 'Economist', 'Contabil Sef', 'Dir. Adj.', 'Dir. General'].map(label => `<td><strong>${label}</strong><br><br><br>Semnatura</td>`).join('')
+  const signatureLabels = referat.workflow_snapshot?.steps?.length
+    ? ['Întocmit', ...referat.workflow_snapshot.steps.map(step => step.name)]
+    : ['Întocmit', 'Achiziții', 'Gestionar', 'Economist', 'Contabil Șef', 'Dir. Adj.', 'Dir. General']
+  const signatures = signatureLabels.map(label => `<td><strong>${html(label)}</strong><br><br><br>Semnatura</td>`).join('')
   const contractInfo = view.contract_numar ? `<br>Contract urmărit: ${html(view.contract_numar)}${view.contract_title ? ` — ${html(view.contract_title)}` : ''}` : ''
   return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Referat ${html(view.serie)}/${view.numar}</title><style>body{font:12px Arial;color:#111;margin:22px}h1{text-align:center;font-size:18px}.meta{display:flex;justify-content:space-between;margin:18px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #222;padding:6px;vertical-align:top}.num{text-align:right}.sign td{height:90px;text-align:center;font-size:10px}.actions{margin-bottom:14px}@media print{.actions{display:none}}</style></head><body><div class="actions"><button onclick="window.print()">Tipareste / Salveaza PDF</button></div><h1>REFERAT DE NECESITATE</h1><div class="meta"><div>Nr. ${html(view.serie)}/${view.numar}<br>Data: ${html(view.data_intocmire)}${contractInfo}</div><div>Tip: ${html(view.tip)}<br>Departament: ${html(view.departament || '-')}</div></div><p>${html(view.observatii || '')}</p><table><thead><tr><th>Nr.</th><th>Denumire</th><th>Caracteristici</th><th>UM</th><th>Cantitate</th><th>Stoc magazie</th><th>Valoare RON</th></tr></thead><tbody>${rows}<tr><td colspan="6"><strong>Total</strong></td><td class="num"><strong>${view.valoare_referat}</strong></td></tr></tbody></table><table class="sign" style="margin-top:28px"><tr>${signatures}</tr></table></body></html>`
 }

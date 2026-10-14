@@ -6,7 +6,7 @@ const crypto = require('crypto')
 const xlsx = require('xlsx')
 const { parseStringPromise } = require('xml2js')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requireAnyPermission } = require('../../core/permissions')
 const { readDb, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 
@@ -156,7 +156,7 @@ function cleanup(file) { if (file?.path && fs.existsSync(file.path)) fs.unlinkSy
 
 router.get('/fleet-import/templates/xlsx', (req, res) => {
   const auth = requireAuth(req, res)
-  if (!auth || !requirePermission(auth, res, 'mechanization:manage')) return
+  if (!auth || !requireAnyPermission(auth, res, ['mechanization:import', 'mechanization:manage'])) return
   res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   res.attachment('InfraFlow-model-import-parc-resurse.xlsx')
   res.send(buildXlsxTemplate())
@@ -164,7 +164,7 @@ router.get('/fleet-import/templates/xlsx', (req, res) => {
 
 router.get('/fleet-import/templates/xml', (req, res) => {
   const auth = requireAuth(req, res)
-  if (!auth || !requirePermission(auth, res, 'mechanization:manage')) return
+  if (!auth || !requireAnyPermission(auth, res, ['mechanization:import', 'mechanization:manage'])) return
   res.type('application/xml; charset=utf-8')
   res.attachment('InfraFlow-model-import-parc-resurse.xml')
   res.send(buildXmlTemplate())
@@ -173,7 +173,7 @@ router.get('/fleet-import/templates/xml', (req, res) => {
 router.post('/fleet-import/file', upload.single('file'), async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requirePermission(auth, res, 'mechanization:manage')) return
+    if (!auth || !requireAnyPermission(auth, res, ['mechanization:import', 'mechanization:manage'])) return
     if (!req.file) {
       const error = new Error('Selectează modelul Excel sau XML completat.')
       error.status = 400

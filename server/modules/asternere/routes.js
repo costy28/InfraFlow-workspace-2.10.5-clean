@@ -1,7 +1,7 @@
 /**
- * InfraFlow — Modul Asternere Asfalt
- * Gestiunea lucrărilor de asfaltare, rapoarte zilnice, progres,
- * și legătura cu Producție Asfalt + Mecanizare.
+ * InfraFlow — Modul Lucrări / Execuție
+ * Gestiunea lucrărilor, rapoarte zilnice, progres, materiale utilizate
+ * și legătura opțională cu Producție / Operațiuni și Parc & Resurse.
  *
  * §67 AGENTS.md
  */
@@ -16,6 +16,17 @@ const { readDb, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 
 const router = Router()
+
+const EXECUTION_READ_PERMISSIONS = ['asternere:view', 'asternere:rapoarte', 'asternere:manage']
+const EXECUTION_REPORT_PERMISSIONS = ['asternere:rapoarte', 'asternere:manage']
+
+function requireExecutionRead(auth, res) {
+  return requireAnyPermission(auth, res, EXECUTION_READ_PERMISSIONS)
+}
+
+function requireExecutionReports(auth, res) {
+  return requireAnyPermission(auth, res, EXECUTION_REPORT_PERMISSIONS)
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -76,6 +87,7 @@ function calcLucrareProgres(lucrare, rapoarte) {
 router.get('/asternere/dashboard', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requireExecutionRead(auth, res)) return
     const db = readDb()
     const a  = ensureDb(db)
     const luna = currentMonth()
@@ -123,6 +135,7 @@ router.get('/asternere/dashboard', (req, res, next) => {
 router.get('/asternere/lucrari', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requireExecutionRead(auth, res)) return
     const db = readDb()
     const a  = ensureDb(db)
     sendJson(res, 200, { lucrari: a.lucrari })
@@ -132,6 +145,7 @@ router.get('/asternere/lucrari', (req, res, next) => {
 router.post('/asternere/lucrari', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requirePermission(auth, res, 'asternere:manage')) return
     const { denumire, contract_nr, beneficiar, data_start,
             data_sfarsit_estimata, km_planificati, mp_planificati,
             centru_cost_id } = req.body || {}
@@ -164,6 +178,7 @@ router.post('/asternere/lucrari', (req, res, next) => {
 router.patch('/asternere/lucrari/:lid', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requirePermission(auth, res, 'asternere:manage')) return
     const db = readDb()
     const a  = ensureDb(db)
     const lucrare = a.lucrari.find(l => l.id === req.params.lid)
@@ -187,6 +202,7 @@ router.patch('/asternere/lucrari/:lid', (req, res, next) => {
 router.delete('/asternere/lucrari/:lid', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requirePermission(auth, res, 'asternere:manage')) return
     const db = readDb()
     const a  = ensureDb(db)
     const lucrare = a.lucrari.find(l => l.id === req.params.lid)
@@ -203,6 +219,7 @@ router.delete('/asternere/lucrari/:lid', (req, res, next) => {
 router.get('/asternere/rapoarte-zilnice', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requireExecutionReports(auth, res)) return
     const db = readDb()
     const a  = ensureDb(db)
     let list = a.rapoarte.filter(r => r.status !== 'sters')
@@ -229,6 +246,7 @@ router.get('/asternere/rapoarte-zilnice', (req, res, next) => {
 router.post('/asternere/rapoarte-zilnice', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requireExecutionReports(auth, res)) return
     const { lucrare_id, data, sector, strat, grosime_cm,
             suprafata_mp, cantitate_tone, temperatura_mix,
             utilaje, sofer_finisor, observatii } = req.body || {}
@@ -267,6 +285,7 @@ router.post('/asternere/rapoarte-zilnice', (req, res, next) => {
 router.patch('/asternere/rapoarte-zilnice/:rid', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requireExecutionReports(auth, res)) return
     const db = readDb()
     const a  = ensureDb(db)
     const raport = a.rapoarte.find(r => r.id === req.params.rid)
@@ -290,6 +309,7 @@ router.patch('/asternere/rapoarte-zilnice/:rid', (req, res, next) => {
 router.delete('/asternere/rapoarte-zilnice/:rid', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requireExecutionReports(auth, res)) return
     const db = readDb()
     const a  = ensureDb(db)
     const raport = a.rapoarte.find(r => r.id === req.params.rid)
@@ -306,6 +326,7 @@ router.delete('/asternere/rapoarte-zilnice/:rid', (req, res, next) => {
 router.get('/asternere/lucrari/:lid/progres', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requireExecutionRead(auth, res)) return
     const db = readDb()
     const a  = ensureDb(db)
     const lucrare = a.lucrari.find(l => l.id === req.params.lid)
@@ -336,15 +357,17 @@ router.get('/asternere/lucrari/:lid/progres', (req, res, next) => {
   } catch (e) { next(e) }
 })
 
-// ─── CONSUM ASFALT — legătură cu Producție ───────────────────────────────────
+// ─── MATERIALE UTILIZATE — legătură compatibilă cu Producție ─────────────────
 
 /**
- * Returnează lista de consumuri din rapoartele de asternere cu posibilitate
+ * Returnează lista de materiale utilizate din rapoartele de execuție, cu posibilitate
  * de a le corela cu producțiile livrate. Opțional filtrare pe lucrare/luna.
  */
+// Endpoint-ul păstrează denumirea legacy pentru compatibilitatea clienților existenți.
 router.get('/asternere/consum-asfalt', (req, res, next) => {
   try {
     const auth = requireAuth(req, res); if (!auth) return
+    if (!requireExecutionRead(auth, res)) return
     const db = readDb()
     const a  = ensureDb(db)
 

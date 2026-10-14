@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -75,6 +76,11 @@ function statFor(stats, key) {
   return stats[key] ?? stats[statsKeys[key]] ?? 0
 }
 
+function referatStatusLabel(referat) {
+  if (referat?.status === 'in_aprobare' && referat?.current_workflow_step?.name) return referat.current_workflow_step.name
+  return flowLabels[referat?.status] || referat?.status
+}
+
 export default function ReferatePage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('')
@@ -92,8 +98,8 @@ export default function ReferatePage() {
   const [form, setForm] = useState({ tip: 'aprovizionare', data_intocmire: today(), departament_id: '', furnizor_manual: '', contract_id: '', observatii: '', items: [emptyLine()] })
   const [flowForm, setFlowForm] = useState({ observatii: '', nr_inregistrare: '' })
   const [receiptForm, setReceiptForm] = useState({ valoare_factura: '', observatii: '' })
-  const permissions = Array.isArray(user?.permissions) ? user.permissions : []
-  const canCreate = permissions.includes('referate:create') || ['admin', 'superadmin'].includes(user?.role)
+  const canCreate = canAccess(user, 'referate:create')
+  const canReceive = canAccess(user, 'referate:receptie')
 
   async function load() {
     setLoading(true)
@@ -102,9 +108,9 @@ export default function ReferatePage() {
       const [list, totals, materialRows, departmentRows, contractRows] = await Promise.all([
         api.get('/referate', { params: activeTab ? { status: activeTab } : {} }),
         api.get('/referate/stats'),
-        api.get('/materials'),
-        api.get('/departments'),
-        api.get('/contracts').catch(() => ({ data: { contracts: [] } })),
+        canCreate ? api.get('/material-options') : Promise.resolve({ data: { materials: [] } }),
+        canCreate ? api.get('/departments') : Promise.resolve({ data: { departments: [] } }),
+        canCreate && canAccess(user, { anyOf: ['legal:contracts', 'legal:manage'] }) ? api.get('/contracts').catch(() => ({ data: { contracts: [] } })) : Promise.resolve({ data: { contracts: [] } }),
       ])
       setReferate(list.data.referate || [])
       setStats(totals.data || {})
@@ -288,6 +294,7 @@ export default function ReferatePage() {
 
   async function createReferat(event) {
     event.preventDefault()
+    if (!canCreate) return
     try {
       await api.post('/referate', form)
       setCreateOpen(false)
@@ -310,6 +317,7 @@ export default function ReferatePage() {
   }
 
   async function advance(actiune = 'inainteaza') {
+    if (!selected?.can_advance) return
     try {
       const response = await api.post(`/referate/${selected.uuid || selected.id}/inainteaza`, { ...flowForm, actiune })
       setSelected(response.data.referat)
@@ -322,6 +330,7 @@ export default function ReferatePage() {
 
   async function receive(event) {
     event.preventDefault()
+    if (!canReceive) return
     try {
       const response = await api.post(`/referate/${selected.uuid || selected.id}/receptie`, receiptForm)
       setSelected(response.data.referat)
@@ -346,7 +355,7 @@ export default function ReferatePage() {
 
   return (
     <div className="module-workspace requisitions-workspace min-w-0 space-y-5">
-      <PageHeader title="Referate" subtitle="Aprovizionare și servicii, cu flux complet de avizare." actions={canCreate ? [<Button key="create" onClick={() => setCreateOpen(true)}>+ Referat nou</Button>] : []} />
+      <PageHeader title="Referate" subtitle="Aprovizionare și servicii, cu circuitul intern configurat de organizație." actions={canCreate ? [<Button key="create" onClick={() => setCreateOpen(true)}>+ Referat nou</Button>] : []} />
 
       <Card
         title="Flux simplu Referate"
@@ -422,10 +431,10 @@ export default function ReferatePage() {
       {message ? <div className="rounded-md border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-700">{message}</div> : null}
 
       <Card title="Lista referatelor" loading={loading}>
-        <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200"><table className="ui-table min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Nr.</th><th className="px-3 py-2">Data</th><th className="px-3 py-2">Tip</th><th className="px-3 py-2">Departament</th><th className="px-3 py-2">Contract</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Valoare</th><th /></tr></thead><tbody className="divide-y divide-slate-100">{referate.length ? referate.map(item => <tr key={item.id}><td className="px-3 py-3 font-medium">{item.serie}/{item.numar}</td><td className="px-3 py-3">{item.data_intocmire}</td><td className="px-3 py-3 capitalize">{item.tip}</td><td className="px-3 py-3">{item.departament || '-'}</td><td className="px-3 py-3 text-xs">{item.contract_numar ? <Badge tone="info">{item.contract_numar}</Badge> : '—'}</td><td className="px-3 py-3"><Badge variant={statusTone(item.status)}>{flowLabels[item.status] || item.status}</Badge></td><td className="px-3 py-3 text-right">{money(item.valoare_referat)} RON</td><td className="px-3 py-3 text-right"><Button size="sm" variant="secondary" onClick={() => openDetails(item)}>Detalii</Button></td></tr>) : <tr><td colSpan="8" className="px-3 py-8 text-center text-slate-500">Nu există referate pentru filtrul selectat.</td></tr>}</tbody></table></div>
+        <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200"><table className="ui-table min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Nr.</th><th className="px-3 py-2">Data</th><th className="px-3 py-2">Tip</th><th className="px-3 py-2">Departament</th><th className="px-3 py-2">Contract</th><th className="px-3 py-2">Status / pas curent</th><th className="px-3 py-2 text-right">Valoare</th><th /></tr></thead><tbody className="divide-y divide-slate-100">{referate.length ? referate.map(item => <tr key={item.id}><td className="px-3 py-3 font-medium">{item.serie}/{item.numar}</td><td className="px-3 py-3">{item.data_intocmire}</td><td className="px-3 py-3 capitalize">{item.tip}</td><td className="px-3 py-3">{item.departament || '-'}</td><td className="px-3 py-3 text-xs">{item.contract_numar ? <Badge tone="info">{item.contract_numar}</Badge> : '—'}</td><td className="px-3 py-3"><Badge variant={statusTone(item.status)}>{referatStatusLabel(item)}</Badge></td><td className="px-3 py-3 text-right">{money(item.valoare_referat)} RON</td><td className="px-3 py-3 text-right"><Button size="sm" variant="secondary" onClick={() => openDetails(item)}>Detalii</Button></td></tr>) : <tr><td colSpan="8" className="px-3 py-8 text-center text-slate-500">Nu există referate pentru filtrul selectat.</td></tr>}</tbody></table></div>
       </Card>
 
-      <Modal open={createOpen} title="Referat nou" size="xl" onClose={() => setCreateOpen(false)}>
+      <Modal open={createOpen && canCreate} title="Referat nou" size="xl" onClose={() => setCreateOpen(false)}>
         <form className="grid gap-4" onSubmit={createReferat}>
           <div className="grid gap-3 md:grid-cols-3"><Select label="Tip" value={form.tip} onChange={event => setForm({ ...form, tip: event.target.value })} options={[{ value: 'aprovizionare', label: 'Aprovizionare' }, { value: 'servicii', label: 'Servicii' }]} /><Input label="Data întocmirii" type="date" value={form.data_intocmire} onChange={event => setForm({ ...form, data_intocmire: event.target.value })} /><Select label="Departament" value={form.departament_id} onChange={event => setForm({ ...form, departament_id: event.target.value })}><option value="">Departamentul utilizatorului</option>{departments.map(item => <option key={item.id} value={item.id}>{item.name || item.denumire}</option>)}</Select></div>
           <Input label="Furnizor propus" value={form.furnizor_manual} onChange={event => setForm({ ...form, furnizor_manual: event.target.value })} />
@@ -440,15 +449,15 @@ export default function ReferatePage() {
       <Modal open={!!selected} title={selected ? `Referat ${selected.serie}/${selected.numar}` : 'Referat'} size="xl" onClose={() => setSelected(null)}>
         {selected ? <div className="grid gap-4">
           {selected.necesita_reaprobare ? <div className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm font-medium text-rose-700">Factura depășește valoarea referatului cu {selected.diferenta_prc}%. Este necesară reaprobare.</div> : null}
-          <div className="flex flex-wrap gap-2"><Badge variant={statusTone(selected.status)}>{flowLabels[selected.status] || selected.status}</Badge>{selected.contract_numar ? <Badge tone="info">Contract {selected.contract_numar}</Badge> : null}<span className="text-sm text-slate-600">{selected.tip} / {selected.departament || '-'}</span><strong className="ml-auto">{money(selected.valoare_referat)} RON</strong></div>
+          <div className="flex flex-wrap gap-2"><Badge variant={statusTone(selected.status)}>{referatStatusLabel(selected)}</Badge>{selected.workflow_configured ? <Badge tone="info">Circuit: {selected.workflow_label || 'configurat'}</Badge> : <Badge tone="warning">Circuit compatibil vechi</Badge>}{selected.contract_numar ? <Badge tone="info">Contract {selected.contract_numar}</Badge> : null}<span className="text-sm text-slate-600">{selected.tip} / {selected.departament || '-'}</span><strong className="ml-auto">{money(selected.valoare_referat)} RON</strong></div>
           <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200"><table className="ui-table min-w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-2">Poziție</th><th>UM</th><th>Cant.</th><th>Stoc magazie</th><th>CPV</th></tr></thead><tbody>{selected.items.map(item => <tr key={item.id} className="border-t"><td className="p-2">{item.denumire}</td><td>{item.um}</td><td>{item.cantitate}</td><td>{item.stoc_magazie}</td><td>{item.cpv_cod || '-'}</td></tr>)}</tbody></table></div>
           <div><h3 className="mb-2 font-semibold">Timeline flux</h3><div className="grid gap-2 border-l-2 border-primary-200 pl-4">{selected.flux.map(item => <div key={item.id} className="rounded border border-slate-200 p-2 text-sm"><strong>{flowLabels[item.pas] || item.pas}</strong> · {item.user_name || '-'}<div className="text-xs text-slate-500">{new Date(item.data_actiune).toLocaleString('ro-RO')} · {item.actiune}</div>{item.observatii ? <div>{item.observatii}</div> : null}</div>)}</div></div>
-          {!['aprobat', 'respins'].includes(selected.status) ? <div className="grid gap-2"><Input label="Nr. înregistrare / observații flux" value={flowForm.nr_inregistrare} onChange={event => setFlowForm({ ...flowForm, nr_inregistrare: event.target.value })} /><Input label="Observații" value={flowForm.observatii} onChange={event => setFlowForm({ ...flowForm, observatii: event.target.value })} /><div className="flex gap-2"><Button onClick={() => advance()}>Înaintează</Button><Button variant="danger" onClick={() => advance('respinge')}>Respinge</Button></div></div> : null}
-          <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={printSelectedReferat}>📄 Tipărește PDF</Button><Button variant="secondary" onClick={() => setReceiveOpen(true)}>Înregistrează recepție</Button></div>
+          {!['aprobat', 'respins'].includes(selected.status) ? <div className="grid gap-2"><Input label="Nr. înregistrare / observații flux" value={flowForm.nr_inregistrare} onChange={event => setFlowForm({ ...flowForm, nr_inregistrare: event.target.value })} /><Input label="Observații" value={flowForm.observatii} onChange={event => setFlowForm({ ...flowForm, observatii: event.target.value })} />{selected.can_advance ? <div className="flex gap-2"><Button onClick={() => advance()}>Înaintează</Button><Button variant="danger" onClick={() => advance('respinge')}>Respinge</Button></div> : <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">Pasul curent așteaptă responsabilul configurat de organizație.</div>}</div> : null}
+          <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={printSelectedReferat}>📄 Tipărește PDF</Button>{canReceive && selected.status === 'aprobat' ? <Button variant="secondary" onClick={() => setReceiveOpen(true)}>Înregistrează recepție</Button> : null}</div>
         </div> : null}
       </Modal>
 
-      <Modal open={receiveOpen} title="Recepție factură" onClose={() => setReceiveOpen(false)}><form className="grid gap-3" onSubmit={receive}><Input label="Valoare factură RON" type="number" min="0" step="0.01" value={receiptForm.valoare_factura} onChange={event => setReceiptForm({ ...receiptForm, valoare_factura: event.target.value })} required /><Input label="Observații" value={receiptForm.observatii} onChange={event => setReceiptForm({ ...receiptForm, observatii: event.target.value })} /><Button type="submit">Salvează recepția</Button></form></Modal>
+      <Modal open={receiveOpen && canReceive} title="Recepție factură" onClose={() => setReceiveOpen(false)}><form className="grid gap-3" onSubmit={receive}><Input label="Valoare factură RON" type="number" min="0" step="0.01" value={receiptForm.valoare_factura} onChange={event => setReceiptForm({ ...receiptForm, valoare_factura: event.target.value })} required /><Input label="Observații" value={receiptForm.observatii} onChange={event => setReceiptForm({ ...receiptForm, observatii: event.target.value })} /><Button type="submit">Salvează recepția</Button></form></Modal>
     </div>
   )
 }

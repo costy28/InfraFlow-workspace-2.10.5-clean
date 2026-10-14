@@ -21,11 +21,15 @@ function invoke(status, permission, action = 'inainteaza') {
     require(name) {
       if (name === 'express') return { Router: () => router }
       if (name.endsWith('/auth')) return { requireAuth: () => ({ db, user: { id: 'u1' } }) }
-      if (name.endsWith('/permissions')) return { requirePermission: (_, res, expected) => {
-        if (expected === permission) return true
-        res.status(403).json({ error: 'Interzis' })
-        return false
-      } }
+      if (name.endsWith('/permissions')) return {
+        requirePermission: (_, res, expected) => {
+          if (expected === permission) return true
+          res.status(403).json({ error: 'Interzis' })
+          return false
+        },
+        authHasPermission: (_, expected) => expected === permission,
+      }
+      if (name === '../documents/engine') return { buildWorkflowSnapshot: () => null }
       if (name.endsWith('/db')) return { writeDb: () => { writes++ } }
       if (name.endsWith('/audit')) return { addAudit() {} }
       return require(name)

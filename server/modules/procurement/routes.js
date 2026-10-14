@@ -403,7 +403,7 @@ function generateProcurementPlan(db, an) {
 router.get('/procurement-orders', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "procurement_orders:view")) return;
+  if (!requireAnyPermission(auth, res, ['procurement_orders:view', 'procurement_orders:create', 'procurement_orders:receive', 'procurement:view', 'procurement:receive'])) return;
   let orders = procurementOrdersView(auth.db).map(order => ({ ...order, lines: orderLines(order), status: order.status === 'open' ? 'emisa' : order.status === 'closed' ? 'receptionata' : order.status }));
   if (req.query.status) orders = orders.filter(order => String(order.status) === String(req.query.status));
   sendJson(res, 200, {
@@ -434,7 +434,7 @@ router.post('/procurement-orders/:uuid/receive', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, "procurement_orders:receive")) return
+    if (!requireAnyPermission(auth, res, ['procurement_orders:receive', 'procurement:receive'])) return
     const body = await readJsonBody(req)
     const result = receiveProcurementOrderV2(auth.db, auth.user, req.params.uuid, body)
     addAudit(auth.db, auth.user, "receptie_comanda", `${result.order.orderNo || req.params.uuid} / ${result.stocuri_actualizate.length} linii`)
@@ -449,7 +449,7 @@ router.post('/procurement-receipts/:receiptId/return', async (req, res, next) =>
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'procurement_orders:receive')) return
+    if (!requireAnyPermission(auth, res, ['procurement_orders:receive', 'procurement:receive'])) return
     const body = await readJsonBody(req)
     const result = returnProcurementReceipt(auth.db, auth.user, req.params.receiptId, body)
     addAudit(auth.db, auth.user, 'retur_receptie', `${result.receipt.nr_nir || result.receipt.id} / ${result.returnRecord.lines.length} linii / ${result.returnRecord.total} RON`)
@@ -463,7 +463,7 @@ router.post('/procurement-receipts/:receiptId/return', async (req, res, next) =>
 router.get('/procurement-orders/:uuid/status', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, "procurement_orders:view")) return
+  if (!requireAnyPermission(auth, res, ['procurement_orders:view', 'procurement_orders:create', 'procurement_orders:receive', 'procurement:view', 'procurement:receive'])) return
   const order = (auth.db.procurementOrders || []).find(item => String(item.uuid || item.id) === String(req.params.uuid))
   if (!order) return sendJson(res, 404, { error: 'Comanda inexistenta.' })
   sendJson(res, 200, { order, linii: orderStatusV2(order) })
@@ -495,7 +495,7 @@ router.post('/procurement/plan', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ["procurement_orders:create", "procurement:receive"])) return
+    if (!requireAnyPermission(auth, res, ["procurement_orders:create", "procurement_orders:receive", "procurement:receive"])) return
     const body = await readJsonBody(req)
     ensureProcurementExtensions(auth.db)
     const an = Number(body.an || new Date().getFullYear() + 1)
@@ -528,7 +528,7 @@ router.get('/procurement/plan/export', (req, res) => {
 router.get('/scale/status', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "procurement_orders:view")) return;
+  if (!requireAnyPermission(auth, res, ['procurement_orders:view', 'procurement:view', 'procurement_orders:receive', 'procurement:receive'])) return;
   sendJson(res, 200, scaleStatus(auth.db.settings));
 })
 
@@ -536,14 +536,14 @@ router.get('/scale/tickets', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
   const url = makeUrl(req);
-  if (!requirePermission(auth, res, "procurement_orders:receive")) return;
+  if (!requireAnyPermission(auth, res, ['procurement_orders:receive', 'procurement:receive'])) return;
   sendJson(res, 200, readScaleTickets(auth.db, url));
 })
 
 router.get('/scale/product-map', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "procurement_orders:receive")) return;
+  if (!requireAnyPermission(auth, res, ['procurement_orders:receive', 'procurement:receive'])) return;
   sendJson(res, 200, { productMap: normalizeScaleProductMap(auth.db.settings?.scaleProductMap || {}) });
 })
 
@@ -551,7 +551,7 @@ router.post('/scale/product-map', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res);
     if (!auth) return;
-    if (!requirePermission(auth, res, "procurement_orders:receive")) return;
+    if (!requireAnyPermission(auth, res, ['procurement_orders:receive', 'procurement:receive'])) return;
     const body = await readJsonBody(req);
     const result = setScaleProductMap(auth.db, auth.user, body);
     addAudit(auth.db, auth.user, "mapare_produs_cantar", `${result.product} -> ${result.materialName || "nemapat"}`);

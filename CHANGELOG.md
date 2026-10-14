@@ -1,3 +1,97 @@
+## v2.12.697 - 2026-10-14
+
+### Permisiuni granulare în Parc & Resurse
+
+- Parcul, planificările, bonurile de lucru, carburantul, mentenanța și conformitatea au drepturi distincte.
+- Importurile, rapoartele și exporturile sunt controlate separat.
+- Utilizatorul vede numai filele și acțiunile permise, inclusiv o filă dedicată solicitărilor.
+- Drepturile istorice de vizualizare și administrare rămân compatibile.
+
+## v2.12.696 - 2026-10-14
+
+### Circuit intern configurabil pentru Referate
+
+- Fiecare companie își definește circuitul Referatelor în Setări → Fluxuri documente.
+- Referatul păstrează snapshotul circuitului activ la creare, inclusiv pașii condiționali.
+- Numai responsabilul pasului curent poate avansa sau respinge documentul.
+- Referatele vechi continuă pe circuitul istoric, fără modificare forțată.
+- PDF-ul reflectă etapele circuitului aplicat documentului.
+
+## v2.12.695 - 2026-10-14
+
+### Permisiuni granulare în Aprovizionare & Achiziții
+
+- Comenzile, recepțiile, cerințele, cântarul și PAAP sunt filtrate după drepturile punctuale.
+- Crearea comenzilor, recepția/returul și administrarea PAAP sunt independente.
+- Drepturile moderne pentru achiziții rămân compatibile cu permisiunile istorice ale comenzilor.
+- Creatorii și receptorii folosesc un nomenclator minimal de materiale, fără acces implicit la gestiunea completă.
+
+## v2.12.694 - 2026-10-14
+
+### Permisiuni granulare în Gestiune / Depozit
+
+- Drepturile Gestiune configurate în roluri controlează acum efectiv NIR, bonuri de consum, inventar, administrare și rapoarte.
+- Permisiunile vechi pentru materiale, stoc și achiziții rămân aliasuri compatibile.
+- Exporturile și ștergerea furnizorilor sunt ascunse fără dreptul punctual necesar.
+- Asistentul depozit nu mai deschide formulare de creare pentru utilizatorii cu acces doar la citire.
+
+## v2.12.693 - 2026-10-14
+
+### Permisiuni granulare în Stocuri
+
+- Filele Stoc curent, Mișcări, Livrări, Transferuri și Consum sunt filtrate după drepturile punctuale.
+- Pagina nu mai apelează API-uri pentru secțiuni la care utilizatorul nu are acces.
+- Livrările, transferurile și consumurile au controale vizuale independente.
+- Utilizatorii autorizați pentru o operațiune primesc numai nomenclatorul minimal necesar, fără acces implicit la stocul complet.
+
+## v2.12.692 - 2026-10-13
+
+### Permisiuni granulare în Producție / Operațiuni
+
+- Filele Consumuri, Rețete, Planuri și Raport zilnic sunt afișate numai când utilizatorul are dreptul punctual corespunzător.
+- Încărcarea inițială nu mai apelează API-urile secțiunilor inaccesibile.
+- Crearea consumurilor, exporturile și legarea cu Gestiune sunt controlate separat.
+- Ghidul de flux prezintă numai pașii pe care utilizatorul îi poate deschide.
+- Etichetele vizibile pentru output folosesc „Cantitate produsă”, fără presupunerea unei unități sau industrii fixe.
+
+## v2.12.691 - 2026-10-13
+
+### Permisiuni granulare pentru Lucrări / Execuție
+
+- API-ul modulului verifică distinct drepturile de vizualizare, raportare și administrare.
+- Crearea, modificarea și anularea lucrărilor necesită permisiunea de administrare.
+- Rapoartele zilnice pot fi operate numai cu permisiunea de raportare sau administrare.
+- Filele, butoanele și acțiunile din interfață sunt filtrate după permisiunile efective.
+- Etichetele vechi „Așternere” din editorul de roluri au fost înlocuite cu „Lucrări / Execuție”.
+
+## v2.12.690 - 2026-10-13
+
+### Lucrări și execuție cu terminologie generică
+
+- Fostul tab „Consum asfalt” este prezentat ca „Materiale utilizate”.
+- Straturile rutiere sunt prezentate ca etape de execuție, fără modificarea valorilor existente.
+- „Șofer finisor”, „temperatură mix” și indicatorii specifici asfaltării au fost înlocuiți cu termeni operaționali neutri.
+- Endpointul intern legacy rămâne disponibil pentru compatibilitatea datelor și instalărilor existente.
+
+## v2.12.689 - 2026-10-13
+
+### Acces direct protejat de modulele efective
+
+- Permisiunile implicite de angajat sunt filtrate server-side prin aceleași entitlements ca rolurile configurate.
+- Accesarea directă a unui URL nu mai deschide un modul dezactivat doar pe baza unei permisiuni reziduale.
+- Garda frontend verifică modulul canonic înaintea excepției pentru rolurile administrative și înaintea permisiunii punctuale.
+- Rutele CRM folosesc aceeași regulă canonică de acces ca meniul și căutarea globală.
+
+## v2.12.688 - 2026-10-13
+
+### Drepturi efective aplicate unitar
+
+- Sesiunile autentificate expun lista canonică a modulelor efective rezultate din licență și activarea organizației.
+- Permisiunile rolurilor implicite și personalizate sunt filtrate server-side după aceleași drepturi efective.
+- Meniul lateral și căutarea globală folosesc cheile canonice și nu mai afișează module inactive sau nelicențiate.
+- Aliasurile istorice de licență rămân acceptate pentru compatibilitate.
+- Modulele Core rămân disponibile conform catalogului canonic.
+
 ## v2.12.687 - 2026-10-13
 
 ### Catalog canonic module și drepturi efective

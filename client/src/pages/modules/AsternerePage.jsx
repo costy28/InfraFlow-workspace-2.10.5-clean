@@ -2,7 +2,7 @@
  * InfraFlow — Modul Lucrări / Execuție
  * §67 AGENTS.md
  *
- * Tabs: Dashboard | Lucrări | Rapoarte zilnice | Progres lucrări | Consum asfalt
+ * Tabs: Dashboard | Lucrări | Rapoarte zilnice | Progres lucrări | Materiale utilizate
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -11,15 +11,17 @@ import {
 } from 'recharts'
 import api from '../../api/client'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 // ─── constante ────────────────────────────────────────────────────────────────
 
-const TABS = ['Dashboard', 'Lucrări', 'Rapoarte zilnice', 'Progres lucrări', 'Consum asfalt']
+const TABS = ['Dashboard', 'Lucrări', 'Rapoarte zilnice', 'Progres lucrări', 'Materiale utilizate']
 
 const STRATURI = [
-  { value: 'fundatie', label: 'Fundație' },
-  { value: 'legatura', label: 'Legătură' },
-  { value: 'uzura',    label: 'Uzură' },
+  { value: 'fundatie', label: 'Etapă inițială' },
+  { value: 'legatura', label: 'Etapă intermediară' },
+  { value: 'uzura',    label: 'Etapă finală' },
 ]
 
 const STATUS_LUCRARE = [
@@ -29,7 +31,7 @@ const STATUS_LUCRARE = [
   { value: 'anulata',  label: 'Anulată' },
 ]
 
-const STRAT_LABELS = { fundatie: 'Fundație', legatura: 'Legătură', uzura: 'Uzură' }
+const STRAT_LABELS = { fundatie: 'Etapă inițială', legatura: 'Etapă intermediară', uzura: 'Etapă finală' }
 
 // ─── helpers UI ───────────────────────────────────────────────────────────────
 
@@ -111,6 +113,15 @@ const selectCls = inputCls
 // ─── COMPONENT PRINCIPAL ─────────────────────────────────────────────────────
 
 export default function AsternerePage() {
+  const { user } = useAuth()
+  const canView = canAccess(user, ['asternere:view', 'asternere:rapoarte', 'asternere:manage'])
+  const canReport = canAccess(user, ['asternere:rapoarte', 'asternere:manage'])
+  const canManage = canAccess(user, 'asternere:manage')
+  const visibleTabs = TABS.filter(item => {
+    if (item === 'Lucrări') return canView
+    if (item === 'Rapoarte zilnice') return canReport
+    return canView || canReport
+  })
   const [tab, setTab] = useState('Dashboard')
   const [lucrari, setLucrari]   = useState([])
   const [rapoarte, setRapoarte] = useState([])
@@ -216,8 +227,12 @@ export default function AsternerePage() {
   }, [tab, progresLucrareId])
 
   useEffect(() => {
-    if (tab === 'Consum asfalt') loadConsum()
+    if (tab === 'Materiale utilizate') loadConsum()
   }, [tab, consumFilter])
+
+  useEffect(() => {
+    if (!visibleTabs.includes(tab)) setTab(visibleTabs[0] || 'Dashboard')
+  }, [tab, canView, canReport, canManage])
 
   // ─── handlers lucrare ───────────────────────────────────────────────────────
 
@@ -410,20 +425,20 @@ export default function AsternerePage() {
       <div>
         <div class="kpi"><div class="kpi-v">${procent_finalizare}%</div><div class="kpi-l">Procent finalizare</div></div>
         <div class="kpi"><div class="kpi-v">${total_mp_realizati.toLocaleString('ro-RO')} m²</div><div class="kpi-l">mp realizați / ${total_mp_planificati.toLocaleString('ro-RO')} planificați</div></div>
-        <div class="kpi"><div class="kpi-v">${total_tone_consumate.toLocaleString('ro-RO')} t</div><div class="kpi-l">Tone consumate</div></div>
+        <div class="kpi"><div class="kpi-v">${total_tone_consumate.toLocaleString('ro-RO')} t</div><div class="kpi-l">Cantitate utilizată</div></div>
       </div>
       <div style="margin:14px 0">
         <div style="font-size:12px;color:#64748b">Progres mp</div>
         <div class="progress-bar"><div class="progress-fill" style="width:${procent_finalizare}%"></div></div>
       </div>
-      <h3>Consum per strat</h3>
-      <table><tr><th>Strat</th><th>mp realizați</th></tr>
-        <tr><td>Fundație</td><td>${consum_per_strat.fundatie.toLocaleString('ro-RO')} m²</td></tr>
-        <tr><td>Legătură</td><td>${consum_per_strat.legatura.toLocaleString('ro-RO')} m²</td></tr>
-        <tr><td>Uzură</td><td>${consum_per_strat.uzura.toLocaleString('ro-RO')} m²</td></tr>
+      <h3>Realizare pe etape</h3>
+      <table><tr><th>Etapă</th><th>mp realizați</th></tr>
+        <tr><td>Etapă inițială</td><td>${consum_per_strat.fundatie.toLocaleString('ro-RO')} m²</td></tr>
+        <tr><td>Etapă intermediară</td><td>${consum_per_strat.legatura.toLocaleString('ro-RO')} m²</td></tr>
+        <tr><td>Etapă finală</td><td>${consum_per_strat.uzura.toLocaleString('ro-RO')} m²</td></tr>
       </table>
       <h3>Rapoarte zilnice (${rapoarte.length})</h3>
-      <table><tr><th>Data</th><th>Sector</th><th>Strat</th><th>Grosime</th><th>mp</th><th>Tone</th><th>T mix</th></tr>
+      <table><tr><th>Data</th><th>Sector / zonă</th><th>Etapă</th><th>Grosime</th><th>mp</th><th>Cantitate (t)</th><th>T material</th></tr>
         ${rapoarte.map(r => `<tr>
           <td>${r.data || '—'}</td><td>${r.sector || '—'}</td>
           <td>${STRAT_LABELS[r.strat] || r.strat || '—'}</td>
@@ -454,13 +469,13 @@ export default function AsternerePage() {
           <p className="text-sm text-slate-500">Lucrări, rapoarte zilnice, progres, consum și recepții operaționale</p>
         </div>
         <div className="flex gap-2">
-          {tab === 'Lucrări' && (
+          {tab === 'Lucrări' && canManage && (
             <button onClick={openLucrareCreate}
               className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
               + Lucrare nouă
             </button>
           )}
-          {tab === 'Rapoarte zilnice' && (
+          {tab === 'Rapoarte zilnice' && canReport && (
             <button onClick={openRaportCreate}
               className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
               + Raport zilnic
@@ -471,7 +486,7 @@ export default function AsternerePage() {
 
       {/* Tabs */}
       <div className="mb-6 flex flex-wrap gap-1 border-b border-slate-200 pb-0">
-        {TABS.map(t => (
+        {visibleTabs.map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`rounded-t-lg px-4 py-2 text-sm font-medium transition ${
               tab === t
@@ -504,7 +519,7 @@ export default function AsternerePage() {
                 <KpiCard icon="📐" label="mp realizați luna aceasta"
                   value={`${fmtNum(dashboard.total_mp_realizat_luna)} m²`}
                   color="text-green-700" />
-                <KpiCard icon="⚖️" label="Tone puse în operă"
+                <KpiCard icon="⚖️" label="Cantitate pusă în operă"
                   value={`${fmtNum(dashboard.total_tone_luna, 1)} t`}
                   color="text-amber-700" />
                 <KpiCard icon="📊" label="Progres mediu lucrări"
@@ -590,14 +605,14 @@ export default function AsternerePage() {
                     <td className="px-4 py-2">{l.data_start || '—'}</td>
                     <td className="px-4 py-2">{statusBadge(l.status)}</td>
                     <td className="px-4 py-2">
-                      <div className="flex gap-2">
+                      {canManage && <div className="flex gap-2">
                         <button onClick={() => openLucrareEdit(l)}
                           className="rounded px-2 py-1 text-xs text-primary-600 hover:bg-primary-50">Editează</button>
                         {l.status !== 'anulata' && (
                           <button onClick={() => deleteLucrare(l.id)}
                             className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Anulează</button>
                         )}
-                      </div>
+                      </div>}
                     </td>
                   </tr>
                 ))}
@@ -629,7 +644,7 @@ export default function AsternerePage() {
                     <th className="px-4 py-2">Data</th>
                     <th className="px-4 py-2">Lucrare</th>
                     <th className="px-4 py-2">Sector</th>
-                    <th className="px-4 py-2">Strat</th>
+                    <th className="px-4 py-2">Etapă</th>
                     <th className="px-4 py-2 text-right">mp</th>
                     <th className="px-4 py-2 text-right">Tone</th>
                     <th className="px-4 py-2 text-right">T °C</th>
@@ -658,12 +673,12 @@ export default function AsternerePage() {
                           : '—'}
                       </td>
                       <td className="px-4 py-2">
-                        <div className="flex gap-2">
+                        {canReport && <div className="flex gap-2">
                           <button onClick={() => openRaportEdit(r)}
                             className="rounded px-2 py-1 text-xs text-primary-600 hover:bg-primary-50">Editează</button>
                           <button onClick={() => deleteRaport(r.id)}
                             className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Șterge</button>
-                        </div>
+                        </div>}
                       </td>
                     </tr>
                   ))}
@@ -715,7 +730,7 @@ export default function AsternerePage() {
                   value={`${fmtNum(progresData.total_mp_realizati)} m²`}
                   sub={`din ${fmtNum(progresData.total_mp_planificati)} planificați`}
                   color="text-blue-700" />
-                <KpiCard icon="⚖️" label="Tone consumate"
+                <KpiCard icon="⚖️" label="Cantitate utilizată"
                   value={`${fmtNum(progresData.total_tone_consumate, 1)} t`}
                   color="text-amber-700" />
                 <KpiCard icon="📋" label="Rapoarte zilnice"
@@ -779,7 +794,7 @@ export default function AsternerePage() {
                       <tr className="bg-slate-50 text-xs text-slate-500">
                         <th className="px-4 py-2 text-left">Data</th>
                         <th className="px-4 py-2 text-left">Sector</th>
-                        <th className="px-4 py-2 text-left">Strat</th>
+                        <th className="px-4 py-2 text-left">Etapă</th>
                         <th className="px-4 py-2 text-right">Grosime</th>
                         <th className="px-4 py-2 text-right">mp</th>
                         <th className="px-4 py-2 text-right">Tone</th>
@@ -812,8 +827,8 @@ export default function AsternerePage() {
         </div>
       )}
 
-      {/* ═══════════════════════ TAB CONSUM ASFALT ═══════════════════ */}
-      {tab === 'Consum asfalt' && (
+      {/* ═══════════════════════ TAB MATERIALE UTILIZATE ═════════════ */}
+      {tab === 'Materiale utilizate' && (
         <div className="space-y-5">
           {/* Filtru lucrare */}
           <div className="flex items-center gap-3">
@@ -829,14 +844,14 @@ export default function AsternerePage() {
             <>
               <div className="rounded-xl border border-slate-200 bg-white">
                 <div className="border-b border-slate-100 px-5 py-3 font-semibold text-slate-700">
-                  Total tone per lucrare
+                  Cantități utilizate per lucrare
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-slate-50 text-xs text-slate-500">
                         <th className="px-4 py-2 text-left">Lucrare</th>
-                        <th className="px-4 py-2 text-right">Tone consumate</th>
+                        <th className="px-4 py-2 text-right">Cantitate utilizată</th>
                         <th className="px-4 py-2 text-right">mp realizați</th>
                         <th className="px-4 py-2 text-right">Rapoarte</th>
                         <th className="px-4 py-2 text-right">t/m²</th>
@@ -873,7 +888,7 @@ export default function AsternerePage() {
                       <tr className="bg-slate-50 text-xs text-slate-500">
                         <th className="px-4 py-2 text-left">Data</th>
                         <th className="px-4 py-2 text-left">Lucrare</th>
-                        <th className="px-4 py-2 text-left">Strat</th>
+                        <th className="px-4 py-2 text-left">Etapă</th>
                         <th className="px-4 py-2 text-right">Tone</th>
                         <th className="px-4 py-2 text-right">mp</th>
                         <th className="px-4 py-2 text-left">Sector</th>
@@ -902,7 +917,7 @@ export default function AsternerePage() {
               {(consumData.productii_livrate || []).length > 0 && (
                 <div className="rounded-xl border border-slate-200 bg-white">
                   <div className="border-b border-slate-100 px-5 py-3 font-semibold text-slate-700">
-                    Producții livrate (din Producție / Operațiuni)
+                    Cantități înregistrate în Producție / Operațiuni
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -910,7 +925,7 @@ export default function AsternerePage() {
                         <tr className="bg-slate-50 text-xs text-slate-500">
                           <th className="px-4 py-2 text-left">Data</th>
                           <th className="px-4 py-2 text-left">Rețetă</th>
-                          <th className="px-4 py-2 text-right">Tone produse</th>
+                          <th className="px-4 py-2 text-right">Cantitate produsă</th>
                           <th className="px-4 py-2 text-left">Destinație</th>
                         </tr>
                       </thead>
@@ -1053,7 +1068,7 @@ export default function AsternerePage() {
                 <input type="date" className={inputCls} value={raportForm.data || ''} required
                   onChange={e => setRaportForm(f => ({ ...f, data: e.target.value }))} />
               </Field>
-              <Field label="Strat">
+              <Field label="Tip / etapă de execuție">
                 <select className={selectCls} value={raportForm.strat || 'uzura'}
                   onChange={e => setRaportForm(f => ({ ...f, strat: e.target.value }))}>
                   {STRATURI.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -1061,19 +1076,19 @@ export default function AsternerePage() {
               </Field>
 
               <div className="col-span-2">
-                <Field label="Sector (km de — km la)">
-                  <input className={inputCls} placeholder="ex: DN15 km 12+500 - 13+200"
+                <Field label="Sector / zonă de lucru">
+                  <input className={inputCls} placeholder="ex: Corp A, zona nord / tronson 1"
                     value={raportForm.sector || ''}
                     onChange={e => setRaportForm(f => ({ ...f, sector: e.target.value }))} />
                 </Field>
               </div>
 
-              <Field label="Grosime strat (cm)">
+              <Field label="Grosime / adâncime (cm)">
                 <input type="number" step="0.5" min="0" className={inputCls}
                   value={raportForm.grosime_cm || ''}
                   onChange={e => setRaportForm(f => ({ ...f, grosime_cm: e.target.value }))} />
               </Field>
-              <Field label="Temperatură mix (°C)">
+              <Field label="Temperatură material (°C)">
                 <input type="number" step="1" min="0" max="250" className={inputCls}
                   value={raportForm.temperatura_mix || ''}
                   onChange={e => setRaportForm(f => ({ ...f, temperatura_mix: e.target.value }))} />
@@ -1083,14 +1098,14 @@ export default function AsternerePage() {
                   value={raportForm.suprafata_mp || ''}
                   onChange={e => setRaportForm(f => ({ ...f, suprafata_mp: e.target.value }))} />
               </Field>
-              <Field label="Cantitate asfalt (tone)">
+              <Field label="Cantitate material utilizat (tone)">
                 <input type="number" step="0.01" min="0" className={inputCls}
                   value={raportForm.cantitate_tone || ''}
                   onChange={e => setRaportForm(f => ({ ...f, cantitate_tone: e.target.value }))} />
               </Field>
 
               <div className="col-span-2">
-                <Field label="Șofer finisor">
+                <Field label="Responsabil execuție">
                   <input className={inputCls} value={raportForm.sofer_finisor || ''}
                     onChange={e => setRaportForm(f => ({ ...f, sofer_finisor: e.target.value }))} />
                 </Field>

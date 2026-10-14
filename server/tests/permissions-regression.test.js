@@ -5,10 +5,13 @@ const path = require('node:path')
 
 const {
   authHasPermission,
+  effectivePermissionsForUser,
   ensureDefaultCustomRoles,
+  permissionAllowedByLicense,
   rolesList,
   updateRolePermissions,
 } = require('../core/permissions')
+const { effectiveEntitlements } = require('../core/module-catalog')
 
 function authFor(permissions) {
   return {
@@ -129,4 +132,59 @@ test('modulele operaționale nu interceptează administrarea centrală a roluril
     assert.equal(source.includes('url.pathname === "/api/roles"'), false, moduleName)
     assert.equal(source.includes('url.pathname.match(/^\\/api\\/roles'), false, moduleName)
   }
+})
+
+test('entitlements efective filtrează permisiunile și nu doar meniul', () => {
+  const settings = {
+    license: { modules: ['crm', 'hr'] },
+    modules_enabled: ['crm'],
+    customRoles: [{ id: 'comercial', name: 'Comercial', permissions: ['crm:view', 'hr:view', 'logistics:view'] }],
+  }
+  const entitlements = effectiveEntitlements({ license: settings.license, settings })
+  const permissions = effectivePermissionsForUser(
+    { id: 'u-1', role: 'comercial', active: true },
+    { settings, departments: [] },
+    entitlements,
+  )
+
+  assert.equal(permissions.includes('crm:view'), true)
+  assert.equal(permissions.includes('hr:view'), false)
+  assert.equal(permissions.includes('hr:view_own'), false)
+  assert.equal(permissions.includes('hr:leave_own'), false)
+  assert.equal(permissions.includes('logistics:view'), false)
+})
+
+test('permisiunile implicite de angajat respectă entitlement-ul HR', () => {
+  const settings = {
+    license: { modules: ['crm', 'hr'] },
+    modules_enabled: ['crm'],
+    customRoles: [{ id: 'comercial', name: 'Comercial', permissions: ['crm:view'] }],
+  }
+  const entitlements = effectiveEntitlements({ license: settings.license, settings })
+  const permissions = effectivePermissionsForUser(
+    { id: 'u-1', role: 'comercial', active: true },
+    { settings, departments: [] },
+    entitlements,
+  )
+
+  assert.equal(permissions.includes('crm:view'), true)
+  assert.equal(permissions.some(permission => permission.startsWith('hr:')), false)
+})
+
+test('aliasurile vechi de licență permit permisiunile modulului canonic', () => {
+  const fleet = effectiveEntitlements({ license: { modules: ['mechanization'] }, settings: { modules_enabled: ['fleet'] } })
+  const procurement = effectiveEntitlements({ license: { modules: ['referate'] }, settings: { modules_enabled: ['procurement'] } })
+
+  assert.equal(permissionAllowedByLicense('mechanization:view', {}, fleet), true)
+  assert.equal(permissionAllowedByLicense('fleet:faz_view', {}, fleet), true)
+  assert.equal(permissionAllowedByLicense('referate:view', {}, procurement), true)
+  assert.equal(permissionAllowedByLicense('crm:view', {}, procurement), false)
+})
+
+test('modulele de bază rămân disponibile în lista efectivă', () => {
+  const entitlements = effectiveEntitlements({ license: { modules: ['crm'] }, settings: { modules_enabled: ['crm'] } })
+
+  assert.equal(permissionAllowedByLicense('materials:view', {}, entitlements), true)
+  assert.equal(permissionAllowedByLicense('recipes:view', {}, entitlements), true)
+  assert.equal(permissionAllowedByLicense('crm:view', {}, entitlements), true)
 })

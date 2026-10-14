@@ -24,6 +24,26 @@ test('permisiunea punctuală deschide numai cerința sau modulul corespunzător'
   assert.equal(policy.canAccess(user, policy.modules.contractManagement), false)
 })
 
+test('modulul dezactivat blochează URL-ul direct chiar dacă utilizatorul are o permisiune din modul', () => {
+  const user = {
+    role: 'limited',
+    permissions: ['hr:view_own', 'crm:view'],
+    entitlements: { effective_modules: ['core', 'crm'] },
+  }
+  assert.equal(policy.canAccess(user, policy.modules.hr), false)
+  assert.equal(policy.canAccess(user, policy.modules.crm), true)
+})
+
+test('administratorul nu ocolește entitlement-ul canonic al modulului', () => {
+  const admin = {
+    role: 'admin',
+    entitlements: { effective_modules: ['core', 'crm'] },
+  }
+  assert.equal(policy.canAccess(admin, policy.modules.hr), false)
+  assert.equal(policy.canAccess(admin, policy.modules.crm), true)
+  assert.equal(policy.canAccess(admin, 'hr:manage'), true)
+})
+
 test('rolurile administrative explicite păstrează accesul în filtrul UI', () => {
   for (const user of [{ role: 'admin' }, { role: 'superadmin' }, { role: 'limited', roles: ['admin'] }]) {
     assert.equal(policy.canAccess(user, 'hr:manage'), true)

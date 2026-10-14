@@ -9,7 +9,8 @@ test('căutarea globală rămâne o paletă de navigare sigură', () => {
 
   assert.match(component, /Ctrl\+K/)
   assert.match(component, /normalizedText/)
-  assert.match(component, /moduleAliases/)
+  assert.match(component, /enabled\.has\(item\.moduleKey\)/)
+  assert.doesNotMatch(component, /moduleAliases/)
   assert.match(component, /infraflow_workspace_tabs_v1/)
   assert.doesNotMatch(component, /api\.(get|post|patch|put|delete)\(/)
   assert.match(navbar, /GlobalSearch/)

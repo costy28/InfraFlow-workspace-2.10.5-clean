@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.687**
-**Versiune în lucru: v2.12.687**
+**Versiune curentă sursă: v2.12.697**
+**Versiune în lucru: v2.12.697**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -427,6 +427,16 @@ Core System
   ✅ Entry point unic `server/app.js` pentru dezvoltare, teste și deployment (v2.12.685)
   ✅ Storage închis și descărcări autorizate exclusiv pe entitate (v2.12.686)
   ✅ Catalog canonic module, aliasuri și calcul `effectiveEntitlements` (v2.12.687)
+  ✅ Drepturi efective aplicate în sesiune, permisiuni, navigare și căutare (v2.12.688)
+  ✅ Acces direct protejat prin module efective, inclusiv permisiunile implicite de angajat (v2.12.689)
+  ✅ Lucrări / Execuție cu terminologie generică și compatibilitate legacy (v2.12.690)
+  ✅ Permisiuni granulare în Lucrări / Execuție, aplicate în API și interfață (v2.12.691)
+  ✅ Permisiuni granulare în Producție / Operațiuni și cantități generice (v2.12.692)
+  ✅ Permisiuni granulare în Stocuri și nomenclator minimal pentru acțiuni (v2.12.693)
+  ✅ Permisiuni granulare Gestiune pentru NIR, consum, inventar, administrare și rapoarte (v2.12.694)
+  ✅ Permisiuni granulare în Aprovizionare & Achiziții pentru comenzi, recepții, cântar și PAAP (v2.12.695)
+  ✅ Circuit Referate configurabil pe organizație, cu snapshot și compatibilitate istorică (v2.12.696)
+  ✅ Permisiuni granulare Parc & Resurse pentru catalog, planificare, bonuri, carburant, mentenanță, conformitate și rapoarte (v2.12.697)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1150,9 +1160,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.683
+VERSIUNE CURENTĂ SURSĂ: 2.12.697
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.687 ✅
+UPDATE ZIP CURENT: 2.12.697 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1646,6 +1656,16 @@ UPDATES ÎN LUCRU:
   2.12.685 → UPDATE 705 entry point unic server ✅
   2.12.686 → UPDATE 706 storage închis și descărcări autorizate ✅
   2.12.687 → UPDATE 707 catalog canonic module și drepturi efective ✅
+  2.12.688 → UPDATE 708 drepturi efective în permisiuni și navigare ✅
+  2.12.689 → UPDATE 709 acces direct protejat prin module efective ✅
+  2.12.690 → UPDATE 710 terminologie generică Lucrări și Execuție ✅
+  2.12.691 → UPDATE 711 permisiuni granulare Lucrări și Execuție ✅
+  2.12.692 → UPDATE 712 permisiuni granulare Producție și Operațiuni ✅
+  2.12.693 → UPDATE 713 permisiuni granulare Stocuri ✅
+  2.12.694 → UPDATE 714 permisiuni granulare Gestiune / Depozit ✅
+  2.12.695 → UPDATE 715 permisiuni granulare Aprovizionare & Achiziții ✅
+  2.12.696 → UPDATE 716 circuit Referate configurabil pe organizație ✅
+  2.12.697 → UPDATE 717 permisiuni granulare Parc & Resurse ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2144,5 +2164,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 13 Octombrie 2026 | InfraFlow sursă v2.12.687*
+*AGENTS.md actualizat: 14 Octombrie 2026 | InfraFlow sursă v2.12.697*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

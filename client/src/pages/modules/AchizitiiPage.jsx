@@ -16,8 +16,8 @@ import { canAccess } from '../../lib/permission-access'
 
 const tabs = ['Comenzi', 'Recepții', 'Cerințe', 'Cântar', 'Plan anual']
 const tabAccess = {
-  Comenzi: { anyOf: ['procurement_orders:view', 'procurement_orders:create', 'procurement_orders:receive'] },
-  Recepții: { anyOf: ['procurement_orders:view', 'procurement_orders:receive'] },
+  Comenzi: { anyOf: ['procurement_orders:view', 'procurement_orders:create', 'procurement_orders:receive', 'procurement:view', 'procurement:receive'] },
+  Recepții: { anyOf: ['procurement_orders:view', 'procurement_orders:receive', 'procurement:view', 'procurement:receive'] },
   Cerințe: { anyOf: ['planning:view', 'department_requests:view'] },
   Cântar: 'procurement_orders:receive',
   'Plan anual': { anyOf: ['procurement_orders:view', 'procurement:view', 'procurement_orders:create', 'procurement:receive'] },
@@ -171,9 +171,10 @@ export default function AchizitiiPage() {
   })
   const visibleTabs = useMemo(() => tabs.filter(tab => canAccess(user, tabAccess[tab])), [user])
   const canCreateOrder = canAccess(user, 'procurement_orders:create')
-  const canReceiveOrder = canAccess(user, 'procurement_orders:receive')
-  const canManagePlan = canAccess(user, { anyOf: ['procurement_orders:create', 'procurement:receive'] })
+  const canReceiveOrder = canAccess(user, { anyOf: ['procurement_orders:receive', 'procurement:receive'] })
+  const canManagePlan = canAccess(user, { anyOf: ['procurement_orders:create', 'procurement_orders:receive', 'procurement:receive'] })
   const canReadMaterials = canAccess(user, { anyOf: ['materials:view', 'materials:edit'] })
+  const canReadMaterialOptions = canAccess(user, { anyOf: ['materials:view', 'materials:edit', 'procurement_orders:create', 'procurement_orders:receive', 'procurement:receive'] })
   const canManageMaterials = canAccess(user, 'materials:edit')
 
   useEffect(() => {
@@ -193,7 +194,11 @@ export default function AchizitiiPage() {
         canReadScale ? api.get('/scale/status') : Promise.resolve({ data: null }),
         canReadScale ? api.get('/scale/tickets').catch(() => ({ data: { tickets: [] } })) : Promise.resolve({ data: { tickets: [] } }),
         canReadScale ? api.get('/scale/product-map').catch(() => ({ data: { productMap: {} } })) : Promise.resolve({ data: { productMap: {} } }),
-        canReadMaterials ? api.get('/materials').catch(() => ({ data: {} })) : Promise.resolve({ data: {} }),
+        canReadMaterials
+          ? api.get('/materials').catch(() => ({ data: {} }))
+          : canReadMaterialOptions
+            ? api.get('/material-options').catch(() => ({ data: {} }))
+            : Promise.resolve({ data: {} }),
         canAccess(user, { anyOf: ['legal:contracts', 'legal:manage'] }) ? api.get('/contracts').catch(() => ({ data: { contracts: [] } })) : Promise.resolve({ data: { contracts: [] } }),
       ])
 
@@ -234,6 +239,11 @@ export default function AchizitiiPage() {
       else next.set('tab', tab)
       return next
     }, { replace: true })
+  }
+
+  function openNewOrder() {
+    if (!canCreateOrder) return
+    setModalOpen(true)
   }
 
   const pagedOrders = useMemo(() => orders.slice((page - 1) * pageSize, page * pageSize), [orders, page])
@@ -289,6 +299,7 @@ export default function AchizitiiPage() {
   }
 
   function openOrderForRequirement(requirement) {
+    if (!canCreateOrder) return
     const materialId = requirement.materialId || requirement.mappedMaterialId || ''
     if (!materialId) {
       setError('Cerința nu are un material mapat. Corectează materialul înainte de a crea comanda.')
@@ -302,7 +313,7 @@ export default function AchizitiiPage() {
       note: `Creată din ${requirement.source_label || 'cerință de aprovizionare'}${requirement.orderNo ? ` · ${requirement.orderNo}` : ''}.`,
       departmentRequestId: requirement.id,
     })
-    setModalOpen(true)
+    openNewOrder()
   }
 
   async function createMaterial(event) {
@@ -331,6 +342,7 @@ export default function AchizitiiPage() {
   }
 
   function openReceive(order) {
+    if (!canReceiveOrder) return
     const lines = Array.isArray(order.lines) && order.lines.length ? order.lines : [{ material_id: order.materialId, materialName: order.materialName, cantitate: order.amount, cantitate_ramasa: order.remainingAmount || order.amount, unit: order.unit }]
     setReceiveOrder(order)
     setReceiveForm({
@@ -385,6 +397,7 @@ export default function AchizitiiPage() {
   }
 
   function openReturn(receipt) {
+    if (!canReceiveOrder) return
     const lines = (receipt.lines || []).map(line => {
       const received = Number(line.cantitate_receptionata || line.cantitate || 0)
       const returned = Number(line.cantitate_returnata || 0)
@@ -436,6 +449,7 @@ export default function AchizitiiPage() {
   }, [activeTab, planYear])
 
   function generatePlan() {
+    if (!canManagePlan) return
     setConfirmAction({
       title: 'Generează plan PAAP',
       message: `Generezi pozițiile PAAP ${planYear} din comenzile ${planYear - 1}?`,
@@ -451,6 +465,7 @@ export default function AchizitiiPage() {
   }
 
   function openPaap(item = null) {
+    if (!canManagePlan) return
     setPaapEditing(item)
     setPaapForm(item ? { ...item } : emptyPaap(planYear))
     setPaapModal(true)
@@ -466,6 +481,7 @@ export default function AchizitiiPage() {
   }
 
   function removePaap(item) {
+    if (!canManagePlan) return
     setConfirmAction({
       title: 'Anulează poziție PAAP',
       message: `Anulezi poziția ${item.cpv_cod} / ${item.material}?`,
@@ -606,7 +622,7 @@ export default function AchizitiiPage() {
                   title: 'Creează prima comandă de aprovizionare',
                   description: 'Pornește fluxul comercial cu o comandă legată de material, CPV și contract dacă există.',
                   label: 'Comandă nouă',
-                  onClick: () => setModalOpen(true),
+                  onClick: openNewOrder,
                 }
                 : {
                   tone: 'success',
@@ -665,7 +681,7 @@ export default function AchizitiiPage() {
         done: urgentRequirements === 0,
         tone: urgentRequirements ? 'danger' : pendingRequirements ? 'warning' : 'success',
         actionLabel: pendingRequirements ? 'Vezi cerințe' : 'Comandă nouă',
-        onClick: pendingRequirements ? () => selectTab('Cerințe') : () => setModalOpen(true),
+        onClick: pendingRequirements ? () => selectTab('Cerințe') : openNewOrder,
       },
       {
         key: 'cpv',
@@ -685,7 +701,7 @@ export default function AchizitiiPage() {
         done: orders.length > 0 && openOrders === 0,
         tone: openOrders ? 'warning' : orders.length ? 'success' : 'info',
         actionLabel: openOrders ? 'Vezi comenzi' : 'Comandă nouă',
-        onClick: openOrders ? () => selectTab('Comenzi') : () => setModalOpen(true),
+        onClick: openOrders ? () => selectTab('Comenzi') : openNewOrder,
       },
       {
         key: 'contract',
@@ -730,7 +746,7 @@ export default function AchizitiiPage() {
             : hasScaleTickets && unmappedTicketProducts.size
               ? { tone: 'warning', title: 'Mapează produsele de cântar', description: 'Fără mapare, cântarul produce date, dar nu devine stoc coerent.', label: 'Cântar', onClick: () => selectTab('Cântar') }
               : orders.length === 0
-                ? { tone: 'info', title: 'Creează prima comandă', description: 'Începe simplu: furnizor, material, cantitate, preț, CPV și contract dacă există.', label: 'Comandă nouă', onClick: () => setModalOpen(true) }
+                ? { tone: 'info', title: 'Creează prima comandă', description: 'Începe simplu: furnizor, material, cantitate, preț, CPV și contract dacă există.', label: 'Comandă nouă', onClick: openNewOrder }
                 : { tone: 'success', title: 'Achizițiile pot fi urmărite', description: 'Fluxul de bază este curat. Poți verifica recepțiile sau exporta PAAP-ul pentru control.', label: 'Vezi recepții', onClick: () => selectTab('Recepții') }
 
     return { primary, steps }
@@ -738,7 +754,7 @@ export default function AchizitiiPage() {
 
   return (
     <div className="module-workspace procurement-workspace min-w-0 space-y-5">
-      <PageHeader title="Aprovizionare & Achiziții" subtitle="Comenzi, cerințe de aprovizionare și tichete de cântar." actions={canCreateOrder ? [<Button key="create" onClick={() => setModalOpen(true)}>Comandă nouă</Button>] : []} />
+      <PageHeader title="Aprovizionare & Achiziții" subtitle="Comenzi, cerințe de aprovizionare și tichete de cântar." actions={canCreateOrder ? [<Button key="create" onClick={openNewOrder}>Comandă nouă</Button>] : []} />
 
       <Card
         title="Flux simplu achiziții"
@@ -880,7 +896,7 @@ export default function AchizitiiPage() {
           title="Comenzi"
           subtitle="Lista comenzilor de aprovizionare."
           loading={loading}
-          actions={canCreateOrder ? <Button size="sm" onClick={() => setModalOpen(true)}>Comandă nouă</Button> : null}
+          actions={canCreateOrder ? <Button size="sm" onClick={openNewOrder}>Comandă nouă</Button> : null}
         >
           <div className="module-table-scroll min-w-0 overflow-x-auto rounded-xl border border-slate-200">
             <table className="ui-table min-w-full divide-y divide-slate-200 text-sm">
@@ -1091,7 +1107,7 @@ export default function AchizitiiPage() {
         </Card>
       )}
 
-      <Modal open={modalOpen} title="Comandă nouă" size="lg" onClose={() => setModalOpen(false)}>
+      <Modal open={modalOpen && canCreateOrder} title="Comandă nouă" size="lg" onClose={() => setModalOpen(false)}>
         <form className="grid gap-4" onSubmit={saveOrder}>
           <div className="grid gap-4 md:grid-cols-2">
             <Input label="Dată" type="date" value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} />
@@ -1122,7 +1138,7 @@ export default function AchizitiiPage() {
         </form>
       </Modal>
 
-      <Modal open={!!receiveOrder} title="Recepționează comandă" onClose={() => setReceiveOrder(null)}>
+      <Modal open={!!receiveOrder && canReceiveOrder} title="Recepționează comandă" onClose={() => setReceiveOrder(null)}>
         <form className="grid gap-4" onSubmit={submitReceive}>
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Nr. aviz" value={receiveForm.nr_aviz} onChange={event => setReceiveForm({ ...receiveForm, nr_aviz: event.target.value })} />
@@ -1144,7 +1160,7 @@ export default function AchizitiiPage() {
         </form>
       </Modal>
 
-      <Modal open={!!returnReceipt} title={`Retur ${returnReceipt?.nr_nir || returnReceipt?.document || ''}`} onClose={() => setReturnReceipt(null)} size="lg">
+      <Modal open={!!returnReceipt && canReceiveOrder} title={`Retur ${returnReceipt?.nr_nir || returnReceipt?.document || ''}`} onClose={() => setReturnReceipt(null)} size="lg">
         <form className="grid gap-4" onSubmit={submitReturn}>
           <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Returul scade stocul și redeschide cantitatea din comandă. Dacă NIR-ul are factură legată, Contabilitatea va afișa pasul de corecție.</div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -1161,7 +1177,7 @@ export default function AchizitiiPage() {
         </form>
       </Modal>
 
-      <Modal open={materialModal} title="Material nou" onClose={() => setMaterialModal(false)}>
+      <Modal open={materialModal && canManageMaterials} title="Material nou" onClose={() => setMaterialModal(false)}>
         <form className="grid gap-3" onSubmit={createMaterial}>
           <Input label="Cod" value={materialForm.cod} onChange={event => setMaterialForm({ ...materialForm, cod: event.target.value })} placeholder="Auto dacă rămâne gol" />
           <Input label="Denumire" value={materialForm.denumire} onChange={event => setMaterialForm({ ...materialForm, denumire: event.target.value })} required />
@@ -1175,7 +1191,7 @@ export default function AchizitiiPage() {
         </form>
       </Modal>
 
-      <Modal open={paapModal} title={paapEditing ? 'Editează poziție PAAP' : 'Poziție PAAP nouă'} onClose={() => setPaapModal(false)} size="lg">
+      <Modal open={paapModal && canManagePlan} title={paapEditing ? 'Editează poziție PAAP' : 'Poziție PAAP nouă'} onClose={() => setPaapModal(false)} size="lg">
         <form className="grid gap-3" onSubmit={savePaap}>
           <CPVSelector value={paapForm.cpv_cod} onChange={(cpv_cod, cpv) => setPaapForm(current => ({ ...current, cpv_cod, cpv_denumire: cpv?.denumire_ro || current.cpv_denumire }))} required />
           <Input label="Material / obiect achiziție" value={paapForm.material} onChange={event => setPaapForm({ ...paapForm, material: event.target.value })} required />

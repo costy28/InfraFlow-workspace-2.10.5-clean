@@ -110,8 +110,8 @@ export default function App() {
         <Route path="/controlling/*" element={<WithLayout><PermissionGuard permission="cost_accounting:view"><ControllingPage /></PermissionGuard></WithLayout>} />
         <Route path="/contracte/*" element={<WithLayout><PermissionGuard permission={moduleAccess.contractManagement}><ContractePage /></PermissionGuard></WithLayout>} />
         <Route path="/logistica/*" element={<WithLayout><PermissionGuard permission={moduleAccess.logistics}><LogisticsPage /></PermissionGuard></WithLayout>} />
-        <Route path="/crm/oferte/*" element={<WithLayout><PermissionGuard permission="crm:view"><CrmQuotesPage /></PermissionGuard></WithLayout>} />
-        <Route path="/crm/*" element={<WithLayout><PermissionGuard permission="crm:view"><CrmPage /></PermissionGuard></WithLayout>} />
+        <Route path="/crm/oferte/*" element={<WithLayout><PermissionGuard permission={moduleAccess.crm}><CrmQuotesPage /></PermissionGuard></WithLayout>} />
+        <Route path="/crm/*" element={<WithLayout><PermissionGuard permission={moduleAccess.crm}><CrmPage /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate" element={<WithLayout><PermissionGuard permission="accounting:view"><ContabilitateDashboard /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/plan-conturi" element={<WithLayout><PermissionGuard permission="accounting:view"><PlanConturi /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/solduri-initiale" element={<WithLayout><PermissionGuard permission="accounting:view"><SolduriInitiale /></PermissionGuard></WithLayout>} />

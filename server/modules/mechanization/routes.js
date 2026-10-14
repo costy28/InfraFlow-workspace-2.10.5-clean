@@ -1,11 +1,19 @@
 const { Router } = require('express')
 const crypto = require('crypto')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, requireAnyPermission } = require('../../core/permissions')
 const { readDb, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 
 const router = Router()
+
+function requireMechanizationRead(auth, res, permission) {
+  return requireAnyPermission(auth, res, [permission, 'mechanization:view'])
+}
+
+function requireMechanizationManage(auth, res, permission) {
+  return requireAnyPermission(auth, res, [permission, 'mechanization:manage'])
+}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -590,7 +598,7 @@ router.patch('/mechanization/fuel-stock-settings', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:fuel_manage')) return
     const db = auth.db
     if (!db.settings || typeof db.settings !== 'object') db.settings = {}
     const minLiters = positiveNumber(req.body?.min_liters, 25)
@@ -612,7 +620,7 @@ router.patch('/mechanization/fuel-stock-settings', (req, res, next) => {
 router.get('/mechanization/plannings', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:planning_view')) return
 
   const m = ensureDb(auth.db)
   let list = [...m.plannings]
@@ -631,7 +639,7 @@ router.post('/mechanization/plannings', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:planning_manage')) return
 
     const body = req.body || {}
     const m = ensureDb(auth.db)
@@ -670,7 +678,7 @@ router.patch('/mechanization/plannings/:planId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:planning_manage')) return
 
     const m = ensureDb(auth.db)
     const item = m.plannings.find(p => p.id === req.params.planId)
@@ -690,7 +698,7 @@ router.delete('/mechanization/plannings/:planId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:planning_manage')) return
 
     const m = ensureDb(auth.db)
     const idx = m.plannings.findIndex(p => p.id === req.params.planId)
@@ -706,7 +714,7 @@ router.delete('/mechanization/plannings/:planId', (req, res, next) => {
 router.get('/mechanization/work-orders', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:work_orders_view')) return
 
   const m = ensureDb(auth.db)
   let list = [...m.workOrders]
@@ -724,7 +732,7 @@ router.post('/mechanization/work-orders', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:work_orders_manage')) return
 
     const body = req.body || {}
     const m = ensureDb(auth.db)
@@ -763,7 +771,7 @@ router.patch('/mechanization/work-orders/:woId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:work_orders_manage')) return
 
     const m = ensureDb(auth.db)
     const item = m.workOrders.find(w => w.id === req.params.woId)
@@ -783,7 +791,7 @@ router.delete('/mechanization/work-orders/:woId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:work_orders_manage')) return
 
     const m = ensureDb(auth.db)
     const idx = m.workOrders.findIndex(w => w.id === req.params.woId)
@@ -799,7 +807,7 @@ router.delete('/mechanization/work-orders/:woId', (req, res, next) => {
 router.get('/mechanization/fuel-logs', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:fuel_view')) return
 
   const m = ensureDb(auth.db)
   let list = [...m.fuelLogs]
@@ -824,7 +832,7 @@ router.post('/mechanization/fuel-logs', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:fuel_manage')) return
 
     const body = req.body || {}
     const m = ensureDb(auth.db)
@@ -863,7 +871,7 @@ router.patch('/mechanization/fuel-logs/:fuelId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:fuel_manage')) return
 
     const m = ensureDb(auth.db)
     const item = m.fuelLogs.find(f => f.id === req.params.fuelId)
@@ -890,7 +898,7 @@ router.delete('/mechanization/fuel-logs/:fuelId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:fuel_manage')) return
 
     const m = ensureDb(auth.db)
     const idx = m.fuelLogs.findIndex(f => f.id === req.params.fuelId)
@@ -906,7 +914,7 @@ router.delete('/mechanization/fuel-logs/:fuelId', (req, res, next) => {
 router.get('/mechanization/interventions', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:maintenance_view')) return
 
   const m = ensureDb(auth.db)
   let list = [...m.interventions]
@@ -924,7 +932,7 @@ router.post('/mechanization/interventions', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:maintenance_manage')) return
 
     const body = req.body || {}
     const m = ensureDb(auth.db)
@@ -972,7 +980,7 @@ router.patch('/mechanization/interventions/:intId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:maintenance_manage')) return
 
     const m = ensureDb(auth.db)
     const item = m.interventions.find(i => i.id === req.params.intId)
@@ -1005,7 +1013,7 @@ router.delete('/mechanization/interventions/:intId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireMechanizationManage(auth, res, 'mechanization:maintenance_manage')) return
 
     const m = ensureDb(auth.db)
     const idx = m.interventions.findIndex(i => i.id === req.params.intId)
@@ -1048,7 +1056,7 @@ router.patch('/mechanization/requests/:reqId', (req, res, next) => {
 router.get('/mechanization/revisions/predictive', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:compliance_view')) return
 
   const m = ensureDb(auth.db)
   const rows = equipmentList(auth.db)
@@ -1065,7 +1073,7 @@ router.get('/mechanization/revisions/predictive', (req, res) => {
 router.get('/mechanization/alerts', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:compliance_view')) return
 
   sendJson(res, 200, { alerts: buildFleetAlerts(auth.db) })
 })
@@ -1073,7 +1081,7 @@ router.get('/mechanization/alerts', (req, res) => {
 router.get('/mechanization/cost-hour', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:reports_view')) return
 
   const m = ensureDb(auth.db)
   const luna = String(req.query.luna || todayIso().slice(0, 7))
@@ -1083,7 +1091,7 @@ router.get('/mechanization/cost-hour', (req, res) => {
 router.get('/mechanization/faz-lunar', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:reports_view')) return
 
   const m = ensureDb(auth.db)
   const luna = String(req.query.luna || todayIso().slice(0, 7)).slice(0, 7)
@@ -1131,7 +1139,7 @@ router.post('/mechanization/faz-lunar/generate', (req, res, next) => {
 router.get('/mechanization/raport-lunar', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:reports_view')) return
 
   const m = ensureDb(auth.db)
   const luna = String(req.query.luna || todayIso().slice(0, 7))
@@ -1206,7 +1214,7 @@ router.get('/mechanization/raport-lunar', (req, res) => {
 router.get('/mechanization/asset-status', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireMechanizationRead(auth, res, 'mechanization:assets_view')) return
 
   const m = ensureDb(auth.db)
   const today = todayIso()

@@ -1,5 +1,5 @@
 {
-  "version": "2.12.687",
-  "date": "2026-10-13",
-  "changelog": "## v2.12.687 - 2026-10-13\n\n### Catalog canonic module și drepturi efective\n\n- Modulele, pachetele comerciale și aliasurile backend au o singură sursă canonică.\n- Licențele legacy și moderne sunt normalizate identic din module, modules și addons.\n- effectiveEntitlements calculează intersecția dintre licență și activarea organizației.\n- Setările și fundația CRM folosesc catalogul comun fără modificarea datelor existente.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "version": "2.12.697",
+  "date": "2026-10-14",
+  "changelog": "## v2.12.697 - 2026-10-14\n\n### Permisiuni granulare în Parc & Resurse\n\n- Parcul, planificările, bonurile de lucru, carburantul, mentenanța și conformitatea au drepturi distincte.\n- Importurile, rapoartele și exporturile sunt controlate separat.\n- Utilizatorul vede numai filele și acțiunile permise, inclusiv solicitările.\n- Drepturile istorice rămân compatibile.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

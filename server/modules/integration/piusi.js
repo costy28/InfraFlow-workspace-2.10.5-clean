@@ -3,7 +3,7 @@ const { Router } = require('express')
 const crypto = require('crypto')
 const childProcess = require('child_process')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, requireAnyPermission } = require('../../core/permissions')
 const { readDb, writeDb } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 
@@ -407,7 +407,7 @@ router.get('/integration/test', (req, res) => {
 router.get('/integration/piusi/status', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireAnyPermission(auth, res, ['mechanization:fuel_view', 'mechanization:import', 'mechanization:view'])) return
   const checkMdb = ['1', 'true', 'da', 'yes'].includes(String(req.query.check || '').toLowerCase())
   res.json(piusiStatus(auth.db, { checkMdb }))
 })
@@ -416,7 +416,7 @@ router.post('/integration/piusi/config', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireAnyPermission(auth, res, ['mechanization:import', 'mechanization:manage'])) return
     const body = req.body || {}
     setConfigValue(auth.db, 'piusi_mdb_path', body.mdb_path || body.piusi_mdb_path || 'C:\\Piusi\\SelfService\\Data\\Self.mdb')
     setConfigValue(auth.db, 'piusi_sync_interval_min', Math.max(5, Number(body.sync_interval_min || 30)))
@@ -433,7 +433,7 @@ router.post('/integration/piusi/sync-now', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireAnyPermission(auth, res, ['mechanization:import', 'mechanization:manage'])) return
     const result = await syncPiusi({ db: auth.db })
     writeDb(auth.db)
     addAudit(auth.db, auth.user, 'piusi_sync_now', `${result.imported || 0} alimentări importate`)
@@ -444,7 +444,7 @@ router.post('/integration/piusi/sync-now', async (req, res, next) => {
 router.get('/integration/piusi/mapari', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireAnyPermission(auth, res, ['mechanization:fuel_view', 'mechanization:import', 'mechanization:view'])) return
   const integration = ensurePiusiDb(auth.db)
   const operators = new Set(integration.piusiSync.map(item => item.operator_cod).filter(Boolean))
   integration.piusiMapare.forEach(item => operators.add(item.operator_cod))
@@ -459,7 +459,7 @@ router.post('/integration/piusi/mapari', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireAnyPermission(auth, res, ['mechanization:import', 'mechanization:manage'])) return
     const body = req.body || {}
     const rows = Array.isArray(body.mapari) ? body.mapari : [body]
     const saved = rows.map(row => upsertMapare(auth.db, row.operator_cod, row.asset_id, row.denumire, row.activ !== false))
@@ -472,7 +472,7 @@ router.post('/integration/piusi/mapari', (req, res, next) => {
 router.get('/integration/piusi/alimentari', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireAnyPermission(auth, res, ['mechanization:fuel_view', 'mechanization:import', 'mechanization:view'])) return
   const rows = filterPiusiRows(ensurePiusiDb(auth.db).piusiSync, req.query)
   res.json({ alimentari: rows })
 })
@@ -481,7 +481,7 @@ router.post('/integration/piusi/import-faz', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'mechanization:manage')) return
+    if (!requireAnyPermission(auth, res, ['mechanization:import', 'mechanization:fuel_manage', 'mechanization:manage'])) return
     const result = processPiusiRowsToFuelLogs(auth.db, req.body?.ids || [])
     writeDb(auth.db)
     addAudit(auth.db, auth.user, 'piusi_import_faz', `${result.processed} alimentări transferate în FAZ`)
@@ -492,7 +492,7 @@ router.post('/integration/piusi/import-faz', (req, res, next) => {
 router.get('/integration/piusi/raport-comparativ', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'mechanization:view')) return
+  if (!requireAnyPermission(auth, res, ['mechanization:fuel_view', 'mechanization:reports_view', 'mechanization:view'])) return
   res.json(comparativeReport(auth.db, String(req.query.luna || todayIso().slice(0, 7)), req.query.asset_id || ''))
 })
 

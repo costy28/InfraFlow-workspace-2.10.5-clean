@@ -7,8 +7,8 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
+import { canAccess } from '../../lib/permission-access'
 
-const tabs = ['Stoc curent', 'Mișcări', 'Livrări', 'Transferuri', 'Consum pe lucrări']
 const pageSize = 10
 
 function today() {
@@ -73,7 +73,23 @@ function EmptyRow({ colSpan, loading }) {
 
 export default function StocuriPage() {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState('Stoc curent')
+  const canViewStock = canAccess(user, { anyOf: ['materials:view', 'inventory:view'] })
+  const canViewMovements = canAccess(user, 'stock_operations:view')
+  const canViewDeliveries = canAccess(user, 'deliveries:view')
+  const canCreateDeliveries = canAccess(user, 'deliveries:create')
+  const canViewTransfers = canAccess(user, { anyOf: ['materials:view', 'inventory:view', 'stock_operations:view'] })
+  const canCreateTransfers = canAccess(user, { anyOf: ['stock_operations:create', 'inventory:transfers', 'inventory:exits'] })
+  const canCreateConsumption = canAccess(user, { anyOf: ['inventory:exits', 'stock_operations:create', 'department_requests:create'] })
+  const canLoadMaterials = canAccess(user, 'materials:view')
+  const needsMaterialOptions = canCreateDeliveries || canCreateTransfers || canCreateConsumption
+  const visibleTabs = [
+    canViewStock && 'Stoc curent',
+    canViewMovements && 'Mișcări',
+    canViewDeliveries && 'Livrări',
+    canViewTransfers && 'Transferuri',
+    canCreateConsumption && 'Consum pe lucrări',
+  ].filter(Boolean)
+  const [activeTab, setActiveTab] = useState(() => visibleTabs[0] || '')
   const [materials, setMaterials] = useState([])
   const [myStock, setMyStock] = useState({ department: '', stocks: [] })
   const [transfers, setTransfers] = useState([])
@@ -106,11 +122,15 @@ export default function StocuriPage() {
     setError('')
     try {
       const [materialsResponse, movementsResponse, deliveriesResponse, myStockResponse, transfersResponse] = await Promise.all([
-        api.get('/materials'),
-        api.get('/stock-operations'),
-        api.get('/deliveries'),
-        api.get('/inventory/my-stock').catch(() => ({ data: { department: '', stocks: [] } })),
-        api.get('/inventory/transfers').catch(() => ({ data: { transfers: [] } })),
+        canLoadMaterials
+          ? api.get('/materials')
+          : needsMaterialOptions
+            ? api.get('/material-options')
+            : Promise.resolve({ data: { materials: [] } }),
+        canViewMovements ? api.get('/stock-operations') : Promise.resolve({ data: { movements: [] } }),
+        canViewDeliveries ? api.get('/deliveries') : Promise.resolve({ data: { deliveries: [] } }),
+        canViewStock ? api.get('/inventory/my-stock') : Promise.resolve({ data: { department: '', stocks: [] } }),
+        canViewTransfers ? api.get('/inventory/transfers') : Promise.resolve({ data: { transfers: [] } }),
       ])
       const nextMaterials = arrayFrom(materialsResponse.data, ['materials'])
       setMaterials(nextMaterials)
@@ -131,6 +151,10 @@ export default function StocuriPage() {
   useEffect(() => {
     Promise.resolve().then(() => load())
   }, [])
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) setActiveTab(visibleTabs[0] || '')
+  }, [activeTab, visibleTabs])
 
   useEffect(() => {
     Promise.resolve().then(() => setPage(1))
@@ -176,8 +200,6 @@ export default function StocuriPage() {
   const pagedMovements = filteredMovements.slice((page - 1) * pageSize, page * pageSize)
   const pagedDeliveries = filteredDeliveries.slice((page - 1) * pageSize, page * pageSize)
   const pagedTransfers = transfers.slice((page - 1) * pageSize, page * pageSize)
-  const canManageStock = ['superadmin', 'admin', 'inventory'].includes(user?.role)
-
   async function submitDelivery(event) {
     event.preventDefault()
     setError('')
@@ -228,14 +250,14 @@ export default function StocuriPage() {
           <h2 className="text-xl font-semibold text-slate-900">Stocuri</h2>
           <p className="text-sm text-slate-500">Stoc central, stocuri pe departamente, mișcări și livrări.</p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>Adaugă nou</Button>
+        {canCreateDeliveries ? <Button onClick={() => setModalOpen(true)}>Adaugă livrare</Button> : null}
       </div>
 
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
 
       <Card>
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-          {tabs.map(tab => (
+          {visibleTabs.map(tab => (
             <Button
               key={tab}
               variant={activeTab === tab ? 'primary' : 'secondary'}
@@ -323,7 +345,7 @@ export default function StocuriPage() {
       {activeTab === 'Transferuri' ? (
         <Card>
           <h3 className="mb-3 text-base font-semibold text-slate-900">Transferuri stoc</h3>
-          {canManageStock ? (
+          {canCreateTransfers ? (
             <form className="mb-4 grid gap-3 md:grid-cols-5" onSubmit={submitTransfer}>
               <Select label="Material" value={transferForm.material_id} onChange={event => setTransferForm({ ...transferForm, material_id: event.target.value })} options={materials.map(material => ({ value: material.id, label: materialName(material) }))} />
               <Input label="Cantitate" type="number" step="0.001" value={transferForm.cantitate} onChange={event => setTransferForm({ ...transferForm, cantitate: event.target.value })} />
@@ -347,13 +369,13 @@ export default function StocuriPage() {
       {activeTab === 'Consum pe lucrări' ? (
         <Card>
           <h3 className="mb-3 text-base font-semibold text-slate-900">Consum materiale din stoc propriu</h3>
-          <form className="grid gap-3 md:grid-cols-5" onSubmit={submitConsumption}>
+          {canCreateConsumption ? <form className="grid gap-3 md:grid-cols-5" onSubmit={submitConsumption}>
             <Select label="Material" value={consumptionForm.material_id} onChange={event => setConsumptionForm({ ...consumptionForm, material_id: event.target.value })} options={materials.map(material => ({ value: material.id, label: materialName(material) }))} />
             <Input label="Cantitate" type="number" step="0.001" value={consumptionForm.cantitate} onChange={event => setConsumptionForm({ ...consumptionForm, cantitate: event.target.value })} />
             <Input label="Lucrare" value={consumptionForm.lucrare_id} onChange={event => setConsumptionForm({ ...consumptionForm, lucrare_id: event.target.value })} />
             <Input label="Motiv" value={consumptionForm.motiv} onChange={event => setConsumptionForm({ ...consumptionForm, motiv: event.target.value })} />
             <Button className="self-end" type="submit">Înregistrează consum</Button>
-          </form>
+          </form> : null}
         </Card>
       ) : null}
 
@@ -396,7 +418,7 @@ export default function StocuriPage() {
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-semibold text-slate-900">Livrări</h3>
-            <Button onClick={() => setModalOpen(true)}>Înregistrează livrare nouă</Button>
+            {canCreateDeliveries ? <Button onClick={() => setModalOpen(true)}>Înregistrează livrare nouă</Button> : null}
           </div>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-sm">
@@ -426,7 +448,7 @@ export default function StocuriPage() {
         </Card>
       ) : null}
 
-      <Modal open={modalOpen} title="Înregistrează livrare nouă" onClose={() => setModalOpen(false)}>
+      {canCreateDeliveries ? <Modal open={modalOpen} title="Înregistrează livrare nouă" onClose={() => setModalOpen(false)}>
         <form className="grid gap-4" onSubmit={submitDelivery}>
           <Input label="Dată" type="date" value={deliveryForm.date} onChange={event => setDeliveryForm({ ...deliveryForm, date: event.target.value })} required />
           <Select
@@ -444,7 +466,7 @@ export default function StocuriPage() {
             <Button type="submit">Salvează</Button>
           </div>
         </form>
-      </Modal>
+      </Modal> : null}
     </div>
   )
 }
