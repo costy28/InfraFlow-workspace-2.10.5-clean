@@ -1,0 +1,41 @@
+'use strict'
+
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+
+const page = fs.readFileSync(path.resolve(__dirname, '..', '..', 'client', 'src', 'pages', 'accounting', 'OperatiuniContabile.jsx'), 'utf8')
+const operationsRoutes = fs.readFileSync(path.resolve(__dirname, '..', 'modules', 'accounting', 'operations-routes.js'), 'utf8')
+const advancedRoutes = fs.readFileSync(path.resolve(__dirname, '..', 'modules', 'accounting', 'operations-advanced-routes.js'), 'utf8')
+const controlRoutes = fs.readFileSync(path.resolve(__dirname, '..', 'modules', 'accounting', 'accounting-control-routes.js'), 'utf8')
+
+test('operatiunile contabile separa consultarea, postarea, administrarea, raportarea si inchiderea', () => {
+  assert.match(page, /const canPost = canAccess\(user, 'accounting:post'\)/)
+  assert.match(page, /const canManage = canAccess\(user, 'accounting:manage'\)/)
+  assert.match(page, /const canReport = canAccess\(user, 'accounting:reports'\)/)
+  assert.match(page, /const canClose = canAccess\(user, 'accounting:close'\)/)
+  assert.match(page, /canReport\s*\? api\.get\('\/accounting\/integrity-audit'/)
+  assert.match(page, /canPost \? <Card>[\s\S]*Import e-Factura/)
+  assert.match(page, /canManage \? <form[\s\S]*onSubmit=\{createAsset\}/)
+  assert.match(page, /canClose \? <div[\s\S]*onClick=\{closeYear\}/)
+  assert.match(page, /open=\{canPost && batchModal\}/)
+  assert.match(page, /open=\{canPost && creditModal\}/)
+  assert.match(page, /Mod consultare opera/)
+})
+
+test('rutele operatiunilor contabile pastreaza permisiunile server-side', () => {
+  assert.match(operationsRoutes, /router\.get\("\/accounting\/operations\/status", requireAccountingView/)
+  assert.match(operationsRoutes, /router\.post\("\/accounting\/bank-statements\/import", requireAccountingPost/)
+  assert.match(operationsRoutes, /router\.post\("\/accounting\/stock-sync", requireAccountingPost/)
+  assert.match(operationsRoutes, /router\.post\("\/accounting\/fixed-assets", requireAccountingManage/)
+  assert.match(operationsRoutes, /router\.post\("\/accounting\/depreciation\/run", requireAccountingPost/)
+  assert.match(operationsRoutes, /router\.post\("\/accounting\/annual-close\/:an", requireAccountingClose/)
+  assert.match(advancedRoutes, /router\.post\("\/accounting\/bank-reconciliation\/auto-confirm", requireAccountingPost/)
+  assert.match(advancedRoutes, /router\.post\("\/accounting\/fixed-assets\/:uuid\/action", requireAccountingManage/)
+  assert.match(advancedRoutes, /router\.post\("\/accounting\/annual-close\/:an\/carryforward", requireAccountingClose/)
+  assert.match(controlRoutes, /router\.post\("\/accounting\/inventory-invoice-reconciliation\/:receiptId\/confirm", requireAccountingPost/)
+  assert.match(controlRoutes, /router\.post\("\/accounting\/credit-notes\/:uuid\/validate", requireAccountingPost/)
+  assert.match(controlRoutes, /router\.get\("\/accounting\/integrity-audit", requireAccountingReports/)
+  assert.match(controlRoutes, /router\.get\("\/accounting\/fixed-assets\/export", requireAccountingReports/)
+})

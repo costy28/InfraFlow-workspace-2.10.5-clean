@@ -114,7 +114,7 @@ export default function App() {
         <Route path="/crm/*" element={<WithLayout><PermissionGuard permission={moduleAccess.crm}><CrmPage /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate" element={<WithLayout><PermissionGuard permission="accounting:view"><ContabilitateDashboard /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/plan-conturi" element={<WithLayout><PermissionGuard permission="accounting:view"><PlanConturi /></PermissionGuard></WithLayout>} />
-        <Route path="/contabilitate/solduri-initiale" element={<WithLayout><PermissionGuard permission="accounting:view"><SolduriInitiale /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/solduri-initiale" element={<WithLayout><PermissionGuard permission={{ anyOf: ['accounting:reports', 'accounting:post'] }}><SolduriInitiale /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/furnizori" element={<WithLayout><PermissionGuard permission="accounting:view"><FurnizoriContab /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/clienti" element={<WithLayout><PermissionGuard permission="accounting:view"><ClientiContab /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/facturi-intrare" element={<WithLayout><PermissionGuard permission="accounting:view"><FacturiIntrare /></PermissionGuard></WithLayout>} />
@@ -135,8 +135,8 @@ export default function App() {
         <Route path="/contabilitate/salarizare" element={<WithLayout><PermissionGuard permission="hr:salary_view"><Salarizare /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/fisa-cont/:simbol" element={<WithLayout><PermissionGuard permission="accounting:reports"><FisaCont /></PermissionGuard></WithLayout>} />
         <Route path="/contabilitate/inchidere-luna" element={<WithLayout><PermissionGuard permission="accounting:close"><InchidereLuna /></PermissionGuard></WithLayout>} />
-        <Route path="/contabilitate/alerte" element={<WithLayout><PermissionGuard permission="accounting:view"><AlerteLegislative /></PermissionGuard></WithLayout>} />
-        <Route path="/contabilitate/sabloane-note" element={<WithLayout><PermissionGuard permission="accounting:view"><SabloaneNote /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/alerte" element={<WithLayout><PermissionGuard permission="accounting:alerts"><AlerteLegislative /></PermissionGuard></WithLayout>} />
+        <Route path="/contabilitate/sabloane-note" element={<WithLayout><PermissionGuard permission="accounting:manage"><SabloaneNote /></PermissionGuard></WithLayout>} />
         <Route path="/flota/*" element={<WithLayout><PermissionGuard permission="mechanization:view"><FlotaPage /></PermissionGuard></WithLayout>} />
         <Route path="/foi-parcurs/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FoaieParcursPage /></PermissionGuard></WithLayout>} />
         <Route path="/fc-utilaje/*" element={<WithLayout><PermissionGuard permission="fleet:trip_log_view"><FcUtilajePage /></PermissionGuard></WithLayout>} />

@@ -10,7 +10,11 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 export function FacturiContab({ direction = 'in' }) {
+  const { user } = useAuth()
+  const canPost = canAccess(user, 'accounting:post')
   const isIn = direction === 'in'
   const [rows, setRows] = useState([])
   const [searchParams] = useSearchParams()
@@ -68,7 +72,7 @@ export function FacturiContab({ direction = 'in' }) {
   useEffect(() => { load().catch(() => {}) }, [direction, month, status, tertFilter])
 
   async function runConfirmAction(reason) {
-    if (!confirmAction?.run) return
+    if (!canPost || !confirmAction?.run) return
     try {
       setConfirmLoading(true)
       setError('')
@@ -163,6 +167,16 @@ export function FacturiContab({ direction = 'in' }) {
       }
     }
 
+    if (!canPost) {
+      next = {
+        title: 'Mod consultare facturi',
+        text: 'Poți verifica documentele, soldurile și notele contabile. Crearea, validarea și plata sau încasarea cer drept de postare contabilă.',
+        label: 'Vezi registru jurnal',
+        to: `/contabilitate/registru-jurnal?luna=${month}`,
+        tone: 'info'
+      }
+    }
+
     return {
       next,
       steps: [
@@ -172,7 +186,7 @@ export function FacturiContab({ direction = 'in' }) {
         { label: 'e-Factura', done: isIn || !firstEfactura, detail: isIn ? 'n/a' : firstEfactura ? 'de pregătit' : 'OK' }
       ]
     }
-  }, [isIn, month, thirdParties.length, visibleRows])
+  }, [canPost, isIn, month, thirdParties.length, visibleRows])
   const valoareLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare), 0)
   const tvaLines = invoiceLines.reduce((sum, line) => sum + money(line.valoare) * money(line.tva_procent) / 100, 0)
   const baseValue = invoiceLines.length ? valoareLines : money(form.valoare)
@@ -188,6 +202,7 @@ export function FacturiContab({ direction = 'in' }) {
   ], [contracts])
   const selectedTemplate = templates.find(template => template.key === form.template_key)
   function openNew() {
+    if (!canPost) return
     setEditing(null)
     setError('')
     setMessage('')
@@ -196,6 +211,7 @@ export function FacturiContab({ direction = 'in' }) {
     setModal(true)
   }
   function openEdit(row) {
+    if (!canPost) return
     setEditing(row)
     setError('')
     setMessage('')
@@ -258,6 +274,7 @@ export function FacturiContab({ direction = 'in' }) {
   }
   async function submit(event) {
     event.preventDefault()
+    if (!canPost) return
     try {
       setError('')
       setMessage('')
@@ -302,6 +319,7 @@ export function FacturiContab({ direction = 'in' }) {
     }
   }
   async function validate(row) {
+    if (!canPost) return
     const hint = invoiceValidationHint(row)
     if (hint) {
       setError(hint)
@@ -332,6 +350,7 @@ export function FacturiContab({ direction = 'in' }) {
     }
   }
   async function syncEfactura(row) {
+    if (!canPost) return
     setActionLoading(`efactura-${row.uuid}`)
     try {
       setError(''); setMessage('')
@@ -342,6 +361,7 @@ export function FacturiContab({ direction = 'in' }) {
     finally { setActionLoading('') }
   }
   async function storno(row) {
+    if (!canPost) return
     setConfirmAction({
       title: 'Stornează factura',
       message: `Stornezi documentul ${row.nr_document || row.numar || row.id}?`,
@@ -369,13 +389,14 @@ export function FacturiContab({ direction = 'in' }) {
     }
   }
   async function devalidate(row) {
+    if (!canPost) return
     setDevalidateRow(row)
     setDevalidateReason('')
     setDevalidateModal(true)
   }
   async function submitDevalidate(event) {
     event.preventDefault()
-    if (!devalidateRow) return
+    if (!canPost || !devalidateRow) return
     try {
       setError('')
       setMessage('')
@@ -408,6 +429,7 @@ export function FacturiContab({ direction = 'in' }) {
     }
   }
   async function cancelDraft(row) {
+    if (!canPost) return
     setConfirmAction({
       title: 'Anulează factură draft',
       message: `Anulezi documentul draft ${row.nr_document || row.numar || row.id}?`,
@@ -448,6 +470,7 @@ export function FacturiContab({ direction = 'in' }) {
     return ['validat', 'partial'].includes(String(row.status || '')) && invoiceRemaining(row) > 0
   }
   function openPayment(row) {
+    if (!canPost) return
     setPaymentRow(row)
     setPaymentForm({
       data: today(),
@@ -462,7 +485,7 @@ export function FacturiContab({ direction = 'in' }) {
   }
   async function submitPayment(event) {
     event.preventDefault()
-    if (!paymentRow) return
+    if (!canPost || !paymentRow) return
     const amount = money(paymentForm.suma)
     const remaining = invoiceRemaining(paymentRow)
     if (!amount || amount <= 0) {
@@ -551,22 +574,22 @@ export function FacturiContab({ direction = 'in' }) {
     const partyId = row.furnizor_id || row.client_id
     const partyAccount = thirdPartyById.get(String(partyId))?.[isIn ? 'cont_analitic_furnizor' : 'cont_analitic_client']
     return [
-      row.status === 'draft' ? { label: 'Editeaza factura', onClick: () => openEdit(row) } : null,
-      row.status === 'draft' ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
-      row.status === 'draft' ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
-      canPayInvoice(row) ? { label: isIn ? 'Inregistreaza plata' : 'Inregistreaza incasarea', onClick: () => openPayment(row) } : null,
-      row.status === 'validat' ? { label: 'Devalideaza factura', onClick: () => devalidate(row), danger: true } : null,
-      !isIn && ['validat', 'partial', 'incasat'].includes(row.status) ? { label: row.efactura_id ? 'Actualizeaza e-Factura' : 'Pregateste e-Factura', onClick: () => syncEfactura(row) } : null,
+      canPost && row.status === 'draft' ? { label: 'Editeaza factura', onClick: () => openEdit(row) } : null,
+      canPost && row.status === 'draft' ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
+      canPost && row.status === 'draft' ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
+      canPost && canPayInvoice(row) ? { label: isIn ? 'Inregistreaza plata' : 'Inregistreaza incasarea', onClick: () => openPayment(row) } : null,
+      canPost && row.status === 'validat' ? { label: 'Devalideaza factura', onClick: () => devalidate(row), danger: true } : null,
+      canPost && !isIn && ['validat', 'partial', 'incasat'].includes(row.status) ? { label: row.efactura_id ? 'Actualizeaza e-Factura' : 'Pregateste e-Factura', onClick: () => syncEfactura(row) } : null,
       !isIn && row.efactura_id ? { label: `Deschide e-Factura (${row.efactura_status || 'draft'})`, to: '/contabilitate/anaf' } : null,
-      row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? { label: 'Storno factura', onClick: () => storno(row), danger: true } : null,
-      { separator: true },
+      canPost && row.status !== 'draft' && row.status !== 'stornat' && row.status !== 'anulat' ? { label: 'Storno factura', onClick: () => storno(row), danger: true } : null,
+      canPost ? { separator: true } : null,
       row.journal_id ? { label: 'Vezi nota contabila', onClick: () => showJournal(row) } : null,
       row.journal_uuid ? { label: 'Deschide registru jurnal', to: `/contabilitate/registru-jurnal?luna=${rowMonth}&note=${row.journal_uuid}` } : null,
-      { label: isIn ? 'Trezorerie plati' : 'Trezorerie incasari', to: `/contabilitate/trezorerie?luna=${rowMonth}&${isIn ? 'invoice_in_id' : 'invoice_out_id'}=${row.id}&new=1` },
+      { label: isIn ? 'Trezorerie plati' : 'Trezorerie incasari', to: `/contabilitate/trezorerie?luna=${rowMonth}&${isIn ? 'invoice_in_id' : 'invoice_out_id'}=${row.id}${canPost ? '&new=1' : ''}` },
       { separator: true },
       partyId ? { label: isIn ? 'Fisa furnizor' : 'Fisa client', to: isIn ? `/contabilitate/furnizori?furnizor=${partyId}` : `/contabilitate/clienti?client=${partyId}` } : null,
       partyAccount ? { label: `Fisa cont ${partyAccount}`, to: `/contabilitate/fisa-cont/${partyAccount}?de_la=${rowMonth}-01&pana_la=${rowMonth}-31` } : null
-    ]
+    ].filter(Boolean)
   }
 
   return (
@@ -575,7 +598,7 @@ export function FacturiContab({ direction = 'in' }) {
       title={isIn ? 'Facturi intrare' : 'Facturi iesire'}
       subtitle="Validarea genereaza automat nota contabila echilibrata."
       actions={<DropdownMenu align="right" label="Actiuni" items={[
-        { label: isIn ? 'Factura intrare noua' : 'Factura iesire noua', onClick: openNew },
+        canPost ? { label: isIn ? 'Factura intrare noua' : 'Factura iesire noua', onClick: openNew } : null,
         { label: 'Reincarca lista', onClick: load },
         { type: 'separator' },
         { label: isIn ? 'Furnizori' : 'Clienti', to: isIn ? '/contabilitate/furnizori' : '/contabilitate/clienti' },
@@ -583,7 +606,7 @@ export function FacturiContab({ direction = 'in' }) {
         { type: 'separator' },
         { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
         { label: 'Trezorerie', to: `/contabilitate/trezorerie?luna=${month}` }
-      ]} />}
+      ].filter(Boolean)} />}
     >
       {error ? <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? (
@@ -682,7 +705,7 @@ export function FacturiContab({ direction = 'in' }) {
           </tr>
         ))}
       </Table>
-      <Modal open={modal} title={editing ? 'Editare factura draft' : 'Factura noua'} onClose={() => setModal(false)}>
+      <Modal open={modal && canPost} title={editing ? 'Editare factura draft' : 'Factura noua'} onClose={() => setModal(false)}>
         <form className="grid gap-3" onSubmit={submit}>
           {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
           <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
@@ -774,7 +797,7 @@ export function FacturiContab({ direction = 'in' }) {
           <div className="flex justify-end"><Button variant="secondary" onClick={() => setJournalModal(false)}>Inchide</Button></div>
         </div>
       </Modal>
-      <Modal open={paymentModal} title={isIn ? 'Plata factura' : 'Incasare factura'} onClose={() => setPaymentModal(false)}>
+      <Modal open={paymentModal && canPost} title={isIn ? 'Plata factura' : 'Incasare factura'} onClose={() => setPaymentModal(false)}>
         <form className="grid gap-3" onSubmit={submitPayment}>
           {paymentRow ? (
             <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
@@ -799,7 +822,7 @@ export function FacturiContab({ direction = 'in' }) {
           </div>
         </form>
       </Modal>
-      <Modal open={devalidateModal} title="Devalidare factura" onClose={() => setDevalidateModal(false)}>
+      <Modal open={devalidateModal && canPost} title="Devalidare factura" onClose={() => setDevalidateModal(false)}>
         <form className="grid gap-3" onSubmit={submitDevalidate}>
           <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
             Factura revine in draft, iar nota contabila generata este marcata devalidata. Operatia este permisa doar daca luna nu este inchisa.
@@ -820,7 +843,7 @@ export function FacturiContab({ direction = 'in' }) {
         </form>
       </Modal>
       <ConfirmDialog
-        open={Boolean(confirmAction)}
+        open={Boolean(confirmAction) && canPost}
         title={confirmAction?.title}
         message={confirmAction?.message}
         details={confirmAction?.details}

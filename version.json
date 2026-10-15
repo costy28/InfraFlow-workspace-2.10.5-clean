@@ -1,5 +1,5 @@
 {
-  "version": "2.12.697",
-  "date": "2026-10-14",
-  "changelog": "## v2.12.697 - 2026-10-14\n\n### Permisiuni granulare în Parc & Resurse\n\n- Parcul, planificările, bonurile de lucru, carburantul, mentenanța și conformitatea au drepturi distincte.\n- Importurile, rapoartele și exporturile sunt controlate separat.\n- Utilizatorul vede numai filele și acțiunile permise, inclusiv solicitările.\n- Drepturile istorice rămân compatibile.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "version": "2.12.705",
+  "date": "2026-10-15",
+  "changelog": "## v2.12.705 - 2026-10-15\n\n### Permisiuni granulare pentru Operațiuni contabile\n\n- Consultarea este separată de reconciliere, importuri și postare.\n- Imobilizările cer administrare contabilă, iar exporturile cer raportare.\n- Închiderea anuală și reportarea soldurilor cer dreptul dedicat de închidere.\n- Accesul doar de citire nu mai eșuează din cauza auditului de integritate protejat.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

@@ -9,7 +9,12 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { AccountSelect, AccountingShell, DropdownMenu, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 export function Trezorerie() {
+  const { user } = useAuth()
+  const canPost = canAccess(user, 'accounting:post')
+  const canReport = canAccess(user, 'accounting:reports')
   const [rows, setRows] = useState([])
   const [searchParams] = useSearchParams()
   const [thirdParties, setThirdParties] = useState([])
@@ -64,7 +69,7 @@ export function Trezorerie() {
     const invoiceInId = searchParams.get('invoice_in_id') || ''
     const invoiceOutId = searchParams.get('invoice_out_id') || ''
     const key = `${invoiceInId || invoiceOutId}-${month}-${operationFilter}`
-    if (!shouldOpen || (!invoiceInId && !invoiceOutId) || autoOpenKey === key) return
+    if (!canPost || !shouldOpen || (!invoiceInId && !invoiceOutId) || autoOpenKey === key) return
     const invoiceIn = invoiceInId ? openInvoicesIn.find(item => String(item.id) === String(invoiceInId)) : null
     const invoiceOut = invoiceOutId ? openInvoicesOut.find(item => String(item.id) === String(invoiceOutId)) : null
     if ((invoiceInId && !invoiceIn) || (invoiceOutId && !invoiceOut)) {
@@ -102,7 +107,7 @@ export function Trezorerie() {
     setValidatedJournal(null)
     setForm(next)
     setModal(true)
-  }, [searchParams, openInvoicesIn, openInvoicesOut, tertById, month, operationFilter, autoOpenKey])
+  }, [canPost, searchParams, openInvoicesIn, openInvoicesOut, tertById, month, operationFilter, autoOpenKey])
 
   function load() {
     const [an, luna] = month.split('-')
@@ -130,6 +135,16 @@ export function Trezorerie() {
   }
 
   function defaultForm() {
+    if (!canPost) {
+      next = {
+        title: 'Mod consultare trezorerie',
+        text: 'Poți verifica încasările, plățile, corelările și notele contabile. Introducerea, validarea și stingerea cer drept de postare contabilă.',
+        label: 'Vezi registru jurnal',
+        to: `/contabilitate/registru-jurnal?luna=${month}`,
+        tone: 'info'
+      }
+    }
+
     return {
       tip: 'banca',
       tip_operatie: 'plata',
@@ -293,9 +308,10 @@ export function Trezorerie() {
         { label: 'Neclasificate', done: !visibleRows.some(row => row.corelare_tip === 'neclasificat' && row.status === 'validat'), detail: visibleRows.filter(row => row.corelare_tip === 'neclasificat' && row.status === 'validat').length || 'OK' }
       ]
     }
-  }, [month, openInvoiceSummary, serverSummary.advances, visibleRows])
+  }, [canPost, month, openInvoiceSummary, serverSummary.advances, visibleRows])
 
   async function exportExcel() {
+    if (!canReport) return
     const [an, luna] = month.split('-')
     setError('')
     try {
@@ -325,6 +341,7 @@ export function Trezorerie() {
   }
 
   function openNew() {
+    if (!canPost) return
     setEditing(null)
     setError('')
     setMessage('')
@@ -334,6 +351,7 @@ export function Trezorerie() {
   }
 
   function openEdit(row) {
+    if (!canPost) return
     setEditing(row)
     setError('')
     setMessage('')
@@ -343,6 +361,7 @@ export function Trezorerie() {
   }
 
   function openInvoiceOperation(invoice, type) {
+    if (!canPost) return
     const next = defaultForm()
     if (type === 'intrare') {
       const tert = tertById.get(String(invoice.furnizor_id))
@@ -438,6 +457,7 @@ export function Trezorerie() {
 
   async function submit(event, validateAfterSave = false) {
     event.preventDefault()
+    if (!canPost) return
     setError('')
     setMessage('')
     setValidatedJournal(null)
@@ -500,6 +520,7 @@ export function Trezorerie() {
   }
 
   async function validate(row) {
+    if (!canPost) return
     const hint = treasuryValidationHint(row)
     if (hint) {
       setError(hint)
@@ -530,6 +551,7 @@ export function Trezorerie() {
   }
 
   async function devalidate(row) {
+    if (!canPost) return
     setActionLoading(`devalidate-${row.uuid}`)
     setError('')
     setMessage('')
@@ -546,6 +568,7 @@ export function Trezorerie() {
   }
 
   async function cancelDraft(row) {
+    if (!canPost) return
     setActionLoading(`cancel-${row.uuid}`)
     setError('')
     setMessage('')
@@ -562,7 +585,7 @@ export function Trezorerie() {
   }
 
   async function attachSuggestedInvoice(row, suggestion) {
-    if (!row?.uuid || !suggestion?.id) return
+    if (!canPost || !row?.uuid || !suggestion?.id) return
     setActionLoading(`match-${row.uuid}`)
     setError('')
     setMessage('')
@@ -582,7 +605,7 @@ export function Trezorerie() {
   }
 
   async function settleAdvance(row, suggestion) {
-    if (!row?.uuid || !suggestion?.id) return
+    if (!canPost || !row?.uuid || !suggestion?.id) return
     setActionLoading(`settle-${row.uuid}`)
     setError('')
     setMessage('')
@@ -602,6 +625,7 @@ export function Trezorerie() {
   }
 
   async function openSettlement(row) {
+    if (!canPost) return
     setSettlementLoading(true)
     setSettlementData(null)
     setSettlementAmounts({})
@@ -631,6 +655,7 @@ export function Trezorerie() {
   }
 
   async function submitSettlement() {
+    if (!canPost) return
     const allocations = Object.entries(settlementAmounts)
       .map(([invoice_id, suma]) => ({ invoice_id, suma: money(suma) }))
       .filter(item => item.suma > 0)
@@ -653,6 +678,7 @@ export function Trezorerie() {
   }
 
   async function reverseSettlement(groupUuid) {
+    if (!canPost) return
     setSettlementLoading(true)
     setError('')
     try {
@@ -670,6 +696,7 @@ export function Trezorerie() {
   }
 
   async function classifyTreasury(row, type) {
+    if (!canPost) return
     setActionLoading(`classify-${row.uuid}`)
     setError('')
     setMessage('')
@@ -723,24 +750,24 @@ export function Trezorerie() {
         : `/contabilitate/facturi-iesire?factura=${row.linked_invoice.id}`
       : ''
     return [
-      canValidate ? { label: 'Editeaza operatia', onClick: () => openEdit(row) } : null,
-      canValidate && bestSuggestion ? { label: `Leaga factura sugerata ${bestSuggestion.document}`, onClick: () => attachSuggestedInvoice(row, bestSuggestion) } : null,
-      canSettleAdvance ? { label: `Stinge avans cu ${bestSuggestion.document}`, onClick: () => settleAdvance(row, bestSuggestion) } : null,
-      canAllocate ? { label: 'Aloca pe mai multe facturi', onClick: () => openSettlement(row) } : null,
-      canValidate ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
-      canValidate ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
-      !row.linked_invoice && row.tert_id ? { label: 'Marcheaza ca avans', onClick: () => classifyTreasury(row, 'avans') } : null,
-      !row.linked_invoice && row.tert_id ? { label: 'Marcheaza ca corectie', onClick: () => classifyTreasury(row, 'corectie') } : null,
-      row.corelare_tip && !['neclasificat', 'factura'].includes(row.corelare_tip) ? { label: 'Scoate marcajul avans/corectie', onClick: () => classifyTreasury(row, 'neclasificat') } : null,
-      canDevalidate ? { label: 'Devalideaza', onClick: () => devalidate(row), danger: true } : null,
-      { separator: true },
+      canPost && canValidate ? { label: 'Editeaza operatia', onClick: () => openEdit(row) } : null,
+      canPost && canValidate && bestSuggestion ? { label: `Leaga factura sugerata ${bestSuggestion.document}`, onClick: () => attachSuggestedInvoice(row, bestSuggestion) } : null,
+      canPost && canSettleAdvance ? { label: `Stinge avans cu ${bestSuggestion.document}`, onClick: () => settleAdvance(row, bestSuggestion) } : null,
+      canPost && canAllocate ? { label: 'Aloca pe mai multe facturi', onClick: () => openSettlement(row) } : null,
+      canPost && canValidate ? { label: 'Valideaza si genereaza nota', onClick: () => validate(row) } : null,
+      canPost && canValidate ? { label: 'Anuleaza draft', onClick: () => cancelDraft(row), danger: true } : null,
+      canPost && !row.linked_invoice && row.tert_id ? { label: 'Marcheaza ca avans', onClick: () => classifyTreasury(row, 'avans') } : null,
+      canPost && !row.linked_invoice && row.tert_id ? { label: 'Marcheaza ca corectie', onClick: () => classifyTreasury(row, 'corectie') } : null,
+      canPost && row.corelare_tip && !['neclasificat', 'factura'].includes(row.corelare_tip) ? { label: 'Scoate marcajul avans/corectie', onClick: () => classifyTreasury(row, 'neclasificat') } : null,
+      canPost && canDevalidate ? { label: 'Devalideaza', onClick: () => devalidate(row), danger: true } : null,
+      canPost ? { separator: true } : null,
       row.journal_uuid ? { label: 'Vezi nota contabila', onClick: () => openJournal(row) } : null,
       row.journal_uuid ? { label: 'Deschide registru jurnal', to: `/contabilitate/registru-jurnal?luna=${rowMonth}&note=${row.journal_uuid}` } : null,
       invoiceLink ? { label: 'Deschide factura legata', to: invoiceLink } : null,
       { separator: true },
       row.cont_trezorerie ? { label: `Fisa cont ${row.cont_trezorerie}`, to: `/contabilitate/fisa-cont/${row.cont_trezorerie}?de_la=${rowMonth}-01&pana_la=${rowMonth}-31` } : null,
       row.cont_corespondent ? { label: `Fisa cont ${row.cont_corespondent}`, to: `/contabilitate/fisa-cont/${row.cont_corespondent}?de_la=${rowMonth}-01&pana_la=${rowMonth}-31` } : null
-    ]
+    ].filter(Boolean)
   }
 
   return (
@@ -749,14 +776,14 @@ export function Trezorerie() {
       title="Trezorerie"
       subtitle="Registru de casa, jurnal de banca si deconturi cu note contabile generate."
       actions={<DropdownMenu align="right" label="Actiuni" items={[
-        { label: 'Operatie noua', onClick: openNew },
+        canPost ? { label: 'Operatie noua', onClick: openNew } : null,
         { label: 'Reincarca lista', onClick: load },
-        { label: 'Export Excel', onClick: exportExcel },
+        canReport ? { label: 'Export Excel', onClick: exportExcel } : null,
         { type: 'separator' },
         { label: 'Facturi intrare', to: `/contabilitate/facturi-intrare?luna=${month}` },
         { label: 'Facturi iesire', to: `/contabilitate/facturi-iesire?luna=${month}` },
         { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` }
-      ]} />}
+      ].filter(Boolean)} />}
     >
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
       {message ? (
@@ -883,10 +910,10 @@ export function Trezorerie() {
                   </div>
                   <div className="font-semibold text-slate-900">{formatMoney(invoice.rest)}</div>
                   <DropdownMenu align="right" label="Actiuni" items={[
-                    { label: 'Pregateste plata', onClick: () => openInvoiceOperation(invoice, 'intrare') },
+                    canPost ? { label: 'Pregateste plata', onClick: () => openInvoiceOperation(invoice, 'intrare') } : null,
                     { label: 'Deschide factura', to: `/contabilitate/facturi-intrare?luna=${month}&q=${encodeURIComponent(invoiceDocument(invoice))}` },
                     { label: 'Fisa furnizor', to: `/contabilitate/furnizori?furnizor=${invoice.furnizor_id}` }
-                  ]} />
+                  ].filter(Boolean)} />
                 </div>
               ))}
               {openInvoiceSummary.suppliers.length ? null : <div className="px-3 py-5 text-sm text-slate-500">Nu sunt facturi furnizor deschise.</div>}
@@ -906,10 +933,10 @@ export function Trezorerie() {
                   </div>
                   <div className="font-semibold text-slate-900">{formatMoney(invoice.rest)}</div>
                   <DropdownMenu align="right" label="Actiuni" items={[
-                    { label: 'Pregateste incasarea', onClick: () => openInvoiceOperation(invoice, 'iesire') },
+                    canPost ? { label: 'Pregateste incasarea', onClick: () => openInvoiceOperation(invoice, 'iesire') } : null,
                     { label: 'Deschide factura', to: `/contabilitate/facturi-iesire?luna=${month}&q=${encodeURIComponent(invoiceDocument(invoice))}` },
                     { label: 'Fisa client', to: `/contabilitate/clienti?client=${invoice.client_id}` }
-                  ]} />
+                  ].filter(Boolean)} />
                 </div>
               ))}
               {openInvoiceSummary.clients.length ? null : <div className="px-3 py-5 text-sm text-slate-500">Nu sunt facturi client deschise.</div>}
@@ -964,7 +991,7 @@ export function Trezorerie() {
           </tr>
         ))}
       </Table>
-      <Modal open={modal} title={editing ? 'Editare operatie trezorerie' : 'Operatie trezorerie noua'} onClose={() => setModal(false)}>
+      <Modal open={modal && canPost} title={editing ? 'Editare operatie trezorerie' : 'Operatie trezorerie noua'} onClose={() => setModal(false)}>
         <form className="grid gap-3" onSubmit={submit}>
           {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
           <div className="grid gap-3 md:grid-cols-2">
@@ -1067,7 +1094,7 @@ export function Trezorerie() {
           </div>
         )}
       </Modal>
-      <Modal open={settlementModal} title="Alocare plată pe facturi" onClose={() => setSettlementModal(false)}>
+      <Modal open={settlementModal && canPost} title="Alocare plată pe facturi" onClose={() => setSettlementModal(false)}>
         {settlementLoading && !settlementData ? (
           <div className="py-8 text-center text-sm text-slate-500">Se pregătesc facturile deschise...</div>
         ) : settlementData ? (

@@ -2,7 +2,7 @@ const { Router } = require('express')
 const crypto = require('crypto')
 const xlsx = require('xlsx')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, requireAnyPermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const autoRegister = require('./auto-register')
@@ -499,7 +499,7 @@ router.get('/controlling/cost-centers', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'controlling:view')) return
+    if (!requireAnyPermission(auth, res, ['controlling:view', 'controlling:view_all', 'controlling:entry_create', 'controlling:entry_validate', 'controlling:budget_manage', 'controlling:cost_centers', 'controlling:reports', 'controlling:nexus_export'])) return
 
     const luna = currentMonth()
     if (isMssqlMode()) {
@@ -564,7 +564,7 @@ router.get('/controlling/cost-centers/link-options', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'controlling:view')) return
+    if (!requirePermission(auth, res, 'controlling:cost_centers')) return
 
     if (isMssqlMode()) {
       const departments = mssqlArray(`
@@ -963,7 +963,7 @@ router.get('/controlling/entries', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'controlling:view')) return
+    if (!requireAnyPermission(auth, res, ['controlling:view', 'controlling:view_all', 'controlling:entry_create', 'controlling:entry_validate'])) return
 
     const db = readDb()
     const controlling = ensureControllingDb(db)

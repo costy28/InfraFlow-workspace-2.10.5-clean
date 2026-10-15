@@ -60,13 +60,13 @@ const navGroups = [
 const navByKey = Object.fromEntries(nav.map(([key, to, label]) => [key, { key, to, label }]))
 const navAccess = {
   dashboard: 'accounting:view',
-  plan: 'accounting:view', solduri: 'accounting:view', furnizori: 'accounting:view', clienti: 'accounting:view',
+  plan: 'accounting:view', solduri: { anyOf: ['accounting:reports', 'accounting:post'] }, furnizori: 'accounting:view', clienti: 'accounting:view',
   intrare: 'accounting:view', iesire: 'accounting:view', trezorerie: 'accounting:view', operatiuni: 'accounting:view',
   jurnale: 'accounting:reports', jurnal: 'accounting:view', 'cartea-mare': 'accounting:reports',
   tva: 'accounting:reports', 'declaratii-diverse': 'accounting:reports', balanta: 'accounting:reports',
   'profit-pierdere': 'accounting:reports', 'situatii-financiare': 'accounting:reports', 'audit-fiscal': 'accounting:reports',
   controlling: 'cost_accounting:view', salarizare: 'hr:salary_view', anaf: 'anaf:view', inchidere: 'accounting:close',
-  sabloane: 'accounting:view', alerte: 'accounting:view',
+  sabloane: 'accounting:manage', alerte: 'accounting:alerts',
 }
 
 export function today() {

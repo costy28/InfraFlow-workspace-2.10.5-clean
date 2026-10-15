@@ -8,7 +8,11 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { AccountingShell, DropdownMenu, Info } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 export function PlanConturi() {
+  const { user } = useAuth()
+  const canManage = canAccess(user, 'accounting:manage')
   const [accounts, setAccounts] = useState([])
   const [filters, setFilters] = useState({ q: '', clasa: '', tip: '', nivel: '' })
   const [selected, setSelected] = useState(null)
@@ -55,6 +59,7 @@ export function PlanConturi() {
     return `${base}.${String(next).padStart(5, '0')}`
   }
   function openAnalytic(parent = selected) {
+    if (!canManage) return
     if (!parent) return
     setEditing(false)
     setError('')
@@ -72,6 +77,7 @@ export function PlanConturi() {
   }
 
   function openEdit(account = selected) {
+    if (!canManage) return
     if (!account) return
     setEditing(true)
     setError('')
@@ -93,6 +99,7 @@ export function PlanConturi() {
 
   async function submitAccount(event) {
     event.preventDefault()
+    if (!canManage) return
     setSaving(true)
     setError('')
     setMessage('')
@@ -113,6 +120,7 @@ export function PlanConturi() {
   }
 
   async function toggleSelectedActive() {
+    if (!canManage) return
     if (!selected) return
     setError('')
     setMessage('')
@@ -130,15 +138,16 @@ export function PlanConturi() {
     if (!account) return []
     return [
       { label: 'Fisa cont', to: `/contabilitate/fisa-cont/${account.simbol}` },
-      { label: 'Editeaza cont', onClick: () => openEdit(account) },
       { label: 'Vezi familia', onClick: () => setFilters({ ...filters, q: account.parinte_simbol || account.simbol.slice(0, 3) }) },
-      { label: 'Adauga analitic', onClick: () => openAnalytic(account) },
-      { type: 'separator' },
-      {
+      ...(canManage ? [
+        { label: 'Editeaza cont', onClick: () => openEdit(account) },
+        { label: 'Adauga analitic', onClick: () => openAnalytic(account) },
+        { type: 'separator' }, {
         label: account.activ === false ? 'Reactiveaza cont' : 'Dezactiveaza cont',
         onClick: toggleSelectedActive,
         danger: account.activ !== false,
-      },
+        }
+      ] : []),
     ]
   }
   const classNames = {
@@ -183,7 +192,7 @@ export function PlanConturi() {
             <p className="mt-1 max-w-4xl text-sm text-slate-500">{planFlow.description}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={planFlow.primaryAction}>{planFlow.primaryLabel}</Button>
+            {canManage ? <Button onClick={planFlow.primaryAction}>{planFlow.primaryLabel}</Button> : selected ? <Button onClick={() => navigate(`/contabilitate/fisa-cont/${selected.simbol}`)}>Deschide fișa contului</Button> : null}
             <Button variant="secondary" onClick={load}>Reîncarcă</Button>
           </div>
         </div>
@@ -286,7 +295,7 @@ export function PlanConturi() {
           )}
         </Card>
       </div>
-      <Modal open={modal} title={editing ? 'Editare cont' : 'Cont analitic nou'} onClose={() => setModal(false)}>
+      <Modal open={modal && canManage} title={editing ? 'Editare cont' : 'Cont analitic nou'} onClose={() => setModal(false)}>
         <form className="grid gap-3" onSubmit={submitAccount}>
           {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
           <div className="grid gap-3 md:grid-cols-2">

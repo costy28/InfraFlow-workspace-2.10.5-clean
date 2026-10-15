@@ -4,7 +4,7 @@ const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 const { requireAuth } = require('../../../core/auth')
-const { requirePermission } = require('../../../core/permissions')
+const { requirePermission, requireAnyPermission } = require('../../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../../core/db')
 const { addAudit } = require('../../../core/audit')
 const {
@@ -120,7 +120,7 @@ router.get('/integration/intersoft/projects', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'integration:intersoft_view')) return
+    if (!requireAnyPermission(auth, res, ['integration:intersoft_view', 'integration:intersoft_import', 'integration:intersoft_export'])) return
 
     if (isMssqlMode()) {
       const projects = mssqlArray(`
@@ -574,7 +574,7 @@ router.get('/integration/intersoft/projects/:id/progress', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'integration:intersoft_view')) return
+    if (!requireAnyPermission(auth, res, ['integration:intersoft_view', 'integration:intersoft_import', 'integration:intersoft_export'])) return
     const projectId = Number(req.params.id)
 
     if (isMssqlMode()) {
@@ -618,7 +618,7 @@ router.get('/integration/intersoft/projects/:id/sync-log', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'integration:intersoft_view')) return
+    if (!requireAnyPermission(auth, res, ['integration:intersoft_view', 'integration:intersoft_import', 'integration:intersoft_export'])) return
     const projectId = Number(req.params.id)
 
     if (isMssqlMode()) {

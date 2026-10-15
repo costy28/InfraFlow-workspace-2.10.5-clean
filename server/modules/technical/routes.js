@@ -70,7 +70,7 @@ function workOrderView(db, user) {
 router.get('/work/orders', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requireAnyPermission(auth, res, ['technical:view', 'department_requests:view'])) return
+  if (!requireAnyPermission(auth, res, ['technical:view', 'technical:worklog', 'department_requests:view'])) return
   sendJson(res, 200, { orders: workOrderView(auth.db, auth.user) })
 })
 
@@ -78,7 +78,7 @@ router.post('/work/orders', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['technical:worklog', 'technical:view'])) return
+    if (!requirePermission(auth, res, 'technical:worklog')) return
     const body = await readJsonBody(req)
     const work = ensureWorkOrdersDb(auth.db)
     const order = { id: id('wo'), uuid: crypto.randomUUID(), titlu: body.titlu || '', descriere: body.descriere || '', tip: body.tip || 'lucrare', data_start: body.data_start || localDate(new Date()), data_termen: body.data_termen || '', status: 'in_lucru', creat_de: auth.user.id, created_at: new Date().toISOString() }
@@ -150,7 +150,7 @@ router.post('/work/orders/:uuid/consume-material', async (req, res, next) => {
 router.post('/work/orders/month-close', (req, res) => {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'technical:view')) return
+  if (!requirePermission(auth, res, 'technical:worklog')) return
   const work = ensureWorkOrdersDb(auth.db)
   let count = 0
   work.orders.forEach(order => {
@@ -191,7 +191,7 @@ router.get('/technical/asphalt-sales', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
   const url = makeUrl(req);
-  if (!requirePermission(auth, res, "technical:view")) return;
+  if (!requireAnyPermission(auth, res, ["technical:view", "technical:sales"])) return;
   sendJson(res, 200, { sales: filteredAsphaltSales(auth.db, url) });
 })
 
@@ -213,7 +213,7 @@ router.post('/technical/asphalt-sales', async (req, res, next) => {
 router.get('/technical/clients', (req, res) => {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "technical:view")) return;
+  if (!requireAnyPermission(auth, res, ["technical:view", "technical:sales"])) return;
   sendJson(res, 200, { clients: technicalClientsView(auth.db) });
 })
 

@@ -8,6 +8,8 @@ import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 import { formatMoney } from '../../utils/format'
 
 const tabs = ['Centre cost', 'Cheltuieli', 'Buget vs Real', 'Cost automat', 'Rapoarte']
@@ -48,7 +50,7 @@ function flattenCenters(items, level = 0) {
   return items.flatMap(item => [{ ...item, _level: level }, ...flattenCenters(item.subcentre || item.children || [], level + 1)])
 }
 
-function CenterNode({ center, expanded, onToggle, onEdit, onDisable, onAssign }) {
+function CenterNode({ center, expanded, onToggle, onEdit, onDisable, onAssign, canManage }) {
   const children = center.subcentre || center.children || []
   const objects = center.obiecte || []
   const budget = Number(center.buget_lunar || center.buget || 0)
@@ -69,7 +71,7 @@ function CenterNode({ center, expanded, onToggle, onEdit, onDisable, onAssign })
         </div>
         <Badge tone={statusTone(percent)}>{percent}%</Badge>
       </button>
-      <div className="flex flex-wrap gap-2 border-t border-slate-100 px-3 py-2">
+      {canManage && <div className="flex flex-wrap gap-2 border-t border-slate-100 px-3 py-2">
         <Button size="sm" variant="secondary" onClick={() => onEdit(center)}>Editează</Button>
         <Button size="sm" variant="secondary" onClick={() => onAssign(center)}>Asociază obiect</Button>
         <Button size="sm" variant="ghost" onClick={() => onDisable(center)}>Dezactivează</Button>
@@ -78,10 +80,10 @@ function CenterNode({ center, expanded, onToggle, onEdit, onDisable, onAssign })
             {object.object_name || object.object_id}
           </span>
         ))}
-      </div>
+      </div>}
       {expanded && children.length ? (
         <div className="grid gap-2 border-t border-slate-100 p-2 pl-8">
-          {children.map(child => <CenterNode key={child.id} center={child} expanded={expanded} onToggle={onToggle} onEdit={onEdit} onDisable={onDisable} onAssign={onAssign} />)}
+          {children.map(child => <CenterNode key={child.id} center={child} expanded={expanded} onToggle={onToggle} onEdit={onEdit} onDisable={onDisable} onAssign={onAssign} canManage={canManage} />)}
         </div>
       ) : null}
     </div>
@@ -207,6 +209,22 @@ function buildControllingFlow({ summary, showCenters, showExpenses, showBudget, 
 }
 
 export default function ControllingPage() {
+  const { user } = useAuth()
+  const canView = canAccess(user, { anyOf: ['controlling:view', 'controlling:view_all'] })
+  const canCreateEntry = canAccess(user, 'controlling:entry_create')
+  const canValidateEntry = canAccess(user, 'controlling:entry_validate')
+  const canManageBudget = canAccess(user, 'controlling:budget_manage')
+  const canManageCenters = canAccess(user, 'controlling:cost_centers')
+  const canViewReports = canAccess(user, 'controlling:reports')
+  const canNexusExport = canAccess(user, 'controlling:nexus_export')
+  const canReadEntries = canView || canCreateEntry || canValidateEntry
+  const canReadCenters = canView || canCreateEntry || canValidateEntry || canManageBudget || canManageCenters || canViewReports || canNexusExport
+  const visibleTabs = useMemo(() => tabs.filter(tab => {
+    if (tab === 'Centre cost') return canView || canManageCenters
+    if (tab === 'Cheltuieli') return canReadEntries
+    return canViewReports
+  }), [canManageCenters, canReadEntries, canView, canViewReports])
+  const showFlow = canManageCenters && canCreateEntry && canViewReports
   const [activeTab, setActiveTab] = useState('Centre cost')
   const [centers, setCenters] = useState([])
   const [report, setReport] = useState([])
@@ -234,9 +252,9 @@ export default function ControllingPage() {
     setError('')
     try {
       const [centersRes, reportRes, entriesRes] = await Promise.all([
-        api.get('/controlling/cost-centers'),
-        api.get('/controlling/reports/buget-vs-real', { params: { luna: filters.luna, centru_id: filters.centru_id || undefined } }),
-        api.get('/controlling/entries').catch(error => ({ data: { entries: [], _error: error } })),
+        canReadCenters ? api.get('/controlling/cost-centers') : Promise.resolve({ data: [] }),
+        canViewReports ? api.get('/controlling/reports/buget-vs-real', { params: { luna: filters.luna, centru_id: filters.centru_id || undefined } }) : Promise.resolve({ data: [] }),
+        canReadEntries ? api.get('/controlling/entries').catch(error => ({ data: { entries: [], _error: error } })) : Promise.resolve({ data: [] }),
       ])
       const nextCenters = arrayFrom(centersRes.data, ['centers', 'cost_centers', 'items'])
       setCenters(nextCenters)
@@ -244,7 +262,7 @@ export default function ControllingPage() {
       setEntries(arrayFrom(entriesRes.data, ['entries', 'items']))
       if (entriesRes.data?._error) setError('Endpoint-ul GET /api/controlling/entries nu este disponibil încă; cheltuielile pot fi adăugate, dar lista nu se poate încărca.')
       setForm(current => ({ ...current, cost_center_id: current.cost_center_id || flattenCenters(nextCenters)[0]?.id || '' }))
-      api.get('/controlling/cost-centers/link-options')
+      if (canManageCenters) api.get('/controlling/cost-centers/link-options')
         .then(r => {
           const nextOptions = {
             departments: arrayFrom(r.data?.departments, ['items']),
@@ -259,7 +277,7 @@ export default function ControllingPage() {
             setLinkOptions(current => ({ ...current, assets: fallbackAssets }))
           }).catch(() => setLinkOptions(current => ({ ...current, assets: [] })))
         })
-      api.get('/controlling/reports/automatic-costs', { params: { luna: filters.luna } }).then(r => setAutoCosts(r.data)).catch(() => setAutoCosts(null))
+      if (canViewReports) api.get('/controlling/reports/automatic-costs', { params: { luna: filters.luna } }).then(r => setAutoCosts(r.data)).catch(() => setAutoCosts(null))
     } catch (err) {
       setError(err.response?.data?.error || 'Nu am putut incarca datele de controlling.')
     } finally {
@@ -270,6 +288,10 @@ export default function ControllingPage() {
   useEffect(() => {
     Promise.resolve().then(() => load())
   }, [filters.luna, filters.centru_id])
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab) && visibleTabs[0]) setActiveTab(visibleTabs[0])
+  }, [activeTab, visibleTabs])
 
   const flatCenters = useMemo(() => flattenCenters(centers), [centers])
   const filteredEntries = useMemo(() => entries.filter(entry => {
@@ -358,6 +380,7 @@ export default function ControllingPage() {
 
   async function submitEntry(event) {
     event.preventDefault()
+    if (!canCreateEntry) return
     setError('')
     try {
       await api.post('/controlling/entries', {
@@ -373,6 +396,7 @@ export default function ControllingPage() {
   }
 
   function openCenterModal(center = null, parent = null) {
+    if (!canManageCenters) return
     setCenterEditing(center)
     setCenterForm({
       cod: center?.cod || '',
@@ -387,6 +411,7 @@ export default function ControllingPage() {
 
   async function submitCenter(event) {
     event.preventDefault()
+    if (!canManageCenters) return
     setError('')
     try {
       const payload = {
@@ -405,6 +430,7 @@ export default function ControllingPage() {
   }
 
   async function disableCenter(center) {
+    if (!canManageCenters) return
     setConfirmAction({
       title: 'Dezactivează centru de cost',
       message: `Dezactivezi centrul „${centerName(center)}”?`,
@@ -426,6 +452,7 @@ export default function ControllingPage() {
   }
 
   function openAssignModal(center) {
+    if (!canManageCenters) return
     setAssignCenter(center)
     const first = assignmentOptions('equipment')[0] || assignmentOptions('vehicle')[0] || assignmentOptions('department')[0] || assignmentOptions('project')[0]
     setAssignForm({ object_id: first?.value || '', object_type: first?.type || 'equipment' })
@@ -434,6 +461,7 @@ export default function ControllingPage() {
 
   async function submitAssign(event) {
     event.preventDefault()
+    if (!canManageCenters) return
     if (!assignCenter) return
     try {
       const selected = allAssignmentOptions.find(item => String(item.value) === String(assignForm.object_id) && item.type === assignForm.object_type)
@@ -452,12 +480,14 @@ export default function ControllingPage() {
   }
 
   function openCostCenterDocument(format = '') {
+    if (!canViewReports) return
     const params = new URLSearchParams({ luna: filters.luna })
     if (format) params.set('format', format)
     window.open(`/api/controlling/document-centre-cost?${params.toString()}`, '_blank', 'noopener,noreferrer')
   }
 
   async function loadExecutionReport() {
+    if (!canViewReports) return
     setError('')
     try {
       const center = flatCenters.find(item => String(item.id) === String(filters.centru_id))
@@ -478,12 +508,12 @@ export default function ControllingPage() {
           <h2 className="text-xl font-semibold text-slate-900">Controlling</h2>
           <p className="text-sm text-slate-500">Centre de cost, cheltuieli și buget vs real.</p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>Adaugă cheltuială manuală</Button>
+        {canCreateEntry && <Button onClick={() => setModalOpen(true)}>Adaugă cheltuială manuală</Button>}
       </div>
 
       {error ? <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</div> : null}
 
-      <Card>
+      {showFlow && <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -539,11 +569,11 @@ export default function ControllingPage() {
             </button>
           ))}
         </div>
-      </Card>
+      </Card>}
 
       <Card>
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-          {tabs.map(tab => <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>{tab}</Button>)}
+          {visibleTabs.map(tab => <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>{tab}</Button>)}
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
           <Input label="Luna" type="month" value={filters.luna} onChange={event => setFilters({ ...filters, luna: event.target.value })} />
@@ -559,7 +589,7 @@ export default function ControllingPage() {
 
       {activeTab === 'Centre cost' ? (
         <Card>
-          <div className="mb-3 flex justify-end"><Button onClick={() => openCenterModal()}>Adaugă centru / subcentru</Button></div>
+          {canManageCenters && <div className="mb-3 flex justify-end"><Button onClick={() => openCenterModal()}>Adaugă centru / subcentru</Button></div>}
           <div className="grid gap-2">
             {centers.length ? centers.map(center => (
               <CenterNode
@@ -570,6 +600,7 @@ export default function ControllingPage() {
                 onEdit={openCenterModal}
                 onDisable={disableCenter}
                 onAssign={openAssignModal}
+                canManage={canManageCenters}
               />
             )) : <p className="text-sm text-slate-500">{loading ? 'Se incarca...' : 'Nu exista centre de cost.'}</p>}
           </div>
@@ -619,7 +650,7 @@ export default function ControllingPage() {
 
       {activeTab === 'Cheltuieli' ? (
         <Card>
-          <div className="mb-3 flex justify-end"><Button onClick={() => setModalOpen(true)}>Adaugă cheltuială manuală</Button></div>
+          {canCreateEntry && <div className="mb-3 flex justify-end"><Button onClick={() => setModalOpen(true)}>Adaugă cheltuială manuală</Button></div>}
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -756,7 +787,7 @@ export default function ControllingPage() {
         </div>
       ) : null}
 
-      <Modal open={modalOpen} title="Adaugă cheltuială manuală" onClose={() => setModalOpen(false)}>
+      <Modal open={modalOpen && canCreateEntry} title="Adaugă cheltuială manuală" onClose={() => setModalOpen(false)}>
         <form className="grid gap-4" onSubmit={submitEntry}>
           <Input label="Dată" type="date" value={form.data} onChange={event => setForm({ ...form, data: event.target.value })} required />
           <Select label="Centru cost" value={form.cost_center_id} onChange={event => setForm({ ...form, cost_center_id: event.target.value })} options={flatCenters.map(center => ({ value: center.id, label: `${'  '.repeat(center._level)}${centerName(center)}` }))} required />
@@ -770,7 +801,7 @@ export default function ControllingPage() {
         </form>
       </Modal>
 
-      <Modal open={centerModal} title={centerEditing ? 'Editează centru cost' : 'Centru / subcentru nou'} onClose={() => setCenterModal(false)}>
+      <Modal open={centerModal && canManageCenters} title={centerEditing ? 'Editează centru cost' : 'Centru / subcentru nou'} onClose={() => setCenterModal(false)}>
         <form className="grid gap-4" onSubmit={submitCenter}>
           <div className="grid gap-3 md:grid-cols-2">
             <Input label="Cod" value={centerForm.cod} onChange={event => setCenterForm({ ...centerForm, cod: event.target.value })} placeholder="ex: MEC-001" />
@@ -793,7 +824,7 @@ export default function ControllingPage() {
         </form>
       </Modal>
 
-      <Modal open={assignModal} title={`Asociază obiect la ${centerName(assignCenter)}`} onClose={() => setAssignModal(false)}>
+      <Modal open={assignModal && canManageCenters} title={`Asociază obiect la ${centerName(assignCenter)}`} onClose={() => setAssignModal(false)}>
         <form className="grid gap-4" onSubmit={submitAssign}>
           <Select label="Tip obiect" value={assignForm.object_type} onChange={event => {
             const nextType = event.target.value

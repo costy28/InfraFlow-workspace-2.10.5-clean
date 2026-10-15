@@ -9,6 +9,8 @@ import Modal from '../../components/ui/Modal'
 import Table from '../../components/ui/Table'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 import { formatDate, formatMoney, formatPercent } from '../../utils/format'
 
 const tabs = ['Proiecte', 'Import deviz', 'Export cantități', 'Import situații', 'Progres']
@@ -42,6 +44,15 @@ function ProjectSelect({ projects, value, onChange, label = 'Proiect de deviz' }
 }
 
 export default function IntersoftPage() {
+  const { user } = useAuth()
+  const canView = canAccess(user, 'integration:intersoft_view')
+  const canImport = canAccess(user, 'integration:intersoft_import')
+  const canExport = canAccess(user, 'integration:intersoft_export')
+  const visibleTabs = useMemo(() => tabs.filter(tab => {
+    if (tab === 'Import deviz' || tab === 'Import situații') return canImport
+    if (tab === 'Export cantități') return canExport
+    return canView || canImport || canExport
+  }), [canExport, canImport, canView])
   const [activeTab, setActiveTab] = useState('Proiecte')
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -101,6 +112,7 @@ export default function IntersoftPage() {
 
   const createProject = async event => {
     event.preventDefault()
+    if (!canImport) return
     setError('')
     try {
       await api.post('/integration/intersoft/projects', projectForm)
@@ -113,6 +125,7 @@ export default function IntersoftPage() {
   }
 
   const previewDeviz = async file => {
+    if (!canImport) return
     setDevizFile(file)
     setDevizPreview(null)
     setDevizResult(null)
@@ -131,6 +144,7 @@ export default function IntersoftPage() {
   }
 
   const importDeviz = async () => {
+    if (!canImport) return
     if (!devizFile || !projectOptionsId) return
     setDevizLoading(true)
     setError('')
@@ -148,6 +162,7 @@ export default function IntersoftPage() {
   }
 
   const loadExportPreview = async () => {
+    if (!canExport) return
     if (!projectOptionsId) return
     setExportLoading(true)
     setError('')
@@ -162,6 +177,7 @@ export default function IntersoftPage() {
   }
 
   const downloadQuantities = async () => {
+    if (!canExport) return
     if (!projectOptionsId) return
     setExportLoading(true)
     setError('')
@@ -184,6 +200,7 @@ export default function IntersoftPage() {
   }
 
   const previewSituatie = async file => {
+    if (!canImport) return
     setSituatieFile(file)
     setSituatiePreview(null)
     setSituatieResult(null)
@@ -202,6 +219,7 @@ export default function IntersoftPage() {
   }
 
   const importSituatie = async () => {
+    if (!canImport) return
     if (!situatieFile || !projectOptionsId) return
     setSituatieLoading(true)
     setError('')
@@ -236,6 +254,10 @@ export default function IntersoftPage() {
     if (activeTab === 'Progres' && progressProjectId) loadProgress(progressProjectId)
   }, [activeTab, progressProjectId, loadProgress])
 
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab) && visibleTabs[0]) setActiveTab(visibleTabs[0])
+  }, [activeTab, visibleTabs])
+
   const progressRows = progress?.pe_articol || []
   const chartRows = progressRows.slice(0, 20).map(row => ({
     name: row.cod_articol || row.denumire,
@@ -253,13 +275,13 @@ export default function IntersoftPage() {
             Import și export de fișiere pentru aplicații externe de devize, cu cantități realizate din teren și situații de plată.
           </p>
         </div>
-        <Button icon={<Plus size={18} />} onClick={() => setProjectModalOpen(true)}>Proiect nou</Button>
+        {canImport && <Button icon={<Plus size={18} />} onClick={() => setProjectModalOpen(true)}>Proiect nou</Button>}
       </div>
 
       {error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</div>}
 
       <div className="flex gap-2 overflow-x-auto border-b border-slate-200">
-        {tabs.map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab}
             className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${
@@ -454,7 +476,7 @@ export default function IntersoftPage() {
         </Card>
       )}
 
-      <Modal open={projectModalOpen} onClose={() => setProjectModalOpen(false)} title="Proiect de deviz nou">
+      <Modal open={projectModalOpen && canImport} onClose={() => setProjectModalOpen(false)} title="Proiect de deviz nou">
         <form className="grid gap-4" onSubmit={createProject}>
           <Input label="ID șantier InfraFlow" value={projectForm.santier_id} onChange={event => setProjectForm({ ...projectForm, santier_id: event.target.value })} required />
           <Input label="Denumire deviz" value={projectForm.denumire_intersoft} onChange={event => setProjectForm({ ...projectForm, denumire_intersoft: event.target.value })} required />

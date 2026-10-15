@@ -1,3 +1,76 @@
+## v2.12.705 - 2026-10-15
+
+### Permisiuni granulare pentru Operațiuni contabile
+
+- Consultarea recepțiilor, reconcilierii, stocurilor, imobilizărilor și stării închiderii rămâne disponibilă cu `accounting:view`.
+- Importurile, reconcilierea, facturile din NIR, notele de credit, contabilizarea stocurilor și amortizarea cer `accounting:post`.
+- Administrarea și inventarierea imobilizărilor cer `accounting:manage`, iar exporturile și fișele tipăribile cer `accounting:reports`.
+- Închiderea anuală și reportarea soldurilor cer `accounting:close`.
+- Pagina nu mai solicită auditul de integritate pentru un utilizator care nu are drept de raportare.
+
+## v2.12.704 - 2026-10-15
+
+### Permisiuni granulare pentru Trezorerie
+
+- Consultarea operațiilor, soldurilor și notelor contabile rămâne disponibilă cu `accounting:view`.
+- Introducerea, editarea, validarea, devalidarea, clasificarea și corelarea cer `accounting:post`.
+- Stingerile multiple, stingerile de avans și anularea alocărilor cer drept de postare.
+- Exportul registrului de trezorerie cere `accounting:reports`.
+
+## v2.12.703 - 2026-10-15
+
+### Permisiuni granulare pentru Facturi contabile
+
+- Facturile de intrare și ieșire pot fi consultate separat de operațiile de postare.
+- Crearea, editarea, validarea, devalidarea, storno și anularea draftului cer `accounting:post`.
+- Plata, încasarea și pregătirea e-Factura cer același drept punctual.
+- Utilizatorii cu acces de citire păstrează lista, soldurile, notele contabile și navigarea contextuală.
+
+## v2.12.702 - 2026-10-15
+
+### Permisiuni granulare pentru Terți contabili
+
+- Consultarea terților și a scadențarului rămâne disponibilă cu dreptul de vizualizare contabilă.
+- Crearea, editarea și activarea terților cer administrare contabilă.
+- Confirmările de sold și operațiile asupra notelor de credit cer postare contabilă.
+- Exporturile, fișele și documentele tipăribile cer drept de raportare.
+
+## v2.12.701 - 2026-10-15
+
+### Permisiuni Plan conturi și Solduri inițiale
+
+- Administrarea planului de conturi este separată de consultare.
+- Soldurile inițiale pot fi citite pentru raportare, dar salvarea cere drept de postare.
+- Acțiunile și câmpurile de modificare sunt ascunse sau blocate fără dreptul punctual.
+- Navigarea și accesul direct aplică aceleași reguli.
+
+## v2.12.700 - 2026-10-15
+
+### Permisiuni administrative în Contabilitate
+
+- Alertele legislative sunt controlate de dreptul contabil dedicat.
+- Marcarea alertelor ca citite nu mai este disponibilă prin simpla vizualizare contabilă.
+- Șabloanele de note necesită administrare contabilă în navigare și acces direct.
+- Drepturile de vizualizare, administrare și alerte rămân separate.
+
+## v2.12.699 - 2026-10-15
+
+### Permisiuni granulare în Controlling
+
+- Centrele de cost, cheltuielile și rapoartele sunt filtrate după drepturile punctuale.
+- Administrarea centrelor și introducerea cheltuielilor nu mai sunt disponibile prin simpla vizualizare.
+- Pagina nu mai încarcă secțiuni inaccesibile rolului curent.
+- Citirea contextului necesar rămâne separată de acțiunile de scriere.
+
+## v2.12.698 - 2026-10-15
+
+### Permisiuni granulare în Tehnic și Devize
+
+- Lucrările, outputul comercial, rapoartele și exporturile sunt filtrate după drepturile punctuale.
+- Vizualizarea nu mai permite crearea sau finalizarea comenzilor de lucru.
+- Devize afișează separat acțiunile de vizualizare, import și export.
+- Citirea contextului de proiect este disponibilă numai pentru operația acordată, fără extinderea drepturilor de scriere.
+
 ## v2.12.697 - 2026-10-14
 
 ### Permisiuni granulare în Parc & Resurse

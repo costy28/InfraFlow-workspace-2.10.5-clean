@@ -7,6 +7,8 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Input from '../../components/forms/Input'
 import Modal from '../../components/ui/Modal'
 import { formatMoney } from '../../utils/format'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 import { AccountingShell, DropdownMenu, Info, Table, currentMonth, today } from './accounting-shared'
 
 function defaultAsset() {
@@ -25,6 +27,11 @@ function defaultAsset() {
 }
 
 export function OperatiuniContabile() {
+  const { user } = useAuth()
+  const canPost = canAccess(user, 'accounting:post')
+  const canManage = canAccess(user, 'accounting:manage')
+  const canReport = canAccess(user, 'accounting:reports')
+  const canClose = canAccess(user, 'accounting:close')
   const [month, setMonth] = useState(currentMonth())
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [status, setStatus] = useState({ fixed_assets: [], bank_imports: [], depreciation_runs: [], annual_closings: [] })
@@ -75,6 +82,9 @@ export function OperatiuniContabile() {
     closeYear,
     carryforwardBalances,
     exportAudit: () => download('/accounting/integrity-audit/export', `Audit_contabil_${month}.xlsx`),
+    canPost,
+    canReport,
+    canClose,
   })
 
   useEffect(() => { load() }, [month, year])
@@ -89,7 +99,9 @@ export function OperatiuniContabile() {
       api.get('/accounting/stock-valuation', { params: { perioada: month } }),
       api.get(`/accounting/annual-close/${year}/carryforward-check`),
       api.get('/accounting/inventory-invoice-reconciliation', { params: { perioada: month } }),
-      api.get('/accounting/integrity-audit', { params: { perioada: month } }),
+      canReport
+        ? api.get('/accounting/integrity-audit', { params: { perioada: month } })
+        : Promise.resolve({ data: { checks: [], issues: [], status: 'restricted' } }),
       api.get('/accounting/fixed-assets/categories')
     ]).then(([statusRes, stockRes, annualRes, reconciliationRes, valuationRes, carryforwardRes, inventoryRes, integrityRes, categoriesRes]) => {
       setStatus(statusRes.data || {})
@@ -105,6 +117,7 @@ export function OperatiuniContabile() {
   }
 
   async function download(endpoint, filename, openInNewTab = false) {
+    if (!canReport) return
     try {
       const res = await api.get(endpoint, { params: { perioada: month }, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
@@ -120,6 +133,7 @@ export function OperatiuniContabile() {
   }
 
   async function confirmSuggestion(operation) {
+    if (!canPost) return
     const suggestion = operation.best_suggestion
     if (!suggestion) return
     setBusy(`reconcile-${operation.uuid}`); setError(''); setMessage('')
@@ -134,6 +148,7 @@ export function OperatiuniContabile() {
   }
 
   async function autoConfirmBank() {
+    if (!canPost) return
     setBusy('reconcile-auto'); setError(''); setMessage('')
     try {
       const res = await api.post('/accounting/bank-reconciliation/auto-confirm', { perioada: month, min_score: 85 })
@@ -144,6 +159,7 @@ export function OperatiuniContabile() {
   }
 
   async function finalizeBankImport(batch) {
+    if (!canPost) return
     setBusy(`batch-${batch.id}`); setError(''); setMessage('')
     try {
       await api.post(`/accounting/bank-imports/${batch.id}/finalize`)
@@ -153,6 +169,7 @@ export function OperatiuniContabile() {
   }
 
   async function confirmReceiptInvoice(row) {
+    if (!canPost) return
     const suggestion = row.best_suggestion
     if (!suggestion) return
     setBusy(`receipt-${row.id}`); setError(''); setMessage('')
@@ -164,6 +181,7 @@ export function OperatiuniContabile() {
   }
 
   async function createInvoiceFromReceipt(row) {
+    if (!canPost) return
     setBusy(`receipt-create-${row.id}`); setError(''); setMessage('')
     try {
       const res = await api.post(`/accounting/inventory-invoice-reconciliation/${row.id}/create-invoice`)
@@ -173,6 +191,7 @@ export function OperatiuniContabile() {
   }
 
   function openBatchInvoice() {
+    if (!canPost) return
     if (!selectedReceipts.length) { setError('Selectează NIR-urile care aparțin aceleiași facturi.'); return }
     const suppliers = new Set(selectedReceiptRows.map(row => String(row.supplier || '').trim().toLowerCase()))
     if (suppliers.size > 1) { setError('NIR-urile selectate trebuie să aparțină aceluiași furnizor.'); return }
@@ -182,6 +201,7 @@ export function OperatiuniContabile() {
 
   async function createBatchInvoice(event) {
     event.preventDefault()
+    if (!canPost) return
     setBusy('receipt-batch'); setError(''); setMessage('')
     try {
       const res = await api.post('/accounting/inventory-invoice-reconciliation/create-invoice-batch', {
@@ -198,10 +218,12 @@ export function OperatiuniContabile() {
   }
 
   function toggleReceipt(id) {
+    if (!canPost) return
     setSelectedReceipts(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
   }
 
   async function resolveFullReturn(returnRecord) {
+    if (!canPost) return
     setConfirmAction({
       title: 'Stornează factura legată',
       message: 'Factura și nota contabilă legată vor fi stornate. Continui?',
@@ -214,6 +236,7 @@ export function OperatiuniContabile() {
   }
 
   async function resolveFullReturnRequest(returnRecord) {
+    if (!canPost) return
     setBusy(`return-${returnRecord.id}`); setError(''); setMessage('')
     try {
       const res = await api.post(`/accounting/inventory-returns/${returnRecord.id}/storno-linked-invoice`)
@@ -223,6 +246,7 @@ export function OperatiuniContabile() {
   }
 
   function openCreditNote(row) {
+    if (!canPost) return
     setCreditTarget(row)
     setCreditForm({ nr_document: row.credit_note?.nr_document || '', data: row.credit_note?.data || today(), observatii: row.credit_note?.observatii || row.pending_return?.reason || '' })
     setCreditModal(true)
@@ -230,6 +254,7 @@ export function OperatiuniContabile() {
 
   async function saveCreditNote(event) {
     event.preventDefault()
+    if (!canPost) return
     if (!creditTarget?.pending_return) return
     setBusy('credit-note'); setError(''); setMessage('')
     try {
@@ -242,6 +267,7 @@ export function OperatiuniContabile() {
   }
 
   async function validateCreditNote(note) {
+    if (!canPost) return
     setBusy(`credit-${note.id}`); setError(''); setMessage('')
     try {
       await api.post(`/accounting/credit-notes/${note.uuid}/validate`)
@@ -251,6 +277,7 @@ export function OperatiuniContabile() {
   }
 
   async function importEfactura() {
+    if (!canPost) return
     if (!efacturaFile) { setError('Selectează fișierul XML e-Factura primit.'); return }
     setBusy('efactura'); setError(''); setMessage('')
     try {
@@ -264,6 +291,7 @@ export function OperatiuniContabile() {
   }
 
   async function inventoryAssets() {
+    if (!canManage) return
     setBusy('asset-inventory'); setError(''); setMessage('')
     try {
       const res = await api.post('/accounting/fixed-assets/inventory', { date: today() })
@@ -272,6 +300,7 @@ export function OperatiuniContabile() {
   }
 
   async function importBank() {
+    if (!canPost) return
     if (!file) { setError('Selectează fișierul extrasului bancar.'); return }
     setBusy('bank'); setError(''); setMessage('')
     try {
@@ -287,6 +316,7 @@ export function OperatiuniContabile() {
   }
 
   async function syncStock() {
+    if (!canPost) return
     setBusy('stock'); setError(''); setMessage('')
     try {
       const res = await api.post('/accounting/stock-sync', { perioada: month })
@@ -297,6 +327,7 @@ export function OperatiuniContabile() {
 
   async function createAsset(event) {
     event.preventDefault()
+    if (!canManage) return
     setBusy('asset'); setError(''); setMessage('')
     try {
       await api.post('/accounting/fixed-assets', asset)
@@ -307,6 +338,7 @@ export function OperatiuniContabile() {
   }
 
   async function cancelAsset(row) {
+    if (!canManage) return
     setBusy(`asset-${row.uuid}`); setError('')
     try {
       await api.delete(`/accounting/fixed-assets/${row.uuid}`, { data: { motiv: 'Scoatere din evidenta' } })
@@ -316,6 +348,7 @@ export function OperatiuniContabile() {
   }
 
   async function assetAction(row, action) {
+    if (!canManage) return
     const payload = { action, data: today() }
     if (action === 'transfer') {
       setConfirmAction({
@@ -369,6 +402,7 @@ export function OperatiuniContabile() {
   }
 
   async function assetActionRequest(row, action, extraPayload = {}) {
+    if (!canManage) return
     const payload = { action, data: today(), ...extraPayload }
     setBusy(`asset-${row.uuid}`); setError(''); setMessage('')
     try {
@@ -393,6 +427,7 @@ export function OperatiuniContabile() {
   }
 
   async function runDepreciation() {
+    if (!canPost) return
     setBusy('depreciation'); setError(''); setMessage('')
     try {
       const res = await api.post('/accounting/depreciation/run', { perioada: month })
@@ -402,6 +437,7 @@ export function OperatiuniContabile() {
   }
 
   async function closeYear() {
+    if (!canClose) return
     setBusy('annual'); setError(''); setMessage('')
     try {
       const res = await api.post(`/accounting/annual-close/${year}`)
@@ -411,6 +447,7 @@ export function OperatiuniContabile() {
   }
 
   async function carryforwardBalances() {
+    if (!canClose) return
     setBusy('carryforward'); setError(''); setMessage('')
     try {
       const res = await api.post(`/accounting/annual-close/${year}/carryforward`)
@@ -428,9 +465,11 @@ export function OperatiuniContabile() {
         { label: 'Reîncarcă', onClick: load },
         { label: 'Trezorerie', to: `/contabilitate/trezorerie?luna=${month}` },
         { label: 'Registru jurnal', to: `/contabilitate/registru-jurnal?luna=${month}` },
-        { type: 'separator' },
-        { label: 'Exportă registrul MF', onClick: () => download('/accounting/fixed-assets/export', 'Registru_mijloace_fixe.xlsx') },
-        { label: 'Exportă auditul contabil', onClick: () => download('/accounting/integrity-audit/export', `Audit_contabil_${month}.xlsx`) }
+        ...(canReport ? [
+          { type: 'separator' },
+          { label: 'Exportă registrul MF', onClick: () => download('/accounting/fixed-assets/export', 'Registru_mijloace_fixe.xlsx') },
+          { label: 'Exportă auditul contabil', onClick: () => download('/accounting/integrity-audit/export', `Audit_contabil_${month}.xlsx`) }
+        ] : [])
       ]} />}
     >
       {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
@@ -497,17 +536,17 @@ export function OperatiuniContabile() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="text-base font-semibold">Recepții și facturi furnizor</h3><p className="mt-1 text-sm text-slate-500">Selectează mai multe NIR-uri ale aceluiași furnizor când sunt cuprinse într-o singură factură.</p></div>
-          <div className="flex flex-wrap items-center gap-2"><Badge tone={inventoryReconciliation.summary?.discrepancies ? 'warning' : 'success'}>{inventoryReconciliation.summary?.discrepancies || 0} diferențe</Badge><Badge tone={inventoryReconciliation.summary?.pending ? 'warning' : 'success'}>{inventoryReconciliation.summary?.linked || 0}/{inventoryReconciliation.summary?.total || 0} legate</Badge><Button variant="secondary" onClick={openBatchInvoice} disabled={!selectedReceipts.length || busy === 'receipt-batch'}>Factură din selecție ({selectedReceipts.length})</Button></div>
+          <div className="flex flex-wrap items-center gap-2"><Badge tone={inventoryReconciliation.summary?.discrepancies ? 'warning' : 'success'}>{inventoryReconciliation.summary?.discrepancies || 0} diferențe</Badge><Badge tone={inventoryReconciliation.summary?.pending ? 'warning' : 'success'}>{inventoryReconciliation.summary?.linked || 0}/{inventoryReconciliation.summary?.total || 0} legate</Badge>{canPost ? <Button variant="secondary" onClick={openBatchInvoice} disabled={!selectedReceipts.length || busy === 'receipt-batch'}>Factură din selecție ({selectedReceipts.length})</Button> : null}</div>
         </div>
         <div className="mt-3 space-y-2">
           {(inventoryReconciliation.rows || []).filter(row => !row.linked_invoice).slice(0, 10).map(row => (
             <div key={row.id} className="grid gap-2 border-t border-slate-100 py-2 text-sm md:grid-cols-[28px_110px_1fr_1fr_auto] md:items-center">
-              <input aria-label={`Selectează ${row.nr_nir || row.document || row.id}`} type="checkbox" checked={selectedReceipts.includes(row.id)} onChange={() => toggleReceipt(row.id)} />
+              {canPost ? <input aria-label={`Selectează ${row.nr_nir || row.document || row.id}`} type="checkbox" checked={selectedReceipts.includes(row.id)} onChange={() => toggleReceipt(row.id)} /> : <span />}
               <span>{row.date}</span><span>{row.nr_nir || row.document || row.orderNo} · {row.supplier || '-'}</span>
               <span>{row.best_suggestion ? `${row.best_suggestion.document} · ${row.best_suggestion.furnizor} · ${row.best_suggestion.score}%` : 'Fără sugestie suficientă'}</span>
-              {row.best_suggestion
+              {canPost && (row.best_suggestion
                 ? <Button variant="secondary" onClick={() => confirmReceiptInvoice(row)} disabled={busy === `receipt-${row.id}`}>Confirmă</Button>
-                : <Button variant="secondary" onClick={() => createInvoiceFromReceipt(row)} disabled={busy === `receipt-create-${row.id}`}>Creează factură</Button>}
+                : <Button variant="secondary" onClick={() => createInvoiceFromReceipt(row)} disabled={busy === `receipt-create-${row.id}`}>Creează factură</Button>)}
             </div>
           ))}
           {!(inventoryReconciliation.rows || []).some(row => !row.linked_invoice) ? <div className="text-sm text-slate-500">Toate recepțiile lunii sunt legate de facturi.</div> : null}
@@ -517,31 +556,31 @@ export function OperatiuniContabile() {
           <div className="text-sm font-semibold text-rose-900">Retururi care cer corecție contabilă</div>
           {(inventoryReconciliation.rows || []).filter(row => row.pending_return).map(row => <div key={`return-${row.pending_return.id}`} className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800">
             <span>{row.nr_nir || row.document}: retur {formatMoney(row.pending_return.total)}. {row.pending_return.full_return ? 'Factura poate fi stornată automat.' : row.credit_note ? `Nota ${row.credit_note.nr_document} este ${row.credit_note.status}.` : 'Retur parțial: înregistrează nota de credit primită de la furnizor.'}</span>
-            <div className="flex flex-wrap gap-2">
+            {canPost ? <div className="flex flex-wrap gap-2">
               {row.pending_return.full_return ? <Button variant="secondary" onClick={() => resolveFullReturn(row.pending_return)} disabled={busy === `return-${row.pending_return.id}`}>Stornează factura</Button> : null}
               {!row.pending_return.full_return && !row.credit_note ? <Button variant="secondary" onClick={() => openCreditNote(row)}>Creează nota de credit</Button> : null}
               {!row.pending_return.full_return && row.credit_note && ["draft", "devalidat"].includes(row.credit_note.status) ? <><Button variant="secondary" onClick={() => openCreditNote(row)}>Editează</Button><Button onClick={() => validateCreditNote(row.credit_note)} disabled={busy === `credit-${row.credit_note.id}`}>Validează</Button></> : null}
-            </div>
+            </div> : null}
           </div>)}
         </div> : null}
       </Card>
 
-      <Card>
+      {canPost ? <Card>
         <h3 className="text-base font-semibold">Import e-Factura primită</h3>
         <p className="mt-1 text-sm text-slate-500">Citește XML UBL, identifică furnizorul și creează factura ca draft pentru verificare.</p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <input className="min-w-0 flex-1 text-sm" type="file" accept=".xml,text/xml,application/xml" onChange={event => setEfacturaFile(event.target.files?.[0] || null)} />
           <Button onClick={importEfactura} disabled={busy === 'efactura'}>{busy === 'efactura' ? 'Se importă...' : 'Importă XML'}</Button>
         </div>
-      </Card>
+      </Card> : null}
 
-      <Card>
+      {canReport ? <Card>
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-base font-semibold">Audit integritate contabilă</h3><p className="mt-1 text-sm text-slate-500">Documente, note, duplicate, stocuri și declarații.</p></div><Badge tone={integrity.status === 'ok' ? 'success' : 'warning'}>{integrity.issues?.length || 0} probleme</Badge></div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{(integrity.checks || []).map(check => <div key={check.key} className={`border-t py-2 text-sm ${check.value ? 'border-amber-300 text-amber-800' : 'border-emerald-200 text-emerald-800'}`}><strong>{check.label}</strong><div className="text-xs">{check.message}</div></div>)}</div>
-      </Card>
+      </Card> : null}
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
+        {canPost ? <Card>
           <h3 className="text-base font-semibold">Import extras bancar</h3>
           <p className="mt-1 text-sm text-slate-500">CSV sau Excel. Operațiile sunt create ca draft, iar duplicatele sunt ignorate.</p>
           <input className="mt-4 block w-full text-sm" type="file" accept=".csv,.xls,.xlsx" onChange={event => setFile(event.target.files?.[0] || null)} />
@@ -556,7 +595,7 @@ export function OperatiuniContabile() {
               {batch.status !== 'procesat' ? <Button variant="secondary" onClick={() => finalizeBankImport(batch)} disabled={busy === `batch-${batch.id}`}>Finalizează</Button> : null}
             </div>
           ))}
-        </Card>
+        </Card> : null}
 
         <Card>
           <h3 className="text-base font-semibold">Contabilizare stocuri</h3>
@@ -567,7 +606,7 @@ export function OperatiuniContabile() {
             <div><div className="text-xs text-slate-500">Erori</div><strong>{stock.errors?.length || 0}</strong></div>
           </div>
           {stock.errors?.length ? <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{stock.errors.slice(0, 5).join(' ')}</div> : null}
-          <div className="mt-4 flex justify-end"><Button onClick={syncStock} disabled={busy === 'stock' || !stock.pending?.length}>{busy === 'stock' ? 'Se generează...' : 'Generează note'}</Button></div>
+          {canPost ? <div className="mt-4 flex justify-end"><Button onClick={syncStock} disabled={busy === 'stock' || !stock.pending?.length}>{busy === 'stock' ? 'Se generează...' : 'Generează note'}</Button></div> : null}
         </Card>
       </div>
 
@@ -577,7 +616,7 @@ export function OperatiuniContabile() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={reconciliation.summary?.pending ? 'warning' : 'success'}>{reconciliation.summary?.reconciled || 0}/{reconciliation.summary?.total || 0} reconciliate</Badge>
             <Badge tone={reconciliation.summary?.ambiguous ? 'warning' : 'neutral'}>{reconciliation.summary?.ambiguous || 0} ambigue</Badge>
-            <Button variant="secondary" onClick={autoConfirmBank} disabled={busy === 'reconcile-auto' || !reconciliation.summary?.auto_eligible}>{busy === 'reconcile-auto' ? 'Se potrivește...' : `Potrivește sigur (${reconciliation.summary?.auto_eligible || 0})`}</Button>
+            {canPost ? <Button variant="secondary" onClick={autoConfirmBank} disabled={busy === 'reconcile-auto' || !reconciliation.summary?.auto_eligible}>{busy === 'reconcile-auto' ? 'Se potrivește...' : `Potrivește sigur (${reconciliation.summary?.auto_eligible || 0})`}</Button> : null}
           </div>
         </div>
         <div className="mt-4 space-y-2">
@@ -585,7 +624,7 @@ export function OperatiuniContabile() {
             <div key={row.uuid || row.id} className="grid gap-2 border-t border-slate-100 py-2 text-sm md:grid-cols-[120px_1fr_150px_1fr_auto] md:items-center">
               <span>{row.data}</span><span className="min-w-0 truncate">{row.explicatie || row.nr_document}</span><strong className="text-right">{formatMoney(row.suma)}</strong>
               <span>{row.best_suggestion ? `${row.best_suggestion.document} · ${row.best_suggestion.tert} · ${row.best_suggestion.score}%${row.auto_eligible ? ' · sigură' : ' · verifică'}` : 'Fără sugestie sigură'}</span>
-              {row.best_suggestion ? <Button variant="secondary" onClick={() => confirmSuggestion(row)} disabled={busy === `reconcile-${row.uuid}`}>Confirmă</Button> : null}
+              {canPost && row.best_suggestion ? <Button variant="secondary" onClick={() => confirmSuggestion(row)} disabled={busy === `reconcile-${row.uuid}`}>Confirmă</Button> : null}
             </div>
           ))}
           {!(reconciliation.operations || []).some(row => row.corelare_tip === 'neclasificat') ? <div className="text-sm text-slate-500">Nu există operații bancare neclasificate în această lună.</div> : null}
@@ -605,7 +644,7 @@ export function OperatiuniContabile() {
 
       <Card>
         <h3 className="text-base font-semibold">Imobilizări</h3>
-        <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={createAsset}>
+        {canManage ? <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={createAsset}>
           <Input label="Nr. inventar" value={asset.inventory_no} onChange={event => setAsset({ ...asset, inventory_no: event.target.value })} placeholder="MF-0001" />
           <Input label="Denumire" value={asset.name} onChange={event => setAsset({ ...asset, name: event.target.value })} required />
           <Input label="Data achiziției" type="date" value={asset.acquisition_date} onChange={event => setAsset({ ...asset, acquisition_date: event.target.value })} />
@@ -617,7 +656,7 @@ export function OperatiuniContabile() {
           <Input label="Locație" value={asset.location} onChange={event => setAsset({ ...asset, location: event.target.value })} />
           <Input label="Responsabil" value={asset.custodian} onChange={event => setAsset({ ...asset, custodian: event.target.value })} />
           <div className="flex items-end"><Button type="submit" disabled={busy === 'asset'}>{busy === 'asset' ? 'Se salvează...' : 'Adaugă imobilizare'}</Button></div>
-        </form>
+        </form> : null}
       </Card>
       <Table headers={['Inventar', 'Denumire', 'Valoare', 'Amortizat', 'Valoare netă', 'Durată', 'Acțiuni']}>
         {(status.fixed_assets || []).map(row => (
@@ -628,20 +667,26 @@ export function OperatiuniContabile() {
             <td className="px-3 py-2 text-right">{formatMoney(row.accumulated_depreciation)}</td>
             <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.net_value)}</td>
             <td className="px-3 py-2 text-right">{row.useful_life_months} luni</td>
-            <td className="px-3 py-2"><DropdownMenu align="right" label="Acțiuni" items={[
-              { label: 'Pune în funcțiune', onClick: () => assetAction(row, 'punere_in_functiune') },
-              { label: 'Transferă', onClick: () => assetAction(row, 'transfer') },
-              { label: 'Reevaluează', onClick: () => assetAction(row, 'reevaluare') },
-              { label: 'Tipărește fișa', onClick: () => download(`/accounting/fixed-assets/${row.uuid}/print`, '', true) },
-              { label: 'Proces-verbal scoatere', onClick: () => download(`/accounting/fixed-assets/${row.uuid}/disposal-report`, '', true) },
-              { type: 'separator' },
-              { label: 'Casează', onClick: () => assetAction(row, 'casare'), danger: true },
-              { label: 'Scoate din evidență fără notă', onClick: () => cancelAsset(row), danger: true }
-            ]} /></td>
+            <td className="px-3 py-2">{canManage || canReport ? <DropdownMenu align="right" label="Acțiuni" items={[
+              ...(canManage ? [
+                { label: 'Pune în funcțiune', onClick: () => assetAction(row, 'punere_in_functiune') },
+                { label: 'Transferă', onClick: () => assetAction(row, 'transfer') },
+                { label: 'Reevaluează', onClick: () => assetAction(row, 'reevaluare') }
+              ] : []),
+              ...(canReport ? [
+                { label: 'Tipărește fișa', onClick: () => download(`/accounting/fixed-assets/${row.uuid}/print`, '', true) },
+                { label: 'Proces-verbal scoatere', onClick: () => download(`/accounting/fixed-assets/${row.uuid}/disposal-report`, '', true) }
+              ] : []),
+              ...(canManage ? [
+                { type: 'separator' },
+                { label: 'Casează', onClick: () => assetAction(row, 'casare'), danger: true },
+                { label: 'Scoate din evidență fără notă', onClick: () => cancelAsset(row), danger: true }
+              ] : [])
+            ]} /> : <span className="text-xs text-slate-400">Consultare</span>}</td>
           </tr>
         ))}
       </Table>
-      <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={inventoryAssets} disabled={busy === 'asset-inventory'}>Inventariază registrul</Button><Button onClick={runDepreciation} disabled={busy === 'depreciation'}>{busy === 'depreciation' ? 'Se calculează...' : `Calculează amortizarea ${month}`}</Button></div>
+      {canManage || canPost ? <div className="flex flex-wrap justify-end gap-2">{canManage ? <Button variant="secondary" onClick={inventoryAssets} disabled={busy === 'asset-inventory'}>Inventariază registrul</Button> : null}{canPost ? <Button onClick={runDepreciation} disabled={busy === 'depreciation'}>{busy === 'depreciation' ? 'Se calculează...' : `Calculează amortizarea ${month}`}</Button> : null}</div> : null}
 
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -657,16 +702,16 @@ export function OperatiuniContabile() {
           <div><div className="text-xs text-slate-500">Rezultat</div><strong>{formatMoney(annual.result || 0)}</strong></div>
         </div>
         {annual.blockers?.length ? <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{annual.blockers.join(' ')}</div> : null}
-        <div className="mt-4 flex justify-end"><Button onClick={closeYear} disabled={busy === 'annual' || !annual.can_close}>{busy === 'annual' ? 'Se generează...' : 'Generează nota anuală'}</Button></div>
+        {canClose ? <div className="mt-4 flex justify-end"><Button onClick={closeYear} disabled={busy === 'annual' || !annual.can_close}>{busy === 'annual' ? 'Se generează...' : 'Generează nota anuală'}</Button></div> : null}
         <div className="mt-3 border-t border-slate-100 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-slate-600">Report în {Number(year) + 1}: {carryforward.entries?.length || 0} solduri. {carryforward.blockers?.join(' ')}</div>
-            <Button variant="secondary" onClick={carryforwardBalances} disabled={busy === 'carryforward' || !carryforward.can_carryforward}>{busy === 'carryforward' ? 'Se reportează...' : 'Reportează soldurile'}</Button>
+            {canClose ? <Button variant="secondary" onClick={carryforwardBalances} disabled={busy === 'carryforward' || !carryforward.can_carryforward}>{busy === 'carryforward' ? 'Se reportează...' : 'Reportează soldurile'}</Button> : null}
           </div>
         </div>
       </Card>
 
-      <Modal open={batchModal} title="Factură furnizor din NIR-uri" onClose={() => setBatchModal(false)} size="lg">
+      <Modal open={canPost && batchModal} title="Factură furnizor din NIR-uri" onClose={() => setBatchModal(false)} size="lg">
         <form className="grid gap-4" onSubmit={createBatchInvoice}>
           <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">{selectedReceiptRows.length} NIR-uri · {selectedReceiptRows[0]?.supplier || 'Furnizor'} · total recepții <strong>{formatMoney(selectedReceiptTotal)}</strong></div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -681,7 +726,7 @@ export function OperatiuniContabile() {
         </form>
       </Modal>
 
-      <Modal open={creditModal} title="Notă de credit furnizor" onClose={() => setCreditModal(false)}>
+      <Modal open={canPost && creditModal} title="Notă de credit furnizor" onClose={() => setCreditModal(false)}>
         <form className="grid gap-4" onSubmit={saveCreditNote}>
           <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Retur {formatMoney(creditTarget?.pending_return?.total || 0)} · factura {creditTarget?.linked_invoice?.document || '-'}. Validarea notei va reduce soldul furnizorului și va genera nota contabilă.</div>
           <Input label="Număr notă de credit" value={creditForm.nr_document} onChange={event => setCreditForm({ ...creditForm, nr_document: event.target.value })} required />
@@ -763,6 +808,9 @@ function buildOperationsFlow({
   closeYear,
   carryforwardBalances,
   exportAudit,
+  canPost,
+  canReport,
+  canClose,
 }) {
   const steps = [
     {
@@ -801,7 +849,7 @@ function buildOperationsFlow({
     },
   ]
 
-  if (summary.selectedReceipts) {
+  if (canPost && summary.selectedReceipts) {
     return {
       badge: 'selecție NIR',
       badgeClass: 'bg-blue-100 text-blue-700',
@@ -837,7 +885,7 @@ function buildOperationsFlow({
     }
   }
 
-  if (summary.stockPending) {
+  if (canPost && summary.stockPending) {
     return {
       badge: 'stocuri',
       badgeClass: 'bg-amber-100 text-amber-700',
@@ -849,7 +897,7 @@ function buildOperationsFlow({
     }
   }
 
-  if (summary.bankAutoEligible) {
+  if (canPost && summary.bankAutoEligible) {
     return {
       badge: 'bancă',
       badgeClass: 'bg-blue-100 text-blue-700',
@@ -861,7 +909,7 @@ function buildOperationsFlow({
     }
   }
 
-  if (summary.integrityIssues || summary.valuationErrors) {
+  if (canReport && (summary.integrityIssues || summary.valuationErrors)) {
     return {
       badge: 'control',
       badgeClass: 'bg-red-100 text-red-700',
@@ -873,7 +921,7 @@ function buildOperationsFlow({
     }
   }
 
-  if (summary.assetsCount && !summary.depreciationRuns) {
+  if (canPost && summary.assetsCount && !summary.depreciationRuns) {
     return {
       badge: 'amortizare',
       badgeClass: 'bg-amber-100 text-amber-700',
@@ -885,7 +933,7 @@ function buildOperationsFlow({
     }
   }
 
-  if (summary.annualCanClose) {
+  if (canClose && summary.annualCanClose) {
     return {
       badge: 'închidere',
       badgeClass: 'bg-emerald-100 text-emerald-700',
@@ -897,7 +945,7 @@ function buildOperationsFlow({
     }
   }
 
-  if (summary.carryforwardCanRun) {
+  if (canClose && summary.carryforwardCanRun) {
     return {
       badge: 'report',
       badgeClass: 'bg-blue-100 text-blue-700',
@@ -909,7 +957,7 @@ function buildOperationsFlow({
     }
   }
 
-  return {
+  return canReport ? {
     badge: 'ok',
     badgeClass: 'bg-emerald-100 text-emerald-700',
     title: 'Operațiunile contabile nu au blocaje evidente',
@@ -917,5 +965,13 @@ function buildOperationsFlow({
     steps,
     actionLabel: 'Exportă auditul',
     onClick: exportAudit,
+  } : {
+    badge: 'consultare',
+    badgeClass: 'bg-slate-100 text-slate-700',
+    title: 'Mod consultare operațiuni contabile',
+    detail: 'Poți verifica sursele, reconcilierea, stocurile, imobilizările și starea închiderii. Acțiunile sunt afișate numai pentru drepturile acordate rolului.',
+    steps,
+    actionLabel: 'Reîncarcă operațiuni',
+    onClick: load,
   }
 }

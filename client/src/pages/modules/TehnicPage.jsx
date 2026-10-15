@@ -7,6 +7,8 @@ import Card from '../../components/ui/Card'
 import Modal from '../../components/ui/Modal'
 import Badge from '../../components/ui/Badge'
 import IntersoftPage from './IntersoftPage'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 const tabs = ['Lucrări', 'Comenzi de lucru', 'Vânzări / Output', 'Clienți', 'Rapoarte', 'Devize — integrare']
 const pageSize = 10
@@ -55,6 +57,19 @@ function EmptyRow({ colSpan, loading }) {
 }
 
 export default function TehnicPage() {
+  const { user } = useAuth()
+  const canViewTechnical = canAccess(user, 'technical:view')
+  const canManageWork = canAccess(user, 'technical:worklog')
+  const canManageSales = canAccess(user, 'technical:sales')
+  const canExportTechnical = canAccess(user, 'technical:export')
+  const canViewDevize = canAccess(user, { anyOf: ['integration:intersoft_view', 'integration:intersoft_import', 'integration:intersoft_export'] })
+  const visibleTabs = tabs.filter(tab => {
+    if (tab === 'Lucrări' || tab === 'Comenzi de lucru') return canViewTechnical || canManageWork
+    if (tab === 'Vânzări / Output' || tab === 'Clienți') return canViewTechnical || canManageSales
+    if (tab === 'Rapoarte') return canViewTechnical
+    if (tab === 'Devize — integrare') return canViewDevize
+    return false
+  })
   const [activeTab, setActiveTab] = useState('Lucrări')
   const [workLogs, setWorkLogs] = useState([])
   const [sales, setSales] = useState([])
@@ -82,13 +97,13 @@ export default function TehnicPage() {
     setError('')
     try {
       const [workRes, salesRes, clientsRes, assetsRes, costsRes, recipesRes, ordersRes] = await Promise.all([
-        api.get('/technical/work-logs', { params: period }),
-        api.get('/technical/asphalt-sales', { params: period }),
-        api.get('/technical/clients'),
-        api.get('/fleet-assets').catch(() => ({ data: { assets: [] } })),
-        api.get('/cost-centers').catch(() => ({ data: { costCenters: [] } })),
-        api.get('/recipes').catch(() => ({ data: { recipes: [] } })),
-        api.get('/work/orders').catch(() => ({ data: { orders: [] } })),
+        (canViewTechnical || canManageWork) ? api.get('/technical/work-logs', { params: period }) : Promise.resolve({ data: { workLogs: [] } }),
+        (canViewTechnical || canManageSales) ? api.get('/technical/asphalt-sales', { params: period }) : Promise.resolve({ data: { sales: [] } }),
+        (canViewTechnical || canManageSales) ? api.get('/technical/clients') : Promise.resolve({ data: { clients: [] } }),
+        canManageWork ? api.get('/fleet-assets').catch(() => ({ data: { assets: [] } })) : Promise.resolve({ data: { assets: [] } }),
+        canManageWork ? api.get('/cost-centers').catch(() => ({ data: { costCenters: [] } })) : Promise.resolve({ data: { costCenters: [] } }),
+        canManageSales ? api.get('/recipes').catch(() => ({ data: { recipes: [] } })) : Promise.resolve({ data: { recipes: [] } }),
+        (canViewTechnical || canManageWork) ? api.get('/work/orders').catch(() => ({ data: { orders: [] } })) : Promise.resolve({ data: { orders: [] } }),
       ])
       const nextAssets = arrayFrom(assetsRes.data, ['assets'])
       const nextCosts = arrayFrom(costsRes.data, ['costCenters', 'centers'])
@@ -111,6 +126,7 @@ export default function TehnicPage() {
   }
 
   async function loadReport() {
+    if (!canViewTechnical) return
     setError('')
     try {
       const response = await api.get('/technical/report', { params: period })
@@ -124,6 +140,10 @@ export default function TehnicPage() {
     Promise.resolve().then(() => load())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab) && visibleTabs[0]) setActiveTab(visibleTabs[0])
+  }, [activeTab, visibleTabs.join('|')])
 
   useEffect(() => {
     Promise.resolve().then(() => setPage(1))
@@ -145,6 +165,7 @@ export default function TehnicPage() {
 
   async function submitWork(event) {
     event.preventDefault()
+    if (!canManageWork) return
     setError('')
     try {
       await api.post('/technical/work-logs', workForm)
@@ -159,6 +180,7 @@ export default function TehnicPage() {
 
   async function submitSale(event) {
     event.preventDefault()
+    if (!canManageSales) return
     setError('')
     try {
       await api.post('/technical/asphalt-sales', saleForm)
@@ -173,6 +195,7 @@ export default function TehnicPage() {
 
   async function submitClient(event) {
     event.preventDefault()
+    if (!canManageSales) return
     setError('')
     try {
       await api.post('/technical/clients', clientForm)
@@ -188,6 +211,7 @@ export default function TehnicPage() {
 
   async function submitOrder(event) {
     event.preventDefault()
+    if (!canManageWork) return
     setError('')
     try {
       await api.post('/work/orders', { ...orderForm, departamente: orderForm.departamente.split(',').map(item => item.trim()).filter(Boolean) })
@@ -201,11 +225,13 @@ export default function TehnicPage() {
   }
 
   async function updateDepartmentStatus(order, department, status) {
+    if (!canManageWork) return
     await api.patch(`/work/orders/${order.uuid}/department-status`, { department_cod: department.department_cod, status })
     await load()
   }
 
   async function lookupAnaf(cifOverride = '') {
+    if (!canManageSales) return
     const lookupCif = cifOverride || clientForm.cif
     if (!lookupCif) {
       setError('Completează CUI/CIF înainte de căutare.')
@@ -249,6 +275,7 @@ export default function TehnicPage() {
   }
 
   function openClientFromSale() {
+    if (!canManageSales) return
     setClientForm({
       name: saleForm.client || '',
       cif: saleForm.clientCif || '',
@@ -268,7 +295,9 @@ export default function TehnicPage() {
           <h2 className="text-xl font-semibold text-slate-900">Tehnic</h2>
           <p className="text-sm text-slate-500">Lucrări, output operațional, clienți și rapoarte.</p>
         </div>
-        {!['Rapoarte', 'Devize — integrare'].includes(activeTab) && <Button onClick={() => setModal(activeTab)}>{activeTab === 'Lucrări' ? 'Lucrare nouă' : activeTab === 'Comenzi de lucru' ? 'Comandă nouă' : activeTab === 'Vânzări / Output' ? 'Vânzare nouă' : 'Client nou'}</Button>}
+        {((['Lucrări', 'Comenzi de lucru'].includes(activeTab) && canManageWork) || (['Vânzări / Output', 'Clienți'].includes(activeTab) && canManageSales)) ? (
+          <Button onClick={() => setModal(activeTab)}>{activeTab === 'Lucrări' ? 'Lucrare nouă' : activeTab === 'Comenzi de lucru' ? 'Comandă nouă' : activeTab === 'Vânzări / Output' ? 'Vânzare nouă' : 'Client nou'}</Button>
+        ) : null}
       </div>
 
       {message && <div className="rounded-md bg-primary-50 px-3 py-2 text-sm text-primary-700">{message}</div>}
@@ -276,13 +305,13 @@ export default function TehnicPage() {
 
       <Card>
         <div className="flex flex-wrap gap-2">
-          {tabs.map(tab => <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>{tab}</Button>)}
+          {visibleTabs.map(tab => <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>{tab}</Button>)}
         </div>
       </Card>
 
       {activeTab === 'Lucrări' && (
         <Card>
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Lucrări</h3><Button onClick={() => setModal('Lucrări')}>Lucrare nouă</Button></div>
+          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Lucrări</h3>{canManageWork ? <Button onClick={() => setModal('Lucrări')}>Lucrare nouă</Button> : null}</div>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Dată</th><th className="px-3 py-2">Șantier</th><th className="px-3 py-2">Descriere</th><th className="px-3 py-2">Ore</th><th className="px-3 py-2">Operator</th></tr></thead>
@@ -297,7 +326,7 @@ export default function TehnicPage() {
 
       {activeTab === 'Vânzări / Output' && (
         <Card>
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Vânzări / Output</h3><Button onClick={() => setModal('Vânzări / Output')}>Vânzare nouă</Button></div>
+          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Vânzări / Output</h3>{canManageSales ? <Button onClick={() => setModal('Vânzări / Output')}>Vânzare nouă</Button> : null}</div>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Dată</th><th className="px-3 py-2">Client</th><th className="px-3 py-2">Rețetă</th><th className="px-3 py-2">Cantitate</th><th className="px-3 py-2">Valoare</th></tr></thead>
@@ -312,12 +341,12 @@ export default function TehnicPage() {
 
       {activeTab === 'Comenzi de lucru' && (
         <Card>
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Comenzi de lucru</h3><Button onClick={() => setModal('Comenzi de lucru')}>Comandă nouă</Button></div>
+          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Comenzi de lucru</h3>{canManageWork ? <Button onClick={() => setModal('Comenzi de lucru')}>Comandă nouă</Button> : null}</div>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Titlu</th><th className="px-3 py-2">Termen</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Departamente</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
-                {pagedWorkOrders.length ? pagedWorkOrders.map(order => <tr key={order.uuid}><td className="px-3 py-2 font-medium">{order.titlu}</td><td className="px-3 py-2">{order.data_termen || '-'}</td><td className="px-3 py-2"><Badge tone={order.status === 'finalizat' ? 'success' : 'warning'}>{order.status}</Badge></td><td className="px-3 py-2"><div className="grid gap-2">{(order.departamente || []).map(dept => <div key={dept.id} className="flex flex-wrap items-center gap-2"><span>{dept.department_cod}</span><Badge tone={dept.status === 'finalizat' ? 'success' : 'neutral'}>{dept.status}</Badge><Button size="sm" variant="secondary" onClick={() => updateDepartmentStatus(order, dept, 'finalizat')}>Finalizez</Button></div>)}</div></td></tr>) : <EmptyRow colSpan={4} loading={loading} />}
+                {pagedWorkOrders.length ? pagedWorkOrders.map(order => <tr key={order.uuid}><td className="px-3 py-2 font-medium">{order.titlu}</td><td className="px-3 py-2">{order.data_termen || '-'}</td><td className="px-3 py-2"><Badge tone={order.status === 'finalizat' ? 'success' : 'warning'}>{order.status}</Badge></td><td className="px-3 py-2"><div className="grid gap-2">{(order.departamente || []).map(dept => <div key={dept.id} className="flex flex-wrap items-center gap-2"><span>{dept.department_cod}</span><Badge tone={dept.status === 'finalizat' ? 'success' : 'neutral'}>{dept.status}</Badge>{canManageWork ? <Button size="sm" variant="secondary" onClick={() => updateDepartmentStatus(order, dept, 'finalizat')}>Finalizez</Button> : null}</div>)}</div></td></tr>) : <EmptyRow colSpan={4} loading={loading} />}
               </tbody>
             </table>
           </div>
@@ -327,7 +356,7 @@ export default function TehnicPage() {
 
       {activeTab === 'Clienți' && (
         <Card>
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Clienți</h3><Button onClick={() => setModal('Clienți')}>Client nou</Button></div>
+          <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-900">Clienți</h3>{canManageSales ? <Button onClick={() => setModal('Clienți')}>Client nou</Button> : null}</div>
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Denumire</th><th className="px-3 py-2">CUI</th><th className="px-3 py-2">Adresă</th><th className="px-3 py-2">Contact</th></tr></thead>
@@ -346,7 +375,7 @@ export default function TehnicPage() {
             <Input label="De la" type="date" value={period.from} onChange={event => setPeriod({ ...period, from: event.target.value })} />
             <Input label="Până la" type="date" value={period.to} onChange={event => setPeriod({ ...period, to: event.target.value })} />
             <div className="flex items-end"><Button onClick={loadReport}>Generează raport</Button></div>
-            <div className="flex items-end"><Button variant="secondary" onClick={() => window.open(`/api/exports/technical-report.xlsx?from=${period.from}&to=${period.to}`, '_blank')}>Export Excel</Button></div>
+            {canExportTechnical ? <div className="flex items-end"><Button variant="secondary" onClick={() => window.open(`/api/exports/technical-report.xlsx?from=${period.from}&to=${period.to}`, '_blank')}>Export Excel</Button></div> : null}
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-lg bg-slate-50 p-4"><div className="text-sm text-slate-500">Ore lucrate</div><div className="text-2xl font-semibold">{reportTotals.hours}</div></div>
@@ -358,7 +387,7 @@ export default function TehnicPage() {
 
       {activeTab === 'Devize — integrare' && <IntersoftPage />}
 
-      <Modal open={modal === 'Lucrări'} title="Lucrare nouă" onClose={() => setModal('')}>
+      <Modal open={modal === 'Lucrări' && canManageWork} title="Lucrare nouă" onClose={() => setModal('')}>
         <form className="grid gap-3" onSubmit={submitWork}>
           <Input label="Dată" type="date" value={workForm.date} onChange={event => setWorkForm({ ...workForm, date: event.target.value })} />
           <Select label="Utilaj" value={workForm.assetId} onChange={event => setWorkForm({ ...workForm, assetId: event.target.value })} options={assets.map(asset => ({ value: asset.id, label: asset.registration || asset.name }))} />
@@ -370,7 +399,7 @@ export default function TehnicPage() {
         </form>
       </Modal>
 
-      <Modal open={modal === 'Vânzări / Output'} title="Vânzare nouă" onClose={() => setModal('')}>
+      <Modal open={modal === 'Vânzări / Output' && canManageSales} title="Vânzare nouă" onClose={() => setModal('')}>
         <form className="grid gap-3" onSubmit={submitSale}>
           <Input label="Dată" type="date" value={saleForm.date} onChange={event => setSaleForm({ ...saleForm, date: event.target.value })} />
           <Select label="Client" value={saleForm.clientId} onChange={event => setSaleForm({ ...saleForm, clientId: event.target.value })} options={[{ value: '', label: 'Client liber' }, ...clients.map(client => ({ value: client.id, label: client.name }))]} />
@@ -389,7 +418,7 @@ export default function TehnicPage() {
         </form>
       </Modal>
 
-      <Modal open={modal === 'Comenzi de lucru'} title="Comandă de lucru nouă" onClose={() => setModal('')}>
+      <Modal open={modal === 'Comenzi de lucru' && canManageWork} title="Comandă de lucru nouă" onClose={() => setModal('')}>
         <form className="grid gap-3" onSubmit={submitOrder}>
           <Input label="Titlu" value={orderForm.titlu} onChange={event => setOrderForm({ ...orderForm, titlu: event.target.value })} required />
           <Input label="Descriere" value={orderForm.descriere} onChange={event => setOrderForm({ ...orderForm, descriere: event.target.value })} />
@@ -400,7 +429,7 @@ export default function TehnicPage() {
         </form>
       </Modal>
 
-      <Modal open={modal === 'Clienți'} title="Client nou" onClose={() => setModal('')}>
+      <Modal open={modal === 'Clienți' && canManageSales} title="Client nou" onClose={() => setModal('')}>
         <form className="grid gap-3" onSubmit={submitClient}>
           <div className="grid gap-2 md:grid-cols-[1fr_auto]">
             <Input label="CUI" value={clientForm.cif} onChange={event => setClientForm({ ...clientForm, cif: event.target.value })} />

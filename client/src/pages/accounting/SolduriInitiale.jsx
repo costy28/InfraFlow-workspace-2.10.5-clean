@@ -7,6 +7,8 @@ import Badge from '../../components/ui/Badge'
 import Input from '../../components/forms/Input'
 import { formatMoney } from '../../utils/format'
 import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, money } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 function currentYear() {
   return String(new Date().getFullYear())
@@ -17,6 +19,8 @@ function emptyRow() {
 }
 
 export function SolduriInitiale() {
+  const { user } = useAuth()
+  const canEdit = canAccess(user, 'accounting:post')
   const [year, setYear] = useState(currentYear())
   const [rows, setRows] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -70,21 +74,25 @@ export function SolduriInitiale() {
   }
 
   function updateRow(index, patch) {
+    if (!canEdit) return
     const next = [...visibleRows]
     next[index] = { ...next[index], ...patch }
     setRows(next.filter(row => row.cont_simbol || row.debit || row.credit || row.observatii))
   }
 
   function addRow() {
+    if (!canEdit) return
     setRows([...visibleRows, emptyRow()])
   }
 
   function removeRow(index) {
+    if (!canEdit) return
     const next = visibleRows.filter((_, rowIndex) => rowIndex !== index)
     setRows(next.filter(row => row.cont_simbol || row.debit || row.credit || row.observatii))
   }
 
   async function save() {
+    if (!canEdit) return
     setSaving(true)
     setError('')
     setMessage('')
@@ -119,8 +127,7 @@ export function SolduriInitiale() {
       title="Solduri initiale"
       subtitle="Punctul de pornire pentru balanta si fisa contului."
       actions={<DropdownMenu align="right" label={saving ? 'Se salveaza...' : 'Actiuni'} items={[
-        { label: 'Salveaza solduri', onClick: save, disabled: saving || !hasEditableRows },
-        { label: 'Adauga linie', onClick: addRow },
+        ...(canEdit ? [{ label: 'Salveaza solduri', onClick: save, disabled: saving || !hasEditableRows }, { label: 'Adauga linie', onClick: addRow }] : []),
         { label: 'Reincarca solduri', onClick: load },
         { type: 'separator' },
         { label: 'Verifica in balanta', to: `/contabilitate/balanta?luna=${year}-01` }
@@ -139,9 +146,7 @@ export function SolduriInitiale() {
             <p className="mt-1 max-w-4xl text-sm text-slate-500">{solduriFlow.description}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={solduriFlow.primaryAction} loading={saving && solduriFlow.primaryType === 'save'} disabled={loading || saving}>
-              {solduriFlow.primaryLabel}
-            </Button>
+            {canEdit ? <Button onClick={solduriFlow.primaryAction} loading={saving && solduriFlow.primaryType === 'save'} disabled={loading || saving}>{solduriFlow.primaryLabel}</Button> : <Button onClick={() => navigate(`/contabilitate/balanta?luna=${year}-01`)}>Verifică în balanță</Button>}
             <Button variant="secondary" onClick={load} disabled={loading || saving}>Reîncarcă</Button>
           </div>
         </div>
@@ -192,6 +197,7 @@ export function SolduriInitiale() {
                 value={row.cont_simbol}
                 accounts={accounts}
                 onChange={event => updateRow(index, { cont_simbol: event.target.value })}
+                disabled={!canEdit}
               />
             </td>
             <td className="min-w-[150px] px-3 py-2">
@@ -201,6 +207,7 @@ export function SolduriInitiale() {
                 step="0.01"
                 value={row.debit}
                 onChange={event => updateRow(index, { debit: event.target.value, credit: event.target.value ? '' : row.credit })}
+                disabled={!canEdit}
               />
             </td>
             <td className="min-w-[150px] px-3 py-2">
@@ -210,16 +217,17 @@ export function SolduriInitiale() {
                 step="0.01"
                 value={row.credit}
                 onChange={event => updateRow(index, { credit: event.target.value, debit: event.target.value ? '' : row.debit })}
+                disabled={!canEdit}
               />
             </td>
             <td className="min-w-[220px] px-3 py-2">
-              <Input label="Observatii" value={row.observatii || ''} onChange={event => updateRow(index, { observatii: event.target.value })} />
+              <Input label="Observatii" value={row.observatii || ''} onChange={event => updateRow(index, { observatii: event.target.value })} disabled={!canEdit} />
             </td>
             <td className="px-3 py-8 text-right">
-              <DropdownMenu align="right" label="Actiuni" items={[
+              {canEdit ? <DropdownMenu align="right" label="Actiuni" items={[
                 { label: 'Adauga linie sub aceasta', onClick: () => setRows([...visibleRows.slice(0, index + 1), emptyRow(), ...visibleRows.slice(index + 1)]) },
                 { label: 'Sterge linia', onClick: () => removeRow(index), disabled: visibleRows.length === 1 && !row.cont_simbol, danger: true }
-              ]} />
+              ]} /> : '—'}
             </td>
           </tr>
         ))}
@@ -229,10 +237,10 @@ export function SolduriInitiale() {
           <td className="px-3 py-2 text-right">{formatMoney(localTotals.credit)}</td>
           <td className="px-3 py-2">{status}</td>
           <td className="px-3 py-2 text-right">
-            <DropdownMenu align="right" label="Actiuni" items={[
+            {canEdit ? <DropdownMenu align="right" label="Actiuni" items={[
               { label: 'Adauga linie', onClick: addRow },
               { label: 'Salveaza solduri', onClick: save, disabled: saving || !hasEditableRows }
-            ]} />
+            ]} /> : '—'}
           </td>
         </tr>
       </Table>

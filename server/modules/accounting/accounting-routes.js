@@ -1696,7 +1696,9 @@ router.post("/accounting/periods/:an/:luna/mark-submitted", requireAccountingClo
   } catch (error) { next(error); }
 });
 
-router.get("/accounting/alerts", requireAccountingView, (req, res) => {
+router.get("/accounting/alerts", (req, res) => {
+  const auth = requireAuth(req, res);
+  if (!auth || !requireAnyPermission(auth, res, ["accounting:alerts", "accounting:manage"])) return;
   const alerts = engine.ensureAccounting(req.auth.db).lawAlerts.filter((item) => !req.query.status || item.status === req.query.status);
   sendJson(res, 200, { alerts });
 });
@@ -1723,7 +1725,11 @@ router.post("/accounting/alerts", requireAccountingManage, (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.patch("/accounting/alerts/:id/read", requireAccountingView, markAlert("citit"));
+router.patch("/accounting/alerts/:id/read", (req, res, next) => {
+  const auth = requireAuth(req, res);
+  if (!auth || !requireAnyPermission(auth, res, ["accounting:alerts", "accounting:manage"])) return;
+  return markAlert("citit")(req, res, next);
+});
 router.patch("/accounting/alerts/:id/done", requireAccountingManage, markAlert("implementat"));
 
 function requireAccountingView(req, res, next) {

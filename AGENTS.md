@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.697**
-**Versiune în lucru: v2.12.697**
+**Versiune curentă sursă: v2.12.705**
+**Versiune în lucru: v2.12.705**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -437,6 +437,14 @@ Core System
   ✅ Permisiuni granulare în Aprovizionare & Achiziții pentru comenzi, recepții, cântar și PAAP (v2.12.695)
   ✅ Circuit Referate configurabil pe organizație, cu snapshot și compatibilitate istorică (v2.12.696)
   ✅ Permisiuni granulare Parc & Resurse pentru catalog, planificare, bonuri, carburant, mentenanță, conformitate și rapoarte (v2.12.697)
+  ✅ Permisiuni granulare Tehnic și Devize pentru lucru, output, raportare, import și export (v2.12.698)
+  ✅ Permisiuni granulare Controlling pentru centre, cheltuieli, bugete și rapoarte (v2.12.699)
+  ✅ Permisiuni administrative Contabilitate pentru alerte și șabloane de note (v2.12.700)
+  ✅ Permisiuni Plan conturi și Solduri inițiale pentru consultare, administrare și postare (v2.12.701)
+  ✅ Permisiuni granulare pentru administrare, postare și raportare în Terți contabili (v2.12.702)
+  ✅ Permisiuni granulare pentru consultare și postare în Facturi contabile (v2.12.703)
+  ✅ Permisiuni granulare pentru consultare, postare și raportare în Trezorerie (v2.12.704)
+  ✅ Permisiuni granulare pentru Operațiuni contabile, imobilizări și închidere anuală (v2.12.705)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1160,9 +1168,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.697
+VERSIUNE CURENTĂ SURSĂ: 2.12.705
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.697 ✅
+UPDATE ZIP CURENT: 2.12.705 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1666,6 +1674,14 @@ UPDATES ÎN LUCRU:
   2.12.695 → UPDATE 715 permisiuni granulare Aprovizionare & Achiziții ✅
   2.12.696 → UPDATE 716 circuit Referate configurabil pe organizație ✅
   2.12.697 → UPDATE 717 permisiuni granulare Parc & Resurse ✅
+  2.12.698 → UPDATE 718 permisiuni granulare Tehnic și Devize ✅
+  2.12.699 → UPDATE 719 permisiuni granulare Controlling ✅
+  2.12.700 → UPDATE 720 permisiuni administrative Contabilitate ✅
+  2.12.701 → UPDATE 721 permisiuni Plan conturi și Solduri inițiale ✅
+  2.12.702 → UPDATE 722 permisiuni granulare Terți contabili ✅
+  2.12.703 → UPDATE 723 permisiuni granulare Facturi contabile ✅
+  2.12.704 → UPDATE 724 permisiuni granulare Trezorerie ✅
+  2.12.705 → UPDATE 725 permisiuni granulare Operațiuni contabile ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2164,5 +2180,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 14 Octombrie 2026 | InfraFlow sursă v2.12.697*
+*AGENTS.md actualizat: 15 Octombrie 2026 | InfraFlow sursă v2.12.705*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

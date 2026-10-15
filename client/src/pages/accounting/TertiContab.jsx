@@ -11,6 +11,8 @@ import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { openApiFile } from '../../utils/download'
 import { AccountingShell, DropdownMenu, Info, Table } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 const blankThirdParty = (tip) => ({
   tip,
@@ -45,6 +47,10 @@ function confirmationTone(confirmation) {
 }
 
 export function TertiContab({ type = 'furnizor' }) {
+  const { user } = useAuth()
+  const canManage = canAccess(user, 'accounting:manage')
+  const canPost = canAccess(user, 'accounting:post')
+  const canReport = canAccess(user, 'accounting:reports')
   const [searchParams] = useSearchParams()
   const autoEditKey = useRef('')
   const [rows, setRows] = useState([])
@@ -93,6 +99,7 @@ export function TertiContab({ type = 'furnizor' }) {
   }, [rows, searchParams, tertParam, type])
 
   function openNew() {
+    if (!canManage) return
     setEditing(null)
     setError('')
     setMessage('')
@@ -101,6 +108,7 @@ export function TertiContab({ type = 'furnizor' }) {
   }
 
   function openEdit(row) {
+    if (!canManage) return
     setEditing(row)
     setError('')
     setMessage('')
@@ -235,6 +243,7 @@ export function TertiContab({ type = 'furnizor' }) {
   }
 
   function creditNoteMenu(note) {
+    if (!canPost) return []
     return [
       ['draft', 'devalidat'].includes(note.status) ? { label: 'Valideaza nota', onClick: () => creditNoteAction(note, 'validate') } : null,
       note.status === 'validat' ? { label: 'Devalideaza nota', onClick: () => creditNoteAction(note, 'devalidate'), danger: true } : null,
@@ -280,7 +289,9 @@ export function TertiContab({ type = 'furnizor' }) {
     showMissingConfirmations: () => setConfirmationFilter('netrimisa'),
     exportExcel,
     exportConfirmationsRegister,
-    openInvoices: () => navigate(invoicePath)
+    openInvoices: () => navigate(invoicePath),
+    canManage,
+    canReport
   })
 
   async function exportExcel() {
@@ -436,30 +447,30 @@ export function TertiContab({ type = 'furnizor' }) {
   function confirmationMenu(row) {
     return [
       { label: 'Detalii tert', onClick: () => openDetails(row) },
-      { label: 'Editeaza tert', onClick: () => openEdit(row) },
-      { separator: true },
-      { label: 'Tipareste confirmare', onClick: () => printConfirmation(row) },
-      { label: 'Export confirmare sold', onClick: () => exportConfirmation(row) },
-      { label: 'Marcheaza trimisa', onClick: () => markConfirmation('sent', {}, row) },
-      { label: 'Marcheaza primita', onClick: () => openReceiveConfirmation(row) },
-      row.confirmation ? { label: 'Anuleaza confirmarea', onClick: () => cancelConfirmation(row), danger: true } : null,
-      { separator: true },
-      { label: row.activ === false ? 'Reactiveaza tert' : 'Dezactiveaza tert', onClick: () => toggleActive(row), danger: row.activ !== false }
-    ]
+      canManage ? { label: 'Editeaza tert', onClick: () => openEdit(row) } : null,
+      canReport ? { separator: true } : null,
+      canReport ? { label: 'Tipareste confirmare', onClick: () => printConfirmation(row) } : null,
+      canReport ? { label: 'Export confirmare sold', onClick: () => exportConfirmation(row) } : null,
+      canPost ? { label: 'Marcheaza trimisa', onClick: () => markConfirmation('sent', {}, row) } : null,
+      canPost ? { label: 'Marcheaza primita', onClick: () => openReceiveConfirmation(row) } : null,
+      canPost && row.confirmation ? { label: 'Anuleaza confirmarea', onClick: () => cancelConfirmation(row), danger: true } : null,
+      canManage ? { separator: true } : null,
+      canManage ? { label: row.activ === false ? 'Reactiveaza tert' : 'Dezactiveaza tert', onClick: () => toggleActive(row), danger: row.activ !== false } : null
+    ].filter(Boolean)
   }
 
   function detailActionMenu() {
     if (!detail?.tert?.id) return []
     return [
-      { label: 'Marcheaza confirmare trimisa', onClick: () => markConfirmation('sent') },
-      { label: 'Marcheaza confirmare primita', onClick: () => openReceiveConfirmation() },
-      detail?.confirmation ? { label: 'Anuleaza confirmarea', onClick: () => cancelConfirmation(detail.tert), danger: true } : null,
-      { type: 'separator' },
-      { label: 'Tipareste confirmare', onClick: printConfirmation },
-      { label: 'Export confirmare sold', onClick: exportConfirmation },
-      { label: 'Export fisa tert', onClick: exportDetail },
-      type === 'furnizor' ? { label: 'Tipareste fisa furnizor', onClick: printDetail } : null,
-      { type: 'separator' },
+      canPost ? { label: 'Marcheaza confirmare trimisa', onClick: () => markConfirmation('sent') } : null,
+      canPost ? { label: 'Marcheaza confirmare primita', onClick: () => openReceiveConfirmation() } : null,
+      canPost && detail?.confirmation ? { label: 'Anuleaza confirmarea', onClick: () => cancelConfirmation(detail.tert), danger: true } : null,
+      canPost && canReport ? { type: 'separator' } : null,
+      canReport ? { label: 'Tipareste confirmare', onClick: printConfirmation } : null,
+      canReport ? { label: 'Export confirmare sold', onClick: exportConfirmation } : null,
+      canReport ? { label: 'Export fisa tert', onClick: exportDetail } : null,
+      canReport && type === 'furnizor' ? { label: 'Tipareste fisa furnizor', onClick: printDetail } : null,
+      canPost || canReport ? { type: 'separator' } : null,
       { label: 'Facturi tert', to: `${invoicePath}?${tertParam}=${detail.tert.id}` },
       detail?.account ? { label: 'Fisa cont analitic', to: `/contabilitate/fisa-cont/${detail.account}` } : null,
       { label: 'Trezorerie', to: `/contabilitate/trezorerie?tert=${detail.tert.id}` },
@@ -471,12 +482,12 @@ export function TertiContab({ type = 'furnizor' }) {
       active={type === 'client' ? 'clienti' : 'furnizori'}
       title={title}
       subtitle="Terți contabili cu analitice generate automat."
-      actions={<DropdownMenu align="right" label="Actiuni" items={[
-        { label: `Adauga ${type === 'client' ? 'client' : 'furnizor'}`, onClick: openNew },
-        { type: 'separator' },
-        { label: 'Export scadentar', onClick: exportExcel },
-        { label: 'Registru confirmari sold', onClick: exportConfirmationsRegister },
-      ]} />}
+      actions={canManage || canReport ? <DropdownMenu align="right" label="Actiuni" items={[
+        canManage ? { label: `Adauga ${type === 'client' ? 'client' : 'furnizor'}`, onClick: openNew } : null,
+        canManage && canReport ? { type: 'separator' } : null,
+        canReport ? { label: 'Export scadentar', onClick: exportExcel } : null,
+        canReport ? { label: 'Registru confirmari sold', onClick: exportConfirmationsRegister } : null,
+      ].filter(Boolean)} /> : null}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
@@ -772,7 +783,7 @@ export function TertiContab({ type = 'furnizor' }) {
                   <td className="px-3 py-2">{note.data || '-'}</td><td className="px-3 py-2 font-semibold">{note.nr_document || '-'}</td><td className="px-3 py-2">{note.invoice_document || '-'}</td>
                   <td className="px-3 py-2"><Badge tone={note.status === 'validat' ? 'success' : note.status === 'stornat' ? 'neutral' : 'warning'}>{note.status || '-'}</Badge></td>
                   <td className="px-3 py-2 text-right">{formatMoney(note.valoare || 0)}</td><td className="px-3 py-2 text-right">{formatMoney(note.tva || 0)}</td><td className="px-3 py-2 text-right font-semibold">{formatMoney(note.total || 0)}</td>
-                  <td className="px-3 py-2"><DropdownMenu align="right" label="Actiuni" items={creditNoteMenu(note)} /></td>
+                  <td className="px-3 py-2">{canPost ? <DropdownMenu align="right" label="Actiuni" items={creditNoteMenu(note)} /> : '-'}</td>
                 </tr>)}
                 {(detail?.creditNotes || []).length ? null : <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>Nu exista note de credit pentru acest furnizor.</td></tr>}
               </Table>
@@ -921,7 +932,7 @@ function buildTertiSummary({ rows, filteredRows, totals, q, activeFilter, confir
   }
 }
 
-function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfirmations, exportExcel, exportConfirmationsRegister, openInvoices }) {
+function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfirmations, exportExcel, exportConfirmationsRegister, openInvoices, canManage, canReport }) {
   const singular = type === 'client' ? 'client' : 'furnizor'
   const plural = type === 'client' ? 'clienți' : 'furnizori'
   const invoiceLabel = type === 'client' ? 'facturi ieșire' : 'facturi intrare'
@@ -936,7 +947,7 @@ function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfi
       status: summary.totalCount ? 'date' : 'start',
       tone: summary.totalCount ? 'success' : 'warning',
       active: summary.totalCount > 0,
-      onClick: summary.hasFilters ? clearFilters : openNew,
+      onClick: summary.hasFilters ? clearFilters : canManage ? openNew : openInvoices,
     },
     {
       key: 'analytics',
@@ -947,7 +958,7 @@ function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfi
       status: summary.missingAccounts ? 'verifică' : 'ok',
       tone: summary.missingAccounts ? 'warning' : 'success',
       active: !summary.missingAccounts && summary.filteredCount > 0,
-      onClick: openNew,
+      onClick: canManage ? openNew : openInvoices,
     },
     {
       key: 'aging',
@@ -958,7 +969,7 @@ function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfi
       status: summary.overdueAmount ? 'atenție' : 'ok',
       tone: summary.overdueAmount ? 'warning' : 'success',
       active: summary.openBalance > 0,
-      onClick: summary.overdueAmount ? exportExcel : openInvoices,
+      onClick: summary.overdueAmount && canReport ? exportExcel : openInvoices,
     },
     {
       key: 'confirmations',
@@ -967,7 +978,7 @@ function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfi
       status: summary.confirmationMissing ? 'de trimis' : 'control',
       tone: summary.confirmationMissing ? 'warning' : 'info',
       active: summary.confirmationMissing === 0 && summary.filteredCount > 0,
-      onClick: summary.confirmationMissing ? showMissingConfirmations : exportConfirmationsRegister,
+      onClick: summary.confirmationMissing || !canReport ? showMissingConfirmations : exportConfirmationsRegister,
     },
   ]
 
@@ -977,8 +988,8 @@ function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfi
       tone: 'warning',
       title: `Adaugă primul ${singular}`,
       description: `Catalogul de ${plural} este baza pentru ${invoiceLabel}, scadențar, confirmări de sold și fișe analitice.`,
-      primaryLabel: `Adaugă ${singular}`,
-      primaryAction: openNew,
+      primaryLabel: canManage ? `Adaugă ${singular}` : `Deschide ${invoiceLabel}`,
+      primaryAction: canManage ? openNew : openInvoices,
       steps,
     }
   }
@@ -1001,8 +1012,8 @@ function buildTertiFlow({ summary, type, openNew, clearFilters, showMissingConfi
       tone: 'warning',
       title: `Ai ${formatMoney(summary.overdueAmount)} depășit la ${summary.label}`,
       description: 'Înainte de confirmări sau raportări, verifică scadențele depășite și exportă lista de lucru pentru încasări/plăți.',
-      primaryLabel: 'Export scadentar',
-      primaryAction: exportExcel,
+      primaryLabel: canReport ? 'Export scadentar' : `Deschide ${invoiceLabel}`,
+      primaryAction: canReport ? exportExcel : openInvoices,
       steps,
     }
   }
