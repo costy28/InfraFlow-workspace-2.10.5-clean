@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.705**
-**Versiune în lucru: v2.12.705**
+**Versiune curentă sursă: v2.12.707**
+**Versiune în lucru: v2.12.707**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -445,6 +445,8 @@ Core System
   ✅ Permisiuni granulare pentru consultare și postare în Facturi contabile (v2.12.703)
   ✅ Permisiuni granulare pentru consultare, postare și raportare în Trezorerie (v2.12.704)
   ✅ Permisiuni granulare pentru Operațiuni contabile, imobilizări și închidere anuală (v2.12.705)
+  ✅ Permisiuni granulare pentru raportare și fiscalitate contabilă (v2.12.706)
+  ✅ Salarizare separată între consultare și administrare, cu compatibilitate MSSQL (v2.12.707)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1168,9 +1170,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.705
+VERSIUNE CURENTĂ SURSĂ: 2.12.707
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.705 ✅
+UPDATE ZIP CURENT: 2.12.707 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1682,6 +1684,8 @@ UPDATES ÎN LUCRU:
   2.12.703 → UPDATE 723 permisiuni granulare Facturi contabile ✅
   2.12.704 → UPDATE 724 permisiuni granulare Trezorerie ✅
   2.12.705 → UPDATE 725 permisiuni granulare Operațiuni contabile ✅
+  2.12.706 → UPDATE 726 permisiuni granulare raportare și fiscalitate contabilă ✅
+  2.12.707 → UPDATE 727 permisiuni granulare salarizare și compatibilitate MSSQL ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2180,5 +2184,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 15 Octombrie 2026 | InfraFlow sursă v2.12.705*
+*AGENTS.md actualizat: 16 Octombrie 2026 | InfraFlow sursă v2.12.707*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

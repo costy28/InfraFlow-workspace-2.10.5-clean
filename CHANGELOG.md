@@ -1,3 +1,23 @@
+## v2.12.707 - 2026-10-16
+
+### Salarizare separată între consultare și administrare
+
+- `hr:salary_view` păstrează consultarea statelor, surselor, fluturașilor și exporturilor salariale.
+- Noul drept `hr:salary_manage` protejează calculul, validarea, corecțiile, ajustările, profilurile, notele, plățile și obligațiile salariale.
+- Interfața ascunde acțiunile care modifică salarizarea pentru rolurile cu acces exclusiv de consultare.
+- Rolurile care aveau anterior simultan `hr:manage` și `hr:salary_view` primesc o singură dată noul drept, fără reacordare după retragerea lui manuală.
+- Sursa salarială MSSQL detectează coloana canonică `name` sau coloana legacy `denumire` pentru departamente.
+
+## v2.12.706 - 2026-10-15
+
+### Permisiuni granulare pentru raportare și fiscalitate contabilă
+
+- Situațiile financiare păstrează consultarea și exportul separat de administrarea profilurilor și mapărilor.
+- Registrul jurnal separă vizual postarea notelor de exporturile și rapoartele contabile.
+- D205, Intrastat, auditul fiscal și declarațiile ascund operațiile de generare, validare și arhivare fără `accounting:post`.
+- Schemele fiscale oficiale cer `accounting:manage`, iar confirmarea TVA verificat cere `accounting:close`.
+- Descărcarea unei declarații în regim de raportare nu mai încearcă să înregistreze o mutație fiscală neautorizată.
+
 ## v2.12.705 - 2026-10-15
 
 ### Permisiuni granulare pentru Operațiuni contabile

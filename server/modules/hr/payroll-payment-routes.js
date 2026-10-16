@@ -163,7 +163,7 @@ function ensureAccount(db, account) {
 function required(value, label) { const text = String(value || "").trim(); if (!text) throwHttp(400, `${label} este obligatorie.`); return text; }
 function validDate(value) { const date = String(value || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throwHttp(400, "Data platii este invalida."); return date; }
 function salaryView(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:salary_view")) return; req.auth = auth; next(); }
-function salaryManage(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:manage")) return; req.auth = auth; next(); }
+function salaryManage(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:salary_manage")) return; req.auth = auth; next(); }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
 module.exports = router;

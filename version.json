@@ -1,5 +1,5 @@
 {
-  "version": "2.12.705",
-  "date": "2026-10-15",
-  "changelog": "## v2.12.705 - 2026-10-15\n\n### Permisiuni granulare pentru Operațiuni contabile\n\n- Consultarea este separată de reconciliere, importuri și postare.\n- Imobilizările cer administrare contabilă, iar exporturile cer raportare.\n- Închiderea anuală și reportarea soldurilor cer dreptul dedicat de închidere.\n- Accesul doar de citire nu mai eșuează din cauza auditului de integritate protejat.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "version": "2.12.707",
+  "date": "2026-10-16",
+  "changelog": "## v2.12.707 - 2026-10-16\n\n### Salarizare separată între consultare și administrare\n\n- Consultarea salariilor rămâne protejată prin hr:salary_view.\n- Calculul, validarea, ajustările, plățile și configurarea cer noul drept hr:salary_manage.\n- Rolurile cu acces salarial complet existent sunt migrate o singură dată.\n- Sursa salarială MSSQL acceptă schema canonică și denumirea legacy a departamentelor.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

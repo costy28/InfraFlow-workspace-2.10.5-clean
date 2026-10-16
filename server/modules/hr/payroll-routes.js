@@ -63,7 +63,7 @@ function requireSalaryView(req, res, next) {
 function requireSalaryManage(req, res, next) {
   const auth = requireAuth(req, res);
   if (!auth) return;
-  if (!requirePermission(auth, res, "hr:manage")) return;
+  if (!requirePermission(auth, res, "hr:salary_manage")) return;
   req.auth = auth;
   next();
 }

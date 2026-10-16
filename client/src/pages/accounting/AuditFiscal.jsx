@@ -6,8 +6,12 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/forms/Input'
 import { AccountingShell, DropdownMenu, Info, Table, currentMonth } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 export default function AuditFiscal() {
+  const { user } = useAuth()
+  const canPost = canAccess(user, 'accounting:post')
   const [month, setMonth] = useState(currentMonth())
   const [acceptance, setAcceptance] = useState({ checks: [], summary: {} })
   const [saft, setSaft] = useState({ summary: {}, issues: [], issue_details: [], readiness: {} })
@@ -93,21 +97,22 @@ export default function AuditFiscal() {
   const auditFlow = buildAuditFiscalFlow({
     month,
     summary: auditSummary,
-    runAcceptance,
-    generateSaft,
-    configureDuk,
+    runAcceptance: canPost ? runAcceptance : load,
+    generateSaft: canPost ? generateSaft : load,
+    configureDuk: canPost ? configureDuk : load,
     exportAcceptance: () => download('/accounting/fiscal/acceptance/export', `Acceptanta_${month}.xlsx`),
-    exportDossier: () => download('/accounting/fiscal/dossier', `Dosar_fiscal_${month}.zip`)
+    exportDossier: () => download('/accounting/fiscal/dossier', `Dosar_fiscal_${month}.zip`),
+    canPost
   })
   return (
     <AccountingShell active="audit-fiscal" title="Audit fiscal" subtitle="Acceptanta lunara, declaratii si SAF-T intr-un singur circuit." actions={<DropdownMenu label="Actiuni" align="right" items={[
-      { label: busy ? 'Se proceseaza...' : 'Ruleaza acceptanta', onClick: runAcceptance, disabled: busy },
+      canPost ? { label: busy ? 'Se proceseaza...' : 'Ruleaza acceptanta', onClick: runAcceptance, disabled: busy } : null,
       { label: 'Export acceptanta Excel', onClick: () => download('/accounting/fiscal/acceptance/export', `Acceptanta_${month}.xlsx`) },
-      { type: 'separator' },
-      { label: 'Genereaza candidat D406', onClick: generateSaft, disabled: busy },
+      canPost ? { type: 'separator' } : null,
+      canPost ? { label: 'Genereaza candidat D406', onClick: generateSaft, disabled: busy } : null,
       { label: 'Diagnostic mapare SAF-T', onClick: () => download('/accounting/saft/export-mapping', `Diagnostic_SAFT_${month}.xlsx`) }
       ,{ label: 'Descarca dosarul fiscal', onClick: () => download('/accounting/fiscal/dossier', `Dosar_fiscal_${month}.zip`) }
-    ]} />}>
+    ].filter(Boolean)} />}>
       <Card><div className="grid gap-3 md:grid-cols-[220px_1fr]"><Input label="Perioada" type="month" value={month} onChange={event => setMonth(event.target.value)} /><div className={`rounded-md border px-3 py-2 text-sm ${acceptance.ready ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><strong>{acceptance.ready ? 'Perioada trece controlul intern.' : 'Perioada necesita interventie.'}</strong><div>{firstBlocked ? `${firstBlocked.label}: ${firstBlocked.next_action}` : 'Nu exista blocaje contabile critice.'}</div></div></div></Card>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div> : null}
@@ -155,11 +160,11 @@ export default function AuditFiscal() {
       <Table headers={['Zona', 'Status', 'Mesaj', 'Pas urmator', 'Actiuni']}>
         {(acceptance.checks || []).map((item, index) => <tr key={`${item.key}-${index}`}><td className="px-3 py-2 font-semibold">{item.label}</td><td className="px-3 py-2"><Badge tone={item.ok ? 'success' : item.severity === 'error' ? 'danger' : 'warning'}>{item.ok ? 'OK' : item.severity}</Badge></td><td className="px-3 py-2">{item.message}</td><td className="px-3 py-2 text-slate-600">{item.next_action}</td><td className="px-3 py-2">{item.to ? <DropdownMenu label="Actiuni" items={[{ label: 'Deschide zona', to: item.to }]} /> : '-'}</td></tr>)}
       </Table>
-      <Card><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">D406 / SAF-T</h3><p className="text-sm text-slate-500">Fisierul poate fi descarcat fiscal numai dupa acceptarea validatorului configurat.</p></div><div className="flex items-center gap-2"><Badge tone={validator.execution_enabled ? 'success' : 'warning'}>{validator.execution_enabled ? 'DUK configurat' : 'DUK neconfigurat'}</Badge><Badge tone={saft.integrity?.ready ? 'success' : 'warning'}>{saft.integrity?.ready ? 'Corelari complete' : `${saft.integrity?.issues?.length || 0} corelari lipsa`}</Badge><Badge tone={saft.readiness?.ready ? 'success' : 'warning'}>{saft.readiness?.coverage || 0}% mapat</Badge>{!validator.execution_enabled ? <button type="button" onClick={configureDuk} disabled={busy} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50">Configureaza DUK</button> : null}</div></div>{!requirements.ready ? <div className="mt-3 grid gap-2 sm:grid-cols-3">{(requirements.steps || []).map(step => <div key={step.key} className={`rounded-md border px-3 py-2 text-sm ${step.ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}><strong>{step.ok ? 'OK' : 'Necesita actiune'}: {step.label}</strong>{!step.ok ? <div className="mt-1 text-xs text-slate-600">{step.action}</div> : null}</div>)}</div> : null}<div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(saft.summary || {}).map(([key, value]) => <Info key={key} label={key.replaceAll('_', ' ')} value={value} />)}</div>{saft.issue_details?.length ? <div className="mt-3 grid gap-2">{saft.issue_details.slice(0, 12).map((item, index) => <div key={`${item.message}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"><div><strong>{item.area}:</strong> {item.message}<div className="text-xs">{item.action}</div></div><Link className="font-semibold underline" to={item.to}>Repara</Link></div>)}</div> : null}</Card>
+      <Card><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">D406 / SAF-T</h3><p className="text-sm text-slate-500">Fisierul poate fi descarcat fiscal numai dupa acceptarea validatorului configurat.</p></div><div className="flex items-center gap-2"><Badge tone={validator.execution_enabled ? 'success' : 'warning'}>{validator.execution_enabled ? 'DUK configurat' : 'DUK neconfigurat'}</Badge><Badge tone={saft.integrity?.ready ? 'success' : 'warning'}>{saft.integrity?.ready ? 'Corelari complete' : `${saft.integrity?.issues?.length || 0} corelari lipsa`}</Badge><Badge tone={saft.readiness?.ready ? 'success' : 'warning'}>{saft.readiness?.coverage || 0}% mapat</Badge>{canPost && !validator.execution_enabled ? <button type="button" onClick={configureDuk} disabled={busy} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50">Configureaza DUK</button> : null}</div></div>{!requirements.ready ? <div className="mt-3 grid gap-2 sm:grid-cols-3">{(requirements.steps || []).map(step => <div key={step.key} className={`rounded-md border px-3 py-2 text-sm ${step.ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}><strong>{step.ok ? 'OK' : 'Necesita actiune'}: {step.label}</strong>{!step.ok ? <div className="mt-1 text-xs text-slate-600">{step.action}</div> : null}</div>)}</div> : null}<div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(saft.summary || {}).map(([key, value]) => <Info key={key} label={key.replaceAll('_', ' ')} value={value} />)}</div>{saft.issue_details?.length ? <div className="mt-3 grid gap-2">{saft.issue_details.slice(0, 12).map((item, index) => <div key={`${item.message}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"><div><strong>{item.area}:</strong> {item.message}<div className="text-xs">{item.action}</div></div><Link className="font-semibold underline" to={item.to}>Repara</Link></div>)}</div> : null}</Card>
       <Table headers={['Generat', 'Schema', 'Status', 'Conturi', 'Note', 'Facturi', 'Plati', 'Actiuni']}>
-        {runs.map(run => <tr key={run.id} title={[...(run.xsd_validation?.errors || []), ...(run.validation?.issues || [])].slice(0, 5).join('\n')}><td className="px-3 py-2">{run.created_at?.slice(0, 16).replace('T', ' ')}</td><td className="px-3 py-2">{run.schema_profile?.schema_version || '-'}</td><td className="px-3 py-2"><Badge tone={run.status === 'acceptat_validator' ? 'success' : run.status === 'respins_validator' || run.status === 'respins_xsd' ? 'danger' : 'warning'}>{run.status}</Badge>{run.xsd_validation ? <div className="mt-1 text-xs text-slate-500">XSD: {run.xsd_validation.accepted ? 'valid' : `${run.xsd_validation.error_count || 0} erori`}</div> : null}{(run.guidance || []).slice(0, 2).map((issue, index) => <div key={index} className="mt-1 max-w-sm text-xs text-red-700">{issue.message} <Link className="font-semibold underline" to={issue.to}>Repara</Link></div>)}</td><td className="px-3 py-2 text-right">{run.source_summary?.accounts || 0}</td><td className="px-3 py-2 text-right">{run.source_summary?.journals || 0}</td><td className="px-3 py-2 text-right">{(run.source_summary?.sales || 0) + (run.source_summary?.purchases || 0)}</td><td className="px-3 py-2 text-right">{run.source_summary?.payments || 0}</td><td className="px-3 py-2"><DropdownMenu label="Actiuni" items={[{ label: 'Reverifica dupa corectii', onClick: () => recheck(run), disabled: busy }, { label: 'Descarca XML acceptat', onClick: () => download(`/accounting/saft/runs/${run.id}/download`, `D406_${month}.xml`), disabled: run.status !== 'acceptat_validator' }]} /></td></tr>)}
+        {runs.map(run => <tr key={run.id} title={[...(run.xsd_validation?.errors || []), ...(run.validation?.issues || [])].slice(0, 5).join('\n')}><td className="px-3 py-2">{run.created_at?.slice(0, 16).replace('T', ' ')}</td><td className="px-3 py-2">{run.schema_profile?.schema_version || '-'}</td><td className="px-3 py-2"><Badge tone={run.status === 'acceptat_validator' ? 'success' : run.status === 'respins_validator' || run.status === 'respins_xsd' ? 'danger' : 'warning'}>{run.status}</Badge>{run.xsd_validation ? <div className="mt-1 text-xs text-slate-500">XSD: {run.xsd_validation.accepted ? 'valid' : `${run.xsd_validation.error_count || 0} erori`}</div> : null}{(run.guidance || []).slice(0, 2).map((issue, index) => <div key={index} className="mt-1 max-w-sm text-xs text-red-700">{issue.message} <Link className="font-semibold underline" to={issue.to}>Repara</Link></div>)}</td><td className="px-3 py-2 text-right">{run.source_summary?.accounts || 0}</td><td className="px-3 py-2 text-right">{run.source_summary?.journals || 0}</td><td className="px-3 py-2 text-right">{(run.source_summary?.sales || 0) + (run.source_summary?.purchases || 0)}</td><td className="px-3 py-2 text-right">{run.source_summary?.payments || 0}</td><td className="px-3 py-2"><DropdownMenu label="Actiuni" items={[canPost ? { label: 'Reverifica dupa corectii', onClick: () => recheck(run), disabled: busy } : null, { label: 'Descarca XML acceptat', onClick: () => download(`/accounting/saft/runs/${run.id}/download`, `D406_${month}.xml`), disabled: run.status !== 'acceptat_validator' }].filter(Boolean)} /></td></tr>)}
       </Table>
-      <Card><h3 className="font-semibold">Recipisa ANAF D406</h3><p className="mt-1 text-sm text-slate-500">Asociaza recipisa numai rulării acceptate de validatorul DUK.</p><form onSubmit={uploadReceipt} className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5"><label className="text-sm font-medium text-slate-700">Rulare D406<select className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" value={receipt.run_id} onChange={event => setReceipt({ ...receipt, run_id: event.target.value })}><option value="">Selecteaza</option>{runs.filter(run => run.status === 'acceptat_validator').map(run => <option key={run.id} value={run.id}>#{run.id} · {run.created_at?.slice(0, 16).replace('T', ' ')}</option>)}</select></label><Input label="Numar recipisa" value={receipt.number} onChange={event => setReceipt({ ...receipt, number: event.target.value })} /><label className="text-sm font-medium text-slate-700">Status<select className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" value={receipt.status} onChange={event => setReceipt({ ...receipt, status: event.target.value })}><option value="acceptata">Acceptata</option><option value="respinsa">Respinsa</option><option value="in_procesare">In procesare</option></select></label><label className="text-sm font-medium text-slate-700">Fisier recipisa<input className="mt-1 block w-full text-sm" type="file" accept=".pdf,.xml,.zip,.txt" onChange={event => setReceipt({ ...receipt, file: event.target.files?.[0] || null })} /></label><button type="submit" disabled={busy} className="self-end rounded-md bg-emerald-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Arhiveaza recipisa</button></form></Card>
+      {canPost ? <Card><h3 className="font-semibold">Recipisa ANAF D406</h3><p className="mt-1 text-sm text-slate-500">Asociaza recipisa numai rulării acceptate de validatorul DUK.</p><form onSubmit={uploadReceipt} className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5"><label className="text-sm font-medium text-slate-700">Rulare D406<select className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" value={receipt.run_id} onChange={event => setReceipt({ ...receipt, run_id: event.target.value })}><option value="">Selecteaza</option>{runs.filter(run => run.status === 'acceptat_validator').map(run => <option key={run.id} value={run.id}>#{run.id} · {run.created_at?.slice(0, 16).replace('T', ' ')}</option>)}</select></label><Input label="Numar recipisa" value={receipt.number} onChange={event => setReceipt({ ...receipt, number: event.target.value })} /><label className="text-sm font-medium text-slate-700">Status<select className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2" value={receipt.status} onChange={event => setReceipt({ ...receipt, status: event.target.value })}><option value="acceptata">Acceptata</option><option value="respinsa">Respinsa</option><option value="in_procesare">In procesare</option></select></label><label className="text-sm font-medium text-slate-700">Fisier recipisa<input className="mt-1 block w-full text-sm" type="file" accept=".pdf,.xml,.zip,.txt" onChange={event => setReceipt({ ...receipt, file: event.target.files?.[0] || null })} /></label><button type="submit" disabled={busy} className="self-end rounded-md bg-emerald-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Arhiveaza recipisa</button></form></Card> : null}
     </AccountingShell>
   )
 }
@@ -193,7 +198,7 @@ function buildAuditFiscalSummary({ acceptance, saft, validator, requirements, ru
   }
 }
 
-function buildAuditFiscalFlow({ month, summary, runAcceptance, generateSaft, configureDuk, exportAcceptance, exportDossier }) {
+function buildAuditFiscalFlow({ month, summary, runAcceptance, generateSaft, configureDuk, exportAcceptance, exportDossier, canPost }) {
   const steps = [
     {
       key: 'acceptance',
@@ -240,6 +245,18 @@ function buildAuditFiscalFlow({ month, summary, runAcceptance, generateSaft, con
       onClick: exportDossier
     }
   ]
+
+  if (!canPost) {
+    return {
+      badge: summary.blockers ? 'Blocaje' : summary.warnings ? 'Avertizări' : 'Consultare',
+      tone: summary.blockers ? 'danger' : summary.warnings ? 'warning' : 'gray',
+      title: `Audit fiscal ${month} în mod consultare`,
+      description: 'Ai drept de raportare. Rularea controalelor, configurarea validatorului și arhivarea recipiselor necesită drept de postare contabilă.',
+      primaryLabel: 'Export acceptanță',
+      primaryAction: exportAcceptance,
+      steps
+    }
+  }
 
   if (summary.blockers) {
     return {

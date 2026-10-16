@@ -10,7 +10,12 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { AccountSelect, AccountingShell, DropdownMenu, Info, Table, currentMonth, money, statusTone, today } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 export function RegistruJurnal() {
+  const { user } = useAuth()
+  const canPost = canAccess(user, 'accounting:post')
+  const canReport = canAccess(user, 'accounting:reports')
   const [rows, setRows] = useState([])
   const [accounts, setAccounts] = useState([])
   const [searchParams] = useSearchParams()
@@ -52,6 +57,9 @@ export function RegistruJurnal() {
     exportExcel,
     focusDrafts: () => setStatus('draft'),
     focusDevalidated: () => setStatus('devalidat'),
+    canPost,
+    canReport,
+    reload: load,
   })
 
   useEffect(() => {
@@ -329,14 +337,14 @@ export function RegistruJurnal() {
   function selectedActionMenu(row) {
     if (!row) return []
     return [
-      ['draft', 'devalidat'].includes(row.status) ? { label: 'Editeaza nota', onClick: () => openEditNote(row) } : null,
-      ['draft', 'devalidat'].includes(row.status) ? { label: 'Valideaza nota', onClick: () => validateNote(row) } : null,
-      row.status === 'draft' ? { label: 'Anuleaza draft', onClick: () => cancelDraftNote(row) } : null,
-      row.status === 'activ' ? { label: 'Devalideaza nota', onClick: () => devalidateNote(row) } : null,
-      row.status === 'activ' ? { label: 'Storno nota', onClick: () => storno(row) } : null,
-      { type: 'separator' },
-      { label: 'Fisa primul cont', to: row.lines?.[0]?.cont_simbol ? `/contabilitate/fisa-cont/${row.lines[0].cont_simbol}?de_la=${month}-01&pana_la=${month}-31` : '/contabilitate/plan-conturi' },
-      { label: 'Balanta lunii', to: `/contabilitate/balanta?luna=${month}` },
+      canPost && ['draft', 'devalidat'].includes(row.status) ? { label: 'Editeaza nota', onClick: () => openEditNote(row) } : null,
+      canPost && ['draft', 'devalidat'].includes(row.status) ? { label: 'Valideaza nota', onClick: () => validateNote(row) } : null,
+      canPost && row.status === 'draft' ? { label: 'Anuleaza draft', onClick: () => cancelDraftNote(row) } : null,
+      canPost && row.status === 'activ' ? { label: 'Devalideaza nota', onClick: () => devalidateNote(row) } : null,
+      canPost && row.status === 'activ' ? { label: 'Storno nota', onClick: () => storno(row) } : null,
+      canPost || canReport ? { type: 'separator' } : null,
+      canReport ? { label: 'Fisa primul cont', to: row.lines?.[0]?.cont_simbol ? `/contabilitate/fisa-cont/${row.lines[0].cont_simbol}?de_la=${month}-01&pana_la=${month}-31` : '/contabilitate/plan-conturi' } : null,
+      canReport ? { label: 'Balanta lunii', to: `/contabilitate/balanta?luna=${month}` } : null,
     ].filter(Boolean)
   }
 
@@ -353,14 +361,14 @@ export function RegistruJurnal() {
       title="Registru jurnal"
       subtitle="Note contabile active si storno, cu linii debit/credit."
       actions={<DropdownMenu align="right" label="Actiuni" items={[
-        { label: 'Nota manuala noua', onClick: openManualNote },
-        { label: 'Import note XLS', onClick: () => setImportModal(true) },
-        { label: 'Export Excel', onClick: exportExcel },
+        canPost ? { label: 'Nota manuala noua', onClick: openManualNote } : null,
+        canPost ? { label: 'Import note XLS', onClick: () => setImportModal(true) } : null,
+        canReport ? { label: 'Export Excel', onClick: exportExcel } : null,
         { label: 'Reincarca registru', onClick: load },
-        { type: 'separator' },
-        { label: 'Balanta lunii', to: `/contabilitate/balanta?luna=${month}` },
-        { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${month}-01&pana_la=${month}-31` }
-      ]} />}
+        canReport ? { type: 'separator' } : null,
+        canReport ? { label: 'Balanta lunii', to: `/contabilitate/balanta?luna=${month}` } : null,
+        canReport ? { label: 'Cartea Mare', to: `/contabilitate/cartea-mare?de_la=${month}-01&pana_la=${month}-31` } : null
+      ].filter(Boolean)} />}
     >
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       <Card>
@@ -497,7 +505,7 @@ export function RegistruJurnal() {
                 </table>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
-                <DropdownMenu align="right" label="Actiuni nota" items={selectedActionMenu(selected)} />
+                {selectedActionMenu(selected).length ? <DropdownMenu align="right" label="Actiuni nota" items={selectedActionMenu(selected)} /> : null}
               </div>
             </div>
           ) : (
@@ -630,6 +638,9 @@ function buildJournalFlow({
   exportExcel,
   focusDrafts,
   focusDevalidated,
+  canPost,
+  canReport,
+  reload,
 }) {
   const activeFilter = status || 'toate'
   const hasRows = rowsCount > 0
@@ -664,6 +675,17 @@ function buildJournalFlow({
   ]
 
   if (!hasRows) {
+    if (!canPost) {
+      return {
+        badge: 'gol',
+        badgeClass: 'bg-slate-100 text-slate-700',
+        title: 'Nu exista note contabile pentru filtrul curent',
+        detail: 'Ai acces de consultare. Crearea si importul notelor necesita drept de postare contabila.',
+        steps,
+        actionLabel: 'Reincarca registru',
+        onClick: reload,
+      }
+    }
     return {
       badge: 'gol',
       badgeClass: 'bg-amber-100 text-amber-700',
@@ -717,7 +739,7 @@ function buildJournalFlow({
     title: 'Registrul filtrat este pregătit pentru control',
     detail: 'Notele active sunt echilibrate. Poți exporta registrul, verifica balanța sau merge în Cartea Mare pentru detalii pe conturi.',
     steps,
-    actionLabel: 'Export Excel',
-    onClick: exportExcel || openImport,
+    actionLabel: canReport ? 'Export Excel' : 'Reincarca registru',
+    onClick: canReport ? (exportExcel || openImport) : reload,
   }
 }

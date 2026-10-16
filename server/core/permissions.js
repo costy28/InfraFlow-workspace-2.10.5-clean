@@ -41,7 +41,7 @@ const permissionGroups = {
   integration: ["integration:intersoft_view", "integration:intersoft_import", "integration:intersoft_export"],
   controlling: ["controlling:view", "controlling:view_all", "controlling:entry_create", "controlling:entry_validate", "controlling:budget_manage", "controlling:cost_centers", "controlling:reports", "controlling:nexus_export"],
   accountingCore: ["accounting:view", "accounting:manage", "accounting:post", "accounting:close", "accounting:reports", "accounting:alerts"],
-  hr: ["hr:view", "hr:view_own", "hr:leave_own", "hr:manage", "hr:employees_manage", "hr:personal_sensitive", "hr:medical_view", "hr:timesheet", "hr:timesheet_dept", "hr:timesheets_view", "hr:timesheets_manage", "hr:timesheet_approve", "hr:timesheets_validate", "hr:leave_manage", "hr:authorizations_manage", "hr:contracts_manage", "hr:reports", "hr:reges_export", "hr:salary_view", "hr:training"],
+  hr: ["hr:view", "hr:view_own", "hr:leave_own", "hr:manage", "hr:employees_manage", "hr:personal_sensitive", "hr:medical_view", "hr:timesheet", "hr:timesheet_dept", "hr:timesheets_view", "hr:timesheets_manage", "hr:timesheet_approve", "hr:timesheets_validate", "hr:leave_manage", "hr:authorizations_manage", "hr:contracts_manage", "hr:reports", "hr:reges_export", "hr:salary_view", "hr:salary_manage", "hr:training"],
   echipamente: ["echipamente:gestionar"],
   sanitation: ["sanitation:view", "sanitation:collect", "sanitation:manage", "sanitation:report", "sanitation:contracts"],
   traffic_safety: ["traffic_safety:view", "traffic_safety:inspect", "traffic_safety:work_order", "traffic_safety:manage", "traffic_safety:report"],
@@ -316,6 +316,7 @@ const permissionLabels = {
   "hr:reports": "Genereaza rapoarte HR",
   "hr:reges_export": "Exporta REGES/ReviSal",
   "hr:salary_view": "Vede salarii",
+  "hr:salary_manage": "Administreaza salarizarea",
   "hr:training": "Administreaza formari profesionale",
   "sanitation:view": "Vede modulul salubrizare",
   "sanitation:collect": "Inregistreaza colectari",
@@ -491,6 +492,7 @@ const rolePermissions = {
     "hr:reports",
     "hr:reges_export",
     "hr:salary_view",
+    "hr:salary_manage",
     "hr:training",
     "documents:view_own",
     "documents:view_dept",
@@ -695,7 +697,7 @@ const DEFAULT_CUSTOM_ROLES = [
       'hr:timesheet', 'hr:timesheets_view', 'hr:timesheets_manage',
       'hr:timesheet_approve', 'hr:timesheets_validate',
       'hr:leave_manage', 'hr:authorizations_manage', 'hr:contracts_manage',
-      'hr:reports', 'hr:reges_export', 'hr:salary_view', 'hr:training',
+      'hr:reports', 'hr:reges_export', 'hr:salary_view', 'hr:salary_manage', 'hr:training',
       'documents:view_own', 'documents:view_dept', 'documents:create',
       'messaging:view', 'messaging:send',
       'tickets:create', 'tickets:view_own',
@@ -828,6 +830,21 @@ function ensureDefaultCustomRoles(settings) {
       changed = true;
     }
   });
+  if (!settings.permissionMigrations || typeof settings.permissionMigrations !== 'object') settings.permissionMigrations = {};
+  if (!settings.permissionMigrations.salaryManageV212707) {
+    settings.customRoles.forEach(role => {
+      const permissions = Array.isArray(role.permissions) ? role.permissions : [];
+      // În versiunile anterioare, combinația de mai jos permitea deja toate
+      // mutațiile salariale. Migrarea păstrează accesul existent o singură dată,
+      // după care noul drept poate fi retras independent de administrator.
+      if (permissions.includes('hr:manage') && permissions.includes('hr:salary_view') && !permissions.includes('hr:salary_manage')) {
+        permissions.push('hr:salary_manage');
+        changed = true;
+      }
+    });
+    settings.permissionMigrations.salaryManageV212707 = new Date().toISOString();
+    changed = true;
+  }
   return changed;
 }
 

@@ -136,7 +136,7 @@ function contributionDueDate(month) { const [year, value] = month.split("-").map
 function ensureAccount(db, account) { if (!accountingEngine.ensureAccounting(db).chart.some((item) => item.activ !== false && item.simbol === String(account))) throwHttp(422, `Contul ${account} nu exista in planul de conturi.`); }
 function validDate(value) { const date = String(value || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throwHttp(400, "Data platii este invalida."); return date; }
 function salaryView(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:salary_view")) return; req.auth = auth; next(); }
-function salaryManage(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:manage")) return; req.auth = auth; next(); }
+function salaryManage(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:salary_manage")) return; req.auth = auth; next(); }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 
 router.buildObligations = buildObligations;

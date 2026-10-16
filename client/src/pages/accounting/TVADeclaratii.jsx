@@ -8,7 +8,13 @@ import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import { formatMoney } from '../../utils/format'
 import { AccountingShell, DropdownMenu, Info, Table, currentMonth, statusTone } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 export function TVADeclaratii() {
+  const { user } = useAuth()
+  const canPost = canAccess(user, 'accounting:post')
+  const canManage = canAccess(user, 'accounting:manage')
+  const canClose = canAccess(user, 'accounting:close')
   const [searchParams, setSearchParams] = useSearchParams()
   const [tab, setTab] = useState(searchParams.get('tab') || 'control')
   const [month, setMonth] = useState(searchParams.get('luna') || currentMonth())
@@ -232,7 +238,7 @@ export function TVADeclaratii() {
       link.click()
       link.remove()
       URL.revokeObjectURL(url)
-      if (declarationCode) {
+      if (declarationCode && canPost) {
         await api.post(`/accounting/declarations/${declarationCode}/exported`, { perioada: month, filename })
         setMessage(`${declarationCode} a fost exportată și înregistrată în registrul fiscal.`)
         load()
@@ -293,6 +299,7 @@ export function TVADeclaratii() {
     tab,
     summary: fiscalSummary,
     canCheckVat,
+    canClose,
     load,
     markVatChecked,
     exportControl: () => download('/accounting/declarations/control-export', `Control_declaratii_${fileMonth}.xlsx`),
@@ -313,7 +320,7 @@ export function TVADeclaratii() {
       actions={(
         <DropdownMenu align="right" label="Actiuni" items={[
             { label: 'Reincarca TVA', onClick: load },
-            canCheckVat ? { label: 'Marcheaza TVA verificat', onClick: markVatChecked } : null,
+            canClose && canCheckVat ? { label: 'Marcheaza TVA verificat', onClick: markVatChecked } : null,
             { type: 'separator' },
             { label: 'Export Excel', onClick: () => download('/accounting/vat-journal/export', `Jurnal_TVA_${fileMonth}.xlsx`) },
             { label: 'XML lucru D300', onClick: () => download('/accounting/d300/export-xml', `D300_lucru_${fileMonth}.xml`, 'D300') },
@@ -416,8 +423,8 @@ export function TVADeclaratii() {
       {tab !== 'control' ? <>
       {activeDeclarationCode() ? <Card>
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-slate-900">Validator oficial {activeDeclarationCode()}</h3><p className="text-sm text-slate-500">Comanda locală și versiunea schemei sunt păstrate separat pentru fiecare declarație.</p></div><Badge tone={validatorConfig.execution_enabled ? 'success' : 'warning'}>{validatorConfig.execution_enabled ? 'configurat' : 'neconfigurat'}</Badge></div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2"><Input label="Director / cale validator" value={validatorConfig.path || ''} onChange={event => setValidatorConfig(current => ({ ...current, path: event.target.value }))} /><Input label="Comandă executabilă" value={validatorConfig.command || ''} onChange={event => setValidatorConfig(current => ({ ...current, command: event.target.value }))} /><Input label={'Argumente JSON (include {file})'} value={validatorConfig.args || ''} onChange={event => setValidatorConfig(current => ({ ...current, args: event.target.value }))} /><Input label="Versiune schemă" value={validatorConfig.schema_version || ''} onChange={event => setValidatorConfig(current => ({ ...current, schema_version: event.target.value }))} /></div>
-        <div className="mt-3 flex flex-wrap items-end gap-2"><Button variant="secondary" onClick={discoverValidator}>Detectează</Button><Button variant="secondary" onClick={saveValidator}>Salvează</Button><Button variant="secondary" onClick={testValidator}>Testează</Button><Button onClick={generateCandidate}>Generează și verifică</Button><Button variant="secondary" onClick={downloadValidatedCandidate}>Descarcă acceptat</Button><label className="grid min-w-72 flex-1 gap-1 text-sm"><span className="font-medium text-slate-700">XML extern pentru verificare</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xml" onChange={event => setOfficialFile(event.target.files?.[0] || null)} /></label><Button onClick={validateOfficialFile}>Verifică fișier</Button></div>
+        {canPost ? <div className="mt-3 grid gap-3 md:grid-cols-2"><Input label="Director / cale validator" value={validatorConfig.path || ''} onChange={event => setValidatorConfig(current => ({ ...current, path: event.target.value }))} /><Input label="Comandă executabilă" value={validatorConfig.command || ''} onChange={event => setValidatorConfig(current => ({ ...current, command: event.target.value }))} /><Input label={'Argumente JSON (include {file})'} value={validatorConfig.args || ''} onChange={event => setValidatorConfig(current => ({ ...current, args: event.target.value }))} /><Input label="Versiune schemă" value={validatorConfig.schema_version || ''} onChange={event => setValidatorConfig(current => ({ ...current, schema_version: event.target.value }))} /></div> : <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">Ai acces de consultare. Configurarea și rularea validatorului necesită drept de postare contabilă.</div>}
+        <div className="mt-3 flex flex-wrap items-end gap-2"><Button variant="secondary" onClick={discoverValidator}>Detectează</Button>{canPost ? <><Button variant="secondary" onClick={saveValidator}>Salvează</Button><Button variant="secondary" onClick={testValidator}>Testează</Button><Button onClick={generateCandidate}>Generează și verifică</Button></> : null}<Button variant="secondary" onClick={downloadValidatedCandidate}>Descarcă acceptat</Button>{canPost ? <><label className="grid min-w-72 flex-1 gap-1 text-sm"><span className="font-medium text-slate-700">XML extern pentru verificare</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xml" onChange={event => setOfficialFile(event.target.files?.[0] || null)} /></label><Button onClick={validateOfficialFile}>Verifică fișier</Button></> : null}</div>
         {validatorDiscovery ? <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"><strong>Diagnostic:</strong> {validatorDiscovery.message || validatorDiscovery.output || (validatorDiscovery.ok ? 'Comanda raspunde.' : 'Verifica configurarea.')} {validatorDiscovery.validators?.length ? ` · ${validatorDiscovery.validators.length} candidati gasiti` : ''}</div> : null}
         {officialValidation ? <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${officialValidation.accepted ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}><strong>{officialValidation.accepted ? 'Acceptat' : 'Erori'} · cod {officialValidation.exit_code}</strong><pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">{officialValidation.stderr || officialValidation.stdout || 'Fără detalii.'}</pre></div> : null}
       </Card> : null}
@@ -426,12 +433,12 @@ export function TVADeclaratii() {
           <div><h3 className="text-base font-semibold text-slate-900">Scheme oficiale ANAF</h3><p className="text-sm text-slate-500">Versiunile XSD/ZIP sunt păstrate cu amprentă SHA-256. Validarea internă nu este prezentată ca validare ANAF fără schema corectă.</p></div>
           <Badge tone={schemas.some(item => item.active) ? 'success' : 'warning'}>{schemas.filter(item => item.active).length} active</Badge>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr_auto] md:items-end">
+        {canManage ? <><div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr_auto] md:items-end">
           <Select label="Declarație" value={schemaCode} onChange={event => setSchemaCode(event.target.value)} options={['D300', 'D394', 'D112', 'SAF-T'].map(value => ({ value, label: value }))} />
           <label className="grid gap-1 text-sm"><span className="font-medium text-slate-700">Fișier oficial</span><input className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2" type="file" accept=".xsd,.zip" onChange={event => setSchemaFile(event.target.files?.[0] || null)} /></label>
           <Button onClick={uploadSchema}>Încarcă schema</Button>
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Input label="Valabil de la" type="date" value={schemaMeta.valid_from} onChange={event => setSchemaMeta(current => ({ ...current, valid_from: event.target.value }))} /><Input label="Valabil pana la" type="date" value={schemaMeta.valid_to} onChange={event => setSchemaMeta(current => ({ ...current, valid_to: event.target.value }))} /><Input label="Ordin / referinta" value={schemaMeta.order_reference} onChange={event => setSchemaMeta(current => ({ ...current, order_reference: event.target.value }))} /><Input label="URL oficial" value={schemaMeta.source_url} onChange={event => setSchemaMeta(current => ({ ...current, source_url: event.target.value }))} /></div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Input label="Valabil de la" type="date" value={schemaMeta.valid_from} onChange={event => setSchemaMeta(current => ({ ...current, valid_from: event.target.value }))} /><Input label="Valabil pana la" type="date" value={schemaMeta.valid_to} onChange={event => setSchemaMeta(current => ({ ...current, valid_to: event.target.value }))} /><Input label="Ordin / referinta" value={schemaMeta.order_reference} onChange={event => setSchemaMeta(current => ({ ...current, order_reference: event.target.value }))} /><Input label="URL oficial" value={schemaMeta.source_url} onChange={event => setSchemaMeta(current => ({ ...current, source_url: event.target.value }))} /></div></> : <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">Încărcarea și versionarea schemelor oficiale necesită drept de administrare contabilă.</div>}
         <div className="mt-3 flex flex-wrap gap-2">{schemas.filter(item => item.active).map(item => <Badge key={item.uuid || item.id} tone="success">{item.code} · {item.original_name}{item.valid_from ? ` · din ${item.valid_from}` : ''}</Badge>)}</div>
       </Card>
       <Card>
@@ -520,9 +527,9 @@ export function TVADeclaratii() {
           {['D300', 'D394', 'D112'].map(code => {
             const latest = declarationHistory.find(item => item.code === code)
             return <div key={code} className="flex items-center gap-2">
-              <Button variant="secondary" onClick={() => validateDeclaration(code)}>Validează {code}</Button>
-              {['validat_intern', 'exportat'].includes(latest?.status) ? <Button variant="secondary" onClick={() => setArchiveForm({ code, file: null })}>Arhivează fișier</Button> : null}
-              {['validat_intern', 'exportat', 'depus', 'respins'].includes(latest?.status) ? <Button onClick={() => setReceiptForm({ code, recipisa: '', status: 'acceptata', message: '', file: null })}>Recipisă</Button> : null}
+              {canPost ? <Button variant="secondary" onClick={() => validateDeclaration(code)}>Validează {code}</Button> : null}
+              {canPost && ['validat_intern', 'exportat'].includes(latest?.status) ? <Button variant="secondary" onClick={() => setArchiveForm({ code, file: null })}>Arhivează fișier</Button> : null}
+              {canPost && ['validat_intern', 'exportat', 'depus', 'respins'].includes(latest?.status) ? <Button onClick={() => setReceiptForm({ code, recipisa: '', status: 'acceptata', message: '', file: null })}>Recipisă</Button> : null}
               {latest ? <Badge tone={['acceptat', 'depus'].includes(latest.status) ? 'success' : ['cu_erori', 'respins'].includes(latest.status) ? 'warning' : 'gray'}>{latest.status.replaceAll('_', ' ')}</Badge> : null}
             </div>
           })}
@@ -756,6 +763,7 @@ function buildFiscalFlow({
   tab,
   summary,
   canCheckVat,
+  canClose,
   load,
   markVatChecked,
   exportControl,
@@ -842,7 +850,7 @@ function buildFiscalFlow({
       steps
     }
   }
-  if (!summary.vatChecked && canCheckVat) {
+  if (!summary.vatChecked && canCheckVat && canClose) {
     return {
       badge: 'Confirmare',
       tone: 'warning',

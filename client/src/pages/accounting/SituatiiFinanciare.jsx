@@ -10,11 +10,15 @@ import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatMoney } from '../../utils/format'
 import { AccountingShell, DropdownMenu, Info, Table } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 const emptyMapping = { profile_code: 'MANAGERIAL_STANDARD', statement_type: 'BILANT', code: '', label: '', calculation: 'asset', prefixes: '', order: 10, active: true }
 const emptyProfile = { code: '', label: '', entity_type: 'general', valid_from: '', valid_to: '', source_url: '', active: true }
 
 export default function SituatiiFinanciare() {
+  const { user } = useAuth()
+  const canManage = canAccess(user, 'accounting:manage')
   const now = new Date()
   const [an, setAn] = useState(now.getFullYear())
   const [luna, setLuna] = useState(12)
@@ -131,7 +135,8 @@ export default function SituatiiFinanciare() {
     exportExcel: () => download('/accounting/financial-statements/export', `Situatie_${tip}_${an}_${luna}.xlsx`),
     printReport: () => download('/accounting/financial-statements/print', '', true),
     addMapping: () => editMapping(),
-    addProfile: () => setProfileOpen(true)
+    addProfile: () => setProfileOpen(true),
+    canManage
   })
   return (
     <AccountingShell
@@ -142,10 +147,10 @@ export default function SituatiiFinanciare() {
         { label: 'Recalculeaza', onClick: load },
         { label: 'Export Excel', onClick: () => download('/accounting/financial-statements/export', `Situatie_${tip}_${an}_${luna}.xlsx`) },
         { label: 'Tipareste / PDF', onClick: () => download('/accounting/financial-statements/print', '', true) },
-        { type: 'separator' },
-        { label: 'Adauga mapare', onClick: () => editMapping() },
-        { label: 'Adauga profil', onClick: () => setProfileOpen(true) }
-      ]} />}
+        canManage ? { type: 'separator' } : null,
+        canManage ? { label: 'Adauga mapare', onClick: () => editMapping() } : null,
+        canManage ? { label: 'Adauga profil', onClick: () => setProfileOpen(true) } : null
+      ].filter(Boolean)} />}
     >
       <Card><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Input label="An" type="number" min="2000" max="2100" value={an} onChange={event => setAn(Number(event.target.value))} /><Select label="Luna de raportare" value={luna} onChange={event => setLuna(Number(event.target.value))} options={Array.from({ length: 12 }, (_, index) => ({ value: index + 1, label: String(index + 1).padStart(2, '0') }))} /><Select label="Situatie" value={tip} onChange={event => setTip(event.target.value)} options={[{ value: 'BILANT', label: 'Pozitie financiara' }, { value: 'CPP', label: 'Profit si pierdere' }]} /><Select label="Profil formular" value={profileCode} onChange={event => setProfileCode(event.target.value)} options={profiles.map(item => ({ value: item.code, label: item.label }))} /></div></Card>
       {error ? <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
@@ -188,9 +193,9 @@ export default function SituatiiFinanciare() {
         <Info label="Tip raport" value={tip === 'BILANT' ? 'Poziție financiară' : 'Profit și pierdere'} />
       </div>
       <Table headers={['Cod', 'Indicator', 'Conturi', 'An curent', 'An precedent', 'Diferenta', 'Variatie', 'Actiuni']}>
-        {(data.rows || []).map(row => <tr key={row.code}><td className="px-3 py-2 font-mono font-semibold">{row.code}</td><td className="px-3 py-2">{row.label}</td><td className="px-3 py-2 text-xs text-slate-500">{(row.prefixes || []).join(', ')}</td><td className="px-3 py-2 text-right font-semibold">{formatMoney(row.current)}</td><td className="px-3 py-2 text-right">{formatMoney(row.previous)}</td><td className="px-3 py-2 text-right">{formatMoney(row.difference)}</td><td className="px-3 py-2 text-right">{row.variation_percent == null ? '-' : `${row.variation_percent}%`}</td><td className="px-3 py-2"><DropdownMenu label="Actiuni" items={[{ label: 'Editeaza maparea', onClick: () => editMapping(row) }, { label: 'Anuleaza maparea', onClick: () => removeMapping(row) }]} /></td></tr>)}
+        {(data.rows || []).map(row => <tr key={row.code}><td className="px-3 py-2 font-mono font-semibold">{row.code}</td><td className="px-3 py-2">{row.label}</td><td className="px-3 py-2 text-xs text-slate-500">{(row.prefixes || []).join(', ')}</td><td className="px-3 py-2 text-right font-semibold">{formatMoney(row.current)}</td><td className="px-3 py-2 text-right">{formatMoney(row.previous)}</td><td className="px-3 py-2 text-right">{formatMoney(row.difference)}</td><td className="px-3 py-2 text-right">{row.variation_percent == null ? '-' : `${row.variation_percent}%`}</td><td className="px-3 py-2">{canManage ? <DropdownMenu label="Actiuni" items={[{ label: 'Editeaza maparea', onClick: () => editMapping(row) }, { label: 'Anuleaza maparea', onClick: () => removeMapping(row) }]} /> : '-'}</td></tr>)}
       </Table>
-      <Card><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Mapari active</h3><p className="text-sm text-slate-500">{activeMappings.length} randuri configurate pentru {tip}.</p></div><Button size="sm" onClick={() => editMapping()}>Adauga</Button></div><p className="mt-3 text-xs text-slate-500">Raport managerial configurabil. Formularul oficial depus ramane conditionat de programul de asistenta aplicabil entitatii si exercitiului.</p></Card>
+      <Card><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Mapari active</h3><p className="text-sm text-slate-500">{activeMappings.length} randuri configurate pentru {tip}.</p></div>{canManage ? <Button size="sm" onClick={() => editMapping()}>Adauga</Button> : null}</div><p className="mt-3 text-xs text-slate-500">Raport managerial configurabil. Formularul oficial depus ramane conditionat de programul de asistenta aplicabil entitatii si exercitiului.</p></Card>
 
       <Modal open={mappingOpen} title={mapping.id ? 'Editeaza maparea' : 'Mapare noua'} onClose={() => setMappingOpen(false)} size="md">
         <form className="grid gap-3" onSubmit={saveMapping}>
@@ -229,15 +234,15 @@ export default function SituatiiFinanciare() {
   )
 }
 
-function buildFinancialStatementFlow({ tip, profileCode, selectedProfile, profiles, activeMappings, rows, control, reportMonth, load, exportExcel, printReport, addMapping, addProfile }) {
+function buildFinancialStatementFlow({ tip, profileCode, selectedProfile, profiles, activeMappings, rows, control, reportMonth, load, exportExcel, printReport, addMapping, addProfile, canManage }) {
   const hasProfile = Boolean(selectedProfile) || profileCode === 'MANAGERIAL_STANDARD' || profiles.length === 0
   const hasMappings = activeMappings.length > 0
   const hasRows = rows.length > 0
   const controlOk = control?.ok !== false
   const statementLabel = tip === 'BILANT' ? 'poziția financiară' : 'profitul și pierderea'
   const steps = [
-    { label: 'Profil', ok: hasProfile, detail: hasProfile ? 'Profilul raportului este selectat' : 'Lipsește profilul formularului', onClick: addProfile },
-    { label: 'Mapări', ok: hasMappings, detail: hasMappings ? `${activeMappings.length} rânduri configurate` : 'Adaugă conturile care intră în raport', onClick: addMapping },
+    { label: 'Profil', ok: hasProfile, detail: hasProfile ? 'Profilul raportului este selectat' : canManage ? 'Lipsește profilul formularului' : 'Solicită unui administrator contabil configurarea profilului', onClick: canManage ? addProfile : load },
+    { label: 'Mapări', ok: hasMappings, detail: hasMappings ? `${activeMappings.length} rânduri configurate` : canManage ? 'Adaugă conturile care intră în raport' : 'Solicită unui administrator contabil configurarea mapărilor', onClick: canManage ? addMapping : load },
     { label: 'Balanță', ok: controlOk, detail: controlOk ? 'Controlul nu raportează blocaje' : control?.message || 'Verifică balanța', to: `/contabilitate/balanta?luna=${reportMonth}` },
     { label: 'Raport', ok: hasRows, detail: hasRows ? `${rows.length} indicatori calculați` : 'Recalculează după mapări și balanță', onClick: load },
     { label: 'Export', ok: hasRows && controlOk, detail: hasRows && controlOk ? 'Excel/PDF pregătit pentru dosar' : 'Așteaptă verificările anterioare', onClick: exportExcel }

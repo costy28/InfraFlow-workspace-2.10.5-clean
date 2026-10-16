@@ -10,6 +10,8 @@ import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatMoney } from '../../utils/format'
 import { AccountingShell, DropdownMenu, Info, Table, currentMonth, statusTone } from './accounting-shared'
+import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
 const emptyCorrection = {
   salary_base: '', base_gross: '', manual_bonus: '', taxable_benefits: '',
@@ -19,6 +21,8 @@ const emptyAdjustment = { employee_id: '', tip: 'bonus', amount: '', descriere: 
 const emptyBankProfile = { name: '', bank_name: '', format: 'xlsx', treasury_account: '5121', active: true }
 
 export default function Salarizare() {
+  const { user } = useAuth()
+  const canManageSalary = canAccess(user, 'hr:salary_manage')
   const [month, setMonth] = useState(currentMonth())
   const [data, setData] = useState({ run: null, lines: [], payments: [], paymentOrders: [], profile: null })
   const [settings, setSettings] = useState(null)
@@ -389,24 +393,24 @@ export default function Salarizare() {
   const run = data.run
   const activePayment = data.payments?.find(item => item.status === 'platit')
   const actionItems = [
-    { label: run ? 'Regenereaza din pontaj' : 'Genereaza din pontaj', onClick: generate, disabled: run?.status === 'validat' },
-    run?.status === 'draft' ? { label: 'Valideaza statul', onClick: validate } : null,
-    run?.status === 'validat' ? { label: 'Devalideaza', onClick: devalidate } : null,
-    run?.status === 'validat' ? { label: 'Creeaza stat rectificativ', onClick: createCorrective } : null,
+    canManageSalary ? { label: run ? 'Regenereaza din pontaj' : 'Genereaza din pontaj', onClick: generate, disabled: run?.status === 'validat' } : null,
+    canManageSalary && run?.status === 'draft' ? { label: 'Valideaza statul', onClick: validate } : null,
+    canManageSalary && run?.status === 'validat' ? { label: 'Devalideaza', onClick: devalidate } : null,
+    canManageSalary && run?.status === 'validat' ? { label: 'Creeaza stat rectificativ', onClick: createCorrective } : null,
     run ? { label: 'Export Excel', onClick: exportExcel } : null,
     run?.status === 'validat' ? { label: 'Export plati banca', onClick: downloadBank } : null,
     run ? { label: 'Toți fluturașii', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/payslips`) } : null,
     run ? { label: 'Registru plată Excel', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/payment-register`, `Registru_plata_${month.replace('-', '_')}.xlsx`) } : null,
-    run?.status === 'validat' && run.accounting_journal_id && !run.accounting_reversed_at && !data.paymentOrders?.length ? { label: 'Generează obligații bugetare', onClick: generateObligations } : null,
+    canManageSalary && run?.status === 'validat' && run.accounting_journal_id && !run.accounting_reversed_at && !data.paymentOrders?.length ? { label: 'Generează obligații bugetare', onClick: generateObligations } : null,
     data.paymentOrders?.length ? { label: 'Export obligații bugetare', onClick: () => openPayrollDocument(`/hr/payroll/${run.id}/obligations/export`, `Obligatii_salariale_${month.replace('-', '_')}.xlsx`) } : null,
-    run?.status === 'validat' && (!run.accounting_journal_id || run.accounting_reversed_at) ? { label: 'Genereaza nota contabila', onClick: postAccounting } : null,
-    run?.status === 'validat' && run.accounting_journal_id && !run.accounting_reversed_at && !activePayment ? { label: 'Înregistrează plata', onClick: payPayroll } : null,
-    activePayment ? { label: 'Stornează plata', onClick: reversePayment } : null,
-    run?.accounting_journal_id && !run.accounting_reversed_at && !activePayment ? { label: 'Stornează nota contabilă', onClick: reverseAccounting } : null,
+    canManageSalary && run?.status === 'validat' && (!run.accounting_journal_id || run.accounting_reversed_at) ? { label: 'Genereaza nota contabila', onClick: postAccounting } : null,
+    canManageSalary && run?.status === 'validat' && run.accounting_journal_id && !run.accounting_reversed_at && !activePayment ? { label: 'Înregistrează plata', onClick: payPayroll } : null,
+    canManageSalary && activePayment ? { label: 'Stornează plata', onClick: reversePayment } : null,
+    canManageSalary && run?.accounting_journal_id && !run.accounting_reversed_at && !activePayment ? { label: 'Stornează nota contabilă', onClick: reverseAccounting } : null,
     { type: 'separator' },
-    { label: 'Adauga spor / retinere', onClick: () => { setAdjustment({ ...emptyAdjustment, employee_id: data.lines?.[0]?.employee_id || '', data_start: `${month}-01` }); setAdjustmentOpen(true) } },
-    { label: 'Profil fiscal', onClick: () => setSettingsOpen(true) },
-    { label: 'Profil bancar nou', onClick: () => setBankOpen(true) },
+    canManageSalary ? { label: 'Adauga spor / retinere', onClick: () => { setAdjustment({ ...emptyAdjustment, employee_id: data.lines?.[0]?.employee_id || '', data_start: `${month}-01` }); setAdjustmentOpen(true) } } : null,
+    canManageSalary ? { label: 'Profil fiscal', onClick: () => setSettingsOpen(true) } : null,
+    canManageSalary ? { label: 'Profil bancar nou', onClick: () => setBankOpen(true) } : null,
     { label: 'Pregatire D112', to: `/contabilitate/tva-d300?tab=d112&luna=${month}` }
   ].filter(Boolean)
 
@@ -421,15 +425,23 @@ export default function Salarizare() {
     const sourcesChanged = Boolean(run?.source_status?.changed_after_run)
     const canGenerateObligations = run?.status === 'validat' && accountingActive && !orders.length
 
-    let next = {
+    let next = canManageSalary ? {
       title: 'Generează statul salarial',
       text: 'Alege luna și pornește calculul din contracte, pontaj, concedii și ajustări.',
       label: 'Generează din pontaj',
       onClick: generate,
       tone: 'info'
+    } : {
+      title: 'Salarizare în mod consultare',
+      text: 'Poți consulta statul, sursele și documentele salariale. Calculul și operațiile necesită dreptul de administrare a salarizării.',
+      label: 'Reîncarcă datele',
+      onClick: load,
+      tone: 'info'
     }
 
-    if (run && sourcesChanged) {
+    if (!canManageSalary) {
+      // Modul de consultare păstrează diagnosticul și exporturile, fără recomandări care modifică statul.
+    } else if (run && sourcesChanged) {
       next = {
         title: 'Sursele HR s-au schimbat',
         text: 'Pontajul, contractele sau concediile au fost modificate după calcul. Regenerează statul înainte de validare.',
@@ -537,7 +549,7 @@ export default function Salarizare() {
     ]
 
     return { next, steps, blockingLines, warningLines }
-  }, [activePayment, data.lines, data.paymentOrders, month, run])
+  }, [activePayment, canManageSalary, data.lines, data.paymentOrders, month, run])
 
   return (
     <AccountingShell active="salarizare" title="Salarizare" subtitle="Calcul lunar preliminar, validare si sursa controlata pentru D112." actions={<DropdownMenu label="Actiuni salarizare" align="right" items={actionItems} />}>
@@ -591,7 +603,7 @@ export default function Salarizare() {
         <Info label="Cost angajator" value={formatMoney(run?.total_employer_cost || 0)} />
       </div>
       <Card><div className="grid gap-3 md:grid-cols-[minmax(220px,360px)_1fr] md:items-end"><Select label="Profil bancar" value={selectedBankId} onChange={event => setSelectedBankId(event.target.value)} options={bankProfiles.filter(item => item.active !== false).map(item => ({ value: item.id, label: `${item.name} · ${item.format}` }))} /><div className="text-sm text-slate-600">Plată: <strong>{activePayment ? `înregistrată la ${activePayment.payment_date || '-'}` : run?.payment_status === 'stornat' ? 'stornată' : 'neînregistrată'}</strong></div></div></Card>
-      {data.paymentOrders?.length ? <Card><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold">Obligații salariale</h3><p className="text-sm text-slate-500">CAS, CASS, impozit și CAM generate din statul validat.</p></div><Badge tone={data.paymentOrders.every(item => item.status === 'platit') ? 'success' : 'warning'}>{data.paymentOrders.filter(item => item.status === 'platit').length}/{data.paymentOrders.length} plătite</Badge></div><div className="mt-3 grid gap-2 md:grid-cols-2">{data.paymentOrders.map(order => <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm"><div><strong>{order.code}</strong> · {formatMoney(order.amount)}<div className="text-xs text-slate-500">Scadență {order.due_date} · {order.status}</div></div><DropdownMenu label="Acțiuni" items={[order.status === 'pregatit' ? { label: 'Înregistrează plata', onClick: () => payObligation(order) } : null, order.status === 'platit' ? { label: 'Stornează plata', onClick: () => reverseObligation(order) } : null].filter(Boolean)} /></div>)}</div></Card> : null}
+      {data.paymentOrders?.length ? <Card><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold">Obligații salariale</h3><p className="text-sm text-slate-500">CAS, CASS, impozit și CAM generate din statul validat.</p></div><Badge tone={data.paymentOrders.every(item => item.status === 'platit') ? 'success' : 'warning'}>{data.paymentOrders.filter(item => item.status === 'platit').length}/{data.paymentOrders.length} plătite</Badge></div><div className="mt-3 grid gap-2 md:grid-cols-2">{data.paymentOrders.map(order => <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm"><div><strong>{order.code}</strong> · {formatMoney(order.amount)}<div className="text-xs text-slate-500">Scadență {order.due_date} · {order.status}</div></div>{canManageSalary ? <DropdownMenu label="Acțiuni" items={[order.status === 'pregatit' ? { label: 'Înregistrează plata', onClick: () => payObligation(order) } : null, order.status === 'platit' ? { label: 'Stornează plata', onClick: () => reverseObligation(order) } : null].filter(Boolean)} /> : null}</div>)}</div></Card> : null}
       {run?.accounting_journal_id ? <div className={`rounded-md border px-3 py-2 text-sm ${run.accounting_reversed_at ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>Nota contabilă #{run.accounting_journal_id} este {run.accounting_reversed_at ? `stornată prin nota #${run.accounting_storno_journal_id || '-'}` : 'activă'}.</div> : null}
       <Table headers={['Marca', 'Angajat', 'Ore', 'Brut', 'CAS', 'CASS', 'Impozit', 'Net', 'CAM', 'Control', 'Actiuni']}>
         {(data.lines || []).map(line => (
@@ -614,7 +626,7 @@ export default function Salarizare() {
             <td className="px-3 py-2"><DropdownMenu label="Actiuni" items={[
               { label: 'Detalii surse', onClick: () => setSourceDetails(line) },
               { label: 'Fluturas', onClick: () => openPayslip(line) },
-              run?.status === 'draft' ? { label: 'Corecteaza', onClick: () => editLine(line) } : null
+              canManageSalary && run?.status === 'draft' ? { label: 'Corecteaza', onClick: () => editLine(line) } : null
             ].filter(Boolean)} /></td>
           </tr>
         ))}
@@ -622,10 +634,10 @@ export default function Salarizare() {
       {!run ? <Card><div className="py-8 text-center text-sm text-slate-500">Genereaza statul pentru luna selectata din meniul Actiuni salarizare.</div></Card> : null}
 
       <Card>
-        <div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold">Sporuri, indemnizatii si retineri</h3><p className="text-sm text-slate-500">Ajustarile active sunt preluate automat la regenerarea statului.</p></div><Button size="sm" onClick={() => { setAdjustment({ ...emptyAdjustment, employee_id: data.lines?.[0]?.employee_id || '', data_start: `${month}-01` }); setAdjustmentOpen(true) }}>Adauga</Button></div>
+        <div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold">Sporuri, indemnizatii si retineri</h3><p className="text-sm text-slate-500">Ajustarile active sunt preluate automat la regenerarea statului.</p></div>{canManageSalary ? <Button size="sm" onClick={() => { setAdjustment({ ...emptyAdjustment, employee_id: data.lines?.[0]?.employee_id || '', data_start: `${month}-01` }); setAdjustmentOpen(true) }}>Adauga</Button> : null}</div>
         <div className="mt-3 space-y-2">{adjustments.map(item => {
           const line = data.lines?.find(row => String(row.employee_id) === String(item.employee_id))
-          return <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm"><div><strong>{line?.employee_name || `Angajat #${item.employee_id}`}</strong> · {item.tip.replaceAll('_', ' ')} · {formatMoney(item.amount)}<div className="text-xs text-slate-500">{item.descriere || '-'} · {item.data_start} - {item.data_sfarsit}</div></div><Button size="sm" variant="secondary" onClick={() => cancelAdjustment(item)}>Anuleaza</Button></div>
+          return <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm"><div><strong>{line?.employee_name || `Angajat #${item.employee_id}`}</strong> · {item.tip.replaceAll('_', ' ')} · {formatMoney(item.amount)}<div className="text-xs text-slate-500">{item.descriere || '-'} · {item.data_start} - {item.data_sfarsit}</div></div>{canManageSalary ? <Button size="sm" variant="secondary" onClick={() => cancelAdjustment(item)}>Anuleaza</Button> : null}</div>
         })}{!adjustments.length ? <p className="text-sm text-slate-500">Nu exista ajustari active in luna selectata.</p> : null}</div>
       </Card>
 
@@ -663,7 +675,7 @@ export default function Salarizare() {
       </Modal>
 
       <Modal open={Boolean(sourceDetails)} title={`Detalii surse HR - ${sourceDetails?.employee_name || ''}`} onClose={() => setSourceDetails(null)} size="lg">
-        <SourceDiagnostics line={sourceDetails} month={month} onRegenerate={generate} />
+        <SourceDiagnostics line={sourceDetails} month={month} onRegenerate={canManageSalary ? generate : null} />
       </Modal>
 
       <Modal open={settingsOpen} title="Profil fiscal salarizare" onClose={() => setSettingsOpen(false)} size="md">
@@ -754,7 +766,7 @@ function SourceDiagnostics({ line, month, onRegenerate }) {
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="secondary" onClick={() => window.location.assign(links.hr || '/hr')}>Deschide HR</Button>
         <Button type="button" variant="secondary" onClick={() => window.location.assign(links.timesheet || '/hr')}>Deschide pontaj</Button>
-        <Button type="button" onClick={onRegenerate}>Regenerează statul</Button>
+        {onRegenerate ? <Button type="button" onClick={onRegenerate}>Regenerează statul</Button> : null}
       </div>
     </div>
   )

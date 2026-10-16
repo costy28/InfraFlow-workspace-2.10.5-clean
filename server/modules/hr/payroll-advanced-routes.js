@@ -272,7 +272,7 @@ function appliesToMonth(item, month) {
 function validDate(value) { const date = String(value || ""); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throwHttp(400, "Data ajustarii este invalida."); return date; }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])); }
 function salaryView(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:salary_view")) return; req.auth = auth; next(); }
-function salaryManage(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:manage")) return; req.auth = auth; next(); }
+function salaryManage(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; if (!requirePermission(auth, res, "hr:salary_manage")) return; req.auth = auth; next(); }
 function kioskAuth(req, res, next) { const auth = requireAuth(req, res); if (!auth) return; req.auth = auth; next(); }
 function throwHttp(status, message) { const error = new Error(message); error.status = status; throw error; }
 

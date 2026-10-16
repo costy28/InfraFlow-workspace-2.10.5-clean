@@ -70,6 +70,25 @@ test('deschiderea listei de roluri nu reacordă permisiuni eliminate de client',
   assert.equal(rolesList(settings).find(role => role.id === 'operator').customized, true)
 })
 
+test('migrarea salarizarii pastreaza accesul vechi o singura data', () => {
+  const settings = {
+    customRoles: [{
+      id: 'hr-local',
+      name: 'HR local',
+      permissions: ['hr:manage', 'hr:salary_view'],
+    }],
+  }
+
+  ensureDefaultCustomRoles(settings)
+  const role = settings.customRoles.find(item => item.id === 'hr-local')
+  assert.equal(role.permissions.includes('hr:salary_manage'), true)
+  assert.ok(settings.permissionMigrations.salaryManageV212707)
+
+  role.permissions = role.permissions.filter(permission => permission !== 'hr:salary_manage')
+  ensureDefaultCustomRoles(settings)
+  assert.equal(role.permissions.includes('hr:salary_manage'), false)
+})
+
 test('salvarea și resetarea unui rol implicit sunt explicite și reversibile', () => {
   const db = { settings: {} }
   const user = { id: 'admin-1', name: 'Administrator' }
