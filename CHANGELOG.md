@@ -1,3 +1,81 @@
+## v2.12.727 - 2026-10-17
+
+### Consultare și modificare Email/WhatsApp separate
+
+- Compunerea, drafturile, sincronizarea, statusurile și legăturile Email sunt inactive fără drept de trimitere; handler-ele verifică același drept.
+- Deschiderea unui email nu mai încearcă marcarea citit pentru un cont doar de consultare.
+- Crearea documentului din email cere drept de creare Documente; operațiile auxiliare de modificare Email sunt omise fără drept.
+- Modificarea statusului WhatsApp cere `messaging:send`, la fel ca în Email.
+
+## v2.12.726 - 2026-10-17
+
+### Urmărire și partajare documente după acces
+
+- Lista partajatelor exclude expirările și evită dublurile; urmărirea MSSQL verifică accesul la document înainte de modificare.
+- Lista urmăritelor MSSQL recunoaște accesul prin circuit și partajare activă, fără ca urmărirea să acorde drepturi.
+- Dosarul nu cere emailurile legate și nu oferă deschiderea sursei email fără `messaging:view`.
+- Task-urile păstrează regulile existente de creare proprie și delegare, verificate prin HTTP.
+
+## v2.12.725 - 2026-10-17
+
+### Normalizare unică pentru drepturile salvate
+
+- Baza de date, configurarea și modulele folosesc catalogul central pentru validarea drepturilor explicite ale rolurilor standard.
+- Drepturile Documente/Mesaje și celelalte permisiuni actuale nu mai sunt eliminate de liste legacy.
+- Listele explicit goale rămân goale; nu se refac automat drepturi deja pierdute.
+- Regresii pentru toate cele zece adaptoare și verificare HTTP cu recitire într-un proces nou.
+
+## v2.12.724 - 2026-10-17
+
+### Acces pe document și aprobări controlate
+
+- Dosarul, PDF-ul, istoricul și partajarea verifică accesul la document, inclusiv în ramura MSSQL.
+- Partajările expirate nu mai acordă acces la aceste rute.
+- Retragerea cere dreptul de creare, pe lângă verificarea inițiatorului din motorul de circuit.
+- Inbox-ul și aprobarea din interfață cer dreptul dedicat; numai responsabilul primului pas în așteptare vede decizia.
+
+## v2.12.723 - 2026-10-17
+
+### Documente: taburi și creare după drepturi
+
+- Consultarea și administrarea șabloanelor au taburi separate după permisiuni.
+- Crearea și editarea drafturilor cer dreptul dedicat și în interfață.
+- Asistentul nu mai recomandă administrarea șabloanelor cititorilor fără drept.
+
+## v2.12.722 - 2026-10-17
+
+### Drepturi efective în Documente și Mesaje
+
+- Înlocuiește verificările locale care acordau acces automat rolului admin în Documente, Mesaje și configurația WhatsApp cu autorizarea centrală.
+- Administrarea șabloanelor cere `documents:templates`; administrarea canalelor și configurației WhatsApp cere `messaging:admin`.
+- Interfața arată acțiunile dedicate și utilizatorilor delegați fără rol admin, iar formularul de trimitere cere `messaging:send`.
+- Simularea HTTP include refuzul adminului restrâns și succesul gestionarilor delegați; verificarea Chrome acoperă aceleași controale administrative.
+
+## v2.12.721 - 2026-10-17
+
+### Navigare după drepturile efective
+
+- Rolul `admin` nu mai ocolește lista permisiunilor în filtrul comun și meniurile modulelor.
+- Excepția globală rămâne pentru superadmin, după verificarea modulelor efective.
+- Rezultatele căutării și filele recente cunoscute sunt filtrate după navigarea permisă; lista se actualizează la deschiderea căutării și schimbarea utilizatorului.
+- Verificarea Chrome include admin restrâns: CRM absent din meniu/căutare, filă CRM recentă ascunsă și URL direct blocat înaintea cererilor CRM.
+
+## v2.12.720 - 2026-10-17
+
+### Interfață HR cu drepturi efective pentru admin
+
+- Elimină scurtătura prin care rolul `admin` afișa automat toate taburile și acțiunile HR.
+- Navigarea și operațiile din HR folosesc aceeași funcție de verificare; excepția globală rămâne pentru superadmin, inclusiv în lista de roluri multiple.
+- Verificarea Chrome folosește buildul curent și acoperă patru profiluri restrictive, inclusiv admin limitat, precum și editarea zilelor validate/nevalidate.
+
+## v2.12.719 - 2026-10-17
+
+### Verificare HR pe roluri
+
+- Comanda `npm run test:hr:roles` pornește un server local temporar și verifică prin HTTP autentificarea și operațiile pentru cinci profiluri HR.
+- Sunt legate în aceeași simulare accesul departamental, aprobarea/validarea, închiderea/redeschiderea lunii, protecția pontajului validat, compensările invalide și decizia repetată de concediu.
+- Raportul tehnic `docs/AUDIT_HR_ROLURI_2026-10-17.md` precizează acoperirea și verificările rămase.
+
 ## v2.12.718 - 2026-10-17
 
 ### Decizii concediu fără efecte duplicate

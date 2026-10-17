@@ -4,7 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission } = require('../../core/permissions')
+const { requirePermission, authHasPermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const engine = require('./engine')
@@ -59,25 +59,13 @@ function nextId(items) {
   return items.reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1
 }
 
-function rolePermissions(db, role) {
-  const settings = db.settings || {}
-  return new Set((settings.rolePermissionOverrides?.[role] || settings.rolePermissions?.[role] || []).map(String))
-}
-
 function userHasPermission(db, user, permission) {
   if (!user) return false
-  if (user.role === 'superadmin' || user.role === 'admin') return true
-  if ((user.permissions || []).includes(permission)) return true
-  if (rolePermissions(db, user.role).has(permission)) return true
-  const dept = (db.departments || []).find(item => item.id === user.departmentId)
-  return Array.isArray(dept?.permissions) && dept.permissions.includes(permission)
+  return authHasPermission({ db, user }, permission)
 }
 
 function requireDocumentPermission(auth, res, permission) {
-  if (userHasPermission(auth.db, auth.user, permission)) return true
-  if (requirePermission(auth, { writeHead() {}, end() {} }, permission)) return true
-  sendJson(res, 403, { error: 'Nu ai permisiune pentru aceasta actiune.' })
-  return false
+  return requirePermission(auth, res, permission)
 }
 
 function hasDocumentPermission(auth, permission) {
@@ -250,13 +238,17 @@ function publicDocument(document, viewerId = null, context = null) {
   }
 }
 
-function canViewDocument(auth, document) {
+function canViewDocument(auth, document, details = null) {
   if (userHasPermission(auth.db, auth.user, 'documents:view_all')) return true
   if (document.creat_de === auth.user.id && userHasPermission(auth.db, auth.user, 'documents:view_own')) return true
   if (document.dept_initiatoare && document.dept_initiatoare === auth.user.departmentId && userHasPermission(auth.db, auth.user, 'documents:view_dept')) return true
   const docs = ensureDocumentsDb(auth.db)
-  if (docs.circuitSteps.some(step => step.document_id === document.id && step.user_responsabil === auth.user.id)) return true
-  return docs.documentShares.some(share => share.document_id === document.id && (share.shared_with_user === auth.user.id || share.shared_with_dept === auth.user.departmentId))
+  const steps = details ? details.steps || [] : docs.circuitSteps
+  const shares = details ? details.shares || [] : docs.documentShares
+  if (steps.some(step => String(step.document_id) === String(document.id) && step.user_responsabil === auth.user.id)) return true
+  return shares.some(share => String(share.document_id) === String(document.id) &&
+    (!share.expires_at || new Date(share.expires_at).getTime() > Date.now()) &&
+    (share.shared_with_user === auth.user.id || (auth.user.departmentId && share.shared_with_dept === auth.user.departmentId)))
 }
 
 function documentByUuid(db, uuid) {
@@ -901,8 +893,11 @@ DECLARE @deptId nvarchar(64) = JSON_VALUE(@p, '$.deptId');
 SELECT d.id, d.uuid, d.tip_id, d.nr_document, d.titlu, d.date_json, d.status, d.versiune, d.creat_de, d.dept_initiatoare,
   d.prioritate, d.termen_limita, d.fisier_draft_path, d.fisier_final_path, d.created_at, d.updated_at
 FROM documents.documents d
-JOIN documents.document_shares s ON s.document_id = d.id
-WHERE (s.shared_with_user = @userId OR s.shared_with_dept = @deptId) AND (s.expires_at IS NULL OR s.expires_at > sysdatetime())
+WHERE EXISTS (
+  SELECT 1 FROM documents.document_shares s WHERE s.document_id = d.id
+  AND (s.shared_with_user = @userId OR (NULLIF(@deptId, N'') IS NOT NULL AND s.shared_with_dept = @deptId))
+  AND (s.expires_at IS NULL OR s.expires_at > sysdatetime())
+)
 ORDER BY d.created_at DESC
 FOR JSON PATH;
 `, { userId: auth.user.id, deptId: auth.user.departmentId || '' })
@@ -910,8 +905,11 @@ FOR JSON PATH;
       return
     }
     const docs = ensureDocumentsDb(auth.db)
-    const ids = new Set(docs.documentShares.filter(share => share.shared_with_user === auth.user.id || share.shared_with_dept === auth.user.departmentId).map(share => share.document_id))
-    sendJson(res, 200, { documents: publicDocuments(docs.documents.filter(document => ids.has(document.id)), auth) })
+    const ids = new Set(docs.documentShares.filter(share =>
+      (!share.expires_at || new Date(share.expires_at).getTime() > Date.now()) &&
+      (share.shared_with_user === auth.user.id || (auth.user.departmentId && share.shared_with_dept === auth.user.departmentId))
+    ).map(share => String(share.document_id)))
+    sendJson(res, 200, { documents: publicDocuments(docs.documents.filter(document => ids.has(String(document.id))), auth) })
   } catch (error) {
     next(error)
   }
@@ -949,7 +947,11 @@ WHERE EXISTS (
   FROM OPENJSON(CASE WHEN ISJSON(d.date_json) = 1 THEN d.date_json ELSE N'{}' END, '$.watchers')
   WHERE CONVERT(nvarchar(64), [value]) = @userId
 )
-  AND (@canAll = 1 OR d.creat_de = @userId OR (@canDept = 1 AND d.dept_initiatoare = @deptId))
+  AND (@canAll = 1 OR d.creat_de = @userId OR (@canDept = 1 AND NULLIF(@deptId, N'') IS NOT NULL AND d.dept_initiatoare = @deptId)
+    OR EXISTS (SELECT 1 FROM documents.circuit_steps access_step WHERE access_step.document_id = d.id AND access_step.user_responsabil = @userId)
+    OR EXISTS (SELECT 1 FROM documents.document_shares access_share WHERE access_share.document_id = d.id
+      AND (access_share.shared_with_user = @userId OR (NULLIF(@deptId, N'') IS NOT NULL AND access_share.shared_with_dept = @deptId))
+      AND (access_share.expires_at IS NULL OR access_share.expires_at > sysdatetime())))
 ORDER BY COALESCE(d.updated_at, d.created_at) DESC
 FOR JSON PATH;
 `, { userId: auth.user.id, deptId: auth.user.departmentId || '', canAll, canDept })
@@ -1071,6 +1073,7 @@ router.get('/documents/:uuid', (req, res, next) => {
     if (isMssqlMode()) {
       const details = mssqlDocumentDetails(req.params.uuid)
       if (!details?.document) throwHttp(404, 'Document inexistent.')
+      if (!canViewDocument(auth, details.document, details)) throwHttp(403, 'Nu ai acces la document.')
       const readCount = markWatchedDocumentNotificationsRead(auth.db, auth.user, details.document)
       if (readCount) writeDb(auth.db)
       sendJson(res, 200, { ...details, document: publicDocument(details.document, auth.user.id), watched_notifications_read: readCount })
@@ -1142,6 +1145,7 @@ router.post('/documents/:uuid/watch', (req, res, next) => {
     if (isMssqlMode()) {
       const document = mssqlDocument(req.params.uuid)
       if (!document) throwHttp(404, 'Document inexistent.')
+      if (!canViewDocument(auth, document, mssqlDocumentDetails(req.params.uuid))) throwHttp(403, 'Nu ai acces la document.')
       setDocumentWatcher(document, auth.user.id, watched)
       const updated = mssqlJson(`
 UPDATE documents.documents
@@ -1225,6 +1229,7 @@ router.post('/documents/:uuid/withdraw', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
+    if (!requireDocumentPermission(auth, res, 'documents:create')) return
     const document = isMssqlMode() ? mssqlDocument(req.params.uuid) : documentByUuid(auth.db, req.params.uuid)
     if (!document) throwHttp(404, 'Document inexistent.')
     engine.withdrawDocument(document.id, auth.user.id, auth.db)
@@ -1247,6 +1252,7 @@ router.post('/documents/:uuid/share', (req, res, next) => {
     if (!['citire', 'descarcare'].includes(nivel)) throwHttp(400, 'Nivel acces invalid.')
     const document = isMssqlMode() ? mssqlDocument(req.params.uuid) : documentByUuid(auth.db, req.params.uuid)
     if (!document) throwHttp(404, 'Document inexistent.')
+    if (!canViewDocument(auth, document, isMssqlMode() ? mssqlDocumentDetails(req.params.uuid) : null)) throwHttp(403, 'Nu ai acces la document.')
     if (isMssqlMode()) {
       const share = mssqlJson(`
 DECLARE @created table (id int);
@@ -1283,6 +1289,7 @@ router.get('/documents/:uuid/pdf', (req, res, next) => {
     const details = isMssqlMode() ? mssqlDocumentDetails(req.params.uuid) : null
     const document = isMssqlMode() ? details?.document : documentByUuid(auth.db, req.params.uuid)
     if (!document) throwHttp(404, 'Document inexistent.')
+    if (!canViewDocument(auth, document, details)) throwHttp(403, 'Nu ai acces la document.')
     const docs = ensureDocumentsDb(auth.db)
     const type = isMssqlMode() ? mssqlArray(`SELECT TOP 1 id, denumire, template_html FROM documents.document_types WHERE id = JSON_VALUE(@p, '$.id') FOR JSON PATH;`, { id: document.tip_id })[0] : typeById(auth.db, document.tip_id)
     const steps = isMssqlMode() ? details.steps || [] : docs.circuitSteps.filter(step => step.document_id === document.id).sort((a, b) => Number(a.nr_pas) - Number(b.nr_pas))
@@ -1303,12 +1310,14 @@ router.get('/documents/:uuid/audit', (req, res, next) => {
     if (isMssqlMode()) {
       const details = mssqlDocumentDetails(req.params.uuid)
       if (!details?.document) throwHttp(404, 'Document inexistent.')
+      if (!canViewDocument(auth, details.document, details)) throwHttp(403, 'Nu ai acces la document.')
       sendJson(res, 200, { audit: details.audit || [] })
       return
     }
     const docs = ensureDocumentsDb(auth.db)
     const document = documentByUuid(auth.db, req.params.uuid)
     if (!document) throwHttp(404, 'Document inexistent.')
+    if (!canViewDocument(auth, document)) throwHttp(403, 'Nu ai acces la document.')
     sendJson(res, 200, { audit: docs.circuitAudit.filter(item => item.document_id === document.id) })
   } catch (error) {
     next(error)

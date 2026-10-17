@@ -1214,7 +1214,7 @@ function normalizeRolePermissionOverrides(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const allowed = new Set(allPermissions);
   return Object.fromEntries(Object.entries(input)
-    .filter(([role]) => rolePermissions[role] && role !== "superadmin")
+    .filter(([role]) => Object.hasOwn(rolePermissions, role) && role !== "superadmin")
     .map(([role, permissions]) => [
       role,
       Array.from(new Set(Array.isArray(permissions) ? permissions.filter((permission) => allowed.has(permission)) : []))
@@ -1510,6 +1510,7 @@ module.exports = {
   roleModules,
   updateRolePermissions,
   sanitizeRolePermissions,
+  normalizeRolePermissionOverrides,
   publicUser,
   adminUser,
   adminDepartment

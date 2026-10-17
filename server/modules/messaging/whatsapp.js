@@ -57,7 +57,6 @@ function publicSettings(db) {
 }
 
 function hasMessagingPermission(auth, res, permission) {
-  if (auth.user.role === 'superadmin' || auth.user.role === 'admin') return true
   return requirePermission(auth, res, permission)
 }
 
@@ -210,7 +209,7 @@ router.get('/messaging/whatsapp/inbox', (req, res, next) => {
 router.patch('/messaging/whatsapp/inbox/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !hasMessagingPermission(auth, res, 'messaging:view')) return
+    if (!auth || !hasMessagingPermission(auth, res, 'messaging:send')) return
     const message = ensureWhatsApp(auth.db).messages.find(row => String(row.id) === String(req.params.id) && !row.cancelled_at)
     if (!message) return sendJson(res, 404, { error: 'Mesajul WhatsApp nu a fost găsit.' })
     const status = clean(req.body?.status, 30)

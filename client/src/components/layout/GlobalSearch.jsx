@@ -82,7 +82,12 @@ export default function GlobalSearch({ onNavigate }) {
       if (!item.moduleKey || !enabled) return true
       return enabled.has(item.moduleKey)
     })
-    const recent = recentWorkspaceTabs().map(tab => ({
+    const recent = recentWorkspaceTabs().filter(tab => {
+      const pathname = tab.url.split(/[?#]/)[0]
+      const item = [...navigationItems].sort((a, b) => b.to.length - a.to.length)
+        .find(candidate => pathname === candidate.to || pathname.startsWith(`${candidate.to}/`))
+      return item && visibleNavigation.includes(item)
+    }).map(tab => ({
       label: tab.label,
       to: tab.url,
       icon: '↗',
@@ -96,7 +101,7 @@ export default function GlobalSearch({ onNavigate }) {
       .filter(item => item.rank < 9)
       .sort((left, right) => left.rank - right.rank || left.label.localeCompare(right.label, 'ro'))
       .slice(0, 9)
-  }, [isAdmin, modules, query])
+  }, [user, isAdmin, modules, query, open])
 
   useEffect(() => {
     if (!open) return undefined

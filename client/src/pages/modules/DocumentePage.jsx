@@ -13,8 +13,8 @@ import Table from '../../components/ui/Table'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatDate } from '../../utils/format'
 import { useAuth } from '../../hooks/useAuth'
+import { canAccess } from '../../lib/permission-access'
 
-const tabs = ['Inbox', 'Ale mele', 'Toate', 'Template-uri']
 
 function arrayFrom(data, keys) {
   if (Array.isArray(data)) return data
@@ -480,7 +480,17 @@ const wordTemplateVariables = [
 
 export default function DocumentePage() {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState('Inbox')
+  const [requestedTab, setActiveTab] = useState('Inbox')
+  const canReadDocuments = canAccess(user, 'documents:view_own')
+  const canCreateDocument = canAccess(user, 'documents:create')
+  const canApproveDocument = canAccess(user, 'documents:approve')
+  const canReadEmail = canAccess(user, 'messaging:view')
+  const canManageTemplates = canAccess(user, 'documents:templates')
+  const tabs = [
+    ...(canReadDocuments ? [...(canApproveDocument ? ['Inbox'] : []), 'Ale mele', 'Toate'] : []),
+    ...(canManageTemplates ? ['Template-uri'] : []),
+  ]
+  const activeTab = tabs.includes(requestedTab) ? requestedTab : (tabs[0] || '')
   const [documents, setDocuments] = useState([])
   const [templates, setTemplates] = useState([])
   const [selected, setSelected] = useState(null)
@@ -539,16 +549,20 @@ export default function DocumentePage() {
       age: params.get('watch_age') || '',
     }
   })
-  const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
-  const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
+  const isAdmin = canManageTemplates
   const canEditDocument = useCallback(document => (
-    document?.status === 'draft' && String(document.creat_de) === String(userId(user))
-  ), [user])
+    canCreateDocument && document?.status === 'draft' && String(document.creat_de) === String(userId(user))
+  ), [user, canCreateDocument])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
+      if (!activeTab) {
+        setDocuments([])
+        setTemplates([])
+        return
+      }
       if (activeTab === 'Template-uri') {
         const response = await api.get('/documents/templates')
         setTemplates(arrayFrom(response.data, ['templates']))
@@ -740,7 +754,7 @@ export default function DocumentePage() {
         documentId
           ? api.get('/tasks', { params: { source_type: 'document', source_id: String(documentId) } }).catch(() => ({ data: { tasks: [] } }))
           : Promise.resolve({ data: { tasks: [] } }),
-        documentId
+        documentId && canReadEmail
           ? api.get('/messaging/email/links', { params: { target_type: 'document', target_id: String(documentId) } }).catch(() => ({ data: { emails: [] } }))
           : Promise.resolve({ data: { emails: [] } }),
       ])
@@ -1051,6 +1065,7 @@ export default function DocumentePage() {
 
   async function processDocument(action) {
     if (!selected) return
+    if (!canApproveDocument || !['approve', 'reject'].includes(action)) return
     setError('')
     try {
       await api.post(`/documents/${selected.uuid}/${action}`, { comentariu: comment, comment })
@@ -1081,7 +1096,7 @@ export default function DocumentePage() {
   }
 
   async function launchSelectedDocument() {
-    if (!details.document?.uuid) return
+    if (!details.document?.uuid || !canEditDocument(details.document)) return
     setError('')
     try {
       await api.post(`/documents/${details.document.uuid}/launch`, {})
@@ -1100,6 +1115,7 @@ export default function DocumentePage() {
   }
 
   async function openDocumentModal() {
+    if (!canCreateDocument) return
     setError('')
     try {
       const rows = await loadDocumentTemplates()
@@ -1327,9 +1343,8 @@ export default function DocumentePage() {
   }
 
   const selectedWaitingStep = details.steps.find(step => String(step.status || '').toLowerCase() === 'asteptare') || null
-  const currentUserStep = details.steps.find(step =>
-    step.status === 'asteptare' && String(step.user_responsabil) === String(userId(user))
-  )
+  const currentUserStep = canApproveDocument && selectedWaitingStep &&
+    String(selectedWaitingStep.user_responsabil) === String(userId(user)) ? selectedWaitingStep : null
   const selectedOpenTasks = relatedTasks.filter(task => !['done', 'cancelled'].includes(String(task.status || '').toLowerCase()))
   const selectedEmailSource = emailSourceForDocument(details.document)
   const selectedWorkflowSnapshot = documentDataObject(details.document)?.workflow_snapshot || null
@@ -1487,9 +1502,14 @@ export default function DocumentePage() {
       }
     }
 
+    if ((primary.label === 'Document nou' && !canCreateDocument) ||
+        (primary.label === 'Deschide Template-uri' && !canManageTemplates)) {
+      primary = { tone: 'success', title: 'Consultă documentele disponibile.', description: 'Acțiunile disponibile respectă drepturile contului.', label: 'Reîncarcă', onClick: load }
+    }
+
     return {
-      cards,
-      steps,
+      cards: cards.filter(item => (item.key !== 'templates' || canManageTemplates) && (item.key !== 'inbox' || canApproveDocument)),
+      steps: steps.filter(item => item.key !== 'templates' || canManageTemplates),
       primary,
       tone: primary.tone === 'danger' ? 'danger' : (primary.tone === 'warning' ? 'warning' : 'success'),
       summary: selectedDocument
@@ -1504,6 +1524,10 @@ export default function DocumentePage() {
     details.steps,
     relatedTasks,
     templates.length,
+    canCreateDocument,
+    canApproveDocument,
+    canManageTemplates,
+    load,
     user,
     visibleDocuments,
   ])
@@ -1548,8 +1572,8 @@ export default function DocumentePage() {
         hint: draftCount ? `${draftCount} drafturi de completat / lansat` : 'template-uri pregătite pentru documente noi',
         action: draftCount
           ? () => openFirstDocument(item => String(item.status || '').toLowerCase() === 'draft', 'Ale mele')
-          : () => setActiveTab('Template-uri'),
-        cta: draftCount ? 'Vezi draft' : 'Template-uri',
+          : () => setActiveTab(canManageTemplates ? 'Template-uri' : 'Ale mele'),
+        cta: draftCount ? 'Vezi draft' : (canManageTemplates ? 'Template-uri' : 'Ale mele'),
       },
       {
         key: 'flow',
@@ -1589,6 +1613,7 @@ export default function DocumentePage() {
     return { steps, nextStep }
   }, [
     activeTab,
+    canManageTemplates,
     currentUserStep,
     details.document,
     relatedTasks,
@@ -1602,7 +1627,7 @@ export default function DocumentePage() {
         title="Documente"
         subtitle="Circuit electronic, aprobări și template-uri de documente."
         actions={[
-          <Button key="new" onClick={openDocumentModal}>+ Document nou</Button>,
+          canCreateDocument ? <Button key="new" onClick={openDocumentModal}>+ Document nou</Button> : null,
           <DropdownMenu key="actions" align="right" label="Actiuni" items={[
             { label: 'Reincarca', onClick: load },
             isAdmin ? { label: 'Template nou', onClick: () => openTemplateModal() } : null,
@@ -1612,7 +1637,7 @@ export default function DocumentePage() {
 
       {error && <Card className="border-rose-200 bg-rose-50 text-sm text-rose-700">{error}</Card>}
 
-      <Card
+      {canReadDocuments && <><Card
         title="Asistent documente"
         subtitle="Ține la vedere Inbox-ul, urgențele, drafturile, template-urile și legăturile cu email/task."
         actions={
@@ -1720,6 +1745,7 @@ export default function DocumentePage() {
         </div>
       </Card>
 
+      </>}
       <div className="flex flex-wrap gap-2">
         {tabs.map(tab => (
           <Button key={tab} variant={activeTab === tab ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab)}>
@@ -2181,7 +2207,7 @@ export default function DocumentePage() {
                     </div>
                   </div>
 
-                  {selectedEmailSource ? (
+                  {selectedEmailSource && canReadEmail ? (
                     <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
@@ -2239,7 +2265,9 @@ export default function DocumentePage() {
                       <Badge tone={relatedEmails.length ? 'info' : 'neutral'}>{relatedEmails.length} emailuri</Badge>
                     </div>
                     <div className="mt-3 grid gap-2">
-                      {relatedEmailsLoading ? (
+                      {!canReadEmail ? (
+                        <p className="text-sm text-slate-500">Nu ai drept de consultare a mesajelor.</p>
+                      ) : relatedEmailsLoading ? (
                         <p className="text-sm text-slate-500">Se încarcă emailurile legate...</p>
                       ) : relatedEmails.length === 0 ? (
                         <p className="text-sm text-slate-500">Nu există emailuri legate manual de acest document.</p>

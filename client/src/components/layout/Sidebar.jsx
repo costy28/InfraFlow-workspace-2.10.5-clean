@@ -74,13 +74,13 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
   const isSefDepartament = userRoles.some(role => ['sef_departament', 'sef-departament'].includes(role)) ||
     userPermissions.includes('department:manage') ||
     userPermissions.includes('hr:timesheet_dept')
-  const hasItemPermission = item => !item.permissions || isAdmin || item.permissions.some(permission => userPermissions.includes(permission))
+  const hasItemPermission = item => !item.permissions || userRoles.includes('superadmin') || item.permissions.some(permission => userPermissions.includes(permission))
   const moduleIsActive = item => {
     if (!item.moduleKey || !Array.isArray(modules) || modules.length === 0) return true
     return modules.includes(item.moduleKey)
   }
   const canSeeModule = item => {
-    if (!item.moduleKey || isAdmin) return true
+    if (!item.moduleKey) return true
     const accessKey = item.accessKey || (item.moduleKey === 'contract_management' ? 'contractManagement' : item.moduleKey)
     const prefixes = modulePermissionPrefixes[accessKey] || [accessKey]
     return canAccess(user, moduleAccess[accessKey] || { anyPrefix: prefixes })

@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.718**
-**Versiune în lucru: v2.12.718**
+**Versiune curentă sursă: v2.12.727**
+**Versiune în lucru: v2.12.727**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -458,6 +458,11 @@ Core System
   ✅ Editarea directă a zilelor de pontaj validate este blocată în API și interfață (v2.12.716)
   ✅ Compensarea orelor separată de ajustări și validată pentru valori pozitive (v2.12.717)
   ✅ Deciziile finale de concediu nu dublează efectele și nu se inversează direct (v2.12.718)
+  ✅ Simulare HR prin HTTP cu cinci profiluri și matrice de verificare documentată (v2.12.719)
+  ✅ Interfața HR respectă restricțiile rolului admin; verificare Chrome pe patru profiluri (v2.12.720)
+  ✅ Filtrul comun, meniul și căutarea respectă drepturile efective ale rolului admin (v2.12.721)
+  ✅ Documente și Mesaje folosesc verificarea centrală pentru șabloane, canale și WhatsApp (v2.12.722)
+  ✅ Documente: taburi, creare și editare draft după drepturile efective (v2.12.723)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1181,9 +1186,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.718
+VERSIUNE CURENTĂ SURSĂ: 2.12.727
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.718 ✅
+UPDATE ZIP CURENT: 2.12.727 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1708,6 +1713,15 @@ UPDATES ÎN LUCRU:
   2.12.716 → UPDATE 736 protecție editare pontaj validat ✅
   2.12.717 → UPDATE 737 compensări ore fără ocolirea ajustărilor autorizate ✅
   2.12.718 → UPDATE 738 decizii concediu fără efecte duplicate ✅
+  2.12.719 → UPDATE 739 simulare HTTP HR pe roluri și raport de verificare ✅
+  2.12.720 → UPDATE 740 interfață HR fără scurtătura admin ✅
+  2.12.721 → UPDATE 741 navigare comună fără acces implicit admin la module ✅
+  2.12.722 → UPDATE 742 drepturi efective Documente și Mesaje ✅
+  2.12.723 → UPDATE 743 taburi și creare Documente după drepturi ✅
+  2.12.724 → UPDATE 744 acces pe document și aprobări controlate ✅
+  2.12.725 → UPDATE 745 normalizare unică pentru drepturile salvate ✅
+  2.12.726 → UPDATE 746 urmărire și partajare documente după acces ✅
+  2.12.727 → UPDATE 747 consultare și modificare Email/WhatsApp separate ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2206,5 +2220,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 17 Octombrie 2026 | InfraFlow sursă v2.12.718*
+*AGENTS.md actualizat: 17 Octombrie 2026 | InfraFlow sursă v2.12.727*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

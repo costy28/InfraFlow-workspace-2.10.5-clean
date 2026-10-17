@@ -9,6 +9,7 @@
     "audit:advisory": "node scripts/audit-local.js --advisory",
     "test:accounting": "node --test server/tests/accounting-regression.test.js",
     "test:hr": "node --test server/tests/hr-regression.test.js",
+    "test:hr:roles": "node scripts/smoke-hr-roles.js",
     "test:permissions": "node --test server/tests/permissions-regression.test.js",
     "test:release": "node scripts/release-accounting-acceptance.js",
     "test:backup": "node scripts/verify-backup-roundtrip.js",
@@ -21,5 +22,5 @@
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
-  "version": "2.12.718"
+  "version": "2.12.727"
 }

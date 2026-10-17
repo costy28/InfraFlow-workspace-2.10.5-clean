@@ -185,7 +185,7 @@ export default function HRPage() {
 
   // Calculare tabs accesibile pe baza permisiunilor utilizatorului
   const hasPerm = (perm) =>
-    ['superadmin', 'admin'].includes(user?.role) ||
+    [user?.role, ...(Array.isArray(user?.roles) ? user.roles : [])].includes('superadmin') ||
     (Array.isArray(user?.permissions) && user.permissions.includes(perm))
 
   const tabs = getVisibleHrTabs(hasPerm)
@@ -312,10 +312,7 @@ export default function HRPage() {
   const [filters, setFilters] = useState({ dept_id: '', activ: '', luna: currentMonth(), tip: '', alert: '' })
   const photoInputRef = useRef()
   const templateEditorRef = useRef()
-  const userPermissions = Array.isArray(user?.permissions) ? user.permissions : []
-  const userRoles = Array.from(new Set([...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean).map(String)))
-  const isAdmin = userRoles.some(role => ['superadmin', 'admin'].includes(role))
-  const hasPermission = permission => isAdmin || userPermissions.includes(permission)
+  const hasPermission = hasPerm
   const canReadDossier = hasPermission('hr:view') && hasPermission('hr:personal_sensitive') && hasPermission('hr:medical_view')
   const canReadWorkflow = canReadDossier && hasPermission('hr:salary_view')
   const canManageSensitiveNotifications = hasPermission('hr:notifications_manage') && canReadWorkflow
@@ -328,7 +325,7 @@ export default function HRPage() {
   const isSefPontaj = hasPermission('hr:timesheet_dept')
   const canUsePontaj = isHRPontaj || isSefPontaj || hasPermission('hr:timesheet') || hasPermission('hr:timesheets_view')
   const canListEmployees = hasPermission('hr:view') || hasPermission('hr:view_own') || canManageEmployees || isSefPontaj || hasPermission('echipamente:gestionar')
-  const canManageEquipment = isAdmin || hasPermission('echipamente:gestionar')
+  const canManageEquipment = hasPermission('echipamente:gestionar')
   const canManageShifts = hasPermission('hr:schedules_manage')
   const canEditSchedule = hasPermission('hr:timesheet')
   const canReadEmployeeHistory = hasPermission('hr:view')

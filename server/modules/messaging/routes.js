@@ -82,13 +82,7 @@ function tryMssqlMessaging(operation) {
 }
 
 function requireMessaging(auth, res, permission) {
-  if (auth.user.role === 'superadmin' || auth.user.role === 'admin') return true
-  const direct = new Set(auth.user.permissions || [])
-  const role = new Set(auth.db?.settings?.rolePermissions?.[auth.user.role] || [])
-  if (direct.has(permission) || role.has(permission)) return true
-  if (requirePermission(auth, { writeHead() {}, end() {} }, permission)) return true
-  sendJson(res, 403, { error: 'Nu ai permisiune pentru aceasta actiune.' })
-  return false
+  return requirePermission(auth, res, permission)
 }
 
 function ensureMessagingDb(db) {

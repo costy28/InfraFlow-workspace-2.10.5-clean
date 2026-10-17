@@ -52,7 +52,7 @@ function userId(user) {
 }
 
 function isAdminUser(user) {
-  return user?.role === 'superadmin' || user?.role === 'admin'
+  return canAccess(user, 'messaging:admin')
 }
 
 function highlightMentions(text) {
@@ -250,6 +250,8 @@ export default function MessagingPage() {
   const isAdmin = isAdminUser(user)
   const canViewCrm = canAccess(user, 'crm:view')
   const canCreateCrmLead = canAccess(user, 'crm:lead_create')
+  const canSendEmail = canAccess(user, 'messaging:send')
+  const canCreateDocument = canAccess(user, 'documents:create')
 
   // ─── Load canale ─────────────────────────────────────────────────────────────
   const loadChannels = useCallback(async () => {
@@ -451,7 +453,7 @@ export default function MessagingPage() {
         source_url: '/mesaje',
       })
       const task = response.data?.task
-      if (task?.id) {
+      if (task?.id && canSendEmail) {
         await api.post(`/messaging/email/inbox/${taskEmail.id}/links`, {
           target_type: 'task',
           target_id: task.id,
@@ -459,7 +461,7 @@ export default function MessagingPage() {
           target_url: `/taskuri?task=${encodeURIComponent(String(task.id))}`
         }).catch(() => {})
       }
-      await api.patch(`/messaging/email/inbox/${taskEmail.id}`, { status: 'read' }).catch(() => {})
+      if (canSendEmail) await api.patch(`/messaging/email/inbox/${taskEmail.id}`, { status: 'read' }).catch(() => {})
       setTaskEmail(null)
       await loadEmailInbox()
     } catch (err) {
@@ -488,6 +490,7 @@ export default function MessagingPage() {
   }
 
   async function openDocumentFromEmail(email, attachment = null, attachmentIndex = null) {
+    if (!canCreateDocument) return
     setDocumentEmail(email)
     setDocumentError('')
     const rows = documentTemplates.length ? documentTemplates : await loadDocumentTemplates()
@@ -503,6 +506,7 @@ export default function MessagingPage() {
   }
 
   async function createDocumentFromEmail(event) {
+    if (!canCreateDocument) { event.preventDefault(); return }
     event.preventDefault()
     if (!documentEmail) return
     setDocumentLoading(true)
@@ -535,7 +539,7 @@ export default function MessagingPage() {
       })
       const document = response.data?.document
       const documentId = document?.uuid || document?.id
-      if (documentId) {
+      if (documentId && canSendEmail) {
         await api.post(`/messaging/email/inbox/${documentEmail.id}/links`, {
           target_type: 'document',
           target_id: documentId,
@@ -543,7 +547,7 @@ export default function MessagingPage() {
           target_url: `/documente?document=${encodeURIComponent(String(documentId))}`
         }).catch(() => {})
       }
-      await api.patch(`/messaging/email/inbox/${documentEmail.id}`, { status: 'read' }).catch(() => {})
+      if (canSendEmail) await api.patch(`/messaging/email/inbox/${documentEmail.id}`, { status: 'read' }).catch(() => {})
       setDocumentEmail(null)
       await loadEmailInbox()
     } catch (err) {
@@ -578,6 +582,7 @@ export default function MessagingPage() {
   }
 
   async function openLinkEmail(email) {
+    if (!canSendEmail) return
     setLinkEmail(email)
     setLinkError('')
     const next = { ...emptyLinkForm, target_type: email.category === 'documente' ? 'document' : (email.category === 'contracte' ? 'contract' : 'contract') }
@@ -592,6 +597,7 @@ export default function MessagingPage() {
   }
 
   async function saveEmailLink(event) {
+    if (!canSendEmail) { event.preventDefault(); return }
     event.preventDefault()
     if (!linkEmail) return
     const target = linkTargets.find(item => String(item.target_id) === String(linkForm.target_id))
@@ -618,6 +624,7 @@ export default function MessagingPage() {
   }
 
   async function cancelEmailLink(email, link) {
+    if (!canSendEmail) return
     try {
       await api.delete(`/messaging/email/inbox/${email.id}/links/${link.id}`)
       await loadEmailInbox()
@@ -627,6 +634,7 @@ export default function MessagingPage() {
   }
 
   function openComposeEmail() {
+    if (!canSendEmail) return
     setComposeTitle('Email nou')
     setComposeForm(form => ({
       ...emptyEmailComposeForm,
@@ -638,6 +646,7 @@ export default function MessagingPage() {
   }
 
   function openDraftEmail(email) {
+    if (!canSendEmail) return
     setComposeTitle('Editează draft')
     setComposeForm({
       ...emptyEmailComposeForm,
@@ -660,6 +669,7 @@ export default function MessagingPage() {
   }
 
   function openReplyEmail(email) {
+    if (!canSendEmail) return
     setComposeTitle('Răspunde la email')
     setComposeForm({
       ...emptyEmailComposeForm,
@@ -679,6 +689,7 @@ export default function MessagingPage() {
   }
 
   function openForwardEmail(email) {
+    if (!canSendEmail) return
     setComposeTitle('Redirecționează email')
     setComposeForm({
       ...emptyEmailComposeForm,
@@ -697,6 +708,7 @@ export default function MessagingPage() {
   }
 
   async function updateEmailStatus(email, status) {
+    if (!canSendEmail) return
     try {
       const response = await api.patch(`/messaging/email/inbox/${email.id}`, { status })
       const updatedEmail = response.data?.email || { ...email, status }
@@ -720,6 +732,7 @@ export default function MessagingPage() {
   }
 
   async function bulkUpdateEmailStatus(status) {
+    if (!canSendEmail) return
     if (!selectedVisibleEmailIds.length) return
     setEmailBulkLoading(true)
     setError('')
@@ -734,6 +747,7 @@ export default function MessagingPage() {
   }
 
   async function syncIncomingEmail() {
+    if (!canSendEmail) return
     setEmailSyncLoading(true)
     setError('')
     setComposeMessage('')
@@ -765,6 +779,7 @@ export default function MessagingPage() {
   }
 
   async function sendComposeEmail(event) {
+    if (!canSendEmail) { event.preventDefault(); return }
     event.preventDefault()
     setComposeLoading(true)
     setComposeError('')
@@ -791,6 +806,7 @@ export default function MessagingPage() {
   }
 
   async function saveComposeDraft() {
+    if (!canSendEmail) return
     setDraftLoading(true)
     setComposeError('')
     setComposeMessage('')
@@ -969,7 +985,7 @@ export default function MessagingPage() {
     }
   }
 
-  const canWrite = activeChannel && !activeChannel.readonly
+  const canWrite = canAccess(user, 'messaging:send') && activeChannel && !activeChannel.readonly
   const totalUnread = channels.reduce((sum, c) => sum + (c.unread || 0), 0)
   const selectableEmailRows = useMemo(() => emailRows.filter(email => email.direction !== 'draft'), [emailRows])
   const selectedVisibleEmailIds = useMemo(
@@ -1053,8 +1069,8 @@ export default function MessagingPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={openComposeEmail}><Mail size={15} /> Email nou</Button>
-              <Button variant="secondary" onClick={syncIncomingEmail} loading={emailSyncLoading}>Sincronizează inbox</Button>
+              <Button disabled={!canSendEmail} onClick={openComposeEmail}><Mail size={15} /> Email nou</Button>
+              <Button disabled={!canSendEmail} variant="secondary" onClick={syncIncomingEmail} loading={emailSyncLoading}>Sincronizează inbox</Button>
               <Button variant="secondary" onClick={loadEmailInbox} loading={emailLoading}>Reîncarcă</Button>
             </div>
           </div>
@@ -1195,9 +1211,9 @@ export default function MessagingPage() {
               </label>
               <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
                 <span>{selectedVisibleEmailIds.length} selectate</span>
-                <Button size="sm" variant="secondary" disabled={!selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('read')}>Marchează citite</Button>
-                <Button size="sm" variant="secondary" disabled={!selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('unread')}>Marchează necitite</Button>
-                <Button size="sm" variant="secondary" disabled={!selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('archived')}>Arhivează</Button>
+                <Button size="sm" variant="secondary" disabled={!canSendEmail || !selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('read')}>Marchează citite</Button>
+                <Button size="sm" variant="secondary" disabled={!canSendEmail || !selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('unread')}>Marchează necitite</Button>
+                <Button size="sm" variant="secondary" disabled={!canSendEmail || !selectedVisibleEmailIds.length || emailBulkLoading} loading={emailBulkLoading} onClick={() => bulkUpdateEmailStatus('archived')}>Arhivează</Button>
               </div>
             </div>
           ) : null}
@@ -1284,7 +1300,7 @@ export default function MessagingPage() {
                               {link.target_url ? (
                                 <button type="button" className="font-semibold underline" onClick={() => { window.location.href = link.target_url }}>deschide</button>
                               ) : null}
-                              <button type="button" className="text-blue-400 hover:text-rose-600" title="Anulează legătura" onClick={() => cancelEmailLink(email, link)}>×</button>
+                              <button disabled={!canSendEmail} type="button" className="text-blue-400 hover:text-rose-600" title="Anulează legătura" onClick={() => cancelEmailLink(email, link)}>×</button>
                             </span>
                           ))}
                         </div>
@@ -1297,30 +1313,30 @@ export default function MessagingPage() {
                     </div>
                     <div className="flex w-full flex-wrap justify-start gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
                       {email.direction === 'draft' ? (
-                        <Button size="sm" onClick={() => openDraftEmail(email)}>Editează draft</Button>
+                        <Button disabled={!canSendEmail} size="sm" onClick={() => openDraftEmail(email)}>Editează draft</Button>
                       ) : (
                         <>
                           <Button size="sm" variant="secondary" onClick={() => openEmailDetails(email)}>Deschide</Button>
                           {email.status === 'unread' ? (
-                            <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'read')}>Marchează citit</Button>
+                            <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'read')}>Marchează citit</Button>
                           ) : email.status === 'read' ? (
-                            <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'unread')}>Marchează necitit</Button>
+                            <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'unread')}>Marchează necitit</Button>
                           ) : null}
-                          <Button size="sm" variant="secondary" onClick={() => openReplyEmail(email)}>
+                          <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => openReplyEmail(email)}>
                             <Reply size={14} /> Răspunde
                           </Button>
-                          <Button size="sm" variant="secondary" onClick={() => openForwardEmail(email)}>
+                          <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => openForwardEmail(email)}>
                             <Forward size={14} /> Forward
                           </Button>
-                          <Button size="sm" variant="secondary" onClick={() => openLinkEmail(email)}>Leagă de...</Button>
+                          <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => openLinkEmail(email)}>Leagă de...</Button>
                           <Button size="sm" onClick={() => openTaskFromEmail(email)}>Creează task</Button>
-                          <Button size="sm" variant="secondary" onClick={() => openDocumentFromEmail(email)}>
+                          <Button disabled={!canCreateDocument} size="sm" variant="secondary" onClick={() => openDocumentFromEmail(email)}>
                             <FileText size={14} /> Document
                           </Button>
                           {email.status === 'archived' ? (
-                            <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'read')}>Readuce în inbox</Button>
+                            <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'read')}>Readuce în inbox</Button>
                           ) : (
-                            <Button size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'archived')}>Arhivează</Button>
+                            <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => updateEmailStatus(email, 'archived')}>Arhivează</Button>
                           )}
                         </>
                       )}
@@ -1546,7 +1562,7 @@ export default function MessagingPage() {
               </form>
             ) : (
               <div className="border-t border-slate-200 p-3 text-center text-sm text-slate-400">
-                🔒 Canal de anunțuri — numai administratorii pot posta
+                {canAccess(user, 'messaging:send') ? '🔒 Canal cu trimitere restricționată.' : '🔒 Nu ai drept de trimitere a mesajelor.'}
               </div>
             )}
           </>
@@ -1675,11 +1691,11 @@ export default function MessagingPage() {
                 <div className="flex shrink-0 flex-wrap gap-2">
                   {emailDetails.direction !== 'draft' ? (
                     <>
-                      <Button size="sm" variant="secondary" onClick={() => openReplyEmail(emailDetails)}><Reply size={14} /> Răspunde</Button>
-                      <Button size="sm" variant="secondary" onClick={() => openForwardEmail(emailDetails)}><Forward size={14} /> Forward</Button>
+                      <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => openReplyEmail(emailDetails)}><Reply size={14} /> Răspunde</Button>
+                      <Button disabled={!canSendEmail} size="sm" variant="secondary" onClick={() => openForwardEmail(emailDetails)}><Forward size={14} /> Forward</Button>
                     </>
                   ) : (
-                    <Button size="sm" onClick={() => openDraftEmail(emailDetails)}>Editează draft</Button>
+                    <Button disabled={!canSendEmail} size="sm" onClick={() => openDraftEmail(emailDetails)}>Editează draft</Button>
                   )}
                 </div>
               </div>
@@ -1737,7 +1753,7 @@ export default function MessagingPage() {
                         ) : (
                           <Badge tone="warning">doar metadata</Badge>
                         )}
-                        <Button type="button" size="sm" variant="secondary" onClick={() => openDocumentFromEmail(emailDetails, attachment, index)}>
+                        <Button disabled={!canCreateDocument} type="button" size="sm" variant="secondary" onClick={() => openDocumentFromEmail(emailDetails, attachment, index)}>
                           <FileText size={14} /> Document
                         </Button>
                       </span>
@@ -1748,15 +1764,15 @@ export default function MessagingPage() {
             ) : null}
 
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => openLinkEmail(emailDetails)}>Leagă de...</Button>
+              <Button disabled={!canSendEmail} type="button" variant="secondary" onClick={() => openLinkEmail(emailDetails)}>Leagă de...</Button>
               {emailDetails.direction !== 'draft' ? (
                 <>
                   <Button type="button" onClick={() => openTaskFromEmail(emailDetails)}>Creează task</Button>
-                  <Button type="button" variant="secondary" onClick={() => openDocumentFromEmail(emailDetails)}><FileText size={14} /> Document</Button>
+                  <Button disabled={!canCreateDocument} type="button" variant="secondary" onClick={() => openDocumentFromEmail(emailDetails)}><FileText size={14} /> Document</Button>
                   {emailDetails.status === 'archived' ? (
-                    <Button type="button" variant="secondary" onClick={() => updateEmailStatus(emailDetails, 'read')}>Readuce în inbox</Button>
+                    <Button disabled={!canSendEmail} type="button" variant="secondary" onClick={() => updateEmailStatus(emailDetails, 'read')}>Readuce în inbox</Button>
                   ) : (
-                    <Button type="button" variant="secondary" onClick={() => updateEmailStatus(emailDetails, 'archived')}>Arhivează</Button>
+                    <Button disabled={!canSendEmail} type="button" variant="secondary" onClick={() => updateEmailStatus(emailDetails, 'archived')}>Arhivează</Button>
                   )}
                 </>
               ) : null}
@@ -1859,7 +1875,7 @@ export default function MessagingPage() {
           {composeError ? <div className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{composeError}</div> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setComposeOpen(false)}>Renunță</Button>
-            <Button type="button" variant="secondary" loading={draftLoading} disabled={composeLoading} onClick={saveComposeDraft}>
+            <Button type="button" variant="secondary" loading={draftLoading} disabled={!canSendEmail || composeLoading} onClick={saveComposeDraft}>
               Salvează draft
             </Button>
             <Button type="submit" loading={composeLoading} disabled={!composeForm.to.trim() || !composeForm.subject.trim() || !composeForm.body.trim()}>

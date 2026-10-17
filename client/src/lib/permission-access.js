@@ -88,7 +88,7 @@ export function canAccess(user, requirement) {
   if (rule?.moduleKey && Array.isArray(effectiveModules) && !effectiveModules.includes(rule.moduleKey)) return false
 
   const roles = Array.isArray(user?.roles) ? user.roles : []
-  if ([user?.role, ...roles].some(role => ['superadmin', 'admin'].includes(role))) return true
+  if ([user?.role, ...roles].includes('superadmin')) return true
 
   const permissions = Array.isArray(user?.permissions) ? user.permissions : []
   const anyOf = Array.isArray(rule.anyOf) ? rule.anyOf : []
