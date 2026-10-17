@@ -1324,4 +1324,15 @@ router.get('/documents/:uuid/audit', (req, res, next) => {
   }
 })
 
+router.emailLinkDocuments = auth => {
+  if (!hasDocumentPermission(auth, 'documents:view_own')) return []
+  if (!isMssqlMode()) return ensureDocumentsDb(auth.db).documents.filter(document => canViewDocument(auth, document))
+  const rows = mssqlArray(`
+SELECT d.id, d.uuid, d.nr_document, d.titlu, d.tip_id, d.status, d.creat_de, d.dept_initiatoare,
+  JSON_QUERY((SELECT document_id, user_responsabil FROM documents.circuit_steps WHERE document_id = d.id FOR JSON PATH)) AS steps,
+  JSON_QUERY((SELECT document_id, shared_with_dept, shared_with_user, expires_at FROM documents.document_shares WHERE document_id = d.id FOR JSON PATH)) AS shares
+FROM documents.documents d FOR JSON PATH;
+`)
+  return rows.filter(document => canViewDocument(auth, document, document))
+}
 module.exports = router

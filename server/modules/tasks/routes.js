@@ -697,4 +697,5 @@ router.post('/tasks/:id/attachments', taskUpload.single('file'), (req, res) => {
 })
 
 router.createLinkedTask = createLinkedTask
+router.canSeeTask = canSeeTask
 module.exports = router

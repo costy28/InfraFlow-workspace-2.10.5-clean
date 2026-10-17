@@ -1,5 +1,5 @@
 {
-  "version": "2.12.727",
+  "version": "2.12.729",
   "date": "2026-10-17",
-  "changelog": "## v2.12.727 - 2026-10-17\n\n### Consultare și modificare Email/WhatsApp separate\n\n- Conturile doar de consultare nu pot compune, sincroniza sau modifica statusuri.\n- Crearea documentului din email cere dreptul Documente dedicat.\n- Modificarea statusului WhatsApp cere drept de trimitere.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "changelog": "## v2.12.729 - 2026-10-17\n\n### Surse Email și atașamente controlate\n\n- Sursele sunt afișate numai dacă pot fi rezolvate și autorizate.\n- Atașamentele au indexuri coerente, nume și antete de descărcare validate.\n- Conținutul emailurilor nu este șters sau rescris.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

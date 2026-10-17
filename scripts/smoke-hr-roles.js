@@ -30,6 +30,8 @@ const roles = {
   documentActor: ['documents:view_own', 'documents:create', 'documents:approve', 'documents:share'],
   documentReader: ['documents:view_own'],
   messageSender: ['messaging:view', 'messaging:send'],
+  messageLinker: ['messaging:view', 'messaging:send', 'documents:view_own'],
+  contractReader: ['messaging:view', 'legal:contracts'],
 }
 const tokens = {}
 let child
@@ -70,6 +72,25 @@ function prepare() {
   ] }
   db.messaging = { ...(db.messaging || {}), emailMessages: [{ id: 910, direction: 'inbound', subject: 'Email test', body: 'Verificare', status: 'unread', category: 'general' }],
     whatsapp: { messages: [{ id: 'wa-test', body: 'Mesaj test', status: 'unread', from_phone: '40000000000' }], events: [] } }
+  db.documents.documents.push(...Array.from({ length: 85 }, (_, index) => ({ id: 1000 + index, uuid: `link-doc-${index}`, titlu: `Document legătură ${index}`, nr_document: `LINK-${index}`, status: 'draft', creat_de: 'u-messageLinker' })))
+  db.taskManagement = { tasks: [
+    { id: 'task-own-link', title: 'Task propriu', created_by: 'u-messageLinker', assigned_to: 'u-messageLinker', status: 'open' },
+    { id: 'task-foreign-link', title: 'Task confidențial', created_by: 'u-other', assigned_to: 'u-other', status: 'open' },
+  ], comments: [], attachments: [] }
+  db.contractManagement = { contracts: [{ id: 'contract-private', numar: 'PRIVAT', titlu: 'Contract confidențial' }] }
+  db.messaging.emailLinks = [
+    { id: 'hidden-link', email_id: 910, target_type: 'contract', target_id: 'contract-private', target_label: 'Contract confidențial', target_url: '/contracte?contract=contract-private' },
+    { id: 'visible-link', email_id: 910, target_type: 'document', target_id: 'link-doc-0', target_label: 'Etichetă veche', target_url: '/setari' },
+  ]
+  Object.assign(db.messaging.emailMessages[0], { source_type: 'contract', source_id: 'contract-private', source_label: 'Etichetă neverificată', source_url: '/setari', attachments: [
+    { name: '', content: 'invalid' },
+    { name: '../Dovadă\r\n".pdf', index: 999, contentType: 'text/html\r\nX-Evil: yes', content: Buffer.from('Atașament verificare').toString('base64'), encoding: 'base64' },
+  ] })
+  db.messaging.emailMessages.push(
+    { id: 911, direction: 'inbound', subject: 'Sursă document', source_type: 'document', source_id: 'link-doc-0', source_label: 'FALS', source_url: '//invalid.example' },
+    { id: 912, direction: 'inbound', subject: 'Sursă necunoscută', source_type: 'unknown', source_id: 'secret', source_label: 'ASCUNS', source_url: '/setari' },
+    { id: 913, direction: 'inbound', subject: 'Anulat', cancelled_at: '2026-01-01T00:00:00Z', attachments: [{ name: 'test.txt', content: 'dGVzdA==' }] },
+  )
   fs.writeFileSync(database, JSON.stringify(db))
 }
 
@@ -205,6 +226,66 @@ async function main() {
     await request('messageSender', '/messaging/email/inbox/910', 'PATCH', { status: 'read' })
     await request('messageSender', '/messaging/whatsapp/inbox/wa-test', 'PATCH', { status: 'read' })
     await request('messageSender', '/messaging/email/drafts', 'POST', { subject: 'Draft verificare', body: 'Nu se expediază' }, 201)
+  })
+  await check('Legături Email: propunerile respectă accesul la document, task și modulul Contracte', async () => {
+    assert.equal((await request('messageLinker', '/messaging/email/link-targets?type=contract')).targets.length, 0)
+    const tasks = await request('messageLinker', '/messaging/email/link-targets?type=task')
+    assert.deepEqual(tasks.targets.map(row => row.target_id), ['task-own-link'])
+    const contracts = await request('contractReader', '/messaging/email/link-targets?type=contract')
+    assert.ok(contracts.targets.some(row => row.target_id === 'contract-private'))
+    assert.equal((await request('messageSender', '/messaging/email/link-targets?type=document')).targets.length, 0)
+  })
+  await check('Legături Email: ID-ul direct nu permite ținte străine, inexistente sau anulări fără acces', async () => {
+    for (const [type, id] of [['document', 'smoke-doc-foreign'], ['task', 'task-foreign-link'], ['contract', 'contract-private'], ['document', 'missing-document']]) {
+      await request('messageLinker', '/messaging/email/inbox/910/links', 'POST', { target_type: type, target_id: id }, 403)
+      await request('messageLinker', `/messaging/email/links?target_type=${type}&target_id=${id}`, 'GET', undefined, 403)
+    }
+    await request('messageLinker', '/messaging/email/inbox/910/links/hidden-link', 'DELETE', {}, 403)
+  })
+  await check('Legături Email: metadatele sunt canonice, țintele peste limita propunerilor se pot lega și legăturile străine sunt ascunse', async () => {
+    const result = await request('messageLinker', '/messaging/email/inbox/910/links', 'POST', { target_type: 'document', target_id: 'link-doc-84', target_label: 'FALS', target_url: '/setari' }, 201)
+    assert.notEqual(result.link.target_label, 'FALS')
+    assert.equal(result.link.target_url, '/documente?document=link-doc-84')
+    const inbox = await request('messageLinker', '/messaging/email/inbox')
+    const email = inbox.emails.find(row => row.id === 910)
+    assert.ok(!email.links.some(link => link.id === 'hidden-link'))
+    assert.equal(email.links.find(link => link.id === 'visible-link').target_url, '/documente?document=link-doc-0')
+    await request('messageLinker', `/messaging/email/inbox/910/links/${result.link.id}`, 'DELETE', {})
+    const numeric = await request('messageLinker', '/messaging/email/inbox/910/links', 'POST', { target_type: 'document', target_id: '1001' }, 201)
+    assert.equal(numeric.link.target_id, 'link-doc-1')
+    assert.equal((await request('messageLinker', '/messaging/email/links?target_type=document&target_id=1001')).emails.length, 1)
+  })
+  await check('Surse Email: metadatele sunt canonice numai pentru ținte accesibile', async () => {
+    const sender = await request('messageSender', '/messaging/email/inbox')
+    assert.equal(sender.emails.find(row => row.id === 910).source_url, null)
+    assert.equal(sender.emails.find(row => row.id === 912).source_label, null)
+    const contracts = await request('contractReader', '/messaging/email/inbox')
+    assert.equal(contracts.emails.find(row => row.id === 910).source_url, '/contracte?contract=contract-private')
+    const documents = await request('messageLinker', '/messaging/email/inbox')
+    assert.equal(documents.emails.find(row => row.id === 911).source_url, '/documente?document=link-doc-0')
+    assert.notEqual(documents.emails.find(row => row.id === 911).source_label, 'FALS')
+  })
+  await check('Atașamente Email: consultarea este obligatorie; indexul și antetele sunt validate', async () => {
+    await request('anonymous', '/messaging/email/inbox/910/attachments/0', 'GET', undefined, 401)
+    await request('documentReader', '/messaging/email/inbox/910/attachments/0', 'GET', undefined, 403)
+    for (const index of ['-1', '0.5', '1e0']) await request('messageSender', `/messaging/email/inbox/910/attachments/${index}`, 'GET', undefined, 400)
+    await request('messageSender', '/messaging/email/inbox/913/attachments/0', 'GET', undefined, 404)
+    const inbox = await request('messageSender', '/messaging/email/inbox')
+    assert.equal(inbox.emails.find(row => row.id === 910).attachments[0].download_url, '/api/messaging/email/inbox/910/attachments/0')
+    const response = await fetch(`${origin}/messaging/email/inbox/910/attachments/0`, { headers: { Authorization: `Bearer ${tokens.messageSender}` } })
+    assert.equal(response.status, 200)
+    assert.equal(await response.text(), 'Atașament verificare')
+    assert.equal(response.headers.get('content-type'), 'application/octet-stream')
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
+    assert.ok(response.headers.get('cache-control').includes('no-store'))
+    assert.ok(!response.headers.get('content-disposition').includes('../'))
+  })
+  await check('Legături Email: revocarea drepturilor se aplică și sesiunii deja deschise', async () => {
+    await request('admin', '/roles/smoke-messageLinker/permissions', 'PATCH', { permissions: ['messaging:view', 'messaging:send'] })
+    const inbox = await request('messageLinker', '/messaging/email/inbox')
+    assert.equal(inbox.emails.find(row => row.id === 910).links.length, 0)
+    assert.equal(inbox.emails.find(row => row.id === 911).source_url, null)
+    await request('messageLinker', '/messaging/email/links?target_type=document&target_id=link-doc-0', 'GET', undefined, 403)
   })
   assert.ok(!/scheduler\s+check[A-Za-z]+\s+start/i.test(output), 'Schedulerul a rulat în simulare')
   assert.deepEqual(JSON.parse(fs.readFileSync(database, 'utf8')).settings.rolePermissionOverrides.admin, roles.restrictedAdmin, 'Drepturile adminului restrâns trebuie păstrate după toate scrierile HTTP')

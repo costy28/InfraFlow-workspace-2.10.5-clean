@@ -2911,4 +2911,5 @@ router.post('/contracts/:id/activate', (req, res) => {
   sendJson(res, 200, { ok: true, ...result })
 })
 
+router.canViewEmailLinkTargets = auth => VIEW_PERMISSIONS.some(permission => require('../../core/permissions').authHasPermission(auth, permission))
 module.exports = router

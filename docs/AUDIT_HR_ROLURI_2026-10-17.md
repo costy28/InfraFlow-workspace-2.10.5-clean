@@ -132,3 +132,19 @@ Dosarul nu cere `/messaging/email/links` și nu oferă deschiderea sursei email 
 Controalele și handler-ele pentru compunere, draft, sincronizare, status și legături Email respectă `messaging:send`. Consultarea unui mesaj nu produce PATCH pentru cititor. Document din email cere `documents:create`; legarea auxiliară și marcarea Email nu se încearcă fără drept de trimitere. Statusul WhatsApp cere acum același drept de modificare ca Email.
 
 43 teste și 18 scenarii HTTP/recitire trecute. HTTP real în JSON temporar confirmă consultare permisă, refuzul modificării pentru cititor și succesul expeditorului la status/draft. Chrome cu API simulate verifică butoanele inactive/active și lipsa scrierilor Email la deschiderea de către cititor. Fără SMTP/Meta, integrare SQL live sau instalare pe PC/server. Rămâne accesul la entitățile propuse și existente în legăturile Email.
+
+## Legături Email pe țintă — v2.12.728
+
+Propunerile și operațiile folosesc politica modulelor Contracte, Documente și Task-uri. Funcțiile de acces sunt reutilizate, nu înlocuite cu drepturi noi. În MSSQL, documentele sunt citite relațional împreună cu pașii/partajările pentru filtrarea accesului. Colecțiile sunt cerute numai pentru tipurile relevante, iar Inbox fără legături nu încarcă ținte.
+
+Crearea refuză ID-uri arbitrare/inaccesibile și folosește label/URL canonic. Răspunsurile filtrează legăturile existente și normalizează aliasurile numerice Documente. Citirea pe țintă și anularea nu pot ocoli autorizarea. Legăturile ascunse/orfane sunt păstrate în stocare pentru audit; curățarea lor nu este automată.
+
+44 teste și 22 scenarii HTTP/recitire au trecut: acces pe trei tipuri, refuz ținte străine/inexistente, metadate canonice, rezolvare după limita de 80, ID/UUID, anulare permisă/refuzată și revocare în sesiunea deja deschisă. Executorul SQL pentru propuneri este simulat; nu s-a testat integrarea SQL live. Rămân metadatele istorice `source_*`, descărcările/atașamentele și verificarea integrată pe SQL a fluxurilor modificate. Nu se declară auditul integral finalizat.
+
+## Surse și atașamente Email — v2.12.729
+
+Metadatele `source_*` sunt rezolvate în contextul autorizat, inclusiv în răspunsurile de creare/modificare/sincronizare. Sursele arbitrare sau indisponibile sunt ascunse; corpul emailului rămâne intact. Sursele CRM sunt verificate relațional și cer drept dedicat, cu cache doar pe cererea curentă; comanda CRM nu primește un URL UI presupus. Sursele comune folosesc politica de acces existentă.
+
+Atașamentele Inbox rămân copii consultabile cu `messaging:view`; nu se introduc permisiuni noi sau acces la fișiere originale. Lista și descărcarea folosesc aceleași indexuri normalizate. Indexuri invalide și emailuri anulate sunt refuzate; numele Unicode, antetele și MIME sunt tratate controlat, fără cache și cu nosniff.
+
+47 teste și 24 scenarii HTTP/recitire trecute, inclusiv descărcare reală de octeți din baza JSON temporară. CRM/SQL testate prin executor simulat, nu integrare SQL live. Urmează verificarea integrată SQL Server a fluxurilor Documente/Mesaje modificate și consolidarea matricei finale de roluri; nu se declară întregul ERP auditat.

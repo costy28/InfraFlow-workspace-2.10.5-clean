@@ -1,7 +1,7 @@
 const { Router } = require('express')
 const crypto = require('crypto')
 const { requireAuth } = require('../../core/auth')
-const { requirePermission, effectivePermissionsForUser } = require('../../core/permissions')
+const { requirePermission, effectivePermissionsForUser, authHasPermission } = require('../../core/permissions')
 const { readDb, writeDb, runMssqlScalar, DB_MODE, MSSQL_RELATIONAL_MODE } = require('../../core/db')
 const { addAudit } = require('../../core/audit')
 const { sendEmail, getEmailSettings } = require('./email')
@@ -147,7 +147,7 @@ function activeEmailLinks(messaging, emailId = null) {
     .filter(item => emailId == null || String(item.email_id) === String(emailId))
 }
 
-function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES, links = []) {
+function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES, links = [], auth = null) {
   const category = categories.find(item => String(item.id) === String(message.category || 'general')) || DEFAULT_EMAIL_CATEGORIES[0]
   const emailLinks = links.filter(item => String(item.email_id) === String(message.id)).map(publicEmailLink)
   return {
@@ -171,10 +171,7 @@ function publicEmailMessage(message, categories = DEFAULT_EMAIL_CATEGORIES, link
     has_attachments: Boolean(message.has_attachments || (Array.isArray(message.attachments) && message.attachments.length)),
     attachments_count: Array.isArray(message.attachments) ? message.attachments.length : Number(message.attachments_count || 0),
     attachments: normalizeEmailAttachments(message.attachments, message.id),
-    source_type: message.source_type || null,
-    source_id: message.source_id || null,
-    source_label: message.source_label || null,
-    source_url: message.source_url || null,
+    ...publicEmailSource(auth, message),
     links: emailLinks,
     links_count: emailLinks.length,
     linked: emailLinks.length > 0,
@@ -208,8 +205,9 @@ function emailTargetUrl(type, id) {
   return ''
 }
 
-function emailLinkTargetCollections(db) {
-  const contracts = (db.contractManagement?.contracts || db.contracts || [])
+function emailLinkTargetCollections(auth, types = EMAIL_LINK_TYPES) {
+  const db = auth.db
+  const contracts = (types.includes('contract') && require('../contracts/routes').canViewEmailLinkTargets(auth) ? (db.contractManagement?.contracts || db.contracts || []) : [])
     .filter(item => item && !item.cancelled_at && !item.anulat_la)
     .map(item => ({
       target_type: 'contract',
@@ -218,17 +216,18 @@ function emailLinkTargetCollections(db) {
       target_url: emailTargetUrl('contract', item.id),
       search: [item.numar, item.titlu, item.partener, item.status].join(' ')
     }))
-  const documents = (db.documents?.documents || [])
+  const documents = (types.includes('document') ? require('../documents/routes').emailLinkDocuments(auth) : [])
     .filter(item => item && !item.cancelled_at)
     .map(item => ({
       target_type: 'document',
+      aliases: [String(item.id)],
       target_id: String(item.uuid || item.id),
       target_label: compactLabel(`Document ${item.nr_document || item.uuid || item.id} — ${item.titlu || item.tip_id || 'fără titlu'}`),
       target_url: emailTargetUrl('document', item.uuid || item.id),
       search: [item.nr_document, item.titlu, item.tip_id, item.status].join(' ')
     }))
-  const tasks = (db.taskManagement?.tasks || [])
-    .filter(item => item && !item.cancelled_at)
+  const tasks = (types.includes('task') ? db.taskManagement?.tasks || [] : [])
+    .filter(item => item && !item.cancelled_at && require('../tasks/routes').canSeeTask(db, item, auth.user, auth.permissions || effectivePermissionsForUser(auth.user, db, auth.entitlements)))
     .map(item => ({
       target_type: 'task',
       target_id: String(item.id),
@@ -239,32 +238,80 @@ function emailLinkTargetCollections(db) {
   return { contract: contracts, document: documents, task: tasks }
 }
 
-function emailLinkTargets(db, query = {}) {
+function emailLinkTargets(auth, query = {}) {
   const type = String(query.type || '').trim()
   const q = String(query.q || '').trim().toLowerCase()
-  const collections = emailLinkTargetCollections(db)
   const types = EMAIL_LINK_TYPES.includes(type) ? [type] : EMAIL_LINK_TYPES
+  const collections = emailLinkTargetCollections(auth, types)
   return types.flatMap(itemType => collections[itemType] || [])
     .filter(item => !q || [item.target_label, item.search].join(' ').toLowerCase().includes(q))
     .slice(0, 80)
-    .map(({ search, ...item }) => item)
+    .map(({ search, aliases, ...item }) => item)
 }
 
-function emailsLinkedToTarget(messaging, categories, query = {}) {
+function resolveEmailLinkTarget(auth, type, id, collections = null) {
+  if (!EMAIL_LINK_TYPES.includes(type)) return null
+  if (!collections) {
+    auth.emailLinkTargetCache = auth.emailLinkTargetCache || new Map()
+    if (!auth.emailLinkTargetCache.has(type)) auth.emailLinkTargetCache.set(type, emailLinkTargetCollections(auth, [type])[type] || [])
+  }
+  const rows = collections ? collections[type] || [] : auth.emailLinkTargetCache.get(type)
+  return rows.find(item => item.target_id === String(id) || item.aliases?.includes(String(id))) || null
+}
+
+function authorizedEmailLinks(auth, messaging) {
+  const links = activeEmailLinks(messaging)
+  if (!links.length) return []
+  const collections = emailLinkTargetCollections(auth, [...new Set(links.map(link => link.target_type))])
+  return links.flatMap(link => {
+    const target = resolveEmailLinkTarget(auth, link.target_type, link.target_id, collections)
+    return target ? [{ ...link, target_id: target.target_id, target_label: target.target_label, target_url: target.target_url }] : []
+  })
+}
+
+function publicEmailSource(auth, message) {
+  const hidden = { source_type: null, source_id: null, source_label: null, source_url: null }
+  if (!auth) return hidden
+  const type = String(message.source_type || '')
+  const id = String(message.source_id || '')
+  if (type === 'email_imap') return { ...hidden, source_type: type, source_label: 'Email importat', source_url: '/mesaje' }
+  let target = null
+  if (EMAIL_LINK_TYPES.includes(type) && id) target = resolveEmailLinkTarget(auth, type, id)
+  if (type === 'email' && id) {
+    const email = ensureMessagingDb(auth.db).emailMessages.find(row => String(row.id) === id && !row.cancelled_at)
+    if (email && authHasPermission(auth, 'messaging:view')) target = { target_id: id, target_label: compactLabel(`Email: ${email.subject || id}`), target_url: `/mesaje?email=${encodeURIComponent(id)}` }
+  }
+  if (['crm_quote', 'crm_lead', 'crm_customer_order'].includes(type) && id && authHasPermission(auth, type === 'crm_customer_order' ? 'crm:order_manage' : 'crm:view') && MSSQL_RELATIONAL_MODE && ['mssql', 'sqlserver'].includes(DB_MODE)) {
+    auth.emailCrmSourceCache = auth.emailCrmSourceCache || new Map()
+    const key = `${type}:${id}`
+    if (auth.emailCrmSourceCache.has(key)) return auth.emailCrmSourceCache.get(key)
+    try {
+      const row = type === 'crm_quote' ? require('../crm/quote-repository').getQuote(id)
+        : type === 'crm_lead' ? require('../crm/repository').getLead(id) : require('../crm/order-repository').getOrder(id)
+      if (row) target = { target_id: String(row.id), target_label: compactLabel(row.quote_number || row.order_number || row.title || id), target_url: type === 'crm_quote' ? `/crm/oferte/${encodeURIComponent(String(row.id))}` : type === 'crm_lead' ? `/crm/leads/${encodeURIComponent(String(row.id))}` : null }
+    } catch { auth.emailCrmSourceCache.set(key, hidden); return hidden }
+    const value = target ? { source_type: type, source_id: target.target_id, source_label: target.target_label, source_url: target.target_url } : hidden
+    auth.emailCrmSourceCache.set(key, value)
+    return value
+  }
+  return target ? { source_type: type, source_id: target.target_id, source_label: target.target_label, source_url: target.target_url } : hidden
+}
+
+function emailsLinkedToTarget(messaging, categories, query = {}, authorizedLinks = [], auth = null) {
   const targetType = String(query.target_type || query.type || '').trim()
   const targetId = String(query.target_id || query.id || '').trim()
   if (!EMAIL_LINK_TYPES.includes(targetType) || !targetId) return []
-  const links = activeEmailLinks(messaging)
+  const links = authorizedLinks
     .filter(item => String(item.target_type) === targetType && String(item.target_id) === targetId)
   const emailIds = new Set(links.map(item => String(item.email_id)))
   return messaging.emailMessages
     .filter(item => item && !item.cancelled_at && emailIds.has(String(item.id)))
-    .map(item => publicEmailMessage(item, categories, links))
+    .map(item => publicEmailMessage(item, categories, links, auth))
     .sort((a, b) => String(b.received_at || b.created_at || '').localeCompare(String(a.received_at || a.created_at || '')))
 }
 
 function normalizeEmailAttachments(value, emailId = null) {
-  return Array.isArray(value) ? value.map((item, index) => ({
+  return normalizeStoredEmailAttachments(value).map((item, index) => ({
     name: String(item?.name || item?.filename || '').trim(),
     size: Number(item?.size || 0),
     type: String(item?.type || item?.contentType || '').trim(),
@@ -272,7 +319,7 @@ function normalizeEmailAttachments(value, emailId = null) {
     download_url: item?.content && emailId != null
       ? `/api/messaging/email/inbox/${encodeURIComponent(String(emailId))}/attachments/${encodeURIComponent(String(item?.index ?? index))}`
       : ''
-  })).filter(item => item.name) : []
+  })).filter(item => item.name)
 }
 
 function normalizeStoredEmailAttachments(value) {
@@ -633,7 +680,7 @@ router.post('/messaging/email/send', async (req, res, next) => {
     }
     addAudit(auth.db, auth.user, 'email_sent', subject)
     writeDb(auth.db)
-    sendJson(res, 200, { ok: true, email: publicEmailMessage(sentEmail, categories) })
+    sendJson(res, 200, { ok: true, email: publicEmailMessage(sentEmail, categories, [], auth) })
   } catch (error) {
     next(error)
   }
@@ -678,7 +725,7 @@ router.post('/messaging/email/drafts', (req, res, next) => {
       existing.updated_at = nowIso()
       addAudit(auth.db, auth.user, 'messaging_email_draft_update', `${existing.id} / ${existing.subject}`)
       writeDb(auth.db)
-      return sendJson(res, 200, { draft: publicEmailMessage(existing, categories) })
+      return sendJson(res, 200, { draft: publicEmailMessage(existing, categories, [], auth) })
     }
     const draftAttachments = normalizeStoredEmailAttachments(body.attachments)
     const draft = {
@@ -707,7 +754,7 @@ router.post('/messaging/email/drafts', (req, res, next) => {
     messaging.emailMessages.push(draft)
     addAudit(auth.db, auth.user, 'messaging_email_draft_create', draft.subject)
     writeDb(auth.db)
-    sendJson(res, 201, { draft: publicEmailMessage(draft, categories) })
+    sendJson(res, 201, { draft: publicEmailMessage(draft, categories, [], auth) })
   } catch (error) {
     next(error)
   }
@@ -763,8 +810,8 @@ router.get('/messaging/email/inbox', (req, res, next) => {
     const hasAttachments = String(req.query.has_attachments || '').trim()
     const limit = Math.min(200, Math.max(1, Number(req.query.limit || 80)))
 
-    const links = activeEmailLinks(messaging)
-    let rows = messaging.emailMessages.filter(item => !item.cancelled_at).map(item => publicEmailMessage(item, categories, links))
+    const links = authorizedEmailLinks(auth, messaging)
+    let rows = messaging.emailMessages.filter(item => !item.cancelled_at).map(item => publicEmailMessage(item, categories, links, auth))
     if (query) {
       rows = rows.filter(item => [item.from, item.to, item.cc, item.subject, item.preview, item.source_label].join(' ').toLowerCase().includes(query))
     }
@@ -805,6 +852,7 @@ router.get('/messaging/email/inbox/:id/attachments/:index', (req, res, next) => 
     const email = messaging.emailMessages.find(item => String(item.id) === String(req.params.id) && !item.cancelled_at)
     if (!email) return sendJson(res, 404, { error: 'Emailul nu a fost găsit.' })
     const attachments = normalizeStoredEmailAttachments(email.attachments)
+    if (!/^(0|[1-9]\d*)$/.test(req.params.index) || !Number.isSafeInteger(Number(req.params.index))) return sendJson(res, 400, { error: 'Index atașament invalid.' })
     const attachment = attachments[Number(req.params.index)]
     if (!attachment || !attachment.content) return sendJson(res, 404, { error: 'Atașamentul nu are conținut disponibil pentru descărcare.' })
 
@@ -815,10 +863,13 @@ router.get('/messaging/email/inbox/:id/attachments/:index', (req, res, next) => 
       buffer = Buffer.from(attachment.content, 'utf8')
     }
 
-    const filename = String(attachment.filename || attachment.name || `atasament-${req.params.index}`).replace(/["\r\n]/g, '_')
-    res.setHeader('Content-Type', attachment.contentType || attachment.type || 'application/octet-stream')
+    const filename = String(attachment.filename || attachment.name || `atasament-${req.params.index}`).replace(/["\\/\x00-\x1f\x7f]/g, '_').slice(0, 180)
+    const mime = String(attachment.contentType || attachment.type || '').toLowerCase()
+    res.setHeader('Content-Type', /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(mime) ? mime : 'application/octet-stream')
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.setHeader('Cache-Control', 'private, no-store')
     res.setHeader('Content-Length', buffer.length)
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`)
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(filename)}`)
     res.send(buffer)
   } catch (error) {
     next(error)
@@ -830,7 +881,7 @@ router.get('/messaging/email/link-targets', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     if (!requireMessaging(auth, res, 'messaging:view')) return
-    sendJson(res, 200, { targets: emailLinkTargets(auth.db, req.query || {}) })
+    sendJson(res, 200, { targets: emailLinkTargets(auth, req.query || {}) })
   } catch (error) {
     next(error)
   }
@@ -843,7 +894,11 @@ router.get('/messaging/email/links', (req, res, next) => {
     if (!requireMessaging(auth, res, 'messaging:view')) return
     const messaging = ensureMessagingDb(auth.db)
     const categories = emailCategories(messaging)
-    const emails = emailsLinkedToTarget(messaging, categories, req.query || {})
+    const type = String(req.query.target_type || req.query.type || '').trim()
+    const id = String(req.query.target_id || req.query.id || '').trim()
+    const target = resolveEmailLinkTarget(auth, type, id)
+    if (!target) return sendJson(res, 403, { error: 'Ținta nu este accesibilă.' })
+    const emails = emailsLinkedToTarget(messaging, categories, { target_type: type, target_id: target.target_id }, authorizedEmailLinks(auth, messaging), auth)
     sendJson(res, 200, { emails, total: emails.length })
   } catch (error) {
     next(error)
@@ -863,17 +918,18 @@ router.post('/messaging/email/inbox/:id/links', (req, res, next) => {
     const targetId = String(body.target_id || body.id || '').trim()
     if (!EMAIL_LINK_TYPES.includes(targetType)) return sendJson(res, 400, { error: 'Tipul legăturii nu este suportat.' })
     if (!targetId) return sendJson(res, 400, { error: 'Alege o țintă ERP validă.' })
-    const target = emailLinkTargets(auth.db, { type: targetType, q: '' }).find(item => String(item.target_id) === targetId)
-    const targetLabel = compactLabel(body.target_label || target?.target_label || `${targetType} ${targetId}`)
-    const targetUrl = safeInternalUrl(body.target_url || target?.target_url || emailTargetUrl(targetType, targetId)) || ''
-    const existing = activeEmailLinks(messaging, email.id).find(item => item.target_type === targetType && String(item.target_id) === targetId)
+    const target = resolveEmailLinkTarget(auth, targetType, targetId)
+    if (!target) return sendJson(res, 403, { error: 'Ținta nu este accesibilă.' })
+    const targetLabel = target.target_label
+    const targetUrl = target.target_url
+    const existing = activeEmailLinks(messaging, email.id).find(item => item.target_type === targetType && (String(item.target_id) === target.target_id || target.aliases?.includes(String(item.target_id))))
     const categories = emailCategories(messaging)
-    if (existing) return sendJson(res, 200, { link: publicEmailLink(existing), email: publicEmailMessage(email, categories, activeEmailLinks(messaging)) })
+    if (existing) return sendJson(res, 200, { link: publicEmailLink({ ...existing, target_id: target.target_id, target_label: targetLabel, target_url: targetUrl }), email: publicEmailMessage(email, categories, authorizedEmailLinks(auth, messaging), auth) })
     const link = {
       id: `email-link-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
       email_id: email.id,
       target_type: targetType,
-      target_id: targetId,
+      target_id: target.target_id,
       target_label: targetLabel,
       target_url: targetUrl,
       created_by: auth.user.id || auth.user.username || '',
@@ -886,7 +942,7 @@ router.post('/messaging/email/inbox/:id/links', (req, res, next) => {
     email.updated_at = nowIso()
     addAudit(auth.db, auth.user, 'messaging_email_link_add', `${email.subject || email.id} -> ${targetLabel}`)
     writeDb(auth.db)
-    sendJson(res, 201, { link: publicEmailLink(link), email: publicEmailMessage(email, categories, activeEmailLinks(messaging)) })
+    sendJson(res, 201, { link: publicEmailLink(link), email: publicEmailMessage(email, categories, authorizedEmailLinks(auth, messaging), auth) })
   } catch (error) {
     next(error)
   }
@@ -902,13 +958,14 @@ router.delete('/messaging/email/inbox/:id/links/:linkId', (req, res, next) => {
     if (!email) return sendJson(res, 404, { error: 'Emailul nu a fost găsit.' })
     const link = messaging.emailLinks.find(item => String(item.id) === String(req.params.linkId) && String(item.email_id) === String(email.id) && !item.cancelled_at)
     if (!link) return sendJson(res, 404, { error: 'Legătura nu a fost găsită.' })
+    if (!resolveEmailLinkTarget(auth, link.target_type, link.target_id)) return sendJson(res, 403, { error: 'Ținta nu este accesibilă.' })
     link.cancelled_at = nowIso()
     link.cancelled_by = auth.user.id || auth.user.username || ''
     link.cancelled_reason = String(req.body?.reason || 'Anulată din Inbox ERP').trim()
     email.updated_at = nowIso()
     addAudit(auth.db, auth.user, 'messaging_email_link_cancel', `${email.subject || email.id} - ${link.target_label || link.target_id}`)
     writeDb(auth.db)
-    sendJson(res, 200, { ok: true, email: publicEmailMessage(email, emailCategories(messaging), activeEmailLinks(messaging)) })
+    sendJson(res, 200, { ok: true, email: publicEmailMessage(email, emailCategories(messaging), authorizedEmailLinks(auth, messaging), auth) })
   } catch (error) {
     next(error)
   }
@@ -953,7 +1010,7 @@ router.post('/messaging/email/inbox', (req, res, next) => {
     messaging.emailMessages.push(email)
     addAudit(auth.db, auth.user, 'messaging_email_inbox_add', `${email.category} / ${email.subject}`)
     writeDb(auth.db)
-    sendJson(res, 201, { email: publicEmailMessage(email, categories) })
+    sendJson(res, 201, { email: publicEmailMessage(email, categories, [], auth) })
   } catch (error) {
     next(error)
   }
@@ -982,7 +1039,7 @@ router.patch('/messaging/email/inbox/:id', (req, res, next) => {
     email.updated_at = nowIso()
     addAudit(auth.db, auth.user, 'messaging_email_inbox_update', `${email.id} / ${email.subject}`)
     writeDb(auth.db)
-    sendJson(res, 200, { email: publicEmailMessage(email, categories) })
+    sendJson(res, 200, { email: publicEmailMessage(email, categories, [], auth) })
   } catch (error) {
     next(error)
   }
@@ -1014,7 +1071,7 @@ router.post('/messaging/email/sync', async (req, res, next) => {
       scanned: result.scanned,
       provider: result.provider,
       host: result.host,
-      emails: result.imported.map(email => publicEmailMessage(email, categories))
+      emails: result.imported.map(email => publicEmailMessage(email, categories, [], auth))
     })
   } catch (error) {
     if (error?.imapDiagnostic) {

@@ -1,3 +1,21 @@
+## v2.12.729 - 2026-10-17
+
+### Surse Email autorizate și atașamente controlate
+
+- Metadatele `source_*` sunt publicate numai după rezolvarea sursei autorizate; etichetele și adresele arbitrare nu mai sunt folosite.
+- Sursele CRM păstrează accesul dedicat, cu rezolvare relațională și ascundere sigură dacă sursa nu poate fi verificată.
+- Atașamentele Inbox cer în continuare consultare Mesaje; indexul, numele de descărcare și tipul MIME sunt validate, cu nosniff și fără cache.
+- Indexurile publicate și cele folosite la descărcare sunt aliniate după normalizarea atașamentelor.
+
+## v2.12.728 - 2026-10-17
+
+### Legături Email autorizate pe țintă
+
+- Propunerile și operațiile pe legături verifică accesul la contract, document sau task, folosind regulile modulelor respective.
+- Legăturile către înregistrări inaccesibile sunt ascunse în Inbox; citirea și anularea lor nu ocolesc accesul la țintă.
+- Eticheta și adresa legăturii sunt canonice, fără încredere în metadatele trimise de browser; documentele păstrează compatibilitatea ID/UUID.
+- Rezolvarea unei ținte directe este independentă de limita de 80 de propuneri; revocarea drepturilor este aplicată sesiunilor deja deschise.
+
 ## v2.12.727 - 2026-10-17
 
 ### Consultare și modificare Email/WhatsApp separate

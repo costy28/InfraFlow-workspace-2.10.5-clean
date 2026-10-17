@@ -38,3 +38,23 @@ test('departamentul absent nu corespunde unei partajări fără destinatar', () 
   const actor = auth(); delete actor.user.departmentId
   assert.equal(canView(actor, document, { shares: [{ document_id: 7 }] }), false)
 })
+
+test('propunerile de legături în ramura relațională folosesc documentele SQL și accesul pe entitate', () => {
+  const start = source.indexOf('router.emailLinkDocuments =')
+  const snippet = source.slice(start, source.indexOf('module.exports = router', start))
+  const rows = [
+    { id: 1, creat_de: 'reader', steps: [], shares: [] },
+    { id: 2, creat_de: 'other', steps: [], shares: [] },
+    { id: 3, creat_de: 'other', steps: [{ document_id: 3, user_responsabil: 'reader' }], shares: [] },
+  ]
+  let queries = 0
+  const helper = vm.runInNewContext(`${snippet}; router.emailLinkDocuments`, {
+    router: {}, isMssqlMode: () => true,
+    hasDocumentPermission: (actor, permission) => actor.user.permissions.includes(permission),
+    mssqlArray: () => { queries++; return rows }, canViewDocument: canView,
+  })
+  assert.deepEqual(Array.from(helper(auth(['documents:view_own'])), row => row.id), [1, 3])
+  assert.equal(queries, 1)
+  assert.equal(helper(auth()).length, 0)
+  assert.equal(queries, 1)
+})

@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.727**
-**Versiune în lucru: v2.12.727**
+**Versiune curentă sursă: v2.12.729**
+**Versiune în lucru: v2.12.729**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -1186,9 +1186,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.727
+VERSIUNE CURENTĂ SURSĂ: 2.12.729
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.727 ✅
+UPDATE ZIP CURENT: 2.12.729 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1722,6 +1722,8 @@ UPDATES ÎN LUCRU:
   2.12.725 → UPDATE 745 normalizare unică pentru drepturile salvate ✅
   2.12.726 → UPDATE 746 urmărire și partajare documente după acces ✅
   2.12.727 → UPDATE 747 consultare și modificare Email/WhatsApp separate ✅
+  2.12.728 → UPDATE 748 legături Email autorizate pe țintă ✅
+  2.12.729 → UPDATE 749 surse Email autorizate și atașamente controlate ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2220,5 +2222,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 17 Octombrie 2026 | InfraFlow sursă v2.12.727*
+*AGENTS.md actualizat: 17 Octombrie 2026 | InfraFlow sursă v2.12.729*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*
