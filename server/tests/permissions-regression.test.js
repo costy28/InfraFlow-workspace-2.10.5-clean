@@ -130,6 +130,37 @@ test('migrarea HR separa documentele, fluxurile, notificarile si evaluarile o si
   dedicated.forEach(permission => assert.equal(role.permissions.includes(permission), false))
 })
 
+test('migrarea HR separa turele, tichetele, formarea si echipamentele o singura data', () => {
+  const settings = {
+    customRoles: [{
+      id: 'hr-local',
+      name: 'HR local',
+      permissions: ['hr:manage'],
+    }],
+  }
+
+  ensureDefaultCustomRoles(settings)
+  const role = settings.customRoles.find(item => item.id === 'hr-local')
+  const dedicated = ['hr:schedules_manage', 'hr:meal_tickets_manage', 'hr:training', 'echipamente:gestionar']
+  dedicated.forEach(permission => assert.equal(role.permissions.includes(permission), true))
+  assert.ok(settings.permissionMigrations.hrScheduleBenefitsManageV212710)
+
+  role.permissions = role.permissions.filter(permission => !dedicated.includes(permission))
+  ensureDefaultCustomRoles(settings)
+  dedicated.forEach(permission => assert.equal(role.permissions.includes(permission), false))
+})
+
+test('migrarea validării pontajului păstrează accesul o singură dată', () => {
+  const settings = { customRoles: [{ id: 'approver-local', permissions: ['hr:timesheet_approve'] }] }
+  ensureDefaultCustomRoles(settings)
+  const role = settings.customRoles.find(item => item.id === 'approver-local')
+  assert.equal(role.permissions.includes('hr:timesheets_validate'), true)
+  assert.ok(settings.permissionMigrations.hrTimesheetValidationV212713)
+  role.permissions = role.permissions.filter(permission => permission !== 'hr:timesheets_validate')
+  ensureDefaultCustomRoles(settings)
+  assert.equal(role.permissions.includes('hr:timesheets_validate'), false)
+})
+
 test('salvarea și resetarea unui rol implicit sunt explicite și reversibile', () => {
   const db = { settings: {} }
   const user = { id: 'admin-1', name: 'Administrator' }

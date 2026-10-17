@@ -1,18 +1,19 @@
 const { Router } = require("express");
 const { requireAuth } = require("../../core/auth");
-const { requirePermission, authHasPermission } = require("../../core/permissions");
+const { requirePermission, requireAnyPermission, authHasPermission } = require("../../core/permissions");
+const { overtimeApprovalScope } = require("./timesheet-access");
 const { writeDb } = require("../../core/db");
 const { addAudit } = require("../../core/audit");
 const { ensureTimesheetLocks, findTimesheetLock } = require("./timesheet-locks");
 
 const router = Router();
 
-router.get("/hr/timesheets/lock", authorize("hr:timesheet"), (req, res) => {
+router.get("/hr/timesheets/lock", authorizeStatus, (req, res) => {
   const luna = validMonth(req.query.luna);
-  res.json({ luna, locked: Boolean(findTimesheetLock(req.auth.db, luna)), lock: findTimesheetLock(req.auth.db, luna) });
+  res.json({ luna, locked: Boolean(findTimesheetLock(req.auth.db, luna)), lock: findTimesheetLock(req.auth.db, luna), can_manage: canManageMonth(req.auth) });
 });
 
-router.post("/hr/timesheets/lock", authorizeAny(["hr:timesheets_validate", "hr:timesheet_approve"]), (req, res, next) => {
+router.post("/hr/timesheets/lock", authorizeMonthManagement, (req, res, next) => {
   try {
     const luna = validMonth(req.body?.luna);
     const locks = ensureTimesheetLocks(req.auth.db);
@@ -25,7 +26,7 @@ router.post("/hr/timesheets/lock", authorizeAny(["hr:timesheets_validate", "hr:t
   } catch (error) { next(error); }
 });
 
-router.post("/hr/timesheets/unlock", authorizeAny(["hr:timesheets_validate", "hr:timesheet_approve"]), (req, res, next) => {
+router.post("/hr/timesheets/unlock", authorizeMonthManagement, (req, res, next) => {
   try {
     const luna = validMonth(req.body?.luna);
     const motiv = String(req.body?.motiv || "").trim();
@@ -39,10 +40,22 @@ router.post("/hr/timesheets/unlock", authorizeAny(["hr:timesheets_validate", "hr
   } catch (error) { next(error); }
 });
 
-function authorize(permission) {
-  return (req, res, next) => { const auth = requireAuth(req, res); if (!auth || !requirePermission(auth, res, permission)) return; req.auth = auth; next(); };
+function authorizeStatus(req, res, next) {
+  const auth = requireAuth(req, res);
+  if (!auth || !requireAnyPermission(auth, res, ['hr:timesheet', 'hr:timesheets_validate', 'hr:timesheet_approve'])) return;
+  req.auth = auth;
+  next();
 }
-function authorizeAny(permissions) { return (req, res, next) => { const auth = requireAuth(req, res); if (!auth) return; const allowed = permissions.some((permission) => authHasPermission(auth, permission)); if (!allowed) return res.status(403).json({ error: 'Nu ai permisiunea necesara pentru inchiderea pontajului.' }); req.auth = auth; next(); }; }
+function canManageMonth(auth) {
+  return authHasPermission(auth, 'hr:timesheets_validate') && overtimeApprovalScope(auth).type === 'all';
+}
+function authorizeMonthManagement(req, res, next) {
+  const auth = requireAuth(req, res);
+  if (!auth || !requirePermission(auth, res, 'hr:timesheets_validate')) return;
+  if (!canManageMonth(auth)) return res.status(403).json({ error: 'La închiderea sau redeschiderea lunii este necesar acces global la pontaje.', code: 'HR_TIMESHEET_GLOBAL_ACCESS_REQUIRED' });
+  req.auth = auth;
+  next();
+}
 function validMonth(value) { const month = String(value || new Date().toISOString().slice(0, 7)); if (!/^\d{4}-\d{2}$/.test(month)) { const error = new Error("Luna pontajului este invalida."); error.status = 400; throw error; } return month; }
 function nextId(items) { return items.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1; }
 

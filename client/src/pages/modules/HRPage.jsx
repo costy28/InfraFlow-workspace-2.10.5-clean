@@ -328,7 +328,9 @@ export default function HRPage() {
   const isSefPontaj = hasPermission('hr:timesheet_dept')
   const canUsePontaj = isHRPontaj || isSefPontaj || hasPermission('hr:timesheet') || hasPermission('hr:timesheets_view')
   const canListEmployees = hasPermission('hr:view') || hasPermission('hr:view_own') || canManageEmployees || isSefPontaj || hasPermission('echipamente:gestionar')
-  const canManageEquipment = isAdmin || hasPermission('echipamente:gestionar') || hasPermission('hr:manage')
+  const canManageEquipment = isAdmin || hasPermission('echipamente:gestionar')
+  const canManageShifts = hasPermission('hr:schedules_manage')
+  const canEditSchedule = hasPermission('hr:timesheet')
   const canReadEmployeeHistory = hasPermission('hr:view')
   const canReadEmployeeLeaveBalance = hasPermission('hr:view') || hasPermission('hr:view_own') || hasPermission('hr:leave_own')
   const canGenerateEmployeeCertificate = hasPermission('hr:view') || (
@@ -1169,6 +1171,7 @@ export default function HRPage() {
 
   async function createShift(event) {
     event.preventDefault()
+    if (!canManageShifts) return
     try {
       if (shiftEditing) await api.put(`/hr/tures/${shiftEditing.id}`, shiftForm)
       else await api.post('/hr/tures', shiftForm)
@@ -1182,6 +1185,7 @@ export default function HRPage() {
   }
 
   async function setScheduleShift(employeeId, data, turaId) {
+    if (!canEditSchedule) return
     try {
       await api.post('/hr/schedule', { employee_id: employeeId, data, tura_id: turaId || null, department: scheduleDept || undefined })
       setScheduleData(prev => ({ ...prev, [`${employeeId}:${data}`]: turaId || null }))
@@ -1204,7 +1208,7 @@ export default function HRPage() {
   }
 
   async function saveMealConfig() {
-    if (!hasPermission('hr:manage')) return
+    if (!hasPermission('hr:meal_tickets_manage')) return
     try {
       await api.post('/hr/meal-tickets/config', mealConfig)
       await loadMealTickets()
@@ -1506,6 +1510,7 @@ export default function HRPage() {
 
   function openTimesheetCell(row, day) {
     const current = row.zile?.[day]
+    if (timesheetLock?.locked || row.validated_days?.includes(day)) return
     setTimesheetEdit({ employee_id: row.employee_id || row.id, employee_name: fullName(row), data: day, tip: typeof current === 'object' ? (current.tip || 'lucru') : 'lucru', ore_lucrate: typeof current === 'object' ? (current.ore_lucrate ?? 0) : (current ?? 0), observatii: '' })
   }
 
@@ -1550,6 +1555,7 @@ export default function HRPage() {
   }
 
   async function toggleTimesheetLock() {
+    if (!timesheetLock?.can_manage) return
     const locked = timesheetLock?.locked
     setConfirmAction({
       title: locked ? 'Deblochează pontajul' : 'Închide pontajul',
@@ -2366,7 +2372,7 @@ export default function HRPage() {
           onFillWorkingDays={fillWorkingDays}
           canFill={hasPermission('hr:timesheet')}
           canSubmit={isHRPontaj || (isSefPontaj && Boolean(ownDepartmentKey))}
-          canValidate={hasPermission('hr:timesheet_approve')}
+          canValidate={hasPermission('hr:timesheets_validate')}
           canEditRow={row => {
             if (!hasPermission('hr:timesheet')) return false
             if (isHRPontaj || (isSefPontaj && ownDepartmentKey)) return true
@@ -2496,7 +2502,7 @@ export default function HRPage() {
           employees={filteredEmployees}
           raportLunar={raportLunar}
           overtimeBank={overtimeBank}
-          canValidateTimesheet={hasPerm('hr:timesheets_validate')}
+          canValidateTimesheet={hasPerm('hr:timesheets_validate') && timesheetLock?.can_manage === true}
           canApproveOvertime={hasPerm('hr:timesheet_approve')}
           onCheckLock={loadTimesheetLock}
           onToggleLock={toggleTimesheetLock}
@@ -2517,6 +2523,8 @@ export default function HRPage() {
           scheduleMonth={scheduleMonth}
           scheduleDept={scheduleDept}
           departments={departments}
+          canManageShifts={canManageShifts}
+          canEditSchedule={canEditSchedule}
           onNewShift={() => {
             setShiftEditing(null)
             setShiftForm({ nume: '', ora_start: '08:00', ora_sfarsit: '16:00', ore_normale: 8, culoare: '#3B82F6' })
@@ -2539,7 +2547,7 @@ export default function HRPage() {
           mealDept={mealDept}
           mealRows={mealRows}
           departments={departments}
-          canManage={hasPermission('hr:manage')}
+          canManage={hasPermission('hr:meal_tickets_manage')}
           canExport={hasPermission('hr:personal_sensitive')}
           onMealConfigChange={setMealConfig}
           onSaveMealConfig={saveMealConfig}

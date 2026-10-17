@@ -7,7 +7,7 @@ export const ALL_HR_TABS = [
   { id: 'Pontaj',             perm: 'hr:timesheets_view', anyPerm: ['hr:timesheet', 'hr:timesheet_dept', 'hr:timesheets_manage'] },
   { id: 'Pontaj Avansat',     perm: 'hr:timesheets_view' },
   { id: 'Ture & Program',     perm: 'hr:timesheets_view' },
-  { id: 'Tichete masă',       perm: 'hr:manage' },
+  { id: 'Tichete masă',       perm: 'hr:view', anyPerm: ['hr:meal_tickets_manage'] },
   { id: 'Overview pontaje',   perm: 'hr:timesheet_approve' },
   { id: 'Concedii',           perm: 'hr:leave_manage' },
   { id: 'Autorizații',        perm: 'hr:authorizations_manage' },

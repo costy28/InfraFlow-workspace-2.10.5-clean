@@ -149,7 +149,7 @@ function employeeEquipment(db, employeeId) {
 }
 
 function canManageEquipment(auth) {
-  return authHasPermission(auth, 'echipamente:gestionar') || authHasPermission(auth, 'hr:manage')
+  return authHasPermission(auth, 'echipamente:gestionar')
 }
 
 function requireEquipmentManager(auth, res) {

@@ -41,7 +41,7 @@ const permissionGroups = {
   integration: ["integration:intersoft_view", "integration:intersoft_import", "integration:intersoft_export"],
   controlling: ["controlling:view", "controlling:view_all", "controlling:entry_create", "controlling:entry_validate", "controlling:budget_manage", "controlling:cost_centers", "controlling:reports", "controlling:nexus_export"],
   accountingCore: ["accounting:view", "accounting:manage", "accounting:post", "accounting:close", "accounting:reports", "accounting:alerts"],
-  hr: ["hr:view", "hr:view_own", "hr:leave_own", "hr:manage", "hr:employees_manage", "hr:documents_manage", "hr:workflow_manage", "hr:notifications_manage", "hr:evaluations_manage", "hr:personal_sensitive", "hr:medical_view", "hr:timesheet", "hr:timesheet_dept", "hr:timesheets_view", "hr:timesheets_manage", "hr:timesheet_approve", "hr:timesheets_validate", "hr:leave_manage", "hr:authorizations_manage", "hr:contracts_manage", "hr:reports", "hr:reges_export", "hr:salary_view", "hr:salary_manage", "hr:training"],
+  hr: ["hr:view", "hr:view_own", "hr:leave_own", "hr:manage", "hr:employees_manage", "hr:documents_manage", "hr:workflow_manage", "hr:notifications_manage", "hr:evaluations_manage", "hr:schedules_manage", "hr:meal_tickets_manage", "hr:personal_sensitive", "hr:medical_view", "hr:timesheet", "hr:timesheet_dept", "hr:timesheets_view", "hr:timesheets_manage", "hr:timesheet_approve", "hr:timesheets_validate", "hr:leave_manage", "hr:authorizations_manage", "hr:contracts_manage", "hr:reports", "hr:reges_export", "hr:salary_view", "hr:salary_manage", "hr:training"],
   echipamente: ["echipamente:gestionar"],
   sanitation: ["sanitation:view", "sanitation:collect", "sanitation:manage", "sanitation:report", "sanitation:contracts"],
   traffic_safety: ["traffic_safety:view", "traffic_safety:inspect", "traffic_safety:work_order", "traffic_safety:manage", "traffic_safety:report"],
@@ -306,13 +306,15 @@ const permissionLabels = {
   "hr:workflow_manage": "Administreaza onboarding si offboarding",
   "hr:notifications_manage": "Administreaza notificari dosare HR",
   "hr:evaluations_manage": "Administreaza evaluari HR",
+  "hr:schedules_manage": "Administreaza tipurile de ture HR",
+  "hr:meal_tickets_manage": "Configureaza tichetele de masa",
   "hr:personal_sensitive": "Vede date personale sensibile HR",
   "hr:medical_view": "Vede date medicale HR",
   "hr:timesheet": "Completeaza pontaje",
   "hr:timesheet_dept": "Completeaza pontaj departament propriu",
   "hr:timesheets_view": "Vede pontaje",
   "hr:timesheets_manage": "Administreaza pontaje",
-  "hr:timesheet_approve": "Valideaza pontaje",
+  "hr:timesheet_approve": "Aprobă ore suplimentare și urmărește pontajele",
   "hr:timesheets_validate": "Valideaza pontaje",
   "hr:leave_manage": "Administreaza concedii",
   "hr:authorizations_manage": "Administreaza autorizatii HR",
@@ -488,6 +490,8 @@ const rolePermissions = {
     "hr:workflow_manage",
     "hr:notifications_manage",
     "hr:evaluations_manage",
+    "hr:schedules_manage",
+    "hr:meal_tickets_manage",
     "hr:timesheets_view",
     "hr:timesheet",
     "hr:timesheet_dept",
@@ -702,7 +706,8 @@ const DEFAULT_CUSTOM_ROLES = [
     permissions: [
       'dashboard:view',
       'hr:view', 'hr:manage', 'hr:employees_manage', 'hr:documents_manage', 'hr:workflow_manage',
-      'hr:notifications_manage', 'hr:evaluations_manage', 'hr:personal_sensitive', 'hr:medical_view',
+      'hr:notifications_manage', 'hr:evaluations_manage', 'hr:schedules_manage', 'hr:meal_tickets_manage',
+      'hr:personal_sensitive', 'hr:medical_view',
       'hr:timesheet', 'hr:timesheets_view', 'hr:timesheets_manage',
       'hr:timesheet_approve', 'hr:timesheets_validate',
       'hr:leave_manage', 'hr:authorizations_manage', 'hr:contracts_manage',
@@ -885,6 +890,31 @@ function ensureDefaultCustomRoles(settings) {
       }
     });
     settings.permissionMigrations.hrOperationalManageV212709 = new Date().toISOString();
+    changed = true;
+  }
+  if (!settings.permissionMigrations.hrScheduleBenefitsManageV212710) {
+    settings.customRoles.forEach(role => {
+      const permissions = Array.isArray(role.permissions) ? role.permissions : [];
+      if (permissions.includes('hr:manage')) {
+        for (const permission of ['hr:schedules_manage', 'hr:meal_tickets_manage', 'hr:training', 'echipamente:gestionar']) {
+          if (!permissions.includes(permission)) {
+            permissions.push(permission);
+            changed = true;
+          }
+        }
+      }
+    });
+    settings.permissionMigrations.hrScheduleBenefitsManageV212710 = new Date().toISOString();
+    changed = true;
+  }
+  if (!settings.permissionMigrations.hrTimesheetValidationV212713) {
+    settings.customRoles.forEach(role => {
+      const permissions = Array.isArray(role.permissions) ? role.permissions : [];
+      if (permissions.includes('hr:timesheet_approve') && !permissions.includes('hr:timesheets_validate')) {
+        permissions.push('hr:timesheets_validate');
+      }
+    });
+    settings.permissionMigrations.hrTimesheetValidationV212713 = new Date().toISOString();
     changed = true;
   }
   return changed;

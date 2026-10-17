@@ -811,7 +811,6 @@ function buildNexusTimesheetWorkbook(db, user, luna, deptId, auth) {
 
 function canUseKioskSync(auth) {
   return authHasPermission(auth, 'hr:view')
-    || authHasPermission(auth, 'hr:manage')
     || authHasPermission(auth, 'kiosk:leave_request')
     || authHasPermission(auth, 'hr:view_own')
     || authHasPermission(auth, 'hr:leave_own')
@@ -819,7 +818,7 @@ function canUseKioskSync(auth) {
 }
 
 function kioskSyncEmployee(db, auth, requestedEmployeeId) {
-  const canManageOthers = authHasPermission(auth, 'hr:view') || authHasPermission(auth, 'hr:manage')
+  const canManageOthers = authHasPermission(auth, 'hr:view')
   if (canManageOthers) return requestedEmployeeId ? kioskEmployeeById(db, requestedEmployeeId) : null
 
   const linkedEmployeeId = auth.user.employee_id || auth.user.employeeId || ''
@@ -1129,19 +1128,22 @@ function normalizeEmployeeImportRow(row) {
   }
 }
 
-function hrUsers(db) {
+function timesheetNotificationUsers(db, department) {
+  const notificationPermissions = ['hr:timesheets_manage', 'hr:timesheet_approve', 'hr:timesheets_validate']
   return (db.users || db.core?.users || []).filter((user) => {
     if (user.active === false || user.active === 0) return false
-    const role = String(user.role || user.rol || '').toLowerCase()
-    const dept = String(user.department || user.department_cod || user.departmentName || '').toLowerCase()
-    return role === 'hr' || dept === 'hr' || authHasPermission({ user, db }, 'hr:manage')
+    const auth = { user, db }
+    if (!notificationPermissions.some((permission) => authHasPermission(auth, permission))) return false
+    const scope = overtimeApprovalScope(auth)
+    return scope.type === 'all' || (scope.type === 'department'
+      && userDepartment(auth, db) === departmentCod(db, department))
   })
 }
 
 function notifyTimesheetSubmission(db, luna, department) {
   if (!Array.isArray(db.notifications)) db.notifications = []
   const message = `Pontajul departamentului ${department} pentru ${luna} a fost finalizat.`
-  const recipients = hrUsers(db)
+  const recipients = timesheetNotificationUsers(db, department)
   recipients.forEach((user) => {
     db.notifications.push({
       id: crypto.randomUUID(),
@@ -1182,7 +1184,7 @@ router.post('/hr/tures', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:schedules_manage')) return
     const body = req.body || {}
     if (!body.nume) return sendJson(res, 422, { error: 'Numele turei este obligatoriu.' })
     const db = readDb()
@@ -1219,7 +1221,7 @@ router.put('/hr/tures/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:schedules_manage')) return
     const body = req.body || {}
     const db = readDb()
     if (isMssqlMode()) {
@@ -1257,7 +1259,7 @@ router.delete('/hr/tures/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:schedules_manage')) return
     const db = readDb()
     if (isMssqlMode()) {
       const item = mssqlObject(`UPDATE hr.tures SET activ=0, updated_at=sysdatetime() WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')); SELECT TOP 1 * FROM hr.tures WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, req.params)
@@ -1503,7 +1505,7 @@ router.post('/hr/meal-tickets/config', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:meal_tickets_manage')) return
     const db = readDb()
     db.settings = db.settings || {}
     db.settings.valoare_tichet_masa = numberValue(req.body?.valoare_tichet, 40)
@@ -1649,11 +1651,13 @@ router.post('/hr/overtime-bank/compensate', (req, res, next) => {
     if (!auth) return
     if (!requirePermission(auth, res, 'hr:timesheet')) return
     const body = req.body || {}
-    if (!body.employee_id || !numberValue(body.ore)) return sendJson(res, 422, { error: 'Angajatul si orele sunt obligatorii.' })
+    const hours = Number(body.ore)
+    if (!body.employee_id || !Number.isFinite(hours) || hours <= 0) return sendJson(res, 422, { error: 'Selectează angajatul și introdu un număr pozitiv de ore.', code: 'HR_COMPENSATION_HOURS_INVALID' })
+    const tip = body.tip || 'timp_liber'
+    if (!['timp_liber', 'plata'].includes(tip)) return sendJson(res, 422, { error: 'Compensarea acceptă doar timp liber sau plată. Folosește ajustarea autorizată pentru sold inițial sau avans.', code: 'HR_COMPENSATION_TYPE_INVALID' })
     const db = readDb()
     if (!requireTimesheetEmployeeAccess(auth, res, db, body.employee_id, true)) return
     const data = body.data || todayIso()
-    const tip = body.tip || 'timp_liber'
     const updatesTimesheet = tip === 'timp_liber'
     if (updatesTimesheet) assertTimesheetOpen(db, data.slice(0, 7))
     if (isMssqlMode()) {
@@ -2307,6 +2311,20 @@ router.get('/hr/employees/:id/photo', (req, res, next) => {
   }
 })
 
+function canApplyLeaveDecision(item, decision, auth, db, res) {
+  const status = String(item.status || '').trim().toLowerCase()
+  const sameDecision = decision === 'approve' ? ['aprobat', 'aprobata'] : ['respins', 'respinsa']
+  if (sameDecision.includes(status)) {
+    sendJson(res, 200, publicLeaveDecision(item, auth, db))
+    return false
+  }
+  if (!['', 'cerut', 'ceruta', 'pending'].includes(status)) {
+    sendJson(res, 409, { error: 'Cererea are deja o decizie finală. Schimbarea directă a deciziei nu este permisă.', code: 'HR_LEAVE_DECISION_CONFLICT' })
+    return false
+  }
+  return true
+}
+
 router.post('/hr/leave-requests/:uuid/reject', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
@@ -2314,6 +2332,9 @@ router.post('/hr/leave-requests/:uuid/reject', (req, res, next) => {
     if (!requirePermission(auth, res, 'hr:leave_manage')) return
     const db = readDb()
     if (isMssqlMode()) {
+      const existing = mssqlObject(`SELECT TOP 1 * FROM hr.leave_requests WHERE uuid=JSON_VALUE(@p,'$.uuid') FOR JSON PATH;`, { uuid: req.params.uuid })
+      if (!existing) return sendJson(res, 404, { error: 'Cererea nu a fost gasita.' })
+      if (!canApplyLeaveDecision(existing, 'reject', auth, db, res)) return
       const item = mssqlObject(`UPDATE hr.leave_requests SET status=N'respinsa', aprobat_de=JSON_VALUE(@p,'$.userId'), aprobat_la=sysdatetime(), motiv_respingere=NULLIF(JSON_VALUE(@p,'$.motiv'),''), updated_at=sysdatetime() WHERE uuid=JSON_VALUE(@p,'$.uuid'); SELECT TOP 1 * FROM hr.leave_requests WHERE uuid=JSON_VALUE(@p,'$.uuid') FOR JSON PATH;`, { uuid: req.params.uuid, userId: auth.user.id, motiv: req.body.motiv || '' })
       addAudit(db, auth.user, 'hr_leave_rejected', req.params.uuid)
       writeDb(db)
@@ -2322,6 +2343,7 @@ router.post('/hr/leave-requests/:uuid/reject', (req, res, next) => {
     const hr = ensureHrDb(db)
     const item = hr.leaveRequests.find((leave) => leave.uuid === req.params.uuid)
     if (!item) return sendJson(res, 404, { error: 'Cererea nu a fost gasita.' })
+    if (!canApplyLeaveDecision(item, 'reject', auth, db, res)) return
     item.status = 'respinsa'
     item.aprobat_de = auth.user.id
     item.aprobat_la = nowIso()
@@ -2549,6 +2571,11 @@ router.post('/hr/timesheets', (req, res, next) => {
     if (!employeeInScope(auth, employee, timesheetScope(auth, true))) return sendJson(res, 403, { error: 'Nu ai dreptul să modifici pontajul acestui angajat.' })
     assertTimesheetOpen(db, String(body.data || '').slice(0, 7))
 
+    const validatedTimesheet = isMssqlMode()
+      ? mssqlObject(`SELECT TOP 1 id FROM hr.time_sheets WHERE employee_id=TRY_CONVERT(int,JSON_VALUE(@p,'$.employee_id')) AND data=TRY_CONVERT(date,JSON_VALUE(@p,'$.data')) AND validat=1 FOR JSON PATH;`, body)
+      : ensureHrDb(db).timeSheets.find(item => String(item.employee_id) === String(body.employee_id) && item.data === body.data && [true, 1, '1'].includes(item.validat))
+    if (validatedTimesheet) return sendJson(res, 409, { error: 'Pontajul zilei este validat. Devalidează-l înainte de modificare.', code: 'HR_TIMESHEET_VALIDATED' })
+
     if (isMssqlMode()) {
       const item = mssqlObject(`
 DECLARE @id int;
@@ -2662,14 +2689,19 @@ function updateOvertimeApproval(req, res, next, status) {
     if (status === 'respins' && reason.length < 5) return sendJson(res, 422, { error: 'Motivul respingerii trebuie sa aiba minimum 5 caractere.' })
     const db = readDb()
     const targetEmployee = isMssqlMode()
-      ? mssqlObject(`SELECT TOP 1 e.*,d.denumire AS department_name FROM hr.time_sheets ts JOIN hr.employees e ON e.id=ts.employee_id LEFT JOIN core.departments d ON d.id=e.department_id WHERE ts.id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) AND ts.overtime_status=N'propus' FOR JSON PATH;`, { id: req.params.timesheetId })
+      ? mssqlObject(`SELECT TOP 1 e.*,d.denumire AS department_name,ts.data AS timesheet_date,ts.validat AS timesheet_validated FROM hr.time_sheets ts JOIN hr.employees e ON e.id=ts.employee_id LEFT JOIN core.departments d ON d.id=e.department_id WHERE ts.id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) AND ts.overtime_status=N'propus' FOR JSON PATH;`, { id: req.params.timesheetId })
       : (() => {
         const hr = ensureHrDb(db)
         const item = hr.timeSheets.find(entry => String(entry.id) === String(req.params.timesheetId) && entry.overtime_status === 'propus')
-        return item && hr.employees.find(employee => String(employee.id) === String(item.employee_id))
+        const employee = item && hr.employees.find(employee => String(employee.id) === String(item.employee_id))
+        return employee && { ...employee, timesheet_date: item.data, timesheet_validated: item.validat }
       })()
     if (!targetEmployee) return sendJson(res, 404, { error: 'Propunerea de ore suplimentare nu a fost gasita.' })
     if (!employeeInScope(auth, targetEmployee, overtimeApprovalScope(auth))) return sendJson(res, 403, { error: 'Nu ai dreptul să aprobi orele suplimentare din acest departament.' })
+    assertTimesheetOpen(db, String(targetEmployee.timesheet_date || '').slice(0, 7))
+    if (targetEmployee.timesheet_validated === true || targetEmployee.timesheet_validated === 1) {
+      return sendJson(res, 409, { error: 'Pontajul zilei este validat. Devalidează-l înainte de decizia asupra orelor suplimentare.', code: 'HR_TIMESHEET_VALIDATED' })
+    }
     if (isMssqlMode()) {
       const item = mssqlObject(`UPDATE hr.time_sheets SET overtime_status=JSON_VALUE(@p,'$.status'),overtime_approved_by=JSON_VALUE(@p,'$.userId'),overtime_approved_at=SYSDATETIME(),overtime_rejection_reason=NULLIF(JSON_VALUE(@p,'$.reason'),'') WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) AND overtime_status=N'propus'; SELECT TOP 1 * FROM hr.time_sheets WHERE id=TRY_CONVERT(int,JSON_VALUE(@p,'$.id')) FOR JSON PATH;`, { id: req.params.timesheetId, status, userId: auth.user.id, reason })
       if (!item) return sendJson(res, 404, { error: 'Propunerea de ore suplimentare nu a fost gasita.' })
@@ -2934,7 +2966,7 @@ router.post('/hr/timesheets/validate', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:timesheet_approve')) return
+    if (!requirePermission(auth, res, 'hr:timesheets_validate')) return
     if (!Array.isArray(req.body.employee_ids) || !req.body.employee_ids.length) return sendJson(res, 422, { error: 'Selectează angajații pentru validare.' })
     const employeeIds = [...new Set(req.body.employee_ids.map(String))]
     const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
@@ -2993,7 +3025,7 @@ FOR JSON PATH;
 router.post('/hr/timesheets/invalidate', async (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requirePermission(auth, res, 'hr:timesheet_approve')) return
+    if (!auth || !requirePermission(auth, res, 'hr:timesheets_validate')) return
     if (!Array.isArray(req.body.employee_ids)) return sendJson(res, 422, { error: 'Selecția angajaților este invalidă.' })
     const employeeIds = [...new Set(req.body.employee_ids.map(String))]
     const luna = String(req.body.luna || todayIso().slice(0, 7)).slice(0, 7)
@@ -3090,7 +3122,7 @@ router.get('/hr/timesheets/monthly-sheet', (req, res, next) => {
 
     if (isMssqlMode()) {
       const rows = mssqlArray(`
-SELECT e.id, e.nume, e.prenume, e.department_id, d.denumire AS department_name, ts.data, ts.ore_lucrate, ts.tip
+SELECT e.id, e.nume, e.prenume, e.department_id, d.denumire AS department_name, ts.data, ts.ore_lucrate, ts.tip, ts.validat
 FROM hr.employees e
 LEFT JOIN core.departments d ON d.id = e.department_id
 LEFT JOIN hr.time_sheets ts ON ts.employee_id = e.id AND FORMAT(ts.data, 'yyyy-MM') = JSON_VALUE(@p, '$.luna')
@@ -3102,7 +3134,8 @@ FOR JSON PATH;
 `, { ...req.query, luna, ...access.params })
       const byEmployee = new Map()
       rows.forEach((row) => {
-        if (!byEmployee.has(row.id)) byEmployee.set(row.id, { employee_id: row.id, nume: row.nume, prenume: row.prenume, department_id: row.department_id, department_name: row.department_name, zile: {} })
+        if (!byEmployee.has(row.id)) byEmployee.set(row.id, { employee_id: row.id, nume: row.nume, prenume: row.prenume, department_id: row.department_id, department_name: row.department_name, zile: {}, validated_days: [] })
+        if (row.data && [true, 1, '1'].includes(row.validat)) byEmployee.get(row.id).validated_days.push(String(row.data).slice(0, 10))
         if (row.data) byEmployee.get(row.id).zile[String(row.data).slice(0, 10)] = { ore_lucrate: row.ore_lucrate, tip: row.tip || 'lucru' }
       })
       return sendJson(res, 200, [...byEmployee.values()])
@@ -3116,7 +3149,8 @@ FOR JSON PATH;
       dates.forEach((date) => {
         zile[date] = numberValue(hr.timeSheets.find((item) => String(item.employee_id) === String(employee.id) && item.data === date)?.ore_lucrate)
       })
-      return { employee_id: employee.id, nume: employee.nume, prenume: employee.prenume, department_name: departmentName(db, employee.department_id), zile }
+      const validated_days = hr.timeSheets.filter(item => String(item.employee_id) === String(employee.id) && String(item.data).startsWith(luna) && [true, 1, '1'].includes(item.validat)).map(item => item.data)
+      return { employee_id: employee.id, nume: employee.nume, prenume: employee.prenume, department_name: departmentName(db, employee.department_id), zile, validated_days }
     })
     sendJson(res, 200, sheet)
   } catch (error) {
@@ -4455,6 +4489,7 @@ router.post('/hr/leave-requests/:uuid/approve', (req, res, next) => {
     if (isMssqlMode()) {
       const leave = mssqlObject(`SELECT TOP 1 * FROM hr.leave_requests WHERE uuid=JSON_VALUE(@p,'$.uuid') FOR JSON PATH;`, { uuid: req.params.uuid })
       if (!leave) return sendJson(res, 404, { error: 'Cererea nu a fost gasita.' })
+      if (!canApplyLeaveDecision(leave, 'approve', auth, db, res)) return
       if (String(leave.tip).toUpperCase() === 'CM') {
         const certificate = mssqlObject(`SELECT TOP 1 status_verificare FROM hr.medical_leave_certificates WHERE leave_request_uuid=JSON_VALUE(@p,'$.uuid') FOR JSON PATH;`, { uuid: req.params.uuid })
         if (certificate?.status_verificare !== 'verificat') return sendJson(res, 409, { error: 'Certificatul medical trebuie verificat de HR inaintea aprobarii concediului.', code: 'HR_MEDICAL_VERIFICATION_REQUIRED' })
@@ -4484,6 +4519,7 @@ SELECT TOP 1 * FROM hr.leave_requests WHERE uuid = JSON_VALUE(@p, '$.uuid') FOR 
     const hr = ensureHrDb(db)
     const item = hr.leaveRequests.find((leave) => leave.uuid === req.params.uuid)
     if (!item) return sendJson(res, 404, { error: 'Cererea nu a fost gasita.' })
+    if (!canApplyLeaveDecision(item, 'approve', auth, db, res)) return
     if (String(item.tip).toUpperCase() === 'CM') {
       const certificate = hr.medicalLeaveCertificates.find((row) => String(row.leave_request_uuid) === String(item.uuid))
       if (certificate?.status_verificare !== 'verificat') return sendJson(res, 409, { error: 'Certificatul medical trebuie verificat de HR inaintea aprobarii concediului.', code: 'HR_MEDICAL_VERIFICATION_REQUIRED' })
@@ -4637,7 +4673,7 @@ router.post('/hr/training', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:training'])) return
+    if (!requirePermission(auth, res, 'hr:training')) return
     const validated = trainingPayload(req.body)
     if (validated.error) return sendJson(res, 422, { error: validated.error, code: 'HR_TRAINING_INVALID' })
     const payload = validated.value
@@ -4675,7 +4711,7 @@ router.post('/hr/training/:id/employees', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:training'])) return
+    if (!requirePermission(auth, res, 'hr:training')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     const rawIds = req.body?.employee_ids
     const validId = value => /^(?:[1-9]\d*)$/.test(String(value)) && Number.isSafeInteger(Number(value))

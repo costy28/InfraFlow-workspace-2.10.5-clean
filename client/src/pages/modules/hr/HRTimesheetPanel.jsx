@@ -88,8 +88,8 @@ export default function HRTimesheetPanel({
                   <td key={day} className="p-1 text-center">
                     <button
                       type="button"
-                      title={`Editeaza ${fullName(row)} - ${day}`}
-                      disabled={timesheetLock?.locked || !canEditRow(row)}
+                      title={row.validated_days?.includes(day) ? 'Pontaj validat. Devalidează ziua înainte de modificare.' : `Editeaza ${fullName(row)} - ${day}`}
+                      disabled={timesheetLock?.locked || row.validated_days?.includes(day) || !canEditRow(row)}
                       onClick={() => onOpenTimesheetCell(row, day)}
                       className={`inline-flex min-w-8 justify-center rounded px-1 py-1 transition hover:ring-2 hover:ring-primary-300 disabled:cursor-not-allowed disabled:opacity-60 ${timesheetTone(row.zile?.[day])}`}
                     >

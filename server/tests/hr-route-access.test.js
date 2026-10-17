@@ -753,6 +753,48 @@ test('identificatorul de fotografie nu permite traversarea directoarelor', async
   assert.equal(f.storageChecks(), 0)
 })
 
+test('aprobarea repetată nu dublează concediul consumat sau pontajul', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:leave_manage']
+  f.db.hr.leaveRequests = [{ uuid: 'co1', employee_id: 1, tip: 'CO', status: 'cerut', data_start: '2026-10-05', data_sfarsit: '2026-10-05', zile: 1 }]
+  assert.equal((await f.invoke('post /hr/leave-requests/:uuid/approve', {}, {}, { uuid: 'co1' })).code, 200)
+  const before = JSON.stringify(f.db.hr)
+  assert.equal(f.db.hr.employees[0].zile_co_efectuate, 1)
+  assert.equal((await f.invoke('post /hr/leave-requests/:uuid/approve', {}, {}, { uuid: 'co1' })).code, 200)
+  assert.equal(JSON.stringify(f.db.hr), before)
+  assert.equal(f.writes(), 1)
+})
+
+test('deciziile finale nu pot fi inversate și repetarea respingerii nu scrie', async () => {
+  for (const [status, action, expected] of [['aprobata', 'reject', 409], ['respinsa', 'approve', 409], ['respinsa', 'reject', 200]]) {
+    const f = fixture()
+    f.db.settings.customRoles[0].permissions = ['hr:leave_manage']
+    f.db.hr.leaveRequests = [{ uuid: 'leave1', employee_id: 1, status, tip: 'CO' }]
+    const before = JSON.stringify([f.db.hr.employees, f.db.hr.timeSheets, f.db.hr.leaveRequests])
+    const response = await f.invoke(`post /hr/leave-requests/:uuid/${action}`, {}, {}, { uuid: 'leave1' })
+    assert.equal(response.code, expected)
+    if (expected === 409) assert.equal(response.data.code, 'HR_LEAVE_DECISION_CONFLICT')
+    assert.equal(JSON.stringify([f.db.hr.employees, f.db.hr.timeSheets, f.db.hr.leaveRequests]), before)
+    assert.equal(f.writes(), 0)
+  }
+})
+
+test('decizia relațională finală este verificată înainte de UPDATE', async () => {
+  for (const [status, action, expected] of [['aprobata', 'approve', 200], ['aprobata', 'reject', 409], ['respinsa', 'approve', 409], ['respinsa', 'reject', 200]]) {
+    let queries = 0
+    const f = fixture({ sql(query) {
+      queries++
+      assert.doesNotMatch(query, /UPDATE |INSERT /)
+      return JSON.stringify([{ uuid: 'leave1', employee_id: 1, tip: 'CO', status }])
+    } })
+    f.db.settings.customRoles[0].permissions = ['hr:leave_manage']
+    const response = await f.invoke(`post /hr/leave-requests/:uuid/${action}`, {}, {}, { uuid: 'leave1' })
+    assert.equal(response.code, expected)
+    assert.equal(queries, expected === 200 ? 2 : 1)
+    assert.equal(f.writes(), 0)
+  }
+})
+
 test('decizia de concediu nu expune certificatul medical aprobatorului limitat', async () => {
   for (const action of ['approve', 'reject']) {
     const f = fixture()
@@ -875,12 +917,100 @@ test('rutele de pontaj și concediu refuză angajatul străin fără scriere', a
   }
 })
 
+test('compensarea nu permite sold inițial sau avans prin ruta de autoservire', async () => {
+  for (const tip of ['sold_initial', 'avans_timp_liber', 'necunoscut']) {
+    const f = fixture()
+    const response = await f.invoke('post /hr/overtime-bank/compensate', { employee_id: 1, ore: 8, tip, data: '2026-10-01' })
+    assert.equal(response.code, 422)
+    assert.equal(response.data.code, 'HR_COMPENSATION_TYPE_INVALID')
+    assert.equal(f.writes(), 0)
+    assert.equal(f.db.hr.overtimeCompensations, undefined)
+  }
+})
+
+test('compensarea refuză ore negative, nule și nefinite înainte de SQL sau scriere', async () => {
+  for (const ore of [-8, 0, '', 'abc', 'Infinity']) {
+    const f = fixture({ sql() { throw new Error('SQL nu trebuie apelat') } })
+    const response = await f.invoke('post /hr/overtime-bank/compensate', { employee_id: 1, ore, tip: 'timp_liber' })
+    assert.equal(response.code, 422)
+    assert.equal(response.data.code, 'HR_COMPENSATION_HOURS_INVALID')
+    assert.equal(f.writes(), 0)
+  }
+})
+
+test('compensarea pozitivă păstrează timpul liber și evidența de plată', async () => {
+  for (const tip of ['timp_liber', 'plata']) {
+    const f = fixture()
+    const response = await f.invoke('post /hr/overtime-bank/compensate', { employee_id: 1, ore: 2, tip, data: '2026-10-01' })
+    assert.equal(response.code, 201)
+    assert.equal(f.db.hr.overtimeCompensations[0].ore, 2)
+    assert.equal(f.db.hr.timeSheets[0].ore_lucrate, tip === 'timp_liber' ? 6 : 8)
+    assert.equal(f.writes(), 1)
+  }
+})
+
 test('salvarea pontajului propriu funcționează în ruta reală', async () => {
   const f = fixture()
   const result = await f.invoke('post /hr/timesheets', { employee_id: 1, data: '2026-10-02', ore_lucrate: 4 })
   assert.equal(result.code, 200)
   assert.equal(f.writes(), 1)
   assert.equal(f.db.hr.timeSheets.find(item => item.data === '2026-10-02').employee_id, 1)
+})
+
+test('salvarea directă nu modifică pontajul validat și permite corectarea după devalidare', async () => {
+  for (const validat of [true, 1, '1']) {
+    const f = fixture()
+    Object.assign(f.db.hr.timeSheets[0], { validat, overtime_status: 'aprobat', ore_lucrate: 8 })
+    const before = JSON.stringify(f.db.hr.timeSheets)
+    const body = { employee_id: 1, data: '2026-10-01', ore_lucrate: 12, observatii: 'Corecție' }
+    const denied = await f.invoke('post /hr/timesheets', body)
+    assert.equal(denied.code, 409)
+    assert.equal(denied.data.code, 'HR_TIMESHEET_VALIDATED')
+    assert.equal(JSON.stringify(f.db.hr.timeSheets), before)
+    assert.equal(f.writes(), 0)
+    f.db.hr.timeSheets[0].validat = false
+    const allowed = await f.invoke('post /hr/timesheets', body)
+    assert.equal(allowed.code, 200)
+    assert.equal(f.db.hr.timeSheets[0].ore_lucrate, 12)
+    assert.equal(f.writes(), 1)
+  }
+})
+
+test('salvarea relațională verifică validarea înainte de upsert', async () => {
+  let queries = 0
+  const f = fixture({ sql(query) {
+    queries++
+    assert.doesNotMatch(query, /INSERT INTO|UPDATE hr\.time_sheets/)
+    if (query.includes('FROM hr.employees')) return JSON.stringify([{ id: 1, user_id: 'u1' }])
+    assert.match(query, /AND validat=1/)
+    return JSON.stringify([{ id: 1 }])
+  } })
+  const response = await f.invoke('post /hr/timesheets', { employee_id: 1, data: '2026-10-01', ore_lucrate: 12 })
+  assert.equal(response.code, 409)
+  assert.equal(response.data.code, 'HR_TIMESHEET_VALIDATED')
+  assert.equal(queries, 2)
+  assert.equal(f.writes(), 0)
+})
+
+test('foaia lunară transmite zilele validate fără să schimbe valorile orelor', async () => {
+  const f = fixture()
+  f.db.hr.timeSheets[0].validat = true
+  const response = await f.invoke('get /hr/timesheets/monthly-sheet', {}, { luna: '2026-10' })
+  assert.equal(response.code, 200)
+  assert.deepEqual(Array.from(response.data[0].validated_days), ['2026-10-01'])
+  assert.equal(response.data[0].zile['2026-10-01'], 8)
+  assert.equal(f.writes(), 0)
+})
+
+test('foaia lunară relațională păstrează starea validată pentru interfață', async () => {
+  const f = fixture({ sql(query) {
+    assert.match(query, /ts\.validat/)
+    return JSON.stringify([{ id: 1, nume: 'Propriu', data: '2026-10-01', ore_lucrate: 8, tip: 'lucru', validat: true }])
+  } })
+  const response = await f.invoke('get /hr/timesheets/monthly-sheet', {}, { luna: '2026-10' })
+  assert.equal(response.code, 200)
+  assert.deepEqual(Array.from(response.data[0].validated_days), ['2026-10-01'])
+  assert.equal(response.data[0].zile['2026-10-01'].ore_lucrate, 8)
 })
 
 test('raportul lunar al colegului este refuzat', async () => {
@@ -927,6 +1057,37 @@ test('exportul tichetelor cere acces personal și validează luna', async () => 
   f.db.hr.timeSheets = [{ employee_id: 1, data: '2026-10-01', tip: 'lucru', validat: true }]
   const exported = await f.invoke('get /hr/meal-tickets/export', {}, { luna: '2026-10' })
   assert.match(exported.data, /cnp-propriu/)
+})
+
+test('administrarea generală HR nu configurează tichete sau tipuri de ture', async () => {
+  for (const [route, body, params] of [
+    ['post /hr/meal-tickets/config', { valoare_tichet: 45 }, {}],
+    ['post /hr/tures', { nume: 'Schimb nou' }, {}],
+    ['put /hr/tures/:id', { nume: 'Schimb actualizat' }, { id: 1 }],
+    ['delete /hr/tures/:id', {}, { id: 1 }],
+  ]) {
+    const f = fixture()
+    f.db.settings.customRoles[0].permissions = ['hr:manage']
+    const result = await f.invoke(route, body, {}, params)
+    assert.equal(result.code, 403)
+    assert.equal(f.writes(), 0)
+  }
+})
+
+test('drepturile dedicate permit configurarea tichetelor și tipurilor de ture', async () => {
+  const benefits = fixture()
+  benefits.db.settings.customRoles[0].permissions = ['hr:meal_tickets_manage']
+  const configured = await benefits.invoke('post /hr/meal-tickets/config', { valoare_tichet: 45 })
+  assert.equal(configured.code, 200)
+  assert.equal(configured.data.valoare_tichet, 45)
+  assert.equal(benefits.writes(), 1)
+
+  const shifts = fixture()
+  shifts.db.settings.customRoles[0].permissions = ['hr:schedules_manage']
+  const created = await shifts.invoke('post /hr/tures', { nume: 'Schimb nou', ora_start: '06:00', ora_sfarsit: '14:00' })
+  assert.equal(created.code, 201)
+  assert.equal(created.data.nume, 'Schimb nou')
+  assert.equal(shifts.writes(), 1)
 })
 
 test('hr:view nu expune salariul și costul orar prin contractele angajatului', async () => {
@@ -1059,6 +1220,93 @@ test('reminderul pontajului persistă notificări doar pentru utilizatorii activ
   assert.equal((await f.invoke('post /hr/timesheets/send-reminder', { luna: '2026-13' })).code, 422)
 })
 
+test('validarea și devalidarea cer dreptul dedicat, independent de aprobarea orelor', async () => {
+  for (const action of ['validate', 'invalidate']) {
+    const denied = fixture()
+    denied.db.settings.customRoles[0].permissions = ['hr:timesheet_approve']
+    const response = await denied.invoke(`post /hr/timesheets/${action}`, { luna: '2026-10', employee_ids: [1], reason: 'Corecție pontaj' })
+    assert.equal(response.code, 403)
+    assert.equal(denied.writes(), 0)
+
+    const allowed = fixture()
+    allowed.db.settings.customRoles[0].permissions = ['hr:timesheets_validate']
+    allowed.db.hr.timeSheets[0].validat = true
+    const result = await allowed.invoke(`post /hr/timesheets/${action}`, { luna: '2026-10', employee_ids: [1], reason: 'Corecție pontaj' })
+    assert.equal(result.code, 200)
+    assert.equal(allowed.writes(), 1)
+  }
+})
+
+test('validatorul departamental refuză întregul lot cu angajați străini fără modificări parțiale', async () => {
+  for (const action of ['validate', 'invalidate']) {
+    const f = fixture()
+    f.db.settings.customRoles[0].permissions = ['hr:timesheets_validate', 'hr:timesheet_dept']
+    f.auth.user.department_id = 'd1'
+    f.db.hr.employees[0].department_id = 'd1'
+    f.db.hr.employees[1].department_id = 'd2'
+    f.db.hr.timeSheets.forEach(item => { item.validat = true })
+    const before = JSON.stringify(f.db.hr.timeSheets)
+    const result = await f.invoke(`post /hr/timesheets/${action}`, { luna: '2026-10', employee_ids: [1, 2], reason: 'Corecție pontaj' })
+    assert.equal(result.code, 403)
+    assert.equal(JSON.stringify(f.db.hr.timeSheets), before)
+    assert.equal(f.writes(), 0)
+  }
+})
+
+test('decizia orelor suplimentare refuză luna închisă și pontajul validat fără scriere', async () => {
+  for (const action of ['approve', 'reject']) {
+    for (const state of ['locked', 'validated']) {
+      const f = fixture()
+      f.db.settings.customRoles[0].permissions = ['hr:timesheet_approve']
+      f.db.hr.timeSheets[0].overtime_status = 'propus'
+      if (state === 'locked') f.db.hr.timesheetLocks = [{ id: 1, luna: '2026-10', locked_by: 'admin' }]
+      else f.db.hr.timeSheets[0].validat = true
+      const before = JSON.stringify(f.db.hr.timeSheets)
+      const invoke = () => f.invoke(`post /hr/overtime/:timesheetId/${action}`, { reason: 'Motiv verificat' }, {}, { timesheetId: 1 })
+      if (state === 'locked') await assert.rejects(invoke, error => error.status === 409 && error.code === 'HR_TIMESHEET_MONTH_LOCKED')
+      else {
+        const result = await invoke()
+        assert.equal(result.code, 409)
+        assert.equal(result.data.code, 'HR_TIMESHEET_VALIDATED')
+      }
+      assert.equal(JSON.stringify(f.db.hr.timeSheets), before)
+      assert.equal(f.writes(), 0)
+    }
+  }
+})
+
+test('decizia relațională verifică validarea înaintea UPDATE-ului SQL', async () => {
+  for (const action of ['approve', 'reject']) {
+    let queries = 0
+    const f = fixture({ sql(query) {
+      queries++
+      assert.match(query, /ts\.validat AS timesheet_validated/)
+      assert.doesNotMatch(query, /UPDATE hr\.time_sheets/)
+      return JSON.stringify([{ id: 1, timesheet_date: '2026-10-01', timesheet_validated: true }])
+    } })
+    f.db.settings.customRoles[0].permissions = ['hr:timesheet_approve']
+    const result = await f.invoke(`post /hr/overtime/:timesheetId/${action}`, { reason: 'Motiv verificat' }, {}, { timesheetId: 1 })
+    assert.equal(result.code, 409)
+    assert.equal(result.data.code, 'HR_TIMESHEET_VALIDATED')
+    assert.equal(queries, 1)
+    assert.equal(f.writes(), 0)
+  }
+})
+
+test('decizia orelor suplimentare funcționează pe pontaj deschis din departamentul autorizat', async () => {
+  for (const action of ['approve', 'reject']) {
+    const f = fixture()
+    f.db.settings.customRoles[0].permissions = ['hr:timesheet_approve', 'hr:timesheet_dept']
+    f.auth.user.department_id = 'd1'
+    f.db.hr.employees[0].department_id = 'd1'
+    f.db.hr.timeSheets[0].overtime_status = 'propus'
+    const result = await f.invoke(`post /hr/overtime/:timesheetId/${action}`, { reason: 'Motiv verificat' }, {}, { timesheetId: 1 })
+    assert.equal(result.code, 200)
+    assert.equal(f.db.hr.timeSheets[0].overtime_status, action === 'approve' ? 'aprobat' : 'respins')
+    assert.equal(f.writes(), 1)
+  }
+})
+
 test('finalizarea pontajului persistă notificarea HR și exclude conturile inactive', async () => {
   const f = fixture()
   f.db.settings.customRoles[0].permissions = ['hr:timesheet', 'hr:timesheet_dept']
@@ -1075,6 +1323,48 @@ test('finalizarea pontajului persistă notificarea HR și exclude conturile inac
   assert.equal(f.db.notifications.length, 1)
   assert.equal(f.db.notifications[0].user_id, 'hr-active')
   assert.equal(f.db.notifications[0].target_view, '/hr?section=overview')
+  assert.equal(f.writes(), 1)
+})
+
+test('notificarea pontajului folosește drepturile explicite și nu administrarea HR generală', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:timesheet', 'hr:timesheet_dept']
+  f.db.settings.customRoles.push(
+    { id: 'timesheet-approver', permissions: ['hr:timesheet_approve'] },
+    { id: 'legacy-hr-manager', permissions: ['hr:manage'] }
+  )
+  f.auth.user.department_id = 'd1'
+  f.db.users = [
+    { id: 'approver-active', role: 'timesheet-approver', active: true },
+    { id: 'approver-inactive', role: 'timesheet-approver', active: false },
+    { id: 'legacy-manager', role: 'legacy-hr-manager', active: true },
+  ]
+
+  const result = await f.invoke('post /hr/timesheets/submit-department', { luna: '2026-10', department_cod: 'd1', status: 'finalizat' })
+  assert.equal(result.code, 200)
+  assert.deepEqual(Array.from(f.db.notifications, notification => notification.user_id), ['approver-active'])
+  assert.equal(f.writes(), 1)
+})
+
+test('notificarea pontajului respectă departamentul aprobatorului și normalizează ID-ul la cod', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:timesheet', 'hr:timesheet_dept']
+  f.auth.user.department_id = 'd1'
+  f.db.departments = [{ id: 'd1', cod: 'OPS', name: 'Operațional' }, { id: 'd2', cod: 'SALES', name: 'Vânzări' }]
+  f.db.settings.customRoles.push(
+    { id: 'department-approver', permissions: ['hr:timesheet_approve', 'hr:timesheet_dept'] },
+    { id: 'global-manager', permissions: ['hr:timesheets_manage', 'hr:timesheet_dept'] }
+  )
+  f.db.users = [
+    { id: 'same-id', role: 'department-approver', department_id: 'd1', active: true },
+    { id: 'same-code', role: 'department-approver', department: 'OPS', active: true },
+    { id: 'other', role: 'department-approver', department_id: 'd2', active: true },
+    { id: 'unassigned', role: 'department-approver', active: true },
+    { id: 'global', role: 'global-manager', department_id: 'd2', active: true },
+  ]
+  const result = await f.invoke('post /hr/timesheets/submit-department', { luna: '2026-10', department_cod: 'OPS', status: 'finalizat' })
+  assert.equal(result.code, 200)
+  assert.deepEqual(Array.from(f.db.notifications, item => item.user_id), ['same-id', 'same-code', 'global'])
   assert.equal(f.writes(), 1)
 })
 
@@ -1122,6 +1412,16 @@ test('confirmarea validă a resetării Kiosk schimbă parola și consumă codul'
 test('sincronizarea Kiosk ignoră angajatul din payload și folosește titularul sesiunii', async () => {
   const f = fixture({ kioskSession: { employee_id: 1, username: 'operator' } })
   const result = await f.invoke('post /hr/kiosk/sync', { operations: [{ id: 'own-kiosk-leave', type: 'leave_request', data: { uuid: 'own-kiosk-leave', employee_id: 2, tip: 'CO', data_start: '2026-11-02', data_sfarsit: '2026-11-02' } }] })
+  assert.equal(result.code, 200)
+  assert.equal(result.data.failed.length, 0)
+  assert.equal(f.db.hr.leaveRequests[0].employee_id, 1)
+  assert.equal(f.writes(), 1)
+})
+
+test('administrarea HR generală nu acordă acces Kiosk la alt angajat', async () => {
+  const f = fixture()
+  f.db.settings.customRoles[0].permissions = ['hr:manage']
+  const result = await f.invoke('post /hr/kiosk/sync', { operations: [{ id: 'legacy-manager-kiosk', type: 'leave_request', data: { uuid: 'legacy-manager-kiosk', employee_id: 2, tip: 'CO', data_start: '2026-11-02', data_sfarsit: '2026-11-02' } }] })
   assert.equal(result.code, 200)
   assert.equal(result.data.failed.length, 0)
   assert.equal(f.db.hr.leaveRequests[0].employee_id, 1)

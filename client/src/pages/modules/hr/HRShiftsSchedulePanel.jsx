@@ -25,6 +25,8 @@ export default function HRShiftsSchedulePanel({
   scheduleMonth,
   scheduleDept,
   departments,
+  canManageShifts = false,
+  canEditSchedule = false,
   onNewShift,
   onEditShift,
   onDeactivateShift,
@@ -40,7 +42,7 @@ export default function HRShiftsSchedulePanel({
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm font-semibold text-slate-700">Ture definite</div>
-          <Button size="sm" onClick={onNewShift}>+ Tură nouă</Button>
+          {canManageShifts ? <Button size="sm" onClick={onNewShift}>+ Tură nouă</Button> : null}
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {(tures || []).map(tura => (
@@ -48,10 +50,10 @@ export default function HRShiftsSchedulePanel({
               <div className="font-semibold text-slate-900">{tura.nume}</div>
               <div className="text-sm text-slate-500">{tura.ora_start}–{tura.ora_sfarsit}</div>
               <div className="text-xs text-slate-400">{tura.ore_normale || 8} ore normale</div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              {canManageShifts ? <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => onEditShift(tura)}>Editeaza</Button>
                 <Button size="sm" variant="secondary" onClick={() => onDeactivateShift(tura)}>Dezactiveaza</Button>
-              </div>
+              </div> : null}
             </div>
           ))}
         </div>
@@ -93,6 +95,7 @@ export default function HRShiftsSchedulePanel({
                       <td key={day} className="p-1 text-center">
                         <select
                           value={scheduleData?.[key] || ''}
+                          disabled={!canEditSchedule}
                           onChange={e => onSetScheduleShift(emp.id, day, e.target.value)}
                           className="h-7 w-12 rounded border border-slate-200 text-[10px] outline-none"
                           style={tura ? { backgroundColor: tura.culoare, color: '#fff' } : undefined}

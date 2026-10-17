@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.709**
-**Versiune în lucru: v2.12.709**
+**Versiune curentă sursă: v2.12.718**
+**Versiune în lucru: v2.12.718**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -449,6 +449,15 @@ Core System
   ✅ Salarizare separată între consultare și administrare, cu compatibilitate MSSQL (v2.12.707)
   ✅ Administrare HR separată pentru angajați și contracte (v2.12.708)
   ✅ Permisiuni dedicate pentru documente, fluxuri, notificări și evaluări HR (v2.12.709)
+  ✅ Permisiuni dedicate pentru ture, tichete, formare și echipamente HR (v2.12.710)
+  ✅ Kiosk și notificări de pontaj pe drepturi explicite (v2.12.711)
+  ✅ Notificări de pontaj limitate la departamentul autorizat (v2.12.712)
+  ✅ Validare și închidere pontaj separate de aprobarea orelor suplimentare (v2.12.713)
+  ✅ Închidere lunară pontaj rezervată validatorilor cu acces global (v2.12.714)
+  ✅ Deciziile orelor suplimentare respectă pontajele validate și lunile închise (v2.12.715)
+  ✅ Editarea directă a zilelor de pontaj validate este blocată în API și interfață (v2.12.716)
+  ✅ Compensarea orelor separată de ajustări și validată pentru valori pozitive (v2.12.717)
+  ✅ Deciziile finale de concediu nu dublează efectele și nu se inversează direct (v2.12.718)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1172,9 +1181,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.709
+VERSIUNE CURENTĂ SURSĂ: 2.12.718
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.709 ✅
+UPDATE ZIP CURENT: 2.12.718 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1690,6 +1699,15 @@ UPDATES ÎN LUCRU:
   2.12.707 → UPDATE 727 permisiuni granulare salarizare și compatibilitate MSSQL ✅
   2.12.708 → UPDATE 728 administrare HR separată pentru angajați și contracte ✅
   2.12.709 → UPDATE 729 permisiuni dedicate pentru documente, fluxuri, notificări și evaluări HR ✅
+  2.12.710 → UPDATE 730 permisiuni dedicate pentru ture, tichete, formare și echipamente HR ✅
+  2.12.711 → UPDATE 731 Kiosk și notificări de pontaj pe drepturi explicite ✅
+  2.12.712 → UPDATE 732 notificări de pontaj limitate la departamentul autorizat ✅
+  2.12.713 → UPDATE 733 validare și închidere pontaj pe drept dedicat ✅
+  2.12.714 → UPDATE 734 închidere pontaj cu acces global ✅
+  2.12.715 → UPDATE 735 protecție decizii ore suplimentare pe pontaj finalizat ✅
+  2.12.716 → UPDATE 736 protecție editare pontaj validat ✅
+  2.12.717 → UPDATE 737 compensări ore fără ocolirea ajustărilor autorizate ✅
+  2.12.718 → UPDATE 738 decizii concediu fără efecte duplicate ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2188,5 +2206,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 17 Octombrie 2026 | InfraFlow sursă v2.12.709*
+*AGENTS.md actualizat: 17 Octombrie 2026 | InfraFlow sursă v2.12.718*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

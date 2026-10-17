@@ -1,3 +1,81 @@
+## v2.12.718 - 2026-10-17
+
+### Decizii concediu fără efecte duplicate
+
+- Repetarea aprobării sau respingerii returnează cererea existentă fără o nouă scriere, fără dublarea zilelor consumate sau rescrierea pontajului.
+- Inversarea directă a unei decizii finale returnează 409 cu `HR_LEAVE_DECISION_CONFLICT`.
+- Respingerea relațională verifică existența și starea cererii înainte de UPDATE.
+- Răspunsurile repetate păstrează filtrarea datelor personale și medicale.
+
+## v2.12.717 - 2026-10-17
+
+### Compensări ore fără ocolirea ajustărilor autorizate
+
+- Ruta de compensare acceptă exclusiv `timp_liber` sau `plata`.
+- Soldul inițial și avansul nu mai pot fi trimise pe ruta de autoservire; păstrează ruta de ajustare cu dreptul de aprobare și verificarea angajaților.
+- Numărul de ore trebuie să fie finit și pozitiv, înainte de accesul SQL sau scriere.
+
+## v2.12.716 - 2026-10-17
+
+### Protecție editare pontaj validat
+
+- Salvarea directă a pontajului refuză modificarea unei zile validate cu status 409 și codul `HR_TIMESHEET_VALIDATED`.
+- Verificarea se face după controlul accesului la angajat și al lunii, înainte de upsert în JSON și MSSQL.
+- Celulele validate sunt dezactivate în interfață, cu explicație la trecerea cursorului.
+- După devalidarea autorizată, ziua poate fi corectată normal.
+
+## v2.12.715 - 2026-10-17
+
+### Protecție ore suplimentare pe pontaj finalizat
+
+- Aprobarea și respingerea orelor suplimentare respectă închiderea lunii și validarea pontajului zilei.
+- Cererile sunt refuzate cu 409 înainte de scriere; mesajul indică redeschiderea lunii sau devalidarea necesară.
+- Verificarea accesului la angajat precedă verificările de stare, în JSON și MSSQL.
+
+## v2.12.714 - 2026-10-17
+
+### Închidere lunară pontaj cu acces global
+
+- Închiderea și redeschiderea lunii cer validare și domeniu global de acces la pontaje.
+- Validatorii limitați la departament primesc refuz explicit înaintea modificării închiderii globale.
+- Starea lunii comunică `can_manage`, folosit de interfață pentru afișarea acțiunilor.
+- Regresiile verifică refuzul loturilor mixte de angajați înaintea oricărei validări sau devalidări parțiale.
+
+## v2.12.713 - 2026-10-17
+
+### Validare și închidere pontaj pe drept dedicat
+
+- Validarea și devalidarea pontajului, închiderea și redeschiderea lunii cer `hr:timesheets_validate`.
+- Butoanele de validare folosesc același drept ca API-ul.
+- `hr:timesheet_approve` are o etichetă distinctă pentru aprobarea orelor suplimentare și urmărirea pontajelor.
+- Migrarea unică păstrează accesul anterior al rolurilor cu `hr:timesheet_approve`; retragerea ulterioară a validării rămâne efectivă.
+
+## v2.12.712 - 2026-10-17
+
+### Notificări de pontaj limitate la departamentul autorizat
+
+- Aprobatorii limitați la departament primesc numai notificările departamentului asociat, identificat prin ID sau cod.
+- Lipsa departamentului asociat exclude notificările departamentale; administrarea globală păstrează notificările tuturor departamentelor.
+
+## v2.12.711 - 2026-10-17
+
+### Kiosk și notificări de pontaj pe drepturi explicite
+
+- Sincronizarea Kiosk nu mai folosește `hr:manage` pentru acces la alți angajați; autoservirea rămâne legată de titularul contului.
+- Identificatorul de angajat trimis de client nu poate redirecționa o cerere Kiosk către un coleg fără dreptul explicit `hr:view`.
+- Notificările la finalizarea pontajului sunt trimise exclusiv utilizatorilor activi cu `hr:timesheets_manage`, `hr:timesheet_approve` sau `hr:timesheets_validate`.
+- Rolurile și departamentele denumite HR nu mai primesc notificări doar pe baza numelui, iar `hr:manage` nu mai este o scurtătură.
+
+## v2.12.710 - 2026-10-17
+
+### Permisiuni dedicate pentru ture, tichete, formare și echipamente HR
+
+- `hr:schedules_manage` protejează definirea, modificarea și dezactivarea tipurilor de ture.
+- `hr:meal_tickets_manage` protejează configurarea valorii tichetelor de masă.
+- Programul lunar rămâne vizibil rolurilor autorizate, dar editarea lui cere în continuare `hr:timesheet`, iar controalele sunt dezactivate în interfață fără acest drept.
+- Formarea profesională cere exclusiv `hr:training`, iar administrarea echipamentelor cere exclusiv `echipamente:gestionar`.
+- Rolurile care aveau `hr:manage` primesc o singură dată drepturile dedicate pentru continuitate; retragerea ulterioară rămâne efectivă.
+
 ## v2.12.709 - 2026-10-17
 
 ### Permisiuni dedicate pentru documente, fluxuri, notificări și evaluări HR
