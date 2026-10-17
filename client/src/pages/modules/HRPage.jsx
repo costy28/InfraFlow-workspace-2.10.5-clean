@@ -318,9 +318,9 @@ export default function HRPage() {
   const hasPermission = permission => isAdmin || userPermissions.includes(permission)
   const canReadDossier = hasPermission('hr:view') && hasPermission('hr:personal_sensitive') && hasPermission('hr:medical_view')
   const canReadWorkflow = canReadDossier && hasPermission('hr:salary_view')
-  const canManageSensitiveNotifications = hasPermission('hr:manage') && canReadWorkflow
-  const canManageWorkflow = canReadWorkflow && hasPermission('hr:manage')
-  const canManageEmployees = hasPermission('hr:manage') || hasPermission('hr:employees_manage')
+  const canManageSensitiveNotifications = hasPermission('hr:notifications_manage') && canReadWorkflow
+  const canManageWorkflow = canReadWorkflow && hasPermission('hr:workflow_manage')
+  const canManageEmployees = hasPermission('hr:employees_manage')
   const canImportEmployees = canManageEmployees && hasPermission('hr:personal_sensitive')
   const canExportLaborRegistry = hasPermission('hr:reges_export') && hasPermission('hr:personal_sensitive') && hasPermission('hr:salary_view')
   const canWriteField = field => canManageEmployees && canWriteEmployeeField(field, hasPermission)
@@ -1378,7 +1378,7 @@ export default function HRPage() {
 
   async function saveEvaluation(event) {
     event.preventDefault()
-    if (!hasPermission('hr:manage') || !hasPermission('hr:personal_sensitive')) return
+    if (!hasPermission('hr:evaluations_manage') || !hasPermission('hr:personal_sensitive')) return
     setError('')
     try {
       if (evalEditing) {
@@ -1408,7 +1408,7 @@ export default function HRPage() {
   }
 
   async function deleteEvaluationRequest(id) {
-    if (!hasPermission('hr:manage') || !hasPermission('hr:personal_sensitive')) return
+    if (!hasPermission('hr:evaluations_manage') || !hasPermission('hr:personal_sensitive')) return
     try {
       await api.delete(`/hr/evaluations/${id}`)
       await loadTrainingData()
@@ -1439,7 +1439,7 @@ export default function HRPage() {
       }
 
       if (photoFile) {
-        if (!hasPermission('hr:manage') || !hasPermission('hr:personal_sensitive')) throw new Error('Nu ai dreptul de a modifica fotografia angajatului.')
+        if (!hasPermission('hr:employees_manage') || !hasPermission('hr:personal_sensitive')) throw new Error('Nu ai dreptul de a modifica fotografia angajatului.')
         const fd = new FormData()
         fd.append('photo', photoFile)
         const photoRes = await api.post(`/hr/employees/${selectedEmployee.id}/photo`, fd)
@@ -2554,7 +2554,7 @@ export default function HRPage() {
         <HRTrainingPanel
           canViewTrainingSchedule={hasPermission('hr:personal_sensitive') && (hasPermission('hr:view') || hasPermission('hr:training'))}
           canViewEvaluations={hasPermission('hr:view') && hasPermission('hr:personal_sensitive')}
-          canManageEvaluations={hasPermission('hr:manage') && hasPermission('hr:personal_sensitive')}
+          canManageEvaluations={hasPermission('hr:evaluations_manage') && hasPermission('hr:personal_sensitive')}
           scadentar={scadentar}
           evaluations={evaluations}
           employees={employees}
@@ -2614,7 +2614,7 @@ export default function HRPage() {
           dossierChecklist={dossierChecklist}
           hrDocumentTemplates={hrDocumentTemplates}
           templateWordUploading={templateWordUploading}
-          canManageTemplates={hasPermission('hr:manage')}
+          canManageTemplates={hasPermission('hr:documents_manage')}
           onDownloadDossierReport={downloadDossierReport}
           onLoadDossierDashboard={loadDossierDashboard}
           onLoadDossierChecklist={loadDossierChecklist}
@@ -2682,7 +2682,7 @@ export default function HRPage() {
         editMode={editMode}
         photoInputRef={photoInputRef}
         photoPreview={photoPreview}
-        canUploadPhoto={hasPermission('hr:manage') && hasPermission('hr:personal_sensitive')}
+        canUploadPhoto={hasPermission('hr:employees_manage') && hasPermission('hr:personal_sensitive')}
         contracts={employeeContracts}
         dossierSummary={selectedDossierSummary}
         expirations={selectedEmployeeExpirations}
@@ -2726,12 +2726,13 @@ export default function HRPage() {
             contracts={employeeContracts}
             amendments={employeeAmendments}
             transferHistory={transferHistory}
-            canManageHr={hasPerm('hr:manage')}
+            canManageFiles={hasPerm('hr:documents_manage')}
+            canSendDossierReminder={canManageSensitiveNotifications}
             canWriteField={canWriteField}
             canGenerateCertificate={canGenerateEmployeeCertificate}
-            canManageContracts={(hasPerm('hr:manage') || hasPerm('hr:contracts_manage')) && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
+            canManageContracts={hasPerm('hr:contracts_manage') && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
             canGenerateWord={hasPerm('hr:view') && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
-            canArchiveWord={hasPerm('hr:manage') && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
+            canArchiveWord={hasPerm('hr:documents_manage') && hasPerm('hr:personal_sensitive') && hasPerm('hr:salary_view')}
             canReadWorkflow={canReadWorkflow}
             canReadDossier={canReadDossier}
             canAccessFileType={type => canAccessHrFileType(user, employeeDetails || selectedEmployee, type, hasPermission)}

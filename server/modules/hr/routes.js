@@ -1707,7 +1707,7 @@ SELECT TOP 1 * FROM hr.overtime_compensations WHERE id=@compId FOR JSON PATH;`, 
 router.get('/hr/linkable-users', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+    if (!auth || !requirePermission(auth, res, 'hr:employees_manage')) return
     if (!requirePermission(auth, res, 'users:manage')) return
     const db = readDb()
     const users = (db.users || []).filter((item) => item.active !== false && item.active !== 0).map((item) => ({ id: item.id, username: item.username, name: item.name || item.fullName || item.username, role: item.role }))
@@ -1720,7 +1720,7 @@ router.get('/hr/employees', (req, res, next) => {
     const auth = requireAuth(req, res)
     if (!auth) return
     const hasFullView = authHasPermission(auth, 'hr:view')
-    const hasEmployeeManage = authHasPermission(auth, 'hr:employees_manage') || authHasPermission(auth, 'hr:manage')
+    const hasEmployeeManage = authHasPermission(auth, 'hr:employees_manage')
     const hasFullScope = hasFullView || hasEmployeeManage
     const hasEquipmentView = authHasPermission(auth, 'echipamente:gestionar')
     const hasDeptTimesheet = authHasPermission(auth, 'hr:timesheet_dept')
@@ -1775,7 +1775,7 @@ router.post('/hr/employees', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+    if (!requirePermission(auth, res, 'hr:employees_manage')) return
     const body = req.body || {}
     for (const permission of employeeWritePermissions(body)) if (!requirePermission(auth, res, permission)) return
     const cnpInfo = body.cnp ? valideazaCNP(body.cnp) : null
@@ -1934,7 +1934,7 @@ router.get('/hr/employees/template', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+    if (!requirePermission(auth, res, 'hr:employees_manage')) return
     const worksheet = xlsx.utils.aoa_to_sheet([
       ['CNP', 'Nume', 'Prenume', 'Nr.marca', 'Functia', 'Departament', 'Data angajarii'],
       ['1800101221144', 'Popescu', 'Ion', '1001', 'Muncitor calificat', 'Mecanizare', todayIso()]
@@ -1953,7 +1953,7 @@ router.get('/hr/employees/template', (req, res, next) => {
 function authorizeEmployeeImport(req, res, next) {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+  if (!requirePermission(auth, res, 'hr:employees_manage')) return
   if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
   next()
 }
@@ -1962,7 +1962,7 @@ router.post('/hr/employees/import', authorizeEmployeeImport, upload.single('file
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+    if (!requirePermission(auth, res, 'hr:employees_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!req.file) return sendJson(res, 400, { error: 'Fisierul este obligatoriu.' })
     const db = readDb()
@@ -2068,7 +2068,7 @@ router.get('/hr/employees/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!authHasPermission(auth, 'hr:view') && !authHasPermission(auth, 'hr:employees_manage') && !authHasPermission(auth, 'hr:manage') && !authHasPermission(auth, 'echipamente:gestionar')) {
+    if (!authHasPermission(auth, 'hr:view') && !authHasPermission(auth, 'hr:employees_manage') && !authHasPermission(auth, 'echipamente:gestionar')) {
       if (!requirePermission(auth, res, 'hr:view')) return
     }
 
@@ -2113,7 +2113,7 @@ router.patch('/hr/employees/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+    if (!requirePermission(auth, res, 'hr:employees_manage')) return
     const body = req.body || {}
     for (const permission of employeeWritePermissions(body)) if (!requirePermission(auth, res, permission)) return
     if (body.iban !== undefined && !isValidRomanianIban(body.iban)) return sendJson(res, 422, { error: 'IBAN invalid. Folosește formatul RO urmat de 22 caractere.' })
@@ -2236,7 +2236,7 @@ function authorizeEmployeePhotoUpload(req, res, next) {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:employees_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!/^\d+$/.test(String(req.params.id || ''))) return sendJson(res, 400, { error: 'Identificator angajat invalid.' })
     const db = readDb()
@@ -2252,7 +2252,7 @@ router.post('/hr/employees/:id/photo', authorizeEmployeePhotoUpload, photoUpload
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:employees_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!req.file) return sendJson(res, 400, { error: 'Fotografia este obligatorie.' })
     const db = readDb()
@@ -2359,7 +2359,7 @@ router.post('/hr/employees/:id/transfer', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:employees_manage'])) return
+    if (!requirePermission(auth, res, 'hr:employees_manage')) return
     const db = readDb()
     if (isMssqlMode()) {
       const rawDepartment = req.body.department_nou || req.body.dept_nou || req.body.departament_nou
@@ -2434,7 +2434,7 @@ router.post('/hr/employees/:id/contracts', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:contracts_manage'])) return
+    if (!requirePermission(auth, res, 'hr:contracts_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!requirePermission(auth, res, 'hr:salary_view')) return
     const year = new Date().getFullYear()
@@ -3219,7 +3219,7 @@ router.patch('/hr/employees/:id/contracts/:contractId', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:contracts_manage'])) return
+    if (!requirePermission(auth, res, 'hr:contracts_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!requirePermission(auth, res, 'hr:salary_view')) return
     const db = readDb()
@@ -3300,7 +3300,7 @@ router.put('/hr/document-templates/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:documents_manage')) return
     const db = readDb()
     const id = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
     const body = normalizeHrDocumentTemplate({ ...req.body, id })
@@ -3362,7 +3362,7 @@ FROM hr.document_templates WHERE id = @id FOR JSON PATH;
 function authorizeHrWordTemplateUpload(req, res, next) {
   const auth = requireAuth(req, res)
   if (!auth) return
-  if (!requirePermission(auth, res, 'hr:manage')) return
+  if (!requirePermission(auth, res, 'hr:documents_manage')) return
   next()
 }
 
@@ -3370,7 +3370,7 @@ router.post('/hr/document-templates/:id/word-template', authorizeHrWordTemplateU
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:documents_manage')) return
     const id = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
     if (!id) return sendJson(res, 400, { error: 'ID-ul sablonului este obligatoriu.' })
     if (!req.file) return sendJson(res, 422, { error: 'Incarca un fisier Word .docx.', code: 'HR_TEMPLATE_WORD_MISSING' })
@@ -3490,7 +3490,7 @@ router.post('/hr/document-templates/:id/render-word/archive', (req, res, next) =
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:documents_manage')) return
     const templateId = String(req.params.id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50)
     const rendered = renderHrWordDocument(auth, templateId, req.body || {})
     const files = ensureEmployeeFiles(rendered.db)
@@ -3594,7 +3594,7 @@ router.post('/hr/employees/:id/contracts/:contractId/amendments', (req, res, nex
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requireAnyPermission(auth, res, ['hr:manage', 'hr:contracts_manage'])) return
+    if (!requirePermission(auth, res, 'hr:contracts_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!requirePermission(auth, res, 'hr:salary_view')) return
     const db = readDb()
@@ -4215,7 +4215,7 @@ router.get('/hr/medical-leaves/register', (req, res, next) => {
 router.post('/hr/medical-leaves/:uuid/payroll', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
-    if (!auth || !requirePermission(auth, res, 'hr:manage')) return
+    if (!auth || !requirePermission(auth, res, 'hr:salary_manage')) return
     if (!requirePermission(auth, res, 'hr:medical_view')) return
     if (!requirePermission(auth, res, 'hr:salary_view')) return
     const dailyBase = numberValue(req.body?.baza_calcul_zilnica)
@@ -4954,7 +4954,7 @@ router.post('/hr/evaluations', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:evaluations_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     const validated = evaluationPayload(req.body, { auth, creating: true })
     if (validated.error) return sendJson(res, 422, { error: validated.error, code: 'HR_EVALUATION_INVALID' })
@@ -4997,7 +4997,7 @@ router.patch('/hr/evaluations/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:evaluations_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!/^[1-9]\d*$/.test(String(req.params.id)) || !Number.isSafeInteger(Number(req.params.id))) return sendJson(res, 404, { error: 'Evaluarea nu a fost gasita.' })
     const db = readDb()
@@ -5040,7 +5040,7 @@ router.delete('/hr/evaluations/:id', (req, res, next) => {
   try {
     const auth = requireAuth(req, res)
     if (!auth) return
-    if (!requirePermission(auth, res, 'hr:manage')) return
+    if (!requirePermission(auth, res, 'hr:evaluations_manage')) return
     if (!requirePermission(auth, res, 'hr:personal_sensitive')) return
     if (!/^[1-9]\d*$/.test(String(req.params.id)) || !Number.isSafeInteger(Number(req.params.id))) return sendJson(res, 404, { error: 'Evaluarea nu a fost gasita.' })
     const db = readDb()

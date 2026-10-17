@@ -1,5 +1,5 @@
 {
-  "version": "2.12.707",
-  "date": "2026-10-16",
-  "changelog": "## v2.12.707 - 2026-10-16\n\n### Salarizare separată între consultare și administrare\n\n- Consultarea salariilor rămâne protejată prin hr:salary_view.\n- Calculul, validarea, ajustările, plățile și configurarea cer noul drept hr:salary_manage.\n- Rolurile cu acces salarial complet existent sunt migrate o singură dată.\n- Sursa salarială MSSQL acceptă schema canonică și denumirea legacy a departamentelor.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "version": "2.12.709",
+  "date": "2026-10-17",
+  "changelog": "## v2.12.709 - 2026-10-17\n\n### Permisiuni dedicate pentru operațiunile HR\n\n- Documentele HR, onboarding/offboarding, notificările de dosar și evaluările au drepturi de administrare separate.\n- Interfața și API-ul nu mai folosesc hr:manage ca scurtătură pentru aceste operații.\n- Trimiterea concediilor medicale în salarizare cere hr:salary_manage.\n- Rolurile cu acces vechi sunt migrate o singură dată, fără reacordare ulterioară.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

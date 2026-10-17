@@ -12,9 +12,9 @@ export const ALL_HR_TABS = [
   { id: 'Concedii',           perm: 'hr:leave_manage' },
   { id: 'Autorizații',        perm: 'hr:authorizations_manage' },
   { id: '🦺 Echipamente',      perm: 'echipamente:gestionar', fallbackPerm: 'hr:view' },
-  { id: 'Training & Evaluări',perm: 'hr:training' },
+  { id: 'Training & Evaluări',perm: 'hr:training', anyPerm: ['hr:evaluations_manage'] },
   { id: 'Organigramă',        perm: 'hr:view' },
-  { id: 'Documente HR',       perm: 'hr:contracts_manage' },
+  { id: 'Documente HR',       perm: 'hr:documents_manage' },
 ]
 
 export function getVisibleHrTabs(hasPerm) {

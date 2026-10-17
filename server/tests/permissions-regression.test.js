@@ -89,6 +89,47 @@ test('migrarea salarizarii pastreaza accesul vechi o singura data', () => {
   assert.equal(role.permissions.includes('hr:salary_manage'), false)
 })
 
+test('migrarea HR separa administrarea angajatilor si contractelor o singura data', () => {
+  const settings = {
+    customRoles: [{
+      id: 'hr-local',
+      name: 'HR local',
+      permissions: ['hr:manage'],
+    }],
+  }
+
+  ensureDefaultCustomRoles(settings)
+  const role = settings.customRoles.find(item => item.id === 'hr-local')
+  assert.equal(role.permissions.includes('hr:employees_manage'), true)
+  assert.equal(role.permissions.includes('hr:contracts_manage'), true)
+  assert.ok(settings.permissionMigrations.hrEmployeeContractManageV212708)
+
+  role.permissions = role.permissions.filter(permission => !['hr:employees_manage', 'hr:contracts_manage'].includes(permission))
+  ensureDefaultCustomRoles(settings)
+  assert.equal(role.permissions.includes('hr:employees_manage'), false)
+  assert.equal(role.permissions.includes('hr:contracts_manage'), false)
+})
+
+test('migrarea HR separa documentele, fluxurile, notificarile si evaluarile o singura data', () => {
+  const settings = {
+    customRoles: [{
+      id: 'hr-local',
+      name: 'HR local',
+      permissions: ['hr:manage'],
+    }],
+  }
+
+  ensureDefaultCustomRoles(settings)
+  const role = settings.customRoles.find(item => item.id === 'hr-local')
+  const dedicated = ['hr:documents_manage', 'hr:workflow_manage', 'hr:notifications_manage', 'hr:evaluations_manage']
+  dedicated.forEach(permission => assert.equal(role.permissions.includes(permission), true))
+  assert.ok(settings.permissionMigrations.hrOperationalManageV212709)
+
+  role.permissions = role.permissions.filter(permission => !dedicated.includes(permission))
+  ensureDefaultCustomRoles(settings)
+  dedicated.forEach(permission => assert.equal(role.permissions.includes(permission), false))
+})
+
 test('salvarea și resetarea unui rol implicit sunt explicite și reversibile', () => {
   const db = { settings: {} }
   const user = { id: 'admin-1', name: 'Administrator' }

@@ -11,8 +11,8 @@ InfraFlow este un ERP comercial modular, self-hosted și cloud-ready, pentru fir
 Dezvoltat solo de Constantin Constantin, Piatra Neamț.
 Direcția curentă de produs: aplicație generală, configurabilă pe module, fără dependență de un client pilot.
 
-**Versiune curentă sursă: v2.12.707**
-**Versiune în lucru: v2.12.707**
+**Versiune curentă sursă: v2.12.709**
+**Versiune în lucru: v2.12.709**
 
 Rulează pe **Windows cu SQL Server Express** (MSSQL).
 Accesat din rețea locală + extern prin **Cloudflare Tunnel** sau domeniu propriu configurat de client.
@@ -447,6 +447,8 @@ Core System
   ✅ Permisiuni granulare pentru Operațiuni contabile, imobilizări și închidere anuală (v2.12.705)
   ✅ Permisiuni granulare pentru raportare și fiscalitate contabilă (v2.12.706)
   ✅ Salarizare separată între consultare și administrare, cu compatibilitate MSSQL (v2.12.707)
+  ✅ Administrare HR separată pentru angajați și contracte (v2.12.708)
+  ✅ Permisiuni dedicate pentru documente, fluxuri, notificări și evaluări HR (v2.12.709)
   ✅ Flux simplu Contract Management: contract → dosar complet → consum → alerte → task-uri → raport/închidere (v2.12.452)
 
 Gestiune / Depozit
@@ -1170,9 +1172,9 @@ Versiunea = MEREU din package.json (nu hardcodat)
 ## 7. VERSIONING & BUILD
 
 ```
-VERSIUNE CURENTĂ SURSĂ: 2.12.707
+VERSIUNE CURENTĂ SURSĂ: 2.12.709
 BUILD EXE EXISTENT: 2.12.581 ✅
-UPDATE ZIP CURENT: 2.12.707 ✅
+UPDATE ZIP CURENT: 2.12.709 ✅
 
 UPDATES ÎN LUCRU:
   2.10.6  → UPDATE 006 Referate ✅
@@ -1686,6 +1688,8 @@ UPDATES ÎN LUCRU:
   2.12.705 → UPDATE 725 permisiuni granulare Operațiuni contabile ✅
   2.12.706 → UPDATE 726 permisiuni granulare raportare și fiscalitate contabilă ✅
   2.12.707 → UPDATE 727 permisiuni granulare salarizare și compatibilitate MSSQL ✅
+  2.12.708 → UPDATE 728 administrare HR separată pentru angajați și contracte ✅
+  2.12.709 → UPDATE 729 permisiuni dedicate pentru documente, fluxuri, notificări și evaluări HR ✅
   2.12.669 → UPDATE 689 ajutor administrabil și capturi controlate ✅
   2.12.668 → UPDATE 688 închidere etapă operațională Logistică ✅
 
@@ -2184,5 +2188,5 @@ PRINCIPIU: Codul care funcționează în producție
 
 ---
 
-*AGENTS.md actualizat: 16 Octombrie 2026 | InfraFlow sursă v2.12.707*
+*AGENTS.md actualizat: 17 Octombrie 2026 | InfraFlow sursă v2.12.709*
 *Actualizează acest fișier la orice schimbare majoră de arhitectură sau stare module.*

@@ -1,3 +1,24 @@
+## v2.12.709 - 2026-10-17
+
+### Permisiuni dedicate pentru documente, fluxuri, notificări și evaluări HR
+
+- `hr:documents_manage` protejează șabloanele, încărcarea, reclasificarea, arhivarea și anularea documentelor HR.
+- `hr:workflow_manage` protejează pornirea, parcurgerea și închiderea fluxurilor de onboarding/offboarding.
+- `hr:notifications_manage` protejează generarea, distribuirea și rezolvarea notificărilor sensibile de dosar.
+- `hr:evaluations_manage` protejează crearea, modificarea și ștergerea evaluărilor; citirea nominală păstrează dreptul sensibil personal.
+- Trimiterea unui concediu medical verificat către salarizare cere acum explicit `hr:salary_manage`, împreună cu accesul medical și salarial de consultare.
+- Rolurile care aveau `hr:manage` primesc o singură dată noile drepturi pentru continuitate; retragerea ulterioară rămâne efectivă.
+
+## v2.12.708 - 2026-10-16
+
+### Administrare HR separată pentru angajați și contracte
+
+- `hr:employees_manage` protejează explicit fișele, importul, asocierea conturilor, transferurile și fotografiile angajaților.
+- `hr:contracts_manage` protejează explicit contractele de muncă și actele adiționale.
+- Interfața nu mai folosește `hr:manage` drept scurtătură pentru editarea angajaților sau contractelor.
+- Accesul la date personale, medicale și salariale continuă să necesite drepturile sensibile corespunzătoare.
+- Rolurile cu `hr:manage` primesc o singură dată drepturile dedicate pentru păstrarea accesului existent; după migrare, retragerea lor rămâne efectivă.
+
 ## v2.12.707 - 2026-10-16
 
 ### Salarizare separată între consultare și administrare

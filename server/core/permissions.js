@@ -41,7 +41,7 @@ const permissionGroups = {
   integration: ["integration:intersoft_view", "integration:intersoft_import", "integration:intersoft_export"],
   controlling: ["controlling:view", "controlling:view_all", "controlling:entry_create", "controlling:entry_validate", "controlling:budget_manage", "controlling:cost_centers", "controlling:reports", "controlling:nexus_export"],
   accountingCore: ["accounting:view", "accounting:manage", "accounting:post", "accounting:close", "accounting:reports", "accounting:alerts"],
-  hr: ["hr:view", "hr:view_own", "hr:leave_own", "hr:manage", "hr:employees_manage", "hr:personal_sensitive", "hr:medical_view", "hr:timesheet", "hr:timesheet_dept", "hr:timesheets_view", "hr:timesheets_manage", "hr:timesheet_approve", "hr:timesheets_validate", "hr:leave_manage", "hr:authorizations_manage", "hr:contracts_manage", "hr:reports", "hr:reges_export", "hr:salary_view", "hr:salary_manage", "hr:training"],
+  hr: ["hr:view", "hr:view_own", "hr:leave_own", "hr:manage", "hr:employees_manage", "hr:documents_manage", "hr:workflow_manage", "hr:notifications_manage", "hr:evaluations_manage", "hr:personal_sensitive", "hr:medical_view", "hr:timesheet", "hr:timesheet_dept", "hr:timesheets_view", "hr:timesheets_manage", "hr:timesheet_approve", "hr:timesheets_validate", "hr:leave_manage", "hr:authorizations_manage", "hr:contracts_manage", "hr:reports", "hr:reges_export", "hr:salary_view", "hr:salary_manage", "hr:training"],
   echipamente: ["echipamente:gestionar"],
   sanitation: ["sanitation:view", "sanitation:collect", "sanitation:manage", "sanitation:report", "sanitation:contracts"],
   traffic_safety: ["traffic_safety:view", "traffic_safety:inspect", "traffic_safety:work_order", "traffic_safety:manage", "traffic_safety:report"],
@@ -300,8 +300,12 @@ const permissionLabels = {
   "hr:view": "Vede angajati si pontaje",
   "hr:view_own": "HR — date proprii (Kiosk)",
   "hr:leave_own": "Concedii — cerere proprie (Kiosk)",
-  "hr:manage": "Administreaza angajati si contracte",
+  "hr:manage": "Administrare generala HR",
   "hr:employees_manage": "Administreaza angajati",
+  "hr:documents_manage": "Administreaza documente HR",
+  "hr:workflow_manage": "Administreaza onboarding si offboarding",
+  "hr:notifications_manage": "Administreaza notificari dosare HR",
+  "hr:evaluations_manage": "Administreaza evaluari HR",
   "hr:personal_sensitive": "Vede date personale sensibile HR",
   "hr:medical_view": "Vede date medicale HR",
   "hr:timesheet": "Completeaza pontaje",
@@ -480,6 +484,10 @@ const rolePermissions = {
     "hr:view",
     "hr:employees_manage",
     "hr:manage",
+    "hr:documents_manage",
+    "hr:workflow_manage",
+    "hr:notifications_manage",
+    "hr:evaluations_manage",
     "hr:timesheets_view",
     "hr:timesheet",
     "hr:timesheet_dept",
@@ -693,7 +701,8 @@ const DEFAULT_CUSTOM_ROLES = [
     tip: 'default',
     permissions: [
       'dashboard:view',
-      'hr:view', 'hr:manage', 'hr:employees_manage', 'hr:personal_sensitive', 'hr:medical_view',
+      'hr:view', 'hr:manage', 'hr:employees_manage', 'hr:documents_manage', 'hr:workflow_manage',
+      'hr:notifications_manage', 'hr:evaluations_manage', 'hr:personal_sensitive', 'hr:medical_view',
       'hr:timesheet', 'hr:timesheets_view', 'hr:timesheets_manage',
       'hr:timesheet_approve', 'hr:timesheets_validate',
       'hr:leave_manage', 'hr:authorizations_manage', 'hr:contracts_manage',
@@ -843,6 +852,39 @@ function ensureDefaultCustomRoles(settings) {
       }
     });
     settings.permissionMigrations.salaryManageV212707 = new Date().toISOString();
+    changed = true;
+  }
+  if (!settings.permissionMigrations.hrEmployeeContractManageV212708) {
+    settings.customRoles.forEach(role => {
+      const permissions = Array.isArray(role.permissions) ? role.permissions : [];
+      // `hr:manage` acorda istoric acces la administrarea angajatilor si a
+      // contractelor. Copiem explicit drepturile o singura data, apoi ele pot
+      // fi retrase separat fara ca aliasul larg sa le reactiveze.
+      if (permissions.includes('hr:manage')) {
+        for (const permission of ['hr:employees_manage', 'hr:contracts_manage']) {
+          if (!permissions.includes(permission)) {
+            permissions.push(permission);
+            changed = true;
+          }
+        }
+      }
+    });
+    settings.permissionMigrations.hrEmployeeContractManageV212708 = new Date().toISOString();
+    changed = true;
+  }
+  if (!settings.permissionMigrations.hrOperationalManageV212709) {
+    settings.customRoles.forEach(role => {
+      const permissions = Array.isArray(role.permissions) ? role.permissions : [];
+      if (permissions.includes('hr:manage')) {
+        for (const permission of ['hr:documents_manage', 'hr:workflow_manage', 'hr:notifications_manage', 'hr:evaluations_manage']) {
+          if (!permissions.includes(permission)) {
+            permissions.push(permission);
+            changed = true;
+          }
+        }
+      }
+    });
+    settings.permissionMigrations.hrOperationalManageV212709 = new Date().toISOString();
     changed = true;
   }
   return changed;

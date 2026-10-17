@@ -22,7 +22,8 @@ export default function HREmployeeProfileTabsRouter({
   contracts,
   amendments,
   transferHistory,
-  canManageHr,
+  canManageFiles = false,
+  canSendDossierReminder = false,
   canManageContracts = false,
   canGenerateCertificate = false,
   canWriteField = () => false,
@@ -125,7 +126,7 @@ export default function HREmployeeProfileTabsRouter({
       <HREmployeeFilesTab
         employeeId={employee.id}
         canAccessFileType={canAccessFileType}
-        canManage={canManageHr}
+        canManage={canManageFiles}
         onError={onError}
         suggestedUpload={suggestedUpload}
         onSuggestionUsed={onSuggestionUsed}
@@ -139,7 +140,7 @@ export default function HREmployeeProfileTabsRouter({
         canRead={canReadDossier}
         dossierSummary={dossierSummary}
         expirations={expirations}
-        onSendReminder={canManageHr && canReadWorkflow ? onSendDossierReminder : null}
+        onSendReminder={canSendDossierReminder && canReadWorkflow ? onSendDossierReminder : null}
       />
     )
   }

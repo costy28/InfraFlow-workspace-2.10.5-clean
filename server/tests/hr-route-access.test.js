@@ -269,7 +269,7 @@ test('rutele HR relaționale execută SQL real într-o bază sintetică izolată
   assert.equal(schedule.data.length, 8)
   assert.ok(schedule.data.some(item => item.employee_id === 1 && item.department === 'Unu' && item.tip_curs === 'SSM'))
   assert.ok(schedule.data.some(item => item.employee_id === 2 && item.department === 'Doi'))
-  f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:manage', 'hr:personal_sensitive']
+  f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:evaluations_manage', 'hr:personal_sensitive']
   f.auth.user.name = 'Evaluator SQL'
   assert.equal(sql('SELECT COUNT(*) FROM hr.evaluations;').trim(), '1')
   const importedEvaluation = await f.invoke('get /hr/evaluations', {}, { employee_id: 2, year: '2026' })
@@ -427,7 +427,7 @@ test('evaluările individuale cer acces personal și dreptul operației', async 
   f.db.hr.evaluations = [{ id: 1, employee_id: 2, observatii: 'Confidențial' }]
   assert.equal((await f.invoke('get /hr/evaluations')).data[0].observatii, 'Confidențial')
   assert.equal((await f.invoke('post /hr/evaluations', { employee_id: 2 })).code, 403)
-  f.db.settings.customRoles[0].permissions.push('hr:manage')
+  f.db.settings.customRoles[0].permissions.push('hr:evaluations_manage')
   assert.equal((await f.invoke('post /hr/evaluations', { employee_id: 2 })).code, 201)
   assert.equal(f.writes(), 1)
 })
@@ -446,7 +446,7 @@ test('evaluările validează angajatul și câmpurile fără a permite falsifica
   ]
   for (const body of invalid) {
     const f = fixture()
-    f.db.settings.customRoles[0].permissions = ['hr:manage', 'hr:personal_sensitive']
+    f.db.settings.customRoles[0].permissions = ['hr:evaluations_manage', 'hr:personal_sensitive']
     const result = await f.invoke('post /hr/evaluations', body)
     assert.equal(result.code, 422)
     assert.equal(result.data.code, 'HR_EVALUATION_INVALID')
@@ -455,13 +455,13 @@ test('evaluările validează angajatul și câmpurile fără a permite falsifica
   }
 
   const missing = fixture()
-  missing.db.settings.customRoles[0].permissions = ['hr:manage', 'hr:personal_sensitive']
+  missing.db.settings.customRoles[0].permissions = ['hr:evaluations_manage', 'hr:personal_sensitive']
   assert.equal((await missing.invoke('post /hr/evaluations', { employee_id: 999, data_evaluare: '2026-10-11' })).data.code, 'HR_EVALUATION_EMPLOYEE_NOT_FOUND')
   assert.equal(missing.writes(), 0)
 
   const f = fixture()
   f.auth.user.name = 'Evaluator Real'
-  f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:manage', 'hr:personal_sensitive']
+  f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:evaluations_manage', 'hr:personal_sensitive']
   const created = await f.invoke('post /hr/evaluations', {
     employee_id: 1, evaluator_id: 'spoof', evaluator_name: 'Spoof', data_evaluare: '2026-10-11',
     tip: ' ANUALA ', calificativ: 'fb', punctaj: '97.25', observatii: '  Bun  ', extra: 'secret',
@@ -720,7 +720,7 @@ test('upload foto verifică drepturile și angajatul înainte de middleware mult
 
 test('upload foto autorizat acceptă doar un angajat existent cu ID valid', () => {
   const f = fixture({ photo: true })
-  f.db.settings.customRoles[0].permissions = ['hr:manage', 'hr:personal_sensitive']
+  f.db.settings.customRoles[0].permissions = ['hr:employees_manage', 'hr:personal_sensitive']
   assert.equal(f.preflight('post /hr/employees/:id/photo', { id: '../x' }).code, 400)
   assert.equal(f.preflight('post /hr/employees/:id/photo', { id: 999 }).code, 404)
   assert.equal(f.preflight('post /hr/employees/:id/photo', { id: 2 }).continued, true)
@@ -780,9 +780,9 @@ test('decizia medicală păstrează detaliile pentru titular sau drept medical e
   }
 })
 
-test('transferul autorizat funcționează fără a returna fișa sensibilă completă', async () => {
+test('transferul cu drept dedicat funcționează fără a returna fișa sensibilă completă', async () => {
   const f = fixture()
-  f.db.settings.customRoles[0].permissions = ['hr:manage']
+  f.db.settings.customRoles[0].permissions = ['hr:employees_manage']
   f.db.departments = [{ id: 'd1', cod: 'OLD', name: 'Vechi' }, { id: 'd2', cod: 'NEW', name: 'Nou' }]
   Object.assign(f.db.hr.employees[1], { department_id: 'd1', department_cod: 'OLD', cnp: '123', iban: 'RO00', salariu_baza: 7000, cost_ora: 42, apt_medical_expira: '2026-12-01' })
   const result = await f.invoke('post /hr/employees/:id/transfer', { department_nou: 'd2', motiv: 'Reorganizare' }, {}, { id: 2 })
@@ -1429,7 +1429,7 @@ test('generarea și arhivarea Word nu ocolesc drepturile personale și salariale
   for (const route of ['get /hr/document-templates/:id/render-word', 'post /hr/document-templates/:id/render-word/archive']) {
     for (const rights of [[], ['hr:personal_sensitive'], ['hr:salary_view']]) {
       const f = fixture()
-      f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:manage', ...rights]
+      f.db.settings.customRoles[0].permissions = ['hr:view', 'hr:documents_manage', ...rights]
       await assert.rejects(f.invoke(route, { employee_id: 2 }, { employee_id: 2 }, { id: 'cim' }), error => error.status === 403 && error.code === 'HR_DOCUMENT_SENSITIVE_ACCESS_REQUIRED')
       assert.equal(f.writes(), 0)
     }
@@ -1449,7 +1449,7 @@ test('uploadul șablonului Word verifică autentificarea și administrarea HR î
   assert.equal(unauthorizedResult.continued, false)
 
   const authorized = fixture()
-  authorized.db.settings.customRoles[0].permissions = ['hr:manage']
+  authorized.db.settings.customRoles[0].permissions = ['hr:documents_manage']
   const authorizedResult = authorized.preflight('post /hr/document-templates/:id/word-template', { id: 'cim' })
   assert.equal(authorizedResult.continued, true)
 })

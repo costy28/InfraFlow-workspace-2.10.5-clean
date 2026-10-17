@@ -98,7 +98,7 @@ test('administrarea HR nu permite generarea sau anularea contractului inaccesibi
 })
 
 test('reclasificarea cere acces atât la categoria veche cât și la cea nouă', () => {
-  const f = fixture(['hr:manage', 'hr:personal_sensitive', 'hr:salary_view'])
+  const f = fixture(['hr:documents_manage', 'hr:personal_sensitive', 'hr:salary_view'])
   const result = f.invoke('patch /hr/employees/:id/files/:fileId', { id: 2, fileId: 2 }, { tip: 'medical' })
   assert.equal(result.code, 403)
   assert.equal(f.db.hr.employeeFiles[1].tip, 'contract')
@@ -149,7 +149,7 @@ test('Dashboard-ul dosarului rămâne disponibil cu drepturile sensibile', () =>
 
 test('fluxurile HR complete nu se deschid sau modifică fără drepturi sensibile', () => {
   for (const route of ['get /hr/employees/:id/workflow', 'post /hr/employees/:id/workflow/start', 'patch /hr/employees/:id/workflow/steps/:stepKey', 'post /hr/employees/:id/workflow/close']) {
-    const f = fixture(['hr:view', 'hr:manage', 'hr:personal_sensitive', 'hr:medical_view'])
+    const f = fixture(['hr:view', 'hr:workflow_manage', 'hr:personal_sensitive', 'hr:medical_view'])
     assert.equal(f.invoke(route, { id: 2, stepKey: 'apt_medical' }, { type: 'onboarding', done: true }).code, 403)
     assert.equal(f.writes(), 0)
     assert.equal(f.db.hr.employeeWorkflows, undefined)
@@ -157,7 +157,7 @@ test('fluxurile HR complete nu se deschid sau modifică fără drepturi sensibil
 })
 
 test('pornirea onboarding autorizat păstrează fluxul și scrierea auditată', () => {
-  const f = fixture(['hr:view', 'hr:manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view'])
+  const f = fixture(['hr:view', 'hr:workflow_manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view'])
   const result = f.invoke('post /hr/employees/:id/workflow/start', { id: 2 }, { type: 'onboarding' })
   assert.equal(result.code, 201)
   assert.equal(result.data.workflow.employee_id, 2)
@@ -166,7 +166,7 @@ test('pornirea onboarding autorizat păstrează fluxul și scrierea auditată', 
 
 test('reminderul Kiosk nu modifică dosarul fără toate drepturile sensibile', () => {
   for (const missing of ['hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view']) {
-    const permissions = ['hr:manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view'].filter(p => p !== missing)
+    const permissions = ['hr:notifications_manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view'].filter(p => p !== missing)
     const f = fixture(permissions)
     assert.equal(f.invoke('post /hr/dossier-dashboard/:employeeId/reminder', { employeeId: 2 }).code, 403)
     assert.equal(f.writes(), 0)
@@ -176,7 +176,7 @@ test('reminderul Kiosk nu modifică dosarul fără toate drepturile sensibile', 
 test('notificările sensibile cer toate drepturile înainte de citire sau scriere', () => {
   for (const route of ['post /hr/advanced-expirations/notify', 'post /hr/notifications/generate', 'get /hr/advanced-expirations/notifications', 'post /hr/advanced-expirations/notifications/:id/resolve']) {
     for (const missing of ['hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view']) {
-      const f = fixture(['hr:manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view'].filter(p => p !== missing))
+      const f = fixture(['hr:notifications_manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view'].filter(p => p !== missing))
       assert.equal(f.invoke(route, { id: 'n1' }).code, 403)
       assert.equal(f.writes(), 0)
       assert.equal(f.db.notifications, undefined)
@@ -185,7 +185,7 @@ test('notificările sensibile cer toate drepturile înainte de citire sau scrier
 })
 
 test('notificările detaliate nu sunt distribuite rolurilor HR limitate', () => {
-  const f = fixture(['hr:manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view'])
+  const f = fixture(['hr:notifications_manage', 'hr:personal_sensitive', 'hr:medical_view', 'hr:salary_view'])
   f.db.settings.customRoles.push({ id: 'partial', permissions: ['hr:authorizations_manage'] })
   f.db.users = [f.auth.user, { id: 'limited-recipient', role: 'partial', active: true }]
   f.db.hr.employees[1].apt_medical_expira = '2020-01-01'
