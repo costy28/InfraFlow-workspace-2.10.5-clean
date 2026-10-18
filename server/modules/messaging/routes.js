@@ -288,7 +288,7 @@ function publicEmailSource(auth, message) {
     try {
       const row = type === 'crm_quote' ? require('../crm/quote-repository').getQuote(id)
         : type === 'crm_lead' ? require('../crm/repository').getLead(id) : require('../crm/order-repository').getOrder(id)
-      if (row) target = { target_id: String(row.id), target_label: compactLabel(row.quote_number || row.order_number || row.title || id), target_url: type === 'crm_quote' ? `/crm/oferte/${encodeURIComponent(String(row.id))}` : type === 'crm_lead' ? `/crm/leads/${encodeURIComponent(String(row.id))}` : null }
+      if (row) target = { target_id: String(row.id), target_label: compactLabel((type === 'crm_customer_order' ? row.order_number : type === 'crm_quote' ? row.quote_number : row.title) || id), target_url: type === 'crm_quote' ? `/crm/oferte/${encodeURIComponent(String(row.id))}` : type === 'crm_lead' ? `/crm/leads/${encodeURIComponent(String(row.id))}` : null }
     } catch { auth.emailCrmSourceCache.set(key, hidden); return hidden }
     const value = target ? { source_type: type, source_id: target.target_id, source_label: target.target_label, source_url: target.target_url } : hidden
     auth.emailCrmSourceCache.set(key, value)

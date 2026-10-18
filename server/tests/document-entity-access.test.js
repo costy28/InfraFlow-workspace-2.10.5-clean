@@ -20,6 +20,11 @@ test('document străin: dreptul propriu și partajarea nu conferă acces global'
   assert.equal(canView(auth(['documents:view_all']), document), true)
   assert.equal(canView(auth(['documents:view_own']), { ...document, creat_de: 'reader' }), true)
 })
+test('parametrii SQL de departament sunt UUID nullable, fără conversie implicită a șirului gol', () => {
+  assert.equal((source.match(/DECLARE @deptId uniqueidentifier = TRY_CONVERT\(uniqueidentifier, JSON_VALUE\(@p, '\$\.deptId'\)\);/g) || []).length, 3)
+  assert.ok(!source.includes('DECLARE @deptId nvarchar'))
+  assert.ok(!source.includes("NULLIF(@deptId, N'')"))
+})
 test('context relațional: numai pasul sau partajarea documentului cerut acordă acces', () => {
   const actor = auth()
   assert.equal(canView(actor, document, { steps: [{ document_id: 7, user_responsabil: 'reader' }] }), true)

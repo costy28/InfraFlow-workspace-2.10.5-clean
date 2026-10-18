@@ -1,3 +1,34 @@
+## v2.12.733 - 2026-10-18
+
+### Migrare Controlling protejată
+
+- Migrare 065b înainte de 066: pregătirea coloanelor de anulare în batch separat, fără rescrierea migrării istorice.
+- Curățarea se oprește cu mesaj de verificare manuală pentru centre personalizate cu coduri istorice sau referințe operaționale detectate. Nu redenumește și nu șterge date pentru a forța migrarea.
+- Configurația MSSQL standard rămâne neschimbată; modul relațional extins nu este activat automat.
+
+## v2.12.732 - 2026-10-18
+
+### Pregătire migrare HR relațională
+
+- Migrare 062b idempotentă, înainte de 063, pentru coloanele generated/requires_ack/kiosk_visible. Evită compilarea UPDATE cu o coloană adăugată în același batch.
+- Migrarea istorică 063 nu este rescrisă; nu se șterg documente și nu se activează automat modul relațional extins.
+- Diagnostic intern opt-in de schemă pe SQL sintetic și teste de contract pentru autentificarea driverului implicit.
+
+## v2.12.731 - 2026-10-18
+
+### Surse comenzi CRM în Email
+
+- Eticheta unei surse comandă folosește numărul comenzii, nu numărul ofertei asociate. Permisiunile și lipsa unei rute UI pentru comandă rămân neschimbate.
+- Test opt-in pentru login/sesiuni reale și surse CRM relaționale pe SQL izolat, prin adaptor app-state de test; fără pornirea completă app.js.
+
+## v2.12.730 - 2026-10-18
+
+### Documente pe SQL Server
+
+- Parametrii de departament sunt UUID nullable; utilizatorii fără departament nu mai produc eroare de conversie în liste.
+- Test izolat cu 19 cereri HTTP și 35 interogări SQL reale pentru acces, partajări, urmărire, PDF, aprobare și surse Email. Autentificarea și starea generală sunt simulate.
+- Matrice documentată pentru rolurile Documente/Mesaje; fără modificări de schemă sau ștergeri de date.
+
 ## v2.12.729 - 2026-10-17
 
 ### Surse Email autorizate și atașamente controlate

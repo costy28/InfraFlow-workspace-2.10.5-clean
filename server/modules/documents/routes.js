@@ -889,13 +889,13 @@ router.get('/documents/shared', (req, res, next) => {
     if (isMssqlMode()) {
       const documents = mssqlArray(`
 DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
-DECLARE @deptId nvarchar(64) = JSON_VALUE(@p, '$.deptId');
+DECLARE @deptId uniqueidentifier = TRY_CONVERT(uniqueidentifier, JSON_VALUE(@p, '$.deptId'));
 SELECT d.id, d.uuid, d.tip_id, d.nr_document, d.titlu, d.date_json, d.status, d.versiune, d.creat_de, d.dept_initiatoare,
   d.prioritate, d.termen_limita, d.fisier_draft_path, d.fisier_final_path, d.created_at, d.updated_at
 FROM documents.documents d
 WHERE EXISTS (
   SELECT 1 FROM documents.document_shares s WHERE s.document_id = d.id
-  AND (s.shared_with_user = @userId OR (NULLIF(@deptId, N'') IS NOT NULL AND s.shared_with_dept = @deptId))
+  AND (s.shared_with_user = @userId OR (@deptId IS NOT NULL AND s.shared_with_dept = @deptId))
   AND (s.expires_at IS NULL OR s.expires_at > sysdatetime())
 )
 ORDER BY d.created_at DESC
@@ -926,7 +926,7 @@ router.get('/documents/watched', (req, res, next) => {
       const canDept = userHasPermission(auth.db, auth.user, 'documents:view_dept')
       const documents = mssqlArray(`
 DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
-DECLARE @deptId nvarchar(64) = JSON_VALUE(@p, '$.deptId');
+DECLARE @deptId uniqueidentifier = TRY_CONVERT(uniqueidentifier, JSON_VALUE(@p, '$.deptId'));
 DECLARE @canAll bit = CASE WHEN JSON_VALUE(@p, '$.canAll') = N'true' THEN 1 ELSE 0 END;
 DECLARE @canDept bit = CASE WHEN JSON_VALUE(@p, '$.canDept') = N'true' THEN 1 ELSE 0 END;
 SELECT TOP 25 d.id, d.uuid, d.tip_id, COALESCE(t.tip_document, d.tip_id) AS tip_document, t.denumire AS tip_document_label,
@@ -947,10 +947,10 @@ WHERE EXISTS (
   FROM OPENJSON(CASE WHEN ISJSON(d.date_json) = 1 THEN d.date_json ELSE N'{}' END, '$.watchers')
   WHERE CONVERT(nvarchar(64), [value]) = @userId
 )
-  AND (@canAll = 1 OR d.creat_de = @userId OR (@canDept = 1 AND NULLIF(@deptId, N'') IS NOT NULL AND d.dept_initiatoare = @deptId)
+  AND (@canAll = 1 OR d.creat_de = @userId OR (@canDept = 1 AND @deptId IS NOT NULL AND d.dept_initiatoare = @deptId)
     OR EXISTS (SELECT 1 FROM documents.circuit_steps access_step WHERE access_step.document_id = d.id AND access_step.user_responsabil = @userId)
     OR EXISTS (SELECT 1 FROM documents.document_shares access_share WHERE access_share.document_id = d.id
-      AND (access_share.shared_with_user = @userId OR (NULLIF(@deptId, N'') IS NOT NULL AND access_share.shared_with_dept = @deptId))
+      AND (access_share.shared_with_user = @userId OR (@deptId IS NOT NULL AND access_share.shared_with_dept = @deptId))
       AND (access_share.expires_at IS NULL OR access_share.expires_at > sysdatetime())))
 ORDER BY COALESCE(d.updated_at, d.created_at) DESC
 FOR JSON PATH;
@@ -980,7 +980,7 @@ router.get('/documents', (req, res, next) => {
       const canDept = userHasPermission(auth.db, auth.user, 'documents:view_dept')
       const documents = mssqlArray(`
 DECLARE @userId nvarchar(64) = JSON_VALUE(@p, '$.userId');
-DECLARE @deptId nvarchar(64) = JSON_VALUE(@p, '$.deptId');
+DECLARE @deptId uniqueidentifier = TRY_CONVERT(uniqueidentifier, JSON_VALUE(@p, '$.deptId'));
 DECLARE @canAll bit = CASE WHEN JSON_VALUE(@p, '$.canAll') = N'true' THEN 1 ELSE 0 END;
 DECLARE @canDept bit = CASE WHEN JSON_VALUE(@p, '$.canDept') = N'true' THEN 1 ELSE 0 END;
 DECLARE @tip nvarchar(20) = NULLIF(JSON_VALUE(@p, '$.tip'), N'');

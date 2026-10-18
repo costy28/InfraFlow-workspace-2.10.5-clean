@@ -148,3 +148,33 @@ Metadatele `source_*` sunt rezolvate în contextul autorizat, inclusiv în răsp
 Atașamentele Inbox rămân copii consultabile cu `messaging:view`; nu se introduc permisiuni noi sau acces la fișiere originale. Lista și descărcarea folosesc aceleași indexuri normalizate. Indexuri invalide și emailuri anulate sunt refuzate; numele Unicode, antetele și MIME sunt tratate controlat, fără cache și cu nosniff.
 
 47 teste și 24 scenarii HTTP/recitire trecute, inclusiv descărcare reală de octeți din baza JSON temporară. CRM/SQL testate prin executor simulat, nu integrare SQL live. Urmează verificarea integrată SQL Server a fluxurilor Documente/Mesaje modificate și consolidarea matricei finale de roluri; nu se declară întregul ERP auditat.
+
+## Verificare SQL Documente — v2.12.730, 18 octombrie 2026
+
+Testul izolat a trecut cu 19 cereri HTTP și 35 interogări SQL reale. A identificat și permis corectarea conversiei departamentului gol în UUID. Aprobarea persistă starea și auditul; expirarea partajării revocă accesul și metadatele Email. Autentificarea și starea generală sunt simulate, nu instalația completă. Regresie: 48 teste unitare/policy și 24 scenarii JSON trecute. Matrice consolidată și limite: `MATRICE_ROLURI_DOCUMENTE_MESAJE_2026-10-18.md`. Nu se declară întregul ERP auditat.
+
+## Login și surse CRM SQL — v2.12.731, 18 octombrie 2026
+
+9 cereri HTTP / 35 interogări SQL trecute: login și audit reale, Bearer, refuz fără token/parolă greșită, acces Documente, surse CRM reale, ID lipsă/lead anulat, revocare drepturi și cont dezactivat. Descoperită și corectată eticheta comenzii care prelua numărul ofertei asociate. 49 teste unitare/policy și 24 scenarii JSON trecute; build și audit expuneri OK. Adaptor app-state de test pe SQL, nu pornire completă app.js/core/db; limitele sunt explicate în matrice. Nicio instalație repornită, fără integrare externă apelată.
+
+## Acceptanță app.js complet pe MSSQL standard — 18 octombrie 2026
+
+Test nou opt-in `full-app-mssql-http.test.js`: 18 cereri HTTP, două porniri reale, auth/core-db/API roluri și utilizatori neînlocuite. Drepturile retrase se aplică în sesiunea existentă; dezactivarea, urmărirea și auditul persistă în SQL și sunt confirmate după restartul procesului de test. Bază păstrată: `INFRAFLOW_TEST_DOCS_E5A0EA708F76`. Regresie rerulată: 49 teste/policy, audit expuneri zero constatări.
+
+Configurație standard app-state, flag relațional extins oprit. Executorul Windows PowerShell funcțional; pool-ul Node nu s-a autentificat cu Windows Integrated Security și rămâne nevalidat. Prima încercare a expus limita bufferului și curățarea procesului în infrastructura testului, ambele corectate înaintea reluării integrale reușite. Fără modificări noi de runtime sau versiune; nu este necesară instalarea unui update suplimentar. Matricea conține comenzile, jurnalul și limitele. Nu se declară întregul ERP auditat.
+
+## Diagnostic relațional — v2.12.732, 18 octombrie 2026
+
+Driver implicit Tedious: autentificarea Windows Trusted Connection nu este suportată; parserul instalat ignoră Integrated Security. Două teste de contract și documentația oficială confirmă cauza; fără dependență nativă nouă sau schimbarea autentificării. SQL-login live și transportul pooled rămân de verificat separat.
+
+Auditul real al schemei a identificat eroarea de compilare a coloanei generated la 063. Migrarea pregătitoare nouă 062b remediază problema fără rescrierea istoricului. Test SQL trecut cu reproducere, aplicări repetate și trei documente păstrate; 52 teste fără SQL trecute, un test SQL sărit explicit, iar rularea opt-in dedicată are două teste trecute. Build/audit expuneri/release check fără ZIP reușite.
+
+Reluarea a trecut 73 fișiere și a ajuns la eroarea separată 066 cancelled_at/cancelled_reason. Aceasta rămâne următorul pas, cu verificarea efectelor asupra centrelor și asocierilor. Lipsește și fișierul general de import app-state → relațional. Schema extinsă nu este declarată finalizată și nu a fost activată pe instalații. Matricea detaliază bazele sintetice și limitele.
+
+## Preflight Controlling — v2.12.733, 18 octombrie 2026
+
+Migrare 065b înainte de 066: coloane pregătite separat și gardă pentru coduri istorice personalizate sau cu referințe operaționale. Cazurile ambigue cer verificare manuală, fără forțarea curățării. Migrarea istorică nu este editată; dacă este deja înregistrată ca aplicată, garda nu blochează retroactiv upgrade-ul.
+
+SQL real trecut (`INFRAFLOW_TEST_DOCS_7EB4BD34A9F1`): reproducere, coliziune ADMINISTRATIV, asociere/buget/vehicul, idempotentă și istoric. 18 centre și datele clientului păstrate. 53 teste fără SQL trecute, două sărite explicit; testul SQL dedicat are două teste trecute. Build și audit expuneri OK. Limite: nu pornește întreaga aplicație, nu validează toate schemele personalizate, nu livrează sincronizarea generală app-state și nu activează modul relațional pe instalații.
+
+Diagnosticul integral de schemă a trecut 76 fișiere în `INFRAFLOW_TEST_DOCS_41D829A28C3C`, inclusiv 066/067. Următorul blocaj este 068, indexul filtrat pentru task-uri contractuale, cu eroare SQL lângă NOT. Nu este inclus în remedierea curentă; celelalte fișiere și sincronizarea generală rămân de verificat. Nu se declară schema integral validată.

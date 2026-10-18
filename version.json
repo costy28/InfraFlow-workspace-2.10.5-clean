@@ -1,5 +1,5 @@
 {
-  "version": "2.12.729",
-  "date": "2026-10-17",
-  "changelog": "## v2.12.729 - 2026-10-17\n\n### Surse Email și atașamente controlate\n\n- Sursele sunt afișate numai dacă pot fi rezolvate și autorizate.\n- Atașamentele au indexuri coerente, nume și antete de descărcare validate.\n- Conținutul emailurilor nu este șters sau rescris.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "version": "2.12.733",
+  "date": "2026-10-18",
+  "changelog": "## v2.12.733 - 2026-10-18\n\n### Migrare Controlling protejată\n\n- Pregătire separată a coloanelor pentru migrarea 066.\n- Verificare manuală cerută pentru coduri istorice personalizate sau cu referințe operaționale.\n- Modul relațional extins nu este activat automat.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

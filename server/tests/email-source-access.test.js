@@ -14,11 +14,24 @@ function fixture(fail = false) {
     authHasPermission: (auth, permission) => auth.user.permissions.includes(permission),
     ensureMessagingDb: db => db.messaging,
     compactLabel: text => String(text).slice(0, 180),
-    require: () => ({ getQuote: () => { reads++; if (fail) throw Error('SQL indisponibil'); return { id: 7, quote_number: 'OF-7' } } }),
+    require: () => ({
+      getQuote: () => { reads++; if (fail) throw Error('SQL indisponibil'); return { id: 7, quote_number: 'OF-7' } },
+      getOrder: () => { reads++; return { id: 7, order_number: 'CO-7', quote_number: 'OF-7' } },
+    }),
   })
   return { resolve, reads: () => reads }
 }
 const actor = permissions => ({ user: { permissions }, db: { messaging: { emailMessages: [{ id: 1, subject: 'Sursă reală' }, { id: 2, cancelled_at: '2026-01-01' }] } } })
+
+test('sursa comandă CRM folosește numărul comenzii, nu al ofertei asociate', () => {
+  const f = fixture()
+  const input = { source_type: 'crm_customer_order', source_id: '7' }
+  assert.equal(f.resolve(actor(['crm:view']), input).source_label, null)
+  assert.equal(f.reads(), 0)
+  const result = f.resolve(actor(['crm:order_manage']), input)
+  assert.equal(result.source_label, 'CO-7')
+  assert.equal(result.source_url, null)
+})
 test('sursele necunoscute nu publică etichete sau URL-uri salvate arbitrar', () => {
   const value = fixture().resolve(actor([]), { source_type: 'unknown', source_id: '7', source_label: 'Secret', source_url: '//invalid.example' })
   assert.equal(value.source_label, null)
