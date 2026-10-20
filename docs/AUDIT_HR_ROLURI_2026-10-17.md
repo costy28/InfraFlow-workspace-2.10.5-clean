@@ -178,3 +178,17 @@ Migrare 065b înainte de 066: coloane pregătite separat și gardă pentru codur
 SQL real trecut (`INFRAFLOW_TEST_DOCS_7EB4BD34A9F1`): reproducere, coliziune ADMINISTRATIV, asociere/buget/vehicul, idempotentă și istoric. 18 centre și datele clientului păstrate. 53 teste fără SQL trecute, două sărite explicit; testul SQL dedicat are două teste trecute. Build și audit expuneri OK. Limite: nu pornește întreaga aplicație, nu validează toate schemele personalizate, nu livrează sincronizarea generală app-state și nu activează modul relațional pe instalații.
 
 Diagnosticul integral de schemă a trecut 76 fișiere în `INFRAFLOW_TEST_DOCS_41D829A28C3C`, inclusiv 066/067. Următorul blocaj este 068, indexul filtrat pentru task-uri contractuale, cu eroare SQL lângă NOT. Nu este inclus în remedierea curentă; celelalte fișiere și sincronizarea generală rămân de verificat. Nu se declară schema integral validată.
+
+## Index contractual — v2.12.734, 18 octombrie 2026
+
+Corecție strictă de sintaxă în 068: NOT IN devine comparații <> echivalente. Migrarea nouă 078 recuperează un index lipsă, dar refuză duplicatele fără modificarea task-urilor. Nu reconstruiește indexuri customizate și nu schimbă regula NULL.
+
+SQL real trecut (`INFRAFLOW_TEST_DOCS_E02177937DEB`): reproducere istorică, index activ, duplicate refuzate, stări finale/anulare, reluare și recuperare fără ștergeri. Două teste SQL dedicate trecute; regresie fără opt-in 54 trecute, trei sărite explicit. Build/audit expuneri/diff check OK. Nu sunt validate toate configurațiile istorice, UI-ul, sincronizarea generală sau transporturile SQL rămase; modul extins nu este activat pe instalații.
+
+Diagnosticul complet de schemă a trecut toate cele 87 fișiere în `INFRAFLOW_TEST_DOCS_8777F38B9E9D`, fără eroare. Este validare DDL pe bază goală, nu bootstrap complet sau migrare de date existente. Lipsește în continuare fișierul general de import app-state. Urmează sincronizare controlată și reconciliere pe date sintetice; nu se activează automat modul extins și nu se declară auditul ERP integral finalizat.
+
+## Preflight sincronizare Core — 18 octombrie 2026
+
+Etapă internă fără modificare de versiune (2.12.734): analizor pur și CLI offline pentru utilizatori/departamente. Nu generează ID-uri/roluri, nu execută SQL, nu scrie și nu autorizează importul. Rezultatul cere verificare inclusiv în lipsa blocajelor detectate. Detectează diferențele dintre ID text/UUID, roluri multiple/singular, societate, referințe, aliasuri și credențiale legacy; nu publică date personale sau secrete.
+
+10 teste dedicate și set agregat de 64 teste trecute; trei teste SQL anterioare sărite explicit. Test SQL separat trecut în `INFRAFLOW_TEST_DOCS_EB285D5B040C`: comparație pe scheme reale și date sintetice, fără modificarea snapshot-ului sau app-state. Audit expuneri zero. Document de lucru: `PLAN_SINCRONIZARE_CORE_2026-10-18.md`. Urmează manifest de mapare explicită și validarea lui, nu activarea importului. Nu sunt validate transporturile și celelalte module; instalațiile/pachetele nu au fost modificate.

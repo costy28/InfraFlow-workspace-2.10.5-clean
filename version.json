@@ -1,5 +1,5 @@
 {
-  "version": "2.12.733",
+  "version": "2.12.734",
   "date": "2026-10-18",
-  "changelog": "## v2.12.733 - 2026-10-18\n\n### Migrare Controlling protejată\n\n- Pregătire separată a coloanelor pentru migrarea 066.\n- Verificare manuală cerută pentru coduri istorice personalizate sau cu referințe operaționale.\n- Modul relațional extins nu este activat automat.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "changelog": "## v2.12.734 - 2026-10-18\n\n### Index pentru alerte contractuale\n\n- Sintaxă SQL Server corectată în migrarea 068, cu aceeași regulă de unicitate.\n- Migrare nouă 078 pentru index lipsă, fără ștergerea duplicatelor existente.\n- Modul relațional extins nu este activat automat.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

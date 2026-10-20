@@ -53,6 +53,7 @@ IF NOT EXISTS (
 BEGIN
   CREATE UNIQUE INDEX UX_contract_management_tasks_open_alert
     ON contract_management.tasks(contract_id, alert_code)
-    WHERE cancelled_at IS NULL AND status NOT IN (N'rezolvat', N'inchis', N'anulat')
+    -- NOT IN nu este acceptat în predicatul unui index filtrat SQL Server.
+    WHERE cancelled_at IS NULL AND status <> N'rezolvat' AND status <> N'inchis' AND status <> N'anulat'
 END
 GO

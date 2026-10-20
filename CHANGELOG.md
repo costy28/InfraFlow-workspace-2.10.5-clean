@@ -1,3 +1,11 @@
+## v2.12.734 - 2026-10-18
+
+### Index pentru alerte contractuale
+
+- Corecție de sintaxă în 068: predicatul NOT IN al indexului filtrat devine comparații <> echivalente, acceptate de SQL Server. Nu schimbă regula existentă de unicitate.
+- Migrare nouă 078 pentru index lipsă; duplicatele active cer verificare manuală și nu sunt șterse sau rezolvate automat.
+- Păstrează comportamentul existent pentru statusuri finale, anulări și chei NULL. Nu activează automat modul relațional extins.
+
 ## v2.12.733 - 2026-10-18
 
 ### Migrare Controlling protejată

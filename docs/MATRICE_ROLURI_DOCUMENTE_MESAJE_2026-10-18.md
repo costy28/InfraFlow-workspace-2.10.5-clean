@@ -114,3 +114,30 @@ Regresie: 53 teste trecute, două teste SQL sărite explicit în rularea fără 
 Identitatea cod/nume/tip fără referințe nu dovedește absolut originea unui rând. Nu se activează modul relațional extins și nu se declară sincronizarea generală app-state disponibilă; fișierul de import rămâne absent. Pool-ul Node și integrările externe nu au fost validate în această etapă.
 
 Reluarea integrală a diagnosticului de schemă în `INFRAFLOW_TEST_DOCS_41D829A28C3C` a trecut 76 de fișiere, inclusiv noua 065b, 066 și 067. S-a oprit la `068_contract_management_tasks.sql`, eroare `Incorrect syntax near 'NOT'`, în definirea indexului filtrat `UX_contract_management_tasks_open_alert`. Această eroare nu este remediată în v2.12.733 și fișierele ulterioare nu sunt validate de această rulare. Rezultatul nu este un succes integral al modului relațional. Urmează remedierea 068 cu test SQL dedicat, apoi reluarea diagnosticului; sincronizarea datelor rămâne separată.
+
+## Index alerte contractuale — v2.12.734
+
+`NOT IN` nu face parte din sintaxa acceptată pentru predicatul indexului filtrat; [documentația Microsoft CREATE INDEX](https://learn.microsoft.com/en-us/sql/t-sql/statements/create-index-transact-sql?view=sql-server-ver17#syntax) admite comparații simple și conjuncții. În 068, predicatul devine comparații `<>` cu `AND`, semantic echivalente pentru coloana status NOT NULL. Este o corecție strictă de sintaxă în fișierul istoric: parsarea întregului batch eșua chiar dacă s-ar fi precreat indexul. Nu modifică structura task-urilor sau regula unicității.
+
+Migrarea nouă 078 creează indexul când lipsește, inclusiv după o instalare parțială cu 068 deja înregistrată. Dacă găsește duplicate active, cere verificare manuală, fără ștergere sau rezolvare automată. Un index deja existent/customizat nu este înlocuit și nu este declarat verificat prin această migrare.
+
+Testul SQL dedicat a trecut în `INFRAFLOW_TEST_DOCS_E02177937DEB`:
+
+1. Sintaxa istorică este reconstruită în fixture și reproduce eroarea lângă NOT.
+2. 067/068/078 se aplică; indexul unic și filtrat există. Reaplicările nu dublează structura și nu schimbă datele.
+3. Aceeași alertă activă pe același contract este refuzată; alte alerte sau alte contracte sunt permise.
+4. Rezolvarea permite o alertă activă nouă. Rândurile rezolvate/închise/anulate sau cu cancelled_at nu blochează o alertă activă și rămân în istoric.
+5. Recuperarea unui index lipsă refuză duplicatele deja salvate, păstrând ambele rânduri. După rezolvare în fixture, indexul se poate crea și protecția este din nou activă. Nicio rezolvare automată nu face parte din migrare.
+6. Regula istorică NULL este păstrată explicit: un singur task activ cu alert_code NULL per contract. Aceasta nu este o validare/extindere a fluxurilor cu mai multe task-uri manuale.
+
+Test SQL: două teste trecute. Regresie fără opt-in: 54 teste trecute și trei teste SQL sărite explicit. Build, audit expuneri (zero constatări), verificare versiune și diff check reușite. Nu s-a repornit aplicația instalată, nu s-au validat UI-ul sau toate combinațiile istorice/customizate de indexuri și nu s-a activat modul relațional extins.
+
+Reluarea diagnosticului în `INFRAFLOW_TEST_DOCS_8777F38B9E9D` a aplicat **toate cele 87 de fișiere SQL**, de la schemele de bază până la migrarea 078, fără eroare (`failure: null`). Acesta este primul rezultat integral reușit al construirii schemei goale în seria curentă. Batch-urile GO sunt păstrate prin sp_executesql; nu este o rulare a bootstrap-ului complet, nu testează date existente sau tabela de istoric pentru fiecare migrare și nu probează toate scenariile de reluare. Filele istorice de mai sus rămân rezultate ale etapelor anterioare, nu blocaje curente.
+
+`syncFileExists: false` rămâne confirmat. Pasul următor este proiectarea/verificarea sincronizării app-state pe date sintetice, cu reconciliere și protecție împotriva suprascrierilor; nu activarea flag-ului pe instalații. Pool-ul SQL-login/Windows nativ și acceptanța pe instalațiile reale rămân distincte.
+
+## Preflight Core fără scriere — etapă internă după v2.12.734
+
+Instrument nou offline pentru utilizatori și departamente: `scripts/diagnose-core-sync.js`. Nu se conectează la baze și nu oferă aplicare; raportul nu publică ID-uri, date personale sau credențiale și nu autorizează niciodată importul. Detectează blocaje de identitate, referințe, rol singular/multiplu, societate, catalog, aliasuri, stare activă și credențiale legacy. Nu este o reconciliere completă de payload sau permisiuni.
+
+64 teste de regresie trecute, trei SQL anterioare sărite explicit; un test SQL dedicat trecut în `INFRAFLOW_TEST_DOCS_EB285D5B040C`, confirmând snapshot și app-state neschimbate. Audit expuneri zero constatări. Schema, limitările, formatul intrărilor și pașii următori sunt în `PLAN_SINCRONIZARE_CORE_2026-10-18.md`. Nu este necesar un update de aplicație: versiunea rămâne 2.12.734, pachetele precedente nu sunt modificate.
