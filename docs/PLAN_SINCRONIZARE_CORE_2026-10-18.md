@@ -756,3 +756,175 @@ conservator: probele sintetice nu autorizează un pilot pe date reale.
 Următoarele verificări punctuale: expirarea sesiunilor/accesului Demo și
 compatibilitatea secretelor de autentificare, apoi restaurarea backupului înainte
 de a cere autorizarea unei copii reale de pilot.
+
+## 22 octombrie — închidere stabilizare, punctul 1: expirarea accesului
+
+Etapa este limitată la stabilizarea începută; nu se dezvoltă wizard-ul Demo și nu
+se extinde acum importatorul. Au fost adăugate teste, fără modificări în runtime.
+
+`server/tests/session-expiry-boundaries.test.js` verifică funcțiile de timp din
+sursa actuală `core/auth.js` cu un ceas fix: înainte/la/după limita de inactivitate,
+limita absolută chiar când există activitate recentă, prioritățile, aliasurile,
+limitele minime și timestamp-uri ISO. Comportamentul existent este păstrat:
+sesiunea expiră când durata este strict mai mare decât pragul; termenul Demo este
+expirat chiar la egalitate (`<= now`). Zero nu dezactivează implicit timeout-urile.
+
+Testul HTTP complet pe context reconstruit este extins cu un preload exclusiv
+de test (`server/tests/support/auth-clock-preload.js`). Acesta este încărcat numai
+prin `--require`, cere `NODE_ENV=test` și un fișier de ceas din TEMP. Nu este importat
+de aplicație și nu există endpoint care să schimbe timpul. Numai `Date.now` din
+procesul copil sintetic este avansat; ceasul Windows, al celorlalte procese și
+`new Date()` nu sunt schimbate. Offsetul este limitat și fișierul este înlocuit
+atomic pentru a evita citirea în timpul unei trunchieri.
+
+Scenariile HTTP adăugate:
+
+1. O sesiune cu prag de 15 minute este refuzată după 16 minute de inactivitate
+   pe o rută de document, nu numai în `/session`.
+2. După refuz și resetarea ceasului de test, același token rămâne invalid.
+3. Sesiunea cu limită absolută de o oră primește activitate la fiecare 10 minute;
+   la 61 minute este refuzată ca expirată absolut, nu din inactivitate.
+4. Un cont Demo se autentifică înainte de termen; după trecerea termenului,
+   sesiunea este refuzată cu 401, iar autentificarea nouă cu 403.
+5. Tokenul Demo invalidat nu redevine valid după resetarea timpului sintetic.
+   Accesul legitim înainte de termen poate fi obținut numai prin login nou.
+
+Testele Demo locale includ și egalitatea exactă la termen, lipsa termenului și
+comportamentul legacy documentat: un termen invalid este marcat `invalid`, dar
+nu blochează automat contul. Nu s-a schimbat această politică de compatibilitate;
+aceste date corupte trebuie diagnosticate separat și nu sunt declarate expirate.
+Nu se afirmă că ștergerea automată a datelor este implementată sau testată aici.
+
+Regresia locală curentă: **122/122 teste trecute**, fără sărite/eșuate. Audit:
+444 fișiere/zero constatări; sintaxă/diff check trecute. Proba HTTP extinsă este
+înregistrată separat după finalizarea cererilor și a restartului.
+
+După închiderea acestui punct rămân, în ordine: compatibilitatea secretelor/2FA,
+backup/restaurare, apoi bilanțul modificărilor efectiv livrabile și arhivele necesare.
+Nu se activează migrarea relațională experimentală. Versiune curentă: 2.12.734.
+
+**Rezultat final, punctul 1 verificat:** proba HTTP extinsă a trecut — **39 cereri,
+două porniri**, în `INFRAFLOW_TEST_DOCS_C4E828681A7A` (aproximativ 224 secunde).
+Toate refuzurile de expirare, invalidarea tokenurilor și verificările anterioare
+de drepturi/restart au trecut. Procesul sintetic este oprit, iar offsetul este
+resetat în `finally`. Nu a fost necesară o corecție în codul aplicației.
+Rezultatul rămâne limitat la configurații valide și la politica legacy descrisă
+mai sus; nu reprezintă o schimbare a politicii pentru date corupte.
+
+Rămân două verificări de închidere: **2. secrete/2FA; 3. backup/restaurare**.
+Abia după ele se face bilanțul și se decide dacă există modificări runtime care
+necesită versiune/arhive noi. Wizard-ul Demo separat rămâne în afara acestei etape.
+
+### 22 octombrie — punctul 2: compatibilitate secrete și 2FA
+
+Proba reală `server/app.js` a trecut: **52 cereri HTTP, două porniri**, în baza
+sintetică `INFRAFLOW_TEST_DOCS_A27FC628A581`, aproximativ 251 secunde. Pe lângă
+verificările precedente de sesiuni/ACL, aceasta verifică:
+
+1. Activarea 2FA refuză un cod invalid și acceptă codul TOTP corect.
+2. Loginul cu parolă returnează 202/provocare, fără token de sesiune.
+3. Factorul invalid este refuzat; codul de recuperare permite autentificarea.
+4. Provocarea consumată nu poate fi reutilizată; provocarea expirată este refuzată.
+5. După restart, codul de recuperare consumat rămâne invalid, TOTP funcționează,
+   configurarea rămâne activă și mai sunt nouă coduri de recuperare.
+
+Testele locale dedicate au trecut **6/6**: vector TOTP, hash-uri de recuperare,
+compatibilitate AI/setări, rotație explicită a câmpurilor cunoscute și fallback
+legacy. Un secret de test criptat cu altă cheie configurată este refuzat.
+Regresia locală suplimentară: **119/119**; audit expuneri: 444 fișiere, zero
+constatări. Nu s-au afișat chei, secrete TOTP sau coduri de recuperare.
+
+Limitări: formatul existent AES-CBC nu este criptare autentificată; aceste teste
+nu dovedesc detectarea oricărei alterări arbitrare. Fallback-ul pentru cheia veche
+implicită există în continuare și nu înlocuiește migrarea controlată. Nu s-a
+testat aici epuizarea celor cinci încercări, regenerarea codurilor sau restartul
+HTTP cu o cheie greșită; refuzul cheii diferite este verificat la nivel crypto.
+Nu s-a schimbat codul runtime, versiunea sau cheia vreunei instalații.
+
+Următorul punct: **backup/restaurare**, urmat de bilanțul final. Nu sunt necesare
+arhive noi pentru această extindere de teste; versiunea rămâne 2.12.734.
+
+### 22 octombrie — punctul 3: proba backup/restaurare și limită identificată
+
+Test nou opt-in: `server/tests/mssql-backup-roundtrip.test.js`, rulat prin
+`INFRAFLOW_TEST_BACKUP_SQL=1 node --test server/tests/mssql-backup-roundtrip.test.js`.
+Rezultat: **1/1 trecut**, circa 27 secunde, exclusiv pe baza nouă sintetică
+`INFRAFLOW_TEST_DOCS_722A33340AE5`. Fișierul `.bak` și baza de test sunt păstrate.
+
+1. Creează un snapshot sintetic cu utilizator, CRM, Documente, Mesaje și secret
+   criptat, plus un tabel relațional separat.
+2. Execută BACKUP DATABASE WITH CHECKSUM și RESTORE VERIFYONLY WITH CHECKSUM.
+3. Modifică intenționat numai datele sintetice.
+4. Restaurează aceeași bază sintetică și verifică egalitatea snapshotului,
+   revenirea rândului relațional și decriptarea cu cheia originală de test.
+
+Aceasta este o probă a mecanismului SQL Server, **nu** o probă end-to-end a
+rutelor UI, a restartului după restaurare sau a scripturilor Windows/Linux.
+Nu include fișierele storage, cheia APP_KEY, credențiale SQL, certificate,
+configurația serviciilor ori catalogul extern de update. Acestea necesită copii
+separate și o procedură de recuperare verificată. Nu s-a accesat baza reală.
+
+**Problemă deschisă, nu se închide încă punctul 3:** `validateRestoreData` din
+`server/modules/system/routes.js` (funcția folosită și de routerul modern de
+backup) returnează o listă explicită legacy. Domenii precum `crm`, `documents`,
+`messaging`, `departments` și alte extensii nu sunt returnate. Exportul JSON
+include snapshotul complet, dar restaurarea îl reconstruiește incomplet.
+Nu se recomandă restaurarea JSON ca mecanism complet de recuperare.
+
+În plus, `npm run test:backup` execută momentan numai serializarea/deserializarea
+fișierului seed; nu apelează validatorul, rutele ori RESTORE DATABASE. Succesul
+acestei comenzi nu demonstrează recuperarea aplicației.
+
+Următoarea lucrare este corectarea controlată a restaurării JSON, cu regresii
+pentru domeniile actuale, validarea structurii și păstrarea secretelor criptate.
+Aceasta va fi o modificare runtime și va necesita versiune/note/arhive conform
+convențiilor proiectului. În această verificare nu s-a modificat runtime-ul;
+versiunea rămâne 2.12.734, iar stabilizarea globală nu este declarată încheiată.
+
+### 22 octombrie — corecție runtime 2.12.735 pentru restaurarea JSON
+
+Validatorul comun `server/modules/system/restore-data.js` înlocuiește lista
+legacy din `routes.js`, fiind folosit de ambele trasee existente. Păstrează
+toate câmpurile snapshotului, setările și secretele criptate, fără trecere prin
+formularul `updateSettings`. Listele opționale legacy absente rămân compatibile.
+Respingerea structurii invalide/cheilor nesigure precedă backupul și scrierea.
+
+Verificări trecute: 3 teste validator (inclusiv seed-ul real livrat), 1 test
+HTTP al routerului cu adaptoare auth/DB/backup sintetice, 6 teste crypto/2FA,
+regresie separată 35/35 pentru restaurare, permisiuni și expirare. Numerele se
+suprapun; nu se însumează ca teste distincte. `npm run test:backup` apelează acum
+validatorul real și compară toate câmpurile originale. Build React trecut;
+audit 448 fișiere/zero constatări; sintaxă și diff check trecute.
+
+Testul de router nu este o restaurare end-to-end în aplicația instalată și nu
+verifică reîncărcarea cache-urilor, sesiunile existente sau fișierele storage.
+Proba MSSQL nativă de mai sus rămâne separată. Backupul JSON nu înlocuiește
+backupul SQL pentru domeniile relaționale și nici copia separată APP_KEY/storage.
+Versiune nouă pentru livrare: 2.12.735, UPDATE 755. Nu s-au instalat pachete și
+nu s-au repornit serviciile utilizatorului. Wizard-ul Demo rămâne amânat.
+
+### 22 octombrie — bilanț și persistență JSON după proces nou
+
+`restore-persistence.test.js` verifică acum validator → scriere prin core/db →
+citire prin core/db într-un proces nou, exclusiv cu JSON temporar și APP_KEY
+sintetică. Domeniile CRM/Documente/Mesaje/departamente/extensie și decriptarea
+secretului sunt păstrate. Suita focalizată restaurare: **5/5**, test:backup și
+release:check trecute. Runtime-ul și arhivele 2.12.735 nu s-au modificat.
+
+Bilanțul cu limite și pragul de acceptare operațională este în
+`docs/BILANT_STABILIZARE_2026-10-22.md`. Următoarea probă de recuperare completă
+necesită o copie autorizată izolată, cu SQL/storage/APP_KEY, nu restaurare pe live.
+
+### 22 octombrie — recuperare sintetică pe laptop verificată
+
+Proba opt-in `INFRAFLOW_TEST_RECOVERY_SQL=1` a trecut: **53 cereri HTTP, două
+porniri**, circa 259 secunde, baza `INFRAFLOW_TEST_DOCS_E35ED2622181`.
+Copie temporară de runtime, licență semnată cu RSA exclusiv de test, APP_KEY
+citită din fișier, backup/VERIFYONLY SQL, deteriorare intenționată și restaurare
+SQL + fișier model Documente + cheia sintetică. După restart: TOTP funcțional,
+cod de recuperare consumat refuzat, token vechi refuzat, cont inactiv păstrat,
+descărcare autorizată cu conținut identic. Procesul sintetic este oprit.
+
+Detalii, rulări inițiale eșuate și limite: secțiunea 4 din bilanț. Nu reprezintă
+test integral CRM sau recuperare prin UI pe o instalație reală. Niciun runtime
+modificat în această etapă; pachetele 2.12.735 rămân cele livrate anterior.

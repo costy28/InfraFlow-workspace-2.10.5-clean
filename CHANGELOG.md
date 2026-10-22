@@ -1,3 +1,12 @@
+## v2.12.735 - 2026-10-22
+
+### Restaurare JSON cu păstrarea domeniilor actuale
+
+- Validator comun păstrează toate domeniile snapshotului și setările fără rescriere prin formularul de configurare.
+- Regresii pentru CRM, Documente, Mesaje, HR, Contabilitate, extensii și secrete criptate.
+- Respinge structuri invalide și chei nesigure înainte de backupul de siguranță și salvare.
+- Nu include fișiere storage sau APP_KEY; nu înlocuiește backupul nativ MSSQL pentru tabelele relaționale.
+
 ## v2.12.734 - 2026-10-18
 
 ### Index pentru alerte contractuale

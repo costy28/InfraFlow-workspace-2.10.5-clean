@@ -9,6 +9,21 @@ const {
 const { encryptApiKey, decryptApiKey } = require('../modules/ai/key-manager')
 const { planAppKeyRotation } = require('../core/app-key-rotation')
 
+test('compatibilitatea legacy nu permite decriptarea unui secret cu altă cheie configurată', () => {
+  const previous = process.env.APP_KEY
+  const { LEGACY_DEFAULT_APP_KEY } = require('../core/settings-crypto')
+  process.env.APP_KEY = 'configured-key-for-isolated-crypto-test'
+  try {
+    const legacy = encryptSettingSecretWithKey('synthetic-legacy-secret', LEGACY_DEFAULT_APP_KEY)
+    assert.equal(decryptSettingSecret(legacy) === 'synthetic-legacy-secret', true)
+    const foreign = encryptSettingSecretWithKey('synthetic-foreign-secret', 'different-key-for-isolated-crypto-test')
+    assert.throws(() => decryptSettingSecret(foreign))
+  } finally {
+    if (previous === undefined) delete process.env.APP_KEY
+    else process.env.APP_KEY = previous
+  }
+})
+
 test('secretele pot fi recriptate controlat fără a expune valoarea', () => {
   const legacyKey = 'legacy-app-key-pentru-test-cu-minim-32-caractere'
   const newKey = 'new-app-key-pentru-test-cu-minim-32-caractereeee'

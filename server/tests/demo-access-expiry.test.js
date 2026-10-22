@@ -11,3 +11,11 @@ test('contul Demo expirat este blocat, iar cel cu termen viitor rămâne activ',
   assert.equal(demoAccessExpiryStatus({ demoAccessExpiresAt: '2026-10-03T11:59:59.999Z' }, now).expired, true)
   assert.equal(demoAccessExpiryStatus({ demoAccessExpiresAt: '2026-10-03T12:00:00.001Z' }, now).expired, false)
 })
+test('termenul Demo este expirat exact la momentul limită', () => {
+  const now = Date.UTC(2026, 9, 22, 12)
+  assert.equal(demoAccessExpiryStatus({ demoAccessExpiresAt: new Date(now).toISOString() }, now).expired, true)
+})
+test('termenul invalid legacy este marcat, fără schimbarea compatibilității existente', () => {
+  const result = demoAccessExpiryStatus({ demoAccessExpiresAt: 'invalid-legacy' })
+  assert.equal(result.invalid, true); assert.equal(result.expired, false)
+})

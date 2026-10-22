@@ -49,6 +49,7 @@ const {
 } = require('./service')
 const { createSystemUpdateRouter } = require('./update-routes')
 const { createSystemBackupRouter } = require('./backup-routes')
+const { validateRestoreData } = require('./restore-data')
 const { createSystemUsersRouter } = require('./users-routes')
 const { createSystemSettingsRouter } = require('./settings-routes')
 const { createSystemLicenseRouter } = require('./license-routes')
@@ -5001,51 +5002,6 @@ function validLogoDataUrl(value) {
   return logo;
 }
 
-function validateRestoreData(data) {
-  if (!data || typeof data !== "object") throwHttp(400, "Backup invalid.");
-  const requiredArrays = [
-    "users", "materials", "recipes", "consumptions", "deliveries",
-    "stockMovements", "productionPlans", "audit", "departmentRequests",
-    "departmentStocks", "departmentConsumptions"
-  ];
-  requiredArrays.forEach((key) => {
-    if (!Array.isArray(data[key])) throwHttp(400, `Backup invalid: lipseste ${key}.`);
-  });
-  if (!data.settings || typeof data.settings !== "object") throwHttp(400, "Backup invalid: lipsesc setarile.");
-  return {
-    version: Number(data.version || 1),
-    settings: updateSettings(data.settings, data.settings),
-    users: data.users,
-    materials: data.materials,
-    recipes: data.recipes,
-    jobs: Array.isArray(data.jobs) ? data.jobs : [],
-    consumptions: data.consumptions,
-    deliveries: data.deliveries,
-    stockMovements: data.stockMovements,
-    productionPlans: data.productionPlans,
-    projects: Array.isArray(data.projects) ? data.projects : [],
-    departmentConnections: Array.isArray(data.departmentConnections) ? data.departmentConnections : [],
-    workflowTemplates: Array.isArray(data.workflowTemplates) ? data.workflowTemplates : [],
-    workflowRequests: Array.isArray(data.workflowRequests) ? data.workflowRequests : [],
-    workflowAudit: Array.isArray(data.workflowAudit) ? data.workflowAudit : [],
-    departmentRequests: Array.isArray(data.departmentRequests) ? data.departmentRequests : [],
-    departmentStocks: Array.isArray(data.departmentStocks) ? data.departmentStocks : [],
-    departmentConsumptions: Array.isArray(data.departmentConsumptions) ? data.departmentConsumptions : [],
-    procurementOrders: Array.isArray(data.procurementOrders) ? data.procurementOrders : [],
-    procurementReceipts: Array.isArray(data.procurementReceipts) ? data.procurementReceipts : [],
-    fleetAssets: Array.isArray(data.fleetAssets) ? data.fleetAssets : [],
-    fleetRequests: Array.isArray(data.fleetRequests) ? data.fleetRequests : [],
-    fleetMeterReadings: Array.isArray(data.fleetMeterReadings) ? data.fleetMeterReadings : [],
-    costCenters: Array.isArray(data.costCenters) ? data.costCenters : [],
-    technicalWorkLogs: Array.isArray(data.technicalWorkLogs) ? data.technicalWorkLogs : [],
-    technicalClients: Array.isArray(data.technicalClients) ? data.technicalClients : [],
-    asphaltSales: Array.isArray(data.asphaltSales) ? data.asphaltSales : [],
-    nexusExpenses: Array.isArray(data.nexusExpenses) ? data.nexusExpenses : [],
-    devices: Array.isArray(data.devices) ? data.devices : [],
-    workstationRequests: Array.isArray(data.workstationRequests) ? data.workstationRequests : [],
-    audit: data.audit
-  };
-}
 
 function createRecipe(db, user, body) {
   const name = String(body.name || "").trim();

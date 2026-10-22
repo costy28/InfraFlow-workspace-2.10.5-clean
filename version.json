@@ -1,5 +1,5 @@
 {
-  "version": "2.12.734",
-  "date": "2026-10-18",
-  "changelog": "## v2.12.734 - 2026-10-18\n\n### Index pentru alerte contractuale\n\n- Sintaxă SQL Server corectată în migrarea 068, cu aceeași regulă de unicitate.\n- Migrare nouă 078 pentru index lipsă, fără ștergerea duplicatelor existente.\n- Modul relațional extins nu este activat automat.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "version": "2.12.735",
+  "date": "2026-10-22",
+  "changelog": "## v2.12.735 - 2026-10-22\n\n### Restaurare JSON cu păstrarea domeniilor actuale\n\n- Păstrează domeniile actuale, setările și secretele criptate fără normalizare.\n- Respinge structuri invalide înainte de salvare.\n- Fișierele atașate și APP_KEY necesită copii separate.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }
