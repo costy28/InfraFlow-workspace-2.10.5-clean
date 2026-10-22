@@ -261,3 +261,498 @@ metadate și referințe, cu verificare de round-trip pe date sintetice. Nu se sa
 secretele 2FA într-o tabelă generică sau în fișiere de raport și nu se schimbă
 modelul multi-rol înainte de a verifica matricea drepturilor. Nicio versiune sau
 arhivă nouă; rămâne 2.12.734, fără restarturi/deployment.
+
+## 20 octombrie — round-trip criptat, exclusiv sintetic
+
+Adăugat helperul intern `scripts/lib/core-sync-capsule.js`. Nu este conectat la
+server, CLI, updater sau baze client. Este o probă de conservare a snapshot-ului
+original, **nu** un format aprobat de backup/livrare sau un importator.
+
+- Contract versionat: `infraflow-core-preservation-capsule-v1`, AES-256-GCM,
+  nonce aleator de 12 octeți și tag de 16 octeți. Cheia de 32 octeți trebuie
+  furnizată explicit; nu există cheie implicită, generare automată în aplicație
+  sau folosire/modificare a APP_KEY.
+- Sunt criptate exact octeții snapshot-ului original, inclusiv spații, newline,
+  câmpuri necunoscute, null/false, roluri multiple și secrete deja criptate.
+  Nu se proiectează/reduce conținutul înainte de conservare.
+- Se verifică hash-ul sursei și al țintei față de manifest. Hash-ul întregului
+  manifest (inclusiv revizia și societatea) și hash-ul țintei sunt date autentificate
+  GCM. Schimbarea lor împiedică deschiderea capsulei. Ordinea proprietăților
+  manifestului contează în această probă; nu se recanonicalizează implicit.
+- Crearea cere colecțiile sursă și un manifest valid structural; **nu** cere și
+  nu dovedește că baseline-ul este migrabil. Astfel poate conserva exact și
+  datele multi-rol care rămân blocate pentru proiecție/import.
+- Capsula nu conține cheia sau metadate personale în clar. Recitirea returnează
+  un Buffer sensibil numai apelantului intern; el nu este logat sau exportat de CLI.
+  Erorile sunt generice, fără fragmente de sursă, chei sau ciphertext.
+- Limită de sursă/țintă: 16 MiB în acest helper experimental. Formatele necunoscute,
+  cheile invalide și anvelopele cu câmpuri neașteptate sunt respinse.
+
+Teste unitare: patru scenarii noi, cu round-trip byte-exact, date personale absente
+din anvelopă, nonce-uri diferite, cheie greșită, modificarea ciphertext/tag/nonce,
+manifest sau țintă, sursă schimbată și mapare incompletă.
+
+Test SQL separat: **1/1 trecut** în `INFRAFLOW_TEST_DOCS_226710DAB80C`. Creează o
+tabelă `dbo.capsule_probe` numai în baza sintetică, salvează parametrizat anvelopa
+criptată, recitește într-o conexiune separată și verifică hash-ul sursei originale.
+În SQL nu ajung cheia sau sursa în clar. Cheia aleatoare rămâne în proces și este
+suprascrisă la finalul testului; baza păstrată conține numai capsula sintetică și
+nu poate fi deschisă ulterior fără acea cheie. Nu este un mecanism de recuperare
+a cheilor. Nu s-a citit/scris nicio instalație existentă.
+
+Regresie: **86/86 teste trecute**, fără teste sărite; audit fișiere 429/zero
+constatări; sintaxă și diff check trecute. Nicio modificare de versiune sau arhive.
+
+**Limite și următorul pas:** recitirea exactă dovedește conservarea octeților, nu
+folosirea corectă a acestora de către runtime relațional. Rămân de reconciliat
+rolurile multiple și drepturile efective (inclusiv setările globale), referințele
+HR și compatibilitatea cheii pentru secretele deja criptate. Gestionarea/rotația/
+recuperarea cheilor capsulei și aprobarea unui format persistent pentru producție
+nu sunt implementate. Blocajele `preservationReview` nu sunt eliminate automat.
+
+## 20 octombrie — reconciliere diagnostică a granturilor
+
+`scripts/lib/core-sync-authorization.js` compară **deciziile motorului runtime
+actual** pe catalogul curent de permisiuni cu **granturile stocate în SQL** ale
+rolului utilizatorului mapat. Nu inventează un motor de autorizare SQL și nu
+declară că tabelele de granturi reprezintă singure drepturile efective.
+
+Surse de adevăr inspectate: `server/core/permissions.js` (`normalizedUserRoles`,
+`effectivePermissionsForUser`, `authHasPermission`, `permissionsFor`) și
+`server/core/module-catalog.js` (`effectiveEntitlements`). Instrumentul folosește
+direct aceste funcții, nu copiază o matrice statică de drepturi.
+
+- Runtime unește rolurile principale/suplimentare, adaugă drepturi de angajat
+  activ, filtrează după licență/module și poate restrânge după departament.
+- Superadmin are bypass global în `authHasPermission`; o simplă listă finită de
+  granturi nu reproduce această regulă pentru toate acțiunile viitoare.
+- Rolurile custom și suprascrierile rolurilor implicite sunt citite din settings;
+  cheia de rol identică nu dovedește configurație identică.
+- Cazurile multi-rol și superadmin sunt blocate explicit, fără alegerea primului
+  rol. Utilizatorii inactivi, rolurile necunoscute și aliasurile de departament
+  ambigue nu sunt comparați ca utilizatori activi fără drepturi.
+
+CLI offline (opțiunea prima, exclusivă cu `--simulate`):
+
+```powershell
+node scripts/diagnose-core-manifest.js --authorization --source 'C:\cale-protejata\source.json' --target 'C:\cale-protejata\target.json' --manifest 'C:\cale-protejata\manifest.json'
+```
+
+Pe lângă snapshot-urile/manifestul anterior, sursa cere explicit
+`settings.license`, `settings.modules_enabled`, `settings.customRoles` și
+`settings.rolePermissionOverrides`. Ținta cere `permissions: [{permission_key}]`
+și `role_permissions: [{role_key,permission_key}]`. Se cere întregul catalog
+runtime curent; catalogul SQL incomplet sau cu chei necunoscute, duplicate ori
+granturi către roluri/permisiuni absente blochează comparația. Acest lucru poate
+bloca legitim schema SQL veche și nu autorizează completarea ei automată.
+
+Identitatea/compania utilizatorului țintă și rolul exact declarat în manifest
+sunt verificate. Raportul include numai poziții și numere: granturi runtime,
+granturi stocate, `gainedGrants` și `lostGrants`. Nu expune ID-uri, nume, loginuri,
+chei de rol sau liste de permisiuni din datele persoanei. Nu modifică nici settings.
+
+Rezultatul `review_required` fără diferențe este limitat la această comparație
+de catalog. `runtimeEquivalenceVerified`, `writeAuthorized` și
+`globalRelationalReadiness` rămân false. Baseline-ul complet este păstrat în raport;
+eventualele sale blocaje de date nu dispar și trebuie evaluate separat înainte de
+migrare. Accesul pe entitate, sesiuni, dispozitive și permisiuni viitoare rămâne
+neverificat. Niciun grant SQL nu este adăugat, șters sau folosit în aplicație.
+
+Opt teste noi: set egal (fără autorizare de import), drepturi pierdute/câștigate,
+multi-rol, superadmin, licență/module/departament, configurație lipsă, catalog
+incomplet, roluri necunoscute, inactivitate, rol țintă diferit și duplicate.
+Nu s-a executat SQL în această etapă. Versiunea rămâne 2.12.734; fără restart,
+deployment sau arhive noi.
+
+Regresia agregată: **94/94 teste trecute**, zero sărite/eșuate. Audit fișiere:
+430 fișiere, zero constatări; sintaxă JavaScript și diff check trecute.
+
+**Urmează:** proiectarea modelului multi-rol relațional care păstrează asocierea
+fiecărui rol și configurația drepturilor, cu teste comparative ale deciziilor.
+Nu se înlocuiește runtime-ul și nu se elimină blocajele de conservare prin simpla
+egalitate a listelor de granturi.
+
+## 20 octombrie — prototip relațional multi-rol, separat de runtime
+
+`scripts/lib/core-role-links-prototype.js` definește un model experimental:
+
+1. Rolul principal rămâne în `core.users.role_key`. Nu este ales din `roles[]`
+   și nu este suprascris cu primul rol suplimentar.
+2. Asocierile suplimentare păstrează cheia rolului și poziția originală din
+   `roles[]`. Prima apariție a fiecărui rol este păstrată. Duplicate identice sunt
+   deduplicate, conform semanticii actuale `normalizedUserRoles`; octeții originali
+   rămân doar în snapshot/capsulă, nu sunt declarați identici după normalizare.
+3. Reconstrucția sortează după poziție și reface separat `role` și `roles`.
+   Rolurile necunoscute, lipsa rolului principal, ID-urile legacy nemapate,
+   asocierile/pozițiile duplicate sau pozițiile nevalide sunt respinse.
+4. Acest helper returnează date interne sensibile; nu este apelat de CLI, server,
+   autentificare sau importator. Nu modifică permisiunile existente.
+
+Schema experimentală este declarată **numai în testul SQL**, ca
+`core.user_role_probe(user_id,role_key,source_position)`, cu FK spre utilizator și
+catalogul rolurilor, PK pe pereche și unicitate pe poziția fiecărui utilizator.
+Nu s-a creat migrare în `db/migrations`, nu s-a schimbat schema unei instalații și
+nu se propune rularea acestei tabele de test în producție.
+
+Cinci teste de model verifică rolul principal, ordinea, duplicatele, rolul singular,
+restricțiile de departament/module, excepția superadmin și intrările invalide.
+Deciziile motorului runtime actual sunt comparate înainte/după reconstrucție pentru
+întregul catalog curent și o permisiune viitoare sintetică. Aceasta dovedește
+compatibilitatea reconstrucției în aceste scenarii, nu un motor SQL de autorizare.
+
+Regresie executată: **99/99 teste trecute**, zero sărite/eșuate; audit fișiere
+432/zero constatări. Sintaxă și diff check trecute. Versiunea rămâne 2.12.734;
+fără arhive noi, restarturi sau deployment.
+
+Test SQL separat: **1/1 trecut**, în `INFRAFLOW_TEST_DOCS_076CD5A76657`.
+Folosește schema Core reală și tabela experimentală creată numai în acea bază.
+Recitește asocierile în ordine inversă pentru a testa sortarea la reconstrucție,
+compară deciziile runtime și verifică refuzurile PK/FK/poziție. Tranzacțiile
+invalide sunt anulate; asocierile sintetice valide rămân pentru diagnostic.
+`core.users.role_key` și snapshot-ul `dbo.app_state` sunt neschimbate.
+
+**Limite:** definițiile rolurilor custom, suprascrierile implicite, licența,
+configurația modulelor și restricțiile departamentale sunt încă furnizate prin
+settings în probe. Nu sunt încă reconstruite din SQL. Diagnosticul `--authorization`
+continuă să blocheze multi-rolul; acest prototip nu îi elimină blocajele.
+Urmează conservarea/reconstrucția configurației acestor politici și comparația
+deciziilor după recitire, înaintea unei migrări reale sau a integrării runtime.
+
+## 21 octombrie — reconstrucția politicilor, prototip izolat
+
+Adăugat `scripts/lib/core-policy-prototype.js`, neconectat la server/CLI. Codifică
+politicile în rânduri versionate (`infraflow-policy-prototype-v1`) și le reconstruiește
+după recitire. Nu modifică motorul `core/permissions.js`.
+
+Acoperire explicită:
+
+- patru configurații: `license`, `modules_enabled`, `customRoles`,
+  `rolePermissionOverrides`, cu valorile lor JSON păstrate;
+- departamentele identificate și prezența exactă a proprietății `permissions`:
+  absentă, `null`, listă goală sau listă populată;
+- rolurile utilizatorului se reconstruiesc prin prototipul multi-rol anterior.
+
+Nu sunt copiate toate setările organizației sau toate câmpurile departamentului.
+Nu este un contract de migrare integrală. Ordinea rândurilor SQL nu contează;
+listele din payload păstrează ordinea. Datele care ar pierde informație prin
+JSON (de exemplu metadate `undefined`) sunt refuzate, nu simplificate tacit.
+Configurația incompletă, dublurile, granturile necunoscute, secțiunile/cheile
+nepermise și payload-urile invalide sunt refuzate cu mesaj generic.
+
+În testul de licență expirată, fixture-ul a fost corectat să folosească
+`plan: full` și `expiresAt: 2000-01-01`. Runtime-ul recalculează statusul din date;
+un simplu `status: expired` în input nu este sursa de adevăr. Nu s-a schimbat
+comportamentul licențierii ca să treacă testul.
+
+Patru teste noi verifică round-trip, absență vs listă goală, roluri multiple,
+superadmin, departamente restrânse, module oprite, licență expirată și intrări
+invalide. Se compară întregul catalog runtime plus o permisiune viitoare sintetică.
+
+Testul SQL creează numai în baza sintetică `dbo.policy_probe`, nu
+`core.app_settings`. Salvează parametrizat configurații sintetice, le recitește
+într-o conexiune separată și compară deciziile runtime pentru 12 combinații de
+roluri/departamente. Suprimarea unui rând obligatoriu este refuzată la decodificare,
+fără activarea valorilor implicite. Rândurile sintetice sunt păstrate pentru diagnostic.
+
+Rezultat final: **103/103 teste de regresie trecute**, plus **1/1 test SQL trecut**
+în `INFRAFLOW_TEST_DOCS_A8E65D7305F0`, cu **3012 decizii** comparate fără diferențe.
+Audit fișiere: 434/zero constatări. Sintaxa JavaScript și diff check au trecut.
+Nicio bază a instalațiilor existente nu a fost citită sau modificată.
+
+**Limite:** payload-urile de politică pot conține informații sensibile și sunt
+permise aici numai cu date sintetice; nu sunt un nou loc de stocare pentru licențe,
+semnături sau configurații reale. Nu s-au verificat integritatea criptografică a
+politicilor persistate, validarea unei licențe semnate, hot-reload, sesiuni reale,
+restricții pe document/entitate sau migrarea unui client. Prototipul nu autorizează
+importul, nu este folosit de `--authorization` și nu elimină blocajele anterioare.
+
+**Urmează:** o probă integrată într-o singură bază sintetică, legând explicit
+snapshot-ul, rolurile, politicile și rezultatul reconcilierii, inclusiv scenarii
+de date schimbate sau incomplete. Nicio activare în producție înaintea acestei probe
+și a verificării rollback-ului; sursa rămâne 2.12.734, fără pachete noi de instalat.
+
+## 21 octombrie — probă integrată cu reconciliere și rollback
+
+`scripts/lib/core-integrated-stage-prototype.js` leagă snapshot-ul original criptat,
+rolurile principale/suplimentare și politicile. Helperul nu este conectat la server,
+CLI sau importator și este destinat numai probelor sintetice.
+
+Verificarea deschide capsula cu manifestul/ținta așteptate, regenerează modelul
+din sursa conservată și cere egalitate structurală cu staging-ul recitit. Abia apoi
+reconstruiește contextul și compară deciziile motorului runtime. Ordinea rândurilor
+SQL nu contează; ordinea explicită a asocierilor de roluri contează. UUID-urile
+se compară fără diferență de litere mari/mici. În prima probă SQL această diferență
+de reprezentare a fost identificată și corectată în comparator, cu test dedicat;
+nu s-a relaxat verificarea celorlalte valori.
+
+În `server/tests/core-integrated-stage-sql.test.js`, o singură bază sintetică are
+patru tabele `dbo.stage_*_probe` (capsulă, utilizator/rol principal, asocieri,
+politici). Crearea/salvarea rândurilor de staging se face într-o tranzacție; schema
+este exclusiv de test și nu există o migrare a instalațiilor. Sursa cu secretul 2FA
+sintetic se păstrează numai criptată în SQL; politicile de test sunt sintetice,
+fără credențiale reale. Cheia este temporară în proces și suprascrisă la final.
+
+Rezultat final SQL: **1/1 trecut**, `INFRAFLOW_TEST_DOCS_17D54D005267`:
+
+1. Salvare și recitire în conexiuni separate; snapshot-ul este deschis byte-exact,
+   rolurile și politicile coincid cu modelul așteptat.
+2. **251 decizii de acces** comparate fără diferențe pentru utilizatorul multi-rol
+   și departamentul restrâns al fixture-ului.
+3. O politică obligatorie este eliminată temporar într-o tranzacție: staging-ul
+   incomplet este refuzat. Rollback-ul păstrează snapshot-ul staging identic.
+4. O modificare de rol principal urmată de eroare sintetică 51000 este anulată;
+   recitirea completă după rollback este identică celei inițiale.
+5. Manifestul cu revizie schimbată sau octeții țintei modificați sunt refuzați.
+   Staging-ul original continuă să treacă după probele negative.
+
+Trei teste locale acoperă suplimentar roluri/politici lipsă, rol principal schimbat,
+conținut de politici modificat și reportare fără secrete. Regresie: **106/106 teste
+trecute**, fără sărite/eșuate; audit 437 fișiere/zero constatări; sintaxă și diff
+check trecute. Bazele sintetice sunt păstrate pentru diagnostic.
+
+**Limite:** proba folosește ID-uri sursă deja UUID, cataloage și politici sintetice;
+nu validează migrarea ID-urilor legacy, compatibilitatea APP_KEY, sesiuni reale,
+CRUD prin API, ACL pe entități sau sincronizarea celorlalte domenii. Prototipul
+salvează metadatele de rol/politici, nu o clonă completă a tabelelor ERP. Ținta
+așteptată este un snapshot furnizat; nu există control automat de concurență pe
+baza clientului. `writeAuthorized` și `globalRelationalReadiness` rămân false.
+
+**Urmează:** consolidarea într-un diagnostic unic a probelor și a blocajelor rămase,
+pentru pregătirea unui pilot pe copie autorizată, fără activare implicită. Versiunea
+aplicației rămâne 2.12.734; niciun restart/deployment sau pachet nou de instalat.
+
+## 21 octombrie — diagnostic consolidat și praguri de pilot
+
+Adăugat `scripts/lib/core-sync-readiness.js`, expus offline prin:
+
+```powershell
+node scripts/diagnose-core-manifest.js --readiness --source 'C:\cale-protejata\source.json' --target 'C:\cale-protejata\target.json' --manifest 'C:\cale-protejata\manifest.json'
+```
+
+Opțiunea trebuie să fie prima și este exclusivă cu `--simulate` și
+`--authorization`. Cele trei fișiere sunt citite explicit, snapshot-urile o singură
+dată; hash-urile se calculează din aceiași octeți. Nu încarcă configurația unei
+instalații, nu deschide SQL și nu scrie fișiere. Nu redirecționa rezultatul peste
+fișierele de intrare. Snapshot-urile și manifestul rămân date private.
+
+Raportul are trei secțiuni:
+
+1. `manifest`: starea mapărilor și numărul blocajelor baseline;
+2. `simulation`: dacă proiecția a fost analizată, blocaje de reconciliere/conservare;
+3. `authorization`: comparația limitată a granturilor, utilizatori comparați și
+   numărul granturilor suplimentare/pierdute.
+
+Secțiunile sunt rezumate prin stări și numere, fără date personale, chei de rol,
+liste de permisiuni, hash-uri sau credențiale. Limitele de trunchiere sunt propagate.
+O eroare internă de analiză devine `analysis_failed`, fără textul excepției sau date
+private. Numerele dintre secțiuni nu se adună ca și cum ar fi blocaje distincte:
+aceeași problemă poate fi constatată de mai multe verificări.
+
+Separat apar șase praguri nerezolvate pentru pilot:
+
+| Prag | Ce lipsește înainte de pilot |
+|---|---|
+| Schema live / collation / concurență | Verificare pe copia autorizată și detectarea modificării datelor după snapshot |
+| Importator persistent | Nu există încă un importator Core complet, versionat și idempotent |
+| Acces pe entități / autentificare / sesiuni | Probe HTTP și ACL cu contextul reconstruit, nu doar comparații de catalog |
+| ID-uri legacy / referințe între domenii | Reconciliere integrală, nu numai UUID-uri sintetice |
+| Compatibilitatea secretelor existente | Verificarea păstrării/decriptării în contextul cheii autorizate, fără expunere |
+| Backup / restore / copie de pilot autorizată | Restaurare verificată și identificarea explicită a copiei, separat de producție |
+
+Raportul este **întotdeauna `blocked` pentru pilot/import** în stadiul actual,
+chiar dacă cele trei secțiuni nu găsesc blocaje locale. `writeAuthorized`,
+`pilotAuthorized` și `globalRelationalReadiness` sunt false. `review_required`
+într-o secțiune nu înseamnă verificare completă sau aprobare.
+
+CLI: ieșire 1 pentru raportul consolidat blocat; 2 pentru invocare/fișiere/JSON
+invalide. `--apply` rămâne refuzat. `--readiness` nu rulează automat testele SQL și
+nu încorporează rezultatele istorice ca dovadă despre snapshot-ul analizat.
+
+Verificare: cinci teste noi (rezumat fără date private, hash nepotrivit, intrări
+malformate, CLI fără scrieri/refuz apply și toate cele trei secțiuni local curate
+dar pilot încă blocat). **111/111 teste de regresie trecute**, fără eșecuri/sărite;
+audit 438 fișiere/zero constatări, sintaxă/diff check trecute. Nu s-a executat SQL
+în această etapă de consolidare. Versiunea rămâne 2.12.734; fără pachete noi.
+
+**Continuare recomandată:** importator persistent limitat la staging sintetic,
+cu jurnal, idempotentă și revenire verificată, înaintea oricărei copii reale.
+Celelalte praguri rămân obligatorii. Pentru accesul la o copie de date reale sunt
+necesare identificarea ei și autorizarea explicită; nu se deduc din rularea acestui
+diagnostic sau din succesul probelor sintetice.
+
+## 21 octombrie — depozit persistent de loturi, exclusiv staging sintetic
+
+`scripts/lib/synthetic-stage-store.js` implementează persistența artefactelor
+integrate cu jurnal și reluare. Este un **depozit experimental de staging**, nu
+importatorul complet al tabelelor ERP. Nu este conectat la CLI, server, updater sau
+`core/db.js`; pragul `persistent_importer_not_implemented` rămâne justificat.
+
+Condiții obligatorii înaintea execuției:
+
+- `allowSyntheticStaging: true`, executor SQL furnizat explicit de test și nume
+  strict `INFRAFLOW_TEST_DOCS_` urmat de 12 caractere hex majuscule;
+- fiecare cerere SQL verifică `DB_NAME()` înainte de DDL/DML; numele declarat
+  diferit de baza conexiunii este refuzat;
+- UUID de lot explicit și staging reconciliat criptografic/structural prin helperul
+  integrat înainte de salvare. Nu încarcă fișiere/env și nu generează conexiuni ERP.
+
+În baza sintetică sunt create numai `dbo.synthetic_stage_runs` și
+`dbo.synthetic_stage_journal`. Lotul păstrează hash-ul payload-ului, capsula și
+politicile sintetice, plus starea `applied`/`reverted`. Jurnalul conține doar ID-ul
+lotului, eveniment, cod numeric de eroare și timestamp, nu payload/secrete.
+Nu are FK către lot pentru a putea jurnaliza și inserările anulate înainte ca
+lotul să existe. Nici cheia capsulei, nici sursa decriptată nu sunt salvate.
+
+Semantica operațiunilor:
+
+1. `initialize`: creează idempotent tabelele numai în baza sintetică verificată.
+2. `apply`: validează staging-ul în memorie, apoi persistă lotul și evenimentul
+   într-o tranzacție. Folosește `UPDLOCK,HOLDLOCK` pe identitatea lotului.
+3. Același UUID și **același payload exact** întorc `reused`, fără rând de lot
+   duplicat; jurnalul păstrează tentativa. Hash-ul, starea și conținutul stocat
+   sunt verificate înaintea reutilizării. Compararea conținutului este binară,
+   inclusiv lungimea, nu depinde de collation implicită.
+4. Conținut diferit sub același UUID, inclusiv o capsulă nouă cu alt nonce pentru
+   aceeași sursă, este refuzat conservator; nu se suprascrie lotul.
+5. Eșecul injectat după inserare anulează tranzacția; un eveniment `failed` este
+   salvat după rollback. Reîncercarea aceluiași UUID poate reuși dacă lotul nu a
+   fost persistat. Refuzurile de validare anterioare SQL nu creează evenimente SQL.
+6. `reconcile`: verifică hash-ul payload-ului recitit înainte de deschiderea capsulei
+   și reconcilierea rolurilor/politicilor. Un lot retras nu poate fi reconcilat ca activ.
+7. `revert`: marchează logic lotul ca `reverted` și jurnalizează acțiunea. Repetarea
+   devine `revert_reused`; lotul nu este șters și nu este reaplicat automat.
+
+`writeAuthorized: false` se referă în continuare la migrarea ERP reală; operațiunile
+de mai sus scriu explicit numai în depozitul sintetic. Revenirea logică a lotului
+**nu** reprezintă restaurarea tabelelor unui ERP, deoarece acestea nu sunt modificate.
+Concurența reală multi-proces, recuperarea cheii după restart și revenirea unui
+import complet nu sunt demonstrate de acest depozit.
+
+Unitățile noi verifică opt-in/nume bază, guard-ul efectiv și refuzul UUID-urilor
+invalide fără apel SQL. Testul SQL exercită apply/retry, coruperea payload-ului,
+conflict de identitate, eșec parțial/retry, retragere/repetare, jurnal și refuzul
+executorului conectat la alt nume de bază. Erorile SQL deliberate sunt așteptate,
+nu un semn că s-ar fi atins o instalație reală.
+
+Regresie: **113/113 teste trecute**, audit 440 fișiere/zero constatări; sintaxă și
+diff check trecute. Versiune neschimbată 2.12.734, fără restart/deployment/arhive.
+Proba SQL finală: **1/1 trecut**, în `INFRAFLOW_TEST_DOCS_087320F84E14`, inclusiv
+întăririle de integritate la retry/recitire. Baza păstrată conține două loturi
+sintetice (unul retras și unul activ) și nouă evenimente de jurnal așteptate.
+Cheia temporară a testului nu este păstrată. Refuzul deliberat pentru un nume de
+bază diferit produce eroare SQL așteptată și confirmă guard-ul, înaintea DDL.
+
+**Urmează:** integrarea controlată a materializării relaționale în staging, cu
+reconciliere pe rânduri și jurnal de schimbări, păstrând aceste protecții. Nu se
+autorizează încă pilotul real și nu se elimină celelalte praguri din `--readiness`.
+
+## 21 octombrie — materializare relațională limitată, numai staging
+
+Extins depozitul `synthetic-stage-store.js` cu `materialize` și
+`reconcileMaterialized`. Nu există endpoint/CLI de scriere și nu se folosesc
+tabelele ERP. Sunt create suplimentar, exclusiv în baza sintetică verificată:
+
+- `dbo.synthetic_stage_users`: rolul principal, cheie compusă lot/utilizator;
+- `dbo.synthetic_stage_roles`: asocieri, poziții, FK compus spre utilizator și
+  unicitate pe rol și pe poziția fiecărui utilizator din lot;
+- `dbo.synthetic_stage_policies`: secțiune, cheie și payload JSON, izolate pe lot;
+- `dbo.synthetic_materialization_runs`: hash și formatul politicii materializate;
+- `dbo.synthetic_materialization_journal`: eveniment/cod numeric, fără payload.
+
+Fluxul verificat de implementare:
+
+1. Recitește lotul activ, verifică hash-ul și reconcilierea integrată în memorie.
+2. În tranzacție, blochează identitatea lotului și verifică din nou starea,
+   hash-ul și payload-ul exact înainte de materializare. Un artefact schimbat după
+   validare nu poate fi folosit prin simpla reutilizare a unei aprobări vechi.
+3. Citește utilizatorii/rolurile/politicile așteptate din JSON în structuri SQL
+   temporare, fără trunchiere la citire; inserează numai rânduri de staging.
+4. Compară toate rândurile așteptate cu cele stocate în ambele direcții prin
+   `EXCEPT`, inclusiv chei, rol, poziție și payload. Textele sunt comparate ca
+   octeți, nu după collation implicită. Verifică și formatul politicii.
+5. Repetarea unui lot materializat nu inserează duplicate și nu repară tacit
+   rânduri corupte: acestea sunt refuzate, cu eveniment `failed`.
+6. Eșecul sintetic după inserarea utilizatorilor anulează toate rândurile acelei
+   materializări; jurnalul de eroare este salvat după rollback. Artefactul sursă
+   rămâne activ, pentru o reîncercare verificată.
+7. Recitirea relațională reconstruiește bundle-ul și repetă reconcilierea criptată,
+   structurală și comparația deciziilor runtime. Un lot retras logic nu mai poate
+   fi materializat/folosit prin aceste metode; rândurile lui se păstrează fizic.
+
+Acoperirea rămâne intenționat limitată: se materializează ID-ul și rolul principal,
+asocierile și politicile. Numele, credențialele și celelalte câmpuri ale utilizatorului
+nu sunt importate în `core.users`; sursa completă rămâne în capsula criptată.
+Nu există încă sincronizare Core completă, gestionare de ID-uri legacy pe toate
+domeniile sau integrare a materializării în autentificarea aplicației.
+
+Testele locale verifică refuzul UUID-urilor invalide și al unui artefact cu hash
+corupt înainte de query-uri de scriere. Testul SQL nou verifică rândurile și
+cardinalitățile, retry fără dubluri, corupere, rollback parțial/retry, retragere și
+jurnal. Valorile așteptate ale fixture-ului: 1 utilizator, 1 rol suplimentar și
+5 rânduri de politică pentru fiecare lot materializat valid.
+
+**Limite:** nu este un importator de producție; nu se declară verificată concurența
+multi-proces sau restaurarea backupului. FK-urile leagă entitățile de staging între
+ele, nu cataloagele ERP ale unei instalații. `writeAuthorized` rămâne false pentru
+migrarea ERP. Nu se elimină pragurile din diagnosticul `--readiness`.
+
+Versiunea rămâne 2.12.734, fără restart/deployment sau pachete noi.
+
+Rezultat final al materializării: **114/114 teste de regresie trecute**, plus
+**1/1 test SQL trecut** în `INFRAFLOW_TEST_DOCS_3FAC876198A4`. Proba SQL verifică
+1 utilizator, 1 asociere suplimentară și 5 politici per lot, retry fără dubluri,
+corupere refuzată la recitire și la retry, rollback complet după inserarea parțială,
+reluare reușită și indisponibilitatea lotului retras. Audit: 441 fișiere, zero
+constatări; sintaxă și diff check trecute. Baza sintetică este păstrată.
+
+Următoarea verificare necesară: acces prin HTTP pe context reconstruit, cu refuzuri
+pe entități și sesiuni, înainte de a considera o copie reală de pilot. Succesul
+materializării nu elimină aceste praguri și nu dovedește un import Core complet.
+
+## 21 octombrie — probă HTTP pe context reconstruit
+
+Adăugat testul opt-in `server/tests/reconstructed-context-http.test.js`
+(`INFRAFLOW_TEST_FULL_APP_SQL=1`). Fluxul său folosește o bază sintetică nouă:
+
+1. Creează date fictive, hash-uri scrypt valide pentru o parolă aleatoare și roluri
+   custom separate pentru Documente și Mesaje; al doilea rol este suplimentar.
+2. Conservă sursa criptată, persistă artefactul și materializează rolurile/politicile
+   prin depozitul de staging. Verifică reconcilierea înainte de reconstrucție.
+3. Recitește capsula și rândurile SQL, reconstruiește utilizatorii/rolurile/settings
+   și scrie un seed temporar numai cu date sintetice.
+4. Pornește `server/app.js` complet, fără VM sau adaptor DB/auth, pe loopback și port
+   temporar, cu baza SQL sintetică explicită. Scheduler-ul și recuperarea automată
+   din alte date sunt oprite; nu se trimit emailuri și nu se folosesc servicii externe.
+5. Folosește login real prin HTTP și tokenuri reale ale serverului de test pentru
+   a verifica autorizarea. Procesul de test este oprit explicit la final.
+
+**Distincție esențială:** aplicația HTTP rulează în modul MSSQL standard
+`dbo.app_state`, cu modul relațional extins oprit. Datele rolurilor/politicilor au
+fost reconstruite din staging, dar autentificarea nu a fost mutată pe tabelele de
+staging. Aceasta este o probă a contextului reconstruit în runtime-ul existent,
+nu dovada unui runtime relațional complet sau a unui importator ERP de producție.
+
+Scenariile testului: lipsă sesiune/parolă greșită, acces la document propriu,
+refuz pe document străin/dosar/audit/PDF, acces Mesaje prin rol suplimentar,
+retragerea dreptului Documente cu sesiunea deja deschisă, păstrarea rolului Mesaje,
+logout cu invalidare, dezactivare cu invalidarea sesiunii și restart cu tokenurile
+vechi refuzate. Nu se declară testate expirarea prin timeout sau loginul 2FA.
+
+Nu sunt citite sau modificate bazele instalațiilor existente și nu se pornește/
+repornește serviciul lor. Versiunea aplicației rămâne 2.12.734; fără pachete noi.
+
+Rezultat final: **1/1 test HTTP complet trecut**, în
+`INFRAFLOW_TEST_DOCS_DF23FA57EF68`: **23 cereri verificate, două porniri**, aproximativ
+272 secunde. Serverul sintetic a fost oprit în `finally`. Regresie separată:
+**114/114 teste trecute**, fără sărite/eșuate; audit 442 fișiere/zero constatări;
+sintaxă și diff check reușite. Baza și seed-ul sintetic temporar sunt păstrate
+pentru diagnostic; nu conțin credențiale reale ale instalațiilor existente.
+
+Pragul de acces HTTP este acum acoperit pentru scenariile acestui context
+reconstruit și runtime MSSQL standard. Nu se declară închis pentru toate modulele,
+un viitor runtime relațional, expirarea sesiunilor sau 2FA. `--readiness` rămâne
+conservator: probele sintetice nu autorizează un pilot pe date reale.
+
+Următoarele verificări punctuale: expirarea sesiunilor/accesului Demo și
+compatibilitatea secretelor de autentificare, apoi restaurarea backupului înainte
+de a cere autorizarea unei copii reale de pilot.

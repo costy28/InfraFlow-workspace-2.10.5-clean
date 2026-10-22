@@ -1,0 +1,43 @@
+'use strict'
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const { randomUUID } = require('node:crypto')
+const { createDocumentsSqlFixture } = require('./support/documents-sql-fixture')
+const { integratedFixture } = require('./support/core-integrated-fixture')
+const { createIntegratedStage } = require('../../scripts/lib/core-integrated-stage-prototype')
+const { createSyntheticStageStore } = require('../../scripts/lib/synthetic-stage-store')
+test('store SQL: apply/retry, identity conflict, partial failure, revert and journal', {
+  skip: process.env.INFRAFLOW_TEST_RELATIONAL_SQL !== '1', timeout: 180000
+}, () => {
+  const f = createDocumentsSqlFixture({ empty: true }), data = integratedFixture()
+  const store = createSyntheticStageStore({ database: f.database, sql: f.sql, allowSyntheticStaging: true })
+  const stage = createIntegratedStage(data.source, data.target, data.manifest, data.key), id = randomUUID(), failedId = randomUUID()
+  try {
+    store.initialize(); store.initialize()
+    assert.equal(store.apply(id, stage, data.target, data.manifest, data.key).outcome, 'applied')
+    assert.equal(store.apply(id, stage, data.target, data.manifest, data.key).outcome, 'reused')
+    assert.equal(f.sql('SELECT COUNT(*) FROM dbo.synthetic_stage_runs;').trim(), '1')
+    assert.equal(store.reconcile(id, data.target, data.manifest, data.key).usersCompared, 1)
+    f.sql(`UPDATE dbo.synthetic_stage_runs SET payload=JSON_MODIFY(payload,'$.users[0].primaryRole',N'operator'); SELECT 1;`)
+    assert.throws(() => store.reconcile(id, data.target, data.manifest, data.key))
+    assert.throws(() => store.apply(id, stage, data.target, data.manifest, data.key))
+    f.sql(`UPDATE dbo.synthetic_stage_runs SET payload=@json; SELECT 1;`, { jsonInput: JSON.stringify(stage) })
+    const freshCapsule = createIntegratedStage(data.source, data.target, data.manifest, data.key)
+    assert.throws(() => store.apply(id, freshCapsule, data.target, data.manifest, data.key))
+    assert.throws(() => store.apply(failedId, stage, data.target, data.manifest, data.key, { injectFailure: true }))
+    assert.equal(f.sql('SELECT COUNT(*) FROM dbo.synthetic_stage_runs;').trim(), '1')
+    assert.equal(store.apply(failedId, stage, data.target, data.manifest, data.key).outcome, 'applied')
+    assert.equal(store.revert(id).outcome, 'reverted'); assert.equal(store.revert(id).outcome, 'revert_reused')
+    assert.throws(() => store.reconcile(id, data.target, data.manifest, data.key))
+    assert.throws(() => store.apply(id, stage, data.target, data.manifest, data.key))
+    assert.equal(store.reconcile(failedId, data.target, data.manifest, data.key).usersCompared, 1)
+    const events = JSON.parse(f.sql('SELECT event,error_number FROM dbo.synthetic_stage_journal ORDER BY id FOR JSON PATH;'))
+    assert.deepEqual(events.map(e => e.event), ['applied', 'reused', 'failed', 'failed', 'failed', 'applied', 'reverted', 'revert_reused', 'failed'])
+    assert.ok(events.some(e => e.error_number === 51002)); assert.ok(events.some(e => e.error_number === 51003))
+    assert.ok(!JSON.stringify(events).includes('SYNTHETIC-SECRET'))
+    // Același executor pe altă bază trebuie refuzat de guard, înainte de DDL.
+    const wrong = createSyntheticStageStore({ database: 'INFRAFLOW_TEST_DOCS_000000000000', sql: f.sql, allowSyntheticStaging: true })
+    assert.throws(() => wrong.initialize())
+    console.log(`Store SQL OK: ${f.database}; retry fără duplicate, conflict refuzat, eșec anulat, revenire logică și jurnal verificate.`)
+  } finally { data.key.fill(0) }
+})
