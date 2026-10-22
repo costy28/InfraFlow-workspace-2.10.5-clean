@@ -1,5 +1,5 @@
 {
-  "version": "2.12.735",
+  "version": "2.12.736",
   "date": "2026-10-22",
-  "changelog": "## v2.12.735 - 2026-10-22\n\n### Restaurare JSON cu păstrarea domeniilor actuale\n\n- Păstrează domeniile actuale, setările și secretele criptate fără normalizare.\n- Respinge structuri invalide înainte de salvare.\n- Fișierele atașate și APP_KEY necesită copii separate.\n\nIstoricul complet este păstrat în CHANGELOG.md."
+  "changelog": "## v2.12.736 - 2026-10-22\n\n### Rol Demo restrâns fără promovare automată\n\n- Rolul rezervat demo_company_admin nu este ales automat drept superadmin.\n- Recuperarea legacy pentru celelalte roluri rămâne neschimbată.\n- Nu activează wizard-ul sau provisionarea Demo privat.\n\nIstoricul complet este păstrat în CHANGELOG.md."
 }

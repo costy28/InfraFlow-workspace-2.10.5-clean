@@ -1,3 +1,11 @@
+## v2.12.736 - 2026-10-22
+
+### Rol Demo restrâns fără promovare automată
+
+- Politică comună pentru normalizarea DB și helperul setup: rolul rezervat `demo_company_admin`, principal sau suplimentar, este exclus din alegerea automată a unui superadmin.
+- Comportamentul de recuperare legacy pentru ceilalți utilizatori rămâne neschimbat; administratorii expliciți nu sunt retrogradați.
+- Nu creează conturi tehnice, nu migrează roluri și nu activează Demo-uri private sau wizard-ul.
+
 ## v2.12.735 - 2026-10-22
 
 ### Restaurare JSON cu păstrarea domeniilor actuale

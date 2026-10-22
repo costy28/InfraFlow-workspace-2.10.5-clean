@@ -1767,12 +1767,7 @@ function inferInitialStockCompleted(db) {
 }
 
 function ensureActiveSuperadmin(db) {
-  if (!Array.isArray(db.users) || !db.users.length) return;
-  if (db.users.some((user) => user.active !== false && user.role === "superadmin")) return;
-  const admin = db.users.find((user) => user.active !== false && user.username === "admin")
-    || db.users.find((user) => user.active !== false && user.role === "admin")
-    || db.users.find((user) => user.active !== false);
-  if (admin) admin.role = "superadmin";
+  require('./bootstrap-admin-policy').ensureActiveSuperadmin(db);
 }
 
 function normalizeRolePermissionOverrides(input) {

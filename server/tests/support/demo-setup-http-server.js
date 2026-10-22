@@ -1,0 +1,15 @@
+'use strict'
+if (process.env.NODE_ENV !== 'test' || process.env.INFRAFLOW_DB_PROVIDER !== 'json') throw Error('synthetic_test_only')
+const path = require('node:path'), os = require('node:os')
+const dir = path.resolve(process.env.SYNTHETIC_STORE_DIR || '')
+if (path.dirname(dir) !== path.resolve(os.tmpdir()) || !path.basename(dir).startsWith('infraflow-trial-store-')
+  || path.dirname(path.resolve(process.env.INFRAFLOW_DB_FILE || '')) !== dir) throw Error('invalid_synthetic_paths')
+const express = require('../../node_modules/express')
+const { createSyntheticTrialStore } = require('../../../scripts/lib/demo-trial-store')
+const { createSyntheticSetupRouter } = require('../../../scripts/lib/demo-company-setup-router')
+const app = express()
+app.use(express.json({ limit: '64kb' }))
+app.use('/api', require('../../core/auth-routes')) // Actual password login and session Map.
+app.use('/api', createSyntheticSetupRouter({ store: createSyntheticTrialStore(dir), trialId: process.env.SYNTHETIC_TRIAL_ID }))
+const server = app.listen(0, '127.0.0.1', () => process.send({ port: server.address().port }))
+process.on('message', message => { if (message === 'stop') server.close(() => process.exit(0)) })
