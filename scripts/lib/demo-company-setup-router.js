@@ -2,7 +2,7 @@
 // Test adapter only; never mounted in server/app.js.
 const { Router } = require('../../server/node_modules/express')
 const { requireAuth } = require('../../server/core/auth')
-function createSyntheticSetupRouter({ store, trialId }) {
+function createSyntheticSetupRouter({ store, trialId, apply }) {
   if (process.env.NODE_ENV !== 'test') throw new Error('synthetic_test_only')
   const router = Router()
   const handler = write => async (req, res) => {
@@ -11,6 +11,13 @@ function createSyntheticSetupRouter({ store, trialId }) {
     try {
       // Neither identity, tenant, time nor entitlements can come from HTTP input.
       const context = { trialId, user: auth.user, now: Date.now() }
+      if (write === 'apply') {
+        const body = req.body
+        if (!body || Array.isArray(body) || typeof body !== 'object' || !Object.keys(body).every(k => k === 'expectedRevision')) {
+          return res.status(400).json({ error: 'Câmpuri de aplicare invalide.', code: 'invalid_fields' })
+        }
+        return res.json({ application: await store.applySetup({ ...context, expectedRevision: body.expectedRevision, apply }) })
+      }
       if (write) {
         const body = req.body
         if (!body || Array.isArray(body) || typeof body !== 'object' || !Object.keys(body).every(k => ['step','input','expectedRevision'].includes(k))) {
@@ -23,13 +30,14 @@ function createSyntheticSetupRouter({ store, trialId }) {
     } catch (e) {
       const code = e.code || 'setup_failed'
       const status = ['trial_not_active','wrong_company_or_owner','forbidden_role'].includes(code) ? 403
-        : ['revision_conflict','setup_completed'].includes(code) ? 409
+        : ['revision_conflict','setup_completed','wrong_erp_binding','application_conflict','applied_configuration_drift'].includes(code) ? 409
           : ['invalid_fields','invalid_company_name','invalid_country','invalid_currency','invalid_region','module_not_allowed','profile_required','setup_incomplete','unknown_step'].includes(code) ? 400 : 503
       return res.status(status).json({ error: 'Configurarea nu a putut fi procesată.', code })
     }
   }
   router.get('/demo-company/setup', handler(false))
   router.patch('/demo-company/setup', handler(true))
+  router.post('/demo-company/setup/apply', handler('apply'))
   return router
 }
 module.exports = { createSyntheticSetupRouter }

@@ -55,13 +55,20 @@ export default function DemoCompanyWizard() {
       setView({ ...view, setup: result.setup }); setStep(Math.min(step + 1, 2))
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
+  async function applyConfiguration() {
+    setBusy(true); setError('')
+    try {
+      const result = await request('/demo-company/setup/apply', 'POST', { expectedRevision: view.setup.revision })
+      setView({ ...view, application: result.application })
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
   return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-800 sm:px-8">
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="font-bold text-emerald-800">InfraFlow</p><h1 className="text-2xl font-semibold">Configurează compania Demo</h1></div>
         {token && <Button variant="secondary" onClick={logout} disabled={busy}>Ieșire</Button>}
       </header>
-      <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">Mediu sintetic de test. Se salvează progresul wizard-ului; profilul și modulele nu sunt aplicate încă în ERP.</p>
+      <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">Mediu sintetic de test. {view?.application ? 'Configurația este aplicată exclusiv în ERP-ul de test, nu în Demo-ul public.' : 'Progresul este salvat separat. Aplicarea în ERP-ul de test necesită confirmare distinctă.'}</p>
       {error && <div role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm">{error}
         {token && <div className="mt-3"><Button variant="secondary" disabled={busy} onClick={() => load()}>Reîncarcă progresul</Button></div>}
       </div>}
@@ -75,9 +82,10 @@ export default function DemoCompanyWizard() {
         <ol className="grid grid-cols-3 gap-2" aria-label="Pașii configurării">{steps.map((name, index) => <li key={name} aria-current={index === step ? 'step' : undefined}
           className={`rounded-xl border p-3 text-sm ${index === step ? 'border-emerald-700 bg-emerald-50 font-semibold' : 'bg-white text-slate-500'}`}><span className="block">{index + 1}.</span>{name}</li>)}</ol>
         {view.setup.completedAt ? <section className="rounded-2xl border border-emerald-200 bg-white p-6" role="status">
-          <h2 className="text-xl font-semibold text-emerald-800">Configurația de test a fost salvată</h2>
+          <h2 className="text-xl font-semibold text-emerald-800">{view.application ? 'Configurația a fost aplicată în ERP-ul de test' : 'Configurația de test a fost salvată'}</h2>
           <p className="mt-3">{view.setup.profile.companyName} · {view.setup.modules.map(k => labels[k] || k).join(', ')}</p>
-          <p className="mt-3 text-sm text-slate-600">Următoarea etapă tehnică este aplicarea controlată în instanța companiei. Nu s-au schimbat datele Demo-ului public.</p>
+          <p className="mt-3 text-sm text-slate-600">Nu s-au schimbat datele Demo-ului public. Licența, conturile și termenul trialului rămân neschimbate.</p>
+          {!view.application && <Button className="mt-4" loading={busy} onClick={applyConfiguration}>Aplică în ERP-ul de test</Button>}
         </section> : <form onSubmit={save} className="space-y-5 rounded-2xl border bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold">{steps[step]}</h2>
           {step === 0 && <div className="grid gap-4 sm:grid-cols-2">{[

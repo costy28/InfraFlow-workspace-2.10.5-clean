@@ -10,7 +10,7 @@ test('setup HTTP: login real, proprietar din sesiune, progres persistent și exp
   const dbFile = path.join(dir, 'synthetic-db.json'), now = Date.now() - 1000
   const password = `Synthetic-${crypto.randomBytes(16).toString('hex')}!aA1`, salt = crypto.randomBytes(16).toString('hex')
   const passwordHash = `scrypt:${salt}:${crypto.scryptSync(password, salt, 64).toString('hex')}`
-  const db = { settings: { setupCompleted: true, initialSetupCompleted: true, networkAccessMode: 'open',
+  const db = { settings: { demoTrialId: trialId, setupCompleted: true, initialSetupCompleted: true, networkAccessMode: 'open',
     license: { plan: 'internal', modules: ['all'], maxDevices: 20 }, modules_enabled: ['documents'], customRoles: [companyRole()] },
     users: ['owner','other'].map(id => ({ id, username: id, name: id, role: ROLE, active: true, passwordHash })),
     devices: [], departments: [], audit: [], notifications: [] }
@@ -55,6 +55,7 @@ test('setup HTTP: login real, proprietar din sesiune, progres persistent și exp
     let token = await login('owner'), other = await login('other')
     await request('/demo-company/setup', other, 403)
     await request('/demo-company/setup', token)
+    await request('/demo-company/setup/apply', token, 400, 'POST', { expectedRevision: 0 })
     const patch = { step: 'profile', input: profile, expectedRevision: 0 }
     await request('/demo-company/setup', token, 400, 'PATCH', { ...patch, trialId: 'foreign', user: { role: 'superadmin' } })
     await request('/demo-company/setup', token, 400, 'PATCH', { ...patch, input: { ...profile, expiresAt: 9999999999999 } })
@@ -69,12 +70,27 @@ test('setup HTTP: login real, proprietar din sesiune, progres persistent și exp
     assert.equal(resumed.setup.profile.companyName, profile.companyName); assert.deepEqual(resumed.setup.modules, ['documents'])
     assert.equal(resumed.setup.revision, 2)
     await request('/demo-company/setup', token, 200, 'PATCH', { step: 'complete', input: {}, expectedRevision: 2 })
+    const beforeApply = JSON.parse(await fs.readFile(dbFile, 'utf8'))
+    await request('/demo-company/setup/apply', token, 400, 'POST', { expectedRevision: 3, license: 'injected' })
+    const applied = await request('/demo-company/setup/apply', token, 200, 'POST', { expectedRevision: 3 })
+    const replay = await request('/demo-company/setup/apply', token, 200, 'POST', { expectedRevision: 3 })
+    assert.deepEqual(applied, replay)
+    const erp = JSON.parse(await fs.readFile(dbFile, 'utf8'))
+    assert.equal(erp.settings.companyName, profile.companyName); assert.deepEqual(erp.settings.modules_enabled, ['documents'])
+    assert.deepEqual(erp.users, beforeApply.users); assert.deepEqual(erp.settings.license, beforeApply.settings.license)
+    assert.equal(erp.audit.filter(a => a.action === 'demo_company_setup_applied').length, 1)
+    await stop(); await start()
+    await request('/demo-company/setup', token, 401)
+    token = await login('owner')
+    const afterApplyRestart = await request('/demo-company/setup', token)
+    assert.deepEqual(afterApplyRestart.application, applied.application)
     await request('/demo-company/setup', token, 409, 'PATCH', { step: 'profile', input: profile, expectedRevision: 3 })
     const saved = (await store.read()).trials[0]
     assert.equal(saved.expiresAt, expiry); assert.equal(saved.setupEvents.length, 3)
     await store.command({ trialId, commandId: 'expire', expectedRevision: saved.revision, action: 'expire', now: expiry, actor: { kind: 'worker', id: 'worker' } })
     await request('/demo-company/setup', token, 403)
-    console.log(`Setup sintetic HTTP: ${checks} cereri, două procese succesive, login/sesiuni originale și progres pe disc.`)
+    await request('/demo-company/setup/apply', token, 403, 'POST', { expectedRevision: 3 })
+    console.log(`Setup sintetic HTTP: ${checks} cereri, trei procese succesive, login/sesiuni originale și progres/aplicare pe disc.`)
   } finally {
     await stop()
     assert.equal(path.dirname(path.resolve(dir)), path.resolve(os.tmpdir())); assert.ok(path.basename(dir).startsWith('infraflow-trial-store-'))

@@ -362,3 +362,281 @@ eliminate numai din directorul sintetic verificat.
 Următorul pas: aplicarea controlată, idempotentă, a configurației confirmate în
 instanța sintetică proprie, cu audit și refuzul modificării licenței/expirării;
 abia apoi integrarea invitației și a provisionării. Demo-ul public rămâne intact.
+
+## 15. Aplicare idempotentă în ERP-ul sintetic
+
+`scripts/lib/demo-company-apply.js` pregătește schimbarea numai pentru un setup
+confirmat și un trial activ. Verifică bindingul `settings.demoTrialId`, proprietarul
+și rolul actual recitite din ERP, revizia setup și modulele permise. Revalidează
+profilul/modulele înainte de aplicare. Nu preia câmpuri suplimentare din browser.
+
+Adapterul de test folosește `core/db.readDb` și `core/db.writeDb` originale, numai
+cu JSON în director temporar `infraflow-trial-store-*`. Schimbă cele cinci câmpuri
+de profil și `modules_enabled`, păstrând restul stării. Un marker cu trial/revizie/
+digest și un singur audit minimal se salvează în aceeași stare ERP. Confirmarea
+se copiază apoi în registru sub lock. GET-ul setup expune confirmarea, iar UI-ul
+o păstrează după refresh. Aplicarea este o confirmare separată de salvarea setup.
+
+Retry-ul recunoaște markerul ERP și nu adaugă alt audit. Dacă ERP-ul a fost salvat,
+dar răspunsul/confirmarea în registru s-au pierdut, retry-ul poate completa
+registrul. Dacă profilul/modulele au fost schimbate ulterior, refuză cu conflict
+în loc să le suprascrie. Licența, utilizatorii, secretele și termenul nu sunt editate.
+
+Verificări trecute:
+
+1. `demo-company-apply.test.js`: **4/4**, inclusiv întrerupere simulată după salvarea
+   ERP și înainte de confirmarea registrului, urmată de retry fără audit duplicat.
+2. Proba HTTP extinsă: **26 cereri, trei procese succesive**, autentificare reală,
+   aplicare/retry, protecții de intrare, marker păstrat după repornire și refuz la
+   expirare. JSON ERP verificat separat pentru profil/module și păstrarea conturilor/licenței.
+3. Wizard Chrome: confirmare separată, aplicare efectivă în JSON-ul ERP de test,
+   audit unic, status păstrat după refresh; probele anterioare de conflict/mobil
+   și expirare au trecut în aceeași rulare.
+4. Suita setup/registru/magazie/aplicare: **26/26** în rularea combinată;
+   proba browser este separată. Audit de expunere: 459 fișiere/zero constatări.
+
+Limite obligatorii: nu este o tranzacție atomică între registru și ERP. Scrierea
+JSON originală nu garantează toleranță la întreruperea alimentării. Callback-ul
+ERP este sincron într-un singur proces web; alți scriitori externi ai aceluiași
+fișier nu sunt coordonați de lockul registrului. Un fișier corupt se refuză, nu
+se reinițializează automat. Pentru MSSQL/producție sunt necesare tranzacție,
+control concurență și reconciliere confirmate pe backendul respectiv.
+
+Nu s-a montat endpointul în `server/app.js`, nu s-a aplicat nimic pe un client
+real și nu s-au activat joburi, invitații sau expirarea tuturor rutelor ERP.
+Țara/moneda nu certifică legislație locală; celelalte setări regionale/fiscale nu
+sunt rescrise automat. Runtime-ul livrat și pachetele 2.12.736 rămân neschimbate.
+
+Următorul pas: invitația unică legată de trial și activarea controlată în mediul
+sintetic, fără a reporni termenul și fără a expune provisionerul pe Demo-ul public.
+
+## 16. Invitație unică și activare sintetică
+
+Magazia de test poate emite un token aleatoriu de 256 biți pentru trialul aflat
+în `awaiting_activation`, cu proprietar deja legat de setup. Păstrează numai
+SHA-256 al tokenului, emis/la ce termen, identificatorul invitației și consumul.
+Tokenul clar este returnat o singură dată apelantului de test. Un retry al
+emiterii cu același ID nu îl dezvăluie din nou; dacă răspunsul a fost pierdut,
+este necesară înlocuirea explicită cu ID nou, care invalidează tokenul anterior.
+Emisia nu este expusă printr-un endpoint public și nu trimite email.
+
+`scripts/lib/demo-invitation-router.js` este montat exclusiv în harnessul JSON,
+nu în `app.js`. POST-ul de activare primește numai token, parolă și confirmare.
+Trialul este ales din configurația serverului, proprietarul din registru/ERP.
+Nu acceptă companie, rol, zile sau termen de la client. Refuză suprascrierea unui
+cont deja activ fără markerul aceleiași activări și nu permite schimbarea rolului.
+Folosește politica reală de parole, hash-ul original și loginul original ERP.
+
+Activarea contului salvează un marker ERP și audit fără token/parolă în clar.
+Registrul consumă invitația și stabilește exact 15 zile de la prima activare
+salvată. La întreruperea dintre fișiere, retry-ul poate folosi markerul existent,
+dar nu schimbă parola aleasă și nu repornește termenul. Tokenul deja consumat,
+expirat sau înlocuit este refuzat. Linkul este valabil 24h, cu refuz la egalitatea
+exactă cu termenul. Două consumări concurente nu activează de două ori.
+
+Harnessul pune un filtru de stare trial înaintea rutelor obișnuite de autentificare
+și setup: înainte de activare sau după expirare nu permite acces la acestea.
+Filtrul nu este instalat în ERP-ul public. Markerul ERP fără confirmare în registru
+nu deblochează accesul în harness; o activare întreruptă care ajunge la expirarea
+invitației poate necesita intervenție controlată, încă neimplementată.
+
+Verificări: `demo-invitation.test.js` **4/4**, inclusiv o probă cu **12 cereri HTTP,
+două porniri**: acces înainte de activare refuzat, câmpuri injectate/token greșit,
+parolă slabă/neconfirmată, activare, login, replay și reluare după restart. Contul
+rămâne restrâns, auditul activării este unic și datele nu conțin parola în clar.
+Rularea combinată modele/setup/registru/aplicare/invitații: **30/30**; proba Chrome
+a wizard-ului a trecut separat după introducerea filtrului de trial.
+Audit expuneri: 460 fișiere/zero constatări. Sintaxă/diff check trecute.
+
+Limite: niciun email, URL public, pagină de activare sau token de producție creat.
+Tokenul se trimite în corp POST în test, nu prin query string/jurnale. Invitația
+nu este încă legată de aprobarea WordPress sau de un provisioner real. Lipsesc
+rate limiting-ul public, identificarea originilor/hostname și backendul SQL
+tranzacțional. Două fișiere JSON nu sunt o tranzacție distribuită și nu sunt
+validate pentru pierdere de alimentare sau scriitori externi necoordonați.
+
+Următorul pas: pagina sintetică de activare și proba browserului pentru traseul
+invitație → parolă → login → wizard. Nu se activează nimic pe Demo-ul public și
+nu se reconstruiesc pachetele 2.12.736 pentru aceste adaptoare de test.
+
+## 17. Activare în browser și traseu complet sintetic
+
+Intrarea separată de dezvoltare include pagina de alegere și confirmare a
+parolei. Invitația este citită din fragmentul URL, apoi fragmentul este imediat
+înlocuit cu `#activate`. Tokenul rămâne temporar în memoria paginii, nu în
+localStorage/sessionStorage sau în URL-urile cererilor; activarea îl trimite în
+corpul POST. Reîncărcarea înainte de activare cere redeschiderea linkului original.
+Redeschiderea în aceeași filă este tratată prin evenimentul `hashchange`.
+
+Succesul afișează utilizatorul și termenul; nu autentifică automat. Continuarea
+trece prin loginul original ERP, apoi wizard și aplicarea separată a configurării.
+Confirmarea wizard-ului și retry-urile nu repornesc cele 15 zile.
+
+Proba Chrome a trecut integral: nepotrivire parole, activare unică, login greșit
+și corect, configurare, conflict de revizie, reluare după refresh, afișare mobilă,
+aplicare, audit unic, refuzul invitației reutilizate și refuz după expirare.
+Prima rulare a identificat navigarea în același document fără actualizarea stării;
+handlerul `hashchange` a fost adăugat, iar rerularea a trecut: **1/1**, fără skip.
+Testele HTTP invitație/setup au trecut împreună: **5/5**. Captura de activare,
+fără parolă sau token, este în `installer/output/qa/demo-activation.png`.
+
+Build-ul obișnuit și auditul de expunere au trecut: 460 fișiere, zero constatări.
+Pagina rămâne exclusiv în preview-ul sintetic, nu în aplicația instalată.
+Nu s-au trimis emailuri, nu s-au conectat WordPress/provisioner/gateway și nu
+s-a schimbat Demo-ul public. Rate limiting-ul public și persistarea SQL
+tranzacțională rămân necesare înainte de o integrare reală.
+
+Următorul pas: orchestrarea locală controlată aprobare → instanță → invitație,
+înainte de integrarea publică. Pachetele livrate 2.12.736 rămân neschimbate.
+
+## 18. Coordonator local pentru aprobări (contract de adaptor)
+
+`scripts/lib/demo-approval-orchestrator.js` leagă în magazia temporară aprobarea,
+rezervarea trialului, proprietarul/modulele, starea provisioning, confirmarea
+adaptorului și emiterea invitației. Nu implementează provisionarea unei instanțe.
+Adaptorul injectat `ensureInstance` trebuie să fie idempotent și să verifice
+instanța la fiecare reluare. Confirmarea trebuie să corespundă trialului,
+proprietarului și tuturor resurselor rezervate, cu `healthy: true`.
+
+Legarea proprietarului/modulelor este salvată înainte de apelul adaptorului;
+schimbarea lor la retry este refuzată. La excepție sau confirmare greșită,
+trialul rămâne provisioning și nu primește invitație. Reluarea reapelează
+adaptorul, fără a dubla tranzițiile salvate. Invitația emisă anterior nu își
+dezvăluie tokenul la retry. Activarea și termenul de 15 zile nu pornesc aici.
+
+Teste: trei probe dedicate trecute; împreună cu invitațiile **7/7**, zero skip,
+inclusiv testul existent cu 12 cereri HTTP/două porniri. Testele noi folosesc
+un adaptor simulat: nu dovedesc sănătatea unui proces SQL/ERP nou provisionat.
+Apelul paralel este refuzat în aceeași instanță de coordonator. Nu există încă
+lease distribuit între coordonatori/procese; lockul magaziei protejează numai
+operațiile individuale, nu callback-ul extern. Nu utiliza acest coordonator ca
+serviciu public sau worker concurent de producție.
+
+Nu s-au creat baze SQL, servicii OS, conturi reale sau emailuri. Fără endpoint
+public, restart/deploy ori arhive noi. Urmează adaptorul local concret și proba
+integrată a reluării, înainte de conectarea la WordPress sau Demo-ul public.
+
+## 19. Adaptor concret local: proces separat, JSON și health verificat
+
+`server/tests/support/demo-local-instance.js` pregătește fișierele temporare
+`instance.json` și `instance.key`, fără a le suprascrie la reluare. Verifică
+rezervarea server-side din registru și legarea proprietarului/modulelor înainte
+de efecte. Cheia aleatoare este distinctă per director; este un fișier local de
+test, nu un secret manager sau dovada unor ACL Windows de producție.
+
+Pornește efectiv un proces Node pe loopback/port dinamic, cu mediu restrâns,
+folosind harnessul de autentificare/setup, NU întreaga aplicație `app.js`.
+Sonda health a harnessului citește baza JSON, verifică trialul/rolul și cere un
+nonce per pornire; fără nonce răspunde 404. Invitația se emite numai după ce
+adaptorul confirmă răspunsul procesului. Numele SQL/storage/runtime din rezervare
+rămân identificatori logici: acest adaptor NU creează baze SQL, storage ERP,
+servicii systemd/Windows sau rute publice.
+
+Proba integrată pornește două procese cu proprietar/username identic, dar date,
+chei și porturi separate. Simulează întreruperea după health și înainte de ready;
+retry-ul reutilizează procesul în viață. Oprirea/reluarea înainte de activare
+păstrează cheia, parola nealeasă și invitația originală. Tokenul altui trial este
+refuzat, iar o sesiune de pe A nu autentifică pe B. Activarea fixează 15 zile și
+nu poate fi relansată prin coordonator.
+
+Proba Chrome folosește acum acest adaptor și coordonator, nu baza de test
+pregătită separat: aprobare → proces → health → invitație → parolă → login →
+wizard → aplicare → refresh. Prima rulare combinată a expirat așteptând titlul
+de după refresh; nu s-a stabilit o cauză certă. Testul verifică acum explicit
+statusul API și chitanța de aplicare după refresh. Rerularea individuală și apoi
+rularea combinată au trecut: **11/11**, zero skip. Audit: 463 fișiere, zero
+constatări. Sintaxă și diff check trecute.
+
+Limitări: adaptorul este exclusiv pentru NODE_ENV=test și directoare TEMP
+prefixate. Nu adoptă procese după căderea coordonatorului și nu are lease între
+procese; o nouă instanță a adaptorului nu trebuie pornită peste una existentă.
+Nu certifică izolarea OS, uploaduri sau toate modulele ERP. Datele de test sunt
+curățate numai după oprirea proceselor, cu verificarea căii. Nu s-au modificat
+instalările, Demo-ul public, versiunea sau arhivele 2.12.736.
+
+Următorul pas: recuperarea controlată a instanței după pierderea coordonatorului
+și blocarea provisionării concurente, înainte de un adaptor MSSQL/deployment.
+
+## 20. Recuperarea coordonatorului și revendicarea unică a procesului de test
+
+Harnessul gestionat creează exclusiv (`wx`) `runtime.claim` înainte să asculte
+pe port. Rezervarea aparține procesului instanței, nu coordonatorului. După
+listen salvează `runtime.json` prin rename, cu PID, port local, trial, proprietar
+și nonce de control. Fișierele cu nonce nu trebuie afișate sau exportate.
+Două porniri concurente în același director nu pot dobândi aceeași rezervare.
+Încercarea pierzătoare este refuzată; o reluare poate adopta instanța câștigătoare.
+
+Un adaptor nou verifică potrivirea descriptor/rezervare și răspunsul health
+autentificat: PID, trial, proprietar și provider JSON. PID-ul/portul singure nu
+sunt autoritate. Pornirea este detached, ascunsă pe Windows, ca instanța să poată
+supraviețui coordonatorului. Prima probă de cădere a identificat oprirea copilului
+pe Windows fără această opțiune; după corecție, căderea reală a coordonatorului
+și adoptarea aceluiași PID/port au trecut.
+
+Oprirea unui proces adoptat folosește exclusiv endpointul loopback protejat cu
+nonce. Nu se aplică kill unui PID din descriptor. Cleanup-ul forțat rămâne numai
+pentru handle-ul copilului creat direct de adaptor. La oprire normală, instanța
+își șterge numai fișierele de control al căror nonce îi aparține.
+
+Dacă procesul a fost terminat forțat, rezervarea nu este furată automat.
+`recoverStoppedInstance(expectedNonce)` cere nonce-ul exact, consistența
+fișierelor și dovada că PID-ul nu mai există; un PID viu, inclusiv reutilizat,
+sau o eroare de permisiune blochează recuperarea. Un lock exclusiv separat
+serializează recuperările. Un descriptor corupt sau nepotrivit se refuză, nu se
+repară prin suprascriere. Aceasta este o API internă de test, nu endpoint public.
+
+Verificări combinate: **13/13**, zero skip, inclusiv Chrome și două probe noi:
+coordonator pierdut → același proces adoptat fără token/termen nou; adaptoare
+concurente → o instanță; proces terminat → refuz până la recuperarea explicită.
+Nonce greșit, descriptor modificat și recuperare cerută pentru proces viu sunt
+refuzate. Audit expuneri: 466 fișiere, zero constatări; sintaxă/diff check trecute.
+
+Limite: exclusiv TEMP/JSON, harness parțial, loopback și trialuri încă în
+provisioning/awaiting_activation. Nu este un supervisor pentru toate stările
+active/expirate și nu certifică rezistență la pierderea alimentării sau atacator
+local cu acces la fișiere. `mode: 0600` nu certifică ACL Windows. Nu există
+automatizare systemd/Windows, gateway, provisionare SQL sau cleanup de producție.
+Nu s-au modificat Demo-ul public, serviciile instalate sau arhivele 2.12.736.
+
+Următorul pas: reconcilierea proceselor deja active și a trialurilor expirate,
+cu probe locale înainte de adaptorul MSSQL/deployment.
+
+## 21. Reconciliere locală pentru trialuri active și expirate
+
+Magazia temporară oferă `reconcileRuntime`, exclusiv pentru workerul sintetic
+de încredere. Sub lock, verifică starea/timpul și serializează decizia cu
+modificările administrative din aceeași magazie. Un trial încă activ poate
+adopta sau reporni harnessul folosind datele și cheia existente; verifică
+markerul activării, proprietarul, parola existentă și concordanța termenului
+contului cu registrul. Datele/cheia lipsă nu sunt regenerate pentru un trial activ.
+
+La egalitatea cu termenul, salvează mai întâi tranziția `expired`, apoi cere
+oprirea autentificată. Dacă oprirea eșuează, registrul rămâne expirat și filtrul
+HTTP refuză accesul, inclusiv cu o sesiune existentă. Retry-ul reia oprirea fără
+al doilea eveniment de expirare. Trialurile `expired`/`purge_pending` nu sunt
+repornite prin ensure. Oprirea păstrează baza JSON și cheia: NU este purge.
+
+Lockul rămâne deținut în timpul callback-ului extern. O comandă concurentă
+refuzată/expirată trebuie reîncercată după o citire curentă; o comandă veche
+de prelungire este refuzată prin revision conflict. Lockul rămas după o cădere
+nu se fură automat. Nu există tranzacție distribuită sau protecție față de
+scriitori care ocolesc această magazie.
+
+Patru probe noi: adoptare/restart activ cu hash/termen păstrate și sesiune veche
+invalidă; date lipsă fără seed nou; expirare exactă și oprire fără ștergere;
+eșec la stop cu acces refuzat și retry; lock pe durata efectului și ceas invalid.
+Prima aserțiune de identitate binară după re-login a identificat auditul normal
+de autentificare, nu pierdere de date; verificarea binară este acum înainte de
+loginul nou și separat înainte/după oprirea pentru expirare.
+
+Audit expuneri: 467 fișiere, zero constatări. Sintaxă/diff check trecute.
+Prima rulare complet paralelă: 16/17, Chrome timeout la navigarea inițială;
+probele noi au trecut. Rerularea cu `--test-concurrency=2`: **17/17**, zero skip,
+inclusiv Chrome, fără creșterea timeout-urilor. Nu au rămas procese de test active.
+
+Limite: apel explicit de test, fără scheduler periodic instalat, numai harness
+JSON parțial pe loopback. Nu reprezintă oprirea automată pe Demo-ul public.
+Prelungirea exclusiv în registru poate produce nepotrivire cu termenul contului;
+adaptorul refuză pornirea în loc să ascundă acest lucru. Urmează prelungirea
+controlată/sincronizată, apoi retenția și ștergerea verificată separat.
+Nicio modificare în serviciile instalate, versiune sau arhivele 2.12.736.

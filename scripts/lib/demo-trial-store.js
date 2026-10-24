@@ -57,6 +57,62 @@ function createSyntheticTrialStore(directory, { lockTimeoutMs = 5000 } = {}) {
     read: () => withLock(read),
     queue: input => withLock(async () => { const next = model.queueTrial(await read(), input); await save(next); return next }),
     command: input => withLock(async () => { const next = model.applyCommand(await read(), input); await save(next); return next }),
+    // Trusted synthetic worker only: callbacks execute under the registry lock.
+    reconcileRuntime: ({ trialId, now, ensureActive, stopInactive }) => withLock(async () => {
+      let registry = await read(), trial = registry.trials.find(t => t.id === trialId)
+      if (!trial?.setup || !['active','expired','purge_pending'].includes(trial.state)) throw error('reconciliation_unavailable')
+      if (!Number.isSafeInteger(now) || now < (trial.events.at(-1)?.at ?? trial.createdAt)
+        || now > 8640000000000000 - 15 * 86400000) throw error('invalid_reconciliation_time')
+      if (typeof ensureActive !== 'function' || typeof stopInactive !== 'function') throw error('invalid_runtime_adapter')
+      if (trial.state === 'active' && now >= trial.expiresAt) {
+        registry = model.applyCommand(registry, { trialId, commandId: `reconcile:expire:${trial.revision}`,
+          expectedRevision: trial.revision, action: 'expire', actor: { id: 'synthetic-reconciler', kind: 'worker' }, now })
+        await save(registry) // Access is refused even if stopping the process subsequently fails.
+        trial = registry.trials.find(t => t.id === trialId)
+      }
+      const context = { trialId, ownerId: trial.setup.ownerId, resources: structuredClone(trial.resources), allowedModules: [...trial.setupAllowedModules] }
+      if (trial.state === 'active') {
+        if (!model.canAccessTrial(registry, trialId, now)) throw error('trial_not_active')
+        const receipt = await ensureActive(context)
+        if (!receipt || receipt.trialId !== trialId || receipt.ownerId !== context.ownerId || receipt.healthy !== true
+          || Object.keys(context.resources).some(k => receipt.resources?.[k] !== context.resources[k])) throw error('invalid_instance_receipt')
+        return { trialId, state: trial.state, runtime: 'running', expiresAt: trial.expiresAt }
+      }
+      const receipt = await stopInactive(context)
+      if (!receipt || receipt.trialId !== trialId || receipt.stopped !== true) throw error('invalid_stop_receipt')
+      return { trialId, state: trial.state, runtime: 'stopped', expiresAt: trial.expiresAt }
+    }),
+    issueInvitation: ({ trialId, invitationId, now }) => withLock(async () => {
+      const registry = await read(), trial = registry.trials.find(t => t.id === trialId)
+      if (!trial?.setup || trial.state !== 'awaiting_activation' || typeof invitationId !== 'string' || !/^[a-zA-Z0-9_.:-]{1,100}$/.test(invitationId)
+        || !Number.isSafeInteger(now) || now > 8640000000000000 - 86400000 || now < (trial.events.at(-1)?.at ?? trial.createdAt)) throw error('invitation_unavailable')
+      if (trial.invitation?.id === invitationId) return { token: null, status: 'already_issued' }
+      if ((trial.invitationIds || []).includes(invitationId)) throw error('invitation_id_reused')
+      const token = crypto.randomBytes(32).toString('hex')
+      trial.invitation = { id: invitationId, tokenHash: crypto.createHash('sha256').update(token).digest('hex'), issuedAt: now,
+        expiresAt: now + 86400000, consumedAt: null }
+      trial.invitationIds = [...(trial.invitationIds || []), invitationId]
+      await save(registry)
+      return { token, status: 'issued', expiresAt: trial.invitation.expiresAt }
+    }),
+    consumeInvitation: ({ trialId, token, now, activate }) => withLock(async () => {
+      let registry = await read(), trial = registry.trials.find(t => t.id === trialId)
+      const invitation = trial?.invitation
+      if (!trial?.setup || trial.state !== 'awaiting_activation' || !invitation || invitation.consumedAt !== null
+        || !/^[a-f0-9]{64}$/.test(invitation.tokenHash) || !Number.isSafeInteger(invitation.expiresAt)
+        || !Number.isSafeInteger(now) || now < invitation.issuedAt || now >= invitation.expiresAt
+        || typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) throw error('invitation_invalid')
+      const hash = crypto.createHash('sha256').update(token).digest('hex')
+      if (!crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(invitation.tokenHash))) throw error('invitation_invalid')
+      if (typeof activate !== 'function') throw error('activation_unavailable')
+      const receipt = activate({ trialId, ownerId: trial.setup.ownerId, invitationId: invitation.id, tokenHash: hash, now })
+      if (!receipt || !Number.isSafeInteger(receipt.activatedAt) || receipt.activatedAt < invitation.issuedAt || receipt.activatedAt > now) throw error('invalid_activation_receipt')
+      registry = model.applyCommand(registry, { trialId, commandId: `invite:${invitation.id}`, expectedRevision: trial.revision,
+        action: 'activate', actor: { id: 'invitation-service', kind: 'activation_agent' }, now: receipt.activatedAt })
+      trial = registry.trials.find(t => t.id === trialId); trial.invitation.consumedAt = receipt.activatedAt
+      await save(registry)
+      return { activatedAt: trial.activatedAt, expiresAt: trial.expiresAt }
+    }),
     bindSetup: ({ trialId, ownerId, allowedModules }) => withLock(async () => {
       const registry = await read(), trial = registry.trials.find(t => t.id === trialId)
       if (!trial || !Array.isArray(allowedModules)) throw error('invalid_setup_binding')
@@ -77,7 +133,8 @@ function createSyntheticTrialStore(directory, { lockTimeoutMs = 5000 } = {}) {
       const registry = await read(), trial = registry.trials.find(t => t.id === trialId)
       if (!trial?.setup) throw error('setup_not_found')
       setup.assertSetupAccess(registry, trial.setup, { trialId, user }, now)
-      return { setup: structuredClone(trial.setup), availableModules: [...trial.setupAllowedModules], expiresAt: trial.expiresAt }
+      return { setup: structuredClone(trial.setup), availableModules: [...trial.setupAllowedModules], expiresAt: trial.expiresAt,
+        application: trial.setupApplication ? structuredClone(trial.setupApplication) : null }
     }),
     configureSetup: ({ trialId, user, command, now }) => withLock(async () => {
       const registry = await read(), trial = registry.trials.find(t => t.id === trialId)
@@ -85,6 +142,18 @@ function createSyntheticTrialStore(directory, { lockTimeoutMs = 5000 } = {}) {
       trial.setup = setup.applySetupStep(registry, trial.setup, { trialId, user }, { ...command, now }, trial.setupAllowedModules)
       trial.setupEvents.push({ revision: trial.setup.revision, step: command.step, actorId: user.id, at: now })
       await save(registry); return structuredClone(trial.setup)
+    }),
+    applySetup: ({ trialId, user, expectedRevision, now, apply }) => withLock(async () => {
+      const registry = await read(), trial = registry.trials.find(t => t.id === trialId)
+      if (!trial?.setup) throw error('setup_not_found')
+      setup.assertSetupAccess(registry, trial.setup, { trialId, user }, now)
+      if (trial.setup.revision !== expectedRevision) throw error('revision_conflict')
+      if (typeof apply !== 'function') throw error('application_unavailable')
+      const receipt = apply({ registry, trialId, setup: structuredClone(trial.setup), allowedModules: [...trial.setupAllowedModules], userId: user.id, now })
+      if (!receipt || receipt.trialId !== trialId || receipt.setupRevision !== expectedRevision
+        || !/^[a-f0-9]{64}$/.test(receipt.digest) || !Number.isSafeInteger(receipt.appliedAt)) throw error('invalid_application_receipt')
+      trial.setupApplication = receipt
+      await save(registry); return structuredClone(receipt)
     }),
   }
 }
