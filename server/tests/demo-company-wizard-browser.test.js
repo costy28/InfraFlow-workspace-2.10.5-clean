@@ -78,7 +78,11 @@ test('Chrome: invitație, parolă, login, wizard, aplicare și mobil', {
       command: { step: 'profile', input: { ...beforeConflict.setup.profile, companyName: 'Companie actualizată' }, expectedRevision: beforeConflict.setup.revision } })
     await page.getByRole('button', { name: 'Înapoi', exact: true }).click()
     assert.equal(await page.getByRole('checkbox', { name: 'Documente', exact: true }).isChecked(), true)
+    const conflictResponse = page.waitForResponse(r => r.url().endsWith('/api/demo-company/setup') && r.request().method() === 'PATCH')
     await page.getByRole('button', { name: 'Salvează și continuă' }).click()
+    const conflict = await conflictResponse
+    assert.equal(conflict.status(), 409, 'concurrent setup change must return conflict')
+    assert.equal((await conflict.json()).code, 'revision_conflict')
     await page.getByRole('alert').filter({ hasText: 'Configurația s-a schimbat' }).waitFor()
     await page.getByRole('button', { name: 'Reîncarcă progresul' }).click()
     await page.getByRole('button', { name: 'Confirmă configurația de test' }).waitFor()
@@ -107,7 +111,11 @@ test('Chrome: invitație, parolă, login, wizard, aplicare și mobil', {
     await replay.goto(base + '#invite=' + invitation.token)
     await replay.getByLabel('Parolă nouă', { exact: true }).fill(password)
     await replay.getByLabel('Confirmă parola', { exact: true }).fill(password)
+    const rejectedInvitation = replay.waitForResponse(r => r.url().endsWith('/api/demo-company/activate') && r.request().method() === 'POST')
     await replay.getByRole('button', { name: 'Activează contul de test' }).click()
+    const rejectedResponse = await rejectedInvitation
+    assert.equal(rejectedResponse.status(), 401, 'consumed invitation must be rejected')
+    assert.equal((await rejectedResponse.json()).code, 'invitation_invalid')
     await replay.getByRole('alert').filter({ hasText: 'Invitația este invalidă, expirată sau deja folosită' }).waitFor()
     assert.equal((await store.read()).trials[0].expiresAt, activated.expiresAt)
     await replay.close()

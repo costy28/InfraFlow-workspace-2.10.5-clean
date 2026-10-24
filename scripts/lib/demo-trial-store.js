@@ -57,6 +57,21 @@ function createSyntheticTrialStore(directory, { lockTimeoutMs = 5000 } = {}) {
     read: () => withLock(read),
     queue: input => withLock(async () => { const next = model.queueTrial(await read(), input); await save(next); return next }),
     command: input => withLock(async () => { const next = model.applyCommand(await read(), input); await save(next); return next }),
+    // Trusted local administrator context, NOT an HTTP authorization check.
+    extendAccess: ({ command, synchronize }) => withLock(async () => {
+      const registry = await read()
+      if (command?.action !== 'extend') throw error('invalid_extension_command')
+      const next = model.applyCommand(registry, command) // Validate authority, revision, time and idempotency before I/O.
+      const trial = registry.trials.find(t => t.id === command.trialId)
+      if (trial.commands.some(c => c.id === command.commandId)) return { trialId: trial.id, expiresAt: trial.expiresAt, status: 'already_applied' }
+      if (!['active','expired','purge_pending'].includes(trial.state) || !trial.setup) throw error('extension_unavailable')
+      if (typeof synchronize !== 'function') throw error('invalid_extension_adapter')
+      const receipt = await synchronize({ command: structuredClone(command), ownerId: trial.setup.ownerId,
+        previousExpiresAt: trial.expiresAt, activatedAt: trial.activatedAt })
+      if (receipt?.trialId !== trial.id || receipt.commandId !== command.commandId || receipt.expiresAt !== command.expiresAt) throw error('invalid_extension_receipt')
+      await save(next)
+      return { ...receipt, status: 'applied' }
+    }),
     // Trusted synthetic worker only: callbacks execute under the registry lock.
     reconcileRuntime: ({ trialId, now, ensureActive, stopInactive }) => withLock(async () => {
       let registry = await read(), trial = registry.trials.find(t => t.id === trialId)

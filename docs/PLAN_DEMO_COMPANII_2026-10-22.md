@@ -640,3 +640,413 @@ Prelungirea exclusiv în registru poate produce nepotrivire cu termenul contului
 adaptorul refuză pornirea în loc să ascundă acest lucru. Urmează prelungirea
 controlată/sincronizată, apoi retenția și ștergerea verificată separat.
 Nicio modificare în serviciile instalate, versiune sau arhivele 2.12.736.
+
+## 22. Prelungirea sincronizată a trialurilor active (2026-10-24)
+
+`extendAccess` validează mai întâi comanda prin modelul registrului: administrator
+de platformă, revizie curentă, timp valid și termen strict mai mare. Acesta este
+context de încredere în harness, NU autentificare de superadmin pentru un API
+public. Pentru această etapă se acceptă numai trialul în starea `active`.
+
+Sub lockul registrului, adaptorul contactează procesul de test prin endpointul
+loopback `synthetic-extension`, protejat cu nonce. Procesul verifică rezervarea
+din registru și contul, apoi citește/scrie prin helperul ERP original. Nu se
+editează fișierul de date dintr-un al doilea proces în timp ce ERP-ul rulează.
+Schimbă numai termenul contului, adaugă markerul comenzii și auditul administrativ;
+parola, rolul și prima activare sunt păstrate. Abia după confirmarea ERP se
+salvează noul termen în registru.
+
+Cele două fișiere NU constituie o tranzacție atomică. Dacă răspunsul sau
+confirmarea registrului se pierde după scrierea ERP, retry-ul cu aceeași comandă
+recunoaște markerul și nu repetă auditul. Aceeași identitate cu alte valori se
+refuză. Comanda deja confirmată în registru returnează `already_applied`, fără
+o nouă prelungire sau reverificare completă a ERP-ului. Filtrul de acces continuă
+să folosească registrul vechi până la confirmare, deci o scriere ERP izolată nu
+acordă singură acces dincolo de vechiul termen.
+
+Probe noi cu proces real: scriere ERP → întrerupere simulată → refuz comandă
+modificată → retry corect → audit unic; parola și activarea nemodificate;
+reconcilierea la vechiul termen nu mai oprește trialul; restart și login cu
+aceeași parolă. Autoritatea/revizia/termenul invalide sunt respinse înainte de
+callback. Endpointul fără nonce răspunde 404. Suita dedicată: **6/6**, zero skip.
+Sintaxă/diff check trecute; audit expuneri: 467 fișiere, zero constatări.
+Rularea combinată cu `--test-concurrency=2`: **19/19**, zero skip, inclusiv
+Chrome. Nu au rămas procese de test active.
+
+Limite: necesită procesul gestionat încă disponibil; nu repară automat un ERP
+cu termen schimbat și proces deja oprit. Nepotrivirea rămâne refuzată de
+reconcilierea normală, nu se ascunde prin rescriere. Trialurile `expired` sau
+`purge_pending` sunt refuzate de acest nou flux; reactivarea lor urmează separat.
+Comanda brută `command/extend` rămâne disponibilă modelului de test, dar nu
+sincronizează ERP și nu trebuie folosită drept flux complet administrativ.
+Nu există încă UI/API de producție, autentificare administrativă externă,
+persistare SQL sau distribuție publică. Versiunea/arhivele rămân 2.12.736.
+
+Următorul pas: reluarea controlată a prelungirii când procesul este oprit și
+reactivarea unui trial expirat, fără modificarea parolei și fără resetarea datelor.
+
+## 23. Reactivare după expirare/opriere și reluarea prelungirii (2026-10-24)
+
+Fluxul sincronizat acceptă acum `active`, `expired` și `purge_pending`, conform
+modelului de revizii; `purging`/`deleted` rămân refuzate înainte de efecte.
+Nu șterge și nu recuperează date deja eliminate. Un cont dezactivat explicit,
+date/cheie lipsă sau un marker de activare nepotrivit sunt în continuare refuzate.
+
+Dacă procesul nu rulează, adaptorul verifică administrativ comanda pe registrul
+curent, proprietarul, resursele și datele existente înainte să pornească harnessul.
+Această cale de recuperare nu folosește un seed nou. Verificarea normală `ensure`
+rămâne strictă și nu poate porni un trial expirat fără contextul comenzii validate.
+Procesul pornit pentru recuperare nu acordă acces ERP cât registrul este expirat:
+filtrul obișnuit refuză loginul până la confirmarea noului termen în registru.
+
+Același mecanism poate relua o prelungire al cărei marker ERP a fost salvat,
+dar registrul încă nu a confirmat-o, inclusiv după oprirea procesului. Markerul
+trebuie să corespundă exact comenzii originale; nu schimbă parola, prima activare
+sau profilul companiei și nu dublează auditul. Metadatele runtime neconcordante
+sau o rezervare rămasă după kill continuă să necesite recuperarea explicită
+descrisă anterior, nu se fură automat.
+
+Probele noi folosesc procese reale: expirare și oprire → pornire administrativă
+→ scriere ERP → întrerupere înainte de confirmarea registrului → login refuzat
+→ oprire → adaptor nou → retry → login cu aceeași parolă. Reactivarea din
+`purge_pending` schimbă revizia și refuză o comandă veche `begin_purge`.
+Nu s-a executat nicio ștergere de date în aceste probe.
+
+Prima rulare a arătat că un refuz de validare oprea procesul existent prin
+cleanup-ul generic și pierdea sesiunile. Corecție: cleanup-ul de eroare oprește
+numai copilul pornit chiar de apelul eșuat; o comandă invalidă nu oprește o
+instanță existentă. Rerularea dedicată: **8/8**, zero skip.
+Suita combinată cu `--test-concurrency=2`: **21/21**, zero skip, inclusiv Chrome.
+Sintaxă/diff check trecute; audit: 467 fișiere, zero constatări. Zero procese de
+test rămase active după verificări.
+
+Limite: test local TEMP/JSON și context administrativ de încredere, nu UI/API
+public cu autentificare superadmin. Cele două fișiere nu sunt o tranzacție
+atomică și nu sunt validate la pierdere de alimentare. Nu s-au schimbat Demo-ul
+public, serviciile instalate, versiunea sau arhivele 2.12.736.
+
+Următorul pas: politica de retenție și planul de curățare în dry-run, înainte
+de implementarea și autorizarea separată a ștergerii efective.
+
+## 24. Politică de retenție și plan pur dry-run (2026-10-24)
+
+`scripts/lib/demo-retention-plan.js` calculează un plan fără I/O: nu importă
+filesystem, SQL, procese sau un executor de ștergere. Fără politică explicită,
+rezultatul este blocat (`retention_not_enabled`). Nu s-a ales o durată implicită
+pentru instalări. Valorile de 2/7 zile din teste sunt exemple sintetice, nu
+politică comercială sau recomandare legală.
+
+Politica are `enabled`, `dataRetentionDays`, `backupRetentionDays`; duratele sunt
+numere întregi între 0 și 3650, cu refuz al câmpurilor necunoscute/overflow.
+Termenele se raportează la ultima expirare din registru. Datele și backupurile
+au termene distincte; cheia este păstrată cel puțin până la termenul cel mai
+lung. Candidatura pentru curățarea completă apare numai după ambele termene și
+numai în `expired`/`purge_pending`. Un trial încă `active`, chiar depășit în timp,
+trebuie mai întâi reconciliat, nu devine candidat doar pe baza ceasului.
+
+Planul listează cele șase clase logice de resurse: bază, storage, runtime,
+routing, backupuri, cheie. Nu conține căi de ștergere sau comenzi SQL/shell.
+Include revizia și o amprentă a legării resurselor/stării/termenului/politicii.
+Revalidarea regenerează toate câmpurile relevante; prelungirea, politica schimbată,
+ținte/câmpuri injectate sau resurse greșite invalidează planul. Amprenta nu este
+semnătură de autorizare. `executionAllowed` rămâne **false**, inclusiv pentru un
+candidat ajuns la termen.
+
+Înainte de orice execuție viitoare rămân obligatorii: revizie curentă, dovada
+proprietății resurselor, oprire autentificată, inventar complet de backupuri și
+autorizare explicită a execuției. Planificatorul nu inventariază backupuri și nu
+certifică faptul că o instanță este oprită. Nu persistă politica în aplicație și
+nu instalează un scheduler. Nu schimbă starea trialului.
+
+Verificări dedicate: **14/14** cu modelul registrului, zero skip. Proba TEMP
+compară binar registrul, baza, cheia și un backup înainte/după planificare și
+revalidare: neschimbate. Audit expuneri: 468 fișiere, zero constatări; diff check
+trecut. Demo-ul public, serviciile instalate și arhivele 2.12.736 sunt neatinse.
+Suita combinată cu `--test-concurrency=2`: **35/35**, zero skip, inclusiv Chrome.
+Zero procese de test rămase active după verificări.
+
+Următorul pas: inventarul verificabil al resurselor locale și previzualizarea
+administrativă, încă fără executor de ștergere. Duratele reale de retenție și
+autorizarea ștergerii trebuie stabilite explicit înainte de activarea lor.
+
+## 25. Inventar local read-only și previzualizare statică (2026-10-24)
+
+`server/tests/support/demo-resource-inventory.js` verifică exclusiv directoare
+TEMP sintetice în NODE_ENV=test. Citește registrul și legarea bazei JSON la
+trial/proprietar. Verifică tipul și dimensiunea fișierelor înainte de parsare și
+refuză fișiere simbolice/nesigure pentru resursele citite. Nu urmărește recursiv
+directoare și nu acceptă căi de resurse furnizate de client.
+
+Cheia este verificată numai ca prezență/tip; conținutul, hash-ul cheii și ACL-urile
+nu sunt citite/certificate. Parolele, nonce-ul runtime, cheia, username-ul și
+calea TEMP nu sunt incluse în raport. Baza JSON este citită intern pentru legare,
+dar raportul nu exportă obiectul DB sau câmpurile de autentificare. Fingerprint-ul
+rezultatului este de comparație a observațiilor, nu certificat sau autorizare.
+
+Pentru runtime cu descriptor și rezervare coerente se verifică trialul și
+proprietarul, apoi health-ul cu nonce. Un proces care răspunde apare ca pornit,
+nu ca eligibil pentru ștergere. Lipsa descriptorului nu dovedește oprirea;
+un runtime care nu răspunde rămâne neverificat. O operație/rezervare în curs,
+resurse neclasificate sau o bază nepotrivită apar ca blocaje.
+
+Storage, backupuri și rutare nu sunt inventariate complet de harnessul actual.
+Lipsa directorului nu dovedește lipsa copiilor externe. Aceste clase rămân
+explicit neverificate și blochează curățarea. Nu s-a introdus un manifest fictiv
+și nu se declară eliberate resurse doar pentru că nu au fost localizate.
+
+`scripts/lib/demo-retention-preview.js` generează HTML static, fără JavaScript,
+formular sau buton de execuție. Include starea retenției, duratele/termenul,
+resursele și blocajele, cu text escapate și CSP restrictiv. Este un artefact local,
+NU o pagină montată în ERP și NU un API administrativ public. Exemplul generat:
+`installer/output/qa/demo-retention-preview.html`; capturi desktop/mobil cu
+același prefix. Inspectat vizual și fără overflow la 390px.
+
+Probe dedicate: **6/6**, zero skip, inclusiv un proces real verificat prin health
+fără oprire sau expunerea nonce-ului. Comparația binară arată fișiere neschimbate
+după inventar și render. Sunt testate legarea greșită, resurse lipsă/nesigure,
+operație în curs, intrări neclasificate, escaparea HTML și refuzul în producție.
+Sintaxă/diff check trecute; audit expuneri: 470 fișiere, zero constatări.
+Suita combinată cu `--test-concurrency=2`: **41/41**, zero skip, inclusiv Chrome.
+
+Limite: observație read-only parțială, nu snapshot atomic/distribuit. Cheile,
+backupurile externe, rutarea și izolarea OS nu sunt certificate. `executionAllowed`
+rămâne false. Demo-ul public, serviciile instalate și pachetele 2.12.736 sunt
+neatinse. Nu s-a adăugat ștergere sau scheduler.
+
+Următorul pas: inventarul backupurilor sintetice cu legare și integritate
+verificabile, apoi integrarea lui în raport; fără ștergere efectivă.
+
+## 26. Inventarul backupurilor sintetice și integritatea locală (2026-10-24)
+
+`server/tests/support/demo-backup-inventory.js` citește numai subdirectorul
+`backups` al unui director TEMP sintetic, în NODE_ENV=test. Nu creează copii,
+nu restaurează, nu dezarhivează și nu șterge. Formatul este exclusiv de test,
+NU formatul backupurilor SQL/ZIP/TAR din instalații.
+
+Contractul local: `manifest.json` cu `format=infraflow-synthetic-backup-manifest-v1`,
+`trialId` și `files`; fiecare intrare are numai `name`, `bytes`, `sha256`.
+Payloadul JSON are `format=infraflow-synthetic-json-backup-v1`, `trialId` și
+`database`, al cărui `settings.demoTrialId` trebuie să corespundă. Sunt verificate
+dimensiunea, SHA-256 și ambele legări de trial, nu numai numele fișierului.
+Manifestul nu este semnat: coerența manifest/hash nu certifică proveniența
+împotriva unui atacator local care le poate modifica pe ambele.
+
+Fișierele trebuie să fie obișnuite, fără linkuri simbolice/hardlinkuri. Numele
+sunt basename JSON limitate, fără căi, nume Windows rezervate sau duplicate,
+inclusiv diferențe doar de litere mari/mici. Nu sunt urmărite directoare din
+manifest. Limite: 256 KiB manifest, 100 copii, 64 MiB/copii, 128 MiB total,
+1001 intrări în director. Tipul/metadatele sunt reverificate după citire;
+manifestul și lista directorului sunt comparate din nou la final.
+
+Copiile lipsă, modificate, ale altui trial, nesigure sau intrările neclasificate
+produc refuz/blocaj. Un director gol fără manifest nu dovedește că nu există
+backupuri. Un manifest valid verifică numai copiile locale declarate; cele
+externe rămân explicit neverificate și blochează curățarea. Nu reprezintă un
+snapshot atomic față de scriitori externi și nu demonstrează restaurabilitatea.
+
+Raportul general include numărul copiilor verificate și al intrărilor locale
+neclasificate, fără numele copiilor, conținut, parole, chei sau hash-uri de payload
+în ieșire. HTML-ul indică explicit lipsa probei de restaurare. Exemplu separat:
+`installer/output/qa/demo-backup-preview.html`. `executionAllowed` rămâne false.
+
+Probe dedicate împreună cu inventarul general: **13/13**, zero skip. Sunt
+testate integritate, proprietate, copie lipsă, cale injectată, nume rezervat,
+duplicat, limită, hardlink și director în loc de fișier. Comparația binară arată
+copii/manifest neschimbate după verificare. Sintaxă/diff check trecute;
+audit expuneri: 472 fișiere, zero constatări.
+Suita combinată cu `--test-concurrency=2`: **48/48**, zero skip, inclusiv Chrome.
+
+Demo-ul public, serviciile instalate, versiunea și arhivele 2.12.736 sunt neatinse.
+Următorul pas: probă de restaurare sintetică într-un director nou și izolat,
+fără suprascrierea instanței originale, înainte de orice discuție despre purge.
+
+## 27. Probă de restaurare JSON în director nou (2026-10-24)
+
+`server/tests/support/demo-backup-restore.js` pregătește exclusiv un director
+TEMP nou, generat intern. Nu acceptă o destinație furnizată de client și nu poate
+suprascrie sursa. Selecția copiei trece prin aceeași validare integrală de
+manifest, hash, nume, legare și intrări neclasificate; payloadul verificat este
+returnat intern din aceeași citire, fără a fi exportat în raportul de inventar.
+
+Snapshotul este comparat cu registrul curent: trial activ, proprietar unic cu rol
+Demo restrâns, cont activ, marker de activare și termen concordante. Restaurarea
+nu pornește un trial nou și nu adaugă 15 zile. Contul dezactivat sau trialul
+expirat sunt refuzate. Registrul existent este copiat separat pentru trialul
+selectat; aceasta NU este recuperarea unui control plane pierdut din backup.
+
+Pregătirea scrie numai în directorul nou: registry/JSON, o cheie de TEST nouă și
+o chitanță de scop. Nu copiază cheia sursă, PID-uri, nonce-uri sau rutare publică.
+Nu pornește singură un proces. Proba pornește apoi harnessul pe alt port/PID și
+folosește autentificarea și setup-ul originale ERP. UUID-ul logic al trialului
+este păstrat numai în cele două directoare JSON izolate; nu se creează o a doua
+rută sau o bază SQL cu același nume.
+
+Sunt verificate: login cu parola din snapshot; hash/parolă, configurare, module
+și termen păstrate; sesiuni nereutilizabile între procese; originalul funcțional
+după oprirea copiei; registry/DB/cheie/manifest/backup sursă identice binar.
+Teste negative: destinație injectată, selecție nesigură/lipsă, inventar incomplet,
+conținut modificat, proprietar dezactivat și trial expirat. Probe dedicate de
+restaurare: **3/3**, zero skip; cu inventarul backupurilor: **10/10**.
+
+Rezultatul sanitizat se găsește în `installer/output/qa/demo-restore-probe.json`.
+Este marcat explicit `json-auth-setup-only`, fără aprobare pentru producție.
+Cheia fiind nouă, nu certifică decriptarea setărilor existente, atașamentele,
+storage-ul, backupurile SQL sau toate modulele ERP. Harnessul nu montează
+schedulerul de integrări. Niciun email sau serviciu extern nu este contactat.
+Nu există garanție de snapshot atomic/distribuit ori rezistență la întreruperea
+alimentării. Manifestul nesemnat nu dovedește proveniență împotriva unui scriitor
+local privilegiat.
+
+Prima suită combinată: **50/51**, Chrome timeout la alerta conflictului de
+revizie. Testul browser verifică acum explicit răspunsul PATCH 409 și codul
+`revision_conflict`, înaintea alertei; nu schimbă logica aplicației sau timeout-ul.
+Rerularea Chrome individuală a trecut; apoi suita combinată cu
+`--test-concurrency=2`: **51/51**, zero skip. Verificarea suplimentară a markerului
+de aplicare setup din snapshot față de registru a trecut în cele trei probe de
+restaurare. Zero procese de test rămase active.
+Sintaxă/diff check trecute; audit expuneri: 474 fișiere, zero constatări.
+
+Demo-ul public, serviciile instalate și arhivele 2.12.736 rămân neatinse.
+Următorul pas: inventarul și proba de copiere/restaurare a fișierelor ERP
+sintetice, separat de JSON și fără ștergere, înainte de un purge complet.
+
+## 28. Inventar și copiere/restaurare storage sintetic (2026-10-24)
+
+`server/tests/support/demo-storage-inventory.js` verifică un format plat de test
+în `storage/manifest.json`, cu `format=infraflow-synthetic-storage-v1`, `trialId`
+și `files`. Fiecare fișier are numai basename, bytes și SHA-256. Nu este formatul
+actual al atașamentelor din toate modulele ERP și nu înlocuiește autorizarea pe
+document/entitate.
+
+Sunt acceptate numai fișiere obișnuite cu extensii limitate txt/pdf/png/jpg/bin,
+fără căi, nume Windows rezervate, duplicate case-insensitive, symlink/hardlink
+sau directoare în loc de fișiere. Nu se validează semantica PDF/imaginilor și nu
+se deschid/servesc/execută. Limite: 100 fișiere, 16 MiB/fișier, 64 MiB total,
+manifest 256 KiB și 1001 intrări locale. Fișierul gol este permis și verificat
+prin hash. Metadatele, manifestul și lista directorului sunt reverificate.
+
+Inventarul este read-only. Datele modificate/lipsă, manifestul altei companii sau
+intrările neclasificate refuză copia. Raportul returnează numai stări/numere/
+dimensiuni, fără conținut, nume de fișiere sau hash-uri individuale. Conținutul
+este capturat în memorie numai pentru operația internă de copiere verificată.
+
+`restoreSyntheticStorage` generează intern un director TEMP nou; nu acceptă o
+destinație furnizată de client și nu poate suprascrie sursa. Scrie exclusiv
+fișierele validate și manifestul, apoi le verifică din nou. Nu copiază registry,
+chei, credențiale sau runtime și nu pornește aplicația. Cleanup-ul unui eșec
+poate elimina numai ținta TEMP nou creată de acea operație, nu datele sursă.
+
+Proba verifică sursă → copie izolată → a doua copie izolată, cu identitate binară
+pentru fișiere text, binare și goale, plus manifest. Sursa rămâne neschimbată.
+Teste negative: integritate, lipsuri, trial greșit, căi injectate, duplicate,
+limite, hardlinkuri/directoare, manifest absent, intrări neclasificate și mod
+producție. Cu inventarul general: **13/13**, zero skip.
+
+Raportul general și HTML-ul includ noua stare storage, dar păstrează blocajul
+`storage_entity_access_unverified`. Integritatea unui fișier nu dovedește dreptul
+de descărcare, legarea lui la o entitate reală sau decriptarea. Nici manifestul
+nesemnat nu certifică proveniența față de un atacator local privilegiat. Nu este
+un snapshot atomic cu JSON și nu certifică o restaurare ERP completă.
+
+Artefacte de test: `installer/output/qa/demo-storage-restore-probe.json` și
+`installer/output/qa/demo-storage-preview.html`. Sintaxă/diff check trecute;
+audit expuneri: 476 fișiere, zero constatări. Demo-ul public, serviciile instalate,
+versiunea și arhivele 2.12.736 sunt neatinse; niciun purge implementat/executat.
+Suita combinată cu `--test-concurrency=2`: **58/58**, zero skip, inclusiv Chrome.
+
+Următorul pas: snapshot sintetic comun JSON + storage cu verificarea referințelor
+dintre ele, înainte de a considera restaurarea coerentă pe entități.
+
+## 29. Restaurare comună JSON + storage și referințe (2026-10-24)
+
+`scripts/lib/demo-snapshot-references.js` verifică un snapshot marcat explicit
+prin `syntheticSnapshot`: format `infraflow-synthetic-joint-snapshot-v1`, trialId
+și SHA-256 al manifestului storage. Manifestul și octeții capturați/verificați
+trebuie să corespundă acestei legări. Un JSON vechi nu poate fi combinat accidental
+cu alt manifest sau cu fișiere modificate. Markerul nu este semnat și nu reprezintă
+o protecție împotriva unui atacator care poate rescrie ambele componente.
+
+Verificarea folosește câmpurile Documente `documents.documents`, `id`, `creat_de`,
+`fisier_draft_path` și `fisier_final_path`, în convenția strictă de test
+`storage/<basename>`. Documentele trebuie să aibă ID-uri distincte; referințele
+trebuie să aparțină proprietarului trialului, să fie prezente în storage și să
+nu fie duplicate. Fiecare fișier declarat trebuie referit: orfanele sunt refuzate.
+Formatele/căile reale mai complexe și atașamentele din alte module nu sunt
+acoperite. Acest verificator NU este o regulă nouă pentru documentele existente.
+
+`server/tests/support/demo-joint-restore.js` validează ambele componente înainte
+de pregătire, creează ținta JSON nouă prin helperul existent, verifică din nou
+JSON-ul efectiv pregătit față de octeții storage capturați, copiază numai fișierele
+validate și reverifică ținta. Nu acceptă destinație externă, nu suprascrie sursa și
+nu pornește singur procese. Cleanup-ul unui eșec poate elimina numai directorul
+TEMP nou creat, înainte de pornire, nu datele originale.
+
+Proba integrată folosește activare/login reale, pregătește documentul-fixture
+cât procesul sursă este oprit, apoi verifică restaurarea într-un al doilea proces.
+Parola funcționează, tokenul sursă este refuzat în copie, documentul indică
+fișierul corect, conținutul este binar identic, iar originalul rămâne funcțional.
+Registry, DB, cheie, manifest și backupuri/fișiere sursă sunt comparate binar.
+Nu se face download prin endpointul de Documente în această etapă.
+
+Probe dedicate: **4/4**, zero skip. Sunt refuzate manifestul nepotrivit,
+conținutul schimbat, referința lipsă/externă, autorul greșit, ID-urile/referințele
+duplicate și fișierele orfane. Rezultatul sanitizat este în
+`installer/output/qa/demo-joint-restore-probe.json`, cu `entityAccessVerified=false`,
+`decryptionVerified=false`, `productionRestoreApproved=false`.
+Sintaxă/diff check trecute; audit expuneri: 478 fișiere, zero constatări.
+Prima suită combinată: **61/62**, Chrome timeout la afișarea mesajului unei
+invitații reutilizate. Testul verifică acum explicit răspunsul 401 și codul
+`invitation_invalid`, fără modificarea aplicației sau a timeout-ului. Rerularea
+Chrome individuală a trecut; cauza timeout-ului intermitent nu este stabilită.
+Rerularea combinată cu `--test-concurrency=2`: **62/62**, zero skip. Zero procese
+de test rămase active după verificări.
+
+Limite: verificare de coerență a unui fixture, nu un mecanism de captură atomică
+a unei instanțe live, nu restaurare MSSQL/control plane pierdut și nu autorizare
+de acces. Cheia de test este nouă; datele criptate și toate modulele ERP nu sunt
+certificate. Nicio ștergere, publicare, modificare de serviciu ori arhivă nouă;
+Demo-ul public și pachetele 2.12.736 sunt neatinse.
+
+Următorul pas: proba HTTP a accesului autorizat/refuzat la fișierele documentelor
+restaurate, înainte de a declara fluxul complet pe entitate.
+
+## 30. Acces HTTP la fișierul restaurat — adaptor exclusiv de test
+
+Harness-ul montează acum rutele originale Documente: dosarul propriu răspunde
+200, iar documentul altui autor este refuzat cu 403. Loginul, sesiunile și
+drepturile efective sunt cele originale. Fixture-ul parcurge configurarea și
+aplicarea modulului Documente; autentificarea singură nu activează modulul.
+Prima probă a refuzat corect accesul cu 403 deoarece fixture-ul nu aplicase
+modulul; a fost completat fixture-ul, fără relaxarea permisiunilor.
+
+Rutele originale inspectate nu oferă download pentru câmpul `fisier_draft_path`.
+`server/tests/support/demo-restored-file-router.js` este, explicit, un adaptor
+nou de test, NU un endpoint livrat. Folosește `requireAuth` și
+`authHasPermission` originale, apoi o politică mai restrictivă: numai autorul
+documentului. Nu reproduce accesul prin departament, partajări sau circuit.
+Este montat numai în serverul sintetic, după poarta de valabilitate a trialului.
+
+Cererea selectează ID-ul și varianta draft/final, niciodată o cale de fișier.
+Octeții returnați sunt cei capturați și verificați de inventarul storage;
+manifestul și referințele comune JSON/storage sunt reverificate. Nu există
+`express.static`, cale primită din query sau redeschidere separată pentru send.
+Răspunsul este attachment/octet-stream, `nosniff`, `no-store`.
+
+Matricea HTTP verifică: modul neactivat 403; proprietar și octeți identici 200;
+fără token 401; tokenul instanței sursă în restaurare 401; alt autor/document
+inexistent/variantă lipsă/query cu path 404; storage direct 404; fișier modificat
+sau lipsă 409; trial expirat 403 chiar dacă procesul încă rulează. Originalul,
+backupurile și cheia sursă rămân identice binar. Expirarea este aplicată numai
+copiei sintetice, fără ștergere. Nu sunt certificate toate permisiunile ERP,
+MSSQL, criptarea sau restaurarea de producție.
+
+Regresie combinată: **62/62**, zero skip, inclusiv Chrome. Audit expuneri:
+**479 fișiere, zero constatări**; diff check trecut. Zero procese sintetice
+rămase active. Raportul QA păstrează `entityAccessVerified=false` pentru fluxul
+de producție și adaugă rezultate separate pentru adaptorul HTTP și vizibilitatea
+nativă a dosarului. Versiunea și arhivele 2.12.736, serviciile instalate și
+Demo-ul public sunt neatinse.
+
+Următorul pas: completarea matricei negative pentru modul dezactivat și
+permisiune retrasă după autentificare, inclusiv în copia restaurată. Abia apoi
+se poate decide separat dacă produsul are nevoie de endpoint nativ de fișiere.

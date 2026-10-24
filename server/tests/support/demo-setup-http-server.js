@@ -50,6 +50,22 @@ if (managed) app.post('/synthetic-stop', (req, res) => {
   if (req.get('x-synthetic-health') !== runtimeIdentity.nonce) return res.sendStatus(404)
   res.json({ ok: true }); setImmediate(shutdown)
 })
+if (managed) app.post('/synthetic-extension', (req, res) => {
+  if (req.get('x-synthetic-health') !== runtimeIdentity.nonce) return res.sendStatus(404)
+  try {
+    const model = require('../../../scripts/lib/demo-trial-registry')
+    const registry = model.validateRegistry(JSON.parse(fs.readFileSync(path.join(dir, 'registry.json'), 'utf8')))
+    const body = req.body, command = body?.command, trial = registry.trials.find(t => t.id === trialId)
+    if (!body || Object.keys(body).some(k => !['command','ownerId','previousExpiresAt','activatedAt'].includes(k))
+      || command?.trialId !== trialId || !['active','expired','purge_pending'].includes(trial?.state) || body.ownerId !== trial.setup?.ownerId
+      || body.previousExpiresAt !== trial.expiresAt || body.activatedAt !== trial.activatedAt) throw Error('invalid_binding')
+    model.applyCommand(registry, command)
+    const db = require('../../core/db')
+    const result = require('../../../scripts/lib/demo-access-extension').prepareAccessExtension(db.readDb({ fresh: true }), body)
+    if (result.changed) db.writeDb(result.db)
+    res.json(result.receipt)
+  } catch { res.status(409).json({ code: 'extension_refused' }) }
+})
 app.use('/api', createSyntheticInvitationRouter({ store, trialId }))
 app.use('/api', async (req, res, next) => {
   try {
@@ -58,6 +74,8 @@ app.use('/api', async (req, res, next) => {
   } catch { res.status(503).json({ error: 'Registrul trialului nu este disponibil.' }) }
 })
 app.use('/api', require('../../core/auth-routes')) // Actual password login and session Map.
+app.use('/api', require('./demo-restored-file-router').createRestoredFileRouter(dir, trialId))
+app.use('/api', require('../../modules/documents/routes'))
 app.use('/api', createSyntheticSetupRouter({ store: createSyntheticTrialStore(dir), trialId: process.env.SYNTHETIC_TRIAL_ID, apply: createSyntheticCompanyApplier() }))
 const server = app.listen(0, '127.0.0.1', () => {
   if (managed) {

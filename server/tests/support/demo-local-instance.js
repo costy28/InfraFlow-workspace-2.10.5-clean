@@ -3,7 +3,7 @@
 const fs = require('node:fs/promises'), path = require('node:path'), os = require('node:os'), crypto = require('node:crypto')
 const { spawn } = require('node:child_process')
 const { ROLE, companyRole } = require('../../../scripts/lib/demo-company-setup')
-const { validateRegistry, canAccessTrial } = require('../../../scripts/lib/demo-trial-registry')
+const { validateRegistry, canAccessTrial, applyCommand } = require('../../../scripts/lib/demo-trial-registry')
 const { readRecord, readManagedRecord, health, alive } = require('./demo-runtime-record')
 function fail(code) { const e = new Error(code); e.code = code; throw e }
 function createLocalSyntheticInstance(directory) {
@@ -90,25 +90,50 @@ function createLocalSyntheticInstance(directory) {
     if (await readRecord(root, 'runtime.claim') || await readRecord(root, 'runtime.json')) fail('instance_stop_incomplete')
     return { trialId: context.trialId, stopped: true }
   }
-  async function ensureInstance(context) {
+  async function synchronizeExtension(context) {
+    await assertRoot()
+    await regular(path.join(root, 'registry.json'))
+    const registry = validateRegistry(JSON.parse(await fs.readFile(path.join(root, 'registry.json'), 'utf8')))
+    applyCommand(registry, context.command)
+    const trial = registry.trials.find(t => t.id === context.command.trialId)
+    // Start only a validated administrative recovery; ordinary ensure still refuses expired trials.
+    await ensureInstance({ trialId: trial.id, ownerId: context.ownerId, resources: trial.resources,
+      allowedModules: trial.setupAllowedModules }, context)
+    const record = await readManagedRecord(root)
+    if (!record || record.trialId !== context.command?.trialId || record.ownerId !== context.ownerId) fail('extension_runtime_unavailable')
+    const target = await health(record)
+    const response = await fetch(target + '/synthetic-extension', { method: 'POST',
+      headers: { 'x-synthetic-health': record.nonce, 'Content-Type': 'application/json', Connection: 'close' },
+      body: JSON.stringify(context), signal: AbortSignal.timeout(3000) })
+    if (!response.ok) fail('extension_refused')
+    return response.json()
+  }
+  async function ensureInstance(context, extensionContext) {
     if (busy) fail('instance_busy')
     busy = true
+    let startedHere = false
     try {
       await assertRoot()
       // Verify the server-owned reservation, not just values supplied by a caller.
       await regular(path.join(root, 'registry.json'))
       const registry = validateRegistry(JSON.parse(await fs.readFile(path.join(root, 'registry.json'), 'utf8')))
       const trial = registry.trials.find(t => t.id === context.trialId)
-      if (!trial?.setup || !['provisioning','awaiting_activation','active'].includes(trial.state)
+      if (extensionContext) {
+        applyCommand(registry, extensionContext.command)
+        if (!trial || extensionContext.command.trialId !== trial.id || extensionContext.ownerId !== context.ownerId
+          || extensionContext.previousExpiresAt !== trial.expiresAt || extensionContext.activatedAt !== trial.activatedAt) fail('invalid_extension_binding')
+      }
+      const allowedStates = extensionContext ? ['active','expired','purge_pending'] : ['provisioning','awaiting_activation','active']
+      if (!trial?.setup || !allowedStates.includes(trial.state)
         || trial.setup.ownerId !== context.ownerId
         || JSON.stringify(trial.resources) !== JSON.stringify(context.resources)
         || JSON.stringify(trial.setupAllowedModules) !== JSON.stringify(context.allowedModules)) fail('invalid_instance_binding')
-      if (trial.state === 'active' && !canAccessTrial(registry, trial.id, Date.now())) fail('trial_not_active')
+      if (!extensionContext && trial.state === 'active' && !canAccessTrial(registry, trial.id, Date.now())) fail('trial_not_active')
       const identity = JSON.stringify({ trialId: context.trialId, ownerId: context.ownerId })
       if (binding && binding !== identity) fail('instance_already_bound')
       binding = identity
       // Never recreate an active company's missing data or key from a blank seed.
-      if (trial.state === 'active') { await regular(dbFile); await regular(keyFile) }
+      if (trial.state === 'active' || extensionContext) { await regular(dbFile); await regular(keyFile) }
       await createOnce(dbFile, JSON.stringify({ settings: { demoTrialId: context.trialId, setupCompleted: true,
         networkAccessMode: 'open', customRoles: [companyRole()], modules_enabled: [],
         license: { plan: 'internal', modules: ['all'], maxDevices: 20 } },
@@ -117,7 +142,8 @@ function createLocalSyntheticInstance(directory) {
       const db = JSON.parse(await fs.readFile(dbFile, 'utf8'))
       if (db.settings?.demoTrialId !== context.trialId || db.users?.length !== 1
         || db.users[0].id !== context.ownerId || db.users[0].role !== ROLE) fail('invalid_instance_database')
-      if (trial.state === 'active' && (db.users[0].active !== true || !db.users[0].passwordHash
+      if (extensionContext) require('../../../scripts/lib/demo-access-extension').prepareAccessExtension(db, extensionContext)
+      else if (trial.state === 'active' && (db.users[0].active !== true || !db.users[0].passwordHash
         || db.demoTrialActivation?.userId !== context.ownerId || db.demoTrialActivation?.activatedAt !== trial.activatedAt
         || Date.parse(db.users[0].demoAccessExpiresAt) !== trial.expiresAt)) fail('active_instance_data_mismatch')
       await createOnce(keyFile, crypto.randomBytes(32).toString('hex'))
@@ -137,6 +163,7 @@ function createLocalSyntheticInstance(directory) {
             SYNTHETIC_TRIAL_ID: context.trialId, SYNTHETIC_OWNER_ID: context.ownerId, SYNTHETIC_HEALTH_NONCE: nonce,
             SYNTHETIC_MANAGED_RUNTIME: '1' },
           stdio: ['ignore','ignore','ignore','ipc'] })
+        startedHere = true
         const launched = child
         const port = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => { launched.kill(); reject(Error('synthetic_start_timeout')) }, 15000)
@@ -151,9 +178,9 @@ function createLocalSyntheticInstance(directory) {
       }
       origin = await health(runtime)
       return { trialId: context.trialId, ownerId: context.ownerId, resources: structuredClone(trial.resources), healthy: true }
-    } catch (e) { await stopOwned(); throw e }
+    } catch (e) { if (startedHere) await stopOwned(); throw e }
     finally { busy = false }
   }
-  return { ensureInstance, stop, stopInactiveInstance, recoverStoppedInstance, get origin() { return origin }, get pid() { return runtime?.pid ?? child?.pid ?? null }, dbFile }
+  return { ensureInstance, stop, stopInactiveInstance, synchronizeExtension, recoverStoppedInstance, get origin() { return origin }, get pid() { return runtime?.pid ?? child?.pid ?? null }, dbFile }
 }
 module.exports = { createLocalSyntheticInstance }
