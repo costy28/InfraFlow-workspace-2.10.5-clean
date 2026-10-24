@@ -73,6 +73,8 @@ function createSqlTestTrialStore({ database, execute }) {
     queue: (input, options) => mutate(r => model.queueTrial(r, input), input.id, options),
     command: (input, options) => mutate(r => model.applyCommand(r, input), input.trialId, options),
     ...require('./demo-trial-sql-job-test-store').createSqlJobTestStore(run),
+    ...require('./demo-trial-sql-report-test-store').createSqlReportTestStore(run),
+    ...require('./demo-trial-sql-report-page-test-store').createSqlReportPageTestStore(run),
   }
 }
 module.exports = { createSqlTestTrialStore, assertTestDatabase }

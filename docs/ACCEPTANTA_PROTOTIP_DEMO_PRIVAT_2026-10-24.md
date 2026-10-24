@@ -157,6 +157,23 @@ cu generație nouă. Vezi secțiunea 7 din documentul joburilor. Rămân nevalid
 efectele externe și recuperarea lor reală, autentificarea workerului și ceasul
 de producție; nu se închide poarta de provisionare printr-un receipt sintetic.
 
+Ciclul finit claim/heartbeat/receipt/confirmare este acum verificat prin 19/19
+probe pentru ciclu și reînnoire, inclusiv SQL real. Nu este daemon și nu execută
+provisionare: folosește checkpointuri și întreruperi injectate, nu crash OS sau
+rețea. Detalii în secțiunea 8 a documentului joburilor; porțile de livrare reală
+rămân deschise.
+
+Raportul de test are acum filtre și paginare cu cursor legat de context și
+amprenta datelor: **17/17 probe** cu regresia citirii integrale. Schimbările
+între pagini cer reluarea raportului; nu există cursor de autorizare ori
+snapshot istoric. Exportul/previzualizarea paginată și interfața operatorului
+rămân separate. Detalii în secțiunea 10 a documentului joburilor.
+
+Previzualizarea și exportul static paginat sunt acum implementate pentru test,
+cu verificarea completitudinii/contextului și fără controale administrative.
+Artefactele sunt locale; nu există încă un endpoint pentru operator și nu este
+acordată autoritate prin HTML/JSON. Vezi secțiunea 11 a documentului joburilor.
+
 Acest raport nu schimbă versiunea aplicației, serviciile instalate, arhivele
 Windows/Linux, configurațiile VPS sau conturile existente. Nu necesită update
 pe PC ori server. Acceptanța prototipului nu autorizează publicarea pilotului.

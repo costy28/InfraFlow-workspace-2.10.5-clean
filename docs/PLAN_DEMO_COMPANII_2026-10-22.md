@@ -1266,3 +1266,82 @@ efectul existent, fără dublare. Nu este un executor de resurse externe.
 Contract, limite și comanda de test: secțiunea 7 din
 `docs/JOBURI_DEMO_SQL_LEASE_2026-10-24.md`. Urmează un ciclu complet de worker
 sintetic; nu activarea pe VPS. Versiunea, arhivele și serviciile sunt neatinse.
+
+## 38. Ciclul workerului exclusiv sintetic
+
+`demo-sql-worker-cycle.js` execută un ciclu finit de claim, heartbeat, efect SQL
+sintetic și confirmare. Nu există daemon sau handler extern. Sunt validate
+identitatea și răspunsurile etapelor; eșecul heartbeatului oprește efectul, iar
+eșecul efectului oprește confirmarea. Punctele fixe de întrerupere sunt numai
+injecții de test, nu operații administrative expuse.
+
+Proba reală SQL întrerupe ciclul după persistarea efectului, refuză alt worker
+înainte de termen, apoi reia cu generație/client noi fără efect dublat. O
+întrerupere după confirmare nu redeschide jobul. Nu este simulată o pană OS/rețea;
+efectul rămâne un receipt SQL unic, nu o instanță ERP.
+
+Contract și probe: secțiunea 8 din `docs/JOBURI_DEMO_SQL_LEASE_2026-10-24.md`.
+Urmează observabilitate read-only pentru stările jobului și receipt, fără
+credenciale sau comenzi de relansare/ștergere. Pilotul și arhivele sunt neatinse.
+
+Rezultat al etapei: **19/19 probe**, zero skip, cu SQL real (ciclu și regresia
+reînnoirii). Audit expuneri 489 fișiere, zero constatări; sintaxă/diff check
+trecute și zero procese sintetice active. Nu s-a rerulat întreaga suită ERP.
+
+## 39. Raport read-only pentru joburi și receipt-uri
+
+Store-ul SQL de test oferă acum `readJobReport`, cu stare persistată/derivată,
+motiv, generație, termene, receipt și generația primei aplicări. Un lease expirat
+este diagnosticat fără a-i schimba starea, iar un job cu revizie depășită este
+separat de cel curent. Nu sunt selectate secrete, workerId, aprobări sau payload.
+
+Prezentarea este un obiect strict și HTML static fără acțiuni; nu este ecran
+montat în ERP. Sunt refuzate datele corupte și rezultate peste limita explicită
+de 100 rânduri; nu există încă paginare. Citirea ia lockuri tranzacționale scurte,
+dar nu modifică datele. Nu oferă autoritate de execuție.
+
+**9/9 probe trecute**, zero skip, inclusiv SQL real cu comparație integrală a
+tabelelor înainte/după raport. Audit expuneri 491 fișiere, zero constatări;
+sintaxă/diff check trecute. Detalii: secțiunea 9 a documentului joburilor.
+Urmează filtre/paginare read-only și consistența paginilor. Versiunea și
+arhivele, serviciile instalate și Demo-ul public nu sunt modificate.
+
+## 40. Filtre și paginare read-only
+
+Store-ul SQL de test oferă separat `readJobReportPage`, cu filtre pe starea
+efectivă și receipt, dimensiune 1–100 și cursor keyset pe revizie. Totalul
+trialului, totalul filtrat și rezumatul numai al paginii sunt distincte.
+Metoda integrală și rendererul ei nu sunt transformate implicit într-o pagină.
+
+Amprenta metadatelor și contextul fix detectează schimbările între pagini,
+inclusiv heartbeat/receipt fără revizie nouă. Cursorul vechi produce
+`job_report_changed`, nu o combinație ascunsă de date noi și vechi. Cursorul nu
+este credențială sau snapshot istoric; nu există autentificare publică de operator.
+
+Prima probă SQL a descoperit lista goală null; reprezentarea a fost corectată
+la `[]`, păstrând validările. Detalii și limite de volum/lockuri:
+secțiunea 10 din `docs/JOBURI_DEMO_SQL_LEASE_2026-10-24.md`.
+Urmează previzualizare/export static paginat, fără acțiuni administrative.
+
+Rerulare finală: **17/17**, zero skip, inclusiv SQL real și regresia raportului
+integral. Audit expuneri 493 fișiere, zero constatări; sintaxă/diff check trecute.
+Nu se schimbă pachetele sau serviciile instalate și nu se activează pilotul.
+
+## 41. Previzualizare și export static paginat
+
+Exportul complet colectează de la prima pagină, refuză amprente/context/totaluri
+diferite, duplicate, final prematur și limita depășită. Nu declară un succes
+parțial. Previzualizarea distinge pagina inițială/continuarea de selecția completă;
+HTML-ul numerotează paginile și afișează filtre/totaluri fără acțiuni administrative.
+
+Sunt generate HTML/JSON pentru proba SQL și HTML/capturi desktop/mobil pentru
+fixture. Chrome verifică lipsa resurselor externe, controalelor interactive și
+depășirii orizontale a paginii mobile. Nu sunt capturi ale aplicației publice.
+Detalii și limite: secțiunea 11 a documentului joburilor.
+
+Urmează contractul de acces al operatorului și autorizarea citirii într-un
+harness autentificat. Nu se expune raportul public și nu se schimbă arhivele.
+
+Probe combinate **16/16** cu SQL și Chrome; rerularea exportului final **8/8**,
+zero skip. Capturile au fost inspectate; audit expuneri 494 fișiere, zero
+constatări; sintaxă/diff check trecute și zero procese sintetice active.
