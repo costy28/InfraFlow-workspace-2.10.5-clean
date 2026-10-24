@@ -1,7 +1,10 @@
 # Demo privat pe companie — plan de implementare
 
 Data: 22 octombrie 2026. Bază tehnică: 2.12.735.
-Stare: **proiectare; nu este implementat sau activat pe Demo-ul public**.
+Stare actualizată la 24 octombrie: **prototip local TEMP/JSON verificat;
+nu este implementat sau activat pe Demo-ul public**. Sursa curentă: 2.12.736.
+Verdictul consolidat și porțile de livrare sunt în
+`docs/ACCEPTANTA_PROTOTIP_DEMO_PRIVAT_2026-10-24.md`.
 
 ## 1. Ce am constatat în cod
 
@@ -1050,3 +1053,216 @@ Demo-ul public sunt neatinse.
 Următorul pas: completarea matricei negative pentru modul dezactivat și
 permisiune retrasă după autentificare, inclusiv în copia restaurată. Abia apoi
 se poate decide separat dacă produsul are nevoie de endpoint nativ de fișiere.
+
+## 31. Retragerea drepturilor unei sesiuni deja autentificate
+
+Proba comună exercită acum, atât în sursă cât și în copia restaurată, retragerea
+`documents:view_own` și dezactivarea modulului `documents` după login. Fiecare
+modificare produce 403 la două cereri consecutive, atât pentru dosarul prin
+ruta originală Documente, cât și pentru fișier prin adaptorul sintetic. Ruta
+originală `/session` rămâne 200: refuzul este de autorizare, nu un logout mascat.
+Restabilirea politicii readuce 200 și aceiași octeți, cu același token, fără login
+sau restart. Cealaltă instanță păstrează accesul 200 la dosar și fișier pe durata
+restricției; la final fișierele sursă sunt comparate binar cu starea inițială.
+
+Modificarea fixture-ului live trece prin scriitorul DB din propriul proces de
+test, nu prin rescriere externă concurentă a JSON-ului. Endpointul administrativ
+`/synthetic-test-policy` există numai în harness-ul NODE_ENV=test, managed,
+legat la loopback și protejat de nonce-ul per-pornire. Acceptă numai acțiunile
+fixe `revoke_permission`, `disable_module`, `reset`, fără identitate, cale sau
+permisiuni arbitrare în cerere. Nonce greșit și tokenul proprietarului fără nonce
+primesc 404. Nonce-ul nu este inclus în raportul QA.
+
+Nu a fost necesară modificarea autorizării de producție. Această probă verifică
+rolul restrâns Demo și furnizorul JSON, nu toate rolurile, permisiunile din
+departamente/circuit sau sincronizarea MSSQL. Fișierul rămâne servit exclusiv
+de adaptorul de test descris în secțiunea 30; nu certifică un download nativ.
+Raportul QA adaugă `existingSessionPolicyRevocationVerified=true`, păstrând
+`productionFileEndpointVerified=false`.
+
+Probe dedicate: 4/4 trecute. Prima regresie combinată a avut 60 probe trecute
+și un eșec la nivelul fișierului `demo-runtime-recovery.test.js`, fără diagnostic
+detaliat; nu este declarat remediat. Recuperarea a trecut individual 2/2,
+apoi rerularea combinată a trecut **62/62**, zero skip, inclusiv Chrome.
+Cauza eșecului intermitent rămâne nestabilită. Auditul expunerilor: 479 fișiere,
+zero constatări; verificările de sintaxă și diff au trecut.
+La verificarea finală a existat un proces sintetic rămas activ; a fost identificat
+prin descriptor și health autentificat, apoi oprit prin `/synthetic-stop`.
+Inventarul final: zero procese sintetice active. Nu au fost oprite servicii ERP.
+
+Următorul pas: investigarea eșecului intermitent/cleanup-ului la recuperare,
+apoi verificarea persistenței restricțiilor după restartul instanței
+sintetice, cu sesiunea veche refuzată și login nou care nu recuperează dreptul
+retras. Fără schimbări în serviciile instalate, Demo-ul public sau arhive.
+
+## 32. Diagnostic și cleanup pentru coordonatorul sintetic
+
+Cele cinci repetări inițiale ale testelor de recuperare/restaurare au trecut
+30/30. Ulterior, proba nouă de oprire în timpul provisionării a surprins o ieșire
+anormală a coordonatorului: 3221226505 (`0xC0000409`), pe Node v24.15.0/Windows.
+Microsoft documentează acest cod ca fail-fast, fără ca numărul singur să indice
+cauza: https://learn.microsoft.com/en-us/cpp/intrinsics/fastfail . Nu este
+demonstrat că aceasta este cauza exactă a eșecului la nivel de fișier din
+secțiunea 31; nu se declară rezolvat un defect nativ Node/Windows.
+
+Helperul `demo-coordinator-client.js` înregistrează exit înaintea trimiterii
+comenzii și diferențiază exit înainte de ready, mesaj ready invalid, timeout,
+eroare IPC și exit anormal. Erorile includ numai cod/stare, nu payload, stderr
+sau nonce. Cleanup cere oprire prin IPC, inclusiv în timpul provisionării;
+copilul este oprit înainte de ieșirea coordonatorului. Un timeout/exit anormal
+rămâne eșec, iar fixture-ul nu este șters ca și cum ar fi fost curățat.
+
+Coordonatorul nu mai folosește `process.exit()` în callbackuri: închide IPC și
+lasă procesul să iasă natural prin `exitCode`. Pentru pierderea simulată a
+coordonatorului, adaptorul eliberează handle-ul/IPC al copilului după health
+autentificat, fără oprirea instanței; noul adaptor trebuie să adopte același PID.
+Aceasta este o simulare controlată, nu un test de crash OS/pană de curent.
+Referință Node: https://nodejs.org/api/process.html#processexitcode și
+https://nodejs.org/api/child_process.html#subprocessdisconnect .
+
+Cleanup-ul încearcă separat oprirea tuturor adaptoarelor, colectează erorile,
+așteaptă dispariția procesului cunoscut și abia apoi elimină directorul TEMP.
+O rezervare cu PID străin/nonce nepotrivit nu este preluată ori omorâtă.
+Sunt adăugate cinci probe deterministe IPC și două probe reale: cleanup după
+pierderea coordonatorului înainte de adoptare și cleanup cerut înainte de ready.
+Cinci repetări revizuite ale grupului recuperare/restaurare/IPC: **65/65**, fără
+skip. Aceste rezultate nu înlocuiesc diagnosticul nativ încă incomplet.
+
+Regresia completă cu Chrome: **69/69**, zero skip. Ultima rerulare dedicată:
+**9/9**; zero procese sintetice rămase active. Audit expuneri: **481 fișiere,
+zero constatări**. Sintaxa și diff check au trecut. Niciun timeout de test
+existent nu a fost mărit pentru a ascunde eșecul; oprirea noului coordonator
+folosește aceeași limită explicită ca așteptarea ready.
+
+Urmează verificarea persistenței restricțiilor după restartul instanței sintetice.
+Schimbările sunt limitate la infrastructura de test și documentație; versiunea,
+serviciile instalate, Demo-ul public și arhivele 2.12.736 nu sunt modificate.
+
+## 33. Restricții păstrate după restart în sursă și în restaurare
+
+Proba comună verifică acum patru restarturi reale: permisiunea retrasă și
+modulul dezactivat, separat în sursă și în copia restaurată. După fiecare restart:
+
+1. PID-ul și nonce-ul de control sunt noi; nonce-ul anterior primește 404 la
+   comanda de restabilire a dreptului, fără efect.
+2. Tokenul anterior primește 401 la dosar, fișier și `/session`.
+3. Loginul original cu parolă validă emite token nou, cu `/session` 200, dar
+   dosarul și fișierul rămân 403. Restricția este verificată și pe discul JSON.
+4. Cealaltă instanță rămâne accesibilă cu sesiunea ei curentă.
+5. Numai comanda explicită de restabilire, cu nonce-ul noii porniri, readuce 200;
+   tokenul vechi rămâne 401, inclusiv după această restabilire.
+
+Adaptorul administrativ exclusiv de test acceptă suplimentar `enable_module`
+și `restore_permission`, cu efect fix pe Documente/rolul Demo. Aceste acțiuni nu
+primesc căi, utilizatori sau permisiuni arbitrare. Resetul bazat pe memoria
+procesului nu este folosit ca dovadă de persistență după restart. Nu există
+endpoint administrativ nou în aplicația livrată.
+
+Inițial, comparația binară finală a întregii baze a eșuat: loginurile noi adaugă
+audit și actualizează `devices.lastSeenAt` prin codul original. Testul a fost
+separat explicit pe etape, fără eliminarea generică a verificării sursei:
+
+- restaurarea și proba fără restart păstrează toate fișierele sursă identice;
+- după proba cu restart sunt permise exact două audituri `auth_login_reusit`
+  pentru owner, păstrând prefixul de audit inițial;
+- numai `devices.lastSeenAt` poate varia în afara auditului; toate celelalte
+  câmpuri ale DB sunt comparate integral după restabilirea politicii;
+- registry, cheie, manifesturi, fișierul și backupurile rămân identice binar.
+
+Raportul QA diferențiază `sourceUnchangedByRestore` de
+`sourceRestartProbeAddedLoginMetadataOnly` și adaugă
+`policyRevocationSurvivesRestartVerified` și
+`oldSessionAndControlNonceRefusedAfterRestart`. Nu declară download nativ,
+restaurare MSSQL sau aprobare pentru producție. Probe dedicate: **4/4**, zero
+skip, fără mărirea timeout-ului existent de 60 secunde.
+
+Regresia completă: **69/69**, zero skip, inclusiv Chrome. Auditul expunerilor:
+**481 fișiere, zero constatări**; sintaxa și diff check au trecut. Inventarul
+final: zero procese sintetice active. Nu se generează arhive noi pentru probe
+care nu modifică aplicația livrată.
+
+Etapa rămâne locală/TEMP/JSON. Următorul prag este consolidarea acceptanței
+prototipului și a blocajelor reale de livrare, înaintea implementării control
+plane-ului/provisionării MSSQL, nu activarea directă în Demo-ul public.
+
+## 34. Verdict consolidat și următorul increment
+
+`docs/ACCEPTANTA_PROTOTIP_DEMO_PRIVAT_2026-10-24.md` separă probele locale,
+limitele lor, porțile neînchise de livrare și ordinea etapei SQL. Starea de la
+începutul planului este actualizată: prototip local verificat, nu pilot public.
+
+Suita extinsă include suplimentar store/setup/aplicare: **87/87**, zero skip,
+inclusiv Chrome; audit 481 fișiere, zero constatări; diff check trecut și zero
+procese sintetice active. Proba SQL opt-in istorică nu a fost rerulată și nu
+certifică noul lifecycle. Nu s-au făcut modificări de runtime sau arhive.
+
+Următorul increment: contract și persistență tranzacțională SQL pentru registrul
+platformei, cu unicitate/CAS, comenzi și joburi durabile, într-un mediu explicit
+de test. Provisionarea reală, gateway-ul și executorul de ștergere rămân porți
+separate, nu efecte implicite ale trecerii de la JSON la SQL.
+
+## 35. Primul adaptor SQL tranzacțional, exclusiv de test
+
+Implementat și verificat pe SQL Server Express local: registry cu CAS global,
+proiecții de trialuri, comenzi, evenimente și outbox `pending` salvate atomic.
+Schema se află în `db/control-plane-test-migrations`, în afara migrărilor ERP;
+adaptorul din `server/core/demo-trial-sql-test-store.js` refuză runtime-ul normal
+și bazele fără prefixul/numele strict de test. Nu este importat de `app.js`.
+
+Probe SQL reale: **9/9**, zero skip, folosind conexiuni independente. Sunt
+verificate concurența, aceeași revizie, unicitatea aprobării, retry idempotent,
+rollback înainte de commit și confirmare simulată pierdută după commit. Nu s-a
+simulat o pană de curent ori pierderea conexiunii în mijlocul COMMIT-ului.
+
+Detalii, comandă de rulare, baza de test păstrată și limite:
+`docs/REGISTRU_DEMO_SQL_PROBA_2026-10-24.md`. Store-ul gestionează momentan
+queue/read/command, nu wizard/invitații sau prelungire sincronizată cu ERP.
+Folosește un snapshot global și proiecții, nu schema finală scalabilă. Executorul
+Windows PowerShell/System.Data de test nu reprezintă driverul serviciului Linux.
+
+Nu există executor al outbox-ului, lease sau operații fizice pe companii.
+Următorul increment este claim/lease/generație pentru joburi și refuzul unui
+worker vechi. Demo-ul public, orchestratorul JSON, serviciile instalate și
+arhivele nu au fost modificate.
+
+Regresie separată a prototipului existent: **87/87**, zero skip, inclusiv Chrome.
+Audit expuneri 484 fișiere, zero constatări; sintaxă/diff check trecute.
+
+## 36. Claim/lease și generație pentru outbox SQL de test
+
+Migrarea nouă `002_trial_job_leases.sql` și helperul central
+`demo-trial-sql-job-test-store.js` adaugă revendicare exclusivă pe trial/revizie,
+termen de lease, generație și confirmare idempotentă. Două conexiuni concurente
+nu obțin același job. După reatribuire, vechea generație nu confirmă nici dacă
+workerul are același ID; la termen exact accesul de confirmare este expirat.
+O revizie nouă invalidează și un job anterior cu lease încă neexpirat.
+
+**16/16 probe SQL**, zero skip, incluzând regresia registrului. Prima încercare
+a refuzat migrarea 002 cu eroare SQL 102; sintaxa EXEC pentru numele constrângerii
+a fost corectată și toate probele au fost rerulate, nu sărite. Baze de test și
+limite: `docs/JOBURI_DEMO_SQL_LEASE_2026-10-24.md`.
+
+Nu există daemon, handler real sau autentificare publică de worker. Ceasul este
+injectat numai pentru test. Lease-ul protejează confirmarea SQL, nu certifică
+împiedicarea efectelor fizice ale unui worker vechi. Urmează reînnoirea lease-ului
+și un handler sintetic idempotent pentru reluare după confirmare pierdută.
+
+Regresie existentă rerulată separat: **87/87**, zero skip, inclusiv Chrome.
+Audit expuneri: 486 fișiere, zero constatări; sintaxă/diff check trecute;
+zero procese sintetice active la final. Versiunea și arhivele rămân neschimbate.
+
+## 37. Heartbeat și reluare fără dublarea efectului sintetic
+
+Helperul SQL oferă acum `renewJob`, cu identitate/generație/revizie și CAS pe
+termenul anterior. Prelungirea este admisă doar înainte de expirare și nu poate
+scurta lease-ul; două heartbeaturi concurente au un câștigător. O generație sau
+revizie veche nu poate recupera dreptul de lucru prin heartbeat.
+
+`003_synthetic_effect_receipts.sql` și `applySyntheticEffect` modelează efectul
+ca un rând SQL unic pe trial/revizie, cu autoritate reverificată la scriere.
+Reluarea după omiterea confirmării folosește client/generație noi și regăsește
+efectul existent, fără dublare. Nu este un executor de resurse externe.
+
+Contract, limite și comanda de test: secțiunea 7 din
+`docs/JOBURI_DEMO_SQL_LEASE_2026-10-24.md`. Urmează un ciclu complet de worker
+sintetic; nu activarea pe VPS. Versiunea, arhivele și serviciile sunt neatinse.

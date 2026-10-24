@@ -41,7 +41,7 @@ test('referință lipsă/externă, proprietar greșit și dubluri sunt refuzate'
     assert.throws(() => verifySyntheticSnapshotReferences(s.database, s.storage, context), { code })
   }
 })
-test('restaurare comună: proces/login reale, fișier și document concordante, sursă intactă', { timeout: 60000 }, async t => {
+test('restaurare și restart: fișier concordant, politici persistente și sesiuni vechi refuzate', { timeout: 60000 }, async t => {
   const old = process.env.NODE_ENV; process.env.NODE_ENV = 'test'
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'infraflow-trial-store-')), directories = [root], instances = []
   t.after(async () => {
@@ -99,6 +99,107 @@ test('restaurare comună: proces/login reale, fișier și document concordante, 
   assert.notEqual(replica.pid, original.pid)
   await request(replica, '/demo-company/setup', undefined, 401, login.token)
   const replicaLogin = await request(replica, '/login', { username: 'owner', password }, 200)
+  async function policyProbe(instance, directory, token, peer, peerToken) {
+    const descriptor = JSON.parse(await fs.readFile(path.join(directory, 'runtime.json'), 'utf8'))
+    const managementUrl = instance.origin + '/synthetic-test-policy'
+    async function change(action, nonce = descriptor.nonce, status = 200) {
+      const response = await fetch(managementUrl, { method: 'POST', headers: { Connection: 'close',
+        'Content-Type': 'application/json', 'x-synthetic-health': nonce }, body: JSON.stringify({ action }), signal: AbortSignal.timeout(5000) })
+      assert.equal(response.status, status)
+    }
+    async function access(status) {
+      for (const route of ['/api/documents/restored-doc', '/api/synthetic-documents/doc-1/file/draft']) {
+        const response = await fetch(instance.origin + route, { headers: { Connection: 'close', Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000) })
+        assert.equal(response.status, status, route)
+        if (status === 200 && route.includes('/file/')) assert.deepEqual(Buffer.from(await response.arrayBuffer()), s.storage.files[0].bytes)
+      }
+      // A permission refusal is not an authentication failure; use the same session throughout.
+      await request(instance, '/session', undefined, 200, token)
+    }
+    await change('disable_module', 'invalid', 404)
+    const ownerAttempt = await fetch(managementUrl, { method: 'POST', headers: { Connection: 'close',
+      'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'reset' }), signal: AbortSignal.timeout(5000) })
+    assert.equal(ownerAttempt.status, 404)
+    await access(200)
+    for (const action of ['revoke_permission','disable_module']) {
+      try {
+        await change(action); await access(403); await access(403)
+        await request(peer, '/documents/restored-doc', undefined, 200, peerToken)
+        const peerFile = await fetch(peer.origin + '/api/synthetic-documents/doc-1/file/draft', {
+          headers: { Connection: 'close', Authorization: `Bearer ${peerToken}` }, signal: AbortSignal.timeout(5000) })
+        assert.equal(peerFile.status, 200)
+        assert.deepEqual(Buffer.from(await peerFile.arrayBuffer()), s.storage.files[0].bytes)
+      }
+      finally { await change('reset') }
+      await access(200)
+    }
+  }
+  await policyProbe(original, root, login.token, replica, replicaLogin.token)
+  await policyProbe(replica, restored.directory, replicaLogin.token, original, login.token)
+  // Restore and live permission probes must not modify any source file. The restart
+  // probes below deliberately log in again and therefore append native login audits.
+  assert.deepEqual(await Promise.all(files.map(f => fs.readFile(path.join(root, f)))), before)
+  async function restartPolicyProbe(instance, directory, credentials, peer, peerCredentials) {
+    const trial = (await createSyntheticTrialStore(directory).read()).trials[0]
+    const binding = { trialId, ownerId: 'owner', resources: trial.resources, allowedModules: ['documents'] }
+    const initialDb = JSON.parse(await fs.readFile(instance.dbFile, 'utf8')), initialPolicy = initialDb.settings
+    const stableFiles = ['registry.json','instance.key','storage/sample.txt','storage/manifest.json']
+    const stableBefore = await Promise.all(stableFiles.map(f => fs.readFile(path.join(directory, f))))
+    async function change(action, nonce, status = 200) {
+      const response = await fetch(instance.origin + '/synthetic-test-policy', { method: 'POST',
+        headers: { Connection: 'close', 'Content-Type': 'application/json', 'x-synthetic-health': nonce },
+        body: JSON.stringify({ action }), signal: AbortSignal.timeout(5000) })
+      assert.equal(response.status, status, action)
+    }
+    async function access(token, status) {
+      for (const route of ['/api/documents/restored-doc', '/api/synthetic-documents/doc-1/file/draft']) {
+        const response = await fetch(instance.origin + route, { headers: { Connection: 'close', Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000) })
+        assert.equal(response.status, status, route)
+        if (status === 200 && route.includes('/file/')) assert.deepEqual(Buffer.from(await response.arrayBuffer()), s.storage.files[0].bytes)
+      }
+    }
+    for (const [restrict, restore] of [['revoke_permission','restore_permission'], ['disable_module','enable_module']]) {
+      const previous = JSON.parse(await fs.readFile(path.join(directory, 'runtime.json'), 'utf8'))
+      await change(restrict, previous.nonce)
+      await access(credentials.token, 403)
+      const oldToken = credentials.token
+      await instance.stop()
+      await instance.ensureInstance(binding)
+      const current = JSON.parse(await fs.readFile(path.join(directory, 'runtime.json'), 'utf8'))
+      assert.notEqual(current.pid, previous.pid); assert.notEqual(current.nonce, previous.nonce)
+      await change(restore, previous.nonce, 404) // Old control nonce cannot restore access after restart.
+      await access(oldToken, 401)
+      await request(instance, '/session', undefined, 401, oldToken)
+      credentials.token = (await request(instance, '/login', { username: 'owner', password }, 200)).token
+      assert.notEqual(credentials.token, oldToken)
+      await request(instance, '/session', undefined, 200, credentials.token)
+      await access(credentials.token, 403)
+      const persisted = JSON.parse(await fs.readFile(instance.dbFile, 'utf8')).settings
+      if (restrict === 'disable_module') assert.equal(persisted.modules_enabled.includes('documents'), false)
+      else assert.equal(persisted.customRoles.find(r => r.id === ROLE).permissions.includes('documents:view_own'), false)
+      await request(peer, '/documents/restored-doc', undefined, 200, peerCredentials.token)
+      await change(restore, current.nonce)
+      await access(credentials.token, 200)
+      await access(oldToken, 401) // Restoring permissions must not resurrect an old session.
+    }
+    const finalDb = JSON.parse(await fs.readFile(instance.dbFile, 'utf8')), finalPolicy = finalDb.settings
+    assert.deepEqual(finalPolicy.customRoles, initialPolicy.customRoles)
+    assert.deepEqual(finalPolicy.modules_enabled, initialPolicy.modules_enabled)
+    assert.deepEqual(finalDb.audit.slice(0, initialDb.audit.length), initialDb.audit)
+    const addedAudit = finalDb.audit.slice(initialDb.audit.length)
+    assert.equal(addedAudit.length, 2)
+    assert.ok(addedAudit.every(a => a.action === 'auth_login_reusit' && a.userId === 'owner'))
+    // Only native login audit and workstation last-seen timestamps may change.
+    function withoutLoginMetadata(db) {
+      const clone = structuredClone(db); delete clone.audit
+      for (const device of clone.devices) delete device.lastSeenAt
+      return clone
+    }
+    assert.deepEqual(withoutLoginMetadata(finalDb), withoutLoginMetadata(initialDb))
+    assert.deepEqual(await Promise.all(stableFiles.map(f => fs.readFile(path.join(directory, f)))), stableBefore)
+  }
+  await restartPolicyProbe(original, root, login, replica, replicaLogin)
+  await restartPolicyProbe(replica, restored.directory, replicaLogin, original, login)
   async function download(route, status, token = replicaLogin.token) {
     const response = await fetch(replica.origin + route, { headers: { Connection: 'close', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(5000) })
     assert.equal(response.status, status, route)
@@ -132,10 +233,13 @@ test('restaurare comună: proces/login reale, fișier și document concordante, 
   const restoredDb = JSON.parse(await fs.readFile(replica.dbFile, 'utf8'))
   assert.equal(restoredDb.documents.documents[0].fisier_draft_path, 'storage/sample.txt')
   assert.deepEqual(await fs.readFile(path.join(restored.directory, 'storage', 'sample.txt')), s.storage.files[0].bytes)
-  assert.deepEqual(await Promise.all(files.map(f => fs.readFile(path.join(root, f)))), before)
+  assert.deepEqual(await Promise.all(files.filter(f => f !== 'instance.json').map(f => fs.readFile(path.join(root, f)))), before.filter((_, i) => files[i] !== 'instance.json'))
   await replica.stop(); await request(original, '/demo-company/setup', undefined, 200, login.token)
   const qa = path.resolve(__dirname, '../../installer/output/qa'); await fs.mkdir(qa, { recursive: true })
   await fs.writeFile(path.join(qa, 'demo-joint-restore-probe.json'), JSON.stringify({ passed: true, scope: 'synthetic-flat-json-storage',
-    sourceUnchanged: true, ...restored.jointReceipt, syntheticOwnerFileHttpVerified: true,
-    nativeDocumentVisibilityHttpVerified: true, productionFileEndpointVerified: false }, null, 2))
+    sourceUnchangedByRestore: true, sourceRestartProbeAddedLoginMetadataOnly: true,
+    ...restored.jointReceipt, syntheticOwnerFileHttpVerified: true,
+    nativeDocumentVisibilityHttpVerified: true, existingSessionPolicyRevocationVerified: true,
+    policyRevocationSurvivesRestartVerified: true, oldSessionAndControlNonceRefusedAfterRestart: true,
+    productionFileEndpointVerified: false }, null, 2))
 })

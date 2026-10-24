@@ -76,6 +76,15 @@ function createLocalSyntheticInstance(directory) {
       busy = false
     }
   }
+  async function releaseCoordinator() {
+    // Crash simulation only: release IPC/handle ownership without stopping the managed server.
+    if (busy) fail('instance_busy')
+    const record = await readManagedRecord(root)
+    if (!record || record.pid !== child?.pid) fail('invalid_instance_binding')
+    await health(record)
+    if (child.connected) child.disconnect()
+    child.unref(); child = null; runtime = null; origin = null
+  }
   async function stopInactiveInstance(context) {
     await assertRoot()
     await regular(path.join(root, 'registry.json'))
@@ -181,6 +190,6 @@ function createLocalSyntheticInstance(directory) {
     } catch (e) { if (startedHere) await stopOwned(); throw e }
     finally { busy = false }
   }
-  return { ensureInstance, stop, stopInactiveInstance, synchronizeExtension, recoverStoppedInstance, get origin() { return origin }, get pid() { return runtime?.pid ?? child?.pid ?? null }, dbFile }
+  return { ensureInstance, stop, stopInactiveInstance, synchronizeExtension, recoverStoppedInstance, releaseCoordinator, get origin() { return origin }, get pid() { return runtime?.pid ?? child?.pid ?? null }, dbFile }
 }
 module.exports = { createLocalSyntheticInstance }

@@ -50,6 +50,30 @@ if (managed) app.post('/synthetic-stop', (req, res) => {
   if (req.get('x-synthetic-health') !== runtimeIdentity.nonce) return res.sendStatus(404)
   res.json({ ok: true }); setImmediate(shutdown)
 })
+// Test coordinator only: update through this process's DB writer, not an external live JSON writer.
+let policyBaseline
+if (managed) app.post('/synthetic-test-policy', (req, res) => {
+  if (req.get('x-synthetic-health') !== runtimeIdentity.nonce) return res.sendStatus(404)
+  const action = req.body?.action
+  if (!req.body || Object.keys(req.body).length !== 1 || !['disable_module','enable_module','revoke_permission','restore_permission','reset'].includes(action)) return res.sendStatus(400)
+  try {
+    const db = require('../../core/db'), state = db.readDb({ fresh: true })
+    const { ROLE } = require('../../../scripts/lib/demo-company-setup')
+    const role = state.settings?.customRoles?.find(r => r.id === ROLE)
+    if (state.settings?.demoTrialId !== trialId || !Array.isArray(role?.permissions)
+      || !Array.isArray(state.settings.modules_enabled)) return res.sendStatus(409)
+    policyBaseline ||= { permissions: [...role.permissions], modules: [...state.settings.modules_enabled] }
+    if (action === 'reset') {
+      role.permissions = [...policyBaseline.permissions]
+      state.settings.modules_enabled = [...policyBaseline.modules]
+    } else if (action === 'disable_module') state.settings.modules_enabled = state.settings.modules_enabled.filter(m => m !== 'documents')
+    else if (action === 'enable_module') state.settings.modules_enabled = [...new Set([...state.settings.modules_enabled, 'documents'])]
+    else if (action === 'restore_permission') role.permissions = [...new Set(['documents:view_own', ...role.permissions])]
+    else role.permissions = role.permissions.filter(p => p !== 'documents:view_own')
+    db.writeDb(state)
+    res.json({ ok: true })
+  } catch { res.status(409).json({ code: 'synthetic_policy_refused' }) }
+})
 if (managed) app.post('/synthetic-extension', (req, res) => {
   if (req.get('x-synthetic-health') !== runtimeIdentity.nonce) return res.sendStatus(404)
   try {
