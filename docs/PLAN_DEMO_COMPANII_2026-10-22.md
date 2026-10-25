@@ -1566,3 +1566,66 @@ se închide fără execuția cozii. Confirmarea așteaptă ambele componente și
 al procesului propriu când există. Nu oprește un serviciu ERP și nu implementează
 SIGTERM/TCP listener teardown de producție. Urmează regresia extinsă SQL/gateway
 și consolidarea acceptanței, nu instalarea acestui harness în Demo.
+
+## 67. Regresie extinsă încheiată, inclusiv SQL real
+
+89/89 probe trecute, zero skip, 12 fișiere în aceeași rulare serială. Raportul
+`docs/ACCEPTANTA_GATEWAY_SQL_2026-10-25.md` conține scope-ul, bazele păstrate și
+limitele. Audit expuneri 522 fișiere, zero constatări. Proba OS rămâne blocată,
+serviciul real/providerul/TLS nu sunt implementate prin acest rezultat. Urmează
+inspectarea și adaptarea executorului Node/MSSQL pentru control plane, în test
+separat, fără credențiale ERP sau montarea fixture-urilor în aplicație.
+
+## 68. Adaptor Node/MSSQL separat — contract verificat
+
+Pool privat asincron, config strict de test, JSON parametrizat, cancel și shutdown,
+fără env/credențiale ERP sau modificarea executorului vechi. 6/6 probe de contract
+cu driver simulat; driverul real construit/închis fără connect. Listener local
+TSQL observat read-only pe 61770. Proba reală cere confirmarea unei baze noi și
+unui login temporar dedicat, cu cleanup strict. Detalii în
+`docs/ADAPTOR_NODE_CONTROL_PLANE_2026-10-25.md`. Nu se declară SQL live validat.
+
+## 69. Adaptor Node/MSSQL — probă locală reală încheiată
+
+Schema, identitatea dedicată fără sysadmin, CAS concurent, retry idempotent,
+anulare și reutilizare pool, shutdown fără reopen: trecute în proba autorizată.
+Baza D44BB28D3359 și loginul aferent au fost șterse, absența verificată SQL.
+6/6 teste contract trecute din nou; audit 524 fișiere, zero constatări.
+Detalii și limite în raportul adaptorului, inclusiv avertisment TLS cu IP și
+absența markerului SQL pentru anulare. Urmează integrarea în harness-ul gateway/
+session de test, nu în ERP sau Demo public. Pilotul rămâne NO-GO.
+
+## 70. Integrare locală Node SQL, sesiuni și gateway
+
+Proba reală extinsă a trecut: snapshot SQL, token A refuzat pe B, epocă SQL
+nouă invalidează A, B continuă, eroare de cititor injectată fără cache și
+shutdown coordonat. Baza/loginul 0CF8C8691FA6 curățate și absența verificată.
+Regresii separate 15 trecute/1 SQL vechi sărit; audit 525 fișiere, zero constatări.
+Runtime-uri sintetice, nu ERP/auth/browser/TLS reale. Limite și următorul pas
+în ADAPTOR_NODE_CONTROL_PLANE_2026-10-25.md. Publicarea rămâne NO-GO.
+
+## 71. Anulare SQL după început observat
+
+Markerul SQL 1 observat înainte de abort; markerul 2 de după WAITFOR absent,
+cerere vecină reușită și pool reutilizabil. Operația deja confirmată rămâne;
+nu se promite rollback general. Script extins: 14 verificări trecute, inclusiv
+HTTP; contracte 6/6. Resursele FAFB116F04D0 curățate, absența verificată SQL.
+Rămân deadline snapshot, serviciu Linux, ERP real/OS/TLS și celelalte porți.
+
+## 72. Deadline snapshot SQL închis în proba locală
+
+store.read acceptă exclusiv AbortSignal și refuză rezultatul după abort.
+Gateway 504 după început SQL observat prin marker, driver anulat, marker final
+absent, zero contacte runtime suplimentare și cerere nouă reușită. Script 17
+verificări trecute, contracte 7/7, audit 526/zero. Resursele 060EEC49B754 au fost
+curățate și absența verificată. Urmează serviciul Linux real; nu extindem
+harness-ul cu funcții comerciale și nu publicăm prototipul ca serviciu.
+
+## 73. Fundație proces Linux separat
+
+Entry point server/demo-platform/service.js, loopback fix, health/live și
+readiness mereu 503, fără ERP/test imports sau provisionare. Model systemd
+neinstalat cu identitate separată și hardening. 3/3 teste locale Windows,
+audit 528/zero; Linux/systemd/SIGTERM pe țintă încă nevalidate. Urmează alegerea
+mediului și inventar read-only înainte de instalare. Detalii în
+SERVICIU_DEMO_LINUX_FUNDATIE_2026-10-25.md. Niciun restart sau update livrat.

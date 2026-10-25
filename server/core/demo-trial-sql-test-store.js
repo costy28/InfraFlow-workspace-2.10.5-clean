@@ -10,9 +10,13 @@ function createSqlTestTrialStore({ database, execute }) {
   assertTestDatabase(database)
   if (typeof execute !== 'function') fail('synthetic_sql_executor_required')
   const run = (sql, input = {}, options = {}) => { assertTestDatabase(database); return execute(database, sql, input, options) }
-  async function readEnvelope() {
+  async function readEnvelope(options={}) {
+    if(!options||Object.getPrototypeOf(options)!==Object.prototype||Object.keys(options).some(k=>k!=='signal')
+      ||(options.signal!==undefined&&!(options.signal instanceof AbortSignal)))fail('invalid_sql_read_options')
+    if(options.signal?.aborted)fail('synthetic_sql_aborted')
     const data = JSON.parse(await run(`SELECT store_revision AS version, JSON_QUERY(snapshot) AS registry
-      FROM dbo.demo_registry WHERE singleton=1 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;`))
+      FROM dbo.demo_registry WHERE singleton=1 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;`,{},options))
+    if(options.signal?.aborted)fail('synthetic_sql_aborted')
     if (!Number.isSafeInteger(data.version) || data.version < 0) fail('invalid_sql_store_revision')
     model.validateRegistry(data.registry)
     return data
@@ -69,7 +73,7 @@ function createSqlTestTrialStore({ database, execute }) {
       }
       return (await readEnvelope()).registry
     },
-    read: async () => (await readEnvelope()).registry,
+    read: async options => (await readEnvelope(options)).registry,
     queue: (input, options) => mutate(r => model.queueTrial(r, input), input.id, options),
     command: (input, options) => mutate(r => model.applyCommand(r, input), input.trialId, options),
     ...require('./demo-trial-sql-job-test-store').createSqlJobTestStore(run),

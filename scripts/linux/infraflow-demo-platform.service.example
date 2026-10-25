@@ -1,0 +1,37 @@
+# NOT INSTALLED. Foundation only; no provisioning and readiness always 503.
+[Unit]
+Description=InfraFlow private demo platform foundation
+After=network.target
+
+[Service]
+Type=simple
+User=infraflow-demo-platform
+Group=infraflow-demo-platform
+WorkingDirectory=/opt/infraflow-demo-platform
+Environment=INFRAFLOW_DEMO_PLATFORM_MODE=foundation
+Environment=INFRAFLOW_DEMO_PLATFORM_PORT=4280
+ExecStart=/usr/local/bin/node /opt/infraflow-demo-platform/server/demo-platform/service.js
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+TasksMax=64
+MemoryMax=256M
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -19,8 +19,8 @@ aprobare implicită prin acest document pentru restart, publicare sau migrare.
 | Registru și joburi | SQL de test: CAS, comenzi idempotente, claim/lease/generație, heartbeat și receipt sintetic | Adaptor Node/Linux, serviciu separat, credențiale minime și recuperare operațională; nu se montează migrarea de test în ERP |
 | Operator și audit | Identitate separată de test, tokenuri hash-only, scope, revocare; HTTP/SQL/jurnal pe disc integrate | Furnizor real de autentificare și MFA, politici sesiuni/abuz, jurnal protejat și operare; nici superadminul ERP nu devine implicit operator |
 | Worker | Ciclu finit verificat cu retry și refuzul generației vechi | Identitate de serviciu, ceas, reconciliere și control la limita fiecărui efect real; nu daemon bazat pe fixture |
-| Izolare runtime | Instanțe TEMP/JSON distincte și model proces/bază/storage/cheie/sesiune | A nu poate citi/scrie SQL, storage sau cheia lui B; runtime-ul nu accesează control plane; probe sub identități SQL/OS reale |
-| Gateway | Contractul de instanță este modelat, acces local în harness | Hostname din registru, rutare server-side, refuz necunoscut/expirat, izolare sesiuni/linkuri/download; browserul nu alege portul/baza |
+| Izolare runtime | Instanțe TEMP/JSON și canari SQL locali cu loginuri A/B distincte | Schema ERP/runtime complet și identități SQL/OS pe țintă; proba OS locală este blocată, nu trecută |
+| Gateway | Rutare HTTP sintetică, sesiuni legate de instanță și generație SQL, deadline/coadă/shutdown de test | Auth ERP/browser/TLS, runtime-uri reale, linkuri/fișiere și serviciu gateway pe mediul pilot |
 | Efecte externe | Probele evită emiterea/trimiterea reală | Blocare verificată SMTP/IMAP/Oblio/ANAF/WhatsApp/GPS/schedulere; invitații prin serviciu de platformă separat |
 | Backup/restaurare | Probe JSON+storage, autorizare și restart în scope declarat | SQL+storage+cheie, decriptare demonstrată, restaurare izolată și inventar copii externe; fără a promite snapshot atomic neprobat |
 | Expirare și ștergere | Lifecycle și plan de retenție dry-run | Politică aprobată pentru date/backupuri și executor controlat; A eliminat fără atingerea lui B, dovezi și recuperare; fără ștergere din dry-run |
@@ -161,6 +161,11 @@ Oprirea coordonată a handlerului gateway și pool-ului este acum probată local
 Nu este încă oprire SIGTERM/Windows Service/TCP listener de producție și nu
 rezolvă observația intermitentă anterioară. Urmează regresia extinsă cu SQL real;
 NO-GO public, blocajul OS și lipsa serviciului real rămân explicite.
+
+Regresia extinsă a fost acum rerulată cu SQL real: **89/89, zero skip**, serial.
+[Raport consolidat](ACCEPTANTA_GATEWAY_SQL_2026-10-25.md) cu scope, baze și limite.
+Nu echivalează cu acceptanța serviciului public sau a izolării OS. NO-GO rămâne;
+următorul increment este adaptorul Node/MSSQL de control plane, izolat de ERP.
 
 ## 5. Decizii și activare
 

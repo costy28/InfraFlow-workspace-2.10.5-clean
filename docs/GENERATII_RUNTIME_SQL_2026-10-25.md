@@ -308,6 +308,15 @@ observație. Nu s-au relaxat timpii sau asertările. Audit expuneri: 520 fișier
 zero constatări; sintaxă/diff check trecute. SQL real/Chrome/OS nu sunt rerulate.
 Versiune/arhive/servicii instalate neschimbate.
 
+## Regresie extinsă de acceptanță
+
+Rerularea ulterioară a celor 12 fișiere gateway/sesiuni/pool/generații/model,
+cu INFRAFLOW_TEST_TRIAL_SQL=1: **89/89, zero skip**, inclusiv SQL real. Scope,
+baze noi păstrate și blocajele NO-GO sunt consolidate în
+[Acceptanță gateway SQL](ACCEPTANTA_GATEWAY_SQL_2026-10-25.md).
+Nu sunt incluse Chrome, izolarea OS ori întregul ERP. Nu se declară remedierea
+observațiilor intermitente istorice doar prin această rerulare serială.
+
 ## Extensie: oprire coordonată gateway + pool
 
 `server/tests/support/demo-gateway-pool-lifecycle.js` oprește întâi admisia în
