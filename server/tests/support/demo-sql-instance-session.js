@@ -6,9 +6,11 @@ function createSqlBoundInstanceSessions({clock,readRuntimeGeneration}){
   if(process.env.NODE_ENV!=='test')throw Error('synthetic_test_only')
   if(typeof readRuntimeGeneration!=='function')throw Error('runtime_reader_required')
   const local=createInstanceSessions({clock}),registered=new Map(),issued=new Map()
-  async function current(route){
+  async function current(route,options={}){
     if(process.env.NODE_ENV!=='test')throw Error('synthetic_test_only')
-    const row=await readRuntimeGeneration({trialId:route.trialId})
+    if(options.signal?.aborted)throw options.signal.reason
+    const row=await readRuntimeGeneration({trialId:route.trialId},options)
+    if(options.signal?.aborted)throw options.signal.reason
     if(row===null)return null
     if(!row||!Number.isInteger(row.generation)||row.generation<1||typeof row.epoch!=='string'
       ||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(row.epoch))throw Error('invalid_runtime_generation')
@@ -34,9 +36,9 @@ function createSqlBoundInstanceSessions({clock,readRuntimeGeneration}){
         return session
       }catch(error){local.revoke(session.token);throw error}
     },
-    async authorize(token,route,server){
+    async authorize(token,route,server,options={}){
       if(!local.authorize(token,route,server))return false
-      const row=await current(route)
+      const row=await current(route,options)
       return same(row,registered.get(route.trialId))&&same(row,issued.get(hash(token)))&&local.authorize(token,route,server)
     },
     revoke(token){local.revoke(token);if(typeof token==='string')issued.delete(hash(token))},

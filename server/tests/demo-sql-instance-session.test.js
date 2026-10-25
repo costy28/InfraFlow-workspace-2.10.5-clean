@@ -60,6 +60,14 @@ test('adaptor sesiuni: SQL lipsă/indisponibil și avans în timpul răspunsului
   rows.set(A,null);assert.equal((await f.get()).status,401);assert.equal(f.hits.A,1)
   assert.equal((await f.get('B',f.tokens.B.token)).status,200)
 })
+test('adaptor sesiuni: semnalul gateway ajunge la cititorul generației SQL',async t=>{
+  mode(t);let armed=false,signals=0
+  const f=await httpFixture(t,activeRegistry(),async(input,options)=>{
+    if(armed){assert.ok(options.signal instanceof AbortSignal);assert.equal(options.signal.aborted,false);signals++}
+    return {generation:1,epoch:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}
+  })
+  armed=true;assert.equal((await f.get()).status,200);assert.equal(signals,2)
+})
 
 test('autorizare asincronă: expirare trial înainte de conectare și înainte de divulgare',async t=>{
   for(const phase of [1,2])await t.test('citire SQL '+phase,async sub=>{
@@ -109,7 +117,7 @@ test('SQL real și HTTP: epocă persistentă în validarea sesiunilor, fără fa
     await store.advanceRuntimeGeneration({trialId:id,commandId:'first',expectedGeneration:0,now:2000})
   }
   const baseline=await store.read();let unavailable=false
-  const f=await httpFixture(t,baseline,input=>{if(unavailable)throw Error('SQL unavailable injected');return store.readRuntimeGeneration(input)})
+  const f=await httpFixture(t,baseline,(input,options)=>{if(unavailable)throw Error('SQL unavailable injected');return store.readRuntimeGeneration(input,options)})
   await t.test('token corect acceptat; token A pe B refuzat înainte de contact',async()=>{
     assert.equal((await f.get()).status,200);assert.equal((await f.get('B')).status,401)
     assert.deepEqual(f.hits,{A:1,B:0})

@@ -1510,3 +1510,59 @@ schimbată și lifecycle retras, vecin neafectat. 44 probe trecute, 1 SQL opt-in
 sărită; nu se declară SQL real rerulat. Detalii în GENERATII_RUNTIME_SQL.
 Urmează deadline/anulare la control plane lent și client deconectat. Nu se
 promite atomicitate între ultima verificare și socket; fără schimbări publice.
+
+## 60. Deadline gateway și client deconectat
+
+Termen total pentru snapshot/autorizare/răspuns și AbortSignal per cerere;
+finalizările târzii nu pornesc runtime-ul, upstream-ul existent este închis la
+deconectare. 51 probe trecute, 1 SQL opt-in sărită. Nu este anulare nativă SQL:
+adaptoarele nu propagă încă semnalul până la executor. Urmează acea propagare
+în scope-ul testului, fără procese ori sesiuni străine terminate. Fără update.
+
+## 61. Anulare propagată la procesul executorului SQL de test
+
+AbortSignal separat de payload prin gateway/adaptor/store/fixture; executorul
+oprește doar ChildProcess-ul deținut și așteaptă close. 4/4 probe trecute, inclusiv
+batch SQL început și proces vecin neafectat. Bază și limite în GENERATII_RUNTIME_SQL;
+nu se promite rollback sau dispariție instantanee a sesiunii SQL. Regresii 52
+trecute, 1 SQL/HTTP opt-in sărită. Urmează limitarea concurenței în control plane.
+Fără modificări ale executorului ERP instalat ori pachete noi.
+
+## 62. Concurență limitată în executorul SQL de test
+
+Pool per proces Node: implicit 2 active/16 în coadă, FIFO și refuz la depășire.
+Anulare în coadă fără spawn, loc activ reținut până la close. Observerul regresiei
+SQL este legat acum de cerere, nu de presupunerea pornirii imediate. 57 probe
+trecute/1 SQL-HTTP sărită; separat anulare cu SQL real 4/4. Detalii în
+GENERATII_RUNTIME_SQL. Urmează termen propriu pentru coadă; nu este cotă globală
+de producție sau fairness pe trial. Nu sunt modificări ale instalațiilor existente.
+
+## 63. Deadline propriu pentru coada SQL de test
+
+Implicit 10 secunde, server-side, cu timer și verificare monotonică la admitere.
+Cererea expirată nu pornește un proces și nu afectează activa; abort/timere
+curățate la scoaterea din coadă. 9/9 teste pool, pachet combinat 61 trecute și
+1 SQL/HTTP sărită; SQL real nu a fost rerulat. Urmează integrarea HTTP pentru
+suprasarcină/expirare și revenire după eliberarea cozii. Fără update instalabil.
+
+## 64. Suprasarcină și revenire prin gateway HTTP de test
+
+4 probe noi cu pool și două runtime-uri sintetice: 503 la plin/expirare, client
+anulat fără execuție, capacitate recuperată după eroare și revenire pentru vecin.
+Executorul este simulat, nu SQL real sau load-test de producție. Erorile interne
+nu sunt divulgate și nu există retry automat. Urmează oprirea controlată a pool-ului.
+
+## 65. Shutdown explicit și idempotent al pool-ului
+
+Open/closing/closed; refuză noi cereri, respinge coada fără execuție, așteaptă
+activele până la terminare și nu redeschide implicit. 5 probe noi, inclusiv
+PowerShell real fără kill. Nu este shutdown al serviciului ERP sau SQL Server.
+Urmează coordonarea gateway+pool; limitele executorului necooperant rămân explicite.
+
+## 66. Oprire coordonată gateway + pool în test
+
+Admisia gateway se oprește prima; cereri anulate și upstream-uri închise, pool-ul
+se închide fără execuția cozii. Confirmarea așteaptă ambele componente și close
+al procesului propriu când există. Nu oprește un serviciu ERP și nu implementează
+SIGTERM/TCP listener teardown de producție. Urmează regresia extinsă SQL/gateway
+și consolidarea acceptanței, nu instalarea acestui harness în Demo.

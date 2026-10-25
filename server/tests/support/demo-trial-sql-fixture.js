@@ -1,13 +1,17 @@
 'use strict'
-const { execFile } = require('node:child_process'), { promisify } = require('node:util'), crypto = require('node:crypto')
-const exec = promisify(execFile)
+const crypto = require('node:crypto')
+const {runLimitedSqlProcess}=require('./demo-sql-process-pool')
 const { assertTestDatabase } = require('../../core/demo-trial-sql-test-store')
-async function createTrialSqlFixture() {
+async function createTrialSqlFixture({onProcess}={}) {
   const database = `INFRAFLOW_TEST_TRIALS_${crypto.randomBytes(6).toString('hex').toUpperCase()}`
   assertTestDatabase(database)
-  async function execute(target, sql, input = {}) {
+  async function execute(target, sql, input = {}, options = {}) {
     if (target !== database && !(target === 'master' && sql === `CREATE DATABASE [${database}]; SELECT 1;`)) throw Error('synthetic_sql_target_refused')
     assertTestDatabase(database)
+    if(!options||Object.getPrototypeOf(options)!==Object.prototype||Object.keys(options).some(k=>!['signal','processTag'].includes(k))
+      ||(options.signal!==undefined&&!(options.signal instanceof AbortSignal))
+      ||(options.processTag!==undefined&&(typeof options.processTag!=='string'||!/^[a-zA-Z0-9_-]{1,32}$/.test(options.processTag))))throw Error('invalid_synthetic_sql_options')
+    if(options.signal?.aborted)throw Object.assign(Error('synthetic_sql_aborted'),{code:'synthetic_sql_aborted'})
     const json = JSON.stringify(input)
     if (Buffer.byteLength(json) > 20000 || Buffer.byteLength(sql) > 20000) throw Error('synthetic_sql_payload_limit')
     const env = {}
@@ -23,8 +27,8 @@ async function createTrialSqlFixture() {
       } catch { $n=$_.Exception.GetBaseException().Number; if($null -eq $n){$n=-1}; [Console]::Write('{"sqlError":'+$n+'}') }
       finally {$c.Dispose()}`
     let output
-    try { output = (await exec('powershell.exe', ['-NoProfile','-NonInteractive','-Command',script], { env, encoding: 'utf8', timeout: 25000, maxBuffer: 1024 * 1024, windowsHide: true })).stdout }
-    catch { throw Object.assign(Error('synthetic_sql_process_failed'), { code: 'synthetic_sql_process_failed' }) }
+    const tag=options.processTag??null
+    output=await runLimitedSqlProcess({script,env,signal:options.signal,onProcess:onProcess?child=>onProcess(child,{tag}):undefined})
     if (output.startsWith('{"sqlError":')) throw Object.assign(Error('synthetic_sql_execution_failed'), { code: 'synthetic_sql_execution_failed', sqlNumber: JSON.parse(output).sqlError })
     return output
   }

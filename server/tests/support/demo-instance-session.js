@@ -52,10 +52,10 @@ function createInstanceSessions({ clock }) {
 function createDemoGatewaySessionHarness(options) {
   if(process.env.NODE_ENV!=='test')throw Error('synthetic_test_only')
   if(!options || typeof options.sessions?.authorize!=='function' || Object.hasOwn(options,'authorizeRequest'))throw Error('instance_sessions_required')
-  return createDemoGatewayHttpHarness({...options,authorizeRequest:async({route,runtime,headers,rawHeaders})=>{
+  return createDemoGatewayHttpHarness({...options,authorizeRequest:async({route,runtime,headers,rawHeaders,signal})=>{
     if(headers.authorization || rawHeaders.filter((_,i)=>i%2===0).filter(n=>n.toLowerCase()==='cookie').length!==1)return false
     const match=/^demo_probe_session=([a-f0-9]{64})$/.exec(headers.cookie||'')
-    return !!match && (await options.sessions.authorize(match[1],route,runtime))===true
+    return !!match && (await options.sessions.authorize(match[1],route,runtime,{signal}))===true
   }})
 }
 module.exports={createInstanceSessions,createDemoGatewaySessionHarness}

@@ -134,3 +134,206 @@ pentru citirea snapshotului/autorizerul SQL, în afara timeouturilor executorulu
 deadline-ul runtime-ului HTTP nu acoperă acele așteptări. Urmează timeout/anulare
 fail-closed pentru control plane lent, inclusiv client deconectat, fără callback
 târziu care să pornească o cerere upstream. ERP/Demo/arhive neschimbate.
+
+## Extensie: deadline și anulare la limita gateway-ului
+
+Harness-ul HTTP are termen total configurabil numai server-side (implicit
+30000 ms, validat 20–60000 ms), separat de limita runtime de 1500 ms. Snapshotul
+și autorizerul sunt așteptate prin aceeași limită per cerere; timeout produce
+504 cu cod fix, fără mesaj intern. Deconectarea clientului emite AbortSignal
+și închide upstream-ul dacă există. Timerele/listener-ele gateway-ului sunt
+curățate la terminare. Callbackurile târzii, inclusiv respingerea unei promisiuni,
+sunt consumate fără a relua fluxul sau a iniția o conexiune runtime.
+
+AbortSignal este oferit callbackurilor readSnapshot/authorizeRequest. Acesta
+NU este încă propagat de toate adaptoarele până la executorul SQL PowerShell;
+o interogare deja pornită poate continua până la propriul timeout. Nu se declară
+anulare nativă SQL, zero resurse reținute de un provider necooperant sau limită
+de cereri concurente. Codul actual asigură abandonarea rezultatului la gateway,
+nu terminarea fizică garantată a operației interne.
+
+`server/tests/demo-gateway-cancellation.test.js`: 7 probe HTTP cu porți controlate
+pentru snapshot lent, autorizer inițial/final lent, client închis în snapshot/
+autorizare și după conectare, finalizare/respingere târzie. Nu este un test de
+întrerupere a SQL Server. Callbackurile sunt simulate, nu trafic către VPS.
+
+Rezultat combinat: **51 probe trecute, 1 SQL opt-in sărită**, zero eșecuri.
+Audit expuneri: 514 fișiere, zero constatări; sintaxă/diff check trecute.
+SQL real/OS/Chrome nu sunt rerulate. Fără restart, arhive sau schimbare versiune.
+Urmează propagarea anulării în adaptorul/executorul SQL de test și verificarea
+operațiilor proprii oprite, fără a atinge sesiuni/procese SQL străine.
+
+## Extensie: semnal transmis la executorul SQL de test
+
+Lanțul gateway → adaptor sesiune → readRuntimeGeneration → store → fixture
+primește acum AbortSignal ca opțiune separată, nu în payloadul JSON/SQL.
+Semnalul deja anulat refuză apelul înainte de spawn. Helperul nou
+`server/tests/support/demo-owned-sql-process.js` deține obiectul ChildProcess,
+oprește numai acel proces la abort și așteaptă evenimentul close înainte de
+respingerea operației. Nu enumeră procese, nu folosește taskkill global și nu
+emite SQL KILL. Erorile rămân categorii fixe, fără texte/provider/credențiale.
+
+Proba `demo-sql-process-cancellation.test.js` are **4/4 teste trecute, zero skip**:
+pre-abort fără proces, transportul opțiunii, gard runtime normal și SQL real.
+În baza locală nouă `INFRAFLOW_TEST_TRIALS_D90A8C171F2F`, lotul lent scrie un marker
+de pornire și așteaptă; un observator confirmă markerul înainte de abort.
+Procesul asociat se închide; un proces vecin rulează până la rezultat normal.
+Markerul deja comis rămâne intenționat: nu se promite anulare instantanee pe
+server, rollback al unui batch trimis ori lipsa efectelor deja comise. Nu a fost
+verificată dispariția imediată a sesiunii SQL și nu se extrapolează la scrieri.
+
+O probă suplimentară cu cititor simulat verifică semnalul complet prin gateway,
+înainte/după runtime. Integrarea SQL/HTTP completă din etapa precedentă nu este
+declarată rerulată: fixture-ul ei transmite acum opțiunea, dar proba sa rămâne
+opt-in. Nu sunt modificări în executorul SQL ERP de producție.
+
+Urmează limitarea cererilor concurente către control plane-ul de test, astfel
+încât cererile lente/anulate să nu pornească procese fără limită. Efectele
+ambigue ale comenzilor de scriere rămân separate, tratate prin idempotentă/CAS.
+
+Regresia gateway/sesiuni/model după propagare: **52 probe trecute, 1 SQL opt-in
+sărită**, zero eșecuri. Audit expuneri 516 fișiere, zero constatări; sintaxă/diff
+check trecute. Nicio modificare de versiune, arhive sau instanțe publice.
+
+## Extensie: limită de procese și coadă mărginită
+
+`server/tests/support/demo-sql-process-pool.js` limitează fixture-ul SQL la 2
+procese active și 16 cereri în așteptare implicit. Configurația este server-side,
+cu limite validate (1–8 active, 0–64 în coadă). FIFO pentru cererile admise;
+depășirea produce synthetic_sql_busy înainte de executare. Anularea în coadă
+scoate cererea fără spawn. Pentru o cerere activă, locul rămâne ocupat până când
+executorul confirmă close, nu până când gateway-ul abandonează rezultatul.
+Erorile sincrone/asincrone eliberează locul. Statusul agregat nu expune secrete.
+
+Aceasta este o limită **per proces Node/modul de test**, nu o cotă distribuită
+pe SQL Server, pe trial sau pe toate fișierele pornite de node --test. Coada nu
+are un termen propriu: cererile gateway au semnalul deadline-ului, iar operațiile
+de setup fără semnal așteaptă procesele active și timeouturile lor. Nu se declară
+fairness între companii ori protecție DoS de producție.
+
+5 probe deterministe în demo-sql-process-pool.test.js: limită/FIFO/depășire,
+anulare în coadă, loc reținut până la close, erori fără pierdere de loc și input
+invalid/pre-abort. Regresia SQL inițială a eșuat în observerul care identifica
+procesele printr-o variabilă globală de fază: după introducerea cozii, spawn-ul
+nu mai este sincron cu apelul. Observerul folosește acum un processTag de test
+capturat pe cerere (fără SQL/parole), nu presupunerea temporală. Verificările
+de close/proces vecin nu au fost relaxate.
+
+Rezultate finale: **57 probe trecute, 1 SQL/HTTP opt-in sărită** în pachetul
+gateway/sesiuni/pool/model; separat **4/4** probe anulare, inclusiv SQL real,
+zero skip. Baza SQL finală păstrată: `INFRAFLOW_TEST_TRIALS_54F4E72A2F1F`;
+rularea cu observerul eronat a păstrat `INFRAFLOW_TEST_TRIALS_299DDB121E18`.
+Audit expuneri 518 fișiere, zero constatări; sintaxă/diff check trecute.
+Nu s-au rerulat Chrome/OS ori întregul flux ERP. Urmează termenul propriu al
+așteptării în coadă, inclusiv pentru setup fără semnal de la gateway. Fără
+restart, schimbare versiune sau arhive noi.
+
+## Extensie: termen propriu pentru așteptarea în coadă
+
+Pool-ul de test are acum queueTimeoutMs server-side: implicit 10000 ms, validat
+între 20 și 60000 ms. Fiecare cerere pusă în coadă are timer și deadline bazat
+implicit pe performance.now. Pomparea cozii verifică și ea termenul, astfel
+încât un timer amânat de event loop să nu permită pornirea unei cereri expirate.
+Expirarea produce synthetic_sql_queue_timeout, scoate cererea și curăță timerul/
+listenerul de abort. Nu omoară și nu eliberează prematur procesele deja active.
+
+Termenul este numai pentru așteptare: după admitere, procesul are timeoutul său
+și semnalul cererii. Nu se declară timp total maxim SQL server sau anulare a
+efectelor deja comise. Ceasul injectat din probe este numai pentru reproductibilitate,
+nu configurare aleasă de client. Limita rămâne per proces Node, nu distribuită.
+
+Pool-ul are **9/9 teste trecute** (4 noi: expirare fără semnal extern, termen
+verificat de pump înaintea timerului, capacitate eliberată fără afectarea activei,
+abort după expirare). Pachet combinat: **61 trecute, 1 SQL/HTTP opt-in sărită**,
+zero eșecuri. SQL real/Chrome/OS nu au fost rerulate în această etapă. Audit
+expuneri: 518 fișiere, zero constatări; sintaxă/diff check trecute.
+
+Urmează proba HTTP integrată pentru suprasarcină/coadă expirată și recuperarea
+serviciului după eliberarea locurilor, fără rezultate întârziate sau afectarea
+vecinului. Nu se schimbă versiunea, arhivele ori instanțele publice.
+
+## Extensie: suprasarcină și revenire probate prin HTTP
+
+`server/tests/demo-gateway-overload.test.js` conectează gateway-ul, pool-ul real
+de test și două runtime-uri HTTP sintetice. Executorul pool-ului este simulat
+cu promisiuni controlate; NU sunt procese SQL reale în aceste probe.
+
+4 teste: activă blocată/coadă plină/expirare cu 503 și revenire A/B; client
+deconectat în coadă fără executare; eroare activă care eliberează locul pentru
+vecin; maxQueued=0 cu refuz imediat și revenire. Contoarele confirmă că cererile
+respinse/anulate/expirate nu ajung la executor/runtime și că eroarea internă nu
+este reflectată în răspuns. Cererile folosesc același pool, deci nu este fairness
+garantat între companii și nici izolare de capacitate pe trial.
+
+Erorile pool-ului sunt mascate prin 503 gateway_unavailable în harness. Nu există
+retry automat, Retry-After sau promisiune comercială pentru acești timpi. Este
+verificarea comportamentului local la capacitate limitată, nu benchmark de pilot
+sau test de sarcină al SQL Server. Fără mutații SQL/OS în această etapă.
+
+Urmează oprirea controlată a pool-ului: refuz cereri noi, tratarea cozii și
+așteptarea confirmării închiderii activelor. Nu se adaugă un serviciu public.
+
+Rezultat: **65 probe trecute, 1 SQL/HTTP opt-in sărită**, zero eșecuri, cu
+regresiile locale. Audit expuneri: 519 fișiere, zero constatări; sintaxă/diff
+check trecute. Nu s-au rerulat SQL real, OS sau Chrome; arhive/versiune neschimbate.
+
+## Extensie: shutdown explicit al pool-ului de test
+
+createSqlProcessPool oferă acum shutdown idempotent și stările open/closing/
+closed. Trecerea în closing refuză cereri noi, respinge coada cu categorie fixă
+și curăță timerele/listener-ele aferente. Operațiile deja executate sunt lăsate
+să termine; shutdown se rezolvă numai când numărul activ ajunge la zero.
+O cerere rezervată dar al cărei executor încă nu a pornit este refuzată înainte
+de spawn. Eroarea unei active nu blochează închiderea. Nu există reopen implicit.
+
+5 teste noi în demo-sql-pool-shutdown.test.js: coadă/refuz/așteptare, rezervare
+fără execuție, eroare activă, idempotentă și gard runtime, plus proces PowerShell
+real care se închide normal fără kill, fără pornirea copilului din coadă.
+Nu sunt teste SQL Server și nu se revendică rollback SQL sau oprire de serviciu.
+
+Shutdown nu are un termen de forțare propriu și nu omoară operații active;
+executorul real de test are timeoutul lui, iar un executor injectat necooperant
+poate ține closing deschis. Nu este SIGTERM/systemd/Windows Service handler,
+nu este expus pool-ul implicit al fixture-ului pentru restart automat. Oprirea
+întregului gateway trebuie coordonată separat, înainte de închiderea pool-ului.
+
+Urmează proba de oprire coordonată a gateway-ului și pool-ului: fără cereri noi,
+fără conectări târzii și fără răspuns autorizat printr-un serviciu în curs de oprire.
+
+Rezultate: 5/5 probe noi de shutdown trecute, inclusiv procesul PowerShell real.
+Rerulările combinate serială și paralelă: **70 trecute, 1 SQL/HTTP opt-in sărită**.
+O primă rulare paralelă a returnat 503 acolo unde o probă aștepta 200; nu este
+declarată cauză stabilită sau remediere, iar rerulările trecute nu ascund acea
+observație. Nu s-au relaxat timpii sau asertările. Audit expuneri: 520 fișiere,
+zero constatări; sintaxă/diff check trecute. SQL real/Chrome/OS nu sunt rerulate.
+Versiune/arhive/servicii instalate neschimbate.
+
+## Extensie: oprire coordonată gateway + pool
+
+`server/tests/support/demo-gateway-pool-lifecycle.js` oprește întâi admisia în
+handlerul gateway, apoi pool-ul. Gateway-ul are stări open/closing/closed,
+anulează cererile urmărite și închide upstream-urile proprii. Confirmarea sa
+așteaptă ieșirea handlerelor și evenimentele close ale upstream-urilor. Pool-ul
+refuză coada/noile operații și așteaptă terminarea executorilor activi. Controllerul
+confirmă closed numai după ambele, fără reopen implicit.
+
+4 probe în demo-gateway-pool-shutdown.test.js: activă și coadă/noi cereri,
+snapshot întârziat fără conectare ulterioară, upstream deja conectat fără livrare
+și anulare cu așteptarea close a unui proces PowerShell real propriu. Acesta nu
+execută SQL și nu este serviciul ERP. Nu se termină PID-uri/sesiuni străine.
+
+Handlerul HTTP rămâne legat de listener în probă și întoarce 503 gateway_closed
+după oprire; controllerul nu închide listenerul TCP de administrare și nu este
+handler SIGTERM/systemd/Windows Service. Procesele/runtime-urile sintetice de
+destinație sunt închise de cleanup-ul fixture-ului, nu de controller. Callbackurile
+externe necooperante, în afara pool-ului, pot continua intern; nu sunt declarate
+terminate fizic prin abandonarea rezultatului. Fără deadline de forțare a shutdown.
+
+Urmează regresia extinsă SQL + gateway și actualizarea acceptanței înainte de
+alegerea/integrările serviciului real. Nu se publică acest harness ca gateway.
+
+Rezultat serial: **74 probe trecute, 1 SQL/HTTP opt-in sărită**, zero eșecuri;
+include 4 probe noi de coordonare și probele cu procese PowerShell reale, nu
+SQL real. Audit expuneri 522 fișiere, zero constatări; sintaxă/diff check trecute.
+Eșecul intermediar 503/200 din etapa precedentă rămâne documentat, nu remediat
+prin această rulare. Fără schimbare versiune, restart/deploy sau pachete noi.

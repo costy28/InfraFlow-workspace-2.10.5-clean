@@ -126,6 +126,42 @@ așteptare și probe deterministe (44 trecute, 1 SQL opt-in sărită). SQL real 
 a fost rerulat la această extensie. Mai sunt necesare deadline/anulare pentru
 control plane și verificarea mediului real; nu există garanție atomică pe socket.
 
+Deadline/anulare la limita gateway-ului sunt probate (51 trecute, 1 SQL opt-in
+sărită), inclusiv finalizare târzie și închiderea upstream-ului la disconnect.
+Nu este încă anulare nativă a interogării SQL sau limită de concurență; aceste
+diferențe rămân explicite. NO-GO public și blocajul OS nu se modifică.
+
+Propagarea până la procesul SQL de test este probată (4/4, cu SQL real și proces
+vecin neafectat). Nu garantează anularea/rollback-ul instantaneu al batchului pe
+server. Limitarea concurenței rămâne de implementat; regresii 52 trecute, o probă
+SQL/HTTP opt-in sărită. Nicio modificare în producție și NO-GO neschimbat.
+
+Executorul SQL de test are acum limită activă/coadă FIFO mărginită per proces
+Node, cu anulare în coadă și eliberare după close. 57 probe locale trecute,
+1 SQL/HTTP sărită; regresia anulării cu SQL real 4/4. Nu este limită distribuită,
+fairness între companii sau termen propriu de coadă. NO-GO public rămâne.
+
+Actualizare: coada SQL de test are termen propriu și verificare monotonică la
+admitere (9/9 teste pool; pachet 61 trecute, 1 SQL/HTTP sărită). Nu este cotă
+distribuită sau validare pe mediul public. Suprasarcina/revenirea HTTP integrate
+rămân următoarea probă; NO-GO public și blocajul OS sunt neschimbate.
+
+Suprasarcina și revenirea HTTP sunt acum probate cu executor simulat (65 teste
+locale trecute în total, 1 SQL/HTTP opt-in sărită). Nu sunt măsurători de capacitate
+SQL reală sau cote pe trial. Oprirea controlată a pool-ului rămâne următoarea
+probă, iar serviciul public rămâne NO-GO.
+
+Shutdown-ul pool-ului este probat, inclusiv închiderea normală a unui proces
+PowerShell propriu. Rerulări serial/paralel: 70 trecute, 1 SQL/HTTP sărită;
+eșecul intermediar 503/200 rămâne observație fără cauză stabilită, documentată.
+Nu este oprirea coordonată a serviciului gateway sau ERP. NO-GO neschimbat.
+
+Oprirea coordonată a handlerului gateway și pool-ului este acum probată local:
+74 teste trecute, 1 SQL/HTTP opt-in sărită, inclusiv PowerShell propriu real.
+Nu este încă oprire SIGTERM/Windows Service/TCP listener de producție și nu
+rezolvă observația intermitentă anterioară. Urmează regresia extinsă cu SQL real;
+NO-GO public, blocajul OS și lipsa serviciului real rămân explicite.
+
 ## 5. Decizii și activare
 
 Înainte de publicare sunt necesare alegeri explicite: mediu/identități de serviciu,

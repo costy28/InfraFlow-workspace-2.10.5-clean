@@ -9,7 +9,7 @@ function assertTestDatabase(database) {
 function createSqlTestTrialStore({ database, execute }) {
   assertTestDatabase(database)
   if (typeof execute !== 'function') fail('synthetic_sql_executor_required')
-  const run = (sql, input = {}) => { assertTestDatabase(database); return execute(database, sql, input) }
+  const run = (sql, input = {}, options = {}) => { assertTestDatabase(database); return execute(database, sql, input, options) }
   async function readEnvelope() {
     const data = JSON.parse(await run(`SELECT store_revision AS version, JSON_QUERY(snapshot) AS registry
       FROM dbo.demo_registry WHERE singleton=1 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;`))

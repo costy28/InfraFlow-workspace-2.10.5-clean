@@ -17,10 +17,14 @@ function row(data){
 }
 function createSqlRuntimeTestStore(run){
   return {
-    async readRuntimeGeneration(input){
+    async readRuntimeGeneration(input,options={}){
       validate(input,false)
+      if(!options||Object.getPrototypeOf(options)!==Object.prototype||Object.keys(options).some(k=>k!=='signal')
+        ||(options.signal!==undefined&&!(options.signal instanceof AbortSignal)))fail('invalid_runtime_generation_request')
+      if(options.signal?.aborted)fail('synthetic_sql_aborted')
       const data=JSON.parse(await run(`SELECT COALESCE((SELECT generation,epoch,changed_at AS changedAt FROM dbo.demo_runtime_generations
-        WHERE trial_id=CONVERT(uniqueidentifier,JSON_VALUE(@json,'$.trialId')) FOR JSON PATH,WITHOUT_ARRAY_WRAPPER),N'null');`,input))
+        WHERE trial_id=CONVERT(uniqueidentifier,JSON_VALUE(@json,'$.trialId')) FOR JSON PATH,WITHOUT_ARRAY_WRAPPER),N'null');`,input,options))
+      if(options.signal?.aborted)fail('synthetic_sql_aborted')
       return data===null?null:row(data)
     },
     async advanceRuntimeGeneration(input,options={}){
