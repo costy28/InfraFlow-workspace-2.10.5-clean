@@ -1,6 +1,9 @@
 # Acceptanță tehnică — prototip Demo privat pe companie
 
-Data verificării: 24 octombrie 2026. Sursă: **2.12.736**, HEAD de referință
+Raport inițial: 24 octombrie 2026; consolidare: 25 octombrie 2026.
+Situația curentă și porțile: [Porți pilot](PORTI_PILOT_DEMO_PRIVAT_2026-10-25.md).
+Rezultatele de mai jos sunt datate pe etape, nu toate rerulate la consolidare.
+Sursă: **2.12.736**, HEAD inițial de referință
 `cf3eb9a`, plus modificările locale necomise. Raportul descrie acest checkout,
 nu o versiune instalată pe VPS. Nu este certificat de securitate sau de livrare.
 
@@ -50,9 +53,9 @@ Planul detaliat și istoricul probelor sunt în
 5. Un rezultat JSON `passed: true` este o dovadă pentru scope-ul declarat, nu
    permisiune de instalare sau ștergere. Păstrăm `productionRestoreApproved=false`.
 
-## 3. Dovezi și repetabilitate
+## 3. Dovezi și repetabilitate — rularea inițială din 24 octombrie
 
-Rezultat curent, rerulat pentru acest raport: **87/87 teste trecute**, zero skip,
+Rezultat inițial, rerulat la întocmirea raportului: **87/87 teste trecute**, zero skip,
 inclusiv Chrome. Audit expuneri: **481 fișiere, zero constatări**. Diff check
 trecut; verificarea finală a găsit **zero procese sintetice rămase active**.
 Acestea sunt 18 fișiere de test, nu 87 de fluxuri ERP complete.
@@ -98,8 +101,8 @@ nu „bug Node remediat”. Detalii și surse oficiale: secțiunea 32 a planului
 
 | Poartă | Ce lipsește pentru acceptare |
 | --- | --- |
-| Control plane durabil | Registru SQL separat, constrângeri de unicitate, CAS tranzacțional, comenzi/retry și jurnal de joburi persistente |
-| Autoritate administrativă | Autentificarea operatorului, autorizare pe comenzi și audit; `actor.kind` ori nonce-ul din harness nu sunt modelul de autentificare public |
+| Control plane durabil | SQL local, CAS, comenzi și joburi sunt probate; lipsesc serviciul/adaptorul real și operarea pe mediul pilot |
+| Autoritate administrativă | Identitate și audit sunt probate în test; lipsesc provider real/MFA și autorizarea comenzilor; `actor.kind` ori nonce-ul nu sunt autentificare publică |
 | Provisionare izolată | Identitate administrativă separată de fiecare identitate runtime SQL/OS; ACL-uri și probe negative directe pe bazele/directoarele vecine |
 | Rutare și acces | Hostname din registry, gateway fail-closed, sesiuni/linkuri/fișiere verificate pe instanță și la expirare; fără port/URL ales de browser |
 | Efecte externe | Blocare efectivă a SMTP/IMAP/Oblio/ANAF/WhatsApp/GPS și schedulerelor în trial; serviciu platformă separat pentru invitații |
@@ -113,7 +116,10 @@ simultane după măsurători, retenția datelor și backupurilor, hostname-urile
 identitățile de serviciu. Nu completăm aceste valori din presupuneri și nu sunt
 necesare pentru proiectarea offline a registrului SQL.
 
-## 5. Următoarea etapă concretă — registru SQL tranzacțional izolat
+## 5. Etapă istorică — registru SQL tranzacțional izolat
+
+Planul de mai jos a fost urmat prin probele ulterioare. Pentru următorul
+increment curent, vezi secțiunea 4 din documentul consolidat al porților pilot.
 
 Ordinea propusă, fără modificarea Demo-ului comun:
 
@@ -177,3 +183,22 @@ acordată autoritate prin HTML/JSON. Vezi secțiunea 11 a documentului joburilor
 Acest raport nu schimbă versiunea aplicației, serviciile instalate, arhivele
 Windows/Linux, configurațiile VPS sau conturile existente. Nu necesită update
 pe PC ori server. Acceptanța prototipului nu autorizează publicarea pilotului.
+
+## Actualizare: citire operator izolată (24 octombrie 2026)
+
+Contractul HTTP read-only al operatorului este probat numai într-un harness de
+test, cu sesiuni opace preemise, permisiune și scope explicit pe trial. Rolurile
+ERP nu sunt autoritate de platformă. Expirarea/revocarea în citire blochează
+răspunsul, fără export parțial. 9/9 probe trecute, inclusiv SQL real prin HTTP;
+registrul rămâne neschimbat. Nu este serviciu de autentificare de producție și nu
+este montat în ERP. Detalii: secțiunea 12 din JOBURI_DEMO_SQL_LEASE_2026-10-24.md.
+
+## Actualizare: integrare operator, SQL și audit persistent (25 octombrie 2026)
+
+Fluxul de test folosește identitatea separată cu token generat, HTTP, SQL real
+izolat și jurnal pe disc împreună. Sunt probate exportul în trei pagini, refuzul
+înainte de SQL, 503 fără raport când jurnalul e închis și 401 fără export parțial
+la revocare după citire. Registrul SQL rămâne neschimbat. Rulare combinată:
+32/32 probe trecute, zero skip. Detalii și bazele de test în secțiunea 16 din
+documentul joburilor. Nu este autentificare/deployment de producție; blocajele
+pentru publicare rămân active. Nu este necesar update pe PC sau server.

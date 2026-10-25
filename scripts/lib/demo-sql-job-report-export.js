@@ -78,4 +78,4 @@ async function renderJobReportExport(report) {
   return document(checked,checked.pages.map((page,i)=>section(page,`Pagina ${i+1} din ${checked.pages.length}`)).join(''),
     `Export complet al selecției · Înregistrări: ${checked.totalMatched} · Pagini consistente: ${checked.pages.length}.`)
 }
-module.exports={collectJobReportExport,renderJobReportPagePreview,renderJobReportExport}
+module.exports={collectJobReportExport,renderJobReportPagePreview,renderJobReportExport,normalizeJobReportPageOutput:checkPage}

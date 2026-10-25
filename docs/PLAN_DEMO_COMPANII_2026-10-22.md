@@ -1345,3 +1345,70 @@ harness autentificat. Nu se expune raportul public și nu se schimbă arhivele.
 Probe combinate **16/16** cu SQL și Chrome; rerularea exportului final **8/8**,
 zero skip. Capturile au fost inspectate; audit expuneri 494 fișiere, zero
 constatări; sintaxă/diff check trecute și zero procese sintetice active.
+
+## 42. Citirea raportului prin identitate separată de operator
+
+Harness HTTP numai de test, cu tokenuri opace preemise și realm/permisiune/scope
+explicit. Superadminul ERP și administratorul companiei Demo nu devin operatori.
+Citirea/exportul verifică sesiunea înainte și după fiecare pagină; revocarea sau
+expirarea nu divulgă un export parțial. Nu există comenzi administrative.
+Detalii și limite de autentificare: secțiunea 12 a documentului joburilor SQL.
+Urmează identitatea operatorului și auditul consultărilor pentru serviciul separat,
+nu publicarea harness-ului. Demo-ul public, runtime-ul instalat și pachetele nu
+sunt modificate.
+
+## 43. Identitate operator și contract de audit (25 octombrie 2026)
+
+Adaptor de identitate exclusiv de test: proof verificat out-of-band, tokenuri
+aleatoare păstrate prin hash, TTL, revocare și invalidare la schimbarea drepturilor.
+Harness-ul cu resolver cere un sink de audit; raportul nu este divulgat dacă
+salvarea auditului eșuează sau autoritatea este retrasă în timpul salvării.
+Nu există încă furnizor real login/MFA ori jurnal durabil. Urmează persistența
+auditului și probe de eșec/restart. Detalii: secțiunea 13 a documentului joburilor.
+ERP, Demo public, versiune și arhive neschimbate.
+
+## 44. Persistența jurnalului de consultare în test
+
+Sink JSONL limitat și validat, writer exclusiv și confirmare fsync, cu recitire
+în proces nou după închidere normală. HTTP cu identitate separată nu livrează
+raportul dacă sink-ul eșuează. Datele trunchiate/secvențele invalide sunt refuzate.
+Nu se declară recuperare automată după crash ori garanție power-loss/exactly-once.
+Urmează recuperarea controlată pentru lock stale; detalii și limite în secțiunea
+14 a documentului joburilor SQL. Demo public și pachetele rămân neatinse.
+
+## 45. Recuperare explicită a writerului de audit în test
+
+Lock cu PID/nonce și barieră comună pentru deschidere/recuperare. Reluarea cere
+proces absent, jurnal valid și confirmarea neschimbată a amprentei; lockul vechi
+este arhivat local pentru diagnostic. Fără procese omorâte sau evenimente șterse.
+25 probe trecute, SQL opt-in sărită. Limite și probe: secțiunea 15 a documentului
+joburilor. Urmează consultare/export cu SQL, identitate și jurnal persistent
+integrate în aceeași probă. Nu se publică ori actualizează aplicația în această etapă.
+
+## 46. Probă integrată pentru consultarea operatorului
+
+Identitate separată și token generat → HTTP → export în trei pagini din SQL de
+test → jurnal persistent. Probele includ refuz înainte de SQL pentru lipsa
+drepturilor, indisponibilitatea jurnalului și revocare după citire, fără divulgarea
+raportului. Registrul SQL este comparat înainte/după. Detalii: secțiunea 16 din
+documentul joburilor SQL. Urmează consolidarea acceptanței și blocajelor pentru
+pilot, nu publicarea automată. Versiune/arhive/instanțe instalate neschimbate.
+
+## 47. Acceptanță consolidată și ieșirea din etapa de raportare
+
+`docs/PORTI_PILOT_DEMO_PRIVAT_2026-10-25.md` separă dovezile locale de cele
+necesare în producție și menține NO-GO public. Raportul inițial marchează acum
+explicit rezultatele/pașii istorici; nu pretinde rerularea tuturor suitelor.
+Urmează contractul serviciului separat și matricea negativă de izolare SQL/OS,
+nu extensii cosmetice ale raportului. Alegerea furnizorului real de autentificare,
+mediului și retenției rămâne explicită înainte de activare.
+
+## 48. Contractul serviciului și matricea negativă de izolare
+
+`docs/CONTRACT_SERVICIU_DEMO_PRIVAT_2026-10-25.md` definește separarea operator,
+worker, adaptor privilegiat, gateway, runtime A/B și backup. Include intrările
+admise, autoritatea, ținta de acces și probe negative sub identități reale.
+Fixture-ul SQL existent folosește identitatea Windows curentă și nu este dovadă
+de ACL A/B. Căile DDL/bootstrap din db.js cer separare înainte de reducerea
+drepturilor runtime. Nu s-au creat conturi sau modificat permisiuni SQL/OS.
+Urmează inventarul read-only al mediului și planul fixture-ului dedicat.

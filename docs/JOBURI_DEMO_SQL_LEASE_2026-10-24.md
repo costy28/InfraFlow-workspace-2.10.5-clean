@@ -414,3 +414,178 @@ Baze locale noi păstrate: `INFRAFLOW_TEST_TRIALS_247669FE8E2A`,
 Audit expuneri: **494 fișiere, zero constatări**; sintaxă/diff check trecute;
 zero procese sintetice active la final. Celelalte suite nu sunt declarate
 rerulate. Versiunea 2.12.736, serviciile și arhivele rămân neatinse.
+
+## 12. Contract de operator și harness HTTP autentificat (numai test)
+
+`server/tests/support/demo-operator-report-harness.js` este un handler separat,
+nemontat în ERP. Testul îl ascultă exclusiv pe loopback și port efemer. Acceptă
+numai GET pentru pagina de joburi și exportul JSON complet. Nu există login,
+claim, execuție, prelungire trial sau ștergere prin acest handler.
+
+Tokenul opac Bearer este preemis în afara HTTP de proprietarul testului și
+rezolvat într-un Map de sesiuni de test. Numai realm-ul `demo_platform_operator`,
+permisiunea exactă `trial_jobs_read` și trialurile autorizate explicit permit
+citirea. Rolurile ERP, inclusiv superadmin și administratorul companiei Demo,
+nu acordă acces implicit. Parametrii suplimentari de autoritate sunt refuzați.
+
+Expirarea este inclusivă la termen, sesiunea poate fi revocată, iar autoritatea
+este reverificată înainte și după fiecare citire asincronă. Revocarea/expirarea
+în timpul exportului nu întoarce paginile deja colectate. Răspunsul paginat este
+reconstruit prin aceeași listă de câmpuri permise ca exportul, fără token,
+identitatea operatorului sau câmpuri suplimentare din store. Toate răspunsurile
+au no-store; erorile interne sunt mascate, schimbarea raportului produce 409.
+
+Acesta este un contract testat cu sesiuni preemise, NU autentificare de producție:
+nu implementează verificare parolă/MFA, emitere sau stocare persistentă de sesiuni,
+TLS, rate limiting ori audit durabil al consultărilor. Ceasul este injectat în test.
+Handlerul refuză construcția și cererile în afara NODE_ENV=test. Nu este lansat
+niciun serviciu persistent și nu există integrare cu `server/app.js`.
+
+Probe: `server/tests/demo-operator-report-harness.test.js` verifică HTTP real,
+sesiuni lipsă/falsificate, roluri ERP refuzate, scope, expirare, revocare în
+citire, export integral, metode de scriere refuzate, erori și secret stripping.
+Proba SQL opt-in citește prin HTTP autentificat o bază nouă strict de test și
+compară registrul înainte/după; accesul fără sesiune nu cheamă cititorul SQL.
+
+Următorul prag: proiectarea identității operatorului și auditului de consultare
+pentru un serviciu separat; abia apoi integrare controlată, nu expunerea acestui
+harness de test ca API public. Arhivele și versiunea rămân neschimbate.
+
+Rezultate: **9/9 probe operator trecute**, zero skip, inclusiv SQL real prin HTTP;
+bază păstrată `INFRAFLOW_TEST_TRIALS_182D71E2A454`. Rularea separată operator+
+export+paginare a trecut 18 probe pure/HTTP, cu 3 probe SQL/Chrome opt-in sărite;
+nu se declară Chrome sau regresia SQL de paginare/export rerulate în această etapă.
+Audit expuneri: 496 fișiere, zero constatări. Nu s-au schimbat serviciile,
+instanța publică, versiunea 2.12.736 ori arhivele Windows/Linux.
+
+## 13. Adaptor de identitate și contract de audit (25 octombrie 2026)
+
+`server/tests/support/demo-operator-identity.js` separă identitățile operatorilor
+de ERP. Configurarea este exclusiv out-of-band în test; un adaptor injectat
+verifică proof-ul și întoarce identitatea, nu se acceptă rol/subject din cererea
+HTTP ca autoritate. Nu este implementat un furnizor real de autentificare.
+
+Sesiunile au token aleator de 32 octeți, doar amprenta SHA-256 păstrată în Map,
+TTL maxim 15 minute, expirare exactă și revocare. Modificarea configurării unui
+operator invalidează toate sesiunile sale prin versiune, inclusiv dezactivarea
+sau retragerea trialurilor. Datele returnate de resolver sunt copii. Registrele
+sunt volatile, fără promisiune de persistență sau gestionare la scară.
+
+Harness-ul acceptă resolverul separat numai împreună cu un sink de audit.
+Evenimentele conțin subject verificat (sau null), trial validat (sau null),
+operație, status și moment injectat, nu token/proof/filtre brute/mesaje interne.
+Sink-ul este așteptat înainte de divulgarea raportului; eșecul produce 503 fără
+raport. Autoritatea este reverificată și după sink. Evenimentul 200 înseamnă
+citire autorizată pregătită, NU confirmare de livrare către client: dacă intervine
+revocarea în timpul auditului, este urmat de refuz 401/403. Nu se declară tranzacție
+atomică între audit și socket ori audit complet pentru URL-uri necunoscute.
+
+Compatibilitatea Map din proba precedentă rămâne pentru fixture-uri vechi;
+nu este o cale de autentificare de producție. Noul mod resolver cere audit.
+Sink-ul din probe este în memorie; încă NU există jurnal durabil sau login/MFA,
+TLS, protecție anti-abuz și politici operaționale pentru serviciul separat.
+
+`server/tests/demo-operator-identity.test.js` verifică identitate falsificată,
+tokenuri distincte, TTL, dezactivare/reconfigurare, copii defensive, blocarea
+runtime-ului normal, HTTP cu identitate separată și refuz la audit indisponibil
+sau revocare în sink. Următorul increment este jurnalul durabil de consultare
+în mediul de test și comportamentul la eșec/restart, înaintea integrării reale.
+
+Rezultat: **14/14 probe trecute**, zero skip (5 identitate/audit, 9 regresie
+harness, inclusiv citirea SQL reală). Proba SQL folosește încă fixture-ul Map;
+nu este declarată integrare SQL a registrului de identități sau persistență audit.
+Bază nouă păstrată: `INFRAFLOW_TEST_TRIALS_5B7E0D028AB0`. Audit expuneri: 498
+fișiere, zero constatări; sintaxă/diff check trecute. Versiune 2.12.736 și
+arhive neschimbate; nu există restart ori publicare în această etapă.
+
+## 14. Jurnal de consultare persistent în test (25 octombrie 2026)
+
+`server/tests/support/demo-operator-audit-journal.js` implementează un sink JSONL
+strict în directoare temporare directe `infraflow-operator-audit-*`, fără căi
+arbitrare. Evenimentele sunt validate pe câmpurile permise, numerotate, scrise
+și confirmate prin fsync înainte de întoarcere. Limite: 1000 evenimente/256 KiB.
+Lock exclusiv pe fișier pentru un singur writer; după închidere normală un proces
+nou recitește și continuă secvența. Nu este un serviciu ori un jurnal ERP.
+
+Un final trunchiat sau o secvență invalidă blochează deschiderea; nu se ignoră și
+nu se repară automat datele. La eroare write/fsync writerul devine indisponibil.
+Confirmarea eșuată poate lăsa octeți deja scriși: nu se promite exactly-once la
+retry, nici atomicitate audit/socket sau rezistență certificată la power loss.
+Testul fsync este fault injection, nu simulare de pană hardware.
+
+Proba HTTP folosește împreună identitatea separată, cititorul sintetic și sink-ul
+de fișier: succesul este jurnalizat, iar sink-ul închis produce 503 fără raport.
+Proba de restart lansează un proces Node nou după închiderea normală a writerului.
+Un crash poate lăsa lock stale; NU este șters ori preluat automat. Nu există încă
+recuperare administrativă a lockului, rotație, ACL Windows de producție, protecție
+contra modificării fișierului de către proprietarul OS sau autentificare reală.
+Verificările de symlink/cale nu constituie apărare completă contra TOCTOU local.
+
+Urmează protocolul explicit de recuperare după oprire necontrolată și probele de
+crash/lock stale, înainte de folosirea într-un serviciu separat. Aplicația ERP,
+versiunea și pachetele Windows/Linux nu sunt modificate.
+
+Rezultate finale: **20 probe trecute, 1 SQL opt-in sărită**, atât serial cât și
+la rerularea paralelă; 7 probe noi de jurnal. O rulare paralelă intermediară a
+raportat eșec la nivelul fișierului de identitate, fără diagnostic/asertare;
+cauza nu este stabilită și nu este declarată reparată. Rerulările serială și
+paralelă au trecut integral probele activate. SQL/Chrome nu sunt rerulate aici.
+Audit expuneri: 500 fișiere, zero constatări; sintaxă/diff check trecute.
+
+## 15. Recuperare explicită după oprire fără close (25 octombrie 2026)
+
+Writerul de test păstrează PID și nonce aleator în lock, cu fsync. Deschiderea și
+recuperarea folosesc aceeași barieră exclusivă `recovery.gate`. `inspectRecovery`
+refuză un PID viu/inaccesibil și validează întregul jurnal înainte de a furniza
+amprenta lockului și a datelor. `recoverOperatorAuditJournal` cere confirmarea
+exactă a inspecției, revalidează sub barieră și redenumește lockul într-un fișier
+de diagnostic `recovered-*.lock`. Nu omoară procese și nu șterge evenimente.
+
+Probele lansează un proces Node care scrie și iese explicit cu cod 17 fără close,
+apoi verifică reluarea secvenței după recuperare. Sunt refuzate: proprietar activ,
+confirmare învechită, jurnal trunchiat, metadate lipsă, gate ocupat și runtime
+normal. Nu este o probă de pană electrică sau kill în mijlocul unui syscall.
+
+Limite: PID reutilizat dar viu produce refuz conservator; lipsa permisiunii de
+verificare produce refuz. Crash în interiorul barierei poate lăsa gate stale,
+care rămâne blocant și nu este recuperat automat. Lockurile vechi fără metadate
+nu sunt preluate. Operațiile sunt exclusiv locale/test, fără endpoint de recuperare,
+furnizor real de identitate sau ACL/hardening de producție. Nu se promite că
+rename-ul directorului este rezistent la power loss ori că OS owner nu poate
+modifica fișierele. Datele incomplete necesită diagnostic separat, nu trunchiere.
+
+Rezultat: **25 probe trecute, 1 probă SQL opt-in sărită** (5 probe noi de
+recuperare), rulare serială. Audit expuneri: 501 fișiere, zero constatări.
+SQL și Chrome nu sunt declarate rerulate. ERP, versiune și arhive neschimbate.
+Următorul pas: probă integrată de consultare/export cu identitate, SQL de test
+și jurnal persistent împreună, inclusiv refuz după indisponibilitatea jurnalului.
+
+## 16. Probă integrată identitate → HTTP → SQL → audit persistent
+
+`server/tests/demo-operator-sql-audit.test.js` leagă adaptorul de identitate
+separată, tokenurile generate, harness-ul HTTP pe loopback/port efemer, cititorul
+SQL real din baza nouă strict de test și sink-ul JSONL din director temporar.
+Un trial cu trei revizii verifică exportul complet în trei pagini.
+
+Probe: sesiune necunoscută și trial nepermis fără citire SQL; export complet cu
+audit pe disc; jurnal închis produce 503 chiar dacă datele SQL au fost citite;
+revocare după prima citire SQL produce 401 fără pagini parțiale; refuzul este
+jurnalizat; redeschiderea păstrează evenimentele; registrul SQL final este identic
+cu cel inițial. Evenimentele nu conțin tokenul sesiunii.
+
+Aceasta este integrare în test a componentelor, NU integrarea cu un furnizor real
+de login/MFA sau montarea unui serviciu de producție. Profilul verificat de
+adaptor și ceasul sunt sintetice; SQL real nu înseamnă bază ERP ori VPS. Nu se
+execută provisioning/ștergere reală și nu se migrează Demo-ul public.
+
+Următorul prag este consolidarea criteriilor de acceptanță și a blocajelor pentru
+pilotul separat, înainte de a alege integrarea reală de autentificare și deployment.
+Nu se schimbă versiunea sau arhivele prin acest test.
+
+Rezultat final: **32/32 probe trecute, zero skip**, în rularea serială cu
+INFRAFLOW_TEST_TRIAL_SQL=1 (inclusiv 5 subprobe ale integrării). Bazele locale
+păstrate: `INFRAFLOW_TEST_TRIALS_8F039DFF7823` (regresie HTTP/SQL) și
+`INFRAFLOW_TEST_TRIALS_4599AF926B1A` (integrare). Jurnal integrat păstrat în
+directorul temporar `infraflow-operator-audit-dUnECY`. Audit expuneri: 502 fișiere,
+zero constatări; sintaxă/diff check trecute. Chrome și celelalte suite ERP nu sunt
+declarate rerulate. Versiunea rămâne 2.12.736, fără restart/deploy sau arhive noi.
