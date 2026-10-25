@@ -1412,3 +1412,47 @@ Fixture-ul SQL existent folosește identitatea Windows curentă și nu este dova
 de ACL A/B. Căile DDL/bootstrap din db.js cer separare înainte de reducerea
 drepturilor runtime. Nu s-au creat conturi sau modificat permisiuni SQL/OS.
 Urmează inventarul read-only al mediului și planul fixture-ului dedicat.
+
+## 49. Inventar local și plan pentru identități distincte
+
+`docs/INVENTAR_IZOLARE_DEMO_LOCAL_2026-10-25.md`: SQL Express activ, autentificare
+SQL disponibilă, conexiune curentă sysadmin; sesiune OS neelevată. Node observat
+24.15.0, nu Node 20 declarat. Nicio mutație SQL/OS în inventar. Planul propune
+trei baze-canari și două loginuri strict de test, cu conexiuni autentificate real
+și cleanup pe manifest; cere confirmare înainte de setup. Proba OS rămâne separată.
+
+## 50. Izolare SQL locală cu loginuri distincte
+
+Proba autorizată a creat trei baze-canari și două loginuri minime, a verificat
+conexiuni reale A/B, operații proprii, refuzuri între baze/CP și parole greșite.
+Test final trecut fără skip; cleanup confirmat. Eșecurile inițiale ale fixture-ului
+și runId-urile sunt documentate în inventarul local, secțiunea 6. Nu s-au schimbat
+schema ERP sau configurația SQL Server. Urmează planul identităților OS/ACL;
+izolarea fișierelor și mediul Linux nu sunt încă probate.
+
+## 51. Pregătirea probei OS — blocaj de context administrativ
+
+Checker read-only: `scripts/windows/check-demo-os-isolation.ps1`. Contextul actual
+nu este elevat; identități OS distincte/ACL/logon neprobate. Planul și scope-ul de
+autorizare sunt în `docs/PLAN_PROBA_IZOLARE_OS_2026-10-25.md`: două conturi locale
+temporare, director nou și canari/chei fictive, probe sub SID real și cleanup strict.
+Nu se creează conturi și nu se modifică ACL-uri până la confirmare și context
+administrativ dedicat. Nu se încearcă elevare sau schimbare de politici implicită.
+
+## 52. Script OS pregătit pentru execuție administrativă autorizată
+
+Scope confirmat. `scripts/windows/test-demo-os-isolation.ps1` pregătit cu opt-in,
+conturi/SID distincte, director/canari noi și cleanup strict. Parser părinte/copil
+și refuzul fără elevare verificate. Proba reală nu a fost executată în sesiunea
+neelevată; se cere rezultatul utilizatorului din PowerShell Administrator.
+Comanda, criteriile passed/cleanup și limitele profilelor sunt în planul OS.
+
+## 53. OS blocat; curățare confirmată; decizie de rutare verificată
+
+Ambele rulări cu profil restant au fost curățate prin scripturile dedicate,
+conform capturilor utilizatorului. Proba Windows rămâne blocată de politica de
+execuție a contului temporar; fără Bypass sau schimbare de politici.
+`docs/PROBA_RUTARE_DEMO_2026-10-25.md` descrie noul resolver și harness HTTP
+exclusiv de test: host/trial/runtime din registru, expirare și legări verificate,
+fără selectors client ori forwarded headers. 14/14 probe cu regresia modelului;
+nu este proxy real. Urmează două runtime-uri sintetice cu destinații server-side.

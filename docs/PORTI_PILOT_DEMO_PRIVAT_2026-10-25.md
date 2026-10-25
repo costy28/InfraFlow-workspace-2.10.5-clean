@@ -78,6 +78,22 @@ Contractul propus și matricea negativă sunt acum documentate în
 Aceasta închide proiectarea inițială, nu probele SQL/OS. Urmează inventarul
 read-only al mediului și planul fixture-ului înainte de crearea identităților.
 
+Inventarul este consemnat în
+[Inventar local](INVENTAR_IZOLARE_DEMO_LOCAL_2026-10-25.md). Capacitatea SQL de
+setup este observată, nu proba de izolare. Resursele/cleanup-ul propuse cer
+confirmare explicită; identitățile OS nu au fost create sau probate.
+
+Actualizare: proba SQL A/B/CP a fost executată după confirmare, cu loginuri reale
+și cleanup verificat; rezultatul și erorile intermediare sunt în secțiunea 6 a
+inventarului local. Aceasta închide doar canarii SQL minimali locali, nu izolarea
+OS, schema ERP, control plane real ori mediul Linux. NO-GO public rămâne.
+
+Actualizare OS: cleanup-ul rulărilor restante este confirmat, însă proba ACL
+rămâne blocată de ExecutionPolicy; nu modificăm politica și nu o marcăm trecută.
+Actualizare rutare: resolverul fail-closed și harness-ul HTTP au 14/14 probe cu
+regresia modelului. Detalii în [Proba rutare](PROBA_RUTARE_DEMO_2026-10-25.md).
+Nu există încă proxy real sau validare cookie/sesiuni între instanțe.
+
 ## 5. Decizii și activare
 
 Înainte de publicare sunt necesare alegeri explicite: mediu/identități de serviciu,
