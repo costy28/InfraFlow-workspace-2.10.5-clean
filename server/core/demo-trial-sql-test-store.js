@@ -64,7 +64,7 @@ function createSqlTestTrialStore({ database, execute }) {
   }
   return {
     initialize: async () => {
-      for (const file of ['001_trial_registry.sql','002_trial_job_leases.sql','003_synthetic_effect_receipts.sql']) {
+      for (const file of ['001_trial_registry.sql','002_trial_job_leases.sql','003_synthetic_effect_receipts.sql','004_runtime_generations.sql']) {
         await run(fs.readFileSync(path.join(__dirname, '../../db/control-plane-test-migrations', file), 'utf8'))
       }
       return (await readEnvelope()).registry
@@ -75,6 +75,7 @@ function createSqlTestTrialStore({ database, execute }) {
     ...require('./demo-trial-sql-job-test-store').createSqlJobTestStore(run),
     ...require('./demo-trial-sql-report-test-store').createSqlReportTestStore(run),
     ...require('./demo-trial-sql-report-page-test-store').createSqlReportPageTestStore(run),
+    ...require('./demo-trial-sql-runtime-test-store').createSqlRuntimeTestStore(run),
   }
 }
 module.exports = { createSqlTestTrialStore, assertTestDatabase }

@@ -1456,3 +1456,57 @@ execuție a contului temporar; fără Bypass sau schimbare de politici.
 exclusiv de test: host/trial/runtime din registru, expirare și legări verificate,
 fără selectors client ori forwarded headers. 14/14 probe cu regresia modelului;
 nu este proxy real. Urmează două runtime-uri sintetice cu destinații server-side.
+
+## 54. Două listener-e HTTP sintetice legate de rutarea trialului
+
+Harness dedicat transmite numai proba JSON la servere loopback înregistrate
+server-side. A/B separate, fără selectors client, propagare cookie/Authorization
+sau fallback către vecin. Refuz înainte de conectare pentru necunoscut/expirat;
+revalidare înainte de divulgare, timeout, limită răspuns și redirect refuzat.
+25/25 probe cu regresiile, zero skip. Nu sunt procese ERP separate sau gateway
+de producție. Detalii/limite în PROBA_RUTARE_DEMO_2026-10-25.md. Urmează sesiunile
+sintetice legate de instanță și refuzul reutilizării pe vecin.
+
+## 55. Sesiuni sintetice host/trial/runtime în gateway-ul de test
+
+Tokenuri aleatoare hash-only, TTL și revocare; A/B nu își pot reutiliza sesiunea
+pe vecin, iar refuzul apare înainte de contactarea runtime-ului. Sesiunea este
+reverificată după răspuns; expirarea/revocarea opresc divulgarea. Nu se propagă
+cookie/Authorization spre runtime. Fără login, cookie browser sau auth ERP reală.
+Detalii în proba rutării. Urmează invalidarea la generație nouă de runtime.
+
+## 56. Generație runtime în sesiunile sintetice
+
+Înregistrare CAS, generație internă și refuzul reutilizării unui listener retras.
+Close/relisten pe același port nu reactivează tokenurile; înlocuirea A nu afectează
+B. Identitatea țintei este reverificată înainte de divulgare. 36/36 probe cu
+regresii, zero skip. Nu este restart de serviciu real sau persistență SQL.
+Urmează contractul de coordonare/persistență a generației în control plane,
+distinct de revizia lifecycle și de generația lease-ului unui job.
+
+## 57. Generație runtime persistentă în SQL de test
+
+Migrare 004 numai pentru control-plane-test, store cu citire, avans CAS și receipt
+idempotent. Numărător/epocă distincte de lifecycle și lease job. 7/7 probe reale
+trecute, zero skip; concurență, retry vechi, rollback, ack pierdut și B neafectat.
+Regresii rutare/sesiuni/model 36/36 separat. Detalii/bază în
+`docs/GENERATII_RUNTIME_SQL_2026-10-25.md`. Nu este încă legat de sesiunile gateway;
+urmează adaptorul de citire/validare SQL fail-closed. Fără actualizare de instalat.
+
+## 58. Validarea sesiunilor prin generația SQL curentă
+
+Adaptor de test între sesiuni volatile și readRuntimeGeneration; leagă listenerul
+și tokenul de generație+epocă. Gateway-ul așteaptă autorizarea asincronă, fără
+fallback la eroarea SQL. Nu folosește receipt istoric. Probele și limitele sunt
+în GENERATII_RUNTIME_SQL_2026-10-25.md. Sesiunile reale ERP și serviciile instalate
+nu sunt modificate. Urmează închiderea ferestrei de expirare/rutare pe durata
+validării SQL asincrone, fără promisiune de tranzacție distribuită cu socketul.
+
+## 59. Expirare și schimbare rută în timpul autorizării asincrone
+
+Revalidare după autorizer înainte de conectare și după autorizerul final înainte
+de divulgare. Probe deterministe cu cititor SQL simulat: termen exact, revizie
+schimbată și lifecycle retras, vecin neafectat. 44 probe trecute, 1 SQL opt-in
+sărită; nu se declară SQL real rerulat. Detalii în GENERATII_RUNTIME_SQL.
+Urmează deadline/anulare la control plane lent și client deconectat. Nu se
+promite atomicitate între ultima verificare și socket; fără schimbări publice.

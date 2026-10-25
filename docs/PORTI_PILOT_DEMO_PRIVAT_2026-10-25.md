@@ -94,6 +94,38 @@ Actualizare rutare: resolverul fail-closed și harness-ul HTTP au 14/14 probe cu
 regresia modelului. Detalii în [Proba rutare](PROBA_RUTARE_DEMO_2026-10-25.md).
 Nu există încă proxy real sau validare cookie/sesiuni între instanțe.
 
+Extensie locală: două listener-e HTTP sintetice sunt acum legate de decizia de
+rutare; 25/25 probe cu regresii, fără fallback și fără propagare credențiale.
+Nu sunt procese ERP izolate sau un reverse proxy complet; validarea sesiunilor
+reale/cookie-urilor, TLS și mediului de pilot rămâne deschisă. NO-GO neschimbat.
+
+Sesiuni sintetice legate de host/trial/runtime sunt acum probate prin HTTP,
+cu refuz A↔B, expirare și revocare inclusiv în timpul răspunsului. Nu sunt
+autentificarea ERP ori cookie-uri browser reale; sesiuni volatile emise de fixture.
+Poarta runtime/browser/serviciu public rămâne deschisă, la fel izolarea OS blocată.
+
+Generația runtime-ului și invalidarea sesiunilor după înlocuire/close-relisten
+sunt acum probate pe listener-e sintetice (36/36 cu regresii). Registrul este
+volatil, fără coordonare SQL ori identitate runtime de producție. Aceasta nu
+închide porțile control plane/runtime și nu validează restartul ERP instalat.
+
+Generația runtime are acum persistență SQL izolată (7/7 probe), separată de
+lease/lifecycle, cu CAS și receipts idempotente. Vezi
+[Generații SQL](GENERATII_RUNTIME_SQL_2026-10-25.md). Integrarea cu gateway-ul și
+autorizarea sesiunilor distribuite nu sunt încă făcute. NO-GO public neschimbat.
+
+Actualizare: adaptorul de test leagă acum sesiunea/listenerul de generația și
+epoca SQL curente; integrarea SQL/HTTP are 5/5 probe, regresiile locale 36/36.
+Este fail-closed la eroarea cititorului SQL, fără receipt istoric/cache pozitiv.
+Nu este auth ERP, persistență de sesiuni sau serviciu multi-proces de producție.
+Fereastra de schimbare lifecycle/rutare în autorizarea asincronă rămâne următoarea
+probă; NO-GO și blocajul OS sunt păstrate.
+
+Fereastra din autorizarea asincronă are acum revalidări de rută/lifecycle după
+așteptare și probe deterministe (44 trecute, 1 SQL opt-in sărită). SQL real nu
+a fost rerulat la această extensie. Mai sunt necesare deadline/anulare pentru
+control plane și verificarea mediului real; nu există garanție atomică pe socket.
+
 ## 5. Decizii și activare
 
 Înainte de publicare sunt necesare alegeri explicite: mediu/identități de serviciu,
