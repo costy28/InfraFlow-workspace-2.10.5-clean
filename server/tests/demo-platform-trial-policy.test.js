@@ -26,3 +26,8 @@ test('migrare platforma: separata de ERP, tranzactie, audit si idempotenta struc
   for(const marker of ['platform_database_required','sp_getapplock','PLATFORM_REGISTRY_ALREADY_APPLIED','platform.trial_commands','platform.trial_events','ROLLBACK'])assert.ok(sql.includes(marker))
   assert.equal(/CREATE LOGIN|GRANT (INSERT|UPDATE|DELETE)|DROP DATABASE/i.test(sql),false)
 })
+test('proceduri platforma: timp si actor SQL, fara granturi sau efecte externe',()=>{
+  const sql=fs.readFileSync(path.join(__dirname,'../../db/demo-platform-migrations/002_trial_commands.sql'),'utf8')
+  for(const marker of ['ORIGINAL_LOGIN()','SYSUTCDATETIME()','DATEADD(day,15,@now)','UPDLOCK,HOLDLOCK','request_digest','COMMIT; SELECT @receipt','ROLLBACK'])assert.ok(sql.includes(marker))
+  assert.equal(/CREATE LOGIN|GRANT EXECUTE|xp_cmdshell|CREATE DATABASE|DROP DATABASE/i.test(sql),false)
+})
