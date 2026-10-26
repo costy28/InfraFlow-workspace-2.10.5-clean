@@ -18,7 +18,7 @@ function createOperatorAuth({store,clock=Date.now}){
   const now=()=>{const n=clock();if(!Number.isSafeInteger(n)||n<0)fail();return n}
   const read=async()=>{const r=await store.readOperator();validateRecord(r);return r}
   const prune=at=>{for(const [key,s]of sessions)if(at>=s.expiresAt||at-s.lastSeen>=15*60000||at<s.lastSeen)sessions.delete(key)}
-  return {
+  const api={
     async login(input){
       if(closed||busy)fail()
       busy=true
@@ -66,7 +66,17 @@ function createOperatorAuth({store,clock=Date.now}){
         return Object.freeze({operatorId:r.id,revision:r.revision,operation})
       }catch{fail()}
     },
+    async resume({token}={}){
+      await api.authorize({token,operation:'trial.read'})
+      const at=now();prune(at)
+      const session=sessions.get(hash(token))
+      if(closed||!session)fail()
+      const csrfToken=crypto.randomBytes(32).toString('hex')
+      session.csrfHash=hash(csrfToken)
+      return {csrfToken,expiresAt:session.expiresAt}
+    },
     shutdown(){closed=true;sessions.clear()},
   }
+  return api
 }
 module.exports={createOperatorAuth}

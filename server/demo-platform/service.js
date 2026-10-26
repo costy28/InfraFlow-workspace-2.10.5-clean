@@ -9,7 +9,7 @@ function parseConfig(env){
   if([4180,4181].includes(port))throw Error('reserved_platform_port')
   return Object.freeze({host:'127.0.0.1',port})
 }
-function createPlatformService({onError=()=>{},sqlReader}={}){
+function createPlatformService({onError=()=>{},sqlReader,operatorRuntime}={}){
   let state='created',stopping,starting
   const server=http.createServer(async(req,res)=>{
     req.resume()
@@ -23,6 +23,11 @@ function createPlatformService({onError=()=>{},sqlReader}={}){
       catch{return send(503,{ok:false,code:'platform_sql_unavailable'})}
     }
     if(req.url==='/health/ready')return send(503,{ok:false,code:'platform_not_ready'})
+    if(req.url==='/health/operator'){
+      if(!operatorRuntime)return send(503,{ok:false,code:'platform_operator_not_configured'})
+      try{const result=await operatorRuntime.check();if(state!=='listening')return send(503,{code:'platform_stopping'});return send(200,result)}
+      catch{return send(503,{ok:false,code:'platform_operator_unavailable'})}
+    }
     return send(404,{code:'not_found'})
   })
   server.requestTimeout=5000;server.headersTimeout=5000;server.keepAliveTimeout=1000
@@ -46,7 +51,7 @@ function createPlatformService({onError=()=>{},sqlReader}={}){
         if(state==='starting')await starting.catch(()=>{})
         state='stopping'
         if(server.listening)await new Promise(resolve=>{server.close(resolve);server.closeIdleConnections()})
-        if(sqlReader)await sqlReader.shutdown()
+        await Promise.all([sqlReader?.shutdown(),operatorRuntime?.shutdown()])
         state='stopped'
       })()
       return stopping
@@ -63,10 +68,17 @@ async function main(){
   if(process.env.INFRAFLOW_DEMO_PLATFORM_SQL==='1'){
     const reader=require('./sql-reader');sqlReader=reader.createSqlReader(reader.readPassword())
   }
-  const service=createPlatformService({sqlReader,onError:code=>console.error(code)})
+  let operatorRuntime
+  try{
+    if(process.env.INFRAFLOW_DEMO_PLATFORM_OPERATOR!==undefined){
+      if(process.env.INFRAFLOW_DEMO_PLATFORM_OPERATOR!=='1')throw Error('invalid_operator_mode')
+      operatorRuntime=await require('./operator-runtime').createOperatorRuntime()
+    }
+  }catch(error){if(sqlReader)await sqlReader.shutdown();throw error}
+  const service=createPlatformService({sqlReader,operatorRuntime,onError:code=>console.error(code)})
   const stop=()=>{service.shutdown().catch(()=>{console.error('platform_shutdown_failed');process.exitCode=1})}
   process.once('SIGTERM',stop);process.once('SIGINT',stop)
-  await service.start(config)
+  try{await service.start(config)}catch(error){await service.shutdown();throw error}
   console.log('demo_platform_foundation_listening')
 }
 if(require.main===module)main().catch(()=>{console.error('demo_platform_start_failed');process.exitCode=1})

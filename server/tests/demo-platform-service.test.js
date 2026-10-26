@@ -31,3 +31,20 @@ test('platform refuses external bind before creating listener',async()=>{
   await assert.rejects(service.start({host:'0.0.0.0',port:4280}),/invalid_platform_config/)
   await service.shutdown()
 })
+
+test('operator integration: health only, errors masked, no login routes and runtime closed',async()=>{
+  const reservation=net.createServer();await new Promise(r=>reservation.listen(0,'127.0.0.1',r))
+  const port=reservation.address().port;await new Promise(r=>reservation.close(r))
+  let failed=false,closed=0
+  const service=createPlatformService({operatorRuntime:{check:async()=>{if(failed)throw Error('private details');return {ok:true,code:'platform_operator_runtime_verified'}},shutdown:async()=>{closed++}}})
+  const get=path=>new Promise((resolve,reject)=>{http.get({host:'127.0.0.1',port,path,agent:false},res=>{let raw='';res.on('data',c=>raw+=c);res.on('end',()=>resolve({status:res.statusCode,body:JSON.parse(raw)}))}).on('error',reject)})
+  try{
+    await service.start({host:'127.0.0.1',port})
+    assert.deepEqual(await get('/health/operator'),{status:200,body:{ok:true,code:'platform_operator_runtime_verified'}})
+    assert.equal((await get('/operator/login')).status,404)
+    assert.equal((await get('/health/ready')).status,503)
+    failed=true
+    assert.deepEqual(await get('/health/operator'),{status:503,body:{ok:false,code:'platform_operator_unavailable'}})
+  }finally{await service.shutdown()}
+  assert.equal(closed,1)
+})

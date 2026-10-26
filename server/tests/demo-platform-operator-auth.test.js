@@ -49,6 +49,17 @@ test('operator sessions: scope, CSRF, logout, idle expiration and closed instanc
   await assert.rejects(h.auth.authorize({...u,operation:'trial.read'}))
   f.auth.shutdown();await assert.rejects(f.auth.login(f.input()))
 })
+
+test('session resume restores CSRF after reload, rotates it, and refuses revoked sessions',async()=>{
+  const f=await fixture(),session=await f.auth.login(f.input())
+  const resumed=await f.auth.resume({token:session.token})
+  assert.notEqual(resumed.csrfToken,session.csrfToken)
+  assert.equal(resumed.expiresAt,session.expiresAt)
+  assert.equal(Object.hasOwn(resumed,'token'),false)
+  await assert.rejects(f.auth.authorize({...session,operation:'session.logout'}))
+  await f.auth.authorize({token:session.token,csrfToken:resumed.csrfToken,operation:'session.logout'})
+  await assert.rejects(f.auth.resume({token:session.token}))
+})
 test('operator store and audit failure deny access; revision change revokes session',async()=>{
   const f=await fixture();f.auditFailure();await assert.rejects(f.auth.login(f.input()),{message:'operator_access_denied'})
   const g=await fixture(),s=await g.auth.login(g.input());g.rotate();await assert.rejects(g.auth.authorize({...s,operation:'trial.read'}))

@@ -7,7 +7,7 @@ test('private login probe: root-only key metadata, no symlink/hardlink permissio
   for(const patch of [{uid:1000},{gid:999},{mode:0o100640},{nlink:2},{size:31},{isFile:()=>false}])assert.throws(()=>validateKeyStat({...stat,...patch}))
 })
 test('private login probe: exact bounded input and no arbitrary target/SQL',()=>{
-  const input={adminPassword:'test',username:'infraop',password:'test',code:'123456'}
+  const input={operatorId:'12345678-1234-1234-1234-123456789abc',sqlPassword:'test-password-1234',username:'infraop',password:'test',code:'123456'}
   validateInput(input)
-  for(const patch of [{server:'external'},{username:'../admin'},{code:'1234567'},{adminPassword:'x'.repeat(1025)}])assert.throws(()=>validateInput({...input,...patch}))
+  for(const patch of [{server:'external'},{username:'../admin'},{code:'1234567'},{adminPassword:'forbidden'},{sqlPassword:'short'},{operatorId:'invalid'}])assert.throws(()=>validateInput({...input,...patch}))
 })

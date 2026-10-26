@@ -66,3 +66,52 @@ Nu este încă probă Node RPC cu loginul SQL permanent, nici instalare Linux.
 Următorul pas autorizabil separat: aplicarea numai a migrării 004 pe VPS;
 loginul infraflow_demo_auth, credentialul și restartul unui serviciu nu sunt
 create/efectuate prin această migrare.
+
+## Verificarea loginului permanent — corecție de transport JSON
+
+Pe VPS utilizatorul a confirmat login infraflow_demo_auth și EXECUTE 1 pe toate
+cele patru obiecte; server rights CONNECT SQL/VIEW ANY DATABASE, database rights
+CONNECT și cele două drepturi publice de metadate column-key. Verificarea inițială
+a scriptului a eșuat după crearea identității, fără confirmare completă atunci.
+
+Cauză reprodusă read-only local: INSERT @table EXEC al unui rezultat FOR JSON
+produce SQL 13602. Eliminat INSERT EXEC din verificator; se execută read_account
+direct, stdout capturat numai în memoria Python, fără afișarea hashului sau a
+ciphertextului. sqlcmd -y0/-w65535, fără -W incompatibil cu -y, evită trunchierea
+implicită la 256 de caractere a rezultatului JSON. Verificări negative de acces
+direct și comenzi comerciale separate de citirea JSON. 4/4 teste Python trecute.
+
+verify-demo-platform-auth-login.py verifică numai loginul EXISTENT; importă
+helperul fără main și nu execută creation_sql. Folosește SA temporar numai pentru
+UUID-ul operatorului, apoi parola loginului auth pentru drepturi/read_account.
+Nu execută reserve_attempt/claim_totp/append_audit și nu modifică granturi sau
+conturi. Pachet separat de verificare; rularea corectată pe VPS încă neconfirmată.
+
+Prima variantă de verificator s-a oprit chiar la lookup UUID. Cauză secundară
+reprodusă cu SQLCMD ODBC 17 local: -h -1 și -y 0 sunt mutual exclusive, eroare
+înainte de conectare. Corecție: -y4096 (datele read_account sunt bounded sub
+această limită), -h-1, -w65535, fără -W. 4/4 teste Python rerulate, plus probă
+read-only reală ODBC pe master cu JSON de 500 caractere, capturat și parsată
+lungimea completă: trecută. Pachet verifier-v2 pregătit, fără mutații VPS.
+
+Confirmare VPS primită: AUTH_LOGIN_VERIFIED. Citirea prin procedură funcționează,
+accesul direct și comenzile comerciale sunt refuzate. Nicio încercare TOTP
+consumată de acest verificator, niciun restart.
+
+Proba login-probe-v2 elimină SA complet din fluxul de autentificare: primește
+UUID-ul operatorului (metadată), parola SQL infraflow_demo_auth și cei doi factori
+ai operatorului. Folosește clientul RPC cu cele patru operații allowlisted și
+store procedures:true; fără interogări directe de tabele. Consumă o încercare și
+un TOTP și scrie auditul autentificării/consultării/logout-ului. 17/17 teste Node
+focalizate trecute local; proba completă pe VPS rămâne de executat.
+
+Confirmare ulterioară VPS: OPERATOR_PASSWORD_TOTP_OK, OPERATOR_READ_SCOPE_OK,
+OPERATOR_LOGOUT_OK. Flux complet prin infraflow_demo_auth, fără SA, fără restart
+sau creare de companii.
+
+Etapă următoare locală: operator-runtime.js asamblează clientul RPC, store-ul și
+autentificarea cu credentiale systemd la calea fixă a unității. Fișiere regulate,
+deținute de UID-ul neprivilegiat, mode 0400, fără hardlink/symlink; materialul
+temporar este șters din buffere inclusiv la eșec. Inițializarea citește contul,
+fără consum TOTP. Nu este încă montat în serviciu și nu expune rute HTTP.
+Livrarea LoadCredential, instalatorul și verificarea reală systemd urmează separat.

@@ -17,16 +17,19 @@ def main():
     helper = Path(__file__).resolve().parents[2] / 'server/demo-platform/operator-login-probe.js'
     if not helper.is_file():
         sys.exit('Helper lipsa. Nimic modificat.')
-    admin = getpass.getpass('Parola SA (numai pentru acest diagnostic local): ')
+    operator_id = input('UUID operator (identificator, nu parola): ').strip().lower()
+    sql_password = getpass.getpass('Parola SQL EXISTENTA infraflow_demo_auth (NU SA): ')
     username = input('Nume operator (infraop): ') or 'infraop'
     password = getpass.getpass('Parola OPERATORULUI (nu parola SQL): ')
     code = getpass.getpass('Cod TOTP PROASPAT din Authenticator: ')
-    if not re.fullmatch(r'[a-z0-9_.-]{1,64}', username) or not re.fullmatch(r'[0-9]{6}', code):
+    if (not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', operator_id)
+            or not re.fullmatch(r'[\x20-\x7e]{16,128}', sql_password)
+            or not re.fullmatch(r'[a-z0-9_.-]{1,64}', username) or not re.fullmatch(r'[0-9]{6}', code)):
         sys.exit('Format nume/cod invalid. Proba nu a fost executata.')
     print('Se verifica loginul, consultarea autorizata si logout; fara companii/restart.')
     try:
         result = subprocess.run(['/usr/local/bin/node', str(helper)],
-            input=json.dumps({'adminPassword':admin,'username':username,'password':password,'code':code}),
+            input=json.dumps({'operatorId':operator_id,'sqlPassword':sql_password,'username':username,'password':password,'code':code}),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=45,
             env={'PATH':'/usr/local/bin:/usr/bin:/bin'})
         allowed = {'OPERATOR_PASSWORD_TOTP_OK','OPERATOR_READ_SCOPE_OK','OPERATOR_LOGOUT_OK',

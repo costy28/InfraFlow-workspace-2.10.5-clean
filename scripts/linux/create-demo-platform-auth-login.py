@@ -21,7 +21,7 @@ def query(password, sql, user='sa'):
         raise ValueError('invalid_identity')
     return subprocess.run(
         [SQLCMD, '-S', 'tcp:127.0.0.1,1433', '-U', user, '-d', DB,
-         '-C', '-l', '5', '-t', '30', '-b', '-x', '-h', '-1', '-W', '-f', '65001'],
+         '-C', '-l', '5', '-t', '30', '-b', '-x', '-h', '-1', '-y', '4096', '-w', '65535', '-f', '65001'],
         input=sql + '\nGO\n', text=True, encoding='utf-8', timeout=40,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         env={'PATH':'/usr/local/bin:/usr/bin:/bin','LANG':'C.UTF-8','SQLCMDPASSWORD':password})
@@ -65,12 +65,25 @@ IF EXISTS(SELECT 1 FROM sys.fn_my_permissions(NULL,'SERVER') WHERE permission_na
 IF EXISTS(SELECT 1 FROM sys.fn_my_permissions(NULL,'DATABASE') WHERE permission_name NOT IN ('CONNECT','VIEW ANY COLUMN MASTER KEY DEFINITION','VIEW ANY COLUMN ENCRYPTION KEY DEFINITION')) THROW 51902,'database_right',1;
 IF HAS_DBACCESS(N'INFRAFLOW_DEMO')=1 THROW 51902,'erp_access',1;
 {checks}
-DECLARE @json nvarchar(max)=N'{{"id":"{operator_id}"}}';
-DECLARE @result TABLE(payload nvarchar(max));
-INSERT @result EXEC operator_security.read_account @json;
-IF NOT EXISTS(SELECT 1 FROM @result WHERE JSON_VALUE(payload,'$.id')=N'{operator_id}' AND JSON_VALUE(payload,'$.enabled')='true') THROW 51903,'account_read_failed',1;
 {''.join(negatives)}
-SELECT N'AUTH_LOGIN_VERIFIED';"""
+SELECT N'AUTH_RIGHTS_VERIFIED';"""
+
+
+def verify_existing(password, operator_id):
+    import json
+    require(password, verification_sql(operator_id), 'AUTH_RIGHTS_VERIFIED', LOGIN)
+    # FOR JSON cannot be captured through INSERT ... EXEC (SQL error 13602).
+    # Capture the procedure output in memory only; never print the payload.
+    payload = json.dumps({'id': operator_id}, separators=(',', ':'))
+    result = query(password, 'SET NOCOUNT ON;EXEC operator_security.read_account ' + literal(payload) + ';', LOGIN)
+    if result.returncode != 0:
+        raise RuntimeError('sql_step_not_confirmed')
+    try:
+        record = json.loads(result.stdout.strip())
+    except ValueError:
+        raise RuntimeError('sql_step_not_confirmed') from None
+    if record.get('id') != operator_id or record.get('enabled') is not True:
+        raise RuntimeError('sql_step_not_confirmed')
 
 
 def main():
@@ -105,7 +118,7 @@ SELECT LOWER(CONVERT(char(36),operator_id)) FROM operator_security.accounts WHER
         stage = 'creare login si granturi'
         require(admin, creation_sql(password), 'AUTH_IDENTITY_CREATED')
         stage = 'verificare drepturi si citire prin procedura'
-        require(password, verification_sql(operator_id), 'AUTH_LOGIN_VERIFIED', LOGIN)
+        verify_existing(password, operator_id)
         print('AUTH_LOGIN_VERIFIED\nContul operatorului si bugetul TOTP sunt nemodificate. Niciun restart.')
     except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as error:
         codes = {'sqlcmd_missing','preflight_not_confirmed','password_mismatch','password_format_invalid','password_must_be_distinct','sql_step_not_confirmed'}

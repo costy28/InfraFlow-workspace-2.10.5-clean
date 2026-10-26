@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acces operator — InfraFlow</title>
+  <link rel="stylesheet" href="/operator/style.css">
+  <script src="/operator/app.js" defer></script>
+</head>
+<body>
+<main>
+  <header><p class="brand">InfraFlow <span>Platformă privată</span></p><h1>Acces operator</h1>
+    <p>Administrare separată de aplicația ERP și de conturile demonstrative.</p></header>
+  <p id="message" role="status" aria-live="polite">Se verifică sesiunea…</p>
+  <form id="login" hidden>
+    <label for="username">Utilizator</label>
+    <input id="username" name="username" autocomplete="username" maxlength="64" pattern="[a-z0-9_.\-]+" required>
+    <label for="password">Parolă operator</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <label for="code">Cod din Authenticator</label>
+    <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required aria-describedby="code-help">
+    <p id="code-help" class="help">Introdu cele 6 cifre ale unui cod proaspăt. Nu folosi o parolă SQL.</p>
+    <button type="submit">Autentificare</button>
+  </form>
+  <section id="session" hidden aria-label="Sesiune operator">
+    <h2>Sesiune operator activă</h2>
+    <p id="expiry"></p>
+    <p>Interfața comenzilor pentru companii nu este disponibilă în această etapă.</p>
+    <button id="logout" type="button">Ieșire din sesiune</button>
+  </section>
+  <p class="help">Acces restricționat. Nu introduce și nu transmite credentialele în capturi sau mesaje.</p>
+  <noscript>Activează JavaScript pentru autentificarea securizată.</noscript>
+</main>
+</body>
+</html>
