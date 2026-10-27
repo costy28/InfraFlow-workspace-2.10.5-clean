@@ -5,10 +5,13 @@
   let busy=false,generation=0,offset=0,listBusy=false
   const filters=document.getElementById('filters'),rows=document.getElementById('companies'),listMessage=document.getElementById('list-message')
   const previous=document.getElementById('previous'),next=document.getElementById('next')
+  const registration=document.getElementById('registration'),registerForm=document.getElementById('register-form'),registerMessage=document.getElementById('register-message')
+  const approval=document.getElementById('approval'),company=document.getElementById('company-name'),commandId=document.getElementById('command-id'),registerButton=document.getElementById('register-submit')
+  let proposal=null,uncertain=false
   const notice=(text,error=false)=>{message.textContent=text;message.dataset.error=String(error)}
   const lock=value=>{busy=value;for(const input of form.elements)input.disabled=value;logout.disabled=value}
   const showLogin=()=>{generation++;form.hidden=false;panel.hidden=true;rows.replaceChildren();document.getElementById('expiry').textContent=''}
-  const showSession=session=>{generation++;form.hidden=true;panel.hidden=false;document.getElementById('expiry').textContent='Expirare maximă: '+new Date(session.expiresAt).toLocaleString('ro-RO')+'. Sesiunea expiră și după 15 minute de inactivitate.';offset=0;loadList()}
+  const showSession=session=>{generation++;form.hidden=true;panel.hidden=false;registration.hidden=session.canRegister!==true;document.getElementById('expiry').textContent='Expirare maximă: '+new Date(session.expiresAt).toLocaleString('ro-RO')+'. Sesiunea expiră și după 15 minute de inactivitate.';offset=0;loadList()}
   async function loadList(){
     if(listBusy||panel.hidden)return
     const current=generation;listBusy=true;previous.disabled=true;next.disabled=true
@@ -39,7 +42,7 @@
       const headers={};if(input!==undefined)headers['Content-Type']='application/json';if(csrf)headers['X-CSRF-Token']=csrf
       const response=await fetch(path,{method:input===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers,body:input===undefined?undefined:JSON.stringify(input),signal:controller.signal})
       if(response.status===401)return null
-      if(!response.ok)throw Error()
+      if(!response.ok){const data=await response.json().catch(()=>({}));const error=Error('request_failed');error.code=data.code;throw error}
       return await response.json()
     }finally{clearTimeout(timer)}
   }
@@ -54,6 +57,40 @@
     }catch{notice('Rezultatul nu a putut fi confirmat. Codul poate fi consumat; nu retrimite automat cererea. Reîncarcă pagina pentru verificarea sesiunii.',true)}
     finally{password.value='';code.value='';input.password='';input.code='';lock(false)}
   })
+  registerForm.addEventListener('submit',async event=>{
+    event.preventDefault();if(busy||!registerForm.reportValidity())return
+    if(!proposal){
+      if(!commandId.value)commandId.value='queue:'+crypto.randomUUID()
+      proposal={approvalId:approval.value,companyName:company.value.trim(),commandId:commandId.value,confirmed:true}
+    }
+    const current=generation
+    lock(true);registerButton.disabled=true
+    approval.readOnly=true;company.readOnly=true;commandId.readOnly=true
+    registerMessage.textContent='Se înregistrează numai în registru… Comandă: '+proposal.commandId
+    try{
+      const session=await call('/operator/session')
+      if(!session){showLogin();notice('Sesiunea nu mai este activă. Comanda nu a fost trimisă; autentifică-te pentru reluare.',true);return}
+      const result=await call('/operator/trials/register',proposal,session.csrfToken)
+      if(current!==generation)return
+      if(!result){registerMessage.textContent='Acces refuzat înainte de înregistrare. Verifică sesiunea și permisiunile.';return}
+      uncertain=false;proposal=null;registerForm.reset();approval.readOnly=false;company.readOnly=false;commandId.readOnly=false
+      registerButton.textContent='Înregistrează în registru'
+      registerMessage.textContent='Compania a fost înscrisă în registru, în așteptare. Nu s-a creat sau pornit o instanță demo.'
+      offset=0;loadList()
+    }catch(error){
+      if(current!==generation)return
+      if(error.code==='registration_conflict'){
+        uncertain=false;registerMessage.textContent='Conflict: aprobarea sau comanda este deja asociată altor date. Nu genera o comandă nouă pentru a ocoli conflictul. Identificator: '+proposal.commandId
+      }else if(error.code==='registration_input_invalid'){
+        uncertain=false;proposal=null;approval.readOnly=false;company.readOnly=false;commandId.readOnly=false
+        registerMessage.textContent='Date invalide. Verifică referința, denumirea și identificatorul comenzii.'
+      }else{
+        uncertain=true;registerButton.textContent='Reia explicit aceeași comandă'
+        registerMessage.textContent='Rezultat neconfirmat: înregistrarea poate exista deja. Notează identificatorul înainte de închiderea paginii: '+proposal.commandId+'. Reluarea folosește exact aceleași date; nu este automată.'
+      }
+    }finally{registerButton.disabled=false;lock(false)}
+  })
+  window.addEventListener('beforeunload',event=>{if(uncertain){event.preventDefault();event.returnValue=''}})
   logout.addEventListener('click',async()=>{
     if(busy)return;lock(true);notice('Se închide sesiunea…')
     try{

@@ -25,7 +25,20 @@
   <section id="session" hidden aria-label="Sesiune operator">
     <h2>Sesiune operator activă</h2>
     <p id="expiry"></p>
-    <p>Interfața comenzilor pentru companii nu este disponibilă în această etapă.</p>
+    <p>Instanțele demo și bazele lor de date nu sunt create sau activate din acest panou.</p>
+    <section id="registration" hidden aria-labelledby="registration-title">
+      <h2 id="registration-title">Înregistrează companie</h2>
+      <form id="register-form">
+        <label for="approval">Referință solicitare aprobată</label><input id="approval" maxlength="128" pattern="[a-zA-Z0-9][a-zA-Z0-9_.:\-]*" required aria-describedby="approval-help">
+        <p id="approval-help" class="help">Exemplu: wordpress-lead:178. Folosește aceeași referință pentru aceeași solicitare.</p>
+        <label for="company-name">Denumire companie</label><input id="company-name" maxlength="200" required>
+        <label for="command-id">Identificator comandă</label><input id="command-id" maxlength="128" pattern="[a-zA-Z0-9][a-zA-Z0-9_.:\-]*" aria-describedby="command-help">
+        <p id="command-help" class="help">Generat la prima trimitere. La reconcilierea unei cereri, păstrează exact acest identificator și aceleași date.</p>
+        <label class="confirm"><input id="register-confirm" type="checkbox" required> Confirm că înregistrez doar compania în registru, fără pornire demo sau creare bază de date.</label>
+        <button id="register-submit" type="submit">Înregistrează în registru</button>
+      </form>
+      <p id="register-message" role="status" aria-live="polite"></p>
+    </section>
     <section aria-labelledby="companies-title">
       <h2 id="companies-title">Companii demo</h2>
       <p class="help">Registrul platformei, doar consultare. Nu este lista conturilor din demo-ul comun.</p>

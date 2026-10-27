@@ -38,14 +38,15 @@ async function body(req){
     req.on('data',data);req.once('end',end);req.once('error',errorHandler);req.once('aborted',errorHandler)
   })
 }
-function createOperatorHttp({runtime,origin,trustLoopbackProxy=false,trialReader}){
+function createOperatorHttp({runtime,origin,trustLoopbackProxy=false,trialReader,registration}){
   const expected=validateOrigin(origin)
   if(typeof runtime?.login!=='function'||typeof runtime?.authorize!=='function'||typeof trustLoopbackProxy!=='boolean')throw Error('operator_http_config_invalid')
   let active=0
   return async function handle(req,res){
+    const registerRoute=req.url==='/operator/trials/register'&&typeof registration?.queue==='function'
     const listRoute=req.url==='/operator/trials'||req.url.startsWith('/operator/trials?')
     const paths=['/operator/login','/operator/session','/operator/logout',...assets.keys()]
-    if(!paths.includes(req.url)&&!listRoute)return false
+    if(!paths.includes(req.url)&&!listRoute&&!registerRoute)return false
     const send=(status,data,cookie)=>{
       const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
         'Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'",'Referrer-Policy':'no-referrer'}
@@ -84,11 +85,22 @@ function createOperatorHttp({runtime,origin,trustLoopbackProxy=false,trialReader
           ||typeof input.password!=='string'||Buffer.byteLength(input.password)>1024
           ||typeof input.code!=='string'||!/^\d{6}$/.test(input.code))throw Error()
         const session=await runtime.login(input)
-        send(200,{ok:true,csrfToken:session.csrfToken,expiresAt:session.expiresAt},
+        send(200,{ok:true,csrfToken:session.csrfToken,expiresAt:session.expiresAt,canRegister:!!registration&&session.canQueue===true},
           COOKIE+'='+session.token+'; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=14400')
       }else{
         if(method==='GET')req.resume()
         const token=sessionCookie(req.headers.cookie)
+        if(registerRoute){
+          const input=await body(req)
+          try{
+            const receipt=await registration.queue({token,csrfToken:req.headers['x-csrf-token'],input})
+            send(200,{ok:true,receipt});return true
+          }catch(error){
+            const statuses={registration_input_invalid:400,registration_access_denied:401,registration_conflict:409,registration_result_unconfirmed:503}
+            const code=Object.hasOwn(statuses,error.code)?error.code:'registration_result_unconfirmed'
+            send(statuses[code],{code});return true
+          }
+        }
         if(listRoute){
           await runtime.authorize({token,operation:'trial.read'})
           if(typeof trialReader?.listTrials!=='function'){send(503,{code:'trial_list_unavailable'});return true}
@@ -109,7 +121,7 @@ function createOperatorHttp({runtime,origin,trustLoopbackProxy=false,trialReader
           if(!input||Object.getPrototypeOf(input)!==Object.prototype||Object.keys(input).length!==0)throw Error()
         }
         if(method==='GET'&&typeof runtime.resume==='function'){
-          const session=await runtime.resume({token});send(200,{ok:true,...session});return true
+          const session=await runtime.resume({token});send(200,{ok:true,csrfToken:session.csrfToken,expiresAt:session.expiresAt,canRegister:!!registration&&session.canQueue===true});return true
         }
         await runtime.authorize({token,csrfToken:req.headers['x-csrf-token'],operation:method==='GET'?'trial.read':'session.logout'})
         send(200,{ok:true},method==='POST'?COOKIE+'=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0':undefined)

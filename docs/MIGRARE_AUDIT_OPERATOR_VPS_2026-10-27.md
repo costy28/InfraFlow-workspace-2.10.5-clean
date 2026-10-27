@@ -50,3 +50,28 @@ tranziția/reaplicarea granturilor și comanda auditată. Baza a fost eliminată
 USER WITHOUT LOGIN și s-a omis exclusiv preflight-ul mapării la login de server
 în copia din memorie; scriptul original pentru VPS păstrează acel preflight.
 Audit expunere fișiere: 557 scanate, zero findings. Fără operațiuni pe VPS.
+
+## Confirmări ulterioare VPS primite
+
+- Backup COPY_ONLY/CHECKSUM: PLATFORM_BACKUP_VERIFIED, 585 pagini și backup set
+  valid, fișier nou INFRAFLOW_DEMO_PLATFORM_pre005_331290E08F8046D7BB96D06DA9C26296.bak
+  în /var/opt/mssql/data. VERIFYONLY nu este test complet de restaurare.
+- Migrare: OPERATOR_QUEUE_AUDIT_APPLIED.
+- Drepturi: REGISTRAR_OPERATOR_SCOPE_APPLIED.
+- Fără restart, parole modificate sau companii create în acești pași.
+
+Verificatorul următor este verify-demo-platform-registrar.py --verify-existing:
+cere exclusiv parola SQL EXISTENTĂ a registrarului, fără SA/UUID/TOTP. SQLCMD
+rulează cu identitatea fixă, parola numai în mediul procesului copil, fără argv,
+fără fișiere de credentiale noi. Interoghează doar drepturile efective și
+metadatele; nu execută nicio procedură, nici măcar pentru un apel negativ.
+
+Confirmarea arată dreptul EXEC pe procedura auditată, absența EXEC pe celelalte
+proceduri din cele două scheme, SELECT/DML direct, privilegii server/bază și
+acces ERP. Nu dovedește executarea unei înregistrări reale; aceea rămâne un pas
+ulterior explicit. Output-ul brut SQLCMD nu este afișat; markerul de succes este
+validat exact. 4/4 teste Python locale trecute (identitate/parolă/erori/read-only).
+Acceptanța loginului real pe VPS rămâne de executat.
+
+Confirmare ulterioară utilizator: REGISTRAR_LOGIN_SCOPE_VERIFIED, cu loginul
+registrar real, numai metadate. Nicio companie creată, TOTP consumat sau restart.

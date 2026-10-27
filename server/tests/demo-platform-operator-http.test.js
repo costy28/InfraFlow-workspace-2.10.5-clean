@@ -48,6 +48,30 @@ test('operator HTTP does not trust forwarded HTTPS by default',async()=>{
     assert.equal(status,401)
   }finally{await new Promise(r=>server.close(r))}
 })
+test('registration HTTP enforces session/CSRF/confirmation and never accepts browser actor fields',async()=>{
+  const {createTrialRegistration}=require('../demo-platform/trial-registration')
+  let writes=0
+  const runtime={login:async()=>{},authorize:async input=>{
+    if(input.token!==token||(input.operation==='trial.queue'&&input.csrfToken!==csrf))throw Error()
+    return {operatorId:'11111111-1111-4111-8111-111111111111',revision:1}
+  }}
+  const registration=createTrialRegistration({runtime,registrar:{queue:async()=>{writes++;return {state:'queued'}}}})
+  const handler=createOperatorHttp({runtime,registration,origin,trustLoopbackProxy:true})
+  const server=http.createServer((req,res)=>handler(req,res));await new Promise(r=>server.listen(0,'127.0.0.1',r))
+  const input={approvalId:'fixture:lead-1',companyName:'Fixture SRL',commandId:'fixture:queue-1',confirmed:true}
+  const call=(payload,headers={})=>new Promise((resolve,reject)=>{
+    const req=http.request({host:'127.0.0.1',port:server.address().port,path:'/operator/trials/register',method:'POST',headers:{host:'operator.example.test',origin,'x-forwarded-proto':'https','content-type':'application/json',cookie:'__Host-infraflow_operator='+token,'x-csrf-token':csrf,...headers}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode))})
+    req.on('error',reject);req.end(JSON.stringify(payload))
+  })
+  try{
+    assert.equal(await call(input,{origin:'https://evil.test'}),401)
+    assert.equal(await call(input,{'x-csrf-token':'wrong'}),401)
+    assert.equal(await call({...input,operatorId:'attacker'}),400)
+    assert.equal(await call({...input,confirmed:false}),400)
+    assert.equal(writes,0)
+    assert.equal(await call(input),200);assert.equal(writes,1)
+  }finally{await new Promise(r=>server.close(r))}
+})
 test('trial registry requires audited authorization before and after reading; anonymous/revoked sessions disclose nothing',async()=>{
   let authorized=false,revoked=false,reads=0,checks=0
   const handler=createOperatorHttp({origin,trustLoopbackProxy:true,runtime:{login:async()=>{},authorize:async()=>{checks++;if(!authorized||revoked)throw Error()}},trialReader:{listTrials:async()=>{reads++;revoked=true;return {items:[{companyName:'PRIVATE-FIXTURE'}],total:1}}}})

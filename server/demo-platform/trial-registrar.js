@@ -46,6 +46,17 @@ function createTrialRegistrar(password,driver){
   let connection,pending,closed=false,broken=false,stopping
   pool.on('error',()=>{broken=true})
   return {
+    check(){
+      if(closed||broken||pending)return Promise.reject(Error('registrar_check_unavailable'))
+      pending=(async()=>{
+        try{connection??=pool.connect();await connection;if(closed||broken)throw Error()
+          validateIdentity(await pool.request().query(IDENTITY));if(closed||broken)throw Error()
+          return {ok:true,code:'registrar_scope_verified'}
+        }catch{throw Error('registrar_check_unavailable')}
+        finally{pending=undefined}
+      })()
+      return pending
+    },
     queue(input){
       let request
       try{request=validateInput(input)}catch(error){return Promise.reject(error)}

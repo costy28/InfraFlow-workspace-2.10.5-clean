@@ -59,6 +59,10 @@ def main():
         print('REGISTRAR_LOGIN_SCOPE_VERIFIED')
         print('Procedura auditata permisa; procedura veche, activarea si accesul direct refuzate prin drepturile efective.')
         print('Verificare doar metadate: nicio companie creata, niciun TOTP consumat, niciun restart.')
+    except ValueError:
+        print('REGISTRAR_PASSWORD_FORMAT_INVALID')
+        print('Format local invalid: nu s-a executat verificarea SQL. Nu trimite parola in chat.')
+        sys.exit(1)
     except Exception:
         print('REGISTRAR_SCOPE_VERIFICATION_FAILED')
         print('Nu recrea loginul si nu modifica parola/granturile. Trimite doar acest rezultat.')

@@ -1,6 +1,6 @@
 'use strict'
 const test=require('node:test'),assert=require('node:assert/strict'),http=require('node:http'),net=require('node:net')
-const {parseConfig,parseOperatorHttpConfig,createPlatformService}=require('../demo-platform/service')
+const {parseConfig,parseOperatorHttpConfig,registrarEnabled,createPlatformService}=require('../demo-platform/service')
 test('platform config: explicit foundation mode and non-ERP loopback port',()=>{
   assert.deepEqual(parseConfig({INFRAFLOW_DEMO_PLATFORM_MODE:'foundation',INFRAFLOW_DEMO_PLATFORM_PORT:'4280'}),{host:'127.0.0.1',port:4280})
   for(const env of [{},{INFRAFLOW_DEMO_PLATFORM_MODE:'production',INFRAFLOW_DEMO_PLATFORM_PORT:'4280'},...['4180','4181','0','65536','4280x'].map(port=>({INFRAFLOW_DEMO_PLATFORM_MODE:'foundation',INFRAFLOW_DEMO_PLATFORM_PORT:port}))])assert.throws(()=>parseConfig(env))
@@ -11,6 +11,21 @@ test('operator HTTP mounting requires explicit opt-in, runtime, HTTPS origin and
   assert.deepEqual(parseOperatorHttpConfig(env),{origin:'https://operator.infraflow.ro',trustLoopbackProxy:true})
   for(const key of Object.keys(env))assert.throws(()=>parseOperatorHttpConfig({...env,[key]:undefined}))
   assert.throws(()=>parseOperatorHttpConfig({...env,INFRAFLOW_DEMO_PLATFORM_ORIGIN:'http://operator.infraflow.ro'}))
+})
+test('registrar requires explicit opt-in and active HTTP configuration',()=>{
+  assert.equal(registrarEnabled({},null),false)
+  assert.equal(registrarEnabled({INFRAFLOW_DEMO_PLATFORM_REGISTRAR:'1'},{origin:'https://operator.infraflow.ro'}),true)
+  assert.throws(()=>registrarEnabled({INFRAFLOW_DEMO_PLATFORM_REGISTRAR:'1'},null))
+  assert.throws(()=>registrarEnabled({INFRAFLOW_DEMO_PLATFORM_REGISTRAR:'0'},{}))
+})
+test('registrar health uses check only, sanitizes errors and closes on shutdown',async()=>{
+  const reservation=net.createServer();await new Promise(r=>reservation.listen(0,'127.0.0.1',r))
+  const port=reservation.address().port;await new Promise(r=>reservation.close(r))
+  let closed=0,broken=false,writes=0
+  const service=createPlatformService({registrar:{check:async()=>{if(broken)throw Error('private');return {ok:true,code:'registrar_scope_verified'}},queue:async()=>{writes++},shutdown:async()=>{closed++}}})
+  const get=()=>new Promise((resolve,reject)=>{http.get({host:'127.0.0.1',port,path:'/health/registrar'},res=>{let raw='';res.on('data',c=>raw+=c);res.on('end',()=>resolve({status:res.statusCode,body:JSON.parse(raw)}))}).on('error',reject)})
+  try{await service.start({host:'127.0.0.1',port});assert.equal((await get()).status,200);broken=true;assert.deepEqual(await get(),{status:503,body:{ok:false,code:'registrar_unavailable'}})}finally{await service.shutdown()}
+  assert.equal(closed,1);assert.equal(writes,0)
 })
 test('mounted operator adapter receives POST body intact before fallback drains input',async()=>{
   const reservation=net.createServer();await new Promise(r=>reservation.listen(0,'127.0.0.1',r))

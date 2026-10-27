@@ -18,7 +18,12 @@ function parseOperatorHttpConfig(env){
   require('./operator-http').validateOrigin(origin)
   return {origin,trustLoopbackProxy:true}
 }
-function createPlatformService({onError=()=>{},sqlReader,operatorRuntime,operatorHttp}={}){
+function registrarEnabled(env,httpConfig){
+  if(env.INFRAFLOW_DEMO_PLATFORM_REGISTRAR===undefined)return false
+  if(env.INFRAFLOW_DEMO_PLATFORM_REGISTRAR!=='1'||!httpConfig)throw Error('invalid_registrar_mode')
+  return true
+}
+function createPlatformService({onError=()=>{},sqlReader,operatorRuntime,operatorHttp,registrar}={}){
   let state='created',stopping,starting
   const server=http.createServer(async(req,res)=>{
     const send=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(body))}
@@ -36,6 +41,11 @@ function createPlatformService({onError=()=>{},sqlReader,operatorRuntime,operato
       catch{return send(503,{ok:false,code:'platform_sql_unavailable'})}
     }
     if(req.url==='/health/ready')return send(503,{ok:false,code:'platform_not_ready'})
+    if(req.url==='/health/registrar'){
+      if(!registrar)return send(503,{ok:false,code:'registrar_not_configured'})
+      try{const result=await registrar.check();if(state!=='listening')return send(503,{code:'platform_stopping'});return send(200,result)}
+      catch{return send(503,{ok:false,code:'registrar_unavailable'})}
+    }
     if(req.url==='/health/operator'){
       if(!operatorRuntime)return send(503,{ok:false,code:'platform_operator_not_configured'})
       try{const result=await operatorRuntime.check();if(state!=='listening')return send(503,{code:'platform_stopping'});return send(200,result)}
@@ -64,7 +74,7 @@ function createPlatformService({onError=()=>{},sqlReader,operatorRuntime,operato
         if(state==='starting')await starting.catch(()=>{})
         state='stopping'
         if(server.listening)await new Promise(resolve=>{server.close(resolve);server.closeIdleConnections()})
-        await Promise.all([sqlReader?.shutdown(),operatorRuntime?.shutdown()])
+        await Promise.all([sqlReader?.shutdown(),operatorRuntime?.shutdown(),registrar?.shutdown()])
         state='stopped'
       })()
       return stopping
@@ -83,19 +93,25 @@ async function main(){
   }
   let operatorRuntime
   let operatorHttp
+  let registrar
   try{
     if(process.env.INFRAFLOW_DEMO_PLATFORM_OPERATOR!==undefined){
       if(process.env.INFRAFLOW_DEMO_PLATFORM_OPERATOR!=='1')throw Error('invalid_operator_mode')
       operatorRuntime=await require('./operator-runtime').createOperatorRuntime()
     }
     const httpConfig=parseOperatorHttpConfig(process.env)
-    if(httpConfig)operatorHttp=require('./operator-http').createOperatorHttp({runtime:operatorRuntime,trialReader:sqlReader,...httpConfig})
-  }catch(error){await Promise.all([sqlReader?.shutdown(),operatorRuntime?.shutdown()]);throw error}
-  const service=createPlatformService({sqlReader,operatorRuntime,operatorHttp,onError:code=>console.error(code)})
+    let registration
+    if(registrarEnabled(process.env,httpConfig)){
+      registrar=await require('./registrar-runtime').createRegistrarRuntime()
+      registration=require('./trial-registration').createTrialRegistration({runtime:operatorRuntime,registrar})
+    }
+    if(httpConfig)operatorHttp=require('./operator-http').createOperatorHttp({runtime:operatorRuntime,trialReader:sqlReader,registration,...httpConfig})
+  }catch(error){await Promise.all([sqlReader?.shutdown(),operatorRuntime?.shutdown(),registrar?.shutdown()]);throw error}
+  const service=createPlatformService({sqlReader,operatorRuntime,operatorHttp,registrar,onError:code=>console.error(code)})
   const stop=()=>{service.shutdown().catch(()=>{console.error('platform_shutdown_failed');process.exitCode=1})}
   process.once('SIGTERM',stop);process.once('SIGINT',stop)
   try{await service.start(config)}catch(error){await service.shutdown();throw error}
   console.log('demo_platform_foundation_listening')
 }
 if(require.main===module)main().catch(()=>{console.error('demo_platform_start_failed');process.exitCode=1})
-module.exports={parseConfig,parseOperatorHttpConfig,createPlatformService}
+module.exports={parseConfig,parseOperatorHttpConfig,registrarEnabled,createPlatformService}

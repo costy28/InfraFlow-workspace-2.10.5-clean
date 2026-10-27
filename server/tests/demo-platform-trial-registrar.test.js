@@ -42,3 +42,13 @@ test('transport errors are uncertain outcomes, never automatically retried',asyn
   await assert.rejects(client.queue(input),{message:'trial_registration_result_unconfirmed'})
   assert.equal(executions,1);await client.shutdown()
 })
+test('registrar check performs metadata only and never executes registration procedure',async()=>{
+  let queries=0,executions=0
+  class Pool extends EventEmitter{
+    async connect(){return this}request(){return {query:async()=>{queries++;return identity()},execute:async()=>{executions++}}}async close(){}
+  }
+  const client=createTrialRegistrar('fixture-password-1234',{ConnectionPool:Pool})
+  assert.deepEqual(await client.check(),{ok:true,code:'registrar_scope_verified'})
+  assert.equal(queries,1);assert.equal(executions,0);await client.shutdown()
+  await assert.rejects(client.check(),{message:'registrar_check_unavailable'})
+})

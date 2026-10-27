@@ -81,3 +81,34 @@ concurente identice au produs același receipt, o singură companie și un singu
 audit pentru acea comandă. Cinci grupuri SQL passed=true, cleanup=true.
 44/44 teste Node ale platformei trecute; audit expunere 556 fișiere, zero findings.
 Nicio migrare/grant/comandă pe VPS în acest increment.
+
+## Formular și coordonator local — 2026-10-27
+
+VPS: migrarea 005 și drepturile au fost aplicate ulterior, iar loginul registrar
+real a fost verificat doar pentru metadate. Nu există încă credential de registrar
+livrat serviciului și nu s-a creat nicio companie prin procedura nouă pe VPS.
+
+Coordonatorul trial-registration.js acceptă din browser numai approvalId,
+companyName,commandId,confirmed=true. Respinge câmpuri de operator. Identitatea și
+revizia provin din authorize(trial.queue) cu CSRF, apoi sunt verificate din nou
+atomic în SQL. După comitere, răspunsul este condiționat de sesiunea încă validă;
+revocarea după comitere este rezultat incert, nu afirmație că nu s-a scris.
+
+HTTP POST /operator/trials/register există numai când un coordonator explicit
+este injectat. În această etapă service.js NU îl instanțiază. Capacitatea din UI
+este vizibilă numai când coordonatorul există și sesiunea are scope trial:queue.
+Login/resume returnează capacitatea fără a dezvălui tokenul de sesiune.
+
+Formular cu referință solicitare aprobată, denumire, commandId și checkbox explicit
+privind limita «doar registru». CommandId este generat o singură dată și păstrat
+în memorie; poate fi introdus manual pentru reconciliere. Nicio stocare browser
+și nici retry automat. La rezultat incert se blochează editarea propunerii, se
+afișează identificatorul și o reluare explicită trimite exact același payload.
+Operatorul trebuie să noteze identificatorul și datele înainte să închidă pagina;
+aceasta avertizează la închidere dacă rezultatul este incert.
+
+Smoke Chrome local cu motor real auth și registrar fixture: răspuns pierdut după
+commit simulat, reluare manuală cu exact aceeași comandă, două apeluri și o singură
+înregistrare în ledger fixture. Login/reload/logout/mobile trecute. Nu este test
+de scriere SQL reală sau de Cloudflare. Urmează livrarea protejată a credentialului
+registrar, probe fără scriere și activare controlată, înaintea primei companii.
