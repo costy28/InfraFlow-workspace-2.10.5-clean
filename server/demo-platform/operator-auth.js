@@ -3,7 +3,7 @@ const crypto=require('node:crypto')
 const {verifyPassword,acceptedTotpCounter}=require('./operator-credentials')
 const fail=()=>{throw Error('operator_access_denied')}
 const hash=v=>crypto.createHash('sha256').update(v).digest('hex')
-const operations=Object.freeze({'trial.read':'trial:read','trial.queue':'trial:queue','trial.activate':'trial:activate','session.logout':'session:own'})
+const operations=Object.freeze({'trial.read':'trial:read','trial.queue':'trial:queue','trial.prepare':'trial:prepare','trial.activate':'trial:activate','session.logout':'session:own'})
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(v)
 function validateRecord(r){
   if(!r||!uuid(r.id)||!Number.isSafeInteger(r.revision)||r.revision<0||r.enabled!==true

@@ -1,7 +1,7 @@
 'use strict'
 const crypto=require('node:crypto')
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(v)
-const actions=['operator_login','trial.read','trial.queue','trial.activate','session.logout']
+const actions=['operator_login','trial.read','trial.queue','trial.prepare','trial.activate','session.logout']
 const denied=()=>{throw Error('operator_store_unavailable')}
 function context(key,id,revision){
   if(!Buffer.isBuffer(key)||key.length!==32||!uuid(id)||!Number.isInteger(revision)||revision<0||revision>2147483647)denied()

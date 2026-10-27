@@ -8,7 +8,7 @@ function validateCommand(command,input){
   if(command==='claim_totp'){
     if(keys!=='counter,id,revision'||!Number.isSafeInteger(input.counter)||input.counter<0||!Number.isInteger(input.revision)||input.revision<0||input.revision>2147483647)fail()
   }else if(command==='append_audit'){
-    if(keys!=='action,id'||!['operator_login','trial.read','trial.queue','trial.activate','session.logout'].includes(input.action))fail()
+    if(keys!=='action,id'||!['operator_login','trial.read','trial.queue','trial.prepare','trial.activate','session.logout'].includes(input.action))fail()
   }else if(keys!=='id')fail()
 }
 function createOperatorSqlClient(password,driver){

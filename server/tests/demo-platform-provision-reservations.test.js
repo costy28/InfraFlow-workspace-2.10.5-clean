@@ -1,0 +1,20 @@
+'use strict'
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path')
+const sql=fs.readFileSync(path.join(__dirname,'../../db/demo-platform-migrations/006_provision_job_reservations.sql'),'utf8')
+test('provision request is platform-only, exact scoped, no identities or external resource creation',()=>{
+  const code=sql.replace(/--[^\r\n]*/g,'')
+  assert.equal(sql.split("N'INFRAFLOW_DEMO_PLATFORM'").length,2)
+  assert.match(sql,/THROW 52201/);assert.match(sql,/trial:prepare/)
+  assert.ok(!/\b(CREATE DATABASE|CREATE LOGIN|ALTER LOGIN|GRANT|xp_cmdshell)\b/i.test(code))
+  assert.match(sql,/COUNT\(\*\) FROM OPENJSON\(@json\)\)<>5/)
+  assert.match(sql,/CK_provision_execution_closed CHECK\(execution_ready=0\)/)
+})
+test('job/resources/receipt and audit share transaction, uniqueness and revocation checks',()=>{
+  assert.match(sql,/UNIQUE\(operator_id,command_id\)/)
+  assert.match(sql,/PRIMARY KEY\(resource_type,resource_key\)/)
+  assert.match(sql,/@currentOp<>@opRev/);assert.match(sql,/@rev<>@expected/)
+  assert.match(sql,/platform-resource-reservations/)
+  assert.match(sql,/@resources TABLE\(kind varchar\(32\) COLLATE Latin1_General_100_BIN2,value varchar\(256\) COLLATE Latin1_General_100_BIN2\)/)
+  assert.ok(sql.indexOf('INSERT platform.provision_request_audit')<sql.lastIndexOf('COMMIT;SELECT @receipt'))
+  assert.match(sql,/IF XACT_STATE\(\)<>0 ROLLBACK/)
+})
