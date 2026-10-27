@@ -1,9 +1,33 @@
 'use strict'
 const test=require('node:test'),assert=require('node:assert/strict'),http=require('node:http'),net=require('node:net')
-const {parseConfig,createPlatformService}=require('../demo-platform/service')
+const {parseConfig,parseOperatorHttpConfig,createPlatformService}=require('../demo-platform/service')
 test('platform config: explicit foundation mode and non-ERP loopback port',()=>{
   assert.deepEqual(parseConfig({INFRAFLOW_DEMO_PLATFORM_MODE:'foundation',INFRAFLOW_DEMO_PLATFORM_PORT:'4280'}),{host:'127.0.0.1',port:4280})
   for(const env of [{},{INFRAFLOW_DEMO_PLATFORM_MODE:'production',INFRAFLOW_DEMO_PLATFORM_PORT:'4280'},...['4180','4181','0','65536','4280x'].map(port=>({INFRAFLOW_DEMO_PLATFORM_MODE:'foundation',INFRAFLOW_DEMO_PLATFORM_PORT:port}))])assert.throws(()=>parseConfig(env))
+})
+test('operator HTTP mounting requires explicit opt-in, runtime, HTTPS origin and proxy mode',()=>{
+  assert.equal(parseOperatorHttpConfig({}),null)
+  const env={INFRAFLOW_DEMO_PLATFORM_HTTP:'1',INFRAFLOW_DEMO_PLATFORM_OPERATOR:'1',INFRAFLOW_DEMO_PLATFORM_ORIGIN:'https://operator.infraflow.ro',INFRAFLOW_DEMO_PLATFORM_PROXY:'loopback-https'}
+  assert.deepEqual(parseOperatorHttpConfig(env),{origin:'https://operator.infraflow.ro',trustLoopbackProxy:true})
+  for(const key of Object.keys(env))assert.throws(()=>parseOperatorHttpConfig({...env,[key]:undefined}))
+  assert.throws(()=>parseOperatorHttpConfig({...env,INFRAFLOW_DEMO_PLATFORM_ORIGIN:'http://operator.infraflow.ro'}))
+})
+test('mounted operator adapter receives POST body intact before fallback drains input',async()=>{
+  const reservation=net.createServer();await new Promise(r=>reservation.listen(0,'127.0.0.1',r))
+  const port=reservation.address().port;await new Promise(r=>reservation.close(r))
+  const {createOperatorHttp}=require('../demo-platform/operator-http')
+  let received
+  const runtime={login:async input=>{received=input;return {token:'a'.repeat(64),csrfToken:'b'.repeat(64),expiresAt:123}},authorize:async()=>{}}
+  const service=createPlatformService({operatorHttp:createOperatorHttp({runtime,origin:'https://operator.infraflow.ro',trustLoopbackProxy:true})})
+  try{
+    await service.start({host:'127.0.0.1',port})
+    const input={username:'infraop',password:'fixture-only',code:'123456'}
+    const status=await new Promise((resolve,reject)=>{
+      const req=http.request({host:'127.0.0.1',port,path:'/operator/login',method:'POST',headers:{host:'operator.infraflow.ro',origin:'https://operator.infraflow.ro','x-forwarded-proto':'https','content-type':'application/json'}},res=>{res.resume();resolve(res.statusCode)})
+      req.on('error',reject);req.end(JSON.stringify(input))
+    })
+    assert.equal(status,200);assert.deepEqual(received,input)
+  }finally{await service.shutdown()}
 })
 test('platform HTTP: liveness only, never ready/provisioning; listener closes on shutdown',async()=>{
   // Reserve then release an ephemeral port; production factory still refuses port 0.

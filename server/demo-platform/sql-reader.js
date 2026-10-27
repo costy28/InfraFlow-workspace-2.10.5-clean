@@ -1,5 +1,6 @@
 'use strict'
 const fs=require('node:fs')
+const trialList=require('./trial-list')
 const PASSWORD_FILE='/etc/infraflow-demo-platform/sql-reader.password'
 function validateSecretStat(stat,gid){
   if(!stat.isFile()||stat.uid!==0||stat.gid!==gid||(stat.mode&0o777)!==0o640||stat.nlink!==1||stat.size<16||stat.size>128)throw Error('platform_secret_invalid')
@@ -37,11 +38,11 @@ function createSqlReader(password,driver){
   driver??=require('mssql')
   const pool=new driver.ConnectionPool({server:'127.0.0.1',port:1433,database:'INFRAFLOW_DEMO_PLATFORM',user:'infraflow_demo_platform',password,
     connectionTimeout:5000,requestTimeout:5000,pool:{min:0,max:1,idleTimeoutMillis:10000},options:{encrypt:true,trustServerCertificate:true}})
-  let connection,pending,closing=false,stopping,broken=false
+  let connection,pending,listing,closing=false,stopping,broken=false
   pool.on('error',()=>{broken=true})
   return {
     check(){
-      if(closing||broken)return Promise.reject(Error('platform_sql_unavailable'))
+      if(closing||broken||listing)return Promise.reject(Error('platform_sql_unavailable'))
       if(pending)return pending
       pending=(async()=>{
         try{connection??=pool.connect();await connection;if(closing||broken)throw Error();validateProbe(await pool.request().query(SQL));if(closing||broken)throw Error();return {ok:true,code:'platform_sql_reader_verified'}}
@@ -50,10 +51,30 @@ function createSqlReader(password,driver){
       })()
       return pending
     },
+    listTrials(input){
+      let options
+      try{options=trialList.filters(input);if(closing||broken||pending||listing)throw Error()}catch{return Promise.reject(Error('platform_sql_unavailable'))}
+      listing=(async()=>{
+        try{
+          connection??=pool.connect();await connection
+          if(closing||broken)throw Error()
+          validateProbe(await pool.request().query(SQL))
+          const pattern='%'+options.search.replace(/[~%_\[]/g,char=>'~'+char)+'%'
+          const request=pool.request().input('limit',driver.Int,options.limit).input('offset',driver.Int,options.offset)
+            .input('state',driver.VarChar(32),options.state).input('search',driver.NVarChar(100),options.search)
+            .input('pattern',driver.NVarChar(202),pattern)
+          const result=await request.query(trialList.SQL)
+          if(closing||broken)throw Error()
+          return trialList.project(result,options)
+        }catch{throw Error('platform_sql_unavailable')}
+        finally{listing=undefined}
+      })()
+      return listing
+    },
     shutdown(){
       if(stopping)return stopping
       closing=true
-      stopping=(async()=>{if(pending)await pending.catch(()=>{});try{await pool.close()}catch{throw Error('platform_sql_close_failed')}})()
+      stopping=(async()=>{await Promise.allSettled([pending,listing]);try{await pool.close()}catch{throw Error('platform_sql_close_failed')}})()
       return stopping
     },
   }

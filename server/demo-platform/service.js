@@ -9,12 +9,25 @@ function parseConfig(env){
   if([4180,4181].includes(port))throw Error('reserved_platform_port')
   return Object.freeze({host:'127.0.0.1',port})
 }
-function createPlatformService({onError=()=>{},sqlReader,operatorRuntime}={}){
+function parseOperatorHttpConfig(env){
+  const keys=['INFRAFLOW_DEMO_PLATFORM_HTTP','INFRAFLOW_DEMO_PLATFORM_ORIGIN','INFRAFLOW_DEMO_PLATFORM_PROXY']
+  if(keys.every(key=>env[key]===undefined))return null
+  if(env.INFRAFLOW_DEMO_PLATFORM_HTTP!=='1'||env.INFRAFLOW_DEMO_PLATFORM_OPERATOR!=='1'
+    ||env.INFRAFLOW_DEMO_PLATFORM_PROXY!=='loopback-https')throw Error('invalid_operator_http_config')
+  const origin=env.INFRAFLOW_DEMO_PLATFORM_ORIGIN
+  require('./operator-http').validateOrigin(origin)
+  return {origin,trustLoopbackProxy:true}
+}
+function createPlatformService({onError=()=>{},sqlReader,operatorRuntime,operatorHttp}={}){
   let state='created',stopping,starting
   const server=http.createServer(async(req,res)=>{
-    req.resume()
     const send=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(body))}
-    if(state!=='listening')return send(503,{code:'platform_stopping'})
+    if(state!=='listening'){req.resume();return send(503,{code:'platform_stopping'})}
+    if(operatorHttp){
+      try{if(await operatorHttp(req,res))return}
+      catch{req.resume();if(!res.headersSent)send(503,{code:'operator_unavailable'});else res.destroy();return}
+    }
+    req.resume()
     if(req.method!=='GET')return send(405,{code:'method_not_allowed'})
     if(req.url==='/health/live')return send(200,{ok:true,service:'demo-platform',mode:'foundation'})
     if(req.url==='/health/sql'){
@@ -69,17 +82,20 @@ async function main(){
     const reader=require('./sql-reader');sqlReader=reader.createSqlReader(reader.readPassword())
   }
   let operatorRuntime
+  let operatorHttp
   try{
     if(process.env.INFRAFLOW_DEMO_PLATFORM_OPERATOR!==undefined){
       if(process.env.INFRAFLOW_DEMO_PLATFORM_OPERATOR!=='1')throw Error('invalid_operator_mode')
       operatorRuntime=await require('./operator-runtime').createOperatorRuntime()
     }
-  }catch(error){if(sqlReader)await sqlReader.shutdown();throw error}
-  const service=createPlatformService({sqlReader,operatorRuntime,onError:code=>console.error(code)})
+    const httpConfig=parseOperatorHttpConfig(process.env)
+    if(httpConfig)operatorHttp=require('./operator-http').createOperatorHttp({runtime:operatorRuntime,trialReader:sqlReader,...httpConfig})
+  }catch(error){await Promise.all([sqlReader?.shutdown(),operatorRuntime?.shutdown()]);throw error}
+  const service=createPlatformService({sqlReader,operatorRuntime,operatorHttp,onError:code=>console.error(code)})
   const stop=()=>{service.shutdown().catch(()=>{console.error('platform_shutdown_failed');process.exitCode=1})}
   process.once('SIGTERM',stop);process.once('SIGINT',stop)
   try{await service.start(config)}catch(error){await service.shutdown();throw error}
   console.log('demo_platform_foundation_listening')
 }
 if(require.main===module)main().catch(()=>{console.error('demo_platform_start_failed');process.exitCode=1})
-module.exports={parseConfig,createPlatformService}
+module.exports={parseConfig,parseOperatorHttpConfig,createPlatformService}

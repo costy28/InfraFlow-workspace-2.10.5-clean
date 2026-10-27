@@ -48,6 +48,24 @@ test('operator HTTP does not trust forwarded HTTPS by default',async()=>{
     assert.equal(status,401)
   }finally{await new Promise(r=>server.close(r))}
 })
+test('trial registry requires audited authorization before and after reading; anonymous/revoked sessions disclose nothing',async()=>{
+  let authorized=false,revoked=false,reads=0,checks=0
+  const handler=createOperatorHttp({origin,trustLoopbackProxy:true,runtime:{login:async()=>{},authorize:async()=>{checks++;if(!authorized||revoked)throw Error()}},trialReader:{listTrials:async()=>{reads++;revoked=true;return {items:[{companyName:'PRIVATE-FIXTURE'}],total:1}}}})
+  const server=http.createServer((req,res)=>handler(req,res));await new Promise(r=>server.listen(0,'127.0.0.1',r))
+  const call=(cookie,path='/operator/trials')=>new Promise((resolve,reject)=>{
+    http.get({host:'127.0.0.1',port:server.address().port,path,headers:{host:'operator.example.test',origin,'x-forwarded-proto':'https',...(cookie?{cookie}: {})}},res=>{let raw='';res.on('data',c=>raw+=c);res.on('end',()=>resolve({status:res.statusCode,raw}))}).on('error',reject)
+  })
+  try{
+    assert.equal((await call()).status,401);assert.equal(reads,0)
+    assert.equal((await call('__Host-infraflow_operator='+token)).status,401);assert.equal(reads,0)
+    authorized=true
+    const result=await call('__Host-infraflow_operator='+token)
+    assert.equal(result.status,401);assert.ok(!result.raw.includes('PRIVATE-FIXTURE'));assert.equal(reads,1);assert.equal(checks,3)
+    revoked=false
+    assert.equal((await call('__Host-infraflow_operator='+token,'/operator/trials?limit=20&limit=30')).status,401)
+    assert.equal(reads,1)
+  }finally{await new Promise(r=>server.close(r))}
+})
 test('HTTP + real auth: password/TOTP, replay refusal, audited read, CSRF logout and revoked cookie',async()=>{
   const {hashPassword,totpAtCounter}=require('../demo-platform/operator-credentials')
   const {createOperatorAuth}=require('../demo-platform/operator-auth')

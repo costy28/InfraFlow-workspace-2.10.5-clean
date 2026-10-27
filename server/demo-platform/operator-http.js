@@ -38,13 +38,14 @@ async function body(req){
     req.on('data',data);req.once('end',end);req.once('error',errorHandler);req.once('aborted',errorHandler)
   })
 }
-function createOperatorHttp({runtime,origin,trustLoopbackProxy=false}){
+function createOperatorHttp({runtime,origin,trustLoopbackProxy=false,trialReader}){
   const expected=validateOrigin(origin)
   if(typeof runtime?.login!=='function'||typeof runtime?.authorize!=='function'||typeof trustLoopbackProxy!=='boolean')throw Error('operator_http_config_invalid')
   let active=0
   return async function handle(req,res){
+    const listRoute=req.url==='/operator/trials'||req.url.startsWith('/operator/trials?')
     const paths=['/operator/login','/operator/session','/operator/logout',...assets.keys()]
-    if(!paths.includes(req.url))return false
+    if(!paths.includes(req.url)&&!listRoute)return false
     const send=(status,data,cookie)=>{
       const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
         'Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'",'Referrer-Policy':'no-referrer'}
@@ -60,9 +61,12 @@ function createOperatorHttp({runtime,origin,trustLoopbackProxy=false}){
       if(!req.socket.encrypted&&!(proxy&&req.headers['x-forwarded-proto']==='https'))throw Error()
       if(req.headers.origin!==undefined&&req.headers.origin!==origin)throw Error()
       const asset=assets.get(req.url)
-      const topNavigation=asset&&req.url==='/operator'&&req.headers['sec-fetch-site']==='none'
+      // Login document may be reached from the Access identity-provider redirect.
+      // This exception never applies to session APIs or state-changing requests.
+      const topNavigation=asset&&req.url==='/operator'&&req.method==='GET'&&
+        (req.headers['sec-fetch-site']==='none'||(req.headers['sec-fetch-mode']==='navigate'&&req.headers['sec-fetch-dest']==='document'))
       if(req.headers['sec-fetch-site']!==undefined&&req.headers['sec-fetch-site']!=='same-origin'&&!topNavigation)throw Error()
-      const method=req.url==='/operator/session'||asset?'GET':'POST'
+      const method=req.url==='/operator/session'||asset||listRoute?'GET':'POST'
       if(req.method!==method){req.resume();send(405,{code:'method_not_allowed'});return true}
       if(method==='POST'&&req.headers.origin!==origin)throw Error()
       if(asset){
@@ -85,6 +89,21 @@ function createOperatorHttp({runtime,origin,trustLoopbackProxy=false}){
       }else{
         if(method==='GET')req.resume()
         const token=sessionCookie(req.headers.cookie)
+        if(listRoute){
+          await runtime.authorize({token,operation:'trial.read'})
+          if(typeof trialReader?.listTrials!=='function'){send(503,{code:'trial_list_unavailable'});return true}
+          const params=new URL(req.url,origin).searchParams,options={}
+          for(const [key,value]of params){
+            if(!['limit','offset','state','search'].includes(key)||Object.hasOwn(options,key))throw Error()
+            if(key==='limit'||key==='offset'){if(!/^(0|[1-9]\d{0,5})$/.test(value))throw Error();options[key]=Number(value)}else options[key]=value
+          }
+          require('./trial-list').filters(options)
+          let data
+          try{data=await trialReader.listTrials(options)}catch{send(503,{code:'trial_list_unavailable'});return true}
+          // Recheck after SQL, before any registry data can leave the process.
+          await runtime.authorize({token,operation:'trial.read'})
+          send(200,{ok:true,...data});return true
+        }
         if(method==='POST'){
           const input=await body(req)
           if(!input||Object.getPrototypeOf(input)!==Object.prototype||Object.keys(input).length!==0)throw Error()

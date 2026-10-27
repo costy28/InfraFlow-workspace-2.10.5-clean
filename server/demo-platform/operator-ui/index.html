@@ -26,6 +26,22 @@
     <h2>Sesiune operator activă</h2>
     <p id="expiry"></p>
     <p>Interfața comenzilor pentru companii nu este disponibilă în această etapă.</p>
+    <section aria-labelledby="companies-title">
+      <h2 id="companies-title">Companii demo</h2>
+      <p class="help">Registrul platformei, doar consultare. Nu este lista conturilor din demo-ul comun.</p>
+      <form id="filters">
+        <label for="search">Nume companie</label><input id="search" maxlength="100" type="search">
+        <label for="state">Stare</label><select id="state">
+          <option value="">Toate stările</option><option value="queued">În așteptare</option>
+          <option value="provisioning">În pregătire</option><option value="awaiting_activation">Așteaptă activarea</option>
+          <option value="active">Activă</option><option value="expired">Expirată</option>
+          <option value="purge_pending">Așteaptă ștergerea</option><option value="purging">În curs de ștergere</option><option value="deleted">Ștearsă</option>
+        </select><button type="submit">Aplică filtre</button>
+      </form>
+      <p id="list-message" role="status" aria-live="polite"></p>
+      <div class="table-wrap"><table><thead><tr><th>Companie</th><th>Stare</th><th>Creată</th><th>Expiră</th></tr></thead><tbody id="companies"></tbody></table></div>
+      <div class="pagination"><button id="previous" type="button">Înapoi</button><button id="next" type="button">Înainte</button></div>
+    </section>
     <button id="logout" type="button">Ieșire din sesiune</button>
   </section>
   <p class="help">Acces restricționat. Nu introduce și nu transmite credentialele în capturi sau mesaje.</p>

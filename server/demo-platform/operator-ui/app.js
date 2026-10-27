@@ -2,11 +2,37 @@
 (()=>{
   const form=document.getElementById('login'),panel=document.getElementById('session'),message=document.getElementById('message')
   const password=document.getElementById('password'),code=document.getElementById('code'),logout=document.getElementById('logout')
-  let busy=false
+  let busy=false,generation=0,offset=0,listBusy=false
+  const filters=document.getElementById('filters'),rows=document.getElementById('companies'),listMessage=document.getElementById('list-message')
+  const previous=document.getElementById('previous'),next=document.getElementById('next')
   const notice=(text,error=false)=>{message.textContent=text;message.dataset.error=String(error)}
   const lock=value=>{busy=value;for(const input of form.elements)input.disabled=value;logout.disabled=value}
-  const showLogin=()=>{form.hidden=false;panel.hidden=true;document.getElementById('expiry').textContent=''}
-  const showSession=session=>{form.hidden=true;panel.hidden=false;document.getElementById('expiry').textContent='Expirare maximă: '+new Date(session.expiresAt).toLocaleString('ro-RO')+'. Sesiunea expiră și după 15 minute de inactivitate.'}
+  const showLogin=()=>{generation++;form.hidden=false;panel.hidden=true;rows.replaceChildren();document.getElementById('expiry').textContent=''}
+  const showSession=session=>{generation++;form.hidden=true;panel.hidden=false;document.getElementById('expiry').textContent='Expirare maximă: '+new Date(session.expiresAt).toLocaleString('ro-RO')+'. Sesiunea expiră și după 15 minute de inactivitate.';offset=0;loadList()}
+  async function loadList(){
+    if(listBusy||panel.hidden)return
+    const current=generation;listBusy=true;previous.disabled=true;next.disabled=true
+    listMessage.textContent='Se încarcă registrul…';rows.replaceChildren()
+    try{
+      const params=new URLSearchParams({limit:'20',offset:String(offset),state:document.getElementById('state').value,search:document.getElementById('search').value})
+      const data=await call('/operator/trials?'+params)
+      if(current!==generation)return
+      if(!data){showLogin();notice('Sesiunea nu mai este activă.',true);return}
+      const labels={queued:'În așteptare',provisioning:'În pregătire',awaiting_activation:'Așteaptă activarea',active:'Activă',expired:'Expirată',purge_pending:'Așteaptă ștergerea',purging:'În curs de ștergere',deleted:'Ștearsă'}
+      const date=value=>value?new Date(value).toLocaleDateString('ro-RO'):'—'
+      for(const item of data.items){
+        const row=document.createElement('tr')
+        for(const text of [item.companyName,labels[item.state]||item.state,date(item.createdAt),date(item.expiresAt)]){const cell=document.createElement('td');cell.textContent=text;row.append(cell)}
+        rows.append(row)
+      }
+      listMessage.textContent=data.total===0?'Nu există companii pentru filtrele alese.':`${data.total} companii. Pozițiile ${offset+1}–${offset+data.items.length}.`
+      previous.disabled=offset===0;next.disabled=offset+data.items.length>=data.total
+    }catch{if(current===generation)listMessage.textContent='Registrul nu a putut fi încărcat. Datele existente nu au fost modificate.'}
+    finally{listBusy=false;if(current!==generation&&!panel.hidden)loadList()}
+  }
+  filters.addEventListener('submit',event=>{event.preventDefault();if(!listBusy){offset=0;loadList()}})
+  previous.addEventListener('click',()=>{if(!listBusy){offset=Math.max(0,offset-20);loadList()}})
+  next.addEventListener('click',()=>{if(!listBusy){offset+=20;loadList()}})
   async function call(path,input,csrf){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000)
     try{

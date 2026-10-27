@@ -14,7 +14,7 @@ async function main(){
     claimTotpCounter:async input=>{if(input.counter<=counter)return false;counter=input.counter;return true},
     appendAudit:async event=>events.push(event.action),
   }})
-  const handler=createOperatorHttp({runtime,origin,trustLoopbackProxy:true})
+  const handler=createOperatorHttp({runtime,origin,trustLoopbackProxy:true,trialReader:{listTrials:async()=>({items:[{companyName:'<img src=x onerror=alert(1)>',state:'queued',createdAt:'2026-10-26T10:00:00Z',expiresAt:null}],total:1,limit:20,offset:0})}})
   const server=http.createServer(async(req,res)=>{if(!await handler(req,res)){res.writeHead(404);res.end('{}')}})
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   let browser
@@ -39,6 +39,9 @@ async function main(){
     await page.locator('#username').fill('infraop');await page.locator('#password').fill(password)
     await page.locator('#code').fill(totpAtCounter(secret,1));await page.getByRole('button',{name:'Autentificare',exact:true}).click()
     await page.locator('#session').waitFor({state:'visible'})
+    await page.locator('#companies td').first().waitFor()
+    assert.equal(await page.locator('#companies td').first().textContent(),'<img src=x onerror=alert(1)>')
+    assert.equal(await page.locator('#companies img').count(),0)
     const cookie=(await context.cookies()).find(c=>c.name==='__Host-infraflow_operator')
     assert.ok(cookie?.secure&&cookie.httpOnly&&cookie.sameSite==='Strict')
     assert.equal(await page.locator('#password').inputValue(),'')
