@@ -44,7 +44,7 @@ function createOperatorAuth({store,clock=Date.now}){
         const token=crypto.randomBytes(32).toString('hex'),csrfToken=crypto.randomBytes(32).toString('hex')
         const expiresAt=issuedAt+4*60*60000
         sessions.set(hash(token),{id:record.id,revision:record.revision,csrfHash:hash(csrfToken),expiresAt,lastSeen:issuedAt})
-        return {token,csrfToken,expiresAt,canQueue:finalRecord.scopes.includes('trial:queue')}
+        return {token,csrfToken,expiresAt,canQueue:finalRecord.scopes.includes('trial:queue'),canPrepare:finalRecord.scopes.includes('trial:prepare')}
       }catch{fail()}finally{busy=false}
     },
     async authorize({token,csrfToken,operation}={}){
@@ -76,7 +76,7 @@ function createOperatorAuth({store,clock=Date.now}){
       if(closed||sessions.get(hash(token))!==session||record.id!==session.id||record.revision!==session.revision)fail()
       const csrfToken=crypto.randomBytes(32).toString('hex')
       session.csrfHash=hash(csrfToken)
-      return {csrfToken,expiresAt:session.expiresAt,canQueue:record.scopes.includes('trial:queue')}
+      return {csrfToken,expiresAt:session.expiresAt,canQueue:record.scopes.includes('trial:queue'),canPrepare:record.scopes.includes('trial:prepare')}
     },
     shutdown(){closed=true;sessions.clear()},
   }

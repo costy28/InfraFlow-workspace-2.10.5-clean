@@ -5,12 +5,13 @@ const {chromium}=require('playwright')
 const {createOperatorHttp}=require('../server/demo-platform/operator-http')
 const {createOperatorAuth}=require('../server/demo-platform/operator-auth')
 const {createTrialRegistration}=require('../server/demo-platform/trial-registration')
+const {createProvisionRequestCoordinator}=require('../server/demo-platform/provision-request')
 const {hashPassword,totpAtCounter}=require('../server/demo-platform/operator-credentials')
 async function main(){
   const origin='https://operator.example.test',password='Fixture-only-password-123!',secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
   const passwordHash=await hashPassword(password),events=[];let counter=-1,attempts=0
   const runtime=createOperatorAuth({clock:()=>59000,store:{
-    readOperator:async()=>({id:'11111111-1111-4111-8111-111111111111',username:'infraop',enabled:true,revision:1,passwordHash,totpSecret:secret,scopes:['trial:read','trial:queue','session:own']}),
+    readOperator:async()=>({id:'11111111-1111-4111-8111-111111111111',username:'infraop',enabled:true,revision:1,passwordHash,totpSecret:secret,scopes:['trial:read','trial:queue','trial:prepare','session:own']}),
     reserveAttempt:async()=>++attempts<=5,
     claimTotpCounter:async input=>{if(input.counter<=counter)return false;counter=input.counter;return true},
     appendAudit:async event=>events.push(event.action),
@@ -22,7 +23,14 @@ async function main(){
     ledger.set(input.commandId,{id:'22222222-2222-4222-8222-222222222222',state:'queued',revision:0,createdAt:'2026-10-27T10:00:00Z'})
     throw Error('simulated_lost_response_after_commit')
   }}})
-  const handler=createOperatorHttp({runtime,registration,origin,trustLoopbackProxy:true,trialReader:{listTrials:async()=>({items:[{companyName:'<img src=x onerror=alert(1)>',state:'queued',createdAt:'2026-10-26T10:00:00Z',expiresAt:null}],total:1,limit:20,offset:0})}})
+  const prepareCommands=[],jobs=new Map();let losePrepare=true
+  const preparation=createProvisionRequestCoordinator({runtime,client:{request:async command=>{
+    prepareCommands.push(command)
+    if(!jobs.has(command.commandId))jobs.set(command.commandId,{jobId:'33333333-3333-4333-8333-333333333333',trialId:command.trialId,jobState:'queued',trialRevision:1,executionAllowed:false})
+    if(losePrepare){losePrepare=false;throw Error('lost_response_after_commit')}
+    return jobs.get(command.commandId)
+  }}})
+  const handler=createOperatorHttp({runtime,registration,preparation,origin,trustLoopbackProxy:true,trialReader:{listTrials:async()=>({items:[{id:'22222222-2222-4222-8222-222222222222',revision:0,companyName:'<img src=x onerror=alert(1)>',state:'queued',createdAt:'2026-10-26T10:00:00Z',expiresAt:null}],total:1,limit:20,offset:0})}})
   const server=http.createServer(async(req,res)=>{if(!await handler(req,res)){res.writeHead(404);res.end('{}')}})
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   let browser
@@ -48,6 +56,8 @@ async function main(){
     await page.locator('#code').fill(totpAtCounter(secret,1));await page.getByRole('button',{name:'Autentificare',exact:true}).click()
     await page.locator('#session').waitFor({state:'visible'})
     await page.locator('#companies td').first().waitFor()
+    const mainWidth=await page.locator('main').evaluate(element=>element.getBoundingClientRect().width)
+    assert.ok(mainWidth>=760&&mainWidth<=820,'desktop operator main uses the 50em responsive limit')
     assert.equal(await page.locator('#companies td').first().textContent(),'<img src=x onerror=alert(1)>')
     assert.equal(await page.locator('#companies img').count(),0)
     const cookie=(await context.cookies()).find(c=>c.name==='__Host-infraflow_operator')
@@ -67,13 +77,24 @@ async function main(){
     await page.getByRole('button',{name:'Reia explicit aceeași comandă'}).click()
     await page.waitForFunction(()=>document.getElementById('register-message').textContent.includes('Compania a fost înscrisă'))
     assert.equal(commands.length,2);assert.equal(ledger.size,1);assert.deepEqual(commands[0],commands[1])
+    await page.getByRole('button',{name:'Pregătește demo',exact:true}).click()
+    await page.locator('#preparation').waitFor({state:'visible'})
+    assert.equal(await page.locator('#prepare-company img').count(),0)
+    assert.equal(prepareCommands.length,0)
+    await page.locator('#prepare-confirm').check();await page.locator('#prepare-submit').click()
+    await page.waitForFunction(()=>document.getElementById('prepare-message').textContent.includes('Rezultat neconfirmat'))
+    assert.equal(jobs.size,1);assert.equal(prepareCommands.length,1)
+    const prepareId=await page.locator('#prepare-command').inputValue();assert.match(prepareId,/^prepare:/)
+    await page.getByRole('button',{name:'Reia explicit aceeași solicitare',exact:true}).click()
+    await page.waitForFunction(()=>document.getElementById('prepare-message').textContent.includes('Job înregistrat:'))
+    assert.equal(jobs.size,1);assert.equal(prepareCommands.length,2);assert.deepEqual(prepareCommands[0],prepareCommands[1])
     await page.getByRole('button',{name:'Ieșire din sesiune'}).click()
     await page.locator('#login').waitFor({state:'visible'})
     await page.reload();await page.locator('#login').waitFor({state:'visible'})
     await page.setViewportSize({width:390,height:844})
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth))
     assert.deepEqual(errors,[]);assert.equal(attempts,1);assert.ok(events.includes('session.logout'))
-    console.log('OPERATOR_UI_BROWSER_SMOKE_OK: login, reload, explicit registration retry with same command/no duplicate, logout, mobile; fixture only, no VPS/TLS validation')
+    console.log('OPERATOR_UI_BROWSER_SMOKE_OK: login, reload, explicit registration/prepare retry with same command/no duplicate, logout, mobile; fixture only, no VPS/TLS validation')
   }finally{runtime.shutdown();await browser?.close();await new Promise(r=>server.close(r))}
 }
 main().catch(()=>{console.error('OPERATOR_UI_BROWSER_SMOKE_FAILED');process.exitCode=1})

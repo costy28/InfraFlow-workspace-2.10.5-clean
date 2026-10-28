@@ -4,6 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const {runProbe}=require('./probe-demo-provision-reservations.cjs');
 const {createProvisionRequestClient}=require('../server/demo-platform/provision-request');
 const driver=require('../server/demo-platform/node_modules/mssql');
+const {spawnSync}=require('node:child_process');
 runProbe(async({database,execute,results})=>{
  const suffix=database.replace('INFRAFLOW_TEST_TRIALS_','');
  if(!/^[A-F0-9]{12}$/.test(suffix))throw Error('synthetic_target_required');
@@ -18,9 +19,21 @@ runProbe(async({database,execute,results})=>{
    (SELECT TOP(1) port FROM sys.dm_tcp_listener_states WHERE type_desc='TSQL' AND state_desc='ONLINE' ORDER BY port) port,
    SUSER_ID(N'${login}') existingLogin FOR JSON PATH,WITHOUT_ARRAY_WRAPPER,INCLUDE_NULL_VALUES;`));
   assert.equal(info.windowsOnly,0);assert.equal(info.existingLogin,null);assert.ok(Number.isInteger(info.port)&&info.port>0&&info.port<65536);
+  let generated;
+  if(process.env.INFRAFLOW_TEST_PYTHON){
+   const p=spawnSync(process.env.INFRAFLOW_TEST_PYTHON,['-B',path.join(__dirname,'demo-preparer-installer-sql-fixture.py')],{input:JSON.stringify({password}),encoding:'utf8',timeout:10000,maxBuffer:100000,windowsHide:true});
+   if(p.status!==0)throw Error('installer_fixture_generation_failed');generated=JSON.parse(p.stdout);
+   for(const key of ['preflight','creation','verification'])generated[key]=generated[key].replaceAll('INFRAFLOW_DEMO_PLATFORM',database).replaceAll('infraflow_demo_preparer',login);
+   assert.equal(await execute(database,generated.preflight),'PREPARER_LOGIN_PREFLIGHT_OK');
+   assert.equal(await execute(database,generated.creation),'PREPARER_SQL_SCOPE_APPLIED');created=true;
+   await assert.rejects(execute(database,generated.creation),e=>e.sqlNumber===53002);
+   results.push('preparer_installer_generated_atomic_creation_existing_identity_refused');
+  }else{
   await execute(database,`DECLARE @password nvarchar(128)=JSON_VALUE(@json,'$.password');
    DECLARE @sql nvarchar(max)=N'CREATE LOGIN [${login}] WITH PASSWORD='+QUOTENAME(@password,'''')+N',DEFAULT_DATABASE=[${database}],CHECK_POLICY=ON;';EXEC(@sql);SELECT 1;`,{password});created=true;
-  await execute(database,`CREATE USER [${login}] FOR LOGIN [${login}];ALTER ROLE db_datareader ADD MEMBER [${login}];SELECT 1;`);
+  await execute(database,`CREATE USER [${login}] FOR LOGIN [${login}];SELECT 1;`);
+  }
+  await execute(database,`ALTER ROLE db_datareader ADD MEMBER [${login}];SELECT 1;`);
   const original=fs.readFileSync(path.join(__dirname,'linux/restrict-demo-platform-preparer.sql'),'utf8');
   await assert.rejects(execute(database,original),e=>e.sqlNumber===52901);
   const scope=original.replace("N'INFRAFLOW_DEMO_PLATFORM'",`N'${database}'`).replaceAll('infraflow_demo_preparer',login);
@@ -32,6 +45,7 @@ runProbe(async({database,execute,results})=>{
   pool=new driver.ConnectionPool({server:'127.0.0.1',port:info.port,database,user:login,password,
    connectionTimeout:5000,requestTimeout:10000,pool:{max:1,min:0},options:{encrypt:true,trustServerCertificate:true}});
   pool.on('error',()=>{});await pool.connect();
+  if(generated){const proof=await pool.request().query(generated.verification);assert.equal(Object.values(proof.recordset[0])[0],'PREPARER_LOGIN_VERIFIED');results.push('preparer_installer_generated_native_metadata_verification');}
   const identity=(await pool.request().query(`SELECT DB_NAME() db,ORIGINAL_LOGIN() login,USER_NAME() principal,IS_SRVROLEMEMBER('sysadmin') sysadmin,
    HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','CONTROL') controlDb;`)).recordset[0];
   assert.deepEqual(identity,{db:database,login,principal:login,sysadmin:0,controlDb:0});
@@ -65,6 +79,7 @@ runProbe(async({database,execute,results})=>{
   assert.equal(await execute(database,`SELECT CONCAT(state,'|',revision,'|',CASE WHEN activated_at IS NULL AND expires_at IS NULL THEN 1 ELSE 0 END) FROM platform.trials WHERE trial_id='${trialId}';`),'queued|1|1');
   assert.equal(await execute(database,`SELECT CONCAT((SELECT COUNT(*) FROM platform.provision_jobs WHERE trial_id='${trialId}'),'|',(SELECT COUNT(*) FROM platform.resource_reservations WHERE trial_id='${trialId}'),'|',(SELECT COUNT(*) FROM platform.provision_request_audit WHERE trial_id='${trialId}' AND sql_actor='${login}'));`),'1|7|1');
   results.push('native_request_scope_revision_checked_idempotent_one_job_seven_reservations_audited_no_activation');
+  if(process.env.INFRAFLOW_TEST_PREPARER_HTTP==='1')results.push(...await require('../server/tests/support/demo-preparer-http-sql-probe').probePreparerHttpSql({database,execute,rpc,login}));
  }finally{
   if(client)await client.shutdown();
   if(pool){await pool.close();closed=true;}

@@ -8,10 +8,12 @@
   const registration=document.getElementById('registration'),registerForm=document.getElementById('register-form'),registerMessage=document.getElementById('register-message')
   const approval=document.getElementById('approval'),company=document.getElementById('company-name'),commandId=document.getElementById('command-id'),registerButton=document.getElementById('register-submit')
   let proposal=null,uncertain=false
+  const preparation=document.getElementById('preparation'),prepareForm=document.getElementById('prepare-form'),prepareMessage=document.getElementById('prepare-message'),prepareButton=document.getElementById('prepare-submit')
+  let canPrepare=false,prepareProposal=null,prepareUncertain=false
   const notice=(text,error=false)=>{message.textContent=text;message.dataset.error=String(error)}
   const lock=value=>{busy=value;for(const input of form.elements)input.disabled=value;logout.disabled=value}
-  const showLogin=()=>{generation++;form.hidden=false;panel.hidden=true;rows.replaceChildren();document.getElementById('expiry').textContent=''}
-  const showSession=session=>{generation++;form.hidden=true;panel.hidden=false;registration.hidden=session.canRegister!==true;document.getElementById('expiry').textContent='Expirare maximă: '+new Date(session.expiresAt).toLocaleString('ro-RO')+'. Sesiunea expiră și după 15 minute de inactivitate.';offset=0;loadList()}
+  const showLogin=()=>{generation++;canPrepare=false;form.hidden=false;panel.hidden=true;rows.replaceChildren();document.getElementById('expiry').textContent=''}
+  const showSession=session=>{generation++;canPrepare=session.canPrepare===true;form.hidden=true;panel.hidden=false;registration.hidden=session.canRegister!==true;preparation.hidden=!canPrepare||!prepareProposal;document.getElementById('expiry').textContent='Expirare maximă: '+new Date(session.expiresAt).toLocaleString('ro-RO')+'. Sesiunea expiră și după 15 minute de inactivitate.';offset=0;loadList()}
   async function loadList(){
     if(listBusy||panel.hidden)return
     const current=generation;listBusy=true;previous.disabled=true;next.disabled=true
@@ -26,6 +28,21 @@
       for(const item of data.items){
         const row=document.createElement('tr')
         for(const text of [item.companyName,labels[item.state]||item.state,date(item.createdAt),date(item.expiresAt)]){const cell=document.createElement('td');cell.textContent=text;row.append(cell)}
+        const action=document.createElement('td')
+        if(canPrepare&&item.state==='queued'&&item.revision===0&&typeof item.id==='string'){
+          const button=document.createElement('button');button.type='button';button.textContent='Pregătește demo'
+          button.addEventListener('click',()=>{
+            if(busy||prepareUncertain)return
+            prepareProposal={trialId:item.id,expectedRevision:item.revision,commandId:'prepare:'+crypto.randomUUID(),confirmed:true}
+            document.getElementById('prepare-trial').value=item.id;document.getElementById('prepare-revision').value=String(item.revision)
+            document.getElementById('prepare-command').value=prepareProposal.commandId
+            document.getElementById('prepare-company').textContent=item.companyName
+            document.getElementById('prepare-confirm').checked=false;prepareButton.textContent='Confirmă solicitarea jobului'
+            preparation.hidden=false;prepareMessage.textContent='Verifică firma și confirmă operația. Instanța nu va fi creată în această etapă.'
+            preparation.scrollIntoView({block:'nearest'})
+          });action.append(button)
+        }else action.textContent='—'
+        row.append(action)
         rows.append(row)
       }
       listMessage.textContent=data.total===0?'Nu există companii pentru filtrele alese.':`${data.total} companii. Pozițiile ${offset+1}–${offset+data.items.length}.`
@@ -90,7 +107,33 @@
       }
     }finally{registerButton.disabled=false;lock(false)}
   })
-  window.addEventListener('beforeunload',event=>{if(uncertain){event.preventDefault();event.returnValue=''}})
+  prepareForm.addEventListener('submit',async event=>{
+    event.preventDefault();if(busy||!prepareProposal||!prepareForm.reportValidity())return
+    const current=generation,command=prepareProposal;lock(true);prepareButton.disabled=true
+    prepareMessage.textContent='Se solicită numai jobul… Comandă: '+command.commandId
+    try{
+      const session=await call('/operator/session')
+      if(!session){showLogin();notice('Sesiunea nu mai este activă. Cererea nu a fost trimisă; autentifică-te pentru reluare.',true);return}
+      if(session.canPrepare!==true){prepareMessage.textContent='Permisiunea de pregătire nu mai este disponibilă. Cererea nu a fost trimisă.';return}
+      const result=await call('/operator/trials/prepare',command,session.csrfToken)
+      if(current!==generation)return
+      if(!result){prepareMessage.textContent='Acces refuzat. Verifică sesiunea și permisiunea; nu genera altă comandă.';return}
+      const r=result.receipt
+      if(!r||r.trialId!==command.trialId||r.executionAllowed!==false||r.jobState!=='queued'||r.trialRevision!==command.expectedRevision+1||typeof r.jobId!=='string')throw Error()
+      prepareUncertain=false;prepareProposal=null;prepareForm.reset();preparation.hidden=true
+      prepareMessage.textContent='Job înregistrat: '+r.jobId+'. Instanța nu este creată sau activată; perioada de 15 zile nu a început.'
+      loadList()
+    }catch(error){
+      if(current!==generation)return
+      if(error.code==='provision_request_invalid'){
+        prepareUncertain=false;prepareProposal=null;preparation.hidden=true;prepareMessage.textContent='Cerere invalidă. Selectează din nou compania după verificarea datelor.'
+      }else{
+        prepareUncertain=true;prepareButton.textContent='Reia explicit aceeași solicitare'
+        prepareMessage.textContent='Rezultat neconfirmat: jobul poate exista deja. Notează comanda '+command.commandId+' și UUID-ul '+command.trialId+'. Reluarea folosește aceleași date și nu este automată.'
+      }
+    }finally{prepareButton.disabled=false;lock(false)}
+  })
+  window.addEventListener('beforeunload',event=>{if(uncertain||prepareUncertain){event.preventDefault();event.returnValue=''}})
   logout.addEventListener('click',async()=>{
     if(busy)return;lock(true);notice('Se închide sesiunea…')
     try{

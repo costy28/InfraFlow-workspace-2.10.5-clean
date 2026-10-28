@@ -41,7 +41,7 @@
     </section>
     <section aria-labelledby="companies-title">
       <h2 id="companies-title">Companii demo</h2>
-      <p class="help">Registrul platformei, doar consultare. Nu este lista conturilor din demo-ul comun.</p>
+      <p class="help">Registrul platformei. Pregătirea creează numai un job și rezervările lui, nu o instanță demo.</p>
       <form id="filters">
         <label for="search">Nume companie</label><input id="search" maxlength="100" type="search">
         <label for="state">Stare</label><select id="state">
@@ -52,9 +52,21 @@
         </select><button type="submit">Aplică filtre</button>
       </form>
       <p id="list-message" role="status" aria-live="polite"></p>
-      <div class="table-wrap"><table><thead><tr><th>Companie</th><th>Stare</th><th>Creată</th><th>Expiră</th></tr></thead><tbody id="companies"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Companie</th><th>Stare</th><th>Creată</th><th>Expiră</th><th>Acțiune</th></tr></thead><tbody id="companies"></tbody></table></div>
       <div class="pagination"><button id="previous" type="button">Înapoi</button><button id="next" type="button">Înainte</button></div>
     </section>
+    <section id="preparation" hidden aria-labelledby="prepare-title">
+      <h2 id="prepare-title">Pregătește demo — solicitare job</h2>
+      <p id="prepare-company"></p>
+      <form id="prepare-form">
+        <label for="prepare-trial">UUID companie</label><input id="prepare-trial" readonly required>
+        <label for="prepare-revision">Revizie așteptată</label><input id="prepare-revision" readonly required>
+        <label for="prepare-command">Identificator comandă</label><input id="prepare-command" readonly required>
+        <label class="confirm"><input id="prepare-confirm" type="checkbox" required> Confirm crearea numai a jobului și rezervărilor. Nu se creează baza de date, nu pornește instanța și nu începe perioada de 15 zile.</label>
+        <button id="prepare-submit" type="submit">Confirmă solicitarea jobului</button>
+      </form>
+    </section>
+    <p id="prepare-message" role="status" aria-live="polite"></p>
     <button id="logout" type="button">Ieșire din sesiune</button>
   </section>
   <p class="help">Acces restricționat. Nu introduce și nu transmite credentialele în capturi sau mesaje.</p>

@@ -68,6 +68,30 @@ runProbe(async({database,execute,receipt,results})=>{
   assert.equal((await client.execute('release',{...verify,expectedJobRevision:2})).leaseExpiresAt,null);
   assert.equal(await execute(database,"SELECT CONCAT(state,'|',execution_ready,'|',job_revision) FROM platform.provision_jobs;"),'queued|0|3');
   results.push('native_rpc_adapter_claim_replay_verify_renew_release_execution_closed');
+  if(process.env.INFRAFLOW_TEST_WORKER_CYCLE==='1'){
+   const {createProvisionWorkerCycle}=require('../server/demo-platform/provision-worker-cycle');
+   const worker=createProvisionWorkerCycle({lease:client});
+   try{
+    const checked=await worker.run({jobId:receipt.jobId,expectedJobRevision:3});
+    assert.equal(checked.status,'checked_and_released');assert.equal(checked.generation,2);assert.equal(checked.jobRevision,6);assert.equal(checked.executionAllowed,false);
+   }finally{await worker.shutdown();}
+   results.push('worker_native_bounded_cycle_no_effects');
+   let abandoned;
+   const interrupted=createProvisionWorkerCycle({lease:{execute:async(op,c)=>{
+    const value=await client.execute(op,c);
+    if(op==='claim'){abandoned={...c,generation:value.generation};throw Error('fixture_lost_claim_receipt_after_commit');}
+    return value;
+   }}});
+   try{await assert.rejects(interrupted.run({jobId:receipt.jobId,expectedJobRevision:6}),e=>e.stage==='claim'&&e.leaseMayRemain===true);}finally{await interrupted.shutdown();}
+   assert.equal(await execute(database,"SELECT CONCAT(state,'|',generation,'|',job_revision,'|',execution_ready) FROM platform.provision_jobs;"),'leased|3|7|0');
+   // Fixture-admin clock simulation only; never a production lease bypass.
+   await execute(database,"UPDATE platform.provision_jobs SET lease_expires_at=DATEADD(second,-1,SYSUTCDATETIME());SELECT 1;");
+   const recovered=createProvisionWorkerCycle({lease:client});
+   try{const checked=await recovered.run({jobId:receipt.jobId,expectedJobRevision:7});assert.equal(checked.generation,4);assert.equal(checked.jobRevision,10);}finally{await recovered.shutdown();}
+   await assert.rejects(client.execute('verify',{jobId:receipt.jobId,generation:abandoned.generation,leaseToken:abandoned.leaseToken}));
+   assert.equal(await execute(database,"SELECT CONCAT(j.state COLLATE Latin1_General_100_BIN2,'|',j.generation,'|',j.job_revision,'|',j.execution_ready,'|',t.state COLLATE Latin1_General_100_BIN2,'|',CASE WHEN t.activated_at IS NULL AND t.expires_at IS NULL THEN 1 ELSE 0 END) FROM platform.provision_jobs j JOIN platform.trials t ON t.trial_id=j.trial_id;"),'queued|4|10|0|queued|1');
+   results.push('worker_native_lost_claim_receipt_no_retry_expiry_recovery_new_generation');
+  }
  }finally{
   if(client)await client.shutdown();
   if(pool){await pool.close();closed=true;}
