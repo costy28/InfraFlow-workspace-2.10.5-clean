@@ -1,0 +1,41 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+const {runProbe}=require('./probe-demo-provision-reservations.cjs');
+const {prepareOperatorScopeChange}=require('../server/demo-platform/operator-prepare-change');
+const {encryptTotpSecret,decryptTotpSecret}=require('../server/demo-platform/operator-store');
+runProbe(async({database,execute,results})=>{
+ for(const file of ['007_provision_leases.sql','008_operator_prepare_audit.sql','009_operator_prepare_change.sql']){
+  const source=fs.readFileSync(path.join(__dirname,'../db/demo-platform-migrations',file),'utf8');
+  if(file.startsWith('009'))await assert.rejects(execute(database,source),e=>e.sqlNumber===52701);
+  const copy=source.replace("N'INFRAFLOW_DEMO_PLATFORM'",`N'${database}'`);await execute(database,copy);
+  if(file.startsWith('009'))assert.equal(await execute(database,copy),'OPERATOR_PREPARE_CHANGE_ALREADY_APPLIED');
+ }
+ const id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',key=crypto.randomBytes(32),secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+ const envelope=encryptTotpSecret(secret,{key,id,revision:1});
+ await execute(database,`UPDATE operator_security.accounts SET scopes_json=N'["trial:read","trial:queue","session:own"]',totp_envelope=JSON_VALUE(@json,'$.envelope'),last_totp_counter=7,attempt_count=2;SELECT 1;`,{envelope});
+ const record={id,revision:1,enabled:true,envelope,scopesJson:'["trial:read","trial:queue","session:own"]'};
+ const plan=prepareOperatorScopeChange({record,key});
+ const call=input=>execute(database,'EXEC operator_security.grant_prepare_scope @json;',input);
+ await execute(database,"GRANT EXECUTE ON OBJECT::operator_security.grant_prepare_scope TO prepare_probe;SELECT 1;");
+ await assert.rejects(execute(database,"EXECUTE AS USER='prepare_probe';BEGIN TRY EXEC operator_security.grant_prepare_scope @json;REVERT;END TRY BEGIN CATCH REVERT;THROW;END CATCH;",plan),e=>e.sqlNumber===52711);
+ await assert.rejects(call({...plan,scopesJson:'["trial:read","trial:prepare"]'}),e=>e.sqlNumber===52710);
+ await assert.rejects(call({...plan,expectedScopesJson:'["trial:read"]',scopesJson:'["trial:read","trial:prepare"]'}),e=>e.sqlNumber===52712);
+ await execute(database,"EXEC(N'CREATE TRIGGER operator_security.fail_scope_audit ON operator_security.scope_changes AFTER INSERT AS BEGIN THROW 52799,''fixture_failure'',1;END;');SELECT 1;");
+ await assert.rejects(call(plan),e=>e.sqlNumber===52799);
+ assert.equal(await execute(database,"SELECT revision FROM operator_security.accounts;"),'1');
+ assert.equal(await execute(database,"SELECT COUNT(*) FROM operator_security.scope_changes;"),'0');
+ await execute(database,"DROP TRIGGER operator_security.fail_scope_audit;SELECT 1;");
+ const competitor=prepareOperatorScopeChange({record,key});
+ const race=await Promise.allSettled([call(plan),call(competitor)]);
+ assert.equal(race.filter(r=>r.status==='fulfilled').length,1);assert.equal(race.find(r=>r.status==='rejected').reason.sqlNumber,52712);
+ const winner=race[0].status==='fulfilled'?plan:competitor;
+ assert.equal(await call(winner),'OPERATOR_PREPARE_SCOPE_APPLIED');
+ await assert.rejects(call({...winner,changeId:crypto.randomUUID()}),e=>e.sqlNumber===52712);
+ const after=JSON.parse(await execute(database,"SELECT revision,totp_envelope envelope,JSON_QUERY(scopes_json) scopes,password_hash passwordHash,last_totp_counter counter,attempt_count attempts FROM operator_security.accounts FOR JSON PATH,WITHOUT_ARRAY_WRAPPER;"));
+ assert.equal(after.revision,2);assert.equal(after.passwordHash,'fixture-not-a-login-hash');assert.equal(after.counter,7);assert.equal(after.attempts,2);
+ assert.deepEqual(after.scopes,['trial:read','trial:queue','session:own','trial:prepare']);
+ assert.equal(decryptTotpSecret(after.envelope,{key,id,revision:2}),secret);
+ assert.throws(()=>decryptTotpSecret(after.envelope,{key,id,revision:1}));key.fill(0);
+ assert.equal(await execute(database,"SELECT COUNT(*) FROM operator_security.scope_changes;"),'1');
+ results.push('scope_change_admin_only_cas_race_idempotence_atomic_audit_rollback_totp_preserved');
+}).catch(()=>{console.error('scope_change_probe_preflight_failed');process.exitCode=1;});
