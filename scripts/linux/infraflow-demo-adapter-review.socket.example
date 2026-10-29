@@ -1,0 +1,16 @@
+# Review-only template. Not installed; requires separate OS/SQL/credential acceptance.
+[Unit]
+Description=InfraFlow private adapter review socket
+ConditionPathExists=/etc/infraflow-demo-platform/adapter-channel.enabled
+
+[Socket]
+ListenStream=/run/infraflow-demo-adapter-review.sock
+SocketUser=root
+SocketGroup=infraflow-demo-worker
+SocketMode=0660
+Accept=no
+Backlog=1
+Service=infraflow-demo-adapter-review.service
+
+[Install]
+WantedBy=sockets.target

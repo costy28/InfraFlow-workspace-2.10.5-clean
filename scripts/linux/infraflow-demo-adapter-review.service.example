@@ -1,0 +1,36 @@
+# Review-only template. No ExecStartPre mutation, migrations, tenant effects or restart loop.
+[Unit]
+Description=InfraFlow private adapter review receiver
+Requires=infraflow-demo-adapter-review.socket
+After=infraflow-demo-adapter-review.socket
+ConditionPathExists=/etc/infraflow-demo-platform/adapter-channel.enabled
+
+[Service]
+Type=simple
+User=infraflow-demo-adapter-review
+Group=infraflow-demo-adapter-review
+ExecStart=/usr/bin/python3 -B /opt/infraflow-demo-platform/releases/adapter-channel-v1/adapter-review-socket.py --serve-review-only
+WorkingDirectory=/opt/infraflow-demo-platform/releases/adapter-channel-v1
+Sockets=infraflow-demo-adapter-review.socket
+LoadCredential=adapter-sql-password:/etc/infraflow-demo-platform/adapter-review.password
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+MemoryMax=128M
+TasksMax=32
+CPUQuota=25%
+KillMode=control-group
+TimeoutStopSec=15s
+Restart=no
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
