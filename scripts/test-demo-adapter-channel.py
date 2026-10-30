@@ -26,6 +26,11 @@ class Connection:
         self.sent = json.loads(value)
 
 class ChannelTests(unittest.TestCase):
+    def test_review_probe_receipt_has_no_effect_authority(self):
+        receipt={**RECEIPT,'step':'channel_review_probe'}
+        self.assertEqual(channel.validate_receipt(json.dumps(receipt).encode(),INTENT),receipt)
+        with self.assertRaises(ValueError):channel.validate_receipt(json.dumps({**receipt,'executionAllowed':True}).encode(),INTENT)
+
     def test_systemd_templates_fixed_channel_no_automatic_restart(self):
         root=Path(__file__).parent/'linux'
         sock=configparser.ConfigParser(interpolation=None)

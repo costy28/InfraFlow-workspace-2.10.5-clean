@@ -66,7 +66,7 @@ def validate_receipt(raw, intent):
     if any(type(r[k]) is not int or not 1 <= r[k] < 2147483647 for k in ('generation','jobRevision')):
         raise ValueError()
     if r['operation'] != 'consume' or r['executionAllowed'] is not False or r['step'] not in (
-            'os_identity','tenant_directories','tenant_key','sql_database','sql_login','schema_bootstrap','runtime_unit'):
+            'os_identity','tenant_directories','tenant_key','sql_database','sql_login','schema_bootstrap','runtime_unit','channel_review_probe'):
         raise ValueError()
     return r
 

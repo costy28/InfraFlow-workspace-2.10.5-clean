@@ -30,3 +30,11 @@ completă Linux-systemd-Node-SQL, încă de montat după acceptarea schemei.
 Nu schimba parola SA/lease și nu modifica serviciile pentru această aplicare.
 Backupul verificat se păstrează; restaurarea nu este automată și ar necesita
 decizie separată, deoarece poate elimina modificări ulterioare ale platformei.
+
+## Confirmare VPS primită
+
+Backup verificat: /var/opt/mssql/data/INFRAFLOW_DEMO_PLATFORM_pre010012_71B1620A662F4EAEAB237CB1377A439A.bak.
+Utilizatorul a confirmat aplicarea 010, 011 și 012, apoi verificarea: toate trei
+migrările prezente, 0 intenții, 0 bilete, job queued/revizie 3/generație 1/gate 0,
+fără lease; compania queued/revizie 1/neactivată. Nu s-au acordat drepturi și nu
+s-au repornit servicii prin aplicarea acestor migrări.

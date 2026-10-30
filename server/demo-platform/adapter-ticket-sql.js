@@ -50,4 +50,4 @@ function createAdapterTicketSql({role,password,driver}={}){
   shutdown(){if(!stopping){closed=true;stopping=(async()=>{await Promise.allSettled(pending?[pending]:[]);try{await pool.close();}catch{throw fail();}})();}return stopping;},
  });
 }
-module.exports={createAdapterTicketSql,validateTicketIdentity};
+module.exports={createAdapterTicketSql,validateTicketIdentity,ticketIdentityQuery:IDENTITY};

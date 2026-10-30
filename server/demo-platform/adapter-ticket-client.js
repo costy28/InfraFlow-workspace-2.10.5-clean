@@ -31,7 +31,7 @@ function createAdapterTicketClient({role,execute}={}){
     if(!r||Object.getPrototypeOf(r)!==Object.prototype||Object.keys(r).sort().join(',')!=='executionAllowed,generation,intentId,jobId,jobRevision,operation,step'||
      r.executionAllowed!==false||r.operation!==operation||r.intentId!==command.intentId||typeof r.jobId!=='string'||!UUID.test(r.jobId)||
      !Number.isInteger(r.generation)||r.generation<1||r.generation>=2147483647||!Number.isInteger(r.jobRevision)||r.jobRevision<1||r.jobRevision>=2147483647||
-     !['os_identity','tenant_directories','tenant_key','sql_database','sql_login','schema_bootstrap','runtime_unit'].includes(r.step)||
+     !['os_identity','tenant_directories','tenant_key','sql_database','sql_login','schema_bootstrap','runtime_unit','channel_review_probe'].includes(r.step)||
      (role==='issuer'&&(r.jobId!==command.jobId||r.generation!==command.generation||r.jobRevision!==command.expectedJobRevision)))throw fail();
     return Object.freeze(r);
    }catch{throw fail();}});
