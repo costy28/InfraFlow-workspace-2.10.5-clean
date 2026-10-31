@@ -28,8 +28,9 @@ def command(role):
 
 class SqlPipe:
     def __init__(self,role):
+        if role not in PROFILES:raise RuntimeError('pilot_sql_role_refused')
         if os.name!='posix' or os.geteuid()!=0:raise RuntimeError('root_posix_required')
-        self.role=role;self.sequence=0;self.broken=False;self.closed=False;self.invocation=None
+        self.role=role;self.sequence=0;self.broken=False;self.closed=False;self.invocation=None;self.rejected=False
         r=subprocess.run(['/usr/bin/systemctl','show',PROFILES[role][0],'--no-pager','-p','LoadState'],capture_output=True,text=True,timeout=5)
         if r.stdout.strip()!='LoadState=not-found':raise RuntimeError('pilot_sql_unit_exists')
         self.child=subprocess.Popen(command(role),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
@@ -63,6 +64,9 @@ class SqlPipe:
             line,extra=buffer.split(b'\n',1)
             if extra:raise RuntimeError()
             result=json.loads(line.decode('utf8'))
+            if type(result) is dict and set(result)=={'id','ok','code'} and type(result['id']) is int and result['id']==self.sequence and result['ok'] is False and result['code']=='pilot_sql_broker_unconfirmed':
+                self.rejected=True
+                raise RuntimeError()
             if type(result) is not dict or set(result)!={'id','ok','value'} or type(result['id']) is not int or result['id']!=self.sequence or result['ok'] is not True:raise RuntimeError()
             if action=='init':
                 value=result['value']

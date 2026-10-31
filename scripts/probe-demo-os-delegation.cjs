@@ -40,6 +40,7 @@ function runOsDelegationProbe(extension={}){return runProbe(async({database,exec
  await assert.rejects(call('prepare_os_identity_delegation',command),e=>e.sqlNumber===53911);
  assert.equal(await execute(database,'SELECT CONCAT(state,\'|\',job_revision,\'|\',generation,\'|\',execution_ready) FROM platform.provision_jobs;'),'queued|2|1|0');
  results.push('released_lease_refuses_delegation_replay_execution_gate_unchanged');
+ if(extension.afterReleased)await extension.afterReleased({database,execute,results,command});
 });}
 if(require.main===module)runOsDelegationProbe().catch(()=>{console.error('OS_DELEGATION_PROBE_FAILED');process.exitCode=1;});
 module.exports={runOsDelegationProbe};

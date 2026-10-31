@@ -1,0 +1,9 @@
+{
+  "os-pilot-sql-broker.js": "7be1329a031d64c8c20e615a6e60a29037c9644aa465fc4b2c33354b5ae575a2",
+  "worker-os-control-sql.js": "555f41177147be56c5f2b8ef4096fff9ed539a66636f7f023fc28f77fa4b90e2",
+  "provision-lease-client.js": "f0e5d729fc2362569eb1ce7bb162097d87f581cfd0ee8f3c28c0571f74c1cfcc",
+  "provision-lease-command.js": "2851cde0a3f10bfd1d76ef3c2ce12f94e9588beb9432870413dac01641278acb",
+  "os-delegation-rpc-client.js": "da667b9c8c026e42e5821ec739e1e8fc67af2a9ecef3714617f5fb9f5c8adeb4",
+  "worker-os-delegation-sql-check.js": "00ac5ff34e6fc97f4b96fdab8e443f0d67845218845cead78af47a7bbe99537b",
+  "os-executor-context-sql-check.js": "62b89891e510857b0fe4af3bd068c3c2c774dd3fa52706a6d86b82ec853e093f"
+}

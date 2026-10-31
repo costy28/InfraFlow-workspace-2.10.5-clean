@@ -3,6 +3,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict');
 const {runOsDelegationProbe}=require('./probe-demo-os-delegation.cjs');
 function runOsAcceptanceProbe(extension={}){return runOsDelegationProbe({
  claimed:extension.claimed,
+ afterReleased:extension.afterReleased,
  async setup({database,execute}){
   const source=fs.readFileSync('db/demo-platform-migrations/015_os_identity_acceptance.sql','utf8').replace("N'INFRAFLOW_DEMO_PLATFORM'",`N'${database}'`);
   assert.equal(await execute(database,source),'OS_IDENTITY_ACCEPTANCE_APPLIED');
