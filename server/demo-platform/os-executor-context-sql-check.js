@@ -32,4 +32,4 @@ function createOsExecutorSqlCheck(password,driver){
   pending=task;task.then(()=>{pending=undefined;},()=>{pending=undefined;});return task;
  },shutdown(){if(!stopping){closed=true;stopping=(async()=>{await Promise.allSettled(pending?[pending]:[]);try{await pool.close();}catch{throw fail();}})();}return stopping;}});
 }
-module.exports={createOsExecutorSqlCheck,validate};
+module.exports={createOsExecutorSqlCheck,validate,osExecutorIdentityQuery:QUERY};
