@@ -38,4 +38,6 @@ O eroare între migrări lasă operațiile deja confirmate în bază. Nu relua b
 
 Pregătirea a trecut proba nativă în baza temporară INFRAFLOW_TEST_TRIALS_34AEA5E43572: lease nou, dovadă OS anterioară, JSON/rol/token/căi, rollback la audit, replay și refuz după release; cleanup confirmat. Nu s-au creat resurse OS sau loginuri SQL de server.
 
-Probe pentru context/rezultate în curs de validare la redactarea inițială; rezultatele finale se adaugă numai după încheiere și cleanup. Aceste probe folosesc date sintetice, nu trialul VPS.
+Validare finală repetată la 1 noiembrie 2026: `scripts/probe-demo-directory-context-results.cjs --temporary-db-confirmed`, baza `INFRAFLOW_TEST_TRIALS_E9C46E8AF8A1`, 12 grupuri de verificări, `passed:true`, `cleanup:true`. Include context/rol/token/manifest/termen, rezultat uncertain după termen într-o tranzacție de test anulată explicit, refuzul spațiilor în device/inode, valori uint64 exacte, opt observații, rollback atomic la eșecul auditului și refuz după rezultat terminal. Nu s-au creat conturi OS sau loginuri SQL de server.
+
+Toate cele 197 de teste Node `demo-platform-*.test.js` au trecut. Auditul file-exposure a verificat 644 de fișiere, cu zero constatări. Versiunea ERP verificată: 2.12.736. Aceste probe folosesc date sintetice, nu trialul VPS; aplicarea și verificarea pe VPS rămân separate.
